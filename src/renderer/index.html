@@ -185,6 +185,15 @@
             </div>
 
             <div class="setting-group">
+              <label class="setting-label">Default Browser</label>
+              <p class="setting-info muted" style="margin-bottom:8px">Make Vex the default browser so links from Discord, emails, and other apps open here.</p>
+              <div style="display:flex;align-items:center;gap:10px">
+                <button id="btn-set-default-browser" style="padding:8px 16px;background:var(--primary);color:white;border:none;border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Set as Default Browser</button>
+                <span id="default-browser-status" style="font-size:11px;color:var(--text-muted)"></span>
+              </div>
+            </div>
+
+            <div class="setting-group">
               <label class="setting-label">Appearance</label>
               <div class="setting-row-label">Theme Accent Color</div>
               <div id="setting-accent-colors" style="display:flex;gap:8px;margin-bottom:14px">

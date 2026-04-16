@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net } = require('electron');
+const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -11,6 +11,46 @@ try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
 
 let mainWindow = null;
 let adBlockerEnabled = true;
+let pendingOpenUrl = null;
+
+// === Single-instance lock (so external links route to existing Vex window) ===
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine) => {
+    const url = commandLine.find(a => a.startsWith('http://') || a.startsWith('https://'));
+    if (url && mainWindow) {
+      mainWindow.webContents.send('open-url', url);
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
+// === Register Vex as HTTP/HTTPS protocol handler ===
+if (process.defaultApp) {
+  // Dev mode
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('http', process.execPath, [path.resolve(process.argv[1])]);
+    app.setAsDefaultProtocolClient('https', process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('http');
+  app.setAsDefaultProtocolClient('https');
+}
+
+// macOS open-url event
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  if (mainWindow) {
+    mainWindow.webContents.send('open-url', url);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  } else {
+    pendingOpenUrl = url;
+  }
+});
 
 // Storage helpers
 const userDataPath = app.getPath('userData');
@@ -223,6 +263,15 @@ app.whenReady().then(() => {
   createWindow();
   setupAutoUpdater();
 
+  // === Handle URL launched from external app (Discord, email, etc.) ===
+  const launchUrl = pendingOpenUrl || process.argv.find(a => a.startsWith('http://') || a.startsWith('https://'));
+  if (launchUrl && mainWindow) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      mainWindow.webContents.send('open-url', launchUrl);
+    });
+    pendingOpenUrl = null;
+  }
+
   // Register global shortcuts
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.control && input.key === 'k') {
@@ -431,6 +480,27 @@ ipcMain.handle('download-update', async () => {
 });
 ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
 ipcMain.handle('get-app-version', () => app.getVersion());
+
+// Set as default browser — opens Windows Default Apps settings
+ipcMain.handle('set-as-default-browser', async () => {
+  try {
+    if (process.platform === 'win32') {
+      shell.openExternal('ms-settings:defaultapps');
+    } else {
+      shell.openExternal('https://support.apple.com/guide/mac-help/change-your-default-web-browser-mh35856/mac');
+    }
+    return true;
+  } catch (e) {
+    console.error('set-as-default-browser error:', e);
+    return false;
+  }
+});
+
+ipcMain.handle('is-default-browser', () => {
+  try {
+    return app.isDefaultProtocolClient('http');
+  } catch { return false; }
+});
 
 ipcMain.handle('adblocker-get-state', () => adBlockerEnabled);
 ipcMain.handle('adblocker-set-state', (event, enabled) => {

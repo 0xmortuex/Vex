@@ -415,6 +415,31 @@
     e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/issues', true); SidebarManager.hideActivePanel();
   });
 
+  // === Default browser: handle incoming URLs from external apps ===
+  window.vex.onOpenUrl?.((url) => {
+    TabManager.createTab(url, true);
+    window.showToast?.('Opened link: ' + url.substring(0, 50));
+  });
+
+  // Set as default browser button (in settings)
+  document.getElementById('btn-set-default-browser')?.addEventListener('click', async () => {
+    const ok = await window.vex.setAsDefaultBrowser?.();
+    if (ok) {
+      window.showToast?.('Opening Windows Default Apps settings...', 'info');
+    } else {
+      window.showToast?.('Could not open settings — try Windows Settings manually', 'warn');
+    }
+  });
+
+  // Check and display current default browser status
+  window.vex.isDefaultBrowser?.().then(isDefault => {
+    const el = document.getElementById('default-browser-status');
+    if (el) {
+      el.textContent = isDefault ? 'Vex is your default browser' : 'Vex is not the default browser';
+      el.style.color = isDefault ? '#22c55e' : 'var(--text-muted)';
+    }
+  });
+
   // === Phase 11: UX polish ===
   // Copy URL button
   document.getElementById('btn-copy-url')?.addEventListener('click', () => {

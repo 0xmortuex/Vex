@@ -82,6 +82,11 @@ contextBridge.exposeInMainWorld('vex', {
   onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_, i) => cb(i)),
   onUpdateError: (cb) => ipcRenderer.on('update-error', (_, e) => cb(e)),
 
+  // Default browser
+  onOpenUrl: (cb) => ipcRenderer.on('open-url', (_, url) => cb(url)),
+  setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
+  isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
+
   // Platform + versions
   platform: process.platform,
   electronVersion: process.versions.electron,
