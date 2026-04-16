@@ -1,6 +1,6 @@
 {
   "name": "vex",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Vex — a browser built just for you",
   "author": {
     "name": "0xmortuex",
@@ -33,6 +33,7 @@
     "files": [
       "src/**/*",
       "assets/icon.svg",
+      "assets/icon.ico",
       "package.json"
     ],
     "win": {
@@ -44,6 +45,7 @@
           ]
         }
       ],
+      "icon": "assets/icon.ico",
       "artifactName": "Vex-Setup-${version}.${ext}",
       "publisherName": "0xmortuex"
     },
@@ -54,6 +56,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Vex",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true
     },
