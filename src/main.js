@@ -381,7 +381,11 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('reopen-last-closed');
       event.preventDefault();
     }
-    if (input.control && input.key === 'h') {
+    if (input.control && input.shift && input.key === 'H') {
+      // Ctrl+Shift+H — open history panel with AI search auto-selected
+      mainWindow.webContents.send('toggle-history-ai');
+      event.preventDefault();
+    } else if (input.control && input.key === 'h') {
       mainWindow.webContents.send('toggle-history');
       event.preventDefault();
     }

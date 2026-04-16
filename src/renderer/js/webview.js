@@ -51,6 +51,19 @@ const WebviewManager = {
           webview.insertCSS('html{filter:invert(1) hue-rotate(180deg);background:#0a0c10!important}img,video,iframe,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}');
         }
       } catch {}
+
+      // Phase 12: Queue most-recent history entry for AI indexing
+      // (wait 2s so dynamic content settles; the top entry in HistoryPanel.entries
+      // is the most recent and typically corresponds to the page that just loaded)
+      setTimeout(() => {
+        try {
+          if (!window.HistoryIndexer || !window.HistoryPanel) return;
+          const url = webview.getURL && webview.getURL();
+          if (!url) return;
+          const entry = HistoryPanel.entries.find(e => e.url === url && !e.indexed);
+          if (entry) HistoryIndexer.queueForIndexing(entry, webview);
+        } catch (e) { /* best-effort */ }
+      }, 2000);
     });
 
     webview.addEventListener('page-title-updated', (e) => {

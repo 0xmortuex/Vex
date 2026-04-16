@@ -294,13 +294,31 @@
               </div>
             </div>
 
+            <!-- Phase 12: AI History Indexing -->
+            <div class="setting-group">
+              <label class="setting-label">AI History Indexing</label>
+              <p class="setting-info muted" style="margin-bottom:10px">Generate short summaries for pages you visit so you can find them later by meaning, not just URL. Page content is sent to the Vex AI worker once per page; only the summary is stored. <strong>Everything stays local after that.</strong></p>
+              <div class="setting-toggle-row">
+                <span>Enable AI history indexing</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-ai-indexing-enabled" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                <button id="btn-reindex-open" style="padding:8px 16px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Re-index Open Tabs</button>
+                <button id="btn-clear-summaries" style="padding:8px 16px;background:var(--danger);color:white;border:none;border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Clear AI Summaries</button>
+              </div>
+              <div id="indexing-stats" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading stats...</div>
+            </div>
+
             <div class="setting-group">
               <label class="setting-label">About</label>
               <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
                 <svg width="56" height="56" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <div>
                   <div style="font-size:28px;font-weight:700;color:var(--text);line-height:1">Vex</div>
-                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.2.0</div>
+                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.3.0</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:4px">A browser built just for you</div>
                 </div>
               </div>
@@ -501,6 +519,7 @@
   <script src="js/notes-panel.js"></script>
   <script src="js/downloads-panel.js"></script>
   <script src="js/history-panel.js"></script>
+  <script src="js/history-indexer.js"></script>
   <script src="js/memory-panel.js"></script>
   <script src="js/restore-prompt.js"></script>
   <script src="js/shortcuts-panel.js"></script>

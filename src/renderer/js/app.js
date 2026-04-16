@@ -327,6 +327,42 @@
     }
   });
 
+  // === Phase 12: AI History Indexing settings ===
+  const aiIndexToggle = document.getElementById('setting-ai-indexing-enabled');
+  if (aiIndexToggle) {
+    aiIndexToggle.checked = HistoryIndexer?.isEnabled?.() !== false;
+    aiIndexToggle.addEventListener('change', () => {
+      HistoryIndexer?.setEnabled?.(aiIndexToggle.checked);
+      showToast(aiIndexToggle.checked ? 'AI history indexing enabled' : 'AI history indexing disabled');
+    });
+  }
+  document.getElementById('btn-reindex-open')?.addEventListener('click', () => {
+    const n = HistoryIndexer?.reindexOpenTabs?.() || 0;
+    showToast(n > 0 ? `Re-indexing ${n} tab${n === 1 ? '' : 's'}…` : 'No unindexed open tabs');
+    setTimeout(updateIndexingStats, 500);
+  });
+  document.getElementById('btn-clear-summaries')?.addEventListener('click', () => {
+    if (!confirm('Remove all AI summaries from history? Your browsing history itself stays; only the AI-generated descriptions are deleted.')) return;
+    if (window.HistoryPanel && Array.isArray(HistoryPanel.entries)) {
+      HistoryPanel.entries.forEach(e => {
+        delete e.summary; delete e.tags; delete e.contentType;
+        delete e.indexed; delete e.indexedAt;
+      });
+      HistoryPanel.save();
+    }
+    showToast('AI summaries cleared');
+    updateIndexingStats();
+  });
+  function updateIndexingStats() {
+    const el = document.getElementById('indexing-stats');
+    if (!el) return;
+    const s = HistoryIndexer?.getStats?.() || { total: 0, indexed: 0, queued: 0 };
+    const pct = s.total > 0 ? Math.round(s.indexed / s.total * 100) : 0;
+    el.textContent = `📊 ${s.indexed} of ${s.total} indexed (${pct}%)${s.queued ? ` · ${s.queued} queued` : ''}`;
+  }
+  updateIndexingStats();
+  setInterval(updateIndexingStats, 5000);
+
   // === Startup behavior setting ===
   const restoreSelect = document.getElementById('setting-restore-startup');
   if (restoreSelect) {
@@ -378,6 +414,7 @@
   // === Phase 4 IPC events ===
   window.vex.onReopenLastClosed?.(() => TabManager.reopenLastClosed());
   window.vex.onToggleHistory?.(() => SidebarManager.togglePanel('history'));
+  window.vex.onToggleHistoryAi?.(() => HistoryPanel.openInAIMode?.());
   window.vex.onToggleMemory?.(() => SidebarManager.togglePanel('memory'));
   window.vex.onSleepCurrentTab?.(() => {
     const tab = TabManager.getActiveTab();

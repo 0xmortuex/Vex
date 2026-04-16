@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Phase 4: History, Memory, Sleep, Restore
   onReopenLastClosed: (callback) => ipcRenderer.on('reopen-last-closed', callback),
   onToggleHistory: (callback) => ipcRenderer.on('toggle-history', callback),
+  onToggleHistoryAi: (callback) => ipcRenderer.on('toggle-history-ai', callback),
   onToggleMemory: (callback) => ipcRenderer.on('toggle-memory', callback),
   onSleepCurrentTab: (callback) => ipcRenderer.on('sleep-current-tab', callback),
   onSaveSessionBeforeQuit: (callback) => ipcRenderer.on('save-session-before-quit', callback),

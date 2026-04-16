@@ -216,6 +216,13 @@ const AIPanel = {
     input.value = '';
     if (!this.isOpen()) this.open();
 
+    // Phase 12: Detect "find in history" intent before anything else
+    const historyIntent = /\b(find|remember|recall|where( did I)? (see|read|visit)|that (page|article|video|tab|site|thread|post) (about|on|I)|last (week|month|yesterday)|earlier today|few days ago)\b/i;
+    if (historyIntent.test(msg)) {
+      await this._handleHistorySearch(msg);
+      return;
+    }
+
     // Auto-detect multi-tab intent
     const multiTrigger = /\b(all my tabs|these tabs|across (my |the )?tabs|compare (these|my|all) tabs|every tab|every open tab)\b/i;
     if (multiTrigger.test(msg) && typeof TabSelector !== 'undefined' && TabSelector.getCurrentMode() === 'current') {
@@ -438,6 +445,98 @@ const AIPanel = {
       } catch {}
     });
     return btn;
+  },
+
+  // Phase 12: History search triggered from the AI panel
+  async _handleHistorySearch(query) {
+    const conv = this._getConv();
+    conv.push({ role: 'user', content: query });
+    this._renderMessages();
+
+    const loadingEl = this._addLoading();
+    if (loadingEl) loadingEl.innerHTML = 'Searching your history <span class="ai-spinner"></span>';
+
+    try {
+      const all = (window.HistoryPanel && Array.isArray(HistoryPanel.entries)) ? HistoryPanel.entries : [];
+      const compact = all.slice(0, 200).map(e => ({
+        id: e.id, url: e.url, title: e.title,
+        summary: e.summary || '', tags: e.tags || [],
+        contentType: e.contentType || '', visitedAt: e.visitedAt
+      }));
+
+      const res = await fetch(AI_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'search-history',
+          query,
+          historyEntries: compact,
+          timeContext: new Date().toISOString()
+        })
+      });
+      loadingEl?.remove();
+
+      if (!res.ok) { this._addError('History search failed (' + res.status + ')'); return; }
+      const data = await res.json();
+      if (!data.result) { this._addError('Empty response'); return; }
+
+      let parsed;
+      try {
+        const str = String(data.result).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+        parsed = JSON.parse(str);
+      } catch {
+        this._addError('Could not parse search results');
+        return;
+      }
+
+      this._renderHistorySearchResult(parsed, all);
+    } catch (err) {
+      loadingEl?.remove();
+      this._addError(err.message || 'Network error');
+    }
+  },
+
+  _renderHistorySearchResult(parsed, allEntries) {
+    const container = document.getElementById('ai-messages');
+    if (!container) return;
+    const msgEl = document.createElement('div');
+    msgEl.className = 'ai-msg assistant history-search-response';
+
+    let html = `<div class="history-search-header">&#128336; History Search</div>`;
+    if (parsed?.interpretation) {
+      html += `<div class="mt-reply">${this._esc(parsed.interpretation)}</div>`;
+    }
+    if (!parsed?.matches || parsed.matches.length === 0) {
+      html += `<div class="no-matches">No matching pages found in your history.</div>`;
+    } else {
+      html += '<div class="chat-history-results">';
+      for (const match of parsed.matches.slice(0, 5)) {
+        const entry = allEntries.find(e => e.id === match.id);
+        if (!entry) continue;
+        let host = ''; try { host = new URL(entry.url).hostname; } catch {}
+        const summary = entry.summary ? (entry.summary.length > 120 ? entry.summary.substring(0, 120) + '…' : entry.summary) : '';
+        html += `
+          <div class="chat-history-item" data-url="${this._esc(entry.url)}">
+            <img src="${host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=16` : ''}" width="14" height="14" onerror="this.style.display='none'">
+            <div class="chat-history-content">
+              <div class="chat-history-title">${this._esc(entry.title || 'Untitled')}</div>
+              ${summary ? `<div class="chat-history-summary">${this._esc(summary)}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }
+      html += '</div>';
+    }
+
+    msgEl.innerHTML = html;
+    msgEl.querySelectorAll('.chat-history-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const url = item.dataset.url;
+        if (url && typeof TabManager !== 'undefined') TabManager.createTab(url, true);
+      });
+    });
+    container.appendChild(msgEl);
+    container.scrollTop = container.scrollHeight;
   },
 
   _addLoading() {
