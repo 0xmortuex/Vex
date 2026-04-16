@@ -30,6 +30,44 @@ const AgentLoop = {
   _history: [],
   _maxIter: 15,
 
+  // Parse agent response — handles fences, multiple field name variations
+  _parseAgentResponse(raw) {
+    if (!raw) return null;
+    let str = raw.trim();
+    console.log('[Agent] Raw AI response:', str.substring(0, 500));
+
+    // Strip markdown fences
+    str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    let parsed = null;
+    try {
+      parsed = JSON.parse(str);
+    } catch {
+      // Try extracting JSON object from within text
+      const m = str.match(/\{[\s\S]*\}/);
+      if (m) { try { parsed = JSON.parse(m[0]); } catch {} }
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+      console.error('[Agent] Could not parse JSON. Keys:', parsed ? Object.keys(parsed) : 'null');
+      return null;
+    }
+
+    // Normalize field names — AI might use any of these
+    const tool = parsed.tool || parsed.toolName || parsed.tool_name || parsed.action || parsed.function_name || parsed.name;
+    const parameters = parsed.parameters || parsed.params || parsed.arguments || parsed.args || {};
+    const thought = parsed.thought || parsed.reasoning || parsed.reason || '';
+    const intent = parsed.intent || 'action';
+
+    if (!tool) {
+      console.error('[Agent] No tool field found. Keys:', Object.keys(parsed));
+      return null;
+    }
+
+    console.log('[Agent] Parsed:', { tool, thought: thought.substring(0, 60), intent });
+    return { tool, parameters, thought, intent };
+  },
+
   async start(goal, mode) {
     if (this._running) { window.showToast?.('Agent already running'); return; }
     this._running = true;
@@ -83,10 +121,11 @@ const AgentLoop = {
         }
 
         const data = await res.json();
-        const decision = AIPanel._parseResponse(data.result);
+        const decision = this._parseAgentResponse(data.result);
 
-        if (!decision.tool) {
-          this._renderStep('error', 'AI did not return a tool call', 'error');
+        if (!decision || !decision.tool) {
+          console.error('[Agent] Full raw response:', data.result);
+          this._renderError('AI did not return a valid tool call', data.result);
           break;
         }
 
@@ -192,6 +231,20 @@ const AgentLoop = {
         resolve(false);
       });
     });
+  },
+
+  _renderError(error, rawResponse) {
+    const container = document.getElementById('ai-messages');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = 'ai-msg assistant agent-step-error';
+    el.innerHTML = `
+      <div style="color:var(--danger);font-weight:600;margin-bottom:6px">Agent Error</div>
+      <div style="font-size:12px">${AIPanel._esc(error)}</div>
+      ${rawResponse ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:var(--text-muted)">Show raw AI response</summary><pre style="font-size:10px;white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:4px;margin-top:6px;max-height:200px;overflow:auto">${AIPanel._esc(String(rawResponse))}</pre></details>` : ''}
+    `;
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
   },
 
   _renderStep(type, text, style) {
