@@ -3,6 +3,7 @@
 const RestorePrompt = {
   STORAGE_KEY: 'vex.lastSessionTabs',
   _autoDismissTimer: null,
+  _dismissed: false,
 
   saveBeforeQuit() {
     const tabs = TabManager.tabs.map(t => ({
@@ -26,7 +27,6 @@ const RestorePrompt = {
     try { lastSession = JSON.parse(saved); } catch { return; }
     if (!lastSession.tabs || lastSession.tabs.length === 0) return;
 
-    // Clear saved session so it doesn't re-prompt on next launch
     localStorage.removeItem(this.STORAGE_KEY);
 
     if (behavior === 'always') {
@@ -34,11 +34,9 @@ const RestorePrompt = {
     } else if (behavior === 'ask') {
       this._showPrompt(lastSession);
     }
-    // 'never' — do nothing
   },
 
   _restore(session) {
-    // Close the default start tab
     if (TabManager.tabs.length === 1 && isStartPage(TabManager.tabs[0].url)) {
       TabManager.closeAllTabs();
     }
@@ -63,33 +61,32 @@ const RestorePrompt = {
   },
 
   _showPrompt(session) {
+    this._dismissed = false;
     const el = document.getElementById('restore-prompt');
     if (!el) return;
 
     el.querySelector('.restore-prompt-text').innerHTML =
       `Reopen <strong>${session.tabs.length} tab${session.tabs.length !== 1 ? 's' : ''}</strong> from your last session?`;
 
-    el.classList.add('show');
+    // Trigger show animation on next frame
+    requestAnimationFrame(() => el.classList.add('show'));
 
-    // Auto-dismiss after 30s
     this._autoDismissTimer = setTimeout(() => this._dismiss(), 30000);
 
-    el.querySelector('.restore-btn-primary')?.addEventListener('click', () => {
-      this._dismiss();
-      this._restore(session);
-    }, { once: true });
+    const onReopen = () => { if (!this._dismissed) { this._dismiss(); this._restore(session); } };
+    const onFresh = () => { if (!this._dismissed) { this._dismiss(); } };
+    const onClose = () => { if (!this._dismissed) { this._dismiss(); } };
 
-    el.querySelector('.restore-btn-secondary')?.addEventListener('click', () => {
-      this._dismiss();
-    }, { once: true });
-
-    el.querySelector('.restore-prompt-close')?.addEventListener('click', () => {
-      this._dismiss();
-    }, { once: true });
+    el.querySelector('.restore-btn-primary')?.addEventListener('click', onReopen, { once: true });
+    el.querySelector('.restore-btn-secondary')?.addEventListener('click', onFresh, { once: true });
+    el.querySelector('.restore-prompt-close')?.addEventListener('click', onClose, { once: true });
   },
 
   _dismiss() {
+    if (this._dismissed) return;
+    this._dismissed = true;
     clearTimeout(this._autoDismissTimer);
+    // Just remove .show — CSS handles the slide-up + visibility hidden transition
     document.getElementById('restore-prompt')?.classList.remove('show');
   }
 };

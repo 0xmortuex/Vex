@@ -20,6 +20,11 @@
   <link rel="stylesheet" href="css/history-panel.css">
   <link rel="stylesheet" href="css/memory-panel.css">
   <link rel="stylesheet" href="css/restore-prompt.css">
+  <link rel="stylesheet" href="css/shortcuts-panel.css">
+  <link rel="stylesheet" href="css/theme-editor.css">
+  <link rel="stylesheet" href="css/tab-preview.css">
+  <link rel="stylesheet" href="css/screenshot.css">
+  <link rel="stylesheet" href="css/translate.css">
 </head>
 <body>
   <!-- Top Bar -->
@@ -145,6 +150,8 @@
         <div class="panel" id="panel-downloads" style="display: none;"></div>
         <div class="panel" id="panel-history" style="display: none;"></div>
         <div class="panel" id="panel-memory" style="display: none;"></div>
+        <div class="panel" id="panel-shortcuts" style="display: none;"></div>
+        <div class="panel" id="panel-themes" style="display: none;"></div>
         <div class="panel" id="panel-settings" style="display: none;">
           <div class="settings-content">
             <h2>Settings</h2>
@@ -287,6 +294,23 @@
         </button>
       </div>
 
+      <!-- Translate Bar -->
+      <div class="translate-bar" id="translate-bar">
+        <span>Translate to:</span>
+        <select id="translate-lang">
+          <option value="en">English</option>
+          <option value="tr">Turkish</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="ar">Arabic</option>
+          <option value="zh-CN">Chinese</option>
+          <option value="ja">Japanese</option>
+        </select>
+        <button id="translate-go">Translate</button>
+        <button class="translate-close" id="translate-close">Close</button>
+      </div>
+
       <!-- PiP Button -->
       <button id="pip-btn" title="Picture-in-Picture (Ctrl+Shift+P)">
         <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="8" y="7" width="6" height="5" rx="0.8" fill="currentColor" opacity="0.6"/></svg>
@@ -375,6 +399,12 @@
   <script src="js/history-panel.js"></script>
   <script src="js/memory-panel.js"></script>
   <script src="js/restore-prompt.js"></script>
+  <script src="js/shortcuts-panel.js"></script>
+  <script src="js/theme-editor.js"></script>
+  <script src="js/tab-preview.js"></script>
+  <script src="js/screenshot.js"></script>
+  <script src="js/translate.js"></script>
+  <script src="js/reading-mode.js"></script>
   <script src="js/command.js"></script>
   <script src="js/app.js"></script>
 </body>

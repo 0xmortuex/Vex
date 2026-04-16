@@ -20,7 +20,11 @@
   SplitScreen.init();
   SessionManager.init();
   WorkspaceManager.init();
+  Translator.init();
   await TabManager.init();
+
+  // Init tab preview (deferred to avoid slowing startup)
+  setTimeout(() => TabPreview.init(), 1000);
 
   // Check for restore prompt (deferred so it doesn't block startup)
   setTimeout(() => RestorePrompt.checkOnStartup(settings), 500);
@@ -374,6 +378,20 @@
     if (tab) { TabManager.sleepTab(tab.id); window.showToast?.('Tab sleeping'); }
   });
   window.vex.onSaveSessionBeforeQuit?.(() => RestorePrompt.saveBeforeQuit());
+
+  // === Phase 5 IPC events ===
+  window.vex.onToggleReadingMode?.(() => ReadingMode.activate());
+  window.vex.onTakeScreenshot?.(() => ScreenshotTool.capture());
+
+  // Translate bar
+  document.getElementById('translate-go')?.addEventListener('click', () => {
+    const lang = document.getElementById('translate-lang')?.value || 'en';
+    Translator.translate(lang);
+    document.getElementById('translate-bar')?.classList.remove('visible');
+  });
+  document.getElementById('translate-close')?.addEventListener('click', () => {
+    document.getElementById('translate-bar')?.classList.remove('visible');
+  });
 
   // Save workspace state before window closes
   window.addEventListener('beforeunload', () => {

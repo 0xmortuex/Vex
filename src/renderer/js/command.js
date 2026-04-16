@@ -42,7 +42,16 @@ const CommandBar = {
     { id: 'memory', label: 'Memory', hint: 'Memory usage per tab', shortcut: 'Ctrl+Shift+M', icon: '💻', isPrimary: true, action: () => SidebarManager.openPanel('memory') },
     { id: 'sleep', label: 'Sleep Tab', hint: 'Put current tab to sleep', shortcut: 'Ctrl+Shift+Z', icon: '💤', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.sleepTab(t.id); } },
     { id: 'sleep-all', label: 'Sleep All Inactive', hint: 'Sleep all non-active tabs', icon: '💤', action: () => { TabManager.sleepAllInactive(); window.showToast?.('All inactive tabs sleeping'); } },
-    { id: 'wake-all', label: 'Wake All Tabs', hint: 'Wake all sleeping tabs', icon: '☀', action: () => { TabManager.wakeAllTabs(); window.showToast?.('All tabs awake'); } }
+    { id: 'wake-all', label: 'Wake All Tabs', hint: 'Wake all sleeping tabs', icon: '☀', action: () => { TabManager.wakeAllTabs(); window.showToast?.('All tabs awake'); } },
+    // Phase 5 commands
+    { id: 'read', label: 'Reading Mode', hint: 'Strip clutter, focus on article', shortcut: 'Ctrl+Shift+R', icon: '📖', action: () => ReadingMode.activate() },
+    { id: 'translate', label: 'Translate Page', hint: 'Translate via Google Translate', icon: '🌐', action: () => { document.getElementById('translate-bar')?.classList.add('visible'); } },
+    { id: 'screenshot', label: 'Screenshot', hint: 'Capture current page', shortcut: 'Ctrl+Alt+S', icon: '📷', action: () => ScreenshotTool.capture() },
+    { id: 'shortcuts', label: 'Keyboard Shortcuts', hint: 'View all shortcuts', icon: '⌨', action: () => SidebarManager.openPanel('shortcuts') },
+    { id: 'theme', label: 'Theme Editor', hint: 'Customize colors and appearance', icon: '🎨', action: () => SidebarManager.openPanel('themes') },
+    { id: 'zoom-in', label: 'Zoom In', hint: 'Zoom in 10%', icon: '🔍', action: () => WebviewManager.zoomIn() },
+    { id: 'zoom-out', label: 'Zoom Out', hint: 'Zoom out 10%', icon: '🔍', action: () => WebviewManager.zoomOut() },
+    { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: '🔍', action: () => WebviewManager.zoomReset() }
   ],
 
   init() {

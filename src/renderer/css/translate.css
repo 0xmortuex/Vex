@@ -1,0 +1,21 @@
+/* === Translate Bar === */
+.translate-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: 32px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: none; align-items: center; gap: 8px; padding: 0 12px;
+  z-index: 30; font-size: 12px; color: var(--text-muted);
+}
+.translate-bar.visible { display: flex; }
+.translate-bar select {
+  padding: 3px 8px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); font-size: 12px; outline: none;
+  font-family: 'Outfit', sans-serif;
+}
+.translate-bar button {
+  padding: 3px 10px; border: none; background: var(--primary); color: white;
+  border-radius: 4px; cursor: pointer; font-size: 11px; font-family: 'Outfit', sans-serif;
+}
+.translate-bar .translate-close {
+  background: transparent; color: var(--text-muted); margin-left: auto;
+  padding: 2px 6px;
+}

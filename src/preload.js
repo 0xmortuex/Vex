@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld('vex', {
   onSleepCurrentTab: (callback) => ipcRenderer.on('sleep-current-tab', callback),
   onSaveSessionBeforeQuit: (callback) => ipcRenderer.on('save-session-before-quit', callback),
 
+  // Phase 5
+  onToggleReadingMode: (callback) => ipcRenderer.on('toggle-reading-mode', callback),
+  onTakeScreenshot: (callback) => ipcRenderer.on('take-screenshot', callback),
+
   // Platform
   platform: process.platform
 });

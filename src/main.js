@@ -258,6 +258,14 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('sleep-current-tab');
       event.preventDefault();
     }
+    if (input.control && input.shift && input.key === 'R') {
+      mainWindow.webContents.send('toggle-reading-mode');
+      event.preventDefault();
+    }
+    if (input.control && input.alt && input.key === 's') {
+      mainWindow.webContents.send('take-screenshot');
+      event.preventDefault();
+    }
   });
 
   // Disable default menu

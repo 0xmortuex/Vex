@@ -1,13 +1,18 @@
 /* === Restore Tabs Prompt === */
 .restore-prompt {
-  position: fixed; top: 44px; left: 50%; transform: translateX(-50%) translateY(-120%);
-  background: var(--surface); border: 1px solid var(--border); border-top: none;
+  position: fixed; top: 44px; left: 50%;
+  transform: translateX(-50%) translateY(-200%);
+  background: var(--surface); border: 1px solid var(--border);
   border-radius: 0 0 12px 12px; padding: 12px 20px;
   display: flex; align-items: center; gap: 14px; z-index: 9000;
-  transition: transform 0.3s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  max-width: 500px;
+  transition: transform 0.3s ease, visibility 0.3s;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 500px;
+  visibility: hidden; pointer-events: none;
 }
-.restore-prompt.show { transform: translateX(-50%) translateY(0); }
+.restore-prompt.show {
+  transform: translateX(-50%) translateY(0);
+  visibility: visible; pointer-events: auto;
+}
 .restore-prompt-text { font-size: 13px; color: var(--text); flex: 1; }
 .restore-prompt-text strong { color: var(--primary); }
 .restore-prompt-actions { display: flex; gap: 8px; flex-shrink: 0; }
@@ -31,4 +36,4 @@
 
 /* Tab sleeping indicator */
 .tab-item.sleeping { opacity: 0.5; }
-.tab-item.sleeping .tab-title::after { content: ' \U0001f4a4'; font-size: 11px; }
+.tab-item.sleeping .tab-title::after { content: ' \01F4A4'; font-size: 11px; }

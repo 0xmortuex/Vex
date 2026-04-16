@@ -15,14 +15,42 @@ const WebviewManager = {
     // Events
     webview.addEventListener('did-start-loading', () => {
       TabManager.updateTab(tab.id, { loading: true });
+      container.classList.add('wv-loading');
     });
 
     webview.addEventListener('did-stop-loading', () => {
       TabManager.updateTab(tab.id, { loading: false });
+      container.classList.remove('wv-loading');
     });
 
     webview.addEventListener('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
+      container.classList.remove('wv-loading');
+
+      // Detect page background color and apply to webview element
+      try {
+        webview.executeJavaScript(`getComputedStyle(document.body).backgroundColor`)
+          .then(bg => { if (bg) webview.style.background = bg; })
+          .catch(() => {});
+      } catch {}
+
+      // Apply saved zoom for this domain
+      try {
+        const url = webview.getURL();
+        if (url && !url.startsWith('about:') && !url.startsWith('file:')) {
+          const host = new URL(url).hostname;
+          const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}');
+          if (zooms[host]) webview.setZoomFactor(zooms[host]);
+        }
+      } catch {}
+
+      // Force dark mode if enabled
+      try {
+        const forceDark = localStorage.getItem('vex.forceDarkSites') === 'true';
+        if (forceDark) {
+          webview.insertCSS('html{filter:invert(1) hue-rotate(180deg);background:#0a0c10!important}img,video,iframe,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}');
+        }
+      } catch {}
     });
 
     webview.addEventListener('page-title-updated', (e) => {
@@ -67,10 +95,11 @@ const WebviewManager = {
         try {
           const cmd = JSON.parse(e.message.slice(8));
           if (cmd.type === 'navigate' && cmd.url) {
-            // Navigate current tab to URL, or create new tab
             TabManager.createTab(cmd.url, true);
           } else if (cmd.type === 'open-panel' && cmd.panel) {
             SidebarManager.openPanel(cmd.panel);
+          } else if (cmd.type === 'exit-reading') {
+            if (typeof ReadingMode !== 'undefined') ReadingMode.exitReadingMode(tab.id);
           }
         } catch (err) {
           console.error('VEX_CMD parse error:', err);
@@ -136,24 +165,40 @@ const WebviewManager = {
   zoomIn() {
     const wv = this.getActiveWebview();
     if (wv) {
-      wv.getZoomLevel().then(level => {
-        wv.setZoomLevel(Math.min(level + 0.5, 5));
-      });
+      const cur = wv.getZoomFactor ? wv.getZoomFactor() : 1;
+      const next = Math.min(cur + 0.1, 5);
+      wv.setZoomFactor(next);
+      this._saveZoom(wv, next);
     }
   },
 
   zoomOut() {
     const wv = this.getActiveWebview();
     if (wv) {
-      wv.getZoomLevel().then(level => {
-        wv.setZoomLevel(Math.max(level - 0.5, -5));
-      });
+      const cur = wv.getZoomFactor ? wv.getZoomFactor() : 1;
+      const next = Math.max(cur - 0.1, 0.25);
+      wv.setZoomFactor(next);
+      this._saveZoom(wv, next);
     }
   },
 
   zoomReset() {
     const wv = this.getActiveWebview();
-    if (wv) wv.setZoomLevel(0);
+    if (wv) {
+      wv.setZoomFactor(1);
+      this._saveZoom(wv, 1);
+    }
+  },
+
+  _saveZoom(wv, zoom) {
+    try {
+      const url = wv.getURL();
+      if (!url || url.startsWith('about:') || url.startsWith('file:')) return;
+      const host = new URL(url).hostname;
+      const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}');
+      if (zoom === 1) { delete zooms[host]; } else { zooms[host] = zoom; }
+      localStorage.setItem('vex.zooms', JSON.stringify(zooms));
+    } catch {}
   },
 
   findInPage(text) {
