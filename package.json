@@ -1,29 +1,38 @@
 {
   "name": "vex",
-  "version": "0.5.0",
-  "description": "A browser built just for you.",
+  "version": "1.0.0",
+  "description": "Vex — a browser built just for you",
+  "author": {
+    "name": "0xmortuex",
+    "email": "fraad002@gmail.com"
+  },
   "main": "src/main.js",
-  "author": "0xmortuex",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --dir",
-    "dist": "electron-builder"
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "publish": "electron-builder --publish always"
   },
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^24.0.0"
   },
+  "dependencies": {
+    "electron-updater": "^6.1.0"
+  },
   "build": {
     "appId": "com.vex.browser",
     "productName": "Vex",
+    "copyright": "Copyright 2026 0xmortuex",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "assets"
     },
     "files": [
       "src/**/*",
-      "assets/**/*",
-      "node_modules/**/*",
+      "assets/icon.*",
       "package.json"
     ],
     "win": {
@@ -35,14 +44,27 @@
           ]
         }
       ],
-      "icon": "assets/icon.svg"
+      "icon": "assets/icon.svg",
+      "artifactName": "Vex-Setup-${version}.${ext}",
+      "publisherName": "0xmortuex"
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Vex"
-    }
+      "shortcutName": "Vex",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "0xmortuex",
+        "repo": "Vex",
+        "releaseType": "release"
+      }
+    ]
   }
 }

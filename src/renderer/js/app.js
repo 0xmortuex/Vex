@@ -383,6 +383,52 @@
   window.vex.onToggleReadingMode?.(() => ReadingMode.activate());
   window.vex.onTakeScreenshot?.(() => ScreenshotTool.capture());
 
+  // === Phase 9: Updates + Welcome ===
+  UpdateNotifier.init();
+  // Show version in settings
+  window.vex.getAppVersion?.().then(v => {
+    const el = document.getElementById('settings-version');
+    if (el && v) el.textContent = 'Version ' + v;
+  });
+  // Check-updates button
+  document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
+    const status = document.getElementById('update-check-status');
+    if (status) status.textContent = 'Checking...';
+    const r = await UpdateNotifier.checkManually();
+    if (status) status.textContent = (r?.ok && r.info?.version) ? 'Update: v' + r.info.version : 'Up to date';
+  });
+  document.getElementById('setting-releases-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    TabManager.createTab('https://github.com/0xmortuex/Vex/releases', true);
+    SidebarManager.hideActivePanel();
+  });
+  // First-run welcome
+  if (!localStorage.getItem('vex.hasRunBefore')) {
+    localStorage.setItem('vex.hasRunBefore', 'true');
+    const overlay = document.createElement('div');
+    overlay.className = 'welcome-overlay';
+    overlay.innerHTML = `<div class="welcome-card">
+      <div style="margin-bottom:12px"><svg width="60" height="60" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h1>Welcome to Vex</h1>
+      <p class="welcome-subtitle">A browser built just for you.</p>
+      <div class="welcome-features">
+        <div class="welcome-feature"><span class="feature-icon">&#128450;</span><div><strong>Vertical tabs + workspaces</strong><br><span>Stay organized with CUSA, Dev, School, Personal modes</span></div></div>
+        <div class="welcome-feature"><span class="feature-icon">&#10024;</span><div><strong>Built-in AI agent</strong><br><span>Summarize pages, ask questions, automate tasks</span></div></div>
+        <div class="welcome-feature"><span class="feature-icon">&#9200;</span><div><strong>Scheduled tasks</strong><br><span>Daily briefings and weekly check-ins</span></div></div>
+        <div class="welcome-feature"><span class="feature-icon">&#9889;</span><div><strong>No bloat</strong><br><span>Only the features you actually use</span></div></div>
+      </div>
+      <div class="welcome-actions">
+        <button class="btn-primary" id="welcome-start">Let's Go</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+    document.getElementById('welcome-start')?.addEventListener('click', () => {
+      overlay.classList.remove('show');
+      setTimeout(() => overlay.remove(), 400);
+    });
+  }
+
   // === Phase 8: Scheduler ===
   Scheduler.start();
 

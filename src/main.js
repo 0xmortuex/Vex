@@ -5,6 +5,10 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
 
+// Auto-updater (graceful — works in dev, fails silently if not packaged)
+let autoUpdater = null;
+try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
+
 let mainWindow = null;
 let adBlockerEnabled = true;
 
@@ -167,6 +171,32 @@ function createWindow() {
   });
 }
 
+// Auto-updater setup
+function setupAutoUpdater() {
+  if (!autoUpdater || !mainWindow) return;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    mainWindow?.webContents.send('update-available', { version: info.version, releaseNotes: info.releaseNotes });
+  });
+  autoUpdater.on('update-not-available', () => {
+    mainWindow?.webContents.send('update-not-available');
+  });
+  autoUpdater.on('download-progress', (p) => {
+    mainWindow?.webContents.send('update-download-progress', { percent: Math.round(p.percent), transferred: p.transferred, total: p.total });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    mainWindow?.webContents.send('update-downloaded', { version: info.version });
+  });
+  autoUpdater.on('error', (err) => {
+    mainWindow?.webContents.send('update-error', { message: err.message });
+  });
+
+  // Check on startup after a delay
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
+}
+
 // Custom protocol handler for vex://
 app.whenReady().then(() => {
   protocol.handle('vex', (request) => {
@@ -191,6 +221,7 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+  setupAutoUpdater();
 
   // Register global shortcuts
   mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -386,6 +417,20 @@ ipcMain.handle('open-private-window', () => {
   privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true' } });
   return true;
 });
+
+// Update IPC
+ipcMain.handle('check-for-updates', async () => {
+  if (!autoUpdater) return { ok: false, error: 'Updater not available in dev mode' };
+  try { const r = await autoUpdater.checkForUpdates(); return { ok: true, info: r?.updateInfo }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('download-update', async () => {
+  if (!autoUpdater) return { ok: false };
+  try { await autoUpdater.downloadUpdate(); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
+ipcMain.handle('get-app-version', () => app.getVersion());
 
 ipcMain.handle('adblocker-get-state', () => adBlockerEnabled);
 ipcMain.handle('adblocker-set-state', (event, enabled) => {

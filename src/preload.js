@@ -71,6 +71,17 @@ contextBridge.exposeInMainWorld('vex', {
   // Phase 7A: AI
   onToggleAiPanel: (callback) => ipcRenderer.on('toggle-ai-panel', callback),
 
+  // Phase 9: Updates
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, i) => cb(i)),
+  onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', cb),
+  onUpdateDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, p) => cb(p)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_, i) => cb(i)),
+  onUpdateError: (cb) => ipcRenderer.on('update-error', (_, e) => cb(e)),
+
   // Platform
   platform: process.platform
 });

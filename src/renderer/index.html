@@ -28,6 +28,7 @@
   <link rel="stylesheet" href="css/ai-panel.css">
   <link rel="stylesheet" href="css/agent.css">
   <link rel="stylesheet" href="css/schedules-panel.css">
+  <link rel="stylesheet" href="css/update-notifier.css">
 </head>
 <body>
   <!-- Top Bar -->
@@ -286,9 +287,21 @@
 
             <div class="setting-group">
               <label class="setting-label">About</label>
-              <p class="setting-info">Vex v0.3.0 — A browser built just for you.</p>
-              <p class="setting-info muted">by 0xmortuex</p>
-              <p class="setting-info muted" style="margin-top:4px"><a href="#" id="setting-github-link" style="color:var(--primary);text-decoration:none">GitHub Repository</a></p>
+              <div style="text-align:center;margin-bottom:12px">
+                <svg width="60" height="60" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <p class="setting-info" style="text-align:center;font-size:16px;font-weight:600">Vex</p>
+              <p class="setting-info muted" style="text-align:center" id="settings-version">Version 1.0.0</p>
+              <p class="setting-info muted" style="text-align:center">A browser built just for you</p>
+              <div style="text-align:center;margin:12px 0">
+                <button id="btn-check-updates" style="padding:8px 16px;background:var(--primary);color:white;border:none;border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Check for Updates</button>
+                <span id="update-check-status" style="display:block;margin-top:6px;font-size:11px;color:var(--text-muted)"></span>
+              </div>
+              <p class="setting-info muted" style="text-align:center">by 0xmortuex</p>
+              <p class="setting-info muted" style="text-align:center;margin-top:4px">
+                <a href="#" id="setting-github-link" style="color:var(--primary);text-decoration:none">GitHub</a>
+                &middot; <a href="#" id="setting-releases-link" style="color:var(--primary);text-decoration:none">Releases</a>
+              </p>
             </div>
           </div>
         </div>
@@ -469,6 +482,7 @@
   <script src="js/scheduler.js"></script>
   <script src="js/schedules-panel.js"></script>
   <script src="js/ai-panel.js"></script>
+  <script src="js/update-notifier.js"></script>
   <script src="js/command.js"></script>
   <script src="js/app.js"></script>
 </body>
