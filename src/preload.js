@@ -82,6 +82,8 @@ contextBridge.exposeInMainWorld('vex', {
   onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_, i) => cb(i)),
   onUpdateError: (cb) => ipcRenderer.on('update-error', (_, e) => cb(e)),
 
-  // Platform
-  platform: process.platform
+  // Platform + versions
+  platform: process.platform,
+  electronVersion: process.versions.electron,
+  chromeVersion: process.versions.chrome
 });

@@ -4,7 +4,7 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'themes', 'ai', 'schedules'],
+  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'themes', 'schedules'],
 
   panelConfigs: {
     start: { url: null, partition: null },
@@ -34,12 +34,6 @@ const SidebarManager = {
   },
 
   togglePanel(panelName) {
-    // AI panel is special — slides in from right as overlay
-    if (panelName === 'ai') {
-      if (typeof AIPanel !== 'undefined') AIPanel.toggle();
-      return;
-    }
-
     if (this.activePanel === panelName) {
       this.hideActivePanel();
       return;

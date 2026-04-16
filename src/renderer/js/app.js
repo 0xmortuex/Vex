@@ -385,23 +385,55 @@
 
   // === Phase 9: Updates + Welcome ===
   UpdateNotifier.init();
-  // Show version in settings
+  // Show version + Electron/Chrome versions in settings
   window.vex.getAppVersion?.().then(v => {
     const el = document.getElementById('settings-version');
     if (el && v) el.textContent = 'Version ' + v;
   });
+  const elVer = document.getElementById('about-electron-ver');
+  const crVer = document.getElementById('about-chrome-ver');
+  if (elVer) elVer.textContent = window.vex.electronVersion || '-';
+  if (crVer) crVer.textContent = window.vex.chromeVersion || '-';
   // Check-updates button
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
     const status = document.getElementById('update-check-status');
     if (status) status.textContent = 'Checking...';
     const r = await UpdateNotifier.checkManually();
-    if (status) status.textContent = (r?.ok && r.info?.version) ? 'Update: v' + r.info.version : 'Up to date';
+    localStorage.setItem('vex.lastUpdateCheck', Date.now().toString());
+    if (status) status.textContent = (r?.ok && r.info?.version) ? 'Update: v' + r.info.version : 'Up to date \u2014 checked just now';
   });
+  // Show last check time
+  const lastCheck = localStorage.getItem('vex.lastUpdateCheck');
+  if (lastCheck) {
+    const el = document.getElementById('update-check-status');
+    if (el) el.textContent = 'Last checked: ' + new Date(parseInt(lastCheck)).toLocaleString();
+  }
   document.getElementById('setting-releases-link')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    TabManager.createTab('https://github.com/0xmortuex/Vex/releases', true);
-    SidebarManager.hideActivePanel();
+    e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/releases', true); SidebarManager.hideActivePanel();
   });
+  document.getElementById('setting-issues-link')?.addEventListener('click', (e) => {
+    e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/issues', true); SidebarManager.hideActivePanel();
+  });
+
+  // === Phase 11: UX polish ===
+  // Copy URL button
+  document.getElementById('btn-copy-url')?.addEventListener('click', () => {
+    const tab = TabManager.getActiveTab();
+    if (tab?.url) {
+      navigator.clipboard.writeText(tab.url).then(() => window.showToast?.('URL copied'));
+    }
+  });
+
+  // Middle-click to close tabs
+  document.getElementById('tabs-list')?.addEventListener('mousedown', (e) => {
+    if (e.button === 1) {
+      const item = e.target.closest('.tab-item');
+      if (item) { e.preventDefault(); TabManager.closeTab(item.dataset.tabId); }
+    }
+  });
+
+  // URL bar double-click selects all
+  document.getElementById('url-input')?.addEventListener('dblclick', (e) => e.target.select());
   // First-run welcome
   if (!localStorage.getItem('vex.hasRunBefore')) {
     localStorage.setItem('vex.hasRunBefore', 'true');
@@ -529,15 +561,25 @@
     }
   });
 
-  function showToast(message, duration = 3000) {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.style.display = 'block';
+  function showToast(message, type, duration) {
+    type = type || 'info';
+    duration = duration || 3000;
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      document.body.appendChild(container);
+    }
+    const el = document.createElement('div');
+    el.className = 'toast-item ' + type;
+    el.textContent = message;
+    container.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
     setTimeout(() => {
-      toast.style.display = 'none';
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 300);
     }, duration);
   }
 
-  // Make showToast available globally
   window.showToast = showToast;
 })();

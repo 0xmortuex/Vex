@@ -58,6 +58,9 @@
       <div id="url-bar">
         <svg id="url-icon" width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 2.5V13.5M2.5 8H13.5M3.5 5H12.5M3.5 11H12.5" stroke="currentColor" stroke-width="1"/></svg>
         <input type="text" id="url-input" placeholder="Search or enter URL..." spellcheck="false" autocomplete="off">
+        <button id="btn-copy-url" class="nav-btn" title="Copy URL" style="width:24px;height:24px;flex-shrink:0">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
         <button id="btn-ai-summarize" class="nav-btn" title="Summarize with AI" style="width:24px;height:24px;flex-shrink:0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         </button>
@@ -113,9 +116,6 @@
       </button>
       <button class="sidebar-icon" data-panel="github" title="GitHub">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2C5.58 2 2 5.58 2 10C2 13.54 4.29 16.53 7.47 17.59C7.87 17.66 8.02 17.42 8.02 17.21V15.63C5.73 16.13 5.26 14.56 5.26 14.56C4.89 13.63 4.35 13.39 4.35 13.39C3.6 12.87 4.4 12.88 4.4 12.88C5.23 12.93 5.66 13.73 5.66 13.73C6.4 14.98 7.57 14.62 8.05 14.42C8.12 13.87 8.33 13.5 8.57 13.29C6.73 13.08 4.8 12.32 4.8 9.29C4.8 8.42 5.12 7.71 5.68 7.16C5.6 6.95 5.33 6.13 5.76 5.04C5.76 5.04 6.46 4.82 8.01 5.84C8.68 5.66 9.34 5.57 10 5.57C10.66 5.57 11.32 5.66 11.99 5.84C13.54 4.82 14.24 5.04 14.24 5.04C14.67 6.13 14.4 6.95 14.32 7.16C14.88 7.71 15.2 8.42 15.2 9.29C15.2 12.33 13.26 13.07 11.42 13.28C11.72 13.54 12 14.06 12 14.85V17.21C12 17.42 12.15 17.67 12.55 17.59C15.73 16.53 18 13.54 18 10C18 5.58 14.42 2 10 2Z" fill="currentColor"/></svg>
-      </button>
-      <button class="sidebar-icon" data-panel="ai" title="Vex AI (Ctrl+Shift+A)">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       </button>
       <button class="sidebar-icon" data-panel="notes" title="Notes (Ctrl+Shift+N)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -287,20 +287,27 @@
 
             <div class="setting-group">
               <label class="setting-label">About</label>
-              <div style="text-align:center;margin-bottom:12px">
-                <svg width="60" height="60" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+                <svg width="56" height="56" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div>
+                  <div style="font-size:28px;font-weight:700;color:var(--text);line-height:1">Vex</div>
+                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.2.0</div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:4px">A browser built just for you</div>
+                </div>
               </div>
-              <p class="setting-info" style="text-align:center;font-size:16px;font-weight:600">Vex</p>
-              <p class="setting-info muted" style="text-align:center" id="settings-version">Version 1.0.0</p>
-              <p class="setting-info muted" style="text-align:center">A browser built just for you</p>
-              <div style="text-align:center;margin:12px 0">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
                 <button id="btn-check-updates" style="padding:8px 16px;background:var(--primary);color:white;border:none;border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Check for Updates</button>
-                <span id="update-check-status" style="display:block;margin-top:6px;font-size:11px;color:var(--text-muted)"></span>
+                <span id="update-check-status" style="font-size:11px;color:var(--text-muted)"></span>
               </div>
-              <p class="setting-info muted" style="text-align:center">by 0xmortuex</p>
-              <p class="setting-info muted" style="text-align:center;margin-top:4px">
+              <div style="background:var(--bg);border-radius:8px;padding:10px 14px;margin-bottom:16px">
+                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:var(--text-muted)">Electron</span><span style="color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px" id="about-electron-ver">-</span></div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:var(--text-muted)">Chromium</span><span style="color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px" id="about-chrome-ver">-</span></div>
+              </div>
+              <p class="setting-info muted" style="text-align:center">Built by <strong>0xmortuex</strong> &middot; MIT License</p>
+              <p class="setting-info muted" style="text-align:center;margin-top:6px">
                 <a href="#" id="setting-github-link" style="color:var(--primary);text-decoration:none">GitHub</a>
                 &middot; <a href="#" id="setting-releases-link" style="color:var(--primary);text-decoration:none">Releases</a>
+                &middot; <a href="#" id="setting-issues-link" style="color:var(--primary);text-decoration:none">Report Issue</a>
               </p>
             </div>
           </div>

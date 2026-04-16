@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.2.0 (2026-04-16) — Polish & Cleanup
+
+### Changed
+- Removed duplicate AI button from sidebar — top-bar button is now the single entry point
+- Settings About: prominent version display with Electron/Chromium versions
+- Unified toast notifications (slide-in from right, color-coded borders)
+- Workspace accent color stripe at top of window
+
+### Added
+- Copy URL button in URL bar
+- Middle-click to close tabs
+- Double-click URL bar to select all
+- Electron + Chromium version info in Settings About
+- "Report Issue" link in Settings
+- Update check timestamp persistence
+
+### Fixed
+- AI panel no longer registered in sidebar panel system
+- Consistent spinner and empty state CSS classes available globally
+
+## v1.1.0 (2026-04-16) — Multi-Tab AI
+- Tab selector: Current/All/Group/Custom tab selection modes
+- Cross-tab AI reasoning with comparison tables
+- Multi-tab context extraction (parallel, 60K char budget)
+- "Compare tabs" and "Summarize tabs" quick actions + commands
+
 ## v1.0.0 (2026-04-16)
 
 ### Features
