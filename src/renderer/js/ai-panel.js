@@ -3,7 +3,7 @@
 const AI_WORKER_URL = 'https://vex-ai.mortuexhavoc.workers.dev';
 
 const AIPanel = {
-  _conversations: {}, // tabId -> [{role, content}]
+  _conversations: {}, // tabId -> [{role, content, action}]
   _sending: false,
 
   init() {
@@ -32,18 +32,14 @@ const AIPanel = {
     setTimeout(() => document.getElementById('ai-input')?.focus(), 150);
   },
 
-  close() {
-    document.getElementById('ai-panel')?.classList.remove('open');
-  },
+  close() { document.getElementById('ai-panel')?.classList.remove('open'); },
 
   toggle() {
     const p = document.getElementById('ai-panel');
     if (p?.classList.contains('open')) this.close(); else this.open();
   },
 
-  isOpen() {
-    return document.getElementById('ai-panel')?.classList.contains('open');
-  },
+  isOpen() { return document.getElementById('ai-panel')?.classList.contains('open'); },
 
   _getTabId() { return TabManager.activeTabId; },
 
@@ -60,6 +56,22 @@ const AIPanel = {
     if (el && tab) el.textContent = tab.title || tab.url || 'New Tab';
   },
 
+  // Parse AI response — strip markdown fences, try JSON, fallback to plain text
+  _parseResponse(raw) {
+    if (!raw) return { reply: '' };
+    let str = raw.trim();
+    // Strip ```json ... ``` fences
+    str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    try {
+      return JSON.parse(str);
+    } catch {
+      // Try to extract reply field from malformed JSON
+      const m = str.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (m) return { reply: m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') };
+      return { reply: str };
+    }
+  },
+
   async sendMessage(action, opts = {}) {
     if (this._sending) return;
     this._sending = true;
@@ -67,10 +79,7 @@ const AIPanel = {
     const tabId = this._getTabId();
     const wv = WebviewManager.getActiveWebview();
     let pageContext = null;
-
-    if (wv) {
-      try { pageContext = await PageContext.extractPageContext(wv); } catch {}
-    }
+    if (wv) { try { pageContext = await PageContext.extractPageContext(wv); } catch {} }
 
     const conv = this._getConv(tabId);
 
@@ -106,12 +115,11 @@ const AIPanel = {
       }
 
       const data = await res.json();
-      let parsed;
-      try { parsed = JSON.parse(data.result); } catch { parsed = { reply: data.result }; }
+      const parsed = this._parseResponse(data.result);
 
-      // Store assistant reply for chat
+      // Store assistant reply for chat history
       if (action === 'chat') {
-        conv.push({ role: 'assistant', content: parsed.reply || data.result });
+        conv.push({ role: 'assistant', content: parsed.reply || data.result, action });
       }
 
       this._renderResponse(action, parsed);
@@ -148,9 +156,17 @@ const AIPanel = {
       return;
     }
 
-    container.innerHTML = conv.map(m => {
-      return `<div class="ai-msg ${m.role}">${this._esc(m.content)}</div>`;
-    }).join('');
+    container.innerHTML = '';
+    conv.forEach(m => {
+      const el = document.createElement('div');
+      el.className = `ai-msg ${m.role}`;
+      const contentEl = document.createElement('div');
+      contentEl.className = 'ai-msg-content';
+      contentEl.innerHTML = this._esc(m.content).replace(/\n/g, '<br>');
+      el.appendChild(contentEl);
+      if (m.role === 'assistant') el.appendChild(this._makeCopyBtn(contentEl));
+      container.appendChild(el);
+    });
     container.scrollTop = container.scrollHeight;
   },
 
@@ -160,29 +176,27 @@ const AIPanel = {
 
     const el = document.createElement('div');
     el.className = 'ai-msg assistant';
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'ai-msg-content';
     let html = '';
 
     if (action === 'chat') {
-      html = this._esc(parsed.reply || '');
+      html = this._esc(parsed.reply || '').replace(/\n/g, '<br>');
       if (parsed.citations?.length) {
         parsed.citations.forEach(c => { html += `<div class="citation">"${this._esc(c.text)}"</div>`; });
       }
-      if (parsed.suggestedFollowUps?.length) {
-        html += '<div class="follow-ups">';
-        parsed.suggestedFollowUps.forEach(q => { html += `<button class="follow-up-btn">${this._esc(q)}</button>`; });
-        html += '</div>';
-      }
     } else if (action === 'summarize') {
-      html = `<strong>${this._esc(parsed.title || 'Summary')}</strong><br><br>${this._esc(parsed.summary || '')}`;
+      html = `<strong>${this._esc(parsed.title || 'Summary')}</strong><br><br>${this._esc(parsed.summary || '').replace(/\n/g, '<br>')}`;
       if (parsed.keyPoints?.length) {
         html += '<br><br><strong>Key Points:</strong><ul>' + parsed.keyPoints.map(p => `<li>${this._esc(p)}</li>`).join('') + '</ul>';
       }
-      if (parsed.readingTime) html += `<br><em>${this._esc(parsed.readingTime)}</em>`;
+      if (parsed.readingTime) html += `<div class="ai-meta">${this._esc(parsed.readingTime)}</div>`;
     } else if (action === 'translate') {
-      html = `<strong>Translation (${this._esc(parsed.targetLanguage || '')})</strong><br><br>${this._esc(parsed.translation || '')}`;
-      if (parsed.notes) html += `<br><br><em>Note: ${this._esc(parsed.notes)}</em>`;
+      html = `<strong>Translation (${this._esc(parsed.targetLanguage || '')})</strong><br><br>${this._esc(parsed.translation || '').replace(/\n/g, '<br>')}`;
+      if (parsed.notes) html += `<div class="ai-meta">Note: ${this._esc(parsed.notes)}</div>`;
     } else if (action === 'explain') {
-      html = `<strong>Explanation</strong><br><br>${this._esc(parsed.explanation || '')}`;
+      html = `<strong>Explanation</strong><br><br>${this._esc(parsed.explanation || '').replace(/\n/g, '<br>')}`;
       if (parsed.keyTerms?.length) {
         html += '<br><br><strong>Key Terms:</strong><ul>';
         parsed.keyTerms.forEach(t => { html += `<li><strong>${this._esc(t.term)}:</strong> ${this._esc(t.definition)}</li>`; });
@@ -190,18 +204,46 @@ const AIPanel = {
       }
     }
 
-    el.innerHTML = html;
+    contentEl.innerHTML = html;
+    el.appendChild(contentEl);
+    el.appendChild(this._makeCopyBtn(contentEl));
+
+    // Follow-up buttons (outside content, not copyable)
+    if (parsed.suggestedFollowUps?.length) {
+      const fups = document.createElement('div');
+      fups.className = 'follow-ups';
+      parsed.suggestedFollowUps.forEach(q => {
+        const btn = document.createElement('button');
+        btn.className = 'follow-up-btn';
+        btn.textContent = q;
+        btn.addEventListener('click', () => {
+          document.getElementById('ai-input').value = q;
+          this._sendChat();
+        });
+        fups.appendChild(btn);
+      });
+      el.appendChild(fups);
+    }
+
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
+  },
 
-    // Wire follow-up buttons
-    el.querySelectorAll('.follow-up-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const input = document.getElementById('ai-input');
-        if (input) input.value = btn.textContent;
-        this._sendChat();
-      });
+  _makeCopyBtn(contentEl) {
+    const btn = document.createElement('button');
+    btn.className = 'ai-copy-btn';
+    btn.title = 'Copy';
+    btn.textContent = '\u{1F4CB}';
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(contentEl.innerText);
+        btn.textContent = '\u2713';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '\u{1F4CB}'; btn.classList.remove('copied'); }, 1500);
+      } catch {}
     });
+    return btn;
   },
 
   _addLoading() {
