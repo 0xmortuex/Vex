@@ -32,7 +32,7 @@
     },
     "files": [
       "src/**/*",
-      "assets/icon.*",
+      "assets/icon.svg",
       "package.json"
     ],
     "win": {
@@ -44,7 +44,6 @@
           ]
         }
       ],
-      "icon": "assets/icon.svg",
       "artifactName": "Vex-Setup-${version}.${ext}",
       "publisherName": "0xmortuex"
     },
