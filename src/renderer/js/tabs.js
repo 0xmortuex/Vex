@@ -83,6 +83,11 @@ const TabManager = {
     this.activeTabId = id;
     tab.unread = false;
 
+    // Lazy-create webview on first activation
+    if (tab._lazy) {
+      this._materializeTab(tab);
+    }
+
     // Update tab list UI
     document.querySelectorAll('.tab-item').forEach(el => {
       el.classList.toggle('active', el.dataset.tabId === id);
@@ -107,6 +112,9 @@ const TabManager = {
 
     this.tabs.splice(idx, 1);
 
+    // Skip auto-create during bulk operations (workspace switch)
+    if (this._bulkClosing) return;
+
     if (this.tabs.length === 0) {
       this.createTab(START_URL, true);
     } else if (this.activeTabId === id) {
@@ -115,6 +123,52 @@ const TabManager = {
     }
 
     this.persistTabs();
+  },
+
+  // Bulk-close all tabs without triggering auto-create or per-tab persistence
+  closeAllTabs() {
+    this._bulkClosing = true;
+    // Destroy all webviews in one pass — just remove from DOM, no src change
+    for (const tab of this.tabs) {
+      const wv = WebviewManager.webviews.get(tab.id);
+      if (wv) {
+        wv.remove();
+        WebviewManager.webviews.delete(tab.id);
+      }
+    }
+    this.tabs = [];
+    this.activeTabId = null;
+    // Clear tab list UI in one shot
+    document.getElementById('tabs-list').innerHTML = '';
+    document.querySelectorAll('.tab-group-tabs').forEach(el => el.innerHTML = '');
+    this._bulkClosing = false;
+  },
+
+  // Create a tab with lazy webview — webview only created when activated
+  createLazyTab(url, groupId, title) {
+    const id = `tab-${++this.tabCounter}`;
+    const tab = {
+      id,
+      url: url || START_URL,
+      title: title || (isStartPage(url) ? 'New Tab' : url),
+      favicon: null,
+      loading: false,
+      pinned: false,
+      unread: false,
+      groupId: groupId,
+      _lazy: true  // webview not yet created
+    };
+    this.tabs.push(tab);
+    this.renderTab(tab);
+    return tab;
+  },
+
+  // Materialize a lazy tab's webview on first activation
+  _materializeTab(tab) {
+    if (!tab._lazy) return;
+    tab._lazy = false;
+    tab.loading = true;
+    WebviewManager.createWebview(tab);
   },
 
   updateTab(id, data) {

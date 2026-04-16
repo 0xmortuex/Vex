@@ -4,6 +4,7 @@ const WorkspaceManager = {
   STORAGE_KEY: 'vex.workspaces',
   activeId: 'ws_personal',
   workspaces: [],
+  _switching: false,
   COLORS: ['#6366f1','#00b4d8','#22c55e','#e2231a','#a855f7','#f59e0b','#ec4899','#14b8a6'],
 
   defaultWorkspaces: [
@@ -43,38 +44,85 @@ const WorkspaceManager = {
   saveCurrentState() {
     const ws = this.getActive();
     if (!ws) return;
-    ws.tabs = TabManager.tabs.map(t => ({ url: t.url, title: t.title, groupId: t.groupId }));
+    ws.tabs = TabManager.tabs.map(t => ({
+      url: t.url,
+      title: t.title,
+      groupId: t.groupId,
+      pinned: t.pinned || false
+    }));
+    ws.groups = TabManager.groups;
+    ws.activeTabIndex = TabManager.tabs.findIndex(t => t.id === TabManager.activeTabId);
     this.save();
   },
 
   async switchTo(id) {
-    if (id === this.activeId) return;
-    // Save current state
-    this.saveCurrentState();
+    if (id === this.activeId || this._switching) return;
+    this._switching = true;
 
-    this.activeId = id;
-    this.save();
+    try {
+      // 1. Show loading overlay
+      this._showLoading();
+      this.hideDropdown();
+      await new Promise(r => setTimeout(r, 0));
 
-    const ws = this.getActive();
-    if (!ws) return;
+      // 2. Save current workspace state before destroying anything
+      this.saveCurrentState();
 
-    // Close all tabs
-    while (TabManager.tabs.length > 0) {
-      TabManager.closeTab(TabManager.tabs[0].id);
-    }
+      // 3. Set new active workspace
+      this.activeId = id;
+      this.save();
+      const ws = this.getActive();
+      if (!ws) { this._hideLoading(); return; }
 
-    // Restore workspace tabs
-    if (ws.tabs && ws.tabs.length > 0) {
-      for (const t of ws.tabs) {
-        TabManager.createTab(t.url, false, t.groupId);
+      // 4. Bulk-close all tabs (no per-tab persist, no auto-create)
+      TabManager.closeAllTabs();
+      await new Promise(r => setTimeout(r, 0));
+
+      // 5. Update theme immediately
+      this.applyThemeColor();
+
+      // 6. Restore groups
+      if (ws.groups) {
+        TabManager.groups = ws.groups;
+        await VexStorage.saveGroups(TabManager.groups);
       }
-      TabManager.switchTab(TabManager.tabs[0].id);
-    }
+      TabManager.renderGroups();
 
-    this.applyThemeColor();
-    this.render();
-    this.hideDropdown();
-    window.showToast?.('Workspace: ' + ws.name);
+      // 7. Recreate tabs LAZILY (no webviews yet — instant)
+      const tabsToRestore = ws.tabs && ws.tabs.length > 0 ? ws.tabs : [{ url: START_URL, title: 'New Tab' }];
+      for (const t of tabsToRestore) {
+        TabManager.createLazyTab(t.url, t.groupId, t.title);
+      }
+
+      // 8. Activate the correct tab (this materializes only ONE webview)
+      const activeIdx = (ws.activeTabIndex >= 0 && ws.activeTabIndex < TabManager.tabs.length)
+        ? ws.activeTabIndex : 0;
+      TabManager.switchTab(TabManager.tabs[activeIdx].id);
+
+      await TabManager.persistTabs();
+
+      // 9. Done
+      this.render();
+      this._hideLoading();
+      window.showToast?.('Workspace: ' + ws.name);
+    } catch (err) {
+      console.error('Workspace switch error:', err);
+      this._hideLoading();
+      // Ensure at least one tab exists
+      if (TabManager.tabs.length === 0) {
+        TabManager.createTab(START_URL, true);
+      }
+    } finally {
+      this._switching = false;
+    }
+  },
+
+  _showLoading() {
+    document.getElementById('workspace-loading')?.classList.remove('hidden');
+  },
+
+  _hideLoading() {
+    document.getElementById('workspace-loading')?.classList.add('hidden');
   },
 
   applyThemeColor() {
