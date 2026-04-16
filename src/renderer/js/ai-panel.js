@@ -3,8 +3,9 @@
 const AI_WORKER_URL = 'https://vex-ai.mortuexhavoc.workers.dev';
 
 const AIPanel = {
-  _conversations: {}, // tabId -> [{role, content, action}]
+  _conversations: {},
   _sending: false,
+  _agentMode: 'ask',
 
   init() {
     document.getElementById('ai-close')?.addEventListener('click', () => this.close());
@@ -15,6 +16,29 @@ const AIPanel = {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._sendChat(); }
     });
 
+    // Agent send button — always uses agent mode
+    document.getElementById('ai-send-agent')?.addEventListener('click', () => this._sendAgent());
+
+    // Stop agent button
+    document.getElementById('ai-stop-agent')?.addEventListener('click', () => {
+      if (typeof AgentLoop !== 'undefined') AgentLoop.stop();
+      document.getElementById('ai-stop-agent')?.classList.remove('visible');
+    });
+
+    // Mode selector
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this._agentMode = btn.dataset.mode;
+        localStorage.setItem('vex.agentMode', this._agentMode);
+      });
+    });
+    // Restore saved mode
+    const savedMode = localStorage.getItem('vex.agentMode') || 'ask';
+    this._agentMode = savedMode;
+    document.querySelector(`.mode-btn[data-mode="${savedMode}"]`)?.classList.add('active');
+
     document.querySelectorAll('.ai-quick-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.action;
@@ -23,6 +47,37 @@ const AIPanel = {
         else if (action === 'ask') document.getElementById('ai-input')?.focus();
       });
     });
+  },
+
+  _sendAgent() {
+    const input = document.getElementById('ai-input');
+    const msg = input?.value.trim();
+    if (!msg) return;
+    input.value = '';
+    if (!this.isOpen()) this.open();
+
+    // Add user message to chat
+    const container = document.getElementById('ai-messages');
+    if (container) {
+      const emptyState = container.querySelector('.ai-empty');
+      if (emptyState) emptyState.remove();
+      const el = document.createElement('div');
+      el.className = 'ai-msg user';
+      const c = document.createElement('div'); c.className = 'ai-msg-content'; c.textContent = msg;
+      el.appendChild(c);
+      container.appendChild(el);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Show stop button
+    document.getElementById('ai-stop-agent')?.classList.add('visible');
+
+    // Start agent loop
+    if (typeof AgentLoop !== 'undefined') {
+      AgentLoop.start(msg, this._agentMode).then(() => {
+        document.getElementById('ai-stop-agent')?.classList.remove('visible');
+      });
+    }
   },
 
   open() {

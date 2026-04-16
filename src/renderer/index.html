@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="css/screenshot.css">
   <link rel="stylesheet" href="css/translate.css">
   <link rel="stylesheet" href="css/ai-panel.css">
+  <link rel="stylesheet" href="css/agent.css">
 </head>
 <body>
   <!-- Top Bar -->
@@ -384,6 +385,11 @@
       </div>
       <button class="ai-close" id="ai-close">&times;</button>
     </div>
+    <div class="agent-mode-selector">
+      <button class="mode-btn active" data-mode="ask" title="Ask before each action">Ask</button>
+      <button class="mode-btn" data-mode="plan" title="Show full plan, then execute">Plan</button>
+      <button class="mode-btn" data-mode="auto" title="Execute automatically">Auto</button>
+    </div>
     <div class="ai-quick-actions">
       <button class="ai-quick-btn" data-action="summarize">Summarize</button>
       <button class="ai-quick-btn" data-action="translate">Translate</button>
@@ -395,9 +401,11 @@
     </div>
     <div class="ai-input-wrapper">
       <textarea id="ai-input" placeholder="Ask anything about this page..." rows="2"></textarea>
-      <button id="ai-send">&rarr;</button>
+      <button id="ai-send" title="Send message">&rarr;</button>
+      <button id="ai-send-agent" title="Run as agent (take actions)">&#129302;</button>
     </div>
     <div class="ai-footer">
+      <button id="ai-stop-agent" title="Stop agent">Stop</button>
       <span>Powered by Claude Sonnet</span>
       <button class="ai-clear" id="ai-clear">Clear chat</button>
     </div>
@@ -448,7 +456,10 @@
   <script src="js/translate.js"></script>
   <script src="js/reading-mode.js"></script>
   <script src="js/page-context.js"></script>
+  <script src="js/dom-extractor.js"></script>
+  <script src="js/agent-executor.js"></script>
   <script src="js/ai-panel.js"></script>
+  <script src="js/agent-loop.js"></script>
   <script src="js/command.js"></script>
   <script src="js/app.js"></script>
 </body>

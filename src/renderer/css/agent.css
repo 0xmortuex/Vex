@@ -1,0 +1,67 @@
+/* === Agent Mode UI === */
+.agent-mode-selector {
+  display: flex; gap: 4px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.mode-btn {
+  flex: 1; background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); padding: 5px 8px; border-radius: 6px;
+  font-size: 11px; cursor: pointer; font-family: 'Outfit', sans-serif;
+  transition: all 0.15s; text-align: center;
+}
+.mode-btn:hover { border-color: var(--primary); color: var(--text); }
+.mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+/* Agent step cards */
+.agent-step {
+  font-size: 12px; line-height: 1.5; padding: 2px 0;
+  border-left: 3px solid var(--primary); padding-left: 10px; margin: 2px 0;
+}
+.agent-step-success .agent-step { border-left-color: var(--success, #22c55e); }
+.agent-step-error .agent-step { border-left-color: var(--danger); }
+.agent-step-action .agent-step { border-left-color: var(--accent); }
+.agent-step-info .agent-step { border-left-color: var(--text-muted); }
+
+/* Confirm card */
+.agent-card {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px; font-size: 12px;
+}
+.agent-thought { color: var(--text-muted); margin-bottom: 6px; }
+.agent-tool-call {
+  background: var(--surface); padding: 6px 8px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; margin-bottom: 8px;
+  word-break: break-all;
+}
+.agent-tool-call code { display: block; color: var(--text-muted); margin-top: 3px; }
+.agent-btns { display: flex; gap: 6px; }
+.agent-approve {
+  flex: 1; padding: 5px; border-radius: 6px; border: none; cursor: pointer;
+  font-size: 12px; font-family: 'Outfit', sans-serif;
+  background: var(--success, #22c55e); color: white;
+}
+.agent-deny {
+  flex: 1; padding: 5px; border-radius: 6px; border: none; cursor: pointer;
+  font-size: 12px; font-family: 'Outfit', sans-serif;
+  background: var(--danger); color: white;
+}
+.agent-approve:hover { filter: brightness(1.1); }
+.agent-deny:hover { filter: brightness(1.1); }
+
+/* Agent send button */
+#ai-send-agent {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); width: 36px; height: 36px; border-radius: 8px;
+  cursor: pointer; font-size: 16px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+#ai-send-agent:hover { background: var(--surface); color: var(--text); border-color: var(--primary); }
+
+/* Stop button */
+#ai-stop-agent {
+  display: none; padding: 4px 12px; background: var(--danger); color: white;
+  border: none; border-radius: 6px; cursor: pointer; font-size: 11px;
+  font-family: 'Outfit', sans-serif;
+}
+#ai-stop-agent.visible { display: inline-block; }
