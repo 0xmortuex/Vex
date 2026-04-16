@@ -29,7 +29,13 @@ const CommandBar = {
     { id: 'loopholemap', label: 'LoopholeMap', hint: 'Legal loophole mapper', icon: '🗺', action: () => VexTools.openToolById('loopholemap') },
     { id: 'aijudge', label: 'AIJudge', hint: 'AI-powered legal judgment tool', icon: '⚖', action: () => VexTools.openToolById('aijudge') },
     { id: 'netmap', label: 'NetMap', hint: 'Network topology mapper', icon: '🌐', action: () => VexTools.openToolById('netmap') },
-    { id: 'billforge', label: 'BillForge', hint: 'Legislative bill drafting tool', icon: '🔨', action: () => VexTools.openToolById('billforge') }
+    { id: 'billforge', label: 'BillForge', hint: 'Legislative bill drafting tool', icon: '🔨', action: () => VexTools.openToolById('billforge') },
+    // Phase 3 commands
+    { id: 'notes', label: 'Notes', hint: 'Open notes panel', shortcut: 'Ctrl+Shift+N', icon: '📝', isPrimary: true, action: () => SidebarManager.openPanel('notes') },
+    { id: 'downloads', label: 'Downloads', hint: 'Open downloads panel', icon: '⬇', isPrimary: true, action: () => SidebarManager.openPanel('downloads') },
+    { id: 'session-save', label: 'Save Session', hint: 'Save current tabs as a session', icon: '💾', action: () => SessionManager.showOverlay() },
+    { id: 'session-load', label: 'Load Session', hint: 'Restore a saved session', shortcut: 'Ctrl+Shift+O', icon: '📂', action: () => SessionManager.showOverlay() },
+    { id: 'workspace', label: 'Switch Workspace', hint: 'Change workspace profile', icon: '🔄', action: () => WorkspaceManager.toggleDropdown() }
   ],
 
   init() {

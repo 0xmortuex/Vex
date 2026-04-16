@@ -4,17 +4,19 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'cusa', 'roblox', 'github'],
+  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads'],
 
   panelConfigs: {
-    start: { url: null, partition: null }, // start page handled inline
+    start: { url: null, partition: null },
     discord: { url: 'https://discord.com/app', partition: 'persist:discord' },
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
     settings: { url: null, partition: null },
     cusa: { url: null, partition: null },
     roblox: { url: null, partition: null },
-    github: { url: null, partition: null }
+    github: { url: null, partition: null },
+    notes: { url: null, partition: null },
+    downloads: { url: null, partition: null }
   },
 
   init() {
@@ -58,6 +60,8 @@ const SidebarManager = {
     if (panelName === 'cusa') CUSAPanel.init();
     if (panelName === 'roblox') RobloxPanel.init();
     if (panelName === 'github') GitHubPanel.init();
+    if (panelName === 'notes') NotesPanel.init();
+    if (panelName === 'downloads') DownloadsPanel.init();
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

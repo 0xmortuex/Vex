@@ -1,0 +1,70 @@
+/* === Sessions Panel === */
+#sessions-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+  z-index: 450; display: none; align-items: center; justify-content: center;
+}
+#sessions-overlay.visible { display: flex; }
+
+#sessions-panel {
+  width: 520px; max-width: 90vw; max-height: 75vh;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: commandIn 0.15s ease;
+}
+
+.sessions-header {
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.sessions-header h3 { font-size: 16px; font-weight: 600; color: var(--text); flex: 1; }
+.sessions-header .sessions-close {
+  width: 28px; height: 28px; border: none; background: transparent;
+  color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.sessions-header .sessions-close:hover { background: var(--tab-hover); color: var(--text); }
+
+.sessions-save-row {
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  display: flex; gap: 8px;
+}
+.sessions-save-row input {
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 8px 12px; color: var(--text);
+  font-family: 'Outfit', sans-serif; font-size: 13px; outline: none;
+}
+.sessions-save-row input:focus { border-color: var(--primary); }
+.sessions-save-row button {
+  padding: 8px 16px; background: var(--primary); color: white; border: none;
+  border-radius: var(--radius); font-family: 'Outfit', sans-serif;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.sessions-save-row button:hover { background: var(--primary-hover); }
+
+.sessions-list { flex: 1; overflow-y: auto; padding: 8px; }
+
+.session-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: var(--radius); cursor: pointer;
+  transition: background 0.15s; margin-bottom: 4px;
+}
+.session-item:hover { background: var(--tab-hover); }
+
+.session-item-info { flex: 1; min-width: 0; }
+.session-item-name { font-size: 14px; font-weight: 500; color: var(--text); }
+.session-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.session-item-actions { display: flex; gap: 4px; }
+.session-item-actions button {
+  width: 28px; height: 28px; border: none; background: transparent;
+  color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.session-item-actions button:hover { background: var(--surface); color: var(--text); }
+.session-item-actions button.danger:hover { background: var(--danger); color: white; }
+
+.sessions-empty {
+  padding: 40px; text-align: center; color: var(--text-muted); font-size: 14px;
+}

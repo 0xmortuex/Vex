@@ -1,0 +1,93 @@
+/* === Workspace Switcher === */
+#workspace-switcher {
+  position: relative; display: flex; align-items: center;
+  -webkit-app-region: no-drag;
+}
+#workspace-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border: 1px solid var(--border); background: transparent;
+  color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
+  font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 500;
+  transition: all var(--transition); -webkit-app-region: no-drag;
+}
+#workspace-btn:hover { background: var(--surface); color: var(--text); }
+#workspace-btn .ws-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+#workspace-btn svg { width: 10px; height: 10px; }
+
+#workspace-dropdown {
+  position: absolute; top: 100%; left: 0; margin-top: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 4px; min-width: 200px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5); z-index: 200; display: none;
+}
+#workspace-dropdown.visible { display: block; }
+
+.ws-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 13px; color: var(--text); transition: background 0.15s;
+}
+.ws-item:hover { background: var(--tab-hover); }
+.ws-item.active { background: rgba(99,102,241,0.1); color: var(--primary); }
+.ws-item .ws-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ws-item-name { flex: 1; }
+.ws-item-check { color: var(--primary); font-size: 14px; }
+
+.ws-sep { height: 1px; background: var(--border); margin: 4px 8px; }
+
+.ws-add {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 13px; color: var(--text-muted); transition: background 0.15s;
+}
+.ws-add:hover { background: var(--tab-hover); color: var(--text); }
+
+/* Workspace modal for add/edit */
+#workspace-modal {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+  z-index: 500; display: none; align-items: center; justify-content: center;
+}
+#workspace-modal.visible { display: flex; }
+
+.ws-modal-content {
+  width: 380px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.ws-modal-content h3 { font-size: 16px; font-weight: 600; margin-bottom: 18px; }
+.ws-modal-content label {
+  display: block; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500;
+}
+.ws-modal-content input[type="text"] {
+  width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-family: 'Outfit', sans-serif;
+  font-size: 14px; outline: none; margin-bottom: 14px; box-sizing: border-box;
+}
+.ws-modal-content input:focus { border-color: var(--primary); }
+
+.ws-color-picker {
+  display: flex; gap: 8px; margin-bottom: 18px;
+}
+.ws-color-opt {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.ws-color-opt.selected { border-color: var(--text); }
+
+.ws-modal-actions {
+  display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;
+}
+.ws-modal-actions button {
+  padding: 8px 18px; border: none; border-radius: var(--radius);
+  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.ws-modal-actions .ws-btn-cancel {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+}
+.ws-modal-actions .ws-btn-save { background: var(--primary); color: white; }
+.ws-modal-actions .ws-btn-save:hover { background: var(--primary-hover); }
+.ws-modal-actions .ws-btn-delete { background: var(--danger); color: white; }

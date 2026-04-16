@@ -114,15 +114,36 @@ function createWindow() {
   session.defaultSession.setUserAgent(chromeUA);
   partitions.forEach(p => session.fromPartition(p).setUserAgent(chromeUA));
 
-  // Downloads
+  // Downloads with full tracking
   session.defaultSession.on('will-download', (event, item) => {
-    const fileName = item.getFilename();
-    const totalBytes = item.getTotalBytes();
+    const savePath = path.join(app.getPath('downloads'), item.getFilename());
+    item.setSavePath(savePath);
 
-    mainWindow.webContents.send('download-started', { fileName, totalBytes });
+    const downloadInfo = {
+      id: Date.now().toString(),
+      fileName: item.getFilename(),
+      url: item.getURL(),
+      totalBytes: item.getTotalBytes(),
+      path: savePath,
+      startedAt: new Date().toISOString()
+    };
+    mainWindow.webContents.send('download-started', downloadInfo);
 
-    item.on('done', (e, state) => {
-      mainWindow.webContents.send('download-complete', { fileName, state });
+    item.on('updated', (e, state) => {
+      mainWindow.webContents.send('download-progress', {
+        id: downloadInfo.id,
+        receivedBytes: item.getReceivedBytes(),
+        state: state
+      });
+    });
+
+    item.once('done', (e, state) => {
+      mainWindow.webContents.send('download-complete', {
+        id: downloadInfo.id,
+        fileName: downloadInfo.fileName,
+        state: state,
+        path: savePath
+      });
     });
   });
 
@@ -204,6 +225,14 @@ app.whenReady().then(() => {
     }
     if (input.control && input.shift && input.key === 'P') {
       mainWindow.webContents.send('toggle-pip');
+      event.preventDefault();
+    }
+    if (input.control && input.shift && input.key === 'N') {
+      mainWindow.webContents.send('toggle-notes');
+      event.preventDefault();
+    }
+    if (input.control && input.shift && input.key === 'O') {
+      mainWindow.webContents.send('toggle-sessions');
       event.preventDefault();
     }
   });

@@ -35,9 +35,14 @@ contextBridge.exposeInMainWorld('vex', {
   onTogglePip: (callback) => ipcRenderer.on('toggle-pip', callback),
   openPipWindow: (url) => ipcRenderer.invoke('open-pip-window', url),
 
-  // Downloads
+  // Downloads (with progress tracking)
   onDownloadStarted: (callback) => ipcRenderer.on('download-started', callback),
+  onDownloadProgress: (callback) => ipcRenderer.on('download-progress', callback),
   onDownloadComplete: (callback) => ipcRenderer.on('download-complete', callback),
+
+  // Notes & Sessions shortcuts
+  onToggleNotes: (callback) => ipcRenderer.on('toggle-notes', callback),
+  onToggleSessions: (callback) => ipcRenderer.on('toggle-sessions', callback),
 
   // Platform
   platform: process.platform

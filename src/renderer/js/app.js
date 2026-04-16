@@ -18,7 +18,12 @@
   CommandBar.init();
   StartPageManager.init();
   SplitScreen.init();
+  SessionManager.init();
+  WorkspaceManager.init();
   await TabManager.init();
+
+  // Workspace switcher button
+  document.getElementById('workspace-btn')?.addEventListener('click', () => WorkspaceManager.toggleDropdown());
 
   // PiP Manager (renderer side)
   window.PiPManager = {
@@ -228,9 +233,99 @@
     document.getElementById('tabs-sidebar').classList.toggle('hidden', !tabsVisibleToggle.checked);
   });
 
+  // Accent color picker
+  document.querySelectorAll('.accent-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.accent-opt').forEach(o => o.style.borderColor = 'transparent');
+      opt.style.borderColor = 'var(--text)';
+      const color = opt.dataset.color;
+      document.documentElement.style.setProperty('--primary', color);
+      settings.accentColor = color;
+      VexStorage.saveSettings(settings);
+    });
+  });
+  // Apply saved accent color
+  if (settings.accentColor) {
+    document.documentElement.style.setProperty('--primary', settings.accentColor);
+    const activeOpt = document.querySelector(`.accent-opt[data-color="${settings.accentColor}"]`);
+    if (activeOpt) activeOpt.style.borderColor = 'var(--text)';
+  }
+
+  // Clear data button
+  document.getElementById('setting-clear-data')?.addEventListener('click', () => {
+    if (confirm('Clear all browsing data? This cannot be undone.')) {
+      localStorage.clear();
+      showToast('Browsing data cleared. Restart for full effect.');
+    }
+  });
+
+  // Auto-save sessions toggle
+  const autosaveToggle = document.getElementById('setting-autosave');
+  if (autosaveToggle) {
+    autosaveToggle.checked = settings.autoSaveSessions || false;
+    autosaveToggle.addEventListener('change', () => {
+      settings.autoSaveSessions = autosaveToggle.checked;
+      VexStorage.saveSettings(settings);
+      if (autosaveToggle.checked) {
+        window._autoSaveInterval = setInterval(() => {
+          SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString());
+        }, 10 * 60 * 1000);
+      } else {
+        clearInterval(window._autoSaveInterval);
+      }
+    });
+  }
+
+  // Settings buttons
+  document.getElementById('setting-open-sessions')?.addEventListener('click', () => SessionManager.showOverlay());
+  document.getElementById('setting-open-workspaces')?.addEventListener('click', () => WorkspaceManager.showModal());
+  document.getElementById('setting-github-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    TabManager.createTab('https://github.com/0xmortuex/Vex', true);
+    SidebarManager.hideActivePanel();
+  });
+
+  // Export all data
+  document.getElementById('setting-export')?.addEventListener('click', () => {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('vex.')) data[key] = localStorage.getItem(key);
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'vex-data-export.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('Data exported');
+  });
+
+  // Reset to defaults
+  document.getElementById('setting-reset')?.addEventListener('click', () => {
+    if (confirm('Reset all Vex settings to defaults? This cannot be undone.')) {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('vex.')) keys.push(key);
+      }
+      keys.forEach(k => localStorage.removeItem(k));
+      showToast('Settings reset. Restart Vex.');
+    }
+  });
+
   // === Split Screen ===
   window.vex.onToggleSplit(() => SplitScreen.toggle());
   window.vex.onTogglePip(() => { if (window.PiPManager) window.PiPManager.toggle(); });
+
+  // === Notes & Sessions shortcuts ===
+  window.vex.onToggleNotes?.(() => SidebarManager.togglePanel('notes'));
+  window.vex.onToggleSessions?.(() => SessionManager.toggle());
+
+  // Save workspace state before window closes
+  window.addEventListener('beforeunload', () => {
+    WorkspaceManager.saveCurrentState();
+  });
 
   const splitCloseRight = document.getElementById('split-close-right');
   if (splitCloseRight) {

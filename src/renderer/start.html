@@ -573,35 +573,151 @@
     updateClock();
     setInterval(updateClock, 1000);
 
-    // Default shortcuts
+    // Customizable shortcuts with localStorage persistence
+    const SHORTCUTS_KEY = 'vex.shortcuts';
     const defaultShortcuts = [
-      { name: 'GitHub', url: 'https://github.com/0xmortuex', icon: 'https://www.google.com/s2/favicons?domain=github.com&sz=64' },
-      { name: 'Cloudflare', url: 'https://dash.cloudflare.com', icon: 'https://www.google.com/s2/favicons?domain=cloudflare.com&sz=64' },
-      { name: 'CUSA Discord', url: 'https://discord.com', icon: 'https://www.google.com/s2/favicons?domain=discord.com&sz=64' },
-      { name: 'Roblox', url: 'https://roblox.com', icon: 'https://www.google.com/s2/favicons?domain=roblox.com&sz=64' },
-      { name: 'YouTube', url: 'https://youtube.com', icon: 'https://www.google.com/s2/favicons?domain=youtube.com&sz=64' },
-      { name: 'ChatGPT', url: 'https://chat.openai.com', icon: 'https://www.google.com/s2/favicons?domain=chat.openai.com&sz=64' },
-      { name: 'Claude', url: 'https://claude.ai', icon: 'https://www.google.com/s2/favicons?domain=claude.ai&sz=64' },
-      { name: 'Portfolio', url: 'https://mortuexos.dev', icon: 'https://www.google.com/s2/favicons?domain=mortuexos.dev&sz=64' }
+      { name: 'GitHub', url: 'https://github.com/0xmortuex' },
+      { name: 'Cloudflare', url: 'https://dash.cloudflare.com' },
+      { name: 'CUSA Discord', url: 'https://discord.com' },
+      { name: 'Roblox', url: 'https://roblox.com' },
+      { name: 'YouTube', url: 'https://youtube.com' },
+      { name: 'ChatGPT', url: 'https://chat.openai.com' },
+      { name: 'Claude', url: 'https://claude.ai' },
+      { name: 'Portfolio', url: 'https://mortuexos.dev' }
     ];
 
-    // Render shortcuts
-    const grid = document.getElementById('shortcuts-grid');
-    defaultShortcuts.forEach(s => {
-      const card = document.createElement('a');
-      card.className = 'shortcut-card';
-      card.href = s.url;
-      card.innerHTML = `
-        <div class="shortcut-icon"><img src="${s.icon}" alt="${s.name}"></div>
-        <div class="shortcut-label">${s.name}</div>
-      `;
-      card.addEventListener('click', (e) => {
-        e.preventDefault();
-        // Communicate with parent via postMessage
-        console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url: s.url }));
+    function loadShortcuts() {
+      try { const s = localStorage.getItem(SHORTCUTS_KEY); if (s) return JSON.parse(s); } catch {}
+      return defaultShortcuts;
+    }
+    function saveShortcuts(shortcuts) {
+      localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts));
+    }
+    function getFavicon(url) {
+      try { return 'https://www.google.com/s2/favicons?domain=' + new URL(url).hostname + '&sz=64'; } catch { return ''; }
+    }
+
+    let shortcuts = loadShortcuts();
+
+    function renderShortcuts() {
+      const grid = document.getElementById('shortcuts-grid');
+      grid.innerHTML = '';
+      shortcuts.forEach((s, i) => {
+        const card = document.createElement('div');
+        card.className = 'shortcut-card';
+        card.draggable = true;
+        card.dataset.index = i;
+        const icon = getFavicon(s.url);
+        card.innerHTML = `
+          <div class="shortcut-icon">${icon ? '<img src="'+icon+'" alt="">' : '<span style="font-size:20px">🔗</span>'}</div>
+          <div class="shortcut-label">${s.name}</div>
+        `;
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.shortcut-edit-btn')) return;
+          e.preventDefault();
+          console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url: s.url }));
+        });
+        card.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          showShortcutMenu(e, i);
+        });
+        // Drag reorder
+        card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', i); card.style.opacity = '0.5'; });
+        card.addEventListener('dragend', () => { card.style.opacity = '1'; });
+        card.addEventListener('dragover', (e) => e.preventDefault());
+        card.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const from = parseInt(e.dataTransfer.getData('text/plain'));
+          if (from !== i) {
+            const [moved] = shortcuts.splice(from, 1);
+            shortcuts.splice(i, 0, moved);
+            saveShortcuts(shortcuts);
+            renderShortcuts();
+          }
+        });
+        grid.appendChild(card);
       });
-      grid.appendChild(card);
-    });
+      // Add button
+      const addCard = document.createElement('div');
+      addCard.className = 'shortcut-card';
+      addCard.style.cssText = 'border-style:dashed;opacity:0.6';
+      addCard.innerHTML = '<div class="shortcut-icon"><span style="font-size:24px;color:#6b7482">+</span></div><div class="shortcut-label">Add</div>';
+      addCard.addEventListener('click', () => showShortcutModal(-1));
+      grid.appendChild(addCard);
+    }
+
+    function showShortcutMenu(e, idx) {
+      document.querySelectorAll('.ctx-menu').forEach(m => m.remove());
+      const menu = document.createElement('div');
+      menu.className = 'ctx-menu';
+      menu.style.cssText = 'position:fixed;left:'+e.clientX+'px;top:'+e.clientY+'px;background:#151921;border:1px solid #1f2530;border-radius:8px;padding:4px;z-index:1000;min-width:140px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
+      [
+        { label: 'Edit', action: () => showShortcutModal(idx) },
+        { label: 'Duplicate', action: () => { shortcuts.splice(idx+1, 0, {...shortcuts[idx]}); saveShortcuts(shortcuts); renderShortcuts(); } },
+        { label: 'Delete', action: () => { shortcuts.splice(idx, 1); saveShortcuts(shortcuts); renderShortcuts(); }, danger: true }
+      ].forEach(item => {
+        const el = document.createElement('div');
+        el.textContent = item.label;
+        el.style.cssText = 'padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;color:'+(item.danger?'#ef4444':'#e5e9f0');
+        el.addEventListener('mouseenter', () => el.style.background = '#171c27');
+        el.addEventListener('mouseleave', () => el.style.background = 'transparent');
+        el.addEventListener('click', () => { item.action(); menu.remove(); });
+        menu.appendChild(el);
+      });
+      document.body.appendChild(menu);
+      setTimeout(() => { const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } }; document.addEventListener('click', close); }, 0);
+    }
+
+    function showShortcutModal(idx) {
+      const existing = idx >= 0 ? shortcuts[idx] : null;
+      let modal = document.getElementById('shortcut-modal');
+      if (modal) modal.remove();
+      modal = document.createElement('div');
+      modal.id = 'shortcut-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);z-index:1000;display:flex;align-items:center;justify-content:center';
+      modal.innerHTML = `<div style="width:360px;background:#151921;border:1px solid #1f2530;border-radius:12px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:#e5e9f0">${existing ? 'Edit' : 'Add'} Shortcut</h3>
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6b7482;margin-bottom:6px;font-weight:500">Name</label>
+        <input type="text" id="sc-name" value="${existing ? existing.name : ''}" placeholder="Shortcut name..." style="width:100%;padding:10px 12px;background:#0a0c10;border:1px solid #1f2530;border-radius:8px;color:#e5e9f0;font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:Outfit,sans-serif">
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6b7482;margin-bottom:6px;font-weight:500">URL</label>
+        <input type="text" id="sc-url" value="${existing ? existing.url : ''}" placeholder="https://..." style="width:100%;padding:10px 12px;background:#0a0c10;border:1px solid #1f2530;border-radius:8px;color:#e5e9f0;font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:'JetBrains Mono',monospace">
+        <div id="sc-preview" style="text-align:center;margin-bottom:14px"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="sc-cancel" style="padding:8px 18px;background:#0a0c10;color:#e5e9f0;border:1px solid #1f2530;border-radius:8px;cursor:pointer;font-family:Outfit,sans-serif;font-size:13px">Cancel</button>
+          <button id="sc-save" style="padding:8px 18px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;font-family:Outfit,sans-serif;font-size:13px;font-weight:500">Save</button>
+        </div>
+      </div>`;
+      document.body.appendChild(modal);
+
+      const urlInput = modal.querySelector('#sc-url');
+      const preview = modal.querySelector('#sc-preview');
+      function updatePreview() {
+        const fav = getFavicon(urlInput.value);
+        preview.innerHTML = fav ? '<img src="'+fav+'" width="32" height="32" style="border-radius:6px">' : '';
+      }
+      urlInput.addEventListener('input', updatePreview);
+      updatePreview();
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+      modal.querySelector('#sc-cancel').addEventListener('click', () => modal.remove());
+      modal.querySelector('#sc-save').addEventListener('click', () => {
+        const name = modal.querySelector('#sc-name').value.trim();
+        const url = modal.querySelector('#sc-url').value.trim();
+        if (!name || !url) return;
+        if (existing) { shortcuts[idx] = { name, url }; }
+        else { shortcuts.push({ name, url }); }
+        saveShortcuts(shortcuts);
+        renderShortcuts();
+        modal.remove();
+      });
+      modal.querySelector('#sc-name').focus();
+      modal.querySelector('#sc-name').addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') modal.remove();
+        if (e.key === 'Enter') modal.querySelector('#sc-save').click();
+      });
+    }
+
+    renderShortcuts();
 
     // Search
     document.getElementById('search-input').addEventListener('keydown', (e) => {
