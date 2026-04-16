@@ -76,7 +76,7 @@ function createWindow() {
   });
 
   // Also strip headers for named partitions (sidebar panels)
-  const partitions = ['persist:discord', 'persist:whatsapp', 'persist:claude'];
+  const partitions = ['persist:whatsapp', 'persist:claude'];
   partitions.forEach(partName => {
     const ses = session.fromPartition(partName);
 

@@ -8,7 +8,6 @@ const SidebarManager = {
 
   panelConfigs: {
     start: { url: null, partition: null },
-    discord: { url: 'https://discord.com/app', partition: 'persist:discord' },
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
     settings: { url: null, partition: null },
