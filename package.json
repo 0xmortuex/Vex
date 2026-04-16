@@ -1,0 +1,32 @@
+{
+  "name": "vex",
+  "version": "0.1.0",
+  "description": "A browser built just for you.",
+  "main": "src/main.js",
+  "author": "0xmortuex",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.vex.browser",
+    "productName": "Vex",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    }
+  }
+}

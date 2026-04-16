@@ -1,0 +1,253 @@
+// === Vex Webview Manager ===
+
+const WebviewManager = {
+  webviews: new Map(),
+
+  createWebview(tab) {
+    const container = document.getElementById('webviews-container');
+    const webview = document.createElement('webview');
+    webview.setAttribute('src', tab.url);
+    webview.setAttribute('partition', 'persist:main');
+    webview.setAttribute('allowpopups', '');
+    webview.setAttribute('webpreferences', 'contextIsolation=yes');
+    webview.dataset.tabId = tab.id;
+
+    // Events
+    webview.addEventListener('did-start-loading', () => {
+      TabManager.updateTab(tab.id, { loading: true });
+    });
+
+    webview.addEventListener('did-stop-loading', () => {
+      TabManager.updateTab(tab.id, { loading: false });
+    });
+
+    webview.addEventListener('did-finish-load', () => {
+      TabManager.updateTab(tab.id, { loading: false });
+    });
+
+    webview.addEventListener('page-title-updated', (e) => {
+      TabManager.updateTab(tab.id, { title: e.title });
+    });
+
+    webview.addEventListener('did-navigate', (e) => {
+      const url = e.url;
+      TabManager.updateTab(tab.id, { url });
+      this._updateFavicon(tab.id, url);
+
+      // Add to history
+      if (url !== 'vex://start') {
+        const t = TabManager.tabs.find(t => t.id === tab.id);
+        VexStorage.addHistory({ url, title: t?.title || url });
+      }
+    });
+
+    webview.addEventListener('did-navigate-in-page', (e) => {
+      if (e.isMainFrame) {
+        TabManager.updateTab(tab.id, { url: e.url });
+      }
+    });
+
+    webview.addEventListener('new-window', (e) => {
+      e.preventDefault();
+      TabManager.createTab(e.url, true);
+    });
+
+    webview.addEventListener('page-favicon-updated', (e) => {
+      if (e.favicons && e.favicons.length > 0) {
+        TabManager.updateTab(tab.id, { favicon: e.favicons[0] });
+      }
+    });
+
+    // Listen for VEX_CMD messages from start page and other webview content
+    webview.addEventListener('console-message', (e) => {
+      if (e.message && e.message.startsWith('VEX_CMD:')) {
+        try {
+          const cmd = JSON.parse(e.message.slice(8));
+          if (cmd.type === 'navigate' && cmd.url) {
+            // Navigate current tab to URL, or create new tab
+            TabManager.createTab(cmd.url, true);
+          } else if (cmd.type === 'open-panel' && cmd.panel) {
+            SidebarManager.openPanel(cmd.panel);
+          }
+        } catch (err) {
+          console.error('VEX_CMD parse error:', err);
+        }
+      }
+    });
+
+    // Context menu
+    webview.addEventListener('context-menu', (e) => {
+      this.showContextMenu(e, webview);
+    });
+
+    container.appendChild(webview);
+    this.webviews.set(tab.id, webview);
+  },
+
+  showWebview(tabId) {
+    this.webviews.forEach((wv, id) => {
+      wv.classList.toggle('active', id === tabId);
+    });
+  },
+
+  destroyWebview(tabId) {
+    const wv = this.webviews.get(tabId);
+    if (wv) {
+      wv.remove();
+      this.webviews.delete(tabId);
+    }
+  },
+
+  getActiveWebview() {
+    return this.webviews.get(TabManager.activeTabId);
+  },
+
+  navigate(url) {
+    const wv = this.getActiveWebview();
+    if (wv) {
+      // Electron webview DOM element uses .src or .loadURL()
+      // .loadURL() is the correct webview API method, but .src works as fallback
+      if (typeof wv.loadURL === 'function') {
+        wv.loadURL(url);
+      } else {
+        wv.src = url;
+      }
+    }
+  },
+
+  goBack() {
+    const wv = this.getActiveWebview();
+    if (wv && wv.canGoBack()) wv.goBack();
+  },
+
+  goForward() {
+    const wv = this.getActiveWebview();
+    if (wv && wv.canGoForward()) wv.goForward();
+  },
+
+  reload() {
+    const wv = this.getActiveWebview();
+    if (wv) wv.reload();
+  },
+
+  zoomIn() {
+    const wv = this.getActiveWebview();
+    if (wv) {
+      wv.getZoomLevel().then(level => {
+        wv.setZoomLevel(Math.min(level + 0.5, 5));
+      });
+    }
+  },
+
+  zoomOut() {
+    const wv = this.getActiveWebview();
+    if (wv) {
+      wv.getZoomLevel().then(level => {
+        wv.setZoomLevel(Math.max(level - 0.5, -5));
+      });
+    }
+  },
+
+  zoomReset() {
+    const wv = this.getActiveWebview();
+    if (wv) wv.setZoomLevel(0);
+  },
+
+  findInPage(text) {
+    const wv = this.getActiveWebview();
+    if (wv && text) {
+      wv.findInPage(text);
+    }
+  },
+
+  stopFindInPage() {
+    const wv = this.getActiveWebview();
+    if (wv) wv.stopFindInPage('clearSelection');
+  },
+
+  showContextMenu(e, webview) {
+    document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
+
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu';
+    menu.style.left = e.params.x + document.getElementById('icon-sidebar').offsetWidth +
+                      document.getElementById('tabs-sidebar').offsetWidth + 'px';
+    menu.style.top = (e.params.y + 44) + 'px';
+
+    const items = [
+      { label: 'Back', action: () => webview.goBack(), disabled: !webview.canGoBack() },
+      { label: 'Forward', action: () => webview.goForward(), disabled: !webview.canGoForward() },
+      { label: 'Reload', action: () => webview.reload() },
+      { sep: true },
+      { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
+      { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL()) }
+    ];
+
+    if (e.params.selectionText) {
+      items.push({ sep: true });
+      items.push({
+        label: `Search "${e.params.selectionText.substring(0, 20)}..."`,
+        action: () => {
+          const q = encodeURIComponent(e.params.selectionText);
+          TabManager.createTab(`https://www.google.com/search?q=${q}`, true);
+        }
+      });
+      items.push({
+        label: 'Copy',
+        action: () => webview.copy()
+      });
+    }
+
+    if (e.params.linkURL) {
+      items.push({ sep: true });
+      items.push({
+        label: 'Open Link in New Tab',
+        action: () => TabManager.createTab(e.params.linkURL, true)
+      });
+      items.push({
+        label: 'Copy Link',
+        action: () => navigator.clipboard.writeText(e.params.linkURL)
+      });
+    }
+
+    items.forEach(item => {
+      if (item.sep) {
+        const sep = document.createElement('div');
+        sep.className = 'tab-context-sep';
+        menu.appendChild(sep);
+      } else {
+        const el = document.createElement('div');
+        el.className = 'tab-context-item';
+        el.textContent = item.label;
+        if (item.disabled) {
+          el.style.opacity = '0.4';
+          el.style.pointerEvents = 'none';
+        }
+        el.addEventListener('click', () => {
+          item.action();
+          menu.remove();
+        });
+        menu.appendChild(el);
+      }
+    });
+
+    document.body.appendChild(menu);
+    const closeMenu = (ev) => {
+      if (!menu.contains(ev.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeMenu), 0);
+  },
+
+  _updateFavicon(tabId, url) {
+    try {
+      const domain = new URL(url).hostname;
+      if (domain && url !== 'vex://start') {
+        const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+        TabManager.updateTab(tabId, { favicon });
+      }
+    } catch {}
+  }
+};

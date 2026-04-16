@@ -1,0 +1,454 @@
+/* === Vex Browser — Main Theme & Layout === */
+
+:root {
+  --bg: #0a0c10;
+  --bg-2: #0f1218;
+  --sidebar: #0d0f14;
+  --surface: #151921;
+  --border: #1f2530;
+  --text: #e5e9f0;
+  --text-muted: #6b7482;
+  --primary: #6366f1;
+  --primary-hover: #5558e6;
+  --accent: #00b4d8;
+  --tab-active: #1e2430;
+  --tab-hover: #171c27;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+  --transition: 0.15s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* === Top Bar === */
+
+#top-bar {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  position: relative;
+  z-index: 100;
+  -webkit-app-region: drag;
+}
+
+/* Hidden drag div no longer needed — drag is on #top-bar itself */
+#top-bar-drag {
+  display: none;
+}
+
+#top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+/* All interactive children must opt out of drag */
+#top-bar button,
+#top-bar input,
+#top-bar select {
+  -webkit-app-region: no-drag;
+}
+
+#vex-logo {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  padding: 0 12px 0 8px;
+  cursor: default;
+}
+
+#nav-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+  -webkit-app-region: no-drag;
+}
+
+.nav-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* URL Bar */
+#url-bar-wrapper {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  -webkit-app-region: no-drag;
+}
+
+#url-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 600px;
+  height: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  transition: all var(--transition);
+}
+
+#url-bar:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+#url-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+#url-input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+#url-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Window Controls */
+#top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+#window-controls {
+  display: flex;
+  gap: 2px;
+  margin-left: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.win-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  -webkit-app-region: no-drag;
+}
+
+.win-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.win-btn-close:hover {
+  background: var(--danger);
+  color: white;
+}
+
+/* === Main Layout === */
+
+#main-layout {
+  display: flex;
+  height: calc(100% - 44px);
+}
+
+/* Content Area */
+#content-area {
+  flex: 1;
+  position: relative;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+#webviews-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+#webviews-container webview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+}
+
+#webviews-container webview.active {
+  display: flex;
+}
+
+/* Panels */
+#panels-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#panels-container .panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+}
+
+#panels-container .panel webview {
+  width: 100%;
+  height: 100%;
+}
+
+/* Settings Panel */
+.settings-content {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 48px 32px;
+}
+
+.settings-content h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 32px;
+  color: var(--text);
+}
+
+.setting-group {
+  margin-bottom: 28px;
+}
+
+.setting-label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.setting-group select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.setting-group select:focus {
+  border-color: var(--primary);
+}
+
+.setting-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  color: var(--text);
+}
+
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--border);
+  border-radius: 11px;
+  transition: 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background: var(--text);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.toggle input:checked + .toggle-slider {
+  background: var(--primary);
+}
+
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(18px);
+}
+
+.setting-info {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.setting-info.muted {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Find Bar */
+#find-bar {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  z-index: 50;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+#find-input {
+  width: 200px;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+}
+
+#find-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 30px;
+  text-align: center;
+}
+
+.find-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.find-btn:hover {
+  background: var(--tab-hover);
+  color: var(--text);
+}
+
+/* Toast Notification */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  color: var(--text);
+  font-size: 13px;
+  z-index: 1000;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: toastIn 0.3s ease;
+}
+
+@keyframes toastIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

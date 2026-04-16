@@ -1,0 +1,183 @@
+/* === Split-Screen Mode === */
+
+#webviews-container.split-mode {
+  display: grid !important;
+  grid-template-columns: 1fr 4px 1fr;
+  grid-template-rows: 1fr;
+}
+
+#webviews-container.split-mode webview {
+  position: relative;
+  display: none;
+}
+
+#webviews-container.split-mode webview.split-left {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+#webviews-container.split-mode webview.split-right {
+  display: flex;
+  grid-column: 3;
+  grid-row: 1;
+}
+
+/* Split divider */
+#split-divider {
+  display: none;
+  grid-column: 2;
+  grid-row: 1;
+  background: var(--border);
+  cursor: col-resize;
+  transition: background 0.15s;
+  z-index: 20;
+}
+
+#split-divider:hover,
+#split-divider.dragging {
+  background: var(--primary);
+}
+
+#webviews-container.split-mode #split-divider {
+  display: block;
+}
+
+/* Split mini URL bars */
+.split-url-bar {
+  display: none;
+  position: absolute;
+  top: 0;
+  height: 32px;
+  left: 0;
+  right: 0;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 10px;
+  align-items: center;
+  gap: 6px;
+  z-index: 15;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.split-url-bar.visible {
+  display: flex;
+}
+
+.split-url-bar .split-url-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.split-url-bar .split-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.split-url-bar .split-close-btn:hover {
+  background: var(--danger);
+  color: white;
+}
+
+/* Split button in top bar */
+#btn-split {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+  -webkit-app-region: no-drag;
+}
+
+#btn-split:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+#btn-split.active {
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* Split tab picker overlay */
+#split-picker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 400;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+#split-picker.visible {
+  display: flex;
+}
+
+#split-picker-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  width: 340px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+#split-picker-content h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text);
+}
+
+.split-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.split-picker-item:hover {
+  background: var(--tab-hover);
+}
+
+.split-picker-item img {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+.split-picker-item span {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

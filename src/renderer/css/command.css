@@ -1,0 +1,159 @@
+/* === Command Bar (Ctrl+K) === */
+
+#command-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 500;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 20vh;
+}
+
+#command-bar {
+  width: 600px;
+  max-width: 90vw;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: commandIn 0.15s ease;
+}
+
+@keyframes commandIn {
+  from {
+    transform: translateY(-10px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+#command-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+#command-input-wrapper svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+#command-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+}
+
+#command-input::placeholder {
+  color: var(--text-muted);
+}
+
+#command-input-wrapper kbd {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+
+#command-results {
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.command-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.command-result:hover,
+.command-result.selected {
+  background: var(--tab-hover);
+}
+
+.command-result-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.command-result-icon.primary {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--primary);
+}
+
+.command-result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.command-result-title {
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.command-result-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.command-result-shortcut {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+
+.command-section-title {
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.command-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}

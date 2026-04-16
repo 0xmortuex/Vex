@@ -1,0 +1,249 @@
+// === Vex Command Bar (Ctrl+K) ===
+
+const CommandBar = {
+  isOpen: false,
+  selectedIndex: 0,
+  results: [],
+
+  commands: [
+    { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: '+', action: () => TabManager.createTab('vex://start', true) },
+    { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: '×', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.closeTab(t.id); } },
+    { id: 'discord', label: 'Discord', hint: 'Open Discord panel', icon: '💬', isPrimary: true, action: () => SidebarManager.openPanel('discord') },
+    { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: '📱', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },
+    { id: 'claude', label: 'Claude AI', hint: 'Open Claude panel', icon: '✨', isPrimary: true, action: () => SidebarManager.openPanel('claude') },
+    { id: 'cusa', label: 'CUSA Workspace', hint: 'Open CUSA workspace panel', icon: '⚖', isPrimary: true, action: () => SidebarManager.openPanel('cusa') },
+    { id: 'roblox', label: 'Roblox Hub', hint: 'Open Roblox panel', icon: '🎮', isPrimary: true, action: () => SidebarManager.openPanel('roblox') },
+    { id: 'github', label: 'GitHub', hint: 'Open GitHub panel', icon: '🐙', isPrimary: true, action: () => SidebarManager.openPanel('github') },
+    { id: 'reload', label: 'Reload', hint: 'Reload current tab', shortcut: 'Ctrl+R', icon: '↻', action: () => WebviewManager.reload() },
+    { id: 'history', label: 'History', hint: 'View browsing history', icon: '📋', action: () => CommandBar.showHistory() },
+    { id: 'settings', label: 'Settings', hint: 'Open settings', icon: '⚙', action: () => SidebarManager.openPanel('settings') },
+    { id: 'tools', label: 'Tools', hint: 'FlashMind, ReconX, CipherLab...', icon: '🔧', action: () => CommandBar.showTools() },
+    { id: 'start', label: 'Start Page', hint: 'Go to start page', icon: '🏠', action: () => TabManager.createTab('vex://start', true) },
+    { id: 'youtube', label: 'YouTube', hint: 'Open YouTube', icon: '▶', action: () => TabManager.createTab('https://youtube.com', true) },
+    { id: 'chatgpt', label: 'ChatGPT', hint: 'Open ChatGPT', icon: '🤖', action: () => TabManager.createTab('https://chat.openai.com', true) },
+    { id: 'pip', label: 'Picture-in-Picture', hint: 'Pop video into floating window', shortcut: 'Ctrl+Shift+P', icon: '📺', action: () => { if (typeof PiPManager !== 'undefined') PiPManager.toggle(); } },
+    { id: 'split', label: 'Split Screen', hint: 'Toggle split-screen view', shortcut: 'Ctrl+Shift+S', icon: '⬛', action: () => SplitScreen.toggle() },
+    // Tool commands
+    { id: 'flashmind', label: 'FlashMind', hint: 'AI-powered flashcard study tool', icon: '🧠', action: () => VexTools.openToolById('flashmind') },
+    { id: 'reconx', label: 'ReconX', hint: 'OSINT reconnaissance toolkit', icon: '🔍', action: () => VexTools.openToolById('reconx') },
+    { id: 'cipherlab', label: 'CipherLab', hint: 'Cryptography analysis lab', icon: '🔐', action: () => VexTools.openToolById('cipherlab') },
+    { id: 'loopholemap', label: 'LoopholeMap', hint: 'Legal loophole mapper', icon: '🗺', action: () => VexTools.openToolById('loopholemap') },
+    { id: 'aijudge', label: 'AIJudge', hint: 'AI-powered legal judgment tool', icon: '⚖', action: () => VexTools.openToolById('aijudge') },
+    { id: 'netmap', label: 'NetMap', hint: 'Network topology mapper', icon: '🌐', action: () => VexTools.openToolById('netmap') },
+    { id: 'billforge', label: 'BillForge', hint: 'Legislative bill drafting tool', icon: '🔨', action: () => VexTools.openToolById('billforge') }
+  ],
+
+  init() {
+    const overlay = document.getElementById('command-overlay');
+    const input = document.getElementById('command-input');
+    const results = document.getElementById('command-results');
+
+    // Close on overlay click
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) this.close();
+    });
+
+    // Input handling
+    input.addEventListener('input', () => {
+      this.search(input.value);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.close();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.selectNext();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.selectPrev();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        this.executeSelected();
+      }
+    });
+  },
+
+  toggle() {
+    if (this.isOpen) {
+      this.close();
+    } else {
+      this.open();
+    }
+  },
+
+  open() {
+    const overlay = document.getElementById('command-overlay');
+    const input = document.getElementById('command-input');
+
+    overlay.style.display = 'flex';
+    this.isOpen = true;
+    input.value = '';
+    input.focus();
+    this.search('');
+  },
+
+  close() {
+    document.getElementById('command-overlay').style.display = 'none';
+    this.isOpen = false;
+    this.selectedIndex = 0;
+  },
+
+  search(query) {
+    const q = query.trim().toLowerCase();
+    const resultsEl = document.getElementById('command-results');
+    resultsEl.innerHTML = '';
+
+    // Handle > commands
+    if (q.startsWith('>')) {
+      const cmd = q.slice(1).trim();
+      this.results = this.commands.filter(c =>
+        c.id.includes(cmd) || c.label.toLowerCase().includes(cmd)
+      );
+    } else if (q === '') {
+      // Show default commands
+      this.results = this.commands.slice(0, 8);
+    } else {
+      // Mix: search + URL + commands
+      this.results = [];
+
+      // Check if it's a URL
+      if (/^https?:\/\//i.test(q) || /^[a-z0-9-]+\.[a-z]{2,}/i.test(q)) {
+        const url = q.startsWith('http') ? q : 'https://' + q;
+        this.results.push({
+          id: 'url',
+          label: `Go to ${q}`,
+          hint: url,
+          icon: '→',
+          isPrimary: true,
+          action: () => {
+            const tab = TabManager.getActiveTab();
+            if (tab && tab.url === 'vex://start') {
+              WebviewManager.navigate(url);
+            } else {
+              TabManager.createTab(url, true);
+            }
+          }
+        });
+      }
+
+      // Search action
+      this.results.push({
+        id: 'search',
+        label: `Search "${q}"`,
+        hint: 'Google Search',
+        icon: '🔍',
+        action: () => {
+          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+          TabManager.createTab(searchUrl, true);
+        }
+      });
+
+      // Matching commands
+      const matching = this.commands.filter(c =>
+        c.id.includes(q) || c.label.toLowerCase().includes(q) || (c.hint && c.hint.toLowerCase().includes(q))
+      );
+      this.results.push(...matching);
+    }
+
+    this.selectedIndex = 0;
+    this.renderResults();
+  },
+
+  renderResults() {
+    const resultsEl = document.getElementById('command-results');
+    resultsEl.innerHTML = '';
+
+    if (this.results.length === 0) {
+      resultsEl.innerHTML = '<div class="command-empty">No results found</div>';
+      return;
+    }
+
+    this.results.forEach((item, i) => {
+      const el = document.createElement('div');
+      el.className = `command-result${i === this.selectedIndex ? ' selected' : ''}`;
+
+      el.innerHTML = `
+        <div class="command-result-icon${item.isPrimary ? ' primary' : ''}">${item.icon || '•'}</div>
+        <div class="command-result-info">
+          <div class="command-result-title">${item.label}</div>
+          ${item.hint ? `<div class="command-result-hint">${item.hint}</div>` : ''}
+        </div>
+        ${item.shortcut ? `<div class="command-result-shortcut">${item.shortcut}</div>` : ''}
+      `;
+
+      el.addEventListener('click', () => {
+        this.close();
+        item.action();
+      });
+
+      el.addEventListener('mouseenter', () => {
+        this.selectedIndex = i;
+        this.updateSelection();
+      });
+
+      resultsEl.appendChild(el);
+    });
+  },
+
+  selectNext() {
+    if (this.results.length === 0) return;
+    this.selectedIndex = (this.selectedIndex + 1) % this.results.length;
+    this.updateSelection();
+  },
+
+  selectPrev() {
+    if (this.results.length === 0) return;
+    this.selectedIndex = (this.selectedIndex - 1 + this.results.length) % this.results.length;
+    this.updateSelection();
+  },
+
+  updateSelection() {
+    document.querySelectorAll('.command-result').forEach((el, i) => {
+      el.classList.toggle('selected', i === this.selectedIndex);
+    });
+
+    // Scroll into view
+    const selected = document.querySelector('.command-result.selected');
+    if (selected) selected.scrollIntoView({ block: 'nearest' });
+  },
+
+  executeSelected() {
+    if (this.results.length === 0) return;
+    const item = this.results[this.selectedIndex];
+    if (item) {
+      this.close();
+      item.action();
+    }
+  },
+
+  async showHistory() {
+    this.close();
+    const history = await VexStorage.loadHistory();
+    // For now, show last 10 in a new search
+    const input = document.getElementById('command-input');
+    this.open();
+    this.results = history.slice(0, 15).map(h => ({
+      id: 'hist-' + h.time,
+      label: h.title || h.url,
+      hint: h.url,
+      icon: '🕐',
+      action: () => TabManager.createTab(h.url, true)
+    }));
+    this.renderResults();
+  },
+
+  showTools() {
+    this.close();
+    this.open();
+    const tools = typeof VexTools !== 'undefined' ? VexTools.tools : [];
+    this.results = tools.map(t => ({
+      id: 'tool-' + t.id,
+      label: t.name,
+      hint: t.desc,
+      icon: t.icon,
+      action: () => VexTools.openTool(t)
+    }));
+    this.renderResults();
+  }
+};

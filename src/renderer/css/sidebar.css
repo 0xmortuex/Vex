@@ -1,0 +1,109 @@
+/* === Icon Sidebar === */
+
+#icon-sidebar {
+  width: 52px;
+  min-width: 52px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 4px;
+}
+
+.sidebar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+}
+
+.sidebar-icon:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.sidebar-icon.active {
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.sidebar-icon.active::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  width: 3px;
+  height: 20px;
+  background: var(--primary);
+  border-radius: 0 2px 2px 0;
+}
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+/* Sidebar separator between panels and tools */
+.sidebar-separator {
+  width: 28px;
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+/* Tools bar */
+#tools-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding-bottom: 4px;
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.tool-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+}
+
+.tool-icon .tool-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.tool-icon:hover {
+  background: var(--surface);
+  box-shadow: 0 0 8px rgba(0, 180, 216, 0.15);
+}
+
+.tool-icon:active {
+  transform: scale(0.92);
+}
+
+/* Panel styles for webview content */
+.panel {
+  background: var(--bg);
+}
+
+.panel webview {
+  width: 100%;
+  height: 100%;
+}

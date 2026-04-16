@@ -1,0 +1,333 @@
+/* === Shared Panel Styles (Phase 2) === */
+
+.panel-content {
+  height: 100%;
+  overflow-y: auto;
+  padding: 32px;
+  background: var(--bg);
+}
+
+.panel-header {
+  margin-bottom: 28px;
+}
+
+.panel-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.panel-header p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.panel-section {
+  margin-bottom: 32px;
+}
+
+.panel-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+/* Quick Links Grid */
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.panel-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.panel-grid.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.panel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.panel-card:hover {
+  background: var(--tab-active);
+  border-color: #2a3040;
+  transform: translateY(-2px);
+}
+
+.panel-card-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.panel-card-label {
+  font-size: 12px;
+  color: var(--text);
+  text-align: center;
+  font-weight: 500;
+}
+
+.panel-card-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Placeholder Card */
+.panel-placeholder {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  text-align: center;
+}
+
+.panel-placeholder p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+.panel-placeholder .panel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.panel-placeholder .panel-btn:hover {
+  background: var(--primary-hover);
+}
+
+/* Repo / list cards */
+.panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.panel-list-item:hover {
+  background: var(--tab-active);
+  border-color: #2a3040;
+}
+
+.panel-list-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-list-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel-list-item-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.panel-list-item-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.panel-list-item-meta span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.lang-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* GitHub panel specifics */
+.gh-profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.gh-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+}
+
+.gh-profile-info h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.gh-profile-info .gh-username {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.gh-profile-info .gh-bio {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.gh-stats-row {
+  display: flex;
+  gap: 20px;
+  margin-top: 8px;
+}
+
+.gh-stat {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.gh-stat strong {
+  color: #238636;
+  font-weight: 600;
+}
+
+/* Roblox panel specifics */
+.roblox-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.roblox-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.roblox-header h2 span {
+  color: #e2231a;
+}
+
+.roblox-btn-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.roblox-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.roblox-btn.primary {
+  background: #e2231a;
+  color: white;
+}
+
+.roblox-btn.primary:hover {
+  background: #c41e17;
+}
+
+.roblox-btn.secondary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.roblox-btn.secondary:hover {
+  background: var(--tab-hover);
+}
+
+/* PiP button */
+#pip-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 40;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(99, 102, 241, 0.9);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.15s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+#pip-btn:hover {
+  background: rgba(99, 102, 241, 1);
+  transform: translateY(-1px);
+}
+
+#pip-btn svg {
+  width: 14px;
+  height: 14px;
+}
