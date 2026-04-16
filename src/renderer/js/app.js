@@ -432,6 +432,9 @@
   // === Phase 8: Scheduler ===
   Scheduler.start();
 
+  // === Phase 10: Multi-Tab AI ===
+  TabSelector.init();
+
   // === Phase 7A: AI Panel ===
   AIPanel.init();
   document.getElementById('btn-ai-summarize')?.addEventListener('click', () => {

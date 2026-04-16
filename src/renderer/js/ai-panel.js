@@ -42,8 +42,19 @@ const AIPanel = {
     document.querySelectorAll('.ai-quick-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.action;
-        if (action === 'summarize' || action === 'key-points') this.sendMessage('summarize');
-        else if (action === 'translate') this.sendMessage('translate', { targetLanguage: 'English' });
+        if (action === 'compare') {
+          if (typeof TabSelector !== 'undefined') TabSelector.setMode('all');
+          const allTabs = TabManager.tabs;
+          if (allTabs.length < 2) { window.showToast?.('Need 2+ tabs to compare'); return; }
+          this._sendMultiTab('Compare these tabs side-by-side. Show key differences in a table.', allTabs);
+        } else if (action === 'summarize') {
+          const sel = typeof TabSelector !== 'undefined' ? TabSelector.getSelectedTabs() : [];
+          if (sel.length > 1) {
+            this._sendMultiTab('Summarize all these tabs collectively. Highlight main topics and common themes.', sel);
+          } else {
+            this.sendMessage('summarize');
+          }
+        } else if (action === 'translate') this.sendMessage('translate', { targetLanguage: 'English' });
         else if (action === 'ask') document.getElementById('ai-input')?.focus();
       });
     });
@@ -204,7 +215,123 @@ const AIPanel = {
     if (!msg) return;
     input.value = '';
     if (!this.isOpen()) this.open();
-    await this.sendMessage('chat', { message: msg });
+
+    // Auto-detect multi-tab intent
+    const multiTrigger = /\b(all my tabs|these tabs|across (my |the )?tabs|compare (these|my|all) tabs|every tab|every open tab)\b/i;
+    if (multiTrigger.test(msg) && typeof TabSelector !== 'undefined' && TabSelector.getCurrentMode() === 'current') {
+      TabSelector.setMode('all');
+    }
+
+    // Route: multi-tab if >1 tab selected
+    const selectedTabs = typeof TabSelector !== 'undefined' ? TabSelector.getSelectedTabs() : [];
+    if (selectedTabs.length > 1) {
+      await this._sendMultiTab(msg, selectedTabs);
+    } else {
+      await this.sendMessage('chat', { message: msg });
+    }
+  },
+
+  async _sendMultiTab(message, tabs) {
+    const conv = this._getConv();
+    conv.push({ role: 'user', content: message });
+    this._renderMessages();
+
+    const loadingEl = this._addLoading();
+    try {
+      loadingEl.innerHTML = 'Reading ' + tabs.length + ' tabs <span class="ai-spinner"></span>';
+      const tabContexts = await MultiTabContext.extractContextFromTabs(tabs);
+      loadingEl.innerHTML = 'Thinking <span class="ai-spinner"></span>';
+
+      const res = await fetch(AI_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'multi-tab-chat',
+          message,
+          tabContexts,
+          conversationHistory: conv.filter(m => m.role !== 'system').slice(-6)
+        })
+      });
+      loadingEl?.remove();
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        this._addError(err.error || 'Request failed');
+        return;
+      }
+
+      const data = await res.json();
+      const parsed = this._parseResponse(data.result);
+      conv.push({ role: 'assistant', content: parsed.reply || data.result });
+      this._renderMultiTabResponse(parsed, tabs);
+    } catch (err) {
+      loadingEl?.remove();
+      this._addError(err.message || 'Network error');
+    }
+  },
+
+  _renderMultiTabResponse(parsed, tabs) {
+    const container = document.getElementById('ai-messages');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = 'ai-msg assistant';
+
+    let html = '<div class="mt-badge">Analyzed ' + tabs.length + ' tabs</div>';
+
+    if (parsed.reply) {
+      html += '<div class="mt-reply">' + this._esc(parsed.reply).replace(/\n/g, '<br>') + '</div>';
+    }
+
+    if (parsed.perTab?.length) {
+      html += '<details class="mt-per-tab"><summary>Per-tab summaries</summary>';
+      parsed.perTab.forEach(t => {
+        const tab = tabs[(t.tabIndex || 1) - 1];
+        html += '<div class="mt-tab-sum"><strong>' + this._esc(t.title || tab?.title || '') + '</strong><br>'
+          + '<span>' + this._esc(t.summary || '') + '</span></div>';
+      });
+      html += '</details>';
+    }
+
+    if (parsed.comparisons?.length) {
+      html += '<table class="mt-table"><thead><tr><th></th>';
+      tabs.forEach((_, i) => { html += '<th>Tab ' + (i + 1) + '</th>'; });
+      html += '</tr></thead><tbody>';
+      parsed.comparisons.forEach(c => {
+        html += '<tr><td><strong>' + this._esc(c.dimension) + '</strong></td>';
+        tabs.forEach((_, i) => {
+          const v = c.values?.find(x => x.tab === i + 1)?.value || '\u2014';
+          html += '<td>' + this._esc(String(v)) + '</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    if (parsed.recommendation) {
+      html += '<div class="mt-rec">' + this._esc(parsed.recommendation) + '</div>';
+    }
+
+    if (parsed.suggestedFollowUps?.length) {
+      html += '<div class="follow-ups">';
+      parsed.suggestedFollowUps.forEach(q => { html += '<button class="follow-up-btn">' + this._esc(q) + '</button>'; });
+      html += '</div>';
+    }
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'ai-msg-content';
+    contentEl.innerHTML = html;
+    el.appendChild(contentEl);
+    el.appendChild(this._makeCopyBtn(contentEl));
+
+    el.querySelectorAll('.follow-up-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('ai-input').value = btn.textContent;
+        this._sendChat();
+      });
+    });
+
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
   },
 
   _clearChat() {

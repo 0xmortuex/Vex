@@ -403,6 +403,23 @@
       </div>
       <button class="ai-close" id="ai-close">&times;</button>
     </div>
+    <div class="ai-tab-selector">
+      <button class="tab-selector-toggle" id="tab-selector-toggle">
+        <span class="selector-label">Tabs:</span>
+        <span class="selector-count" id="selector-count">Current tab</span>
+        <span class="selector-arrow">&#9662;</span>
+      </button>
+      <div id="tab-selector-dropdown" hidden>
+        <div class="selector-modes">
+          <button class="selector-mode active" data-mode="current">Current tab</button>
+          <button class="selector-mode" data-mode="all">All tabs</button>
+          <button class="selector-mode" data-mode="group">This group</button>
+          <button class="selector-mode" data-mode="custom">Pick tabs...</button>
+        </div>
+        <div id="selector-tab-list" hidden></div>
+        <div id="selector-summary">1 tab included</div>
+      </div>
+    </div>
     <div class="agent-mode-selector">
       <button class="mode-btn active" data-mode="ask" title="Ask before each action">Ask</button>
       <button class="mode-btn" data-mode="plan" title="Show full plan, then execute">Plan</button>
@@ -410,8 +427,8 @@
     </div>
     <div class="ai-quick-actions">
       <button class="ai-quick-btn" data-action="summarize">Summarize</button>
+      <button class="ai-quick-btn" data-action="compare">Compare tabs</button>
       <button class="ai-quick-btn" data-action="translate">Translate</button>
-      <button class="ai-quick-btn" data-action="key-points">Key Points</button>
       <button class="ai-quick-btn" data-action="ask">Ask</button>
     </div>
     <div class="ai-messages" id="ai-messages">
@@ -476,6 +493,8 @@
   <script src="js/translate.js"></script>
   <script src="js/reading-mode.js"></script>
   <script src="js/page-context.js"></script>
+  <script src="js/multi-tab-context.js"></script>
+  <script src="js/tab-selector.js"></script>
   <script src="js/dom-extractor.js"></script>
   <script src="js/agent-executor.js"></script>
   <script src="js/agent-loop.js"></script>
