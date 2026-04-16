@@ -1,5 +1,19 @@
 // === Vex Tab Manager ===
 
+// Start page URL — defaults to vex:// protocol, replaced with file:// fallback once resolved
+let START_URL = 'vex://start';
+
+// Resolve the file:// fallback URL asynchronously
+if (window.vex?.getStartPageUrl) {
+  window.vex.getStartPageUrl().then(url => {
+    if (url) START_URL = url;
+  }).catch(() => {});
+}
+
+function isStartPage(url) {
+  return url === 'vex://start' || url === START_URL || url?.startsWith('vex://start') || url?.includes('start.html');
+}
+
 const TabManager = {
   tabs: [],
   activeTabId: null,
@@ -26,7 +40,7 @@ const TabManager = {
       }
       this.switchTab(this.tabs[0].id);
     } else {
-      this.createTab('vex://start', true);
+      this.createTab(START_URL, true);
     }
 
     this.renderGroups();
@@ -38,8 +52,8 @@ const TabManager = {
     const id = `tab-${++this.tabCounter}`;
     const tab = {
       id,
-      url: url || 'vex://start',
-      title: url === 'vex://start' ? 'New Tab' : 'Loading...',
+      url: url || START_URL,
+      title: isStartPage(url) ? 'New Tab' : 'Loading...',
       favicon: null,
       loading: true,
       pinned: false,
@@ -94,7 +108,7 @@ const TabManager = {
     this.tabs.splice(idx, 1);
 
     if (this.tabs.length === 0) {
-      this.createTab('vex://start', true);
+      this.createTab(START_URL, true);
     } else if (this.activeTabId === id) {
       const newIdx = Math.min(idx, this.tabs.length - 1);
       this.switchTab(this.tabs[newIdx].id);
@@ -128,7 +142,7 @@ const TabManager = {
 
   updateUrlBar(tab) {
     const urlInput = document.getElementById('url-input');
-    if (tab.url === 'vex://start') {
+    if (isStartPage(tab.url)) {
       urlInput.value = '';
       urlInput.placeholder = 'Search or enter URL...';
     } else {
@@ -329,7 +343,7 @@ const TabManager = {
 
   setupNewTabButton() {
     document.getElementById('btn-new-tab').addEventListener('click', () => {
-      this.createTab('vex://start', true);
+      this.createTab(START_URL, true);
     });
   },
 

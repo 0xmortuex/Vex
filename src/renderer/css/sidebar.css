@@ -84,6 +84,17 @@
   position: relative;
 }
 
+.tool-icon svg {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+.tool-icon:hover svg {
+  color: var(--accent);
+}
+
 .tool-icon .tool-emoji {
   font-size: 15px;
   line-height: 1;
@@ -92,6 +103,11 @@
 .tool-icon:hover {
   background: var(--surface);
   box-shadow: 0 0 8px rgba(0, 180, 216, 0.15);
+}
+
+/* Sidebar panel icon SVGs — inherit color from parent */
+.sidebar-icon svg {
+  color: inherit;
 }
 
 .tool-icon:active {

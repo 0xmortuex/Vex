@@ -2,13 +2,12 @@
 
 const VexTools = {
   tools: [
-    { id: 'flashmind', name: 'FlashMind', url: 'https://0xmortuex.github.io/FlashMind/', icon: '\u{1F9E0}', desc: 'AI-powered flashcard study tool' },
-    { id: 'reconx', name: 'ReconX', url: 'https://0xmortuex.github.io/ReconX/', icon: '\u{1F50D}', desc: 'OSINT reconnaissance toolkit' },
-    { id: 'cipherlab', name: 'CipherLab', url: 'https://0xmortuex.github.io/CipherLab/', icon: '\u{1F510}', desc: 'Cryptography analysis lab' },
-    { id: 'loopholemap', name: 'LoopholeMap', url: 'https://0xmortuex.github.io/LoopholeMap/', icon: '\u{1F5FA}', desc: 'Legal loophole mapper' },
-    { id: 'aijudge', name: 'AIJudge', url: 'https://0xmortuex.github.io/AIJudge/', icon: '\u{2696}', desc: 'AI-powered legal judgment tool' },
-    { id: 'netmap', name: 'NetMap', url: 'https://0xmortuex.github.io/NetMap/', icon: '\u{1F310}', desc: 'Network topology mapper' },
-    { id: 'billforge', name: 'BillForge', url: 'https://0xmortuex.github.io/BillForge/', icon: '\u{1F528}', desc: 'Legislative bill drafting tool' }
+    { id: 'flashmind', name: 'FlashMind', url: 'https://0xmortuex.github.io/FlashMind/', desc: 'AI-powered flashcard study tool', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5 7.4V19a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1.6c2.9-1.1 5-4 5-7.4a8 8 0 0 0-8-8z"/><path d="M9 22h6"/></svg>' },
+    { id: 'cipherlab', name: 'CipherLab', url: 'https://0xmortuex.github.io/CipherLab/', desc: 'Cryptography analysis lab', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>' },
+    { id: 'loopholemap', name: 'LoopholeMap', url: 'https://0xmortuex.github.io/LoopholeMap/', desc: 'Legal loophole mapper', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' },
+    { id: 'aijudge', name: 'AIJudge', url: 'https://0xmortuex.github.io/AIJudge/', desc: 'AI-powered legal judgment tool', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/><path d="M2 11h4l1.5-3L12 14l4.5-6L18 11h4"/></svg>' },
+    { id: 'netmap', name: 'NetMap', url: 'https://0xmortuex.github.io/NetMap/', desc: 'Network topology mapper', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>' },
+    { id: 'billforge', name: 'BillForge', url: 'https://0xmortuex.github.io/BillForge/', desc: 'Legislative bill drafting tool', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9"/><path d="M18 9.5a4 4 0 0 0-5.5-5.5L9 7.5"/><path d="M14.5 5.5L18 2l4 4-3.5 3.5"/></svg>' }
   ],
 
   init() {
@@ -24,7 +23,7 @@ const VexTools = {
       btn.className = 'tool-icon';
       btn.dataset.toolId = tool.id;
       btn.title = `${tool.name} — ${tool.desc}`;
-      btn.innerHTML = `<span class="tool-emoji">${tool.icon}</span>`;
+      btn.innerHTML = tool.svg || `<span class="tool-emoji">${tool.icon || ''}</span>`;
 
       btn.addEventListener('click', () => this.openTool(tool));
 

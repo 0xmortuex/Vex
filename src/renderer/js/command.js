@@ -6,7 +6,7 @@ const CommandBar = {
   results: [],
 
   commands: [
-    { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: '+', action: () => TabManager.createTab('vex://start', true) },
+    { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: '+', action: () => TabManager.createTab(START_URL, true) },
     { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: '×', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.closeTab(t.id); } },
     { id: 'discord', label: 'Discord', hint: 'Open Discord panel', icon: '💬', isPrimary: true, action: () => SidebarManager.openPanel('discord') },
     { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: '📱', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },
@@ -18,14 +18,13 @@ const CommandBar = {
     { id: 'history', label: 'History', hint: 'View browsing history', icon: '📋', action: () => CommandBar.showHistory() },
     { id: 'settings', label: 'Settings', hint: 'Open settings', icon: '⚙', action: () => SidebarManager.openPanel('settings') },
     { id: 'tools', label: 'Tools', hint: 'FlashMind, ReconX, CipherLab...', icon: '🔧', action: () => CommandBar.showTools() },
-    { id: 'start', label: 'Start Page', hint: 'Go to start page', icon: '🏠', action: () => TabManager.createTab('vex://start', true) },
+    { id: 'start', label: 'Start Page', hint: 'Go to start page', icon: '🏠', action: () => TabManager.createTab(START_URL, true) },
     { id: 'youtube', label: 'YouTube', hint: 'Open YouTube', icon: '▶', action: () => TabManager.createTab('https://youtube.com', true) },
     { id: 'chatgpt', label: 'ChatGPT', hint: 'Open ChatGPT', icon: '🤖', action: () => TabManager.createTab('https://chat.openai.com', true) },
     { id: 'pip', label: 'Picture-in-Picture', hint: 'Pop video into floating window', shortcut: 'Ctrl+Shift+P', icon: '📺', action: () => { if (typeof PiPManager !== 'undefined') PiPManager.toggle(); } },
     { id: 'split', label: 'Split Screen', hint: 'Toggle split-screen view', shortcut: 'Ctrl+Shift+S', icon: '⬛', action: () => SplitScreen.toggle() },
     // Tool commands
-    { id: 'flashmind', label: 'FlashMind', hint: 'AI-powered flashcard study tool', icon: '🧠', action: () => VexTools.openToolById('flashmind') },
-    { id: 'reconx', label: 'ReconX', hint: 'OSINT reconnaissance toolkit', icon: '🔍', action: () => VexTools.openToolById('reconx') },
+    { id: 'flashmind', label: 'FlashMind', hint: 'AI-powered flashcard study tool', icon: '💡', action: () => VexTools.openToolById('flashmind') },
     { id: 'cipherlab', label: 'CipherLab', hint: 'Cryptography analysis lab', icon: '🔐', action: () => VexTools.openToolById('cipherlab') },
     { id: 'loopholemap', label: 'LoopholeMap', hint: 'Legal loophole mapper', icon: '🗺', action: () => VexTools.openToolById('loopholemap') },
     { id: 'aijudge', label: 'AIJudge', hint: 'AI-powered legal judgment tool', icon: '⚖', action: () => VexTools.openToolById('aijudge') },
@@ -118,7 +117,7 @@ const CommandBar = {
           isPrimary: true,
           action: () => {
             const tab = TabManager.getActiveTab();
-            if (tab && tab.url === 'vex://start') {
+            if (tab && isStartPage(tab.url)) {
               WebviewManager.navigate(url);
             } else {
               TabManager.createTab(url, true);

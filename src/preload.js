@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Tab management
   getStartPagePath: () => ipcRenderer.invoke('get-start-page-path'),
+  getStartPageUrl: () => ipcRenderer.invoke('get-start-page-url'),
 
   // Ad blocker
   getAdBlockerState: () => ipcRenderer.invoke('adblocker-get-state'),

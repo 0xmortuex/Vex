@@ -35,7 +35,7 @@ const WebviewManager = {
       this._updateFavicon(tab.id, url);
 
       // Add to history
-      if (url !== 'vex://start') {
+      if (!isStartPage(url)) {
         const t = TabManager.tabs.find(t => t.id === tab.id);
         VexStorage.addHistory({ url, title: t?.title || url });
       }
@@ -244,7 +244,7 @@ const WebviewManager = {
   _updateFavicon(tabId, url) {
     try {
       const domain = new URL(url).hostname;
-      if (domain && url !== 'vex://start') {
+      if (domain && !isStartPage(url)) {
         const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
         TabManager.updateTab(tabId, { favicon });
       }

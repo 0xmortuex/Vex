@@ -7,7 +7,7 @@ const SidebarManager = {
   customPanels: ['settings', 'cusa', 'roblox', 'github'],
 
   panelConfigs: {
-    start: { url: 'vex://start', partition: null },
+    start: { url: null, partition: null }, // start page handled inline
     discord: { url: 'https://discord.com/app', partition: 'persist:discord' },
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },

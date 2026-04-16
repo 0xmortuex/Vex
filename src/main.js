@@ -224,6 +224,11 @@ ipcMain.on('window-maximize', () => {
 ipcMain.on('window-close', () => mainWindow?.close());
 
 ipcMain.handle('get-start-page-path', () => 'vex://start');
+ipcMain.handle('get-start-page-url', () => {
+  // Return file:// URL as a bulletproof fallback that never triggers OS "open with" dialog
+  const filePath = path.join(__dirname, 'renderer', 'start.html');
+  return pathToFileURL(filePath).toString();
+});
 
 ipcMain.handle('storage-save', (event, key, data) => {
   try {

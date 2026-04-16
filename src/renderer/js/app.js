@@ -124,7 +124,7 @@
 
   // === IPC Events from Main ===
   window.vex.onCommandBar(() => CommandBar.toggle());
-  window.vex.onNewTab(() => TabManager.createTab('vex://start', true));
+  window.vex.onNewTab(() => TabManager.createTab(START_URL, true));
   window.vex.onCloseTab(() => {
     const tab = TabManager.getActiveTab();
     if (tab) TabManager.closeTab(tab.id);
