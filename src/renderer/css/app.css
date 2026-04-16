@@ -273,11 +273,74 @@ html, body {
   height: 100%;
 }
 
-/* Settings Panel */
+/* Settings Panel — fill the panel area, scroll internally */
+#panel-settings {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .settings-content {
-  max-width: 500px;
-  margin: 0 auto;
-  padding: 48px 32px;
+  flex: 1;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+  padding: 40px 48px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+/* Cap the reading width of the inner blocks — readable but wide, not a phone column */
+.settings-content > * {
+  max-width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.settings-content h2 + .setting-group,
+.settings-content .setting-group {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Scrollbar */
+.settings-content::-webkit-scrollbar { width: 10px; }
+.settings-content::-webkit-scrollbar-track { background: transparent; }
+.settings-content::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 5px; border: 2px solid var(--bg);
+}
+.settings-content::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Horizontal setting rows (used by the AI Backend section) */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-row .setting-label {
+  flex: 1;
+  min-width: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  margin-bottom: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.setting-row .setting-label strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.setting-row .setting-label .setting-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .settings-content h2 {
