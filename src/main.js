@@ -102,6 +102,55 @@ ipcMain.handle('persist-delete', (_e, key) => {
   return true;
 });
 ipcMain.handle('get-user-data-path', () => userDataPath);
+
+// === Phase 13: Vex Sync — encryption key + session metadata ===
+const syncKeyFile = path.join(userDataPath, 'sync-key.bin');
+const syncMetaFile = path.join(userDataPath, 'sync-meta.json');
+
+ipcMain.handle('sync-save-key', (_e, hex) => {
+  try {
+    fs.writeFileSync(syncKeyFile, String(hex || ''), { encoding: 'utf-8', mode: 0o600 });
+    return true;
+  } catch (err) {
+    console.error('[sync] save key failed:', err);
+    return false;
+  }
+});
+
+ipcMain.handle('sync-load-key', () => {
+  try {
+    if (!fs.existsSync(syncKeyFile)) return null;
+    return fs.readFileSync(syncKeyFile, 'utf-8').trim() || null;
+  } catch { return null; }
+});
+
+ipcMain.handle('sync-save-meta', (_e, meta) => {
+  try {
+    fs.writeFileSync(syncMetaFile, JSON.stringify(meta || {}, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('[sync] save meta failed:', err);
+    return false;
+  }
+});
+
+ipcMain.handle('sync-load-meta', () => {
+  try {
+    if (!fs.existsSync(syncMetaFile)) return null;
+    return JSON.parse(fs.readFileSync(syncMetaFile, 'utf-8'));
+  } catch { return null; }
+});
+
+ipcMain.handle('sync-clear-state', () => {
+  try {
+    if (fs.existsSync(syncKeyFile)) fs.unlinkSync(syncKeyFile);
+    if (fs.existsSync(syncMetaFile)) fs.unlinkSync(syncMetaFile);
+    return true;
+  } catch (err) {
+    console.error('[sync] clear failed:', err);
+    return false;
+  }
+});
 // Flush synchronously on quit so nothing is lost
 app.on('before-quit', () => {
   try {

@@ -101,5 +101,12 @@ contextBridge.exposeInMainWorld('vex', {
   persistGetAll: () => ipcRenderer.invoke('persist-get-all'),
   persistSet: (key, value) => ipcRenderer.invoke('persist-set', key, value),
   persistDelete: (key) => ipcRenderer.invoke('persist-delete', key),
-  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path')
+  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
+
+  // Phase 13: Vex Sync — encryption key + session metadata
+  syncSaveKey: (hex) => ipcRenderer.invoke('sync-save-key', hex),
+  syncLoadKey: () => ipcRenderer.invoke('sync-load-key'),
+  syncSaveMeta: (meta) => ipcRenderer.invoke('sync-save-meta', meta),
+  syncLoadMeta: () => ipcRenderer.invoke('sync-load-meta'),
+  syncClearState: () => ipcRenderer.invoke('sync-clear-state')
 });

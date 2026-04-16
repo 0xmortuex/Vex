@@ -70,6 +70,11 @@ const SidebarManager = {
     if (panelName === 'schedules') SchedulesPanel.init();
     if (panelName === 'shortcuts') ShortcutsPanel.init();
     if (panelName === 'themes') ThemeEditor.init();
+    if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
+      // Phase 13: render the Vex Sync section whenever Settings opens
+      const c = document.getElementById('sync-panel-content');
+      if (c) SyncSettings.renderSyncPanel(c);
+    }
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

@@ -428,6 +428,30 @@
 
   // === Phase 9: Updates + Welcome ===
   UpdateNotifier.init();
+
+  // === Phase 13: Vex Sync — restore session if present & keep indicator in sync ===
+  if (typeof SyncEngine !== 'undefined') {
+    SyncEngine.initFromDisk().catch(err => console.error('[Sync] init failed:', err));
+    setInterval(() => {
+      const indicator = document.getElementById('sync-indicator');
+      if (!indicator) return;
+      const s = SyncEngine.getState();
+      indicator.hidden = !s.enabled;
+      indicator.classList.toggle('active', s.enabled && !s.syncing);
+      indicator.classList.toggle('syncing', !!s.syncing);
+      if (s.enabled) {
+        const push = s.lastPushAt ? new Date(s.lastPushAt).toLocaleString() : 'never';
+        const pull = s.lastPullAt ? new Date(s.lastPullAt).toLocaleString() : 'never';
+        indicator.title = `Vex Sync — pushed ${push} · pulled ${pull}${s.lastError ? ' · error: ' + s.lastError : ''}`;
+      }
+    }, 1000);
+    document.getElementById('sync-indicator')?.addEventListener('click', () => {
+      if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('settings');
+      setTimeout(() => {
+        document.getElementById('sync-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    });
+  }
   // Show version + Electron/Chrome versions in settings
   window.vex.getAppVersion?.().then(v => {
     const el = document.getElementById('settings-version');
