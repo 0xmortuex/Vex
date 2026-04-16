@@ -59,6 +59,7 @@ const CommandBar = {
     { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: '📌', action: () => TabManager.togglePinTab() },
     { id: 'export-data', label: 'Export All Data', hint: 'Download all Vex data as JSON', icon: '💾', action: () => { document.getElementById('setting-export')?.click(); } },
     // Phase 7A: AI commands
+    { id: 'tabs-toggle', label: 'Toggle Tabs Sidebar', hint: 'Show/hide tabs panel', shortcut: 'Ctrl+B', icon: '◧', action: () => window.toggleTabsSidebar?.() },
     { id: 'ai', label: 'Vex AI', hint: 'Open AI assistant panel', shortcut: 'Ctrl+Shift+A', icon: '✨', isPrimary: true, action: () => AIPanel.toggle() },
     { id: 'summarize-ai', label: 'Summarize Page', hint: 'AI summary of current page', icon: '✨', action: () => { AIPanel.open(); AIPanel.sendMessage('summarize'); } },
     { id: 'translate-ai', label: 'AI Translate', hint: 'Translate page content with AI', icon: '✨', action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { targetLanguage: 'English' }); } },

@@ -488,6 +488,32 @@ body.fullscreen #tabs-sidebar {
 body.fullscreen #icon-sidebar:hover + #tabs-sidebar,
 body.fullscreen #tabs-sidebar:hover { transform: translateX(0); }
 
+/* Tabs sidebar toggle button */
+#btn-toggle-tabs {
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); padding: 4px 8px; border-radius: var(--radius-sm);
+  cursor: pointer; transition: all var(--transition); -webkit-app-region: no-drag;
+}
+#btn-toggle-tabs:hover { background: var(--surface); color: var(--text); border-color: var(--primary); }
+#btn-toggle-tabs.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+/* Hidden tabs sidebar */
+#tabs-sidebar { transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease; }
+body.tabs-hidden #tabs-sidebar {
+  width: 0 !important; min-width: 0 !important;
+  overflow: hidden; border-right: none; opacity: 0; pointer-events: none;
+}
+
+/* Reveal hint on left edge when tabs hidden */
+body.tabs-hidden #icon-sidebar::after {
+  content: ''; position: absolute; top: 50%; right: -2px;
+  width: 3px; height: 32px; transform: translateY(-50%);
+  background: var(--primary); border-radius: 0 3px 3px 0;
+  opacity: 0; transition: opacity 0.15s; pointer-events: none;
+}
+body.tabs-hidden #icon-sidebar:hover::after { opacity: 0.4; }
+
 /* AI toggle button in top bar */
 #btn-toggle-ai {
   display: flex; align-items: center; gap: 5px;

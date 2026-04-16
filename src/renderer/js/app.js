@@ -391,6 +391,22 @@
   });
 
   // AI toggle button in top bar — syncs active state with panel
+  // === Tabs sidebar toggle (Ctrl+B) ===
+  const tabsToggleBtn = document.getElementById('btn-toggle-tabs');
+  function toggleTabsSidebar() {
+    document.body.classList.toggle('tabs-hidden');
+    tabsToggleBtn?.classList.toggle('active', document.body.classList.contains('tabs-hidden'));
+    localStorage.setItem('vex.tabsHidden', document.body.classList.contains('tabs-hidden'));
+  }
+  if (tabsToggleBtn) tabsToggleBtn.addEventListener('click', toggleTabsSidebar);
+  // Restore on load
+  if (localStorage.getItem('vex.tabsHidden') === 'true') {
+    document.body.classList.add('tabs-hidden');
+    tabsToggleBtn?.classList.add('active');
+  }
+  // Make toggleTabsSidebar available for command bar
+  window.toggleTabsSidebar = toggleTabsSidebar;
+
   const aiToggleBtn = document.getElementById('btn-toggle-ai');
   if (aiToggleBtn) {
     aiToggleBtn.addEventListener('click', () => AIPanel.toggle());
@@ -414,6 +430,9 @@
 
   // === Phase 6: Mute ===
   window.vex.onToggleMuteTab?.(() => TabManager.toggleMuteTab());
+
+  // === Tabs sidebar shortcut ===
+  window.vex.onToggleTabsSidebar?.(() => window.toggleTabsSidebar?.());
 
   // === Phase 7A: AI shortcut ===
   window.vex.onToggleAiPanel?.(() => AIPanel.toggle());
