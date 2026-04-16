@@ -50,7 +50,14 @@ const CommandBar = {
     { id: 'theme', label: 'Theme Editor', hint: 'Customize colors and appearance', icon: '🎨', action: () => SidebarManager.openPanel('themes') },
     { id: 'zoom-in', label: 'Zoom In', hint: 'Zoom in 10%', icon: '🔍', action: () => WebviewManager.zoomIn() },
     { id: 'zoom-out', label: 'Zoom Out', hint: 'Zoom out 10%', icon: '🔍', action: () => WebviewManager.zoomOut() },
-    { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: '🔍', action: () => WebviewManager.zoomReset() }
+    { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: '🔍', action: () => WebviewManager.zoomReset() },
+    // Phase 6 commands
+    { id: 'fullscreen', label: 'Toggle Fullscreen', hint: 'Enter/exit fullscreen', shortcut: 'F11', icon: '⛶', action: () => window.vex.toggleFullscreen?.() },
+    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Shift+N', icon: '🕶', action: () => window.vex.openPrivateWindow?.() },
+    { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: '🔇', action: () => TabManager.toggleMuteTab() },
+    { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: '🔇', action: () => TabManager.muteAllOtherTabs() },
+    { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: '📌', action: () => TabManager.togglePinTab() },
+    { id: 'export-data', label: 'Export All Data', hint: 'Download all Vex data as JSON', icon: '💾', action: () => { document.getElementById('setting-export')?.click(); } }
   ],
 
   init() {

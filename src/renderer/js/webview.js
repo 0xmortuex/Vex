@@ -83,6 +83,16 @@ const WebviewManager = {
       TabManager.createTab(e.url, true);
     });
 
+    // Audio indicator
+    webview.addEventListener('media-started-playing', () => {
+      const t = TabManager.tabs.find(t => t.id === tab.id);
+      if (t) { t.audible = true; TabManager.renderTabUpdate(t); }
+    });
+    webview.addEventListener('media-paused', () => {
+      const t = TabManager.tabs.find(t => t.id === tab.id);
+      if (t) { t.audible = false; TabManager.renderTabUpdate(t); }
+    });
+
     webview.addEventListener('page-favicon-updated', (e) => {
       if (e.favicons && e.favicons.length > 0) {
         TabManager.updateTab(tab.id, { favicon: e.favicons[0] });

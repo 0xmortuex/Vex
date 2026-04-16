@@ -472,3 +472,51 @@ html, body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* === Fullscreen Mode === */
+body.fullscreen #top-bar { display: none; }
+body.fullscreen #main-layout { height: 100%; }
+body.fullscreen #icon-sidebar {
+  position: fixed; left: 0; top: 0; bottom: 0; z-index: 200;
+  transform: translateX(-100%); transition: transform 0.2s;
+}
+body.fullscreen #icon-sidebar:hover { transform: translateX(0); }
+body.fullscreen #tabs-sidebar {
+  position: fixed; left: 52px; top: 0; bottom: 0; z-index: 199;
+  transform: translateX(-300px); transition: transform 0.2s;
+}
+body.fullscreen #icon-sidebar:hover + #tabs-sidebar,
+body.fullscreen #tabs-sidebar:hover { transform: translateX(0); }
+
+/* Tab audio indicator */
+.tab-audio {
+  font-size: 12px; cursor: pointer; flex-shrink: 0;
+  transition: opacity 0.15s; opacity: 0.7;
+}
+.tab-audio:hover { opacity: 1; }
+.tab-audio.muted { opacity: 0.4; }
+
+/* Pinned tabs grid */
+.pinned-tabs-container {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 8px; border-bottom: 1px solid var(--border);
+}
+.pinned-tab {
+  width: 40px; height: 40px; border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.15s; position: relative;
+}
+.pinned-tab:hover { background: var(--tab-hover); }
+.pinned-tab.active { background: var(--tab-active); border: 1px solid var(--primary); }
+.pinned-tab img { width: 20px; height: 20px; border-radius: 3px; }
+.pinned-tab .pinned-placeholder {
+  width: 20px; height: 20px; border-radius: 3px;
+  background: var(--surface); display: flex; align-items: center;
+  justify-content: center; font-size: 10px; color: var(--text-muted);
+}
+
+/* Private mode indicator */
+body.private-mode #vex-logo::after {
+  content: ' (Private)'; font-size: 10px; color: #a855f7;
+  font-family: 'Outfit', sans-serif; font-weight: 400;
+}

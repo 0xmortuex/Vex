@@ -55,6 +55,13 @@ contextBridge.exposeInMainWorld('vex', {
   onToggleReadingMode: (callback) => ipcRenderer.on('toggle-reading-mode', callback),
   onTakeScreenshot: (callback) => ipcRenderer.on('take-screenshot', callback),
 
+  // Phase 6: fullscreen, private, mute
+  toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
+  isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
+  onFullscreenChanged: (callback) => ipcRenderer.on('fullscreen-changed', (_, state) => callback(state)),
+  openPrivateWindow: () => ipcRenderer.invoke('open-private-window'),
+  onToggleMuteTab: (callback) => ipcRenderer.on('toggle-mute-tab', callback),
+
   // Platform
   platform: process.platform
 });

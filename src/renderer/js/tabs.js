@@ -269,6 +269,8 @@ const TabManager = {
       <div class="tab-info">
         <div class="tab-title">${this._escapeHtml(tab.title)}</div>
       </div>
+      ${tab.audible && !tab.muted ? '<span class="tab-audio" title="Playing audio — click to mute">&#128266;</span>' : ''}
+      ${tab.muted ? '<span class="tab-audio muted" title="Muted — click to unmute">&#128264;</span>' : ''}
       ${tab.unread ? '<div class="tab-unread"></div>' : ''}
       <button class="tab-close" title="Close tab">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -278,6 +280,8 @@ const TabManager = {
     el.addEventListener('click', (e) => {
       if (e.target.closest('.tab-close')) {
         this.closeTab(tab.id);
+      } else if (e.target.closest('.tab-audio')) {
+        this.toggleMuteTab(tab.id);
       } else {
         this.switchTab(tab.id);
       }
@@ -376,6 +380,11 @@ const TabManager = {
       })),
       { label: 'Remove from Group', action: () => { tab.groupId = null; this.rebuildAllTabs(); this.persistTabs(); } },
       { sep: true },
+      { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => this.toggleMuteTab(tab.id) },
+      { label: 'Mute All Others', action: () => this.muteAllOtherTabs() },
+      { sep: true },
+      { label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id) },
+      { sep: true },
       { label: 'Close', action: () => this.closeTab(tab.id), danger: true },
       { label: 'Close Others', action: () => {
         const others = this.tabs.filter(t => t.id !== tab.id).map(t => t.id);
@@ -416,12 +425,37 @@ const TabManager = {
     // Clear all tab elements
     document.getElementById('tabs-list').innerHTML = '';
     document.querySelectorAll('.tab-group-tabs').forEach(el => el.innerHTML = '');
+
+    // Remove old pinned container
+    document.querySelector('.pinned-tabs-container')?.remove();
+
     this.renderGroups();
 
-    // Re-render all tabs
-    this.tabs.forEach(tab => this.renderTab(tab));
+    // Render pinned tabs as compact icons
+    const pinned = this.tabs.filter(t => t.pinned);
+    if (pinned.length > 0) {
+      const pinnedContainer = document.createElement('div');
+      pinnedContainer.className = 'pinned-tabs-container';
+      pinned.forEach(tab => {
+        const el = document.createElement('div');
+        el.className = `pinned-tab${tab.id === this.activeTabId ? ' active' : ''}`;
+        el.dataset.tabId = tab.id;
+        el.title = tab.title;
+        el.innerHTML = tab.favicon
+          ? `<img src="${tab.favicon}" alt="">`
+          : `<div class="pinned-placeholder">${(tab.title || 'T')[0]}</div>`;
+        el.addEventListener('click', () => this.switchTab(tab.id));
+        el.addEventListener('contextmenu', (e) => { e.preventDefault(); this.showContextMenu(e, tab); });
+        pinnedContainer.appendChild(el);
+      });
+      const tabsList = document.getElementById('tabs-list');
+      tabsList.parentElement.insertBefore(pinnedContainer, tabsList);
+    }
 
-    // Re-apply active state
+    // Render unpinned tabs normally
+    this.tabs.filter(t => !t.pinned).forEach(tab => this.renderTab(tab));
+
+    // Re-apply active state on unpinned
     document.querySelectorAll('.tab-item').forEach(el => {
       el.classList.toggle('active', el.dataset.tabId === this.activeTabId);
     });
@@ -570,6 +604,54 @@ const TabManager = {
     const last = list.shift();
     saveRecentlyClosed(list);
     this.createTab(last.url, true, last.groupId);
+  },
+
+  // === Mute/Unmute ===
+  toggleMuteTab(id) {
+    const tabId = id || this.activeTabId;
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+    const wv = WebviewManager.webviews.get(tabId);
+    if (wv) {
+      const muted = wv.isAudioMuted();
+      wv.setAudioMuted(!muted);
+      tab.muted = !muted;
+      this.renderTabUpdate(tab);
+      window.showToast?.(tab.muted ? 'Tab muted' : 'Tab unmuted');
+    }
+  },
+
+  muteAllOtherTabs() {
+    this.tabs.forEach(t => {
+      if (t.id !== this.activeTabId) {
+        const wv = WebviewManager.webviews.get(t.id);
+        if (wv) { wv.setAudioMuted(true); t.muted = true; }
+      }
+    });
+    this.rebuildAllTabs();
+  },
+
+  // === Pin/Unpin (icon-only mode) ===
+  pinTab(id) {
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab) return;
+    tab.pinned = true;
+    this.rebuildAllTabs();
+    this.persistTabs();
+  },
+
+  unpinTab(id) {
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab) return;
+    tab.pinned = false;
+    this.rebuildAllTabs();
+    this.persistTabs();
+  },
+
+  togglePinTab(id) {
+    const tab = this.tabs.find(t => t.id === (id || this.activeTabId));
+    if (!tab) return;
+    tab.pinned ? this.unpinTab(tab.id) : this.pinTab(tab.id);
   },
 
   _escapeHtml(str) {

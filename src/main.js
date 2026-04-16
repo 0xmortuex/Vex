@@ -147,6 +147,14 @@ function createWindow() {
     });
   });
 
+  // Fullscreen change events
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-changed', true);
+  });
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-changed', false);
+  });
+
   // Signal renderer to save session before quit
   mainWindow.on('close', () => {
     if (mainWindow) {
@@ -266,6 +274,14 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('take-screenshot');
       event.preventDefault();
     }
+    if (input.key === 'F11') {
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      event.preventDefault();
+    }
+    if (input.control && input.key === 'm') {
+      mainWindow.webContents.send('toggle-mute-tab');
+      event.preventDefault();
+    }
   });
 
   // Disable default menu
@@ -321,6 +337,42 @@ ipcMain.handle('open-pip-window', (event, url) => {
     console.error('PiP window error:', e);
     return false;
   }
+});
+
+ipcMain.handle('toggle-fullscreen', () => {
+  if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
+});
+
+ipcMain.handle('is-fullscreen', () => {
+  return mainWindow ? mainWindow.isFullScreen() : false;
+});
+
+ipcMain.handle('open-private-window', () => {
+  const privSession = session.fromPartition(`private:${Date.now()}`);
+  // Apply header stripping + ad blocker to private session
+  privSession.webRequest.onHeadersReceived((details, callback) => {
+    const rh = { ...details.responseHeaders };
+    delete rh['x-frame-options']; delete rh['X-Frame-Options']; delete rh['X-FRAME-OPTIONS'];
+    if (rh['content-security-policy']) rh['content-security-policy'] = rh['content-security-policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
+    if (rh['Content-Security-Policy']) rh['Content-Security-Policy'] = rh['Content-Security-Policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
+    callback({ responseHeaders: rh });
+  });
+  privSession.webRequest.onBeforeRequest((details, callback) => {
+    callback({ cancel: adBlockerEnabled && shouldBlock(details.url) });
+  });
+  const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+  privSession.setUserAgent(chromeUA);
+
+  const privWin = new BrowserWindow({
+    width: 1200, height: 800, frame: false, titleBarStyle: 'hidden',
+    backgroundColor: '#1a0a1a',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      webviewTag: true, contextIsolation: true, nodeIntegration: false
+    }
+  });
+  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true' } });
+  return true;
 });
 
 ipcMain.handle('adblocker-get-state', () => adBlockerEnabled);

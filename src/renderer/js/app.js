@@ -383,6 +383,24 @@
   window.vex.onToggleReadingMode?.(() => ReadingMode.activate());
   window.vex.onTakeScreenshot?.(() => ScreenshotTool.capture());
 
+  // === Phase 6: Fullscreen ===
+  window.vex.onFullscreenChanged?.((isFs) => {
+    document.body.classList.toggle('fullscreen', isFs);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('fullscreen')) {
+      window.vex.toggleFullscreen?.();
+    }
+  });
+
+  // === Phase 6: Mute ===
+  window.vex.onToggleMuteTab?.(() => TabManager.toggleMuteTab());
+
+  // === Private mode detection ===
+  if (window.location.search.includes('private=true')) {
+    document.body.classList.add('private-mode');
+  }
+
   // Translate bar
   document.getElementById('translate-go')?.addEventListener('click', () => {
     const lang = document.getElementById('translate-lang')?.value || 'en';
