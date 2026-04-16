@@ -390,6 +390,18 @@
     AIPanel.sendMessage('summarize');
   });
 
+  // AI toggle button in top bar — syncs active state with panel
+  const aiToggleBtn = document.getElementById('btn-toggle-ai');
+  if (aiToggleBtn) {
+    aiToggleBtn.addEventListener('click', () => AIPanel.toggle());
+    const aiPanel = document.getElementById('ai-panel');
+    if (aiPanel) {
+      new MutationObserver(() => {
+        aiToggleBtn.classList.toggle('active', aiPanel.classList.contains('open'));
+      }).observe(aiPanel, { attributes: true, attributeFilter: ['class'] });
+    }
+  }
+
   // === Phase 6: Fullscreen ===
   window.vex.onFullscreenChanged?.((isFs) => {
     document.body.classList.toggle('fullscreen', isFs);

@@ -488,6 +488,19 @@ body.fullscreen #tabs-sidebar {
 body.fullscreen #icon-sidebar:hover + #tabs-sidebar,
 body.fullscreen #tabs-sidebar:hover { transform: translateX(0); }
 
+/* AI toggle button in top bar */
+#btn-toggle-ai {
+  display: flex; align-items: center; gap: 5px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); padding: 4px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; font-family: 'Outfit', sans-serif;
+  transition: all var(--transition); -webkit-app-region: no-drag;
+}
+#btn-toggle-ai:hover { background: var(--surface); color: var(--text); border-color: var(--primary); }
+#btn-toggle-ai.active { background: var(--primary); color: white; border-color: var(--primary); }
+#btn-toggle-ai.active:hover { filter: brightness(1.1); }
+#btn-toggle-ai svg { stroke: currentColor; }
+
 /* Tab audio indicator */
 .tab-audio {
   font-size: 12px; cursor: pointer; flex-shrink: 0;
