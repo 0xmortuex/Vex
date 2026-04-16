@@ -429,6 +429,19 @@
   // === Phase 9: Updates + Welcome ===
   UpdateNotifier.init();
 
+  // === Phase 14: AI Router — detect Ollama, load routing prefs ===
+  if (typeof AIRouter !== 'undefined') {
+    AIRouter.init().catch(err => console.error('[AIRouter] init failed:', err));
+  }
+  window.addEventListener('online', () => showToast('Back online', 'success'));
+  window.addEventListener('offline', () => {
+    if (typeof AIRouter !== 'undefined' && AIRouter.isOllamaAvailable()) {
+      showToast('Offline — AI switching to local', 'info');
+    } else {
+      showToast('Offline — AI unavailable until connection returns', 'warn');
+    }
+  });
+
   // === Phase 13: Vex Sync — restore session if present & keep indicator in sync ===
   if (typeof SyncEngine !== 'undefined') {
     SyncEngine.initFromDisk().catch(err => console.error('[Sync] init failed:', err));

@@ -75,6 +75,10 @@ const SidebarManager = {
       const c = document.getElementById('sync-panel-content');
       if (c) SyncSettings.renderSyncPanel(c);
     }
+    if (panelName === 'settings' && typeof AISettings !== 'undefined') {
+      // Phase 14: populate the AI Backend section each time Settings opens
+      AISettings.renderAISettings();
+    }
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

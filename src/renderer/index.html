@@ -308,6 +308,55 @@
               </div>
             </div>
 
+            <!-- Phase 14: AI Backend (Local via Ollama + Cloud fallback) -->
+            <div class="setting-group">
+              <label class="setting-label">AI Backend</label>
+              <p class="setting-info muted" style="margin-bottom:10px">Vex can route AI requests to Claude (cloud) or a local Ollama model on your PC. Local is private &amp; works offline; cloud is higher quality.</p>
+
+              <div class="ai-status-card" id="ai-status-card">
+                <div class="status-row">
+                  <span class="status-label">Cloud (Claude Sonnet):</span>
+                  <span class="status-badge" id="cloud-status">&mdash;</span>
+                </div>
+                <div class="status-row">
+                  <span class="status-label">Local (Ollama):</span>
+                  <span class="status-badge" id="local-status">&mdash;</span>
+                </div>
+              </div>
+
+              <div class="setting-row" style="margin-top:14px">
+                <div class="setting-label">
+                  <strong>AI Mode</strong>
+                  <span class="setting-hint">Pick how Vex uses AI</span>
+                </div>
+                <div class="radio-group" id="ai-mode-radio">
+                  <label><input type="radio" name="ai-mode" value="auto" checked> Auto (smart routing)</label>
+                  <label><input type="radio" name="ai-mode" value="local"> Prefer local (privacy-first)</label>
+                  <label><input type="radio" name="ai-mode" value="cloud"> Always cloud (max quality)</label>
+                </div>
+              </div>
+
+              <div class="setting-row" id="local-model-row" style="margin-top:14px">
+                <div class="setting-label">
+                  <strong>Local Model</strong>
+                  <span class="setting-hint">Pick which Ollama model to use</span>
+                </div>
+                <select id="local-model-select">
+                  <option value="">Loading models...</option>
+                </select>
+              </div>
+
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+                <button class="btn-secondary" id="btn-refresh-ollama">Refresh Ollama Status</button>
+                <button class="btn-secondary" id="btn-install-ollama">Ollama Install Guide</button>
+              </div>
+
+              <details class="advanced-routing">
+                <summary>Advanced: Per-Feature Routing</summary>
+                <div class="routing-grid" id="routing-grid"></div>
+              </details>
+            </div>
+
             <!-- Phase 12: AI History Indexing -->
             <div class="setting-group">
               <label class="setting-label">AI History Indexing</label>
@@ -332,7 +381,7 @@
                 <svg width="56" height="56" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <div>
                   <div style="font-size:28px;font-weight:700;color:var(--text);line-height:1">Vex</div>
-                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.4.0</div>
+                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.5.0</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:4px">A browser built just for you</div>
                 </div>
               </div>
@@ -537,6 +586,9 @@
   <script src="js/sync-crypto.js"></script>
   <script src="js/sync-engine.js"></script>
   <script src="js/sync-settings.js"></script>
+  <script src="js/ollama.js"></script>
+  <script src="js/ai-router.js"></script>
+  <script src="js/ai-settings.js"></script>
   <script src="js/memory-panel.js"></script>
   <script src="js/restore-prompt.js"></script>
   <script src="js/shortcuts-panel.js"></script>

@@ -107,7 +107,30 @@ const AIPanel = {
     document.getElementById('ai-panel')?.classList.add('open');
     this._renderMessages();
     this._updateTabIndicator();
+    this._maybeShowOllamaHint();
     setTimeout(() => document.getElementById('ai-input')?.focus(), 150);
+  },
+
+  _maybeShowOllamaHint() {
+    try {
+      if (typeof AIRouter === 'undefined') return;
+      if (AIRouter.isOllamaAvailable()) return;
+      if (localStorage.getItem('vex.ollamaHintShown') === 'true') return;
+      const msgs = document.getElementById('ai-messages');
+      if (!msgs || msgs.querySelector('.ollama-hint')) return;
+      const hint = document.createElement('div');
+      hint.className = 'ollama-hint';
+      hint.innerHTML = `<span>&#128161; Install <a id="open-ollama-hint">Ollama</a> to run AI locally &mdash; faster, private, works offline.</span><button class="hint-dismiss" title="Dismiss">\u00d7</button>`;
+      msgs.insertBefore(hint, msgs.firstChild);
+      hint.querySelector('#open-ollama-hint').addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof TabManager !== 'undefined') TabManager.createTab('https://ollama.com/download', true);
+      });
+      hint.querySelector('.hint-dismiss').addEventListener('click', () => {
+        hint.remove();
+        try { localStorage.setItem('vex.ollamaHintShown', 'true'); } catch {}
+      });
+    } catch {}
   },
 
   close() { document.getElementById('ai-panel')?.classList.remove('open'); },
@@ -170,37 +193,28 @@ const AIPanel = {
     const loadingEl = this._addLoading();
 
     try {
-      const res = await fetch(AI_WORKER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          message: opts.message,
-          pageContext,
-          selectedText: opts.selectedText,
-          targetLanguage: opts.targetLanguage,
-          conversationHistory: conv.filter(m => m.role !== 'system').slice(-10)
-        })
+      // Phase 14: route through AIRouter for local/cloud selection.
+      // Map action → feature name.
+      const featureMap = { chat: 'chat', summarize: 'summarize', translate: 'translate', explain: 'explain' };
+      const feature = featureMap[action] || 'chat';
+      const aiResult = await AIRouter.callAI(feature, {
+        message: opts.message,
+        pageContext,
+        selectedText: opts.selectedText,
+        targetLanguage: opts.targetLanguage,
+        conversationHistory: conv.filter(m => m.role !== 'system').slice(-10)
       });
 
       loadingEl?.remove();
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Request failed (' + res.status + ')' }));
-        this._addError(err.error || 'Request failed');
-        this._sending = false;
-        return;
-      }
-
-      const data = await res.json();
-      const parsed = this._parseResponse(data.result);
+      const parsed = this._parseResponse(aiResult.result);
 
       // Store assistant reply for chat history
       if (action === 'chat') {
-        conv.push({ role: 'assistant', content: parsed.reply || data.result, action });
+        conv.push({ role: 'assistant', content: parsed.reply || aiResult.result, action });
       }
 
-      this._renderResponse(action, parsed);
+      this._renderResponse(action, parsed, { backend: aiResult.backend, model: aiResult.model });
     } catch (err) {
       loadingEl?.remove();
       this._addError(err.message || 'Network error');
@@ -249,35 +263,23 @@ const AIPanel = {
       const tabContexts = await MultiTabContext.extractContextFromTabs(tabs);
       loadingEl.innerHTML = 'Thinking <span class="ai-spinner"></span>';
 
-      const res = await fetch(AI_WORKER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'multi-tab-chat',
-          message,
-          tabContexts,
-          conversationHistory: conv.filter(m => m.role !== 'system').slice(-6)
-        })
+      // Phase 14: multi-tab is always cloud (large context, needs quality)
+      const aiResult = await AIRouter.callAI('multiTab', {
+        message, tabContexts,
+        conversationHistory: conv.filter(m => m.role !== 'system').slice(-6)
       });
       loadingEl?.remove();
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Request failed' }));
-        this._addError(err.error || 'Request failed');
-        return;
-      }
-
-      const data = await res.json();
-      const parsed = this._parseResponse(data.result);
-      conv.push({ role: 'assistant', content: parsed.reply || data.result });
-      this._renderMultiTabResponse(parsed, tabs);
+      const parsed = this._parseResponse(aiResult.result);
+      conv.push({ role: 'assistant', content: parsed.reply || aiResult.result });
+      this._renderMultiTabResponse(parsed, tabs, { backend: aiResult.backend, model: aiResult.model });
     } catch (err) {
       loadingEl?.remove();
       this._addError(err.message || 'Network error');
     }
   },
 
-  _renderMultiTabResponse(parsed, tabs) {
+  _renderMultiTabResponse(parsed, tabs, backendInfo) {
     const container = document.getElementById('ai-messages');
     if (!container) return;
     const el = document.createElement('div');
@@ -337,6 +339,7 @@ const AIPanel = {
       });
     });
 
+    this._appendBackendTag(el, backendInfo);
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
   },
@@ -371,7 +374,7 @@ const AIPanel = {
     container.scrollTop = container.scrollHeight;
   },
 
-  _renderResponse(action, parsed) {
+  _renderResponse(action, parsed, backendInfo) {
     const container = document.getElementById('ai-messages');
     if (!container) return;
 
@@ -426,8 +429,17 @@ const AIPanel = {
       el.appendChild(fups);
     }
 
+    this._appendBackendTag(el, backendInfo);
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
+  },
+
+  _appendBackendTag(msgEl, info) {
+    if (!info || !info.backend) return;
+    const tag = document.createElement('div');
+    tag.className = `backend-tag ${info.backend}`;
+    tag.textContent = info.backend === 'local' ? `local \u00b7 ${info.model}` : `cloud \u00b7 ${info.model}`;
+    msgEl.appendChild(tag);
   },
 
   _makeCopyBtn(contentEl) {
@@ -464,25 +476,16 @@ const AIPanel = {
         contentType: e.contentType || '', visitedAt: e.visitedAt
       }));
 
-      const res = await fetch(AI_WORKER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'search-history',
-          query,
-          historyEntries: compact,
-          timeContext: new Date().toISOString()
-        })
+      const aiResult = await AIRouter.callAI('historySearch', {
+        query, historyEntries: compact, timeContext: new Date().toISOString()
       });
       loadingEl?.remove();
 
-      if (!res.ok) { this._addError('History search failed (' + res.status + ')'); return; }
-      const data = await res.json();
-      if (!data.result) { this._addError('Empty response'); return; }
+      if (!aiResult || !aiResult.result) { this._addError('Empty response'); return; }
 
       let parsed;
       try {
-        const str = String(data.result).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+        const str = String(aiResult.result).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
         parsed = JSON.parse(str);
       } catch {
         this._addError('Could not parse search results');

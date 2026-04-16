@@ -98,28 +98,28 @@ const HistoryIndexer = (() => {
       } catch { return; }
     }
 
-    let response;
+    let aiResult;
     try {
-      response = await fetch(AI_WORKER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'summarize-for-history',
-          pageContext: pageContent
-        })
-      });
-    } catch (e) {
-      return;
-    }
+      // Route through the AI Router so local Ollama can handle bulk indexing
+      // (default routing for historyIndex is 'local' — falls back to cloud).
+      if (typeof AIRouter !== 'undefined') {
+        aiResult = await AIRouter.callAI('historyIndex', { pageContext: pageContent });
+      } else {
+        const r = await fetch(AI_WORKER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'summarize-for-history', pageContext: pageContent })
+        });
+        if (!r.ok) return;
+        aiResult = await r.json();
+      }
+    } catch (e) { return; }
 
-    if (!response.ok) return;
-
-    const data = await response.json();
-    if (!data.result) return;
+    if (!aiResult || !aiResult.result) return;
 
     let parsed;
     try {
-      const str = String(data.result).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+      const str = String(aiResult.result).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
       parsed = JSON.parse(str);
     } catch {
       return;

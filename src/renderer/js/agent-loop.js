@@ -98,29 +98,25 @@ const AgentLoop = {
         this._renderStep('thinking', 'Thinking... (step ' + iteration + ')', 'loading');
 
         // Ask AI for next action
-        const res = await fetch(AI_WORKER_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'agent',
+        // Phase 14: agent always cloud — routed through AIRouter for consistency
+        let data;
+        try {
+          data = await AIRouter.callAI('agent', {
             userGoal: goal,
             pageContext,
             availableTools: AGENT_TOOLS,
             conversationHistory: this._history.slice(-20),
             lastToolResult: lastResult
-          })
-        });
+          });
+        } catch (err) {
+          document.querySelector('.agent-step-thinking')?.remove();
+          this._renderStep('error', 'Error: ' + (err.message || 'Request failed'), 'error');
+          break;
+        }
 
         // Remove thinking indicator
         document.querySelector('.agent-step-thinking')?.remove();
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: 'Request failed' }));
-          this._renderStep('error', 'Error: ' + (err.error || 'Request failed'), 'error');
-          break;
-        }
-
-        const data = await res.json();
         const decision = this._parseAgentResponse(data.result);
 
         if (!decision || !decision.tool) {
@@ -285,17 +281,10 @@ const AgentLoop = {
         } catch {}
       }
 
-      const res = await fetch(AI_WORKER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'agent', userGoal: goal, pageContext,
-          availableTools: AGENT_TOOLS, conversationHistory: history.slice(-20), lastToolResult: lastResult
-        })
+      const data = await AIRouter.callAI('agent', {
+        userGoal: goal, pageContext,
+        availableTools: AGENT_TOOLS, conversationHistory: history.slice(-20), lastToolResult: lastResult
       });
-
-      if (!res.ok) throw new Error('Worker failed: ' + res.status);
-      const data = await res.json();
       const decision = this._parseAgentResponse(data.result);
       if (!decision?.tool) throw new Error('AI returned invalid response');
 

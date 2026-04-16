@@ -13,6 +13,9 @@ const SyncEngine = (() => {
     'vex.agentMode', 'vex.aiIndexingEnabled', 'vex.customCommands', 'vex.zooms',
     'vex.forceDarkSites', 'vex.restoreOnStartup', 'vex.autosleep',
     'vex.autosleepMinutes', 'vex.autosleepExcludePinned', 'vex.groups',
+    // Phase 14: AI routing prefs (but NOT localAIModel — each device has
+    // its own installed Ollama models)
+    'vex.aiRouting', 'vex.preferLocalAI', 'vex.forceCloudAI',
     'vex-theme'
   ];
 

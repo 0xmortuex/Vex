@@ -237,22 +237,27 @@ const HistoryPanel = {
         contentType: e.contentType || '', visitedAt: e.visitedAt
       }));
 
-      const response = await fetch(this.AI_WORKER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'search-history',
-          query,
-          historyEntries: compact,
-          timeContext: new Date().toISOString()
-        })
-      });
-      if (!response.ok) throw new Error('Worker returned ' + response.status);
+      let aiResult;
+      if (typeof AIRouter !== 'undefined') {
+        aiResult = await AIRouter.callAI('historySearch', {
+          query, historyEntries: compact, timeContext: new Date().toISOString()
+        });
+      } else {
+        const response = await fetch(this.AI_WORKER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'search-history', query,
+            historyEntries: compact, timeContext: new Date().toISOString()
+          })
+        });
+        if (!response.ok) throw new Error('Worker returned ' + response.status);
+        aiResult = await response.json();
+      }
 
-      const data = await response.json();
       let parsed;
       try {
-        const str = String(data.result || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+        const str = String(aiResult.result || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
         parsed = JSON.parse(str);
       } catch {
         throw new Error('Could not parse AI response');
