@@ -266,5 +266,56 @@ const AgentLoop = {
     el.innerHTML = '<div class="agent-step">' + prefix + AIPanel._esc(text).replace(/\n/g, '<br>') + '</div>';
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
+  },
+
+  // Headless agent — runs without UI, returns result. Used by Scheduler.
+  async startHeadless(goal, mode, opts = {}) {
+    const maxIter = opts.maxIterations || 15;
+    const history = [];
+    let lastResult = null;
+
+    for (let i = 0; i < maxIter; i++) {
+      const wv = WebviewManager.getActiveWebview();
+      let pageContext = null;
+      if (wv) {
+        try {
+          const dom = await DOMExtractor.extractInteractiveElements(wv);
+          const text = await PageContext.extractPageContext(wv);
+          pageContext = { url: dom.url, title: dom.title, elements: dom.elements, text: text?.text || '' };
+        } catch {}
+      }
+
+      const res = await fetch(AI_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'agent', userGoal: goal, pageContext,
+          availableTools: AGENT_TOOLS, conversationHistory: history.slice(-20), lastToolResult: lastResult
+        })
+      });
+
+      if (!res.ok) throw new Error('Worker failed: ' + res.status);
+      const data = await res.json();
+      const decision = this._parseAgentResponse(data.result);
+      if (!decision?.tool) throw new Error('AI returned invalid response');
+
+      history.push({ role: 'assistant', content: JSON.stringify(decision) });
+
+      if (decision.tool === 'finish') {
+        return { summary: decision.parameters?.summary || 'Done', iterations: i + 1 };
+      }
+      if (decision.tool === 'ask_user') {
+        throw new Error('Scheduled task needs user input: ' + (decision.parameters?.question || ''));
+      }
+      if (decision.intent === 'risky') {
+        throw new Error('Risky action (' + decision.tool + ') aborted for safety');
+      }
+
+      lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {});
+      history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    return { summary: 'Task reached max iterations', iterations: maxIter };
   }
 };

@@ -383,6 +383,9 @@
   window.vex.onToggleReadingMode?.(() => ReadingMode.activate());
   window.vex.onTakeScreenshot?.(() => ScreenshotTool.capture());
 
+  // === Phase 8: Scheduler ===
+  Scheduler.start();
+
   // === Phase 7A: AI Panel ===
   AIPanel.init();
   document.getElementById('btn-ai-summarize')?.addEventListener('click', () => {
@@ -433,6 +436,7 @@
 
   // === Tabs sidebar shortcut ===
   window.vex.onToggleTabsSidebar?.(() => window.toggleTabsSidebar?.());
+  window.vex.onToggleSchedules?.(() => SidebarManager.togglePanel('schedules'));
 
   // === Phase 7A: AI shortcut ===
   window.vex.onToggleAiPanel?.(() => AIPanel.toggle());

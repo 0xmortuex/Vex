@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="css/translate.css">
   <link rel="stylesheet" href="css/ai-panel.css">
   <link rel="stylesheet" href="css/agent.css">
+  <link rel="stylesheet" href="css/schedules-panel.css">
 </head>
 <body>
   <!-- Top Bar -->
@@ -127,6 +128,9 @@
       <button class="sidebar-icon" data-panel="memory" title="Memory (Ctrl+Shift+M)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M15 20v2M9 20v2M2 15h2M2 9h2M20 15h2M20 9h2"/></svg>
       </button>
+      <button class="sidebar-icon" data-panel="schedules" title="Schedules (Ctrl+Shift+L)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6"/><path d="M22 6l-3-3"/></svg>
+      </button>
       <div class="sidebar-spacer"></div>
       <button class="sidebar-icon" data-panel="settings" title="Settings">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.5V4.5M10 15.5V17.5M2.5 10H4.5M15.5 10H17.5M4.34 4.34L5.76 5.76M14.24 14.24L15.66 15.66M15.66 4.34L14.24 5.76M5.76 14.24L4.34 15.66" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -161,6 +165,7 @@
         <div class="panel" id="panel-downloads" style="display: none;"></div>
         <div class="panel" id="panel-history" style="display: none;"></div>
         <div class="panel" id="panel-memory" style="display: none;"></div>
+        <div class="panel" id="panel-schedules" style="display: none;"></div>
         <div class="panel" id="panel-shortcuts" style="display: none;"></div>
         <div class="panel" id="panel-themes" style="display: none;"></div>
         <div class="panel" id="panel-settings" style="display: none;">
@@ -461,6 +466,8 @@
   <script src="js/dom-extractor.js"></script>
   <script src="js/agent-executor.js"></script>
   <script src="js/agent-loop.js"></script>
+  <script src="js/scheduler.js"></script>
+  <script src="js/schedules-panel.js"></script>
   <script src="js/ai-panel.js"></script>
   <script src="js/command.js"></script>
   <script src="js/app.js"></script>

@@ -65,6 +65,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Tabs sidebar toggle
   onToggleTabsSidebar: (callback) => ipcRenderer.on('toggle-tabs-sidebar', callback),
 
+  // Phase 8: Schedules
+  onToggleSchedules: (callback) => ipcRenderer.on('toggle-schedules', callback),
+
   // Phase 7A: AI
   onToggleAiPanel: (callback) => ipcRenderer.on('toggle-ai-panel', callback),
 

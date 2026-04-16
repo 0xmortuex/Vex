@@ -286,6 +286,10 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('toggle-ai-panel');
       event.preventDefault();
     }
+    if (input.control && input.shift && input.key === 'L') {
+      mainWindow.webContents.send('toggle-schedules');
+      event.preventDefault();
+    }
     if (input.control && !input.shift && !input.alt && input.key === 'b') {
       mainWindow.webContents.send('toggle-tabs-sidebar');
       event.preventDefault();
