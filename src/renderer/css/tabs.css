@@ -229,18 +229,21 @@
   color: white;
 }
 
+/* Tab loading indicator — pulsing dot instead of spinning circle (no jank) */
 .tab-loading {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border);
-  border-top-color: var(--primary);
+  width: 8px;
+  height: 8px;
+  margin: 4px;
   border-radius: 50%;
-  animation: spin 0.6s linear infinite;
+  background: var(--primary);
+  animation: tab-pulse 1s ease-in-out infinite;
   flex-shrink: 0;
+  will-change: opacity, transform;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+@keyframes tab-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.7); }
 }
 
 .tab-unread {
