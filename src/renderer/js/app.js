@@ -383,6 +383,13 @@
   window.vex.onToggleReadingMode?.(() => ReadingMode.activate());
   window.vex.onTakeScreenshot?.(() => ScreenshotTool.capture());
 
+  // === Phase 7A: AI Panel ===
+  AIPanel.init();
+  document.getElementById('btn-ai-summarize')?.addEventListener('click', () => {
+    AIPanel.open();
+    AIPanel.sendMessage('summarize');
+  });
+
   // === Phase 6: Fullscreen ===
   window.vex.onFullscreenChanged?.((isFs) => {
     document.body.classList.toggle('fullscreen', isFs);
@@ -395,6 +402,9 @@
 
   // === Phase 6: Mute ===
   window.vex.onToggleMuteTab?.(() => TabManager.toggleMuteTab());
+
+  // === Phase 7A: AI shortcut ===
+  window.vex.onToggleAiPanel?.(() => AIPanel.toggle());
 
   // === Private mode detection ===
   if (window.location.search.includes('private=true')) {

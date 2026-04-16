@@ -254,6 +254,19 @@ const WebviewManager = {
         label: 'Copy',
         action: () => webview.copy()
       });
+      // AI options for selected text
+      if (typeof AIPanel !== 'undefined') {
+        const sel = e.params.selectionText;
+        items.push({ sep: true });
+        items.push({
+          label: `\u2728 Explain "${sel.substring(0, 25)}${sel.length > 25 ? '...' : ''}"`,
+          action: () => { AIPanel.open(); AIPanel.sendMessage('explain', { selectedText: sel }); }
+        });
+        items.push({
+          label: '\u{1F310} Translate selection',
+          action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: 'English' }); }
+        });
+      }
     }
 
     if (e.params.linkURL) {

@@ -282,6 +282,10 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('toggle-mute-tab');
       event.preventDefault();
     }
+    if (input.control && input.shift && input.key === 'A') {
+      mainWindow.webContents.send('toggle-ai-panel');
+      event.preventDefault();
+    }
   });
 
   // Disable default menu

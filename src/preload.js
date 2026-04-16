@@ -62,6 +62,9 @@ contextBridge.exposeInMainWorld('vex', {
   openPrivateWindow: () => ipcRenderer.invoke('open-private-window'),
   onToggleMuteTab: (callback) => ipcRenderer.on('toggle-mute-tab', callback),
 
+  // Phase 7A: AI
+  onToggleAiPanel: (callback) => ipcRenderer.on('toggle-ai-panel', callback),
+
   // Platform
   platform: process.platform
 });
