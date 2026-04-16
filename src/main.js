@@ -147,6 +147,13 @@ function createWindow() {
     });
   });
 
+  // Signal renderer to save session before quit
+  mainWindow.on('close', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('save-session-before-quit');
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -233,6 +240,22 @@ app.whenReady().then(() => {
     }
     if (input.control && input.shift && input.key === 'O') {
       mainWindow.webContents.send('toggle-sessions');
+      event.preventDefault();
+    }
+    if (input.control && input.shift && input.key === 'T') {
+      mainWindow.webContents.send('reopen-last-closed');
+      event.preventDefault();
+    }
+    if (input.control && input.key === 'h') {
+      mainWindow.webContents.send('toggle-history');
+      event.preventDefault();
+    }
+    if (input.control && input.shift && input.key === 'M') {
+      mainWindow.webContents.send('toggle-memory');
+      event.preventDefault();
+    }
+    if (input.control && input.shift && input.key === 'Z') {
+      mainWindow.webContents.send('sleep-current-tab');
       event.preventDefault();
     }
   });

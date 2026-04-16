@@ -22,6 +22,9 @@
   WorkspaceManager.init();
   await TabManager.init();
 
+  // Check for restore prompt (deferred so it doesn't block startup)
+  setTimeout(() => RestorePrompt.checkOnStartup(settings), 500);
+
   // Workspace switcher button
   document.getElementById('workspace-btn')?.addEventListener('click', () => WorkspaceManager.toggleDropdown());
 
@@ -314,6 +317,46 @@
     }
   });
 
+  // === Startup behavior setting ===
+  const restoreSelect = document.getElementById('setting-restore-startup');
+  if (restoreSelect) {
+    restoreSelect.value = settings.restoreOnStartup || 'ask';
+    restoreSelect.addEventListener('change', () => {
+      settings.restoreOnStartup = restoreSelect.value;
+      VexStorage.saveSettings(settings);
+    });
+  }
+
+  // === Auto-sleep settings ===
+  const autosleepToggle = document.getElementById('setting-autosleep');
+  const autosleepMinutes = document.getElementById('setting-autosleep-minutes');
+  const autosleepExcludePinned = document.getElementById('setting-autosleep-exclude-pinned');
+  if (autosleepToggle) {
+    autosleepToggle.checked = settings.autoSleepEnabled || false;
+    if (autosleepMinutes) autosleepMinutes.value = String(settings.autoSleepMinutes || 30);
+    if (autosleepExcludePinned) autosleepExcludePinned.checked = settings.autoSleepExcludePinned !== false;
+
+    const applyAutoSleep = () => {
+      settings.autoSleepEnabled = autosleepToggle.checked;
+      settings.autoSleepMinutes = parseInt(autosleepMinutes?.value || '30');
+      settings.autoSleepExcludePinned = autosleepExcludePinned?.checked !== false;
+      VexStorage.saveSettings(settings);
+      if (settings.autoSleepEnabled) {
+        TabManager.startAutoSleep(settings.autoSleepMinutes, settings.autoSleepExcludePinned);
+      } else {
+        TabManager.stopAutoSleep();
+      }
+    };
+    autosleepToggle.addEventListener('change', applyAutoSleep);
+    autosleepMinutes?.addEventListener('change', applyAutoSleep);
+    autosleepExcludePinned?.addEventListener('change', applyAutoSleep);
+
+    // Start auto-sleep if enabled
+    if (settings.autoSleepEnabled) {
+      TabManager.startAutoSleep(settings.autoSleepMinutes || 30, settings.autoSleepExcludePinned !== false);
+    }
+  }
+
   // === Split Screen ===
   window.vex.onToggleSplit(() => SplitScreen.toggle());
   window.vex.onTogglePip(() => { if (window.PiPManager) window.PiPManager.toggle(); });
@@ -322,9 +365,20 @@
   window.vex.onToggleNotes?.(() => SidebarManager.togglePanel('notes'));
   window.vex.onToggleSessions?.(() => SessionManager.toggle());
 
+  // === Phase 4 IPC events ===
+  window.vex.onReopenLastClosed?.(() => TabManager.reopenLastClosed());
+  window.vex.onToggleHistory?.(() => SidebarManager.togglePanel('history'));
+  window.vex.onToggleMemory?.(() => SidebarManager.togglePanel('memory'));
+  window.vex.onSleepCurrentTab?.(() => {
+    const tab = TabManager.getActiveTab();
+    if (tab) { TabManager.sleepTab(tab.id); window.showToast?.('Tab sleeping'); }
+  });
+  window.vex.onSaveSessionBeforeQuit?.(() => RestorePrompt.saveBeforeQuit());
+
   // Save workspace state before window closes
   window.addEventListener('beforeunload', () => {
     WorkspaceManager.saveCurrentState();
+    RestorePrompt.saveBeforeQuit();
   });
 
   const splitCloseRight = document.getElementById('split-close-right');

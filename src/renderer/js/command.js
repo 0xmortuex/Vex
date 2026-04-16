@@ -35,7 +35,14 @@ const CommandBar = {
     { id: 'downloads', label: 'Downloads', hint: 'Open downloads panel', icon: '⬇', isPrimary: true, action: () => SidebarManager.openPanel('downloads') },
     { id: 'session-save', label: 'Save Session', hint: 'Save current tabs as a session', icon: '💾', action: () => SessionManager.showOverlay() },
     { id: 'session-load', label: 'Load Session', hint: 'Restore a saved session', shortcut: 'Ctrl+Shift+O', icon: '📂', action: () => SessionManager.showOverlay() },
-    { id: 'workspace', label: 'Switch Workspace', hint: 'Change workspace profile', icon: '🔄', action: () => WorkspaceManager.toggleDropdown() }
+    { id: 'workspace', label: 'Switch Workspace', hint: 'Change workspace profile', icon: '🔄', action: () => WorkspaceManager.toggleDropdown() },
+    // Phase 4 commands
+    { id: 'reopen', label: 'Reopen Closed Tab', hint: 'Restore last closed tab', shortcut: 'Ctrl+Shift+T', icon: '↩', action: () => TabManager.reopenLastClosed() },
+    { id: 'history', label: 'History', hint: 'Browsing history', shortcut: 'Ctrl+H', icon: '🕐', isPrimary: true, action: () => SidebarManager.openPanel('history') },
+    { id: 'memory', label: 'Memory', hint: 'Memory usage per tab', shortcut: 'Ctrl+Shift+M', icon: '💻', isPrimary: true, action: () => SidebarManager.openPanel('memory') },
+    { id: 'sleep', label: 'Sleep Tab', hint: 'Put current tab to sleep', shortcut: 'Ctrl+Shift+Z', icon: '💤', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.sleepTab(t.id); } },
+    { id: 'sleep-all', label: 'Sleep All Inactive', hint: 'Sleep all non-active tabs', icon: '💤', action: () => { TabManager.sleepAllInactive(); window.showToast?.('All inactive tabs sleeping'); } },
+    { id: 'wake-all', label: 'Wake All Tabs', hint: 'Wake all sleeping tabs', icon: '☀', action: () => { TabManager.wakeAllTabs(); window.showToast?.('All tabs awake'); } }
   ],
 
   init() {

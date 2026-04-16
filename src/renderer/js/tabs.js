@@ -14,10 +14,23 @@ function isStartPage(url) {
   return url === 'vex://start' || url === START_URL || url?.startsWith('vex://start') || url?.includes('start.html');
 }
 
+// Recently closed tabs
+const RECENTLY_CLOSED_KEY = 'vex.recentlyClosed';
+const MAX_RECENTLY_CLOSED = 25;
+
+function getRecentlyClosed() {
+  try { return JSON.parse(localStorage.getItem(RECENTLY_CLOSED_KEY) || '[]'); } catch { return []; }
+}
+function saveRecentlyClosed(list) {
+  if (list.length > MAX_RECENTLY_CLOSED) list.length = MAX_RECENTLY_CLOSED;
+  localStorage.setItem(RECENTLY_CLOSED_KEY, JSON.stringify(list));
+}
+
 const TabManager = {
   tabs: [],
   activeTabId: null,
   tabCounter: 0,
+  _autoSleepInterval: null,
   groups: [],
   defaultGroups: [
     { id: 'cusa', name: 'CUSA', color: '#6366f1', collapsed: false },
@@ -82,6 +95,12 @@ const TabManager = {
 
     this.activeTabId = id;
     tab.unread = false;
+    tab.lastViewedAt = Date.now();
+
+    // Wake sleeping tab on activation
+    if (tab.sleeping) {
+      this.wakeTab(id);
+    }
 
     // Lazy-create webview on first activation
     if (tab._lazy) {
@@ -103,6 +122,19 @@ const TabManager = {
   closeTab(id) {
     const idx = this.tabs.findIndex(t => t.id === id);
     if (idx === -1) return;
+
+    // Save to recently closed before destroying (skip during bulk ops)
+    if (!this._bulkClosing) {
+      const tab = this.tabs[idx];
+      if (tab && !isStartPage(tab.url)) {
+        const list = getRecentlyClosed();
+        list.unshift({
+          url: tab.url, title: tab.title, favicon: tab.favicon,
+          groupId: tab.groupId, closedAt: new Date().toISOString()
+        });
+        saveRecentlyClosed(list);
+      }
+    }
 
     WebviewManager.destroyWebview(id);
 
@@ -452,6 +484,92 @@ const TabManager = {
 
   getActiveTab() {
     return this.tabs.find(t => t.id === this.activeTabId);
+  },
+
+  // === Sleep/Wake ===
+  sleepTab(id) {
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab || tab.sleeping || tab.id === this.activeTabId) return;
+
+    tab.sleeping = true;
+    tab.originalUrl = tab.url;
+
+    // Unload webview content
+    const wv = WebviewManager.webviews.get(id);
+    if (wv) {
+      wv.remove();
+      WebviewManager.webviews.delete(id);
+    }
+
+    // Update UI
+    const el = document.querySelector(`.tab-item[data-tab-id="${id}"]`);
+    if (el) el.classList.add('sleeping');
+  },
+
+  wakeTab(id) {
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab || !tab.sleeping) return;
+
+    tab.sleeping = false;
+    const url = tab.originalUrl || tab.url;
+    tab.url = url;
+
+    // Recreate webview
+    WebviewManager.createWebview(tab);
+
+    const el = document.querySelector(`.tab-item[data-tab-id="${id}"]`);
+    if (el) el.classList.remove('sleeping');
+  },
+
+  sleepAllInactive() {
+    this.tabs.forEach(t => {
+      if (t.id !== this.activeTabId && !t.sleeping && !t._lazy) {
+        this.sleepTab(t.id);
+      }
+    });
+  },
+
+  wakeAllTabs() {
+    this.tabs.forEach(t => {
+      if (t.sleeping) this.wakeTab(t.id);
+    });
+  },
+
+  // === Auto-Sleep ===
+  startAutoSleep(thresholdMinutes, excludePinned) {
+    this.stopAutoSleep();
+    this._autoSleepInterval = setInterval(() => {
+      const threshold = (thresholdMinutes || 30) * 60 * 1000;
+      const now = Date.now();
+      this.tabs.forEach(t => {
+        if (t.id === this.activeTabId) return;
+        if (t.sleeping || t._lazy) return;
+        if (excludePinned && t.pinned) return;
+        if (!t.lastViewedAt) t.lastViewedAt = now;
+        if (now - t.lastViewedAt >= threshold) {
+          this.sleepTab(t.id);
+        }
+      });
+    }, 60000);
+  },
+
+  stopAutoSleep() {
+    if (this._autoSleepInterval) {
+      clearInterval(this._autoSleepInterval);
+      this._autoSleepInterval = null;
+    }
+  },
+
+  // === Recently Closed ===
+  reopenLastClosed() {
+    const list = getRecentlyClosed();
+    if (list.length === 0) {
+      window.showToast?.('No recently closed tabs');
+      return;
+    }
+    const last = list.shift();
+    saveRecentlyClosed(list);
+    this.createTab(last.url, true, last.groupId);
   },
 
   _escapeHtml(str) {

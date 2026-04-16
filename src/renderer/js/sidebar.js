@@ -4,7 +4,7 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads'],
+  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory'],
 
   panelConfigs: {
     start: { url: null, partition: null },
@@ -16,7 +16,9 @@ const SidebarManager = {
     roblox: { url: null, partition: null },
     github: { url: null, partition: null },
     notes: { url: null, partition: null },
-    downloads: { url: null, partition: null }
+    downloads: { url: null, partition: null },
+    history: { url: null, partition: null },
+    memory: { url: null, partition: null }
   },
 
   init() {
@@ -62,6 +64,8 @@ const SidebarManager = {
     if (panelName === 'github') GitHubPanel.init();
     if (panelName === 'notes') NotesPanel.init();
     if (panelName === 'downloads') DownloadsPanel.init();
+    if (panelName === 'history') HistoryPanel.init();
+    if (panelName === 'memory') MemoryPanel.init();
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

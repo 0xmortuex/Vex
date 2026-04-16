@@ -1,0 +1,34 @@
+/* === Restore Tabs Prompt === */
+.restore-prompt {
+  position: fixed; top: 44px; left: 50%; transform: translateX(-50%) translateY(-120%);
+  background: var(--surface); border: 1px solid var(--border); border-top: none;
+  border-radius: 0 0 12px 12px; padding: 12px 20px;
+  display: flex; align-items: center; gap: 14px; z-index: 9000;
+  transition: transform 0.3s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  max-width: 500px;
+}
+.restore-prompt.show { transform: translateX(-50%) translateY(0); }
+.restore-prompt-text { font-size: 13px; color: var(--text); flex: 1; }
+.restore-prompt-text strong { color: var(--primary); }
+.restore-prompt-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.restore-prompt-actions button {
+  padding: 6px 14px; border-radius: var(--radius); cursor: pointer;
+  font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 500;
+  border: none; transition: all 0.15s;
+}
+.restore-prompt-actions .restore-btn-primary { background: var(--primary); color: white; }
+.restore-prompt-actions .restore-btn-primary:hover { background: var(--primary-hover); }
+.restore-prompt-actions .restore-btn-secondary {
+  background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+}
+.restore-prompt-actions .restore-btn-secondary:hover { background: var(--surface); color: var(--text); }
+.restore-prompt-close {
+  width: 24px; height: 24px; border: none; background: transparent;
+  color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.restore-prompt-close:hover { background: var(--tab-hover); color: var(--text); }
+
+/* Tab sleeping indicator */
+.tab-item.sleeping { opacity: 0.5; }
+.tab-item.sleeping .tab-title::after { content: ' \U0001f4a4'; font-size: 11px; }

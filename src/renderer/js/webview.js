@@ -34,10 +34,13 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { url });
       this._updateFavicon(tab.id, url);
 
-      // Add to history
+      // Add to history (both legacy storage and new HistoryPanel)
       if (!isStartPage(url)) {
         const t = TabManager.tabs.find(t => t.id === tab.id);
         VexStorage.addHistory({ url, title: t?.title || url });
+        if (typeof HistoryPanel !== 'undefined') {
+          HistoryPanel.addEntry(url, t?.title || url, t?.favicon);
+        }
       }
     });
 

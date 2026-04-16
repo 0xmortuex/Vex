@@ -44,6 +44,13 @@ contextBridge.exposeInMainWorld('vex', {
   onToggleNotes: (callback) => ipcRenderer.on('toggle-notes', callback),
   onToggleSessions: (callback) => ipcRenderer.on('toggle-sessions', callback),
 
+  // Phase 4: History, Memory, Sleep, Restore
+  onReopenLastClosed: (callback) => ipcRenderer.on('reopen-last-closed', callback),
+  onToggleHistory: (callback) => ipcRenderer.on('toggle-history', callback),
+  onToggleMemory: (callback) => ipcRenderer.on('toggle-memory', callback),
+  onSleepCurrentTab: (callback) => ipcRenderer.on('sleep-current-tab', callback),
+  onSaveSessionBeforeQuit: (callback) => ipcRenderer.on('save-session-before-quit', callback),
+
   // Platform
   platform: process.platform
 });

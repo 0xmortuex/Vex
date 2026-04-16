@@ -17,6 +17,9 @@
   <link rel="stylesheet" href="css/workspaces.css">
   <link rel="stylesheet" href="css/notes-panel.css">
   <link rel="stylesheet" href="css/downloads-panel.css">
+  <link rel="stylesheet" href="css/history-panel.css">
+  <link rel="stylesheet" href="css/memory-panel.css">
+  <link rel="stylesheet" href="css/restore-prompt.css">
 </head>
 <body>
   <!-- Top Bar -->
@@ -101,6 +104,12 @@
       <button class="sidebar-icon" data-panel="downloads" title="Downloads">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </button>
+      <button class="sidebar-icon" data-panel="history" title="History (Ctrl+H)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </button>
+      <button class="sidebar-icon" data-panel="memory" title="Memory (Ctrl+Shift+M)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M15 20v2M9 20v2M2 15h2M2 9h2M20 15h2M20 9h2"/></svg>
+      </button>
       <div class="sidebar-spacer"></div>
       <button class="sidebar-icon" data-panel="settings" title="Settings">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.5V4.5M10 15.5V17.5M2.5 10H4.5M15.5 10H17.5M4.34 4.34L5.76 5.76M14.24 14.24L15.66 15.66M15.66 4.34L14.24 5.76M5.76 14.24L4.34 15.66" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -134,6 +143,8 @@
         <div class="panel" id="panel-github" style="display: none;"></div>
         <div class="panel" id="panel-notes" style="display: none;"></div>
         <div class="panel" id="panel-downloads" style="display: none;"></div>
+        <div class="panel" id="panel-history" style="display: none;"></div>
+        <div class="panel" id="panel-memory" style="display: none;"></div>
         <div class="panel" id="panel-settings" style="display: none;">
           <div class="settings-content">
             <h2>Settings</h2>
@@ -201,6 +212,44 @@
               <label class="setting-label">Workspaces</label>
               <div style="margin-top:4px">
                 <button id="setting-open-workspaces" style="padding:8px 16px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Manage Workspaces</button>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <label class="setting-label">Startup</label>
+              <div class="setting-row-label">When Vex starts</div>
+              <select id="setting-restore-startup">
+                <option value="ask">Ask me</option>
+                <option value="always">Always restore last session</option>
+                <option value="never">Always start fresh</option>
+              </select>
+            </div>
+
+            <div class="setting-group">
+              <label class="setting-label">Performance</label>
+              <div class="setting-toggle-row">
+                <span>Auto-sleep inactive tabs</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-autosleep">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div style="margin-top:8px">
+                <div class="setting-row-label">Sleep after (minutes)</div>
+                <select id="setting-autosleep-minutes">
+                  <option value="5">5 minutes</option>
+                  <option value="15">15 minutes</option>
+                  <option value="30" selected>30 minutes</option>
+                  <option value="60">60 minutes</option>
+                  <option value="120">120 minutes</option>
+                </select>
+              </div>
+              <div class="setting-toggle-row" style="margin-top:8px">
+                <span>Exclude pinned tabs from auto-sleep</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-autosleep-exclude-pinned" checked>
+                  <span class="toggle-slider"></span>
+                </label>
               </div>
             </div>
 
@@ -288,6 +337,18 @@
     <div class="ws-modal-content"></div>
   </div>
 
+  <!-- Restore Tabs Prompt -->
+  <div id="restore-prompt" class="restore-prompt">
+    <div class="restore-prompt-text">Reopen tabs from your last session?</div>
+    <div class="restore-prompt-actions">
+      <button class="restore-btn-primary">Reopen Tabs</button>
+      <button class="restore-btn-secondary">Start Fresh</button>
+    </div>
+    <button class="restore-prompt-close">
+      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
   <!-- Workspace Loading Overlay -->
   <div id="workspace-loading" class="workspace-loading hidden">
     <div class="ws-spinner"></div>
@@ -311,6 +372,9 @@
   <script src="js/workspaces.js"></script>
   <script src="js/notes-panel.js"></script>
   <script src="js/downloads-panel.js"></script>
+  <script src="js/history-panel.js"></script>
+  <script src="js/memory-panel.js"></script>
+  <script src="js/restore-prompt.js"></script>
   <script src="js/command.js"></script>
   <script src="js/app.js"></script>
 </body>
