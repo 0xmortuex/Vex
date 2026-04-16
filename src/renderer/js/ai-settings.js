@@ -97,9 +97,18 @@ const AISettings = (() => {
     document.querySelectorAll('input[name="ai-mode"]').forEach(radio => {
       radio.addEventListener('change', () => {
         const v = radio.value;
-        if (v === 'auto') { AIRouter.setPreferLocal(false); AIRouter.setForceCloud(false); }
-        else if (v === 'local') AIRouter.setPreferLocal(true);
-        else if (v === 'cloud') AIRouter.setForceCloud(true);
+        console.log('[AISettings] Mode changed to:', v);
+        if (v === 'auto') {
+          AIRouter.setPreferLocal(false);
+          AIRouter.setForceCloud(false);
+        } else if (v === 'local') {
+          AIRouter.setPreferLocal(true);
+          AIRouter.setForceCloud(false); // belt-and-suspenders: clear opposite at call site
+        } else if (v === 'cloud') {
+          AIRouter.setForceCloud(true);
+          AIRouter.setPreferLocal(false);
+        }
+        console.log('[AISettings] New router state:', AIRouter.getOllamaStatus());
         toast('AI mode updated', 'success');
       });
     });
@@ -112,7 +121,8 @@ const AISettings = (() => {
     document.getElementById('btn-refresh-ollama')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-refresh-ollama');
       btn.disabled = true; btn.textContent = 'Checking...';
-      await AIRouter.refreshOllamaStatus();
+      const available = await AIRouter.refreshOllamaStatus();
+      console.log('[AISettings] Refresh → Ollama available:', available);
       await refreshStatus();
       await populateModels();
       btn.disabled = false; btn.textContent = 'Refresh Ollama Status';

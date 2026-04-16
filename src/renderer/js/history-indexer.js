@@ -100,19 +100,9 @@ const HistoryIndexer = (() => {
 
     let aiResult;
     try {
-      // Route through the AI Router so local Ollama can handle bulk indexing
-      // (default routing for historyIndex is 'local' — falls back to cloud).
-      if (typeof AIRouter !== 'undefined') {
-        aiResult = await AIRouter.callAI('historyIndex', { pageContext: pageContent });
-      } else {
-        const r = await fetch(AI_WORKER_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'summarize-for-history', pageContext: pageContent })
-        });
-        if (!r.ok) return;
-        aiResult = await r.json();
-      }
+      // Always route through AIRouter — historyIndex defaults to local so this
+      // is where the indexer uses Ollama when available.
+      aiResult = await AIRouter.callAI('historyIndex', { pageContext: pageContent });
     } catch (e) { return; }
 
     if (!aiResult || !aiResult.result) return;

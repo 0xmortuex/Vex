@@ -48,6 +48,7 @@ const AIRouter = (() => {
 
   async function refreshOllamaStatus() {
     ollamaAvailable = await Ollama.ping();
+    console.log('[AIRouter] Ollama ping result:', ollamaAvailable);
     return ollamaAvailable;
   }
 
@@ -57,29 +58,54 @@ const AIRouter = (() => {
   }
 
   function resolveBackend(feature) {
-    if (forceCloud) return 'cloud';
-    const pref = routingPrefs[feature] || 'auto';
-    if (pref === 'cloud') return 'cloud';
-    if (pref === 'local') return 'local';
-    // auto:
-    if (preferLocal && isOllamaAvailable()) return 'local';
-    if (!isOnline() && isOllamaAvailable()) return 'local';
-    if (isOnline()) return 'cloud';
-    if (isOllamaAvailable()) return 'local';
-    return 'cloud';
+    let decision;
+    if (forceCloud) decision = 'cloud';
+    else {
+      const pref = routingPrefs[feature] || 'auto';
+      if (pref === 'cloud') decision = 'cloud';
+      else if (pref === 'local') decision = 'local';
+      else {
+        // auto:
+        if (preferLocal && isOllamaAvailable()) decision = 'local';
+        else if (!isOnline() && isOllamaAvailable()) decision = 'local';
+        else if (isOnline()) decision = 'cloud';
+        else if (isOllamaAvailable()) decision = 'local';
+        else decision = 'cloud';
+      }
+    }
+    console.log(`[AIRouter] resolveBackend(${feature}):`, {
+      decision, forceCloud, preferLocal,
+      featurePref: routingPrefs[feature],
+      ollamaAvailable, online: isOnline()
+    });
+    return decision;
   }
 
   async function callAI(feature, request) {
     const primary = resolveBackend(feature);
     const fallback = primary === 'cloud' ? 'local' : 'cloud';
+    console.log(`[AIRouter] callAI(${feature}) → using backend: ${primary}`);
     try {
-      return await callBackend(primary, feature, request);
+      const out = await callBackend(primary, feature, request);
+      console.log(`[AIRouter] ${primary} succeeded for ${feature}`);
+      return out;
     } catch (err) {
-      console.warn(`[AIRouter] ${primary} failed for ${feature}, trying ${fallback}:`, err.message);
+      console.warn(`[AIRouter] ${primary} failed for ${feature}:`, err.message);
+
+      // Respect explicit user intent: if user picked "Prefer local" or feature=local,
+      // don't silently fall back to cloud — that's the whole point of the mode.
+      const featurePref = routingPrefs[feature] || 'auto';
+      const userWantsLocal = preferLocal || featurePref === 'local';
+      if (primary === 'local' && userWantsLocal) {
+        throw new Error(`Local AI failed: ${err.message}. (Not falling back to cloud because you selected local mode.)`);
+      }
+
+      // Availability gates for fallback
       if (fallback === 'local' && !isOllamaAvailable()) throw err;
       if (fallback === 'cloud' && !isOnline()) throw err;
-      // Don't fall over from cloud→local for features that need cloud quality
       if (feature === 'agent' && fallback === 'local') throw err;
+
+      console.warn(`[AIRouter] falling back to ${fallback} for ${feature}`);
       try {
         return await callBackend(fallback, feature, request);
       } catch (err2) {
@@ -108,7 +134,9 @@ const AIRouter = (() => {
     if (request.message) userMessage += `User: ${request.message}`;
     if (!userMessage) userMessage = JSON.stringify(request);
 
-    const expectsJson = ['summarize', 'translate', 'explain', 'historyIndex', 'historySearch'].includes(feature);
+    // All local features expect JSON because LOCAL_SYSTEM_PROMPTS.chat also
+    // asks for {"reply": "..."} — without format:'json' small models ramble.
+    const expectsJson = true;
 
     // Multi-turn chat: pass history when available
     if (feature === 'chat' && Array.isArray(request.conversationHistory) && request.conversationHistory.length) {
@@ -117,7 +145,7 @@ const AIRouter = (() => {
         if (m && m.role && m.content) msgs.push({ role: m.role, content: m.content });
       }
       msgs.push({ role: 'user', content: userMessage });
-      const text = await Ollama.chat(localModel, msgs, { temperature: 0.5, maxTokens: 2000 });
+      const text = await Ollama.chat(localModel, msgs, { temperature: 0.5, maxTokens: 2000, format: 'json' });
       return { result: text, backend: 'local', model: localModel };
     }
 
@@ -200,12 +228,14 @@ Only include relevance > 0.5. Max 10 matches.`
     if (preferLocal) forceCloud = false;
     _save('vex.preferLocalAI', preferLocal);
     _save('vex.forceCloudAI', forceCloud);
+    console.log('[AIRouter] setPreferLocal:', preferLocal, 'forceCloud:', forceCloud);
   }
   function setForceCloud(v) {
     forceCloud = !!v;
     if (forceCloud) preferLocal = false;
     _save('vex.forceCloudAI', forceCloud);
     _save('vex.preferLocalAI', preferLocal);
+    console.log('[AIRouter] setForceCloud:', forceCloud, 'preferLocal:', preferLocal);
   }
   function setModel(name) {
     localModel = name;

@@ -237,23 +237,9 @@ const HistoryPanel = {
         contentType: e.contentType || '', visitedAt: e.visitedAt
       }));
 
-      let aiResult;
-      if (typeof AIRouter !== 'undefined') {
-        aiResult = await AIRouter.callAI('historySearch', {
-          query, historyEntries: compact, timeContext: new Date().toISOString()
-        });
-      } else {
-        const response = await fetch(this.AI_WORKER_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'search-history', query,
-            historyEntries: compact, timeContext: new Date().toISOString()
-          })
-        });
-        if (!response.ok) throw new Error('Worker returned ' + response.status);
-        aiResult = await response.json();
-      }
+      const aiResult = await AIRouter.callAI('historySearch', {
+        query, historyEntries: compact, timeContext: new Date().toISOString()
+      });
 
       let parsed;
       try {
