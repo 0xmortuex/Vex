@@ -90,5 +90,15 @@ contextBridge.exposeInMainWorld('vex', {
   // Platform + versions
   platform: process.platform,
   electronVersion: process.versions.electron,
-  chromeVersion: process.versions.chrome
+  chromeVersion: process.versions.chrome,
+  nodeVersion: process.versions.node,
+  getElectronVersion: () => process.versions.electron,
+  getChromeVersion: () => process.versions.chrome,
+  getNodeVersion: () => process.versions.node,
+
+  // Persistent storage (survives reinstalls — backs the localStorage shim)
+  persistGetAll: () => ipcRenderer.invoke('persist-get-all'),
+  persistSet: (key, value) => ipcRenderer.invoke('persist-set', key, value),
+  persistDelete: (key) => ipcRenderer.invoke('persist-delete', key),
+  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path')
 });

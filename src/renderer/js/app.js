@@ -1,6 +1,12 @@
 // === Vex App — Main Entry Point ===
 
 (async function () {
+  // Hydrate localStorage from persistent file store BEFORE anything else reads it.
+  // This makes every existing localStorage.getItem('vex.*') call survive reinstalls.
+  if (window.PersistentStorage) {
+    try { await PersistentStorage.init(); } catch (e) { console.error('PersistentStorage init:', e); }
+  }
+
   // Load settings
   const settings = await VexStorage.loadSettings();
 
@@ -392,8 +398,10 @@
   });
   const elVer = document.getElementById('about-electron-ver');
   const crVer = document.getElementById('about-chrome-ver');
-  if (elVer) elVer.textContent = window.vex.electronVersion || '-';
-  if (crVer) crVer.textContent = window.vex.chromeVersion || '-';
+  const ndVer = document.getElementById('about-node-ver');
+  if (elVer) elVer.textContent = window.vex.electronVersion || window.vex.getElectronVersion?.() || '-';
+  if (crVer) crVer.textContent = window.vex.chromeVersion || window.vex.getChromeVersion?.() || '-';
+  if (ndVer) ndVer.textContent = window.vex.nodeVersion || window.vex.getNodeVersion?.() || '-';
   // Check-updates button
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
     const status = document.getElementById('update-check-status');

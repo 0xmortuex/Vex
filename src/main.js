@@ -64,6 +64,53 @@ function getStorageFile(key) {
   return path.join(storagePath, `${key}.json`);
 }
 
+// === Persistent key/value store (survives reinstalls / Chromium-origin changes) ===
+// Backs the localStorage shim in the renderer. Single JSON file, atomic writes.
+const persistFile = path.join(userDataPath, 'vex-persist.json');
+let _persistCache = null;
+function _persistLoad() {
+  if (_persistCache) return _persistCache;
+  try {
+    if (fs.existsSync(persistFile)) {
+      _persistCache = JSON.parse(fs.readFileSync(persistFile, 'utf-8'));
+    }
+  } catch (e) { console.error('[persist] load failed:', e); }
+  if (!_persistCache) _persistCache = {};
+  return _persistCache;
+}
+function _persistSaveDebounced() {
+  if (_persistSaveDebounced._t) clearTimeout(_persistSaveDebounced._t);
+  _persistSaveDebounced._t = setTimeout(() => {
+    try {
+      const tmp = persistFile + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(_persistCache, null, 2), 'utf-8');
+      fs.renameSync(tmp, persistFile);
+    } catch (e) { console.error('[persist] save failed:', e); }
+  }, 250);
+}
+ipcMain.handle('persist-get-all', () => _persistLoad());
+ipcMain.handle('persist-set', (_e, key, value) => {
+  const data = _persistLoad();
+  data[key] = value;
+  _persistSaveDebounced();
+  return true;
+});
+ipcMain.handle('persist-delete', (_e, key) => {
+  const data = _persistLoad();
+  delete data[key];
+  _persistSaveDebounced();
+  return true;
+});
+ipcMain.handle('get-user-data-path', () => userDataPath);
+// Flush synchronously on quit so nothing is lost
+app.on('before-quit', () => {
+  try {
+    if (_persistCache) {
+      fs.writeFileSync(persistFile, JSON.stringify(_persistCache, null, 2), 'utf-8');
+    }
+  } catch {}
+});
+
 // Register custom protocol BEFORE app ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true } }
