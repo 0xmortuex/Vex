@@ -35,6 +35,7 @@ const AgentLoop = {
     this._running = true;
     this._mode = mode || 'ask';
     this._history = [];
+    document.getElementById('ai-send-agent')?.classList.add('running');
 
     this._renderStep('agent-start', 'Agent started: ' + goal, 'info');
 
@@ -136,10 +137,16 @@ const AgentLoop = {
     }
 
     this._running = false;
+    document.getElementById('ai-send-agent')?.classList.remove('running');
+    document.getElementById('ai-stop-agent')?.classList.remove('visible');
     this._renderStep('end', 'Agent finished', 'info');
   },
 
-  stop() { this._running = false; },
+  stop() {
+    this._running = false;
+    document.getElementById('ai-send-agent')?.classList.remove('running');
+    document.getElementById('ai-stop-agent')?.classList.remove('visible');
+  },
   isRunning() { return this._running; },
 
   async _checkPermission(decision) {

@@ -52,11 +52,15 @@ const AIPanel = {
   _sendAgent() {
     const input = document.getElementById('ai-input');
     const msg = input?.value.trim();
-    if (!msg) return;
+    if (!msg) {
+      input?.focus();
+      window.showToast?.('Type a task first, then click the agent button');
+      return;
+    }
     input.value = '';
     if (!this.isOpen()) this.open();
 
-    // Add user message to chat
+    // Clear empty state and add user message
     const container = document.getElementById('ai-messages');
     if (container) {
       const emptyState = container.querySelector('.ai-empty');
@@ -69,14 +73,22 @@ const AIPanel = {
       container.scrollTop = container.scrollHeight;
     }
 
-    // Show stop button
+    // Show stop button + running indicator
     document.getElementById('ai-stop-agent')?.classList.add('visible');
+    document.getElementById('ai-send-agent')?.classList.add('running');
 
     // Start agent loop
-    if (typeof AgentLoop !== 'undefined') {
+    if (typeof AgentLoop !== 'undefined' && typeof AgentLoop.start === 'function') {
       AgentLoop.start(msg, this._agentMode).then(() => {
         document.getElementById('ai-stop-agent')?.classList.remove('visible');
+        document.getElementById('ai-send-agent')?.classList.remove('running');
+      }).catch(() => {
+        document.getElementById('ai-stop-agent')?.classList.remove('visible');
+        document.getElementById('ai-send-agent')?.classList.remove('running');
       });
+    } else {
+      window.showToast?.('Agent system not loaded');
+      document.getElementById('ai-stop-agent')?.classList.remove('visible');
     }
   },
 
