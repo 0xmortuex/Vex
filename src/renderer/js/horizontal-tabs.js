@@ -83,7 +83,12 @@ const HorizontalTabs = (() => {
       ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" onerror="this.style.display='none'">` : '<span class="tab-favicon"></span>'}
       ${audio}
       <span class="tab-title">${_esc(tab.title || 'New Tab')}</span>
-      <span class="tab-close" title="Close">\u00d7</span>
+      <button class="tab-close" title="Close tab" aria-label="Close">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <line x1="1" y1="1" x2="9" y2="9"/>
+          <line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
     `;
 
     el.addEventListener('click', (e) => {
@@ -123,12 +128,43 @@ const HorizontalTabs = (() => {
     }
   }
 
+  // Toggle narrow/very-narrow classes based on each tab's rendered width so
+  // titles + close buttons hide gracefully when the bar is packed. CSS
+  // container-queries aren't reliable in Electron 30's Chromium, so do it
+  // in JS.
+  function applyTabSizeClasses() {
+    const tabs = document.querySelectorAll('#top-tabs-list .top-tab:not(.pinned)');
+    for (const tab of tabs) {
+      const w = tab.getBoundingClientRect().width;
+      tab.classList.toggle('narrow', w < 110);
+      tab.classList.toggle('very-narrow', w < 60);
+    }
+  }
+
+  // Wrap render so size classes are re-applied on every refresh.
+  const _origRender = render;
+  render = function () {
+    _origRender();
+    requestAnimationFrame(applyTabSizeClasses);
+  };
+
   function init() {
     _patchTabManager();
     document.getElementById('btn-new-tab-top')?.addEventListener('click', () => {
       try { TabManager.createTab(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true); }
       catch { TabManager.createTab('about:blank', true); }
     });
+    // Wheel scroll fallback — only fires when overflow is present (50+ tabs).
+    const list = document.getElementById('top-tabs-list');
+    if (list) {
+      list.addEventListener('wheel', (e) => {
+        if (!e.deltaY || list.scrollWidth <= list.clientWidth) return;
+        e.preventDefault();
+        list.scrollLeft += e.deltaY;
+      }, { passive: false });
+    }
+    // Window resize → re-evaluate narrow classes.
+    window.addEventListener('resize', () => requestAnimationFrame(applyTabSizeClasses));
     render();
   }
 

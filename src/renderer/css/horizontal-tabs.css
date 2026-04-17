@@ -1,6 +1,5 @@
-/* === Phase 18: Horizontal tab bar (Chrome/Edge-style) === */
+/* === Horizontal tab bar (Chrome/Edge-style) === */
 
-/* Hidden by default; shown when body has data-tab-layout="horizontal" */
 .top-tab-bar {
   display: none;
   align-items: center;
@@ -11,6 +10,7 @@
   -webkit-app-region: drag;
   min-height: 40px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 body[data-tab-layout="horizontal"] .top-tab-bar {
@@ -18,37 +18,41 @@ body[data-tab-layout="horizontal"] .top-tab-bar {
 }
 
 /* Hide vertical sidebar + shrink main-layout vertically */
-body[data-tab-layout="horizontal"] #tabs-sidebar {
-  display: none !important;
-}
-body[data-tab-layout="horizontal"] #main-layout {
-  height: calc(100% - 44px - 40px); /* top bar + tab bar */
-}
-
-/* Keep the native height computation for vertical mode */
-body[data-tab-layout="vertical"] #main-layout {
-  height: calc(100% - 44px);
-}
+body[data-tab-layout="horizontal"] #tabs-sidebar { display: none !important; }
+body[data-tab-layout="horizontal"] #main-layout { height: calc(100% - 44px - 40px); }
+body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 44px); }
 
 .top-tabs-list {
   display: flex;
   gap: 2px;
   flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
+  min-width: 0;          /* critical for flex-shrink */
+  overflow: hidden;      /* shrink instead of scroll by default */
   -webkit-app-region: no-drag;
   align-items: flex-end;
+  padding-right: 4px;
 }
 .top-tabs-list::-webkit-scrollbar { display: none; }
+
+/* Trailing container keeps + button always visible */
+.tab-bar-trailing {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
 
 /* Individual tab */
 .top-tab {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
-  min-width: 140px;
+  padding: 0 10px;
+  height: 32px;
+  min-width: 40px;
   max-width: 220px;
+  flex: 1 1 180px;            /* prefer 180 px, shrink to min */
   background: transparent;
   border: 1px solid transparent;
   border-bottom: none;
@@ -57,14 +61,15 @@ body[data-tab-layout="vertical"] #main-layout {
   user-select: none;
   color: var(--text-muted);
   font-size: 12px;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, border-color 0.12s;
   position: relative;
-  height: 32px;
+  overflow: hidden;
+  white-space: nowrap;
   box-sizing: border-box;
   -webkit-app-region: no-drag;
 }
 .top-tab:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
 }
 .top-tab.active {
@@ -72,59 +77,87 @@ body[data-tab-layout="vertical"] #main-layout {
   border-color: var(--border);
   color: var(--text);
   z-index: 1;
-  margin-bottom: -1px; /* bleed over the tab-bar bottom border */
+  margin-bottom: -1px;
 }
 
 .top-tab .tab-favicon {
-  width: 14px; height: 14px; flex-shrink: 0;
+  width: 14px; height: 14px;
+  flex-shrink: 0;
   border-radius: 2px;
 }
 .top-tab .tab-title {
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
   font-family: 'Outfit', sans-serif;
 }
+
 .top-tab .tab-close {
   width: 18px; height: 18px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 4px; font-size: 14px;
-  color: var(--text-muted); opacity: 0;
-  transition: all 0.12s;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  color: var(--text-muted);
+  opacity: 0;
   flex-shrink: 0;
-  line-height: 1;
+  transition: all 0.12s;
+  background: transparent; border: none; padding: 0;
+  cursor: pointer;
 }
+.top-tab .tab-close svg { display: block; }
 .top-tab:hover .tab-close,
 .top-tab.active .tab-close { opacity: 0.7; }
 .top-tab .tab-close:hover {
-  background: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
   opacity: 1;
 }
 
-/* Pinned: compact square favicon */
+/* Narrow: hide title, keep close only on hover */
+.top-tab.narrow {
+  justify-content: center;
+  padding: 0 8px;
+  gap: 4px;
+}
+.top-tab.narrow .tab-title { display: none; }
+
+/* Very narrow: hide close too, icon only */
+.top-tab.very-narrow {
+  min-width: 36px;
+  max-width: 36px;
+  flex: 0 0 36px;
+  padding: 0;
+  justify-content: center;
+}
+.top-tab.very-narrow .tab-close { display: none; }
+
+/* Pinned: always compact icon square */
 .top-tab.pinned {
-  min-width: 40px; max-width: 40px;
-  padding: 6px 8px;
+  min-width: 36px;
+  max-width: 36px;
+  flex: 0 0 36px;
+  padding: 0;
+  justify-content: center;
 }
 .top-tab.pinned .tab-title,
 .top-tab.pinned .tab-close { display: none; }
 
-/* Audio / mute indicator */
+/* Audio / mute */
 .top-tab .audio-indicator {
   width: 12px; height: 12px;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 10px;
   flex-shrink: 0;
+  font-size: 11px;
 }
 
-/* Loading indicator */
-.top-tab.loading .tab-favicon {
-  animation: tab-pulse 1s ease-in-out infinite;
-}
+/* Loading state — spin favicon */
+.top-tab.loading .tab-favicon { animation: tab-spin 1s linear infinite; }
+@keyframes tab-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-/* Group membership: 3px colored strip along the top */
+/* Group membership — 3 px colored strip along top */
 .top-tab.in-group::before {
   content: '';
   position: absolute;
@@ -134,41 +167,49 @@ body[data-tab-layout="vertical"] #main-layout {
   border-radius: 8px 8px 0 0;
 }
 
-/* Group label pill shown at the start of a group run */
+/* Group label pill */
 .top-group-label {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  margin: 0 3px 0 8px;
+  padding: 0 10px;
+  margin: 0 4px 0 6px;
   background: var(--group-color, var(--primary));
   color: white;
-  border-radius: 4px;
+  border-radius: 12px;
   font-size: 10px;
-  font-weight: 600;
-  height: 18px;
+  font-weight: 700;
+  height: 22px;
   align-self: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.12s, opacity 0.12s;
+  max-width: 140px;
   white-space: nowrap;
-  cursor: context-menu;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-family: 'Outfit', sans-serif;
   -webkit-app-region: no-drag;
 }
+.top-group-label:hover { transform: translateY(-1px); opacity: 0.92; }
 
-/* + button at end */
+/* + new-tab button */
 .new-tab-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  width: 32px; height: 28px;
-  border-radius: 6px;
-  font-size: 18px;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1;
   cursor: pointer;
-  margin: 0 4px 6px 4px;
+  margin: 0 4px 4px 4px;
   -webkit-app-region: no-drag;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  line-height: 1;
+  transition: all 0.12s;
 }
-.new-tab-btn:hover {
-  background: var(--surface);
-  color: var(--text);
-}
+.new-tab-btn:hover  { background: var(--surface); color: var(--text); transform: scale(1.05); }
+.new-tab-btn:active { transform: scale(0.95); }
