@@ -331,11 +331,15 @@ const TabManager = {
     container.innerHTML = '';
 
     this.groups.forEach(group => {
+      const tabCount = this.tabs.filter(t => t.groupId === group.id).length;
+      // Hide empty groups — if a group ends up with 0 tabs, don't show a
+      // ghost row in the sidebar. It still exists (can be re-shown via
+      // right-click Move-to on a tab) until the user explicitly deletes it.
+      if (tabCount === 0) return;
+
       const el = document.createElement('div');
       el.className = `tab-group${group.collapsed ? ' collapsed' : ''}`;
       el.dataset.groupId = group.id;
-
-      const tabCount = this.tabs.filter(t => t.groupId === group.id).length;
 
       el.innerHTML = `
         <div class="tab-group-header">
@@ -353,7 +357,136 @@ const TabManager = {
         VexStorage.saveGroups(this.groups);
       });
 
+      el.querySelector('.tab-group-header').addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showGroupContextMenu(e, group.id);
+      });
+
       container.appendChild(el);
+    });
+  },
+
+  // Right-click menu for a group header
+  showGroupContextMenu(event, groupId) {
+    document.querySelectorAll('.tab-group-context-menu, .tab-context-menu').forEach(m => m.remove());
+    const group = this.groups.find(g => g.id === groupId);
+    if (!group) return;
+    const tabsInGroup = this.tabs.filter(t => t.groupId === groupId);
+
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu tab-group-context-menu';
+    menu.style.left = event.clientX + 'px';
+    menu.style.top  = event.clientY + 'px';
+    const count = tabsInGroup.length;
+    menu.innerHTML = `
+      <div class="tab-context-item" data-action="rename">\u270f\ufe0f Rename group</div>
+      <div class="tab-context-item" data-action="change-color">\ud83c\udfa8 Change color</div>
+      <div class="tab-context-sep"></div>
+      <div class="tab-context-item" data-action="close-tabs">\u2715 Close ${count} tab${count === 1 ? '' : 's'}</div>
+      <div class="tab-context-item" data-action="ungroup">\ud83d\udce4 Ungroup (keep tabs)</div>
+      <div class="tab-context-sep"></div>
+      <div class="tab-context-item danger" data-action="delete">\ud83d\uddd1\ufe0f Delete group &amp; all tabs</div>
+    `;
+    document.body.appendChild(menu);
+
+    // Keep menu on screen
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth)  menu.style.left = (window.innerWidth  - rect.width  - 8) + 'px';
+    if (rect.bottom > window.innerHeight) menu.style.top  = (window.innerHeight - rect.height - 8) + 'px';
+
+    menu.querySelectorAll('.tab-context-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const action = item.dataset.action;
+        menu.remove();
+        this._handleGroupAction(action, groupId);
+      });
+    });
+    setTimeout(() => {
+      const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } };
+      document.addEventListener('click', close);
+    }, 10);
+  },
+
+  _handleGroupAction(action, groupId) {
+    const group = this.groups.find(g => g.id === groupId);
+    if (!group) return;
+    const tabsInGroup = this.tabs.filter(t => t.groupId === groupId);
+
+    switch (action) {
+      case 'rename': {
+        const name = prompt('Rename group:', group.name);
+        if (name && name.trim()) {
+          group.name = name.trim();
+          VexStorage.saveGroups(this.groups);
+          this.renderGroups();
+          this.rebuildAllTabs();
+        }
+        break;
+      }
+      case 'change-color': {
+        this._showGroupColorPicker(groupId, (hex) => {
+          group.color = hex;
+          VexStorage.saveGroups(this.groups);
+          this.renderGroups();
+          this.rebuildAllTabs();
+        });
+        break;
+      }
+      case 'close-tabs': {
+        if (!confirm(`Close ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} in "${group.name}"? The group itself stays.`)) return;
+        tabsInGroup.forEach(t => this.closeTab(t.id));
+        break;
+      }
+      case 'ungroup': {
+        tabsInGroup.forEach(t => { t.groupId = null; });
+        this.groups = this.groups.filter(g => g.id !== groupId);
+        VexStorage.saveGroups(this.groups);
+        this.renderGroups();
+        this.rebuildAllTabs();
+        this.persistTabs();
+        window.showToast?.('Tabs ungrouped', 'info');
+        break;
+      }
+      case 'delete': {
+        if (!confirm(`Delete "${group.name}" and close all ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} inside? This cannot be undone.`)) return;
+        tabsInGroup.forEach(t => this.closeTab(t.id));
+        this.groups = this.groups.filter(g => g.id !== groupId);
+        VexStorage.saveGroups(this.groups);
+        this.renderGroups();
+        this.rebuildAllTabs();
+        this.persistTabs();
+        window.showToast?.('Group deleted', 'success');
+        break;
+      }
+    }
+  },
+
+  _showGroupColorPicker(groupId, onPick) {
+    const colors = [
+      '#6366f1', '#06b6d4', '#10b981', '#f59e0b',
+      '#ef4444', '#8b5cf6', '#f43f5e', '#14b8a6',
+      '#22c55e', '#00b4d8', '#3b82f6', '#94a3b8'
+    ];
+    document.querySelectorAll('.group-color-picker-overlay').forEach(o => o.remove());
+    const overlay = document.createElement('div');
+    overlay.className = 'group-color-picker-overlay';
+    overlay.innerHTML = `
+      <div class="group-color-picker">
+        <div class="group-color-picker-title">Pick a color</div>
+        <div class="group-color-grid">
+          ${colors.map(c => `<button class="group-color-swatch" data-color="${c}" style="background:${c}" title="${c}"></button>`).join('')}
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelectorAll('.group-color-swatch').forEach(btn => {
+      btn.addEventListener('click', () => {
+        onPick(btn.dataset.color);
+        overlay.remove();
+      });
+    });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
     });
   },
 

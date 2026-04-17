@@ -314,3 +314,36 @@
   background: var(--border);
   margin: 4px 8px;
 }
+
+/* === Phase 18: Group context menu + color picker === */
+.tab-group-context-menu .tab-context-item.danger { color: var(--danger); }
+.tab-group-context-menu .tab-context-item.danger:hover { background: rgba(239,68,68,0.1); }
+
+.group-color-picker-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100001;
+}
+.group-color-picker {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px 22px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  font-family: 'Outfit', sans-serif;
+}
+.group-color-picker-title {
+  color: var(--text); font-size: 13px; font-weight: 600;
+  margin-bottom: 12px;
+}
+.group-color-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+}
+.group-color-swatch {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid var(--border); cursor: pointer;
+  transition: transform 0.1s, border-color 0.15s;
+}
+.group-color-swatch:hover {
+  transform: scale(1.12);
+  border-color: var(--text);
+}
