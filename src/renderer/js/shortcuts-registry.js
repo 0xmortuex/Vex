@@ -6,7 +6,8 @@
 const ShortcutsRegistry = (() => {
   const DEFAULT_SHORTCUTS = {
     // AI
-    'command-bar':    { default: 'Ctrl+K',       label: 'Command Bar / Ask AI',       category: 'AI' },
+    'command-bar':    { default: 'Ctrl+K',       label: 'Command Bar (URLs, commands, search)', category: 'Navigation' },
+    'ask-ai-bar':     { default: 'Ctrl+J',       label: 'Ask Vex AI (quick prompt)',  category: 'AI' },
     'ai-panel':       { default: 'Ctrl+Shift+A', label: 'Toggle AI Panel',            category: 'AI' },
     'history-ai':     { default: 'Ctrl+Shift+H', label: 'Open History in AI Search',  category: 'AI' },
 

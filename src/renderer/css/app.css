@@ -664,3 +664,56 @@ body.private-mode #vex-logo::after {
   content: ' (Private)'; font-size: 10px; color: #a855f7;
   font-family: 'Outfit', sans-serif; font-weight: 400;
 }
+
+/* === Phase 17: Ask Vex AI bar (Ctrl+J) === */
+.ask-ai-bar {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  max-width: 92vw;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  z-index: 9500;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+  overflow: hidden;
+  animation: ask-ai-slide-in 0.18s ease;
+}
+.ask-ai-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  background: rgba(99, 102, 241, 0.1);
+  border-bottom: 1px solid var(--border);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Outfit', sans-serif;
+}
+.ask-ai-header svg { stroke: var(--primary); flex-shrink: 0; }
+.ask-ai-hint {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: normal;
+}
+#ask-ai-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 18px 20px;
+  font-size: 16px;
+  font-family: 'Outfit', sans-serif;
+  outline: none;
+}
+#ask-ai-input::placeholder { color: var(--text-muted); }
+
+@keyframes ask-ai-slide-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}

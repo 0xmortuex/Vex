@@ -465,6 +465,9 @@
   // === Phase 15: Personas ===
   if (typeof PersonasManager !== 'undefined') PersonasManager.init();
 
+  // === Phase 17: Ask Vex AI quick prompt (Ctrl+J) ===
+  if (typeof AskAIBar !== 'undefined') AskAIBar.init();
+
   // === Phase 17: Keyboard shortcut registry ===
   if (typeof ShortcutsRegistry !== 'undefined') {
     ShortcutsRegistry.init();
@@ -472,6 +475,7 @@
     // Main-process shortcuts in src/main.js keep firing as system-level
     // defaults (they're labelled "system" in the editor).
     ShortcutsRegistry.register('command-bar',    () => CommandBar?.open?.() ?? CommandBar?.toggle?.());
+    ShortcutsRegistry.register('ask-ai-bar',     () => AskAIBar?.toggle?.());
     ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
     ShortcutsRegistry.register('history-ai',     () => HistoryPanel?.openInAIMode?.());
     ShortcutsRegistry.register('history-panel',  () => SidebarManager?.togglePanel('history'));

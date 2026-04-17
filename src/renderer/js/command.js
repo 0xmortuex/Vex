@@ -184,20 +184,7 @@ const CommandBar = {
         }
       });
 
-      // AI ask option (for natural language that's not a URL)
-      if (typeof AIPanel !== 'undefined' && q.length > 3 && !/^[a-z0-9-]+\.[a-z]{2,}/i.test(q)) {
-        this.results.push({
-          id: 'ai-ask',
-          label: `Ask AI: "${q.length > 40 ? q.substring(0, 40) + '...' : q}"`,
-          hint: 'Vex AI assistant',
-          icon: '✨',
-          isPrimary: true,
-          action: () => {
-            AIPanel.open();
-            AIPanel.sendMessage('chat', { message: query.trim() });
-          }
-        });
-      }
+      // (AI fallback removed — use Ctrl+J for Ask Vex AI)
 
       // Matching commands
       const matching = this.commands.filter(c =>
