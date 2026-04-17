@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('vex', {
   // Downloads (with progress tracking)
   onTabCreateFromExternal: (cb) => ipcRenderer.on('tab:create-from-external', (_e, d) => cb(d)),
 
+  // Permission prompts (geolocation, mic, camera, notifications, ...)
+  onPermissionRequest:  (cb) => ipcRenderer.on('permission:request', (_e, d) => cb(d)),
+  permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
+  permissionsList:      () => ipcRenderer.invoke('permissions:list'),
+  permissionsRevoke:    (key) => ipcRenderer.invoke('permissions:revoke', key),
+  permissionsClearAll:  () => ipcRenderer.invoke('permissions:clear-all'),
+
   onDownloadStarted:  (cb) => ipcRenderer.on('download-started',  (_e, d) => cb(d)),
   onDownloadProgress: (cb) => ipcRenderer.on('download-progress', (_e, d) => cb(d)),
   onDownloadComplete: (cb) => ipcRenderer.on('download-complete', (_e, d) => cb(d)),

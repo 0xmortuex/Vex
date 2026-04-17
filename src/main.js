@@ -66,6 +66,91 @@ function _broadcastDownloadEvent(channel, data) {
     if (!w.isDestroyed()) { try { w.webContents.send(channel, data); } catch {} }
   });
 }
+// === Site permission handler (geolocation, camera, mic, notifications, ...) ===
+const permissionsFile = path.join(userDataPath, 'permissions.json');
+const pendingPermissions = new Map();
+
+function loadPermissionDecisions() {
+  try {
+    if (fs.existsSync(permissionsFile)) {
+      return JSON.parse(fs.readFileSync(permissionsFile, 'utf-8')) || {};
+    }
+  } catch {}
+  return {};
+}
+function savePermissionDecisions(data) {
+  try { fs.writeFileSync(permissionsFile, JSON.stringify(data, null, 2), 'utf-8'); }
+  catch (err) { console.error('[Permissions] save failed:', err.message); }
+}
+
+function wirePermissionsOnSession(ses, tag) {
+  if (!ses || ses.__vexPermsWired) return;
+  ses.__vexPermsWired = true;
+
+  ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    let origin = 'unknown';
+    try { origin = new URL((details && details.requestingUrl) || webContents.getURL()).origin; } catch {}
+
+    console.log(`[Permissions] (${tag}) ${origin} requests: ${permission}`);
+
+    // Standard browser auto-allow list
+    const AUTO_ALLOW = new Set(['fullscreen', 'pointerLock', 'clipboard-read', 'clipboard-sanitized-write']);
+    if (AUTO_ALLOW.has(permission)) return callback(true);
+
+    const NEEDS_PROMPT = new Set(['geolocation', 'media', 'mediaKeySystem', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture']);
+    if (!NEEDS_PROMPT.has(permission)) {
+      // Unknown permission — deny by default, but log so we can add it later
+      console.log(`[Permissions] DENIED (unlisted): ${permission}`);
+      return callback(false);
+    }
+
+    // Check persisted decisions
+    const decisions = loadPermissionDecisions();
+    const key = `${origin}::${permission}`;
+    if (decisions[key] === 'allow') return callback(true);
+    if (decisions[key] === 'deny')  return callback(false);
+
+    // Ask the user
+    const mainWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+    if (!mainWin) return callback(false);
+
+    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    pendingPermissions.set(id, callback);
+    mainWin.webContents.send('permission:request', { id, origin, permission });
+
+    // Safety timeout — if the user ignores the prompt for 2 minutes, deny.
+    setTimeout(() => {
+      if (pendingPermissions.has(id)) {
+        pendingPermissions.delete(id);
+        try { callback(false); } catch {}
+      }
+    }, 120000);
+  });
+
+  // Sync check (used by navigator.permissions.query) — only grant if explicitly allowed
+  ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => {
+    const decisions = loadPermissionDecisions();
+    return decisions[`${requestingOrigin}::${permission}`] === 'allow';
+  });
+}
+
+ipcMain.handle('permission:respond', (_e, payload) => {
+  const { id, decision, remember, origin, permission } = payload || {};
+  const cb = pendingPermissions.get(id);
+  if (!cb) return { ok: false, error: 'No pending request' };
+  pendingPermissions.delete(id);
+  try { cb(decision === 'allow'); } catch {}
+  if (remember && origin && permission) {
+    const d = loadPermissionDecisions();
+    d[`${origin}::${permission}`] = decision;
+    savePermissionDecisions(d);
+  }
+  return { ok: true };
+});
+ipcMain.handle('permissions:list',     () => loadPermissionDecisions());
+ipcMain.handle('permissions:revoke',   (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; savePermissionDecisions(d); return { ok: true }; });
+ipcMain.handle('permissions:clear-all', () => { savePermissionDecisions({}); return { ok: true }; });
+
 function wireDownloadsOnSession(ses, tag) {
   if (!ses || ses.__vexDownloadsWired) return;
   ses.__vexDownloadsWired = true;
@@ -537,6 +622,10 @@ function createWindow() {
   wireDownloadsOnSession(session.fromPartition('persist:main'), 'persist:main');
   partitions.forEach(p => wireDownloadsOnSession(session.fromPartition(p), p));
 
+  wirePermissionsOnSession(session.defaultSession, 'default');
+  wirePermissionsOnSession(session.fromPartition('persist:main'), 'persist:main');
+  partitions.forEach(p => wirePermissionsOnSession(session.fromPartition(p), p));
+
 
   // Fullscreen change events
   mainWindow.on('enter-full-screen', () => {
@@ -837,6 +926,7 @@ ipcMain.handle('downloads:open-folder', async () => {
 ipcMain.handle('open-private-window', () => {
   const privSession = session.fromPartition(`private:${Date.now()}`);
   wireDownloadsOnSession(privSession, 'private');
+  wirePermissionsOnSession(privSession, 'private');
   // Apply header stripping + ad blocker to private session
   privSession.webRequest.onHeadersReceived((details, callback) => {
     const rh = { ...details.responseHeaders };

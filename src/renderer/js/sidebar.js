@@ -91,6 +91,10 @@ const SidebarManager = {
       // Phase 18: render the Chrome Extensions manager each time Settings opens
       ExtensionsSettings.render(document.getElementById('extensions-panel-content'));
     }
+    if (panelName === 'settings' && typeof PermissionsSettings !== 'undefined') {
+      // Site permissions manager each time Settings opens
+      PermissionsSettings.render(document.getElementById('permissions-panel-content'));
+    }
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

@@ -489,6 +489,9 @@
   // still register (toast + badge).
   if (typeof DownloadsPanel !== 'undefined') DownloadsPanel.bootstrap?.();
 
+  // Site permission prompts (geolocation, mic, camera, notifications, etc.)
+  if (typeof PermissionPrompts !== 'undefined') PermissionPrompts.init();
+
   // External link → new tab (target="_blank", window.open, middle-click)
   window.vex?.onTabCreateFromExternal?.((data) => {
     if (!data || !data.url) return;

@@ -717,3 +717,68 @@ body.private-mode #vex-logo::after {
   from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+
+/* === Site permission prompt (top-center banner) === */
+.permission-prompt {
+  position: fixed;
+  top: 56px; left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px;
+  z-index: 99000;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  opacity: 0;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 600px; width: 92%;
+  font-family: 'Outfit', sans-serif;
+}
+.permission-prompt.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.perm-icon { font-size: 26px; line-height: 1; flex-shrink: 0; }
+.perm-content { flex: 1; min-width: 0; }
+.perm-origin {
+  color: var(--text); font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: 'JetBrains Mono', monospace;
+}
+.perm-message { color: var(--text-muted); font-size: 12px; margin-top: 3px; line-height: 1.4; }
+.perm-message strong { color: var(--text); }
+.perm-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.perm-remember { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer; }
+.perm-remember input { accent-color: var(--primary); }
+.permission-prompt .btn-primary-sm {
+  background: var(--primary); color: white; border: none;
+  padding: 6px 14px; border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-family: 'Outfit', sans-serif;
+}
+.permission-prompt .btn-primary-sm:hover { filter: brightness(1.1); }
+.permission-prompt .btn-danger-sm {
+  background: transparent; color: #ef4444; border: 1px solid #ef4444;
+  padding: 6px 14px; border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-family: 'Outfit', sans-serif;
+}
+.permission-prompt .btn-danger-sm:hover { background: #ef4444; color: white; }
+
+/* Permissions list in Settings */
+.permissions-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.permission-row {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px;
+}
+.perm-row-info { flex: 1; min-width: 0; }
+.perm-row-origin {
+  color: var(--text); font-size: 13px; font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.perm-row-detail {
+  font-size: 11px; color: var(--text-muted);
+  margin-top: 3px; display: flex; align-items: center; gap: 8px;
+}
+.perm-badge {
+  font-size: 10px; padding: 1px 8px; border-radius: 8px;
+  font-weight: 600; font-family: 'JetBrains Mono', monospace;
+}
+.perm-badge.allow { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+.perm-badge.deny  { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
