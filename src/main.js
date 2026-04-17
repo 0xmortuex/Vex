@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell } = require('electron');
+const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -59,6 +59,168 @@ app.on('open-url', (event, url) => {
 
 // Storage helpers
 const userDataPath = app.getPath('userData');
+
+// === Phase 18: Chrome extension loader ===
+const extensionsDir = path.join(userDataPath, 'extensions');
+if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true });
+
+const EXT_PARTITIONS = ['persist:main']; // tabs all share this; add more if new partitions appear
+
+function _copyDirRecursive(src, dest) {
+  if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, entry.name);
+    const d = path.join(dest, entry.name);
+    if (entry.isDirectory()) _copyDirRecursive(s, d);
+    else fs.copyFileSync(s, d);
+  }
+}
+
+function _extEntries() {
+  if (!fs.existsSync(extensionsDir)) return [];
+  return fs.readdirSync(extensionsDir, { withFileTypes: true })
+    .filter(e => e.isDirectory())
+    .map(e => {
+      const extPath = path.join(extensionsDir, e.name);
+      const manifestPath = path.join(extPath, 'manifest.json');
+      if (!fs.existsSync(manifestPath)) return null;
+      try {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        return { folder: e.name, path: extPath, manifest };
+      } catch { return null; }
+    })
+    .filter(Boolean);
+}
+
+async function _loadExtensionEverywhere(extPath) {
+  const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))];
+  let loaded = null;
+  for (const ses of sessions) {
+    try {
+      const ext = await ses.loadExtension(extPath, { allowFileAccess: true });
+      if (!loaded) loaded = ext;
+    } catch (err) {
+      console.error(`[Extensions] load failed (${ses === session.defaultSession ? 'default' : 'partition'}):`, err.message);
+    }
+  }
+  return loaded;
+}
+
+async function loadAllExtensionsOnStartup() {
+  for (const entry of _extEntries()) {
+    try {
+      const ext = await _loadExtensionEverywhere(entry.path);
+      if (ext) console.log(`[Extensions] Loaded: ${ext.name} v${ext.manifest.version}`);
+    } catch (err) {
+      console.error(`[Extensions] Failed to load ${entry.folder}:`, err.message);
+    }
+  }
+}
+
+ipcMain.handle('extensions:list', () => {
+  return _extEntries().map(e => ({
+    folder: e.folder,
+    name: e.manifest.name || e.folder,
+    version: e.manifest.version || '—',
+    description: e.manifest.description || '',
+    path: e.path
+  }));
+});
+
+ipcMain.handle('extensions:install-folder', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Select extension folder (must contain manifest.json)',
+    properties: ['openDirectory']
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
+
+  const sourceFolder = result.filePaths[0];
+  const manifestPath = path.join(sourceFolder, 'manifest.json');
+  if (!fs.existsSync(manifestPath)) return { ok: false, error: 'No manifest.json in that folder' };
+
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    const slug = String(manifest.name || 'extension').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+    const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
+    _copyDirRecursive(sourceFolder, destFolder);
+    const ext = await _loadExtensionEverywhere(destFolder);
+    return ext
+      ? { ok: true, id: ext.id, name: ext.name, version: ext.manifest.version }
+      : { ok: false, error: 'Loaded files but extension didn\'t attach' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('extensions:install-zip', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Select extension .zip or .crx',
+    filters: [{ name: 'Extensions', extensions: ['zip', 'crx'] }],
+    properties: ['openFile']
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
+
+  let AdmZip;
+  try { AdmZip = require('adm-zip'); }
+  catch { return { ok: false, error: 'adm-zip missing — run npm install' }; }
+
+  try {
+    const sourcePath = result.filePaths[0];
+    let zipBuffer = fs.readFileSync(sourcePath);
+    // Strip CRX header if present
+    if (zipBuffer.slice(0, 4).toString() === 'Cr24') {
+      const version = zipBuffer.readUInt32LE(4);
+      if (version === 2) {
+        const pubKeyLen = zipBuffer.readUInt32LE(8);
+        const sigLen = zipBuffer.readUInt32LE(12);
+        zipBuffer = zipBuffer.slice(16 + pubKeyLen + sigLen);
+      } else if (version === 3) {
+        const headerLen = zipBuffer.readUInt32LE(8);
+        zipBuffer = zipBuffer.slice(12 + headerLen);
+      } else {
+        return { ok: false, error: 'Unknown CRX version: ' + version };
+      }
+    }
+    const zip = new AdmZip(zipBuffer);
+    const manifestEntry = zip.getEntry('manifest.json');
+    if (!manifestEntry) return { ok: false, error: 'No manifest.json at the root of the archive' };
+    const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
+    const slug = String(manifest.name || 'extension').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+    const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
+    zip.extractAllTo(destFolder, true);
+
+    const ext = await _loadExtensionEverywhere(destFolder);
+    return ext
+      ? { ok: true, id: ext.id, name: ext.name, version: ext.manifest.version }
+      : { ok: false, error: 'Extracted but extension didn\'t load (check console for details)' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
+  const extPath = path.join(extensionsDir, folderName);
+  if (!fs.existsSync(extPath)) return { ok: false, error: 'Not found' };
+  try {
+    const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))];
+    for (const ses of sessions) {
+      try {
+        for (const ext of ses.getAllExtensions()) {
+          if (path.resolve(ext.path) === path.resolve(extPath)) ses.removeExtension(ext.id);
+        }
+      } catch {}
+    }
+    fs.rmSync(extPath, { recursive: true, force: true });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('extensions:open-folder', () => { shell.openPath(extensionsDir); return { ok: true }; });
+
+// Load installed extensions once the app is ready
+app.whenReady().then(() => { loadAllExtensionsOnStartup().catch(() => {}); });
 const storagePath = path.join(userDataPath, 'vex-storage');
 
 if (!fs.existsSync(storagePath)) {

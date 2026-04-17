@@ -87,6 +87,10 @@ const SidebarManager = {
       // Phase 17: render the keyboard shortcut editor each time Settings opens
       ShortcutEditor.renderPanel(document.getElementById('shortcuts-editor-content'));
     }
+    if (panelName === 'settings' && typeof ExtensionsSettings !== 'undefined') {
+      // Phase 18: render the Chrome Extensions manager each time Settings opens
+      ExtensionsSettings.render(document.getElementById('extensions-panel-content'));
+    }
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

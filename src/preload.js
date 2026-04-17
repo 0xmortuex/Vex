@@ -103,6 +103,13 @@ contextBridge.exposeInMainWorld('vex', {
   persistDelete: (key) => ipcRenderer.invoke('persist-delete', key),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
 
+  // Phase 18: Chrome extensions management
+  extensionsList:           () => ipcRenderer.invoke('extensions:list'),
+  extensionsInstallFolder:  () => ipcRenderer.invoke('extensions:install-folder'),
+  extensionsInstallZip:     () => ipcRenderer.invoke('extensions:install-zip'),
+  extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
+  extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
+
   // Phase 13: Vex Sync — encryption key + session metadata
   syncSaveKey: (hex) => ipcRenderer.invoke('sync-save-key', hex),
   syncLoadKey: () => ipcRenderer.invoke('sync-load-key'),
