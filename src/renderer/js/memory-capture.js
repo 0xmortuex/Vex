@@ -42,11 +42,28 @@ const MemoryCapture = (() => {
   }
 
   async function _recordChunk() {
-    if (!running || !mediaStream) return;
+    console.log('[MemoryCapture] _recordChunk() called, running:', running, 'hasStream:', !!mediaStream);
+    if (!running || !mediaStream) {
+      console.log('[MemoryCapture] _recordChunk() exiting — no running/stream');
+      return;
+    }
+    let rec;
     try {
-      const rec = new MediaRecorder(mediaStream, { mimeType: 'audio/webm;codecs=opus' });
+      rec = new MediaRecorder(mediaStream, { mimeType: 'audio/webm;codecs=opus' });
+      console.log('[MemoryCapture] MediaRecorder created, mimeType:', rec.mimeType);
+    } catch (err) {
+      console.error('[MemoryCapture] MediaRecorder construction FAILED:', err.message);
+      stop();
+      return;
+    }
+    try {
       const chunks = [];
-      rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      rec.onstart = () => console.log('[MemoryCapture] recorder STARTED');
+      rec.onerror = (e) => console.error('[MemoryCapture] recorder error:', e?.error?.message || e);
+      rec.ondataavailable = (e) => {
+        console.log('[MemoryCapture] dataavailable, size:', e.data?.size || 0);
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
       rec.onstop = async () => {
         try {
           const blob = new Blob(chunks, { type: 'audio/webm' });
@@ -71,10 +88,14 @@ const MemoryCapture = (() => {
         }
         if (running) _recordChunk();
       };
+      console.log('[MemoryCapture] calling recorder.start()...');
       rec.start();
-      setTimeout(() => { try { if (rec.state === 'recording') rec.stop(); } catch {} }, CHUNK_MS);
+      setTimeout(() => {
+        console.log('[MemoryCapture] ' + CHUNK_MS + 'ms elapsed, state:', rec.state);
+        try { if (rec.state === 'recording') rec.stop(); } catch (err) { console.error('[MemoryCapture] stop error:', err); }
+      }, CHUNK_MS);
     } catch (err) {
-      console.error('[MemoryCapture] MediaRecorder failed:', err);
+      console.error('[MemoryCapture] MediaRecorder wiring failed:', err);
       stop();
     }
   }

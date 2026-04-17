@@ -290,6 +290,26 @@ function createWindow() {
     });
   });
 
+  // Phase 17A diagnostic: forward Memory Recorder logs from renderer → main terminal
+  mainWindow.webContents.on('console-message', (eventOrDetails, level, message, line, sourceId) => {
+    // Electron >= 28 passes a single Details object; older versions pass individual args.
+    let msg, lvl;
+    if (eventOrDetails && typeof eventOrDetails === 'object' && 'message' in eventOrDetails) {
+      msg = eventOrDetails.message;
+      lvl = eventOrDetails.level;
+    } else {
+      msg = message;
+      lvl = level;
+    }
+    if (typeof msg !== 'string') return;
+    if (msg.includes('[MemoryCapture]') || msg.includes('[MemoryRecorder]') ||
+        msg.includes('[MemoryExtractor]') || msg.includes('[MemoryRecorderPanel]')) {
+      const label = (typeof lvl === 'string') ? lvl.toUpperCase() :
+                    (['VERBOSE','INFO','WARN','ERROR'][lvl] || 'LOG');
+      console.log(`[Renderer:${label}] ${msg}`);
+    }
+  });
+
   // Fullscreen change events
   mainWindow.on('enter-full-screen', () => {
     mainWindow.webContents.send('fullscreen-changed', true);

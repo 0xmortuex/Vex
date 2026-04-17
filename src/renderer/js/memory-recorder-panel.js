@@ -258,13 +258,21 @@ ${_esc(paths.userData || '')}\\assets\\whisper\\ggml-base.bin
 
   function _wireHandlers(container) {
     document.getElementById('btn-rec-start')?.addEventListener('click', async () => {
+      console.log('[MemoryRecorderPanel] Start button clicked');
       try {
+        console.log('[MemoryRecorderPanel] Calling window.vex.memoryStart()...');
         const start = await window.vex.memoryStart();
-        if (!start.ok) { _toast(start.error || 'Cannot start', 'error'); return; }
-        await MemoryCapture.start();
+        console.log('[MemoryRecorderPanel] memoryStart result:', JSON.stringify(start));
+        if (!start || !start.ok) { _toast(start?.error || 'Cannot start', 'error'); return; }
+        console.log('[MemoryRecorderPanel] Calling MemoryCapture.start()...');
+        const capResult = await MemoryCapture.start();
+        console.log('[MemoryRecorderPanel] MemoryCapture.start() result:', JSON.stringify(capResult));
         _showGlobalBadge();
         render();
-      } catch (err) { _toast(err.message, 'error'); }
+      } catch (err) {
+        console.error('[MemoryRecorderPanel] Start failed:', err.message);
+        _toast('Mic error: ' + err.message, 'error');
+      }
     });
     document.getElementById('btn-rec-pause')?.addEventListener('click', async () => {
       await window.vex.memoryPause();
