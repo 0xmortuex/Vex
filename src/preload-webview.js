@@ -90,3 +90,108 @@
     }
   });
 })();
+
+// === Geolocation polyfill ===
+// Electron doesn't ship with a Google Network Location API key, so Chromium's
+// native navigator.geolocation returns POSITION_UNAVAILABLE on Windows even
+// after the user grants permission. We wrap it with an IP-based fallback
+// (ipapi.co with ipwho.is as backup) — ~50 km accuracy, good enough for most
+// "weather / local news" style use cases.
+(function () {
+  try {
+    const proto = window.location.protocol;
+    if (proto === 'about:' || proto === 'chrome:' || proto === 'devtools:' ||
+        proto === 'vex:' || proto === 'data:' || proto === 'file:') return;
+  } catch { return; }
+
+  const native = navigator.geolocation;
+
+  function _pos(lat, lng) {
+    return {
+      coords: {
+        latitude: lat, longitude: lng,
+        accuracy: 50000,
+        altitude: null, altitudeAccuracy: null,
+        heading: null, speed: null
+      },
+      timestamp: Date.now()
+    };
+  }
+
+  async function fetchIPLocation() {
+    try {
+      const r = await fetch('https://ipapi.co/json/', { headers: { 'Accept': 'application/json' } });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.latitude && d.longitude) return _pos(parseFloat(d.latitude), parseFloat(d.longitude));
+      }
+    } catch (err) { console.warn('[Vex Geo] ipapi.co failed:', err.message); }
+    try {
+      const r = await fetch('https://ipwho.is/');
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.success && d.latitude && d.longitude) return _pos(parseFloat(d.latitude), parseFloat(d.longitude));
+      }
+    } catch (err) { console.warn('[Vex Geo] ipwho.is failed:', err.message); }
+    return null;
+  }
+
+  async function ipFallback(success, error) {
+    const pos = await fetchIPLocation();
+    if (pos) { try { success(pos); } catch {} return; }
+    if (error) {
+      try {
+        error({
+          code: 2,
+          message: 'Unable to determine location (IP fallback also failed)',
+          PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3
+        });
+      } catch {}
+    }
+  }
+
+  const watches = new Map();
+  const wrapped = {
+    getCurrentPosition(success, error, options) {
+      const timeoutMs = (options && options.timeout) || 5000;
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return; settled = true;
+        console.log('[Vex Geo] native timeout, using IP fallback');
+        ipFallback(success, error);
+      }, timeoutMs);
+
+      if (!native) { clearTimeout(timer); settled = true; return ipFallback(success, error); }
+      try {
+        native.getCurrentPosition(
+          (p) => { if (settled) return; settled = true; clearTimeout(timer); try { success(p); } catch {} },
+          (e) => {
+            if (settled) return; settled = true; clearTimeout(timer);
+            console.log('[Vex Geo] native error, using IP fallback:', e && e.message);
+            ipFallback(success, error);
+          },
+          options
+        );
+      } catch (e) {
+        if (!settled) { settled = true; clearTimeout(timer); ipFallback(success, error); }
+      }
+    },
+    watchPosition(success, error, options) {
+      const id = Math.floor(Math.random() * 1e9) + 1;
+      wrapped.getCurrentPosition(success, error, options);
+      const interval = setInterval(() => wrapped.getCurrentPosition(success, error, options), 5 * 60 * 1000);
+      watches.set(id, interval);
+      return id;
+    },
+    clearWatch(id) {
+      if (watches.has(id)) { clearInterval(watches.get(id)); watches.delete(id); }
+    }
+  };
+
+  try {
+    Object.defineProperty(navigator, 'geolocation', { value: wrapped, writable: false, configurable: true });
+    console.log('[Vex Geo] Geolocation polyfill installed (IP fallback: ipapi.co / ipwho.is)');
+  } catch (err) {
+    console.error('[Vex Geo] polyfill install failed:', err.message);
+  }
+})();

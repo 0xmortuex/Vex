@@ -626,6 +626,24 @@ function createWindow() {
   wirePermissionsOnSession(session.fromPartition('persist:main'), 'persist:main');
   partitions.forEach(p => wirePermissionsOnSession(session.fromPartition(p), p));
 
+  // Webview preload (PiP helpers + geolocation IP fallback) — attach to every
+  // session so ALL pages get the polyfill. Use setPreloads so we don't clobber
+  // any existing preload set elsewhere.
+  const webviewPreload = path.join(__dirname, 'preload-webview.js');
+  const sessions = [
+    session.defaultSession,
+    session.fromPartition('persist:main'),
+    ...partitions.map(p => session.fromPartition(p))
+  ];
+  for (const ses of sessions) {
+    try {
+      const existing = ses.getPreloads ? ses.getPreloads() : [];
+      if (!existing.includes(webviewPreload)) {
+        ses.setPreloads([...existing, webviewPreload]);
+      }
+    } catch (err) { console.error('[Preload] attach failed:', err.message); }
+  }
+
 
   // Fullscreen change events
   mainWindow.on('enter-full-screen', () => {
@@ -927,6 +945,11 @@ ipcMain.handle('open-private-window', () => {
   const privSession = session.fromPartition(`private:${Date.now()}`);
   wireDownloadsOnSession(privSession, 'private');
   wirePermissionsOnSession(privSession, 'private');
+  try {
+    const preloadPath = path.join(__dirname, 'preload-webview.js');
+    const existing = privSession.getPreloads ? privSession.getPreloads() : [];
+    if (!existing.includes(preloadPath)) privSession.setPreloads([...existing, preloadPath]);
+  } catch {}
   // Apply header stripping + ad blocker to private session
   privSession.webRequest.onHeadersReceived((details, callback) => {
     const rh = { ...details.responseHeaders };
