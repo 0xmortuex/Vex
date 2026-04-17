@@ -15,6 +15,11 @@ try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
 let mainWindow = null;
 let adBlockerEnabled = true;
 let pendingOpenUrl = null;
+// Auto-open DevTools when unpackaged (dev) or when --dev-tools is passed
+const enableDevToolsAtStartup = process.argv.includes('--dev-tools') || !app.isPackaged;
+
+// Clean up global shortcuts on quit
+app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
 
 // === Single-instance lock (so external links route to existing Vex window) ===
 const gotTheLock = app.requestSingleInstanceLock();
@@ -188,6 +193,12 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
+  if (enableDevToolsAtStartup) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      try { mainWindow.webContents.openDevTools({ mode: 'bottom' }); } catch {}
+    });
+  }
+
   // Header stripping for webviews
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
@@ -358,6 +369,20 @@ function setupAutoUpdater() {
 
 // Custom protocol handler for vex://
 app.whenReady().then(() => {
+  // F12: toggle DevTools for the focused window (bottom panel)
+  globalShortcut.register('F12', () => {
+    const w = BrowserWindow.getFocusedWindow();
+    if (!w) return;
+    if (w.webContents.isDevToolsOpened()) w.webContents.closeDevTools();
+    else w.webContents.openDevTools({ mode: 'bottom' });
+  });
+  // Ctrl+Shift+F12: detached DevTools (backup when F12 is stolen by a webview)
+  globalShortcut.register('CommandOrControl+Shift+F12', () => {
+    const w = BrowserWindow.getFocusedWindow();
+    if (!w) return;
+    w.webContents.openDevTools({ mode: 'detach' });
+  });
+
   protocol.handle('vex', (request) => {
     const reqUrl = request.url;
 
