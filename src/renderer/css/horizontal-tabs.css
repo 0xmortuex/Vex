@@ -1,0 +1,174 @@
+/* === Phase 18: Horizontal tab bar (Chrome/Edge-style) === */
+
+/* Hidden by default; shown when body has data-tab-layout="horizontal" */
+.top-tab-bar {
+  display: none;
+  align-items: center;
+  gap: 0;
+  padding: 6px 8px 0 8px;
+  background: var(--bg-2, #0f1218);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+  min-height: 40px;
+  flex-shrink: 0;
+}
+
+body[data-tab-layout="horizontal"] .top-tab-bar {
+  display: flex;
+}
+
+/* Hide vertical sidebar + shrink main-layout vertically */
+body[data-tab-layout="horizontal"] #tabs-sidebar {
+  display: none !important;
+}
+body[data-tab-layout="horizontal"] #main-layout {
+  height: calc(100% - 44px - 40px); /* top bar + tab bar */
+}
+
+/* Keep the native height computation for vertical mode */
+body[data-tab-layout="vertical"] #main-layout {
+  height: calc(100% - 44px);
+}
+
+.top-tabs-list {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-app-region: no-drag;
+  align-items: flex-end;
+}
+.top-tabs-list::-webkit-scrollbar { display: none; }
+
+/* Individual tab */
+.top-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  min-width: 140px;
+  max-width: 220px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: background 0.12s, color 0.12s;
+  position: relative;
+  height: 32px;
+  box-sizing: border-box;
+  -webkit-app-region: no-drag;
+}
+.top-tab:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+.top-tab.active {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text);
+  z-index: 1;
+  margin-bottom: -1px; /* bleed over the tab-bar bottom border */
+}
+
+.top-tab .tab-favicon {
+  width: 14px; height: 14px; flex-shrink: 0;
+  border-radius: 2px;
+}
+.top-tab .tab-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Outfit', sans-serif;
+}
+.top-tab .tab-close {
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; font-size: 14px;
+  color: var(--text-muted); opacity: 0;
+  transition: all 0.12s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.top-tab:hover .tab-close,
+.top-tab.active .tab-close { opacity: 0.7; }
+.top-tab .tab-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  opacity: 1;
+}
+
+/* Pinned: compact square favicon */
+.top-tab.pinned {
+  min-width: 40px; max-width: 40px;
+  padding: 6px 8px;
+}
+.top-tab.pinned .tab-title,
+.top-tab.pinned .tab-close { display: none; }
+
+/* Audio / mute indicator */
+.top-tab .audio-indicator {
+  width: 12px; height: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* Loading indicator */
+.top-tab.loading .tab-favicon {
+  animation: tab-pulse 1s ease-in-out infinite;
+}
+
+/* Group membership: 3px colored strip along the top */
+.top-tab.in-group::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 4px; right: 4px;
+  height: 3px;
+  background: var(--group-color, var(--primary));
+  border-radius: 8px 8px 0 0;
+}
+
+/* Group label pill shown at the start of a group run */
+.top-group-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  margin: 0 3px 0 8px;
+  background: var(--group-color, var(--primary));
+  color: white;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  height: 18px;
+  align-self: center;
+  white-space: nowrap;
+  cursor: context-menu;
+  font-family: 'Outfit', sans-serif;
+  -webkit-app-region: no-drag;
+}
+
+/* + button at end */
+.new-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 32px; height: 28px;
+  border-radius: 6px;
+  font-size: 18px;
+  cursor: pointer;
+  margin: 0 4px 6px 4px;
+  -webkit-app-region: no-drag;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.new-tab-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+}

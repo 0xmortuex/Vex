@@ -26,6 +26,8 @@ const SyncEngine = (() => {
     'vex.autoGroupSuggest', 'vex.autoAddToGroups', 'vex.groupPatterns',
     // Phase 17: customized keyboard shortcuts follow you across devices
     'vex.userShortcuts',
+    // Tab layout (horizontal vs vertical)
+    'vex.tabLayout',
     'vex-theme'
   ];
 

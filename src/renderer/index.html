@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="css/sync-settings.css">
   <link rel="stylesheet" href="css/personas.css">
   <link rel="stylesheet" href="css/tab-grouper.css">
+  <link rel="stylesheet" href="css/horizontal-tabs.css">
   <link rel="stylesheet" href="css/agent.css">
   <link rel="stylesheet" href="css/schedules-panel.css">
   <link rel="stylesheet" href="css/update-notifier.css">
@@ -101,6 +102,12 @@
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- Horizontal tab bar (shown when body[data-tab-layout="horizontal"]) -->
+  <div class="top-tab-bar" id="top-tab-bar">
+    <div class="top-tabs-list" id="top-tabs-list"></div>
+    <button class="new-tab-btn" id="btn-new-tab-top" title="New Tab (Ctrl+T)">+</button>
   </div>
 
   <!-- Main Layout -->
@@ -357,6 +364,18 @@
                 <summary>Advanced: Per-Feature Routing</summary>
                 <div class="routing-grid" id="routing-grid"></div>
               </details>
+            </div>
+
+            <!-- Tab layout -->
+            <div class="setting-group">
+              <label class="setting-label">Tab Layout</label>
+              <div class="setting-toggle-row">
+                <span>Where tabs appear</span>
+                <select id="setting-tab-layout" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="horizontal">Horizontal (top bar, like Chrome)</option>
+                  <option value="vertical">Vertical (left sidebar)</option>
+                </select>
+              </div>
             </div>
 
             <!-- Phase 18: Chrome Extensions -->
@@ -649,6 +668,7 @@
 
   <script src="js/storage.js"></script>
   <script src="js/tabs.js"></script>
+  <script src="js/horizontal-tabs.js"></script>
   <script src="js/webview.js"></script>
   <script src="js/sidebar.js"></script>
   <script src="js/tools.js"></script>

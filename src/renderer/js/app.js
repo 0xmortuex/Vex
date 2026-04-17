@@ -7,6 +7,12 @@
     try { await PersistentStorage.init(); } catch (e) { console.error('PersistentStorage init:', e); }
   }
 
+  // Apply tab layout preference to <body> ASAP so CSS selectors hit before paint.
+  try {
+    const layout = JSON.parse(localStorage.getItem('vex.tabLayout') || '"horizontal"');
+    document.body.dataset.tabLayout = (layout === 'vertical') ? 'vertical' : 'horizontal';
+  } catch { document.body.dataset.tabLayout = 'horizontal'; }
+
   // Load settings
   const settings = await VexStorage.loadSettings();
 
@@ -28,6 +34,9 @@
   WorkspaceManager.init();
   Translator.init();
   await TabManager.init();
+
+  // Horizontal tab bar (wraps TabManager methods to auto-refresh)
+  if (typeof HorizontalTabs !== 'undefined') HorizontalTabs.init();
 
   // Init tab preview (deferred to avoid slowing startup)
   setTimeout(() => TabPreview.init(), 1000);
@@ -362,6 +371,20 @@
   }
   updateIndexingStats();
   setInterval(updateIndexingStats, 5000);
+
+  // Tab layout picker
+  const layoutSel = document.getElementById('setting-tab-layout');
+  if (layoutSel) {
+    layoutSel.value = document.body.dataset.tabLayout || 'horizontal';
+    layoutSel.addEventListener('change', (e) => {
+      const v = e.target.value === 'vertical' ? 'vertical' : 'horizontal';
+      localStorage.setItem('vex.tabLayout', JSON.stringify(v));
+      document.body.dataset.tabLayout = v;
+      if (v === 'horizontal') HorizontalTabs?.render?.();
+      else TabManager?.rebuildAllTabs?.();
+      showToast('Tab layout: ' + v, 'info');
+    });
+  }
 
   // === Phase 16: Smart Tab Grouping settings ===
   const groupSuggestToggle = document.getElementById('setting-auto-group-suggest');
