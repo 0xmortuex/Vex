@@ -301,9 +301,8 @@ function createWindow() {
     });
   });
 
-  // Phase 17A diagnostic: forward Memory Recorder logs from renderer → main terminal
+  // Phase 17A diagnostic: forward ALL renderer console output to main terminal.
   mainWindow.webContents.on('console-message', (eventOrDetails, level, message, line, sourceId) => {
-    // Electron >= 28 passes a single Details object; older versions pass individual args.
     let msg, lvl;
     if (eventOrDetails && typeof eventOrDetails === 'object' && 'message' in eventOrDetails) {
       msg = eventOrDetails.message;
@@ -313,12 +312,16 @@ function createWindow() {
       lvl = level;
     }
     if (typeof msg !== 'string') return;
-    if (msg.includes('[MemoryCapture]') || msg.includes('[MemoryRecorder]') ||
-        msg.includes('[MemoryExtractor]') || msg.includes('[MemoryRecorderPanel]')) {
-      const label = (typeof lvl === 'string') ? lvl.toUpperCase() :
-                    (['VERBOSE','INFO','WARN','ERROR'][lvl] || 'LOG');
-      console.log(`[Renderer:${label}] ${msg}`);
-    }
+    const label = (typeof lvl === 'string') ? lvl.toUpperCase() :
+                  (['VERBOSE','INFO','WARN','ERROR'][lvl] || 'LOG');
+    console.log(`[Renderer:${label}] ${msg}`);
+  });
+  // Render-process crashes / preload errors
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[Renderer] render-process-gone:', details);
+  });
+  mainWindow.webContents.on('preload-error', (_e, preloadPath, err) => {
+    console.error('[Renderer] preload-error in', preloadPath, '-', err?.message, err?.stack);
   });
 
   // Fullscreen change events

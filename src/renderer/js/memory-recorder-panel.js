@@ -256,24 +256,55 @@ ${_esc(paths.userData || '')}\\assets\\whisper\\ggml-base.bin
     });
   }
 
-  function _wireHandlers(container) {
-    document.getElementById('btn-rec-start')?.addEventListener('click', async () => {
-      console.log('[MemoryRecorderPanel] Start button clicked');
+  // Bulletproof Start button binding — clone-and-replace so old listeners don't
+  // accumulate across re-renders, disable the button during the await, show
+  // any error inline and via toast, re-render the panel on success.
+  function _wireStartButton() {
+    const orig = document.getElementById('btn-rec-start');
+    console.log('[MemoryRecorderPanel] _wireStartButton() called, button exists:', !!orig);
+    if (!orig) return;
+    const btn = orig.cloneNode(true);
+    orig.parentNode.replaceChild(btn, orig);
+
+    btn.addEventListener('click', async (e) => {
+      console.log('[MemoryRecorderPanel] Start button clicked!!!');
+      e.preventDefault(); e.stopPropagation();
+      btn.disabled = true;
+      const originalHTML = btn.innerHTML;
+      btn.textContent = 'Starting...';
+
       try {
-        console.log('[MemoryRecorderPanel] Calling window.vex.memoryStart()...');
-        const start = await window.vex.memoryStart();
-        console.log('[MemoryRecorderPanel] memoryStart result:', JSON.stringify(start));
-        if (!start || !start.ok) { _toast(start?.error || 'Cannot start', 'error'); return; }
-        console.log('[MemoryRecorderPanel] Calling MemoryCapture.start()...');
-        const capResult = await MemoryCapture.start();
-        console.log('[MemoryRecorderPanel] MemoryCapture.start() result:', JSON.stringify(capResult));
+        console.log('[MemoryRecorderPanel] calling window.vex.memoryStart()...');
+        const mainResult = await window.vex.memoryStart();
+        console.log('[MemoryRecorderPanel] memoryStart returned:', JSON.stringify(mainResult));
+        if (!mainResult || !mainResult.ok) {
+          throw new Error((mainResult && mainResult.error) || 'memoryStart failed with unknown error');
+        }
+
+        console.log('[MemoryRecorderPanel] calling MemoryCapture.start()...');
+        const captureResult = await MemoryCapture.start();
+        console.log('[MemoryRecorderPanel] MemoryCapture.start returned:', JSON.stringify(captureResult));
+
+        _toast('Recording started', 'success');
         _showGlobalBadge();
         render();
       } catch (err) {
-        console.error('[MemoryRecorderPanel] Start failed:', err.message);
-        _toast('Mic error: ' + err.message, 'error');
+        console.error('[MemoryRecorderPanel] Start FAILED:', err.message, err.stack);
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        _toast('Failed to start: ' + err.message, 'error');
+        const errEl = document.createElement('div');
+        errEl.style.cssText = 'background:#ef4444;color:white;padding:10px 12px;border-radius:6px;margin-top:8px;font-size:12px;font-family:\'JetBrains Mono\',monospace';
+        errEl.textContent = 'ERROR: ' + err.message;
+        btn.parentNode.appendChild(errEl);
+        setTimeout(() => errEl.remove(), 15000);
       }
     });
+    console.log('[MemoryRecorderPanel] Start button handler attached');
+  }
+
+  function _wireHandlers(container) {
+    _wireStartButton();
     document.getElementById('btn-rec-pause')?.addEventListener('click', async () => {
       await window.vex.memoryPause();
       render();
