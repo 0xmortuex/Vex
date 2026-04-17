@@ -182,12 +182,47 @@ ipcMain.handle('extensions:install-zip', async () => {
       }
     }
     const zip = new AdmZip(zipBuffer);
-    const manifestEntry = zip.getEntry('manifest.json');
-    if (!manifestEntry) return { ok: false, error: 'No manifest.json at the root of the archive' };
+    const entries = zip.getEntries();
+
+    // Find manifest.json — prefer the root, but fall back to the shallowest
+    // match if the archive has the extension inside a wrapper folder
+    // (e.g. GitHub release zips like "uBlock0.chromium/manifest.json").
+    let manifestEntry = entries.find(e => e.entryName === 'manifest.json');
+    let rootPath = '';
+    if (!manifestEntry) {
+      const candidates = entries
+        .filter(e => !e.isDirectory && e.entryName.endsWith('/manifest.json'))
+        .sort((a, b) => a.entryName.split('/').length - b.entryName.split('/').length);
+      if (candidates.length) {
+        manifestEntry = candidates[0];
+        rootPath = manifestEntry.entryName.replace(/manifest\.json$/, ''); // keeps trailing slash
+      }
+    }
+    if (!manifestEntry) return { ok: false, error: 'No manifest.json found anywhere in the archive' };
+
     const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
     const slug = String(manifest.name || 'extension').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
     const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
-    zip.extractAllTo(destFolder, true);
+    if (!fs.existsSync(destFolder)) fs.mkdirSync(destFolder, { recursive: true });
+
+    // Extract only the files under rootPath (or everything if the manifest
+    // is already at the archive root) and strip the wrapper prefix.
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      const name = entry.entryName;
+      if (rootPath && !name.startsWith(rootPath)) continue;
+      const rel = rootPath ? name.slice(rootPath.length) : name;
+      if (!rel) continue;
+      const outPath = path.join(destFolder, rel);
+      const outDir = path.dirname(outPath);
+      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(outPath, entry.getData());
+    }
+
+    if (!fs.existsSync(path.join(destFolder, 'manifest.json'))) {
+      fs.rmSync(destFolder, { recursive: true, force: true });
+      return { ok: false, error: 'Failed to place manifest.json at destination root' };
+    }
 
     const ext = await _loadExtensionEverywhere(destFolder);
     return ext
