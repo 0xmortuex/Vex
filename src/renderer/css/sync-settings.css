@@ -201,3 +201,60 @@
   color: var(--text-muted); cursor: pointer; font-size: 16px;
   padding: 0 4px;
 }
+
+/* === Phase 17: Keyboard Shortcut Editor === */
+.shortcuts-editor-panel .panel-header { margin-bottom: 18px; display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.shortcuts-editor-panel .panel-desc { flex: 1; min-width: 240px; color: var(--text-muted); font-size: 12px; line-height: 1.5; margin: 0; }
+.shortcut-category { margin-bottom: 22px; }
+.shortcut-category h3 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-muted); margin: 0 0 10px 0;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.shortcut-list { display: flex; flex-direction: column; }
+.shortcut-row {
+  display: grid; grid-template-columns: 1fr auto auto;
+  gap: 12px; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.shortcut-row:last-child { border-bottom: none; }
+.shortcut-label { color: var(--text); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.sys-tag {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-muted); background: var(--bg);
+  padding: 1px 6px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.shortcut-key {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 6px 12px; border-radius: 6px;
+  cursor: pointer; min-width: 140px;
+  display: inline-flex; align-items: center; gap: 3px; justify-content: center;
+  transition: all 0.15s;
+  font-family: 'Outfit', sans-serif;
+}
+.shortcut-key:hover { border-color: var(--primary); }
+.shortcut-key.capturing {
+  background: rgba(99,102,241,0.18);
+  border-color: var(--primary);
+  animation: capture-pulse 1s ease-in-out infinite;
+}
+@keyframes capture-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(99,102,241,0); }
+}
+.shortcut-key.custom { border-color: var(--primary); }
+.shortcut-key kbd {
+  background: var(--bg); border: 1px solid var(--border);
+  padding: 2px 6px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.key-plus { color: var(--text-muted); font-size: 10px; margin: 0 1px; }
+.btn-reset-sm {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); width: 28px; height: 28px;
+  border-radius: 4px; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-reset-sm:hover { color: var(--text); border-color: var(--primary); }

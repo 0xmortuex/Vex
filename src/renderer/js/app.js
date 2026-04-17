@@ -465,6 +465,37 @@
   // === Phase 15: Personas ===
   if (typeof PersonasManager !== 'undefined') PersonasManager.init();
 
+  // === Phase 17: Keyboard shortcut registry ===
+  if (typeof ShortcutsRegistry !== 'undefined') {
+    ShortcutsRegistry.init();
+    // Register handlers for every shortcut we can reach from the renderer.
+    // Main-process shortcuts in src/main.js keep firing as system-level
+    // defaults (they're labelled "system" in the editor).
+    ShortcutsRegistry.register('command-bar',    () => CommandBar?.open?.() ?? CommandBar?.toggle?.());
+    ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
+    ShortcutsRegistry.register('history-ai',     () => HistoryPanel?.openInAIMode?.());
+    ShortcutsRegistry.register('history-panel',  () => SidebarManager?.togglePanel('history'));
+    ShortcutsRegistry.register('memory-panel',   () => SidebarManager?.togglePanel('memory'));
+    ShortcutsRegistry.register('schedules',      () => SidebarManager?.openPanel('schedules'));
+    ShortcutsRegistry.register('tabs-sidebar',   () => window.toggleTabsSidebar?.());
+    ShortcutsRegistry.register('split-screen',   () => SplitScreen?.toggle?.());
+    ShortcutsRegistry.register('pip',            () => PiPManager?.toggle?.());
+    ShortcutsRegistry.register('reading-mode',   () => ReadingMode?.activate?.());
+    ShortcutsRegistry.register('screenshot',     () => ScreenshotTool?.capture?.());
+    ShortcutsRegistry.register('group-tabs',     () => TabGrouper?.analyzeAndPropose?.());
+    ShortcutsRegistry.register('mute-tab',       () => TabManager?.toggleMuteTab?.());
+    ShortcutsRegistry.register('sleep-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.sleepTab(t.id); });
+    ShortcutsRegistry.register('reopen-tab',     () => TabManager?.reopenLastClosed?.());
+    ShortcutsRegistry.register('new-tab',        () => TabManager?.createTab?.(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true));
+    ShortcutsRegistry.register('close-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.closeTab(t.id); });
+    ShortcutsRegistry.register('reload',         () => WebviewManager?.reload?.());
+    ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
+    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.());
+    ShortcutsRegistry.register('fullscreen',     () => window.vex?.toggleFullscreen?.());
+    ShortcutsRegistry.register('focus-url',      () => document.getElementById('url-bar')?.focus());
+    ShortcutsRegistry.register('find-in-page',   () => { const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
+  }
+
   // === Phase 16: Tab auto-grouping ===
   if (typeof TabGrouper !== 'undefined') TabGrouper.init();
   document.addEventListener('keydown', (e) => {

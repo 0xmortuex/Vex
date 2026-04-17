@@ -83,6 +83,10 @@ const SidebarManager = {
       // Phase 15: render the Personas grid each time Settings opens
       PersonasSettings.renderPanel(document.getElementById('personas-panel-content'));
     }
+    if (panelName === 'settings' && typeof ShortcutEditor !== 'undefined') {
+      // Phase 17: render the keyboard shortcut editor each time Settings opens
+      ShortcutEditor.renderPanel(document.getElementById('shortcuts-editor-content'));
+    }
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

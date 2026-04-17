@@ -24,6 +24,8 @@ const SyncEngine = (() => {
     // (groupPatterns uses local group ids, but that's fine — matching is
     // reconstructed from patterns on the other device)
     'vex.autoGroupSuggest', 'vex.autoAddToGroups', 'vex.groupPatterns',
+    // Phase 17: customized keyboard shortcuts follow you across devices
+    'vex.userShortcuts',
     'vex-theme'
   ];
 
