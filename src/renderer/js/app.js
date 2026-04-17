@@ -465,6 +465,11 @@
   // === Phase 15: Personas ===
   if (typeof PersonasManager !== 'undefined') PersonasManager.init();
 
+  // === Phase 17A: Memory Recorder — catch up on any unprocessed transcripts ===
+  setTimeout(() => {
+    try { MemoryExtractor?.processUnextracted?.(); } catch {}
+  }, 5000);
+
   // === Phase 17: Ask Vex AI quick prompt (Ctrl+J) ===
   if (typeof AskAIBar !== 'undefined') AskAIBar.init();
 
@@ -480,6 +485,7 @@
     ShortcutsRegistry.register('history-ai',     () => HistoryPanel?.openInAIMode?.());
     ShortcutsRegistry.register('history-panel',  () => SidebarManager?.togglePanel('history'));
     ShortcutsRegistry.register('memory-panel',   () => SidebarManager?.togglePanel('memory'));
+    ShortcutsRegistry.register('memory-recorder', () => SidebarManager?.togglePanel('memrec'));
     ShortcutsRegistry.register('schedules',      () => SidebarManager?.openPanel('schedules'));
     ShortcutsRegistry.register('tabs-sidebar',   () => window.toggleTabsSidebar?.());
     ShortcutsRegistry.register('split-screen',   () => SplitScreen?.toggle?.());

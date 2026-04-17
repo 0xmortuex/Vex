@@ -1,6 +1,6 @@
 {
   "name": "vex",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Vex — a browser built just for you",
   "author": {
     "name": "0xmortuex",
@@ -36,6 +36,13 @@
       "assets/icon.svg",
       "assets/icon.ico",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/whisper",
+        "to": "assets/whisper",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
       "target": [

@@ -5,6 +5,9 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
 
+// Phase 17A: Memory Recorder (registers its own IPC handlers)
+try { require('./main/memory-recorder'); } catch (err) { console.error('[memory-recorder] load failed:', err); }
+
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;
 try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
