@@ -295,6 +295,35 @@ ipcMain.handle('extensions:open-folder', () => { shell.openPath(extensionsDir); 
 
 // Load installed extensions once the app is ready
 app.whenReady().then(() => { loadAllExtensionsOnStartup().catch(() => {}); });
+
+// === Route webview new-window requests into Vex tabs (not new BrowserWindows) ===
+// The renderer's webview 'new-window' DOM event is legacy and unreliable in
+// Electron 30+. setWindowOpenHandler in main is the supported path.
+app.on('web-contents-created', (_event, contents) => {
+  // Only intercept for webviews hosting tabs — never for the main window or
+  // for extension background pages (those need their own window.open semantics).
+  const type = contents.getType();
+  if (type !== 'webview') return;
+
+  contents.setWindowOpenHandler((details) => {
+    const { url, disposition } = details || {};
+    console.log(`[new-window] ${disposition} -> ${url}`);
+    try {
+      const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+      if (win && url) {
+        win.webContents.send('tab:create-from-external', {
+          url,
+          background: disposition === 'background-tab' || disposition === 'save-to-disk'
+        });
+      }
+    } catch (err) { console.error('[new-window] forward failed:', err.message); }
+    return { action: 'deny' };
+  });
+
+  // Block window.onbeforeunload confirm prompts (prevents "Leave page?" spam
+  // when user closes a tab that has an unload handler).
+  contents.on('will-prevent-unload', (evt) => evt.preventDefault());
+});
 const storagePath = path.join(userDataPath, 'vex-storage');
 
 if (!fs.existsSync(storagePath)) {

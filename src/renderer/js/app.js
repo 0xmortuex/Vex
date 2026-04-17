@@ -466,6 +466,14 @@
   // still register (toast + badge).
   if (typeof DownloadsPanel !== 'undefined') DownloadsPanel.bootstrap?.();
 
+  // External link → new tab (target="_blank", window.open, middle-click)
+  window.vex?.onTabCreateFromExternal?.((data) => {
+    if (!data || !data.url) return;
+    console.log('[Tabs] external link -> new tab:', data.url, 'background:', !!data.background);
+    try { TabManager.createTab(data.url, !data.background); }
+    catch (err) { console.error('[Tabs] createTab failed:', err.message); }
+  });
+
   // === Phase 15: Personas ===
   if (typeof PersonasManager !== 'undefined') PersonasManager.init();
 

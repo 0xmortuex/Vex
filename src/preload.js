@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('vex', {
   openPipWindow: (url) => ipcRenderer.invoke('open-pip-window', url),
 
   // Downloads (with progress tracking)
+  onTabCreateFromExternal: (cb) => ipcRenderer.on('tab:create-from-external', (_e, d) => cb(d)),
+
   onDownloadStarted:  (cb) => ipcRenderer.on('download-started',  (_e, d) => cb(d)),
   onDownloadProgress: (cb) => ipcRenderer.on('download-progress', (_e, d) => cb(d)),
   onDownloadComplete: (cb) => ipcRenderer.on('download-complete', (_e, d) => cb(d)),
