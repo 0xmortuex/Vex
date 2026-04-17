@@ -32,17 +32,24 @@ const TabManager = {
   tabCounter: 0,
   _autoSleepInterval: null,
   groups: [],
-  defaultGroups: [
-    { id: 'cusa', name: 'CUSA', color: '#6366f1', collapsed: false },
-    { id: 'school', name: 'School', color: '#22c55e', collapsed: false },
-    { id: 'dev', name: 'Dev', color: '#00b4d8', collapsed: false },
-    { id: 'chat', name: 'Chat', color: '#f59e0b', collapsed: false }
-  ],
+  // Legacy seed groups (CUSA/School/Dev/Chat) removed — groups now start
+  // empty. Users create groups via right-click "New group from this tab"
+  // or the Phase 16 AI auto-grouper (Ctrl+Shift+G).
+  _legacySeedIds: new Set(['cusa', 'school', 'dev', 'chat']),
 
   async init() {
-    this.groups = (await VexStorage.loadGroups());
-    if (this.groups.length === 0) {
-      this.groups = [...this.defaultGroups];
+    this.groups = (await VexStorage.loadGroups()) || [];
+
+    // One-time cleanup: prune legacy seed groups AND any abandoned empty
+    // groups (e.g. Phase 16 AI runs that didn't leave tabs behind).
+    const beforeCount = this.groups.length;
+    const loadedTabs = (await VexStorage.loadTabs()) || [];
+    const liveGroupIds = new Set(loadedTabs.map(t => t.groupId).filter(Boolean));
+    this.groups = this.groups.filter(g =>
+      !this._legacySeedIds.has(g.id) && liveGroupIds.has(g.id)
+    );
+    if (this.groups.length !== beforeCount) {
+      console.log(`[Tabs] Pruned ${beforeCount - this.groups.length} empty/legacy group(s)`);
       await VexStorage.saveGroups(this.groups);
     }
 
@@ -475,6 +482,18 @@ const TabManager = {
     }
   },
 
+  _newGroupFromTab(tab) {
+    const name = prompt('Group name:');
+    if (!name || !name.trim()) return;
+    const id = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    this.groups.push({ id, name: name.trim(), color: '#6366f1', collapsed: false });
+    tab.groupId = id;
+    VexStorage.saveGroups(this.groups);
+    this.rebuildAllTabs();
+    this.persistTabs();
+    window.showToast?.(`Created group "${name.trim()}"`, 'success');
+  },
+
   _showGroupColorPicker(groupId, onPick) {
     const colors = [
       '#6366f1', '#06b6d4', '#10b981', '#f59e0b',
@@ -512,19 +531,29 @@ const TabManager = {
     menu.style.left = e.clientX + 'px';
     menu.style.top = e.clientY + 'px';
 
+    // Only offer Move-to for groups OTHER than the tab's current one,
+    // and only if the group actually has tabs (prunes zombie groups).
+    const liveGroupIds = new Set(this.tabs.map(t => t.groupId).filter(Boolean));
+    const moveTargets = this.groups.filter(g =>
+      g.id !== tab.groupId && (liveGroupIds.has(g.id) || this.tabs.some(t => t.groupId === g.id))
+    );
+
     const items = [
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => { tab.pinned = !tab.pinned; this.persistTabs(); } },
       { label: 'Duplicate', action: () => this.createTab(tab.url) },
       { sep: true },
-      ...this.groups.map(g => ({
+      ...moveTargets.map(g => ({
         label: `Move to ${g.name}`,
+        color: g.color,
         action: () => {
           tab.groupId = g.id;
           this.rebuildAllTabs();
           this.persistTabs();
         }
       })),
-      { label: 'Remove from Group', action: () => { tab.groupId = null; this.rebuildAllTabs(); this.persistTabs(); } },
+      ...(moveTargets.length ? [{ sep: true }] : []),
+      { label: '+ New group from this tab', action: () => this._newGroupFromTab(tab) },
+      ...(tab.groupId ? [{ label: '\u2190 Remove from group', action: () => { tab.groupId = null; this.rebuildAllTabs(); this.persistTabs(); } }] : []),
       { sep: true },
       { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => this.toggleMuteTab(tab.id) },
       { label: 'Mute All Others', action: () => this.muteAllOtherTabs() },
@@ -546,7 +575,11 @@ const TabManager = {
       } else {
         const el = document.createElement('div');
         el.className = `tab-context-item${item.danger ? ' danger' : ''}`;
-        el.textContent = item.label;
+        if (item.color) {
+          el.innerHTML = `<span class="ctx-color-dot" style="background:${item.color}"></span>${this._escapeHtml(item.label)}`;
+        } else {
+          el.textContent = item.label;
+        }
         el.addEventListener('click', () => {
           item.action();
           menu.remove();

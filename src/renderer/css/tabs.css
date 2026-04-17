@@ -347,3 +347,14 @@
   transform: scale(1.12);
   border-color: var(--text);
 }
+
+/* Color dot in "Move to <group>" context menu items */
+.ctx-color-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
