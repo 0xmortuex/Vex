@@ -10,6 +10,7 @@ const MemoryCapture = (() => {
 
   async function start() {
     if (running) return { ok: true, already: true };
+    console.log('[MemoryCapture] requesting microphone...');
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -20,10 +21,14 @@ const MemoryCapture = (() => {
           channelCount: 1
         }
       });
+      const track = mediaStream.getAudioTracks()[0];
+      console.log('[MemoryCapture] mic acquired:', track?.label, track?.getSettings?.());
     } catch (err) {
+      console.error('[MemoryCapture] getUserMedia failed:', err);
       throw new Error('Microphone access denied. Enable in Windows Settings → Privacy → Microphone.');
     }
     running = true;
+    console.log('[MemoryCapture] starting chunk loop (' + CHUNK_MS + 'ms chunks)');
     _recordChunk();
     return { ok: true };
   }
@@ -45,9 +50,21 @@ const MemoryCapture = (() => {
       rec.onstop = async () => {
         try {
           const blob = new Blob(chunks, { type: 'audio/webm' });
+          console.log('[MemoryCapture] chunk stopped, blob size:', blob.size, 'parts:', chunks.length);
           const wav = await _webmToWav(blob);
-          if (wav && wav.byteLength > 44 && !_isSilent(wav)) {
-            await window.vex.memoryIngestAudio(wav, { capturedAt: new Date().toISOString() });
+          console.log('[MemoryCapture] wav size:', wav.byteLength);
+          if (!wav || wav.byteLength <= 44) {
+            console.warn('[MemoryCapture] skip — empty WAV (decode failed?)');
+          } else {
+            const silent = _isSilent(wav);
+            console.log('[MemoryCapture] silent?', silent);
+            if (!silent) {
+              console.log('[MemoryCapture] sending to main (' + wav.byteLength + ' bytes)...');
+              const res = await window.vex.memoryIngestAudio(wav, { capturedAt: new Date().toISOString() });
+              console.log('[MemoryCapture] ingest result:', res);
+            } else {
+              console.log('[MemoryCapture] skip — silent chunk');
+            }
           }
         } catch (err) {
           console.warn('[MemoryCapture] chunk failed:', err);

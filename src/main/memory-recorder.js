@@ -36,18 +36,35 @@ class MemoryRecorder {
       path.join(app.getAppPath(), 'assets', 'whisper'),
       path.join(app.getPath('userData'), 'assets', 'whisper')
     ];
+    // Throttle this log so we don't spam on every isAvailable() call
+    const now = Date.now();
+    const verbose = !this._lastPathLogAt || (now - this._lastPathLogAt) > 30000;
+    if (verbose) {
+      this._lastPathLogAt = now;
+      console.log('[MemoryRecorder] Checking Whisper paths...');
+    }
     for (const base of candidates) {
       const wx = path.join(base, 'whisper.exe');
       const mdl = path.join(base, 'ggml-base.bin');
-      if (fs.existsSync(wx) && fs.existsSync(mdl)) {
+      const wOk = fs.existsSync(wx);
+      const mOk = fs.existsSync(mdl);
+      if (verbose) {
+        console.log(`[MemoryRecorder]   ${base}`);
+        console.log(`[MemoryRecorder]     whisper.exe:   ${wOk ? '\u2713' : '\u2717'}`);
+        console.log(`[MemoryRecorder]     ggml-base.bin: ${mOk ? '\u2713' : '\u2717'}`);
+      }
+      if (wOk && mOk) {
         this.whisperPath = wx;
         this.modelPath = mdl;
-        return;
+        if (verbose) console.log(`[MemoryRecorder] RESOLVED to: ${base}`);
+        return true;
       }
     }
+    if (verbose) console.error('[MemoryRecorder] Whisper NOT FOUND in any candidate path!');
     // Fall back to last candidate paths (still useful for error messages)
     this.whisperPath = path.join(app.getAppPath(), 'assets', 'whisper', 'whisper.exe');
     this.modelPath = path.join(app.getAppPath(), 'assets', 'whisper', 'ggml-base.bin');
+    return false;
   }
 
   isAvailable() {
@@ -73,48 +90,85 @@ class MemoryRecorder {
   }
 
   async ingestAudioChunk(audioBuffer, metadata) {
-    if (!this.isRecording || this.isPaused) return { skipped: true };
-    if (!audioBuffer || audioBuffer.byteLength < 2048) return { skipped: true };
+    const size = audioBuffer?.byteLength || audioBuffer?.length || 0;
+    console.log('[MemoryRecorder] ingestAudioChunk:', { size, isRecording: this.isRecording, isPaused: this.isPaused });
+    if (!this.isRecording || this.isPaused) {
+      console.log('[MemoryRecorder]   skip — not recording or paused');
+      return { skipped: true, reason: 'not-recording' };
+    }
+    if (!audioBuffer || size < 2048) {
+      console.log('[MemoryRecorder]   skip — buffer too small (' + size + ' bytes)');
+      return { skipped: true, reason: 'too-small' };
+    }
 
     const chunkId = crypto.randomBytes(8).toString('hex');
     const wavPath = path.join(this.audioTmpDir, `${chunkId}.wav`);
     try {
       fs.writeFileSync(wavPath, Buffer.from(audioBuffer));
+      console.log('[MemoryRecorder]   wrote ' + size + ' bytes to ' + wavPath);
     } catch (err) {
+      console.error('[MemoryRecorder]   write failed:', err.message);
       return { ok: false, error: 'Write failed: ' + err.message };
     }
     this.transcribeChunk(wavPath, metadata || {});
-    return { ok: true };
+    return { ok: true, chunkId };
   }
 
   transcribeChunk(wavPath, metadata) {
     return new Promise((resolve) => {
       const outputBase = wavPath.replace(/\.wav$/, '');
-      const proc = spawn(this.whisperPath, [
+      const args = [
         '-m', this.modelPath,
         '-f', wavPath,
         '-l', 'auto',
         '-otxt',
         '-of', outputBase,
         '--no-prints'
-      ], { windowsHide: true });
+      ];
 
-      let stderr = '';
-      proc.stderr.on('data', (d) => { stderr += d.toString(); });
-      proc.on('error', (err) => {
-        console.error('[MemoryRecorder] spawn failed:', err.message);
+      console.log('[MemoryRecorder] transcribeChunk:', wavPath);
+      console.log('[MemoryRecorder]   whisper:', this.whisperPath);
+      console.log('[MemoryRecorder]   model:  ', this.modelPath);
+      console.log('[MemoryRecorder]   wav exists:', fs.existsSync(wavPath), 'size:', fs.existsSync(wavPath) ? fs.statSync(wavPath).size : 'N/A');
+      console.log('[MemoryRecorder]   spawn:', this.whisperPath, args.join(' '));
+
+      let proc;
+      try {
+        proc = spawn(this.whisperPath, args, { windowsHide: true });
+      } catch (err) {
+        console.error('[MemoryRecorder]   spawn threw:', err.message);
         this._cleanup(wavPath, outputBase);
-        resolve({ ok: false });
+        return resolve({ ok: false, error: err.message });
+      }
+
+      let stdout = '';
+      let stderr = '';
+      proc.stdout?.on('data', (d) => { stdout += d.toString(); });
+      proc.stderr?.on('data', (d) => { stderr += d.toString(); });
+      proc.on('error', (err) => {
+        console.error('[MemoryRecorder]   spawn error:', err.message);
+        this._cleanup(wavPath, outputBase);
+        resolve({ ok: false, error: err.message });
       });
       proc.on('close', (code) => {
         try {
+          console.log(`[MemoryRecorder]   whisper exit code: ${code}`);
+          if (stdout) console.log('[MemoryRecorder]   stdout:', stdout.substring(0, 500));
+          if (stderr) console.log('[MemoryRecorder]   stderr:', stderr.substring(0, 1000));
+
           if (code !== 0) {
-            console.error('[MemoryRecorder] whisper exit', code, stderr.slice(-200));
-            return resolve({ ok: false });
+            console.error(`[MemoryRecorder]   whisper failed (exit ${code})`);
+            return resolve({ ok: false, error: `Whisper exit ${code}: ${stderr.substring(0, 200)}` });
           }
           const txtPath = outputBase + '.txt';
-          if (!fs.existsSync(txtPath)) return resolve({ ok: true, skipped: true });
+          console.log(`[MemoryRecorder]   output path: ${txtPath}`);
+          console.log(`[MemoryRecorder]   output exists: ${fs.existsSync(txtPath)}`);
+          if (!fs.existsSync(txtPath)) {
+            console.warn('[MemoryRecorder]   no output file — resolving empty');
+            return resolve({ ok: true, skipped: true });
+          }
           const text = fs.readFileSync(txtPath, 'utf-8').trim();
+          console.log(`[MemoryRecorder]   transcribed (${text.length} chars):`, text.substring(0, 200));
           if (text) this.addToConversation(text, metadata);
           resolve({ ok: true, text });
         } finally {
@@ -141,7 +195,9 @@ class MemoryRecorder {
         segments: [],
         durationMs: 0
       };
+      console.log('[MemoryRecorder] new conversation started:', this.currentConversation.id);
     }
+    console.log('[MemoryRecorder]   added segment (' + text.length + ' chars) to conv ' + this.currentConversation.id);
 
     const startTs = new Date(this.currentConversation.startedAt).getTime();
     this.currentConversation.segments.push({
@@ -174,8 +230,13 @@ class MemoryRecorder {
     conv.endedAt = new Date().toISOString();
     conv.durationMs = new Date(conv.endedAt).getTime() - new Date(conv.startedAt).getTime();
     conv.transcript = conv.segments.map(s => s.text).join(' ').trim();
-    if (conv.transcript.length < 20) return; // discard trivial
+    console.log(`[MemoryRecorder] finalizing conv ${conv.id}: ${conv.segments.length} segments, ${conv.transcript.length} chars, ${Math.round(conv.durationMs/1000)}s`);
+    if (conv.transcript.length < 20) {
+      console.log('[MemoryRecorder]   discarded — too short');
+      return;
+    }
     this.saveConversation(conv);
+    console.log('[MemoryRecorder]   saved to disk, notifying renderer');
     this._notify('memory:conversation-finalized', { id: conv.id });
   }
 
