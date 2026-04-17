@@ -24,6 +24,61 @@ const AGENT_TOOLS = [
 
 const SAFE_TOOLS = ['extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'scroll', 'wait', 'search_in_page'];
 
+// === Phase 18: Tool-call loop detection ===
+// Stops the agent from calling the same (tool, args) pair more than MAX_IDENTICAL
+// times in the last WINDOW calls. When tripped, we feed guidance back as the
+// "tool result" so the model picks a different strategy instead of re-spawning.
+class ToolCallHistory {
+  constructor() {
+    this.recentCalls = [];
+    this.MAX_IDENTICAL = 2;
+    this.WINDOW = 5;
+  }
+  _sig(tool, args) { return `${tool}::${JSON.stringify(args || {})}`; }
+  add(tool, args, result) {
+    this.recentCalls.push({
+      signature: this._sig(tool, args),
+      toolName: tool, args,
+      result, at: Date.now()
+    });
+    if (this.recentCalls.length > 20) this.recentCalls.shift();
+  }
+  isStuckInLoop(tool, args) {
+    const sig = this._sig(tool, args);
+    const window = this.recentCalls.slice(-this.WINDOW);
+    const identical = window.filter(c => c.signature === sig).length;
+    return identical >= this.MAX_IDENTICAL;
+  }
+  loopGuidance(tool, args) {
+    const sig = this._sig(tool, args);
+    const matching = this.recentCalls.filter(c => c.signature === sig);
+    const lastResult = matching.length ? matching[matching.length - 1].result : null;
+    const resultPreview = typeof lastResult === 'string' ? lastResult :
+      JSON.stringify(lastResult || {}).substring(0, 300);
+    return {
+      ok: false,
+      loopPrevented: true,
+      error: `LOOP DETECTED: You already called ${tool} with these exact arguments ${matching.length} time(s). The result won't change. Previous result: ${resultPreview}. DO NOT repeat this exact call. Change your approach: try a different tool, different arguments, or move to the next step using what you already know.`
+    };
+  }
+  mostRepeated() {
+    const counts = {};
+    for (const c of this.recentCalls) counts[c.signature] = (counts[c.signature] || 0) + 1;
+    let max = 0, best = null;
+    for (const [sig, n] of Object.entries(counts)) if (n > max) { max = n; best = sig; }
+    return best ? `${best} (${max}x)` : 'nothing repeated';
+  }
+  summarizeFailure(goal) {
+    const calls = this.recentCalls;
+    const uniqueTools = [...new Set(calls.map(c => c.toolName))];
+    const urls = [...new Set(calls.filter(c => c.toolName === 'navigate').map(c => c.args?.url).filter(Boolean))];
+    return `Couldn't complete: "${goal}"\n\nWhat I tried:\n• ${calls.length} tool calls using: ${uniqueTools.join(', ')}\n• Navigated to: ${urls.slice(0, 5).join(', ') || '(none)'}\n• Most repeated: ${this.mostRepeated()}\n\nSuggestion: break the task into smaller steps or be more specific.`;
+  }
+  reset() { this.recentCalls = []; }
+}
+
+const toolCallHistory = new ToolCallHistory();
+
 const AgentLoop = {
   _running: false,
   _mode: 'ask',
@@ -73,6 +128,7 @@ const AgentLoop = {
     this._running = true;
     this._mode = mode || 'ask';
     this._history = [];
+    toolCallHistory.reset();
     document.getElementById('ai-send-agent')?.classList.add('running');
 
     this._renderStep('agent-start', 'Agent started: ' + goal, 'info');
@@ -80,6 +136,11 @@ const AgentLoop = {
     try {
       let iteration = 0;
       let lastResult = null;
+      // Phase 18: stall detection — stop if URL + tool combo stays the same
+      // for STALL_THRESHOLD consecutive iterations.
+      let stallCounter = 0;
+      let lastProgressMarker = null;
+      const STALL_THRESHOLD = 3;
 
       while (iteration < this._maxIter && this._running) {
         iteration++;
@@ -149,9 +210,19 @@ const AgentLoop = {
           break;
         }
 
+        // Phase 18: Loop prevention — intercept before executing
+        if (toolCallHistory.isStuckInLoop(decision.tool, decision.parameters || {})) {
+          lastResult = toolCallHistory.loopGuidance(decision.tool, decision.parameters || {});
+          this._history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
+          this._renderStep('loop-prevent', 'Loop detected — ' + decision.tool + ' called too many times with same args. Nudging agent to try a different approach.', 'warn');
+          // Don't execute; let model re-plan on the next iteration.
+          continue;
+        }
+
         // Execute
         this._renderStep('action', `${decision.thought || ''}\n→ ${decision.tool}(${JSON.stringify(decision.parameters || {})})`, 'action');
         lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {});
+        toolCallHistory.add(decision.tool, decision.parameters || {}, lastResult);
         this._history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
 
         if (lastResult.ok) {
@@ -160,12 +231,28 @@ const AgentLoop = {
           this._renderStep('result', 'Failed: ' + (lastResult.error || 'Unknown error'), 'error');
         }
 
+        // Phase 18: Stall detection — same URL + same tool for N iterations = done
+        const currentUrl = pageContext?.url || '';
+        const marker = `${currentUrl}::${decision.tool}`;
+        if (marker === lastProgressMarker) {
+          stallCounter++;
+          if (stallCounter >= STALL_THRESHOLD) {
+            this._renderStep('stall', 'Agent appears stuck on ' + decision.tool + ' at ' + (currentUrl || 'this page') + '. Stopping.', 'warn');
+            this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
+            break;
+          }
+        } else {
+          stallCounter = 0;
+          lastProgressMarker = marker;
+        }
+
         // Brief pause between actions
         await new Promise(r => setTimeout(r, 300));
       }
 
       if (iteration >= this._maxIter) {
         this._renderStep('error', 'Max iterations reached', 'error');
+        this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
       }
     } catch (err) {
       this._renderStep('error', 'Agent error: ' + err.message, 'error');
