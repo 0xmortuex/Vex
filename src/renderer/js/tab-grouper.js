@@ -59,8 +59,12 @@ const TabGrouper = (() => {
 
   function _afterGroupChanges() {
     if (typeof TabManager === 'undefined') return;
+    // IMPORTANT: rebuildAllTabs() internally calls renderGroups() first, then
+    // renderTab() for each tab. If we also call renderGroups() after that,
+    // it wipes #tab-groups-container (innerHTML = '') and blanks every tab
+    // out of every .tab-group-tabs slot, leaving "empty" groups that can't
+    // be expanded because there's nothing inside.
     TabManager.rebuildAllTabs?.();
-    TabManager.renderGroups?.();
     TabManager.persistTabs?.();
     if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups);
   }

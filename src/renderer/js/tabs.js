@@ -330,6 +330,12 @@ const TabManager = {
     const container = document.getElementById('tab-groups-container');
     container.innerHTML = '';
 
+    console.log('[Tabs] renderGroups:', {
+      groups: this.groups.length,
+      tabs: this.tabs.length,
+      groupedTabs: this.tabs.filter(t => t.groupId).length
+    });
+
     this.groups.forEach(group => {
       const tabCount = this.tabs.filter(t => t.groupId === group.id).length;
       // Hide empty groups — if a group ends up with 0 tabs, don't show a
@@ -351,9 +357,17 @@ const TabManager = {
         <div class="tab-group-tabs"></div>
       `;
 
-      el.querySelector('.tab-group-header').addEventListener('click', () => {
+      el.querySelector('.tab-group-header').addEventListener('click', (e) => {
+        // Don't toggle when clicking a button inside the header
+        if (e.target.closest('button')) return;
         group.collapsed = !group.collapsed;
         el.classList.toggle('collapsed');
+        const body = el.querySelector('.tab-group-tabs');
+        console.log('[Tabs] Group toggle:', {
+          groupId: group.id,
+          collapsed: group.collapsed,
+          tabsInDom: body ? body.children.length : 0
+        });
         VexStorage.saveGroups(this.groups);
       });
 
@@ -414,12 +428,14 @@ const TabManager = {
     const tabsInGroup = this.tabs.filter(t => t.groupId === groupId);
 
     switch (action) {
+      // NB: rebuildAllTabs() calls renderGroups() internally. Calling
+      // renderGroups() separately AFTER rebuildAllTabs() blanks every tab
+      // out of every group (innerHTML = ''). Just call rebuildAllTabs().
       case 'rename': {
         const name = prompt('Rename group:', group.name);
         if (name && name.trim()) {
           group.name = name.trim();
           VexStorage.saveGroups(this.groups);
-          this.renderGroups();
           this.rebuildAllTabs();
         }
         break;
@@ -428,7 +444,6 @@ const TabManager = {
         this._showGroupColorPicker(groupId, (hex) => {
           group.color = hex;
           VexStorage.saveGroups(this.groups);
-          this.renderGroups();
           this.rebuildAllTabs();
         });
         break;
@@ -442,7 +457,6 @@ const TabManager = {
         tabsInGroup.forEach(t => { t.groupId = null; });
         this.groups = this.groups.filter(g => g.id !== groupId);
         VexStorage.saveGroups(this.groups);
-        this.renderGroups();
         this.rebuildAllTabs();
         this.persistTabs();
         window.showToast?.('Tabs ungrouped', 'info');
@@ -453,7 +467,6 @@ const TabManager = {
         tabsInGroup.forEach(t => this.closeTab(t.id));
         this.groups = this.groups.filter(g => g.id !== groupId);
         VexStorage.saveGroups(this.groups);
-        this.renderGroups();
         this.rebuildAllTabs();
         this.persistTabs();
         window.showToast?.('Group deleted', 'success');
