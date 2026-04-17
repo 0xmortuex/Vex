@@ -20,6 +20,10 @@ const SyncEngine = (() => {
     // (per-tab selections live under vex.activePersonaByTab.* and are NOT
     // synced — tab ids are device-local)
     'vex.personas', 'vex.activePersona',
+    // Phase 16: tab auto-grouping preferences + remembered patterns
+    // (groupPatterns uses local group ids, but that's fine — matching is
+    // reconstructed from patterns on the other device)
+    'vex.autoGroupSuggest', 'vex.autoAddToGroups', 'vex.groupPatterns',
     'vex-theme'
   ];
 

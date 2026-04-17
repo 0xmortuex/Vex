@@ -28,6 +28,7 @@
   <link rel="stylesheet" href="css/ai-panel.css">
   <link rel="stylesheet" href="css/sync-settings.css">
   <link rel="stylesheet" href="css/personas.css">
+  <link rel="stylesheet" href="css/tab-grouper.css">
   <link rel="stylesheet" href="css/agent.css">
   <link rel="stylesheet" href="css/schedules-panel.css">
   <link rel="stylesheet" href="css/update-notifier.css">
@@ -358,6 +359,31 @@
               </details>
             </div>
 
+            <!-- Phase 16: Smart Tab Grouping -->
+            <div class="setting-group">
+              <label class="setting-label">Smart Tab Grouping</label>
+              <p class="setting-info muted" style="margin-bottom:10px">Vex AI clusters open tabs into named groups and remembers patterns so future matching tabs auto-join. Use Ctrl+Shift+G any time.</p>
+              <div class="setting-toggle-row">
+                <span>Auto-suggest when 12+ tabs are ungrouped</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-auto-group-suggest" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Auto-add new tabs that match a remembered pattern</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-auto-add-to-groups" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+                <button id="btn-group-tabs-now" style="padding:8px 16px;background:var(--primary);color:white;border:none;border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Organize My Tabs Now</button>
+                <button id="btn-clear-patterns" style="padding:8px 16px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Clear Remembered Patterns</button>
+              </div>
+              <div id="group-patterns-count" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading...</div>
+            </div>
+
             <!-- Phase 15: AI Personas -->
             <div class="setting-group">
               <label class="setting-label">AI Personas</label>
@@ -390,7 +416,7 @@
                 <svg width="56" height="56" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <div>
                   <div style="font-size:28px;font-weight:700;color:var(--text);line-height:1">Vex</div>
-                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.6.0</div>
+                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.7.0</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:4px">A browser built just for you</div>
                 </div>
               </div>
@@ -553,6 +579,7 @@
       <button class="ai-quick-btn" data-action="compare">Compare tabs</button>
       <button class="ai-quick-btn" data-action="translate">Translate</button>
       <button class="ai-quick-btn" data-action="ask">Ask</button>
+      <button class="ai-quick-btn" data-action="group-tabs">&#128451;&#65039; Organize tabs</button>
     </div>
     <div class="ai-messages" id="ai-messages">
       <div class="ai-empty">Ask anything about the current page, or use the quick actions above.</div>
@@ -617,6 +644,7 @@
   <script src="js/personas-builtin.js"></script>
   <script src="js/personas-manager.js"></script>
   <script src="js/personas-settings.js"></script>
+  <script src="js/tab-grouper.js"></script>
   <script src="js/memory-panel.js"></script>
   <script src="js/restore-prompt.js"></script>
   <script src="js/shortcuts-panel.js"></script>

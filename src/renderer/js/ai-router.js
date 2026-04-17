@@ -175,7 +175,8 @@ const AIRouter = (() => {
       historyIndex: 'summarize-for-history',
       historySearch: 'search-history',
       agent: 'agent',
-      multiTab: 'multi-tab-chat'
+      multiTab: 'multi-tab-chat',
+      groupTabs: 'group-tabs'
     };
     const action = actionMap[feature] || 'chat';
     const body = { action, ...request };
@@ -218,7 +219,11 @@ const AIRouter = (() => {
 
     historySearch: `You search browser history. Given a user query and entries, return ONLY this JSON:
 {"matches": [{"id": "entry_id", "relevanceScore": 0.9, "whyRelevant": "reason"}], "interpretation": "what you searched for"}
-Only include relevance > 0.5. Max 10 matches.`
+Only include relevance > 0.5. Max 10 matches.`,
+
+    groupTabs: `You cluster browser tabs into groups. Given tabs (id, title, url, summary), return ONLY this JSON:
+{"groups": [{"name": "Short name", "color": "indigo|cyan|green|amber|red|violet|rose|teal", "emoji": "\ud83d\udcf1", "tabIds": ["id1", "id2"], "pattern": "what makes a tab fit", "confidence": 0.9}], "ungrouped": ["id"], "reasoning": "one sentence"}
+2-6 groups, 2+ tabs per group, confidence > 0.6.`
   };
 
   // ---------- User-facing API ----------

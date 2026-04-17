@@ -93,6 +93,7 @@ const AIPanel = {
           }
         } else if (action === 'translate') this.sendMessage('translate', { targetLanguage: 'English' });
         else if (action === 'ask') document.getElementById('ai-input')?.focus();
+        else if (action === 'group-tabs') { if (typeof TabGrouper !== 'undefined') TabGrouper.analyzeAndPropose(); }
       });
     });
   },

@@ -72,7 +72,10 @@ const CommandBar = {
     { id: 'reindex', label: 'Re-index Open Tabs', hint: 'Generate AI summaries for currently open tabs', icon: '🔄', action: () => { const n = HistoryIndexer?.reindexOpenTabs?.() || 0; window.showToast?.(n > 0 ? `Re-indexing ${n} tabs…` : 'No unindexed open tabs'); } },
     // Phase 15: personas
     { id: 'personas', label: 'Manage AI Personas', hint: 'Create, edit, export AI personas', icon: '🎭', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('personas-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
-    { id: 'persona-new', label: 'New Persona...', hint: 'Create a custom AI assistant', icon: '➕', action: () => { if (typeof PersonasSettings !== 'undefined') PersonasSettings.showPersonaEditor(null); } }
+    { id: 'persona-new', label: 'New Persona...', hint: 'Create a custom AI assistant', icon: '➕', action: () => { if (typeof PersonasSettings !== 'undefined') PersonasSettings.showPersonaEditor(null); } },
+    // Phase 16: tab auto-grouping
+    { id: 'group-tabs', label: 'Organize My Tabs', hint: 'AI clusters open tabs into groups', shortcut: 'Ctrl+Shift+G', icon: '🗂️', isPrimary: true, action: () => TabGrouper?.analyzeAndPropose() },
+    { id: 'group-undo', label: 'Undo Last Grouping', hint: 'Revert the last AI group-apply', icon: '↩', action: () => TabGrouper?.undoLastGrouping() }
   ],
 
   init() {

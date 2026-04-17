@@ -363,6 +363,39 @@
   updateIndexingStats();
   setInterval(updateIndexingStats, 5000);
 
+  // === Phase 16: Smart Tab Grouping settings ===
+  const groupSuggestToggle = document.getElementById('setting-auto-group-suggest');
+  if (groupSuggestToggle) {
+    try { groupSuggestToggle.checked = JSON.parse(localStorage.getItem('vex.autoGroupSuggest') ?? 'true'); } catch {}
+    groupSuggestToggle.addEventListener('change', () => {
+      localStorage.setItem('vex.autoGroupSuggest', JSON.stringify(groupSuggestToggle.checked));
+    });
+  }
+  const autoAddToggle = document.getElementById('setting-auto-add-to-groups');
+  if (autoAddToggle) {
+    try { autoAddToggle.checked = JSON.parse(localStorage.getItem('vex.autoAddToGroups') ?? 'true'); } catch {}
+    autoAddToggle.addEventListener('change', () => {
+      localStorage.setItem('vex.autoAddToGroups', JSON.stringify(autoAddToggle.checked));
+    });
+  }
+  document.getElementById('btn-group-tabs-now')?.addEventListener('click', () => {
+    TabGrouper?.analyzeAndPropose();
+  });
+  document.getElementById('btn-clear-patterns')?.addEventListener('click', () => {
+    if (!confirm('Clear all remembered group patterns? New tabs won\u2019t auto-join groups anymore.')) return;
+    TabGrouper?.clearPatterns();
+    showToast('Patterns cleared', 'success');
+    updateGroupPatternsCount();
+  });
+  function updateGroupPatternsCount() {
+    const el = document.getElementById('group-patterns-count');
+    if (!el || !window.TabGrouper) return;
+    const n = Object.keys(TabGrouper.getPatterns()).length;
+    el.textContent = n === 0 ? '\ud83d\udcca No patterns yet' : `\ud83d\udcca ${n} pattern${n === 1 ? '' : 's'} active`;
+  }
+  updateGroupPatternsCount();
+  setInterval(updateGroupPatternsCount, 5000);
+
   // === Startup behavior setting ===
   const restoreSelect = document.getElementById('setting-restore-startup');
   if (restoreSelect) {
@@ -431,6 +464,15 @@
 
   // === Phase 15: Personas ===
   if (typeof PersonasManager !== 'undefined') PersonasManager.init();
+
+  // === Phase 16: Tab auto-grouping ===
+  if (typeof TabGrouper !== 'undefined') TabGrouper.init();
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
+      e.preventDefault();
+      TabGrouper?.analyzeAndPropose();
+    }
+  });
 
   // === Phase 14: AI Router — detect Ollama, load routing prefs ===
   if (typeof AIRouter !== 'undefined') {
