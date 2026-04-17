@@ -341,8 +341,11 @@ function setupAutoUpdater() {
     mainWindow?.webContents.send('update-error', { message: err.message });
   });
 
-  // Check on startup after a delay
-  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
+  // v2.0.0: do NOT auto-check at startup. The electron-updater startup check
+  // spawns a bundled 7za.exe (for .blockmap differential-download inspection)
+  // that links against MSVC 2015-2022 runtime, which triggers the VC++
+  // Redistributable installer prompt on machines without that runtime.
+  // Users can still trigger "Check for Updates" manually from Settings.
 }
 
 // v1.9.0 one-time cleanup: remove Phase 17A Memory Recorder artifacts

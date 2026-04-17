@@ -1,6 +1,6 @@
 {
   "name": "vex",
-  "version": "1.9.0",
+  "version": "2.0.0",
   "description": "Vex — a browser built just for you",
   "author": {
     "name": "0xmortuex",
@@ -27,6 +27,8 @@
     "appId": "com.vex.browser",
     "productName": "Vex",
     "copyright": "Copyright 2026 0xmortuex",
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
     "directories": {
       "output": "dist",
       "buildResources": "assets"
@@ -62,7 +64,8 @@
       "installerHeaderIcon": "assets/icon.ico",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
-      "include": "build/installer.nsh"
+      "include": "build/installer.nsh",
+      "differentialPackage": false
     },
     "publish": [
       {
