@@ -79,6 +79,10 @@ const SidebarManager = {
       // Phase 14: populate the AI Backend section each time Settings opens
       AISettings.renderAISettings();
     }
+    if (panelName === 'settings' && typeof PersonasSettings !== 'undefined') {
+      // Phase 15: render the Personas grid each time Settings opens
+      PersonasSettings.renderPanel(document.getElementById('personas-panel-content'));
+    }
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

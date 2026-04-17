@@ -429,6 +429,9 @@
   // === Phase 9: Updates + Welcome ===
   UpdateNotifier.init();
 
+  // === Phase 15: Personas ===
+  if (typeof PersonasManager !== 'undefined') PersonasManager.init();
+
   // === Phase 14: AI Router — detect Ollama, load routing prefs ===
   if (typeof AIRouter !== 'undefined') {
     AIRouter.init().catch(err => console.error('[AIRouter] init failed:', err));

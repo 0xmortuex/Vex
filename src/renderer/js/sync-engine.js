@@ -16,6 +16,10 @@ const SyncEngine = (() => {
     // Phase 14: AI routing prefs (but NOT localAIModel — each device has
     // its own installed Ollama models)
     'vex.aiRouting', 'vex.preferLocalAI', 'vex.forceCloudAI',
+    // Phase 15: custom personas + globally active persona id
+    // (per-tab selections live under vex.activePersonaByTab.* and are NOT
+    // synced — tab ids are device-local)
+    'vex.personas', 'vex.activePersona',
     'vex-theme'
   ];
 

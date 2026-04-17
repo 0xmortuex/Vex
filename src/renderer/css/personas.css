@@ -1,0 +1,196 @@
+/* === Phase 15: AI Personas === */
+
+/* Persona switcher pill at top of AI panel */
+.persona-selector {
+  position: relative;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.active-persona {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 14px;
+  width: 100%; cursor: pointer; color: var(--text); font-size: 13px;
+  transition: all 0.15s; font-family: 'Outfit', sans-serif;
+}
+.active-persona:hover { border-color: var(--primary); }
+.persona-icon { font-size: 18px; flex-shrink: 0; line-height: 1; }
+.persona-name { flex: 1; text-align: left; font-weight: 500; }
+.selector-arrow { color: var(--text-muted); font-size: 10px; }
+
+.persona-dropdown {
+  position: absolute;
+  top: 100%; left: 12px; right: 12px;
+  margin-top: 4px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 6px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  max-height: 400px; overflow-y: auto;
+  z-index: 100;
+}
+.persona-list { display: flex; flex-direction: column; gap: 2px; }
+.persona-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 6px;
+  cursor: pointer; transition: background 0.15s;
+}
+.persona-item:hover { background: var(--card, var(--bg)); }
+.persona-item.active {
+  background: rgba(99, 102, 241, 0.1);
+  border-left: 2px solid var(--primary);
+}
+.persona-item-icon { font-size: 20px; flex-shrink: 0; line-height: 1; }
+.persona-item-info { flex: 1; min-width: 0; }
+.persona-item-name { color: var(--text); font-size: 13px; font-weight: 500; }
+.persona-item-desc {
+  color: var(--text-muted); font-size: 11px; margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.persona-item-builtin {
+  font-size: 9px; color: var(--text-muted);
+  background: var(--bg); padding: 1px 6px;
+  border-radius: 8px; font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.persona-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 6px; padding-top: 6px; text-align: center;
+}
+.btn-link {
+  background: transparent; border: none;
+  color: var(--primary); font-size: 12px;
+  cursor: pointer; padding: 4px 8px;
+  font-family: 'Outfit', sans-serif;
+}
+.btn-link:hover { text-decoration: underline; }
+
+/* Persona-specific quick prompts row */
+.persona-prompts-row {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(99, 102, 241, 0.04);
+}
+.persona-prompt {
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); padding: 5px 10px;
+  border-radius: 12px; font-size: 11px;
+  cursor: pointer; transition: all 0.15s;
+  font-family: 'Outfit', sans-serif;
+}
+.persona-prompt:hover {
+  border-color: var(--primary); background: var(--surface);
+}
+
+/* Settings: Personas grid */
+.personas-panel .panel-header { margin-bottom: 16px; }
+.personas-panel .panel-desc { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.personas-panel .panel-desc code {
+  background: var(--bg); padding: 1px 6px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+}
+.panel-actions { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+
+.personas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.persona-card {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: border-color 0.15s;
+}
+.persona-card:hover { border-color: var(--primary); }
+.persona-card.builtin { background: rgba(99, 102, 241, 0.04); }
+.persona-card-header { display: flex; align-items: flex-start; gap: 10px; }
+.persona-card-icon { font-size: 30px; flex-shrink: 0; line-height: 1; }
+.persona-card-info { flex: 1; min-width: 0; }
+.persona-card-name { color: var(--text); font-size: 14px; font-weight: 600; }
+.persona-card-desc {
+  color: var(--text-muted); font-size: 11px; margin-top: 2px;
+}
+.persona-badge {
+  background: var(--surface); color: var(--text-muted);
+  padding: 2px 6px; border-radius: 4px;
+  font-size: 9px; text-transform: uppercase;
+  letter-spacing: 0.5px; font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+.persona-card-prompt {
+  color: var(--text-muted); font-size: 11px; line-height: 1.5;
+  padding: 8px 10px; background: var(--surface);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  max-height: 80px; overflow: hidden;
+}
+.persona-card-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.meta-item {
+  font-size: 10px; color: var(--text-muted);
+  background: var(--surface); padding: 2px 8px;
+  border-radius: 10px;
+}
+.persona-card-actions {
+  display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px;
+}
+
+.btn-primary-sm, .btn-secondary-sm {
+  padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  font-size: 11px; font-family: 'Outfit', sans-serif; border: 1px solid var(--border);
+}
+.btn-primary-sm {
+  background: var(--primary); color: white; border-color: var(--primary);
+}
+.btn-primary-sm:hover { filter: brightness(1.1); }
+.btn-secondary-sm {
+  background: var(--bg); color: var(--text);
+}
+.btn-secondary-sm:hover { border-color: var(--primary); }
+
+/* Persona editor modal */
+.persona-editor {
+  width: 600px; max-width: 90vw;
+  max-height: 85vh; overflow-y: auto;
+}
+.persona-editor .form-row {
+  display: flex; gap: 12px; margin-bottom: 12px;
+}
+.persona-editor .form-field { margin-bottom: 12px; }
+.persona-editor .form-field label {
+  display: block; color: var(--text); font-size: 12px;
+  font-weight: 600; margin-bottom: 6px;
+}
+.persona-editor .form-field .hint {
+  color: var(--text-muted); font-weight: normal;
+  font-size: 10px; font-style: italic;
+}
+.persona-editor input[type="text"],
+.persona-editor select,
+.persona-editor textarea {
+  width: 100%; box-sizing: border-box;
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 10px; border-radius: 6px;
+  font-size: 13px; outline: none;
+  font-family: 'Outfit', sans-serif;
+}
+.persona-editor textarea {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; line-height: 1.5; resize: vertical;
+}
+.persona-editor input[type="text"]:focus,
+.persona-editor select:focus,
+.persona-editor textarea:focus { border-color: var(--primary); }
+.persona-editor input[type="range"] {
+  accent-color: var(--primary);
+}
+
+.advanced-section {
+  margin-top: 12px; border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.advanced-section summary {
+  cursor: pointer; color: var(--text-muted);
+  font-size: 12px; margin-bottom: 12px;
+}

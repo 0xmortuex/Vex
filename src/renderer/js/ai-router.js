@@ -121,7 +121,14 @@ const AIRouter = (() => {
 
   // ---------- LOCAL (Ollama) ----------
   async function callLocal(feature, request) {
-    const systemPrompt = LOCAL_SYSTEM_PROMPTS[feature] || LOCAL_SYSTEM_PROMPTS.chat;
+    // Phase 15: persona overrides the default system prompt + temperature.
+    // Structured features (summarize/translate/etc.) keep their built-in
+    // JSON-schema prompts — persona only overrides chat.
+    const isStructured = ['summarize', 'translate', 'explain', 'historyIndex', 'historySearch'].includes(feature);
+    const systemPrompt = (!isStructured && request.persona?.systemPrompt)
+      ? request.persona.systemPrompt
+      : (LOCAL_SYSTEM_PROMPTS[feature] || LOCAL_SYSTEM_PROMPTS.chat);
+    const temperature = request.persona?.temperature ?? 0.5;
 
     let userMessage = '';
     if (request.pageContext) {
@@ -145,13 +152,13 @@ const AIRouter = (() => {
         if (m && m.role && m.content) msgs.push({ role: m.role, content: m.content });
       }
       msgs.push({ role: 'user', content: userMessage });
-      const text = await Ollama.chat(localModel, msgs, { temperature: 0.5, maxTokens: 2000, format: 'json' });
+      const text = await Ollama.chat(localModel, msgs, { temperature, maxTokens: 2000, format: 'json' });
       return { result: text, backend: 'local', model: localModel };
     }
 
     const text = await Ollama.generate(localModel, userMessage, {
       systemPrompt,
-      temperature: 0.5,
+      temperature,
       maxTokens: 2000,
       format: expectsJson ? 'json' : null
     });
@@ -172,6 +179,13 @@ const AIRouter = (() => {
     };
     const action = actionMap[feature] || 'chat';
     const body = { action, ...request };
+    // Phase 15: forward persona fields to the worker at top level so it can
+    // override system prompt + temperature for chat/summarize/explain.
+    if (request.persona) {
+      body.personaSystemPrompt = request.persona.systemPrompt;
+      body.personaTemperature = request.persona.temperature;
+      delete body.persona;
+    }
 
     const r = await fetch(CLOUD_WORKER_URL, {
       method: 'POST',

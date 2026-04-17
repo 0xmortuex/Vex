@@ -16,6 +16,43 @@ const AIPanel = {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._sendChat(); }
     });
 
+    // Phase 15: Persona switcher
+    document.getElementById('active-persona-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._togglePersonaDropdown();
+    });
+    document.getElementById('manage-personas-btn')?.addEventListener('click', () => {
+      document.getElementById('persona-dropdown').hidden = true;
+      if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('settings');
+      setTimeout(() => {
+        document.getElementById('personas-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    });
+    document.addEventListener('click', (e) => {
+      const dd = document.getElementById('persona-dropdown');
+      const btn = document.getElementById('active-persona-btn');
+      if (dd && !dd.hidden && !dd.contains(e.target) && btn && !btn.contains(e.target)) {
+        dd.hidden = true;
+      }
+    });
+    // @mention detection — switches persona when user types @name<space>
+    document.getElementById('ai-input')?.addEventListener('input', (e) => {
+      if (typeof PersonasManager === 'undefined') return;
+      const val = e.target.value;
+      // Only trigger after the @word is terminated (space or end of trailing word with more than 2 chars)
+      const m = val.match(/@([A-Za-z0-9_]{2,})(\s|$)/);
+      if (!m) return;
+      const mention = PersonasManager.findByMention('@' + m[1]);
+      if (!mention) return;
+      const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
+      PersonasManager.setActiveForTab(tab?.id, mention.id);
+      this.updatePersonaSwitcher();
+      this._renderPersonaQuickPrompts();
+      // Strip the first @word from the input
+      e.target.value = val.replace(/@[A-Za-z0-9_]+\s*/, '').trim();
+      if (typeof window.showToast === 'function') window.showToast(`Switched to ${mention.name}`, 'info');
+    });
+
     // Agent send button — always uses agent mode
     document.getElementById('ai-send-agent')?.addEventListener('click', () => this._sendAgent());
 
@@ -107,8 +144,86 @@ const AIPanel = {
     document.getElementById('ai-panel')?.classList.add('open');
     this._renderMessages();
     this._updateTabIndicator();
+    this.updatePersonaSwitcher();
+    this._renderPersonaQuickPrompts();
     this._maybeShowOllamaHint();
     setTimeout(() => document.getElementById('ai-input')?.focus(), 150);
+  },
+
+  // === Phase 15: Persona switcher ===
+  getActivePersona() {
+    if (typeof PersonasManager === 'undefined') return null;
+    const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
+    return PersonasManager.getActiveForTab(tab?.id) || null;
+  },
+
+  updatePersonaSwitcher() {
+    const p = this.getActivePersona();
+    if (!p) return;
+    const iconEl = document.getElementById('active-persona-icon');
+    const nameEl = document.getElementById('active-persona-name');
+    if (iconEl) iconEl.textContent = p.icon || '\u2728';
+    if (nameEl) nameEl.textContent = p.name || 'Vex';
+  },
+
+  _togglePersonaDropdown() {
+    const dd = document.getElementById('persona-dropdown');
+    if (!dd) return;
+    if (!dd.hidden) { dd.hidden = true; return; }
+    this._renderPersonaDropdown();
+    dd.hidden = false;
+  },
+
+  _renderPersonaDropdown() {
+    if (typeof PersonasManager === 'undefined') return;
+    const list = document.getElementById('persona-list');
+    if (!list) return;
+    const all = PersonasManager.getAll();
+    const active = this.getActivePersona();
+    list.innerHTML = all.map(p => `
+      <div class="persona-item ${p.id === active?.id ? 'active' : ''}" data-persona-id="${this._esc(p.id)}">
+        <span class="persona-item-icon">${this._esc(p.icon)}</span>
+        <div class="persona-item-info">
+          <div class="persona-item-name">${this._esc(p.name)}</div>
+          <div class="persona-item-desc">${this._esc(p.description || '')}</div>
+        </div>
+        ${p.isBuiltIn ? '<span class="persona-item-builtin">built-in</span>' : ''}
+      </div>
+    `).join('');
+    list.querySelectorAll('.persona-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const id = el.dataset.personaId;
+        const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
+        PersonasManager.setActiveForTab(tab?.id, id);
+        this.updatePersonaSwitcher();
+        this._renderPersonaQuickPrompts();
+        document.getElementById('persona-dropdown').hidden = true;
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Switched to ${PersonasManager.getById(id).name}`, 'info');
+        }
+      });
+    });
+  },
+
+  _renderPersonaQuickPrompts() {
+    const row = document.getElementById('persona-prompts-row');
+    if (!row) return;
+    const p = this.getActivePersona();
+    const prompts = (p && Array.isArray(p.quickPrompts)) ? p.quickPrompts.slice(0, 5) : [];
+    if (!prompts.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+    row.style.display = 'flex';
+    row.innerHTML = prompts.map(pt => {
+      const label = pt.length > 44 ? pt.substring(0, 42) + '\u2026' : pt;
+      return `<button class="persona-prompt" data-prompt="${this._esc(pt)}">${this._esc(label)}</button>`;
+    }).join('');
+    row.querySelectorAll('.persona-prompt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = document.getElementById('ai-input');
+        if (!input) return;
+        input.value = btn.dataset.prompt;
+        this._sendChat();
+      });
+    });
   },
 
   _maybeShowOllamaHint() {
@@ -155,6 +270,9 @@ const AIPanel = {
     const tab = TabManager.getActiveTab();
     const el = document.getElementById('ai-current-tab');
     if (el && tab) el.textContent = tab.title || tab.url || 'New Tab';
+    // Phase 15: each tab can have its own persona — refresh the switcher
+    this.updatePersonaSwitcher?.();
+    this._renderPersonaQuickPrompts?.();
   },
 
   // Parse AI response — strip markdown fences, try JSON, fallback to plain text
@@ -197,12 +315,18 @@ const AIPanel = {
       // Map action → feature name.
       const featureMap = { chat: 'chat', summarize: 'summarize', translate: 'translate', explain: 'explain' };
       const feature = featureMap[action] || 'chat';
+      const persona = this.getActivePersona();
       const aiResult = await AIRouter.callAI(feature, {
         message: opts.message,
         pageContext,
         selectedText: opts.selectedText,
         targetLanguage: opts.targetLanguage,
-        conversationHistory: conv.filter(m => m.role !== 'system').slice(-10)
+        conversationHistory: conv.filter(m => m.role !== 'system').slice(-10),
+        persona: persona ? {
+          id: persona.id,
+          systemPrompt: persona.systemPrompt,
+          temperature: persona.temperature
+        } : null
       });
 
       loadingEl?.remove();
@@ -263,10 +387,12 @@ const AIPanel = {
       const tabContexts = await MultiTabContext.extractContextFromTabs(tabs);
       loadingEl.innerHTML = 'Thinking <span class="ai-spinner"></span>';
 
-      // Phase 14: multi-tab is always cloud (large context, needs quality)
+      // Phase 14/15: multi-tab is cloud-quality; still respects persona voice.
+      const persona = this.getActivePersona();
       const aiResult = await AIRouter.callAI('multiTab', {
         message, tabContexts,
-        conversationHistory: conv.filter(m => m.role !== 'system').slice(-6)
+        conversationHistory: conv.filter(m => m.role !== 'system').slice(-6),
+        persona: persona ? { id: persona.id, systemPrompt: persona.systemPrompt, temperature: persona.temperature } : null
       });
       loadingEl?.remove();
 
