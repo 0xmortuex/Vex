@@ -103,24 +103,6 @@ contextBridge.exposeInMainWorld('vex', {
   persistDelete: (key) => ipcRenderer.invoke('persist-delete', key),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
 
-  // Phase 17A: Memory Recorder
-  memoryIsAvailable:    () => ipcRenderer.invoke('memory:is-available'),
-  memoryPaths:          () => ipcRenderer.invoke('memory:paths'),
-  memoryStart:          () => ipcRenderer.invoke('memory:start'),
-  memoryPause:          () => ipcRenderer.invoke('memory:pause'),
-  memoryResume:         () => ipcRenderer.invoke('memory:resume'),
-  memoryStop:           () => ipcRenderer.invoke('memory:stop'),
-  memoryStatus:         () => ipcRenderer.invoke('memory:status'),
-  memoryIngestAudio:    (buf, meta) => ipcRenderer.invoke('memory:ingest-audio', buf, meta),
-  memoryList:           () => ipcRenderer.invoke('memory:list'),
-  memoryLoad:           (id) => ipcRenderer.invoke('memory:load', id),
-  memoryUpdateMeta:     (id, updates) => ipcRenderer.invoke('memory:update-meta', id, updates),
-  memoryDelete:         (id) => ipcRenderer.invoke('memory:delete', id),
-  memoryForgetRecent:   (minutes) => ipcRenderer.invoke('memory:forget-recent', minutes),
-  memoryWipeAll:        () => ipcRenderer.invoke('memory:wipe-all'),
-  onMemoryLiveSegment:  (cb) => ipcRenderer.on('memory:live-segment', (_, d) => cb(d)),
-  onMemoryConversationFinalized: (cb) => ipcRenderer.on('memory:conversation-finalized', (_, d) => cb(d)),
-
   // Phase 13: Vex Sync — encryption key + session metadata
   syncSaveKey: (hex) => ipcRenderer.invoke('sync-save-key', hex),
   syncLoadKey: () => ipcRenderer.invoke('sync-load-key'),

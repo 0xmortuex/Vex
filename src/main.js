@@ -5,9 +5,6 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
 
-// Phase 17A: Memory Recorder (registers its own IPC handlers)
-try { require('./main/memory-recorder'); } catch (err) { console.error('[memory-recorder] load failed:', err); }
-
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;
 try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
@@ -301,28 +298,6 @@ function createWindow() {
     });
   });
 
-  // Phase 17A diagnostic: forward ALL renderer console output to main terminal.
-  mainWindow.webContents.on('console-message', (eventOrDetails, level, message, line, sourceId) => {
-    let msg, lvl;
-    if (eventOrDetails && typeof eventOrDetails === 'object' && 'message' in eventOrDetails) {
-      msg = eventOrDetails.message;
-      lvl = eventOrDetails.level;
-    } else {
-      msg = message;
-      lvl = level;
-    }
-    if (typeof msg !== 'string') return;
-    const label = (typeof lvl === 'string') ? lvl.toUpperCase() :
-                  (['VERBOSE','INFO','WARN','ERROR'][lvl] || 'LOG');
-    console.log(`[Renderer:${label}] ${msg}`);
-  });
-  // Render-process crashes / preload errors
-  mainWindow.webContents.on('render-process-gone', (_e, details) => {
-    console.error('[Renderer] render-process-gone:', details);
-  });
-  mainWindow.webContents.on('preload-error', (_e, preloadPath, err) => {
-    console.error('[Renderer] preload-error in', preloadPath, '-', err?.message, err?.stack);
-  });
 
   // Fullscreen change events
   mainWindow.on('enter-full-screen', () => {
@@ -369,6 +344,19 @@ function setupAutoUpdater() {
   // Check on startup after a delay
   setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
 }
+
+// v1.9.0 one-time cleanup: remove Phase 17A Memory Recorder artifacts
+app.whenReady().then(() => {
+  try {
+    const userData = app.getPath('userData');
+    const memoryDir = path.join(userData, 'memory');
+    const keyFile = path.join(userData, 'memory-key.bin');
+    const whisperDir = path.join(userData, 'assets', 'whisper');
+    if (fs.existsSync(memoryDir)) { fs.rmSync(memoryDir, { recursive: true, force: true }); console.log('[Cleanup] Removed memory recorder data'); }
+    if (fs.existsSync(keyFile))  { fs.unlinkSync(keyFile); console.log('[Cleanup] Removed memory encryption key'); }
+    if (fs.existsSync(whisperDir)) { fs.rmSync(whisperDir, { recursive: true, force: true }); console.log('[Cleanup] Removed whisper assets'); }
+  } catch (err) { console.warn('[Cleanup] Memory data cleanup failed:', err.message); }
+});
 
 // Custom protocol handler for vex://
 app.whenReady().then(() => {

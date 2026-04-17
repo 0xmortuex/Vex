@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vex</title>
-  <script src="js/error-bridge.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -30,7 +29,6 @@
   <link rel="stylesheet" href="css/sync-settings.css">
   <link rel="stylesheet" href="css/personas.css">
   <link rel="stylesheet" href="css/tab-grouper.css">
-  <link rel="stylesheet" href="css/memory-recorder.css">
   <link rel="stylesheet" href="css/agent.css">
   <link rel="stylesheet" href="css/schedules-panel.css">
   <link rel="stylesheet" href="css/update-notifier.css">
@@ -139,14 +137,6 @@
       <button class="sidebar-icon" data-panel="memory" title="Memory (Ctrl+Shift+M)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M15 20v2M9 20v2M2 15h2M2 9h2M20 15h2M20 9h2"/></svg>
       </button>
-      <button class="sidebar-icon memrec-icon" data-panel="memrec" title="MEMORY RECORDER — Records your voice (Ctrl+Shift+Y)">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
-      </button>
       <button class="sidebar-icon" data-panel="schedules" title="Schedules (Ctrl+Shift+L)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6"/><path d="M22 6l-3-3"/></svg>
       </button>
@@ -184,7 +174,6 @@
         <div class="panel" id="panel-downloads" style="display: none;"></div>
         <div class="panel" id="panel-history" style="display: none;"></div>
         <div class="panel" id="panel-memory" style="display: none;"></div>
-        <div class="panel" id="panel-memrec" style="display: none;"></div>
         <div class="panel" id="panel-schedules" style="display: none;"></div>
         <div class="panel" id="panel-shortcuts" style="display: none;"></div>
         <div class="panel" id="panel-themes" style="display: none;"></div>
@@ -370,15 +359,6 @@
               </details>
             </div>
 
-            <!-- Phase 17A: Memory Recorder -->
-            <div class="setting-group" id="memrec-settings-anchor">
-              <label class="setting-label">Memory Recorder</label>
-              <p class="setting-info muted" style="margin-bottom:10px">Records conversations with your consent, transcribes them locally via Whisper, and stores them AES-256 encrypted. Press <kbd>Ctrl+Shift+Y</kbd> to open the panel.</p>
-              <div id="memrec-settings-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading memory stats...</div>
-              </div>
-            </div>
-
             <!-- Phase 17: Customizable Keyboard Shortcuts -->
             <div class="setting-group">
               <label class="setting-label">Keyboard Shortcuts</label>
@@ -444,7 +424,7 @@
                 <svg width="56" height="56" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <div>
                   <div style="font-size:28px;font-weight:700;color:var(--text);line-height:1">Vex</div>
-                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.8.0</div>
+                  <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 1.9.0</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:4px">A browser built just for you</div>
                 </div>
               </div>
@@ -687,10 +667,6 @@
   <script src="js/tab-grouper.js"></script>
   <script src="js/shortcuts-registry.js"></script>
   <script src="js/shortcut-editor.js"></script>
-  <script src="js/memory-capture.js"></script>
-  <script src="js/memory-extractor.js"></script>
-  <script src="js/memory-recorder-panel.js"></script>
-  <script src="js/memory-recorder-settings.js"></script>
   <script src="js/memory-panel.js"></script>
   <script src="js/restore-prompt.js"></script>
   <script src="js/shortcuts-panel.js"></script>

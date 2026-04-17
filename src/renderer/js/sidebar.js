@@ -67,7 +67,6 @@ const SidebarManager = {
     if (panelName === 'downloads') DownloadsPanel.init();
     if (panelName === 'history') HistoryPanel.init();
     if (panelName === 'memory') MemoryPanel.init();
-    if (panelName === 'memrec' && typeof MemoryRecorderPanel !== 'undefined') MemoryRecorderPanel.init();
     if (panelName === 'schedules') SchedulesPanel.init();
     if (panelName === 'shortcuts') ShortcutsPanel.init();
     if (panelName === 'themes') ThemeEditor.init();
@@ -87,10 +86,6 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof ShortcutEditor !== 'undefined') {
       // Phase 17: render the keyboard shortcut editor each time Settings opens
       ShortcutEditor.renderPanel(document.getElementById('shortcuts-editor-content'));
-    }
-    if (panelName === 'settings' && typeof MemoryRecorderSettings !== 'undefined') {
-      // Phase 17A: render memory recorder settings fragment
-      MemoryRecorderSettings.render();
     }
 
     // Create webview for panel if needed

@@ -30,7 +30,6 @@ const ShortcutsRegistry = (() => {
     // Panels
     'history-panel':  { default: 'Ctrl+H',       label: 'History Panel',              category: 'Panels' },
     'memory-panel':   { default: 'Ctrl+Shift+M', label: 'Memory Panel (tab usage)',   category: 'Panels' },
-    'memory-recorder':{ default: 'Ctrl+Shift+Y', label: 'Memory Recorder',            category: 'Panels' },
     'private-window': { default: 'Ctrl+Shift+N', label: 'Private Window',             category: 'Panels' },
     'sessions':       { default: 'Ctrl+Shift+O', label: 'Sessions Menu',              category: 'Panels' },
     'schedules':      { default: 'Ctrl+Shift+L', label: 'Schedules Panel',            category: 'Panels' },

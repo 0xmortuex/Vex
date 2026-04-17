@@ -76,11 +76,6 @@ const CommandBar = {
     // Phase 16: tab auto-grouping
     { id: 'group-tabs', label: 'Organize My Tabs', hint: 'AI clusters open tabs into groups', shortcut: 'Ctrl+Shift+G', icon: '🗂️', isPrimary: true, action: () => TabGrouper?.analyzeAndPropose() },
     { id: 'group-undo', label: 'Undo Last Grouping', hint: 'Revert the last AI group-apply', icon: '↩', action: () => TabGrouper?.undoLastGrouping() },
-    // Phase 17A: memory recorder
-    { id: 'memrec', label: 'Memory Recorder', hint: 'Record, transcribe, search your conversations', shortcut: 'Ctrl+Shift+Y', icon: '🎙️', isPrimary: true, action: () => SidebarManager?.openPanel('memrec') },
-    { id: 'memrec-start', label: 'Start Recording', hint: 'Begin recording conversation audio', icon: '🔴', action: async () => { try { const r = await window.vex.memoryStart(); if (r?.ok) { await MemoryCapture.start(); window.showToast?.('Recording started', 'success'); } else { window.showToast?.(r?.error || 'Cannot start', 'error'); } } catch (err) { window.showToast?.(err.message, 'error'); } } },
-    { id: 'memrec-stop', label: 'Stop Recording', hint: 'Stop audio recording', icon: '⏹️', action: async () => { MemoryCapture?.stop?.(); await window.vex.memoryStop(); document.getElementById('global-rec-badge')?.remove(); window.showToast?.('Recording stopped', 'success'); } },
-    { id: 'memrec-forget-5', label: 'Forget Last 5 Minutes', hint: 'Delete recent recordings', icon: '🗑️', action: async () => { if (!confirm('Forget the last 5 minutes?')) return; const r = await window.vex.memoryForgetRecent(5); window.showToast?.(`Deleted ${r.deleted} conversation(s)`, 'success'); } }
   ],
 
   init() {
