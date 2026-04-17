@@ -60,6 +60,45 @@ app.on('open-url', (event, url) => {
 // Storage helpers
 const userDataPath = app.getPath('userData');
 
+// === Download tracking helper (hoisted so private-window sessions can reuse it) ===
+function _broadcastDownloadEvent(channel, data) {
+  BrowserWindow.getAllWindows().forEach(w => {
+    if (!w.isDestroyed()) { try { w.webContents.send(channel, data); } catch {} }
+  });
+}
+function wireDownloadsOnSession(ses, tag) {
+  if (!ses || ses.__vexDownloadsWired) return;
+  ses.__vexDownloadsWired = true;
+  ses.on('will-download', (event, item) => {
+    const savePath = path.join(app.getPath('downloads'), item.getFilename());
+    item.setSavePath(savePath);
+    const info = {
+      id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      fileName: item.getFilename(),
+      url: item.getURL(),
+      totalBytes: item.getTotalBytes(),
+      path: savePath,
+      startedAt: new Date().toISOString()
+    };
+    console.log(`[Downloads] (${tag || 'session'}) start:`, info.fileName, info.totalBytes, 'bytes');
+    _broadcastDownloadEvent('download-started', info);
+    item.on('updated', (_e, state) => {
+      _broadcastDownloadEvent('download-progress', {
+        id: info.id,
+        receivedBytes: item.getReceivedBytes(),
+        totalBytes: item.getTotalBytes(),
+        state
+      });
+    });
+    item.once('done', (_e, state) => {
+      console.log(`[Downloads] (${tag || 'session'}) done:`, info.fileName, state);
+      _broadcastDownloadEvent('download-complete', {
+        id: info.id, fileName: info.fileName, state, path: savePath
+      });
+    });
+  });
+}
+
 // === Phase 18: Chrome extension loader ===
 const extensionsDir = path.join(userDataPath, 'extensions');
 if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true });
@@ -462,38 +501,12 @@ function createWindow() {
   session.defaultSession.setUserAgent(chromeUA);
   partitions.forEach(p => session.fromPartition(p).setUserAgent(chromeUA));
 
-  // Downloads with full tracking
-  session.defaultSession.on('will-download', (event, item) => {
-    const savePath = path.join(app.getPath('downloads'), item.getFilename());
-    item.setSavePath(savePath);
-
-    const downloadInfo = {
-      id: Date.now().toString(),
-      fileName: item.getFilename(),
-      url: item.getURL(),
-      totalBytes: item.getTotalBytes(),
-      path: savePath,
-      startedAt: new Date().toISOString()
-    };
-    mainWindow.webContents.send('download-started', downloadInfo);
-
-    item.on('updated', (e, state) => {
-      mainWindow.webContents.send('download-progress', {
-        id: downloadInfo.id,
-        receivedBytes: item.getReceivedBytes(),
-        state: state
-      });
-    });
-
-    item.once('done', (e, state) => {
-      mainWindow.webContents.send('download-complete', {
-        id: downloadInfo.id,
-        fileName: downloadInfo.fileName,
-        state: state,
-        path: savePath
-      });
-    });
-  });
+  // Downloads — wire on every session tabs might use. Previously only the
+  // default session had a listener, so webview downloads (partition=persist:main)
+  // silently saved with no IPC to the renderer → panel stayed empty.
+  wireDownloadsOnSession(session.defaultSession, 'default');
+  wireDownloadsOnSession(session.fromPartition('persist:main'), 'persist:main');
+  partitions.forEach(p => wireDownloadsOnSession(session.fromPartition(p), p));
 
 
   // Fullscreen change events
@@ -778,8 +791,23 @@ ipcMain.handle('is-fullscreen', () => {
   return mainWindow ? mainWindow.isFullScreen() : false;
 });
 
+// Downloads IPC — open/show
+ipcMain.handle('downloads:open-file', async (_e, filePath) => {
+  try { const r = await shell.openPath(filePath); return { ok: !r, error: r || null }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('downloads:show-in-folder', (_e, filePath) => {
+  try { shell.showItemInFolder(filePath); return { ok: true }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('downloads:open-folder', async () => {
+  try { await shell.openPath(app.getPath('downloads')); return { ok: true }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('open-private-window', () => {
   const privSession = session.fromPartition(`private:${Date.now()}`);
+  wireDownloadsOnSession(privSession, 'private');
   // Apply header stripping + ad blocker to private session
   privSession.webRequest.onHeadersReceived((details, callback) => {
     const rh = { ...details.responseHeaders };

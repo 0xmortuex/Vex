@@ -462,6 +462,10 @@
   // === Phase 9: Updates + Welcome ===
   UpdateNotifier.init();
 
+  // Downloads: subscribe to events at startup so downloads before panel-open
+  // still register (toast + badge).
+  if (typeof DownloadsPanel !== 'undefined') DownloadsPanel.bootstrap?.();
+
   // === Phase 15: Personas ===
   if (typeof PersonasManager !== 'undefined') PersonasManager.init();
 

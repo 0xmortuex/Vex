@@ -55,3 +55,36 @@
 .downloads-empty {
   padding: 60px; text-align: center; color: var(--text-muted); font-size: 14px;
 }
+
+/* Sidebar badge for in-progress downloads */
+.sidebar-icon { position: relative; }
+.sidebar-icon .icon-badge {
+  position: absolute;
+  top: 2px; right: 2px;
+  min-width: 16px; height: 16px;
+  padding: 0 4px; box-sizing: border-box;
+  background: var(--primary); color: white;
+  border-radius: 8px;
+  font-size: 10px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* Extra downloads header / action buttons */
+.downloads-actions { display: flex; align-items: center; gap: 8px; }
+.downloads-actions .btn-link {
+  background: transparent; border: none;
+  color: var(--primary); font-size: 12px;
+  cursor: pointer; font-family: 'Outfit', sans-serif;
+  padding: 4px 6px;
+}
+.downloads-actions .btn-link:hover { text-decoration: underline; }
+.download-actions { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+.dl-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 4px 8px; border-radius: 4px;
+  font-size: 11px; cursor: pointer; font-family: 'Outfit', sans-serif;
+}
+.dl-btn:hover { border-color: var(--primary); }
+.download-item { display: flex; align-items: center; }

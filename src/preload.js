@@ -36,9 +36,12 @@ contextBridge.exposeInMainWorld('vex', {
   openPipWindow: (url) => ipcRenderer.invoke('open-pip-window', url),
 
   // Downloads (with progress tracking)
-  onDownloadStarted: (callback) => ipcRenderer.on('download-started', callback),
-  onDownloadProgress: (callback) => ipcRenderer.on('download-progress', callback),
-  onDownloadComplete: (callback) => ipcRenderer.on('download-complete', callback),
+  onDownloadStarted:  (cb) => ipcRenderer.on('download-started',  (_e, d) => cb(d)),
+  onDownloadProgress: (cb) => ipcRenderer.on('download-progress', (_e, d) => cb(d)),
+  onDownloadComplete: (cb) => ipcRenderer.on('download-complete', (_e, d) => cb(d)),
+  downloadsOpenFile:     (p) => ipcRenderer.invoke('downloads:open-file', p),
+  downloadsShowInFolder: (p) => ipcRenderer.invoke('downloads:show-in-folder', p),
+  downloadsOpenFolder:   ()  => ipcRenderer.invoke('downloads:open-folder'),
 
   // Notes & Sessions shortcuts
   onToggleNotes: (callback) => ipcRenderer.on('toggle-notes', callback),
