@@ -556,15 +556,13 @@ const TabManager = {
       ...(tab.groupId ? [{ label: '\u2190 Remove from group', action: () => { tab.groupId = null; this.rebuildAllTabs(); this.persistTabs(); } }] : []),
       { sep: true },
       { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => this.toggleMuteTab(tab.id) },
-      { label: 'Mute All Others', action: () => this.muteAllOtherTabs() },
+      { label: 'Mute All Others', action: () => this.muteAllOtherTabs(tab.id) },
       { sep: true },
       { label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id) },
       { sep: true },
       { label: 'Close', action: () => this.closeTab(tab.id), danger: true },
-      { label: 'Close Others', action: () => {
-        const others = this.tabs.filter(t => t.id !== tab.id).map(t => t.id);
-        others.forEach(id => this.closeTab(id));
-      }, danger: true }
+      { label: 'Close Others', action: () => this.closeOtherTabs(tab.id), danger: true },
+      { label: 'Close Tabs to the Right', action: () => this.closeTabsToTheRight(tab.id), danger: true }
     ];
 
     items.forEach(item => {
@@ -800,14 +798,46 @@ const TabManager = {
     }
   },
 
-  muteAllOtherTabs() {
+  muteAllOtherTabs(keepId) {
+    const keep = keepId || this.activeTabId;
     this.tabs.forEach(t => {
-      if (t.id !== this.activeTabId) {
+      if (t.id !== keep) {
         const wv = WebviewManager.webviews.get(t.id);
         if (wv) { wv.setAudioMuted(true); t.muted = true; }
       }
     });
     this.rebuildAllTabs();
+  },
+
+  // Close every tab except the specified one; pinned tabs are preserved.
+  // Switches to the kept tab first so we never briefly activate a tab we're
+  // about to destroy (which caused flicker + potential webview race conditions).
+  closeOtherTabs(keepId) {
+    const keep = keepId || this.activeTabId;
+    if (!keep) return;
+    const toClose = this.tabs.filter(t => t.id !== keep && !t.pinned).map(t => t.id);
+    if (!toClose.length) {
+      window.showToast?.('No other tabs to close', 'info');
+      return;
+    }
+    if (this.activeTabId !== keep) this.switchTab(keep);
+    toClose.forEach(id => this.closeTab(id));
+    window.showToast?.(`Closed ${toClose.length} other tab${toClose.length === 1 ? '' : 's'}`, 'success');
+  },
+
+  // Close tabs that appear *after* the given anchor in display order;
+  // pinned tabs are preserved.
+  closeTabsToTheRight(anchorId) {
+    const idx = this.tabs.findIndex(t => t.id === anchorId);
+    if (idx < 0) return;
+    const toClose = this.tabs.slice(idx + 1).filter(t => !t.pinned).map(t => t.id);
+    if (!toClose.length) {
+      window.showToast?.('No tabs to the right', 'info');
+      return;
+    }
+    if (toClose.includes(this.activeTabId)) this.switchTab(anchorId);
+    toClose.forEach(id => this.closeTab(id));
+    window.showToast?.(`Closed ${toClose.length} tab${toClose.length === 1 ? '' : 's'} to the right`, 'success');
   },
 
   // === Pin/Unpin (icon-only mode) ===
