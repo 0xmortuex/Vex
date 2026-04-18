@@ -51,10 +51,9 @@ body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 44px); }
   padding: 0 10px;
   height: 32px;
   min-width: 44px;            /* hard minimum = favicon only */
-  max-width: 240px;           /* widest a tab can get */
-  /* basis:0 + grow:1 lets tabs share free space equally up to max-width
-     so a handful of tabs actually expand to fill the bar instead of
-     stopping at their 200 px basis. */
+  max-width: none;            /* no upper cap — tabs always fill the bar */
+  /* basis:0 + grow:1 makes every tab share free space equally, so with
+     no cap above they expand all the way to the trailing +-button. */
   flex: 1 1 0;
   background: transparent;
   border: 1px solid transparent;
