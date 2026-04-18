@@ -493,6 +493,31 @@ function _persistSaveDebounced() {
   }, 250);
 }
 ipcMain.handle('persist-get-all', () => _persistLoad());
+
+// === Geolocation preference exposed to webview preloads ===
+// The preload polyfill (preload-webview.js) runs in guest processes and can't
+// touch the renderer's localStorage directly, so it asks us. We read from the
+// already-loaded persist cache — values land here as the same JSON-stringified
+// strings the renderer wrote via persist-set, so JSON.parse is required.
+function _readPersistString(key, fallback) {
+  const raw = _persistLoad()[key];
+  if (raw == null) return fallback;
+  try { return JSON.parse(raw); }
+  catch { return typeof raw === 'string' ? raw : fallback; }
+}
+ipcMain.handle('geolocation:get', () => {
+  const mode = _readPersistString('vex.locationMode', 'manual');
+  if (mode === 'off') return { mode: 'off' };
+  if (mode === 'manual') {
+    const m = _readPersistString('vex.manualLocation', null);
+    if (m && typeof m.latitude === 'number' && typeof m.longitude === 'number') {
+      return { mode: 'manual', latitude: m.latitude, longitude: m.longitude };
+    }
+    // No coords saved yet — fall through to IP so first-run isn't broken.
+    return { mode: 'ip' };
+  }
+  return { mode: 'ip' };
+});
 ipcMain.handle('persist-set', (_e, key, value) => {
   const data = _persistLoad();
   data[key] = value;

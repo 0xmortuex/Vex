@@ -119,6 +119,10 @@ const SidebarManager = {
       // Site permissions manager each time Settings opens
       PermissionsSettings.render(document.getElementById('permissions-panel-content'));
     }
+    if (panelName === 'settings' && typeof LocationSettings !== 'undefined') {
+      // Manual-location override (replaces Google Cloud geolocation)
+      LocationSettings.render(document.getElementById('location-panel-content'));
+    }
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {

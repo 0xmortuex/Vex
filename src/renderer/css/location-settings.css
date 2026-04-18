@@ -1,0 +1,163 @@
+/* === Vex Location Settings === */
+
+.location-mode-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 14px;
+}
+.mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.mode-option:hover { border-color: var(--primary); }
+.mode-option.active {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
+}
+.mode-option input[type="radio"] {
+  margin-top: 2px;
+  accent-color: var(--primary);
+}
+.mode-option strong {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+}
+.mode-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: 'Outfit', sans-serif;
+}
+
+.manual-location-form {
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.manual-location-form h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+}
+.manual-location-form .form-field { margin-bottom: 10px; }
+.manual-location-form .form-field label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.manual-location-form input[type="number"],
+.manual-location-form input[type="text"] {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.manual-location-form input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.location-helpers {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 4px;
+}
+.location-helpers .btn-secondary {
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+}
+.location-helpers .btn-secondary:hover { border-color: var(--primary); }
+
+.preset-cities {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.preset-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.preset-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  margin-right: 4px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+}
+.preset-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.manual-location-form .btn-primary {
+  padding: 8px 16px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+}
+.manual-location-form .btn-primary:hover { filter: brightness(1.1); }
+
+.location-preview {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(34, 197, 94, 0.06);
+  border-left: 3px solid #22c55e;
+  border-radius: 6px;
+}
+.preview-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.preview-coords {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 2px;
+}
+.preview-name {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: 'Outfit', sans-serif;
+}
