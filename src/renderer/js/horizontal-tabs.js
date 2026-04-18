@@ -141,6 +141,13 @@ const HorizontalTabs = (() => {
     if (origSwitch) {
       TabManager.switchTab = function (id) { origSwitch(id); render(); };
     }
+    // closeTab only removes the sidebar .tab-item; for inactive tabs it never
+    // triggers switchTab, so without this patch the stale .top-tab stays in
+    // the horizontal bar and the user has to "click to close" twice.
+    const origClose = TabManager.closeTab?.bind(TabManager);
+    if (origClose) {
+      TabManager.closeTab = function (id) { origClose(id); render(); };
+    }
   }
 
   // Toggle narrow/very-narrow classes based on the *average* width each tab
