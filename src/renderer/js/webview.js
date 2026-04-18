@@ -82,6 +82,12 @@ const WebviewManager = {
         if (typeof HistoryPanel !== 'undefined') {
           HistoryPanel.addEntry(url, t?.title || url, t?.favicon);
         }
+        // Phase 16 auto-grouping: try to match against remembered patterns.
+        // The call internally waits for the title to settle and uses purely
+        // local pattern matching (domains + keywords) — no AI round-trip.
+        if (typeof TabGrouper !== 'undefined') {
+          TabGrouper.maybeAutoAssignToGroup?.(tab.id);
+        }
       }
     });
 

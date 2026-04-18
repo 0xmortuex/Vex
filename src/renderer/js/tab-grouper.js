@@ -6,10 +6,20 @@
 const TabGrouper = (() => {
   const THRESHOLD_UNGROUPED = 12;
   const CHECK_COOLDOWN_MS = 30 * 60 * 1000;
+  const ANALYSIS_CACHE_MS = 30 * 1000;
+  const REJECTED_PATTERNS_MAX = 50;
+  const AUTO_ASSIGN_DELAY_MS = 2500;
 
   let lastSuggestionAt = 0;
   let lastGroupedSnapshot = null; // for undo
-  let groupPatterns = {};         // groupId -> { pattern, groupName, createdAt }
+  let groupPatterns = {};         // groupId -> { pattern, groupName, domains, keywords, createdAt }
+  const _analysisCache = new Map();
+
+  const STOPWORDS = new Set([
+    'the','a','an','is','are','was','were','be','been','of','to','in','for',
+    'on','with','by','and','or','but','from','this','that','these','those',
+    'it','its','at','as','page','site','about','home','com','www','new','free'
+  ]);
 
   const COLOR_HEX = {
     indigo: '#6366f1', cyan: '#06b6d4', green: '#10b981',
@@ -126,25 +136,35 @@ const TabGrouper = (() => {
   async function analyzeAndPropose(onlyUngrouped = true) {
     const all = _allTabs();
     const tabsToAnalyze = onlyUngrouped ? all.filter(t => !t.groupId) : all;
-    if (tabsToAnalyze.length < 3) { _toast('Need at least 3 tabs to propose groupings', 'warn'); return; }
+    if (tabsToAnalyze.length < 3) { _toast('Need at least 3 ungrouped tabs to propose groupings', 'warn'); return; }
 
-    _toast('Analyzing your tabs...', 'info', 5000);
+    const loading = showLoadingModal('Analyzing your tabs...');
 
     try {
+      // Compact payload: ~60-char title, bare hostname, ~100-char summary.
+      // Previously we sent full URLs and 160-char summaries per tab; with 40
+      // tabs that's ~8 kB on the wire and ~3 k input tokens for no quality gain.
       const history = _load('vex.history', []) || [];
-      // Phase 12 history entries live as an array (HistoryPanel.entries) OR the
-      // shape might be { entries: [] } from older versions — handle both.
       const historyEntries = Array.isArray(history) ? history : (history.entries || []);
-
       const tabMeta = tabsToAnalyze.map(t => {
         const h = historyEntries.find(e => e && e.url === t.url);
         return {
           id: t.id,
-          title: (t.title || '').substring(0, 120),
-          url: t.url,
-          summary: (h && h.summary) ? String(h.summary).substring(0, 160) : ''
+          t: (t.title || '').substring(0, 60),
+          u: _domain(t.url),
+          s: (h && h.summary) ? String(h.summary).substring(0, 100) : ''
         };
       });
+
+      // Debounce duplicate clicks: if the same tab set was analyzed in the
+      // last 30 s, reuse the cached proposal rather than re-billing the AI.
+      const cacheKey = tabMeta.map(t => t.id).sort().join(',');
+      const cached = _analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.at < ANALYSIS_CACHE_MS) {
+        loading.close();
+        showPreviewModal(cached.result, tabsToAnalyze);
+        return;
+      }
 
       if (typeof AIRouter === 'undefined') throw new Error('AIRouter not loaded');
       const response = await AIRouter.callAI('groupTabs', { tabs: tabMeta });
@@ -157,19 +177,122 @@ const TabGrouper = (() => {
         throw new Error('AI returned malformed response');
       }
 
-      if (!parsed.groups || parsed.groups.length === 0) {
-        _toast(parsed.reasoning || 'No clear groupings found.', 'info', 6000);
+      parsed.groups = (parsed.groups || []).filter(g => g && g.name && Array.isArray(g.tabIds) && g.tabIds.length >= 2);
+
+      // Drop groups matching patterns the user already rejected.
+      const rejected = _load('vex.rejectedGroupPatterns', []);
+      if (rejected.length && parsed.groups.length) {
+        parsed.groups = parsed.groups.filter(g =>
+          !g.pattern || !rejected.some(r => _similarity(r, g.pattern) > 0.85)
+        );
+      }
+
+      _analysisCache.set(cacheKey, { result: parsed, at: Date.now() });
+      loading.close();
+
+      if (!parsed.groups.length) {
+        _toast(parsed.reasoning || 'No strong groupings found.', 'info', 6000);
         return;
       }
 
-      // Filter: every group needs 2+ tabs and a name
-      parsed.groups = parsed.groups.filter(g => g && g.name && Array.isArray(g.tabIds) && g.tabIds.length >= 2);
-      if (!parsed.groups.length) { _toast('No strong groupings found.', 'info'); return; }
-
       showPreviewModal(parsed, tabsToAnalyze);
     } catch (err) {
+      loading.close();
       _toast(`Grouping failed: ${err.message}`, 'error');
     }
+  }
+
+  // ---------- Loading modal ----------
+  function showLoadingModal(message) {
+    const overlay = document.createElement('div');
+    overlay.className = 'sync-modal-overlay group-loading-overlay';
+    overlay.innerHTML = `
+      <div class="sync-modal-card loading-card">
+        <div class="spinner"></div>
+        <div class="loading-message">${_esc(message)}</div>
+        <div class="loading-hint">This usually takes 3\u20138 seconds</div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    return {
+      close: () => overlay.remove(),
+      updateMessage: (m) => {
+        const el = overlay.querySelector('.loading-message');
+        if (el) el.textContent = m;
+      }
+    };
+  }
+
+  // ---------- URL + text helpers ----------
+  function _domain(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); }
+    catch { return (url || '').substring(0, 40); }
+  }
+
+  function _similarity(a, b) {
+    if (!a || !b) return 0;
+    const wa = new Set(String(a).toLowerCase().split(/\s+/).filter(Boolean));
+    const wb = new Set(String(b).toLowerCase().split(/\s+/).filter(Boolean));
+    if (!wa.size || !wb.size) return 0;
+    let inter = 0;
+    for (const w of wa) if (wb.has(w)) inter++;
+    const union = new Set([...wa, ...wb]).size;
+    return union ? inter / union : 0;
+  }
+
+  function _extractKeywords(pattern, tabs) {
+    const text = (pattern + ' ' + tabs.map(t => t.title || '').join(' ')).toLowerCase();
+    const words = text.match(/[a-z]{4,}/gi) || [];
+    const counts = {};
+    for (const w of words) {
+      const lw = w.toLowerCase();
+      if (STOPWORDS.has(lw)) continue;
+      counts[lw] = (counts[lw] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .filter(([, c]) => c >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([w]) => w);
+  }
+
+  // ---------- Auto-assign new tab into an existing group (local-only) ----------
+  // Purely pattern-based: domain match first, then title keyword. No AI calls
+  // per-tab — those are expensive and add seconds of latency to every tab.
+  async function maybeAutoAssignToGroup(tabId) {
+    if (!tabId) return;
+    if (_load('vex.autoAddToGroups', true) === false) return;
+    if (!Object.keys(groupPatterns).length) return;
+    const tab0 = _allTabs().find(t => t.id === tabId);
+    if (!tab0 || tab0.groupId) return;
+
+    // Wait briefly for the page-title-updated event to settle, since
+    // did-navigate fires before the real title arrives.
+    await new Promise(r => setTimeout(r, AUTO_ASSIGN_DELAY_MS));
+    const tab = _allTabs().find(t => t.id === tabId);
+    if (!tab || tab.groupId) return;
+
+    const domain = _domain(tab.url);
+    const titleLower = (tab.title || '').toLowerCase();
+
+    for (const [gid, pd] of Object.entries(groupPatterns)) {
+      if (Array.isArray(pd.domains) && pd.domains.includes(domain)) {
+        _assignTabToGroup(tab.id, gid);
+        _afterGroupChanges();
+        _toast(`Added to "${pd.groupName}" (matched domain)`, 'info', 2500);
+        return;
+      }
+    }
+    for (const [gid, pd] of Object.entries(groupPatterns)) {
+      if (Array.isArray(pd.keywords) && pd.keywords.length
+        && pd.keywords.some(k => titleLower.includes(k))) {
+        _assignTabToGroup(tab.id, gid);
+        _afterGroupChanges();
+        _toast(`Added to "${pd.groupName}" (matched keyword)`, 'info', 2500);
+        return;
+      }
+    }
+    // No local match — leave ungrouped. User can organize next time.
   }
 
   // ---------- Preview modal ----------
@@ -281,6 +404,19 @@ const TabGrouper = (() => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.groupIdx, 10);
         edits.removedGroupIndices.add(idx);
+
+        // Remember this pattern so future analyses don't re-suggest it.
+        // Capped at 50 entries so this doesn't balloon in localStorage.
+        const rejectedPattern = edits.groups[idx]?.pattern;
+        if (rejectedPattern) {
+          const list = _load('vex.rejectedGroupPatterns', []) || [];
+          if (!list.includes(rejectedPattern)) {
+            list.push(rejectedPattern);
+            while (list.length > REJECTED_PATTERNS_MAX) list.shift();
+            _save('vex.rejectedGroupPatterns', list);
+          }
+        }
+
         btn.closest('.group-preview').style.display = 'none';
         const remaining = edits.groups.length - edits.removedGroupIndices.size;
         overlay.querySelector('#preview-apply').textContent = `Apply (${remaining} groups)`;
@@ -325,9 +461,16 @@ const TabGrouper = (() => {
       if (!newGroupId) continue;
       for (const tabId of g.tabIds) _assignTabToGroup(tabId, newGroupId);
       if (rememberPatterns && g.pattern) {
+        // Capture the domain + keyword signals so maybeAutoAssignToGroup can
+        // match future tabs locally without another AI round-trip.
+        const groupTabs = _allTabs().filter(t => g.tabIds.includes(t.id));
+        const domains = [...new Set(groupTabs.map(t => _domain(t.url)).filter(Boolean))];
+        const keywords = _extractKeywords(g.pattern, groupTabs);
         groupPatterns[newGroupId] = {
           pattern: g.pattern,
           groupName: g.name,
+          domains,
+          keywords,
           createdAt: new Date().toISOString()
         };
       }
@@ -390,12 +533,16 @@ const TabGrouper = (() => {
   function getPatterns() { return { ...groupPatterns }; }
   function clearPatterns() { groupPatterns = {}; _save('vex.groupPatterns', {}); }
   function removePattern(groupId) { delete groupPatterns[groupId]; _save('vex.groupPatterns', groupPatterns); }
+  function getRejectedPatterns() { return _load('vex.rejectedGroupPatterns', []) || []; }
+  function clearRejectedPatterns() { _save('vex.rejectedGroupPatterns', []); }
 
   return {
     init,
     analyzeAndPropose,
+    maybeAutoAssignToGroup,
     undoLastGrouping,
     getPatterns, clearPatterns, removePattern,
+    getRejectedPatterns, clearRejectedPatterns,
     THRESHOLD_UNGROUPED
   };
 })();

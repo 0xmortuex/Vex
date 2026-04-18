@@ -14,7 +14,8 @@ const AIRouter = (() => {
     historyIndex: 'local',
     historySearch: 'cloud',
     agent: 'cloud',
-    multiTab: 'cloud'
+    multiTab: 'cloud',
+    groupTabs: 'auto'
   };
 
   let routingPrefs = { ...DEFAULT_ROUTING };

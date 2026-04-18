@@ -174,3 +174,30 @@
   font-family: 'Outfit', sans-serif;
 }
 .undo-btn:hover { filter: brightness(1.1); }
+
+/* Loading modal — shown while AI analyses tabs (3-8 s) */
+.loading-card {
+  text-align: center;
+  padding: 40px 60px;
+  min-width: 300px;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  animation: tab-grouper-spin 1s linear infinite;
+}
+@keyframes tab-grouper-spin { to { transform: rotate(360deg); } }
+.loading-message {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 6px;
+  font-family: 'Outfit', sans-serif;
+}
+.loading-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'Outfit', sans-serif;
+}

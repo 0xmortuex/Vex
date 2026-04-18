@@ -410,11 +410,19 @@
     showToast('Patterns cleared', 'success');
     updateGroupPatternsCount();
   });
+  document.getElementById('btn-clear-rejected')?.addEventListener('click', () => {
+    TabGrouper?.clearRejectedPatterns?.();
+    showToast('Rejected suggestions cleared \u2014 AI will suggest all types of groups again', 'success');
+    updateGroupPatternsCount();
+  });
   function updateGroupPatternsCount() {
     const el = document.getElementById('group-patterns-count');
     if (!el || !window.TabGrouper) return;
     const n = Object.keys(TabGrouper.getPatterns()).length;
-    el.textContent = n === 0 ? '\ud83d\udcca No patterns yet' : `\ud83d\udcca ${n} pattern${n === 1 ? '' : 's'} active`;
+    const r = (TabGrouper.getRejectedPatterns?.() || []).length;
+    const patternsPart = n === 0 ? '\ud83d\udcca No patterns yet' : `\ud83d\udcca ${n} pattern${n === 1 ? '' : 's'} active`;
+    const rejectedPart = r > 0 ? ` \u00b7 ${r} rejected` : '';
+    el.textContent = patternsPart + rejectedPart;
   }
   updateGroupPatternsCount();
   setInterval(updateGroupPatternsCount, 5000);
