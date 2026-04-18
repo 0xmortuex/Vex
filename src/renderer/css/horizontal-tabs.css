@@ -52,7 +52,10 @@ body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 44px); }
   height: 32px;
   min-width: 44px;            /* hard minimum = favicon only */
   max-width: 240px;           /* widest a tab can get */
-  flex: 1 1 200px;            /* grow from 200 px, shrink if needed */
+  /* basis:0 + grow:1 lets tabs share free space equally up to max-width
+     so a handful of tabs actually expand to fill the bar instead of
+     stopping at their 200 px basis. */
+  flex: 1 1 0;
   background: transparent;
   border: 1px solid transparent;
   border-bottom: none;

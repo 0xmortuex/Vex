@@ -159,10 +159,16 @@ const HorizontalTabs = (() => {
   function applyTabSizeClasses() {
     const container = document.getElementById('top-tabs-list');
     if (!container) return;
-    const tabs = container.querySelectorAll('.top-tab:not(.pinned)');
+    const tabs = Array.from(container.querySelectorAll('.top-tab:not(.pinned)'));
     if (!tabs.length) return;
 
-    const avg = container.clientWidth / tabs.length;
+    // Measure actual rendered widths — pinned tabs share the bar but shouldn't
+    // factor into the average, and the old container-width/count estimate
+    // mis-classified when a pinned row or group label was present.
+    let total = 0;
+    for (const t of tabs) total += t.getBoundingClientRect().width;
+    const avg = total / tabs.length;
+
     const narrow     = avg < 80;   // below ~6 chars — hide title
     const veryNarrow = avg < 56;   // too tight for close button
 
