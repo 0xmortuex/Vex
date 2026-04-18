@@ -92,16 +92,31 @@ const HorizontalTabs = (() => {
     `;
 
     el.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-close')) return;
+      // If click originated on or inside the close button (e.g. on the SVG),
+      // skip the tab switch entirely.
+      if (e.target.closest('.tab-close')) return;
       TabManager.switchTab(tab.id);
     });
     el.addEventListener('auxclick', (e) => {
-      if (e.button === 1) { e.preventDefault(); TabManager.closeTab(tab.id); }
+      if (e.button === 1) { e.preventDefault(); e.stopPropagation(); TabManager.closeTab(tab.id); }
     });
-    el.querySelector('.tab-close')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      TabManager.closeTab(tab.id);
-    });
+    const closeBtn = el.querySelector('.tab-close');
+    if (closeBtn) {
+      // mousedown fires before click; stop it here so the parent tab never
+      // "selects" during the press that's meant to close an inactive tab.
+      closeBtn.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+      });
+      closeBtn.addEventListener('mouseup', (e) => {
+        e.stopPropagation();
+      });
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        TabManager.closeTab(tab.id);
+      });
+    }
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       TabManager.showContextMenu?.(e, tab);
