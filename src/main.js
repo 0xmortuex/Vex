@@ -381,6 +381,40 @@ ipcMain.handle('extensions:open-folder', () => { shell.openPath(extensionsDir); 
 // Load installed extensions once the app is ready
 app.whenReady().then(() => { loadAllExtensionsOnStartup().catch(() => {}); });
 
+// === External protocol forwarding ===
+// Custom-scheme URLs (roblox://, mailto:, discord://, etc.) aren't handled by
+// Chromium — by default they error with ERR_UNKNOWN_URL_SCHEME inside a
+// webview. Forward recognised ones to the OS via shell.openExternal so the
+// installed desktop app launches. Note: webRequest.onBeforeRequest is a
+// network-pipeline hook and never sees non-http schemes, so intercept at the
+// navigation layer (will-navigate + setWindowOpenHandler) instead.
+const EXTERNAL_PROTOCOLS = new Set([
+  'roblox', 'roblox-player', 'roblox-studio',
+  'mailto', 'tel', 'sms',
+  'msteams', 'slack', 'zoommtg', 'zoomus', 'skype', 'discord',
+  'vscode', 'vscode-insiders', 'obsidian',
+  'spotify', 'steam',
+  'ms-word', 'ms-excel', 'ms-powerpoint',
+  'itmss', 'itms', 'itms-apps',
+  'web+mastodon'
+]);
+
+function isExternalProtocol(url) {
+  if (!url) return false;
+  const m = /^([a-z][a-z0-9+.-]*):/i.exec(url);
+  if (!m) return false;
+  return EXTERNAL_PROTOCOLS.has(m[1].toLowerCase());
+}
+
+function handleExternalProtocol(url) {
+  if (!isExternalProtocol(url)) return false;
+  console.log(`[Protocol] Forwarding to OS: ${url}`);
+  shell.openExternal(url).catch(err => {
+    console.error('[Protocol] openExternal failed:', err.message);
+  });
+  return true;
+}
+
 // === Route webview new-window requests into Vex tabs (not new BrowserWindows) ===
 // The renderer's webview 'new-window' DOM event is legacy and unreliable in
 // Electron 30+. setWindowOpenHandler in main is the supported path.
@@ -392,6 +426,12 @@ app.on('web-contents-created', (_event, contents) => {
 
   contents.setWindowOpenHandler((details) => {
     const { url, disposition } = details || {};
+    // External-protocol window.open (e.g. Roblox Play button spawns a hidden
+    // window to roblox-player://…) — forward to the OS instead of creating a
+    // dead tab that would just error out.
+    if (handleExternalProtocol(url)) {
+      return { action: 'deny' };
+    }
     console.log(`[new-window] ${disposition} -> ${url}`);
     try {
       const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
@@ -403,6 +443,15 @@ app.on('web-contents-created', (_event, contents) => {
       }
     } catch (err) { console.error('[new-window] forward failed:', err.message); }
     return { action: 'deny' };
+  });
+
+  // Same story for top-level navigations: some Roblox flows swap the current
+  // webview's location to roblox-player://…, so catch those before Chromium
+  // blocks them.
+  contents.on('will-navigate', (evt, url) => {
+    if (handleExternalProtocol(url)) {
+      evt.preventDefault();
+    }
   });
 
   // Block window.onbeforeunload confirm prompts (prevents "Leave page?" spam
