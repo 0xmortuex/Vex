@@ -28,8 +28,32 @@ const SidebarManager = {
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
       btn.addEventListener('click', () => {
         const panel = btn.dataset.panel;
+        // The "Start Page" (house) icon has no corresponding panel UI —
+        // panel-start is an empty div — so opening it used to blank the
+        // webview area. Route it to open/focus the real start-page tab
+        // (start.html, the new-tab page) instead.
+        if (panel === 'start') {
+          this.openStartPage();
+          return;
+        }
         this.togglePanel(panel);
       });
+    });
+  },
+
+  openStartPage() {
+    if (this.activePanel) this.hideActivePanel();
+    const existing = TabManager.tabs.find(t =>
+      typeof isStartPage === 'function' ? isStartPage(t.url) : false
+    );
+    if (existing) {
+      TabManager.switchTab(existing.id);
+    } else {
+      const url = typeof START_URL !== 'undefined' ? START_URL : 'vex://start';
+      TabManager.createTab(url, true);
+    }
+    document.querySelectorAll('.sidebar-icon').forEach(b => {
+      b.classList.toggle('active', b.dataset.panel === 'start');
     });
   },
 
