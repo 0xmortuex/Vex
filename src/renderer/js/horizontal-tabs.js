@@ -128,16 +128,25 @@ const HorizontalTabs = (() => {
     }
   }
 
-  // Toggle narrow/very-narrow classes based on each tab's rendered width so
-  // titles + close buttons hide gracefully when the bar is packed. CSS
-  // container-queries aren't reliable in Electron 30's Chromium, so do it
-  // in JS.
+  // Toggle narrow/very-narrow classes based on the *average* width each tab
+  // would get in the container. This is more stable than per-tab measurement
+  // because freshly rendered tabs may briefly measure at their flex-basis
+  // (200 px) before the browser settles the layout, causing false-negative
+  // "wide" reads. CSS container queries aren't reliable in Electron 30's
+  // Chromium, so we compute this in JS.
   function applyTabSizeClasses() {
-    const tabs = document.querySelectorAll('#top-tabs-list .top-tab:not(.pinned)');
+    const container = document.getElementById('top-tabs-list');
+    if (!container) return;
+    const tabs = container.querySelectorAll('.top-tab:not(.pinned)');
+    if (!tabs.length) return;
+
+    const avg = container.clientWidth / tabs.length;
+    const narrow     = avg < 80;   // below ~6 chars — hide title
+    const veryNarrow = avg < 56;   // too tight for close button
+
     for (const tab of tabs) {
-      const w = tab.getBoundingClientRect().width;
-      tab.classList.toggle('narrow', w < 110);
-      tab.classList.toggle('very-narrow', w < 60);
+      tab.classList.toggle('narrow', narrow);
+      tab.classList.toggle('very-narrow', veryNarrow);
     }
   }
 
@@ -163,9 +172,16 @@ const HorizontalTabs = (() => {
         list.scrollLeft += e.deltaY;
       }, { passive: false });
     }
-    // Window resize → re-evaluate narrow classes.
+    // Re-evaluate narrow classes whenever the bar itself resizes (sidebar
+    // toggles, devtools open, window resize, etc.) and on explicit resize.
+    const bar = document.getElementById('top-tab-bar');
+    if (bar && typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => applyTabSizeClasses()).observe(bar);
+    }
     window.addEventListener('resize', () => requestAnimationFrame(applyTabSizeClasses));
     render();
+    // Double-RAF so layout is fully settled before the first measurement.
+    requestAnimationFrame(() => requestAnimationFrame(applyTabSizeClasses));
   }
 
   return { init, render };

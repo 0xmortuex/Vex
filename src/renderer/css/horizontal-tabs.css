@@ -43,16 +43,16 @@ body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 44px); }
   -webkit-app-region: no-drag;
 }
 
-/* Individual tab */
+/* Individual tab — prefer wider, shrink gracefully */
 .top-tab {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 10px;
   height: 32px;
-  min-width: 40px;
-  max-width: 220px;
-  flex: 1 1 180px;            /* prefer 180 px, shrink to min */
+  min-width: 44px;            /* hard minimum = favicon only */
+  max-width: 240px;           /* widest a tab can get */
+  flex: 1 1 200px;            /* grow from 200 px, shrink if needed */
   background: transparent;
   border: 1px solid transparent;
   border-bottom: none;
@@ -78,7 +78,9 @@ body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 44px); }
   color: var(--text);
   z-index: 1;
   margin-bottom: -1px;
+  /* Same flex as others — don't override so active tab can't shrink away */
 }
+.top-tab.active .tab-title { font-weight: 600; }
 
 .top-tab .tab-favicon {
   width: 14px; height: 14px;
@@ -126,9 +128,9 @@ body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 44px); }
 
 /* Very narrow: hide close too, icon only */
 .top-tab.very-narrow {
-  min-width: 36px;
-  max-width: 36px;
-  flex: 0 0 36px;
+  min-width: 40px;
+  max-width: 40px;
+  flex: 0 0 40px;
   padding: 0;
   justify-content: center;
 }
