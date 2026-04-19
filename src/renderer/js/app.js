@@ -121,9 +121,17 @@
       // If sidebar panel is open, close it first
       SidebarManager.hideActivePanel();
 
-      const activeTab = TabManager.getActiveTab();
-      if (activeTab) {
-        WebviewManager.navigate(url);
+      // Ctrl+Enter / Alt+Enter → open in a new tab (Chrome/Edge convention).
+      if (e.ctrlKey || e.altKey) {
+        TabManager.createTab(url, true);
+      } else {
+        const activeTab = TabManager.getActiveTab();
+        if (activeTab) {
+          WebviewManager.navigate(url);
+        } else {
+          // No active tab — fall back to creating one so the URL doesn't drop.
+          TabManager.createTab(url, true);
+        }
       }
 
       urlInput.blur();

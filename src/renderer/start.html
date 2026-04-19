@@ -614,7 +614,15 @@
         card.addEventListener('click', (e) => {
           if (e.target.closest('.shortcut-edit-btn')) return;
           e.preventDefault();
-          console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url: s.url }));
+          // Ctrl/Alt-click on a shortcut tile → open in a new tab
+          const newTab = e.ctrlKey || e.altKey || e.metaKey || e.button === 1;
+          console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url: s.url, newTab }));
+        });
+        // Middle-click also opens in a new tab
+        card.addEventListener('auxclick', (e) => {
+          if (e.button !== 1) return;
+          e.preventDefault();
+          console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url: s.url, newTab: true }));
         });
         card.addEventListener('contextmenu', (e) => {
           e.preventDefault();
@@ -729,7 +737,9 @@
         } else {
           url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
         }
-        console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url }));
+        // Ctrl+Enter / Alt+Enter → new tab; plain Enter replaces this tab
+        const newTab = e.ctrlKey || e.altKey;
+        console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url, newTab }));
       }
     });
 
