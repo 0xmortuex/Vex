@@ -124,7 +124,15 @@ const WebviewManager = {
         try {
           const cmd = JSON.parse(e.message.slice(8));
           if (cmd.type === 'navigate' && cmd.url) {
-            TabManager.createTab(cmd.url, true);
+            // Navigate THIS webview (the start-page tab that emitted the command)
+            // rather than spawning a new tab. Matches Chrome's new-tab page where
+            // search submissions and shortcut clicks replace the current tab's
+            // content. Callers can opt in to a new tab with { newTab: true }.
+            if (cmd.newTab) {
+              TabManager.createTab(cmd.url, true);
+            } else {
+              try { webview.loadURL(cmd.url); } catch { webview.src = cmd.url; }
+            }
           } else if (cmd.type === 'open-panel' && cmd.panel) {
             SidebarManager.openPanel(cmd.panel);
           } else if (cmd.type === 'exit-reading') {
