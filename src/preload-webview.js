@@ -94,15 +94,16 @@
 // === Geolocation polyfill ===
 // Electron doesn't ship with a Google Network Location API key, so Chromium's
 // native navigator.geolocation returns POSITION_UNAVAILABLE on Windows even
-// after the user grants permission. We honour a user-configured location
-// (Settings → Location) first; if mode is 'ip' we fall back to ipapi.co /
-// ipwho.is; if 'off' we reject all requests.
+// after the user grants permission. Replacing navigator.geolocation also
+// bypasses Chromium's setPermissionRequestHandler for `geolocation`, so we
+// gate ourselves via an IPC round-trip to main (`geolocation:check-permission`)
+// which reuses Vex's existing prompt + persisted-decisions store.
+// Flow per call: permission check → Settings → Location / IP fallback.
 (function () {
-  try {
-    const proto = window.location.protocol;
-    if (proto === 'about:' || proto === 'chrome:' || proto === 'devtools:' ||
-        proto === 'vex:' || proto === 'data:' || proto === 'file:') return;
-  } catch { return; }
+  let proto;
+  try { proto = window.location.protocol; } catch { return; }
+  if (proto === 'about:' || proto === 'chrome:' || proto === 'devtools:' ||
+      proto === 'vex:' || proto === 'data:' || proto === 'file:') return;
 
   let ipcRenderer = null;
   try { ipcRenderer = require('electron').ipcRenderer; } catch {}
@@ -125,6 +126,15 @@
     if (!ipcRenderer) return null;
     try { return await ipcRenderer.invoke('geolocation:get'); }
     catch { return null; }
+  }
+
+  async function checkPermission() {
+    if (!ipcRenderer) return 'deny';
+    let origin = '';
+    try { origin = window.location.origin; } catch {}
+    try {
+      return await ipcRenderer.invoke('geolocation:check-permission', { origin });
+    } catch { return 'deny'; }
   }
 
   async function fetchIPLocation() {
@@ -157,8 +167,13 @@
   }
 
   async function resolve(success, error) {
-    const pref = await getPrefFromMain();
+    const decision = await checkPermission();
+    if (decision !== 'allow') {
+      _deny(error, 1, 'Geolocation permission denied');
+      return;
+    }
 
+    const pref = await getPrefFromMain();
     if (pref && pref.mode === 'off') {
       _deny(error, 1, 'Location access disabled in Vex settings');
       return;
@@ -167,9 +182,7 @@
       try { success(_pos(pref.latitude, pref.longitude, 20)); } catch {}
       return;
     }
-    // mode === 'ip' or pref missing → IP lookup, with Chromium's native
-    // geolocation as a best-effort first try (no-op on Windows without a
-    // Google API key, which is exactly why this polyfill exists).
+    // mode === 'ip' or pref missing → IP lookup
     const pos = await fetchIPLocation();
     if (pos) { try { success(pos); } catch {} return; }
     _deny(error, 2, 'Unable to determine location (IP fallback also failed)');
@@ -191,13 +204,10 @@
       if (watches.has(id)) { clearInterval(watches.get(id)); watches.delete(id); }
     }
   };
-  // Silence "unused" warnings — kept as a reference in case we later want a
-  // native-first path for platforms where Chromium geolocation works.
   void native;
 
   try {
     Object.defineProperty(navigator, 'geolocation', { value: wrapped, writable: false, configurable: true });
-    console.log('[Vex Geo] Geolocation polyfill installed (manual location → IP fallback)');
   } catch (err) {
     console.error('[Vex Geo] polyfill install failed:', err.message);
   }

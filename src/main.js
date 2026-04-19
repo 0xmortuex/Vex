@@ -509,14 +509,53 @@ ipcMain.handle('geolocation:get', () => {
   const mode = _readPersistString('vex.locationMode', 'manual');
   if (mode === 'off') return { mode: 'off' };
   if (mode === 'manual') {
-    const m = _readPersistString('vex.manualLocation', null);
-    if (m && typeof m.latitude === 'number' && typeof m.longitude === 'number') {
-      return { mode: 'manual', latitude: m.latitude, longitude: m.longitude };
+    let m = _readPersistString('vex.manualLocation', null);
+    if (m && m.v && typeof m.v === 'object') m = m.v;
+    const lat = m ? parseFloat(m.latitude) : NaN;
+    const lng = m ? parseFloat(m.longitude) : NaN;
+    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+      return { mode: 'manual', latitude: lat, longitude: lng };
     }
     // No coords saved yet — fall through to IP so first-run isn't broken.
     return { mode: 'ip' };
   }
   return { mode: 'ip' };
+});
+
+// Geolocation permission gate — the polyfill can't go through Chromium's
+// setPermissionRequestHandler because it has replaced navigator.geolocation,
+// so it asks us here. We reuse the existing permission prompt + decision store.
+ipcMain.handle('geolocation:check-permission', async (_e, { origin } = {}) => {
+  if (!origin || origin === 'null') return 'allow';
+
+  const decisions = loadPermissionDecisions();
+  const key = `${origin}::geolocation`;
+  if (decisions[key] === 'allow') return 'allow';
+  if (decisions[key] === 'deny') return 'deny';
+
+  const mainWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+  if (!mainWin) return 'deny';
+
+  return await new Promise((resolve) => {
+    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    let settled = false;
+    const settle = (allowed) => {
+      if (settled) return;
+      settled = true;
+      resolve(allowed ? 'allow' : 'deny');
+    };
+    // The existing permission:respond handler calls this with (true|false)
+    // and persists the decision itself when `remember` is set.
+    pendingPermissions.set(id, settle);
+    mainWin.webContents.send('permission:request', { id, origin, permission: 'geolocation' });
+
+    setTimeout(() => {
+      if (pendingPermissions.has(id)) {
+        pendingPermissions.delete(id);
+        settle(false);
+      }
+    }, 60000);
+  });
 });
 ipcMain.handle('persist-set', (_e, key, value) => {
   const data = _persistLoad();
