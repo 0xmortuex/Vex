@@ -93,122 +93,133 @@
 
 // === Geolocation polyfill ===
 // Electron doesn't ship with a Google Network Location API key, so Chromium's
-// native navigator.geolocation returns POSITION_UNAVAILABLE on Windows even
-// after the user grants permission. Replacing navigator.geolocation also
-// bypasses Chromium's setPermissionRequestHandler for `geolocation`, so we
-// gate ourselves via an IPC round-trip to main (`geolocation:check-permission`)
-// which reuses Vex's existing prompt + persisted-decisions store.
-// Flow per call: permission check → Settings → Location / IP fallback.
+// native navigator.geolocation returns POSITION_UNAVAILABLE on Windows. We
+// want to replace navigator.geolocation entirely and answer from Vex's
+// Settings → Location (or IP). But <webview webpreferences="contextIsolation=yes">
+// means this preload runs in an isolated world — Object.defineProperty(navigator,
+// 'geolocation', …) there modifies the isolated-world navigator, not the page's.
+// Two pieces therefore:
+//   1. expose a narrow IPC bridge to the main world via contextBridge, so the
+//      polyfill can ask Vex for the permission decision + coords
+//   2. inject the polyfill as a <script> into document.documentElement so it
+//      runs in the MAIN world where navigator.geolocation is the real one
 (function () {
   let proto;
   try { proto = window.location.protocol; } catch { return; }
   if (proto === 'about:' || proto === 'chrome:' || proto === 'devtools:' ||
       proto === 'vex:' || proto === 'data:' || proto === 'file:') return;
 
-  let ipcRenderer = null;
-  try { ipcRenderer = require('electron').ipcRenderer; } catch {}
-
-  const native = navigator.geolocation;
-
-  function _pos(lat, lng, accuracy) {
-    return {
-      coords: {
-        latitude: lat, longitude: lng,
-        accuracy: accuracy || 50000,
-        altitude: null, altitudeAccuracy: null,
-        heading: null, speed: null
-      },
-      timestamp: Date.now()
-    };
-  }
-
-  async function getPrefFromMain() {
-    if (!ipcRenderer) return null;
-    try { return await ipcRenderer.invoke('geolocation:get'); }
-    catch { return null; }
-  }
-
-  async function checkPermission() {
-    if (!ipcRenderer) return 'deny';
-    let origin = '';
-    try { origin = window.location.origin; } catch {}
-    try {
-      return await ipcRenderer.invoke('geolocation:check-permission', { origin });
-    } catch { return 'deny'; }
-  }
-
-  async function fetchIPLocation() {
-    try {
-      const r = await fetch('https://ipapi.co/json/', { headers: { 'Accept': 'application/json' } });
-      if (r.ok) {
-        const d = await r.json();
-        if (d && d.latitude && d.longitude) return _pos(parseFloat(d.latitude), parseFloat(d.longitude), 50000);
-      }
-    } catch (err) { console.warn('[Vex Geo] ipapi.co failed:', err.message); }
-    try {
-      const r = await fetch('https://ipwho.is/');
-      if (r.ok) {
-        const d = await r.json();
-        if (d && d.success && d.latitude && d.longitude) return _pos(parseFloat(d.latitude), parseFloat(d.longitude), 50000);
-      }
-    } catch (err) { console.warn('[Vex Geo] ipwho.is failed:', err.message); }
-    return null;
-  }
-
-  function _deny(error, code, message) {
-    if (!error) return;
-    try {
-      error({
-        code,
-        message,
-        PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3
-      });
-    } catch {}
-  }
-
-  async function resolve(success, error) {
-    const decision = await checkPermission();
-    if (decision !== 'allow') {
-      _deny(error, 1, 'Geolocation permission denied');
-      return;
-    }
-
-    const pref = await getPrefFromMain();
-    if (pref && pref.mode === 'off') {
-      _deny(error, 1, 'Location access disabled in Vex settings');
-      return;
-    }
-    if (pref && pref.mode === 'manual' && pref.latitude != null && pref.longitude != null) {
-      try { success(_pos(pref.latitude, pref.longitude, 20)); } catch {}
-      return;
-    }
-    // mode === 'ip' or pref missing → IP lookup
-    const pos = await fetchIPLocation();
-    if (pos) { try { success(pos); } catch {} return; }
-    _deny(error, 2, 'Unable to determine location (IP fallback also failed)');
-  }
-
-  const watches = new Map();
-  const wrapped = {
-    getCurrentPosition(success, error /*, options */) {
-      resolve(success, error).catch(() => _deny(error, 2, 'Geolocation resolution crashed'));
-    },
-    watchPosition(success, error, options) {
-      const id = Math.floor(Math.random() * 1e9) + 1;
-      wrapped.getCurrentPosition(success, error, options);
-      const interval = setInterval(() => wrapped.getCurrentPosition(success, error, options), 5 * 60 * 1000);
-      watches.set(id, interval);
-      return id;
-    },
-    clearWatch(id) {
-      if (watches.has(id)) { clearInterval(watches.get(id)); watches.delete(id); }
-    }
-  };
-  void native;
-
+  let contextBridge = null, ipcRenderer = null;
   try {
-    Object.defineProperty(navigator, 'geolocation', { value: wrapped, writable: false, configurable: true });
+    const electron = require('electron');
+    contextBridge = electron.contextBridge;
+    ipcRenderer = electron.ipcRenderer;
+  } catch { return; }
+  if (!ipcRenderer) return;
+
+  const bridge = {
+    checkPermission: (origin) => ipcRenderer.invoke('geolocation:check-permission', { origin }),
+    getPref:         ()       => ipcRenderer.invoke('geolocation:get')
+  };
+  try {
+    if (contextBridge && contextBridge.exposeInMainWorld) {
+      contextBridge.exposeInMainWorld('__vexGeoBridge', bridge);
+    } else {
+      // contextIsolation disabled (unlikely in webviews); expose directly.
+      try { window.__vexGeoBridge = bridge; } catch {}
+    }
   } catch (err) {
-    console.error('[Vex Geo] polyfill install failed:', err.message);
+    console.error('[Vex Geo] bridge expose failed:', err.message);
+    return;
   }
+
+  // Main-world polyfill. Template literal, serialized into a <script> tag.
+  const polyfillSrc = `(function () {
+    var bridge = window.__vexGeoBridge;
+    if (!bridge) return;
+
+    function _pos(lat, lng, accuracy) {
+      return {
+        coords: {
+          latitude: lat, longitude: lng,
+          accuracy: accuracy || 50000,
+          altitude: null, altitudeAccuracy: null,
+          heading: null, speed: null
+        },
+        timestamp: Date.now()
+      };
+    }
+    function _deny(error, code, message) {
+      if (!error) return;
+      try { error({ code: code, message: message, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 }); } catch (_) {}
+    }
+    async function fetchIPLocation() {
+      try {
+        var r = await fetch('https://ipapi.co/json/', { headers: { 'Accept': 'application/json' } });
+        if (r.ok) {
+          var d = await r.json();
+          if (d && d.latitude && d.longitude) return _pos(parseFloat(d.latitude), parseFloat(d.longitude), 50000);
+        }
+      } catch (_) {}
+      try {
+        var r2 = await fetch('https://ipwho.is/');
+        if (r2.ok) {
+          var d2 = await r2.json();
+          if (d2 && d2.success && d2.latitude && d2.longitude) return _pos(parseFloat(d2.latitude), parseFloat(d2.longitude), 50000);
+        }
+      } catch (_) {}
+      return null;
+    }
+    async function resolve(success, error) {
+      var decision = 'deny';
+      try { decision = await bridge.checkPermission(window.location.origin); } catch (_) {}
+      if (decision !== 'allow') { _deny(error, 1, 'Geolocation permission denied'); return; }
+
+      var pref = null;
+      try { pref = await bridge.getPref(); } catch (_) {}
+      if (pref && pref.mode === 'off') { _deny(error, 1, 'Location access disabled in Vex settings'); return; }
+      if (pref && pref.mode === 'manual' && pref.latitude != null && pref.longitude != null) {
+        try { success(_pos(pref.latitude, pref.longitude, 20)); } catch (_) {}
+        return;
+      }
+      var pos = await fetchIPLocation();
+      if (pos) { try { success(pos); } catch (_) {} return; }
+      _deny(error, 2, 'Unable to determine location');
+    }
+
+    var watches = new Map();
+    var wrapped = {
+      getCurrentPosition: function (success, error) {
+        resolve(success, error).catch(function () { _deny(error, 2, 'Geolocation resolution crashed'); });
+      },
+      watchPosition: function (success, error, options) {
+        var id = Math.floor(Math.random() * 1e9) + 1;
+        wrapped.getCurrentPosition(success, error, options);
+        var interval = setInterval(function () { wrapped.getCurrentPosition(success, error, options); }, 5 * 60 * 1000);
+        watches.set(id, interval);
+        return id;
+      },
+      clearWatch: function (id) {
+        if (watches.has(id)) { clearInterval(watches.get(id)); watches.delete(id); }
+      }
+    };
+    try {
+      Object.defineProperty(navigator, 'geolocation', { value: wrapped, writable: false, configurable: true });
+    } catch (err) {
+      console.error('[Vex Geo] polyfill install failed:', err && err.message);
+    }
+  })();`;
+
+  function inject() {
+    try {
+      const s = document.createElement('script');
+      s.textContent = polyfillSrc;
+      (document.head || document.documentElement).appendChild(s);
+      s.remove();
+    } catch (err) {
+      console.error('[Vex Geo] inject failed:', err.message);
+    }
+  }
+  if (document.documentElement) inject();
+  else document.addEventListener('readystatechange', inject, { once: true });
 })();
