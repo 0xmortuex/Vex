@@ -124,6 +124,16 @@ const TabManager = {
 
     // Update URL bar
     this.updateUrlBar(tab);
+
+    // Match Chrome/Edge: when the active tab is a start page, put the caret in
+    // the URL bar so Ctrl+T → type/paste lands there instead of being lost.
+    // Deferred one frame so the webview swap + class toggles settle first.
+    if (isStartPage(tab.url)) {
+      requestAnimationFrame(() => {
+        const urlInput = document.getElementById('url-input');
+        if (urlInput) { urlInput.focus(); urlInput.select(); }
+      });
+    }
   },
 
   closeTab(id) {
