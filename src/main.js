@@ -510,6 +510,9 @@ ipcMain.handle('geolocation:get', () => {
   if (mode === 'off') return { mode: 'off' };
   if (mode === 'manual') {
     let m = _readPersistString('vex.manualLocation', null);
+    // Defensive: if the value somehow round-tripped as a JSON-encoded string
+    // (double-encoding), parse it one more layer.
+    if (typeof m === 'string') { try { m = JSON.parse(m); } catch {} }
     if (m && m.v && typeof m.v === 'object') m = m.v;
     const lat = m ? parseFloat(m.latitude) : NaN;
     const lng = m ? parseFloat(m.longitude) : NaN;

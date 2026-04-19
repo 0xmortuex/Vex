@@ -25,7 +25,15 @@ const LocationSettings = (() => {
   function render(container) {
     if (!container) return;
     const saved = _get('vex.manualLocation', null);
-    const mode = _get('vex.locationMode', 'manual');
+    // If no mode has ever been saved, persist the default so main.js's
+    // geolocation:get handler reads the same value we show in the UI.
+    // Without this, users who never click a radio silently have no mode
+    // on disk, and check-permission / get behave like first-run forever.
+    let mode = _get('vex.locationMode', null);
+    if (!mode) {
+      mode = 'manual';
+      _set('vex.locationMode', mode);
+    }
 
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:10px">What Vex reports when a site asks for your location. Manual is the most accurate and private option \u2014 nothing leaves your device.</p>
