@@ -495,6 +495,20 @@ app.on('web-contents-created', (_event, contents) => {
     }
   });
 
+  // Subframe navigations — Roblox's "Play" button sets the src of a hidden
+  // iframe to roblox-player://launch?…, which does NOT trigger will-navigate
+  // (main-frame only). will-frame-navigate fires for every frame including
+  // iframes, so the Bloxstrap handoff actually reaches the OS.
+  if (typeof contents.on === 'function') {
+    try {
+      contents.on('will-frame-navigate', (evt, url) => {
+        if (handleExternalProtocol(url)) {
+          evt.preventDefault();
+        }
+      });
+    } catch { /* older Electron without will-frame-navigate */ }
+  }
+
   // Block window.onbeforeunload confirm prompts (prevents "Leave page?" spam
   // when user closes a tab that has an unload handler).
   contents.on('will-prevent-unload', (evt) => evt.preventDefault());
