@@ -151,6 +151,18 @@ ipcMain.handle('permissions:list',     () => loadPermissionDecisions());
 ipcMain.handle('permissions:revoke',   (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; savePermissionDecisions(d); return { ok: true }; });
 ipcMain.handle('permissions:clear-all', () => { savePermissionDecisions({}); return { ok: true }; });
 
+function wireAdblockerOnSession(ses, tag) {
+  if (!ses || ses.__vexAdblockWired) return;
+  ses.__vexAdblockWired = true;
+  ses.webRequest.onBeforeRequest((details, callback) => {
+    if (adBlockerEnabled && shouldBlock(details.url)) {
+      callback({ cancel: true });
+    } else {
+      callback({ cancel: false });
+    }
+  });
+}
+
 function wireDownloadsOnSession(ses, tag) {
   if (!ses || ses.__vexDownloadsWired) return;
   ses.__vexDownloadsWired = true;
@@ -683,16 +695,10 @@ function createWindow() {
     callback({ responseHeaders });
   });
 
-  // Ad blocker
-  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-    if (adBlockerEnabled && shouldBlock(details.url)) {
-      callback({ cancel: true });
-    } else {
-      callback({ cancel: false });
-    }
-  });
-
-  // Also strip headers for named partitions (sidebar panels)
+  // Named partitions used by sidebar panels (whatsapp/claude) — header stripping
+  // so they can be embedded in panels. persist:main is the default tabs session;
+  // it gets adblocker/permissions/downloads/preload wiring below but no header
+  // strip since regular tabs don't need their own frame-ancestors loosened.
   const partitions = ['persist:whatsapp', 'persist:claude'];
   partitions.forEach(partName => {
     const ses = session.fromPartition(partName);
@@ -716,15 +722,14 @@ function createWindow() {
       }
       callback({ responseHeaders });
     });
-
-    ses.webRequest.onBeforeRequest((details, callback) => {
-      if (adBlockerEnabled && shouldBlock(details.url)) {
-        callback({ cancel: true });
-      } else {
-        callback({ cancel: false });
-      }
-    });
   });
+
+  // Ad blocker — attach on every session tabs actually use. Previously only
+  // defaultSession and the two panel partitions were covered, so ads loaded
+  // freely in regular tabs (which live in persist:main).
+  wireAdblockerOnSession(session.defaultSession, 'default');
+  wireAdblockerOnSession(session.fromPartition('persist:main'), 'persist:main');
+  partitions.forEach(p => wireAdblockerOnSession(session.fromPartition(p), p));
 
   // Set user agent to Chrome to avoid "unsupported browser" blocks
   const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
