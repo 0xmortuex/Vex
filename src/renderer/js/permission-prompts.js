@@ -60,9 +60,11 @@ const PermissionPrompts = (() => {
   }
 
   function init() {
-    if (window.vex?.onPermissionRequest) {
-      window.vex.onPermissionRequest(showPrompt);
-    }
+    if (!window.vex?.onPermissionRequest) return;
+    window.vex.onPermissionRequest(showPrompt);
+    // Signal main we're ready so any permission requests that fired during
+    // cold-start (before this listener was attached) get flushed to us now.
+    try { window.vex.permissionsRendererReady?.(); } catch {}
   }
 
   return { init, showPrompt };

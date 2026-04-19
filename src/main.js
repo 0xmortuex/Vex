@@ -70,6 +70,38 @@ function _broadcastDownloadEvent(channel, data) {
 const permissionsFile = path.join(userDataPath, 'permissions.json');
 const pendingPermissions = new Map();
 
+// On cold start the renderer may not have registered its 'permission:request'
+// listener yet when a webview fires a permission check. Queue sends until the
+// renderer signals ready (or the fallback flush fires), otherwise the first
+// prompt of the session silently times out.
+let _permissionsRendererReady = false;
+const _pendingPermissionSends = [];
+function _deliverPermissionRequest(payload) {
+  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  if (!win) return false;
+  try { win.webContents.send('permission:request', payload); return true; }
+  catch { return false; }
+}
+function sendPermissionRequest(payload) {
+  if (_permissionsRendererReady && _deliverPermissionRequest(payload)) return;
+  _pendingPermissionSends.push(payload);
+}
+function _flushPermissionQueue(reason) {
+  if (!_pendingPermissionSends.length) return;
+  console.log(`[Permissions] flushing ${_pendingPermissionSends.length} queued request(s): ${reason}`);
+  while (_pendingPermissionSends.length) {
+    const p = _pendingPermissionSends.shift();
+    if (!_deliverPermissionRequest(p)) {
+      _pendingPermissionSends.unshift(p);
+      return;
+    }
+  }
+}
+ipcMain.on('permissions:renderer-ready', () => {
+  _permissionsRendererReady = true;
+  _flushPermissionQueue('renderer signalled ready');
+});
+
 function loadPermissionDecisions() {
   try {
     if (fs.existsSync(permissionsFile)) {
@@ -110,13 +142,10 @@ function wirePermissionsOnSession(ses, tag) {
     if (decisions[key] === 'allow') return callback(true);
     if (decisions[key] === 'deny')  return callback(false);
 
-    // Ask the user
-    const mainWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
-    if (!mainWin) return callback(false);
-
+    // Ask the user — queued if the renderer isn't listening yet (cold start).
     const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     pendingPermissions.set(id, callback);
-    mainWin.webContents.send('permission:request', { id, origin, permission });
+    sendPermissionRequest({ id, origin, permission });
 
     // Safety timeout — if the user ignores the prompt for 2 minutes, deny.
     setTimeout(() => {
@@ -548,9 +577,6 @@ ipcMain.handle('geolocation:check-permission', async (_e, { origin } = {}) => {
   if (decisions[key] === 'allow') return 'allow';
   if (decisions[key] === 'deny') return 'deny';
 
-  const mainWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
-  if (!mainWin) return 'deny';
-
   return await new Promise((resolve) => {
     const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     let settled = false;
@@ -562,7 +588,7 @@ ipcMain.handle('geolocation:check-permission', async (_e, { origin } = {}) => {
     // The existing permission:respond handler calls this with (true|false)
     // and persists the decision itself when `remember` is set.
     pendingPermissions.set(id, settle);
-    mainWin.webContents.send('permission:request', { id, origin, permission: 'geolocation' });
+    sendPermissionRequest({ id, origin, permission: 'geolocation' });
 
     setTimeout(() => {
       if (pendingPermissions.has(id)) {
@@ -673,6 +699,19 @@ function createWindow() {
       try { mainWindow.webContents.openDevTools({ mode: 'bottom' }); } catch {}
     });
   }
+
+  // Belt-and-suspenders: if the renderer hasn't signalled 'permissions:renderer-ready'
+  // within 500ms of did-finish-load, flush the queue anyway. Protects against
+  // a renderer script that crashes before init() but still has the IPC channel.
+  mainWindow.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      if (!_permissionsRendererReady && _pendingPermissionSends.length) {
+        console.warn('[Permissions] renderer-ready signal not received 500ms after load, flushing anyway');
+      }
+      _permissionsRendererReady = true;
+      _flushPermissionQueue('fallback after did-finish-load');
+    }, 500);
+  });
 
   // Header stripping for webviews
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {

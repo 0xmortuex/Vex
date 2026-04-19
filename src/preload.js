@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Permission prompts (geolocation, mic, camera, notifications, ...)
   onPermissionRequest:  (cb) => ipcRenderer.on('permission:request', (_e, d) => cb(d)),
+  permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),
   permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
   permissionsList:      () => ipcRenderer.invoke('permissions:list'),
   permissionsRevoke:    (key) => ipcRenderer.invoke('permissions:revoke', key),
