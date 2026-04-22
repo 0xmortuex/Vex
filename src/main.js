@@ -18,6 +18,31 @@ const enableDevToolsAtStartup = process.argv.includes('--dev-tools') || !app.isP
 // Clean up global shortcuts on quit
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
 
+// F11 / Escape fullscreen handling — shared between the main-window and every
+// <webview> guest webContents, because before-input-event only fires on the
+// webContents that actually has focus. Without attaching to both, F11 only
+// works when Vex's chrome is focused (URL bar etc.) and dies the moment the
+// user clicks into a page. Returns true if the input was consumed so callers
+// can skip their remaining handlers.
+function handleFullscreenShortcut(event, input) {
+  if (!mainWindow || input.type !== 'keyDown') return false;
+
+  if (input.key === 'F11' && !input.control && !input.alt && !input.shift && !input.meta) {
+    const next = !mainWindow.isFullScreen();
+    mainWindow.setFullScreen(next);
+    event.preventDefault();
+    return true;
+  }
+
+  if (input.key === 'Escape' && mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+    event.preventDefault();
+    return true;
+  }
+
+  return false;
+}
+
 // === Single-instance lock (so external links route to existing Vex window) ===
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -512,6 +537,12 @@ app.on('web-contents-created', (_event, contents) => {
   // Block window.onbeforeunload confirm prompts (prevents "Leave page?" spam
   // when user closes a tab that has an unload handler).
   contents.on('will-prevent-unload', (evt) => evt.preventDefault());
+
+  // F11 / Esc fullscreen must work even when the guest page has focus. Without
+  // this, pressing F11 inside any loaded website is a no-op.
+  contents.on('before-input-event', (event, input) => {
+    handleFullscreenShortcut(event, input);
+  });
 });
 const storagePath = path.join(userDataPath, 'vex-storage');
 
@@ -1016,10 +1047,7 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('take-screenshot');
       event.preventDefault();
     }
-    if (input.key === 'F11') {
-      mainWindow.setFullScreen(!mainWindow.isFullScreen());
-      event.preventDefault();
-    }
+    if (handleFullscreenShortcut(event, input)) return;
     if (input.control && input.key === 'm') {
       mainWindow.webContents.send('toggle-mute-tab');
       event.preventDefault();
