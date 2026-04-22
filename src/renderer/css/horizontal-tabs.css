@@ -22,9 +22,10 @@ body[data-tab-layout="horizontal"] #tabs-sidebar { display: none !important; }
 body[data-tab-layout="horizontal"] #main-layout { height: calc(100% - 44px - 40px); }
 body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 44px); }
 
-/* Fullscreen (F11) — hide the horizontal tab bar and let #main-layout fill the
-   viewport. Needs to override the layout-specific height rules above, so
-   selectors match their specificity (attribute + id) and !important the height. */
+/* Fullscreen (F11) — hide the top bar (URL bar, nav, controls) + horizontal tab bar.
+   Let #main-layout fill the viewport. Needs to override the layout-specific height
+   rules above, so selectors match their specificity (attribute + id) and !important. */
+body.fullscreen #top-bar { display: none !important; }
 body.fullscreen .top-tab-bar { display: none !important; }
 body[data-tab-layout="horizontal"].fullscreen #main-layout,
 body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !important; }

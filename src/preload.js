@@ -131,3 +131,7 @@ contextBridge.exposeInMainWorld('vex', {
   syncLoadMeta: () => ipcRenderer.invoke('sync-load-meta'),
   syncClearState: () => ipcRenderer.invoke('sync-clear-state')
 });
+
+contextBridge.exposeInMainWorld('vexDevTools', {
+  onToggle: (cb) => ipcRenderer.on('devtools:toggle', () => cb()),
+});

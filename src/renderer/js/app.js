@@ -750,6 +750,17 @@
     }
   }
 
+  // === DevTools toggle (F12 / Ctrl+Shift+I) — main process fires this when
+  // the shortcut is pressed anywhere, including inside a focused webview. ===
+  window.vexDevTools?.onToggle?.(() => {
+    const active = TabManager.getActiveTab?.();
+    if (!active) return;
+    const wv = WebviewManager.webviews.get(active.id);
+    if (!wv || typeof wv.openDevTools !== 'function') return;
+    if (wv.isDevToolsOpened && wv.isDevToolsOpened()) wv.closeDevTools();
+    else wv.openDevTools();
+  });
+
   // === Phase 6: Fullscreen ===
   window.vex.onFullscreenChanged?.((isFs) => {
     document.body.classList.toggle('fullscreen', isFs);

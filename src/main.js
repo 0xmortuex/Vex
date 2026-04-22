@@ -43,6 +43,24 @@ function handleFullscreenShortcut(event, input) {
   return false;
 }
 
+// F12 / Ctrl+Shift+I — toggle Chromium DevTools on the currently active webview.
+// Attached to both the main window and every guest webContents for the same
+// reason as the fullscreen handler: before-input-event only fires where focus
+// lives, so without the guest hook F12 dies as soon as a page is clicked into.
+// The renderer owns the "which tab is active" mapping, so we bounce through IPC
+// rather than trying to guess from main.
+function handleDevToolsShortcut(event, input) {
+  if (!mainWindow || input.type !== 'keyDown') return false;
+
+  const isDevToolsKey = input.key === 'F12' ||
+    (input.control && input.shift && (input.key === 'I' || input.key === 'i'));
+  if (!isDevToolsKey) return false;
+
+  event.preventDefault();
+  mainWindow.webContents.send('devtools:toggle');
+  return true;
+}
+
 // === Single-instance lock (so external links route to existing Vex window) ===
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -538,10 +556,12 @@ app.on('web-contents-created', (_event, contents) => {
   // when user closes a tab that has an unload handler).
   contents.on('will-prevent-unload', (evt) => evt.preventDefault());
 
-  // F11 / Esc fullscreen must work even when the guest page has focus. Without
-  // this, pressing F11 inside any loaded website is a no-op.
+  // F11 / Esc fullscreen and F12 / Ctrl+Shift+I DevTools must work even when
+  // the guest page has focus. Without this, pressing them inside any loaded
+  // website is a no-op.
   contents.on('before-input-event', (event, input) => {
-    handleFullscreenShortcut(event, input);
+    if (handleFullscreenShortcut(event, input)) return;
+    handleDevToolsShortcut(event, input);
   });
 });
 const storagePath = path.join(userDataPath, 'vex-storage');
@@ -1048,6 +1068,7 @@ app.whenReady().then(() => {
       event.preventDefault();
     }
     if (handleFullscreenShortcut(event, input)) return;
+    if (handleDevToolsShortcut(event, input)) return;
     if (input.control && input.key === 'm') {
       mainWindow.webContents.send('toggle-mute-tab');
       event.preventDefault();
