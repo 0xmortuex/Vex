@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('vex', {
   onNewTab: (callback) => ipcRenderer.on('new-tab', callback),
   onCloseTab: (callback) => ipcRenderer.on('close-tab', callback),
   onReloadTab: (callback) => ipcRenderer.on('reload-tab', callback),
+  hardReloadWebview: (webContentsId) => ipcRenderer.invoke('webview:hard-reload', webContentsId),
   onNavigateBack: (callback) => ipcRenderer.on('navigate-back', callback),
   onNavigateForward: (callback) => ipcRenderer.on('navigate-forward', callback),
 

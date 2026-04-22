@@ -199,6 +199,36 @@ const WebviewManager = {
     if (wv) wv.reload();
   },
 
+  // Hard reload: clear the webview's HTTP cache in the main process, then
+  // reloadIgnoringCache. Falls back to the renderer-side reloadIgnoringCache /
+  // reload if the IPC bridge is unavailable (dev-reload edge cases).
+  hardReload() {
+    const wv = this.getActiveWebview();
+    if (!wv) return;
+    try {
+      const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
+      if (id != null && window.vex?.hardReloadWebview) {
+        window.vex.hardReloadWebview(id).then(res => {
+          if (!res?.ok) {
+            console.warn('[Vex] hard-reload IPC failed:', res?.error);
+            if (typeof wv.reloadIgnoringCache === 'function') wv.reloadIgnoringCache();
+            else wv.reload();
+          }
+        }).catch(err => {
+          console.error('[Vex] hard-reload failed:', err);
+          if (typeof wv.reloadIgnoringCache === 'function') wv.reloadIgnoringCache();
+          else wv.reload();
+        });
+        window.showToast?.('Hard reload — clearing cache');
+        return;
+      }
+    } catch (err) {
+      console.error('[Vex] hard-reload error:', err);
+    }
+    if (typeof wv.reloadIgnoringCache === 'function') wv.reloadIgnoringCache();
+    else wv.reload();
+  },
+
   zoomIn() {
     const wv = this.getActiveWebview();
     if (wv) {

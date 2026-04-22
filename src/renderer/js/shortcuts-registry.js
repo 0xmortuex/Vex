@@ -24,6 +24,7 @@ const ShortcutsRegistry = (() => {
     // Navigation
     'focus-url':      { default: 'Ctrl+L',       label: 'Focus URL Bar',              category: 'Navigation' },
     'reload':         { default: 'Ctrl+R',       label: 'Reload Page',                category: 'Navigation' },
+    'hard-reload':    { default: 'Ctrl+Shift+R', label: 'Hard Reload (clear cache)',  category: 'Navigation' },
     'find-in-page':   { default: 'Ctrl+F',       label: 'Find in Page',               category: 'Navigation' },
     'zoom-reset':     { default: 'Ctrl+0',       label: 'Reset Zoom',                 category: 'Navigation' },
 
@@ -35,7 +36,7 @@ const ShortcutsRegistry = (() => {
     'schedules':      { default: 'Ctrl+Shift+L', label: 'Schedules Panel',            category: 'Panels' },
 
     // Tools
-    'reading-mode':   { default: 'Ctrl+Shift+R', label: 'Reading Mode',               category: 'Tools' },
+    'reading-mode':   { default: 'Ctrl+Alt+R',   label: 'Reading Mode',               category: 'Tools' },
     'screenshot':     { default: 'Ctrl+Alt+S',   label: 'Screenshot',                 category: 'Tools' },
     'group-tabs':     { default: 'Ctrl+Shift+G', label: 'Organize Tabs with AI',      category: 'Tools' },
 

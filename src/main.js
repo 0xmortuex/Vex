@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog } = require('electron');
+const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -1095,6 +1095,24 @@ ipcMain.handle('open-pip-window', (event, url) => {
 
 ipcMain.handle('toggle-fullscreen', () => {
   if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
+});
+
+// Hard reload: clear the webview session's HTTP cache, then reloadIgnoringCache.
+// The renderer passes the <webview>'s webContentsId; we resolve it here because
+// webContents.session.clearCache() isn't reachable from the renderer side.
+ipcMain.handle('webview:hard-reload', async (_e, webContentsId) => {
+  try {
+    const wc = typeof webContentsId === 'number' ? webContents.fromId(webContentsId) : null;
+    if (!wc || wc.isDestroyed()) return { ok: false, error: 'webContents not found' };
+    if (wc.session && typeof wc.session.clearCache === 'function') {
+      await wc.session.clearCache();
+    }
+    if (typeof wc.reloadIgnoringCache === 'function') wc.reloadIgnoringCache();
+    else wc.reload();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 ipcMain.handle('is-fullscreen', () => {

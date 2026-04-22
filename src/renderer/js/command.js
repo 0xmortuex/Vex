@@ -14,6 +14,7 @@ const CommandBar = {
     { id: 'roblox', label: 'Roblox Hub', hint: 'Open Roblox panel', icon: '🎮', isPrimary: true, action: () => SidebarManager.openPanel('roblox') },
     { id: 'github', label: 'GitHub', hint: 'Open GitHub panel', icon: '🐙', isPrimary: true, action: () => SidebarManager.openPanel('github') },
     { id: 'reload', label: 'Reload', hint: 'Reload current tab', shortcut: 'Ctrl+R', icon: '↻', action: () => WebviewManager.reload() },
+    { id: 'hard-reload', label: 'Hard Reload', hint: 'Clear cache then reload', shortcut: 'Ctrl+Shift+R', icon: '⟳', action: () => WebviewManager.hardReload() },
     { id: 'history', label: 'History', hint: 'View browsing history', icon: '📋', action: () => CommandBar.showHistory() },
     { id: 'settings', label: 'Settings', hint: 'Open settings', icon: '⚙', action: () => SidebarManager.openPanel('settings') },
     { id: 'tools', label: 'Tools', hint: 'FlashMind, ReconX, CipherLab...', icon: '🔧', action: () => CommandBar.showTools() },
@@ -43,7 +44,7 @@ const CommandBar = {
     { id: 'sleep-all', label: 'Sleep All Inactive', hint: 'Sleep all non-active tabs', icon: '💤', action: () => { TabManager.sleepAllInactive(); window.showToast?.('All inactive tabs sleeping'); } },
     { id: 'wake-all', label: 'Wake All Tabs', hint: 'Wake all sleeping tabs', icon: '☀', action: () => { TabManager.wakeAllTabs(); window.showToast?.('All tabs awake'); } },
     // Phase 5 commands
-    { id: 'read', label: 'Reading Mode', hint: 'Strip clutter, focus on article', shortcut: 'Ctrl+Shift+R', icon: '📖', action: () => ReadingMode.activate() },
+    { id: 'read', label: 'Reading Mode', hint: 'Strip clutter, focus on article', shortcut: 'Ctrl+Alt+R', icon: '📖', action: () => ReadingMode.activate() },
     { id: 'translate', label: 'Translate Page', hint: 'Translate via Google Translate', icon: '🌐', action: () => { document.getElementById('translate-bar')?.classList.add('visible'); } },
     { id: 'screenshot', label: 'Screenshot', hint: 'Capture current page', shortcut: 'Ctrl+Alt+S', icon: '📷', action: () => ScreenshotTool.capture() },
     { id: 'shortcuts', label: 'Keyboard Shortcuts', hint: 'View all shortcuts', icon: '⌨', action: () => SidebarManager.openPanel('shortcuts') },

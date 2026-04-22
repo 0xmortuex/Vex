@@ -553,6 +553,7 @@
     ShortcutsRegistry.register('new-tab',        () => TabManager?.createTab?.(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true));
     ShortcutsRegistry.register('close-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.closeTab(t.id); });
     ShortcutsRegistry.register('reload',         () => WebviewManager?.reload?.());
+    ShortcutsRegistry.register('hard-reload',    () => WebviewManager?.hardReload?.());
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
     ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.());
     ShortcutsRegistry.register('fullscreen',     () => window.vex?.toggleFullscreen?.());

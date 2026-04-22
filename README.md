@@ -67,7 +67,8 @@ A minimal, personalized browser built with Electron. No bloat. Vertical tabs, bu
 | Ctrl+Shift+M | Memory panel |
 | Ctrl+Shift+O | Sessions |
 | Ctrl+Shift+Z | Sleep current tab |
-| Ctrl+Shift+R | Reading mode |
+| Ctrl+Shift+R | Hard reload (clear cache) |
+| Ctrl+Alt+R | Reading mode |
 | Ctrl+Alt+S | Screenshot |
 | Alt+Left/Right | Back/Forward |
 

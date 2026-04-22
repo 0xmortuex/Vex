@@ -12,6 +12,7 @@ const ShortcutsPanel = {
       { name: 'Back', keys: 'Alt+Left' },
       { name: 'Forward', keys: 'Alt+Right' },
       { name: 'Reload', keys: 'Ctrl+R' },
+      { name: 'Hard Reload (clear cache)', keys: 'Ctrl+Shift+R' },
       { name: 'Focus URL Bar', keys: 'Ctrl+L' },
       { name: 'Find in Page', keys: 'Ctrl+F' }
     ],
@@ -24,7 +25,7 @@ const ShortcutsPanel = {
     'Tools': [
       { name: 'Command Bar', keys: 'Ctrl+K' },
       { name: 'Screenshot', keys: 'Ctrl+Alt+S' },
-      { name: 'Reading Mode', keys: 'Ctrl+Shift+R' },
+      { name: 'Reading Mode', keys: 'Ctrl+Alt+R' },
       { name: 'Split Screen', keys: 'Ctrl+Shift+S' },
       { name: 'Picture-in-Picture', keys: 'Ctrl+Shift+P' }
     ],
