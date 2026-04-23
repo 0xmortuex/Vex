@@ -10,7 +10,7 @@ const VexTools = {
     { id: 'cipherlab', name: 'CipherLab', url: 'https://0xmortuex.github.io/CipherLab/', desc: 'Cryptography analysis lab', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>' },
     { id: 'loopholemap', name: 'LoopholeMap', url: 'https://0xmortuex.github.io/LoopholeMap/', desc: 'Legal loophole mapper', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' },
     { id: 'aijudge', name: 'AIJudge', url: 'https://0xmortuex.github.io/AIJudge/', desc: 'AI-powered legal judgment tool', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/><path d="M2 11h4l1.5-3L12 14l4.5-6L18 11h4"/></svg>' },
-    { id: 'netmap', name: 'NetMap', url: 'https://0xmortuex.github.io/NetMap/', desc: 'Network topology mapper', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>' },
+    { id: 'openrouter-logs', name: 'OpenRouter Logs', url: 'https://openrouter.ai/logs', desc: 'API usage & activity logs', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6"/><path d="M7 12h7"/><path d="M7 16h10"/><path d="M7 8h4"/></svg>' },
     { id: 'billforge', name: 'BillForge', url: 'https://0xmortuex.github.io/BillForge/', desc: 'Legislative bill drafting tool', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9"/><path d="M18 9.5a4 4 0 0 0-5.5-5.5L9 7.5"/><path d="M14.5 5.5L18 2l4 4-3.5 3.5"/></svg>' }
   ],
 
@@ -18,6 +18,7 @@ const VexTools = {
     const saved = localStorage.getItem(this.STORAGE_KEY);
     if (saved) { try { this.tools = JSON.parse(saved); } catch {} }
     if (this.tools.length === 0) this.tools = [...this.defaultTools];
+    let migrated = false;
     // Migration: ensure AI News Tracker is present for existing users, inserted above FlashMind
     if (!this.tools.some(t => t.id === 'ainews')) {
       const ainews = this.defaultTools.find(t => t.id === 'ainews');
@@ -25,9 +26,25 @@ const VexTools = {
         const fmIdx = this.tools.findIndex(t => t.id === 'flashmind');
         const insertAt = fmIdx === -1 ? 0 : fmIdx;
         this.tools.splice(insertAt, 0, { ...ainews });
-        this.save();
+        migrated = true;
       }
     }
+    // Migration: replace NetMap with OpenRouter Logs in-place (same slot, preserves user order)
+    const netmapIdx = this.tools.findIndex(t => t.id === 'netmap');
+    const hasOpenRouterLogs = this.tools.some(t => t.id === 'openrouter-logs');
+    const orLogsDefault = this.defaultTools.find(t => t.id === 'openrouter-logs');
+    if (netmapIdx !== -1) {
+      if (!hasOpenRouterLogs && orLogsDefault) {
+        this.tools.splice(netmapIdx, 1, { ...orLogsDefault });
+      } else {
+        this.tools.splice(netmapIdx, 1);
+      }
+      migrated = true;
+    } else if (!hasOpenRouterLogs && orLogsDefault) {
+      this.tools.push({ ...orLogsDefault });
+      migrated = true;
+    }
+    if (migrated) this.save();
     this.renderToolsBar();
   },
 

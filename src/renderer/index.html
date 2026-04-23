@@ -53,7 +53,8 @@
           <polygon points="40,2 78,40 40,78 2,40" fill="url(#vexBody)" stroke="#d4a574" stroke-width="1.5" stroke-opacity="0.75"/>
           <polygon points="40,2 78,40 40,40" fill="#d4a574" fill-opacity="0.38"/>
           <polygon points="40,2 2,40 40,40" fill="#d4a574" fill-opacity="0.52"/>
-          <path d="M 20 30 L 40 62 L 60 30" fill="none" stroke="#e8e3d8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.96"/>
+          <!-- V letter integrated into the diamond -->
+          <path d="M 25 25 L 40 50 L 55 25" fill="none" stroke="#e8e3d8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.96"/>
         </svg>
         <span>Vex</span>
       </span>
@@ -141,6 +142,9 @@
       <button class="sidebar-icon" data-panel="claude" title="Claude AI">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L3 6V14L10 18L17 14V6L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>
       </button>
+      <button class="sidebar-icon" data-panel="gmail" title="Gmail">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="5" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 6L10 11L17 6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </button>
       <button class="sidebar-icon" data-panel="cusa" title="CUSA Workspace">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L4 5V9C4 13.42 6.56 17.5 10 18.5C13.44 17.5 16 13.42 16 9V5L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 10L9.5 11.5L12.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -192,6 +196,7 @@
         <div class="panel" id="panel-start" style="display: none;"></div>
         <div class="panel" id="panel-whatsapp" style="display: none;"></div>
         <div class="panel" id="panel-claude" style="display: none;"></div>
+        <div class="panel" id="panel-gmail" style="display: none;"></div>
         <div class="panel" id="panel-cusa" style="display: none;"></div>
         <div class="panel" id="panel-roblox" style="display: none;"></div>
         <div class="panel" id="panel-github" style="display: none;"></div>
@@ -483,7 +488,7 @@
             <div class="setting-group">
               <label class="setting-label">About</label>
               <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
-                <svg width="56" height="56" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="56" height="56" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#d4a574" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <div>
                   <div style="font-size:28px;font-weight:700;color:var(--text);line-height:1">Vex</div>
                   <div style="font-size:14px;color:var(--primary);font-weight:500;margin-top:3px" id="settings-version">Version 2.0.0</div>

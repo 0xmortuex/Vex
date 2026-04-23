@@ -799,11 +799,11 @@ function createWindow() {
     callback({ responseHeaders });
   });
 
-  // Named partitions used by sidebar panels (whatsapp/claude) — header stripping
+  // Named partitions used by sidebar panels (whatsapp/claude/gmail) — header stripping
   // so they can be embedded in panels. persist:main is the default tabs session;
   // it gets adblocker/permissions/downloads/preload wiring below but no header
   // strip since regular tabs don't need their own frame-ancestors loosened.
-  const partitions = ['persist:whatsapp', 'persist:claude'];
+  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:gmail'];
   partitions.forEach(partName => {
     const ses = session.fromPartition(partName);
 

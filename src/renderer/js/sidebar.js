@@ -10,6 +10,7 @@ const SidebarManager = {
     start: { url: null, partition: null },
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
+    gmail: { url: 'https://mail.google.com/mail/u/0/#inbox', partition: 'persist:gmail' },
     settings: { url: null, partition: null },
     cusa: { url: null, partition: null },
     roblox: { url: null, partition: null },
