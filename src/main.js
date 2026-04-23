@@ -840,9 +840,32 @@ function createWindow() {
   // sub-request (redirects, XHR, iframes during the auth dance) also identifies
   // as Chrome, so Google's "browser not secure" detector doesn't trip on leaked
   // "Electron/X.X.X" tokens in edge-case requests.
-  session.fromPartition('persist:gmail').setUserAgent(
+  const gmailSession = session.fromPartition('persist:gmail');
+  gmailSession.setUserAgent(
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
   );
+
+  // Rewrite Client Hints headers so Google's server-side UA fingerprint sees
+  // Chrome 131 instead of Electron. The UA string alone isn't enough — modern
+  // Google reads Sec-CH-UA-* headers and the navigator.userAgentData API.
+  gmailSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    const headers = details.requestHeaders;
+    headers['Sec-CH-UA'] = '"Chromium";v="131", "Google Chrome";v="131", "Not(A:Brand";v="24"';
+    headers['Sec-CH-UA-Mobile'] = '?0';
+    headers['Sec-CH-UA-Platform'] = '"Windows"';
+    delete headers['Sec-CH-UA-Full-Version-List'];
+    delete headers['Sec-CH-UA-Full-Version'];
+    delete headers['Sec-CH-UA-Arch'];
+    delete headers['Sec-CH-UA-Bitness'];
+    delete headers['Sec-CH-UA-Model'];
+    delete headers['Sec-CH-UA-Platform-Version'];
+    delete headers['Sec-CH-UA-Wow64'];
+    callback({ requestHeaders: headers });
+  });
+
+  // Gmail preload: runs inside the webview before page scripts, monkey-patches
+  // navigator.userAgentData so client-side fingerprinting returns Chrome values.
+  gmailSession.setPreloads([path.join(app.getAppPath(), 'src', 'preload-gmail.js')]);
   partitions.forEach(partName => {
     const ses = session.fromPartition(partName);
 
