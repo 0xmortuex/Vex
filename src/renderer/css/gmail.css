@@ -108,6 +108,24 @@
 }
 .gmail-link:hover { color: #e8c9a3; text-decoration: underline; }
 
+.gmail-note {
+  margin-bottom: 8px;
+  padding: 9px 12px;
+  background: var(--vex-accent-dim);
+  border: 1px solid var(--vex-border-accent);
+  border-radius: var(--vex-radius-sm);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--vex-text-secondary);
+}
+.gmail-link-inline {
+  color: var(--vex-accent);
+  text-decoration: none;
+  font-family: 'JetBrains Mono', monospace;
+  transition: color 0.15s ease;
+}
+.gmail-link-inline:hover { color: #e8c9a3; text-decoration: underline; }
+
 .gmail-btn-primary {
   margin-top: 20px;
   padding: 10px 18px;

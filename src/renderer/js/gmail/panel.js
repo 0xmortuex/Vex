@@ -38,6 +38,11 @@ const GmailPanel = {
             <input type="email" class="gmail-input" id="gmail-email" placeholder="you@gmail.com" spellcheck="false" autocomplete="off" required>
 
             <label class="gmail-label">App password</label>
+            <div class="gmail-note">
+              Requires 2FA enabled on your Google account. If you don't have it yet, enable at
+              <a class="gmail-link-inline" id="gmail-2fa-help" href="#">myaccount.google.com/security</a>
+              first.
+            </div>
             <input type="password" class="gmail-input" id="gmail-apppass" placeholder="16-character app password" spellcheck="false" autocomplete="new-password" required>
 
             <a class="gmail-link" id="gmail-apppass-help" href="#">&rarr; How to get an app password</a>
@@ -69,6 +74,17 @@ const GmailPanel = {
         SidebarManager.hideActivePanel();
       }
     });
+
+    const twoFa = container.querySelector('#gmail-2fa-help');
+    if (twoFa) {
+      twoFa.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof TabManager !== 'undefined' && TabManager.createTab) {
+          TabManager.createTab('https://myaccount.google.com/security', true);
+          SidebarManager.hideActivePanel();
+        }
+      });
+    }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
