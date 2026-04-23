@@ -27,8 +27,8 @@
     "adm-zip": "^0.5.17",
     "dompurify": "^3.4.1",
     "electron-updater": "^6.1.0",
-    "happy-dom": "^20.9.0",
     "imapflow": "^1.3.2",
+    "jsdom": "^22.1.0",
     "mailparser": "^3.9.8",
     "nodemailer": "^8.0.5"
   },

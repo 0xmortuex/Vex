@@ -4,13 +4,14 @@
 // to the renderer via the `gmail:get-message` IPC response.
 
 const createDOMPurify = require('dompurify');
-const { Window } = require('happy-dom');
+const { JSDOM } = require('jsdom');
 
-// happy-dom is pure-CJS (no ESM transitive deps) and noticeably lighter than
-// jsdom. jsdom pulled in html-encoding-sniffer → encoding-lite, which went
-// ESM-only in a recent release and crashed Electron's main process with
-// ERR_REQUIRE_ESM. DOMPurify officially supports both backends.
-const window = new Window();
+// Pinned to jsdom@^22.0.0: the last major that ships pure-CJS transitives.
+// jsdom@26+ pulls html-encoding-sniffer@4+ which pulls an ESM-only
+// encoding-lite, and happy-dom@20 is itself ESM-only — both crash Electron's
+// CJS main process with ERR_REQUIRE_ESM. jsdom@22 stays on html-encoding-
+// sniffer@3.x so require() resolves cleanly.
+const { window } = new JSDOM('');
 const DOMPurify = createDOMPurify(window);
 
 function preStripBlocks(html) {
