@@ -4,13 +4,12 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'themes', 'schedules', 'gmail'],
+  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'themes', 'schedules'],
 
   panelConfigs: {
     start: { url: null, partition: null },
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
-    gmail: { url: null, partition: null }, // native IMAP client, not webview
     settings: { url: null, partition: null },
     cusa: { url: null, partition: null },
     roblox: { url: null, partition: null },
@@ -122,7 +121,6 @@ const SidebarManager = {
     if (panelName === 'schedules') SchedulesPanel.init();
     if (panelName === 'shortcuts') ShortcutsPanel.init();
     if (panelName === 'themes') ThemeEditor.init();
-    if (panelName === 'gmail' && typeof GmailPanel !== 'undefined') GmailPanel.init();
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');
@@ -151,10 +149,6 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof LocationSettings !== 'undefined') {
       // Manual-location override (replaces Google Cloud geolocation)
       LocationSettings.render(document.getElementById('location-panel-content'));
-    }
-    if (panelName === 'settings' && typeof GmailPanel !== 'undefined') {
-      // Gmail Email section — connected-as state + Configure/Disconnect buttons
-      GmailPanel.renderSettingsSection();
     }
 
     // Create webview for panel if needed

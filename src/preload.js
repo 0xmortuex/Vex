@@ -132,27 +132,6 @@ contextBridge.exposeInMainWorld('vex', {
   syncClearState: () => ipcRenderer.invoke('sync-clear-state')
 });
 
-// Gmail HTML sanitization happens in the main process (preload is sandboxed
-// and cannot require npm modules). The sanitized HTML is returned from the
-// gmail:get-message IPC alongside the raw html — see src/main/gmail/sanitize.js.
-
-contextBridge.exposeInMainWorld('vexGmail', {
-  saveCredentials: (email, appPassword) => ipcRenderer.invoke('gmail:save-credentials', { email, appPassword }),
-  hasCredentials: () => ipcRenderer.invoke('gmail:has-credentials'),
-  clearCredentials: () => ipcRenderer.invoke('gmail:clear-credentials'),
-  getEmail: () => ipcRenderer.invoke('gmail:get-email'),
-  // Phase 2
-  listInbox: (opts) => ipcRenderer.invoke('gmail:list-inbox', opts ?? {}),
-  getMessage: (uid) => ipcRenderer.invoke('gmail:get-message', { uid }),
-  markRead: (uid, read) => ipcRenderer.invoke('gmail:mark-read', { uid, read }),
-  star: (uid, starred) => ipcRenderer.invoke('gmail:star', { uid, starred }),
-  archive: (uid) => ipcRenderer.invoke('gmail:archive', { uid }),
-  trash: (uid) => ipcRenderer.invoke('gmail:trash', { uid }),
-  // Phase 3: compose + send
-  send: (opts) => ipcRenderer.invoke('gmail:send', opts),
-  pickAttachments: () => ipcRenderer.invoke('gmail:pick-attachments'),
-});
-
 contextBridge.exposeInMainWorld('vexDevTools', {
   // Renderer notifies main to toggle DevTools for a specific webContents
   onToggleRequest: (cb) => ipcRenderer.on('devtools:toggle-request', () => cb()),

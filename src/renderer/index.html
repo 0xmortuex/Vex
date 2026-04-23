@@ -35,7 +35,6 @@
   <link rel="stylesheet" href="css/schedules-panel.css">
   <link rel="stylesheet" href="css/update-notifier.css">
   <link rel="stylesheet" href="css/location-settings.css">
-  <link rel="stylesheet" href="css/gmail.css">
 </head>
 <body>
   <!-- Top Bar -->
@@ -142,9 +141,6 @@
       <button class="sidebar-icon" data-panel="claude" title="Claude AI">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L3 6V14L10 18L17 14V6L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>
       </button>
-      <button class="sidebar-icon" data-panel="gmail" title="Gmail">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="5" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 6L10 11L17 6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-      </button>
       <button class="sidebar-icon" data-panel="cusa" title="CUSA Workspace">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L4 5V9C4 13.42 6.56 17.5 10 18.5C13.44 17.5 16 13.42 16 9V5L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 10L9.5 11.5L12.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -196,7 +192,6 @@
         <div class="panel" id="panel-start" style="display: none;"></div>
         <div class="panel" id="panel-whatsapp" style="display: none;"></div>
         <div class="panel" id="panel-claude" style="display: none;"></div>
-        <div class="panel" id="panel-gmail" style="display: none;"></div>
         <div class="panel" id="panel-cusa" style="display: none;"></div>
         <div class="panel" id="panel-roblox" style="display: none;"></div>
         <div class="panel" id="panel-github" style="display: none;"></div>
@@ -220,16 +215,6 @@
                 <option value="brave">Brave Search</option>
                 <option value="bing">Bing</option>
               </select>
-            </div>
-
-            <div class="setting-group">
-              <label class="setting-label">Email</label>
-              <div class="setting-row-label">Gmail account</div>
-              <div id="setting-gmail-status" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--vex-text-muted);margin-bottom:10px">Checking…</div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button id="setting-gmail-configure" style="padding:8px 16px;background:var(--vex-accent);color:var(--vex-bg-deep);border:1px solid var(--vex-accent);border-radius:var(--vex-radius-sm);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:500">Configure</button>
-                <button id="setting-gmail-disconnect" hidden style="padding:8px 16px;background:transparent;color:var(--vex-danger);border:1px solid rgba(232,104,90,0.4);border-radius:var(--vex-radius-sm);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Disconnect</button>
-              </div>
             </div>
 
             <div class="setting-group">
@@ -749,7 +734,6 @@
   <script src="js/permission-prompts.js"></script>
   <script src="js/permissions-settings.js"></script>
   <script src="js/location-settings.js"></script>
-  <script src="js/gmail/panel.js"></script>
   <script src="js/memory-panel.js"></script>
   <script src="js/restore-prompt.js"></script>
   <script src="js/shortcuts-panel.js"></script>

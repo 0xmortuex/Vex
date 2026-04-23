@@ -4,10 +4,6 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
-const { gmailImap, testConnectionWith } = require('./main/gmail/imap-client');
-const gmailCreds = require('./main/gmail/credentials');
-const { sanitize: gmailSanitize } = require('./main/gmail/sanitize');
-const { sendMessage: gmailSend, resetTransporter: gmailResetTransporter } = require('./main/gmail/smtp-client');
 
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;
@@ -685,132 +681,19 @@ ipcMain.handle('persist-delete', (_e, key) => {
 });
 ipcMain.handle('get-user-data-path', () => userDataPath);
 
-// === Gmail IMAP/SMTP — native client, replaces dead webview approach ===
-ipcMain.handle('gmail:save-credentials', async (_e, { email, appPassword }) => {
-  try {
-    if (!email || !appPassword) return { success: false, error: 'email and app password required' };
-    const result = await testConnectionWith(email, appPassword);
-    if (!result.success) return { success: false, error: result.error };
-    gmailCreds.saveCredentials({ email, appPassword });
-    return { success: true, inboxCount: result.inboxCount };
-  } catch (err) {
-    return { success: false, error: err.message || String(err) };
+// Gmail IMAP/SMTP sidebar panel was reverted — see commit history for Phases 1-3.
+// One-time cleanup: remove any leftover encrypted app-password from disk so it
+// doesn't sit around after the feature was pulled. Safe to remove this block
+// after a few versions once users have launched at least once.
+try {
+  const staleGmailCreds = path.join(userDataPath, 'gmail-creds.enc');
+  if (fs.existsSync(staleGmailCreds)) {
+    fs.unlinkSync(staleGmailCreds);
+    console.log('[Vex] Removed stale Gmail credentials from disk');
   }
-});
-
-ipcMain.handle('gmail:has-credentials', async () => {
-  return { configured: gmailCreds.loadCredentials() !== null };
-});
-
-ipcMain.handle('gmail:clear-credentials', async () => {
-  try {
-    // Drop the persistent IMAP + cached SMTP transporter — credentials are gone.
-    try { await gmailImap.disconnect(); } catch {}
-    try { gmailResetTransporter(); } catch {}
-    gmailCreds.clearCredentials();
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle('gmail:get-email', async () => {
-  const creds = gmailCreds.loadCredentials();
-  return { email: creds?.email || null };
-});
-
-// --- Phase 2: list / read / mutate -----------------------------------------
-
-ipcMain.handle('gmail:list-inbox', async (_e, opts) => {
-  try {
-    const result = await gmailImap.listInbox(opts || {});
-    return { success: true, ...result };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle('gmail:get-message', async (_e, { uid }) => {
-  try {
-    const message = await gmailImap.getMessage(uid);
-    if (message && message.html) {
-      message.htmlSanitized = gmailSanitize(message.html);
-    }
-    return { success: true, message };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle('gmail:mark-read', async (_e, { uid, read }) => {
-  try { await gmailImap.markRead(uid, read); return { success: true }; }
-  catch (err) { return { success: false, error: err.message }; }
-});
-
-ipcMain.handle('gmail:star', async (_e, { uid, starred }) => {
-  try { await gmailImap.star(uid, starred); return { success: true }; }
-  catch (err) { return { success: false, error: err.message }; }
-});
-
-ipcMain.handle('gmail:archive', async (_e, { uid }) => {
-  try { await gmailImap.archive(uid); return { success: true }; }
-  catch (err) { return { success: false, error: err.message }; }
-});
-
-ipcMain.handle('gmail:trash', async (_e, { uid }) => {
-  try { await gmailImap.trash(uid); return { success: true }; }
-  catch (err) { return { success: false, error: err.message }; }
-});
-
-ipcMain.handle('gmail:send', async (_e, opts) => {
-  try {
-    const result = await gmailSend(opts || {});
-    // Append the raw RFC822 to [Gmail]/Sent Mail so it shows up in Sent.
-    // Not fatal if this fails — the email was already delivered.
-    let appended = false;
-    if (result.raw) {
-      try {
-        await gmailImap.appendToSent(result.raw);
-        appended = true;
-      } catch (appendErr) {
-        console.error('[Vex] Gmail SMTP sent OK but IMAP append failed:', appendErr.message);
-      }
-    }
-    return {
-      success: true,
-      messageId: result.messageId,
-      accepted: result.accepted,
-      rejected: result.rejected,
-      response: result.response,
-      appendedToSent: appended,
-    };
-  } catch (err) {
-    // Sanitize the error so the app password can't leak into the UI.
-    const safeError = String(err?.message || err)
-      .replace(/(PLAIN|LOGIN)\b[\s\S]*/gi, '$1 [REDACTED]')
-      .replace(/pass(word)?\s*[:=]\s*\S+/gi, 'pass$1: [REDACTED]');
-    return { success: false, error: safeError };
-  }
-});
-
-ipcMain.handle('gmail:pick-attachments', async () => {
-  try {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'multiSelections'],
-      title: 'Attach files to email',
-    });
-    if (result.canceled) return { files: [] };
-
-    const files = result.filePaths.map(p => ({
-      path: p,
-      filename: path.basename(p),
-      size: fs.statSync(p).size,
-    }));
-    return { files };
-  } catch (err) {
-    return { files: [], error: err.message };
-  }
-});
+} catch (err) {
+  console.warn('[Vex] Gmail cleanup skipped:', err.message);
+}
 
 // === Phase 13: Vex Sync — encryption key + session metadata ===
 const syncKeyFile = path.join(userDataPath, 'sync-key.bin');
@@ -935,11 +818,11 @@ function createWindow() {
     callback({ responseHeaders });
   });
 
-  // Named partitions used by sidebar panels (whatsapp/claude/gmail) — header stripping
+  // Named partitions used by sidebar panels (whatsapp/claude) — header stripping
   // so they can be embedded in panels. persist:main is the default tabs session;
   // it gets adblocker/permissions/downloads/preload wiring below but no header
   // strip since regular tabs don't need their own frame-ancestors loosened.
-  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:gmail'];
+  const partitions = ['persist:whatsapp', 'persist:claude'];
 
   // Gmail: spoof Chrome UA at the session level too. The webview-tag `useragent`
   // attribute covers top-level frames; setting it on the session ensures every
