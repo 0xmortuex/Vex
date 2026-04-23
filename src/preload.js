@@ -148,6 +148,9 @@ contextBridge.exposeInMainWorld('vexGmail', {
   star: (uid, starred) => ipcRenderer.invoke('gmail:star', { uid, starred }),
   archive: (uid) => ipcRenderer.invoke('gmail:archive', { uid }),
   trash: (uid) => ipcRenderer.invoke('gmail:trash', { uid }),
+  // Phase 3: compose + send
+  send: (opts) => ipcRenderer.invoke('gmail:send', opts),
+  pickAttachments: () => ipcRenderer.invoke('gmail:pick-attachments'),
 });
 
 contextBridge.exposeInMainWorld('vexDevTools', {

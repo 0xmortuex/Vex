@@ -143,6 +143,10 @@ const GmailPanel = {
             <span class="gmail-topbar-email">${this.esc(email)}</span>
           </div>
           <div class="gmail-topbar-right">
+            <button class="gmail-btn-compose" id="gmail-compose" title="New message">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <span>Compose</span>
+            </button>
             <button class="gmail-icon-btn" id="gmail-refresh" title="Refresh">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
             </button>
@@ -156,6 +160,7 @@ const GmailPanel = {
       </div>
     `;
 
+    container.querySelector('#gmail-compose').addEventListener('click', () => this.openCompose({ mode: 'new' }));
     container.querySelector('#gmail-refresh').addEventListener('click', () => this.loadInbox({ initial: true }));
     container.querySelector('#gmail-panel-disconnect').addEventListener('click', async () => {
       if (!confirm('Disconnect Gmail? This removes your stored app password.')) return;
@@ -305,6 +310,15 @@ const GmailPanel = {
           <button class="gmail-icon-btn" id="gmail-back" title="Back to inbox">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
           </button>
+          <button class="gmail-icon-btn" id="gmail-action-reply" title="Reply">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+          </button>
+          <button class="gmail-icon-btn" id="gmail-action-reply-all" title="Reply all">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg>
+          </button>
+          <button class="gmail-icon-btn" id="gmail-action-forward" title="Forward">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
+          </button>
           <div class="gmail-reading-bar-spacer"></div>
           <button class="gmail-icon-btn${starred ? ' active' : ''}" id="gmail-action-star" title="Toggle star">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="${starred ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -329,9 +343,312 @@ const GmailPanel = {
     this.mountMessageBody(m);
 
     readingEl.querySelector('#gmail-back').addEventListener('click', () => this.closeMessage());
+    readingEl.querySelector('#gmail-action-reply').addEventListener('click', () => this.openCompose({ mode: 'reply', originalMessage: m }));
+    readingEl.querySelector('#gmail-action-reply-all').addEventListener('click', () => this.openCompose({ mode: 'replyAll', originalMessage: m }));
+    readingEl.querySelector('#gmail-action-forward').addEventListener('click', () => this.openCompose({ mode: 'forward', originalMessage: m }));
     readingEl.querySelector('#gmail-action-star').addEventListener('click', () => this.toggleStar(m.uid));
     readingEl.querySelector('#gmail-action-archive').addEventListener('click', () => this.archiveMessage(m.uid));
     readingEl.querySelector('#gmail-action-trash').addEventListener('click', () => this.trashMessage(m.uid));
+  },
+
+  // === Phase 3: Compose / Reply / Forward ===================================
+
+  _composeState: null,
+
+  openCompose({ mode = 'new', originalMessage = null } = {}) {
+    const state = this.buildComposeState(mode, originalMessage);
+    this._composeState = state;
+
+    // Mount the modal inside the main body so it overlays everything.
+    let modal = document.getElementById('gmail-compose-modal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'gmail-compose-modal';
+    modal.className = 'gmail-compose-modal';
+    modal.innerHTML = this.composeModalHtml(state);
+    document.body.appendChild(modal);
+    this.wireComposeModal(modal, state);
+  },
+
+  buildComposeState(mode, orig) {
+    const state = {
+      mode,
+      to: [],
+      cc: [],
+      bcc: [],
+      subject: '',
+      bodyHtml: '',
+      attachments: [],
+      inReplyTo: null,
+      references: null,
+      showCcBcc: false,
+    };
+    const myEmail = (this._inboxState?.email || '').toLowerCase();
+
+    if (mode === 'reply' && orig) {
+      state.to = orig.from?.[0]?.address ? [orig.from[0].address] : [];
+      state.subject = orig.subject?.startsWith('Re: ') ? orig.subject : `Re: ${orig.subject || ''}`;
+      state.inReplyTo = orig.messageId || null;
+      state.references = this.joinReferences(orig.references, orig.messageId);
+      state.bodyHtml = this.quoteOriginal(orig);
+    } else if (mode === 'replyAll' && orig) {
+      const fromAddr = orig.from?.[0]?.address;
+      state.to = fromAddr ? [fromAddr] : [];
+      const cc = [];
+      for (const a of (orig.to || [])) {
+        if (a.address && a.address.toLowerCase() !== myEmail && a.address !== fromAddr) cc.push(a.address);
+      }
+      for (const a of (orig.cc || [])) {
+        if (a.address && a.address.toLowerCase() !== myEmail && a.address !== fromAddr) cc.push(a.address);
+      }
+      state.cc = cc;
+      state.showCcBcc = cc.length > 0;
+      state.subject = orig.subject?.startsWith('Re: ') ? orig.subject : `Re: ${orig.subject || ''}`;
+      state.inReplyTo = orig.messageId || null;
+      state.references = this.joinReferences(orig.references, orig.messageId);
+      state.bodyHtml = this.quoteOriginal(orig);
+    } else if (mode === 'forward' && orig) {
+      state.subject = orig.subject?.startsWith('Fwd: ') ? orig.subject : `Fwd: ${orig.subject || ''}`;
+      state.bodyHtml = this.quoteOriginal(orig);
+    }
+    return state;
+  },
+
+  joinReferences(prev, msgId) {
+    const refs = [];
+    if (prev) refs.push(prev);
+    if (msgId) refs.push(msgId);
+    return refs.length ? refs.join(' ') : null;
+  },
+
+  quoteOriginal(orig) {
+    const fromName = orig.from?.[0]?.name || orig.from?.[0]?.address || '(sender)';
+    const when = orig.date ? new Date(orig.date).toLocaleString() : '';
+    // Use main-process-sanitized HTML when available; fall back to escaped text.
+    const quoted = orig.htmlSanitized || this.esc(orig.text || '').replace(/\n/g, '<br>');
+    return `<br><br><blockquote style="border-left: 3px solid #dadce0; margin: 0; padding-left: 12px; color: #5f6368;"><p>On ${this.esc(when)}, ${this.esc(fromName)} wrote:</p>${quoted}</blockquote>`;
+  },
+
+  composeModalHtml(state) {
+    const title = state.mode === 'new' ? 'New message'
+      : state.mode === 'reply' ? 'Reply'
+      : state.mode === 'replyAll' ? 'Reply all'
+      : 'Forward';
+    return `
+      <div class="gmail-compose-backdrop"></div>
+      <div class="gmail-compose-card">
+        <header class="gmail-compose-header">
+          <span>${title}</span>
+          <button class="gmail-icon-btn" id="gmail-compose-close" title="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </header>
+        <div class="gmail-compose-fields">
+          <div class="gmail-compose-row">
+            <label>To</label>
+            <input type="text" id="gmail-to" value="${this.esc(state.to.join(', '))}" placeholder="recipient@example.com" autocomplete="off" spellcheck="false">
+            <button type="button" class="gmail-compose-toggle" id="gmail-toggle-cc">${state.showCcBcc ? 'Hide' : 'Cc Bcc'}</button>
+          </div>
+          <div class="gmail-compose-row gmail-cc-row" ${state.showCcBcc ? '' : 'hidden'}>
+            <label>Cc</label>
+            <input type="text" id="gmail-cc" value="${this.esc(state.cc.join(', '))}" placeholder="" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="gmail-compose-row gmail-bcc-row" ${state.showCcBcc ? '' : 'hidden'}>
+            <label>Bcc</label>
+            <input type="text" id="gmail-bcc" value="${this.esc(state.bcc.join(', '))}" placeholder="" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="gmail-compose-row">
+            <label>Subject</label>
+            <input type="text" id="gmail-subject" value="${this.esc(state.subject)}" placeholder="Subject" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+        <div class="gmail-compose-toolbar">
+          <button type="button" data-cmd="bold" title="Bold"><b>B</b></button>
+          <button type="button" data-cmd="italic" title="Italic"><i>I</i></button>
+          <button type="button" data-cmd="underline" title="Underline"><u>U</u></button>
+          <button type="button" data-cmd="insertUnorderedList" title="Bulleted list">&#8226;</button>
+          <button type="button" data-cmd="insertOrderedList" title="Numbered list">1.</button>
+          <button type="button" id="gmail-cmd-link" title="Insert link">&#128279;</button>
+        </div>
+        <div class="gmail-compose-body" id="gmail-compose-body" contenteditable="true">${state.bodyHtml}</div>
+        <div class="gmail-compose-attachments" id="gmail-compose-attachments"></div>
+        <footer class="gmail-compose-footer">
+          <button type="button" class="gmail-btn-secondary" id="gmail-compose-attach">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            Attach
+          </button>
+          <div class="gmail-compose-footer-spacer"></div>
+          <button type="button" class="gmail-btn-secondary" id="gmail-compose-cancel">Cancel</button>
+          <button type="button" class="gmail-btn-primary" id="gmail-compose-send" disabled>Send</button>
+        </footer>
+        <div class="gmail-compose-status" id="gmail-compose-status"></div>
+      </div>
+    `;
+  },
+
+  wireComposeModal(modal, state) {
+    const $ = (sel) => modal.querySelector(sel);
+
+    const toInput = $('#gmail-to');
+    const ccInput = $('#gmail-cc');
+    const bccInput = $('#gmail-bcc');
+    const subjInput = $('#gmail-subject');
+    const bodyEl = $('#gmail-compose-body');
+    const sendBtn = $('#gmail-compose-send');
+    const statusEl = $('#gmail-compose-status');
+    const attachEl = $('#gmail-compose-attachments');
+
+    const validate = () => {
+      const hasTo = this.parseAndValidateAddrs(toInput).length > 0;
+      this.parseAndValidateAddrs(ccInput);
+      this.parseAndValidateAddrs(bccInput);
+      const hasSubject = subjInput.value.trim().length > 0;
+      sendBtn.disabled = !(hasTo && hasSubject);
+    };
+
+    [toInput, ccInput, bccInput, subjInput].forEach(el => el.addEventListener('input', validate));
+    validate();
+
+    // Focus: new message → To; reply/forward → body top
+    setTimeout(() => {
+      if (state.mode === 'new') toInput.focus();
+      else {
+        bodyEl.focus();
+        // Place cursor at the very start (user types above the quoted block)
+        const range = document.createRange();
+        range.setStart(bodyEl, 0);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }, 0);
+
+    // Close / Cancel / backdrop
+    const close = () => { modal.remove(); this._composeState = null; };
+    $('#gmail-compose-close').addEventListener('click', close);
+    $('#gmail-compose-cancel').addEventListener('click', close);
+    modal.querySelector('.gmail-compose-backdrop').addEventListener('click', close);
+
+    // Cc/Bcc toggle
+    $('#gmail-toggle-cc').addEventListener('click', (e) => {
+      state.showCcBcc = !state.showCcBcc;
+      modal.querySelector('.gmail-cc-row').hidden = !state.showCcBcc;
+      modal.querySelector('.gmail-bcc-row').hidden = !state.showCcBcc;
+      e.currentTarget.textContent = state.showCcBcc ? 'Hide' : 'Cc Bcc';
+    });
+
+    // Toolbar
+    modal.querySelectorAll('.gmail-compose-toolbar button[data-cmd]').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => e.preventDefault()); // keep editor selection
+      btn.addEventListener('click', () => {
+        document.execCommand(btn.dataset.cmd, false, null);
+        bodyEl.focus();
+      });
+    });
+    $('#gmail-cmd-link').addEventListener('mousedown', (e) => e.preventDefault());
+    $('#gmail-cmd-link').addEventListener('click', () => {
+      const url = prompt('Link URL:');
+      if (!url) return;
+      const safe = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+      document.execCommand('createLink', false, safe);
+      bodyEl.focus();
+    });
+
+    // Attachments
+    const renderAttachments = () => {
+      attachEl.innerHTML = state.attachments.map((a, i) => `
+        <div class="gmail-attach-chip">
+          <span class="gmail-attach-name">${this.esc(a.filename)}</span>
+          <span class="gmail-attach-size">${this.formatSize(a.size)}</span>
+          <button type="button" class="gmail-attach-remove" data-i="${i}" title="Remove">&times;</button>
+        </div>
+      `).join('');
+      attachEl.querySelectorAll('.gmail-attach-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.attachments.splice(parseInt(btn.dataset.i, 10), 1);
+          renderAttachments();
+        });
+      });
+    };
+    $('#gmail-compose-attach').addEventListener('click', async () => {
+      const result = await window.vexGmail.pickAttachments();
+      const picked = result.files || [];
+      if (!picked.length) return;
+      // Pre-check 25 MB combined cap in the UI for early feedback.
+      const total = state.attachments.concat(picked).reduce((s, a) => s + (a.size || 0), 0);
+      if (total > 25 * 1024 * 1024) {
+        if (typeof window.showToast === 'function') window.showToast('Gmail limit is 25MB total');
+        return;
+      }
+      state.attachments = state.attachments.concat(picked);
+      renderAttachments();
+    });
+    renderAttachments();
+
+    // Send
+    sendBtn.addEventListener('click', async () => {
+      const to = this.parseAndValidateAddrs(toInput);
+      const cc = this.parseAndValidateAddrs(ccInput);
+      const bcc = this.parseAndValidateAddrs(bccInput);
+      if (!to.length) { statusEl.textContent = 'At least one recipient required'; statusEl.className = 'gmail-compose-status error'; return; }
+
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending…';
+      statusEl.textContent = 'Sending via SMTP…';
+      statusEl.className = 'gmail-compose-status pending';
+
+      // Sanitize user HTML with the same pipeline as incoming email —
+      // contenteditable output can contain surprising junk (pasted styles, empty divs).
+      const rawHtml = bodyEl.innerHTML;
+
+      const result = await window.vexGmail.send({
+        to, cc, bcc,
+        subject: subjInput.value.trim(),
+        html: rawHtml,
+        text: bodyEl.innerText,
+        attachments: state.attachments,
+        inReplyTo: state.inReplyTo,
+        references: state.references,
+      });
+
+      if (result.success) {
+        if (typeof window.showToast === 'function') window.showToast('Message sent');
+        close();
+        // Refresh inbox in case the send also landed in INBOX.
+        this.loadInbox({ initial: true });
+      } else {
+        statusEl.textContent = 'Send failed: ' + (result.error || 'unknown error');
+        statusEl.className = 'gmail-compose-status error';
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send';
+      }
+    });
+  },
+
+  parseAndValidateAddrs(inputEl) {
+    const raw = inputEl.value.trim();
+    if (!raw) { inputEl.classList.remove('invalid'); return []; }
+    const parts = raw.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const valid = [];
+    let anyInvalid = false;
+    for (const p of parts) {
+      // Accept "Name <email@x>" form — extract email part
+      const m = p.match(/<([^>]+)>\s*$/);
+      const addr = (m ? m[1] : p).trim();
+      if (re.test(addr)) valid.push(addr);
+      else anyInvalid = true;
+    }
+    inputEl.classList.toggle('invalid', anyInvalid);
+    return valid;
+  },
+
+  formatSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   },
 
   mountMessageBody(m) {

@@ -7,6 +7,7 @@ const { createPipWindow, closePipWindow } = require('./pip');
 const { gmailImap, testConnectionWith } = require('./main/gmail/imap-client');
 const gmailCreds = require('./main/gmail/credentials');
 const { sanitize: gmailSanitize } = require('./main/gmail/sanitize');
+const { sendMessage: gmailSend, resetTransporter: gmailResetTransporter } = require('./main/gmail/smtp-client');
 
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;
@@ -703,8 +704,9 @@ ipcMain.handle('gmail:has-credentials', async () => {
 
 ipcMain.handle('gmail:clear-credentials', async () => {
   try {
-    // Drop the persistent connection too — credentials are gone.
+    // Drop the persistent IMAP + cached SMTP transporter — credentials are gone.
     try { await gmailImap.disconnect(); } catch {}
+    try { gmailResetTransporter(); } catch {}
     gmailCreds.clearCredentials();
     return { success: true };
   } catch (err) {
@@ -758,6 +760,56 @@ ipcMain.handle('gmail:archive', async (_e, { uid }) => {
 ipcMain.handle('gmail:trash', async (_e, { uid }) => {
   try { await gmailImap.trash(uid); return { success: true }; }
   catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('gmail:send', async (_e, opts) => {
+  try {
+    const result = await gmailSend(opts || {});
+    // Append the raw RFC822 to [Gmail]/Sent Mail so it shows up in Sent.
+    // Not fatal if this fails — the email was already delivered.
+    let appended = false;
+    if (result.raw) {
+      try {
+        await gmailImap.appendToSent(result.raw);
+        appended = true;
+      } catch (appendErr) {
+        console.error('[Vex] Gmail SMTP sent OK but IMAP append failed:', appendErr.message);
+      }
+    }
+    return {
+      success: true,
+      messageId: result.messageId,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      response: result.response,
+      appendedToSent: appended,
+    };
+  } catch (err) {
+    // Sanitize the error so the app password can't leak into the UI.
+    const safeError = String(err?.message || err)
+      .replace(/(PLAIN|LOGIN)\b[\s\S]*/gi, '$1 [REDACTED]')
+      .replace(/pass(word)?\s*[:=]\s*\S+/gi, 'pass$1: [REDACTED]');
+    return { success: false, error: safeError };
+  }
+});
+
+ipcMain.handle('gmail:pick-attachments', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'multiSelections'],
+      title: 'Attach files to email',
+    });
+    if (result.canceled) return { files: [] };
+
+    const files = result.filePaths.map(p => ({
+      path: p,
+      filename: path.basename(p),
+      size: fs.statSync(p).size,
+    }));
+    return { files };
+  } catch (err) {
+    return { files: [], error: err.message };
+  }
 });
 
 // === Phase 13: Vex Sync — encryption key + session metadata ===

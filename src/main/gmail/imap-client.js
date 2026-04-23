@@ -127,6 +127,9 @@ class GmailImapClient {
 
       return {
         uid,
+        messageId: msg.envelope?.messageId ?? parsed.messageId ?? null,
+        inReplyTo: msg.envelope?.inReplyTo ?? parsed.inReplyTo ?? null,
+        references: parsed.references ?? null,
         from: msg.envelope?.from ?? [],
         to: msg.envelope?.to ?? [],
         cc: msg.envelope?.cc ?? [],
@@ -197,6 +200,16 @@ class GmailImapClient {
     const lock = await this.client.getMailboxLock('INBOX');
     try {
       await this.client.messageMove(uid, '[Gmail]/Trash', { uid: true });
+    } finally { lock.release(); }
+  }
+
+  async appendToSent(rawMessage) {
+    await this.ensureConnected();
+    // Gmail's Sent folder has a locale-neutral name in IMAP: [Gmail]/Sent Mail
+    // (this is fixed regardless of the UI language).
+    const lock = await this.client.getMailboxLock('[Gmail]/Sent Mail');
+    try {
+      await this.client.append('[Gmail]/Sent Mail', rawMessage, ['\\Seen']);
     } finally { lock.release(); }
   }
 }
