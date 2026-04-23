@@ -1,38 +1,52 @@
 /* === Restore Tabs Prompt === */
 .restore-prompt {
-  position: fixed; top: 44px; left: 50%;
+  position: fixed; top: 58px; left: 50%;
   transform: translateX(-50%) translateY(-200%);
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 0 0 12px 12px; padding: 12px 20px;
+  background: var(--vex-glass-strong);
+  backdrop-filter: var(--vex-blur-heavy);
+  -webkit-backdrop-filter: var(--vex-blur-heavy);
+  border: 1px solid var(--vex-border-accent);
+  border-radius: 0 0 var(--vex-radius-lg) var(--vex-radius-lg);
+  padding: 12px 20px;
   display: flex; align-items: center; gap: 14px; z-index: 9000;
   transition: transform 0.3s ease, visibility 0.3s;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 500px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45); max-width: 500px;
   visibility: hidden; pointer-events: none;
 }
 .restore-prompt.show {
   transform: translateX(-50%) translateY(0);
   visibility: visible; pointer-events: auto;
 }
-.restore-prompt-text { font-size: 13px; color: var(--text); flex: 1; }
-.restore-prompt-text strong { color: var(--primary); }
+.restore-prompt-text { font-size: 13px; color: var(--vex-text-primary); flex: 1; }
+.restore-prompt-text strong { color: var(--vex-accent); }
 .restore-prompt-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .restore-prompt-actions button {
-  padding: 6px 14px; border-radius: var(--radius); cursor: pointer;
+  padding: 6px 14px; border-radius: var(--vex-radius-sm); cursor: pointer;
   font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 500;
-  border: none; transition: all 0.15s;
+  border: 1px solid var(--vex-border-subtle); transition: all 0.15s ease;
 }
-.restore-prompt-actions .restore-btn-primary { background: var(--primary); color: white; }
-.restore-prompt-actions .restore-btn-primary:hover { background: var(--primary-hover); }
+.restore-prompt-actions .restore-btn-primary {
+  background: var(--vex-accent); color: var(--vex-bg-deep);
+  border-color: var(--vex-accent);
+}
+.restore-prompt-actions .restore-btn-primary:hover {
+  background: transparent; color: var(--vex-accent);
+}
 .restore-prompt-actions .restore-btn-secondary {
-  background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+  background: transparent; color: var(--vex-text-muted);
 }
-.restore-prompt-actions .restore-btn-secondary:hover { background: var(--surface); color: var(--text); }
+.restore-prompt-actions .restore-btn-secondary:hover {
+  color: var(--vex-text-primary); border-color: var(--vex-border-medium);
+}
 .restore-prompt-close {
   width: 24px; height: 24px; border: none; background: transparent;
-  color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
+  color: var(--vex-text-muted); border-radius: var(--vex-radius-sm); cursor: pointer;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background 0.12s ease, color 0.12s ease;
 }
-.restore-prompt-close:hover { background: var(--tab-hover); color: var(--text); }
+.restore-prompt-close:hover {
+  background: var(--vex-accent-dim); color: var(--vex-accent);
+}
 
 /* Tab sleeping indicator */
 .tab-item.sleeping { opacity: 0.5; }
