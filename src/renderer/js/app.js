@@ -688,7 +688,7 @@
     const overlay = document.createElement('div');
     overlay.className = 'welcome-overlay';
     overlay.innerHTML = `<div class="welcome-card">
-      <div style="margin-bottom:12px"><svg width="60" height="60" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#12141a"/><path d="M 64 64 L 128 192 L 192 64" stroke="#6366f1" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div style="margin-bottom:12px"><svg width="60" height="60" viewBox="0 0 80 80" role="img" aria-label="Vex logo"><defs><linearGradient id="vexBodyWelcome" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#d4a574" stop-opacity="0.28"/><stop offset="100%" stop-color="#6b5638" stop-opacity="0.45"/></linearGradient></defs><polygon points="40,12 68,40 40,68 12,40" fill="url(#vexBodyWelcome)" stroke="#d4a574" stroke-width="1.2" stroke-opacity="0.75"/><polygon points="40,12 68,40 40,40" fill="#d4a574" fill-opacity="0.38"/><polygon points="40,12 12,40 40,40" fill="#d4a574" fill-opacity="0.52"/><path d="M 26 38 L 40 56 L 54 38" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <h1>Welcome to Vex</h1>
       <p class="welcome-subtitle">A browser built just for you.</p>
       <div class="welcome-features">
