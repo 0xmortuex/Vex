@@ -2,8 +2,7 @@
 
 const CUSAPanel = {
   quickLinks: [
-    { icon: '\u{1F4DC}', label: 'Constitution', action: () => TabManager.createTab('https://docs.google.com/document/d/CUSA_Constitution', true) },
-    { icon: '\u{2696}', label: 'Code of Justice', action: () => TabManager.createTab('https://docs.google.com/document/d/CUSA_CoJ', true) },
+    { icon: '\u{1F4CA}', label: 'CUSA Spreadsheet', action: () => TabManager.createTab('https://docs.google.com/spreadsheets/d/1iUo65QqvPPPAXdfL-huJFysRy3DrhtOhbGPfit-9i6s/edit?gid=0#gid=0', true) },
     { icon: '\u{1F528}', label: 'BillForge', action: () => VexTools.openToolById('billforge') },
     { icon: '\u{1F5FA}', label: 'LoopholeMap', action: () => VexTools.openToolById('loopholemap') }
   ],
