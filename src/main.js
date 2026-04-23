@@ -833,6 +833,15 @@ function createWindow() {
   // it gets adblocker/permissions/downloads/preload wiring below but no header
   // strip since regular tabs don't need their own frame-ancestors loosened.
   const partitions = ['persist:whatsapp', 'persist:claude', 'persist:gmail'];
+
+  // Gmail: spoof Chrome UA at the session level too. The webview-tag `useragent`
+  // attribute covers top-level frames; setting it on the session ensures every
+  // sub-request (redirects, XHR, iframes during the auth dance) also identifies
+  // as Chrome, so Google's "browser not secure" detector doesn't trip on leaked
+  // "Electron/X.X.X" tokens in edge-case requests.
+  session.fromPartition('persist:gmail').setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+  );
   partitions.forEach(partName => {
     const ses = session.fromPartition(partName);
 

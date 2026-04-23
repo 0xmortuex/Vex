@@ -130,6 +130,12 @@ const SidebarManager = {
       const config = this.panelConfigs[panelName];
       if (config && config.url) {
         const wv = document.createElement('webview');
+        // Gmail: spoof Chrome UA BEFORE src so the first request doesn't leak
+        // "Electron/X.X.X" — Google blocks sign-in on webviews advertising
+        // Electron ("This browser may not be secure").
+        if (panelName === 'gmail') {
+          wv.setAttribute('useragent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+        }
         wv.setAttribute('src', config.url);
         if (config.partition) {
           wv.setAttribute('partition', config.partition);
