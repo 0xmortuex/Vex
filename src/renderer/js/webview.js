@@ -203,6 +203,7 @@ const WebviewManager = {
   // reloadIgnoringCache. Falls back to the renderer-side reloadIgnoringCache /
   // reload if the IPC bridge is unavailable (dev-reload edge cases).
   hardReload() {
+    console.log('[Vex] hard reload triggered — renderer callback');
     const wv = this.getActiveWebview();
     if (!wv) return;
     try {

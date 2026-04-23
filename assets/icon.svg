@@ -4,11 +4,14 @@
       <stop offset="0%" stop-color="#12141a"/>
       <stop offset="100%" stop-color="#0a0c10"/>
     </linearGradient>
-    <linearGradient id="v-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#8b8cfa"/>
-      <stop offset="100%" stop-color="#6366f1"/>
+    <linearGradient id="vexBodyIcon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4a574" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#6b5638" stop-opacity="0.45"/>
     </linearGradient>
   </defs>
   <rect width="256" height="256" rx="48" fill="url(#bg)"/>
-  <path d="M 64 64 L 128 192 L 192 64" stroke="url(#v-grad)" stroke-width="28" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="128,38 218,128 128,218 38,128" fill="url(#vexBodyIcon)" stroke="#d4a574" stroke-width="4" stroke-opacity="0.75"/>
+  <polygon points="128,38 218,128 128,128" fill="#d4a574" fill-opacity="0.38"/>
+  <polygon points="128,38 38,128 128,128" fill="#d4a574" fill-opacity="0.52"/>
+  <path d="M 83 122 L 128 179 L 173 122" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

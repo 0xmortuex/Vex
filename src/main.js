@@ -1059,9 +1059,12 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('sleep-current-tab');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'R') {
-      mainWindow.webContents.send('toggle-reading-mode');
-      event.preventDefault();
+    // Ctrl+Shift+R was previously bound here to toggle-reading-mode, which
+    // hijacked the renderer-side hard-reload shortcut. Reading mode is still
+    // accessible via Ctrl+Alt+R through the renderer's ShortcutsRegistry; this
+    // block intentionally stays out of the way so hard-reload can fire.
+    if (input.control && input.shift && (input.key === 'R' || input.key === 'r')) {
+      console.log('[Vex] hard reload triggered — main process (Ctrl+Shift+R detected, passing to renderer)');
     }
     if (input.control && input.alt && input.key === 's') {
       mainWindow.webContents.send('take-screenshot');
