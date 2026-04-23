@@ -19,8 +19,12 @@ function preStripBlocks(html) {
   return String(html)
     .replace(/<!DOCTYPE[^>]*>/gi, '')
     .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, '');
+  // NOTE: Do NOT strip <style> blocks — email HTML (especially marketing /
+  // invoice templates) uses <style> for table widths, colors, layout. Killing
+  // them produces "flat text" emails. DOMPurify keeps <style> tags by default
+  // while still sanitizing their CSS contents (drops @import, expression(),
+  // behavior, javascript: URLs, etc.), which is what we want here.
 }
 
 function sanitize(html) {
@@ -36,6 +40,9 @@ function sanitize(html) {
       'onkeydown', 'onkeyup', 'onkeypress',
     ],
     ADD_ATTR: ['target'],
+    // Wrap loose content (e.g. a fragment that starts with <style><table>…)
+    // in <body> so <style> survives instead of being dropped as out-of-place.
+    FORCE_BODY: true,
   });
   console.log('[Vex] Gmail sanitize input length:', html?.length, 'output length:', result?.length);
   return result;
