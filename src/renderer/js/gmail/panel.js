@@ -336,12 +336,12 @@ const GmailPanel = {
 
   mountMessageBody(m) {
     const bodyEl = this._inboxState.container.querySelector('#gmail-reading-body');
-    const html = m.html;
+    // Main process already sanitized the HTML via DOMPurify+jsdom and attached
+    // it as `htmlSanitized`. Fall back to plain text if the email had no HTML body.
+    const sanitized = m.htmlSanitized;
     const text = m.text || '';
 
-    if (html) {
-      // Sanitize with DOMPurify before dropping into a sandboxed iframe.
-      const sanitized = window.vexGmailSanitize(html);
+    if (sanitized) {
       const frame = document.createElement('iframe');
       frame.className = 'gmail-reading-frame';
       frame.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');

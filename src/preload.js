@@ -132,54 +132,9 @@ contextBridge.exposeInMainWorld('vex', {
   syncClearState: () => ipcRenderer.invoke('sync-clear-state')
 });
 
-// DOMPurify instance for Gmail HTML sanitization. Preload runs in a Node+DOM
-// context, so we can require the package here and expose a pure-function bridge
-// to the renderer without leaking Node globals.
-let _purify = null;
-try {
-  const createDOMPurify = require('dompurify');
-  _purify = createDOMPurify(window);
-} catch (err) {
-  console.error('[preload] DOMPurify unavailable:', err);
-}
-
-const GMAIL_PURIFY_CONFIG = {
-  USE_PROFILES: { html: true },
-  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data|cid):)/i,
-  // Note: <style> and <head> are handled by the pre-strip regex below, not
-  // here. DOMPurify sometimes leaves the TEXT CONTENT of forbidden tags as
-  // visible text (seen with <style> → raw CSS bleeds into the email body).
-  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'link', 'meta'],
-  FORBID_ATTR: [
-    'onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur',
-    'onsubmit', 'onreset', 'onchange', 'onkeydown', 'onkeyup', 'onkeypress',
-    'onabort', 'onbeforeunload', 'oncontextmenu', 'ondblclick', 'ondrag',
-    'ondragend', 'ondragenter', 'ondragleave', 'ondragover', 'ondragstart',
-    'ondrop', 'oninput', 'onpaste',
-  ],
-  ADD_ATTR: ['target'],
-};
-
-function preStripBlocks(html) {
-  // Remove entire <style>...</style>, <head>...</head>, and DOCTYPE so their
-  // text content can never bleed into the rendered email body.
-  return String(html || '')
-    .replace(/<!DOCTYPE[^>]*>/gi, '')
-    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, '');
-}
-
-contextBridge.exposeInMainWorld('vexGmailSanitize', (html) => {
-  if (!_purify) return preStripBlocks(html).replace(/<[^>]+>/g, '');
-  try {
-    const cleaned = preStripBlocks(html);
-    return _purify.sanitize(cleaned, GMAIL_PURIFY_CONFIG);
-  } catch (err) {
-    console.error('[preload] sanitize failed:', err);
-    return '';
-  }
-});
+// Gmail HTML sanitization happens in the main process (preload is sandboxed
+// and cannot require npm modules). The sanitized HTML is returned from the
+// gmail:get-message IPC alongside the raw html — see src/main/gmail/sanitize.js.
 
 contextBridge.exposeInMainWorld('vexGmail', {
   saveCredentials: (email, appPassword) => ipcRenderer.invoke('gmail:save-credentials', { email, appPassword }),

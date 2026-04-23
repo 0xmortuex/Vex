@@ -6,6 +6,7 @@ const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
 const { gmailImap, testConnectionWith } = require('./main/gmail/imap-client');
 const gmailCreds = require('./main/gmail/credentials');
+const { sanitize: gmailSanitize } = require('./main/gmail/sanitize');
 
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;
@@ -730,6 +731,9 @@ ipcMain.handle('gmail:list-inbox', async (_e, opts) => {
 ipcMain.handle('gmail:get-message', async (_e, { uid }) => {
   try {
     const message = await gmailImap.getMessage(uid);
+    if (message && message.html) {
+      message.htmlSanitized = gmailSanitize(message.html);
+    }
     return { success: true, message };
   } catch (err) {
     return { success: false, error: err.message };
