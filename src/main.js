@@ -508,6 +508,35 @@ app.on('web-contents-created', (_event, contents) => {
   const type = contents.getType();
   if (type !== 'webview') return;
 
+  // Gmail-specific: keep popups (Google sign-in flow) inside the same webview
+  // so cookies land in persist:gmail. Without this, Google's window.open for
+  // accounts.google.com would be forwarded to the renderer tab system below
+  // and end up in persist:main, leaving the Gmail panel logged out forever.
+  const gmailSession = session.fromPartition('persist:gmail');
+  const isGmailPartition = contents.session === gmailSession;
+
+  if (isGmailPartition) {
+    contents.setWindowOpenHandler(({ url }) => {
+      console.log('[Vex] Gmail main-process popup intercepted:', url);
+      const isGoogleAuth =
+        url.includes('accounts.google.com') ||
+        url.includes('mail.google.com') ||
+        url.includes('accounts.youtube.com') ||
+        url.includes('myaccount.google.com') ||
+        url.includes('gds.google.com') ||
+        url.includes('google.com/signin');
+      if (isGoogleAuth) {
+        // Navigate the Gmail webview in-place instead of spawning a new window.
+        try { contents.loadURL(url); } catch (err) { console.error('[Vex] Gmail loadURL failed:', err.message); }
+      }
+      return { action: 'deny' };
+    });
+    contents.on('will-navigate', (_e, url) => {
+      console.log('[Vex] Gmail will-navigate:', url);
+    });
+    return; // don't fall through to the generic handler below
+  }
+
   contents.setWindowOpenHandler((details) => {
     const { url, disposition } = details || {};
     // External-protocol window.open (e.g. Roblox Play button spawns a hidden

@@ -142,11 +142,15 @@ const SidebarManager = {
         this.panelWebviews[panelName] = wv;
 
         // Gmail: keep the login flow (accounts.google.com) inside the same
-        // webview so cookies land in persist:gmail. Without this, Google's
-        // window.open for the sign-in page gets routed to a new tab in
-        // persist:main and the panel stays logged out.
+        // webview so cookies land in persist:gmail. Google's popup-based
+        // sign-in is caught at the MAIN-PROCESS level via
+        // setWindowOpenHandler (see src/main.js) because new-window on
+        // the renderer-side webview tag doesn't fire for modern popups.
+        // These two listeners stay as a diagnostic fallback — if one fires,
+        // we can see exactly which event Google is using in DevTools.
         if (panelName === 'gmail') {
           wv.addEventListener('new-window', (e) => {
+            console.log('[Vex] Gmail new-window fired:', e.url);
             e.preventDefault();
             const isGoogleAuth = e.url && (
               e.url.includes('accounts.google.com') ||
@@ -158,6 +162,9 @@ const SidebarManager = {
             } else if (typeof TabManager !== 'undefined' && TabManager.createTab) {
               TabManager.createTab(e.url, true);
             }
+          });
+          wv.addEventListener('did-create-window', (e) => {
+            console.log('[Vex] Gmail did-create-window fired:', e);
           });
         }
       }
