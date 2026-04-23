@@ -10,7 +10,7 @@ const SidebarManager = {
     start: { url: null, partition: null },
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
-    gmail: { url: 'https://mail.google.com/mail/u/0/#inbox', partition: 'persist:gmail' },
+    gmail: { url: 'https://mail.google.com/', partition: 'persist:gmail' },
     settings: { url: null, partition: null },
     cusa: { url: null, partition: null },
     roblox: { url: null, partition: null },
@@ -140,6 +140,26 @@ const SidebarManager = {
         wv.style.height = '100%';
         panelEl.appendChild(wv);
         this.panelWebviews[panelName] = wv;
+
+        // Gmail: keep the login flow (accounts.google.com) inside the same
+        // webview so cookies land in persist:gmail. Without this, Google's
+        // window.open for the sign-in page gets routed to a new tab in
+        // persist:main and the panel stays logged out.
+        if (panelName === 'gmail') {
+          wv.addEventListener('new-window', (e) => {
+            e.preventDefault();
+            const isGoogleAuth = e.url && (
+              e.url.includes('accounts.google.com') ||
+              e.url.includes('mail.google.com') ||
+              e.url.includes('accounts.youtube.com')
+            );
+            if (isGoogleAuth) {
+              try { wv.loadURL(e.url); } catch (err) { console.warn('[Gmail] loadURL failed:', err); }
+            } else if (typeof TabManager !== 'undefined' && TabManager.createTab) {
+              TabManager.createTab(e.url, true);
+            }
+          });
+        }
       }
     }
 
