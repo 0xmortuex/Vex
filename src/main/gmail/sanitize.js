@@ -4,9 +4,13 @@
 // to the renderer via the `gmail:get-message` IPC response.
 
 const createDOMPurify = require('dompurify');
-const { JSDOM } = require('jsdom');
+const { Window } = require('happy-dom');
 
-const { window } = new JSDOM('');
+// happy-dom is pure-CJS (no ESM transitive deps) and noticeably lighter than
+// jsdom. jsdom pulled in html-encoding-sniffer → encoding-lite, which went
+// ESM-only in a recent release and crashed Electron's main process with
+// ERR_REQUIRE_ESM. DOMPurify officially supports both backends.
+const window = new Window();
 const DOMPurify = createDOMPurify(window);
 
 function preStripBlocks(html) {
