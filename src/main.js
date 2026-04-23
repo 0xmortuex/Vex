@@ -841,25 +841,40 @@ function createWindow() {
   // as Chrome, so Google's "browser not secure" detector doesn't trip on leaked
   // "Electron/X.X.X" tokens in edge-case requests.
   const gmailSession = session.fromPartition('persist:gmail');
+  // Chrome 124 matches Electron 30's actual Chromium version — mismatched
+  // Chrome/131 UA + real Chromium/124 engine is itself a fingerprint red flag.
   gmailSession.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
   );
 
   // Rewrite Client Hints headers so Google's server-side UA fingerprint sees
-  // Chrome 131 instead of Electron. The UA string alone isn't enough — modern
+  // Chrome 124 instead of Electron. The UA string alone isn't enough — modern
   // Google reads Sec-CH-UA-* headers and the navigator.userAgentData API.
+  // Brand order matters: Google specifically looks for "Google Chrome" first.
   gmailSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    console.log('[Vex] Gmail header rewrite firing for:', details.url);
     const headers = details.requestHeaders;
-    headers['Sec-CH-UA'] = '"Chromium";v="131", "Google Chrome";v="131", "Not(A:Brand";v="24"';
-    headers['Sec-CH-UA-Mobile'] = '?0';
-    headers['Sec-CH-UA-Platform'] = '"Windows"';
-    delete headers['Sec-CH-UA-Full-Version-List'];
-    delete headers['Sec-CH-UA-Full-Version'];
-    delete headers['Sec-CH-UA-Arch'];
-    delete headers['Sec-CH-UA-Bitness'];
-    delete headers['Sec-CH-UA-Model'];
-    delete headers['Sec-CH-UA-Platform-Version'];
-    delete headers['Sec-CH-UA-Wow64'];
+    headers['Sec-Ch-Ua'] = '"Google Chrome";v="124", "Chromium";v="124", "Not_A Brand";v="24"';
+    headers['Sec-Ch-Ua-Mobile'] = '?0';
+    headers['Sec-Ch-Ua-Platform'] = '"Windows"';
+    // Also set the original-casing variants in case Chromium normalizes headers.
+    headers['sec-ch-ua'] = headers['Sec-Ch-Ua'];
+    headers['sec-ch-ua-mobile'] = headers['Sec-Ch-Ua-Mobile'];
+    headers['sec-ch-ua-platform'] = headers['Sec-Ch-Ua-Platform'];
+    delete headers['Sec-Ch-Ua-Full-Version-List'];
+    delete headers['Sec-Ch-Ua-Full-Version'];
+    delete headers['Sec-Ch-Ua-Arch'];
+    delete headers['Sec-Ch-Ua-Bitness'];
+    delete headers['Sec-Ch-Ua-Model'];
+    delete headers['Sec-Ch-Ua-Platform-Version'];
+    delete headers['Sec-Ch-Ua-Wow64'];
+    delete headers['sec-ch-ua-full-version-list'];
+    delete headers['sec-ch-ua-full-version'];
+    delete headers['sec-ch-ua-arch'];
+    delete headers['sec-ch-ua-bitness'];
+    delete headers['sec-ch-ua-model'];
+    delete headers['sec-ch-ua-platform-version'];
+    delete headers['sec-ch-ua-wow64'];
     callback({ requestHeaders: headers });
   });
 
