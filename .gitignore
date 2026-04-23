@@ -1,3 +1,6 @@
 node_modules/
 dist/
 .claude/
+# Icon build intermediates (regenerated from assets/icon.svg by `npm run build-icons`)
+assets/icon-source.png
+assets/icons/
