@@ -5,27 +5,6 @@ const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const gmailCreds = require('./credentials');
 
-// Strip HTML tags + collapse whitespace for list-view previews. Not a security
-// barrier — just a cheap way to turn HTML fragments into a snippet. Full HTML
-// sanitization for the reading pane happens in the renderer via DOMPurify.
-function extractPreview(buf) {
-  if (!buf) return '';
-  const str = Buffer.isBuffer(buf) ? buf.toString('utf8') : String(buf);
-  return str
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 220);
-}
-
 class GmailImapClient {
   constructor() {
     this.client = null;
@@ -86,16 +65,30 @@ class GmailImapClient {
       const start = Math.max(1, from - limit + 1);
       const range = `${start}:${from}`;
 
+      // Fetch full source + envelope. mailparser handles QP/base64 decoding
+      // and charset conversion automatically — raw bodyParts would return
+      // =CD=8F encoded bytes / base64 blobs that leak into the UI.
       const messages = [];
       for await (const msg of this.client.fetch(range, {
         envelope: true,
         flags: true,
         internalDate: true,
         size: true,
-        bodyStructure: true,
-        bodyParts: ['1'],
         uid: true,
+        source: true,
       })) {
+        let preview = '';
+        try {
+          const parsed = await simpleParser(msg.source, {
+            skipHtmlToText: false,  // let mailparser flatten HTML → text for preview
+            skipTextToHtml: true,
+            skipTextLinks: true,
+            skipImageLinks: true,
+          });
+          preview = (parsed.text || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+        } catch (err) {
+          preview = '';
+        }
         messages.push({
           uid: msg.uid,
           seq: msg.seq,
@@ -104,7 +97,7 @@ class GmailImapClient {
           date: msg.envelope?.date ?? msg.internalDate ?? null,
           flags: Array.from(msg.flags ?? []),
           size: msg.size,
-          preview: extractPreview(msg.bodyParts?.get?.('1') ?? null),
+          preview,
         });
       }
       messages.reverse(); // newest-first

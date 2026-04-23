@@ -346,7 +346,26 @@ const GmailPanel = {
       frame.className = 'gmail-reading-frame';
       frame.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');
       frame.setAttribute('referrerpolicy', 'no-referrer');
-      frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>body{font-family:system-ui,-apple-system,sans-serif;color:#e8e3d8;background:#1a1816;padding:16px;line-height:1.55;}a{color:#d4a574}img{max-width:100%;height:auto}</style></head><body>${sanitized}</body></html>`;
+      // Gmail-like default template: white bg, system font, readable line-height.
+      // CSP blocks script/font fetches but allows https/data/cid images and inline styles.
+      frame.srcdoc = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base target="_blank">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data: cid:; style-src 'unsafe-inline'; font-src https: data:;">
+<style>
+  html, body { margin: 0; padding: 16px; background: #ffffff; color: #202124; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
+  img { max-width: 100%; height: auto; }
+  a { color: #1a73e8; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  blockquote { border-left: 3px solid #dadce0; margin: 8px 0; padding-left: 12px; color: #5f6368; }
+  pre { overflow-x: auto; background: #f1f3f4; padding: 8px; border-radius: 4px; font-family: 'Consolas', monospace; }
+  table { max-width: 100%; }
+</style>
+</head>
+<body>${sanitized}</body>
+</html>`;
       bodyEl.innerHTML = '';
       bodyEl.appendChild(frame);
     } else {

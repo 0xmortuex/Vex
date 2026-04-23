@@ -146,7 +146,10 @@ try {
 const GMAIL_PURIFY_CONFIG = {
   USE_PROFILES: { html: true },
   ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data|cid):)/i,
-  FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'form', 'base', 'meta', 'link'],
+  // Note: <style> and <head> are handled by the pre-strip regex below, not
+  // here. DOMPurify sometimes leaves the TEXT CONTENT of forbidden tags as
+  // visible text (seen with <style> → raw CSS bleeds into the email body).
+  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'link', 'meta'],
   FORBID_ATTR: [
     'onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur',
     'onsubmit', 'onreset', 'onchange', 'onkeydown', 'onkeyup', 'onkeypress',
@@ -157,10 +160,21 @@ const GMAIL_PURIFY_CONFIG = {
   ADD_ATTR: ['target'],
 };
 
+function preStripBlocks(html) {
+  // Remove entire <style>...</style>, <head>...</head>, and DOCTYPE so their
+  // text content can never bleed into the rendered email body.
+  return String(html || '')
+    .replace(/<!DOCTYPE[^>]*>/gi, '')
+    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, '');
+}
+
 contextBridge.exposeInMainWorld('vexGmailSanitize', (html) => {
-  if (!_purify) return String(html || '').replace(/<[^>]+>/g, '');
+  if (!_purify) return preStripBlocks(html).replace(/<[^>]+>/g, '');
   try {
-    return _purify.sanitize(String(html || ''), GMAIL_PURIFY_CONFIG);
+    const cleaned = preStripBlocks(html);
+    return _purify.sanitize(cleaned, GMAIL_PURIFY_CONFIG);
   } catch (err) {
     console.error('[preload] sanitize failed:', err);
     return '';
