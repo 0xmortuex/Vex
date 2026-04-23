@@ -1,50 +1,67 @@
 /* === Icon Sidebar === */
 
 #icon-sidebar {
-  width: 52px;
-  min-width: 52px;
-  background: var(--sidebar);
-  border-right: 1px solid var(--border);
+  width: 54px;
+  min-width: 54px;
+  background: var(--vex-glass-medium);
+  backdrop-filter: var(--vex-blur-medium);
+  -webkit-backdrop-filter: var(--vex-blur-medium);
+  border: 1px solid var(--vex-border-subtle);
+  border-radius: var(--vex-radius-lg);
+  margin: 0 0 8px 8px;
+  padding: 10px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0;
-  gap: 4px;
+  gap: 8px;
+  position: relative;
 }
 
 .sidebar-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: var(--radius);
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--vex-border-subtle);
+  background: rgba(58, 52, 46, 0.4);
+  color: var(--vex-text-secondary);
+  border-radius: 10px;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: all 0.15s ease;
   position: relative;
+  flex-shrink: 0;
 }
 
 .sidebar-icon:hover {
-  background: var(--surface);
-  color: var(--text);
+  background: rgba(58, 52, 46, 0.6);
+  border-color: var(--vex-border-medium);
+  color: var(--vex-text-primary);
+  transform: translateY(-1px);
 }
 
 .sidebar-icon.active {
-  color: var(--primary);
-  background: rgba(99, 102, 241, 0.1);
+  background: var(--vex-accent-dim);
+  border-color: var(--vex-border-accent-strong);
+  color: var(--vex-accent);
 }
 
 .sidebar-icon.active::before {
   content: '';
   position: absolute;
-  left: -6px;
+  left: -7px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 3px;
   height: 20px;
-  background: var(--primary);
+  background: var(--vex-accent);
   border-radius: 0 2px 2px 0;
+}
+
+.sidebar-icon svg {
+  width: 20px;
+  height: 20px;
+  color: inherit;
 }
 
 .sidebar-spacer {
@@ -53,10 +70,11 @@
 
 /* Sidebar separator between panels and tools */
 .sidebar-separator {
-  width: 28px;
+  width: 32px;
   height: 1px;
-  background: var(--border);
-  margin: 6px 0;
+  background: var(--vex-border-medium);
+  margin: 4px 0;
+  border: none;
 }
 
 /* Tools bar */
@@ -64,54 +82,76 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 8px;
   padding-bottom: 4px;
   overflow-y: auto;
-  max-height: 300px;
+  max-height: 320px;
+  width: 100%;
 }
+#tools-bar::-webkit-scrollbar { width: 0; }
 
 .tool-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--vex-border-subtle);
+  background: rgba(58, 52, 46, 0.4);
+  color: var(--vex-text-secondary);
+  border-radius: 10px;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: all 0.15s ease;
   position: relative;
+  flex-shrink: 0;
+}
+
+.tool-icon:hover {
+  background: rgba(58, 52, 46, 0.6);
+  border-color: var(--vex-border-medium);
+  color: var(--vex-text-primary);
+  transform: translateY(-1px);
+}
+
+.tool-icon.active {
+  background: var(--vex-accent-dim);
+  border-color: var(--vex-border-accent-strong);
+  color: var(--vex-accent);
 }
 
 .tool-icon svg {
   width: 18px;
   height: 18px;
-  color: var(--text-muted);
-  transition: color var(--transition);
-}
-
-.tool-icon:hover svg {
-  color: var(--accent);
+  color: inherit;
+  transition: color 0.15s ease;
 }
 
 .tool-icon .tool-emoji {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1;
 }
 
-.tool-icon:hover {
-  background: var(--surface);
-  box-shadow: 0 0 8px rgba(0, 180, 216, 0.15);
-}
-
-/* Sidebar panel icon SVGs — inherit color from parent */
-.sidebar-icon svg {
-  color: inherit;
-}
-
 .tool-icon:active {
-  transform: scale(0.92);
+  transform: translateY(0) scale(0.96);
+}
+
+/* "Add new tool" placeholder button */
+.tool-icon.tool-add-btn {
+  background: rgba(58, 52, 46, 0.25);
+  border: 1px dashed var(--vex-border-accent);
+  color: rgba(212, 165, 116, 0.5);
+}
+
+.tool-icon.tool-add-btn:hover {
+  background: rgba(58, 52, 46, 0.35);
+  border-color: var(--vex-accent);
+  color: var(--vex-accent);
+  transform: none;
+}
+
+.tool-icon.tool-add-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Panel styles for webview content */
