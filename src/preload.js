@@ -132,11 +132,53 @@ contextBridge.exposeInMainWorld('vex', {
   syncClearState: () => ipcRenderer.invoke('sync-clear-state')
 });
 
+// DOMPurify instance for Gmail HTML sanitization. Preload runs in a Node+DOM
+// context, so we can require the package here and expose a pure-function bridge
+// to the renderer without leaking Node globals.
+let _purify = null;
+try {
+  const createDOMPurify = require('dompurify');
+  _purify = createDOMPurify(window);
+} catch (err) {
+  console.error('[preload] DOMPurify unavailable:', err);
+}
+
+const GMAIL_PURIFY_CONFIG = {
+  USE_PROFILES: { html: true },
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data|cid):)/i,
+  FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'form', 'base', 'meta', 'link'],
+  FORBID_ATTR: [
+    'onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur',
+    'onsubmit', 'onreset', 'onchange', 'onkeydown', 'onkeyup', 'onkeypress',
+    'onabort', 'onbeforeunload', 'oncontextmenu', 'ondblclick', 'ondrag',
+    'ondragend', 'ondragenter', 'ondragleave', 'ondragover', 'ondragstart',
+    'ondrop', 'oninput', 'onpaste',
+  ],
+  ADD_ATTR: ['target'],
+};
+
+contextBridge.exposeInMainWorld('vexGmailSanitize', (html) => {
+  if (!_purify) return String(html || '').replace(/<[^>]+>/g, '');
+  try {
+    return _purify.sanitize(String(html || ''), GMAIL_PURIFY_CONFIG);
+  } catch (err) {
+    console.error('[preload] sanitize failed:', err);
+    return '';
+  }
+});
+
 contextBridge.exposeInMainWorld('vexGmail', {
   saveCredentials: (email, appPassword) => ipcRenderer.invoke('gmail:save-credentials', { email, appPassword }),
   hasCredentials: () => ipcRenderer.invoke('gmail:has-credentials'),
   clearCredentials: () => ipcRenderer.invoke('gmail:clear-credentials'),
   getEmail: () => ipcRenderer.invoke('gmail:get-email'),
+  // Phase 2
+  listInbox: (opts) => ipcRenderer.invoke('gmail:list-inbox', opts ?? {}),
+  getMessage: (uid) => ipcRenderer.invoke('gmail:get-message', { uid }),
+  markRead: (uid, read) => ipcRenderer.invoke('gmail:mark-read', { uid, read }),
+  star: (uid, starred) => ipcRenderer.invoke('gmail:star', { uid, starred }),
+  archive: (uid) => ipcRenderer.invoke('gmail:archive', { uid }),
+  trash: (uid) => ipcRenderer.invoke('gmail:trash', { uid }),
 });
 
 contextBridge.exposeInMainWorld('vexDevTools', {

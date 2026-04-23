@@ -4,7 +4,7 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
-const GmailImapClient = require('./main/gmail/imap-client');
+const { gmailImap, testConnectionWith } = require('./main/gmail/imap-client');
 const gmailCreds = require('./main/gmail/credentials');
 
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
@@ -687,9 +687,7 @@ ipcMain.handle('get-user-data-path', () => userDataPath);
 ipcMain.handle('gmail:save-credentials', async (_e, { email, appPassword }) => {
   try {
     if (!email || !appPassword) return { success: false, error: 'email and app password required' };
-    // Verify the credentials against Gmail IMAP before we persist anything.
-    const client = new GmailImapClient(email, appPassword);
-    const result = await client.testConnection();
+    const result = await testConnectionWith(email, appPassword);
     if (!result.success) return { success: false, error: result.error };
     gmailCreds.saveCredentials({ email, appPassword });
     return { success: true, inboxCount: result.inboxCount };
@@ -704,6 +702,8 @@ ipcMain.handle('gmail:has-credentials', async () => {
 
 ipcMain.handle('gmail:clear-credentials', async () => {
   try {
+    // Drop the persistent connection too — credentials are gone.
+    try { await gmailImap.disconnect(); } catch {}
     gmailCreds.clearCredentials();
     return { success: true };
   } catch (err) {
@@ -714,6 +714,46 @@ ipcMain.handle('gmail:clear-credentials', async () => {
 ipcMain.handle('gmail:get-email', async () => {
   const creds = gmailCreds.loadCredentials();
   return { email: creds?.email || null };
+});
+
+// --- Phase 2: list / read / mutate -----------------------------------------
+
+ipcMain.handle('gmail:list-inbox', async (_e, opts) => {
+  try {
+    const result = await gmailImap.listInbox(opts || {});
+    return { success: true, ...result };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('gmail:get-message', async (_e, { uid }) => {
+  try {
+    const message = await gmailImap.getMessage(uid);
+    return { success: true, message };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('gmail:mark-read', async (_e, { uid, read }) => {
+  try { await gmailImap.markRead(uid, read); return { success: true }; }
+  catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('gmail:star', async (_e, { uid, starred }) => {
+  try { await gmailImap.star(uid, starred); return { success: true }; }
+  catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('gmail:archive', async (_e, { uid }) => {
+  try { await gmailImap.archive(uid); return { success: true }; }
+  catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('gmail:trash', async (_e, { uid }) => {
+  try { await gmailImap.trash(uid); return { success: true }; }
+  catch (err) { return { success: false, error: err.message }; }
 });
 
 // === Phase 13: Vex Sync — encryption key + session metadata ===
