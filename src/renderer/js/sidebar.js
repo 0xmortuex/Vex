@@ -40,6 +40,33 @@ const SidebarManager = {
         this.togglePanel(panel);
       });
     });
+
+    // Ctrl+Shift+J — open DevTools for the active panel's embedded webview
+    // (Gmail, Claude, WhatsApp). Ctrl+Shift+I is taken by the tab DevTools
+    // shortcut from earlier work, so a separate chord keeps panel DevTools
+    // distinct from tab DevTools.
+    document.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey && e.shiftKey && (e.key === 'J' || e.key === 'j'))) return;
+      const name = this.activePanel;
+      if (!name) return;
+      const wv = this.panelWebviews[name];
+      if (!wv) return;
+      e.preventDefault();
+      try {
+        const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
+        if (id != null && window.vexDevTools?.openForWebContents) {
+          window.vexDevTools.openForWebContents(id).catch(err => {
+            console.error('[Vex] panel DevTools IPC failed:', err);
+          });
+        } else if (typeof wv.openDevTools === 'function') {
+          wv.openDevTools();
+        } else {
+          console.warn('[Vex] panel DevTools unavailable for:', name);
+        }
+      } catch (err) {
+        console.error('[Vex] panel DevTools error:', err);
+      }
+    });
   },
 
   openStartPage() {

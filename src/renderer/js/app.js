@@ -752,13 +752,28 @@
 
   // === DevTools toggle (F12 / Ctrl+Shift+I) — main process fires this when
   // the shortcut is pressed anywhere, including inside a focused webview. ===
-  window.vexDevTools?.onToggle?.(() => {
+  window.vexDevTools?.onToggleRequest?.(() => {
     const active = TabManager.getActiveTab?.();
-    if (!active) return;
+    if (!active) {
+      // No active tab — show toast instead of silently failing
+      showToast('No active tab — open DevTools via Ctrl+Shift+F12 for main window');
+      return;
+    }
     const wv = WebviewManager.webviews.get(active.id);
-    if (!wv || typeof wv.openDevTools !== 'function') return;
-    if (wv.isDevToolsOpened && wv.isDevToolsOpened()) wv.closeDevTools();
-    else wv.openDevTools();
+    if (!wv) {
+      showToast('Failed to find webview');
+      return;
+    }
+    // Get the webContentsId and send toggle request to main process
+    const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
+    if (id != null) {
+      window.vexDevTools?.toggleWebview?.(id).catch(err => {
+        console.error('[DevTools] toggle failed:', err);
+        showToast('Failed to toggle DevTools');
+      });
+    } else {
+      showToast('Cannot access webContents ID');
+    }
   });
 
   // === Phase 6: Fullscreen ===

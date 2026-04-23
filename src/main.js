@@ -57,7 +57,7 @@ function handleDevToolsShortcut(event, input) {
   if (!isDevToolsKey) return false;
 
   event.preventDefault();
-  mainWindow.webContents.send('devtools:toggle');
+  mainWindow.webContents.send('devtools:toggle-request');
   return true;
 }
 
@@ -776,7 +776,8 @@ function createWindow() {
     minHeight: 600,
     frame: false,
     titleBarStyle: 'hidden',
-    backgroundColor: '#0a0c10',
+    transparent: true,  // Required for backdrop-filter on Windows
+    backgroundColor: '#00000000',  // Fully transparent
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       webviewTag: true,
@@ -1207,6 +1208,44 @@ ipcMain.handle('webview:hard-reload', async (_e, webContentsId) => {
 
 ipcMain.handle('is-fullscreen', () => {
   return mainWindow ? mainWindow.isFullScreen() : false;
+});
+
+// DevTools toggle — renderer sends the webContentsId of the tab to toggle
+ipcMain.handle('devtools:toggle-webview', async (_e, webContentsId) => {
+  try {
+    const wc = typeof webContentsId === 'number' ? webContents.fromId(webContentsId) : null;
+    if (!wc || wc.isDestroyed()) {
+      return { ok: false, error: 'webContents not found' };
+    }
+    if (wc.isDevToolsOpened()) {
+      wc.closeDevTools();
+    } else {
+      wc.openDevTools({ mode: 'bottom' });
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Panel DevTools (Ctrl+Shift+J) — open DevTools in a detached window for the
+// currently active sidebar panel's webview (Gmail, Claude, WhatsApp). Uses
+// 'detach' so the DevTools don't get clipped inside the small panel frame.
+ipcMain.handle('devtools:open-for-webcontents', async (_e, webContentsId) => {
+  try {
+    const wc = typeof webContentsId === 'number' ? webContents.fromId(webContentsId) : null;
+    if (!wc || wc.isDestroyed()) {
+      return { ok: false, error: 'webContents not found' };
+    }
+    if (wc.isDevToolsOpened()) {
+      wc.closeDevTools();
+    } else {
+      wc.openDevTools({ mode: 'detach' });
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 // Downloads IPC — open/show

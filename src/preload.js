@@ -133,5 +133,12 @@ contextBridge.exposeInMainWorld('vex', {
 });
 
 contextBridge.exposeInMainWorld('vexDevTools', {
+  // Renderer notifies main to toggle DevTools for a specific webContents
+  onToggleRequest: (cb) => ipcRenderer.on('devtools:toggle-request', () => cb()),
+  // Renderer calls this to toggle DevTools on a specific tab (by webContentsId)
+  toggleWebview: (webContentsId) => ipcRenderer.invoke('devtools:toggle-webview', webContentsId),
+  // Ctrl+Shift+J — open DevTools for the active panel's webview in a detached window
+  openForWebContents: (webContentsId) => ipcRenderer.invoke('devtools:open-for-webcontents', webContentsId),
+  // Legacy callback support (kept for compatibility, but not used)
   onToggle: (cb) => ipcRenderer.on('devtools:toggle', () => cb()),
 });
