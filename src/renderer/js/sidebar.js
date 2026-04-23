@@ -4,13 +4,13 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'themes', 'schedules'],
+  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'themes', 'schedules', 'gmail'],
 
   panelConfigs: {
     start: { url: null, partition: null },
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
-    gmail: { url: 'https://mail.google.com/', partition: 'persist:gmail' },
+    gmail: { url: null, partition: null }, // native IMAP client, not webview
     settings: { url: null, partition: null },
     cusa: { url: null, partition: null },
     roblox: { url: null, partition: null },
@@ -122,6 +122,7 @@ const SidebarManager = {
     if (panelName === 'schedules') SchedulesPanel.init();
     if (panelName === 'shortcuts') ShortcutsPanel.init();
     if (panelName === 'themes') ThemeEditor.init();
+    if (panelName === 'gmail' && typeof GmailPanel !== 'undefined') GmailPanel.init();
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');
@@ -151,18 +152,16 @@ const SidebarManager = {
       // Manual-location override (replaces Google Cloud geolocation)
       LocationSettings.render(document.getElementById('location-panel-content'));
     }
+    if (panelName === 'settings' && typeof GmailPanel !== 'undefined') {
+      // Gmail Email section — connected-as state + Configure/Disconnect buttons
+      GmailPanel.renderSettingsSection();
+    }
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {
       const config = this.panelConfigs[panelName];
       if (config && config.url) {
         const wv = document.createElement('webview');
-        // Gmail: spoof Chrome UA BEFORE src so the first request doesn't leak
-        // "Electron/X.X.X" — Google blocks sign-in on webviews advertising
-        // Electron ("This browser may not be secure").
-        if (panelName === 'gmail') {
-          wv.setAttribute('useragent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
-        }
         wv.setAttribute('src', config.url);
         if (config.partition) {
           wv.setAttribute('partition', config.partition);
@@ -173,33 +172,6 @@ const SidebarManager = {
         wv.style.height = '100%';
         panelEl.appendChild(wv);
         this.panelWebviews[panelName] = wv;
-
-        // Gmail: keep the login flow (accounts.google.com) inside the same
-        // webview so cookies land in persist:gmail. Google's popup-based
-        // sign-in is caught at the MAIN-PROCESS level via
-        // setWindowOpenHandler (see src/main.js) because new-window on
-        // the renderer-side webview tag doesn't fire for modern popups.
-        // These two listeners stay as a diagnostic fallback — if one fires,
-        // we can see exactly which event Google is using in DevTools.
-        if (panelName === 'gmail') {
-          wv.addEventListener('new-window', (e) => {
-            console.log('[Vex] Gmail new-window fired:', e.url);
-            e.preventDefault();
-            const isGoogleAuth = e.url && (
-              e.url.includes('accounts.google.com') ||
-              e.url.includes('mail.google.com') ||
-              e.url.includes('accounts.youtube.com')
-            );
-            if (isGoogleAuth) {
-              try { wv.loadURL(e.url); } catch (err) { console.warn('[Gmail] loadURL failed:', err); }
-            } else if (typeof TabManager !== 'undefined' && TabManager.createTab) {
-              TabManager.createTab(e.url, true);
-            }
-          });
-          wv.addEventListener('did-create-window', (e) => {
-            console.log('[Vex] Gmail did-create-window fired:', e);
-          });
-        }
       }
     }
 

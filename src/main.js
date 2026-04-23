@@ -4,6 +4,8 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
+const GmailImapClient = require('./main/gmail/imap-client');
+const gmailCreds = require('./main/gmail/credentials');
 
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;
@@ -508,34 +510,9 @@ app.on('web-contents-created', (_event, contents) => {
   const type = contents.getType();
   if (type !== 'webview') return;
 
-  // Gmail-specific: keep popups (Google sign-in flow) inside the same webview
-  // so cookies land in persist:gmail. Without this, Google's window.open for
-  // accounts.google.com would be forwarded to the renderer tab system below
-  // and end up in persist:main, leaving the Gmail panel logged out forever.
-  const gmailSession = session.fromPartition('persist:gmail');
-  const isGmailPartition = contents.session === gmailSession;
-
-  if (isGmailPartition) {
-    contents.setWindowOpenHandler(({ url }) => {
-      console.log('[Vex] Gmail main-process popup intercepted:', url);
-      const isGoogleAuth =
-        url.includes('accounts.google.com') ||
-        url.includes('mail.google.com') ||
-        url.includes('accounts.youtube.com') ||
-        url.includes('myaccount.google.com') ||
-        url.includes('gds.google.com') ||
-        url.includes('google.com/signin');
-      if (isGoogleAuth) {
-        // Navigate the Gmail webview in-place instead of spawning a new window.
-        try { contents.loadURL(url); } catch (err) { console.error('[Vex] Gmail loadURL failed:', err.message); }
-      }
-      return { action: 'deny' };
-    });
-    contents.on('will-navigate', (_e, url) => {
-      console.log('[Vex] Gmail will-navigate:', url);
-    });
-    return; // don't fall through to the generic handler below
-  }
+  // (Gmail webview popup-intercept removed — Gmail now uses native IMAP/SMTP
+  // via main/gmail/, no webview. persist:gmail partition is kept in the
+  // partitions array in case a future OAuth flow reuses it.)
 
   contents.setWindowOpenHandler((details) => {
     const { url, disposition } = details || {};
@@ -706,6 +683,39 @@ ipcMain.handle('persist-delete', (_e, key) => {
 });
 ipcMain.handle('get-user-data-path', () => userDataPath);
 
+// === Gmail IMAP/SMTP — native client, replaces dead webview approach ===
+ipcMain.handle('gmail:save-credentials', async (_e, { email, appPassword }) => {
+  try {
+    if (!email || !appPassword) return { success: false, error: 'email and app password required' };
+    // Verify the credentials against Gmail IMAP before we persist anything.
+    const client = new GmailImapClient(email, appPassword);
+    const result = await client.testConnection();
+    if (!result.success) return { success: false, error: result.error };
+    gmailCreds.saveCredentials({ email, appPassword });
+    return { success: true, inboxCount: result.inboxCount };
+  } catch (err) {
+    return { success: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('gmail:has-credentials', async () => {
+  return { configured: gmailCreds.loadCredentials() !== null };
+});
+
+ipcMain.handle('gmail:clear-credentials', async () => {
+  try {
+    gmailCreds.clearCredentials();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('gmail:get-email', async () => {
+  const creds = gmailCreds.loadCredentials();
+  return { email: creds?.email || null };
+});
+
 // === Phase 13: Vex Sync — encryption key + session metadata ===
 const syncKeyFile = path.join(userDataPath, 'sync-key.bin');
 const syncMetaFile = path.join(userDataPath, 'sync-meta.json');
@@ -840,47 +850,8 @@ function createWindow() {
   // sub-request (redirects, XHR, iframes during the auth dance) also identifies
   // as Chrome, so Google's "browser not secure" detector doesn't trip on leaked
   // "Electron/X.X.X" tokens in edge-case requests.
-  const gmailSession = session.fromPartition('persist:gmail');
-  // Chrome 124 matches Electron 30's actual Chromium version — mismatched
-  // Chrome/131 UA + real Chromium/124 engine is itself a fingerprint red flag.
-  gmailSession.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-  );
-
-  // Rewrite Client Hints headers so Google's server-side UA fingerprint sees
-  // Chrome 124 instead of Electron. The UA string alone isn't enough — modern
-  // Google reads Sec-CH-UA-* headers and the navigator.userAgentData API.
-  // Brand order matters: Google specifically looks for "Google Chrome" first.
-  gmailSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    console.log('[Vex] Gmail header rewrite firing for:', details.url);
-    const headers = details.requestHeaders;
-    headers['Sec-Ch-Ua'] = '"Google Chrome";v="124", "Chromium";v="124", "Not_A Brand";v="24"';
-    headers['Sec-Ch-Ua-Mobile'] = '?0';
-    headers['Sec-Ch-Ua-Platform'] = '"Windows"';
-    // Also set the original-casing variants in case Chromium normalizes headers.
-    headers['sec-ch-ua'] = headers['Sec-Ch-Ua'];
-    headers['sec-ch-ua-mobile'] = headers['Sec-Ch-Ua-Mobile'];
-    headers['sec-ch-ua-platform'] = headers['Sec-Ch-Ua-Platform'];
-    delete headers['Sec-Ch-Ua-Full-Version-List'];
-    delete headers['Sec-Ch-Ua-Full-Version'];
-    delete headers['Sec-Ch-Ua-Arch'];
-    delete headers['Sec-Ch-Ua-Bitness'];
-    delete headers['Sec-Ch-Ua-Model'];
-    delete headers['Sec-Ch-Ua-Platform-Version'];
-    delete headers['Sec-Ch-Ua-Wow64'];
-    delete headers['sec-ch-ua-full-version-list'];
-    delete headers['sec-ch-ua-full-version'];
-    delete headers['sec-ch-ua-arch'];
-    delete headers['sec-ch-ua-bitness'];
-    delete headers['sec-ch-ua-model'];
-    delete headers['sec-ch-ua-platform-version'];
-    delete headers['sec-ch-ua-wow64'];
-    callback({ requestHeaders: headers });
-  });
-
-  // Gmail preload: runs inside the webview before page scripts, monkey-patches
-  // navigator.userAgentData so client-side fingerprinting returns Chrome values.
-  gmailSession.setPreloads([path.join(app.getAppPath(), 'src', 'preload-gmail.js')]);
+  // (Gmail webview UA/Client Hints spoofing removed — Gmail is now a native
+  // IMAP/SMTP client, not a webview. See src/main/gmail/.)
   partitions.forEach(partName => {
     const ses = session.fromPartition(partName);
 

@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="css/schedules-panel.css">
   <link rel="stylesheet" href="css/update-notifier.css">
   <link rel="stylesheet" href="css/location-settings.css">
+  <link rel="stylesheet" href="css/gmail.css">
 </head>
 <body>
   <!-- Top Bar -->
@@ -219,6 +220,16 @@
                 <option value="brave">Brave Search</option>
                 <option value="bing">Bing</option>
               </select>
+            </div>
+
+            <div class="setting-group">
+              <label class="setting-label">Email</label>
+              <div class="setting-row-label">Gmail account</div>
+              <div id="setting-gmail-status" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--vex-text-muted);margin-bottom:10px">Checking…</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button id="setting-gmail-configure" style="padding:8px 16px;background:var(--vex-accent);color:var(--vex-bg-deep);border:1px solid var(--vex-accent);border-radius:var(--vex-radius-sm);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:500">Configure</button>
+                <button id="setting-gmail-disconnect" hidden style="padding:8px 16px;background:transparent;color:var(--vex-danger);border:1px solid rgba(232,104,90,0.4);border-radius:var(--vex-radius-sm);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Disconnect</button>
+              </div>
             </div>
 
             <div class="setting-group">
@@ -738,6 +749,7 @@
   <script src="js/permission-prompts.js"></script>
   <script src="js/permissions-settings.js"></script>
   <script src="js/location-settings.js"></script>
+  <script src="js/gmail/panel.js"></script>
   <script src="js/memory-panel.js"></script>
   <script src="js/restore-prompt.js"></script>
   <script src="js/shortcuts-panel.js"></script>

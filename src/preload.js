@@ -132,6 +132,13 @@ contextBridge.exposeInMainWorld('vex', {
   syncClearState: () => ipcRenderer.invoke('sync-clear-state')
 });
 
+contextBridge.exposeInMainWorld('vexGmail', {
+  saveCredentials: (email, appPassword) => ipcRenderer.invoke('gmail:save-credentials', { email, appPassword }),
+  hasCredentials: () => ipcRenderer.invoke('gmail:has-credentials'),
+  clearCredentials: () => ipcRenderer.invoke('gmail:clear-credentials'),
+  getEmail: () => ipcRenderer.invoke('gmail:get-email'),
+});
+
 contextBridge.exposeInMainWorld('vexDevTools', {
   // Renderer notifies main to toggle DevTools for a specific webContents
   onToggleRequest: (cb) => ipcRenderer.on('devtools:toggle-request', () => cb()),
