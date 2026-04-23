@@ -154,9 +154,9 @@
   height: 16px;
 }
 
-/* Panel styles for webview content */
+/* Panel styles for webview content — transparent so body glow shows through */
 .panel {
-  background: var(--bg);
+  background: transparent;
 }
 
 .panel webview {

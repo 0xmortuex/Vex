@@ -300,6 +300,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: transparent;
 }
 .settings-content {
   flex: 1;
@@ -307,10 +308,11 @@ body {
   max-width: none;
   height: 100%;
   margin: 0;
-  padding: 40px 48px;
+  padding: 44px 52px;
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
+  background: transparent;
 }
 /* Cap the reading width of the inner blocks — readable but wide, not a phone column */
 .settings-content > * {
@@ -366,24 +368,38 @@ body {
 }
 
 .settings-content h2 {
-  font-size: 24px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 28px;
   font-weight: 600;
   margin-bottom: 32px;
-  color: var(--text);
+  color: var(--vex-text-primary);
+  letter-spacing: -0.01em;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--vex-border-subtle);
 }
 
-.setting-group {
-  margin-bottom: 28px;
+#panel-settings .setting-group,
+.settings-content .setting-group {
+  background: var(--vex-glass-light);
+  backdrop-filter: var(--vex-blur-light);
+  -webkit-backdrop-filter: var(--vex-blur-light);
+  border: 1px solid var(--vex-border-subtle);
+  border-radius: var(--vex-radius-md);
+  padding: 18px 22px;
+  margin-bottom: 12px;
 }
 
 .setting-label {
   display: block;
-  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-  margin-bottom: 10px;
-  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--vex-text-muted);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vex-border-subtle);
+  font-weight: 600;
 }
 
 .setting-group select,
