@@ -5,8 +5,10 @@
   align-items: center;
   gap: 0;
   padding: 6px 8px 0 8px;
-  background: var(--bg-2, #0f1218);
-  border-bottom: 1px solid var(--border);
+  background: var(--vex-glass-medium);
+  backdrop-filter: var(--vex-blur-light);
+  -webkit-backdrop-filter: var(--vex-blur-light);
+  border-bottom: 1px solid var(--vex-border-subtle);
   -webkit-app-region: drag;
   min-height: 40px;
   flex-shrink: 0;
@@ -19,8 +21,8 @@ body[data-tab-layout="horizontal"] .top-tab-bar {
 
 /* Hide vertical sidebar + shrink main-layout vertically */
 body[data-tab-layout="horizontal"] #tabs-sidebar { display: none !important; }
-body[data-tab-layout="horizontal"] #main-layout { height: calc(100% - 44px - 40px); }
-body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 44px); }
+body[data-tab-layout="horizontal"] #main-layout { height: calc(100% - 58px - 40px); }
+body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 58px); }
 
 /* Fullscreen (F11) — hide the top bar (URL bar, nav, controls) + horizontal tab bar.
    Let #main-layout fill the viewport. Needs to override the layout-specific height
@@ -63,15 +65,17 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   /* basis:0 + grow:1 makes every tab share free space equally, so with
      no cap above they expand all the way to the trailing +-button. */
   flex: 1 1 0;
-  background: transparent;
-  border: 1px solid transparent;
+  background: var(--vex-glass-tab-inactive);
+  backdrop-filter: var(--vex-blur-light);
+  -webkit-backdrop-filter: var(--vex-blur-light);
+  border: 1px solid var(--vex-border-subtle);
   border-bottom: none;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--vex-radius-md) var(--vex-radius-md) 0 0;
   cursor: pointer;
   user-select: none;
-  color: var(--text-muted);
+  color: var(--vex-text-secondary);
   font-size: 12px;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   position: relative;
   overflow: hidden;
   white-space: nowrap;
@@ -79,13 +83,16 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   -webkit-app-region: no-drag;
 }
 .top-tab:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text);
+  background: rgba(58, 52, 46, 0.5);
+  border-color: var(--vex-border-medium);
+  color: var(--vex-text-primary);
 }
 .top-tab.active {
-  background: var(--bg);
-  border-color: var(--border);
-  color: var(--text);
+  background: var(--vex-glass-tab-active);
+  border: 1px solid var(--vex-border-accent);
+  border-bottom: none;
+  color: var(--vex-text-primary);
+  font-weight: 500;
   z-index: 1;
   margin-bottom: -1px;
   /* Same flex as others — don't override so active tab can't shrink away */
@@ -112,7 +119,7 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   width: 18px; height: 18px;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 4px;
-  color: var(--text-muted);
+  color: var(--vex-text-muted);
   opacity: 0;
   flex-shrink: 0;
   transition: all 0.12s;
@@ -121,7 +128,7 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 }
 .top-tab .tab-close svg { display: block; }
 .top-tab:hover .tab-close,
-.top-tab.active .tab-close { opacity: 0.7; }
+.top-tab.active .tab-close { opacity: 0.85; color: var(--vex-text-primary); }
 .top-tab .tab-close:hover {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;

@@ -1,0 +1,47 @@
+/* Vex glassmorphism design tokens — graphite + amber */
+:root {
+  /* Base palette */
+  --vex-bg-base: #1a1816;
+  --vex-bg-elevated: #252220;
+  --vex-bg-deep: #14120e;
+
+  /* Glass surfaces — different opacities for hierarchy */
+  --vex-glass-strong: rgba(38, 34, 30, 0.65);   /* top bar, modals */
+  --vex-glass-medium: rgba(38, 34, 30, 0.45);   /* sidebar, URL bar */
+  --vex-glass-light: rgba(38, 34, 30, 0.35);    /* content panels */
+  --vex-glass-tab-active: rgba(212, 165, 116, 0.18);
+  --vex-glass-tab-inactive: rgba(58, 52, 46, 0.35);
+  --vex-glass-input: rgba(20, 18, 16, 0.55);
+
+  /* Borders */
+  --vex-border-subtle: rgba(255, 255, 255, 0.06);
+  --vex-border-medium: rgba(255, 255, 255, 0.1);
+  --vex-border-accent: rgba(212, 165, 116, 0.32);
+  --vex-border-accent-strong: rgba(212, 165, 116, 0.4);
+
+  /* Accent (amber) */
+  --vex-accent: #d4a574;
+  --vex-accent-dim: rgba(212, 165, 116, 0.22);
+  --vex-accent-glow: rgba(212, 165, 116, 0.18);
+
+  /* Text */
+  --vex-text-primary: #e8e3d8;
+  --vex-text-secondary: #aaa39a;
+  --vex-text-muted: #6a665e;
+  --vex-text-accent: #d4a574;
+
+  /* Semantic */
+  --vex-success: #6fbf73;
+  --vex-danger: rgba(232, 104, 90, 0.85);
+  --vex-warning: rgba(232, 196, 90, 0.85);
+
+  /* Blur levels */
+  --vex-blur-heavy: blur(24px) saturate(140%);
+  --vex-blur-medium: blur(20px) saturate(140%);
+  --vex-blur-light: blur(12px) saturate(120%);
+
+  /* Radii */
+  --vex-radius-sm: 6px;
+  --vex-radius-md: 8px;
+  --vex-radius-lg: 12px;
+}

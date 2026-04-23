@@ -31,12 +31,21 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--vex-bg-base);
+  color: var(--vex-text-primary);
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+}
+
+body {
+  background: var(--vex-bg-base);
+  background-image:
+    radial-gradient(circle at 85% -10%, var(--vex-accent-glow) 0%, transparent 55%),
+    radial-gradient(circle at 15% 110%, rgba(212, 165, 116, 0.09) 0%, transparent 55%);
+  background-attachment: fixed;
+  color: var(--vex-text-primary);
 }
 
 /* === Top Bar === */
@@ -45,8 +54,12 @@ html, body {
   display: flex;
   align-items: center;
   height: 44px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  background: var(--vex-glass-strong);
+  backdrop-filter: var(--vex-blur-medium);
+  -webkit-backdrop-filter: var(--vex-blur-medium);
+  border: 1px solid var(--vex-border-subtle);
+  border-radius: var(--vex-radius-lg);
+  margin: 8px 8px 6px 8px;
   padding: 0 8px;
   position: relative;
   z-index: 100;
@@ -96,16 +109,21 @@ html, body {
   height: 32px;
   border: none;
   background: transparent;
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
+  color: var(--vex-text-secondary);
+  border-radius: var(--vex-radius-sm);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background 0.12s ease, color 0.12s ease;
   -webkit-app-region: no-drag;
 }
 
 .nav-btn:hover {
-  background: var(--surface);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--vex-text-primary);
+}
+
+.nav-btn:disabled {
+  color: var(--vex-text-muted);
+  cursor: not-allowed;
 }
 
 /* URL Bar */
@@ -124,20 +142,22 @@ html, body {
   width: 100%;
   max-width: 600px;
   height: 32px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--vex-glass-input);
+  backdrop-filter: var(--vex-blur-light);
+  -webkit-backdrop-filter: var(--vex-blur-light);
+  border: 1px solid var(--vex-border-accent);
+  border-radius: var(--vex-radius-md);
   padding: 0 12px;
-  transition: all var(--transition);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 #url-bar:focus-within {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  border-color: var(--vex-accent);
+  box-shadow: 0 0 0 2px var(--vex-accent-dim);
 }
 
 #url-icon {
-  color: var(--text-muted);
+  color: var(--vex-text-muted);
   flex-shrink: 0;
 }
 
@@ -146,13 +166,13 @@ html, body {
   border: none;
   background: none;
   outline: none;
-  color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
+  color: var(--vex-text-primary);
+  font-family: 'JetBrains Mono', Consolas, monospace;
   font-size: 12px;
 }
 
 #url-input::placeholder {
-  color: var(--text-muted);
+  color: var(--vex-text-muted);
 }
 
 /* Window Controls */
@@ -178,19 +198,20 @@ html, body {
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--vex-text-secondary);
+  border-radius: var(--vex-radius-sm);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background 0.12s ease, color 0.12s ease;
   -webkit-app-region: no-drag;
 }
 
 .win-btn:hover {
-  background: var(--surface);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--vex-text-primary);
 }
 
 .win-btn-close:hover {
-  background: var(--danger);
+  background: rgba(232, 104, 90, 0.35);
   color: white;
 }
 
@@ -198,7 +219,7 @@ html, body {
 
 #main-layout {
   display: flex;
-  height: calc(100% - 44px);
+  height: calc(100% - 58px);
 }
 
 /* Content Area */
@@ -540,6 +561,7 @@ html, body {
 #top-bar::before {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
   background: var(--primary); z-index: 10;
+  border-radius: var(--vex-radius-lg) var(--vex-radius-lg) 0 0;
 }
 
 /* Unified spinner classes */
