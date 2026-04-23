@@ -326,13 +326,30 @@ body {
   box-sizing: border-box;
 }
 
-/* Scrollbar */
-.settings-content::-webkit-scrollbar { width: 10px; }
-.settings-content::-webkit-scrollbar-track { background: transparent; }
-.settings-content::-webkit-scrollbar-thumb {
-  background: var(--border); border-radius: 5px; border: 2px solid var(--bg);
+/* Unified panel scrollbar — graphite track, muted thumb, amber on hover */
+[id^="panel-"] ::-webkit-scrollbar,
+.panel-body::-webkit-scrollbar,
+.settings-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
-.settings-content::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+[id^="panel-"] ::-webkit-scrollbar-track,
+.panel-body::-webkit-scrollbar-track,
+.settings-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+[id^="panel-"] ::-webkit-scrollbar-thumb,
+.panel-body::-webkit-scrollbar-thumb,
+.settings-content::-webkit-scrollbar-thumb {
+  background: var(--vex-border-medium);
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+[id^="panel-"] ::-webkit-scrollbar-thumb:hover,
+.panel-body::-webkit-scrollbar-thumb:hover,
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background: var(--vex-accent);
+}
 
 /* Horizontal setting rows (used by the AI Backend section) */
 .setting-row {
