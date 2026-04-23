@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="24" height="24" role="img" aria-label="Vex">
+  <defs>
+    <linearGradient id="vexBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4a574" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#6b5638" stop-opacity="0.45"/>
+    </linearGradient>
+  </defs>
+  <polygon points="40,2 78,40 40,78 2,40" fill="url(#vexBody)" stroke="#d4a574" stroke-width="1.5" stroke-opacity="0.75"/>
+  <polygon points="40,2 78,40 40,40" fill="#d4a574" fill-opacity="0.38"/>
+  <polygon points="40,2 2,40 40,40" fill="#d4a574" fill-opacity="0.52"/>
+  <path d="M 20 30 L 40 62 L 60 30" fill="none" stroke="#e8e3d8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.96"/>
+</svg>

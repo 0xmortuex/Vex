@@ -86,14 +86,21 @@ body {
 }
 
 #vex-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: 'Space Grotesk', sans-serif;
   font-size: 18px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--vex-accent);
+  letter-spacing: -0.01em;
   padding: 0 12px 0 8px;
   cursor: default;
+}
+#vex-logo svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
 }
 
 #nav-buttons {
@@ -609,12 +616,7 @@ body {
   background: var(--text-muted);
 }
 
-/* Workspace accent stripe at top */
-#top-bar::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: var(--primary); z-index: 10;
-  border-radius: var(--vex-radius-lg) var(--vex-radius-lg) 0 0;
-}
+/* Workspace accent stripe removed — glass chrome doesn't need a top border */
 
 /* Unified spinner classes */
 .spinner-sm {

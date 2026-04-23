@@ -5,12 +5,19 @@
 }
 #workspace-btn {
   display: flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border: 1px solid var(--border); background: transparent;
-  color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
+  padding: 4px 10px;
+  border: 1px solid var(--vex-border-accent);
+  background: var(--vex-accent-dim);
+  color: var(--vex-accent);
+  border-radius: var(--vex-radius-sm); cursor: pointer;
   font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 500;
-  transition: all var(--transition); -webkit-app-region: no-drag;
+  transition: all 0.15s ease; -webkit-app-region: no-drag;
 }
-#workspace-btn:hover { background: var(--surface); color: var(--text); }
+#workspace-btn:hover {
+  background: rgba(212, 165, 116, 0.3);
+  color: var(--vex-text-primary);
+  border-color: var(--vex-border-accent-strong);
+}
 #workspace-btn .ws-dot {
   width: 8px; height: 8px; border-radius: 50%;
 }
