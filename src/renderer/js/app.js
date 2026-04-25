@@ -556,7 +556,7 @@
     ShortcutsRegistry.register('hard-reload',    () => WebviewManager?.hardReload?.());
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
     ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.());
-    ShortcutsRegistry.register('fullscreen',     () => window.vex?.toggleFullscreen?.());
+    ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
     ShortcutsRegistry.register('focus-url',      () => document.getElementById('url-bar')?.focus());
     ShortcutsRegistry.register('find-in-page',   () => { const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
   }
@@ -783,6 +783,7 @@
   // sync, so we don't need a renderer-side Esc handler — that one was a
   // toggle, which raced with the main handler and could re-enter fullscreen.
   window.vex.onFullscreenChanged?.((isFs) => {
+    console.log('[Vex F11] renderer received fullscreen-changed:', isFs);
     document.body.classList.toggle('fullscreen', !!isFs);
   });
 

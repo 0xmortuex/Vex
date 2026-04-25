@@ -25,12 +25,20 @@ app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
 // user clicks into a page. Returns true if the input was consumed so callers
 // can skip their remaining handlers.
 function handleFullscreenShortcut(event, input) {
+  if (input && input.key === 'F11') {
+    console.log('[Vex F11] handleFullscreenShortcut entered. type:', input.type, 'mods:', { c: input.control, a: input.alt, s: input.shift, m: input.meta }, 'mainWindow:', !!mainWindow, 'isFullScreen:', mainWindow ? mainWindow.isFullScreen() : 'n/a');
+  }
   if (!mainWindow || input.type !== 'keyDown') return false;
 
   if (input.key === 'F11' && !input.control && !input.alt && !input.shift && !input.meta) {
     event.preventDefault();
-    const next = !mainWindow.isFullScreen();
+    const before = mainWindow.isFullScreen();
+    const next = !before;
+    console.log('[Vex F11] calling setFullScreen with:', next, '(was:', before, ')');
     mainWindow.setFullScreen(next);
+    setTimeout(() => {
+      try { console.log('[Vex F11] post-setFullScreen state (100ms):', mainWindow && !mainWindow.isDestroyed() ? mainWindow.isFullScreen() : 'destroyed'); } catch (e) { console.log('[Vex F11] post-setFullScreen log error:', e.message); }
+    }, 100);
     // Belt-and-suspenders: native enter/leave-full-screen events drive the
     // chrome class normally, but on frameless+transparent windows on Windows
     // those events can lag or skip — send the IPC explicitly so the renderer
@@ -41,6 +49,7 @@ function handleFullscreenShortcut(event, input) {
 
   if (input.key === 'Escape' && !input.control && !input.alt && !input.shift && !input.meta) {
     if (mainWindow.isFullScreen()) {
+      console.log('[Vex F11] Escape pressed while fullscreen — exiting');
       event.preventDefault();
       mainWindow.setFullScreen(false);
       try { mainWindow.webContents.send('fullscreen-changed', false); } catch {}
@@ -573,6 +582,9 @@ app.on('web-contents-created', (_event, contents) => {
   // the guest page has focus. Without this, pressing them inside any loaded
   // website is a no-op.
   contents.on('before-input-event', (event, input) => {
+    if (input && input.key === 'F11') {
+      console.log('[Vex F11] before-input-event fired on GUEST webContents id:', contents.id, 'type:', input.type);
+    }
     if (handleFullscreenShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
   });
@@ -908,9 +920,11 @@ function createWindow() {
 
   // Fullscreen change events
   mainWindow.on('enter-full-screen', () => {
+    console.log('[Vex F11] enter-full-screen event fired. isFullScreen:', mainWindow.isFullScreen());
     mainWindow.webContents.send('fullscreen-changed', true);
   });
   mainWindow.on('leave-full-screen', () => {
+    console.log('[Vex F11] leave-full-screen event fired. isFullScreen:', mainWindow.isFullScreen());
     mainWindow.webContents.send('fullscreen-changed', false);
   });
 
@@ -1019,6 +1033,9 @@ app.whenReady().then(() => {
 
   // Register global shortcuts
   mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input && input.key === 'F11') {
+      console.log('[Vex F11] before-input-event fired on MAIN window webContents. type:', input.type, 'defaultPrevented(before):', event.defaultPrevented);
+    }
     if (input.control && input.key === 'k') {
       mainWindow.webContents.send('toggle-command-bar');
       event.preventDefault();
@@ -1182,7 +1199,11 @@ ipcMain.handle('open-pip-window', (event, url) => {
 });
 
 ipcMain.handle('toggle-fullscreen', () => {
-  if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
+  if (mainWindow) {
+    const before = mainWindow.isFullScreen();
+    console.log('[Vex F11] ipcMain toggle-fullscreen called. was:', before, '→ setting:', !before);
+    mainWindow.setFullScreen(!before);
+  }
 });
 
 // Hard reload: clear the webview session's HTTP cache, then reloadIgnoringCache.
