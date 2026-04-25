@@ -777,13 +777,13 @@
   });
 
   // === Phase 6: Fullscreen ===
+  // Driven by main: F11 / Esc are handled in main.js via before-input-event
+  // (handleFullscreenShortcut). Native enter-full-screen / leave-full-screen
+  // events plus an explicit fullscreen-changed IPC keep this body class in
+  // sync, so we don't need a renderer-side Esc handler — that one was a
+  // toggle, which raced with the main handler and could re-enter fullscreen.
   window.vex.onFullscreenChanged?.((isFs) => {
-    document.body.classList.toggle('fullscreen', isFs);
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.body.classList.contains('fullscreen')) {
-      window.vex.toggleFullscreen?.();
-    }
+    document.body.classList.toggle('fullscreen', !!isFs);
   });
 
   // === Phase 6: Mute ===

@@ -28,16 +28,25 @@ function handleFullscreenShortcut(event, input) {
   if (!mainWindow || input.type !== 'keyDown') return false;
 
   if (input.key === 'F11' && !input.control && !input.alt && !input.shift && !input.meta) {
+    event.preventDefault();
     const next = !mainWindow.isFullScreen();
     mainWindow.setFullScreen(next);
-    event.preventDefault();
+    // Belt-and-suspenders: native enter/leave-full-screen events drive the
+    // chrome class normally, but on frameless+transparent windows on Windows
+    // those events can lag or skip — send the IPC explicitly so the renderer
+    // body class stays in sync regardless.
+    try { mainWindow.webContents.send('fullscreen-changed', next); } catch {}
     return true;
   }
 
-  if (input.key === 'Escape' && mainWindow.isFullScreen()) {
-    mainWindow.setFullScreen(false);
-    event.preventDefault();
-    return true;
+  if (input.key === 'Escape' && !input.control && !input.alt && !input.shift && !input.meta) {
+    if (mainWindow.isFullScreen()) {
+      event.preventDefault();
+      mainWindow.setFullScreen(false);
+      try { mainWindow.webContents.send('fullscreen-changed', false); } catch {}
+      return true;
+    }
+    // Don't preventDefault if not fullscreen — let Esc do other things normally.
   }
 
   return false;
