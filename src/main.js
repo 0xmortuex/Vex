@@ -12,6 +12,13 @@ try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
 let mainWindow = null;
 let adBlockerEnabled = true;
 let pendingOpenUrl = null;
+// Track fullscreen state ourselves: Electron's BrowserWindow.isFullScreen()
+// returns false on transparent + frameless windows (frame: false, transparent:
+// true) on Windows, even after setFullScreen(true) and after the
+// enter-full-screen event has fired. We rely on the native enter/leave events
+// (which DO fire correctly) to keep this in sync, and read this variable
+// instead of isFullScreen() everywhere we need to flip state.
+let isFullscreenTracked = false;
 // Auto-open DevTools when unpackaged (dev) or when --dev-tools is passed
 const enableDevToolsAtStartup = process.argv.includes('--dev-tools') || !app.isPackaged;
 
@@ -26,33 +33,23 @@ app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
 // can skip their remaining handlers.
 function handleFullscreenShortcut(event, input) {
   if (input && input.key === 'F11') {
-    console.log('[Vex F11] handleFullscreenShortcut entered. type:', input.type, 'mods:', { c: input.control, a: input.alt, s: input.shift, m: input.meta }, 'mainWindow:', !!mainWindow, 'isFullScreen:', mainWindow ? mainWindow.isFullScreen() : 'n/a');
+    console.log('[Vex F11] handleFullscreenShortcut entered. type:', input.type, 'mods:', { c: input.control, a: input.alt, s: input.shift, m: input.meta }, 'mainWindow:', !!mainWindow, 'tracked:', isFullscreenTracked, 'isFullScreen():', mainWindow ? mainWindow.isFullScreen() : 'n/a');
   }
   if (!mainWindow || input.type !== 'keyDown') return false;
 
   if (input.key === 'F11' && !input.control && !input.alt && !input.shift && !input.meta) {
     event.preventDefault();
-    const before = mainWindow.isFullScreen();
-    const next = !before;
-    console.log('[Vex F11] calling setFullScreen with:', next, '(was:', before, ')');
+    const next = !isFullscreenTracked;
+    console.log('[Vex F11] toggling. tracked was:', isFullscreenTracked, 'flipping to:', next);
     mainWindow.setFullScreen(next);
-    setTimeout(() => {
-      try { console.log('[Vex F11] post-setFullScreen state (100ms):', mainWindow && !mainWindow.isDestroyed() ? mainWindow.isFullScreen() : 'destroyed'); } catch (e) { console.log('[Vex F11] post-setFullScreen log error:', e.message); }
-    }, 100);
-    // Belt-and-suspenders: native enter/leave-full-screen events drive the
-    // chrome class normally, but on frameless+transparent windows on Windows
-    // those events can lag or skip — send the IPC explicitly so the renderer
-    // body class stays in sync regardless.
-    try { mainWindow.webContents.send('fullscreen-changed', next); } catch {}
     return true;
   }
 
   if (input.key === 'Escape' && !input.control && !input.alt && !input.shift && !input.meta) {
-    if (mainWindow.isFullScreen()) {
-      console.log('[Vex F11] Escape pressed while fullscreen — exiting');
+    if (isFullscreenTracked) {
+      console.log('[Vex F11] Esc → exiting fullscreen');
       event.preventDefault();
       mainWindow.setFullScreen(false);
-      try { mainWindow.webContents.send('fullscreen-changed', false); } catch {}
       return true;
     }
     // Don't preventDefault if not fullscreen — let Esc do other things normally.
@@ -918,13 +915,16 @@ function createWindow() {
   }
 
 
-  // Fullscreen change events
+  // Fullscreen change events — these are the source of truth for our tracked
+  // state (Electron's isFullScreen() lies on transparent frameless windows).
   mainWindow.on('enter-full-screen', () => {
-    console.log('[Vex F11] enter-full-screen event fired. isFullScreen:', mainWindow.isFullScreen());
+    isFullscreenTracked = true;
+    console.log('[Vex F11] enter-full-screen event fired. tracked state:', isFullscreenTracked);
     mainWindow.webContents.send('fullscreen-changed', true);
   });
   mainWindow.on('leave-full-screen', () => {
-    console.log('[Vex F11] leave-full-screen event fired. isFullScreen:', mainWindow.isFullScreen());
+    isFullscreenTracked = false;
+    console.log('[Vex F11] leave-full-screen event fired. tracked state:', isFullscreenTracked);
     mainWindow.webContents.send('fullscreen-changed', false);
   });
 
@@ -1200,9 +1200,9 @@ ipcMain.handle('open-pip-window', (event, url) => {
 
 ipcMain.handle('toggle-fullscreen', () => {
   if (mainWindow) {
-    const before = mainWindow.isFullScreen();
-    console.log('[Vex F11] ipcMain toggle-fullscreen called. was:', before, '→ setting:', !before);
-    mainWindow.setFullScreen(!before);
+    const next = !isFullscreenTracked;
+    console.log('[Vex F11] ipcMain toggle-fullscreen called. tracked was:', isFullscreenTracked, '→ setting:', next);
+    mainWindow.setFullScreen(next);
   }
 });
 
@@ -1225,7 +1225,7 @@ ipcMain.handle('webview:hard-reload', async (_e, webContentsId) => {
 });
 
 ipcMain.handle('is-fullscreen', () => {
-  return mainWindow ? mainWindow.isFullScreen() : false;
+  return isFullscreenTracked;
 });
 
 // DevTools toggle — renderer sends the webContentsId of the tab to toggle
