@@ -43,6 +43,29 @@
       "assets/icon.ico",
       "package.json"
     ],
+    "fileAssociations": [
+      {
+        "ext": "html",
+        "name": "HTML Document",
+        "description": "HTML Document",
+        "role": "Viewer"
+      },
+      {
+        "ext": "htm",
+        "name": "HTML Document",
+        "description": "HTML Document",
+        "role": "Viewer"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "Web URL",
+        "schemes": [
+          "http",
+          "https"
+        ]
+      }
+    ],
     "win": {
       "target": [
         {

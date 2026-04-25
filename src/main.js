@@ -76,13 +76,39 @@ function handleDevToolsShortcut(event, input) {
   return true;
 }
 
+// === URL/path normalisation for argv from Windows shell ===
+// Windows passes a double-clicked .html as an absolute file path
+// (C:\Users\…\foo.html), not a file:// URL. Browsers register for both http(s)
+// protocols AND file associations, so argv can be any of:
+//   http://… / https://…           (link click in another app)
+//   file:///C:/Users/…/foo.html    (less common — some launchers do this)
+//   C:\Users\…\foo.html            (File Explorer double-click)
+// Convert all of these into something the renderer's TabManager can load.
+function normalizeLaunchArg(arg) {
+  if (!arg || typeof arg !== 'string') return null;
+  if (arg.startsWith('http://') || arg.startsWith('https://') || arg.startsWith('file://')) {
+    return arg;
+  }
+  if (/\.html?$/i.test(arg) && /^[a-zA-Z]:[\\/]/.test(arg)) {
+    return pathToFileURL(arg).toString();
+  }
+  return null;
+}
+function findLaunchUrl(argv) {
+  for (const arg of argv) {
+    const url = normalizeLaunchArg(arg);
+    if (url) return url;
+  }
+  return null;
+}
+
 // === Single-instance lock (so external links route to existing Vex window) ===
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
   app.on('second-instance', (event, commandLine) => {
-    const url = commandLine.find(a => a.startsWith('http://') || a.startsWith('https://'));
+    const url = findLaunchUrl(commandLine);
     if (url && mainWindow) {
       mainWindow.webContents.send('open-url', url);
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -1022,8 +1048,10 @@ app.whenReady().then(() => {
   createWindow();
   setupAutoUpdater();
 
-  // === Handle URL launched from external app (Discord, email, etc.) ===
-  const launchUrl = pendingOpenUrl || process.argv.find(a => a.startsWith('http://') || a.startsWith('https://'));
+  // === Handle URL launched from external app (Discord, email, File Explorer) ===
+  // process.argv[0] is the exe path, [1..] are the arguments Windows passed —
+  // skip [0] so we don't accidentally normalise the exe location into a URL.
+  const launchUrl = pendingOpenUrl || findLaunchUrl(process.argv.slice(1));
   if (launchUrl && mainWindow) {
     mainWindow.webContents.once('did-finish-load', () => {
       mainWindow.webContents.send('open-url', launchUrl);
