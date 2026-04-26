@@ -5,6 +5,14 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
 
+// === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
+console.log('[Vex URL] ====== Vex process boot ======');
+console.log('[Vex URL] argv:', JSON.stringify(process.argv));
+console.log('[Vex URL] cwd:', process.cwd());
+console.log('[Vex URL] execPath:', process.execPath);
+console.log('[Vex URL] defaultApp:', !!process.defaultApp);
+console.log('[Vex URL] isPackaged:', app.isPackaged);
+
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;
 try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
@@ -85,17 +93,25 @@ function handleDevToolsShortcut(event, input) {
 //   C:\Users\…\foo.html            (File Explorer double-click)
 // Convert all of these into something the renderer's TabManager can load.
 function normalizeLaunchArg(arg) {
-  if (!arg || typeof arg !== 'string') return null;
+  if (!arg || typeof arg !== 'string') {
+    console.log('[Vex URL]   normalize: rejecting non-string arg', arg);
+    return null;
+  }
   if (arg.startsWith('http://') || arg.startsWith('https://') || arg.startsWith('file://')) {
+    console.log('[Vex URL]   normalize: matched http/https/file URL ->', arg);
     return arg;
   }
   if (/\.html?$/i.test(arg) && /^[a-zA-Z]:[\\/]/.test(arg)) {
-    return pathToFileURL(arg).toString();
+    const u = pathToFileURL(arg).toString();
+    console.log('[Vex URL]   normalize: matched local .html path -> file URL', u);
+    return u;
   }
+  console.log('[Vex URL]   normalize: no match for arg', JSON.stringify(arg));
   return null;
 }
 function findLaunchUrl(argv) {
-  for (const arg of argv) {
+  console.log('[Vex URL]   findLaunchUrl scanning', (argv || []).length, 'args');
+  for (const arg of (argv || [])) {
     const url = normalizeLaunchArg(arg);
     if (url) return url;
   }
@@ -103,16 +119,30 @@ function findLaunchUrl(argv) {
 }
 
 // === Single-instance lock (so external links route to existing Vex window) ===
+console.log('[Vex URL] requesting single-instance lock...');
 const gotTheLock = app.requestSingleInstanceLock();
+console.log('[Vex URL] gotLock:', gotTheLock);
 if (!gotTheLock) {
+  console.log('[Vex URL] another instance already holds the lock — quitting (this argv should reach the primary via second-instance)');
   app.quit();
 } else {
-  app.on('second-instance', (event, commandLine) => {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    console.log('[Vex URL] second-instance fired.');
+    console.log('[Vex URL]   commandLine:', JSON.stringify(commandLine));
+    console.log('[Vex URL]   workingDirectory:', workingDirectory);
     const url = findLaunchUrl(commandLine);
+    console.log('[Vex URL]   normalized URL:', url);
+    console.log('[Vex URL]   mainWindow present:', !!mainWindow);
     if (url && mainWindow) {
+      console.log('[Vex URL]   sending open-url IPC to renderer');
       mainWindow.webContents.send('open-url', url);
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
+    } else if (url && !mainWindow) {
+      console.log('[Vex URL]   no mainWindow yet — stashing as pendingOpenUrl');
+      pendingOpenUrl = url;
+    } else {
+      console.log('[Vex URL]   no URL found in second-instance argv — nothing to forward');
     }
   });
 }
@@ -1051,12 +1081,20 @@ app.whenReady().then(() => {
   // === Handle URL launched from external app (Discord, email, File Explorer) ===
   // process.argv[0] is the exe path, [1..] are the arguments Windows passed —
   // skip [0] so we don't accidentally normalise the exe location into a URL.
+  console.log('[Vex URL] cold-start launch URL detection');
+  console.log('[Vex URL]   process.argv:', JSON.stringify(process.argv));
+  console.log('[Vex URL]   pendingOpenUrl:', pendingOpenUrl);
   const launchUrl = pendingOpenUrl || findLaunchUrl(process.argv.slice(1));
+  console.log('[Vex URL]   resolved launchUrl:', launchUrl);
   if (launchUrl && mainWindow) {
+    console.log('[Vex URL]   queuing open-url IPC for did-finish-load');
     mainWindow.webContents.once('did-finish-load', () => {
+      console.log('[Vex URL]   did-finish-load -> sending open-url IPC:', launchUrl);
       mainWindow.webContents.send('open-url', launchUrl);
     });
     pendingOpenUrl = null;
+  } else if (!launchUrl) {
+    console.log('[Vex URL]   no launchUrl on cold start — normal Vex boot');
   }
 
   // Register global shortcuts

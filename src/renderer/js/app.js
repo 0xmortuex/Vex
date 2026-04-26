@@ -639,8 +639,16 @@
   });
 
   // === Default browser: handle incoming URLs from external apps ===
+  console.log('[Vex URL] renderer: registering onOpenUrl handler. window.vex present?', !!window.vex, 'onOpenUrl present?', !!window.vex?.onOpenUrl);
   window.vex.onOpenUrl?.((url) => {
-    TabManager.createTab(url, true);
+    console.log('[Vex URL] renderer: handler invoked with URL:', url);
+    console.log('[Vex URL] renderer: TabManager present?', !!window.TabManager || typeof TabManager !== 'undefined', 'createTab type:', typeof TabManager?.createTab);
+    try {
+      const tab = TabManager.createTab(url, true);
+      console.log('[Vex URL] renderer: TabManager.createTab returned:', tab && tab.id ? `tab id=${tab.id}` : tab);
+    } catch (err) {
+      console.error('[Vex URL] renderer: TabManager.createTab threw:', err && err.stack || err);
+    }
     window.showToast?.('Opened link: ' + url.substring(0, 50));
   });
 

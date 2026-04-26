@@ -98,7 +98,18 @@ contextBridge.exposeInMainWorld('vex', {
   onUpdateError: (cb) => ipcRenderer.on('update-error', (_, e) => cb(e)),
 
   // Default browser
-  onOpenUrl: (cb) => ipcRenderer.on('open-url', (_, url) => cb(url)),
+  onOpenUrl: (cb) => {
+    console.log('[Vex URL] preload: renderer registered onOpenUrl listener');
+    ipcRenderer.on('open-url', (_, url) => {
+      console.log('[Vex URL] preload: received open-url IPC ->', url);
+      try {
+        cb(url);
+        console.log('[Vex URL] preload: renderer callback returned without throwing');
+      } catch (err) {
+        console.error('[Vex URL] preload: renderer callback threw:', err && err.stack || err);
+      }
+    });
+  },
   setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
 
