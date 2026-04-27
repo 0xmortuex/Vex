@@ -896,7 +896,7 @@ function createWindow() {
   // so they can be embedded in panels. persist:main is the default tabs session;
   // it gets adblocker/permissions/downloads/preload wiring below but no header
   // strip since regular tabs don't need their own frame-ancestors loosened.
-  const partitions = ['persist:whatsapp', 'persist:claude'];
+  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify'];
 
   // Gmail: spoof Chrome UA at the session level too. The webview-tag `useragent`
   // attribute covers top-level frames; setting it on the session ensures every
