@@ -84,8 +84,6 @@
   align-items: center;
   gap: 8px;
   padding-bottom: 4px;
-  overflow-y: auto;
-  max-height: 320px;
   width: 100%;
 }
 #tools-bar::-webkit-scrollbar { width: 0; }
