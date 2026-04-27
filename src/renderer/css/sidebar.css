@@ -15,7 +15,10 @@
   align-items: center;
   gap: 8px;
   position: relative;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+#icon-sidebar::-webkit-scrollbar { width: 0; }
 
 .sidebar-icon {
   display: flex;

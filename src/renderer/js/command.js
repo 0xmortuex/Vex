@@ -27,7 +27,6 @@ const CommandBar = {
     { id: 'split', label: 'Split Screen', hint: 'Toggle split-screen view', shortcut: 'Ctrl+Shift+S', icon: '⬛', action: () => SplitScreen.toggle() },
     // Tool commands
     { id: 'flashmind', label: 'FlashMind', hint: 'AI-powered flashcard study tool', icon: '💡', action: () => VexTools.openToolById('flashmind') },
-    { id: 'cipherlab', label: 'CipherLab', hint: 'Cryptography analysis lab', icon: '🔐', action: () => VexTools.openToolById('cipherlab') },
     { id: 'loopholemap', label: 'LoopholeMap', hint: 'Legal loophole mapper', icon: '🗺', action: () => VexTools.openToolById('loopholemap') },
     { id: 'aijudge', label: 'AIJudge', hint: 'AI-powered legal judgment tool', icon: '⚖', action: () => VexTools.openToolById('aijudge') },
     { id: 'netmap', label: 'NetMap', hint: 'Network topology mapper', icon: '🌐', action: () => VexTools.openToolById('netmap') },
