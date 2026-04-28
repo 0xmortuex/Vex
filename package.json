@@ -17,7 +17,7 @@
     "publish": "npm run build-icons && rimraf dist && electron-builder --publish always"
   },
   "devDependencies": {
-    "electron": "^30.0.0",
+    "electron": "github:castlabs/electron-releases#v30.5.1+wvcus",
     "electron-builder": "^24.0.0",
     "electron-icon-builder": "^2.0.1",
     "rimraf": "^6.1.3",
@@ -33,6 +33,11 @@
     "copyright": "Copyright 2026 0xmortuex",
     "npmRebuild": false,
     "buildDependenciesFromSource": false,
+    "afterPack": "scripts/vmp-sign.js",
+    "electronDownload": {
+      "version": "30.5.1+wvcus",
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/v"
+    },
     "directories": {
       "output": "dist",
       "buildResources": "assets"
