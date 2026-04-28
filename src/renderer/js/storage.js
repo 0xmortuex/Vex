@@ -116,7 +116,10 @@ const VexStorage = {
       url: t.url,
       title: t.title,
       pinned: t.pinned || false,
-      groupId: t.groupId || null
+      groupId: t.groupId || null,
+      sleeping: t.sleeping || false,
+      originalUrl: t.originalUrl || null,
+      scrollPosition: t.scrollPosition || null
     }));
     return this.save('tabs', serialized);
   },

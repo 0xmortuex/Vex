@@ -446,11 +446,19 @@
   }
 
   // === Auto-sleep settings ===
+  // First-run default: enabled. Existing users keep whatever they last saved
+  // (so toggling it OFF stays OFF across restarts).
+  if (settings.autoSleepEnabled === undefined) {
+    settings.autoSleepEnabled = true;
+    settings.autoSleepMinutes = settings.autoSleepMinutes ?? 30;
+    settings.autoSleepExcludePinned = settings.autoSleepExcludePinned ?? true;
+    await VexStorage.saveSettings(settings);
+  }
   const autosleepToggle = document.getElementById('setting-autosleep');
   const autosleepMinutes = document.getElementById('setting-autosleep-minutes');
   const autosleepExcludePinned = document.getElementById('setting-autosleep-exclude-pinned');
   if (autosleepToggle) {
-    autosleepToggle.checked = settings.autoSleepEnabled || false;
+    autosleepToggle.checked = !!settings.autoSleepEnabled;
     if (autosleepMinutes) autosleepMinutes.value = String(settings.autoSleepMinutes || 30);
     if (autosleepExcludePinned) autosleepExcludePinned.checked = settings.autoSleepExcludePinned !== false;
 

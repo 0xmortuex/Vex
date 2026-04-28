@@ -50,4 +50,6 @@
 
 /* Tab sleeping indicator */
 .tab-item.sleeping { opacity: 0.5; }
+.tab-item.sleeping .tab-favicon,
+.tab-item.sleeping .tab-favicon-placeholder { filter: grayscale(0.6); }
 .tab-item.sleeping .tab-title::after { content: ' \01F4A4'; font-size: 11px; }

@@ -56,9 +56,35 @@ const TabManager = {
     const savedTabs = await VexStorage.loadTabs();
     if (savedTabs.length > 0) {
       for (const t of savedTabs) {
-        this.createTab(t.url, false, t.groupId);
+        if (t.sleeping) {
+          // Bring tabs that were sleeping at shutdown back up sleeping —
+          // no webview created, scroll position preserved for next wake.
+          const id = `tab-${++this.tabCounter}`;
+          const tab = {
+            id,
+            url: t.url,
+            title: t.title || (isStartPage(t.url) ? 'New Tab' : t.url),
+            favicon: null,
+            loading: false,
+            pinned: !!t.pinned,
+            unread: false,
+            groupId: t.groupId || null,
+            sleeping: true,
+            originalUrl: t.originalUrl || t.url,
+            scrollPosition: t.scrollPosition || null
+          };
+          this.tabs.push(tab);
+          this.renderTab(tab);
+          const el = document.querySelector(`.tab-item[data-tab-id="${id}"]`);
+          if (el) el.classList.add('sleeping');
+        } else {
+          const tab = this.createTab(t.url, false, t.groupId);
+          if (tab) tab.pinned = !!t.pinned;
+        }
       }
-      this.switchTab(this.tabs[0].id);
+      // Activate the first non-sleeping tab so we don't immediately wake one
+      const firstAwake = this.tabs.find(t => !t.sleeping) || this.tabs[0];
+      this.switchTab(firstAwake.id);
     } else {
       this.createTab(START_URL, true);
     }
@@ -708,23 +734,34 @@ const TabManager = {
   },
 
   // === Sleep/Wake ===
-  sleepTab(id) {
+  async sleepTab(id) {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab || tab.sleeping || tab.id === this.activeTabId) return;
 
-    tab.sleeping = true;
     tab.originalUrl = tab.url;
 
-    // Unload webview content
+    // Capture scroll position before tearing down the webview, so wake can
+    // restore where the user left off. Best-effort — if executeJavaScript
+    // throws (page already gone, cross-origin top frame, etc.) fall back to 0.
     const wv = WebviewManager.webviews.get(id);
     if (wv) {
+      try {
+        const pos = await wv.executeJavaScript('({x: window.scrollX, y: window.scrollY})');
+        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+          tab.scrollPosition = { x: pos.x, y: pos.y };
+        }
+      } catch { /* ignore */ }
       wv.remove();
       WebviewManager.webviews.delete(id);
     }
 
+    tab.sleeping = true;
+
     // Update UI
     const el = document.querySelector(`.tab-item[data-tab-id="${id}"]`);
     if (el) el.classList.add('sleeping');
+
+    this.persistTabs();
   },
 
   wakeTab(id) {
@@ -738,8 +775,23 @@ const TabManager = {
     // Recreate webview
     WebviewManager.createWebview(tab);
 
+    // Restore scroll position once the page has loaded. One-shot listener;
+    // best-effort (cross-origin pages may ignore it, that's fine).
+    const wv = WebviewManager.webviews.get(id);
+    if (wv && tab.scrollPosition) {
+      const pos = tab.scrollPosition;
+      const restoreScroll = () => {
+        try {
+          wv.executeJavaScript(`window.scrollTo(${pos.x}, ${pos.y})`).catch(() => {});
+        } catch { /* ignore */ }
+      };
+      wv.addEventListener('did-finish-load', restoreScroll, { once: true });
+    }
+
     const el = document.querySelector(`.tab-item[data-tab-id="${id}"]`);
     if (el) el.classList.remove('sleeping');
+
+    this.persistTabs();
   },
 
   sleepAllInactive() {
@@ -771,7 +823,7 @@ const TabManager = {
           this.sleepTab(t.id);
         }
       });
-    }, 60000);
+    }, 30000);
   },
 
   stopAutoSleep() {
