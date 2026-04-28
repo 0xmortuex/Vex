@@ -1,5 +1,23 @@
 // === Vex Tab Manager ===
 
+// TODO(Phase 2.5): drag-to-group — drop a tab onto a group header to assign,
+// drag a tab out of a group's body to ungroup. Right-click is the only path
+// for now; ship without it to keep the diff small.
+
+// Phase 2 group color palette — amber-leaning to match Vex's accent.
+// Existing groups keep their previously-saved colors; this palette only
+// governs new groups and the color picker.
+const GROUP_COLORS = [
+  '#d4a574', // amber (default)
+  '#9b59b6', // purple
+  '#5b8def', // blue
+  '#6fbf73', // green
+  '#e8c45a', // yellow
+  '#e8685a', // red
+  '#5ac8c8', // teal
+  '#a08574'  // brown
+];
+
 // Start page URL — defaults to vex:// protocol, replaced with file:// fallback once resolved
 let START_URL = 'vex://start';
 
@@ -179,6 +197,10 @@ const TabManager = {
       }
     }
 
+    // Remember the closed tab's group so we can prune the group object if
+    // this was its last member (no zombie empty groups).
+    const closedGroupId = this.tabs[idx]?.groupId || null;
+
     WebviewManager.destroyWebview(id);
 
     // Remove tab element
@@ -189,6 +211,17 @@ const TabManager = {
 
     // Skip auto-create during bulk operations (workspace switch)
     if (this._bulkClosing) return;
+
+    // Auto-delete the group if it has no tabs left. renderGroups already
+    // hides empty groups, but the object would otherwise linger in
+    // TabManager.groups + persisted storage forever.
+    if (closedGroupId) {
+      const stillUsed = this.tabs.some(t => t.groupId === closedGroupId);
+      if (!stillUsed) {
+        this.groups = this.groups.filter(g => g.id !== closedGroupId);
+        VexStorage.saveGroups(this.groups);
+      }
+    }
 
     if (this.tabs.length === 0) {
       this.createTab(START_URL, true);
@@ -522,7 +555,7 @@ const TabManager = {
     const name = prompt('Group name:');
     if (!name || !name.trim()) return;
     const id = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    this.groups.push({ id, name: name.trim(), color: '#6366f1', collapsed: false });
+    this.groups.push({ id, name: name.trim(), color: GROUP_COLORS[0], collapsed: false });
     tab.groupId = id;
     VexStorage.saveGroups(this.groups);
     this.rebuildAllTabs();
@@ -531,11 +564,7 @@ const TabManager = {
   },
 
   _showGroupColorPicker(groupId, onPick) {
-    const colors = [
-      '#6366f1', '#06b6d4', '#10b981', '#f59e0b',
-      '#ef4444', '#8b5cf6', '#f43f5e', '#14b8a6',
-      '#22c55e', '#00b4d8', '#3b82f6', '#94a3b8'
-    ];
+    const colors = GROUP_COLORS;
     document.querySelectorAll('.group-color-picker-overlay').forEach(o => o.remove());
     const overlay = document.createElement('div');
     overlay.className = 'group-color-picker-overlay';
@@ -588,7 +617,7 @@ const TabManager = {
         }
       })),
       ...(moveTargets.length ? [{ sep: true }] : []),
-      { label: '+ New group from this tab', action: () => this._newGroupFromTab(tab) },
+      { label: 'Add to new group', action: () => this._newGroupFromTab(tab) },
       ...(tab.groupId ? [{ label: '\u2190 Remove from group', action: () => { tab.groupId = null; this.rebuildAllTabs(); this.persistTabs(); } }] : []),
       { sep: true },
       { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => this.toggleMuteTab(tab.id) },
