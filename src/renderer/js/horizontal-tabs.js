@@ -67,6 +67,7 @@ const HorizontalTabs = (() => {
     if (tab.pinned) el.classList.add('pinned');
     if (tab.id === activeId) el.classList.add('active');
     if (tab.loading) el.classList.add('loading');
+    if (tab.sleeping) el.classList.add('sleeping');
     el.dataset.tabId = tab.id;
     el.title = `${tab.title || 'New Tab'}\n${tab.url || ''}`;
 

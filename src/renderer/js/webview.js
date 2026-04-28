@@ -361,13 +361,15 @@ const WebviewManager = {
     });
 
     document.body.appendChild(menu);
-    const closeMenu = (ev) => {
-      if (!menu.contains(ev.target)) {
-        menu.remove();
-        document.removeEventListener('click', closeMenu);
-      }
-    };
-    setTimeout(() => document.addEventListener('click', closeMenu), 0);
+    // Use the shared dismissal/clamp helpers so this menu closes on
+    // outside-click (capture phase, immune to stopPropagation), right-click
+    // elsewhere, Escape, and window blur — same as the tab/group menus.
+    if (typeof TabManager !== 'undefined') {
+      const x = parseInt(menu.style.left, 10) || 0;
+      const y = parseInt(menu.style.top,  10) || 0;
+      TabManager._clampMenuToViewport?.(menu, x, y);
+      TabManager._attachMenuDismissal?.(menu);
+    }
   },
 
   _updateFavicon(tabId, url) {

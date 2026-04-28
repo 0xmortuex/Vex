@@ -367,3 +367,49 @@
   flex-shrink: 0;
   vertical-align: middle;
 }
+
+/* === Custom prompt modal (replaces native window.prompt — disabled in Electron) === */
+.vex-prompt-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100002;
+  font-family: 'Outfit', sans-serif;
+}
+.vex-prompt {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 24px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  min-width: 320px;
+}
+.vex-prompt-title {
+  color: var(--text); font-size: 15px; font-weight: 600; margin-bottom: 4px;
+}
+.vex-prompt-label {
+  color: var(--text-muted); font-size: 12px; margin-bottom: 10px;
+}
+.vex-prompt-input {
+  width: 100%; box-sizing: border-box;
+  padding: 8px 10px; font-size: 13px;
+  background: var(--vex-glass-medium, var(--bg-tertiary, #1a1a1a));
+  color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  outline: none;
+  font-family: inherit;
+}
+.vex-prompt-input:focus { border-color: var(--vex-accent, #d4a574); }
+.vex-prompt-actions {
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
+}
+.vex-prompt-actions button {
+  padding: 6px 14px; font-size: 12px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; font-family: inherit;
+  transition: background 0.12s, border-color 0.12s;
+}
+.vex-prompt-actions button:hover { background: var(--vex-accent-dim, rgba(212,165,116,0.15)); }
+.vex-prompt-actions .vex-prompt-ok {
+  background: var(--vex-accent, #d4a574); color: #1a1a1a; border-color: transparent; font-weight: 600;
+}
+.vex-prompt-actions .vex-prompt-ok:hover { filter: brightness(1.1); }

@@ -176,6 +176,11 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 .top-tab.loading .tab-favicon { animation: tab-spin 1s linear infinite; }
 @keyframes tab-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
+/* Sleeping state — faded tab + grayscale favicon + 💤 indicator */
+.top-tab.sleeping { opacity: 0.55; }
+.top-tab.sleeping .tab-favicon { filter: grayscale(0.7); }
+.top-tab.sleeping .tab-title::after { content: ' \01F4A4'; font-size: 10px; opacity: 0.8; margin-left: 4px; }
+
 /* Group membership — 3 px colored strip along top */
 .top-tab.in-group::before {
   content: '';

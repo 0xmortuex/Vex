@@ -468,6 +468,7 @@ const TabManager = {
     menu.className = 'tab-context-menu tab-group-context-menu';
     menu.style.left = event.clientX + 'px';
     menu.style.top  = event.clientY + 'px';
+    const x = event.clientX, y = event.clientY;
     const count = tabsInGroup.length;
     menu.innerHTML = `
       <div class="tab-context-item" data-action="rename">\u270f\ufe0f Rename group</div>
@@ -479,11 +480,7 @@ const TabManager = {
       <div class="tab-context-item danger" data-action="delete">\ud83d\uddd1\ufe0f Delete group &amp; all tabs</div>
     `;
     document.body.appendChild(menu);
-
-    // Keep menu on screen
-    const rect = menu.getBoundingClientRect();
-    if (rect.right > window.innerWidth)  menu.style.left = (window.innerWidth  - rect.width  - 8) + 'px';
-    if (rect.bottom > window.innerHeight) menu.style.top  = (window.innerHeight - rect.height - 8) + 'px';
+    this._clampMenuToViewport(menu, x, y);
 
     menu.querySelectorAll('.tab-context-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -492,10 +489,7 @@ const TabManager = {
         this._handleGroupAction(action, groupId);
       });
     });
-    setTimeout(() => {
-      const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } };
-      document.addEventListener('click', close);
-    }, 10);
+    this._attachMenuDismissal(menu);
   },
 
   _handleGroupAction(action, groupId) {
@@ -508,12 +502,14 @@ const TabManager = {
       // renderGroups() separately AFTER rebuildAllTabs() blanks every tab
       // out of every group (innerHTML = ''). Just call rebuildAllTabs().
       case 'rename': {
-        const name = prompt('Rename group:', group.name);
-        if (name && name.trim()) {
-          group.name = name.trim();
-          VexStorage.saveGroups(this.groups);
-          this.rebuildAllTabs();
-        }
+        // Native prompt() is disabled in Electron renderer — use in-app modal.
+        this._promptInput('Rename group', 'New name', group.name).then(name => {
+          if (name && name.trim()) {
+            group.name = name.trim();
+            VexStorage.saveGroups(this.groups);
+            this.rebuildAllTabs();
+          }
+        });
         break;
       }
       case 'change-color': {
@@ -551,8 +547,11 @@ const TabManager = {
     }
   },
 
-  _newGroupFromTab(tab) {
-    const name = prompt('Group name:');
+  async _newGroupFromTab(tab) {
+    // Electron's renderer disables the native window.prompt() — it returns
+    // null silently, which silently swallowed this whole flow before. Use the
+    // in-app modal instead.
+    const name = await this._promptInput('New group', 'Group name', '');
     if (!name || !name.trim()) return;
     const id = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     this.groups.push({ id, name: name.trim(), color: GROUP_COLORS[0], collapsed: false });
@@ -589,12 +588,13 @@ const TabManager = {
 
   showContextMenu(e, tab) {
     // Remove existing menu
-    document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
+    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu').forEach(m => m.remove());
 
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
-    menu.style.left = e.clientX + 'px';
-    menu.style.top = e.clientY + 'px';
+    const x = e.clientX, y = e.clientY;
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
 
     // Only offer Move-to for groups OTHER than the tab's current one,
     // and only if the group actually has tabs (prunes zombie groups).
@@ -652,15 +652,8 @@ const TabManager = {
     });
 
     document.body.appendChild(menu);
-
-    // Close on click outside
-    const closeMenu = (ev) => {
-      if (!menu.contains(ev.target)) {
-        menu.remove();
-        document.removeEventListener('click', closeMenu);
-      }
-    };
-    setTimeout(() => document.addEventListener('click', closeMenu), 0);
+    this._clampMenuToViewport(menu, x, y);
+    this._attachMenuDismissal(menu);
   },
 
   rebuildAllTabs() {
@@ -786,9 +779,12 @@ const TabManager = {
 
     tab.sleeping = true;
 
-    // Update UI
+    // Update UI for the vertical sidebar (.tab-item) AND the horizontal tab
+    // bar (.top-tab). Default layout is horizontal, so without the second
+    // path Sleep Tab from the right-click menu produced no visible change.
     const el = document.querySelector(`.tab-item[data-tab-id="${id}"]`);
     if (el) el.classList.add('sleeping');
+    if (typeof HorizontalTabs !== 'undefined') HorizontalTabs.render?.();
 
     this.persistTabs();
   },
@@ -819,6 +815,7 @@ const TabManager = {
 
     const el = document.querySelector(`.tab-item[data-tab-id="${id}"]`);
     if (el) el.classList.remove('sleeping');
+    if (typeof HorizontalTabs !== 'undefined') HorizontalTabs.render?.();
 
     this.persistTabs();
   },
@@ -958,5 +955,75 @@ const TabManager = {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  },
+
+  // Custom prompt — Electron's renderer disables window.prompt(). Returns a
+  // Promise that resolves to the entered string, or null on cancel/escape.
+  _promptInput(title, label, defaultValue) {
+    return new Promise(resolve => {
+      document.querySelectorAll('.vex-prompt-overlay').forEach(o => o.remove());
+      const overlay = document.createElement('div');
+      overlay.className = 'vex-prompt-overlay';
+      overlay.innerHTML = `
+        <div class="vex-prompt">
+          <div class="vex-prompt-title">${this._escapeHtml(title || 'Input')}</div>
+          ${label ? `<div class="vex-prompt-label">${this._escapeHtml(label)}</div>` : ''}
+          <input type="text" class="vex-prompt-input" value="${this._escapeHtml(defaultValue || '')}">
+          <div class="vex-prompt-actions">
+            <button class="vex-prompt-cancel">Cancel</button>
+            <button class="vex-prompt-ok">OK</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const input = overlay.querySelector('.vex-prompt-input');
+      const done = (val) => { overlay.remove(); resolve(val); };
+      input.focus();
+      input.select();
+      overlay.querySelector('.vex-prompt-ok').addEventListener('click', () => done(input.value));
+      overlay.querySelector('.vex-prompt-cancel').addEventListener('click', () => done(null));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter')  { e.preventDefault(); done(input.value); }
+        if (e.key === 'Escape') { e.preventDefault(); done(null); }
+      });
+    });
+  },
+
+  // Shared dismissal wiring for any context menu we open. Listens on capture
+  // phase so child handlers calling stopPropagation() (the tab close button
+  // does this) can't swallow the close. Also handles right-click to relocate
+  // and Escape to dismiss.
+  _attachMenuDismissal(menu) {
+    const close = () => {
+      menu.remove();
+      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('contextmenu', onDocCtx, true);
+      document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('blur', close, true);
+    };
+    const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
+    const onDocCtx   = (ev) => { if (!menu.contains(ev.target)) close(); };
+    const onKey      = (ev) => { if (ev.key === 'Escape') close(); };
+    // Defer attach to the next tick so the right-click that opened the menu
+    // doesn't immediately fire the dismissal listeners.
+    setTimeout(() => {
+      document.addEventListener('click', onDocClick, true);
+      document.addEventListener('contextmenu', onDocCtx, true);
+      document.addEventListener('keydown', onKey, true);
+      window.addEventListener('blur', close, true);
+    }, 0);
+  },
+
+  // Clamp menu inside the viewport. Call on rAF after the menu is in the DOM
+  // so getBoundingClientRect picks up actual rendered size.
+  _clampMenuToViewport(menu, x, y) {
+    requestAnimationFrame(() => {
+      const r = menu.getBoundingClientRect();
+      let nx = x, ny = y;
+      if (r.right > window.innerWidth)  nx = Math.max(8, window.innerWidth  - r.width  - 8);
+      if (r.bottom > window.innerHeight) ny = Math.max(8, window.innerHeight - r.height - 8);
+      if (nx !== x) menu.style.left = nx + 'px';
+      if (ny !== y) menu.style.top  = ny + 'px';
+    });
   }
 };
