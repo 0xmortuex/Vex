@@ -769,6 +769,16 @@ try {
   console.warn('[Vex] Gmail cleanup skipped:', err.message);
 }
 
+try {
+  const staleNetflixPartition = path.join(userDataPath, 'Partitions', 'netflix');
+  if (fs.existsSync(staleNetflixPartition)) {
+    fs.rmSync(staleNetflixPartition, { recursive: true, force: true });
+    console.log('[Vex] Removed stale Netflix partition data');
+  }
+} catch (err) {
+  console.warn('[Vex] Netflix partition cleanup skipped:', err.message);
+}
+
 // === Phase 13: Vex Sync — encryption key + session metadata ===
 const syncKeyFile = path.join(userDataPath, 'sync-key.bin');
 const syncMetaFile = path.join(userDataPath, 'sync-meta.json');
@@ -896,7 +906,7 @@ function createWindow() {
   // so they can be embedded in panels. persist:main is the default tabs session;
   // it gets adblocker/permissions/downloads/preload wiring below but no header
   // strip since regular tabs don't need their own frame-ancestors loosened.
-  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify', 'persist:netflix'];
+  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify'];
 
   // Gmail: spoof Chrome UA at the session level too. The webview-tag `useragent`
   // attribute covers top-level frames; setting it on the session ensures every

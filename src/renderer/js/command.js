@@ -11,7 +11,6 @@ const CommandBar = {
     { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: '📱', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },
     { id: 'claude', label: 'Claude AI', hint: 'Open Claude panel', icon: '✨', isPrimary: true, action: () => SidebarManager.openPanel('claude') },
     { id: 'spotify', label: 'Spotify', hint: 'Open Spotify panel', icon: '♪', isPrimary: true, action: () => SidebarManager.openPanel('spotify') },
-    { id: 'netflix', label: 'Netflix', hint: 'Open Netflix panel', icon: '▶', isPrimary: true, action: () => SidebarManager.openPanel('netflix') },
     { id: 'cusa', label: 'CUSA Workspace', hint: 'Open CUSA workspace panel', icon: '⚖', isPrimary: true, action: () => SidebarManager.openPanel('cusa') },
     { id: 'roblox', label: 'Roblox Hub', hint: 'Open Roblox panel', icon: '🎮', isPrimary: true, action: () => SidebarManager.openPanel('roblox') },
     { id: 'github', label: 'GitHub', hint: 'Open GitHub panel', icon: '🐙', isPrimary: true, action: () => SidebarManager.openPanel('github') },
