@@ -80,7 +80,11 @@ const DownloadsPanel = {
     this._updateBadge();
 
     if (dl.state === 'completed') {
-      window.showToast?.(`\u2713 ${dl.filename} downloaded`, 'success', 4000);
+      window.DownloadToast?.show({
+        filename: dl.filename,
+        path: dl.path,
+        size: dl.totalBytes || dl.receivedBytes || 0
+      });
     } else if (dl.state === 'cancelled') {
       window.showToast?.(`Download cancelled: ${dl.filename}`, 'info');
     } else {

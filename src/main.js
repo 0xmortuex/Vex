@@ -584,12 +584,38 @@ app.on('web-contents-created', (_event, contents) => {
   // partitions array in case a future OAuth flow reuses it.)
 
   contents.setWindowOpenHandler((details) => {
-    const { url, disposition } = details || {};
+    const { url, disposition, frameName, features } = details || {};
     // External-protocol window.open (e.g. Roblox Play button spawns a hidden
     // window to roblox-player://…) — forward to the OS instead of creating a
     // dead tab that would just error out.
     if (handleExternalProtocol(url)) {
       return { action: 'deny' };
+    }
+    // Print-preview / client-side PDF generation popups. claude.ai's
+    // "Export as PDF" calls window.open('about:blank'), writes formatted HTML
+    // into the popup, then printWindow.print() — denying the popup makes the
+    // whole flow silently no-op. blob:/data:/chrome-print:// follow the same
+    // pattern (Stripe receipts, GitHub issue exports, etc.). Allow them as
+    // real popup windows; the print dialog routes through Electron normally.
+    const featuresStr = Array.isArray(features) ? features.join(',') : (features || '');
+    const isPopupLikePrint =
+      !url ||
+      url === 'about:blank' ||
+      url.startsWith('about:blank?') ||
+      url.startsWith('blob:') ||
+      url.startsWith('data:') ||
+      url.startsWith('chrome-print://') ||
+      frameName === '_print' ||
+      /print/i.test(featuresStr);
+    if (isPopupLikePrint) {
+      console.log(`[new-window] allowing print/preview popup -> ${url || '(no url)'} frame=${frameName || '-'}`);
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false }
+        }
+      };
     }
     console.log(`[new-window] ${disposition} -> ${url}`);
     try {
