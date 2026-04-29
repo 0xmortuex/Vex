@@ -13,6 +13,15 @@ console.log('[Vex URL] execPath:', process.execPath);
 console.log('[Vex URL] defaultApp:', !!process.defaultApp);
 console.log('[Vex URL] isPackaged:', app.isPackaged);
 
+// Enable Chromium's rich print preview UI (Save as PDF, margin controls,
+// pages-per-sheet, background graphics, etc.). Without these flags Electron
+// falls back to the Windows OS print dialog, which only exposes
+// "Microsoft Print to PDF" with no preview. Both switches are idempotent;
+// some Electron builds key off the feature flag, others off the dedicated
+// switch, so apply both. Must run BEFORE app.whenReady().
+app.commandLine.appendSwitch('enable-features', 'PrintPreview');
+app.commandLine.appendSwitch('enable-print-preview');
+
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;
 try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
