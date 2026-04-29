@@ -1,4 +1,16 @@
 const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents } = require('electron');
+
+// Enable Chromium's rich print preview UI (Save as PDF, margin controls,
+// pages-per-sheet, background graphics, etc.). Without these flags Electron
+// falls back to the Windows OS print dialog, which only exposes
+// "Microsoft Print to PDF" with no preview. Both switches are idempotent;
+// some Electron builds key off the feature flag, others off the dedicated
+// switch, so apply both. MUST run before any other app.* access — Chromium
+// initializes its feature list on first app touch, and reading e.g.
+// app.isPackaged in a console.log was previously happening above this block.
+app.commandLine.appendSwitch('enable-features', 'PrintPreview');
+app.commandLine.appendSwitch('enable-print-preview');
+
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -12,15 +24,6 @@ console.log('[Vex URL] cwd:', process.cwd());
 console.log('[Vex URL] execPath:', process.execPath);
 console.log('[Vex URL] defaultApp:', !!process.defaultApp);
 console.log('[Vex URL] isPackaged:', app.isPackaged);
-
-// Enable Chromium's rich print preview UI (Save as PDF, margin controls,
-// pages-per-sheet, background graphics, etc.). Without these flags Electron
-// falls back to the Windows OS print dialog, which only exposes
-// "Microsoft Print to PDF" with no preview. Both switches are idempotent;
-// some Electron builds key off the feature flag, others off the dedicated
-// switch, so apply both. Must run BEFORE app.whenReady().
-app.commandLine.appendSwitch('enable-features', 'PrintPreview');
-app.commandLine.appendSwitch('enable-print-preview');
 
 // Auto-updater (graceful — works in dev, fails silently if not packaged)
 let autoUpdater = null;

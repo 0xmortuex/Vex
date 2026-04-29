@@ -39,6 +39,17 @@ const SidebarManager = {
         }
         this.togglePanel(panel);
       });
+      // Right-click → context menu with Refresh + Open DevTools. Only meaningful
+      // for panels that host a webview (Claude, Spotify, WhatsApp). Custom
+      // panels (settings, history, downloads, ...) and the Start icon get no
+      // menu since there's nothing to refresh.
+      btn.addEventListener('contextmenu', (e) => {
+        const panel = btn.dataset.panel;
+        if (!panel || panel === 'start') return;
+        if (this.customPanels.includes(panel)) return;
+        e.preventDefault();
+        this.showContextMenu(e, panel);
+      });
     });
 
     // Ctrl+Shift+J — open DevTools for the active panel's embedded webview
@@ -205,5 +216,81 @@ const SidebarManager = {
 
   openPanel(name) {
     this.showPanel(name);
+  },
+
+  // Right-click context menu for panel icons (Claude/Spotify/WhatsApp).
+  // Reuses TabManager's .tab-context-menu styling + dismissal helpers so the
+  // outside-click / Esc / viewport-clamp behavior matches the tab menu the
+  // user already knows.
+  showContextMenu(e, panelName) {
+    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu').forEach(m => m.remove());
+
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu';
+    const x = e.clientX, y = e.clientY;
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+
+    const items = [
+      {
+        label: 'Refresh',
+        action: () => {
+          // If the panel webview hasn't been mounted yet (panel never opened),
+          // open the panel first — that creates the webview and loads the URL,
+          // which is functionally a "first refresh".
+          const wv = this.panelWebviews[panelName];
+          if (wv && typeof wv.reload === 'function') {
+            try { wv.reload(); } catch (err) { console.error('[Sidebar] reload failed:', err); }
+          } else {
+            this.showPanel(panelName);
+          }
+        }
+      },
+      {
+        label: 'Open DevTools',
+        action: () => {
+          const wv = this.panelWebviews[panelName];
+          if (!wv) {
+            this.showPanel(panelName);
+            return;
+          }
+          try {
+            const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
+            if (id != null && window.vexDevTools?.openForWebContents) {
+              window.vexDevTools.openForWebContents(id).catch(err => console.error('[Sidebar] DevTools IPC failed:', err));
+            } else if (typeof wv.openDevTools === 'function') {
+              wv.openDevTools();
+            }
+          } catch (err) { console.error('[Sidebar] DevTools error:', err); }
+        }
+      }
+    ];
+
+    items.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'tab-context-item';
+      el.textContent = item.label;
+      el.addEventListener('click', () => { item.action(); menu.remove(); });
+      menu.appendChild(el);
+    });
+
+    document.body.appendChild(menu);
+
+    // Reuse TabManager's clamp + dismissal so behavior matches the tab menu.
+    if (window.TabManager?._clampMenuToViewport) {
+      TabManager._clampMenuToViewport(menu, x, y);
+    }
+    if (window.TabManager?._attachMenuDismissal) {
+      TabManager._attachMenuDismissal(menu);
+    } else {
+      // Defensive fallback if tabs.js loads after sidebar.js for any reason.
+      const close = () => { menu.remove(); document.removeEventListener('click', onClick, true); document.removeEventListener('keydown', onKey, true); };
+      const onClick = (ev) => { if (!menu.contains(ev.target)) close(); };
+      const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+      setTimeout(() => {
+        document.addEventListener('click', onClick, true);
+        document.addEventListener('keydown', onKey, true);
+      }, 0);
+    }
   }
 };
