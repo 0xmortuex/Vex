@@ -235,13 +235,35 @@ const SidebarManager = {
       {
         label: 'Refresh',
         action: () => {
-          // If the panel webview hasn't been mounted yet (panel never opened),
-          // open the panel first — that creates the webview and loads the URL,
-          // which is functionally a "first refresh".
-          const wv = this.panelWebviews[panelName];
+          // [debug] instrument Refresh to diagnose silent no-op (#refresh-noop)
+          console.log('[Sidebar.Refresh] action fired for panel:', panelName);
+          console.log('[Sidebar.Refresh] this is SidebarManager?', this === SidebarManager, '| this:', this);
+          console.log('[Sidebar.Refresh] this.panelWebviews:', this.panelWebviews);
+          console.log('[Sidebar.Refresh] panelWebviews keys:', this.panelWebviews ? Object.keys(this.panelWebviews) : '(panelWebviews is falsy)');
+
+          const wv = this.panelWebviews ? this.panelWebviews[panelName] : undefined;
+          console.log('[Sidebar.Refresh] wv lookup result:', wv);
+          console.log('[Sidebar.Refresh] wv tagName:', wv?.tagName, '| wv.src:', wv?.src);
+          console.log('[Sidebar.Refresh] typeof wv.reload:', typeof wv?.reload);
+          console.log('[Sidebar.Refresh] wv.isLoading?:', typeof wv?.isLoading === 'function' ? wv.isLoading() : '(no isLoading method)');
+          console.log('[Sidebar.Refresh] wv.getURL?:', typeof wv?.getURL === 'function' ? wv.getURL() : '(no getURL method)');
+
+          // Also probe alternative locations the webview might live under,
+          // in case panelWebviews isn't actually where the active webview is stored.
+          console.log('[Sidebar.Refresh] DOM webviews on page:', Array.from(document.querySelectorAll('webview')).map(w => ({ id: w.id, partition: w.partition, src: w.src, parentPanel: w.closest('[data-panel]')?.dataset?.panel })));
+          console.log('[Sidebar.Refresh] panel container query:', document.querySelector(`[data-panel="${panelName}"]`));
+          console.log('[Sidebar.Refresh] webview inside panel container:', document.querySelector(`[data-panel="${panelName}"] webview`));
+
           if (wv && typeof wv.reload === 'function') {
-            try { wv.reload(); } catch (err) { console.error('[Sidebar] reload failed:', err); }
+            console.log('[Sidebar.Refresh] calling wv.reload() now');
+            try {
+              wv.reload();
+              console.log('[Sidebar.Refresh] wv.reload() returned without throwing');
+            } catch (err) {
+              console.error('[Sidebar.Refresh] wv.reload() threw:', err);
+            }
           } else {
+            console.warn('[Sidebar.Refresh] no usable webview — falling back to showPanel(', panelName, ')');
             this.showPanel(panelName);
           }
         }
