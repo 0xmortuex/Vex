@@ -29,15 +29,19 @@ describe('shouldBlock', () => {
     });
   });
 
-  describe('subdomain-spoof — CURRENTLY BROKEN (see bug below)', () => {
-    // The host-level check (host === d || host.endsWith('.' + d)) correctly
-    // rejects mydoubleclick.net. But shouldBlock then ALSO does a
-    // full.includes(d) on host+pathname, and "mydoubleclick.net/page" includes
-    // "doubleclick.net". So a legitimate domain whose name contains an ad
-    // domain as a substring is blocked. This is a real bug — pinned, not
-    // asserted clean.
-    it('CURRENT BUG: mydoubleclick.net is blocked due to substring match', () => {
-      expect(shouldBlock('https://mydoubleclick.net/page')).toBe(true);
+  describe('subdomain-spoof rejection (FIXED — was a substring bug)', () => {
+    // Strict host check: a hostname that happens to contain an ad-domain as
+    // a substring is NOT blocked. Subdomains (with the dot) still are.
+    it('mydoubleclick.net is NOT blocked', () => {
+      expect(shouldBlock('https://mydoubleclick.net/page')).toBe(false);
+    });
+    it('safe-but-similar names are NOT blocked', () => {
+      expect(shouldBlock('https://googletagmanager.com.evil.example/x')).toBe(false);
+      expect(shouldBlock('https://notdoubleclick.net/y')).toBe(false);
+    });
+    it('but real subdomains ARE still blocked', () => {
+      expect(shouldBlock('https://ads.doubleclick.net/page')).toBe(true);
+      expect(shouldBlock('https://www.doubleclick.net/page')).toBe(true); // www stripping
     });
   });
 
@@ -59,20 +63,34 @@ describe('shouldBlock', () => {
     for (const d of AD_DOMAINS) expect(typeof d).toBe('string');
   });
 
-  // === Pinned known-broken behaviour ===
-  it.todo(
-    'false positive: substring match on host+pathname — should require host-based ' +
-    'match only. Today, hostnames containing an ad-domain as a substring (e.g. ' +
-    'mydoubleclick.net) and URLs whose pathname embeds an ad domain entry as a ' +
-    'literal substring are wrongly blocked. Fix: drop the full.includes(d) leg, ' +
-    'or constrain it to entries that explicitly contain a "/" (path-style entries).'
-  );
+  // === Bug fix verification ===
+  // Previously these were pinned with an it.todo. The fix in src/adblocker.js
+  // replaced full.includes(d) with strict host matching + path-prefix matching
+  // for entries that explicitly contain a "/". Both assertions below now
+  // pass cleanly.
+  describe('substring-bug fix verification', () => {
+    it('pathname containing a host-only ad-domain entry is NOT blocked', () => {
+      expect(shouldBlock('https://example.com/redirect/doubleclick.net/x')).toBe(false);
+    });
+    it('pathname embedded ad-domain string in unrelated host is NOT blocked', () => {
+      expect(shouldBlock('https://example.com/blog/facebook.com/whatever')).toBe(false);
+    });
+  });
 
-  it('CURRENT BUG: pathname containing a host-only AD_DOMAIN entry is blocked', () => {
-    // host = example.com (not on list). pathname = /redirect/doubleclick.net/x.
-    // host+pathname.includes('doubleclick.net') → true → blocked. Bug.
-    // When fixed, this assertion flips to .toBe(false) and the it.todo above
-    // should be deleted.
-    expect(shouldBlock('https://example.com/redirect/doubleclick.net/x')).toBe(true);
+  // === Path-bearing entries (e.g. "facebook.com/tr") ===
+  describe('path-bearing AD_DOMAINS entries', () => {
+    it('blocks when host matches AND path starts with the declared prefix', () => {
+      expect(shouldBlock('https://facebook.com/tr')).toBe(true);
+      expect(shouldBlock('https://facebook.com/tr/something')).toBe(true);
+      expect(shouldBlock('https://facebook.com/tr?id=123')).toBe(true);
+    });
+    it('does NOT block facebook.com paths that are not /tr*', () => {
+      expect(shouldBlock('https://facebook.com/profile/123')).toBe(false);
+      expect(shouldBlock('https://facebook.com/groups/abc')).toBe(false);
+      expect(shouldBlock('https://facebook.com/')).toBe(false);
+    });
+    it('blocks subdomains for path-bearing entries too', () => {
+      expect(shouldBlock('https://www.facebook.com/tr/x')).toBe(true);
+    });
   });
 });
