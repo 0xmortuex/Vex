@@ -16,6 +16,7 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
+const _mainHelpers = require('./main-helpers');
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
 console.log('[Vex URL] ====== Vex process boot ======');
@@ -55,27 +56,7 @@ function handleFullscreenShortcut(event, input) {
   if (input && input.key === 'F11') {
     console.log('[Vex F11] handleFullscreenShortcut entered. type:', input.type, 'mods:', { c: input.control, a: input.alt, s: input.shift, m: input.meta }, 'mainWindow:', !!mainWindow, 'tracked:', isFullscreenTracked, 'isFullScreen():', mainWindow ? mainWindow.isFullScreen() : 'n/a');
   }
-  if (!mainWindow || input.type !== 'keyDown') return false;
-
-  if (input.key === 'F11' && !input.control && !input.alt && !input.shift && !input.meta) {
-    event.preventDefault();
-    const next = !isFullscreenTracked;
-    console.log('[Vex F11] toggling. tracked was:', isFullscreenTracked, 'flipping to:', next);
-    mainWindow.setFullScreen(next);
-    return true;
-  }
-
-  if (input.key === 'Escape' && !input.control && !input.alt && !input.shift && !input.meta) {
-    if (isFullscreenTracked) {
-      console.log('[Vex F11] Esc → exiting fullscreen');
-      event.preventDefault();
-      mainWindow.setFullScreen(false);
-      return true;
-    }
-    // Don't preventDefault if not fullscreen — let Esc do other things normally.
-  }
-
-  return false;
+  return _mainHelpers.handleFullscreenShortcut(event, input, { mainWindow, isFullscreenTracked });
 }
 
 // F12 / Ctrl+Shift+I — toggle Chromium DevTools on the currently active webview.
@@ -105,29 +86,13 @@ function handleDevToolsShortcut(event, input) {
 //   C:\Users\…\foo.html            (File Explorer double-click)
 // Convert all of these into something the renderer's TabManager can load.
 function normalizeLaunchArg(arg) {
-  if (!arg || typeof arg !== 'string') {
-    console.log('[Vex URL]   normalize: rejecting non-string arg', arg);
-    return null;
-  }
-  if (arg.startsWith('http://') || arg.startsWith('https://') || arg.startsWith('file://')) {
-    console.log('[Vex URL]   normalize: matched http/https/file URL ->', arg);
-    return arg;
-  }
-  if (/\.html?$/i.test(arg) && /^[a-zA-Z]:[\\/]/.test(arg)) {
-    const u = pathToFileURL(arg).toString();
-    console.log('[Vex URL]   normalize: matched local .html path -> file URL', u);
-    return u;
-  }
-  console.log('[Vex URL]   normalize: no match for arg', JSON.stringify(arg));
-  return null;
+  const out = _mainHelpers.normalizeLaunchArg(arg);
+  console.log('[Vex URL]   normalize:', JSON.stringify(arg), '->', out);
+  return out;
 }
 function findLaunchUrl(argv) {
   console.log('[Vex URL]   findLaunchUrl scanning', (argv || []).length, 'args');
-  for (const arg of (argv || [])) {
-    const url = normalizeLaunchArg(arg);
-    if (url) return url;
-  }
-  return null;
+  return _mainHelpers.findLaunchUrl(argv);
 }
 
 // === Single-instance lock (so external links route to existing Vex window) ===
@@ -555,23 +520,7 @@ app.whenReady().then(() => { loadAllExtensionsOnStartup().catch(() => {}); });
 // installed desktop app launches. Note: webRequest.onBeforeRequest is a
 // network-pipeline hook and never sees non-http schemes, so intercept at the
 // navigation layer (will-navigate + setWindowOpenHandler) instead.
-const EXTERNAL_PROTOCOLS = new Set([
-  'roblox', 'roblox-player', 'roblox-studio',
-  'mailto', 'tel', 'sms',
-  'msteams', 'slack', 'zoommtg', 'zoomus', 'skype', 'discord',
-  'vscode', 'vscode-insiders', 'obsidian',
-  'spotify', 'steam',
-  'ms-word', 'ms-excel', 'ms-powerpoint',
-  'itmss', 'itms', 'itms-apps',
-  'web+mastodon'
-]);
-
-function isExternalProtocol(url) {
-  if (!url) return false;
-  const m = /^([a-z][a-z0-9+.-]*):/i.exec(url);
-  if (!m) return false;
-  return EXTERNAL_PROTOCOLS.has(m[1].toLowerCase());
-}
+const { EXTERNAL_PROTOCOLS, isExternalProtocol } = _mainHelpers;
 
 function handleExternalProtocol(url) {
   if (!isExternalProtocol(url)) return false;

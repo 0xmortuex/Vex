@@ -79,48 +79,49 @@ class ToolCallHistory {
 
 const toolCallHistory = new ToolCallHistory();
 
+// Parse agent response — handles fences, multiple field name variations.
+// Hoisted to a free function so unit tests can require() it under Node.
+function parseAgentResponse(raw) {
+  if (!raw) return null;
+  let str = String(raw).trim();
+  if (!str) return null;
+
+  // Strip markdown fences
+  str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(str);
+  } catch {
+    // Try extracting JSON object from within text
+    const m = str.match(/\{[\s\S]*\}/);
+    if (m) { try { parsed = JSON.parse(m[0]); } catch {} }
+  }
+
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  // Normalize field names — AI might use any of these
+  const tool = parsed.tool || parsed.toolName || parsed.tool_name || parsed.action || parsed.function_name || parsed.name;
+  const parameters = parsed.parameters || parsed.params || parsed.arguments || parsed.args || {};
+  const thought = parsed.thought || parsed.reasoning || parsed.reason || '';
+  const intent = parsed.intent || 'action';
+
+  if (!tool) return null;
+
+  return { tool, parameters, thought, intent };
+}
+
 const AgentLoop = {
   _running: false,
   _mode: 'ask',
   _history: [],
   _maxIter: 15,
 
-  // Parse agent response — handles fences, multiple field name variations
   _parseAgentResponse(raw) {
-    if (!raw) return null;
-    let str = raw.trim();
-    console.log('[Agent] Raw AI response:', str.substring(0, 500));
-
-    // Strip markdown fences
-    str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-
-    let parsed = null;
-    try {
-      parsed = JSON.parse(str);
-    } catch {
-      // Try extracting JSON object from within text
-      const m = str.match(/\{[\s\S]*\}/);
-      if (m) { try { parsed = JSON.parse(m[0]); } catch {} }
-    }
-
-    if (!parsed || typeof parsed !== 'object') {
-      console.error('[Agent] Could not parse JSON. Keys:', parsed ? Object.keys(parsed) : 'null');
-      return null;
-    }
-
-    // Normalize field names — AI might use any of these
-    const tool = parsed.tool || parsed.toolName || parsed.tool_name || parsed.action || parsed.function_name || parsed.name;
-    const parameters = parsed.parameters || parsed.params || parsed.arguments || parsed.args || {};
-    const thought = parsed.thought || parsed.reasoning || parsed.reason || '';
-    const intent = parsed.intent || 'action';
-
-    if (!tool) {
-      console.error('[Agent] No tool field found. Keys:', Object.keys(parsed));
-      return null;
-    }
-
-    console.log('[Agent] Parsed:', { tool, thought: thought.substring(0, 60), intent });
-    return { tool, parameters, thought, intent };
+    if (raw) console.log('[Agent] Raw AI response:', String(raw).trim().substring(0, 500));
+    const result = parseAgentResponse(raw);
+    if (result) console.log('[Agent] Parsed:', { tool: result.tool, thought: (result.thought || '').substring(0, 60), intent: result.intent });
+    return result;
   },
 
   async start(goal, mode) {
@@ -395,3 +396,10 @@ const AgentLoop = {
     return { summary: 'Task reached max iterations', iterations: maxIter };
   }
 };
+
+// Renderer-safe export: when the file is loaded by Node (vitest) module is
+// defined and we expose the pure helpers; the <script>-tag path leaves the
+// existing globals untouched.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { parseAgentResponse, ToolCallHistory };
+}
