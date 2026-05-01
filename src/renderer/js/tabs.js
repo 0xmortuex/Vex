@@ -139,6 +139,7 @@ const TabManager = {
     }
 
     this.renderGroups();
+    this.renderStacks();
     this.setupNewTabButton();
     this.setupDragDrop();
   },
@@ -352,6 +353,12 @@ const TabManager = {
   },
 
   renderTab(tab) {
+    // Phase 4b — stacked tabs have no individual .tab-item element. They're
+    // represented entirely by the stack header (renderStacks). Skipping here
+    // keeps single-tab render paths (createTab → renderTab, init's sleeping
+    // branch → renderTab) consistent with rebuildAllTabs's filter.
+    if (tab.stackId) return;
+
     const container = tab.groupId
       ? document.querySelector(`.tab-group[data-group-id="${tab.groupId}"] .tab-group-tabs`)
       : document.getElementById('tabs-list');
@@ -494,6 +501,66 @@ const TabManager = {
 
       container.appendChild(el);
     });
+  },
+
+  // Phase 4b — render the closed-state stack header for each stack into
+  // #tabs-list. Per docs/PHASE-4-TAB-STACKS-PLAN.md §3a, each stack emits ONE
+  //
+  //   <li class="tab-item tab-stack" data-stack-id="…">
+  //
+  // whose contents reflect the top tab (favicon + title) plus a count badge.
+  // Member tabs are NOT rendered as separate elements in 4b — they're
+  // represented entirely by the stack header. The renderTab filter at line
+  // referenced below skips any tab whose stackId is set.
+  //
+  // The deck-of-cards illusion comes from CSS pseudo-elements on .tab-stack;
+  // no extra DOM. Click-to-switch lives on the header itself and routes to
+  // the topTabId tab. Expansion / right-click menu / Ctrl+ArrowDown are 4c.
+  renderStacks() {
+    const tabsList = document.getElementById('tabs-list');
+    if (!tabsList) return;
+
+    for (const stack of this.stacks) {
+      const memberCount = this.tabs.filter(t => t.stackId === stack.id).length;
+      // Defensive: 4a's load-time prune + auto-disband should keep this from
+      // ever hitting in practice. If we still see one, log + skip — better
+      // than rendering an empty header that goes nowhere on click.
+      if (memberCount === 0) {
+        console.warn('[Tabs] renderStacks: skipping empty stack', stack.id);
+        continue;
+      }
+      const topTab = this.tabs.find(t => t.id === stack.topTabId && t.stackId === stack.id);
+      if (!topTab) {
+        // topTabId points at a tab that doesn't exist or isn't in this stack.
+        // 4a's _fallbackTopTab on init should prevent this — log and skip.
+        console.warn('[Tabs] renderStacks: orphan topTabId for stack', stack.id, '→', stack.topTabId);
+        continue;
+      }
+
+      const el = document.createElement('div');
+      el.className = 'tab-item tab-stack';
+      el.dataset.stackId = stack.id;
+      // Per the existing --group-color pattern in tabs.css, expose the stack
+      // colour as a CSS custom property so the deck-of-cards pseudo-elements
+      // and left-border accent can pull from it without inline style hacks.
+      el.style.setProperty('--stack-color', stack.color || '#d4a574');
+
+      const favicon = topTab.favicon
+        ? `<img class="tab-favicon" src="${topTab.favicon}" alt="">`
+        : `<div class="tab-favicon-placeholder">${this._escapeHtml((topTab.title || 'T')[0])}</div>`;
+      el.innerHTML = `
+        ${favicon}
+        <span class="tab-title">${this._escapeHtml(topTab.title || 'Untitled')}</span>
+        <span class="tab-stack-count" aria-label="${memberCount} tabs in stack">${memberCount}</span>
+      `;
+
+      // Click on the stack header switches to the top tab. We deliberately do
+      // NOT toggle expansion in 4b — that's 4c work. The whole header is one
+      // click target; no inner buttons to disambiguate yet.
+      el.addEventListener('click', () => this.switchTab(stack.topTabId));
+
+      tabsList.appendChild(el);
+    }
   },
 
   // Right-click menu for a group header
@@ -726,10 +793,25 @@ const TabManager = {
       tabsList.parentElement.insertBefore(pinnedContainer, tabsList);
     }
 
-    // Render unpinned tabs normally
-    this.tabs.filter(t => !t.pinned).forEach(tab => this.renderTab(tab));
+    // Render unpinned, non-stacked tabs normally. Stacked tabs are
+    // represented by the stack header (rendered next) and must not appear
+    // as their own .tab-item — otherwise the user sees both the stack
+    // header AND its members at once, which is visual chaos and breaks
+    // the "1 strip slot per stack" contract from the planning doc §1.
+    this.tabs.filter(t => !t.pinned && !t.stackId).forEach(tab => this.renderTab(tab));
 
-    // Re-apply active state on unpinned
+    // Phase 4b — render stack headers AFTER ungrouped tabs so the visual
+    // hierarchy reads top→bottom: groups (containers with members visible),
+    // ungrouped tabs (loose), then stacks (collapsed containers). Logical
+    // structured-first → loose-last. UI for 4c can revisit if hierarchy
+    // feels wrong in practice.
+    this.renderStacks();
+
+    // Re-apply active state on unpinned. Stack headers don't get .active
+    // (the active tab IS one of the stack's members, not the header itself);
+    // visually showing "active" on a stack header would lie about which tab
+    // the webview is actually showing. The header is a navigation target,
+    // not a state indicator.
     document.querySelectorAll('.tab-item').forEach(el => {
       el.classList.toggle('active', el.dataset.tabId === this.activeTabId);
     });

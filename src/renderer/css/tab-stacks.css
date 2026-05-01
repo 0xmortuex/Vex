@@ -1,0 +1,109 @@
+/* === Phase 4b — Tab Stacks (closed-state visual) ===
+   Per docs/PHASE-4-TAB-STACKS-PLAN.md §3.
+
+   Closed-state spec (verbatim from §3a):
+     "The stack item gets ::before and ::after pseudo-elements offset
+      2px and 4px down-right with reduced opacity to fake the deck-of-cards
+      look. CSS-only, no extra DOM."
+
+   Visual stack-order (front to back):
+     ::before  → middle card  → translate(2px, 2px), opacity 0.7
+     ::after   → back card    → translate(4px, 4px), opacity 0.4
+     .tab-stack itself        → top card (the one rendered with title/favicon)
+
+   Pseudo-elements use the parent's background/border (via `inherit`) and
+   sit BEHIND it via z-index: -1 so the parent's content (favicon, title,
+   count badge) reads normally. They never receive pointer events — the
+   single click target is the .tab-stack element itself.
+
+   --stack-color is set as an inline custom property by renderStacks() so
+   the left-edge accent matches the stack's color without needing
+   per-stack class names. Defaults to --vex-accent if missing.
+
+   Expansion / right-click menu / drag-drop are NOT in 4b. The
+   .tab-stack.expanded selector is reserved for 4c. */
+
+.tab-item.tab-stack {
+  position: relative;
+  /* z-index gives the deck siblings a paint context to live in. Without it
+     the ::before/::after with z-index: -1 fall behind the entire tabs
+     sidebar background and disappear. */
+  z-index: 1;
+
+  /* Left-edge accent in the stack's colour. Mirrors the tab-group dot
+     colour pattern but as a border so the visual weight matches the
+     "container" semantic of the stack. */
+  border-left: 3px solid var(--stack-color, var(--vex-accent, #d4a574));
+
+  /* The base appearance reads as a normal .tab-item — colour, padding,
+     radius, hover, font sizing all inherit from the existing .tab-item
+     rules in tabs.css. We add only what's stack-specific below. */
+  cursor: pointer;
+}
+
+/* Deck-of-cards illusion. Both pseudo-elements are absolutely positioned
+   copies of the host's box, drawn behind it. */
+.tab-item.tab-stack::before,
+.tab-item.tab-stack::after {
+  content: '';
+  position: absolute;
+  inset: 0;                 /* same width/height as the host */
+  background: inherit;      /* match the host's background — same glass tone */
+  border: inherit;          /* match the host's border (incl the left accent) */
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Middle card — small offset, light fade. */
+.tab-item.tab-stack::before {
+  transform: translate(2px, 2px);
+  opacity: 0.7;
+}
+
+/* Back card — larger offset, heavier fade. */
+.tab-item.tab-stack::after {
+  transform: translate(4px, 4px);
+  opacity: 0.4;
+}
+
+/* Member-count badge. Sits at the trailing edge of the stack header,
+   coloured from the stack's own colour so it reads as part of the
+   container's identity. */
+.tab-item.tab-stack .tab-stack-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  min-width: 18px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-weight: 600;
+
+  background: var(--stack-color, var(--vex-accent, #d4a574));
+  color: var(--vex-bg-base, #14120e);
+  border-radius: 8px;
+
+  /* Defensive — the badge sits on top of the deck illusion and must read
+     above the host's content too. */
+  position: relative;
+  z-index: 2;
+}
+
+/* The favicon and title slot in the same way they do for a regular
+   .tab-item — but a stack header has no close button / unread dot /
+   audio indicator, so the title can flex to fill the available space
+   right up to the count badge. */
+.tab-item.tab-stack .tab-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Reserved for 4c — keeping the selector here so the next phase has a
+   defined seam to fill in rather than re-deriving the class name. */
+.tab-item.tab-stack.expanded {
+  /* (intentionally empty — 4c will define expansion behaviour) */
+}
