@@ -17,6 +17,7 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
 const _mainHelpers = require('./main-helpers');
+const { safeJoin, safeName } = _mainHelpers;
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
 console.log('[Vex URL] ====== Vex process boot ======');
@@ -463,13 +464,25 @@ ipcMain.handle('extensions:install-zip', async () => {
 
     // Extract only the files under rootPath (or everything if the manifest
     // is already at the archive root) and strip the wrapper prefix.
+    // Each entry's resolved write path is validated against destFolder via
+    // safeJoin so a malicious zip with "../etc/passwd"-style entries can't
+    // escape the extension folder (zip-slip; security-audit H-1). Skip-and-
+    // log for individual bad entries so a single hostile file doesn't kill
+    // the whole extraction (the manifest existence check after the loop
+    // catches the case where every entry was skipped).
     for (const entry of entries) {
       if (entry.isDirectory) continue;
       const name = entry.entryName;
       if (rootPath && !name.startsWith(rootPath)) continue;
       const rel = rootPath ? name.slice(rootPath.length) : name;
       if (!rel) continue;
-      const outPath = path.join(destFolder, rel);
+      let outPath;
+      try {
+        outPath = safeJoin(destFolder, rel);
+      } catch (err) {
+        console.warn('[Extensions] Skipping malicious zip entry:', name, err.message);
+        continue;
+      }
       const outDir = path.dirname(outPath);
       if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
       fs.writeFileSync(outPath, entry.getData());
@@ -490,7 +503,13 @@ ipcMain.handle('extensions:install-zip', async () => {
 });
 
 ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
-  const extPath = path.join(extensionsDir, folderName);
+  let extPath;
+  try {
+    extPath = safeJoin(extensionsDir, safeName(folderName));
+  } catch (err) {
+    console.warn('[Extensions] uninstall rejected unsafe folderName:', folderName, err.message);
+    return { ok: false, error: 'Invalid folder name' };
+  }
   if (!fs.existsSync(extPath)) return { ok: false, error: 'Not found' };
   try {
     const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))];
@@ -636,7 +655,10 @@ if (!fs.existsSync(storagePath)) {
 }
 
 function getStorageFile(key) {
-  return path.join(storagePath, `${key}.json`);
+  // Reject path separators / traversal in the key, then resolve via safeJoin
+  // so any further escape (symlinks aside) is impossible. Throws on bad input;
+  // the callers (IPC handlers) catch and return a safe error to the renderer.
+  return safeJoin(storagePath, safeName(key) + '.json');
 }
 
 // === Persistent key/value store (survives reinstalls / Chromium-origin changes) ===

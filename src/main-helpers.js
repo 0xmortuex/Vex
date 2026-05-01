@@ -2,6 +2,7 @@
 // Anything in this file MUST stay free of `require('electron')` so the test
 // runner can import it under plain Node.
 
+const path = require('path');
 const { pathToFileURL } = require('url');
 
 // === External protocol forwarding ===
@@ -83,6 +84,56 @@ function handleFullscreenShortcut(event, input, { mainWindow, isFullscreenTracke
   return true;
 }
 
+// === Path-traversal sanitizers (security audit H-1, H-2, H-3) ===
+
+// Validate that a candidate path resolves inside an allowed parent directory.
+// Returns the resolved absolute path if safe; throws Error if it escapes.
+// Defends against:
+//   - "../" path traversal,
+//   - absolute paths that escape the parent,
+//   - lexical tricks like "a/../../etc".
+// Does NOT chase symlinks — callers that need that should also check
+// fs.realpathSync before using the returned path.
+function safeJoin(parentDir, untrustedRelative) {
+  if (typeof parentDir !== 'string' || !parentDir) {
+    throw new Error('safeJoin: parentDir must be a non-empty string');
+  }
+  if (typeof untrustedRelative !== 'string') {
+    throw new Error('safeJoin: untrustedRelative must be a string');
+  }
+  const parentResolved = path.resolve(parentDir);
+  const candidate = path.resolve(parentResolved, untrustedRelative);
+  if (
+    candidate !== parentResolved &&
+    !candidate.startsWith(parentResolved + path.sep)
+  ) {
+    throw new Error(
+      `Path traversal blocked: ${untrustedRelative} resolves outside ${parentDir}`
+    );
+  }
+  return candidate;
+}
+
+// Validate a "name" segment that should not contain any path separators or
+// traversal. Use for folder/file/key names where slashes are never legitimate.
+function safeName(name) {
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new Error('Invalid name: must be non-empty string');
+  }
+  if (
+    name.includes('/') ||
+    name.includes('\\') ||
+    name.includes('..') ||
+    name.includes('\0')
+  ) {
+    throw new Error(`Invalid name: contains illegal characters: ${name}`);
+  }
+  if (name === '.' || name === '..') {
+    throw new Error(`Invalid name: reserved: ${name}`);
+  }
+  return name;
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
@@ -90,4 +141,6 @@ module.exports = {
   findLaunchUrl,
   decideFullscreenAction,
   handleFullscreenShortcut,
+  safeJoin,
+  safeName,
 };

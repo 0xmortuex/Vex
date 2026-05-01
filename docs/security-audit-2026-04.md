@@ -159,3 +159,13 @@ No critical issues found. Three high-severity findings worth fixing in the next 
 - **What this audit covered:** static review of IPC handler signatures, every `innerHTML` site in `src/renderer/js/`, every `shell.openExternal` / `shell.openPath` / `loadURL` call, every preload `contextBridge.exposeInMainWorld` surface, every `fs.write*` / `fs.rm*` call against renderer-supplied paths, the existing adblocker bug pinned in unit tests.
 - **What this audit did NOT cover:** dependency CVEs (`npm audit` reports 27 vulnerabilities — out of scope here, file separately), runtime behaviour, fuzzing, the Cloudflare worker at `vex-ai.mortuexhavoc.workers.dev` (server-side), the auto-update channel, code-signing posture, or the build pipeline.
 - **Recommended next pass:** add a CI step that runs `npm audit --omit=dev` and fails the build on `high`+ findings.
+
+---
+
+## Fixes Applied (2026-05-01)
+
+- **H-1 zip-slip:** ✅ fixed. `extensions:install-zip` now validates each entry's resolved write-path via `safeJoin(destFolder, rel)` before `fs.writeFileSync`. Hostile entries are skipped with a `console.warn` instead of aborting the whole extraction; the existing manifest-existence check at the end of the loop catches the all-skipped case.
+- **H-2 path traversal in storage:** ✅ fixed. `getStorageFile(key)` now runs the key through `safeName` (rejects `/`, `\`, `..`, null byte, `.`/`..` literals) and resolves via `safeJoin(storagePath, …)`. `storage-save` and `storage-load` already wrap their callers in try/catch, so a hostile key surfaces as a benign error to the renderer.
+- **H-3 unvalidated folderName:** ✅ fixed. `extensions:uninstall` now validates `folderName` via `safeName` + `safeJoin(extensionsDir, …)` and returns `{ ok: false, error: 'Invalid folder name' }` for traversal attempts (logged via `console.warn`).
+
+Shared helpers `safeJoin` and `safeName` live in `src/main-helpers.js`. Tests in `tests/main/safePath.test.js` cover both — 30 cases including legal joins, "../" escapes, absolute-path escapes, prefix-substring tricks (`/foobar` not inside `/foo`), and the H-2 / H-3 composition flows. Full suite: **131 passing, 0 failed**.
