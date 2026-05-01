@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'path';
-import { safeJoin, safeName } from '../../src/main-helpers.js';
+import { safeJoin, safeName, safePipUrl } from '../../src/main-helpers.js';
 
 // Use OS-appropriate parent paths so tests work on both Windows (CI may run
 // on Linux later, and dev runs on Windows). path.resolve normalises
@@ -175,5 +175,103 @@ describe('safeJoin + safeName composition', () => {
     const EXT_DIR = path.resolve('/var/Vex/extensions');
     expect(() => safeJoin(EXT_DIR, safeName('../../sensitive')))
       .toThrow(/illegal characters/);
+  });
+});
+
+// Security audit M-4 — see src/main.js:open-pip-window handler.
+// safePipUrl is the bouncer that prevents a renderer-XSS from popping a
+// frameless always-on-top BrowserWindow at file:///, chrome://, javascript:,
+// or data: URIs.
+describe('safePipUrl (security audit M-4)', () => {
+  describe('accepts http(s) URLs', () => {
+    it('https://example.com → returns normalized URL', () => {
+      // WHATWG URL normalises to a trailing slash on the origin form. Asserting
+      // the exact normalised string is the value: it proves the helper actually
+      // round-trips through new URL() rather than just regex-checking.
+      expect(safePipUrl('https://example.com')).toBe('https://example.com/');
+    });
+
+    it('http://example.com is allowed (http is fine for PiP video popouts)', () => {
+      expect(safePipUrl('http://example.com')).toBe('http://example.com/');
+    });
+
+    it('preserves path / query / fragment after normalisation', () => {
+      const out = safePipUrl('https://example.com/path?q=1#frag');
+      expect(out).toBe('https://example.com/path?q=1#frag');
+    });
+
+    it('youtube embed URL (the realistic PiP case) is allowed', () => {
+      const out = safePipUrl('https://www.youtube.com/embed/abc123?autoplay=1');
+      expect(out).toBe('https://www.youtube.com/embed/abc123?autoplay=1');
+    });
+  });
+
+  describe('rejects dangerous schemes', () => {
+    it('javascript: throws (XSS pop)', () => {
+      expect(() => safePipUrl('javascript:alert(1)')).toThrow(/scheme.*not allowed/);
+    });
+
+    it('file:/// throws (local-file read on the user\'s box)', () => {
+      expect(() => safePipUrl('file:///c:/windows/system32/cmd.exe'))
+        .toThrow(/scheme.*not allowed/);
+    });
+
+    it('chrome:// throws (privileged Chromium UI)', () => {
+      expect(() => safePipUrl('chrome://settings')).toThrow(/scheme.*not allowed/);
+    });
+
+    it('data:text/html throws (attacker-controlled HTML body)', () => {
+      expect(() => safePipUrl('data:text/html,<script>alert(1)</script>'))
+        .toThrow(/scheme.*not allowed/);
+    });
+
+    it('blob: throws (audit suggested blob OK; we tightened to http(s) only)', () => {
+      // The audit's suggested fix listed {http, https, blob, data}; we
+      // narrowed to http(s) only because PiP has no legitimate blob/data
+      // use case in Vex and tightening is the safer default. If a future
+      // feature needs blob:, this test changes intentionally.
+      expect(() => safePipUrl('blob:https://example.com/abc')).toThrow(/scheme.*not allowed/);
+    });
+
+    it('vbscript: throws', () => {
+      expect(() => safePipUrl('vbscript:msgbox(1)')).toThrow(/scheme.*not allowed/);
+    });
+  });
+
+  describe('rejects malformed input', () => {
+    it('empty string throws', () => {
+      expect(() => safePipUrl('')).toThrow(/non-empty string/);
+    });
+
+    it('null throws', () => {
+      expect(() => safePipUrl(null)).toThrow(/non-empty string/);
+    });
+
+    it('undefined throws', () => {
+      expect(() => safePipUrl(undefined)).toThrow(/non-empty string/);
+    });
+
+    it('non-string types throw', () => {
+      expect(() => safePipUrl(42)).toThrow(/non-empty string/);
+      expect(() => safePipUrl({ url: 'https://x' })).toThrow(/non-empty string/);
+    });
+
+    it('"not a url" throws (URL constructor rejects)', () => {
+      expect(() => safePipUrl('not a url')).toThrow(/not parseable/);
+    });
+
+    it('"http:/missing-host" throws or is treated by URL parser as invalid', () => {
+      // WHATWG URL is forgiving about some malformed inputs; this test pins
+      // current behaviour so a future Node version change is caught.
+      const fn = () => safePipUrl('http:/');
+      // Either throws because URL rejects it, OR succeeds with normalized
+      // form — accept both, but if it accepts, the result must be http://.
+      try {
+        const out = fn();
+        expect(out).toMatch(/^http:\/\//);
+      } catch (err) {
+        expect(err.message).toMatch(/not parseable|scheme/);
+      }
+    });
   });
 });

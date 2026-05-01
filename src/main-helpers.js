@@ -114,6 +114,30 @@ function safeJoin(parentDir, untrustedRelative) {
   return candidate;
 }
 
+// === PiP URL validator (security audit M-4) ===
+// The 'open-pip-window' IPC accepts a URL from the renderer and hands it to
+// BrowserWindow.loadURL. Without scheme restrictions, a renderer-XSS could pop
+// a frameless always-on-top window pointing at file:///, chrome://,
+// javascript:, data:text/html, etc. Restrict to http(s) — PiP is for video
+// popouts and there's no legitimate use case beyond those two schemes.
+const SAFE_PIP_SCHEMES = ['http:', 'https:'];
+
+function safePipUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
+    throw new Error('Invalid PiP URL: must be non-empty string');
+  }
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`Invalid PiP URL: not parseable: ${rawUrl}`);
+  }
+  if (!SAFE_PIP_SCHEMES.includes(parsed.protocol)) {
+    throw new Error(`Invalid PiP URL: scheme '${parsed.protocol}' not allowed`);
+  }
+  return parsed.toString();
+}
+
 // Validate a "name" segment that should not contain any path separators or
 // traversal. Use for folder/file/key names where slashes are never legitimate.
 function safeName(name) {
@@ -143,4 +167,6 @@ module.exports = {
   handleFullscreenShortcut,
   safeJoin,
   safeName,
+  safePipUrl,
+  SAFE_PIP_SCHEMES,
 };

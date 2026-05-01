@@ -17,7 +17,7 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
 const _mainHelpers = require('./main-helpers');
-const { safeJoin, safeName } = _mainHelpers;
+const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
 console.log('[Vex URL] ====== Vex process boot ======');
@@ -1274,8 +1274,20 @@ ipcMain.handle('storage-load', (event, key) => {
 });
 
 ipcMain.handle('open-pip-window', (event, url) => {
+  // Security audit M-4: a renderer-XSS could pop a frameless always-on-top
+  // window pointing at file:///, chrome://, javascript:, data: html, etc.
+  // safePipUrl restricts to http(s) only and throws on anything else; we
+  // catch it separately so the renderer learns "rejected" rather than the
+  // generic "PiP window error" reserved for actual creation failures.
+  let safe;
   try {
-    createPipWindow(url);
+    safe = safePipUrl(url);
+  } catch (err) {
+    console.error('[Vex] PiP URL rejected:', err.message);
+    return false;
+  }
+  try {
+    createPipWindow(safe);
     return true;
   } catch (e) {
     console.error('PiP window error:', e);
