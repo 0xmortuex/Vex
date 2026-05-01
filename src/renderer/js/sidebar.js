@@ -1,5 +1,34 @@
 // === Vex Sidebar Panel Manager ===
 
+// Refresh-action factory. Hoisted to module scope so tests can require() it
+// independently of the DOM-bound SidebarManager. Behaviour:
+//   - If the panel's webview already exists, ensure the panel is visible
+//     (showPanel) and call wv.reload(). Showing first prevents the silent
+//     no-op the user reported when right-clicking an icon for a panel that
+//     wasn't currently open — the reload was already firing, just invisible.
+//   - If no webview exists yet (panel never opened), showPanel will create
+//     one and load the URL, which is functionally a "first refresh".
+function makeRefreshAction(manager, panelName) {
+  return () => {
+    const wv = manager.panelWebviews && manager.panelWebviews[panelName];
+    if (wv && typeof wv.reload === 'function') {
+      if (manager.activePanel !== panelName && typeof manager.showPanel === 'function') {
+        manager.showPanel(panelName);
+      }
+      try {
+        wv.reload();
+        console.log('[Sidebar] Refresh:', panelName);
+      } catch (err) {
+        console.error('[Sidebar] Refresh failed for', panelName, '-', err);
+      }
+    } else if (typeof manager.openPanel === 'function') {
+      manager.openPanel(panelName);
+    } else if (typeof manager.showPanel === 'function') {
+      manager.showPanel(panelName);
+    }
+  };
+}
+
 const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
@@ -234,39 +263,7 @@ const SidebarManager = {
     const items = [
       {
         label: 'Refresh',
-        action: () => {
-          // [debug] instrument Refresh to diagnose silent no-op (#refresh-noop)
-          console.log('[Sidebar.Refresh] action fired for panel:', panelName);
-          console.log('[Sidebar.Refresh] this is SidebarManager?', this === SidebarManager, '| this:', this);
-          console.log('[Sidebar.Refresh] this.panelWebviews:', this.panelWebviews);
-          console.log('[Sidebar.Refresh] panelWebviews keys:', this.panelWebviews ? Object.keys(this.panelWebviews) : '(panelWebviews is falsy)');
-
-          const wv = this.panelWebviews ? this.panelWebviews[panelName] : undefined;
-          console.log('[Sidebar.Refresh] wv lookup result:', wv);
-          console.log('[Sidebar.Refresh] wv tagName:', wv?.tagName, '| wv.src:', wv?.src);
-          console.log('[Sidebar.Refresh] typeof wv.reload:', typeof wv?.reload);
-          console.log('[Sidebar.Refresh] wv.isLoading?:', typeof wv?.isLoading === 'function' ? wv.isLoading() : '(no isLoading method)');
-          console.log('[Sidebar.Refresh] wv.getURL?:', typeof wv?.getURL === 'function' ? wv.getURL() : '(no getURL method)');
-
-          // Also probe alternative locations the webview might live under,
-          // in case panelWebviews isn't actually where the active webview is stored.
-          console.log('[Sidebar.Refresh] DOM webviews on page:', Array.from(document.querySelectorAll('webview')).map(w => ({ id: w.id, partition: w.partition, src: w.src, parentPanel: w.closest('[data-panel]')?.dataset?.panel })));
-          console.log('[Sidebar.Refresh] panel container query:', document.querySelector(`[data-panel="${panelName}"]`));
-          console.log('[Sidebar.Refresh] webview inside panel container:', document.querySelector(`[data-panel="${panelName}"] webview`));
-
-          if (wv && typeof wv.reload === 'function') {
-            console.log('[Sidebar.Refresh] calling wv.reload() now');
-            try {
-              wv.reload();
-              console.log('[Sidebar.Refresh] wv.reload() returned without throwing');
-            } catch (err) {
-              console.error('[Sidebar.Refresh] wv.reload() threw:', err);
-            }
-          } else {
-            console.warn('[Sidebar.Refresh] no usable webview — falling back to showPanel(', panelName, ')');
-            this.showPanel(panelName);
-          }
-        }
+        action: makeRefreshAction(this, panelName),
       },
       {
         label: 'Open DevTools',
@@ -316,3 +313,9 @@ const SidebarManager = {
     }
   }
 };
+
+// Renderer-safe export: Node (vitest) gets makeRefreshAction; the
+// <script>-tag path on the renderer leaves the existing globals alone.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { makeRefreshAction };
+}
