@@ -1,4 +1,10 @@
 // === Vex Tab Manager ===
+//
+// Owns the in-memory tab list and group list, drives sleep/wake (with scroll
+// capture), auto-sleep, drag-drop reordering, recently-closed restore, and the
+// vertical-sidebar tab UI. Persists via VexStorage.{saveTabs,saveGroups}.
+// Public API: TabManager (singleton). Depends on WebviewManager,
+// HorizontalTabs (optional), VexStorage, TabGrouper (optional).
 
 // TODO(Phase 2.5): drag-to-group — drop a tab onto a group header to assign,
 // drag a tab out of a group's body to ungroup. Right-click is the only path

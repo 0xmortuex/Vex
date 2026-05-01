@@ -1,4 +1,12 @@
 // === Vex Scheduler Engine ===
+//
+// Recurring-task runner. Stores task definitions in localStorage
+// ('vex.schedules'), polls every 60s, and fires AgentLoop.startHeadless when
+// a task's next-run window is reached. calculateNextRun handles
+// once/daily/weekly/monthly + 5-field cron via _parseCronNext.
+// Public API: Scheduler (singleton — start, stop, createTask, updateTask,
+// deleteTask, runTask, calculateNextRun, getAllTasks, getHistory).
+// Depends on AgentLoop, TabManager.
 
 const Scheduler = {
   STORAGE_KEY: 'vex.schedules',

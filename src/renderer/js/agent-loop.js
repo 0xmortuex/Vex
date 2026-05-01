@@ -1,4 +1,14 @@
 // === Vex Agent Loop — orchestrates AI tool-calling ===
+//
+// Drives the agent's iterate-think-act cycle: pulls page state from
+// DOMExtractor + PageContext, asks AIRouter for the next tool call, executes
+// it via AgentExecutor, renders steps into the AI panel. Includes loop /
+// stall detection so the agent stops re-spamming identical actions.
+// Public API: AgentLoop (singleton — start, stop, isRunning, startHeadless),
+// parseAgentResponse (free function, exported for tests),
+// ToolCallHistory (class, exported for tests).
+// Depends on AIRouter, AgentExecutor, DOMExtractor, PageContext,
+// WebviewManager, AIPanel.
 
 const AGENT_TOOLS = [
   { name: 'navigate', description: 'Navigate current tab to a URL', parameters: { url: 'string' } },

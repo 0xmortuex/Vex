@@ -1,4 +1,11 @@
 // === Vex Tab Session Manager ===
+//
+// Save/restore named snapshots of the current tabs + groups. Stored in
+// localStorage under 'vex.sessions' (mirrored to disk via PersistentStorage).
+// Restore can replace the current tab set or merge into it.
+// Public API: SessionManager (singleton — init, saveCurrentSession,
+// restoreSession, deleteSession, renameSession, toggle/show/hideOverlay).
+// Depends on TabManager, VexStorage, window.showToast.
 
 const SessionManager = {
   sessions: [],

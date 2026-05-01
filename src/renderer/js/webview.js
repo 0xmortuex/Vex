@@ -1,4 +1,10 @@
 // === Vex Webview Manager ===
+//
+// Creates and destroys <webview> elements per tab and wires their per-tab
+// events: loading state, title, favicon, URL, navigation, audio, history
+// capture, per-domain zoom, force-dark CSS injection, AI history indexing.
+// Public API: WebviewManager (singleton). Depends on TabManager, VexStorage,
+// HistoryPanel (optional), HistoryIndexer (optional), TabGrouper (optional).
 
 const WebviewManager = {
   webviews: new Map(),

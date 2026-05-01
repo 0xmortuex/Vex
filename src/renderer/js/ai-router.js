@@ -1,7 +1,12 @@
 // === Vex Phase 14: AI Router ===
-// Decides whether a given AI feature goes to the Cloudflare worker (Claude)
-// or to a local Ollama model. Preferences are persisted in localStorage
-// (mirrored to disk by the Phase 11 persistent-storage shim).
+//
+// Decides per-feature whether an AI request goes to the Cloudflare worker
+// (Claude) or to a local Ollama model. Honours user prefs (forceCloud,
+// preferLocal, per-feature override), online status, and Ollama availability.
+// Falls back to the other backend on transient errors unless the user
+// explicitly chose local.
+// Public API: AIRouter (singleton — init, callAI, resolveBackend, set/get
+// prefs, getOllamaStatus). Depends on Ollama, browser fetch.
 
 const AIRouter = (() => {
   const CLOUD_WORKER_URL = 'https://vex-ai.mortuexhavoc.workers.dev';

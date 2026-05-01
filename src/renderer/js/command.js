@@ -1,4 +1,10 @@
 // === Vex Command Bar (Ctrl+K) ===
+//
+// Mixed-mode launcher: navigates URLs, runs Google searches, opens sidebar
+// panels, runs built-in tools, and exposes most TabManager / WebviewManager
+// actions as keyboardable commands.
+// Public API: CommandBar (singleton — open/close/toggle, search, executeSelected).
+// Depends on TabManager, WebviewManager, SidebarManager, AIPanel, etc.
 
 const CommandBar = {
   isOpen: false,

@@ -1,10 +1,15 @@
 // === Vex Persistent Storage ===
-// Two layers:
-//   1. VexStorage — structured per-key JSON files (tabs, groups, settings, history)
-//   2. PersistentStorage — localStorage shim backed by a single JSON file in userData.
-//      Hydrates localStorage on startup and mirrors every setItem/removeItem call
-//      through to %APPDATA%/Vex/vex-persist.json. Data survives reinstalls and
-//      Chromium-origin changes without touching any existing localStorage call site.
+//
+// Two layers, both renderer-side:
+//   1. VexStorage — structured per-key JSON files (tabs, groups, settings,
+//      history, shortcuts) via window.vex.{saveData,loadData}.
+//   2. PersistentStorage — localStorage shim backed by a single JSON file
+//      (vex-persist.json) in userData. Hydrates localStorage on startup and
+//      mirrors every setItem/removeItem call to disk. Data survives
+//      reinstalls and Chromium-origin churn without touching any existing
+//      localStorage call site.
+// Public API: window.VexStorage (async), window.PersistentStorage (init only).
+// Depends on the preload bridge (window.vex) for IPC to main.
 
 const PersistentStorage = {
   _ready: false,
