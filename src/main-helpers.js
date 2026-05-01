@@ -114,6 +114,47 @@ function safeJoin(parentDir, untrustedRelative) {
   return candidate;
 }
 
+// === Geolocation coarsener (security audit M-3) ===
+// The geolocation bridge in src/preload-webview.js used to expose
+// `getPref()` directly to every guest page, letting any site read the user's
+// stored coordinates without going through the permission prompt. The fix
+// merges permission-check + pref-read into a single atomic IPC call and runs
+// the result through `coarsenLocation` before it reaches the renderer.
+//
+// Coarsening does two privacy jobs:
+//   1. Strips every field except {mode, latitude, longitude} — so even if a
+//      future code path adds ISP / ASN / IP / accuracy / timezone to the raw
+//      pref, those never leak across the bridge.
+//   2. Rounds lat/lng to 1 decimal place (~11 km, city-level precision) so
+//      a renderer-XSS can't read the user's building-precision location.
+const COARSE_DECIMAL_PLACES = 1;
+
+function roundCoord(n) {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+  const f = 10 ** COARSE_DECIMAL_PLACES;
+  return Math.round(n * f) / f;
+}
+
+// Sanitises a raw geolocation:get response into the minimal renderer-facing
+// shape. Returns one of (and ONLY one of):
+//   { mode: 'denied' }                              — denied / off / malformed
+//   { mode: 'manual', latitude: N, longitude: N }   — coarse coords (1 dp)
+//   { mode: 'ip' }                                  — caller does IP fallback
+// No other fields are ever returned. Extra fields on `rawPref` (ISP, ASN,
+// timezone, accuracy, timestamp, etc.) are dropped on the floor.
+function coarsenLocation(rawPref) {
+  if (!rawPref || typeof rawPref !== 'object') return { mode: 'denied' };
+  if (rawPref.mode === 'off') return { mode: 'denied' };
+  if (rawPref.mode === 'manual') {
+    const lat = roundCoord(rawPref.latitude);
+    const lng = roundCoord(rawPref.longitude);
+    if (lat == null || lng == null) return { mode: 'ip' };
+    return { mode: 'manual', latitude: lat, longitude: lng };
+  }
+  if (rawPref.mode === 'ip') return { mode: 'ip' };
+  return { mode: 'denied' };
+}
+
 // === PiP URL validator (security audit M-4) ===
 // The 'open-pip-window' IPC accepts a URL from the renderer and hands it to
 // BrowserWindow.loadURL. Without scheme restrictions, a renderer-XSS could pop
@@ -169,4 +210,7 @@ module.exports = {
   safeName,
   safePipUrl,
   SAFE_PIP_SCHEMES,
+  coarsenLocation,
+  roundCoord,
+  COARSE_DECIMAL_PLACES,
 };

@@ -117,10 +117,59 @@
   } catch { return; }
   if (!ipcRenderer) return;
 
+  // === Geolocation bridge (security audit M-3 hardening) ===
+  // The bridge used to expose `checkPermission` and `getPref` separately, which
+  // let any guest page call `getPref()` to read the user's stored coordinates
+  // WITHOUT going through the permission prompt — a complete bypass of the
+  // navigator.geolocation gate.
+  //
+  // The new surface exposes a single atomic method, `resolveLocation(origin)`,
+  // that does the permission check + the pref read + the coord coarsening in
+  // ONE round-trip. Guest pages cannot read coords without permission for
+  // their origin, and even with permission they only ever see lat/lng rounded
+  // to 1 decimal place (~11 km, city-level). All extra fields the main
+  // process might emit (ISP, ASN, IP, timezone, accuracy, timestamp, etc.)
+  // are stripped by `coarsenLocation` before the response reaches this world.
+  //
+  // Returns one of (NO other shapes):
+  //   { mode: 'denied' }                           — denied OR off
+  //   { mode: 'manual', latitude, longitude }      — coarse coords (1 dp)
+  //   { mode: 'ip' }                               — caller does IP fallback
+  //
+  // Inline copy of `coarsenLocation` from src/main-helpers.js — keeping the
+  // preload self-contained avoids brittle relative-require resolution under
+  // session.setPreloads. Tests in tests/main/geoBridge.test.js exercise the
+  // helper version; this copy must stay in sync. Tiny enough that drift is
+  // obvious in code review.
+  function _coarsenLocationLocal(rawPref) {
+    if (!rawPref || typeof rawPref !== 'object') return { mode: 'denied' };
+    if (rawPref.mode === 'off') return { mode: 'denied' };
+    if (rawPref.mode === 'manual') {
+      const lat = (typeof rawPref.latitude  === 'number' && Number.isFinite(rawPref.latitude))  ? Math.round(rawPref.latitude  * 10) / 10 : null;
+      const lng = (typeof rawPref.longitude === 'number' && Number.isFinite(rawPref.longitude)) ? Math.round(rawPref.longitude * 10) / 10 : null;
+      if (lat == null || lng == null) return { mode: 'ip' };
+      return { mode: 'manual', latitude: lat, longitude: lng };
+    }
+    if (rawPref.mode === 'ip') return { mode: 'ip' };
+    return { mode: 'denied' };
+  }
+
   const bridge = {
-    checkPermission: (origin) => ipcRenderer.invoke('geolocation:check-permission', { origin }),
-    getPref:         ()       => ipcRenderer.invoke('geolocation:get')
+    resolveLocation: async (origin) => {
+      let decision;
+      try {
+        decision = await ipcRenderer.invoke('geolocation:check-permission', { origin });
+      } catch { return { mode: 'denied' }; }
+      if (decision !== 'allow') return { mode: 'denied' };
+      let raw;
+      try { raw = await ipcRenderer.invoke('geolocation:get'); } catch { return { mode: 'denied' }; }
+      return _coarsenLocationLocal(raw);
+    }
   };
+
+  // TODO(security): rename `__vexGeoBridge` to a randomised-per-launch key as
+  // a follow-up for M-3 fingerprinting mitigation (audit's Option B). Out of
+  // scope for the API-surface fix here.
   try {
     if (contextBridge && contextBridge.exposeInMainWorld) {
       contextBridge.exposeInMainWorld('__vexGeoBridge', bridge);
@@ -171,17 +220,19 @@
       return null;
     }
     async function resolve(success, error) {
-      var decision = 'deny';
-      try { decision = await bridge.checkPermission(window.location.origin); } catch (_) {}
-      if (decision !== 'allow') { _deny(error, 1, 'Geolocation permission denied'); return; }
-
-      var pref = null;
-      try { pref = await bridge.getPref(); } catch (_) {}
-      if (pref && pref.mode === 'off') { _deny(error, 1, 'Location access disabled in Vex settings'); return; }
-      if (pref && pref.mode === 'manual' && pref.latitude != null && pref.longitude != null) {
-        try { success(_pos(pref.latitude, pref.longitude, 20)); } catch (_) {}
+      // Single atomic call: permission check + coarse-coord read. Returns
+      // { mode: 'denied' | 'manual' | 'ip', latitude?, longitude? }. See the
+      // bridge declaration in src/preload-webview.js for the contract.
+      var loc = null;
+      try { loc = await bridge.resolveLocation(window.location.origin); } catch (_) {}
+      if (!loc || loc.mode === 'denied') { _deny(error, 1, 'Geolocation permission denied'); return; }
+      if (loc.mode === 'manual' && loc.latitude != null && loc.longitude != null) {
+        // Coords are already rounded to 1 dp upstream — accuracy reflects
+        // that (~11 km city-level rather than the old 20 m manual-pin claim).
+        try { success(_pos(loc.latitude, loc.longitude, 11000)); } catch (_) {}
         return;
       }
+      // mode === 'ip' — caller does IP fallback. M-5 is tracked separately.
       var pos = await fetchIPLocation();
       if (pos) { try { success(pos); } catch (_) {} return; }
       _deny(error, 2, 'Unable to determine location');
