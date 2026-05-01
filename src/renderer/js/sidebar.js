@@ -314,8 +314,8 @@ const SidebarManager = {
   }
 };
 
-// Renderer-safe export: Node (vitest) gets makeRefreshAction; the
-// <script>-tag path on the renderer leaves the existing globals alone.
+// Renderer-safe export: Node (vitest) gets makeRefreshAction + SidebarManager;
+// the <script>-tag path on the renderer leaves the existing globals alone.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { makeRefreshAction };
+  module.exports = { makeRefreshAction, SidebarManager };
 }
