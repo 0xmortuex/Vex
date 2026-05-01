@@ -122,6 +122,10 @@ const VexStorage = {
       title: t.title,
       pinned: t.pinned || false,
       groupId: t.groupId || null,
+      // Phase 4a: tab-stack membership rides on the tab record alongside
+      // groupId. Pre-4a saves don't have this field — `|| null` migrates
+      // them transparently on load.
+      stackId: t.stackId || null,
       sleeping: t.sleeping || false,
       originalUrl: t.originalUrl || null,
       scrollPosition: t.scrollPosition || null
@@ -139,6 +143,16 @@ const VexStorage = {
 
   async loadGroups() {
     return (await this.load('groups')) || [];
+  },
+
+  // Phase 4a — tab stacks. Mirrors saveGroups/loadGroups exactly. Stack
+  // shape: { id, name, color, topTabId }. Persisted file: stacks.json.
+  async saveStacks(stacks) {
+    return this.save('stacks', stacks);
+  },
+
+  async loadStacks() {
+    return (await this.load('stacks')) || [];
   },
 
   async saveSettings(settings) {
@@ -177,3 +191,10 @@ const VexStorage = {
     return await this.load('shortcuts');
   }
 };
+
+// Renderer-safe export (Phase 4a — for tests). The renderer loads this file
+// via <script> tag where `module` is undefined, so the guard keeps the
+// global VexStorage / PersistentStorage surface unchanged.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { VexStorage, PersistentStorage };
+}

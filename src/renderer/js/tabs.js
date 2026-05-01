@@ -56,6 +56,10 @@ const TabManager = {
   tabCounter: 0,
   _autoSleepInterval: null,
   groups: [],
+  // Phase 4a — tab stacks. Mutually exclusive with groups (a tab may have
+  // groupId XOR stackId, never both). Stack shape: {id, name, color, topTabId}.
+  // See docs/PHASE-4-TAB-STACKS-PLAN.md.
+  stacks: [],
   // Legacy seed groups (CUSA/School/Dev/Chat) removed — groups now start
   // empty. Users create groups via right-click "New group from this tab"
   // or the Phase 16 AI auto-grouper (Ctrl+Shift+G).
@@ -63,6 +67,9 @@ const TabManager = {
 
   async init() {
     this.groups = (await VexStorage.loadGroups()) || [];
+    this.stacks = (typeof VexStorage.loadStacks === 'function')
+      ? ((await VexStorage.loadStacks()) || [])
+      : [];
 
     // One-time cleanup: prune legacy seed groups AND any abandoned empty
     // groups (e.g. Phase 16 AI runs that didn't leave tabs behind).
@@ -75,6 +82,23 @@ const TabManager = {
     if (this.groups.length !== beforeCount) {
       console.log(`[Tabs] Pruned ${beforeCount - this.groups.length} empty/legacy group(s)`);
       await VexStorage.saveGroups(this.groups);
+    }
+
+    // Same prune pass for stacks: drop stacks whose member set is empty,
+    // and run topTabId fallback for stacks whose top is no longer live.
+    const liveStackIds = new Set(loadedTabs.map(t => t.stackId).filter(Boolean));
+    const beforeStacks = this.stacks.length;
+    this.stacks = this.stacks.filter(s => liveStackIds.has(s.id));
+    for (const stack of this.stacks) {
+      const stillLiveMember = loadedTabs.some(t => t.stackId === stack.id && t.id === stack.topTabId);
+      if (!stillLiveMember) {
+        const fallback = loadedTabs.find(t => t.stackId === stack.id);
+        if (fallback) stack.topTabId = fallback.id;
+      }
+    }
+    if (this.stacks.length !== beforeStacks && typeof VexStorage.saveStacks === 'function') {
+      console.log(`[Tabs] Pruned ${beforeStacks - this.stacks.length} empty stack(s)`);
+      await VexStorage.saveStacks(this.stacks);
     }
 
     const savedTabs = await VexStorage.loadTabs();
@@ -93,6 +117,7 @@ const TabManager = {
             pinned: !!t.pinned,
             unread: false,
             groupId: t.groupId || null,
+            stackId: t.stackId || null,
             sleeping: true,
             originalUrl: t.originalUrl || t.url,
             scrollPosition: t.scrollPosition || null
@@ -128,7 +153,8 @@ const TabManager = {
       loading: true,
       pinned: false,
       unread: false,
-      groupId: groupId
+      groupId: groupId,
+      stackId: null
     };
 
     this.tabs.push(tab);
@@ -206,6 +232,12 @@ const TabManager = {
     // Remember the closed tab's group so we can prune the group object if
     // this was its last member (no zombie empty groups).
     const closedGroupId = this.tabs[idx]?.groupId || null;
+    // Phase 4a: same idea for stacks. Route through removeTabFromStack
+    // BEFORE the splice so auto-disband sees the still-living member set.
+    const closedStackId = this.tabs[idx]?.stackId || null;
+    if (closedStackId) {
+      this.removeTabFromStack(id);
+    }
 
     WebviewManager.destroyWebview(id);
 
@@ -270,6 +302,7 @@ const TabManager = {
       pinned: false,
       unread: false,
       groupId: groupId,
+      stackId: null,
       _lazy: true  // webview not yet created
     };
     this.tabs.push(tab);
@@ -325,7 +358,7 @@ const TabManager = {
 
     if (!container) {
       // Fallback to ungrouped
-      tab.groupId = null;
+      this._setTabGroup(tab.id, null);
       document.getElementById('tabs-list').appendChild(this._createTabElement(tab));
       return;
     }
@@ -532,7 +565,7 @@ const TabManager = {
         break;
       }
       case 'ungroup': {
-        tabsInGroup.forEach(t => { t.groupId = null; });
+        tabsInGroup.forEach(t => { this._setTabGroup(t.id, null); });
         this.groups = this.groups.filter(g => g.id !== groupId);
         VexStorage.saveGroups(this.groups);
         this.rebuildAllTabs();
@@ -561,7 +594,7 @@ const TabManager = {
     if (!name || !name.trim()) return;
     const id = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     this.groups.push({ id, name: name.trim(), color: GROUP_COLORS[0], collapsed: false });
-    tab.groupId = id;
+    this._setTabGroup(tab.id, id);
     VexStorage.saveGroups(this.groups);
     this.rebuildAllTabs();
     this.persistTabs();
@@ -617,14 +650,14 @@ const TabManager = {
         label: `Move to ${g.name}`,
         color: g.color,
         action: () => {
-          tab.groupId = g.id;
+          this._setTabGroup(tab.id, g.id);
           this.rebuildAllTabs();
           this.persistTabs();
         }
       })),
       ...(moveTargets.length ? [{ sep: true }] : []),
       { label: 'Add to new group', action: () => this._newGroupFromTab(tab) },
-      ...(tab.groupId ? [{ label: '\u2190 Remove from group', action: () => { tab.groupId = null; this.rebuildAllTabs(); this.persistTabs(); } }] : []),
+      ...(tab.groupId ? [{ label: '\u2190 Remove from group', action: () => { this._setTabGroup(tab.id, null); this.rebuildAllTabs(); this.persistTabs(); } }] : []),
       { sep: true },
       { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => this.toggleMuteTab(tab.id) },
       { label: 'Mute All Others', action: () => this.muteAllOtherTabs(tab.id) },
@@ -1031,5 +1064,161 @@ const TabManager = {
       if (nx !== x) menu.style.left = nx + 'px';
       if (ny !== y) menu.style.top  = ny + 'px';
     });
+  },
+
+  // ===== Phase 4a — Tab Stacks: data primitives + invariants =====
+  //
+  // Mutual-exclusion helpers. _setTabGroup(id, groupId) is the single point
+  // of truth for "this tab is in group X" — it sets tab.groupId AND clears
+  // tab.stackId (and vice versa for _setTabStack). Existing group code that
+  // used to do `tab.groupId = X` directly now routes through here so the
+  // mutual-exclusion invariant from docs/PHASE-4-TAB-STACKS-PLAN.md §2 holds
+  // at exactly one place. Pure setters: no persistence, no rerender — the
+  // caller already owns that. (Confirmed transparent for groups: existing
+  // tests pass unchanged.)
+  _setTabGroup(tabId, groupId) {
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab) return null;
+    tab.groupId = groupId || null;
+    if (groupId) tab.stackId = null;
+    return tab;
+  },
+
+  _setTabStack(tabId, stackId) {
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab) return null;
+    tab.stackId = stackId || null;
+    if (stackId) tab.groupId = null;
+    return tab;
+  },
+
+  // ----- Stack operations API -----
+
+  // Generate a fresh stack id. Format mirrors group id ('grp_' + base36).
+  _newStackId() {
+    return 'stk_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  },
+
+  // Create a stack from N tabs. Requires ≥ 2 (Section 7 risk register —
+  // stacks-of-1 are just heavy tabs). Returns the stack object on success,
+  // null on validation failure. Clears any existing groupId on the inputs.
+  createStack(tabIds, name = 'New stack', color = '#d4a574') {
+    if (!Array.isArray(tabIds) || tabIds.length < 2) return null;
+    const tabs = tabIds.map(id => this.tabs.find(t => t.id === id)).filter(Boolean);
+    if (tabs.length < 2) return null;
+    // Pinned tabs cannot join a stack (Section 2 invariant 4).
+    if (tabs.some(t => t.pinned)) return null;
+
+    const id = this._newStackId();
+    const stack = { id, name: String(name), color: String(color), topTabId: tabs[0].id };
+    this.stacks.push(stack);
+
+    for (const t of tabs) this._setTabStack(t.id, id);
+
+    if (typeof VexStorage !== 'undefined') {
+      if (typeof VexStorage.saveStacks === 'function') VexStorage.saveStacks(this.stacks);
+      if (typeof this.persistTabs === 'function') this.persistTabs();
+    }
+    return stack;
+  },
+
+  // Add a tab to an existing stack. Returns true on success.
+  addTabToStack(tabId, stackId) {
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (!stack) return false;
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab) return false;
+    if (tab.pinned) return false;
+    if (tab.stackId === stackId) return true; // idempotent
+
+    this._setTabStack(tabId, stackId);
+
+    if (typeof VexStorage !== 'undefined') {
+      if (typeof VexStorage.saveStacks === 'function') VexStorage.saveStacks(this.stacks);
+      if (typeof this.persistTabs === 'function') this.persistTabs();
+    }
+    return true;
+  },
+
+  // Remove a tab from its stack. Auto-disbands the stack if it drops below 2
+  // members. Returns true if the tab was removed from a stack, false if it
+  // wasn't in one to begin with.
+  removeTabFromStack(tabId) {
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab || !tab.stackId) return false;
+    const stackId = tab.stackId;
+    this._setTabStack(tabId, null);
+
+    // Top-tab fallback: if the removed tab was the top, pick another live
+    // member as the new top. _autoDisbandIfThin runs after, so if the stack
+    // is now too small the topTabId reassignment is moot — but it's cheap
+    // and keeps invariant 2 from the planning doc holding mid-flight.
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (stack && stack.topTabId === tabId) this._fallbackTopTab(stackId);
+
+    this._autoDisbandIfThin(stackId);
+
+    if (typeof VexStorage !== 'undefined') {
+      if (typeof VexStorage.saveStacks === 'function') VexStorage.saveStacks(this.stacks);
+      if (typeof this.persistTabs === 'function') this.persistTabs();
+    }
+    return true;
+  },
+
+  // Promote a member to be the visible "top" of the stack. The candidate
+  // MUST already be a member; this method does not move tabs between stacks.
+  setStackTop(stackId, tabId) {
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (!stack) return false;
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab || tab.stackId !== stackId) return false;
+    stack.topTabId = tabId;
+    if (typeof VexStorage !== 'undefined' && typeof VexStorage.saveStacks === 'function') {
+      VexStorage.saveStacks(this.stacks);
+    }
+    return true;
+  },
+
+  // Disband a stack: clear stackId on every member, remove the stack object.
+  disbandStack(stackId) {
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (!stack) return false;
+    for (const t of this.tabs) {
+      if (t.stackId === stackId) this._setTabStack(t.id, null);
+    }
+    this.stacks = this.stacks.filter(s => s.id !== stackId);
+    if (typeof VexStorage !== 'undefined') {
+      if (typeof VexStorage.saveStacks === 'function') VexStorage.saveStacks(this.stacks);
+      if (typeof this.persistTabs === 'function') this.persistTabs();
+    }
+    return true;
+  },
+
+  // Internal: if a stack has fewer than 2 members, disband it. Used by
+  // removeTabFromStack and the closeTab close path.
+  _autoDisbandIfThin(stackId) {
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (!stack) return;
+    const memberCount = this.tabs.filter(t => t.stackId === stackId).length;
+    if (memberCount < 2) this.disbandStack(stackId);
+  },
+
+  // Internal: if topTabId no longer references a live member, set the top
+  // to the first remaining member (or leave the stack alone if it's about
+  // to be auto-disbanded anyway).
+  _fallbackTopTab(stackId) {
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (!stack) return;
+    const topStillMember = this.tabs.some(t => t.id === stack.topTabId && t.stackId === stackId);
+    if (topStillMember) return;
+    const firstMember = this.tabs.find(t => t.stackId === stackId);
+    if (firstMember) stack.topTabId = firstMember.id;
   }
 };
+
+// Renderer-safe export (Phase 4a — for tests/renderer/tabStacksData.test.js).
+// The renderer loads this file via <script> tag where `module` is undefined,
+// so the guard keeps the global TabManager surface unchanged.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { TabManager, isStartPage };
+}

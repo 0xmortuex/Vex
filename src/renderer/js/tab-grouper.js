@@ -54,6 +54,13 @@ const TabGrouper = (() => {
 
   function _assignTabToGroup(tabId, groupId) {
     if (typeof TabManager === 'undefined') return;
+    // Phase 4a: route through the central helper so group↔stack mutual
+    // exclusion is enforced in one place. Falls back to a direct write if
+    // the helper is missing (defensive — shouldn't happen in practice).
+    if (typeof TabManager._setTabGroup === 'function') {
+      TabManager._setTabGroup(tabId, groupId || null);
+      return;
+    }
     const tab = TabManager.tabs.find(t => t.id === tabId);
     if (!tab) return;
     tab.groupId = groupId || null;
@@ -62,8 +69,15 @@ const TabGrouper = (() => {
   function _deleteGroup(groupId) {
     if (typeof TabManager === 'undefined') return;
     TabManager.groups = TabManager.groups.filter(g => g.id !== groupId);
-    // Orphan any tab still assigned to this group
-    for (const t of TabManager.tabs) if (t.groupId === groupId) t.groupId = null;
+    // Orphan any tab still assigned to this group — same helper-routing as
+    // _assignTabToGroup so stackId state stays consistent.
+    if (typeof TabManager._setTabGroup === 'function') {
+      for (const t of TabManager.tabs) {
+        if (t.groupId === groupId) TabManager._setTabGroup(t.id, null);
+      }
+    } else {
+      for (const t of TabManager.tabs) if (t.groupId === groupId) t.groupId = null;
+    }
     if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups);
   }
 
