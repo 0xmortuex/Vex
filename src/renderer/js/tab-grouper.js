@@ -3,6 +3,25 @@
 // Vex creates the groups and remembers "patterns" so future matching tabs
 // can auto-join.
 
+// Pure helpers hoisted to module scope so they're require()-able under
+// vitest. The IIFE below references them via lexical scope; behavior is
+// unchanged in the renderer.
+function _domain(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); }
+  catch { return (url || '').substring(0, 40); }
+}
+
+function _similarity(a, b) {
+  if (!a || !b) return 0;
+  const wa = new Set(String(a).toLowerCase().split(/\s+/).filter(Boolean));
+  const wb = new Set(String(b).toLowerCase().split(/\s+/).filter(Boolean));
+  if (!wa.size || !wb.size) return 0;
+  let inter = 0;
+  for (const w of wa) if (wb.has(w)) inter++;
+  const union = new Set([...wa, ...wb]).size;
+  return union ? inter / union : 0;
+}
+
 const TabGrouper = (() => {
   const THRESHOLD_UNGROUPED = 12;
   const CHECK_COOLDOWN_MS = 30 * 60 * 1000;
@@ -238,21 +257,9 @@ const TabGrouper = (() => {
   }
 
   // ---------- URL + text helpers ----------
-  function _domain(url) {
-    try { return new URL(url).hostname.replace(/^www\./, ''); }
-    catch { return (url || '').substring(0, 40); }
-  }
-
-  function _similarity(a, b) {
-    if (!a || !b) return 0;
-    const wa = new Set(String(a).toLowerCase().split(/\s+/).filter(Boolean));
-    const wb = new Set(String(b).toLowerCase().split(/\s+/).filter(Boolean));
-    if (!wa.size || !wb.size) return 0;
-    let inter = 0;
-    for (const w of wa) if (wb.has(w)) inter++;
-    const union = new Set([...wa, ...wb]).size;
-    return union ? inter / union : 0;
-  }
+  // _domain and _similarity are hoisted to file scope (top of this module)
+  // for unit-testability under vitest. They're referenced here via lexical
+  // scope and behavior is identical.
 
   function _extractKeywords(pattern, tabs) {
     const text = (pattern + ' ' + tabs.map(t => t.title || '').join(' ')).toLowerCase();
@@ -561,4 +568,7 @@ const TabGrouper = (() => {
   };
 })();
 
-window.TabGrouper = TabGrouper;
+if (typeof window !== 'undefined') window.TabGrouper = TabGrouper;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { TabGrouper, _domain, _similarity };
+}
