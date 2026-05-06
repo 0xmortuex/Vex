@@ -160,4 +160,5 @@ const ShortcutsRegistry = (() => {
   };
 })();
 
-window.ShortcutsRegistry = ShortcutsRegistry;
+if (typeof window !== 'undefined') window.ShortcutsRegistry = ShortcutsRegistry;
+if (typeof module !== 'undefined' && module.exports) module.exports = ShortcutsRegistry;
