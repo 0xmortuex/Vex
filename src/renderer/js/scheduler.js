@@ -234,3 +234,5 @@ const Scheduler = {
     window.showToast?.(title + (body ? ': ' + body : ''));
   }
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = Scheduler;
