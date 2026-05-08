@@ -345,6 +345,33 @@ const WebviewManager = {
       });
     }
 
+    // Image-specific options when right-clicking an <img> or background-image
+    // element. e.params.mediaType is set by Chromium for image/video/audio;
+    // e.params.srcURL is the resource URL.
+    if (e.params.mediaType === 'image' && e.params.srcURL) {
+      items.push({ sep: true });
+      items.push({
+        label: 'Open Image in New Tab',
+        action: () => TabManager.createTab(e.params.srcURL, true)
+      });
+      items.push({
+        label: 'Copy Image',
+        action: () => { try { webview.copyImageAt?.(e.params.x, e.params.y); } catch {} }
+      });
+      items.push({
+        label: 'Copy Image Address',
+        action: () => navigator.clipboard.writeText(e.params.srcURL)
+      });
+      items.push({
+        label: 'Save Image As…',
+        action: () => {
+          // <webview>.downloadURL forwards to the underlying webContents,
+          // which goes through Vex's existing will-download wiring (DownloadsPanel).
+          try { webview.downloadURL(e.params.srcURL); } catch {}
+        }
+      });
+    }
+
     items.forEach(item => {
       if (item.sep) {
         const sep = document.createElement('div');

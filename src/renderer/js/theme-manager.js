@@ -64,10 +64,18 @@ const ThemeManager = {
           let url;
           try { url = typeof wv.getURL === 'function' ? wv.getURL() : null; } catch { url = null; }
           if (!url || !url.startsWith('vex://start')) continue;
+          // Two-pronged update for live vex://start tabs:
+          //  1. setAttribute via executeJavaScript — flips the active doc
+          //     immediately if the page is already loaded.
+          //  2. reloadIgnoringCache — forces the protocol handler to re-run
+          //     with the new theme baked into the served HTML, defeating
+          //     any Chromium webview cache on the persist:main partition.
+          //     This was the cause of the round 1/2/3 typography ghost.
           const js = themeName === 'blackops'
             ? "document.documentElement.setAttribute('data-theme','blackops');"
             : "document.documentElement.removeAttribute('data-theme');";
           try { wv.executeJavaScript(js).catch(() => {}); } catch {}
+          try { wv.reloadIgnoringCache?.(); } catch {}
         }
       }
     } catch {}

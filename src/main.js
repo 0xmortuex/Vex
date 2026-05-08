@@ -1103,8 +1103,18 @@ app.whenReady().then(() => {
             '<script>document.documentElement.setAttribute("data-theme","blackops");</script></head>'
           );
         }
+        // Cache-Control: no-store is critical here — without it Chromium's
+        // heuristic cache for custom-protocol responses keeps the FIRST HTML
+        // it ever served (incl. wrong theme) across reloads. That was the
+        // round 1/2/3 typography ghost: stale cached <html> without the
+        // data-theme attribute injected above.
         return new Response(html, {
-          headers: { 'content-type': 'text/html; charset=utf-8' }
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+            'cache-control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'pragma': 'no-cache',
+            'expires': '0'
+          }
         });
       } catch (e) {
         console.error('[vex://start] serve error:', e);

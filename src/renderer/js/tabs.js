@@ -1124,17 +1124,24 @@ const TabManager = {
   _attachMenuDismissal(menu) {
     const close = () => {
       menu.remove();
+      document.removeEventListener('mousedown', onDocDown, true);
       document.removeEventListener('click', onDocClick, true);
       document.removeEventListener('contextmenu', onDocCtx, true);
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', close, true);
     };
+    // mousedown fires BEFORE click and isn't swallowed by webview internals
+    // the way click sometimes is (clicks inside a guest webview don't bubble
+    // to the host document, but mousedown on the webview ELEMENT itself does
+    // fire here when the element receives focus). This is the key fix for
+    // "have to click twice to dismiss" — the second click was actually the
+    // first one Vex's host doc ever saw.
+    const onDocDown  = (ev) => { if (!menu.contains(ev.target)) close(); };
     const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
     const onDocCtx   = (ev) => { if (!menu.contains(ev.target)) close(); };
     const onKey      = (ev) => { if (ev.key === 'Escape') close(); };
-    // Defer attach to the next tick so the right-click that opened the menu
-    // doesn't immediately fire the dismissal listeners.
     setTimeout(() => {
+      document.addEventListener('mousedown', onDocDown, true);
       document.addEventListener('click', onDocClick, true);
       document.addEventListener('contextmenu', onDocCtx, true);
       document.addEventListener('keydown', onKey, true);
