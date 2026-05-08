@@ -8,7 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
   <style>
-    /* Inlined glass tokens — start.html is served standalone via vex://start */
+    /* Inlined glass tokens — start.html is served standalone via vex://start
+       (separate document from the main shell, so the parent's data-theme
+       attribute is invisible to us — we read localStorage on load instead). */
     :root {
       --vex-bg-base: #1a1816;
       --vex-glass-strong: rgba(38, 34, 30, 0.65);
@@ -27,6 +29,34 @@
       --vex-text-muted: #6a665e;
       --vex-blur-medium: blur(20px) saturate(140%);
       --vex-blur-light: blur(12px) saturate(120%);
+      --vex-radius-sm: 6px;
+      --vex-radius-md: 8px;
+      --vex-radius-lg: 12px;
+    }
+
+    /* Blackops — gold-on-navy, no glass, sharp edges. Mirrors the main shell's
+       theme-tokens.css blackops block so the start page matches the chrome. */
+    [data-theme="blackops"] {
+      --vex-bg-base: #0a1628;
+      --vex-glass-strong: #0f1f3a;
+      --vex-glass-medium: #0c1a30;
+      --vex-glass-light: #0a1628;
+      --vex-glass-input: #050d1a;
+      --vex-border-subtle: #1a2f4f;
+      --vex-border-medium: #1a2f4f;
+      --vex-border-accent: #b8860b;
+      --vex-border-accent-strong: #b8860b;
+      --vex-accent: #b8860b;
+      --vex-accent-dim: rgba(184, 134, 11, 0.35);
+      --vex-accent-glow: rgba(184, 134, 11, 0.18);
+      --vex-text-primary: #b8860b;
+      --vex-text-secondary: #8a6608;
+      --vex-text-muted: #5a4a1a;
+      --vex-blur-medium: blur(0px);
+      --vex-blur-light: blur(0px);
+      --vex-radius-sm: 0px;
+      --vex-radius-md: 0px;
+      --vex-radius-lg: 0px;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -203,7 +233,7 @@
       backdrop-filter: var(--vex-blur-light);
       -webkit-backdrop-filter: var(--vex-blur-light);
       border: 1px solid var(--vex-border-subtle);
-      border-radius: 12px;
+      border-radius: var(--vex-radius-lg);
       cursor: pointer;
       transition: all 0.2s ease;
       text-decoration: none;
@@ -219,7 +249,7 @@
     .shortcut-icon {
       width: 40px;
       height: 40px;
-      border-radius: 10px;
+      border-radius: var(--vex-radius-md);
       background: var(--vex-glass-input);
       display: flex;
       align-items: center;
@@ -282,7 +312,7 @@
       backdrop-filter: var(--vex-blur-light);
       -webkit-backdrop-filter: var(--vex-blur-light);
       border: 1px solid var(--vex-border-subtle);
-      border-radius: 12px;
+      border-radius: var(--vex-radius-lg);
       cursor: pointer;
       transition: all 0.2s ease;
     }
@@ -316,7 +346,7 @@
       backdrop-filter: var(--vex-blur-light);
       -webkit-backdrop-filter: var(--vex-blur-light);
       border: 1px solid var(--vex-border-subtle);
-      border-radius: 12px;
+      border-radius: var(--vex-radius-lg);
       padding: 22px;
     }
 
@@ -398,7 +428,7 @@
       padding: 10px 14px;
       background: var(--vex-glass-light);
       border: 1px solid var(--vex-border-subtle);
-      border-radius: 8px;
+      border-radius: var(--vex-radius-md);
       color: var(--vex-text-secondary);
       cursor: pointer;
       transition: all 0.15s ease;
@@ -439,7 +469,7 @@
       padding: 10px 14px;
       background: var(--vex-glass-light);
       border: 1px solid var(--vex-border-subtle);
-      border-radius: 8px;
+      border-radius: var(--vex-radius-md);
       transition: border-color 0.15s ease;
     }
     .gh-activity-item:hover { border-color: var(--vex-border-accent); }
@@ -550,6 +580,21 @@
   </div>
 
   <script>
+    // Theme — start.html is a separate document from the main shell, so the
+    // parent's data-theme attribute is invisible. ThemeManager mirrors the
+    // active theme to localStorage('vex.theme') so we can read it here.
+    try {
+      const t = localStorage.getItem('vex.theme');
+      if (t === 'blackops') document.documentElement.setAttribute('data-theme', 'blackops');
+    } catch {}
+    // Listen for runtime theme switches via storage events (other docs writing).
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'vex.theme') {
+        if (e.newValue === 'blackops') document.documentElement.setAttribute('data-theme', 'blackops');
+        else document.documentElement.removeAttribute('data-theme');
+      }
+    });
+
     // Clock
     function updateClock() {
       const now = new Date();
@@ -653,7 +698,7 @@
       document.querySelectorAll('.ctx-menu').forEach(m => m.remove());
       const menu = document.createElement('div');
       menu.className = 'ctx-menu';
-      menu.style.cssText = 'position:fixed;left:'+e.clientX+'px;top:'+e.clientY+'px;background:#151921;border:1px solid #1f2530;border-radius:8px;padding:4px;z-index:1000;min-width:140px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
+      menu.style.cssText = 'position:fixed;left:'+e.clientX+'px;top:'+e.clientY+'px;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);padding:4px;z-index:1000;min-width:140px;box-shadow:0 8px 32px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)';
       [
         { label: 'Edit', action: () => showShortcutModal(idx) },
         { label: 'Duplicate', action: () => { shortcuts.splice(idx+1, 0, {...shortcuts[idx]}); saveShortcuts(shortcuts); renderShortcuts(); } },
@@ -661,8 +706,8 @@
       ].forEach(item => {
         const el = document.createElement('div');
         el.textContent = item.label;
-        el.style.cssText = 'padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;color:'+(item.danger?'#ef4444':'#e5e9f0');
-        el.addEventListener('mouseenter', () => el.style.background = '#171c27');
+        el.style.cssText = 'padding:8px 12px;border-radius:var(--vex-radius-sm);cursor:pointer;font-size:13px;color:'+(item.danger?'var(--vex-danger,#ef4444)':'var(--vex-text-primary)');
+        el.addEventListener('mouseenter', () => el.style.background = 'var(--vex-accent-dim)');
         el.addEventListener('mouseleave', () => el.style.background = 'transparent');
         el.addEventListener('click', () => { item.action(); menu.remove(); });
         menu.appendChild(el);
@@ -678,16 +723,16 @@
       modal = document.createElement('div');
       modal.id = 'shortcut-modal';
       modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);z-index:1000;display:flex;align-items:center;justify-content:center';
-      modal.innerHTML = `<div style="width:360px;background:#151921;border:1px solid #1f2530;border-radius:12px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
-        <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:#e5e9f0">${existing ? 'Edit' : 'Add'} Shortcut</h3>
-        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6b7482;margin-bottom:6px;font-weight:500">Name</label>
-        <input type="text" id="sc-name" value="${existing ? existing.name : ''}" placeholder="Shortcut name..." style="width:100%;padding:10px 12px;background:#0a0c10;border:1px solid #1f2530;border-radius:8px;color:#e5e9f0;font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:Outfit,sans-serif">
-        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6b7482;margin-bottom:6px;font-weight:500">URL</label>
-        <input type="text" id="sc-url" value="${existing ? existing.url : ''}" placeholder="https://..." style="width:100%;padding:10px 12px;background:#0a0c10;border:1px solid #1f2530;border-radius:8px;color:#e5e9f0;font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:'JetBrains Mono',monospace">
+      modal.innerHTML = `<div style="width:360px;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-lg);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)">
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:var(--vex-text-primary)">${existing ? 'Edit' : 'Add'} Shortcut</h3>
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--vex-text-muted);margin-bottom:6px;font-weight:500">Name</label>
+        <input type="text" id="sc-name" value="${existing ? existing.name : ''}" placeholder="Shortcut name..." style="width:100%;padding:10px 12px;background:var(--vex-glass-input);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);color:var(--vex-text-primary);font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:Outfit,sans-serif">
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--vex-text-muted);margin-bottom:6px;font-weight:500">URL</label>
+        <input type="text" id="sc-url" value="${existing ? existing.url : ''}" placeholder="https://..." style="width:100%;padding:10px 12px;background:var(--vex-glass-input);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);color:var(--vex-text-primary);font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:'JetBrains Mono',monospace">
         <div id="sc-preview" style="text-align:center;margin-bottom:14px"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
-          <button id="sc-cancel" style="padding:8px 18px;background:#0a0c10;color:#e5e9f0;border:1px solid #1f2530;border-radius:8px;cursor:pointer;font-family:Outfit,sans-serif;font-size:13px">Cancel</button>
-          <button id="sc-save" style="padding:8px 18px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;font-family:Outfit,sans-serif;font-size:13px;font-weight:500">Save</button>
+          <button id="sc-cancel" style="padding:8px 18px;background:var(--vex-glass-input);color:var(--vex-text-primary);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);cursor:pointer;font-family:Outfit,sans-serif;font-size:13px">Cancel</button>
+          <button id="sc-save" style="padding:8px 18px;background:var(--vex-accent);color:#fff;border:none;border-radius:var(--vex-radius-md);cursor:pointer;font-family:Outfit,sans-serif;font-size:13px;font-weight:500">Save</button>
         </div>
       </div>`;
       document.body.appendChild(modal);

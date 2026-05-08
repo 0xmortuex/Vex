@@ -51,6 +51,27 @@ const ThemeManager = {
       }
     }
 
+    // Mirror to localStorage so same-origin documents can read the current
+    // theme. The vex://start page is cross-origin so it relies on the main
+    // process protocol handler injecting data-theme into the served HTML;
+    // for already-loaded vex://start webviews we push live via the
+    // executeJavaScript broadcast below.
+    try { localStorage.setItem('vex.theme', themeName); } catch {}
+
+    try {
+      if (typeof WebviewManager !== 'undefined' && WebviewManager.webviews) {
+        for (const wv of WebviewManager.webviews.values()) {
+          let url;
+          try { url = typeof wv.getURL === 'function' ? wv.getURL() : null; } catch { url = null; }
+          if (!url || !url.startsWith('vex://start')) continue;
+          const js = themeName === 'blackops'
+            ? "document.documentElement.setAttribute('data-theme','blackops');"
+            : "document.documentElement.removeAttribute('data-theme');";
+          try { wv.executeJavaScript(js).catch(() => {}); } catch {}
+        }
+      }
+    } catch {}
+
     document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: themeName } }));
   },
 

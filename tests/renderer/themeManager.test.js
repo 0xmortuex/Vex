@@ -101,4 +101,33 @@ describe('ThemeManager', () => {
     expect(evt.detail).toEqual({ theme: 'blackops' });
     document.removeEventListener('theme-changed', handler);
   });
+
+  it('applyTheme mirrors theme to localStorage("vex.theme")', async () => {
+    const TM = await loadThemeManager();
+    await TM.init();
+    TM.applyTheme('blackops');
+    expect(localStorage.getItem('vex.theme')).toBe('blackops');
+    TM.applyTheme('default');
+    expect(localStorage.getItem('vex.theme')).toBe('default');
+  });
+
+  it('applyTheme broadcasts to vex://start webviews via executeJavaScript', async () => {
+    const exec = vi.fn(() => Promise.resolve());
+    const otherExec = vi.fn(() => Promise.resolve());
+    globalThis.WebviewManager = {
+      webviews: new Map([
+        ['t1', { getURL: () => 'vex://start', executeJavaScript: exec }],
+        ['t2', { getURL: () => 'https://example.com', executeJavaScript: otherExec }],
+      ]),
+    };
+    const TM = await loadThemeManager();
+    await TM.init();
+    exec.mockClear();
+    otherExec.mockClear();
+    TM.applyTheme('blackops');
+    expect(exec).toHaveBeenCalledOnce();
+    expect(exec.mock.calls[0][0]).toContain("setAttribute('data-theme','blackops')");
+    expect(otherExec).not.toHaveBeenCalled();
+    delete globalThis.WebviewManager;
+  });
 });

@@ -1076,10 +1076,32 @@ app.whenReady().then(() => {
   protocol.handle('vex', (request) => {
     const reqUrl = request.url;
 
-    // vex://start → serve start.html via net.fetch(file://)
+    // vex://start → serve start.html, injecting the saved theme attribute
+    // so the start page renders in the same theme as the main shell. The
+    // start page is cross-origin from the main shell (vex:// vs file://) so
+    // localStorage doesn't bridge — we read the persisted theme file instead.
     if (reqUrl === 'vex://start' || reqUrl === 'vex://start/') {
       const filePath = path.join(__dirname, 'renderer', 'start.html');
-      return net.fetch(pathToFileURL(filePath).toString());
+      try {
+        let html = fs.readFileSync(filePath, 'utf-8');
+        let theme = 'default';
+        try {
+          const themeFile = getStorageFile('theme');
+          if (fs.existsSync(themeFile)) {
+            const t = JSON.parse(fs.readFileSync(themeFile, 'utf-8'));
+            if (typeof t === 'string') theme = t;
+          }
+        } catch { /* default theme on any read error */ }
+        if (theme === 'blackops') {
+          html = html.replace('<html lang="en">', '<html lang="en" data-theme="blackops">');
+        }
+        return new Response(html, {
+          headers: { 'content-type': 'text/html; charset=utf-8' }
+        });
+      } catch (e) {
+        console.error('[vex://start] serve error:', e);
+        return new Response('Not Found', { status: 404 });
+      }
     }
 
     // vex://start/css/foo.css → serve renderer/css/foo.css

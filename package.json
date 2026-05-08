@@ -52,6 +52,7 @@
       "src/**/*",
       "assets/icon.svg",
       "assets/icon.ico",
+      "assets/cia-seal.png",
       "package.json"
     ],
     "fileAssociations": [

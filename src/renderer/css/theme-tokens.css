@@ -50,28 +50,29 @@
   --vex-radius-lg: 12px;
 }
 
-/* ── Blackops theme — CIA-aesthetic dark government ───────────────────────
-   Pure black + dim gold (#b8860b) on every surface. No glass, no rounding.
-   Mono everywhere. Semantic colors (success/danger) stay readable but darken
-   so they don't fight the gold. */
+/* ── Blackops theme — CIA-aesthetic gold-on-navy ──────────────────────────
+   Deep CIA navy (#0a1628 base) + dim gold (#b8860b) — the actual palette
+   from the CIA seal. No glass, no rounding, mono everywhere. Semantic
+   success/danger darken so they don't fight the gold. */
 [data-theme="blackops"] {
-  --vex-bg-base: #000000;
-  --vex-bg-elevated: #0a0a0a;
-  --vex-bg-deep: #000000;
+  --vex-bg-base: #0a1628;        /* deep CIA navy */
+  --vex-bg-elevated: #0f1f3a;    /* slightly lighter navy — cards, modals */
+  --vex-bg-deep: #050d1a;        /* deepest navy — furthest-back surfaces */
 
-  --vex-glass-strong: #000000;
-  --vex-glass-medium: #050505;
-  --vex-glass-light: #080808;
-  --vex-glass-tab-active: #1a1408;
-  --vex-glass-tab-inactive: #050505;
-  --vex-glass-input: #050505;
+  --vex-glass-strong: #0f1f3a;
+  --vex-glass-medium: #0c1a30;
+  --vex-glass-light: #0a1628;
+  --vex-glass-tab-active: #1a2f4f;
+  --vex-glass-tab-inactive: #0c1a30;
+  --vex-glass-input: #050d1a;
 
-  --vex-border-subtle: #1a1a1a;
-  --vex-border-medium: #1a1a1a;
+  --vex-border-subtle: #1a2f4f;
+  --vex-border-medium: #1a2f4f;  /* subtle navy border */
+  --vex-border-strong: #2a4f7f;  /* visible navy border for emphasis */
   --vex-border-accent: #b8860b;
   --vex-border-accent-strong: #b8860b;
 
-  --vex-accent: #b8860b;
+  --vex-accent: #b8860b;         /* dim gold from CIA seal */
   --vex-accent-dim: rgba(184, 134, 11, 0.35);
   --vex-accent-glow: rgba(184, 134, 11, 0.18);
 
@@ -97,19 +98,19 @@
 
   /* Legacy app.css tokens — defined in :root in app.css, used in 300+ places.
      Overriding them here (rather than refactoring every var(--bg)) flips the
-     entire app to gold-on-black with one cascading block. */
-  --bg: #000000;
-  --bg-2: #050505;
-  --sidebar: #050505;
-  --surface: #0a0a0a;
-  --border: #1a1a1a;
+     entire app to gold-on-navy with one cascading block. */
+  --bg: #0a1628;
+  --bg-2: #0c1a30;
+  --sidebar: #050d1a;
+  --surface: #0f1f3a;
+  --border: #1a2f4f;
   --text: #b8860b;
   --text-muted: #5a4a1a;
   --primary: #b8860b;
   --primary-hover: #d4a030;
   --accent: #b8860b;
-  --tab-active: #1a1408;
-  --tab-hover: #0a0a0a;
+  --tab-active: #1a2f4f;
+  --tab-hover: #0f1f3a;
   --danger: #8b2a1f;
   --success: #4a7c59;
   --warning: #8a6608;

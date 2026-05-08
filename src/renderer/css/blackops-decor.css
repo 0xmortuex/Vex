@@ -90,7 +90,9 @@
   to   { opacity: 0; }
 }
 
-/* Faint seal watermark — bottom-right corner ──────────────────────────────── */
+/* Faint seal watermark — bottom-right corner. Path is relative to THIS CSS
+   file: src/renderer/css/blackops-decor.css → project root needs three `..`
+   (css → renderer → src → root). The earlier two-level path silently 404'd. */
 [data-theme="blackops"]::before {
   content: '';
   position: fixed;
@@ -98,13 +100,32 @@
   right: 40px;
   width: 180px;
   height: 180px;
-  background-image: url('../../assets/cia-seal.png');
+  background-image: url('../../../assets/cia-seal.png');
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   opacity: 0.04;
   pointer-events: none;
   z-index: 0;
+}
+
+/* Vex logo → CIA seal in blackops mode. Hide the inline SVG + wordmark
+   inside #vex-logo and stamp the seal as a background image instead.
+   The wordmark is hidden because the seal already says "VEX INTELLIGENCE
+   INTERFACE" via the boot overlay + status bar. */
+[data-theme="blackops"] #vex-logo svg,
+[data-theme="blackops"] #vex-logo > span {
+  display: none;
+}
+
+[data-theme="blackops"] #vex-logo {
+  width: 28px;
+  height: 28px;
+  background-image: url('../../../assets/cia-seal.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 0 4px rgba(184, 134, 11, 0.4));
 }
 
 /* Redaction-bar dividers — opt-in via .vex-section-divider class ──────────── */
