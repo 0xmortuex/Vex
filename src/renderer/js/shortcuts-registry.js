@@ -39,6 +39,7 @@ const ShortcutsRegistry = (() => {
     'reading-mode':   { default: 'Ctrl+Alt+R',   label: 'Reading Mode',               category: 'Tools' },
     'screenshot':     { default: 'Ctrl+Alt+S',   label: 'Screenshot',                 category: 'Tools' },
     'group-tabs':     { default: 'Ctrl+Shift+G', label: 'Organize Tabs with AI',      category: 'Tools' },
+    'toggle-theme':   { default: 'Ctrl+Shift+Y', label: 'Cycle Theme (default ↔ blackops)', category: 'Tools' },
 
     // Window
     'fullscreen':     { default: 'F11',          label: 'Fullscreen',                 category: 'Window' }

@@ -2,7 +2,10 @@
 //
 // Two themes: 'default' (existing graphite + amber glassmorphism, no behavior
 // change) and 'blackops' (gold-on-black CIA aesthetic, no glass, no rounding).
-// Toggle via Ctrl+Shift+T. Persisted via VexStorage under key 'theme'.
+// Toggle via Ctrl+Shift+Y (registered through ShortcutsRegistry as 'toggle-theme'
+// — Ctrl+Shift+T is reserved for "Reopen Closed Tab" by the browser convention
+// and is intercepted by main.js + ShortcutsRegistry before reaching us).
+// Persisted via VexStorage under key 'theme'.
 //
 // applyTheme() sets `data-theme` on <html>; CSS variable overrides in
 // theme-tokens.css cascade through every existing var(--vex-...) reference.

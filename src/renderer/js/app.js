@@ -566,6 +566,11 @@
     ShortcutsRegistry.register('reading-mode',   () => ReadingMode?.activate?.());
     ShortcutsRegistry.register('screenshot',     () => ScreenshotTool?.capture?.());
     ShortcutsRegistry.register('group-tabs',     () => TabGrouper?.analyzeAndPropose?.());
+    ShortcutsRegistry.register('toggle-theme',   () => {
+      if (typeof ThemeManager === 'undefined') return;
+      const next = ThemeManager.cycleTheme();
+      window.showToast?.(`Theme: ${next.toUpperCase()}`, 'info', 1500);
+    });
     ShortcutsRegistry.register('mute-tab',       () => TabManager?.toggleMuteTab?.());
     ShortcutsRegistry.register('sleep-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.sleepTab(t.id); });
     ShortcutsRegistry.register('reopen-tab',     () => TabManager?.reopenLastClosed?.());
@@ -586,14 +591,6 @@
     if (e.ctrlKey && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
       e.preventDefault();
       TabGrouper?.analyzeAndPropose();
-    }
-    // Theme cycle: Ctrl+Shift+T
-    if (e.ctrlKey && e.shiftKey && (e.key === 'T' || e.key === 't')) {
-      e.preventDefault();
-      if (typeof ThemeManager !== 'undefined') {
-        const next = ThemeManager.cycleTheme();
-        window.showToast?.(`Theme: ${next.toUpperCase()}`, 'info', 1500);
-      }
     }
   });
 
