@@ -40,8 +40,80 @@
   --vex-blur-medium: blur(20px) saturate(140%);
   --vex-blur-light: blur(12px) saturate(120%);
 
+  /* Typography */
+  --vex-font-base: 'Outfit', sans-serif;
+  --vex-font-mono: 'JetBrains Mono', monospace;
+
   /* Radii */
   --vex-radius-sm: 6px;
   --vex-radius-md: 8px;
   --vex-radius-lg: 12px;
+}
+
+/* ── Blackops theme — CIA-aesthetic dark government ───────────────────────
+   Pure black + dim gold (#b8860b) on every surface. No glass, no rounding.
+   Mono everywhere. Semantic colors (success/danger) stay readable but darken
+   so they don't fight the gold. */
+[data-theme="blackops"] {
+  --vex-bg-base: #000000;
+  --vex-bg-elevated: #0a0a0a;
+  --vex-bg-deep: #000000;
+
+  --vex-glass-strong: #000000;
+  --vex-glass-medium: #050505;
+  --vex-glass-light: #080808;
+  --vex-glass-tab-active: #1a1408;
+  --vex-glass-tab-inactive: #050505;
+  --vex-glass-input: #050505;
+
+  --vex-border-subtle: #1a1a1a;
+  --vex-border-medium: #1a1a1a;
+  --vex-border-accent: #b8860b;
+  --vex-border-accent-strong: #b8860b;
+
+  --vex-accent: #b8860b;
+  --vex-accent-dim: rgba(184, 134, 11, 0.35);
+  --vex-accent-glow: rgba(184, 134, 11, 0.18);
+
+  --vex-text-primary: #b8860b;
+  --vex-text-secondary: #8a6608;
+  --vex-text-muted: #5a4a1a;
+  --vex-text-accent: #b8860b;
+
+  --vex-success: #4a7c59;
+  --vex-danger: #8b2a1f;
+  --vex-warning: #8a6608;
+
+  --vex-blur-heavy: blur(0px);
+  --vex-blur-medium: blur(0px);
+  --vex-blur-light: blur(0px);
+
+  --vex-font-base: 'JetBrains Mono', 'Consolas', monospace;
+  --vex-font-mono: 'JetBrains Mono', 'Consolas', monospace;
+
+  --vex-radius-sm: 0px;
+  --vex-radius-md: 0px;
+  --vex-radius-lg: 0px;
+
+  /* Legacy app.css tokens — defined in :root in app.css, used in 300+ places.
+     Overriding them here (rather than refactoring every var(--bg)) flips the
+     entire app to gold-on-black with one cascading block. */
+  --bg: #000000;
+  --bg-2: #050505;
+  --sidebar: #050505;
+  --surface: #0a0a0a;
+  --border: #1a1a1a;
+  --text: #b8860b;
+  --text-muted: #5a4a1a;
+  --primary: #b8860b;
+  --primary-hover: #d4a030;
+  --accent: #b8860b;
+  --tab-active: #1a1408;
+  --tab-hover: #0a0a0a;
+  --danger: #8b2a1f;
+  --success: #4a7c59;
+  --warning: #8a6608;
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-lg: 0px;
 }

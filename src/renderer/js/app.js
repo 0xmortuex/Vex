@@ -13,6 +13,17 @@
     document.body.dataset.tabLayout = (layout === 'vertical') ? 'vertical' : 'horizontal';
   } catch { document.body.dataset.tabLayout = 'horizontal'; }
 
+  // Theme — apply BEFORE any UI render so first paint matches the persisted theme.
+  // Fire-and-forget kickoff first so the boot overlay (if blackops) can show
+  // immediately; init() races settings load below but the data-theme attr is
+  // applied synchronously inside applyTheme().
+  if (typeof ThemeManager !== 'undefined') {
+    try { await ThemeManager.init(); } catch (e) { console.error('[ThemeManager] init:', e); }
+  }
+  if (typeof BlackopsDecor !== 'undefined') {
+    try { BlackopsDecor.init(); } catch (e) { console.error('[BlackopsDecor] init:', e); }
+  }
+
   // Load settings
   const settings = await VexStorage.loadSettings();
 
@@ -575,6 +586,14 @@
     if (e.ctrlKey && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
       e.preventDefault();
       TabGrouper?.analyzeAndPropose();
+    }
+    // Theme cycle: Ctrl+Shift+T
+    if (e.ctrlKey && e.shiftKey && (e.key === 'T' || e.key === 't')) {
+      e.preventDefault();
+      if (typeof ThemeManager !== 'undefined') {
+        const next = ThemeManager.cycleTheme();
+        window.showToast?.(`Theme: ${next.toUpperCase()}`, 'info', 1500);
+      }
     }
   });
 

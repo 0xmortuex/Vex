@@ -815,6 +815,13 @@ const TabManager = {
     document.querySelectorAll('.tab-item').forEach(el => {
       el.classList.toggle('active', el.dataset.tabId === this.activeTabId);
     });
+
+    // Zero-padded sequential index per .tab-item — used by the blackops
+    // theme's "[01] Title" terminal styling. The DOM order at this point is
+    // the visible top→bottom order, which is what we want.
+    document.querySelectorAll('.tab-item').forEach((el, i) => {
+      el.setAttribute('data-tab-index', String(i + 1).padStart(2, '0'));
+    });
   },
 
   setupNewTabButton() {

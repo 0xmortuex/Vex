@@ -2,7 +2,13 @@ node_modules/
 dist/
 .claude/
 .ruflo/
+.octogent/
 # Icon build intermediates (regenerated from assets/icon.svg by `npm run build-icons`)
 assets/icon-source.png
 assets/icons/
 .tmp-asar/
+
+.octogent
+
+# Theme assets that may have IP concerns — never commit, even on accidental `git add .`
+assets/cia-seal.png

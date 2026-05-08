@@ -59,6 +59,11 @@ const HorizontalTabs = (() => {
         container.appendChild(el);
       }
     }
+
+    // Sequential zero-padded index for blackops "[01] Title" prefix.
+    container.querySelectorAll('.top-tab').forEach((el, i) => {
+      el.setAttribute('data-tab-index', String(i + 1).padStart(2, '0'));
+    });
   }
 
   function _renderTab(tab, activeId) {
