@@ -13,7 +13,8 @@
   left: 0;
   right: 0;
   height: 22px;
-  background: #000;
+  /* Pure black was clashing — match the navy palette by using deep-navy. */
+  background: var(--vex-bg-deep);
   border-top: 1px solid var(--vex-accent);
   font-family: var(--vex-font-mono);
   font-size: 10px;
@@ -39,7 +40,7 @@
 #vex-boot-overlay {
   position: fixed;
   inset: 0;
-  background: #000;
+  background: var(--vex-bg-deep, #050d1a);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -52,9 +53,10 @@
 
 #vex-boot-seal {
   width: 280px;
-  height: auto;
+  height: 280px;
   margin-bottom: 32px;
-  filter: drop-shadow(0 0 20px rgba(184, 134, 11, 0.5));
+  image-rendering: -webkit-optimize-contrast;
+  /* No drop-shadow — was softening the seal edges. */
 }
 
 #vex-boot-text {
@@ -118,14 +120,22 @@
   display: none;
 }
 
+/* Source: assets/cia-seal.png is 3840×3840 (≈1MB). Plenty of detail for any
+   header size — the previous 28px target was just too small to read. Bumping
+   to 40px (still proportional to the 44px top bar) and using explicit pixel
+   background-size avoids the softness drop-shadow was introducing. The glow
+   filter is gone; subtle gold border is enough emphasis on a high-contrast
+   background. */
 [data-theme="blackops"] #vex-logo {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin-right: 4px;
   background-image: url('../../../assets/cia-seal.png');
-  background-size: contain;
+  background-size: 40px 40px;
   background-repeat: no-repeat;
   background-position: center;
-  filter: drop-shadow(0 0 4px rgba(184, 134, 11, 0.4));
+  image-rendering: -webkit-optimize-contrast;
 }
 
 /* Redaction-bar dividers — opt-in via .vex-section-divider class ──────────── */
@@ -215,8 +225,10 @@
 }
 
 [data-theme="blackops"] .top-tab-bar {
+  /* Distinct from the content area below by using deep-navy + a stronger
+     bottom border — chrome reads as separate layer, not bleeding into pages. */
   background: var(--vex-bg-deep);
-  border-bottom: 1px solid var(--vex-border-medium);
+  border-bottom: 1px solid var(--vex-border-strong);
 }
 
 /* ── Sidebar icons — subtle 2px corners, no transform on hover ───────────── */
@@ -260,6 +272,44 @@
   background: var(--vex-bg-elevated);
 }
 
+/* Subtle muted-gold dividers between sidebar icons so they read as a list,
+   not as floating buttons. ::after on each icon (except the last in each
+   group). The .sidebar-spacer flex-1 sits between panel buttons and tools, so
+   we naturally get a separator there too. */
+[data-theme="blackops"] .sidebar-icon + .sidebar-icon,
+[data-theme="blackops"] .tool-icon + .tool-icon {
+  position: relative;
+}
+[data-theme="blackops"] .sidebar-icon + .sidebar-icon::before,
+[data-theme="blackops"] .tool-icon + .tool-icon::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 6px;
+  right: 6px;
+  height: 1px;
+  background: rgba(212, 175, 110, 0.12);
+  pointer-events: none;
+}
+/* The .sidebar-icon.active::before token was used for the indicator strip;
+   collide-proof that with our new divider rule by re-anchoring the indicator. */
+[data-theme="blackops"] .sidebar-icon.active::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  background: var(--vex-accent);
+  border-radius: 0;
+  /* keep this as the indicator; the divider above uses ::before too but
+     because .sidebar-icon.active::before declares the SAME pseudo, this
+     wins where both apply (active icon: indicator), and inactive icons get
+     the divider variant. The divider rule selects `.sidebar-icon + .sidebar-icon`
+     so the FIRST icon never has a divider above it — desired. */
+}
+
 /* ── Workspace switcher — kill the green dot, replace with gold ──────────── */
 [data-theme="blackops"] #workspace-btn {
   background: var(--vex-bg-elevated);
@@ -286,6 +336,19 @@
 [data-theme="blackops"] .ws-item .ws-dot {
   background: var(--vex-accent) !important;
   border-radius: 0;
+}
+
+/* Sync indicator was using green (#22c55e) for the "active" state — that
+   green is the round-1 audit's other source of clash. Force gold in blackops. */
+[data-theme="blackops"] .sync-indicator,
+[data-theme="blackops"] .sync-indicator.active {
+  color: var(--vex-accent) !important;
+}
+
+/* Any other inline-styled green dots fall back gracefully. */
+[data-theme="blackops"] [style*="background:#22c55e"],
+[data-theme="blackops"] [style*="background: #22c55e"] {
+  background: var(--vex-accent) !important;
 }
 
 /* ── URL bar — solid navy, gold on focus ─────────────────────────────────── */

@@ -63,38 +63,41 @@
 
     /* Blackops typography — clock, greeting, wordmark, section headers all
        go to JetBrains Mono in gold. The serif Georgia look is glassmorphic
-       theme territory; intelligence-interface aesthetic is mono everywhere. */
+       theme territory; intelligence-interface aesthetic is mono everywhere.
+       Using !important on the font-family/color so the more-specific class
+       rules above (declared with `font-family: Georgia` directly, no
+       theme-aware var) cannot win the cascade. */
     [data-theme="blackops"] body {
-      background-image: none;
-      background-color: var(--vex-bg-base);
+      background-image: none !important;
+      background-color: var(--vex-bg-base) !important;
     }
     [data-theme="blackops"] .clock {
-      font-family: 'JetBrains Mono', Consolas, monospace;
-      color: var(--vex-accent);
+      font-family: 'JetBrains Mono', Consolas, monospace !important;
+      color: var(--vex-accent) !important;
       font-weight: 500;
       letter-spacing: 0.02em;
     }
     [data-theme="blackops"] .greeting {
-      font-family: 'JetBrains Mono', Consolas, monospace;
-      font-style: normal;
+      font-family: 'JetBrains Mono', Consolas, monospace !important;
+      font-style: normal !important;
       font-size: 13px;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: var(--vex-text-muted);
+      color: var(--vex-text-muted) !important;
     }
     [data-theme="blackops"] .greeting span {
-      font-style: normal;
-      color: var(--vex-accent);
+      font-style: normal !important;
+      color: var(--vex-accent) !important;
     }
     [data-theme="blackops"] .vex-wordmark {
-      font-family: 'JetBrains Mono', Consolas, monospace;
-      font-size: 22px;
+      font-family: 'JetBrains Mono', Consolas, monospace !important;
+      font-size: 22px !important;
       font-weight: 600;
-      background: none;
-      -webkit-text-fill-color: var(--vex-accent);
-      color: var(--vex-accent);
+      background: none !important;
+      -webkit-text-fill-color: var(--vex-accent) !important;
+      color: var(--vex-accent) !important;
       letter-spacing: 0.16em;
-      opacity: 1;
+      opacity: 1 !important;
     }
     [data-theme="blackops"] .vex-wordmark::after {
       content: '-INT';
@@ -107,11 +110,11 @@
     [data-theme="blackops"] .tools-section h3,
     [data-theme="blackops"] .recent-section h3,
     [data-theme="blackops"] .gh-activity-section h3 {
-      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-family: 'JetBrains Mono', Consolas, monospace !important;
       font-weight: 500;
       font-size: 11px;
       letter-spacing: 0.22em;
-      color: var(--vex-accent);
+      color: var(--vex-accent) !important;
       border-bottom: 1px solid var(--vex-border-medium);
     }
 

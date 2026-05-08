@@ -1093,7 +1093,15 @@ app.whenReady().then(() => {
           }
         } catch { /* default theme on any read error */ }
         if (theme === 'blackops') {
+          // Belt-and-suspenders: inject the attribute on <html> AND a tiny
+          // inline <script> at the head end. The attribute gives CSS a hook
+          // before paint; the script ensures it stays set even if some other
+          // code path nukes documentElement.dataset.theme.
           html = html.replace('<html lang="en">', '<html lang="en" data-theme="blackops">');
+          html = html.replace(
+            '</head>',
+            '<script>document.documentElement.setAttribute("data-theme","blackops");</script></head>'
+          );
         }
         return new Response(html, {
           headers: { 'content-type': 'text/html; charset=utf-8' }
