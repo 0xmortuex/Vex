@@ -69,21 +69,21 @@
   --vex-border-subtle: #1a2f4f;
   --vex-border-medium: #1a2f4f;  /* subtle navy border */
   --vex-border-strong: #2a4f7f;  /* visible navy border for emphasis */
-  --vex-border-accent: #b8860b;
-  --vex-border-accent-strong: #b8860b;
+  --vex-border-accent: #d4af6e;
+  --vex-border-accent-strong: #d4af6e;
 
-  --vex-accent: #b8860b;         /* dim gold from CIA seal */
-  --vex-accent-dim: rgba(184, 134, 11, 0.35);
-  --vex-accent-glow: rgba(184, 134, 11, 0.18);
+  --vex-accent: #d4af6e;         /* warmer gold — readable on navy */
+  --vex-accent-dim: rgba(212, 175, 110, 0.22);
+  --vex-accent-glow: rgba(212, 175, 110, 0.15);
 
-  --vex-text-primary: #b8860b;
-  --vex-text-secondary: #8a6608;
-  --vex-text-muted: #5a4a1a;
-  --vex-text-accent: #b8860b;
+  --vex-text-primary: #d4af6e;   /* warm gold */
+  --vex-text-secondary: #a88a55;
+  --vex-text-muted: #5a6a8a;     /* cool grey-blue, NOT brown */
+  --vex-text-accent: #d4af6e;
 
   --vex-success: #4a7c59;
-  --vex-danger: #8b2a1f;
-  --vex-warning: #8a6608;
+  --vex-danger: #c44;
+  --vex-warning: #a88a55;
 
   --vex-blur-heavy: blur(0px);
   --vex-blur-medium: blur(0px);
@@ -92,9 +92,12 @@
   --vex-font-base: 'JetBrains Mono', 'Consolas', monospace;
   --vex-font-mono: 'JetBrains Mono', 'Consolas', monospace;
 
-  --vex-radius-sm: 0px;
-  --vex-radius-md: 0px;
-  --vex-radius-lg: 0px;
+  /* Tiered subtle rounding. Major chrome (top bar, sidebar, status bar) gets
+     explicit 0 overrides in blackops-decor.css; these tokens cover everything
+     else: cards 3, inputs/buttons 2, modals 4 (lg). */
+  --vex-radius-sm: 2px;
+  --vex-radius-md: 3px;
+  --vex-radius-lg: 3px;
 
   /* Legacy app.css tokens — defined in :root in app.css, used in 300+ places.
      Overriding them here (rather than refactoring every var(--bg)) flips the
@@ -104,17 +107,17 @@
   --sidebar: #050d1a;
   --surface: #0f1f3a;
   --border: #1a2f4f;
-  --text: #b8860b;
-  --text-muted: #5a4a1a;
-  --primary: #b8860b;
-  --primary-hover: #d4a030;
-  --accent: #b8860b;
+  --text: #d4af6e;
+  --text-muted: #5a6a8a;
+  --primary: #d4af6e;
+  --primary-hover: #e8c98c;
+  --accent: #d4af6e;
   --tab-active: #1a2f4f;
   --tab-hover: #0f1f3a;
-  --danger: #8b2a1f;
+  --danger: #c44;
   --success: #4a7c59;
-  --warning: #8a6608;
-  --radius: 0px;
-  --radius-sm: 0px;
-  --radius-lg: 0px;
+  --warning: #a88a55;
+  --radius: 3px;
+  --radius-sm: 2px;
+  --radius-lg: 4px;
 }

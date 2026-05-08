@@ -34,8 +34,10 @@
       --vex-radius-lg: 12px;
     }
 
-    /* Blackops — gold-on-navy, no glass, sharp edges. Mirrors the main shell's
-       theme-tokens.css blackops block so the start page matches the chrome. */
+    /* Blackops — gold-on-navy, no glass, subtle edges. Mirrors the main
+       shell's theme-tokens.css blackops block so the start page matches the
+       chrome. Tiered radii: sm:2 (buttons/inputs), md:3 (cards), lg:3 (also
+       cards — major chrome gets explicit 0 overrides below). */
     [data-theme="blackops"] {
       --vex-bg-base: #0a1628;
       --vex-glass-strong: #0f1f3a;
@@ -44,19 +46,177 @@
       --vex-glass-input: #050d1a;
       --vex-border-subtle: #1a2f4f;
       --vex-border-medium: #1a2f4f;
-      --vex-border-accent: #b8860b;
-      --vex-border-accent-strong: #b8860b;
-      --vex-accent: #b8860b;
-      --vex-accent-dim: rgba(184, 134, 11, 0.35);
-      --vex-accent-glow: rgba(184, 134, 11, 0.18);
-      --vex-text-primary: #b8860b;
-      --vex-text-secondary: #8a6608;
-      --vex-text-muted: #5a4a1a;
+      --vex-border-accent: #d4af6e;
+      --vex-border-accent-strong: #d4af6e;
+      --vex-accent: #d4af6e;
+      --vex-accent-dim: rgba(212, 175, 110, 0.22);
+      --vex-accent-glow: rgba(212, 175, 110, 0.15);
+      --vex-text-primary: #d4af6e;
+      --vex-text-secondary: #a88a55;
+      --vex-text-muted: #5a6a8a;
       --vex-blur-medium: blur(0px);
       --vex-blur-light: blur(0px);
-      --vex-radius-sm: 0px;
-      --vex-radius-md: 0px;
-      --vex-radius-lg: 0px;
+      --vex-radius-sm: 2px;
+      --vex-radius-md: 3px;
+      --vex-radius-lg: 3px;
+    }
+
+    /* Blackops typography — clock, greeting, wordmark, section headers all
+       go to JetBrains Mono in gold. The serif Georgia look is glassmorphic
+       theme territory; intelligence-interface aesthetic is mono everywhere. */
+    [data-theme="blackops"] body {
+      background-image: none;
+      background-color: var(--vex-bg-base);
+    }
+    [data-theme="blackops"] .clock {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      color: var(--vex-accent);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    [data-theme="blackops"] .greeting {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-style: normal;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--vex-text-muted);
+    }
+    [data-theme="blackops"] .greeting span {
+      font-style: normal;
+      color: var(--vex-accent);
+    }
+    [data-theme="blackops"] .vex-wordmark {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 22px;
+      font-weight: 600;
+      background: none;
+      -webkit-text-fill-color: var(--vex-accent);
+      color: var(--vex-accent);
+      letter-spacing: 0.16em;
+      opacity: 1;
+    }
+    [data-theme="blackops"] .vex-wordmark::after {
+      content: '-INT';
+      opacity: 0.55;
+    }
+
+    /* Section headers (Quick Access / My Tools / Recent / Recent GitHub
+       Activity) — uppercase mono gold, status-bar style. */
+    [data-theme="blackops"] .shortcuts-section h3,
+    [data-theme="blackops"] .tools-section h3,
+    [data-theme="blackops"] .recent-section h3,
+    [data-theme="blackops"] .gh-activity-section h3 {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-weight: 500;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      color: var(--vex-accent);
+      border-bottom: 1px solid var(--vex-border-medium);
+    }
+
+    /* Section headers inside cards (Weather / GitHub / CUSA at a Glance) */
+    [data-theme="blackops"] .weather-card h4,
+    [data-theme="blackops"] .github-card h4,
+    [data-theme="blackops"] .cusa-widget h4 {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      color: var(--vex-text-muted);
+      letter-spacing: 0.18em;
+    }
+    [data-theme="blackops"] .weather-temp,
+    [data-theme="blackops"] .github-stat-value {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      color: var(--vex-accent);
+    }
+
+    /* Cards — solid navy, no backdrop blur, hover stays sharp */
+    [data-theme="blackops"] .shortcut-card,
+    [data-theme="blackops"] .tool-card,
+    [data-theme="blackops"] .weather-card,
+    [data-theme="blackops"] .github-card,
+    [data-theme="blackops"] .cusa-widget {
+      background: var(--vex-glass-strong);
+      border: 1px solid var(--vex-border-medium);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    [data-theme="blackops"] .shortcut-card:hover,
+    [data-theme="blackops"] .tool-card:hover {
+      background: var(--vex-glass-strong);
+      border-color: var(--vex-accent);
+      transform: none;
+    }
+    [data-theme="blackops"] .shortcut-card.add {
+      background: transparent;
+      border: 1px dashed var(--vex-border-strong, #2a4f7f);
+      color: var(--vex-text-muted);
+    }
+    [data-theme="blackops"] .shortcut-card.add:hover {
+      border-color: var(--vex-accent);
+      color: var(--vex-accent);
+      background: var(--vex-glass-strong);
+    }
+    [data-theme="blackops"] .shortcut-icon {
+      background: var(--vex-glass-input);
+      border-radius: var(--vex-radius-sm);
+    }
+    [data-theme="blackops"] .shortcut-label,
+    [data-theme="blackops"] .tool-card-name {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      letter-spacing: 0.02em;
+    }
+    [data-theme="blackops"] .tool-card-desc {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      color: var(--vex-text-muted);
+    }
+
+    /* Search bar — solid navy, gold focus border, no glow */
+    [data-theme="blackops"] .search-bar {
+      background: var(--vex-glass-strong);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border-radius: var(--vex-radius-sm);
+    }
+    [data-theme="blackops"] .search-bar:focus-within {
+      border-color: var(--vex-accent);
+      box-shadow: none;
+    }
+    [data-theme="blackops"] .search-container::before { display: none; }
+    [data-theme="blackops"] .search-bar input {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+    }
+
+    /* Recent / GH activity items */
+    [data-theme="blackops"] .recent-item,
+    [data-theme="blackops"] .gh-activity-item {
+      background: var(--vex-glass-light);
+      border: 1px solid var(--vex-border-medium);
+      backdrop-filter: none;
+    }
+    [data-theme="blackops"] .recent-item:hover,
+    [data-theme="blackops"] .gh-activity-item:hover {
+      border-color: var(--vex-accent);
+    }
+
+    /* CUSA button */
+    [data-theme="blackops"] .cusa-btn {
+      background: var(--vex-glass-strong);
+      border: 1px solid var(--vex-accent);
+      color: var(--vex-accent);
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      border-radius: var(--vex-radius-sm);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    [data-theme="blackops"] .cusa-btn:hover {
+      background: var(--vex-accent-dim);
+      color: var(--vex-accent);
+    }
+
+    /* Date text — already mono, just tighten letter-spacing */
+    [data-theme="blackops"] .date-text {
+      letter-spacing: 0.22em;
+      color: var(--vex-text-muted);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }

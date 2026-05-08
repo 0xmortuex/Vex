@@ -188,3 +188,301 @@
   background: var(--vex-bg-elevated);
   color: var(--vex-accent);
 }
+
+/* ── Major chrome — sharp 0px corners, no glass, no blur ─────────────────── */
+[data-theme="blackops"] #top-bar,
+[data-theme="blackops"] #icon-sidebar,
+[data-theme="blackops"] .top-tab-bar,
+[data-theme="blackops"] #tabs-sidebar {
+  border-radius: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: var(--vex-bg-deep);
+  border-color: var(--vex-border-subtle);
+}
+
+[data-theme="blackops"] #top-bar {
+  background: var(--vex-bg-base);
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid var(--vex-border-medium);
+}
+
+[data-theme="blackops"] #icon-sidebar {
+  margin: 0;
+  border: none;
+  border-right: 1px solid var(--vex-border-medium);
+}
+
+[data-theme="blackops"] .top-tab-bar {
+  background: var(--vex-bg-deep);
+  border-bottom: 1px solid var(--vex-border-medium);
+}
+
+/* ── Sidebar icons — subtle 2px corners, no transform on hover ───────────── */
+[data-theme="blackops"] .sidebar-icon,
+[data-theme="blackops"] .tool-icon {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--vex-text-muted);
+  border-radius: var(--vex-radius-sm);
+}
+
+[data-theme="blackops"] .sidebar-icon:hover,
+[data-theme="blackops"] .tool-icon:hover {
+  background: var(--vex-bg-elevated);
+  border-color: var(--vex-border-medium);
+  color: var(--vex-accent);
+  transform: none;
+}
+
+[data-theme="blackops"] .sidebar-icon.active,
+[data-theme="blackops"] .tool-icon.active {
+  background: var(--vex-bg-elevated);
+  border-color: var(--vex-accent);
+  color: var(--vex-accent);
+}
+
+[data-theme="blackops"] .sidebar-icon.active::before {
+  background: var(--vex-accent);
+  border-radius: 0;
+}
+
+[data-theme="blackops"] .tool-icon.tool-add-btn {
+  background: transparent;
+  border: 1px dashed var(--vex-border-strong);
+  color: var(--vex-text-muted);
+}
+
+[data-theme="blackops"] .tool-icon.tool-add-btn:hover {
+  border-color: var(--vex-accent);
+  color: var(--vex-accent);
+  background: var(--vex-bg-elevated);
+}
+
+/* ── Workspace switcher — kill the green dot, replace with gold ──────────── */
+[data-theme="blackops"] #workspace-btn {
+  background: var(--vex-bg-elevated);
+  border: 1px solid var(--vex-border-medium);
+  color: var(--vex-accent);
+  font-family: var(--vex-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[data-theme="blackops"] #workspace-btn:hover {
+  border-color: var(--vex-accent);
+  background: var(--vex-bg-elevated);
+}
+
+[data-theme="blackops"] #workspace-btn .ws-dot {
+  background: var(--vex-accent) !important;
+  border-radius: 0;
+  width: 6px;
+  height: 6px;
+}
+
+[data-theme="blackops"] .ws-item .ws-dot {
+  background: var(--vex-accent) !important;
+  border-radius: 0;
+}
+
+/* ── URL bar — solid navy, gold on focus ─────────────────────────────────── */
+[data-theme="blackops"] #url-bar {
+  background: var(--vex-bg-deep);
+  border: 1px solid var(--vex-border-medium);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme="blackops"] #url-bar:focus-within {
+  border-color: var(--vex-accent);
+  box-shadow: none;
+  outline: 1px solid var(--vex-accent);
+  outline-offset: 1px;
+}
+
+[data-theme="blackops"] #url-input::placeholder {
+  color: var(--vex-text-muted);
+}
+
+/* ── Nav buttons + window controls — sharp, gold-on-hover ────────────────── */
+[data-theme="blackops"] .nav-btn,
+[data-theme="blackops"] .win-btn {
+  border-radius: var(--vex-radius-sm);
+  color: var(--vex-text-muted);
+}
+
+[data-theme="blackops"] .nav-btn:hover,
+[data-theme="blackops"] .win-btn:hover {
+  background: var(--vex-bg-elevated);
+  color: var(--vex-accent);
+}
+
+[data-theme="blackops"] .win-btn-close:hover {
+  background: var(--vex-danger);
+  color: #fff;
+}
+
+/* ── New-tab + button (top tab bar) ──────────────────────────────────────── */
+[data-theme="blackops"] .new-tab-btn {
+  border-radius: var(--vex-radius-sm);
+  color: var(--vex-text-muted);
+}
+
+[data-theme="blackops"] .new-tab-btn:hover {
+  background: var(--vex-bg-elevated);
+  color: var(--vex-accent);
+  transform: none;
+}
+
+/* ── Top tabs — sharp top corners + solid navy, no glass ─────────────────── */
+[data-theme="blackops"] .top-tab {
+  background: var(--vex-bg-elevated);
+  border-radius: 0;
+  border: 1px solid var(--vex-border-subtle);
+  border-bottom: none;
+  font-family: var(--vex-font-mono);
+}
+
+[data-theme="blackops"] .top-tab:hover {
+  background: var(--vex-glass-tab-active);
+  border-color: var(--vex-border-medium);
+  color: var(--vex-accent);
+}
+
+/* ── Panels — header typography goes mono in blackops ───────────────────── */
+[data-theme="blackops"] .panel-header h2 {
+  font-family: var(--vex-font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vex-accent);
+  font-size: 18px;
+}
+
+[data-theme="blackops"] .panel-header {
+  border-bottom: 1px solid var(--vex-border-medium);
+}
+
+[data-theme="blackops"] .panel-section-title {
+  color: var(--vex-text-muted);
+  letter-spacing: 0.18em;
+}
+
+/* ── Panel cards / list items — solid navy, 3px corners ─────────────────── */
+[data-theme="blackops"] .panel-card,
+[data-theme="blackops"] .panel-list-item,
+[data-theme="blackops"] .panel-placeholder {
+  background: var(--vex-bg-elevated);
+  border: 1px solid var(--vex-border-medium);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: var(--vex-radius-md);
+}
+
+[data-theme="blackops"] .panel-card:hover,
+[data-theme="blackops"] .panel-list-item:hover {
+  background: var(--vex-bg-elevated);
+  border-color: var(--vex-accent);
+  transform: none;
+}
+
+[data-theme="blackops"] .panel-card-label,
+[data-theme="blackops"] .panel-list-item-title {
+  font-family: var(--vex-font-mono);
+}
+
+/* ── PiP button — navy, no indigo ───────────────────────────────────────── */
+[data-theme="blackops"] #pip-btn {
+  background: var(--vex-bg-elevated);
+  border: 1px solid var(--vex-accent);
+  color: var(--vex-accent);
+  border-radius: var(--vex-radius-sm);
+  backdrop-filter: none;
+  box-shadow: none;
+  font-family: var(--vex-font-mono);
+}
+
+[data-theme="blackops"] #pip-btn:hover {
+  background: var(--vex-glass-tab-active);
+  transform: none;
+}
+
+/* ── Tab context menu — solid navy, sharper ─────────────────────────────── */
+[data-theme="blackops"] .tab-context-menu {
+  background: var(--vex-bg-elevated);
+  border: 1px solid var(--vex-border-strong);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  border-radius: var(--vex-radius-md);
+}
+
+[data-theme="blackops"] .tab-context-item {
+  font-family: var(--vex-font-mono);
+  border-radius: var(--vex-radius-sm);
+}
+
+[data-theme="blackops"] .tab-context-item:hover {
+  background: var(--vex-glass-tab-active);
+  color: var(--vex-accent);
+}
+
+/* ── Settings panel — mono headers, solid surfaces ──────────────────────── */
+[data-theme="blackops"] .settings-content h2 {
+  font-family: var(--vex-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vex-accent);
+}
+
+[data-theme="blackops"] .setting-label {
+  font-family: var(--vex-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vex-text-muted);
+}
+
+/* ── Boot overlay seal glow — match new gold ────────────────────────────── */
+[data-theme="blackops"] #vex-boot-seal {
+  filter: drop-shadow(0 0 20px rgba(212, 175, 110, 0.5));
+}
+
+/* ── Focus states — sharp gold outline, no glow ─────────────────────────── */
+[data-theme="blackops"] *:focus-visible {
+  outline: 1px solid var(--vex-accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* ── Inputs / textareas / selects — solid navy, gold on focus ───────────── */
+[data-theme="blackops"] input[type="text"],
+[data-theme="blackops"] input[type="search"],
+[data-theme="blackops"] input[type="url"],
+[data-theme="blackops"] input[type="email"],
+[data-theme="blackops"] input[type="password"],
+[data-theme="blackops"] input[type="number"],
+[data-theme="blackops"] textarea,
+[data-theme="blackops"] select {
+  background: var(--vex-bg-deep);
+  border: 1px solid var(--vex-border-medium);
+  color: var(--vex-text-primary);
+  border-radius: var(--vex-radius-sm);
+  font-family: var(--vex-font-mono);
+}
+
+[data-theme="blackops"] input:focus,
+[data-theme="blackops"] textarea:focus,
+[data-theme="blackops"] select:focus {
+  border-color: var(--vex-accent);
+  outline: none;
+  box-shadow: none;
+}
+
+/* ── Buttons — flat navy with mono label ────────────────────────────────── */
+[data-theme="blackops"] button {
+  border-radius: var(--vex-radius-sm);
+  font-family: var(--vex-font-mono);
+}
