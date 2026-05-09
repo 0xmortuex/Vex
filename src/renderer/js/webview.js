@@ -150,9 +150,27 @@ const WebviewManager = {
       }
     });
 
-    // Context menu
+    // Context menu — capture host-viewport coords from the right-mousedown
+    // that precedes the Electron 'context-menu' event. Why not trust
+    // e.params.x/y from the context-menu event itself: those come from the
+    // GUEST renderer's view coordinates and are unreliable as host-viewport
+    // pixels under (a) page zoom — webview.setZoomFactor scales params.x/y
+    // but not the host-side getBoundingClientRect, so summing them double-
+    // counts the zoom; and (b) Windows display scaling (125%/150% DPI),
+    // which on Electron 30 + castlabs returns params.x/y in device pixels.
+    // mousedown's clientX/clientY are always host CSS pixels — exactly what
+    // `position: fixed` consumes. The listener is on the <webview> ELEMENT
+    // (host-doc), not inside the OOPIF, so the host receives the event
+    // before the guest takes focus on the first right-click.
+    let _lastRightClickViewportPos = null;
+    webview.addEventListener('mousedown', (ev) => {
+      if (ev.button === 2) {
+        _lastRightClickViewportPos = { x: ev.clientX, y: ev.clientY };
+      }
+    }, true);
     webview.addEventListener('context-menu', (e) => {
-      this.showContextMenu(e, webview);
+      this.showContextMenu(e, webview, _lastRightClickViewportPos);
+      _lastRightClickViewportPos = null;
     });
 
     container.appendChild(webview);
@@ -287,22 +305,31 @@ const WebviewManager = {
     if (wv) wv.stopFindInPage('clearSelection');
   },
 
-  showContextMenu(e, webview) {
+  showContextMenu(e, webview, viewportPos) {
     document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
 
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
-    // e.params.x/y are *webview-content-relative* (Chromium guest origin).
-    // The CSS positions us with `position: fixed`, so we need viewport coords.
-    // Translating via getBoundingClientRect makes this robust against sidebar
-    // collapse, horizontal-tabs being toggled, topbar height changes, etc.
-    // The previous hand-rolled `iconSidebar.offsetWidth + tabsSidebar.offsetWidth + 44`
-    // formula went stale every time any chrome layout shifted.
-    const wvRect = (typeof webview.getBoundingClientRect === 'function')
-      ? webview.getBoundingClientRect()
-      : { left: 0, top: 0 };
-    menu.style.left = (wvRect.left + (e.params.x || 0)) + 'px';
-    menu.style.top  = (wvRect.top  + (e.params.y || 0)) + 'px';
+    // Position priority:
+    //   1. viewportPos (clientX/clientY from the right-mousedown the host
+    //      observed) — guaranteed host-viewport CSS pixels, immune to page
+    //      zoom and Windows display scaling that distort e.params.x/y.
+    //   2. Fallback: webview rect + e.params.x/y. Graceful degradation if
+    //      the host never saw the mousedown (rare — mainly when the guest
+    //      has stolen focus before mousedown propagates).
+    let mx, my;
+    if (viewportPos && Number.isFinite(viewportPos.x) && Number.isFinite(viewportPos.y)) {
+      mx = viewportPos.x;
+      my = viewportPos.y;
+    } else {
+      const wvRect = (typeof webview.getBoundingClientRect === 'function')
+        ? webview.getBoundingClientRect()
+        : { left: 0, top: 0 };
+      mx = wvRect.left + (e.params.x || 0);
+      my = wvRect.top  + (e.params.y || 0);
+    }
+    menu.style.left = mx + 'px';
+    menu.style.top  = my + 'px';
 
     const items = [
       { label: 'Back', action: () => webview.goBack(), disabled: !webview.canGoBack() },
@@ -381,15 +408,31 @@ const WebviewManager = {
     }
 
     // Inspect Element — always last, mirrors Chrome's right-click menu.
-    // inspectElement takes the click point in webview-content coords (the
-    // same x/y Chromium gave us in e.params), opens DevTools attached to the
-    // guest webContents, and selects the element under the cursor.
+    // Routes through the same vexDevTools IPC that powers Ctrl+Shift+J +
+    // F12, which calls wc.openDevTools({ mode: 'detach' }) from the main
+    // process. The previous attempt called <webview>.inspectElement(x, y)
+    // directly; on Electron 30 + castlabs that returns void without ever
+    // surfacing the DevTools window — silent failure, no exception to
+    // catch. Going via the proven IPC path means if Ctrl+Shift+J works,
+    // this works. We lose the "select element under cursor" affordance,
+    // but DevTools opening at all is the actual fix the user needs.
     items.push({ sep: true });
     items.push({
       label: 'Inspect Element',
       action: () => {
-        try { webview.inspectElement(e.params.x, e.params.y); } catch (err) {
-          console.error('[Vex] inspectElement failed:', err);
+        try {
+          const id = typeof webview.getWebContentsId === 'function' ? webview.getWebContentsId() : null;
+          if (id != null && window.vexDevTools?.openForWebContents) {
+            window.vexDevTools.openForWebContents(id).catch(err => {
+              console.error('[Vex] Inspect Element IPC failed:', err);
+            });
+          } else if (typeof webview.openDevTools === 'function') {
+            webview.openDevTools();
+          } else {
+            console.warn('[Vex] Inspect Element: no DevTools API available on this webview');
+          }
+        } catch (err) {
+          console.error('[Vex] Inspect Element error:', err);
         }
       }
     });
