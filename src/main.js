@@ -1073,6 +1073,33 @@ app.whenReady().then(() => {
     w.webContents.openDevTools({ mode: 'detach' });
   });
 
+  // Ctrl+Shift+J: toggle DevTools (detached) for whatever webContents is
+  // currently focused. Lives in main as a globalShortcut because the previous
+  // renderer-side `document.addEventListener('keydown', ...)` listener never
+  // fired when the user was browsing inside a tab — keydown events inside a
+  // <webview> guest renderer don't bubble to the host doc's listener (same
+  // OOPIF-event-isolation reason F12 lives here too, see line 643). Gating
+  // on `getFocusedWindow() === mainWindow` keeps this from firing when Vex
+  // isn't focused; getFocusedWebContents walks the focus chain across guest
+  // views and gives us the panel-or-tab webContents the user expects.
+  globalShortcut.register('CommandOrControl+Shift+J', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win || win !== mainWindow) {
+      console.log('[Vex DT] Ctrl+Shift+J ignored (Vex window not focused)');
+      return;
+    }
+    let target = null;
+    try { target = webContents.getFocusedWebContents?.(); } catch {}
+    if (!target || target.isDestroyed()) target = win.webContents;
+    console.log('[Vex DT] Ctrl+Shift+J — target id:', target.id, 'url:', (() => { try { return target.getURL(); } catch { return '?'; } })());
+    try {
+      if (target.isDevToolsOpened()) target.closeDevTools();
+      else target.openDevTools({ mode: 'detach' });
+    } catch (err) {
+      console.error('[Vex DT] Ctrl+Shift+J openDevTools error:', err);
+    }
+  });
+
   protocol.handle('vex', (request) => {
     const reqUrl = request.url;
 
@@ -1383,23 +1410,52 @@ ipcMain.handle('devtools:toggle-webview', async (_e, webContentsId) => {
   }
 });
 
-// Panel DevTools (Ctrl+Shift+J) — open DevTools in a detached window for the
-// currently active sidebar panel's webview (Gmail, Claude, WhatsApp). Uses
-// 'detach' so the DevTools don't get clipped inside the small panel frame.
-ipcMain.handle('devtools:open-for-webcontents', async (_e, webContentsId) => {
+// Open DevTools (detached) for a specific webContents. Two-strategy lookup:
+//   1. webContents.fromId(webContentsId) — fast path. Used by sidebar panels
+//      whose webviews have been mounted long enough that getWebContentsId
+//      returns a real integer.
+//   2. URL match across getAllWebContents() — fallback for the Inspect
+//      Element case, where <webview>.getWebContentsId() can return -1 if
+//      the guestInstance isn't fully attached. -1 != null in JS, so the
+//      renderer's gate let it through; fromId(-1) returns null and the
+//      previous handler silently failed without ever telling the renderer.
+//      The `fallbackUrl` argument lets the caller hand in webview.getURL()
+//      so we can find the right guest by URL when the ID lookup fails.
+ipcMain.handle('devtools:open-for-webcontents', async (_e, webContentsId, fallbackUrl) => {
+  console.log('[Vex DT] open-for-webcontents id:', webContentsId, 'fallbackUrl:', fallbackUrl);
+  let wc = null;
   try {
-    const wc = typeof webContentsId === 'number' ? webContents.fromId(webContentsId) : null;
-    if (!wc || wc.isDestroyed()) {
-      return { ok: false, error: 'webContents not found' };
+    if (typeof webContentsId === 'number' && webContentsId > 0) {
+      wc = webContents.fromId(webContentsId);
+      if (wc && wc.isDestroyed()) wc = null;
+      console.log('[Vex DT]   fromId(', webContentsId, ') →', wc ? 'wc#' + wc.id : 'null');
+    } else {
+      console.log('[Vex DT]   skipping fromId (id is', webContentsId, ')');
     }
+  } catch (err) {
+    console.error('[Vex DT]   fromId error:', err);
+  }
+  if (!wc && typeof fallbackUrl === 'string' && fallbackUrl) {
+    const all = webContents.getAllWebContents();
+    wc = all.find(c => !c.isDestroyed() && c.getURL() === fallbackUrl) || null;
+    console.log('[Vex DT]   URL fallback over', all.length, 'webContents →', wc ? 'wc#' + wc.id : 'null');
+  }
+  if (!wc) {
+    console.error('[Vex DT]   no target webContents found');
+    return { ok: false, error: 'webContents not found', requestedId: webContentsId };
+  }
+  try {
     if (wc.isDevToolsOpened()) {
       wc.closeDevTools();
+      console.log('[Vex DT]   closed DevTools for wc#' + wc.id);
     } else {
       wc.openDevTools({ mode: 'detach' });
+      console.log('[Vex DT]   opened DevTools for wc#' + wc.id);
     }
-    return { ok: true };
+    return { ok: true, id: wc.id };
   } catch (err) {
-    return { ok: false, error: err.message };
+    console.error('[Vex DT]   openDevTools error:', err);
+    return { ok: false, error: err.message, id: wc.id };
   }
 });
 

@@ -407,33 +407,36 @@ const WebviewManager = {
       });
     }
 
-    // Inspect Element — always last, mirrors Chrome's right-click menu.
-    // Routes through the same vexDevTools IPC that powers Ctrl+Shift+J +
-    // F12, which calls wc.openDevTools({ mode: 'detach' }) from the main
-    // process. The previous attempt called <webview>.inspectElement(x, y)
-    // directly; on Electron 30 + castlabs that returns void without ever
-    // surfacing the DevTools window — silent failure, no exception to
-    // catch. Going via the proven IPC path means if Ctrl+Shift+J works,
-    // this works. We lose the "select element under cursor" affordance,
-    // but DevTools opening at all is the actual fix the user needs.
+    // Inspect Element — opens DevTools detached for the right-clicked tab's
+    // webContents. Round 5 silently failed because <webview>.getWebContentsId()
+    // returns -1 when the guestInstance isn't fully attached yet, and our
+    // gate `if (id != null)` let -1 through (only filters null/undefined).
+    // Main then called webContents.fromId(-1), got null, returned a resolved
+    // failure that the renderer's .catch() never saw — silent dead end.
+    //
+    // Fix: pass webview.getURL() as the IPC's fallback argument so main can
+    // walk getAllWebContents() and find the right guest by URL when the ID
+    // lookup fails. Also log the awaited result so future silent failures
+    // surface in the host renderer's DevTools console.
     items.push({ sep: true });
     items.push({
       label: 'Inspect Element',
       action: () => {
-        try {
-          const id = typeof webview.getWebContentsId === 'function' ? webview.getWebContentsId() : null;
-          if (id != null && window.vexDevTools?.openForWebContents) {
-            window.vexDevTools.openForWebContents(id).catch(err => {
-              console.error('[Vex] Inspect Element IPC failed:', err);
-            });
-          } else if (typeof webview.openDevTools === 'function') {
-            webview.openDevTools();
-          } else {
-            console.warn('[Vex] Inspect Element: no DevTools API available on this webview');
-          }
-        } catch (err) {
-          console.error('[Vex] Inspect Element error:', err);
+        const id  = (typeof webview.getWebContentsId === 'function') ? webview.getWebContentsId() : null;
+        const url = (typeof webview.getURL === 'function') ? webview.getURL() : null;
+        console.log('[Vex Inspect] click — id:', id, 'url:', url);
+        if (!window.vexDevTools?.openForWebContents) {
+          console.warn('[Vex Inspect] vexDevTools.openForWebContents not available');
+          return;
         }
+        window.vexDevTools.openForWebContents(id, url).then(result => {
+          console.log('[Vex Inspect] IPC result:', result);
+          if (!result?.ok) {
+            console.warn('[Vex Inspect] DevTools did not open. Error:', result?.error);
+          }
+        }).catch(err => {
+          console.error('[Vex Inspect] IPC threw:', err);
+        });
       }
     });
 

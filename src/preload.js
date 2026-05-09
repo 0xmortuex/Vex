@@ -148,8 +148,11 @@ contextBridge.exposeInMainWorld('vexDevTools', {
   onToggleRequest: (cb) => ipcRenderer.on('devtools:toggle-request', () => cb()),
   // Renderer calls this to toggle DevTools on a specific tab (by webContentsId)
   toggleWebview: (webContentsId) => ipcRenderer.invoke('devtools:toggle-webview', webContentsId),
-  // Ctrl+Shift+J — open DevTools for the active panel's webview in a detached window
-  openForWebContents: (webContentsId) => ipcRenderer.invoke('devtools:open-for-webcontents', webContentsId),
+  // Open DevTools (detached) for a target webContents. Pass the URL as the
+  // optional second argument so main can fall back to URL-matching across
+  // all live webContents when getWebContentsId() returned -1 (the silent-
+  // failure case for Inspect Element on a freshly-attached <webview>).
+  openForWebContents: (webContentsId, fallbackUrl) => ipcRenderer.invoke('devtools:open-for-webcontents', webContentsId, fallbackUrl),
   // Legacy callback support (kept for compatibility, but not used)
   onToggle: (cb) => ipcRenderer.on('devtools:toggle', () => cb()),
 });

@@ -81,51 +81,13 @@ const SidebarManager = {
       });
     });
 
-    // Ctrl+Shift+J — open DevTools for whatever's in front:
-    //   • If a side panel is open (Gmail, Claude, WhatsApp), target its
-    //     embedded webview.
-    //   • Otherwise fall through to the active tab's webview, matching
-    //     Chrome's Ctrl+Shift+J for normal browsing.
-    // Ctrl+Shift+I is the tab-DevTools chord routed via main.js + IPC; this
-    // local listener handles J directly so panel DevTools work even when no
-    // tab is focused, and so the renderer-side fallback for tab DevTools
-    // doesn't depend on the main-process before-input-event roundtrip firing.
-    document.addEventListener('keydown', (e) => {
-      if (!(e.ctrlKey && e.shiftKey && (e.key === 'J' || e.key === 'j'))) return;
-      e.preventDefault();
-
-      const name = this.activePanel;
-      let wv = null;
-      let label = '';
-      if (name && this.panelWebviews[name]) {
-        wv = this.panelWebviews[name];
-        label = 'panel ' + name;
-      } else if (typeof WebviewManager !== 'undefined') {
-        wv = (typeof WebviewManager.getActiveWebview === 'function')
-          ? WebviewManager.getActiveWebview()
-          : null;
-        label = 'active tab';
-      }
-      if (!wv) {
-        console.warn('[Vex] Ctrl+Shift+J: no active panel or tab webview to inspect');
-        return;
-      }
-
-      try {
-        const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
-        if (id != null && window.vexDevTools?.openForWebContents) {
-          window.vexDevTools.openForWebContents(id).catch(err => {
-            console.error('[Vex] DevTools IPC failed (' + label + '):', err);
-          });
-        } else if (typeof wv.openDevTools === 'function') {
-          wv.openDevTools();
-        } else {
-          console.warn('[Vex] DevTools unavailable for:', label);
-        }
-      } catch (err) {
-        console.error('[Vex] DevTools error (' + label + '):', err);
-      }
-    });
+    // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
+    // openDevTools on webContents.getFocusedWebContents(). The previous
+    // renderer-side `document.addEventListener('keydown', ...)` listener
+    // never fired for normal tabs because keydown events inside a guest
+    // <webview> (OOPIF) don't bubble to the host doc. Moving to main fixes
+    // that — and using getFocusedWebContents naturally routes to the right
+    // target whether the user has a panel or a tab in front.
   },
 
   openStartPage() {
@@ -292,14 +254,15 @@ const SidebarManager = {
             this.showPanel(panelName);
             return;
           }
-          try {
-            const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
-            if (id != null && window.vexDevTools?.openForWebContents) {
-              window.vexDevTools.openForWebContents(id).catch(err => console.error('[Sidebar] DevTools IPC failed:', err));
-            } else if (typeof wv.openDevTools === 'function') {
-              wv.openDevTools();
-            }
-          } catch (err) { console.error('[Sidebar] DevTools error:', err); }
+          const id  = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
+          const url = typeof wv.getURL === 'function' ? wv.getURL() : null;
+          if (window.vexDevTools?.openForWebContents) {
+            window.vexDevTools.openForWebContents(id, url).then(r => {
+              if (!r?.ok) console.warn('[Sidebar] DevTools failed for ' + panelName + ':', r);
+            }).catch(err => console.error('[Sidebar] DevTools IPC failed:', err));
+          } else if (typeof wv.openDevTools === 'function') {
+            try { wv.openDevTools(); } catch (err) { console.error('[Sidebar] wv.openDevTools error:', err); }
+          }
         }
       }
     ];
