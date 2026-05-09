@@ -1117,36 +1117,54 @@ const TabManager = {
     });
   },
 
-  // Shared dismissal wiring for any context menu we open. Listens on capture
-  // phase so child handlers calling stopPropagation() (the tab close button
-  // does this) can't swallow the close. Also handles right-click to relocate
-  // and Escape to dismiss.
+  // Shared dismissal wiring for any context menu we open.
+  //
+  // Why an overlay instead of document listeners: events inside a <webview>
+  // (Chromium OOPIF guest) do NOT bubble to the host document. The previous
+  // approach added document-level mousedown/click/contextmenu listeners on
+  // the assumption that "mousedown on the webview ELEMENT itself does fire
+  // here when the element receives focus." That assumption was wrong in
+  // practice — Electron's webContentsView swallows the host-side mousedown
+  // before it reaches our capture-phase listener, so the first outside-click
+  // was missed entirely and the user had to click twice (round 1 fix did
+  // not actually solve the bug).
+  //
+  // The overlay is a transparent fixed-position div sitting just below the
+  // menu in z-stack. It covers the entire viewport, so any click outside the
+  // menu lands on the overlay (a host-doc element) and dismisses cleanly on
+  // the very first press. This matches Chrome's own context-menu behavior:
+  // first click dismisses the menu, second click acts on the page.
   _attachMenuDismissal(menu) {
-    const close = () => {
+    const overlay = document.createElement('div');
+    overlay.className = 'context-menu-overlay';
+    // z-index 999 sits exactly one below .tab-context-menu's 1000, so the
+    // menu paints on top of the overlay while the overlay catches every
+    // outside click — including those that would otherwise be eaten by a
+    // <webview> guest.
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:transparent;';
+
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    function close() {
+      overlay.remove();
       menu.remove();
-      document.removeEventListener('mousedown', onDocDown, true);
-      document.removeEventListener('click', onDocClick, true);
-      document.removeEventListener('contextmenu', onDocCtx, true);
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', close, true);
-    };
-    // mousedown fires BEFORE click and isn't swallowed by webview internals
-    // the way click sometimes is (clicks inside a guest webview don't bubble
-    // to the host document, but mousedown on the webview ELEMENT itself does
-    // fire here when the element receives focus). This is the key fix for
-    // "have to click twice to dismiss" — the second click was actually the
-    // first one Vex's host doc ever saw.
-    const onDocDown  = (ev) => { if (!menu.contains(ev.target)) close(); };
-    const onDocClick = (ev) => { if (!menu.contains(ev.target)) close(); };
-    const onDocCtx   = (ev) => { if (!menu.contains(ev.target)) close(); };
-    const onKey      = (ev) => { if (ev.key === 'Escape') close(); };
-    setTimeout(() => {
-      document.addEventListener('mousedown', onDocDown, true);
-      document.addEventListener('click', onDocClick, true);
-      document.addEventListener('contextmenu', onDocCtx, true);
-      document.addEventListener('keydown', onKey, true);
-      window.addEventListener('blur', close, true);
-    }, 0);
+    }
+
+    // mousedown (not click) so we close BEFORE the user releases — feels
+    // instant and avoids any race with click handlers fired afterward.
+    overlay.addEventListener('mousedown', () => close(), true);
+    // Right-click on the overlay closes the current menu; the underlying
+    // contextmenu event on the webview will then re-open a fresh menu at
+    // the new position, so chained right-clicks don't stack.
+    overlay.addEventListener('contextmenu', () => close(), true);
+
+    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('blur', close, true);
+
+    // Insert overlay before menu in DOM order so the menu (z:1000) wins over
+    // the overlay (z:999) at hit-test time even before paint reorders.
+    document.body.insertBefore(overlay, menu);
   },
 
   // Clamp menu inside the viewport. Call on rAF after the menu is in the DOM

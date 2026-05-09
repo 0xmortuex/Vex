@@ -292,9 +292,17 @@ const WebviewManager = {
 
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
-    menu.style.left = e.params.x + document.getElementById('icon-sidebar').offsetWidth +
-                      document.getElementById('tabs-sidebar').offsetWidth + 'px';
-    menu.style.top = (e.params.y + 44) + 'px';
+    // e.params.x/y are *webview-content-relative* (Chromium guest origin).
+    // The CSS positions us with `position: fixed`, so we need viewport coords.
+    // Translating via getBoundingClientRect makes this robust against sidebar
+    // collapse, horizontal-tabs being toggled, topbar height changes, etc.
+    // The previous hand-rolled `iconSidebar.offsetWidth + tabsSidebar.offsetWidth + 44`
+    // formula went stale every time any chrome layout shifted.
+    const wvRect = (typeof webview.getBoundingClientRect === 'function')
+      ? webview.getBoundingClientRect()
+      : { left: 0, top: 0 };
+    menu.style.left = (wvRect.left + (e.params.x || 0)) + 'px';
+    menu.style.top  = (wvRect.top  + (e.params.y || 0)) + 'px';
 
     const items = [
       { label: 'Back', action: () => webview.goBack(), disabled: !webview.canGoBack() },
@@ -371,6 +379,20 @@ const WebviewManager = {
         }
       });
     }
+
+    // Inspect Element — always last, mirrors Chrome's right-click menu.
+    // inspectElement takes the click point in webview-content coords (the
+    // same x/y Chromium gave us in e.params), opens DevTools attached to the
+    // guest webContents, and selects the element under the cursor.
+    items.push({ sep: true });
+    items.push({
+      label: 'Inspect Element',
+      action: () => {
+        try { webview.inspectElement(e.params.x, e.params.y); } catch (err) {
+          console.error('[Vex] inspectElement failed:', err);
+        }
+      }
+    });
 
     items.forEach(item => {
       if (item.sep) {

@@ -81,30 +81,49 @@ const SidebarManager = {
       });
     });
 
-    // Ctrl+Shift+J — open DevTools for the active panel's embedded webview
-    // (Gmail, Claude, WhatsApp). Ctrl+Shift+I is taken by the tab DevTools
-    // shortcut from earlier work, so a separate chord keeps panel DevTools
-    // distinct from tab DevTools.
+    // Ctrl+Shift+J — open DevTools for whatever's in front:
+    //   • If a side panel is open (Gmail, Claude, WhatsApp), target its
+    //     embedded webview.
+    //   • Otherwise fall through to the active tab's webview, matching
+    //     Chrome's Ctrl+Shift+J for normal browsing.
+    // Ctrl+Shift+I is the tab-DevTools chord routed via main.js + IPC; this
+    // local listener handles J directly so panel DevTools work even when no
+    // tab is focused, and so the renderer-side fallback for tab DevTools
+    // doesn't depend on the main-process before-input-event roundtrip firing.
     document.addEventListener('keydown', (e) => {
       if (!(e.ctrlKey && e.shiftKey && (e.key === 'J' || e.key === 'j'))) return;
-      const name = this.activePanel;
-      if (!name) return;
-      const wv = this.panelWebviews[name];
-      if (!wv) return;
       e.preventDefault();
+
+      const name = this.activePanel;
+      let wv = null;
+      let label = '';
+      if (name && this.panelWebviews[name]) {
+        wv = this.panelWebviews[name];
+        label = 'panel ' + name;
+      } else if (typeof WebviewManager !== 'undefined') {
+        wv = (typeof WebviewManager.getActiveWebview === 'function')
+          ? WebviewManager.getActiveWebview()
+          : null;
+        label = 'active tab';
+      }
+      if (!wv) {
+        console.warn('[Vex] Ctrl+Shift+J: no active panel or tab webview to inspect');
+        return;
+      }
+
       try {
         const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
         if (id != null && window.vexDevTools?.openForWebContents) {
           window.vexDevTools.openForWebContents(id).catch(err => {
-            console.error('[Vex] panel DevTools IPC failed:', err);
+            console.error('[Vex] DevTools IPC failed (' + label + '):', err);
           });
         } else if (typeof wv.openDevTools === 'function') {
           wv.openDevTools();
         } else {
-          console.warn('[Vex] panel DevTools unavailable for:', name);
+          console.warn('[Vex] DevTools unavailable for:', label);
         }
       } catch (err) {
-        console.error('[Vex] panel DevTools error:', err);
+        console.error('[Vex] DevTools error (' + label + '):', err);
       }
     });
   },
