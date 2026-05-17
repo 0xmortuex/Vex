@@ -122,6 +122,9 @@ contextBridge.exposeInMainWorld('vex', {
   getChromeVersion: () => process.versions.chrome,
   getNodeVersion: () => process.versions.node,
 
+  // Local sidebar config (userData/sidebar-config.json) — personalized tool URLs
+  getSidebarConfig: () => ipcRenderer.invoke('sidebar-config:get'),
+
   // Persistent storage (survives reinstalls — backs the localStorage shim)
   persistGetAll: () => ipcRenderer.invoke('persist-get-all'),
   persistSet: (key, value) => ipcRenderer.invoke('persist-set', key, value),

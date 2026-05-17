@@ -18,6 +18,7 @@ const { shouldBlock } = require('./adblocker');
 const { createPipWindow, closePipWindow } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
+const { registerSidebarConfigIpc } = require('./sidebar-config');
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
 console.log('[Vex URL] ====== Vex process boot ======');
@@ -151,6 +152,10 @@ app.on('open-url', (event, url) => {
 
 // Storage helpers
 const userDataPath = app.getPath('userData');
+
+// Local sidebar config (userData/sidebar-config.json) — lets the renderer
+// fetch personalized tool URLs that must stay out of the public repo.
+registerSidebarConfigIpc(ipcMain, userDataPath);
 
 // === Download tracking helper (hoisted so private-window sessions can reuse it) ===
 function _broadcastDownloadEvent(channel, data) {

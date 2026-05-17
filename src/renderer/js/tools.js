@@ -13,7 +13,7 @@ const VexTools = {
     { id: 'billforge', name: 'BillForge', url: 'https://0xmortuex.github.io/BillForge/', desc: 'Legislative bill drafting tool', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9"/><path d="M18 9.5a4 4 0 0 0-5.5-5.5L9 7.5"/><path d="M14.5 5.5L18 2l4 4-3.5 3.5"/></svg>' }
   ],
 
-  init() {
+  async init() {
     const saved = localStorage.getItem(this.STORAGE_KEY);
     if (saved) { try { this.tools = JSON.parse(saved); } catch {} }
     if (this.tools.length === 0) this.tools = [...this.defaultTools];
@@ -49,7 +49,35 @@ const VexTools = {
     this.tools = this.tools.filter(t => !stale.includes(t.id));
     if (this.tools.length !== before) migrated = true;
     if (migrated) this.save();
+    await this.applySidebarConfig();
     this.renderToolsBar();
+  },
+
+  // Point the AI News tool at the URL from the local sidebar config
+  // (userData/sidebar-config.json, fetched over IPC). This keeps a
+  // personalized URL — which carries a secret `personalize` query param —
+  // out of this public repo and out of localStorage. Falls back to the
+  // public tracker URL if the config is missing or the IPC call fails.
+  async applySidebarConfig() {
+    const ainewsDefault = this.defaultTools.find(t => t.id === 'ainews');
+    const publicUrl =
+      (ainewsDefault && ainewsDefault.url) || 'https://0xmortuex.github.io/ai-news-tracker/';
+    let aiNewsUrl = publicUrl;
+    try {
+      if (typeof window !== 'undefined' && window.vex &&
+          typeof window.vex.getSidebarConfig === 'function') {
+        const cfg = await window.vex.getSidebarConfig();
+        if (cfg && typeof cfg.aiNewsUrl === 'string' && cfg.aiNewsUrl.trim()) {
+          aiNewsUrl = cfg.aiNewsUrl.trim();
+        }
+      }
+    } catch (err) {
+      console.warn('[tools] sidebar-config fetch failed, using public AI News URL:',
+        err && err.message);
+    }
+    const ainews = this.tools.find(t => t.id === 'ainews');
+    if (ainews) ainews.url = aiNewsUrl;
+    return aiNewsUrl;
   },
 
   save() {
@@ -212,3 +240,6 @@ const VexTools = {
 
   _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 };
+
+if (typeof window !== 'undefined') window.VexTools = VexTools;
+if (typeof module !== 'undefined' && module.exports) module.exports = VexTools;

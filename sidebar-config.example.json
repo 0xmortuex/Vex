@@ -1,0 +1,4 @@
+{
+  "_comment": "LOCAL sidebar config for Vex. Copy this file to your Vex userData folder as 'sidebar-config.json' (Windows: %APPDATA%\\Vex\\sidebar-config.json) and set aiNewsUrl to your personalized AI News Tracker URL. The 'personalize' query parameter is a SECRET — never commit it. sidebar-config.json is gitignored; this .example file is safe to commit. The '_comment' key is ignored by the loader.",
+  "aiNewsUrl": "https://0xmortuex.github.io/ai-news-tracker/"
+}

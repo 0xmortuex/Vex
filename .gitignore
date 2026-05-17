@@ -12,3 +12,8 @@ assets/icons/
 
 # Theme assets that may have IP concerns — never commit, even on accidental `git add .`
 assets/cia-seal.png
+
+# Local sidebar config — may carry a personalized URL with a secret query
+# param. Lives in <userData>/sidebar-config.json; copy sidebar-config.example.json
+# to set it up. The bare name matches the file at any depth (incl. repo root).
+sidebar-config.json
