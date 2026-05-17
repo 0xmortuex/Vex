@@ -33,13 +33,14 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'themes', 'schedules'],
+  customPanels: ['settings', 'cusa', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'themes', 'schedules', 'queue'],
 
   panelConfigs: {
     start: { url: null, partition: null },
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
     spotify: { url: 'https://open.spotify.com/', partition: 'persist:spotify' },
+    queue: { url: null, partition: null },
     settings: { url: null, partition: null },
     cusa: { url: null, partition: null },
     roblox: { url: null, partition: null },
@@ -143,6 +144,7 @@ const SidebarManager = {
     if (panelName === 'schedules') SchedulesPanel.init();
     if (panelName === 'shortcuts') ShortcutsPanel.init();
     if (panelName === 'themes') ThemeEditor.init();
+    if (panelName === 'queue') QueuePanel.init();
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');

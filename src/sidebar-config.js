@@ -13,8 +13,12 @@ const path = require('path');
 const CONFIG_FILENAME = 'sidebar-config.json';
 
 // Public, secret-free defaults — safe to ship in the repo.
+// queueUrl/queueSecret default to '' — there is no public queue; an empty
+// value signals "not configured" and the Queue panel shows a setup hint.
 const DEFAULTS = Object.freeze({
   aiNewsUrl: 'https://0xmortuex.github.io/ai-news-tracker/',
+  queueUrl: '',
+  queueSecret: '',
 });
 
 /**
@@ -23,7 +27,8 @@ const DEFAULTS = Object.freeze({
  * -> defaults (error logged). Unknown keys (e.g. "_comment") are ignored.
  *
  * @param {string} userDataPath  typically app.getPath('userData')
- * @returns {{aiNewsUrl: string}} always a complete config object
+ * @returns {{aiNewsUrl: string, queueUrl: string, queueSecret: string}}
+ *          always a complete config object
  */
 function loadSidebarConfig(userDataPath) {
   const file = path.join(userDataPath || '', CONFIG_FILENAME);
@@ -52,6 +57,12 @@ function loadSidebarConfig(userDataPath) {
   const merged = { ...DEFAULTS };
   if (typeof parsed.aiNewsUrl === 'string' && parsed.aiNewsUrl.trim()) {
     merged.aiNewsUrl = parsed.aiNewsUrl.trim();
+  }
+  if (typeof parsed.queueUrl === 'string' && parsed.queueUrl.trim()) {
+    merged.queueUrl = parsed.queueUrl.trim();
+  }
+  if (typeof parsed.queueSecret === 'string' && parsed.queueSecret.trim()) {
+    merged.queueSecret = parsed.queueSecret.trim();
   }
   return merged;
 }

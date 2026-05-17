@@ -56,3 +56,48 @@ describe('loadSidebarConfig', () => {
     expect(errSpy).toHaveBeenCalled();
   });
 });
+
+describe('loadSidebarConfig — queue panel fields', () => {
+  it('defaults queueUrl and queueSecret to empty strings', () => {
+    expect(DEFAULTS.queueUrl).toBe('');
+    expect(DEFAULTS.queueSecret).toBe('');
+    const cfg = loadSidebarConfig(tmpUserData());
+    expect(cfg.queueUrl).toBe('');
+    expect(cfg.queueSecret).toBe('');
+  });
+
+  it('reads queueUrl and queueSecret from the config file', () => {
+    const dir = tmpUserData();
+    writeConfig(dir, JSON.stringify({
+      queueUrl: 'https://queue-bot.mortuexhavoc.workers.dev',
+      queueSecret: 'db5a628e-secret',
+    }));
+    const cfg = loadSidebarConfig(dir);
+    expect(cfg.queueUrl).toBe('https://queue-bot.mortuexhavoc.workers.dev');
+    expect(cfg.queueSecret).toBe('db5a628e-secret');
+  });
+
+  it('trims surrounding whitespace on queue fields', () => {
+    const dir = tmpUserData();
+    writeConfig(dir, JSON.stringify({ queueUrl: '  https://q/  ', queueSecret: ' s ' }));
+    const cfg = loadSidebarConfig(dir);
+    expect(cfg.queueUrl).toBe('https://q/');
+    expect(cfg.queueSecret).toBe('s');
+  });
+
+  it('blank / non-string queue fields fall back to the empty default', () => {
+    const dir = tmpUserData();
+    writeConfig(dir, JSON.stringify({ queueUrl: '   ', queueSecret: 123 }));
+    const cfg = loadSidebarConfig(dir);
+    expect(cfg.queueUrl).toBe('');
+    expect(cfg.queueSecret).toBe('');
+  });
+
+  it('queue fields are independent of aiNewsUrl', () => {
+    const dir = tmpUserData();
+    writeConfig(dir, JSON.stringify({ queueUrl: 'https://q/', queueSecret: 's' }));
+    const cfg = loadSidebarConfig(dir);
+    expect(cfg.aiNewsUrl).toBe(DEFAULTS.aiNewsUrl);
+    expect(cfg.queueUrl).toBe('https://q/');
+  });
+});
