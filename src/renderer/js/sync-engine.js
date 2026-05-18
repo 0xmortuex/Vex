@@ -6,6 +6,14 @@
 const SyncEngine = (() => {
   const SYNC_WORKER_URL = 'https://vex-sync.mortuexhavoc.workers.dev';
 
+  // Phase 4g cloud sync is deferred indefinitely. The vex-sync Cloudflare
+  // worker was deleted during KV-quota cleanup, so every push/pull now 404s
+  // on a timer — console spam, and the cause of yesterday's KV-quota blowout
+  // (12,040 writes/month). Hard kill-switch: flip to true only when Phase 4g
+  // revives the worker. The auth/enroll/code functions are left intact (they
+  // only run on explicit user action in Sync settings, never on a timer).
+  const SYNC_ENGINE_ENABLED = false;
+
   // Keys in localStorage that should be synced across devices.
   const SYNC_KEYS = [
     'vex.tabs', 'vex.sessions', 'vex.workspaces', 'vex.shortcuts', 'vex.tools',
@@ -186,6 +194,10 @@ const SyncEngine = (() => {
   // ===== PUSH/PULL =====
 
   async function pushNow() {
+    if (!SYNC_ENGINE_ENABLED) {
+      console.log('[Sync] disabled (Phase 4g deferred) — exiting pushNow');
+      return { ok: false, reason: 'sync-disabled' };
+    }
     if (!state.enabled || state.syncing) return { ok: false, reason: 'not-ready' };
     state.syncing = true;
     try {
@@ -215,6 +227,10 @@ const SyncEngine = (() => {
   }
 
   async function pullNow() {
+    if (!SYNC_ENGINE_ENABLED) {
+      console.log('[Sync] disabled (Phase 4g deferred) — exiting pullNow');
+      return { ok: false, reason: 'sync-disabled' };
+    }
     if (!state.enabled || state.syncing) return { ok: false, reason: 'not-ready' };
     state.syncing = true;
     try {
@@ -256,6 +272,10 @@ const SyncEngine = (() => {
 
   function startAutoSync() {
     stopAutoSync();
+    if (!SYNC_ENGINE_ENABLED) {
+      console.log('[Sync] disabled (Phase 4g deferred) — exiting; no push/pull timers started');
+      return;
+    }
     pushTimer = setInterval(() => pushNow(), 2 * 60 * 1000);
     pullTimer = setInterval(() => pullNow(), 5 * 60 * 1000);
   }
