@@ -149,3 +149,37 @@ describe('showContextMenu — no misspelled word', () => {
     expect(labels).not.toContain('No suggestions');
   });
 });
+
+// ===========================================================================
+// Menu position — regression: params.x/y are already host-viewport coords
+//
+// The 'context-menu' event delivers params.x/y in host-viewport CSS pixels.
+// A prior version added webview.getBoundingClientRect().left/top on top,
+// double-counting the icon-rail width + top-bar height and shifting the menu
+// down-right of the cursor. The menu must land exactly at params.x/params.y.
+// ===========================================================================
+describe('showContextMenu — menu position', () => {
+  it('places the menu exactly at params.x / params.y', async () => {
+    const WM = await loadWebviewManager();
+    WM.showContextMenu(fakeEvent({ x: 200, y: 300 }), fakeWebview());
+
+    const menu = document.querySelector('.tab-context-menu');
+    expect(menu.style.left).toBe('200px');
+    expect(menu.style.top).toBe('300px');
+  });
+
+  it('does NOT add webviewRect.left/top to the params coords', async () => {
+    const WM = await loadWebviewManager();
+    // A webview offset from the viewport by an icon rail (54) + top bar (87).
+    const wv = fakeWebview({ getBoundingClientRect: () => ({ left: 54, top: 87 }) });
+    WM.showContextMenu(fakeEvent({ x: 342, y: 627 }), wv);
+
+    const menu = document.querySelector('.tab-context-menu');
+    // Correct: the click point itself.
+    expect(menu.style.left).toBe('342px');
+    expect(menu.style.top).toBe('627px');
+    // The old double-counting bug placed it at (54+342, 87+627) = (396, 714).
+    expect(menu.style.left).not.toBe('396px');
+    expect(menu.style.top).not.toBe('714px');
+  });
+});

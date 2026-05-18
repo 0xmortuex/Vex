@@ -150,27 +150,14 @@ const WebviewManager = {
       }
     });
 
-    // Context menu — capture host-viewport coords from the right-mousedown
-    // that precedes the Electron 'context-menu' event. Why not trust
-    // e.params.x/y from the context-menu event itself: those come from the
-    // GUEST renderer's view coordinates and are unreliable as host-viewport
-    // pixels under (a) page zoom — webview.setZoomFactor scales params.x/y
-    // but not the host-side getBoundingClientRect, so summing them double-
-    // counts the zoom; and (b) Windows display scaling (125%/150% DPI),
-    // which on Electron 30 + castlabs returns params.x/y in device pixels.
-    // mousedown's clientX/clientY are always host CSS pixels — exactly what
-    // `position: fixed` consumes. The listener is on the <webview> ELEMENT
-    // (host-doc), not inside the OOPIF, so the host receives the event
-    // before the guest takes focus on the first right-click.
-    let _lastRightClickViewportPos = null;
-    webview.addEventListener('mousedown', (ev) => {
-      if (ev.button === 2) {
-        _lastRightClickViewportPos = { x: ev.clientX, y: ev.clientY };
-      }
-    }, true);
+    // Context menu — the Electron 'context-menu' event delivers params.x/y
+    // already in host-viewport CSS pixels in the current Electron version
+    // (empirically verified: a host-document mousedown listener on the same
+    // right-click reported clientX/clientY identical to params.x/y). So
+    // showContextMenu consumes params.x/y directly — no coordinate
+    // translation, no webviewRect offset.
     webview.addEventListener('context-menu', (e) => {
-      this.showContextMenu(e, webview, _lastRightClickViewportPos);
-      _lastRightClickViewportPos = null;
+      this.showContextMenu(e, webview);
     });
 
     container.appendChild(webview);
@@ -305,29 +292,18 @@ const WebviewManager = {
     if (wv) wv.stopFindInPage('clearSelection');
   },
 
-  showContextMenu(e, webview, viewportPos) {
+  showContextMenu(e, webview) {
     document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
 
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
-    // Position priority:
-    //   1. viewportPos (clientX/clientY from the right-mousedown the host
-    //      observed) — guaranteed host-viewport CSS pixels, immune to page
-    //      zoom and Windows display scaling that distort e.params.x/y.
-    //   2. Fallback: webview rect + e.params.x/y. Graceful degradation if
-    //      the host never saw the mousedown (rare — mainly when the guest
-    //      has stolen focus before mousedown propagates).
-    let mx, my;
-    if (viewportPos && Number.isFinite(viewportPos.x) && Number.isFinite(viewportPos.y)) {
-      mx = viewportPos.x;
-      my = viewportPos.y;
-    } else {
-      const wvRect = (typeof webview.getBoundingClientRect === 'function')
-        ? webview.getBoundingClientRect()
-        : { left: 0, top: 0 };
-      mx = wvRect.left + (e.params.x || 0);
-      my = wvRect.top  + (e.params.y || 0);
-    }
+    // params.x/y from the Electron 'context-menu' event are already in
+    // host-viewport CSS pixels in the current Electron version — the menu is
+    // position:fixed, so they are consumed directly. Adding webviewRect.left/
+    // top here used to double-count the icon-rail width + top-bar height,
+    // shifting the menu down-right of the cursor by a constant offset.
+    const mx = e.params.x || 0;
+    const my = e.params.y || 0;
     menu.style.left = mx + 'px';
     menu.style.top  = my + 'px';
 
@@ -346,7 +322,22 @@ const WebviewManager = {
         for (const suggestion of suggestions) {
           spellingItems.push({
             label: suggestion,
-            action: () => { try { webview.replaceMisspelling?.(suggestion); } catch {} }
+            action: () => {
+              // [DIAG Bug 2] spellcheck suggestion click. If the word isn't
+              // replaced, the data below tells us whether the method exists,
+              // whether it threw, and whether anything changed synchronously.
+              console.log('[Vex spell] suggestion clicked:', JSON.stringify(suggestion),
+                '| typeof webview.replaceMisspelling:', typeof webview.replaceMisspelling,
+                '| misspelledWord:', e.params.misspelledWord);
+              try {
+                const before = (typeof webview.getURL === 'function') ? webview.getURL() : null;
+                webview.replaceMisspelling?.(suggestion);
+                console.log('[Vex spell] replaceMisspelling returned synchronously, no throw.',
+                  '| getURL before:', before);
+              } catch (err) {
+                console.log('[Vex spell] replaceMisspelling threw:', err);
+              }
+            }
           });
         }
       } else {
