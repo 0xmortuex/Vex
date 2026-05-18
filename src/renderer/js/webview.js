@@ -293,7 +293,10 @@ const WebviewManager = {
   },
 
   showContextMenu(e, webview) {
-    document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
+    // Clear any prior menu AND its dismissal overlay. Removing only the menu
+    // (the old behaviour) leaked a stack of transparent .context-menu-overlay
+    // divs across repeated right-clicks.
+    document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove());
 
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
@@ -337,7 +340,11 @@ const WebviewManager = {
               }
               window.vexSpellcheck.replaceMisspelling(id, suggestion, url)
                 .then(result => {
-                  if (!result?.ok) console.warn('[Vex spell] replace failed:', result?.error);
+                  if (result?.ok) {
+                    console.log('[Vex spell] replaced misspelling with', JSON.stringify(suggestion), '— wc#' + result.id);
+                  } else {
+                    console.warn('[Vex spell] replace failed:', result?.error);
+                  }
                 })
                 .catch(err => console.error('[Vex spell] IPC error:', err));
             }
@@ -472,7 +479,15 @@ const WebviewManager = {
           el.style.opacity = '0.4';
           el.style.pointerEvents = 'none';
         }
-        el.addEventListener('click', () => {
+        // Activate on mousedown, not click: this menu is opened from a
+        // <webview> guest right-click, so focus sits in the guest. The
+        // guest↔host focus churn fires a host-window 'blur' that runs the
+        // dismissal close() and removes the menu BETWEEN a left-click's
+        // mousedown and mouseup — so the 'click' never materialises. Acting
+        // on mousedown wins that race. button 0 only: ignore right/middle so
+        // a right-click on a menu item doesn't trigger its action.
+        el.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
           item.action();
           menu.remove();
         });

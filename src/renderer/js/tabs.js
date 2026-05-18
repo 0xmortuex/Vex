@@ -1300,24 +1300,29 @@ const TabManager = {
     // <webview> guest.
     overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:transparent;';
 
-    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
-    function close() {
+    const onKey  = (ev) => { if (ev.key === 'Escape') close('escape'); };
+    const onBlur = () => close('window-blur');
+    function close(reason) {
+      // Diagnostic: surfaces WHY a context menu was dismissed. The
+      // guest↔host focus 'window-blur' race (which used to eat <webview>
+      // menu item clicks before they fired) is invisible without this.
+      console.log('[Vex menu] context menu dismissed —', reason || 'unknown');
       overlay.remove();
       menu.remove();
       document.removeEventListener('keydown', onKey, true);
-      window.removeEventListener('blur', close, true);
+      window.removeEventListener('blur', onBlur, true);
     }
 
     // mousedown (not click) so we close BEFORE the user releases — feels
     // instant and avoids any race with click handlers fired afterward.
-    overlay.addEventListener('mousedown', () => close(), true);
+    overlay.addEventListener('mousedown', () => close('overlay-click'), true);
     // Right-click on the overlay closes the current menu; the underlying
     // contextmenu event on the webview will then re-open a fresh menu at
     // the new position, so chained right-clicks don't stack.
-    overlay.addEventListener('contextmenu', () => close(), true);
+    overlay.addEventListener('contextmenu', () => close('overlay-right-click'), true);
 
     document.addEventListener('keydown', onKey, true);
-    window.addEventListener('blur', close, true);
+    window.addEventListener('blur', onBlur, true);
 
     // Insert overlay before menu in DOM order so the menu (z:1000) wins over
     // the overlay (z:999) at hit-test time even before paint reorders.

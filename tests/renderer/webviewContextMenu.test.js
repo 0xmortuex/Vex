@@ -87,10 +87,12 @@ describe('showContextMenu — spelling suggestions', () => {
     }
   });
 
-  it('clicking a suggestion routes the word through the vexSpellcheck IPC bridge', async () => {
+  // Menu items activate on MOUSEDOWN, not click — a <webview> guest right-
+  // click leaves focus in the guest, and the resulting host-window blur runs
+  // the dismissal close() between a left-click's mousedown and mouseup, so
+  // the 'click' never fires. mousedown wins that race.
+  it('mousedown on a suggestion routes the word through the vexSpellcheck IPC bridge', async () => {
     const WM = await loadWebviewManager();
-    // replaceMisspelling lives on webContents in main — the renderer calls it
-    // via window.vexSpellcheck, passing webContentsId + suggestion + URL.
     const replaceSpy = vi.fn(() => Promise.resolve({ ok: true }));
     globalThis.vexSpellcheck = { replaceMisspelling: replaceSpy };
     const wv = fakeWebview({ getWebContentsId: () => 7, getURL: () => 'https://openl.io/' });
@@ -101,12 +103,45 @@ describe('showContextMenu — spelling suggestions', () => {
     );
 
     const menu = document.querySelector('.tab-context-menu');
-    menu.children[1].click(); // "fixtures"
+    menu.children[1].dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
 
     expect(replaceSpy).toHaveBeenCalledWith(7, 'fixtures', 'https://openl.io/');
     expect(replaceSpy).toHaveBeenCalledTimes(1);
     // The menu closes after an item is actioned.
     expect(document.querySelector('.tab-context-menu')).toBeNull();
+  });
+
+  it('a bare click (no mousedown) does NOT trigger the action — activation is mousedown-based', async () => {
+    const WM = await loadWebviewManager();
+    const replaceSpy = vi.fn(() => Promise.resolve({ ok: true }));
+    globalThis.vexSpellcheck = { replaceMisspelling: replaceSpy };
+    const wv = fakeWebview();
+
+    WM.showContextMenu(
+      fakeEvent({ misspelledWord: 'featrues', dictionarySuggestions: ['features'] }),
+      wv,
+    );
+    document.querySelector('.tab-context-menu').children[0].click();
+
+    expect(replaceSpy).not.toHaveBeenCalled();
+  });
+
+  it('right-click (button 2) mousedown on a suggestion does NOT trigger the action', async () => {
+    const WM = await loadWebviewManager();
+    const replaceSpy = vi.fn(() => Promise.resolve({ ok: true }));
+    globalThis.vexSpellcheck = { replaceMisspelling: replaceSpy };
+    const wv = fakeWebview();
+
+    WM.showContextMenu(
+      fakeEvent({ misspelledWord: 'featrues', dictionarySuggestions: ['features'] }),
+      wv,
+    );
+    const menu = document.querySelector('.tab-context-menu');
+    menu.children[0].dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+
+    expect(replaceSpy).not.toHaveBeenCalled();
+    // Action never ran, so menu.remove() never ran — the menu is still open.
+    expect(document.querySelector('.tab-context-menu')).not.toBeNull();
   });
 });
 
