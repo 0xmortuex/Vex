@@ -331,7 +331,32 @@ const WebviewManager = {
     menu.style.left = mx + 'px';
     menu.style.top  = my + 'px';
 
+    // Spellcheck — when the right-click landed on a misspelled word Chromium
+    // populates e.params.misspelledWord and e.params.dictionarySuggestions.
+    // Surface them at the TOP of the menu; clicking one swaps the word in
+    // place via the <webview> tag's replaceMisspelling(). If the word was
+    // flagged but Chromium offered nothing, show a disabled "No suggestions"
+    // row so the user knows spellcheck DID see the word.
+    const spellingItems = [];
+    if (e.params.misspelledWord) {
+      const suggestions = Array.isArray(e.params.dictionarySuggestions)
+        ? e.params.dictionarySuggestions
+        : [];
+      if (suggestions.length > 0) {
+        for (const suggestion of suggestions) {
+          spellingItems.push({
+            label: suggestion,
+            action: () => { try { webview.replaceMisspelling?.(suggestion); } catch {} }
+          });
+        }
+      } else {
+        spellingItems.push({ label: 'No suggestions', disabled: true });
+      }
+      spellingItems.push({ sep: true });
+    }
+
     const items = [
+      ...spellingItems,
       { label: 'Back', action: () => webview.goBack(), disabled: !webview.canGoBack() },
       { label: 'Forward', action: () => webview.goForward(), disabled: !webview.canGoForward() },
       { label: 'Reload', action: () => webview.reload() },
@@ -483,3 +508,10 @@ const WebviewManager = {
     } catch {}
   }
 };
+
+// Renderer-safe export — the renderer loads this file via <script> tag where
+// `module` is undefined, so the guard keeps the global WebviewManager surface
+// unchanged. Used by tests/renderer/webviewContextMenu.test.js.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { WebviewManager };
+}
