@@ -8,7 +8,7 @@ const WorkspaceManager = {
   COLORS: ['#6366f1','#00b4d8','#22c55e','#e2231a','#a855f7','#f59e0b','#ec4899','#14b8a6'],
 
   defaultWorkspaces: [
-    { id: 'ws_personal', name: 'Personal', color: '#6366f1' },
+    { id: 'ws_personal', name: 'Personal', color: '#d4a574' },
     { id: 'ws_cusa', name: 'CUSA', color: '#e2231a' },
     { id: 'ws_school', name: 'School', color: '#22c55e' },
     { id: 'ws_dev', name: 'Dev', color: '#00b4d8' }
@@ -167,7 +167,7 @@ const WorkspaceManager = {
 
     const ws = this.getActive();
     btn.innerHTML = `
-      <span class="ws-dot" style="background:${ws?.color || '#6366f1'}"></span>
+      <span class="ws-dot" style="background:${ws?.color || '#d4a574'}"></span>
       ${this._esc(ws?.name || 'Personal')}
       <svg viewBox="0 0 10 10"><path d="M2 4L5 7L8 4" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
     `;
