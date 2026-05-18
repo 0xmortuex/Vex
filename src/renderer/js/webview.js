@@ -332,6 +332,17 @@ const WebviewManager = {
               // through IPC by webContentsId; pass the URL too so main can
               // URL-match if getWebContentsId() returns -1 on an unattached
               // guest (same fallback strategy as Inspect Element).
+              //
+              // KNOWN ELECTRON LIMITATION — not a Vex bug:
+              // webContents.replaceMisspelling only reliably replaces the word
+              // in a NATIVE, focused <input>/<textarea>. On contenteditable
+              // divs and React/framework-controlled inputs (Reddit, Discord,
+              // Gmail, most modern apps) the call succeeds at the Electron
+              // layer but the framework's own state re-renders over the edit,
+              // so the visible word does not change. The IPC path below is
+              // the correct architecture; the gap is upstream in Electron.
+              // result.ok === true means the API call landed, NOT that the
+              // page necessarily reflects it.
               const id  = (typeof webview.getWebContentsId === 'function') ? webview.getWebContentsId() : null;
               const url = (typeof webview.getURL === 'function') ? webview.getURL() : null;
               if (!window.vexSpellcheck?.replaceMisspelling) {
