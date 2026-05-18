@@ -7,7 +7,8 @@
 //   - Contents reflect the TOP tab (favicon, title) plus a count badge
 //   - Member tabs do NOT render as their own .tab-item (the stack header
 //     represents them entirely in 4b)
-//   - Click the header → switch to the topTabId tab
+//   - Click the header → toggle expand/collapse (Phase 4c — supersedes the
+//     4b click-to-switch; switching now happens via member-row clicks)
 //   - Deck-of-cards stagger is CSS-only via ::before / ::after
 //
 // jsdom doesn't lay out pseudo-elements (no real paint), so this file
@@ -170,10 +171,16 @@ describe('renderStacks() — closed-state structure', () => {
 });
 
 // ===========================================================================
-// Click handler
+// Click handler — Phase 4c
+//
+// 4c rewrote header-click semantics: clicking the header now toggles
+// expand/collapse instead of switching to the top tab. The two tests below
+// replace the 4b placeholders ("clicking switches to topTabId" / "clicking
+// does NOT toggle expansion (deferred to 4c)") — those were explicitly
+// written to be superseded once this phase landed.
 // ===========================================================================
-describe('renderStacks() — click handler', () => {
-  it('clicking the header switches to the topTabId tab', async () => {
+describe('renderStacks() — click handler (4c expand toggle)', () => {
+  it('clicking the header expands a collapsed stack', async () => {
     installGlobals();
     const TM = await loadTabManager();
     TM.tabs = [
@@ -181,17 +188,14 @@ describe('renderStacks() — click handler', () => {
       fakeTab('t2', { stackId: 'stk_a' }),
     ];
     TM.stacks = [{ id: 'stk_a', name: 'R', color: '#a855f7', topTabId: 't1' }];
-    const switchSpy = vi.spyOn(TM, 'switchTab').mockImplementation(() => {});
 
     TM.renderStacks();
-    const header = document.querySelector('.tab-item.tab-stack');
-    header.click();
+    document.querySelector('.tab-item.tab-stack').click();
 
-    expect(switchSpy).toHaveBeenCalledWith('t1');
-    expect(switchSpy).toHaveBeenCalledTimes(1);
+    expect(TM._expandedStackIds.has('stk_a')).toBe(true);
   });
 
-  it('clicking does NOT toggle expansion (4b deliberately defers expand-on-click to 4c)', async () => {
+  it('clicking an expanded header collapses it again', async () => {
     installGlobals();
     const TM = await loadTabManager();
     TM.tabs = [
@@ -199,14 +203,14 @@ describe('renderStacks() — click handler', () => {
       fakeTab('t2', { stackId: 'stk_a' }),
     ];
     TM.stacks = [{ id: 'stk_a', name: 'R', color: '#a855f7', topTabId: 't1' }];
-    vi.spyOn(TM, 'switchTab').mockImplementation(() => {});
 
     TM.renderStacks();
-    const header = document.querySelector('.tab-item.tab-stack');
-    header.click();
-    header.click();
+    // toggleStackExpanded calls rebuildAllTabs, which re-creates the header
+    // element each time — so re-query before the second click.
+    document.querySelector('.tab-item.tab-stack').click();   // expand
+    document.querySelector('.tab-item.tab-stack').click();   // collapse
 
-    expect(header.classList.contains('expanded')).toBe(false);
+    expect(TM._expandedStackIds.has('stk_a')).toBe(false);
   });
 });
 

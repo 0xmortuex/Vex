@@ -102,8 +102,47 @@
   text-overflow: ellipsis;
 }
 
-/* Reserved for 4c — keeping the selector here so the next phase has a
-   defined seam to fill in rather than re-deriving the class name. */
-.tab-item.tab-stack.expanded {
-  /* (intentionally empty — 4c will define expansion behaviour) */
+/* === Phase 4c — expand / collapse ===
+   Per docs/PHASE-4-TAB-STACKS-PLAN.md §4. Clicking the header toggles the
+   .expanded class (driven by TabManager._expandedStackIds). */
+
+/* Chevron — mirrors the tab-group chevron. Points right when collapsed,
+   rotates 90° to point down when the stack is expanded. */
+.tab-item.tab-stack .tab-stack-chevron {
+  flex-shrink: 0;
+  margin-left: 6px;
+  color: var(--vex-text-secondary, #9a8f7a);
+  transition: transform 0.15s ease;
+}
+.tab-item.tab-stack.expanded .tab-stack-chevron {
+  transform: rotate(90deg);
+}
+
+/* Collapsed shows the member-count badge ("Research (5)"); expanded hides
+   it — the visible member rows below make the count self-evident. */
+.tab-item.tab-stack.expanded .tab-stack-count {
+  display: none;
+}
+
+/* When expanded the deck-of-cards silhouettes are redundant (the real
+   member rows are now visible below the header), so fold them away. */
+.tab-item.tab-stack.expanded::before,
+.tab-item.tab-stack.expanded::after {
+  display: none;
+}
+
+/* Member rows of an expanded stack — indented under the header with a
+   left accent in the stack's colour so they read as "inside" it.
+   --stack-color is set inline per member by renderStacks(). */
+.tab-item.in-stack {
+  margin-left: 16px;
+  border-left: 2px solid var(--stack-color, var(--vex-accent, #d4a574));
+}
+
+/* Disabled context-menu item — e.g. "Convert to Stack" on a group with
+   fewer than 2 tabs. pointer-events:none also blocks the click handler. */
+.tab-context-item.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: default;
 }

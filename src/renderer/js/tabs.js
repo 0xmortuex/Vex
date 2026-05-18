@@ -60,6 +60,11 @@ const TabManager = {
   // groupId XOR stackId, never both). Stack shape: {id, name, color, topTabId}.
   // See docs/PHASE-4-TAB-STACKS-PLAN.md.
   stacks: [],
+  // Phase 4c — which stacks are currently expanded. Ephemeral UI state ONLY:
+  // never persisted (plan §2/§3a — stacks are "always collapsed" on disk;
+  // expansion is transient). A newly created stack is collapsed by default
+  // because its id is absent from this Set.
+  _expandedStackIds: new Set(),
   // Legacy seed groups (CUSA/School/Dev/Chat) removed — groups now start
   // empty. Users create groups via right-click "New group from this tab"
   // or the Phase 16 AI auto-grouper (Ctrl+Shift+G).
@@ -270,6 +275,11 @@ const TabManager = {
     }
 
     this.persistTabs();
+
+    // Phase 4c — closing a stack member shifts the header's count badge and
+    // may have auto-disbanded the stack. The stack header has no data-tab-id,
+    // so the el.remove() above can't reach it; rebuild to resync the strip.
+    if (closedStackId) this.rebuildAllTabs();
   },
 
   // Bulk-close all tabs without triggering auto-create or per-tab persistence
@@ -521,7 +531,8 @@ const TabManager = {
     if (!tabsList) return;
 
     for (const stack of this.stacks) {
-      const memberCount = this.tabs.filter(t => t.stackId === stack.id).length;
+      const members = this.tabs.filter(t => t.stackId === stack.id);
+      const memberCount = members.length;
       // Defensive: 4a's load-time prune + auto-disband should keep this from
       // ever hitting in practice. If we still see one, log + skip — better
       // than rendering an empty header that goes nowhere on click.
@@ -537,8 +548,12 @@ const TabManager = {
         continue;
       }
 
+      // Phase 4c — expansion is ephemeral UI state in _expandedStackIds.
+      // Absent ⇒ collapsed (the default for any freshly created stack).
+      const expanded = this._expandedStackIds.has(stack.id);
+
       const el = document.createElement('div');
-      el.className = 'tab-item tab-stack';
+      el.className = 'tab-item tab-stack' + (expanded ? ' expanded' : '');
       el.dataset.stackId = stack.id;
       // Per the existing --group-color pattern in tabs.css, expose the stack
       // colour as a CSS custom property so the deck-of-cards pseudo-elements
@@ -548,18 +563,150 @@ const TabManager = {
       const favicon = topTab.favicon
         ? `<img class="tab-favicon" src="${topTab.favicon}" alt="">`
         : `<div class="tab-favicon-placeholder">${this._escapeHtml((topTab.title || 'T')[0])}</div>`;
+      // Count badge is shown only when collapsed (CSS hides it on .expanded):
+      // "Research (5)" collapsed, just "Research" expanded — per the 4c spec.
+      // The chevron mirrors the tab-group chevron and rotates on expand.
       el.innerHTML = `
         ${favicon}
         <span class="tab-title">${this._escapeHtml(topTab.title || 'Untitled')}</span>
         <span class="tab-stack-count" aria-label="${memberCount} tabs in stack">${memberCount}</span>
+        <svg class="tab-stack-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 3L8 6L4 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
       `;
 
-      // Click on the stack header switches to the top tab. We deliberately do
-      // NOT toggle expansion in 4b — that's 4c work. The whole header is one
-      // click target; no inner buttons to disambiguate yet.
-      el.addEventListener('click', () => this.switchTab(stack.topTabId));
+      // Phase 4c — clicking the header toggles expand/collapse. This
+      // supersedes the 4b click-to-switch: switching to a tab now happens by
+      // clicking a member row inside the expanded stack (see below).
+      el.addEventListener('click', () => this.toggleStackExpanded(stack.id));
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showStackContextMenu(e, stack.id);
+      });
 
       tabsList.appendChild(el);
+
+      // Expanded — render every member as an indented .tab-item.in-stack row
+      // directly below the header. Reusing _createTabElement keeps the member
+      // rows' click-to-switch / close / context-menu wiring identical to a
+      // free tab; clicking one switches to it without leaving the stack.
+      if (expanded) {
+        for (const member of members) {
+          const memberEl = this._createTabElement(member);
+          memberEl.classList.add('in-stack');
+          memberEl.style.setProperty('--stack-color', stack.color || '#d4a574');
+          tabsList.appendChild(memberEl);
+        }
+      }
+    }
+  },
+
+  // Phase 4c — Feature 3. Flip a stack between collapsed and expanded.
+  // Expansion lives only in memory (_expandedStackIds); a full rebuild
+  // re-renders the strip with or without the member rows.
+  toggleStackExpanded(stackId) {
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (!stack) return;
+    if (this._expandedStackIds.has(stackId)) {
+      this._expandedStackIds.delete(stackId);
+    } else {
+      this._expandedStackIds.add(stackId);
+    }
+    this.rebuildAllTabs();
+  },
+
+  // Phase 4c — Feature 1. Turn an existing tab group into a stack: every tab
+  // in the group becomes a stack member (createStack clears their groupId via
+  // _setTabStack), then the now-empty group object is dropped. The new stack
+  // starts collapsed — its id is never added to _expandedStackIds here.
+  convertGroupToStack(groupId) {
+    const group = this.groups.find(g => g.id === groupId);
+    if (!group) return null;
+    const tabIds = this.tabs.filter(t => t.groupId === groupId).map(t => t.id);
+    if (tabIds.length < 2) {
+      window.showToast?.('A stack needs at least 2 tabs', 'info');
+      return null;
+    }
+    const stack = this.createStack(tabIds, group.name, group.color);
+    if (!stack) return null;
+
+    // createStack already cleared groupId on every member; drop the emptied
+    // group object so it doesn't linger in TabManager.groups + storage.
+    this.groups = this.groups.filter(g => g.id !== groupId);
+    if (typeof VexStorage !== 'undefined' && typeof VexStorage.saveGroups === 'function') {
+      VexStorage.saveGroups(this.groups);
+    }
+
+    this.rebuildAllTabs();
+    this.persistTabs();
+    window.showToast?.(`Converted "${group.name}" to a stack`, 'success');
+    return stack;
+  },
+
+  // Phase 4c — Feature 5. Right-click menu for a stack header.
+  showStackContextMenu(event, stackId) {
+    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu').forEach(m => m.remove());
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (!stack) return;
+    const members = this.tabs.filter(t => t.stackId === stackId);
+    const count = members.length;
+
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu tab-stack-context-menu';
+    const x = event.clientX, y = event.clientY;
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+    menu.innerHTML = `
+      <div class="tab-context-item" data-action="ungroup">📤 Ungroup (back to group)</div>
+      <div class="tab-context-sep"></div>
+      <div class="tab-context-item danger" data-action="close-tabs">✕ Close all ${count} tab${count === 1 ? '' : 's'}</div>
+    `;
+    document.body.appendChild(menu);
+    this._clampMenuToViewport(menu, x, y);
+
+    menu.querySelectorAll('.tab-context-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const action = item.dataset.action;
+        menu.remove();
+        this._handleStackAction(action, stackId);
+      });
+    });
+    this._attachMenuDismissal(menu);
+  },
+
+  _handleStackAction(action, stackId) {
+    const stack = this.stacks.find(s => s.id === stackId);
+    if (!stack) return;
+    const members = this.tabs.filter(t => t.stackId === stackId);
+
+    switch (action) {
+      case 'close-tabs': {
+        // Each closeTab routes through removeTabFromStack; the stack
+        // auto-disbands once it falls below 2 members, so closing the whole
+        // member set also removes the stack object. closeTab rebuilds the
+        // strip per-call (see its 4c tail), keeping the DOM in sync.
+        const n = members.length;
+        members.forEach(t => this.closeTab(t.id));
+        this._expandedStackIds.delete(stackId);
+        window.showToast?.(`Closed ${n} tab${n === 1 ? '' : 's'}`, 'success');
+        break;
+      }
+      case 'ungroup': {
+        // Convert the stack back into a regular group: re-home every member
+        // into a fresh group (which clears stackId), then drop the stack.
+        const id = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        this.groups.push({ id, name: stack.name, color: stack.color, collapsed: false });
+        members.forEach(t => this._setTabGroup(t.id, id));
+        this.stacks = this.stacks.filter(s => s.id !== stackId);
+        this._expandedStackIds.delete(stackId);
+        if (typeof VexStorage !== 'undefined') {
+          if (typeof VexStorage.saveGroups === 'function') VexStorage.saveGroups(this.groups);
+          if (typeof VexStorage.saveStacks === 'function') VexStorage.saveStacks(this.stacks);
+        }
+        this.rebuildAllTabs();
+        this.persistTabs();
+        window.showToast?.(`Ungrouped "${stack.name}"`, 'info');
+        break;
+      }
     }
   },
 
@@ -576,9 +723,14 @@ const TabManager = {
     menu.style.top  = event.clientY + 'px';
     const x = event.clientX, y = event.clientY;
     const count = tabsInGroup.length;
+    // "Convert to Stack" needs \u22652 tabs (createStack rejects single-member
+    // stacks \u2014 Section 7 risk register). Disabled, not hidden, so the user
+    // sees the option exists and learns why it's unavailable.
+    const canStack = count >= 2;
     menu.innerHTML = `
       <div class="tab-context-item" data-action="rename">\u270f\ufe0f Rename group</div>
       <div class="tab-context-item" data-action="change-color">\ud83c\udfa8 Change color</div>
+      <div class="tab-context-item${canStack ? '' : ' disabled'}" data-action="convert-to-stack" title="${canStack ? '' : 'A stack needs at least 2 tabs'}">\ud83d\udcda Convert to Stack</div>
       <div class="tab-context-sep"></div>
       <div class="tab-context-item" data-action="close-tabs">\u2715 Close ${count} tab${count === 1 ? '' : 's'}</div>
       <div class="tab-context-item" data-action="ungroup">\ud83d\udce4 Ungroup (keep tabs)</div>
@@ -590,6 +742,7 @@ const TabManager = {
 
     menu.querySelectorAll('.tab-context-item').forEach(item => {
       item.addEventListener('click', () => {
+        if (item.classList.contains('disabled')) return;
         const action = item.dataset.action;
         menu.remove();
         this._handleGroupAction(action, groupId);
@@ -624,6 +777,10 @@ const TabManager = {
           VexStorage.saveGroups(this.groups);
           this.rebuildAllTabs();
         });
+        break;
+      }
+      case 'convert-to-stack': {
+        this.convertGroupToStack(groupId);
         break;
       }
       case 'close-tabs': {
@@ -1301,6 +1458,8 @@ const TabManager = {
       if (t.stackId === stackId) this._setTabStack(t.id, null);
     }
     this.stacks = this.stacks.filter(s => s.id !== stackId);
+    // Phase 4c — drop any stale expand state for a stack that no longer exists.
+    if (this._expandedStackIds) this._expandedStackIds.delete(stackId);
     if (typeof VexStorage !== 'undefined') {
       if (typeof VexStorage.saveStacks === 'function') VexStorage.saveStacks(this.stacks);
       if (typeof this.persistTabs === 'function') this.persistTabs();
