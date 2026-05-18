@@ -25,8 +25,10 @@ const HorizontalTabs = (() => {
     const pinned = tabs.filter(t => t.pinned);
     for (const tab of pinned) container.appendChild(_renderTab(tab, activeId));
 
-    // Ungrouped unpinned
-    for (const tab of tabs.filter(t => !t.pinned && !t.groupId)) {
+    // Ungrouped, unstacked, unpinned. Tabs with a stackId are represented by
+    // their stack chip below — without this !t.stackId guard they leak into
+    // the bar as loose tabs (the Phase 4c "no stack appears" bug).
+    for (const tab of tabs.filter(t => !t.pinned && !t.groupId && !t.stackId)) {
       container.appendChild(_renderTab(tab, activeId));
     }
 
@@ -57,6 +59,53 @@ const HorizontalTabs = (() => {
         el.classList.add('in-group');
         el.style.setProperty('--group-color', group.color || '#6366f1');
         container.appendChild(el);
+      }
+    }
+
+    // Tab stacks — Phase 4c. One chip per stack; when expanded, its member
+    // tabs follow inline (mirrors the vertical sidebar). The fancier
+    // floating-popover expansion is deferred to Phase 4d.
+    const stacks = TabManager.stacks || [];
+    const expandedIds = TabManager._expandedStackIds;
+    for (const stack of stacks) {
+      const members = tabs.filter(t => !t.pinned && t.stackId === stack.id);
+      if (!members.length) continue;
+      const topTab = members.find(t => t.id === stack.topTabId) || members[0];
+      const expanded = !!(expandedIds && expandedIds.has(stack.id));
+
+      const chip = document.createElement('div');
+      chip.className = 'top-tab top-stack' + (expanded ? ' expanded' : '');
+      chip.dataset.stackId = stack.id;
+      chip.style.setProperty('--stack-color', stack.color || '#d4a574');
+      chip.title = `${stack.name} · ${members.length} tab${members.length === 1 ? '' : 's'} · click to ${expanded ? 'collapse' : 'expand'}, right-click for options`;
+
+      let favicon = topTab.favicon;
+      if (!favicon) {
+        const host = _host(topTab.url || '');
+        if (host) favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=16`;
+      }
+      chip.innerHTML = `
+        ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" onerror="this.style.display='none'">` : '<span class="tab-favicon"></span>'}
+        <span class="tab-title">${_esc(topTab.title || 'Stack')}</span>
+        <span class="top-stack-count">${members.length}</span>
+      `;
+      chip.addEventListener('click', (e) => {
+        if (e.target.closest('.tab-close')) return;
+        TabManager.toggleStackExpanded?.(stack.id);
+      });
+      chip.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        TabManager.showStackContextMenu?.(e, stack.id);
+      });
+      container.appendChild(chip);
+
+      if (expanded) {
+        for (const member of members) {
+          const el = _renderTab(member, activeId);
+          el.classList.add('in-stack');
+          el.style.setProperty('--stack-color', stack.color || '#d4a574');
+          container.appendChild(el);
+        }
       }
     }
 

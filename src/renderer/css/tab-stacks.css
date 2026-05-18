@@ -146,3 +146,42 @@
   pointer-events: none;
   cursor: default;
 }
+
+/* === Phase 4c — horizontal tab bar ===
+   The horizontal strip renders one .top-tab.top-stack chip per stack
+   (horizontal-tabs.js). Inline expansion fans members out as .in-stack
+   rows; the floating-popover variant is Phase 4d. Styles live here rather
+   than horizontal-tabs.css to keep all stack visuals in one file. */
+
+.top-tab.top-stack {
+  border-left: 3px solid var(--stack-color, var(--vex-accent, #d4a574));
+  cursor: pointer;
+}
+
+/* Collapsed — a faint stacked-cards shadow hints at the hidden members. */
+.top-tab.top-stack:not(.expanded) {
+  box-shadow: 3px 3px 0 -2px rgba(255, 255, 255, 0.14),
+              6px 6px 0 -4px rgba(255, 255, 255, 0.07);
+}
+
+/* Member-count badge, coloured from the stack's own colour. */
+.top-tab.top-stack .top-stack-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  background: var(--stack-color, var(--vex-accent, #d4a574));
+  color: var(--vex-bg-base, #14120e);
+  border-radius: 7px;
+}
+
+/* Member tabs of an expanded horizontal stack — a bottom accent in the
+   stack colour ties them visually to their chip. */
+.top-tab.in-stack {
+  border-bottom: 2px solid var(--stack-color, var(--vex-accent, #d4a574));
+}
