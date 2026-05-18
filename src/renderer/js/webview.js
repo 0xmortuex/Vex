@@ -334,15 +334,16 @@ const WebviewManager = {
               // guest (same fallback strategy as Inspect Element).
               //
               // KNOWN ELECTRON LIMITATION — not a Vex bug:
-              // webContents.replaceMisspelling only reliably replaces the word
-              // in a NATIVE, focused <input>/<textarea>. On contenteditable
-              // divs and React/framework-controlled inputs (Reddit, Discord,
-              // Gmail, most modern apps) the call succeeds at the Electron
-              // layer but the framework's own state re-renders over the edit,
-              // so the visible word does not change. The IPC path below is
-              // the correct architecture; the gap is upstream in Electron.
-              // result.ok === true means the API call landed, NOT that the
-              // page necessarily reflects it.
+              // webContents.replaceMisspelling is documented to insert text
+              // into the focused element, but on castLabs Electron 30.5.1+wvcus
+              // it returns success WITHOUT visibly changing the word — neither
+              // on native <input>/<textarea> nor on contenteditable/React.
+              // Tested 2026-05-18 on a w3schools <textarea> and a Reddit
+              // comment box. The IPC infrastructure below is correct; the
+              // upstream Electron behavior is the issue. result.ok === true
+              // means the API call landed, NOT that the page reflects it.
+              // Suggestions still show in the menu so the user can at least
+              // see the correct spelling.
               const id  = (typeof webview.getWebContentsId === 'function') ? webview.getWebContentsId() : null;
               const url = (typeof webview.getURL === 'function') ? webview.getURL() : null;
               if (!window.vexSpellcheck?.replaceMisspelling) {
