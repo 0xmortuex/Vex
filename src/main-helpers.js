@@ -199,9 +199,48 @@ function safeName(name) {
   return name;
 }
 
+// === Spellcheck — replace a misspelled word on a guest webContents ===
+// `replaceMisspelling` lives on Electron `webContents`, NOT on the <webview>
+// tag element — the renderer's old `webview.replaceMisspelling?.()` was a
+// silent no-op. The renderer routes here via IPC. Resolution mirrors the
+// devtools:open-for-webcontents two-strategy lookup: fromId fast path, then
+// URL match across all webContents (covers <webview>.getWebContentsId()
+// returning -1 on a not-yet-fully-attached guest).
+//
+// `webContentsModule` is Electron's `webContents` namespace, injected so this
+// file stays free of `require('electron')` and remains unit-testable.
+function resolveAndReplaceMisspelling(webContentsModule, webContentsId, suggestion, fallbackUrl) {
+  if (typeof suggestion !== 'string' || suggestion.length === 0) {
+    return { ok: false, error: 'invalid suggestion' };
+  }
+  let wc = null;
+  try {
+    if (typeof webContentsId === 'number' && webContentsId > 0) {
+      wc = webContentsModule.fromId(webContentsId);
+      if (wc && wc.isDestroyed()) wc = null;
+    }
+  } catch { /* fromId can throw on a stale id */ }
+  if (!wc && typeof fallbackUrl === 'string' && fallbackUrl) {
+    try {
+      wc = webContentsModule.getAllWebContents()
+        .find(c => !c.isDestroyed() && c.getURL() === fallbackUrl) || null;
+    } catch { /* getAllWebContents/getURL best-effort */ }
+  }
+  if (!wc) {
+    return { ok: false, error: 'webContents not found', requestedId: webContentsId };
+  }
+  try {
+    wc.replaceMisspelling(suggestion);
+    return { ok: true, id: wc.id };
+  } catch (err) {
+    return { ok: false, error: err.message, id: wc.id };
+  }
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
+  resolveAndReplaceMisspelling,
   normalizeLaunchArg,
   findLaunchUrl,
   decideFullscreenAction,

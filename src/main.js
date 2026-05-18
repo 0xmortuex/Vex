@@ -1464,6 +1464,19 @@ ipcMain.handle('devtools:open-for-webcontents', async (_e, webContentsId, fallba
   }
 });
 
+// Replace a misspelled word with a spellcheck suggestion on a guest
+// webContents. replaceMisspelling lives on webContents — NOT on the
+// <webview> tag element — so the renderer's old webview.replaceMisspelling()
+// call was a silent no-op. Resolution logic lives in main-helpers so it can
+// be unit-tested without booting Electron.
+ipcMain.handle('spellcheck:replace-misspelling', (_e, webContentsId, suggestion, fallbackUrl) => {
+  const result = _mainHelpers.resolveAndReplaceMisspelling(webContents, webContentsId, suggestion, fallbackUrl);
+  if (!result.ok) {
+    console.warn('[Vex spell] replace-misspelling failed:', result.error, '| requestedId:', webContentsId);
+  }
+  return result;
+});
+
 // Downloads IPC — open/show
 ipcMain.handle('downloads:open-file', async (_e, filePath) => {
   try { const r = await shell.openPath(filePath); return { ok: !r, error: r || null }; }

@@ -323,20 +323,23 @@ const WebviewManager = {
           spellingItems.push({
             label: suggestion,
             action: () => {
-              // [DIAG Bug 2] spellcheck suggestion click. If the word isn't
-              // replaced, the data below tells us whether the method exists,
-              // whether it threw, and whether anything changed synchronously.
-              console.log('[Vex spell] suggestion clicked:', JSON.stringify(suggestion),
-                '| typeof webview.replaceMisspelling:', typeof webview.replaceMisspelling,
-                '| misspelledWord:', e.params.misspelledWord);
-              try {
-                const before = (typeof webview.getURL === 'function') ? webview.getURL() : null;
-                webview.replaceMisspelling?.(suggestion);
-                console.log('[Vex spell] replaceMisspelling returned synchronously, no throw.',
-                  '| getURL before:', before);
-              } catch (err) {
-                console.log('[Vex spell] replaceMisspelling threw:', err);
+              // replaceMisspelling lives on the guest's webContents in the
+              // main process — the <webview> tag element does NOT expose it
+              // (webview.replaceMisspelling() was a silent no-op). Route
+              // through IPC by webContentsId; pass the URL too so main can
+              // URL-match if getWebContentsId() returns -1 on an unattached
+              // guest (same fallback strategy as Inspect Element).
+              const id  = (typeof webview.getWebContentsId === 'function') ? webview.getWebContentsId() : null;
+              const url = (typeof webview.getURL === 'function') ? webview.getURL() : null;
+              if (!window.vexSpellcheck?.replaceMisspelling) {
+                console.warn('[Vex spell] vexSpellcheck IPC bridge unavailable');
+                return;
               }
+              window.vexSpellcheck.replaceMisspelling(id, suggestion, url)
+                .then(result => {
+                  if (!result?.ok) console.warn('[Vex spell] replace failed:', result?.error);
+                })
+                .catch(err => console.error('[Vex spell] IPC error:', err));
             }
           });
         }

@@ -159,3 +159,12 @@ contextBridge.exposeInMainWorld('vexDevTools', {
   // Legacy callback support (kept for compatibility, but not used)
   onToggle: (cb) => ipcRenderer.on('devtools:toggle', () => cb()),
 });
+
+contextBridge.exposeInMainWorld('vexSpellcheck', {
+  // Replace a misspelled word with a spellcheck suggestion. replaceMisspelling
+  // lives on webContents in the main process — the <webview> tag element does
+  // NOT expose it. Pass the guest URL as the third arg so main can URL-match
+  // when getWebContentsId() returned -1 on a freshly-attached guest.
+  replaceMisspelling: (webContentsId, suggestion, fallbackUrl) =>
+    ipcRenderer.invoke('spellcheck:replace-misspelling', webContentsId, suggestion, fallbackUrl),
+});

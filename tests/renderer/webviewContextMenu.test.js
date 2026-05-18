@@ -25,10 +25,10 @@ function fakeWebview(over = {}) {
     canGoForward: () => false,
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
     getURL: () => 'https://example.com/',
+    getWebContentsId: () => 7,
     goBack: vi.fn(),
     goForward: vi.fn(),
     reload: vi.fn(),
-    replaceMisspelling: vi.fn(),
     ...over,
   };
 }
@@ -43,6 +43,7 @@ beforeEach(() => {
   // calls are guarded by `typeof TabManager !== 'undefined'`, so they no-op.
   delete globalThis.TabManager;
   delete globalThis.AIPanel;
+  delete globalThis.vexSpellcheck;
 });
 
 // ===========================================================================
@@ -86,19 +87,24 @@ describe('showContextMenu — spelling suggestions', () => {
     }
   });
 
-  it('clicking a suggestion calls webview.replaceMisspelling with that word', async () => {
+  it('clicking a suggestion routes the word through the vexSpellcheck IPC bridge', async () => {
     const WM = await loadWebviewManager();
-    const wv = fakeWebview();
+    // replaceMisspelling lives on webContents in main — the renderer calls it
+    // via window.vexSpellcheck, passing webContentsId + suggestion + URL.
+    const replaceSpy = vi.fn(() => Promise.resolve({ ok: true }));
+    globalThis.vexSpellcheck = { replaceMisspelling: replaceSpy };
+    const wv = fakeWebview({ getWebContentsId: () => 7, getURL: () => 'https://openl.io/' });
+
     WM.showContextMenu(
       fakeEvent({ misspelledWord: 'featrues', dictionarySuggestions: ['features', 'fixtures'] }),
-      wv, { x: 10, y: 10 },
+      wv,
     );
 
     const menu = document.querySelector('.tab-context-menu');
     menu.children[1].click(); // "fixtures"
 
-    expect(wv.replaceMisspelling).toHaveBeenCalledWith('fixtures');
-    expect(wv.replaceMisspelling).toHaveBeenCalledTimes(1);
+    expect(replaceSpy).toHaveBeenCalledWith(7, 'fixtures', 'https://openl.io/');
+    expect(replaceSpy).toHaveBeenCalledTimes(1);
     // The menu closes after an item is actioned.
     expect(document.querySelector('.tab-context-menu')).toBeNull();
   });
