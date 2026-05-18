@@ -237,10 +237,40 @@ function resolveAndReplaceMisspelling(webContentsModule, webContentsId, suggesti
   }
 }
 
+// === OAuth identity popups ===
+// These identity providers run a POPUP-based OAuth handshake: the popup
+// postMessages the credential back to window.opener and then self-closes.
+// setWindowOpenHandler must 'allow' them as real popup windows — re-homing
+// the URL into a plain Vex tab severs window.opener and the flow dead-ends
+// (Google GSI famously hangs blank on accounts.google.com/gsi/transform).
+//
+// Conservative list: ONLY hosts known to use popup mode. Redirect-based
+// flows (github.com/login, login.live.com) are deliberately excluded —
+// allowing those as popups would break their normal redirect.
+const OAUTH_POPUP_HOSTS = new Set([
+  'accounts.google.com',        // Google Identity Services (GSI)
+  'login.microsoftonline.com',  // Microsoft Identity Platform
+  'appleid.apple.com',          // Sign in with Apple
+]);
+
+// Exact-host match — no subdomain, suffix, or substring matching, so a
+// deceptive host like accounts.google.com.evil.example is NOT treated as
+// OAuth. Path is irrelevant: the whole host is OAuth territory.
+function isOAuthPopupUrl(url) {
+  if (typeof url !== 'string' || !url) return false;
+  try {
+    return OAUTH_POPUP_HOSTS.has(new URL(url).host);
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
   resolveAndReplaceMisspelling,
+  OAUTH_POPUP_HOSTS,
+  isOAuthPopupUrl,
   normalizeLaunchArg,
   findLaunchUrl,
   decideFullscreenAction,

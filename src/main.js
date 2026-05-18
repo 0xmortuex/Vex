@@ -602,6 +602,23 @@ app.on('web-contents-created', (_event, contents) => {
         }
       };
     }
+    // OAuth identity popups (Google GSI / Microsoft IDP / Sign in with Apple)
+    // run a popup-based handshake — the popup postMessages the credential back
+    // to window.opener and self-closes. The deny fall-through below would
+    // re-home the URL into a plain Vex tab, severing window.opener and
+    // dead-ending the flow (accounts.google.com/gsi/transform, blank page).
+    // Allow it as a real popup window; it inherits the opener's persist:main
+    // session so login cookies match.
+    if (_mainHelpers.isOAuthPopupUrl(url)) {
+      console.log(`[new-window] allowing OAuth identity popup -> ${url}`);
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false }
+        }
+      };
+    }
     console.log(`[new-window] ${disposition} -> ${url}`);
     try {
       const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
