@@ -79,6 +79,24 @@ function handleDevToolsShortcut(event, input) {
   return true;
 }
 
+// Ctrl+Shift+R — hard reload (clear cache + reload). Like F11/F12, this must
+// work even when a <webview> guest has focus: keydown inside a guest does NOT
+// bubble to the host document, so the renderer's ShortcutsRegistry never sees
+// it there. We catch it in the guest's before-input-event and tell the renderer
+// to hard-reload the active tab. (The renderer still handles the chrome-focused
+// case via ShortcutsRegistry; the two focus states are mutually exclusive, so
+// there's no double-trigger.)
+function handleHardReloadShortcut(event, input) {
+  if (!mainWindow || !input || input.type !== 'keyDown') return false;
+  if (input.control && input.shift && !input.alt && !input.meta &&
+      (input.key === 'R' || input.key === 'r')) {
+    event.preventDefault();
+    mainWindow.webContents.send('hard-reload-tab');
+    return true;
+  }
+  return false;
+}
+
 // === URL/path normalisation for argv from Windows shell ===
 // Windows passes a double-clicked .html as an absolute file path
 // (C:\Users\…\foo.html), not a file:// URL. Browsers register for both http(s)
@@ -815,6 +833,7 @@ app.on('web-contents-created', (_event, contents) => {
       console.log('[Vex F11] before-input-event fired on GUEST webContents id:', contents.id, 'type:', input.type);
     }
     if (handleFullscreenShortcut(event, input)) return;
+    if (handleHardReloadShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
   });
 });

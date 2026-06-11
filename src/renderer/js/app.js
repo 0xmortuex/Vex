@@ -206,6 +206,7 @@
     if (tab) TabManager.closeTab(tab.id);
   });
   window.vex.onReloadTab(() => WebviewManager.reload());
+  window.vex.onHardReloadTab?.(() => WebviewManager.hardReload());
   window.vex.onNavigateBack(() => WebviewManager.goBack());
   window.vex.onNavigateForward(() => WebviewManager.goForward());
   window.vex.onZoomIn(() => WebviewManager.zoomIn());
