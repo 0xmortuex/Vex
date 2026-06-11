@@ -740,8 +740,8 @@
       { name: 'GitHub', url: 'https://github.com' },
       { name: 'Reddit', url: 'https://reddit.com' },
       { name: 'Wikipedia', url: 'https://wikipedia.org' },
-      { name: 'ChatGPT', url: 'https://chat.openai.com' },
-      { name: 'Claude', url: 'https://claude.ai' }
+      { name: 'ChatGPT', url: 'https://chat.openai.com', icon: 'chatgpt' },
+      { name: 'Claude', url: 'https://claude.ai', icon: 'claude' }
     ];
 
     function loadShortcuts() {
@@ -755,6 +755,62 @@
       try { return 'https://www.google.com/s2/favicons?domain=' + new URL(url).hostname + '&sz=64'; } catch { return ''; }
     }
 
+    // === Ready-made icon library (right-click a shortcut → Change icon) ===
+    const ICON_LIBRARY = {
+      claude:  { label: 'Claude',  color: '#d97757', svg: '<svg width="26" height="26" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"><path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9 4.9 19.1"/></svg>' },
+      chatgpt: { label: 'ChatGPT', color: '#10a37f', svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7.5 4.3v8.6L12 20.2 4.5 15.9V7.3L12 3z"/><circle cx="12" cy="12" r="3"/></svg>' },
+      gemini:  { label: 'Gemini',  color: '#4285f4', svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.5 4.8 2.2 7 7 7-4.8.5-7 2.2-7 7-.5-4.8-2.2-7-7-7 4.8-.5 7-2.2 7-7z"/></svg>' },
+      globe:   { label: 'Globe',   svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg>' },
+      search:  { label: 'Search',  svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>' },
+      video:   { label: 'Video',   svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>' },
+      code:    { label: 'Code',    svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg>' },
+      chat:    { label: 'Chat',    svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H9l-4 4z"/></svg>' },
+      mail:    { label: 'Mail',    svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>' },
+      music:   { label: 'Music',   svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M9 18V6l12-2v12"/></svg>' },
+      cart:    { label: 'Shopping',svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.6 13h10L21 7H6"/></svg>' },
+      news:    { label: 'News',    svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h6M7 12h10M7 16h10" stroke-linecap="round"/></svg>' },
+      image:   { label: 'Image',   svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 17l-5-5L5 21"/></svg>' },
+      game:    { label: 'Games',   svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 12h3M8.5 10.5v3" stroke-linecap="round"/><circle cx="16" cy="11" r=".7" fill="currentColor"/><circle cx="18" cy="13" r=".7" fill="currentColor"/></svg>' },
+      book:    { label: 'Book',    svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 4h7a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4zM20 4h-7a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h7z"/></svg>' },
+      sparkle: { label: 'AI',      svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/><path d="M18.5 14l.8 2.3 2.2.7-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.7z"/></svg>' },
+      star:    { label: 'Star',    svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.2l1-5.8-4.3-4.1 5.9-.9z"/></svg>' },
+      bolt:    { label: 'Bolt',    svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>' },
+      heart:   { label: 'Social',  svg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 20s-7-4.3-9-9a4.5 4.5 0 0 1 8-3 4.5 4.5 0 0 1 8 3c-2 4.7-7 9-7 9z"/></svg>' }
+    };
+
+    // AI services the "Claude" tile (and any AI tile) can switch between.
+    const AI_SERVICES = {
+      claude:  { name: 'Claude',  url: 'https://claude.ai',             icon: 'claude' },
+      chatgpt: { name: 'ChatGPT', url: 'https://chat.openai.com',       icon: 'chatgpt' },
+      gemini:  { name: 'Gemini',  url: 'https://gemini.google.com/app', icon: 'gemini' }
+    };
+
+    function matchService(url) {
+      try {
+        const h = new URL(url).hostname.replace(/^www\./, '');
+        if (h.includes('claude.ai') || h.includes('anthropic')) return 'claude';
+        if (h.includes('openai.com') || h.includes('chatgpt.com')) return 'chatgpt';
+        if (h.includes('gemini.google') || h.includes('bard.google')) return 'gemini';
+      } catch {}
+      return null;
+    }
+
+    function switchService(idx, id) {
+      if (!AI_SERVICES[id]) return;
+      shortcuts[idx] = { ...AI_SERVICES[id] };
+      saveShortcuts(shortcuts);
+      renderShortcuts();
+    }
+
+    function renderIcon(s) {
+      if (s.icon && ICON_LIBRARY[s.icon]) {
+        const ic = ICON_LIBRARY[s.icon];
+        return '<span class="sc-svg" style="display:inline-flex;color:' + (ic.color || 'var(--vex-text-primary)') + '">' + ic.svg + '</span>';
+      }
+      const fav = getFavicon(s.url);
+      return fav ? '<img src="' + fav + '" alt="">' : '<span style="font-size:20px">🔗</span>';
+    }
+
     let shortcuts = loadShortcuts();
 
     function renderShortcuts() {
@@ -765,9 +821,8 @@
         card.className = 'shortcut-card';
         card.draggable = true;
         card.dataset.index = i;
-        const icon = getFavicon(s.url);
         card.innerHTML = `
-          <div class="shortcut-icon">${icon ? '<img src="'+icon+'" alt="">' : '<span style="font-size:20px">🔗</span>'}</div>
+          <div class="shortcut-icon">${renderIcon(s)}</div>
           <div class="shortcut-label">${s.name}</div>
         `;
         card.addEventListener('click', (e) => {
@@ -813,24 +868,83 @@
 
     function showShortcutMenu(e, idx) {
       document.querySelectorAll('.ctx-menu').forEach(m => m.remove());
+      const s = shortcuts[idx];
+      const svc = matchService(s.url);
       const menu = document.createElement('div');
       menu.className = 'ctx-menu';
-      menu.style.cssText = 'position:fixed;left:'+e.clientX+'px;top:'+e.clientY+'px;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);padding:4px;z-index:1000;min-width:140px;box-shadow:0 8px 32px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)';
-      [
-        { label: 'Edit', action: () => showShortcutModal(idx) },
-        { label: 'Duplicate', action: () => { shortcuts.splice(idx+1, 0, {...shortcuts[idx]}); saveShortcuts(shortcuts); renderShortcuts(); } },
-        { label: 'Delete', action: () => { shortcuts.splice(idx, 1); saveShortcuts(shortcuts); renderShortcuts(); }, danger: true }
-      ].forEach(item => {
+      menu.style.cssText = 'position:fixed;left:'+e.clientX+'px;top:'+e.clientY+'px;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);padding:4px;z-index:1000;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)';
+
+      const items = [];
+      items.push({ label: 'Open in new tab', action: () => console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url: s.url, newTab: true })) });
+      // AI tile (Claude/ChatGPT/Gemini) → quick-switch to the other services.
+      if (svc) {
+        items.push({ sep: true });
+        ['claude', 'chatgpt', 'gemini'].filter(id => id !== svc).forEach(id => {
+          items.push({ label: 'Switch to ' + AI_SERVICES[id].name, icon: id, action: () => switchService(idx, id) });
+        });
+      }
+      items.push({ sep: true });
+      items.push({ label: 'Edit name & link', action: () => showShortcutModal(idx) });
+      items.push({ label: 'Change icon', action: () => showIconPicker(idx) });
+      items.push({ label: 'Duplicate', action: () => { shortcuts.splice(idx + 1, 0, { ...shortcuts[idx] }); saveShortcuts(shortcuts); renderShortcuts(); } });
+      items.push({ sep: true });
+      items.push({ label: 'Delete', danger: true, action: () => { shortcuts.splice(idx, 1); saveShortcuts(shortcuts); renderShortcuts(); } });
+
+      items.forEach(item => {
+        if (item.sep) {
+          const sep = document.createElement('div');
+          sep.style.cssText = 'height:1px;background:var(--vex-border-subtle,rgba(255,255,255,0.08));margin:4px 6px';
+          menu.appendChild(sep);
+          return;
+        }
         const el = document.createElement('div');
-        el.textContent = item.label;
-        el.style.cssText = 'padding:8px 12px;border-radius:var(--vex-radius-sm);cursor:pointer;font-size:13px;color:'+(item.danger?'var(--vex-danger,#ef4444)':'var(--vex-text-primary)');
+        const ico = item.icon && ICON_LIBRARY[item.icon]
+          ? '<span style="display:inline-flex;width:16px;height:16px;color:' + (ICON_LIBRARY[item.icon].color || 'currentColor') + '">' + ICON_LIBRARY[item.icon].svg.replace('width="26" height="26"', 'width="16" height="16"') + '</span>'
+          : '';
+        el.innerHTML = ico + '<span>' + item.label + '</span>';
+        el.style.cssText = 'display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:var(--vex-radius-sm);cursor:pointer;font-size:13px;color:' + (item.danger ? 'var(--vex-danger,#ef4444)' : 'var(--vex-text-primary)');
         el.addEventListener('mouseenter', () => el.style.background = 'var(--vex-accent-dim)');
         el.addEventListener('mouseleave', () => el.style.background = 'transparent');
         el.addEventListener('click', () => { item.action(); menu.remove(); });
         menu.appendChild(el);
       });
       document.body.appendChild(menu);
+      // Keep the menu on-screen.
+      const r = menu.getBoundingClientRect();
+      if (r.right > window.innerWidth) menu.style.left = (window.innerWidth - r.width - 8) + 'px';
+      if (r.bottom > window.innerHeight) menu.style.top = (window.innerHeight - r.height - 8) + 'px';
       setTimeout(() => { const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } }; document.addEventListener('click', close); }, 0);
+    }
+
+    // Icon picker — grid of ready-made icons + the website's favicon.
+    function showIconPicker(idx) {
+      const s = shortcuts[idx];
+      document.getElementById('icon-picker-modal')?.remove();
+      const modal = document.createElement('div');
+      modal.id = 'icon-picker-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);z-index:1001;display:flex;align-items:center;justify-content:center';
+      const fav = getFavicon(s.url);
+      const cell = (id, inner, color, selected) =>
+        '<button class="ip-cell" data-icon="' + id + '" style="display:grid;place-items:center;width:54px;height:54px;border-radius:12px;border:1px solid ' + (selected ? 'var(--vex-accent)' : 'var(--vex-border-medium)') + ';background:' + (selected ? 'var(--vex-accent-dim)' : 'var(--vex-glass-input)') + ';color:' + (color || 'var(--vex-text-primary)') + ';cursor:pointer">' + inner + '</button>';
+      let cells = cell('__favicon', fav ? '<img src="' + fav + '" width="24" height="24" style="border-radius:5px">' : '🔗', null, !s.icon);
+      Object.keys(ICON_LIBRARY).forEach(id => { const ic = ICON_LIBRARY[id]; cells += cell(id, ic.svg, ic.color, s.icon === id); });
+      modal.innerHTML = '<div style="width:392px;max-width:92vw;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-lg);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)">'
+        + '<h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:var(--vex-text-primary)">Choose an icon</h3>'
+        + '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px">' + cells + '</div>'
+        + '<div style="display:flex;justify-content:flex-end"><button id="ip-close" style="padding:8px 18px;background:var(--vex-glass-input);color:var(--vex-text-primary);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);cursor:pointer;font-family:Outfit,sans-serif;font-size:13px">Close</button></div>'
+        + '</div>';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (ev) => { if (ev.target === modal) modal.remove(); });
+      modal.querySelector('#ip-close').addEventListener('click', () => modal.remove());
+      modal.querySelectorAll('.ip-cell').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.icon;
+          if (id === '__favicon') delete shortcuts[idx].icon; else shortcuts[idx].icon = id;
+          saveShortcuts(shortcuts);
+          renderShortcuts();
+          modal.remove();
+        });
+      });
     }
 
     function showShortcutModal(idx) {
@@ -869,7 +983,7 @@
         const name = modal.querySelector('#sc-name').value.trim();
         const url = modal.querySelector('#sc-url').value.trim();
         if (!name || !url) return;
-        if (existing) { shortcuts[idx] = { name, url }; }
+        if (existing) { shortcuts[idx] = { ...existing, name, url }; }
         else { shortcuts.push({ name, url }); }
         saveShortcuts(shortcuts);
         renderShortcuts();
