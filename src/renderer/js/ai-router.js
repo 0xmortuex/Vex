@@ -70,21 +70,44 @@ const AIRouter = (() => {
     try { return navigator.onLine; } catch { return true; }
   }
 
-  function resolveBackend(feature) {
+  // Live Ollama reachability check (also refreshes the cached flag). Used by the
+  // auto path when cloud is unconfigured, so a stale `ollamaAvailable` flag can't
+  // wrongly route to a missing cloud worker.
+  async function pingOllama() {
+    try {
+      const up = (await Ollama.ping()) === true;
+      ollamaAvailable = up;
+      return up;
+    } catch {
+      ollamaAvailable = false;
+      return false;
+    }
+  }
+
+  async function resolveBackend(feature) {
     let decision;
-    if (forceCloud) decision = 'cloud';
-    else {
+    if (forceCloud) {
+      decision = 'cloud';
+    } else {
       const pref = routingPrefs[feature] || 'auto';
-      if (pref === 'cloud') decision = 'cloud';
-      else if (pref === 'local') decision = 'local';
-      else {
-        // auto: cloud is only viable when online AND a worker URL is configured.
-        const cloudOk = isOnline() && !!cloudWorkerUrl();
-        if (preferLocal && isOllamaAvailable()) decision = 'local';
-        else if (!cloudOk && isOllamaAvailable()) decision = 'local';
-        else if (cloudOk) decision = 'cloud';
-        else if (isOllamaAvailable()) decision = 'local';
-        else decision = 'cloud';
+      if (pref === 'cloud') {
+        decision = 'cloud';
+      } else if (pref === 'local') {
+        decision = 'local';
+      } else {
+        // auto mode
+        const hasCloud = isOnline() && !!cloudWorkerUrl();
+        if (hasCloud) {
+          // Cloud is viable; only choose local if the user prefers it AND
+          // Ollama is already known to be up.
+          decision = (preferLocal && isOllamaAvailable()) ? 'local' : 'cloud';
+        } else {
+          // Cloud is unconfigured (or offline). Don't trust a possibly-stale
+          // availability flag — ping Ollama live. Use local if it answers; only
+          // fall through to 'cloud' (which surfaces the "not configured" error)
+          // when Ollama is ALSO unavailable.
+          decision = (await pingOllama()) ? 'local' : 'cloud';
+        }
       }
     }
     console.log(`[AIRouter] resolveBackend(${feature}):`, {
@@ -96,7 +119,7 @@ const AIRouter = (() => {
   }
 
   async function callAI(feature, request) {
-    const primary = resolveBackend(feature);
+    const primary = await resolveBackend(feature);
     const fallback = primary === 'cloud' ? 'local' : 'cloud';
     console.log(`[AIRouter] callAI(${feature}) → using backend: ${primary}`);
     try {
@@ -289,4 +312,7 @@ Only include relevance > 0.5. Max 10 matches.`,
   };
 })();
 
-window.AIRouter = AIRouter;
+if (typeof window !== 'undefined') window.AIRouter = AIRouter;
+// Test hook (renderer loads this as a plain <script>; the guard keeps runtime
+// behavior unchanged).
+if (typeof module !== 'undefined' && module.exports) module.exports = { AIRouter };
