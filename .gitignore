@@ -1,0 +1,35 @@
+node_modules/
+dist/
+# Cloudflare Wrangler local state (workers/*/.wrangler)
+.wrangler/
+.claude/
+.ruflo/
+.octogent/
+.codex/
+.idea/
+
+# Local scratch / throwaway harnesses — never part of a release
+tmp_*.js
+test-output/
+test-icons/
+GLASSMORPHISM_TESTING.md
+
+# Personal dev launchers (hardcoded local paths) — users get the installer
+Vex.bat
+Vex.vbs
+launch-vex.vbs
+create-shortcut.ps1
+# Icon build intermediates (regenerated from assets/icon.svg by `npm run build-icons`)
+assets/icon-source.png
+assets/icons/
+.tmp-asar/
+
+.octogent
+
+# Theme assets that may have IP concerns — never commit, even on accidental `git add .`
+assets/cia-seal.png
+
+# Local sidebar config — may carry a personalized URL with a secret query
+# param. Lives in <userData>/sidebar-config.json; copy sidebar-config.example.json
+# to set it up. The bare name matches the file at any depth (incl. repo root).
+sidebar-config.json

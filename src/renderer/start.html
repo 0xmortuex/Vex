@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Tab — Vex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Spectral:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* Inlined theme tokens — start.html is served standalone via vex://start
+       (separate document from the main shell, so the parent's data-theme attr
+       is invisible). main.js bakes data-theme into the served HTML and the JS
+       at the bottom mirrors live switches via localStorage. These blocks mirror
+       the chrome's theme-tokens.css so the start page matches whichever theme
+       is active. Default (and :root fallback) is OXFORD EDITORIAL. */
+    :root {
+      --vex-bg-base: #faf6ee;
+      --vex-glass-strong: #ffffff;
+      --vex-glass-medium: #f3ede0;
+      --vex-glass-light: #ffffff;
+      --vex-glass-input: #ffffff;
+      --vex-border-subtle: #e2d9c6;
+      --vex-border-medium: #e2d9c6;
+      --vex-border-strong: #d8ccb0;
+      --vex-border-accent: #1e3a5f;
+      --vex-border-accent-strong: #1e3a5f;
+      --vex-accent: #1e3a5f;
+      --vex-accent-dim: #dde6f0;
+      --vex-accent-glow: rgba(30, 58, 95, 0.08);
+      --vex-text-primary: #1f1c18;
+      --vex-text-secondary: #6a6253;
+      --vex-text-muted: #a89a7d;
+      --vex-blur-medium: blur(0px);
+      --vex-blur-light: blur(0px);
+      --vex-radius-sm: 4px;
+      --vex-radius-md: 6px;
+      --vex-radius-lg: 10px;
+    }
+    [data-theme="oxford"] {
+      --vex-bg-base: #faf6ee; --vex-glass-strong: #ffffff; --vex-glass-medium: #f3ede0;
+      --vex-glass-light: #ffffff; --vex-glass-input: #ffffff;
+      --vex-border-subtle: #e2d9c6; --vex-border-medium: #e2d9c6; --vex-border-strong: #d8ccb0;
+      --vex-border-accent: #1e3a5f; --vex-border-accent-strong: #1e3a5f;
+      --vex-accent: #1e3a5f; --vex-accent-dim: #dde6f0; --vex-accent-glow: rgba(30,58,95,0.08);
+      --vex-text-primary: #1f1c18; --vex-text-secondary: #6a6253; --vex-text-muted: #a89a7d;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 4px; --vex-radius-md: 6px; --vex-radius-lg: 10px;
+    }
+    [data-theme="default"] {
+      --vex-bg-base: #1a1816; --vex-glass-strong: rgba(38,34,30,0.65); --vex-glass-medium: rgba(38,34,30,0.45);
+      --vex-glass-light: rgba(38,34,30,0.35); --vex-glass-input: rgba(20,18,16,0.55);
+      --vex-border-subtle: rgba(255,255,255,0.06); --vex-border-medium: rgba(255,255,255,0.1); --vex-border-strong: rgba(255,255,255,0.16);
+      --vex-border-accent: rgba(212,165,116,0.32); --vex-border-accent-strong: rgba(212,165,116,0.4);
+      --vex-accent: #d4a574; --vex-accent-dim: rgba(212,165,116,0.22); --vex-accent-glow: rgba(212,165,116,0.18);
+      --vex-text-primary: #e8e3d8; --vex-text-secondary: #aaa39a; --vex-text-muted: #6a665e;
+      --vex-blur-medium: blur(20px) saturate(140%); --vex-blur-light: blur(12px) saturate(120%);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="midnight"] {
+      --vex-bg-base: #05050a; --vex-glass-strong: #10101e; --vex-glass-medium: #0a0a14;
+      --vex-glass-light: #10101e; --vex-glass-input: #05050a;
+      --vex-border-subtle: #1a1a2e; --vex-border-medium: #1a1a2e; --vex-border-strong: #2a2a4a;
+      --vex-border-accent: #8b5cf6; --vex-border-accent-strong: #8b5cf6;
+      --vex-accent: #8b5cf6; --vex-accent-dim: #8b5cf638; --vex-accent-glow: #8b5cf62e;
+      --vex-text-primary: #e0e0f0; --vex-text-secondary: #9090c0; --vex-text-muted: #6060a0;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="forest"] {
+      --vex-bg-base: #0a100e; --vex-glass-strong: #141e1a; --vex-glass-medium: #0e1512;
+      --vex-glass-light: #141e1a; --vex-glass-input: #0a100e;
+      --vex-border-subtle: #1e2e28; --vex-border-medium: #1e2e28; --vex-border-strong: #2e463c;
+      --vex-border-accent: #22c55e; --vex-border-accent-strong: #22c55e;
+      --vex-accent: #22c55e; --vex-accent-dim: #22c55e38; --vex-accent-glow: #22c55e2e;
+      --vex-text-primary: #d8ede4; --vex-text-secondary: #8aab9e; --vex-text-muted: #6b8a7e;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="ocean"] {
+      --vex-bg-base: #080e14; --vex-glass-strong: #121c2c; --vex-glass-medium: #0c1420;
+      --vex-glass-light: #121c2c; --vex-glass-input: #080e14;
+      --vex-border-subtle: #1c2c3e; --vex-border-medium: #1c2c3e; --vex-border-strong: #2c4458;
+      --vex-border-accent: #0ea5e9; --vex-border-accent-strong: #0ea5e9;
+      --vex-accent: #0ea5e9; --vex-accent-dim: #0ea5e938; --vex-accent-glow: #0ea5e92e;
+      --vex-text-primary: #d4e4f0; --vex-text-secondary: #88a8c0; --vex-text-muted: #6888a0;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="dracula"] {
+      --vex-bg-base: #1e1f29; --vex-glass-strong: #282a36; --vex-glass-medium: #21222c;
+      --vex-glass-light: #282a36; --vex-glass-input: #1e1f29;
+      --vex-border-subtle: #383a4c; --vex-border-medium: #383a4c; --vex-border-strong: #44475a;
+      --vex-border-accent: #bd93f9; --vex-border-accent-strong: #bd93f9;
+      --vex-accent: #bd93f9; --vex-accent-dim: #bd93f938; --vex-accent-glow: #bd93f92e;
+      --vex-text-primary: #f8f8f2; --vex-text-secondary: #9ba2c9; --vex-text-muted: #6272a4;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="nord"] {
+      --vex-bg-base: #2e3440; --vex-glass-strong: #434c5e; --vex-glass-medium: #3b4252;
+      --vex-glass-light: #434c5e; --vex-glass-input: #2e3440;
+      --vex-border-subtle: #4c566a; --vex-border-medium: #4c566a; --vex-border-strong: #5e6a82;
+      --vex-border-accent: #88c0d0; --vex-border-accent-strong: #88c0d0;
+      --vex-accent: #88c0d0; --vex-accent-dim: #88c0d038; --vex-accent-glow: #88c0d02e;
+      --vex-text-primary: #eceff4; --vex-text-secondary: #aab2c4; --vex-text-muted: #7b88a1;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="catppuccin"] {
+      --vex-bg-base: #1e1e2e; --vex-glass-strong: #302d41; --vex-glass-medium: #24243e;
+      --vex-glass-light: #302d41; --vex-glass-input: #1e1e2e;
+      --vex-border-subtle: #45425a; --vex-border-medium: #45425a; --vex-border-strong: #585273;
+      --vex-border-accent: #c9cbff; --vex-border-accent-strong: #c9cbff;
+      --vex-accent: #c9cbff; --vex-accent-dim: #c9cbff38; --vex-accent-glow: #c9cbff2e;
+      --vex-text-primary: #d9e0ee; --vex-text-secondary: #b0a8c4; --vex-text-muted: #988ba2;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+
+    /* Oxford editorial typography on the start page — Fraunces display serif. */
+    [data-theme="oxford"] .clock,
+    [data-theme="oxford"] .vex-wordmark { font-family: 'Fraunces', Georgia, serif !important; }
+    [data-theme="oxford"] .greeting { font-family: 'Spectral', Georgia, serif; }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body { background: var(--vex-bg-base); min-height: 100vh; }
+
+    body {
+      background-image:
+        radial-gradient(circle at 85% -10%, var(--vex-accent-glow) 0%, transparent 55%),
+        radial-gradient(circle at 15% 110%, var(--vex-accent-glow) 0%, transparent 55%);
+      background-attachment: fixed;
+      color: var(--vex-text-primary);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 72px 32px 48px;
+      overflow-y: auto;
+    }
+
+    /* === Greeting === */
+    .greeting-section { text-align: center; margin-bottom: 28px; }
+
+    .clock {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-weight: 400;
+      font-size: 64px;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      color: var(--vex-text-primary);
+    }
+
+    .date-text {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 12px;
+      color: var(--vex-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      margin-top: 14px;
+    }
+
+    .greeting {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 22px;
+      color: var(--vex-text-secondary);
+      margin-top: 10px;
+      font-weight: 400;
+    }
+
+    .greeting span {
+      color: var(--vex-accent);
+      font-style: italic;
+      font-weight: 500;
+    }
+
+    /* === Wordmark === */
+    .logo-section { margin: 22px 0 28px; text-align: center; }
+    .vex-wordmark {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--vex-accent), color-mix(in srgb, var(--vex-accent) 65%, #ffffff));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+      opacity: 0.85;
+    }
+
+    /* === Search (hero) === */
+    .search-container {
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 56px;
+      position: relative;
+    }
+
+    .search-container::before {
+      content: "";
+      position: absolute;
+      inset: -20px;
+      background: radial-gradient(ellipse at center, var(--vex-accent-glow), transparent 70%);
+      border-radius: 28px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 0;
+    }
+    .search-container:focus-within::before { opacity: 1; }
+
+    .search-bar {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      background: var(--vex-glass-strong);
+      backdrop-filter: var(--vex-blur-medium);
+      -webkit-backdrop-filter: var(--vex-blur-medium);
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: 16px;
+      padding: 16px 20px;
+      gap: 14px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .search-bar:focus-within {
+      border-color: var(--vex-border-accent-strong);
+      box-shadow: 0 0 0 2px var(--vex-accent-dim);
+    }
+
+    .search-bar svg { color: var(--vex-text-muted); flex-shrink: 0; transition: color 0.2s ease; }
+    .search-bar:focus-within svg { color: var(--vex-accent); }
+
+    .search-bar input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--vex-text-primary);
+      font-size: 16px;
+      font-family: 'Outfit', sans-serif;
+    }
+    .search-bar input::placeholder { color: var(--vex-text-muted); }
+
+    .search-bar kbd {
+      background: var(--vex-glass-input);
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 10px;
+      color: var(--vex-text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.04em;
+    }
+
+    /* === Start-page Google Suggest dropdown === */
+    /* Theme-safe: tokens only (start.html inlines all 8 themes' --vex-* vars). */
+    #start-suggestions {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      z-index: 5;
+      background: var(--vex-glass-strong);
+      backdrop-filter: var(--vex-blur-medium);
+      -webkit-backdrop-filter: var(--vex-blur-medium);
+      border: 1px solid var(--vex-border-medium);
+      border-radius: 14px;
+      box-shadow: 0 8px 28px var(--vex-accent-glow);
+      padding: 6px;
+      overflow: hidden;
+      text-align: left;
+    }
+    #start-suggestions.hidden { display: none; }
+    .start-suggestion {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+    .start-suggestion:hover,
+    .start-suggestion.selected { background: var(--vex-accent-dim); }
+    .start-suggestion .ss-glyph {
+      flex-shrink: 0;
+      color: var(--vex-text-muted);
+      display: flex;
+      align-items: center;
+    }
+    .start-suggestion:hover .ss-glyph,
+    .start-suggestion.selected .ss-glyph { color: var(--vex-accent); }
+    .start-suggestion .ss-text {
+      flex: 1;
+      min-width: 0;
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      color: var(--vex-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .start-suggestion:hover .ss-text,
+    .start-suggestion.selected .ss-text { color: var(--vex-accent); }
+
+    /* === Section headers — editorial === */
+    .shortcuts-section,
+    .tools-section,
+    .recent-section,
+    .gh-activity-section {
+      width: 100%;
+      max-width: 720px;
+      margin-bottom: 40px;
+    }
+
+    .shortcuts-section h3,
+    .tools-section h3,
+    .recent-section h3,
+    .gh-activity-section h3 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--vex-text-muted);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--vex-border-subtle);
+    }
+
+    /* === Shortcuts grid === */
+    .shortcuts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+
+    .shortcut-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 12px;
+      background: var(--vex-glass-medium);
+      backdrop-filter: var(--vex-blur-light);
+      -webkit-backdrop-filter: var(--vex-blur-light);
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: var(--vex-radius-lg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      color: var(--vex-text-primary);
+    }
+
+    .shortcut-card:hover {
+      background: var(--vex-accent-glow);
+      border-color: var(--vex-border-accent);
+      transform: translateY(-2px);
+    }
+
+    .shortcut-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--vex-radius-md);
+      background: var(--vex-glass-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      overflow: hidden;
+    }
+    .shortcut-icon img { width: 24px; height: 24px; border-radius: 5px; }
+
+    .shortcut-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--vex-text-secondary);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+      transition: color 0.2s ease;
+    }
+    .shortcut-card:hover .shortcut-label { color: var(--vex-text-primary); }
+
+    /* Add-new shortcut */
+    .shortcut-card.add {
+      background: var(--vex-glass-input);
+      border: 1px dashed var(--vex-border-accent);
+      color: var(--vex-accent);
+    }
+    .shortcut-card.add:hover {
+      background: var(--vex-accent-glow);
+      border-color: var(--vex-accent);
+      color: var(--vex-accent);
+      transform: none;
+    }
+    .shortcut-card.add .shortcut-icon { background: transparent; color: inherit; }
+    .shortcut-card.add .shortcut-label { color: inherit; }
+
+    /* === My Tools horizontal rail === */
+    .tools-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      scroll-snap-type: x mandatory;
+    }
+    .tools-scroll::-webkit-scrollbar { height: 4px; }
+    .tools-scroll::-webkit-scrollbar-thumb {
+      background: var(--vex-border-medium); border-radius: 2px;
+    }
+
+    .tool-card {
+      flex: 0 0 150px;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 18px 10px;
+      background: var(--vex-glass-medium);
+      backdrop-filter: var(--vex-blur-light);
+      -webkit-backdrop-filter: var(--vex-blur-light);
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: var(--vex-radius-lg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tool-card:hover {
+      background: var(--vex-accent-glow);
+      border-color: var(--vex-border-accent);
+      transform: translateY(-2px);
+    }
+    .tool-card-icon { font-size: 24px; }
+    .tool-card-name {
+      font-size: 13px; color: var(--vex-text-primary); font-weight: 500;
+    }
+    .tool-card-desc {
+      font-size: 11px; color: var(--vex-text-muted); text-align: center;
+    }
+
+    /* === Weather + GitHub widget row === */
+    .weather-section {
+      width: 100%;
+      max-width: 720px;
+      margin-bottom: 40px;
+      display: flex;
+      gap: 14px;
+    }
+
+    .weather-card,
+    .github-card,
+    .cusa-widget {
+      flex: 1;
+      background: var(--vex-glass-medium);
+      backdrop-filter: var(--vex-blur-light);
+      -webkit-backdrop-filter: var(--vex-blur-light);
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: var(--vex-radius-lg);
+      padding: 22px;
+    }
+
+    .weather-card h4,
+    .github-card h4,
+    .cusa-widget h4 {
+      font-family: Georgia, serif;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--vex-text-muted);
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+
+    .weather-temp {
+      font-family: Georgia, serif;
+      font-size: 38px;
+      font-weight: 400;
+      color: var(--vex-text-primary);
+    }
+    .weather-desc {
+      font-size: 13px;
+      color: var(--vex-text-muted);
+      margin-top: 6px;
+    }
+
+    .github-stats { display: flex; gap: 24px; }
+    .github-stat { display: flex; flex-direction: column; }
+    .github-stat-value {
+      font-family: Georgia, serif;
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--vex-accent);
+    }
+    .github-stat-label {
+      font-size: 11px;
+      color: var(--vex-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 2px;
+    }
+
+    .cusa-stat-row {
+      display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;
+    }
+    .cusa-stat-row span {
+      font-size: 13px; color: var(--vex-text-secondary);
+    }
+    .cusa-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      background: var(--vex-accent-dim);
+      color: var(--vex-accent);
+      border: 1px solid var(--vex-border-accent-strong);
+      border-radius: 8px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cusa-btn:hover {
+      background: var(--vex-accent-dim);
+      color: var(--vex-text-primary);
+      border-color: var(--vex-accent);
+    }
+
+    /* === Recently closed / recent === */
+    .recent-list {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .recent-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--vex-glass-light);
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: var(--vex-radius-md);
+      color: var(--vex-text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    .recent-item:hover {
+      background: var(--vex-accent-glow);
+      border-color: var(--vex-border-accent);
+      color: var(--vex-text-primary);
+    }
+    .recent-item img { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; }
+    .recent-item-title {
+      flex: 1;
+      font-size: 13px;
+      color: inherit;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .recent-item-url {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--vex-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 280px;
+    }
+
+    /* === GitHub activity === */
+    .gh-activity-list {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .gh-activity-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--vex-glass-light);
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: var(--vex-radius-md);
+      transition: border-color 0.15s ease;
+    }
+    .gh-activity-item:hover { border-color: var(--vex-border-accent); }
+    .gh-activity-repo {
+      font-size: 12px;
+      color: var(--vex-accent);
+      font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+    }
+    .gh-activity-msg {
+      flex: 1;
+      font-size: 12px;
+      color: var(--vex-text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .gh-activity-time {
+      font-size: 11px;
+      color: var(--vex-text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 600px) {
+      .shortcuts-grid { grid-template-columns: repeat(2, 1fr); }
+      .weather-section { flex-direction: column; }
+      .clock { font-size: 48px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="greeting-section">
+    <div class="clock" id="clock">00:00</div>
+    <div class="date-text" id="date-text"></div>
+    <div class="greeting">Good evening</div>
+  </div>
+
+  <div class="logo-section">
+    <div class="vex-wordmark">Vex</div>
+  </div>
+
+  <div class="search-container">
+    <div class="search-bar">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input type="text" id="search-input" placeholder="Search the web..." autocomplete="off" spellcheck="false">
+      <kbd>Enter</kbd>
+    </div>
+    <div id="start-suggestions" class="hidden"></div>
+  </div>
+
+  <div class="shortcuts-section">
+    <h3>Quick Access</h3>
+    <div class="shortcuts-grid" id="shortcuts-grid">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <div class="tools-section">
+    <h3>My Tools</h3>
+    <div class="tools-scroll" id="tools-scroll"></div>
+  </div>
+
+  <div class="weather-section">
+    <div class="weather-card">
+      <h4>Weather</h4>
+      <div class="weather-temp" id="weather-temp">--°</div>
+      <div class="weather-desc" id="weather-desc">Loading...</div>
+    </div>
+    <div class="github-card">
+      <h4>GitHub</h4>
+      <div class="github-stats" id="github-stats">
+        <div class="github-stat">
+          <span class="github-stat-value" id="gh-repos">--</span>
+          <span class="github-stat-label">Repos</span>
+        </div>
+        <div class="github-stat">
+          <span class="github-stat-value" id="gh-followers">--</span>
+          <span class="github-stat-label">Followers</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="recent-section">
+    <h3>Recent</h3>
+    <div class="recent-list" id="recent-list">
+      <div class="recent-item" style="color: var(--vex-text-muted); padding: 20px; text-align: center; justify-content: center;">
+        No recent history yet
+      </div>
+    </div>
+  </div>
+
+  <div class="gh-activity-section">
+    <h3>Recent GitHub Activity</h3>
+    <div class="gh-activity-list" id="gh-activity-list">
+      <div class="gh-activity-item" style="justify-content:center; color:var(--vex-text-muted);">Loading...</div>
+    </div>
+  </div>
+
+  <script>
+    // Theme — at runtime start.html loads over file:// (get-start-page-url's
+    // deliberate fallback), which BYPASSES the vex:// protocol theme-baker in
+    // main.js. The cross-origin/cross-session localStorage isn't shared with
+    // the main shell either, so neither server-side injection nor localStorage
+    // can carry the theme here. Instead TabManager opens start tabs as
+    // start.html?theme=<active> and we read that query param. Live theme
+    // switches reload this page with a fresh ?theme= (see ThemeManager
+    // .applyTheme). Falls back to oxford only when the param is missing/unknown.
+    const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin'];
+    function applyStartTheme(name) {
+      const t = VEX_THEMES.includes(name) ? name : 'oxford';
+      document.documentElement.setAttribute('data-theme', t);
+    }
+    try {
+      applyStartTheme(new URLSearchParams(location.search).get('theme'));
+    } catch { applyStartTheme(null); }
+
+    // Clock
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('clock').textContent = `${h}:${m}`;
+
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      document.getElementById('date-text').textContent = now.toLocaleDateString('en-US', options);
+
+      // Update greeting
+      const hour = now.getHours();
+      let greeting = 'Good evening';
+      if (hour < 12) greeting = 'Good morning';
+      else if (hour < 18) greeting = 'Good afternoon';
+      // Optional personalization: set a display name in Settings (stored as
+      // localStorage 'vex.userName'). Empty by default so a fresh install shows
+      // a neutral greeting with no name.
+      let userName = '';
+      try { userName = (localStorage.getItem('vex.userName') || '').trim(); } catch {}
+      const safeName = userName.replace(/[<>&"]/g, '');
+      document.querySelector('.greeting').innerHTML = safeName
+        ? `${greeting}, <span>${safeName}</span>`
+        : greeting;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // Customizable shortcuts with localStorage persistence
+    const SHORTCUTS_KEY = 'vex.shortcuts';
+    const defaultShortcuts = [
+      { name: 'Google', url: 'https://google.com' },
+      { name: 'YouTube', url: 'https://youtube.com' },
+      { name: 'GitHub', url: 'https://github.com' },
+      { name: 'Reddit', url: 'https://reddit.com' },
+      { name: 'Wikipedia', url: 'https://wikipedia.org' },
+      { name: 'ChatGPT', url: 'https://chat.openai.com' },
+      { name: 'Claude', url: 'https://claude.ai' }
+    ];
+
+    function loadShortcuts() {
+      try { const s = localStorage.getItem(SHORTCUTS_KEY); if (s) return JSON.parse(s); } catch {}
+      return defaultShortcuts;
+    }
+    function saveShortcuts(shortcuts) {
+      localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts));
+    }
+    function getFavicon(url) {
+      try { return 'https://www.google.com/s2/favicons?domain=' + new URL(url).hostname + '&sz=64'; } catch { return ''; }
+    }
+
+    let shortcuts = loadShortcuts();
+
+    function renderShortcuts() {
+      const grid = document.getElementById('shortcuts-grid');
+      grid.innerHTML = '';
+      shortcuts.forEach((s, i) => {
+        const card = document.createElement('div');
+        card.className = 'shortcut-card';
+        card.draggable = true;
+        card.dataset.index = i;
+        const icon = getFavicon(s.url);
+        card.innerHTML = `
+          <div class="shortcut-icon">${icon ? '<img src="'+icon+'" alt="">' : '<span style="font-size:20px">🔗</span>'}</div>
+          <div class="shortcut-label">${s.name}</div>
+        `;
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.shortcut-edit-btn')) return;
+          e.preventDefault();
+          // Ctrl/Alt-click on a shortcut tile → open in a new tab
+          const newTab = e.ctrlKey || e.altKey || e.metaKey || e.button === 1;
+          console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url: s.url, newTab }));
+        });
+        // Middle-click also opens in a new tab
+        card.addEventListener('auxclick', (e) => {
+          if (e.button !== 1) return;
+          e.preventDefault();
+          console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url: s.url, newTab: true }));
+        });
+        card.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          showShortcutMenu(e, i);
+        });
+        // Drag reorder
+        card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', i); card.style.opacity = '0.5'; });
+        card.addEventListener('dragend', () => { card.style.opacity = '1'; });
+        card.addEventListener('dragover', (e) => e.preventDefault());
+        card.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const from = parseInt(e.dataTransfer.getData('text/plain'));
+          if (from !== i) {
+            const [moved] = shortcuts.splice(from, 1);
+            shortcuts.splice(i, 0, moved);
+            saveShortcuts(shortcuts);
+            renderShortcuts();
+          }
+        });
+        grid.appendChild(card);
+      });
+      // Add button
+      const addCard = document.createElement('div');
+      addCard.className = 'shortcut-card add';
+      addCard.innerHTML = '<div class="shortcut-icon"><span style="font-size:22px">+</span></div><div class="shortcut-label">Add</div>';
+      addCard.addEventListener('click', () => showShortcutModal(-1));
+      grid.appendChild(addCard);
+    }
+
+    function showShortcutMenu(e, idx) {
+      document.querySelectorAll('.ctx-menu').forEach(m => m.remove());
+      const menu = document.createElement('div');
+      menu.className = 'ctx-menu';
+      menu.style.cssText = 'position:fixed;left:'+e.clientX+'px;top:'+e.clientY+'px;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);padding:4px;z-index:1000;min-width:140px;box-shadow:0 8px 32px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)';
+      [
+        { label: 'Edit', action: () => showShortcutModal(idx) },
+        { label: 'Duplicate', action: () => { shortcuts.splice(idx+1, 0, {...shortcuts[idx]}); saveShortcuts(shortcuts); renderShortcuts(); } },
+        { label: 'Delete', action: () => { shortcuts.splice(idx, 1); saveShortcuts(shortcuts); renderShortcuts(); }, danger: true }
+      ].forEach(item => {
+        const el = document.createElement('div');
+        el.textContent = item.label;
+        el.style.cssText = 'padding:8px 12px;border-radius:var(--vex-radius-sm);cursor:pointer;font-size:13px;color:'+(item.danger?'var(--vex-danger,#ef4444)':'var(--vex-text-primary)');
+        el.addEventListener('mouseenter', () => el.style.background = 'var(--vex-accent-dim)');
+        el.addEventListener('mouseleave', () => el.style.background = 'transparent');
+        el.addEventListener('click', () => { item.action(); menu.remove(); });
+        menu.appendChild(el);
+      });
+      document.body.appendChild(menu);
+      setTimeout(() => { const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } }; document.addEventListener('click', close); }, 0);
+    }
+
+    function showShortcutModal(idx) {
+      const existing = idx >= 0 ? shortcuts[idx] : null;
+      let modal = document.getElementById('shortcut-modal');
+      if (modal) modal.remove();
+      modal = document.createElement('div');
+      modal.id = 'shortcut-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);z-index:1000;display:flex;align-items:center;justify-content:center';
+      modal.innerHTML = `<div style="width:360px;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-lg);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)">
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:var(--vex-text-primary)">${existing ? 'Edit' : 'Add'} Shortcut</h3>
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--vex-text-muted);margin-bottom:6px;font-weight:500">Name</label>
+        <input type="text" id="sc-name" value="${existing ? existing.name : ''}" placeholder="Shortcut name..." style="width:100%;padding:10px 12px;background:var(--vex-glass-input);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);color:var(--vex-text-primary);font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:Outfit,sans-serif">
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--vex-text-muted);margin-bottom:6px;font-weight:500">URL</label>
+        <input type="text" id="sc-url" value="${existing ? existing.url : ''}" placeholder="https://..." style="width:100%;padding:10px 12px;background:var(--vex-glass-input);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);color:var(--vex-text-primary);font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:'JetBrains Mono',monospace">
+        <div id="sc-preview" style="text-align:center;margin-bottom:14px"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="sc-cancel" style="padding:8px 18px;background:var(--vex-glass-input);color:var(--vex-text-primary);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);cursor:pointer;font-family:Outfit,sans-serif;font-size:13px">Cancel</button>
+          <button id="sc-save" style="padding:8px 18px;background:var(--vex-accent);color:#fff;border:none;border-radius:var(--vex-radius-md);cursor:pointer;font-family:Outfit,sans-serif;font-size:13px;font-weight:500">Save</button>
+        </div>
+      </div>`;
+      document.body.appendChild(modal);
+
+      const urlInput = modal.querySelector('#sc-url');
+      const preview = modal.querySelector('#sc-preview');
+      function updatePreview() {
+        const fav = getFavicon(urlInput.value);
+        preview.innerHTML = fav ? '<img src="'+fav+'" width="32" height="32" style="border-radius:6px">' : '';
+      }
+      urlInput.addEventListener('input', updatePreview);
+      updatePreview();
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+      modal.querySelector('#sc-cancel').addEventListener('click', () => modal.remove());
+      modal.querySelector('#sc-save').addEventListener('click', () => {
+        const name = modal.querySelector('#sc-name').value.trim();
+        const url = modal.querySelector('#sc-url').value.trim();
+        if (!name || !url) return;
+        if (existing) { shortcuts[idx] = { name, url }; }
+        else { shortcuts.push({ name, url }); }
+        saveShortcuts(shortcuts);
+        renderShortcuts();
+        modal.remove();
+      });
+      modal.querySelector('#sc-name').focus();
+      modal.querySelector('#sc-name').addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') modal.remove();
+        if (e.key === 'Enter') modal.querySelector('#sc-save').click();
+      });
+    }
+
+    renderShortcuts();
+
+    // Search — with Google Suggest predictions (pure web suggest; no local
+    // history/tab/bookmark blending here). Suggestions come from the main
+    // process via window.__vexSuggestBridge (exposed by preload-webview.js for
+    // the vex:// origin) because Google Suggest sends no CORS header. Debounced,
+    // stale-cancelled, and fail-silent: any error/offline → no dropdown, and
+    // typing/Enter is never blocked.
+    (function setupStartSearch() {
+      const input = document.getElementById('search-input');
+      const box = document.getElementById('start-suggestions');
+      const WEB_DEBOUNCE_MS = 150;
+      const MAX = 8;
+      let timer = null;
+      let seq = 0;            // monotonic id → ignore out-of-order responses
+      let results = [];       // string[] predictions
+      let selectedIndex = -1;
+      let open = false;
+
+      function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+      // Resolve a query string to a URL exactly as the start page always has
+      // (URL vs Google search), then navigate via the VEX_CMD bridge.
+      function navigateQuery(query, newTab) {
+        query = (query || '').trim();
+        if (!query) return;
+        let url;
+        if (/^https?:\/\//i.test(query) || /^[a-z0-9-]+\.[a-z]{2,}/i.test(query)) {
+          url = query.startsWith('http') ? query : 'https://' + query;
+        } else {
+          url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        }
+        console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url, newTab }));
+      }
+
+      function close() {
+        open = false; selectedIndex = -1;
+        box.classList.add('hidden'); box.innerHTML = '';
+      }
+
+      function render() {
+        if (!results.length) { close(); return; }
+        box.innerHTML = '';
+        results.forEach((s, i) => {
+          const row = document.createElement('div');
+          row.className = 'start-suggestion' + (i === selectedIndex ? ' selected' : '');
+          row.dataset.index = String(i);
+          row.innerHTML =
+            `<span class="ss-glyph"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>` +
+            `<span class="ss-text">${esc(s)}</span>`;
+          // mousedown+preventDefault: keep focus, register click before blur.
+          row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(i); });
+          box.appendChild(row);
+        });
+        box.classList.remove('hidden');
+        open = true;
+      }
+
+      function refreshSelection() {
+        const rows = box.querySelectorAll('.start-suggestion');
+        rows.forEach((el, i) => el.classList.toggle('selected', i === selectedIndex));
+        const sel = rows[selectedIndex];
+        if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
+      }
+
+      function pick(i) {
+        const q = results[i];
+        if (q == null) return;
+        input.value = q;
+        close();
+        navigateQuery(q, false);
+      }
+
+      function fetchSuggest(q) {
+        clearTimeout(timer);
+        const bridge = (window.__vexSuggestBridge && typeof window.__vexSuggestBridge.suggest === 'function')
+          ? window.__vexSuggestBridge.suggest : null;
+        if (!q || !bridge) { results = []; close(); return; }
+        const mySeq = ++seq;
+        timer = setTimeout(() => {
+          Promise.resolve(bridge(q)).then((list) => {
+            if (mySeq !== seq) return;                      // stale → ignore
+            if (input.value.trim() !== q) return;           // query moved on
+            results = (Array.isArray(list) ? list : [])
+              .filter(s => typeof s === 'string' && s.trim()).slice(0, MAX);
+            selectedIndex = -1;
+            render();
+          }).catch(() => { /* fail-silent: show nothing */ });
+        }, WEB_DEBOUNCE_MS);
+      }
+
+      input.addEventListener('input', () => fetchSuggest(input.value.trim()));
+      input.addEventListener('blur', () => close());
+
+      input.addEventListener('keydown', (e) => {
+        if (open && results.length) {
+          if (e.key === 'ArrowDown') { e.preventDefault(); selectedIndex = (selectedIndex + 1) % results.length; refreshSelection(); return; }
+          if (e.key === 'ArrowUp')   { e.preventDefault(); selectedIndex = (selectedIndex - 1 + results.length) % results.length; refreshSelection(); return; }
+          if (e.key === 'Escape')    { e.preventDefault(); close(); return; }
+          if (e.key === 'Enter' && selectedIndex >= 0) { e.preventDefault(); pick(selectedIndex); return; }
+        }
+        // Typed Enter with no highlight → navigate exactly as before.
+        if (e.key === 'Enter') {
+          const query = e.target.value.trim();
+          if (!query) return;
+          close();
+          navigateQuery(query, e.ctrlKey || e.altKey);
+        }
+      });
+    })();
+
+    // Weather (open-meteo, approximate location)
+    async function loadWeather() {
+      try {
+        const geo = await fetch('https://ipapi.co/json/');
+        const loc = await geo.json();
+        const lat = loc.latitude;
+        const lon = loc.longitude;
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=fahrenheit`);
+        const data = await res.json();
+        const temp = Math.round(data.current_weather.temperature);
+        document.getElementById('weather-temp').textContent = `${temp}°F`;
+        const codes = {
+          0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+          45: 'Foggy', 48: 'Rime fog', 51: 'Light drizzle', 53: 'Drizzle',
+          55: 'Dense drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+          71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Rain showers',
+          81: 'Moderate showers', 82: 'Violent showers', 95: 'Thunderstorm'
+        };
+        document.getElementById('weather-desc').textContent =
+          (codes[data.current_weather.weathercode] || 'Unknown') + ` · ${loc.city || ''}`;
+      } catch {
+        document.getElementById('weather-desc').textContent = 'Unable to load weather';
+      }
+    }
+    loadWeather();
+
+    // Optional GitHub widget — set a username in Settings (localStorage
+    // 'vex.githubUsername'). Hidden entirely until configured so a fresh
+    // install doesn't show anyone's stats by default.
+    function getGithubUser() {
+      try { return (localStorage.getItem('vex.githubUsername') || '').trim(); } catch { return ''; }
+    }
+
+    // GitHub stats
+    async function loadGitHub() {
+      const ghUser = getGithubUser();
+      if (!ghUser) {
+        document.querySelector('.github-card')?.style.setProperty('display', 'none');
+        return;
+      }
+      try {
+        const res = await fetch('https://api.github.com/users/' + encodeURIComponent(ghUser));
+        const data = await res.json();
+        document.getElementById('gh-repos').textContent = data.public_repos || '0';
+        document.getElementById('gh-followers').textContent = data.followers || '0';
+      } catch {
+        // silently fail
+      }
+    }
+    loadGitHub();
+
+    // My Tools — personal app shortcuts. Empty by default; users add their own
+    // (stored as localStorage 'vex.startTools', an array of
+    // { icon, name, desc, url }). The section hides itself when empty.
+    let myTools = [];
+    try { myTools = JSON.parse(localStorage.getItem('vex.startTools') || '[]'); } catch {}
+    if (!Array.isArray(myTools)) myTools = [];
+
+    const toolsScroll = document.getElementById('tools-scroll');
+    if (myTools.length === 0) {
+      document.querySelector('.tools-section')?.style.setProperty('display', 'none');
+    }
+    myTools.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'tool-card';
+      card.innerHTML = `
+        <div class="tool-card-icon">${t.icon}</div>
+        <div class="tool-card-name">${t.name}</div>
+        <div class="tool-card-desc">${t.desc}</div>
+      `;
+      card.addEventListener('click', () => {
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'vex-navigate', url: t.url }, '*');
+        }
+      });
+      toolsScroll.appendChild(card);
+    });
+
+    // Recent GitHub Activity (last 3 events) — gated on the same optional
+    // username as the GitHub stats widget; hidden when unset.
+    async function loadGitHubActivity() {
+      const ghUser = getGithubUser();
+      if (!ghUser) {
+        document.querySelector('.gh-activity-section')?.style.setProperty('display', 'none');
+        return;
+      }
+      try {
+        const res = await fetch('https://api.github.com/users/' + encodeURIComponent(ghUser) + '/events/public?per_page=10');
+        const events = await res.json();
+        const pushEvents = events.filter(e => e.type === 'PushEvent').slice(0, 3);
+        const list = document.getElementById('gh-activity-list');
+
+        if (pushEvents.length === 0) {
+          list.innerHTML = '<div class="gh-activity-item" style="justify-content:center;color:var(--vex-text-muted);">No recent activity</div>';
+          return;
+        }
+
+        list.innerHTML = '';
+        const ghUser = getGithubUser();
+        pushEvents.forEach(ev => {
+          const repo = ev.repo.name.replace(ghUser + '/', '');
+          const commit = ev.payload.commits?.[ev.payload.commits.length - 1];
+          const msg = commit?.message?.split('\n')[0] || 'No message';
+          const time = timeAgo(new Date(ev.created_at));
+
+          const item = document.createElement('div');
+          item.className = 'gh-activity-item';
+          item.innerHTML = `
+            <span class="gh-activity-repo">${repo}</span>
+            <span class="gh-activity-msg">${msg}</span>
+            <span class="gh-activity-time">${time}</span>
+          `;
+          list.appendChild(item);
+        });
+      } catch {
+        // silently fail
+      }
+    }
+
+    function timeAgo(date) {
+      const s = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (s < 60) return 'just now';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + 'm ago';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + 'h ago';
+      const d = Math.floor(h / 24);
+      return d + 'd ago';
+    }
+
+    loadGitHubActivity();
+  </script>
+</body>
+</html>

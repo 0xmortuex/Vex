@@ -1,0 +1,552 @@
+// === Vex Webview Manager ===
+//
+// Creates and destroys <webview> elements per tab and wires their per-tab
+// events: loading state, title, favicon, URL, navigation, audio, history
+// capture, per-domain zoom, force-dark CSS injection, AI history indexing.
+// Public API: WebviewManager (singleton). Depends on TabManager, VexStorage,
+// HistoryPanel (optional), HistoryIndexer (optional), TabGrouper (optional).
+
+// Strict start-page matcher for the privileged VEX_CMD console channel.
+// Deliberately stricter than isStartPage() (which matches ANY url containing
+// "start.html", so https://evil.com/start.html would pass): require the
+// canonical vex://start origin OR a file: URL whose path ends in
+// /renderer/start.html. Mirrors _isVexStartPage in preload-webview.js.
+function _isTrustedStartPage(href) {
+  if (typeof href !== 'string' || !href) return false;
+  let u;
+  try { u = new URL(href); } catch { return false; }
+  if (u.protocol === 'vex:' && /^start$/i.test(u.host || '')) return true;
+  if (u.protocol === 'file:') return /\/renderer\/start\.html$/i.test(u.pathname);
+  return false;
+}
+
+const WebviewManager = {
+  webviews: new Map(),
+
+  createWebview(tab) {
+    const container = document.getElementById('webviews-container');
+    const webview = document.createElement('webview');
+    webview.setAttribute('src', tab.url);
+    webview.setAttribute('partition', 'persist:main');
+    webview.setAttribute('allowpopups', '');
+    webview.setAttribute('webpreferences', 'contextIsolation=yes');
+    webview.dataset.tabId = tab.id;
+
+    // Events
+    webview.addEventListener('did-start-loading', () => {
+      TabManager.updateTab(tab.id, { loading: true });
+      container.classList.add('wv-loading');
+    });
+
+    webview.addEventListener('did-stop-loading', () => {
+      TabManager.updateTab(tab.id, { loading: false });
+      container.classList.remove('wv-loading');
+    });
+
+    webview.addEventListener('did-finish-load', () => {
+      TabManager.updateTab(tab.id, { loading: false });
+      container.classList.remove('wv-loading');
+
+      // Detect page background color and apply to webview element
+      try {
+        webview.executeJavaScript(`getComputedStyle(document.body).backgroundColor`)
+          .then(bg => { if (bg) webview.style.background = bg; })
+          .catch(() => {});
+      } catch {}
+
+      // Apply saved zoom for this domain
+      try {
+        const url = webview.getURL();
+        if (url && !url.startsWith('about:') && !url.startsWith('file:')) {
+          const host = new URL(url).hostname;
+          const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}');
+          if (zooms[host]) webview.setZoomFactor(zooms[host]);
+        }
+      } catch {}
+
+      // Force dark mode if enabled
+      try {
+        const forceDark = localStorage.getItem('vex.forceDarkSites') === 'true';
+        if (forceDark) {
+          webview.insertCSS('html{filter:invert(1) hue-rotate(180deg);background:#0a0c10!important}img,video,iframe,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}');
+        }
+      } catch {}
+
+      // Phase 12: Queue most-recent history entry for AI indexing
+      // (wait 2s so dynamic content settles; the top entry in HistoryPanel.entries
+      // is the most recent and typically corresponds to the page that just loaded)
+      setTimeout(() => {
+        try {
+          if (!window.HistoryIndexer || !window.HistoryPanel) return;
+          const url = webview.getURL && webview.getURL();
+          if (!url) return;
+          const entry = HistoryPanel.entries.find(e => e.url === url && !e.indexed);
+          if (entry) HistoryIndexer.queueForIndexing(entry, webview);
+        } catch (e) { /* best-effort */ }
+      }, 2000);
+    });
+
+    webview.addEventListener('page-title-updated', (e) => {
+      TabManager.updateTab(tab.id, { title: e.title });
+    });
+
+    webview.addEventListener('did-navigate', (e) => {
+      const url = e.url;
+      TabManager.updateTab(tab.id, { url });
+      this._updateFavicon(tab.id, url);
+
+      // Add to history (both legacy storage and new HistoryPanel)
+      if (!isStartPage(url)) {
+        const t = TabManager.tabs.find(t => t.id === tab.id);
+        VexStorage.addHistory({ url, title: t?.title || url });
+        if (typeof HistoryPanel !== 'undefined') {
+          HistoryPanel.addEntry(url, t?.title || url, t?.favicon);
+        }
+        // Phase 16 auto-grouping: try to match against remembered patterns.
+        // The call internally waits for the title to settle and uses purely
+        // local pattern matching (domains + keywords) — no AI round-trip.
+        if (typeof TabGrouper !== 'undefined') {
+          TabGrouper.maybeAutoAssignToGroup?.(tab.id);
+        }
+      }
+    });
+
+    webview.addEventListener('did-navigate-in-page', (e) => {
+      if (e.isMainFrame) {
+        TabManager.updateTab(tab.id, { url: e.url });
+      }
+    });
+
+    webview.addEventListener('new-window', (e) => {
+      e.preventDefault();
+      TabManager.createTab(e.url, true);
+    });
+
+    // Audio indicator
+    webview.addEventListener('media-started-playing', () => {
+      const t = TabManager.tabs.find(t => t.id === tab.id);
+      if (t) { t.audible = true; TabManager.renderTabUpdate(t); }
+    });
+    webview.addEventListener('media-paused', () => {
+      const t = TabManager.tabs.find(t => t.id === tab.id);
+      if (t) { t.audible = false; TabManager.renderTabUpdate(t); }
+    });
+
+    webview.addEventListener('page-favicon-updated', (e) => {
+      if (e.favicons && e.favicons.length > 0) {
+        TabManager.updateTab(tab.id, { favicon: e.favicons[0] });
+      }
+    });
+
+    // Listen for VEX_CMD messages from start page and other webview content
+    webview.addEventListener('console-message', (e) => {
+      if (e.message && e.message.startsWith('VEX_CMD:')) {
+        // SECURITY: VEX_CMD is a privileged control channel (navigate the tab,
+        // open chrome panels). console-message fires for EVERY guest page, so
+        // without this gate any website could emit a `console.log("VEX_CMD:…")`
+        // to force navigation (including file://) or open sidebar panels.
+        // Only honour it from the trusted Vex start page.
+        let emitterUrl = '';
+        try { emitterUrl = webview.getURL(); } catch {}
+        if (!_isTrustedStartPage(emitterUrl)) return;
+        try {
+          const cmd = JSON.parse(e.message.slice(8));
+          if (cmd.type === 'navigate' && cmd.url) {
+            // Navigate THIS webview (the start-page tab that emitted the command)
+            // rather than spawning a new tab. Matches Chrome's new-tab page where
+            // search submissions and shortcut clicks replace the current tab's
+            // content. Callers can opt in to a new tab with { newTab: true }.
+            if (cmd.newTab) {
+              TabManager.createTab(cmd.url, true);
+            } else {
+              try { webview.loadURL(cmd.url); } catch { webview.src = cmd.url; }
+            }
+          } else if (cmd.type === 'open-panel' && cmd.panel) {
+            SidebarManager.openPanel(cmd.panel);
+          } else if (cmd.type === 'exit-reading') {
+            if (typeof ReadingMode !== 'undefined') ReadingMode.exitReadingMode(tab.id);
+          }
+        } catch (err) {
+          console.error('VEX_CMD parse error:', err);
+        }
+      }
+    });
+
+    // Context menu — the Electron 'context-menu' event delivers params.x/y
+    // already in host-viewport CSS pixels in the current Electron version
+    // (empirically verified: a host-document mousedown listener on the same
+    // right-click reported clientX/clientY identical to params.x/y). So
+    // showContextMenu consumes params.x/y directly — no coordinate
+    // translation, no webviewRect offset.
+    webview.addEventListener('context-menu', (e) => {
+      this.showContextMenu(e, webview);
+    });
+
+    container.appendChild(webview);
+    this.webviews.set(tab.id, webview);
+  },
+
+  showWebview(tabId) {
+    this.webviews.forEach((wv, id) => {
+      wv.classList.toggle('active', id === tabId);
+    });
+  },
+
+  destroyWebview(tabId) {
+    const wv = this.webviews.get(tabId);
+    if (wv) {
+      wv.remove();
+      this.webviews.delete(tabId);
+    }
+  },
+
+  getActiveWebview() {
+    return this.webviews.get(TabManager.activeTabId);
+  },
+
+  navigate(url) {
+    const wv = this.getActiveWebview();
+    if (wv) {
+      // Electron webview DOM element uses .src or .loadURL()
+      // .loadURL() is the correct webview API method, but .src works as fallback
+      if (typeof wv.loadURL === 'function') {
+        wv.loadURL(url);
+      } else {
+        wv.src = url;
+      }
+    }
+  },
+
+  goBack() {
+    const wv = this.getActiveWebview();
+    if (wv && wv.canGoBack()) wv.goBack();
+  },
+
+  goForward() {
+    const wv = this.getActiveWebview();
+    if (wv && wv.canGoForward()) wv.goForward();
+  },
+
+  reload() {
+    const wv = this.getActiveWebview();
+    if (wv) wv.reload();
+  },
+
+  // Hard reload: clear the webview's HTTP cache in the main process, then
+  // reloadIgnoringCache. Falls back to the renderer-side reloadIgnoringCache /
+  // reload if the IPC bridge is unavailable (dev-reload edge cases).
+  hardReload() {
+    console.log('[Vex] hard reload triggered — renderer callback');
+    const wv = this.getActiveWebview();
+    if (!wv) return;
+    try {
+      const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
+      if (id != null && window.vex?.hardReloadWebview) {
+        window.vex.hardReloadWebview(id).then(res => {
+          if (!res?.ok) {
+            console.warn('[Vex] hard-reload IPC failed:', res?.error);
+            if (typeof wv.reloadIgnoringCache === 'function') wv.reloadIgnoringCache();
+            else wv.reload();
+          }
+        }).catch(err => {
+          console.error('[Vex] hard-reload failed:', err);
+          if (typeof wv.reloadIgnoringCache === 'function') wv.reloadIgnoringCache();
+          else wv.reload();
+        });
+        window.showToast?.('Hard reload — clearing cache');
+        return;
+      }
+    } catch (err) {
+      console.error('[Vex] hard-reload error:', err);
+    }
+    if (typeof wv.reloadIgnoringCache === 'function') wv.reloadIgnoringCache();
+    else wv.reload();
+  },
+
+  zoomIn() {
+    const wv = this.getActiveWebview();
+    if (wv) {
+      const cur = wv.getZoomFactor ? wv.getZoomFactor() : 1;
+      const next = Math.min(cur + 0.1, 5);
+      wv.setZoomFactor(next);
+      this._saveZoom(wv, next);
+    }
+  },
+
+  zoomOut() {
+    const wv = this.getActiveWebview();
+    if (wv) {
+      const cur = wv.getZoomFactor ? wv.getZoomFactor() : 1;
+      const next = Math.max(cur - 0.1, 0.25);
+      wv.setZoomFactor(next);
+      this._saveZoom(wv, next);
+    }
+  },
+
+  zoomReset() {
+    const wv = this.getActiveWebview();
+    if (wv) {
+      wv.setZoomFactor(1);
+      this._saveZoom(wv, 1);
+    }
+  },
+
+  _saveZoom(wv, zoom) {
+    try {
+      const url = wv.getURL();
+      if (!url || url.startsWith('about:') || url.startsWith('file:')) return;
+      const host = new URL(url).hostname;
+      const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}');
+      if (zoom === 1) { delete zooms[host]; } else { zooms[host] = zoom; }
+      localStorage.setItem('vex.zooms', JSON.stringify(zooms));
+    } catch {}
+  },
+
+  findInPage(text) {
+    const wv = this.getActiveWebview();
+    if (wv && text) {
+      wv.findInPage(text);
+    }
+  },
+
+  stopFindInPage() {
+    const wv = this.getActiveWebview();
+    if (wv) wv.stopFindInPage('clearSelection');
+  },
+
+  showContextMenu(e, webview) {
+    // Clear any prior menu AND its dismissal overlay. Removing only the menu
+    // (the old behaviour) leaked a stack of transparent .context-menu-overlay
+    // divs across repeated right-clicks.
+    document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove());
+
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu';
+    // params.x/y from the Electron 'context-menu' event are already in
+    // host-viewport CSS pixels in the current Electron version — the menu is
+    // position:fixed, so they are consumed directly. Adding webviewRect.left/
+    // top here used to double-count the icon-rail width + top-bar height,
+    // shifting the menu down-right of the cursor by a constant offset.
+    const mx = e.params.x || 0;
+    const my = e.params.y || 0;
+    menu.style.left = mx + 'px';
+    menu.style.top  = my + 'px';
+
+    // Spellcheck — when the right-click landed on a misspelled word Chromium
+    // populates e.params.misspelledWord and e.params.dictionarySuggestions.
+    // Surface them at the TOP of the menu; clicking one swaps the word in
+    // place via the <webview> tag's replaceMisspelling(). If the word was
+    // flagged but Chromium offered nothing, show a disabled "No suggestions"
+    // row so the user knows spellcheck DID see the word.
+    const spellingItems = [];
+    if (e.params.misspelledWord) {
+      const suggestions = Array.isArray(e.params.dictionarySuggestions)
+        ? e.params.dictionarySuggestions
+        : [];
+      if (suggestions.length > 0) {
+        for (const suggestion of suggestions) {
+          spellingItems.push({
+            label: suggestion,
+            action: () => {
+              // Replace the word via the GUEST PAGE, not
+              // webContents.replaceMisspelling — that API returns success but
+              // silently no-ops on castLabs Electron 30.5.1+wvcus (verified on
+              // <input>/<textarea> AND contenteditable/React). Chromium auto-
+              // selects the misspelled word on right-click, so running
+              // execCommand('insertText') in the guest replaces the current
+              // selection and dispatches real beforeinput/input events — which
+              // updates <input>, <textarea>, and contenteditable editors (e.g.
+              // claude.ai's React editor) where the native API failed. The
+              // suggestion is JSON-encoded so quotes/backslashes can't break
+              // out of the injected string literal.
+              if (typeof webview.executeJavaScript !== 'function') {
+                console.warn('[Vex spell] webview.executeJavaScript unavailable');
+                return;
+              }
+              const js = `document.execCommand('insertText', false, ${JSON.stringify(suggestion)})`;
+              try {
+                const r = webview.executeJavaScript(js);
+                if (r && typeof r.then === 'function') {
+                  r.then(() => console.log('[Vex spell] replaced misspelling with', JSON.stringify(suggestion)))
+                   .catch(err => console.warn('[Vex spell] insertText failed:', err));
+                }
+              } catch (err) {
+                console.error('[Vex spell] replace error:', err);
+              }
+            }
+          });
+        }
+      } else {
+        spellingItems.push({ label: 'No suggestions', disabled: true });
+      }
+      spellingItems.push({ sep: true });
+    }
+
+    const items = [
+      ...spellingItems,
+      { label: 'Back', action: () => webview.goBack(), disabled: !webview.canGoBack() },
+      { label: 'Forward', action: () => webview.goForward(), disabled: !webview.canGoForward() },
+      { label: 'Reload', action: () => webview.reload() },
+      { sep: true },
+      { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
+      { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL()) }
+    ];
+
+    if (e.params.selectionText) {
+      items.push({ sep: true });
+      items.push({
+        label: `Search "${e.params.selectionText.substring(0, 20)}..."`,
+        action: () => {
+          const q = encodeURIComponent(e.params.selectionText);
+          TabManager.createTab(`https://www.google.com/search?q=${q}`, true);
+        }
+      });
+      items.push({
+        label: 'Copy',
+        action: () => webview.copy()
+      });
+      // AI options for selected text
+      if (typeof AIPanel !== 'undefined') {
+        const sel = e.params.selectionText;
+        items.push({ sep: true });
+        items.push({
+          label: `\u2728 Explain "${sel.substring(0, 25)}${sel.length > 25 ? '...' : ''}"`,
+          action: () => { AIPanel.open(); AIPanel.sendMessage('explain', { selectedText: sel }); }
+        });
+        items.push({
+          label: '\u{1F310} Translate selection',
+          action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: 'English' }); }
+        });
+      }
+    }
+
+    if (e.params.linkURL) {
+      items.push({ sep: true });
+      items.push({
+        label: 'Open Link in New Tab',
+        action: () => TabManager.createTab(e.params.linkURL, true)
+      });
+      items.push({
+        label: 'Copy Link',
+        action: () => navigator.clipboard.writeText(e.params.linkURL)
+      });
+    }
+
+    // Image-specific options when right-clicking an <img> or background-image
+    // element. e.params.mediaType is set by Chromium for image/video/audio;
+    // e.params.srcURL is the resource URL.
+    if (e.params.mediaType === 'image' && e.params.srcURL) {
+      items.push({ sep: true });
+      items.push({
+        label: 'Open Image in New Tab',
+        action: () => TabManager.createTab(e.params.srcURL, true)
+      });
+      items.push({
+        label: 'Copy Image',
+        action: () => { try { webview.copyImageAt?.(e.params.x, e.params.y); } catch {} }
+      });
+      items.push({
+        label: 'Copy Image Address',
+        action: () => navigator.clipboard.writeText(e.params.srcURL)
+      });
+      items.push({
+        label: 'Save Image As…',
+        action: () => {
+          // <webview>.downloadURL forwards to the underlying webContents,
+          // which goes through Vex's existing will-download wiring (DownloadsPanel).
+          try { webview.downloadURL(e.params.srcURL); } catch {}
+        }
+      });
+    }
+
+    // Inspect Element — opens DevTools detached for the right-clicked tab's
+    // webContents. Round 5 silently failed because <webview>.getWebContentsId()
+    // returns -1 when the guestInstance isn't fully attached yet, and our
+    // gate `if (id != null)` let -1 through (only filters null/undefined).
+    // Main then called webContents.fromId(-1), got null, returned a resolved
+    // failure that the renderer's .catch() never saw — silent dead end.
+    //
+    // Fix: pass webview.getURL() as the IPC's fallback argument so main can
+    // walk getAllWebContents() and find the right guest by URL when the ID
+    // lookup fails. Also log the awaited result so future silent failures
+    // surface in the host renderer's DevTools console.
+    items.push({ sep: true });
+    items.push({
+      label: 'Inspect Element',
+      action: () => {
+        const id  = (typeof webview.getWebContentsId === 'function') ? webview.getWebContentsId() : null;
+        const url = (typeof webview.getURL === 'function') ? webview.getURL() : null;
+        console.log('[Vex Inspect] click — id:', id, 'url:', url);
+        if (!window.vexDevTools?.openForWebContents) {
+          console.warn('[Vex Inspect] vexDevTools.openForWebContents not available');
+          return;
+        }
+        window.vexDevTools.openForWebContents(id, url).then(result => {
+          console.log('[Vex Inspect] IPC result:', result);
+          if (!result?.ok) {
+            console.warn('[Vex Inspect] DevTools did not open. Error:', result?.error);
+          }
+        }).catch(err => {
+          console.error('[Vex Inspect] IPC threw:', err);
+        });
+      }
+    });
+
+    items.forEach(item => {
+      if (item.sep) {
+        const sep = document.createElement('div');
+        sep.className = 'tab-context-sep';
+        menu.appendChild(sep);
+      } else {
+        const el = document.createElement('div');
+        el.className = 'tab-context-item';
+        el.textContent = item.label;
+        if (item.disabled) {
+          el.style.opacity = '0.4';
+          el.style.pointerEvents = 'none';
+        }
+        // Activate on mousedown, not click: this menu is opened from a
+        // <webview> guest right-click, so focus sits in the guest. The
+        // guest↔host focus churn fires a host-window 'blur' that runs the
+        // dismissal close() and removes the menu BETWEEN a left-click's
+        // mousedown and mouseup — so the 'click' never materialises. Acting
+        // on mousedown wins that race. button 0 only: ignore right/middle so
+        // a right-click on a menu item doesn't trigger its action.
+        el.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          item.action();
+          menu.remove();
+        });
+        menu.appendChild(el);
+      }
+    });
+
+    document.body.appendChild(menu);
+    // Use the shared dismissal/clamp helpers so this menu closes on
+    // outside-click (capture phase, immune to stopPropagation), right-click
+    // elsewhere, Escape, and window blur — same as the tab/group menus.
+    if (typeof TabManager !== 'undefined') {
+      const x = parseInt(menu.style.left, 10) || 0;
+      const y = parseInt(menu.style.top,  10) || 0;
+      TabManager._clampMenuToViewport?.(menu, x, y);
+      TabManager._attachMenuDismissal?.(menu);
+    }
+  },
+
+  _updateFavicon(tabId, url) {
+    try {
+      const domain = new URL(url).hostname;
+      if (domain && !isStartPage(url)) {
+        const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+        TabManager.updateTab(tabId, { favicon });
+      }
+    } catch {}
+  }
+};
+
+// Renderer-safe export — the renderer loads this file via <script> tag where
+// `module` is undefined, so the guard keeps the global WebviewManager surface
+// unchanged. Used by tests/renderer/webviewContextMenu.test.js.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { WebviewManager, _isTrustedStartPage };
+}

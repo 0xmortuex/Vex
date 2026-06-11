@@ -1,0 +1,6 @@
+{
+  "_comment": "LOCAL sidebar config for Vex. Copy this file to your Vex userData folder as 'sidebar-config.json' (Windows: %APPDATA%\\Vex\\sidebar-config.json). All values are optional. aiNewsUrl, if set, adds an 'AI News' tool to the tools bar pointing at that URL. queueUrl/queueSecret enable the Queue panel (a self-hosted Telegram/task queue Worker). Any 'personalize' query param and the queueSecret are SECRETS — never commit them. sidebar-config.json is gitignored; this .example file is safe to commit. The '_comment' key is ignored by the loader. Leave a value blank to keep that integration disabled.",
+  "aiNewsUrl": "",
+  "queueUrl": "",
+  "queueSecret": ""
+}

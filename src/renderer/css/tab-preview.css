@@ -1,0 +1,67 @@
+/* === Tab Preview on Hover (glassmorphic) ===
+   Matches the rest of Vex's glass surfaces — see theme-tokens.css for the
+   underlying --vex-glass-* / --vex-blur-* / --vex-border-* tokens.
+
+   Note: backdrop-filter is hardware-accelerated on Electron + Chromium so
+   this is essentially free at one popup at a time. The slight upward
+   translate on .visible is the "rises into view" animation that
+   distinguishes it from a flat tooltip — kept short (160ms) so it tracks
+   tab-strafing instead of feeling laggy. */
+
+#tab-preview {
+  position: fixed;
+  z-index: 600;
+  pointer-events: none;
+  width: 280px;
+
+  background: var(--vex-glass-strong, rgba(38, 34, 30, 0.65));
+  -webkit-backdrop-filter: var(--vex-blur-medium, blur(20px) saturate(140%));
+  backdrop-filter: var(--vex-blur-medium, blur(20px) saturate(140%));
+  border: 1px solid var(--vex-border-medium, rgba(255, 255, 255, 0.1));
+  border-radius: var(--vex-radius-md, 8px);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(4px) scale(0.985);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+#tab-preview.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+#tab-preview img {
+  width: 100%;
+  height: 158px;
+  object-fit: cover;
+  display: block;
+  background: var(--vex-bg-deep, #14120e);
+  border-bottom: 1px solid var(--vex-border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+#tab-preview .preview-info {
+  padding: 8px 10px;
+}
+
+#tab-preview .preview-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--vex-text-primary, #e8e3d8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#tab-preview .preview-url {
+  font-size: 10px;
+  color: var(--vex-text-muted, #6a665e);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}

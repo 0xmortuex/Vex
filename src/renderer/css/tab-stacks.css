@@ -1,0 +1,187 @@
+/* === Phase 4b — Tab Stacks (closed-state visual) ===
+   Per docs/PHASE-4-TAB-STACKS-PLAN.md §3.
+
+   Closed-state spec (verbatim from §3a):
+     "The stack item gets ::before and ::after pseudo-elements offset
+      2px and 4px down-right with reduced opacity to fake the deck-of-cards
+      look. CSS-only, no extra DOM."
+
+   Visual stack-order (front to back):
+     ::before  → middle card  → translate(2px, 2px), opacity 0.7
+     ::after   → back card    → translate(4px, 4px), opacity 0.4
+     .tab-stack itself        → top card (the one rendered with title/favicon)
+
+   Pseudo-elements use the parent's background/border (via `inherit`) and
+   sit BEHIND it via z-index: -1 so the parent's content (favicon, title,
+   count badge) reads normally. They never receive pointer events — the
+   single click target is the .tab-stack element itself.
+
+   --stack-color is set as an inline custom property by renderStacks() so
+   the left-edge accent matches the stack's color without needing
+   per-stack class names. Defaults to --vex-accent if missing.
+
+   Expansion / right-click menu / drag-drop are NOT in 4b. The
+   .tab-stack.expanded selector is reserved for 4c. */
+
+.tab-item.tab-stack {
+  position: relative;
+  /* z-index gives the deck siblings a paint context to live in. Without it
+     the ::before/::after with z-index: -1 fall behind the entire tabs
+     sidebar background and disappear. */
+  z-index: 1;
+
+  /* Left-edge accent in the stack's colour. Mirrors the tab-group dot
+     colour pattern but as a border so the visual weight matches the
+     "container" semantic of the stack. */
+  border-left: 3px solid var(--stack-color, var(--vex-accent, #d4a574));
+
+  /* The base appearance reads as a normal .tab-item — colour, padding,
+     radius, hover, font sizing all inherit from the existing .tab-item
+     rules in tabs.css. We add only what's stack-specific below. */
+  cursor: pointer;
+}
+
+/* Deck-of-cards illusion. Both pseudo-elements are absolutely positioned
+   copies of the host's box, drawn behind it. */
+.tab-item.tab-stack::before,
+.tab-item.tab-stack::after {
+  content: '';
+  position: absolute;
+  inset: 0;                 /* same width/height as the host */
+  background: inherit;      /* match the host's background — same glass tone */
+  border: inherit;          /* match the host's border (incl the left accent) */
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Middle card — small offset, light fade. */
+.tab-item.tab-stack::before {
+  transform: translate(2px, 2px);
+  opacity: 0.7;
+}
+
+/* Back card — larger offset, heavier fade. */
+.tab-item.tab-stack::after {
+  transform: translate(4px, 4px);
+  opacity: 0.4;
+}
+
+/* Member-count badge. Sits at the trailing edge of the stack header,
+   coloured from the stack's own colour so it reads as part of the
+   container's identity. */
+.tab-item.tab-stack .tab-stack-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  min-width: 18px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-weight: 600;
+
+  background: var(--stack-color, var(--vex-accent, #d4a574));
+  color: var(--vex-bg-base, #14120e);
+  border-radius: 8px;
+
+  /* Defensive — the badge sits on top of the deck illusion and must read
+     above the host's content too. */
+  position: relative;
+  z-index: 2;
+}
+
+/* The favicon and title slot in the same way they do for a regular
+   .tab-item — but a stack header has no close button / unread dot /
+   audio indicator, so the title can flex to fill the available space
+   right up to the count badge. */
+.tab-item.tab-stack .tab-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* === Phase 4c — expand / collapse ===
+   Per docs/PHASE-4-TAB-STACKS-PLAN.md §4. Clicking the header toggles the
+   .expanded class (driven by TabManager._expandedStackIds). */
+
+/* Chevron — mirrors the tab-group chevron. Points right when collapsed,
+   rotates 90° to point down when the stack is expanded. */
+.tab-item.tab-stack .tab-stack-chevron {
+  flex-shrink: 0;
+  margin-left: 6px;
+  color: var(--vex-text-secondary, #9a8f7a);
+  transition: transform 0.15s ease;
+}
+.tab-item.tab-stack.expanded .tab-stack-chevron {
+  transform: rotate(90deg);
+}
+
+/* Collapsed shows the member-count badge ("Research (5)"); expanded hides
+   it — the visible member rows below make the count self-evident. */
+.tab-item.tab-stack.expanded .tab-stack-count {
+  display: none;
+}
+
+/* When expanded the deck-of-cards silhouettes are redundant (the real
+   member rows are now visible below the header), so fold them away. */
+.tab-item.tab-stack.expanded::before,
+.tab-item.tab-stack.expanded::after {
+  display: none;
+}
+
+/* Member rows of an expanded stack — indented under the header with a
+   left accent in the stack's colour so they read as "inside" it.
+   --stack-color is set inline per member by renderStacks(). */
+.tab-item.in-stack {
+  margin-left: 16px;
+  border-left: 2px solid var(--stack-color, var(--vex-accent, #d4a574));
+}
+
+/* Disabled context-menu item — e.g. "Convert to Stack" on a group with
+   fewer than 2 tabs. pointer-events:none also blocks the click handler. */
+.tab-context-item.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* === Phase 4c — horizontal tab bar ===
+   The horizontal strip renders one .top-tab.top-stack chip per stack
+   (horizontal-tabs.js). Inline expansion fans members out as .in-stack
+   rows; the floating-popover variant is Phase 4d. Styles live here rather
+   than horizontal-tabs.css to keep all stack visuals in one file. */
+
+.top-tab.top-stack {
+  border-left: 3px solid var(--stack-color, var(--vex-accent, #d4a574));
+  cursor: pointer;
+}
+
+/* Collapsed — a faint stacked-cards shadow hints at the hidden members. */
+.top-tab.top-stack:not(.expanded) {
+  box-shadow: 3px 3px 0 -2px rgba(255, 255, 255, 0.14),
+              6px 6px 0 -4px rgba(255, 255, 255, 0.07);
+}
+
+/* Member-count badge, coloured from the stack's own colour. */
+.top-tab.top-stack .top-stack-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  background: var(--stack-color, var(--vex-accent, #d4a574));
+  color: var(--vex-bg-base, #14120e);
+  border-radius: 7px;
+}
+
+/* Member tabs of an expanded horizontal stack — a bottom accent in the
+   stack colour ties them visually to their chip. */
+.top-tab.in-stack {
+  border-bottom: 2px solid var(--stack-color, var(--vex-accent, #d4a574));
+}

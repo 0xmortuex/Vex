@@ -1,0 +1,131 @@
+/* === Vex Theme Picker (Ctrl+Shift+Y) ===================================== */
+
+.vex-theme-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.vex-theme-picker-overlay.visible { opacity: 1; }
+
+.vex-theme-picker {
+  width: min(840px, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  background: var(--vex-bg-elevated, var(--surface));
+  border: 1px solid var(--vex-border-strong, var(--border));
+  border-radius: var(--vex-radius-lg, 12px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  padding: 22px 24px 26px;
+  transform: translateY(8px) scale(0.985);
+  transition: transform 0.18s ease;
+}
+.vex-theme-picker-overlay.visible .vex-theme-picker {
+  transform: translateY(0) scale(1);
+}
+
+.vtp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.vtp-header h2 {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--vex-text-primary, var(--text));
+  margin: 0;
+}
+.vtp-close {
+  background: transparent;
+  border: none;
+  color: var(--vex-text-muted, var(--text-muted));
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+  border-radius: var(--vex-radius-sm, 6px);
+}
+.vtp-close:hover { color: var(--vex-accent, var(--primary)); }
+
+.vtp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.vtp-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: var(--vex-glass-light, var(--bg-2));
+  border: 2px solid var(--vex-border-medium, var(--border));
+  border-radius: var(--vex-radius-md, 8px);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  text-align: left;
+  font-family: inherit;
+}
+.vtp-card:hover {
+  border-color: var(--vex-accent, var(--primary));
+  transform: translateY(-2px);
+}
+.vtp-card.active {
+  border-color: var(--vex-accent, var(--primary));
+  box-shadow: 0 0 0 1px var(--vex-accent, var(--primary)) inset;
+}
+
+.vtp-thumb {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--vex-bg-deep, var(--bg));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.vtp-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Fallback name only shows when the preview image failed to load. */
+.vtp-thumb-name {
+  display: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vex-text-secondary, var(--text-muted));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.vtp-thumb.vtp-thumb-fallback .vtp-thumb-name { display: block; }
+
+.vtp-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--vex-bg-elevated, var(--surface));
+  border-top: 1px solid var(--vex-border-subtle, var(--border));
+}
+.vtp-label-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vex-text-primary, var(--text));
+}
+.vtp-check {
+  color: var(--vex-accent, var(--primary));
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.vtp-card.active .vtp-check { opacity: 1; }

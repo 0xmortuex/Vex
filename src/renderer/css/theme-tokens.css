@@ -1,0 +1,466 @@
+/* Vex design tokens — multi-theme registry.
+   ──────────────────────────────────────────────────────────────────────────
+   Two token families drive the whole app:
+     • --vex-*  — the modern chrome (top bar, sidebar, tabs, panels, start page)
+     • legacy --bg/--surface/... — older components in app.css and panel CSS
+   A theme MUST set BOTH families or surfaces leak the previous theme's color
+   (this was the long-standing "some panels are the wrong color" bug). Each
+   [data-theme] block below redefines both.
+
+   :root is the OXFORD EDITORIAL theme — warm cream editorial light. It is the
+   hardcoded default so the app always has a complete token set even before
+   ThemeManager runs and even on the cross-origin vex://start page.
+
+   The historical graphite+amber glass look is preserved as [data-theme="default"].
+   Switch themes via the Ctrl+Shift+Y picker (ThemeManager + theme-picker.js). */
+
+/* ── OXFORD EDITORIAL (default) — warm cream, Oxford navy accent ──────────── */
+:root {
+  /* Base palette — light */
+  --vex-bg-base: #faf6ee;        /* window chrome */
+  --vex-bg-elevated: #ffffff;    /* cards / content surface / modals */
+  --vex-bg-deep: #f3ede0;        /* panels / sidebar */
+
+  /* "Glass" surfaces — opaque in Oxford (flat editorial, no blur) */
+  --vex-glass-strong: #faf6ee;   /* top bar */
+  --vex-glass-medium: #f3ede0;   /* sidebar, URL bar */
+  --vex-glass-light: #ffffff;    /* content panels */
+  --vex-glass-tab-active: #ffffff;
+  --vex-glass-tab-inactive: #f3ede0;
+  --vex-glass-input: #ffffff;
+
+  /* Borders / dividers */
+  --vex-border-subtle: #e2d9c6;
+  --vex-border-medium: #e2d9c6;
+  --vex-border-strong: #d8ccb0;
+  --vex-border-accent: #1e3a5f;
+  --vex-border-accent-strong: #1e3a5f;
+
+  /* Accent — Oxford navy */
+  --vex-accent: #1e3a5f;
+  --vex-accent-dim: #dde6f0;             /* soft chip/badge fill */
+  --vex-accent-glow: rgba(30, 58, 95, 0.10);
+
+  /* Text */
+  --vex-text-primary: #1f1c18;   /* headings */
+  --vex-text-secondary: #6a6253; /* body / secondary */
+  --vex-text-muted: #a89a7d;     /* muted / labels */
+  --vex-text-accent: #1e3a5f;
+
+  /* Semantic */
+  --vex-success: #2f6b3f;
+  --vex-danger: #9c2a1a;
+  --vex-danger-hover: #c0392b;
+  --vex-warning: #c2611a;
+
+  /* Tab-group pills — derived per-theme from --group-color (the stored group
+     identity hex, set inline on each pill/strip). Light themes mute the hue
+     toward the cream surface so pills stay mutually distinct but harmonize
+     with the chrome; dark themes keep the vivid hue (override below). */
+  --group-pill-bg: color-mix(in srgb, var(--group-color, #6366f1) 22%, var(--vex-bg-base));
+  --group-pill-fg: color-mix(in srgb, var(--group-color, #6366f1) 55%, #1f1c18);
+  --group-pill-strip: color-mix(in srgb, var(--group-color, #6366f1) 55%, var(--vex-bg-base));
+
+  /* No glass blur in Oxford — flat surfaces */
+  --vex-blur-heavy: blur(0px);
+  --vex-blur-medium: blur(0px);
+  --vex-blur-light: blur(0px);
+
+  /* Typography — Spectral body, Fraunces headings (heading selectors below) */
+  --vex-font-base: 'Spectral', Georgia, 'Times New Roman', serif;
+  --vex-font-heading: 'Fraunces', Georgia, serif;
+  --vex-font-mono: 'JetBrains Mono', monospace;
+
+  /* Radii — gentle editorial rounding */
+  --vex-radius-sm: 4px;
+  --vex-radius-md: 6px;
+  --vex-radius-lg: 10px;
+
+  /* Legacy family — keep Oxford in sync so app.css/panel CSS match */
+  --bg: #faf6ee;
+  --bg-2: #f3ede0;
+  --sidebar: #f3ede0;
+  --surface: #ffffff;
+  --border: #e2d9c6;
+  --text: #1f1c18;
+  --text-muted: #6a6253;
+  --primary: #1e3a5f;
+  --primary-hover: #2a4f7f;
+  --accent: #1e3a5f;
+  --tab-active: #ffffff;
+  --tab-hover: #f3ede0;
+  --danger: #9c2a1a;
+  --success: #2f6b3f;
+  --warning: #c2611a;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 10px;
+  --transition: 0.15s ease;
+}
+
+/* Oxford headings → Fraunces. Inline font-family declarations in index.html
+   force us to use !important to win over them. Body/UI stays Spectral via
+   --vex-font-base, so only headings need lifting here. */
+:root h1, :root h2, :root h3,
+[data-theme="oxford"] h1, [data-theme="oxford"] h2, [data-theme="oxford"] h3,
+:root .panel-header h2, [data-theme="oxford"] .panel-header h2,
+:root .settings-content h2, [data-theme="oxford"] .settings-content h2 {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Explicit oxford alias. Selecting it from the picker sets data-theme="oxford";
+   the values are identical to :root so the app looks the same whether the attr
+   is present (picked) or absent (first boot before ThemeManager runs). */
+[data-theme="oxford"] {
+  --vex-bg-base: #faf6ee;
+  --vex-bg-elevated: #ffffff;
+  --vex-bg-deep: #f3ede0;
+  --vex-glass-strong: #faf6ee;
+  --vex-glass-medium: #f3ede0;
+  --vex-glass-light: #ffffff;
+  --vex-glass-tab-active: #ffffff;
+  --vex-glass-tab-inactive: #f3ede0;
+  --vex-glass-input: #ffffff;
+  --vex-border-subtle: #e2d9c6;
+  --vex-border-medium: #e2d9c6;
+  --vex-border-strong: #d8ccb0;
+  --vex-border-accent: #1e3a5f;
+  --vex-border-accent-strong: #1e3a5f;
+  --vex-accent: #1e3a5f;
+  --vex-accent-dim: #dde6f0;
+  --vex-accent-glow: rgba(30, 58, 95, 0.10);
+  --vex-text-primary: #1f1c18;
+  --vex-text-secondary: #6a6253;
+  --vex-text-muted: #a89a7d;
+  --vex-text-accent: #1e3a5f;
+  --vex-success: #2f6b3f;
+  --vex-danger: #9c2a1a;
+  --vex-danger-hover: #c0392b;
+  --vex-warning: #c2611a;
+  --group-pill-bg: color-mix(in srgb, var(--group-color, #6366f1) 22%, var(--vex-bg-base));
+  --group-pill-fg: color-mix(in srgb, var(--group-color, #6366f1) 55%, #1f1c18);
+  --group-pill-strip: color-mix(in srgb, var(--group-color, #6366f1) 55%, var(--vex-bg-base));
+  --vex-blur-heavy: blur(0px);
+  --vex-blur-medium: blur(0px);
+  --vex-blur-light: blur(0px);
+  --vex-font-base: 'Spectral', Georgia, 'Times New Roman', serif;
+  --vex-font-heading: 'Fraunces', Georgia, serif;
+  --vex-font-mono: 'JetBrains Mono', monospace;
+  --vex-radius-sm: 4px;
+  --vex-radius-md: 6px;
+  --vex-radius-lg: 10px;
+  --bg: #faf6ee; --bg-2: #f3ede0; --sidebar: #f3ede0; --surface: #ffffff;
+  --border: #e2d9c6; --text: #1f1c18; --text-muted: #6a6253;
+  --primary: #1e3a5f; --primary-hover: #2a4f7f; --accent: #1e3a5f;
+  --tab-active: #ffffff; --tab-hover: #f3ede0;
+  --danger: #9c2a1a; --success: #2f6b3f; --warning: #c2611a;
+  --radius: 6px; --radius-sm: 4px; --radius-lg: 10px;
+}
+
+/* Oxford body/UI font — Spectral, lifted over inline 'Outfit' declarations. */
+[data-theme="oxford"] body,
+[data-theme="oxford"] button,
+[data-theme="oxford"] input,
+[data-theme="oxford"] textarea,
+[data-theme="oxford"] select,
+:root body, :root button, :root input, :root textarea, :root select {
+  font-family: 'Spectral', Georgia, serif !important;
+}
+/* Keep mono where mono is intended (URLs, code, labels using the mono token). */
+[data-theme="oxford"] [style*="JetBrains"],
+:root [style*="JetBrains"] { font-family: var(--vex-font-mono) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DARK THEMES
+   These recolor BOTH token families but inherit Oxford's typography? No —
+   dark themes want the original sans UI font + glass feel. Each re-sets the
+   font/blur/radius tokens back to the classic graphite values so they don't
+   inherit Oxford's serif/flat look. The shared dark-theme typography block
+   below applies to every dark theme via [data-theme] grouping.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+[data-theme="default"],
+[data-theme="midnight"],
+[data-theme="forest"],
+[data-theme="ocean"],
+[data-theme="dracula"],
+[data-theme="nord"],
+[data-theme="catppuccin"] {
+  --vex-font-base: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --vex-font-heading: 'Outfit', sans-serif;
+  --vex-font-mono: 'JetBrains Mono', monospace;
+  --vex-radius-sm: 6px;
+  --vex-radius-md: 8px;
+  --vex-radius-lg: 12px;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+  /* Dark themes keep the group hue vivid with white text (the classic look);
+     overrides the light/muted Oxford defaults above. */
+  --group-pill-bg: var(--group-color, #6366f1);
+  --group-pill-fg: #ffffff;
+  --group-pill-strip: var(--group-color, #6366f1);
+}
+/* Dark themes restore the sans heading font (override the :root Fraunces rule). */
+[data-theme="default"] h1, [data-theme="default"] h2, [data-theme="default"] h3,
+[data-theme="midnight"] h1, [data-theme="midnight"] h2, [data-theme="midnight"] h3,
+[data-theme="forest"] h1, [data-theme="forest"] h2, [data-theme="forest"] h3,
+[data-theme="ocean"] h1, [data-theme="ocean"] h2, [data-theme="ocean"] h3,
+[data-theme="dracula"] h1, [data-theme="dracula"] h2, [data-theme="dracula"] h3,
+[data-theme="nord"] h1, [data-theme="nord"] h2, [data-theme="nord"] h3,
+[data-theme="catppuccin"] h1, [data-theme="catppuccin"] h2, [data-theme="catppuccin"] h3 {
+  font-family: 'Outfit', sans-serif !important;
+}
+[data-theme="default"] body, [data-theme="default"] button, [data-theme="default"] input, [data-theme="default"] textarea, [data-theme="default"] select,
+[data-theme="midnight"] body, [data-theme="midnight"] button, [data-theme="midnight"] input, [data-theme="midnight"] textarea, [data-theme="midnight"] select,
+[data-theme="forest"] body, [data-theme="forest"] button, [data-theme="forest"] input, [data-theme="forest"] textarea, [data-theme="forest"] select,
+[data-theme="ocean"] body, [data-theme="ocean"] button, [data-theme="ocean"] input, [data-theme="ocean"] textarea, [data-theme="ocean"] select,
+[data-theme="dracula"] body, [data-theme="dracula"] button, [data-theme="dracula"] input, [data-theme="dracula"] textarea, [data-theme="dracula"] select,
+[data-theme="nord"] body, [data-theme="nord"] button, [data-theme="nord"] input, [data-theme="nord"] textarea, [data-theme="nord"] select,
+[data-theme="catppuccin"] body, [data-theme="catppuccin"] button, [data-theme="catppuccin"] input, [data-theme="catppuccin"] textarea, [data-theme="catppuccin"] select {
+  font-family: 'Outfit', sans-serif !important;
+}
+
+/* ── DEFAULT — the historical graphite + amber glassmorphism ──────────────── */
+[data-theme="default"] {
+  --vex-bg-base: #1a1816;
+  --vex-bg-elevated: #252220;
+  --vex-bg-deep: #14120e;
+  --vex-glass-strong: rgba(38, 34, 30, 0.65);
+  --vex-glass-medium: rgba(38, 34, 30, 0.45);
+  --vex-glass-light: rgba(38, 34, 30, 0.35);
+  --vex-glass-tab-active: rgba(212, 165, 116, 0.18);
+  --vex-glass-tab-inactive: rgba(58, 52, 46, 0.35);
+  --vex-glass-input: rgba(20, 18, 16, 0.55);
+  --vex-border-subtle: rgba(255, 255, 255, 0.06);
+  --vex-border-medium: rgba(255, 255, 255, 0.1);
+  --vex-border-strong: rgba(255, 255, 255, 0.16);
+  --vex-border-accent: rgba(212, 165, 116, 0.32);
+  --vex-border-accent-strong: rgba(212, 165, 116, 0.4);
+  --vex-accent: #d4a574;
+  --vex-accent-dim: rgba(212, 165, 116, 0.22);
+  --vex-accent-glow: rgba(212, 165, 116, 0.18);
+  --vex-text-primary: #e8e3d8;
+  --vex-text-secondary: #aaa39a;
+  --vex-text-muted: #6a665e;
+  --vex-text-accent: #d4a574;
+  --vex-success: #6fbf73;
+  --vex-danger: rgba(232, 104, 90, 0.85);
+  --vex-danger-hover: #ff8a7a;
+  --vex-warning: rgba(232, 196, 90, 0.85);
+  --vex-blur-heavy: blur(24px) saturate(140%);
+  --vex-blur-medium: blur(20px) saturate(140%);
+  --vex-blur-light: blur(12px) saturate(120%);
+  --bg: #0a0c10; --bg-2: #0f1218; --sidebar: #0d0f14; --surface: #151921;
+  --border: #1f2530; --text: #e5e9f0; --text-muted: #6b7482;
+  --primary: #6366f1; --primary-hover: #5558e6; --accent: #00b4d8;
+  --tab-active: #1e2430; --tab-hover: #171c27;
+  --danger: #ef4444; --success: #22c55e; --warning: #f59e0b;
+}
+
+/* ── MIDNIGHT — deep violet on near-black ─────────────────────────────────── */
+[data-theme="midnight"] {
+  --vex-bg-base: #05050a;
+  --vex-bg-elevated: #10101e;
+  --vex-bg-deep: #0a0a14;
+  --vex-glass-strong: #0a0a14;
+  --vex-glass-medium: #0a0a14;
+  --vex-glass-light: #10101e;
+  --vex-glass-tab-active: #1a1a2e;
+  --vex-glass-tab-inactive: #0a0a14;
+  --vex-glass-input: #05050a;
+  --vex-border-subtle: #1a1a2e;
+  --vex-border-medium: #1a1a2e;
+  --vex-border-strong: #2a2a4a;
+  --vex-border-accent: #8b5cf6;
+  --vex-border-accent-strong: #8b5cf6;
+  --vex-accent: #8b5cf6;
+  --vex-accent-dim: #8b5cf638;
+  --vex-accent-glow: #8b5cf62e;
+  --vex-text-primary: #e0e0f0;
+  --vex-text-secondary: #9090c0;
+  --vex-text-muted: #6060a0;
+  --vex-text-accent: #c084fc;
+  --vex-success: #4ade80;
+  --vex-danger: #f87171;
+  --vex-danger-hover: #fca5a5;
+  --vex-warning: #fbbf24;
+  --bg: #05050a; --bg-2: #0a0a14; --sidebar: #05050a; --surface: #10101e;
+  --border: #1a1a2e; --text: #e0e0f0; --text-muted: #6060a0;
+  --primary: #8b5cf6; --primary-hover: #a78bfa; --accent: #c084fc;
+  --tab-active: #1a1a2e; --tab-hover: #10101e;
+  --danger: #f87171; --success: #4ade80; --warning: #fbbf24;
+}
+
+/* ── FOREST — green on deep pine ──────────────────────────────────────────── */
+[data-theme="forest"] {
+  --vex-bg-base: #0a100e;
+  --vex-bg-elevated: #141e1a;
+  --vex-bg-deep: #0e1512;
+  --vex-glass-strong: #0e1512;
+  --vex-glass-medium: #0e1512;
+  --vex-glass-light: #141e1a;
+  --vex-glass-tab-active: #1e2e28;
+  --vex-glass-tab-inactive: #0e1512;
+  --vex-glass-input: #0a100e;
+  --vex-border-subtle: #1e2e28;
+  --vex-border-medium: #1e2e28;
+  --vex-border-strong: #2e463c;
+  --vex-border-accent: #22c55e;
+  --vex-border-accent-strong: #22c55e;
+  --vex-accent: #22c55e;
+  --vex-accent-dim: #22c55e38;
+  --vex-accent-glow: #22c55e2e;
+  --vex-text-primary: #d8ede4;
+  --vex-text-secondary: #8aab9e;
+  --vex-text-muted: #6b8a7e;
+  --vex-text-accent: #4ade80;
+  --vex-success: #4ade80;
+  --vex-danger: #f87171;
+  --vex-danger-hover: #fca5a5;
+  --vex-warning: #fbbf24;
+  --bg: #0a100e; --bg-2: #0e1512; --sidebar: #0a100e; --surface: #141e1a;
+  --border: #1e2e28; --text: #d8ede4; --text-muted: #6b8a7e;
+  --primary: #22c55e; --primary-hover: #4ade80; --accent: #4ade80;
+  --tab-active: #1e2e28; --tab-hover: #141e1a;
+  --danger: #f87171; --success: #4ade80; --warning: #fbbf24;
+}
+
+/* ── OCEAN — cyan on deep blue ────────────────────────────────────────────── */
+[data-theme="ocean"] {
+  --vex-bg-base: #080e14;
+  --vex-bg-elevated: #121c2c;
+  --vex-bg-deep: #0c1420;
+  --vex-glass-strong: #0c1420;
+  --vex-glass-medium: #0c1420;
+  --vex-glass-light: #121c2c;
+  --vex-glass-tab-active: #1c2c3e;
+  --vex-glass-tab-inactive: #0c1420;
+  --vex-glass-input: #080e14;
+  --vex-border-subtle: #1c2c3e;
+  --vex-border-medium: #1c2c3e;
+  --vex-border-strong: #2c4458;
+  --vex-border-accent: #0ea5e9;
+  --vex-border-accent-strong: #0ea5e9;
+  --vex-accent: #0ea5e9;
+  --vex-accent-dim: #0ea5e938;
+  --vex-accent-glow: #0ea5e92e;
+  --vex-text-primary: #d4e4f0;
+  --vex-text-secondary: #88a8c0;
+  --vex-text-muted: #6888a0;
+  --vex-text-accent: #38bdf8;
+  --vex-success: #34d399;
+  --vex-danger: #f87171;
+  --vex-danger-hover: #fca5a5;
+  --vex-warning: #fbbf24;
+  --bg: #080e14; --bg-2: #0c1420; --sidebar: #080e14; --surface: #121c2c;
+  --border: #1c2c3e; --text: #d4e4f0; --text-muted: #6888a0;
+  --primary: #0ea5e9; --primary-hover: #38bdf8; --accent: #38bdf8;
+  --tab-active: #1c2c3e; --tab-hover: #121c2c;
+  --danger: #f87171; --success: #34d399; --warning: #fbbf24;
+}
+
+/* ── DRACULA — the classic ────────────────────────────────────────────────── */
+[data-theme="dracula"] {
+  --vex-bg-base: #1e1f29;
+  --vex-bg-elevated: #282a36;
+  --vex-bg-deep: #21222c;
+  --vex-glass-strong: #21222c;
+  --vex-glass-medium: #21222c;
+  --vex-glass-light: #282a36;
+  --vex-glass-tab-active: #383a4c;
+  --vex-glass-tab-inactive: #21222c;
+  --vex-glass-input: #1e1f29;
+  --vex-border-subtle: #383a4c;
+  --vex-border-medium: #383a4c;
+  --vex-border-strong: #44475a;
+  --vex-border-accent: #bd93f9;
+  --vex-border-accent-strong: #bd93f9;
+  --vex-accent: #bd93f9;
+  --vex-accent-dim: #bd93f938;
+  --vex-accent-glow: #bd93f92e;
+  --vex-text-primary: #f8f8f2;
+  --vex-text-secondary: #9ba2c9;
+  --vex-text-muted: #6272a4;
+  --vex-text-accent: #ff79c6;
+  --vex-success: #50fa7b;
+  --vex-danger: #ff5555;
+  --vex-danger-hover: #ff7b7b;
+  --vex-warning: #f1fa8c;
+  --bg: #1e1f29; --bg-2: #21222c; --sidebar: #1e1f29; --surface: #282a36;
+  --border: #383a4c; --text: #f8f8f2; --text-muted: #6272a4;
+  --primary: #bd93f9; --primary-hover: #d6bbfb; --accent: #ff79c6;
+  --tab-active: #383a4c; --tab-hover: #282a36;
+  --danger: #ff5555; --success: #50fa7b; --warning: #f1fa8c;
+}
+
+/* ── NORD — arctic blue-grey ──────────────────────────────────────────────── */
+[data-theme="nord"] {
+  --vex-bg-base: #2e3440;
+  --vex-bg-elevated: #434c5e;
+  --vex-bg-deep: #3b4252;
+  --vex-glass-strong: #3b4252;
+  --vex-glass-medium: #3b4252;
+  --vex-glass-light: #434c5e;
+  --vex-glass-tab-active: #4c566a;
+  --vex-glass-tab-inactive: #3b4252;
+  --vex-glass-input: #2e3440;
+  --vex-border-subtle: #4c566a;
+  --vex-border-medium: #4c566a;
+  --vex-border-strong: #5e6a82;
+  --vex-border-accent: #88c0d0;
+  --vex-border-accent-strong: #88c0d0;
+  --vex-accent: #88c0d0;
+  --vex-accent-dim: #88c0d038;
+  --vex-accent-glow: #88c0d02e;
+  --vex-text-primary: #eceff4;
+  --vex-text-secondary: #aab2c4;
+  --vex-text-muted: #7b88a1;
+  --vex-text-accent: #81a1c1;
+  --vex-success: #a3be8c;
+  --vex-danger: #bf616a;
+  --vex-danger-hover: #d3858d;
+  --vex-warning: #ebcb8b;
+  --bg: #2e3440; --bg-2: #3b4252; --sidebar: #2e3440; --surface: #434c5e;
+  --border: #4c566a; --text: #eceff4; --text-muted: #7b88a1;
+  --primary: #88c0d0; --primary-hover: #8fbcbb; --accent: #81a1c1;
+  --tab-active: #4c566a; --tab-hover: #434c5e;
+  --danger: #bf616a; --success: #a3be8c; --warning: #ebcb8b;
+}
+
+/* ── CATPPUCCIN — soft mauve mocha ────────────────────────────────────────── */
+[data-theme="catppuccin"] {
+  --vex-bg-base: #1e1e2e;
+  --vex-bg-elevated: #302d41;
+  --vex-bg-deep: #24243e;
+  --vex-glass-strong: #24243e;
+  --vex-glass-medium: #24243e;
+  --vex-glass-light: #302d41;
+  --vex-glass-tab-active: #45425a;
+  --vex-glass-tab-inactive: #24243e;
+  --vex-glass-input: #1e1e2e;
+  --vex-border-subtle: #45425a;
+  --vex-border-medium: #45425a;
+  --vex-border-strong: #585273;
+  --vex-border-accent: #c9cbff;
+  --vex-border-accent-strong: #c9cbff;
+  --vex-accent: #c9cbff;
+  --vex-accent-dim: #c9cbff38;
+  --vex-accent-glow: #c9cbff2e;
+  --vex-text-primary: #d9e0ee;
+  --vex-text-secondary: #b0a8c4;
+  --vex-text-muted: #988ba2;
+  --vex-text-accent: #f5c2e7;
+  --vex-success: #abe9b3;
+  --vex-danger: #f28fad;
+  --vex-danger-hover: #f5a3bd;
+  --vex-warning: #fae3b0;
+  --bg: #1e1e2e; --bg-2: #24243e; --sidebar: #1e1e2e; --surface: #302d41;
+  --border: #45425a; --text: #d9e0ee; --text-muted: #988ba2;
+  --primary: #c9cbff; --primary-hover: #dadbff; --accent: #f5c2e7;
+  --tab-active: #45425a; --tab-hover: #302d41;
+  --danger: #f28fad; --success: #abe9b3; --warning: #fae3b0;
+}

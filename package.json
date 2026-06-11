@@ -1,0 +1,118 @@
+{
+  "name": "vex",
+  "version": "2.0.0",
+  "description": "Vex — a browser built just for you",
+  "author": {
+    "name": "0xmortuex",
+    "email": "fraad002@gmail.com"
+  },
+  "main": "src/main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "pack": "electron-builder --dir",
+    "build-icons": "node scripts/svg-to-png.js && electron-icon-builder --input=assets/icon-source.png --output=assets --flatten && node scripts/finalize-icons.js",
+    "dist": "npm run build-icons && rimraf dist && electron-builder",
+    "dist:win": "npm run build-icons && rimraf dist && electron-builder --win",
+    "publish": "npm run build-icons && rimraf dist && electron-builder --publish always"
+  },
+  "devDependencies": {
+    "@vitest/ui": "^4.1.5",
+    "electron": "github:castlabs/electron-releases#v30.5.1+wvcus",
+    "electron-builder": "^24.0.0",
+    "electron-icon-builder": "^2.0.1",
+    "jsdom": "^29.1.1",
+    "rimraf": "^6.1.3",
+    "sharp": "^0.34.5",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "electron-updater": "^6.1.0"
+  },
+  "build": {
+    "appId": "com.vex.browser",
+    "productName": "Vex",
+    "copyright": "Copyright 2026 0xmortuex",
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
+    "afterPack": "scripts/vmp-sign.js",
+    "electronDownload": {
+      "version": "30.5.1+wvcus",
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/v"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/icon.svg",
+      "assets/icon.ico",
+      "assets/theme-previews/*.png",
+      "package.json"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "html",
+        "name": "HTML Document",
+        "description": "HTML Document",
+        "role": "Viewer"
+      },
+      {
+        "ext": "htm",
+        "name": "HTML Document",
+        "description": "HTML Document",
+        "role": "Viewer"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "Web URL",
+        "schemes": [
+          "http",
+          "https"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "Vex-Setup.${ext}",
+      "publisherName": "0xmortuex"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Vex",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "include": "build/installer.nsh",
+      "differentialPackage": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "0xmortuex",
+        "repo": "Vex",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

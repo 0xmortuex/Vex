@@ -1,0 +1,13 @@
+name = "vex-sync"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Two KV namespaces back end-to-end-encrypted sync + email-code auth.
+# Provision each once, then paste the printed ids below:
+#   wrangler kv namespace create VEX_SYNC_KV
+#   wrangler kv namespace create VEX_AUTH_KV
+# See SELF_HOSTING.md. (Optional email delivery: wrangler secret put RESEND_API_KEY)
+kv_namespaces = [
+  { binding = "VEX_SYNC_KV", id = "REPLACE_WITH_VEX_SYNC_KV_ID" },
+  { binding = "VEX_AUTH_KV", id = "REPLACE_WITH_VEX_AUTH_KV_ID" }
+]

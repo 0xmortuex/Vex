@@ -1,0 +1,120 @@
+/* === Vex Smart Searchbar dropdown === */
+/* Theme-safe: every color/spacing value uses a --vex-* token defined in
+   theme-tokens.css, so this works across all 8 themes with no hardcoded
+   colors. Mirrors the command-palette styling conventions. */
+
+/* Anchor the absolutely-positioned dropdown to the url bar. */
+#url-bar-wrapper {
+  position: relative;
+}
+
+#searchbar-suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);   /* match wrapper padding (0 16px) */
+  max-width: 600px;            /* match #url-bar max-width */
+  z-index: 1000;
+
+  background: var(--vex-glass-strong);
+  backdrop-filter: var(--vex-blur-medium);
+  -webkit-backdrop-filter: var(--vex-blur-medium);
+  border: 1px solid var(--vex-border-medium);
+  border-radius: var(--vex-radius-lg);
+  box-shadow: 0 8px 28px var(--vex-accent-glow);
+  padding: 6px;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+
+#searchbar-suggestions.hidden {
+  display: none;
+}
+
+.sb-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: var(--vex-radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.sb-suggestion:hover,
+.sb-suggestion.selected {
+  background: var(--vex-accent-dim);
+}
+
+/* Section divider/label between local results and web suggestions. */
+.sb-section-label {
+  font-family: var(--vex-font-base);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vex-text-muted);
+  padding: 8px 9px 4px;
+  margin-top: 2px;
+  border-top: 1px solid var(--vex-border-subtle);
+}
+
+.sb-chip {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--vex-font-heading);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vex-text-secondary);
+  background: var(--vex-glass-input);
+  border-radius: var(--vex-radius-sm);
+}
+
+.sb-suggestion:hover .sb-chip,
+.sb-suggestion.selected .sb-chip {
+  color: var(--vex-accent);
+}
+
+.sb-text {
+  flex: 1;
+  min-width: 0;   /* allow ellipsis */
+}
+
+.sb-title {
+  font-family: var(--vex-font-base);
+  font-size: 12px;
+  color: var(--vex-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-suggestion:hover .sb-title,
+.sb-suggestion.selected .sb-title {
+  color: var(--vex-text-accent);
+}
+
+.sb-url {
+  font-family: var(--vex-font-mono);
+  font-size: 10px;
+  color: var(--vex-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-kind {
+  flex-shrink: 0;
+  font-family: var(--vex-font-base);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vex-text-muted);
+  padding: 2px 6px;
+  border: 1px solid var(--vex-border-subtle);
+  border-radius: var(--vex-radius-sm);
+}

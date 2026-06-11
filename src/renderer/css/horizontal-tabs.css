@@ -1,0 +1,240 @@
+/* === Horizontal tab bar (Chrome/Edge-style) === */
+
+.top-tab-bar {
+  display: none;
+  align-items: center;
+  gap: 0;
+  padding: 6px 8px 0 8px;
+  background: var(--vex-glass-medium);
+  backdrop-filter: var(--vex-blur-light);
+  -webkit-backdrop-filter: var(--vex-blur-light);
+  border-bottom: 1px solid var(--vex-border-subtle);
+  -webkit-app-region: drag;
+  min-height: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+body[data-tab-layout="horizontal"] .top-tab-bar {
+  display: flex;
+}
+
+/* Hide vertical sidebar + shrink main-layout vertically */
+body[data-tab-layout="horizontal"] #tabs-sidebar { display: none !important; }
+body[data-tab-layout="horizontal"] #main-layout { height: calc(100% - 58px - 40px); }
+body[data-tab-layout="vertical"]   #main-layout { height: calc(100% - 58px); }
+
+/* Fullscreen (F11) — hide the top bar (URL bar, nav, controls) + horizontal tab bar.
+   Let #main-layout fill the viewport. Needs to override the layout-specific height
+   rules above, so selectors match their specificity (attribute + id) and !important. */
+body.fullscreen #top-bar { display: none !important; }
+body.fullscreen .top-tab-bar { display: none !important; }
+body[data-tab-layout="horizontal"].fullscreen #main-layout,
+body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !important; }
+
+.top-tabs-list {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;          /* critical for flex-shrink */
+  overflow: hidden;      /* shrink instead of scroll by default */
+  -webkit-app-region: no-drag;
+  align-items: flex-end;
+  padding-right: 4px;
+}
+.top-tabs-list::-webkit-scrollbar { display: none; }
+
+/* Trailing container keeps + button always visible */
+.tab-bar-trailing {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+/* Individual tab — prefer wider, shrink gracefully */
+.top-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 32px;
+  min-width: 44px;            /* hard minimum = favicon only */
+  max-width: none;            /* no upper cap — tabs always fill the bar */
+  /* basis:0 + grow:1 makes every tab share free space equally, so with
+     no cap above they expand all the way to the trailing +-button. */
+  flex: 1 1 0;
+  background: var(--vex-glass-tab-inactive);
+  border: 1px solid var(--vex-border-subtle);
+  border-bottom: none;
+  border-radius: var(--vex-radius-md) var(--vex-radius-md) 0 0;
+  cursor: pointer;
+  user-select: none;
+  color: var(--vex-text-secondary);
+  font-size: 12px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
+  -webkit-app-region: no-drag;
+}
+.top-tab:hover {
+  background: var(--vex-glass-tab-inactive);
+  border-color: var(--vex-border-medium);
+  color: var(--vex-text-primary);
+}
+.top-tab.active {
+  background: var(--vex-glass-tab-active);
+  border: 1px solid var(--vex-border-accent);
+  border-bottom: none;
+  color: var(--vex-text-primary);
+  font-weight: 500;
+  z-index: 1;
+  margin-bottom: -1px;
+  /* Same flex as others — don't override so active tab can't shrink away */
+}
+.top-tab.active .tab-title { font-weight: 600; }
+
+.top-tab .tab-favicon {
+  width: 14px; height: 14px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+.top-tab .tab-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Outfit', sans-serif;
+}
+
+.top-tab .tab-close {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  color: var(--vex-text-muted);
+  opacity: 0;
+  flex-shrink: 0;
+  transition: all 0.12s;
+  background: transparent; border: none; padding: 0;
+  cursor: pointer;
+}
+.top-tab .tab-close svg { display: block; }
+.top-tab:hover .tab-close,
+.top-tab.active .tab-close { opacity: 0.85; color: var(--vex-text-primary); }
+.top-tab .tab-close:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  opacity: 1;
+}
+
+/* Narrow: hide title, keep close only on hover */
+.top-tab.narrow {
+  justify-content: center;
+  padding: 0 8px;
+  gap: 4px;
+}
+.top-tab.narrow .tab-title { display: none; }
+
+/* Very narrow: hide close too, icon only */
+.top-tab.very-narrow {
+  min-width: 40px;
+  max-width: 40px;
+  flex: 0 0 40px;
+  padding: 0;
+  justify-content: center;
+}
+.top-tab.very-narrow .tab-close { display: none; }
+
+/* Pinned: always compact icon square */
+.top-tab.pinned {
+  min-width: 36px;
+  max-width: 36px;
+  flex: 0 0 36px;
+  padding: 0;
+  justify-content: center;
+}
+.top-tab.pinned .tab-title,
+.top-tab.pinned .tab-close { display: none; }
+
+/* Audio / mute */
+.top-tab .audio-indicator {
+  width: 12px; height: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+/* Loading state — spin favicon */
+.top-tab.loading .tab-favicon { animation: tab-spin 1s linear infinite; }
+@keyframes tab-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Sleeping state — faded tab + grayscale favicon + 💤 indicator */
+.top-tab.sleeping { opacity: 0.55; }
+.top-tab.sleeping .tab-favicon { filter: grayscale(0.7); }
+.top-tab.sleeping .tab-title::after { content: ' \01F4A4'; font-size: 10px; opacity: 0.8; margin-left: 4px; }
+
+/* Group membership — 3 px colored strip along top */
+.top-tab.in-group::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 4px; right: 4px;
+  height: 3px;
+  background: var(--group-pill-strip, var(--group-color, var(--primary)));
+  border-radius: 8px 8px 0 0;
+}
+
+/* Group label pill */
+.top-group-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  margin: 0 4px 0 6px;
+  /* Theme-aware fill derived from --group-color (the stored identity hex).
+     Light themes mute it toward the surface; dark themes keep it vivid.
+     See --group-pill-* tokens in theme-tokens.css. */
+  background: var(--group-pill-bg, var(--group-color, var(--primary)));
+  color: var(--group-pill-fg, #fff);
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  height: 22px;
+  align-self: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.12s, opacity 0.12s;
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Outfit', sans-serif;
+  -webkit-app-region: no-drag;
+}
+.top-group-label:hover { transform: translateY(-1px); opacity: 0.92; }
+
+/* + new-tab button */
+.new-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+  margin: 0 4px 4px 4px;
+  -webkit-app-region: no-drag;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.new-tab-btn:hover  { background: var(--surface); color: var(--text); transform: scale(1.05); }
+.new-tab-btn:active { transform: scale(0.95); }
