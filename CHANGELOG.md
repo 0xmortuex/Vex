@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.20.1 (2026-06-12) — Detailed live previews
+
+### Changed
+- The live theme previews are now the **detailed** Vex window (top bar, sidebar, tab, and the full Vex Sync settings content) — the same rich look the new themes had — rendered live from CSS in each theme's colors. Every theme's preview is identical in style and never an image file.
+
 ## v2.20.0 (2026-06-12) — Live theme previews + sidebar fixes
 
 ### Changed

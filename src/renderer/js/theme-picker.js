@@ -107,18 +107,32 @@ const ThemePicker = {
     return card;
   },
 
-  // A live mini Vex window rendered from the theme's own CSS variables (the
-  // wrapper carries data-theme, so var(--bg)/--surface/--primary/etc. resolve to
-  // that theme). Identical structure for every theme → perfectly consistent.
+  // A live, detailed mini Vex window (top bar, tab, sidebar + the Vex Sync
+  // settings page) rendered from the theme's own CSS variables — the wrapper
+  // carries data-theme so var(--bg)/--surface/--primary/etc. resolve to that
+  // theme. Sizes use cqw (container-query width) units so it scales to the card
+  // and stays identical in style for every theme. No image files involved.
   _livePreview(id) {
     return `<div class="vtp-live" data-theme="${id}">
-        <div class="vl-top"><span class="vl-logo"></span><span class="vl-pill"></span><span class="vl-url"></span><span class="vl-b2"></span></div>
-        <div class="vl-body">
-          <div class="vl-rail"><i class="on"></i><i></i><i></i><i></i><i></i></div>
-          <div class="vl-main">
-            <div class="vl-card"><span class="vl-circ"></span><span class="vl-cl"><b></b><u></u></span></div>
-            <div class="vl-field"><span class="vl-input"></span><span class="vl-go"></span></div>
-            <div class="vl-rows"><u></u><u></u><u style="width:48%"></u></div>
+        <div class="pv-top">
+          <span class="pv-logo"></span>
+          <span class="pv-ws"><span class="pv-ws-dot"></span>Personal</span>
+          <span class="pv-ic"></span><span class="pv-ic"></span>
+          <span class="pv-url"><span class="pv-url-g"></span>Search or enter URL…</span>
+          <span class="pv-sp"></span>
+          <span class="pv-pill">AI</span><span class="pv-pill on"></span>
+        </div>
+        <div class="pv-tab"><span class="pv-tab-item"><span class="pv-fav"></span>New Tab — Vex</span></div>
+        <div class="pv-body">
+          <div class="pv-rail"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="pv-content">
+            <div class="pv-label">VEX SYNC</div>
+            <div class="pv-card pv-cardrow"><span class="pv-circle"></span><div><div class="pv-h3">Vex Sync</div><div class="pv-sub">Sync your tabs, notes, and settings across devices</div></div></div>
+            <div class="pv-card"><div class="pv-fl">Step 1: Enter your email</div><div class="pv-field"><span class="pv-input">you@example.com</span><span class="pv-btn">Send Code</span></div></div>
+            <div class="pv-lists">
+              <div><div class="pv-h4">What gets synced:</div><div class="pv-li">Tabs, sessions, and workspaces</div><div class="pv-li">Notes and scheduled tasks</div><div class="pv-li">Theme and preferences</div></div>
+              <div><div class="pv-h4">What stays local:</div><div class="pv-li">Saved passwords</div><div class="pv-li">Website cookies and logins</div><div class="pv-li">AI chat history</div></div>
+            </div>
           </div>
         </div>
       </div>`;

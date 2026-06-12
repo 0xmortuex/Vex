@@ -219,25 +219,44 @@
 .vtp-star.on { opacity: 1; color: #fbbf24; }
 .vtp-star:hover { transform: scale(1.12); }
 
-/* === Live CSS theme preview (mini Vex window, themed by data-theme) === */
-.vtp-live { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
-.vl-top { height: 20%; min-height: 22px; display: flex; align-items: center; gap: 4px; padding: 0 7px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.vl-logo { width: 10px; height: 10px; border-radius: 2px; transform: rotate(45deg); background: linear-gradient(135deg, var(--primary), var(--accent, var(--primary))); flex: none; }
-.vl-pill { width: 32px; height: 9px; border-radius: 99px; border: 1px solid var(--border); flex: none; }
-.vl-url { flex: 1; height: 10px; border-radius: 99px; background: var(--bg); border: 1px solid var(--border); }
-.vl-b2 { width: 16px; height: 9px; border-radius: 3px; background: var(--primary); flex: none; }
-.vl-body { flex: 1; display: flex; min-height: 0; }
-.vl-rail { width: 14%; min-width: 18px; background: var(--sidebar, var(--bg)); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; }
-.vl-rail i { width: 60%; height: 9px; border-radius: 3px; background: var(--text); opacity: 0.16; }
-.vl-rail i.on { background: var(--primary); opacity: 1; }
-.vl-main { flex: 1; padding: 9px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.vl-card { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 7px; display: flex; align-items: center; gap: 7px; }
-.vl-circ { width: 15px; height: 15px; border-radius: 50%; background: var(--primary); opacity: 0.9; flex: none; }
-.vl-cl { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.vl-cl b { display: block; width: 52%; height: 5px; border-radius: 3px; background: var(--text); opacity: 0.72; }
-.vl-cl u { display: block; width: 82%; height: 4px; border-radius: 2px; background: var(--text); opacity: 0.3; }
-.vl-field { display: flex; gap: 7px; }
-.vl-input { flex: 1; height: 15px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); }
-.vl-go { width: 38px; height: 15px; border-radius: 4px; background: var(--primary); flex: none; }
-.vl-rows { display: flex; flex-direction: column; gap: 4px; }
-.vl-rows u { display: block; width: 86%; height: 4px; border-radius: 2px; background: var(--text); opacity: 0.24; }
+/* === Live, detailed CSS theme preview (full Vex window, themed by data-theme).
+   Sizes are in cqw so it scales with the card; the thumb is the query container. === */
+.vtp-thumb { container-type: inline-size; }
+.vtp-live {
+  position: absolute; inset: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+  font-family: 'Outfit', sans-serif;
+}
+.pv-top { height: 8cqw; flex: none; display: flex; align-items: center; gap: 1.2cqw; padding: 0 2cqw; background: var(--surface); border-bottom: 0.15cqw solid var(--border); }
+.pv-logo { width: 3cqw; height: 3cqw; border-radius: 0.6cqw; transform: rotate(45deg); background: linear-gradient(135deg, var(--primary), var(--accent, var(--primary))); flex: none; }
+.pv-ws { display: flex; align-items: center; gap: 0.8cqw; padding: 0.7cqw 1.4cqw; border: 0.15cqw solid var(--border); border-radius: 99px; font-size: 2.1cqw; color: var(--text); }
+.pv-ws-dot { width: 1.2cqw; height: 1.2cqw; border-radius: 50%; background: var(--success, var(--primary)); }
+.pv-ic { width: 2.6cqw; height: 2.6cqw; border-radius: 0.6cqw; border: 0.2cqw solid var(--text-muted); opacity: .6; flex: none; }
+.pv-url { flex: 1; max-width: 42cqw; height: 4.6cqw; border-radius: 99px; background: var(--bg); border: 0.15cqw solid var(--border); display: flex; align-items: center; gap: 1cqw; padding: 0 2cqw; color: var(--text-muted); font-size: 2.1cqw; }
+.pv-url-g { width: 2.2cqw; height: 2.2cqw; border-radius: 50%; border: 0.25cqw solid var(--text-muted); flex: none; }
+.pv-sp { flex: 1; }
+.pv-pill { padding: 0.7cqw 1.4cqw; border-radius: 1.2cqw; border: 0.15cqw solid var(--border); font-size: 2cqw; color: var(--text); }
+.pv-pill.on { background: var(--primary); border-color: var(--primary); color: #fff; min-width: 3cqw; }
+.pv-tab { height: 5.5cqw; flex: none; display: flex; align-items: center; padding: 0 2cqw; background: var(--bg-2, var(--bg)); border-bottom: 0.15cqw solid var(--border); }
+.pv-tab-item { display: flex; align-items: center; gap: 1.2cqw; height: 4cqw; padding: 0 1.8cqw; border-radius: 1cqw; background: var(--tab-active, var(--surface)); box-shadow: inset 0 0 0 0.2cqw var(--primary); font-size: 2cqw; color: var(--text); }
+.pv-fav { width: 2cqw; height: 2cqw; border-radius: 0.5cqw; background: var(--primary); }
+.pv-body { flex: 1; display: flex; min-height: 0; }
+.pv-rail { width: 9cqw; flex: none; background: var(--sidebar, var(--bg)); border-right: 0.15cqw solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 2.4cqw; padding: 2.4cqw 0; }
+.pv-rail i { width: 5cqw; height: 5cqw; border-radius: 1.4cqw; background: var(--text); opacity: .14; }
+.pv-rail i.on { background: var(--accent-dim, var(--surface)); opacity: 1; box-shadow: inset 0 0 0 0.25cqw var(--primary); }
+.pv-content { flex: 1; padding: 3cqw 4cqw; min-width: 0; overflow: hidden; }
+.pv-label { font-size: 1.7cqw; letter-spacing: 0.2cqw; color: var(--text-muted); margin-bottom: 1.6cqw; font-family: 'JetBrains Mono', monospace; }
+.pv-card { background: var(--surface); border: 0.15cqw solid var(--border); border-radius: 1.8cqw; padding: 2.4cqw 2.8cqw; margin-bottom: 2cqw; }
+.pv-cardrow { display: flex; align-items: center; gap: 2.2cqw; }
+.pv-circle { width: 6cqw; height: 6cqw; border-radius: 1.6cqw; background: var(--primary); opacity: .9; flex: none; }
+.pv-h3 { font-size: 2.6cqw; font-weight: 700; color: var(--text); margin-bottom: 0.5cqw; }
+.pv-sub { font-size: 1.8cqw; color: var(--text-muted); }
+.pv-fl { font-size: 1.9cqw; color: var(--text); margin-bottom: 1.6cqw; }
+.pv-field { display: flex; gap: 1.6cqw; }
+.pv-input { flex: 1; height: 5.5cqw; border-radius: 1.2cqw; background: var(--bg); border: 0.15cqw solid var(--border); display: flex; align-items: center; padding: 0 2cqw; color: var(--text-muted); font-size: 2cqw; }
+.pv-btn { height: 5.5cqw; padding: 0 3cqw; border-radius: 1.2cqw; background: var(--primary); color: #fff; display: flex; align-items: center; font-size: 1.9cqw; font-weight: 600; flex: none; }
+.pv-lists { display: flex; gap: 7cqw; }
+.pv-h4 { font-size: 1.9cqw; font-weight: 700; color: var(--text); margin-bottom: 1.2cqw; }
+.pv-li { font-size: 1.8cqw; color: var(--text-muted); line-height: 2; }
+.pv-li::before { content: '• '; }
