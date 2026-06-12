@@ -389,6 +389,35 @@ const SyncEngine = (() => {
     return { ...state, encryptionKey: null };
   }
 
+  // ===== DROP — cross-device tab handoff ("Send to Phone") =====
+  async function dropSend(url, title) {
+    if (!state.enabled || !state.sessionToken) {
+      throw new Error('Sign in to Vex Sync first (Settings → Vex Sync)');
+    }
+    const r = await fetch(`${syncWorkerUrl()}/sync/drop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.sessionToken}` },
+      body: JSON.stringify({ url, title })
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.error || 'Send failed');
+    }
+    return await r.json();
+  }
+
+  async function dropFetch() {
+    if (!state.enabled || !state.sessionToken) return [];
+    try {
+      const r = await fetch(`${syncWorkerUrl()}/sync/drop`, {
+        headers: { 'Authorization': `Bearer ${state.sessionToken}` }
+      });
+      if (!r.ok) return [];
+      const d = await r.json().catch(() => null);
+      return (d && d.items) || [];
+    } catch { return []; }
+  }
+
   async function getRecoveryCode() {
     const keyHex = await window.vex.syncLoadKey();
     if (!keyHex) return null;
@@ -406,6 +435,8 @@ const SyncEngine = (() => {
     listDevices,
     removeDevice,
     wipeAllCloudData,
+    dropSend,
+    dropFetch,
     getState,
     getRecoveryCode,
     isEnabled: () => state.enabled,

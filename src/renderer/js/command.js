@@ -14,6 +14,15 @@ const CommandBar = {
   commands: [
     { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: '+', action: () => TabManager.createTab(START_URL, true) },
     { id: 'tour', label: 'Guide / Tour', hint: 'Take the interactive walkthrough of Vex', icon: '🧭', action: () => { if (typeof VexTour !== 'undefined') VexTour.start(); } },
+    { id: 'peek', label: 'Peek Current Page', hint: 'Preview the active page in a floating overlay (Shift+click links to peek them)', icon: '👁', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof VexPeek !== 'undefined') VexPeek.open(t.url); } },
+    { id: 'zap', label: 'Zap Element', hint: 'Click any element on this page to hide it forever on this site', icon: '⚡', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } },
+    { id: 'boost', label: 'Boost This Site', hint: 'Custom CSS / JS for the current site', icon: '🎨', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } },
+    { id: 'sendphone', label: 'Send to Phone', hint: 'Hand this tab off to your other Vex devices (needs Vex Sync)', icon: '📲', action: async () => {
+      const t = TabManager.getActiveTab();
+      if (!t || !t.url) { window.showToast?.('No active page to send'); return; }
+      try { await SyncEngine.dropSend(t.url, t.title || ''); window.showToast?.('Sent — it will appear on your other devices'); }
+      catch (err) { window.showToast?.(err.message || 'Send failed'); }
+    } },
     { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: '×', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.closeTab(t.id); } },
     { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: '📱', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },
     { id: 'claude', label: 'Claude AI', hint: 'Open Claude panel', icon: '✨', isPrimary: true, action: () => SidebarManager.openPanel('claude') },

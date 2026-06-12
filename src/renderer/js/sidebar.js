@@ -238,6 +238,18 @@ const SidebarManager = {
       // Manual-location override (replaces Google Cloud geolocation)
       LocationSettings.render(document.getElementById('location-panel-content'));
     }
+    if (panelName === 'settings' && typeof VexSkills !== 'undefined') {
+      // AI Skills manager each time Settings opens
+      VexSkills.renderPanel(document.getElementById('skills-panel-content'));
+    }
+    if (panelName === 'settings' && typeof VexBoosts !== 'undefined') {
+      // Boosts (per-site customization) list each time Settings opens
+      VexBoosts.renderPanel(document.getElementById('boosts-panel-content'));
+    }
+    if (panelName === 'settings' && typeof PasswordVault !== 'undefined') {
+      // Saved passwords list each time Settings opens
+      PasswordVault.renderPanel(document.getElementById('passwords-panel-content'));
+    }
     if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
       // Categorize + colorize the settings panel (presentation only).
       SettingsUI.enhance();

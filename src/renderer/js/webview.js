@@ -90,10 +90,23 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { title: e.title });
     });
 
+    webview.addEventListener('dom-ready', () => {
+      // Per-site Boosts (zapped elements / custom CSS / custom JS)
+      try {
+        const t = TabManager.tabs.find(x => x.id === tab.id);
+        if (typeof VexBoosts !== 'undefined' && t && t.url) VexBoosts.applyTo(webview, t.url);
+        if (typeof PasswordVault !== 'undefined' && t && t.url) PasswordVault.autofill(webview, t.url);
+      } catch {}
+    });
+
+    // Password capture (login-form submits announced by preload-webview.js)
+    if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
+
     webview.addEventListener('did-navigate', (e) => {
       const url = e.url;
       TabManager.updateTab(tab.id, { url });
       this._updateFavicon(tab.id, url);
+      if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
 
       // Add to history (both legacy storage and new HistoryPanel)
       if (!isStartPage(url)) {
