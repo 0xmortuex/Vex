@@ -246,6 +246,21 @@
     .loc-actions .primary { background: var(--vex-accent); color: #fff; border: none; font-weight: 600; }
     .loc-actions .ghost { background: transparent; color: var(--vex-text-secondary); }
 
+    /* Theme changer button (top-right of the start page) */
+    .theme-toggle-btn {
+      position: fixed; top: 18px; right: 18px; z-index: 50;
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 8px 14px; border-radius: 999px;
+      background: var(--vex-glass-medium);
+      backdrop-filter: var(--vex-blur-light);
+      -webkit-backdrop-filter: var(--vex-blur-light);
+      border: 1px solid var(--vex-border-subtle);
+      color: var(--vex-text-secondary);
+      font-family: 'Space Grotesk', sans-serif; font-size: 12.5px;
+      cursor: pointer; transition: all .15s ease;
+    }
+    .theme-toggle-btn:hover { border-color: var(--vex-accent); color: var(--vex-text-primary); }
+
     /* === Wordmark === */
     .logo-section { margin: 22px 0 28px; text-align: center; }
     .vex-wordmark {
@@ -688,6 +703,11 @@
   </style>
 </head>
 <body>
+  <button class="theme-toggle-btn" id="theme-toggle-btn" title="Change theme">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="17" cy="11" r="1.4" fill="currentColor" stroke="none"/><circle cx="8" cy="7" r="1.4" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.4" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6 2 11c0 3 2.4 5 5 5h1.4a2 2 0 0 1 2 2 2 2 0 0 0 2 2c4.8 0 9.6-3.6 9.6-9C22 6 17.5 2 12 2z"/></svg>
+    Theme
+  </button>
+
   <div class="greeting-section">
     <div class="clock" id="clock">00:00</div>
     <div class="date-text" id="date-text"></div>
@@ -1295,6 +1315,11 @@
       } catch { /* offline / API down — leave hidden */ }
     }
     loadQuranVerse();
+
+    // Theme button → open the app's theme picker (host handles via VEX_CMD).
+    document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
+      console.log('VEX_CMD:' + JSON.stringify({ type: 'open-theme-picker' }));
+    });
 
     // Optional GitHub widget — set a username in Settings (localStorage
     // 'vex.githubUsername'). Hidden entirely until configured so a fresh

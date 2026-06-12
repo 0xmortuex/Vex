@@ -225,6 +225,8 @@ const WebviewManager = {
             }
           } else if (cmd.type === 'open-panel' && cmd.panel) {
             SidebarManager.openPanel(cmd.panel);
+          } else if (cmd.type === 'open-theme-picker') {
+            if (typeof ThemePicker !== 'undefined') ThemePicker.open();
           } else if (cmd.type === 'exit-reading') {
             if (typeof ReadingMode !== 'undefined') ReadingMode.exitReadingMode(tab.id);
           }

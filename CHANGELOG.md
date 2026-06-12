@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.13.0 (2026-06-12) — Theme button on the start page
+
+### Added
+- A **Theme** button in the top-right of the start page — click it and the full theme picker (all 8 themes with previews) appears. Picking one re-themes the whole browser instantly.
+
 ## v2.12.0 (2026-06-12) — Daily verse, weather location & Spotify playback
 
 ### Added
