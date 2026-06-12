@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.3.0 (2026-06-12) — Library, AI tab commands & the works
+
+### Added
+- **Read Later / Library** — save pages to a queue (Ctrl+K → "Read Later"), unread badge on the new Library sidebar panel; opening marks read.
+- **Auto-archive** — tabs untouched for N days (Settings → Library) close into the Library archive instead of rotting open.
+- **Clip to Notes** — selected text (or the page link) saved into a pinned "Clippings" note with source + date.
+- **AI Tab Commands** — "close all YouTube tabs", "group my shopping tabs": AI plans, you confirm, it applies.
+- **Now Playing** — a mini bar for tabs making sound: play/pause, mute, jump-to-tab.
+- **Pin Site to Sidebar** — keep any site as a Vivaldi-style web panel (right-click its icon to unpin).
+- **Off-the-Record tab** — ephemeral tab: no history, cookies vanish on close.
+- **Boss key** — Ctrl+Alt+H hides + mutes every Vex window instantly; again to restore.
+- **Reverse-image search** — right-click any image → Search with Google Lens / copy / open.
+- **QR code** — Ctrl+K → "QR Code" to open the current page on your phone.
+- **Per-tab volume** — tab right-click → "Page volume…".
+- **Resource Monitor** — live CPU/memory per browser process.
+- **Quick slots** — Ctrl+Alt+1/2/3 run your first three command chains.
+- **Ambient grouping** — links opened from a grouped tab join that group automatically.
+
 ## v2.2.0 (2026-06-12) — Focus, gestures, bookmarks, feeds & more
 
 ### Added

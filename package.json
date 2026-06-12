@@ -1,6 +1,6 @@
 {
   "name": "vex",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Vex — a browser built just for you",
   "author": {
     "name": "0xmortuex",
@@ -31,7 +31,8 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.17",
-    "electron-updater": "^6.1.0"
+    "electron-updater": "^6.1.0",
+    "qrcode": "^1.5.4"
   },
   "build": {
     "appId": "com.vex.browser",

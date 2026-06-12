@@ -974,6 +974,14 @@ const TabManager = {
     const items = [
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => { tab.pinned = !tab.pinned; this.persistTabs(); } },
       { label: 'Duplicate', action: () => this.createTab(tab.url) },
+      { label: 'Page volume…', action: async () => {
+        const v = typeof vexPromptModal === 'function' ? await vexPromptModal('Page volume (0–100%)', '100') : prompt('Volume 0-100', '100');
+        const n = parseInt(v, 10);
+        if (isNaN(n)) return;
+        const wv = WebviewManager.webviews.get(tab.id);
+        try { wv?.executeJavaScript(`document.querySelectorAll('video,audio').forEach(m=>m.volume=${Math.min(100, Math.max(0, n)) / 100})`); } catch {}
+        window.showToast?.('Volume ' + Math.min(100, Math.max(0, n)) + '%');
+      } },
       { sep: true },
       ...moveTargets.map(g => ({
         label: `Move to ${g.name}`,

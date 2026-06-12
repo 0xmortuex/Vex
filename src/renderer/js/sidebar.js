@@ -89,7 +89,7 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds'],
+  customPanels: ['settings', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library'],
 
   panelConfigs: {
     start: { url: null, partition: null },
@@ -107,7 +107,68 @@ const SidebarManager = {
     schedules: { url: null, partition: null },
     shortcuts: { url: null, partition: null },
     bookmarks: { url: null, partition: null },
-    feeds: { url: null, partition: null }
+    feeds: { url: null, partition: null },
+    library: { url: null, partition: null }
+  },
+
+  // ---- Pin ANY site as a sidebar panel (Vivaldi-style web panels) ----
+  SITE_KEY: 'vex.sitePanels',
+  _sitePanels() { try { const a = JSON.parse(localStorage.getItem(this.SITE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
+  _saveSitePanels(a) { try { localStorage.setItem(this.SITE_KEY, JSON.stringify(a)); } catch {} },
+
+  loadSitePanels() {
+    this._sitePanels().forEach(p => this._mountSitePanel(p));
+  },
+
+  pinCurrentSite() {
+    const t = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
+    if (!t || !t.url || !/^https?:/i.test(t.url)) { window.showToast?.('Open a website first'); return; }
+    let host = t.url; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch {}
+    const list = this._sitePanels();
+    if (list.some(p => p.url === t.url)) { window.showToast?.('Already pinned'); return; }
+    const p = { id: 'site_' + Date.now(), name: host, url: t.url };
+    list.push(p);
+    this._saveSitePanels(list);
+    this._mountSitePanel(p);
+    window.showToast?.('📌 Pinned ' + host + ' to the sidebar (right-click its icon to unpin)');
+  },
+
+  _mountSitePanel(p) {
+    this.panelConfigs[p.id] = { url: p.url, partition: 'persist:main' };
+    // Panel container div
+    if (!document.getElementById('panel-' + p.id)) {
+      const div = document.createElement('div');
+      div.className = 'panel';
+      div.id = 'panel-' + p.id;
+      div.style.display = 'none';
+      document.getElementById('panels-container')?.appendChild(div);
+    }
+    // Sidebar icon (favicon), placed just above the spacer
+    if (!document.querySelector('.sidebar-icon[data-panel="' + p.id + '"]')) {
+      let host = p.url; try { host = new URL(p.url).hostname; } catch {}
+      const btn = document.createElement('button');
+      btn.className = 'sidebar-icon';
+      btn.dataset.panel = p.id;
+      btn.title = p.name + ' (pinned site — right-click to unpin)';
+      btn.innerHTML = '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(host) + '&sz=32" style="width:18px;height:18px;border-radius:4px" onerror="this.replaceWith(document.createTextNode(\'🌐\'))">';
+      btn.addEventListener('click', () => this.togglePanel(p.id));
+      btn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (confirm('Unpin ' + p.name + ' from the sidebar?')) this.unpinSite(p.id);
+      });
+      const spacer = document.querySelector('#icon-sidebar .sidebar-spacer');
+      if (spacer) spacer.parentElement.insertBefore(btn, spacer);
+    }
+  },
+
+  unpinSite(id) {
+    this._saveSitePanels(this._sitePanels().filter(p => p.id !== id));
+    document.querySelector('.sidebar-icon[data-panel="' + id + '"]')?.remove();
+    if (this.activePanel === id) this.hideActivePanel();
+    document.getElementById('panel-' + id)?.remove();
+    delete this.panelConfigs[id];
+    delete this.panelWebviews[id];
+    window.showToast?.('Unpinned');
   },
 
   _origIcons: {},
@@ -149,6 +210,9 @@ const SidebarManager = {
 
     // Apply any saved per-button customizations (name/icon/link/hidden).
     this.applyPanelOverrides();
+
+    // Mount user-pinned site panels (Vivaldi-style web panels).
+    this.loadSitePanels();
 
     // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
     // openDevTools on webContents.getFocusedWebContents(). The previous
@@ -213,6 +277,7 @@ const SidebarManager = {
     if (panelName === 'queue') QueuePanel.init();
     if (panelName === 'bookmarks' && typeof Bookmarks !== 'undefined') Bookmarks.renderPanel(panelEl);
     if (panelName === 'feeds' && typeof VexFeeds !== 'undefined') VexFeeds.renderPanel(panelEl);
+    if (panelName === 'library' && typeof ReadLater !== 'undefined') ReadLater.renderPanel(panelEl);
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');
@@ -259,6 +324,9 @@ const SidebarManager = {
     }
     if (panelName === 'settings' && typeof CommandChains !== 'undefined') {
       CommandChains.renderPanel(document.getElementById('chains-panel-content'));
+    }
+    if (panelName === 'settings' && typeof TabArchiver !== 'undefined') {
+      TabArchiver.renderSettings(document.getElementById('library-panel-content'));
     }
     if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
       // Categorize + colorize the settings panel (presentation only).

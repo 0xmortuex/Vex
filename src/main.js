@@ -297,6 +297,25 @@ ipcMain.handle('permission:respond', (_e, payload) => {
   }
   return { ok: true };
 });
+// === QR code for the current page (qrcode npm package, rendered in main) ===
+ipcMain.handle('qr:make', async (_e, text) => {
+  try {
+    if (!text || typeof text !== 'string') return null;
+    return await require('qrcode').toDataURL(text.slice(0, 1500), { width: 280, margin: 1 });
+  } catch { return null; }
+});
+
+// === Per-process resource metrics for the renderer's Resource Monitor ===
+ipcMain.handle('app:metrics', () => {
+  try {
+    return app.getAppMetrics().map(p => ({
+      type: p.type,
+      cpu: (p.cpu && p.cpu.percentCPUUsage) || 0,
+      memKB: (p.memory && p.memory.workingSetSize) || 0,
+    }));
+  } catch { return []; }
+});
+
 // === RSS fetch (renderer fetch would be CORS-blocked for arbitrary feeds) ===
 ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   try {
@@ -1333,6 +1352,17 @@ app.whenReady().then(() => {
     if (!w) return;
     if (w.webContents.isDevToolsOpened()) w.webContents.closeDevTools();
     else w.webContents.openDevTools({ mode: 'bottom' });
+  });
+  // Boss key (Ctrl+Alt+H): instantly hide + mute every Vex window; again to restore.
+  let bossHidden = false;
+  globalShortcut.register('CommandOrControl+Alt+H', () => {
+    bossHidden = !bossHidden;
+    for (const w of BrowserWindow.getAllWindows()) {
+      try {
+        if (bossHidden) { w.hide(); } else { w.show(); w.focus(); }
+      } catch {}
+    }
+    try { for (const wc of webContents.getAllWebContents()) wc.setAudioMuted(bossHidden); } catch {}
   });
   // Ctrl+Shift+F12: detached DevTools (backup when F12 is stolen by a webview)
   globalShortcut.register('CommandOrControl+Shift+F12', () => {

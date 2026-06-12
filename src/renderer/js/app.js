@@ -594,6 +594,17 @@
   if (typeof VexFeeds !== 'undefined') VexFeeds.init();
   if (typeof CommandChains !== 'undefined') CommandChains.init();
 
+  // Library (read later + auto-archive)
+  if (typeof ReadLater !== 'undefined') ReadLater.init();
+  if (typeof TabArchiver !== 'undefined') TabArchiver.init();
+
+  // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
+  window.addEventListener('keydown', (e) => {
+    if (!e.ctrlKey || !e.altKey || !['1', '2', '3'].includes(e.key)) return;
+    const ch = typeof CommandChains !== 'undefined' && CommandChains.chains[parseInt(e.key, 10) - 1];
+    if (ch) { e.preventDefault(); CommandChains.run(ch); window.showToast?.('⛓ ' + ch.name); }
+  });
+
   // Settings toggles: mouse gestures + cookie-consent hiding
   const gToggle = document.getElementById('setting-gestures');
   if (gToggle && typeof MouseGestures !== 'undefined') {
@@ -627,7 +638,11 @@
   window.vex?.onTabCreateFromExternal?.((data) => {
     if (!data || !data.url) return;
     console.log('[Tabs] external link -> new tab:', data.url, 'background:', !!data.background);
-    try { TabManager.createTab(data.url, !data.background); }
+    // Tab-Islands-style ambient grouping: a tab opened FROM a grouped tab
+    // joins that tab's group automatically.
+    const opener = TabManager.getActiveTab();
+    const inheritGroup = (opener && opener.groupId) || null;
+    try { TabManager.createTab(data.url, !data.background, inheritGroup); }
     catch (err) { console.error('[Tabs] createTab failed:', err.message); }
   });
 

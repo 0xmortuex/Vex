@@ -170,6 +170,9 @@
       <button class="sidebar-icon" data-panel="downloads" title="Downloads">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </button>
+      <button class="sidebar-icon" data-panel="library" title="Library (Read Later + Archive)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>
+      </button>
       <button class="sidebar-icon" data-panel="bookmarks" title="Bookmarks">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
       </button>
@@ -218,6 +221,7 @@
         <div class="panel" id="panel-github" style="display: none;"></div>
         <div class="panel" id="panel-notes" style="display: none;"></div>
         <div class="panel" id="panel-downloads" style="display: none;"></div>
+        <div class="panel" id="panel-library" style="display: none;"></div>
         <div class="panel" id="panel-bookmarks" style="display: none;"></div>
         <div class="panel" id="panel-feeds" style="display: none;"></div>
         <div class="panel" id="panel-history" style="display: none;"></div>
@@ -510,6 +514,14 @@
             <div class="setting-group">
               <label class="setting-label">Command Chains</label>
               <div id="chains-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
+            <!-- Library: auto-archive old tabs -->
+            <div class="setting-group">
+              <label class="setting-label">Library</label>
+              <div id="library-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading...</div>
               </div>
             </div>
@@ -855,6 +867,8 @@
   <script src="js/compose-chains.js"></script>
   <script src="js/bookmarks.js"></script>
   <script src="js/rss.js"></script>
+  <script src="js/readlater.js"></script>
+  <script src="js/tab-ai-media.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
