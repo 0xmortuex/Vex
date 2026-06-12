@@ -619,6 +619,9 @@
   // Privacy hardening (fingerprint farbling / DoH / tracker report)
   if (typeof PrivacyPack !== 'undefined') PrivacyPack.init();
 
+  // Page-change monitor (polls watched pages on their own intervals)
+  if (typeof PageMonitor !== 'undefined') PageMonitor.init();
+
   // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
   window.addEventListener('keydown', (e) => {
     if (!e.ctrlKey || !e.altKey || !['1', '2', '3'].includes(e.key)) return;

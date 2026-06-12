@@ -498,6 +498,12 @@ const WebviewManager = {
         label: 'Copy Link',
         action: () => navigator.clipboard.writeText(e.params.linkURL)
       });
+      if (typeof LinkRot !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
+        items.push({
+          label: '🕰 Open Archived Version',
+          action: () => LinkRot.viewArchived(e.params.linkURL)
+        });
+      }
     }
 
     // Image-specific options when right-clicking an <img> or background-image

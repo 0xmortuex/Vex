@@ -427,6 +427,29 @@ ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   } catch { return null; }
 });
 
+// === Generic HTTP request for the built-in API client + page-change monitor ===
+// CORS-free arbitrary fetch, run from main like curl. User-driven dev tool in the
+// user's own browser — not exposed to guest pages (only the host renderer's
+// window.vex bridge can call it). Caps body size; returns timing + headers.
+ipcMain.handle('api:request', async (_e, opts = {}) => {
+  const t0 = Date.now();
+  try {
+    const { url, method = 'GET', headers = {}, body = null } = opts || {};
+    if (!url || !/^https?:\/\//i.test(url)) return { ok: false, error: 'Invalid URL (must be http/https)' };
+    const init = { method: String(method || 'GET').toUpperCase(), headers: headers && typeof headers === 'object' ? headers : {} };
+    if (body != null && init.method !== 'GET' && init.method !== 'HEAD') init.body = String(body);
+    const res = await net.fetch(url, init);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const capped = buf.length > 5 * 1024 * 1024;
+    const text = capped ? buf.slice(0, 5 * 1024 * 1024).toString('utf8') : buf.toString('utf8');
+    const hdrs = {};
+    try { res.headers.forEach((v, k) => { hdrs[k] = v; }); } catch {}
+    return { ok: true, status: res.status, statusText: res.statusText, headers: hdrs, body: text, size: buf.length, capped, timeMs: Date.now() - t0 };
+  } catch (err) {
+    return { ok: false, error: err.message, timeMs: Date.now() - t0 };
+  }
+});
+
 // === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
 // The renderer never sees the file; plaintext secrets only cross IPC when the
 // user autofills/copies. If safeStorage is unavailable (rare: no keychain),

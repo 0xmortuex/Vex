@@ -67,6 +67,9 @@ contextBridge.exposeInMainWorld('vex', {
   privacyTrackerStats: () => ipcRenderer.invoke('privacy:tracker-stats'),
   privacyTrackerReset: () => ipcRenderer.invoke('privacy:tracker-reset'),
 
+  // Generic HTTP request (API client + page-change monitor), runs in main
+  apiRequest: (opts) => ipcRenderer.invoke('api:request', opts),
+
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),
