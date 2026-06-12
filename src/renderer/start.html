@@ -176,6 +176,76 @@
       font-weight: 500;
     }
 
+    /* === Daily Qur'an verse (Turkish) === */
+    .quran-verse {
+      max-width: 560px;
+      margin: 22px auto 0;
+      padding: 16px 22px;
+      border-top: 1px solid var(--vex-border-subtle);
+      border-bottom: 1px solid var(--vex-border-subtle);
+    }
+    .quran-text {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 16px;
+      line-height: 1.7;
+      font-style: italic;
+      color: var(--vex-text-secondary);
+    }
+    .quran-ref {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--vex-accent);
+      margin-top: 10px;
+    }
+
+    /* Weather "set location" button + modal */
+    .weather-card h4 { display: flex; align-items: center; justify-content: space-between; }
+    .loc-btn {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 10.5px;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      color: var(--vex-accent);
+      background: transparent;
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: 999px;
+      padding: 2px 9px;
+      cursor: pointer;
+    }
+    .loc-btn:hover { border-color: var(--vex-accent); }
+    .loc-modal {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.55);
+      display: none; align-items: center; justify-content: center;
+    }
+    .loc-modal.show { display: flex; }
+    .loc-modal-card {
+      width: 320px; max-width: 90vw;
+      background: var(--vex-glass-strong, var(--vex-glass-medium));
+      backdrop-filter: var(--vex-blur-light);
+      border: 1px solid var(--vex-border-subtle);
+      border-radius: var(--vex-radius-lg);
+      padding: 22px;
+    }
+    .loc-modal-card h3 { font-family: Georgia, serif; font-size: 16px; margin-bottom: 4px; color: var(--vex-text-primary); }
+    .loc-modal-card p { font-size: 12px; color: var(--vex-text-muted); margin-bottom: 14px; }
+    .loc-modal-card input {
+      width: 100%; box-sizing: border-box; padding: 10px 12px;
+      background: var(--vex-glass-medium); border: 1px solid var(--vex-border-subtle);
+      border-radius: 9px; color: var(--vex-text-primary); font-size: 14px; outline: none;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .loc-status { font-size: 11.5px; color: var(--vex-text-muted); min-height: 16px; margin-top: 8px; }
+    .loc-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    .loc-actions button {
+      padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      font-family: 'Space Grotesk', sans-serif; border: 1px solid var(--vex-border-subtle);
+    }
+    .loc-actions .primary { background: var(--vex-accent); color: #fff; border: none; font-weight: 600; }
+    .loc-actions .ghost { background: transparent; color: var(--vex-text-secondary); }
+
     /* === Wordmark === */
     .logo-section { margin: 22px 0 28px; text-align: center; }
     .vex-wordmark {
@@ -622,6 +692,10 @@
     <div class="clock" id="clock">00:00</div>
     <div class="date-text" id="date-text"></div>
     <div class="greeting">Good evening</div>
+    <div class="quran-verse" id="quran-verse" style="display:none">
+      <div class="quran-text" id="quran-text"></div>
+      <div class="quran-ref" id="quran-ref"></div>
+    </div>
   </div>
 
   <div class="logo-section">
@@ -651,7 +725,7 @@
 
   <div class="weather-section">
     <div class="weather-card">
-      <h4>Weather</h4>
+      <h4>Weather <button class="loc-btn" id="weather-loc-btn" title="Set your location">📍 Set location</button></h4>
       <div class="weather-temp" id="weather-temp">--°</div>
       <div class="weather-desc" id="weather-desc">Loading...</div>
     </div>
@@ -683,6 +757,19 @@
     <h3>Recent GitHub Activity</h3>
     <div class="gh-activity-list" id="gh-activity-list">
       <div class="gh-activity-item" style="justify-content:center; color:var(--vex-text-muted);">Loading...</div>
+    </div>
+  </div>
+
+  <div class="loc-modal" id="loc-modal">
+    <div class="loc-modal-card">
+      <h3>Set your location</h3>
+      <p>Type your city for accurate weather. Stored only on this device.</p>
+      <input type="text" id="loc-input" placeholder="e.g. Istanbul" autocomplete="off" spellcheck="false">
+      <div class="loc-status" id="loc-status"></div>
+      <div class="loc-actions">
+        <button class="ghost" id="loc-cancel">Cancel</button>
+        <button class="primary" id="loc-save">Save</button>
+      </div>
     </div>
   </div>
 
@@ -1107,31 +1194,107 @@
       });
     })();
 
-    // Weather (open-meteo, approximate location)
+    // Weather. Uses a saved location (Set location button) if present, else falls
+    // back to approximate IP geolocation. The "Set location" button hides once a
+    // location has been saved.
+    function getSavedLoc() {
+      try { const l = JSON.parse(localStorage.getItem('vex.weatherLoc') || 'null'); return (l && l.lat != null && l.lon != null) ? l : null; } catch { return null; }
+    }
+    function syncLocBtn() {
+      const btn = document.getElementById('weather-loc-btn');
+      if (btn) btn.style.display = getSavedLoc() ? 'none' : '';
+    }
     async function loadWeather() {
+      const codes = {
+        0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+        45: 'Foggy', 48: 'Rime fog', 51: 'Light drizzle', 53: 'Drizzle',
+        55: 'Dense drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+        71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Rain showers',
+        81: 'Moderate showers', 82: 'Violent showers', 95: 'Thunderstorm'
+      };
       try {
-        const geo = await fetch('https://ipapi.co/json/');
-        const loc = await geo.json();
-        const lat = loc.latitude;
-        const lon = loc.longitude;
+        let lat, lon, city;
+        const saved = getSavedLoc();
+        if (saved) { lat = saved.lat; lon = saved.lon; city = saved.city; }
+        else {
+          const loc = await (await fetch('https://ipapi.co/json/')).json();
+          lat = loc.latitude; lon = loc.longitude; city = loc.city;
+        }
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=fahrenheit`);
         const data = await res.json();
         const temp = Math.round(data.current_weather.temperature);
         document.getElementById('weather-temp').textContent = `${temp}°F`;
-        const codes = {
-          0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
-          45: 'Foggy', 48: 'Rime fog', 51: 'Light drizzle', 53: 'Drizzle',
-          55: 'Dense drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
-          71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Rain showers',
-          81: 'Moderate showers', 82: 'Violent showers', 95: 'Thunderstorm'
-        };
         document.getElementById('weather-desc').textContent =
-          (codes[data.current_weather.weathercode] || 'Unknown') + ` · ${loc.city || ''}`;
+          (codes[data.current_weather.weathercode] || 'Unknown') + (city ? ` · ${city}` : '');
       } catch {
         document.getElementById('weather-desc').textContent = 'Unable to load weather';
       }
+      syncLocBtn();
     }
     loadWeather();
+
+    // --- Set-location modal (city → geocode via open-meteo) ---
+    (function () {
+      const modal = document.getElementById('loc-modal');
+      const input = document.getElementById('loc-input');
+      const status = document.getElementById('loc-status');
+      const open = () => { modal.classList.add('show'); status.textContent = ''; input.value = ''; setTimeout(() => input.focus(), 30); };
+      const close = () => modal.classList.remove('show');
+      document.getElementById('weather-loc-btn')?.addEventListener('click', open);
+      document.getElementById('loc-cancel')?.addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+      const save = async () => {
+        const q = input.value.trim();
+        if (!q) { status.textContent = 'Type a city name.'; return; }
+        status.textContent = 'Looking up…';
+        try {
+          const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=tr`);
+          const d = await r.json();
+          const hit = d && d.results && d.results[0];
+          if (!hit) { status.textContent = 'Couldn’t find that place. Try another spelling.'; return; }
+          const loc = { lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.country_code ? ', ' + hit.country_code : '') };
+          localStorage.setItem('vex.weatherLoc', JSON.stringify(loc));
+          close();
+          syncLocBtn();
+          loadWeather();
+        } catch { status.textContent = 'Lookup failed — check your connection.'; }
+      };
+      document.getElementById('loc-save')?.addEventListener('click', save);
+      input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') close(); });
+    })();
+
+    // --- Daily Qur'an verse (Turkish, Diyanet translation) ---
+    async function loadQuranVerse() {
+      const TOTAL = 6236;                         // total ayahs in the Qur'an
+      const epochDay = Math.floor(Date.now() / 86400000);
+      const ayah = (epochDay % TOTAL) + 1;        // deterministic, changes daily
+      const render = (v) => {
+        if (!v || !v.text) return;
+        document.getElementById('quran-text').textContent = '“' + v.text + '”';
+        document.getElementById('quran-ref').textContent = v.ref || '';
+        document.getElementById('quran-verse').style.display = 'block';
+      };
+      try {
+        const cached = JSON.parse(localStorage.getItem('vex.quranVerse') || 'null');
+        if (cached && cached.day === epochDay && cached.text) { render(cached); return; }
+      } catch {}
+      try {
+        const res = await fetch(`https://api.alquran.cloud/v1/ayah/${ayah}/tr.diyanet`);
+        const data = await res.json();
+        const a = data && data.data;
+        if (a && a.text) {
+          const surah = a.surah || {};
+          const v = {
+            day: epochDay,
+            text: a.text,
+            ref: (surah.englishName || 'Kur’an') + ' Suresi · ' + (surah.number || '') + ':' + (a.numberInSurah || '')
+          };
+          try { localStorage.setItem('vex.quranVerse', JSON.stringify(v)); } catch {}
+          render(v);
+        }
+      } catch { /* offline / API down — leave hidden */ }
+    }
+    loadQuranVerse();
 
     // Optional GitHub widget — set a username in Settings (localStorage
     // 'vex.githubUsername'). Hidden entirely until configured so a fresh

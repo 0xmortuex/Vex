@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.12.0 (2026-06-12) — Daily verse, weather location & Spotify playback
+
+### Added
+- **Daily Qur'an verse (Turkish)** on the start page, under the greeting — a different ayah each day (Diyanet translation), cached so it's stable through the day and silently hidden if offline.
+- **Set location for weather** — a "📍 Set location" button next to the Weather widget. Type your city (geocoded via Open-Meteo) and the weather switches to it; the button disappears once a location is saved. Stored locally only.
+
+### Fixed
+- **Built-in Spotify can play now.** Two causes: the Widevine DRM component wasn't being initialized (castLabs Electron needs `components.whenReady()` before any EME playback), and the `mediaKeySystem` permission was being prompted (and silently failing in the panel) instead of auto-allowed like a normal browser. Both fixed — Play and other playback controls work in the Spotify panel.
+
 ## v2.11.5 (2026-06-12) — Spinner fix
 
 ### Fixed

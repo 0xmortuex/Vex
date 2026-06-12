@@ -290,11 +290,14 @@ function wirePermissionsOnSession(ses, tag) {
 
     console.log(`[Permissions] (${tag}) ${origin} requests: ${permission}`);
 
-    // Standard browser auto-allow list
-    const AUTO_ALLOW = new Set(['fullscreen', 'pointerLock', 'clipboard-read', 'clipboard-sanitized-write']);
+    // Standard browser auto-allow list. mediaKeySystem (EME/Widevine DRM, used by
+    // Spotify, Netflix, etc.) is auto-allowed like a normal browser — prompting
+    // for it silently broke playback in the Spotify panel because the prompt
+    // never surfaced/resolved there, so play and other actions did nothing.
+    const AUTO_ALLOW = new Set(['fullscreen', 'pointerLock', 'clipboard-read', 'clipboard-sanitized-write', 'mediaKeySystem']);
     if (AUTO_ALLOW.has(permission)) return callback(true);
 
-    const NEEDS_PROMPT = new Set(['geolocation', 'media', 'mediaKeySystem', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture']);
+    const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture']);
     if (!NEEDS_PROMPT.has(permission)) {
       // Unknown permission — deny by default, but log so we can add it later
       console.log(`[Permissions] DENIED (unlisted): ${permission}`);
@@ -329,6 +332,9 @@ function wirePermissionsOnSession(ses, tag) {
     // chooser to enumerate/open for it (see wireWebHidOnSession). Per-device
     // gating remains the interactive chooser.
     if (permission === 'hid') { _markHidRequestActive(requestingOrigin); return true; }
+    // DRM playback (EME) is auto-OK like a normal browser, so the sync check
+    // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
+    if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;
     const decisions = loadPermissionDecisions();
     return decisions[`${requestingOrigin}::${permission}`] === 'allow';
   });
@@ -1492,7 +1498,7 @@ app.whenReady().then(() => {
 });
 
 // Custom protocol handler for vex://
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // F12: toggle DevTools for the focused window (bottom panel)
   globalShortcut.register('F12', () => {
     const w = BrowserWindow.getFocusedWindow();
@@ -1609,6 +1615,19 @@ app.whenReady().then(() => {
 
     return new Response('Not Found', { status: 404 });
   });
+
+  // castLabs Electron ships Widevine as a loadable "component" that must be
+  // initialized before any DRM/EME playback works. Without this, the Spotify
+  // panel loads, searches, and navigates fine — but Play and other playback
+  // actions silently do nothing (no CDM to decrypt the stream). First run
+  // downloads the CDM (a few seconds); it's cached afterwards.
+  try {
+    const { components } = require('electron');
+    if (components && typeof components.whenReady === 'function') {
+      await components.whenReady();
+      console.log('[Widevine] components ready:', typeof components.status === 'function' ? components.status() : 'ok');
+    }
+  } catch (e) { console.warn('[Widevine] component init failed:', e && e.message); }
 
   createWindow();
   setupAutoUpdater();
