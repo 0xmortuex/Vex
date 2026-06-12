@@ -34,17 +34,11 @@ const Onboarding = {
 
   start() { this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._render(); },
 
-  // Re-open the wizard on demand (the top-bar setup button). Resume, don't
-  // restart: include only the steps the user hasn't completed yet, so someone
-  // who paused half-way isn't forced to redo what they already set.
+  // Re-open the wizard on demand (the top-bar setup button). Shows ALL steps,
+  // each pre-filled with whatever's already saved and tagged "✓ already set" so
+  // nothing is hidden but you're not redoing anything from scratch.
   relaunch() {
-    const missing = this._missingStepKeys();
-    if (!missing.length) {
-      window.showToast?.('You\'re all set up — nothing left to configure ✨', 'info', 2500);
-      return;
-    }
-    const byKey = {}; this.STEPS().forEach(s => byKey[s.key] = s);
-    this.activeSteps = [byKey.welcome, ...missing.map(k => byKey[k]), byKey.done];
+    this.activeSteps = this.STEPS();
     this.step = 0;
     this._pendingLoc = null;
     this._render();
@@ -53,23 +47,23 @@ const Onboarding = {
   _has(k) { try { const v = localStorage.getItem(k); return v != null && v !== ''; } catch { return false; } },
   _flag(k) { try { return localStorage.getItem(k) === 'true'; } catch { return false; } },
 
-  // Which optional steps still have no value saved. A step is "done" once its
-  // data exists. The three AI backends count as ONE thing — configuring any one
-  // (cloud URL, local Ollama, or on-device) clears all three, so we never nag
-  // someone who already has a working AI backend to set up the other two.
-  _missingStepKeys() {
-    const out = [];
-    if (!this._has('vex.theme')) out.push('theme');
-    if (!this._has('vex.userName')) out.push('name');
-    if (!this._has('vex.weatherLoc')) out.push('weather');
-    if (!this._has('vex.githubUsername')) out.push('github');
-    if (!this._has('vex.searchEngine')) out.push('search');
-    if (!this._flag('vex.defaultBrowserConfigured')) out.push('defaultbrowser');
-    const aiDone = this._has('vex.aiWorkerUrl') || this._flag('vex.preferLocalAI') || this._flag('vex.preferOnDeviceAI');
-    if (!aiDone) { out.push('aicloud', 'ollama', 'ondevice'); }
-    if (!this._has('vex.syncWorkerUrl')) out.push('sync');
-    if (!this._flag('vex.vaultSeeded')) out.push('passwords');
-    return out;
+  // Is this step already configured? Each AI backend is judged independently, so
+  // setting up cloud AI doesn't mark the Ollama / on-device steps as done.
+  _isStepDone(key) {
+    switch (key) {
+      case 'theme':          return this._has('vex.theme');
+      case 'name':           return this._has('vex.userName');
+      case 'weather':        return this._has('vex.weatherLoc');
+      case 'github':         return this._has('vex.githubUsername');
+      case 'search':         return this._has('vex.searchEngine');
+      case 'defaultbrowser': return this._flag('vex.defaultBrowserConfigured');
+      case 'aicloud':        return this._has('vex.aiWorkerUrl');
+      case 'ollama':         return this._flag('vex.preferLocalAI');
+      case 'ondevice':       return this._flag('vex.preferOnDeviceAI');
+      case 'sync':           return this._has('vex.syncWorkerUrl');
+      case 'passwords':      return this._flag('vex.vaultSeeded');
+      default:               return false;
+    }
   },
 
   // --- write a value to host localStorage AND the live start-page webview(s) ---
@@ -132,7 +126,10 @@ const Onboarding = {
       <div style="width:520px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
         <div style="padding:24px 26px 8px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">STEP ${this.step + 1} / ${steps.length}</span><span style="flex:1"></span>${dots}</div>
-          <div style="font-size:21px;font-weight:700;color:var(--text);margin-top:8px">${this._esc(s.title)}</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
+            <span style="font-size:21px;font-weight:700;color:var(--text)">${this._esc(s.title)}</span>
+            ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);padding:3px 9px;border-radius:999px;white-space:nowrap">✓ already set</span>' : ''}
+          </div>
           <div style="font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.5">${this._esc(s.sub)}</div>
         </div>
         <div id="ob-body" style="padding:14px 26px;overflow-y:auto;flex:1"></div>

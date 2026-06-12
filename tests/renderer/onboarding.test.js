@@ -45,63 +45,38 @@ describe('Onboarding gate', () => {
   });
 });
 
-describe('Onboarding resume (relaunch)', () => {
-  const ALL_MISSING = ['theme', 'name', 'weather', 'github', 'search', 'defaultbrowser', 'aicloud', 'ollama', 'ondevice', 'sync', 'passwords'];
-
-  // Save a value for every step so the profile counts as fully configured.
-  const completeAll = () => {
+describe('Onboarding relaunch + step-done detection', () => {
+  it('relaunch always shows ALL steps (pre-filled), never a filtered subset', () => {
+    // Even with everything configured, every step is present.
     localStorage.setItem('vex.theme', 'ocean');
-    localStorage.setItem('vex.userName', 'Alex');
-    localStorage.setItem('vex.weatherLoc', '{}');
     localStorage.setItem('vex.githubUsername', 'octocat');
-    localStorage.setItem('vex.searchEngine', 'duckduckgo');
-    localStorage.setItem('vex.defaultBrowserConfigured', 'true');
     localStorage.setItem('vex.aiWorkerUrl', 'https://x.workers.dev');
-    localStorage.setItem('vex.syncWorkerUrl', 'https://s.workers.dev');
-    localStorage.setItem('vex.vaultSeeded', 'true');
-  };
-
-  it('lists every optional step as missing on a clean profile', () => {
-    expect(Onboarding._missingStepKeys()).toEqual(ALL_MISSING);
-  });
-
-  it('drops steps whose data is already saved', () => {
-    localStorage.setItem('vex.theme', 'ocean');
-    localStorage.setItem('vex.userName', 'Alex');
-    expect(Onboarding._missingStepKeys()).not.toContain('theme');
-    expect(Onboarding._missingStepKeys()).not.toContain('name');
-    expect(Onboarding._missingStepKeys()).toContain('weather');
-  });
-
-  it('any one AI backend (cloud / local / on-device) clears all three AI steps', () => {
-    for (const k of ['vex.aiWorkerUrl', 'vex.preferLocalAI', 'vex.preferOnDeviceAI']) {
-      localStorage.clear();
-      localStorage.setItem(k, k === 'vex.aiWorkerUrl' ? 'https://x.workers.dev' : 'true');
-      const m = Onboarding._missingStepKeys();
-      expect(m).not.toContain('aicloud');
-      expect(m).not.toContain('ollama');
-      expect(m).not.toContain('ondevice');
-    }
-  });
-
-  it('shows all three AI steps when no backend is configured', () => {
-    const m = Onboarding._missingStepKeys();
-    expect(m).toEqual(expect.arrayContaining(['aicloud', 'ollama', 'ondevice']));
-  });
-
-  it('relaunch builds welcome + only-missing + done, and skips when nothing is missing', () => {
-    completeAll();
     const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
-    const toast = vi.fn(); globalThis.window.showToast = toast;
-    Onboarding.relaunch();
-    expect(render).not.toHaveBeenCalled();         // all set → no wizard
-    expect(toast).toHaveBeenCalled();
-
-    localStorage.removeItem('vex.githubUsername');   // one thing missing now
     Onboarding.relaunch();
     expect(render).toHaveBeenCalled();
-    expect(Onboarding.activeSteps.map(s => s.key)).toEqual(['welcome', 'github', 'done']);
+    expect(Onboarding.activeSteps.map(s => s.key)).toEqual(Onboarding.STEPS().map(s => s.key));
     render.mockRestore();
+  });
+
+  it('_isStepDone reflects saved values per step', () => {
+    expect(Onboarding._isStepDone('theme')).toBe(false);
+    localStorage.setItem('vex.theme', 'ocean');
+    expect(Onboarding._isStepDone('theme')).toBe(true);
+    localStorage.setItem('vex.githubUsername', 'octocat');
+    expect(Onboarding._isStepDone('github')).toBe(true);
+    localStorage.setItem('vex.defaultBrowserConfigured', 'true');
+    expect(Onboarding._isStepDone('defaultbrowser')).toBe(true);
+  });
+
+  it('each AI backend is judged independently (cloud done ≠ ollama/on-device done)', () => {
+    localStorage.setItem('vex.aiWorkerUrl', 'https://x.workers.dev');
+    expect(Onboarding._isStepDone('aicloud')).toBe(true);
+    expect(Onboarding._isStepDone('ollama')).toBe(false);
+    expect(Onboarding._isStepDone('ondevice')).toBe(false);
+    localStorage.setItem('vex.preferLocalAI', 'true');
+    expect(Onboarding._isStepDone('ollama')).toBe(true);
+    localStorage.setItem('vex.preferOnDeviceAI', 'true');
+    expect(Onboarding._isStepDone('ondevice')).toBe(true);
   });
 });
 

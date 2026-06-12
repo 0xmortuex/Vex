@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.23.0 (2026-06-13) — Wizard shows everything + all settings re-editable
+
+### Changed
+- **Reopening the setup wizard now shows every step**, pre-filled with what you've already saved and tagged **“✓ already set”** — nothing is hidden, so theme, GitHub, and Local AI (Ollama) always appear. Each AI backend (Cloud / Ollama / On-device) is judged independently, so having cloud AI no longer hides the Ollama step.
+
+### Added
+- **Weather location is now editable in Settings → Personalization**, with the same district pick-list as the wizard (search → pick “Ataşehir · İstanbul · Türkiye”). Shows your current location too.
+- **“Choose a theme…” button in Settings** opens the theme picker, so theme is reachable from Settings as well.
+- Editing your **display name, GitHub username, search engine, or weather** in Settings now updates the start page **immediately** (previously some only applied after a restart).
+
 ## v2.22.0 (2026-06-13) — Fuller setup wizard + district-accurate location
 
 ### Added

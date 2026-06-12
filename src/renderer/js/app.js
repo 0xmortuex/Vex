@@ -285,6 +285,8 @@
   const adBlockerToggle = document.getElementById('setting-adblocker');
   const tabsVisibleToggle = document.getElementById('setting-tabs-visible');
 
+  // Prefer the start-page mirror key if the user set the engine there/in the wizard.
+  try { settings.searchEngine = localStorage.getItem('vex.searchEngine') || settings.searchEngine || 'google'; } catch {}
   searchEngineSelect.value = settings.searchEngine || 'google';
   adBlockerToggle.checked = settings.adBlocker !== false;
   tabsVisibleToggle.checked = settings.tabsVisible !== false;
@@ -292,6 +294,8 @@
   searchEngineSelect.addEventListener('change', () => {
     settings.searchEngine = searchEngineSelect.value;
     VexStorage.saveSettings(settings);
+    // Mirror to the start page (separate session) so its search box matches.
+    if (typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', searchEngineSelect.value);
   });
 
   adBlockerToggle.addEventListener('change', () => {
@@ -362,13 +366,17 @@
   // localStorage and read by the start page, GitHub panel, AI router, and
   // sync engine. Populate on load, persist on input.
   (function wirePersonalizationSettings() {
-    const bind = (id, getKey, onSave) => {
+    // `mirror:true` pushes the value into the live start-page webview(s) too (they
+    // run in a separate session), so editing it here updates the start page at
+    // once — same path the setup wizard uses.
+    const bind = (id, getKey, onSave, mirror) => {
       const el = document.getElementById(id);
       if (!el) return;
       try { el.value = localStorage.getItem(getKey) || ''; } catch {}
       el.addEventListener('input', () => {
         const v = el.value.trim();
-        try { v ? localStorage.setItem(getKey, v) : localStorage.removeItem(getKey); } catch {}
+        if (mirror && typeof Onboarding !== 'undefined') Onboarding._setStart(getKey, v || null);
+        else { try { v ? localStorage.setItem(getKey, v) : localStorage.removeItem(getKey); } catch {} }
         if (onSave) onSave(v);
       });
     };
@@ -379,11 +387,64 @@
       const sync = (() => { try { return (localStorage.getItem('vex.syncWorkerUrl') || '').trim(); } catch { return ''; } })();
       status.textContent = `AI: ${ai ? 'configured' : 'local only'} · Sync: ${sync ? 'configured' : 'off'}`;
     };
-    bind('setting-user-name', 'vex.userName');
-    bind('setting-github-username', 'vex.githubUsername');
+    bind('setting-user-name', 'vex.userName', null, true);
+    bind('setting-github-username', 'vex.githubUsername', null, true);
     bind('setting-ai-worker-url', 'vex.aiWorkerUrl', refreshStatus);
     bind('setting-sync-worker-url', 'vex.syncWorkerUrl', refreshStatus);
     refreshStatus();
+
+    // Theme — open the visual picker.
+    document.getElementById('setting-open-theme-picker')?.addEventListener('click', () => {
+      if (typeof ThemePicker !== 'undefined') ThemePicker.open();
+    });
+
+    // Weather location — district-accurate pick-list, mirrored to the start page.
+    (function wireWeather() {
+      const input = document.getElementById('setting-weather-input');
+      const searchBtn = document.getElementById('setting-weather-search');
+      const results = document.getElementById('setting-weather-results');
+      const statusEl = document.getElementById('setting-weather-status');
+      const current = document.getElementById('setting-weather-current');
+      if (!input || !searchBtn) return;
+      const showCurrent = () => {
+        if (!current) return;
+        let c = '';
+        try { const l = JSON.parse(localStorage.getItem('vex.weatherLoc') || 'null'); c = l && l.city ? l.city : ''; } catch {}
+        current.textContent = c ? `Current: ${c}` : 'No location set — start page uses your approximate IP location.';
+      };
+      showCurrent();
+      const pick = (hit) => {
+        const loc = { lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? ', ' + hit.admin1 : '') + (hit.country_code ? ', ' + hit.country_code : '') };
+        if (typeof Onboarding !== 'undefined') Onboarding._setStart('vex.weatherLoc', JSON.stringify(loc));
+        else { try { localStorage.setItem('vex.weatherLoc', JSON.stringify(loc)); } catch {} }
+        if (typeof Onboarding !== 'undefined') Onboarding._reloadStartPages();
+        if (results) results.innerHTML = '';
+        if (statusEl) statusEl.textContent = '✓ Saved ' + loc.city;
+        showCurrent();
+      };
+      const search = async () => {
+        const q = input.value.trim();
+        if (!q) { if (statusEl) statusEl.textContent = 'Type a city or district.'; return; }
+        if (statusEl) statusEl.textContent = 'Searching…';
+        if (results) results.innerHTML = '';
+        let list = [];
+        try {
+          const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
+          const d = await r.json();
+          list = (d && d.results) || [];
+        } catch { if (statusEl) statusEl.textContent = 'Lookup failed — check your connection.'; return; }
+        if (!list.length) { if (statusEl) statusEl.textContent = 'No matches. Try the nearest town or a different spelling.'; return; }
+        if (list.length === 1) { pick(list[0]); return; }
+        if (statusEl) statusEl.textContent = 'Pick the right one:';
+        results.innerHTML = list.map((hit, i) => {
+          const label = [hit.name, hit.admin1, hit.country].filter(Boolean).join(' · ').replace(/</g, '&lt;');
+          return `<button data-i="${i}" class="btn-secondary" style="text-align:left;justify-content:flex-start">${label}</button>`;
+        }).join('');
+        results.querySelectorAll('[data-i]').forEach(btn => btn.addEventListener('click', () => pick(list[+btn.dataset.i])));
+      };
+      searchBtn.addEventListener('click', search);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
+    })();
   })();
 
   // Export all data
