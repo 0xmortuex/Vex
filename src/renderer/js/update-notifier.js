@@ -6,6 +6,49 @@ const UpdateNotifier = {
     window.vex.onUpdateDownloadProgress?.((p) => this._updateProgress(p));
     window.vex.onUpdateDownloaded?.((info) => this._showReady(info));
     window.vex.onUpdateError?.((err) => console.log('[Update] Error:', err.message));
+    // A few seconds after launch, quietly ask the update server whether a newer
+    // build exists and, if so, show a download prompt. This uses the lightweight
+    // HTTPS version check (not electron-updater), so it can never crash the app.
+    setTimeout(() => this.checkOnStartup(), 4000);
+  },
+
+  // Startup check: only surfaces a prompt when an update genuinely exists.
+  async checkOnStartup() {
+    let r; try { r = await window.vex.checkForUpdates?.(); } catch { return; }
+    if (r?.ok && r.hasUpdate) this._showDownloadPrompt(r);
+  },
+
+  // Update-available popup with a Download button. Clicking it opens the direct
+  // installer link in a new tab (Vex downloads the .exe via its own download
+  // manager); the user runs it to update.
+  _showDownloadPrompt(info) {
+    document.getElementById('update-notification')?.remove();
+    const el = document.createElement('div');
+    el.id = 'update-notification';
+    el.className = 'update-notif';
+    el.innerHTML = `
+      <div class="update-notif-icon">&#127881;</div>
+      <div class="update-notif-body">
+        <div class="update-notif-title">Vex ${this._esc(info.latest)} is available</div>
+        <div class="update-notif-sub">You're on ${this._esc(info.current)} — download the new version</div>
+      </div>
+      <div class="update-notif-actions">
+        <button class="update-btn-dl" id="update-get-btn">Download</button>
+        <button class="update-btn-later" id="update-skip-btn">Later</button>
+      </div>`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    const close = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); };
+    document.getElementById('update-get-btn')?.addEventListener('click', () => {
+      const url = info.downloadUrl || info.url;
+      try {
+        if (typeof TabManager !== 'undefined' && TabManager.createTab) TabManager.createTab(url, true);
+        else window.open(url, '_blank');
+      } catch { window.open(url, '_blank'); }
+      window.showToast?.('Downloading Vex ' + info.latest + '… run the installer when it finishes', 'info', 4000);
+      close();
+    });
+    document.getElementById('update-skip-btn')?.addEventListener('click', close);
   },
 
   _showAvailable(info) {
@@ -63,9 +106,9 @@ const UpdateNotifier = {
 
   async checkManually() {
     const result = await window.vex.checkForUpdates?.();
-    if (result?.ok && !result.info?.updateInfo) {
-      window.showToast?.('You\'re running the latest version');
-    }
+    if (result?.ok && result.hasUpdate) this._showDownloadPrompt(result);
+    else if (result?.ok) window.showToast?.('You\'re running the latest version');
+    else window.showToast?.('Couldn\'t check for updates: ' + (result?.error || 'network error'));
     return result;
   },
 

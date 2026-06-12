@@ -2056,16 +2056,19 @@ function _cmpVer(a, b) {
 ipcMain.handle('check-for-updates', async () => {
   const current = app.getVersion();
   const RELEASES = 'https://github.com/0xmortuex/Vex/releases/latest';
+  // Direct link to the installer asset of whatever the latest release is — clicking
+  // it downloads Vex-Setup.exe straight away (no release-page hunting).
+  const DOWNLOAD = 'https://github.com/0xmortuex/Vex/releases/latest/download/Vex-Setup.exe';
   try {
     const res = await net.fetch('https://github.com/0xmortuex/Vex/releases/latest/download/latest.yml', { redirect: 'follow' });
-    if (!res.ok) return { ok: false, error: 'Could not reach the update server', current, url: RELEASES };
+    if (!res.ok) return { ok: false, error: 'Could not reach the update server', current, url: RELEASES, downloadUrl: DOWNLOAD };
     const text = await res.text();
     const m = text.match(/version:\s*([0-9][0-9A-Za-z.\-+]*)/i);
     const latest = m ? m[1].trim() : null;
-    if (!latest) return { ok: false, error: 'No version info found', current, url: RELEASES };
-    return { ok: true, current, latest, hasUpdate: _cmpVer(latest, current) > 0, url: RELEASES };
+    if (!latest) return { ok: false, error: 'No version info found', current, url: RELEASES, downloadUrl: DOWNLOAD };
+    return { ok: true, current, latest, hasUpdate: _cmpVer(latest, current) > 0, url: RELEASES, downloadUrl: DOWNLOAD };
   } catch (e) {
-    return { ok: false, error: e.message, current, url: RELEASES };
+    return { ok: false, error: e.message, current, url: RELEASES, downloadUrl: DOWNLOAD };
   }
 });
 ipcMain.handle('download-update', async () => {

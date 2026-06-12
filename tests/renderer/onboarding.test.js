@@ -45,6 +45,48 @@ describe('Onboarding gate', () => {
   });
 });
 
+describe('Onboarding resume (relaunch)', () => {
+  it('lists every optional step as missing on a clean profile', () => {
+    expect(Onboarding._missingStepKeys()).toEqual(['theme', 'name', 'weather', 'github', 'ai']);
+  });
+
+  it('drops steps whose data is already saved', () => {
+    localStorage.setItem('vex.theme', 'ocean');
+    localStorage.setItem('vex.userName', 'Alex');
+    expect(Onboarding._missingStepKeys()).toEqual(['weather', 'github', 'ai']);
+  });
+
+  it('treats AI as done for any of cloud / local / on-device prefs', () => {
+    localStorage.setItem('vex.preferOnDeviceAI', 'true');
+    expect(Onboarding._missingStepKeys()).not.toContain('ai');
+    localStorage.clear();
+    localStorage.setItem('vex.preferLocalAI', 'true');
+    expect(Onboarding._missingStepKeys()).not.toContain('ai');
+    localStorage.clear();
+    localStorage.setItem('vex.aiWorkerUrl', 'https://x.workers.dev');
+    expect(Onboarding._missingStepKeys()).not.toContain('ai');
+  });
+
+  it('relaunch builds welcome + only-missing + done, and skips when nothing is missing', () => {
+    localStorage.setItem('vex.theme', 'ocean');
+    localStorage.setItem('vex.userName', 'Alex');
+    localStorage.setItem('vex.weatherLoc', '{}');
+    localStorage.setItem('vex.githubUsername', 'octocat');
+    localStorage.setItem('vex.aiWorkerUrl', 'https://x.workers.dev');
+    const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
+    const toast = vi.fn(); globalThis.window.showToast = toast;
+    Onboarding.relaunch();
+    expect(render).not.toHaveBeenCalled();         // all set → no wizard
+    expect(toast).toHaveBeenCalled();
+
+    localStorage.removeItem('vex.githubUsername');   // one thing missing now
+    Onboarding.relaunch();
+    expect(render).toHaveBeenCalled();
+    expect(Onboarding.activeSteps.map(s => s.key)).toEqual(['welcome', 'github', 'done']);
+    render.mockRestore();
+  });
+});
+
 describe('Onboarding._setStart', () => {
   it('writes to host localStorage and pushes JS into live start-page webviews', () => {
     const calls = [];

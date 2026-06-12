@@ -11,6 +11,7 @@
 const Onboarding = {
   KEY: 'vex.onboardingDone',
   step: 0,
+  activeSteps: null,   // the step list currently being walked (full run or resume subset)
 
   done() { try { return localStorage.getItem(this.KEY) === 'true'; } catch { return true; } },
   finish() { try { localStorage.setItem(this.KEY, 'true'); } catch {} this._close(); this._reloadStartPages(); },
@@ -24,7 +25,40 @@ const Onboarding = {
     setTimeout(() => this.start(), 900);
   },
 
-  start() { this.step = 0; this._render(); },
+  start() { this.activeSteps = this.STEPS(); this.step = 0; this._render(); },
+
+  // Re-open the wizard on demand (the top-bar setup button). Resume, don't
+  // restart: include only the steps the user hasn't completed yet, so someone
+  // who paused half-way isn't forced to redo what they already set.
+  relaunch() {
+    const missing = this._missingStepKeys();
+    if (!missing.length) {
+      window.showToast?.('You\'re all set up — nothing left to configure ✨', 'info', 2500);
+      return;
+    }
+    const byKey = {}; this.STEPS().forEach(s => byKey[s.key] = s);
+    this.activeSteps = [byKey.welcome, ...missing.map(k => byKey[k]), byKey.done];
+    this.step = 0;
+    this._render();
+  },
+
+  // Which optional steps still have no value saved. A step is "done" once its
+  // data exists in localStorage (theme always has one once explicitly chosen).
+  _missingStepKeys() {
+    const has = (k) => { try { const v = localStorage.getItem(k); return v != null && v !== ''; } catch { return false; } };
+    const out = [];
+    if (!has('vex.theme')) out.push('theme');
+    if (!has('vex.userName')) out.push('name');
+    if (!has('vex.weatherLoc')) out.push('weather');
+    if (!has('vex.githubUsername')) out.push('github');
+    // AI is configured if a cloud worker URL, local-Ollama preference, or an
+    // on-device model preference is set.
+    const aiDone = has('vex.aiWorkerUrl')
+      || (() => { try { return localStorage.getItem('vex.preferLocalAI') === 'true'; } catch { return false; } })()
+      || (() => { try { return localStorage.getItem('vex.preferOnDeviceAI') === 'true'; } catch { return false; } })();
+    if (!aiDone) out.push('ai');
+    return out;
+  },
 
   // --- write a value to host localStorage AND the live start-page webview(s) ---
   _setStart(key, value) {
@@ -67,7 +101,7 @@ const Onboarding = {
   _close() { document.getElementById('vex-onboarding')?.remove(); },
 
   _render() {
-    const steps = this.STEPS();
+    const steps = this.activeSteps || this.STEPS();
     const s = steps[this.step];
     if (!s) { this.finish(); return; }
     this._close();

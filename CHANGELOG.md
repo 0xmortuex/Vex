@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.21.0 (2026-06-12) — Update prompt + resumable setup wizard
+
+### Added
+- **Update available popup.** A few seconds after launch (and from Settings → Check for Updates), if a newer version exists Vex shows a prompt with a **Download** button that grabs the new installer directly. Uses the lightweight HTTPS version check, so it can't crash the app like the old auto-updater path.
+- **Setup-wizard button** in the top bar, just right of the reload button — re-open the onboarding wizard anytime if you skipped it during first run.
+
+### Changed
+- The onboarding wizard now **resumes instead of restarting.** Re-opening it shows only the steps you haven't completed yet (theme, name, weather, GitHub, AI) and skips the ones already set — so pausing part-way doesn't make you redo everything. If nothing's left, it just says you're all set.
+
 ## v2.20.3 (2026-06-12) — Theme previews actually render now
 
 ### Fixed

@@ -191,6 +191,7 @@
   document.getElementById('btn-back').addEventListener('click', () => WebviewManager.goBack());
   document.getElementById('btn-forward').addEventListener('click', () => WebviewManager.goForward());
   document.getElementById('btn-reload').addEventListener('click', () => WebviewManager.reload());
+  document.getElementById('btn-onboarding')?.addEventListener('click', () => { if (typeof Onboarding !== 'undefined') Onboarding.relaunch(); });
   document.getElementById('btn-command').addEventListener('click', () => CommandBar.toggle());
 
   // === Window Controls ===
