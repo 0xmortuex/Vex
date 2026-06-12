@@ -84,7 +84,7 @@ const ThemePicker = {
     // style and can never be stale/cached/mismatched between builds.
     const upload = isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '';
     card.innerHTML = `
-      <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t.id)}${upload}
+      <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t)}${upload}
         <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</span>
       </div>
       <div class="vtp-label">
@@ -107,35 +107,76 @@ const ThemePicker = {
     return card;
   },
 
-  // A live, detailed mini Vex window (top bar, tab, sidebar + the Vex Sync
-  // settings page) rendered from the theme's own CSS variables — the wrapper
-  // carries data-theme so var(--bg)/--surface/--primary/etc. resolve to that
-  // theme. Sizes use cqw (container-query width) units so it scales to the card
-  // and stays identical in style for every theme. No image files involved.
-  _livePreview(id) {
-    return `<div class="vtp-live" data-theme="${id}">
-        <div class="pv-top">
-          <span class="pv-logo"></span>
-          <span class="pv-ws"><span class="pv-ws-dot"></span>Personal</span>
-          <span class="pv-ic"></span><span class="pv-ic"></span>
-          <span class="pv-url"><span class="pv-url-g"></span>Search or enter URL…</span>
-          <span class="pv-sp"></span>
-          <span class="pv-pill">AI</span><span class="pv-pill on"></span>
+  // A detailed mini Vex window (top bar, tab, sidebar + Vex Sync settings) drawn
+  // with the theme's EXACT colors via INLINE styles only — no external CSS class
+  // rules, no CSS variables, no container queries. So it renders identically for
+  // every theme and can never be defeated by stale/cached/overridden stylesheets.
+  // Read a theme's actual colors from the loaded theme stylesheets (reliable —
+  // theme-tokens.css always loads, or the whole app would be unstyled). Works for
+  // every theme including the originals, with no per-theme data to maintain.
+  _themeColors(id) {
+    const probe = document.createElement('div');
+    probe.setAttribute('data-theme', id);
+    probe.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;pointer-events:none';
+    document.body.appendChild(probe);
+    const cs = getComputedStyle(probe);
+    const g = (v, fb) => { const x = (cs.getPropertyValue(v) || '').trim(); return x || fb; };
+    const c = {
+      bg:   g('--bg',      g('--vex-bg-base', '#15151a')),
+      side: g('--sidebar', g('--bg', '#1c1c22')),
+      surf: g('--surface', g('--vex-glass-light', '#26262e')),
+      txt:  g('--text',    g('--vex-text-primary', '#e6e6f0')),
+      acc:  g('--primary', g('--vex-accent', '#8b8bff')),
+      bd:   g('--border',  g('--vex-border-subtle', '#333344')),
+    };
+    probe.remove();
+    return c;
+  },
+
+  _livePreview(t) {
+    const m = this._themeColors(t.id);
+    const bd = m.bd;                   // divider/border color
+    const sp = (s) => s;               // tiny helper (readability)
+    const bar = `flex:none;display:flex;align-items:center;background:${m.surf};border-bottom:1px solid ${bd}`;
+    const line = (w, op) => `display:block;width:${w};height:4px;border-radius:2px;background:${m.txt};opacity:${op}`;
+    return sp(`
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;background:${m.bg};color:${m.txt};overflow:hidden;font-family:'Outfit',sans-serif">
+      <div style="${bar};height:15%;gap:4px;padding:0 6px">
+        <span style="width:8px;height:8px;border-radius:2px;transform:rotate(45deg);background:${m.acc};flex:none"></span>
+        <span style="width:26px;height:7px;border-radius:9px;border:1px solid ${bd};flex:none"></span>
+        <span style="flex:1;height:8px;border-radius:9px;background:${m.bg};border:1px solid ${bd}"></span>
+        <span style="width:13px;height:8px;border-radius:3px;background:${m.acc};flex:none"></span>
+      </div>
+      <div style="${bar};height:11%;gap:4px;padding:0 6px">
+        <span style="display:flex;align-items:center;gap:3px;height:62%;padding:0 6px;border-radius:4px;background:${m.bg};box-shadow:inset 0 0 0 1px ${m.acc}">
+          <span style="width:5px;height:5px;border-radius:2px;background:${m.acc}"></span>
+          <span style="width:34px;height:4px;border-radius:2px;background:${m.txt};opacity:.5"></span>
+        </span>
+      </div>
+      <div style="flex:1;display:flex;min-height:0">
+        <div style="width:13%;background:${m.side};border-right:1px solid ${bd};display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 0">
+          <span style="width:55%;height:8px;border-radius:3px;background:${m.acc}"></span>
+          <span style="width:55%;height:8px;border-radius:3px;background:${m.txt};opacity:.14"></span>
+          <span style="width:55%;height:8px;border-radius:3px;background:${m.txt};opacity:.14"></span>
+          <span style="width:55%;height:8px;border-radius:3px;background:${m.txt};opacity:.14"></span>
         </div>
-        <div class="pv-tab"><span class="pv-tab-item"><span class="pv-fav"></span>New Tab — Vex</span></div>
-        <div class="pv-body">
-          <div class="pv-rail"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="pv-content">
-            <div class="pv-label">VEX SYNC</div>
-            <div class="pv-card pv-cardrow"><span class="pv-circle"></span><div><div class="pv-h3">Vex Sync</div><div class="pv-sub">Sync your tabs, notes, and settings across devices</div></div></div>
-            <div class="pv-card"><div class="pv-fl">Step 1: Enter your email</div><div class="pv-field"><span class="pv-input">you@example.com</span><span class="pv-btn">Send Code</span></div></div>
-            <div class="pv-lists">
-              <div><div class="pv-h4">What gets synced:</div><div class="pv-li">Tabs, sessions, and workspaces</div><div class="pv-li">Notes and scheduled tasks</div><div class="pv-li">Theme and preferences</div></div>
-              <div><div class="pv-h4">What stays local:</div><div class="pv-li">Saved passwords</div><div class="pv-li">Website cookies and logins</div><div class="pv-li">AI chat history</div></div>
-            </div>
+        <div style="flex:1;padding:8px 11px;min-width:0">
+          <div style="${line('40px', '.35')};margin-bottom:7px"></div>
+          <div style="background:${m.surf};border:1px solid ${bd};border-radius:6px;padding:7px;display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span style="width:16px;height:16px;border-radius:5px;background:${m.acc};flex:none"></span>
+            <span style="flex:1"><span style="${line('46%', '.7')};margin-bottom:3px"></span><span style="${line('76%', '.3')}"></span></span>
+          </div>
+          <div style="background:${m.surf};border:1px solid ${bd};border-radius:6px;padding:7px;margin-bottom:6px">
+            <span style="${line('38%', '.5')};margin-bottom:6px"></span>
+            <div style="display:flex;gap:5px"><span style="flex:1;height:14px;border-radius:3px;background:${m.bg};border:1px solid ${bd}"></span><span style="width:34px;height:14px;border-radius:3px;background:${m.acc};flex:none"></span></div>
+          </div>
+          <div style="display:flex;gap:14px">
+            <div style="flex:1"><span style="${line('60%', '.5')};margin-bottom:4px"></span><span style="${line('88%', '.25')};margin-bottom:3px"></span><span style="${line('80%', '.25')}"></span></div>
+            <div style="flex:1"><span style="${line('58%', '.5')};margin-bottom:4px"></span><span style="${line('86%', '.25')};margin-bottom:3px"></span><span style="${line('70%', '.25')}"></span></div>
           </div>
         </div>
-      </div>`;
+      </div>
+    </div>`);
   },
 
   // Custom Image theme: let the user pick an image, downscale it to a data URL,

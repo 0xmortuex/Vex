@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.20.2 (2026-06-12) — Bulletproof theme previews
+
+### Fixed
+- Theme previews were rendering as **flat color blocks** in the installed app (the container-query CSS they relied on didn't apply in that context). Each preview is now drawn with **inline styles only** — no external CSS classes, no CSS variables, no container queries — using each theme's real colors read directly from its stylesheet. Every theme (originals and new alike) now shows the identical detailed Vex window, and the previews can't be defeated by stale, cached, or overridden styles.
+
 ## v2.20.1 (2026-06-12) — Detailed live previews
 
 ### Changed
