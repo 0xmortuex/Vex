@@ -53,7 +53,7 @@ const SettingsUI = {
       g.style.display = match ? '' : 'none';
       if (match) any = true;
     });
-    const nav = root.querySelector('.set-nav');
+    const nav = (root.parentElement || root).querySelector('.set-nav');
     if (nav) nav.style.display = q ? 'none' : '';
     let empty = root.querySelector('.set-empty');
     if (q && !any) {
@@ -69,12 +69,18 @@ const SettingsUI = {
     const groups = Array.from(root.children).filter(el => el.classList && el.classList.contains('setting-group'));
     if (!groups.length) return;
 
-    // (Re)build the sticky toolbar (search + chip nav) right under the <h2>.
-    let toolbar = root.querySelector('.set-toolbar');
+    // Build the toolbar (search + chip nav) as a FIXED flex header OUTSIDE the
+    // scrolling .settings-content — i.e. a sibling in #panel-settings (a flex
+    // column). This pins it reliably without depending on position:sticky, which
+    // proved flaky in this layout.
+    const panel = root.parentElement || root;            // #panel-settings
+    let toolbar = panel.querySelector('.set-toolbar');
     let nav, search;
     if (!toolbar) {
       toolbar = document.createElement('div');
       toolbar.className = 'set-toolbar';
+      const inner = document.createElement('div');
+      inner.className = 'set-toolbar-inner';
       search = document.createElement('input');
       search.className = 'set-search';
       search.type = 'search';
@@ -82,11 +88,10 @@ const SettingsUI = {
       search.spellcheck = false;
       nav = document.createElement('div');
       nav.className = 'set-nav';
-      toolbar.appendChild(search);
-      toolbar.appendChild(nav);
-      const h2 = root.querySelector('h2');
-      if (h2) h2.insertAdjacentElement('afterend', toolbar);
-      else root.insertBefore(toolbar, root.firstChild);
+      inner.appendChild(search);
+      inner.appendChild(nav);
+      toolbar.appendChild(inner);
+      panel.insertBefore(toolbar, root);                 // above the scroll area
       search.addEventListener('input', () => SettingsUI._filter(root, search.value));
     } else {
       nav = toolbar.querySelector('.set-nav');

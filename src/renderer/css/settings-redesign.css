@@ -20,19 +20,19 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* Sticky toolbar: search box + category chip nav (built by settings-ui.js).
-   Sticky lives on the WRAPPER (a direct child of the scrolling .settings-content)
-   with a solid background so scrolled content never shows through behind it. */
+/* Fixed toolbar: search box + category chip nav (built by settings-ui.js).
+   It's a flex header in #panel-settings (a flex column) ABOVE the scrolling
+   .settings-content, so it stays put without relying on position:sticky. */
 .set-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 8;
-  margin: 0 auto 6px;
-  padding: 10px 0 12px;
+  flex: none;
+  padding: 16px 52px 12px;
   background: var(--bg, var(--surface, #15120c));
   border-bottom: 1px solid var(--border);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  z-index: 8;
+}
+.set-toolbar-inner {
+  max-width: 960px;
+  margin: 0 auto;
 }
 .set-search {
   width: 100%;
@@ -54,6 +54,14 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+/* With the toolbar now a flex sibling above it, the scroll area must size from
+   the remaining space (not height:100%, which would overflow past the toolbar
+   and clip the bottom). id+class beats the base .settings-content rule. */
+#panel-settings .settings-content {
+  height: auto;
+  min-height: 0;
+  padding-top: 24px;
 }
 .set-nav-chip {
   display: inline-flex;

@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.11.2 (2026-06-12) — Settings header fix
+
+### Fixed
+- **Settings category bar genuinely stays pinned now** — `position: sticky` wasn't holding in this layout, so the search + category chips are now a fixed header above the scroll area instead. Scroll the settings and the chips stay put.
+
 ## v2.11.1 (2026-06-12) — Fixes
 
 ### Fixed
