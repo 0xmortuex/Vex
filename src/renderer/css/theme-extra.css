@@ -1,0 +1,123 @@
+/* === Vex extra themes (v2.15) ===
+   Six new vivid palettes + the custom-image theme. Loaded after theme-tokens.css.
+   The shared dark-theme base rules (radius/fonts/group pills, sans headings) in
+   theme-tokens.css already include these ids in their grouped selectors. */
+
+/* ── SUNSET — warm dusk, coral + amber ────────────────────────────────────── */
+[data-theme="sunset"] {
+  --vex-bg-base: #1b1115; --vex-bg-elevated: #2a1a20; --vex-bg-deep: #221318;
+  --vex-glass-strong: #221318; --vex-glass-medium: #221318; --vex-glass-light: #2a1a20;
+  --vex-glass-tab-active: #3a242c; --vex-glass-tab-inactive: #221318; --vex-glass-input: #1b1115;
+  --vex-border-subtle: #3a242c; --vex-border-medium: #3a242c; --vex-border-strong: #4e3038;
+  --vex-border-accent: #ff7a59; --vex-border-accent-strong: #ff7a59;
+  --vex-accent: #ff7a59; --vex-accent-dim: #ff7a5938; --vex-accent-glow: #ff7a592e;
+  --vex-text-primary: #f3d9cf; --vex-text-secondary: #caa79c; --vex-text-muted: #9a7d74;
+  --vex-text-accent: #ffb088; --vex-success: #34d399; --vex-danger: #f87171; --vex-danger-hover: #fca5a5; --vex-warning: #fbbf24;
+  --bg: #1b1115; --bg-2: #221318; --sidebar: #1b1115; --surface: #2a1a20;
+  --border: #3a242c; --text: #f3d9cf; --text-muted: #9a7d74;
+  --primary: #ff7a59; --primary-hover: #ffb088; --accent: #ffb088;
+  --tab-active: #3a242c; --tab-hover: #2a1a20;
+  --danger: #f87171; --success: #34d399; --warning: #fbbf24;
+}
+
+/* ── ROSÉ — muted rose + iris ─────────────────────────────────────────────── */
+[data-theme="rose"] {
+  --vex-bg-base: #1f1d2e; --vex-bg-elevated: #2a273f; --vex-bg-deep: #232136;
+  --vex-glass-strong: #232136; --vex-glass-medium: #232136; --vex-glass-light: #2a273f;
+  --vex-glass-tab-active: #393552; --vex-glass-tab-inactive: #232136; --vex-glass-input: #1f1d2e;
+  --vex-border-subtle: #393552; --vex-border-medium: #393552; --vex-border-strong: #4a4565;
+  --vex-border-accent: #ea9a97; --vex-border-accent-strong: #ea9a97;
+  --vex-accent: #ea9a97; --vex-accent-dim: #ea9a9738; --vex-accent-glow: #ea9a972e;
+  --vex-text-primary: #e0def4; --vex-text-secondary: #908caa; --vex-text-muted: #6e6a86;
+  --vex-text-accent: #c4a7e7; --vex-success: #9ccfd8; --vex-danger: #eb6f92; --vex-danger-hover: #f08eab; --vex-warning: #f6c177;
+  --bg: #1f1d2e; --bg-2: #232136; --sidebar: #1f1d2e; --surface: #2a273f;
+  --border: #393552; --text: #e0def4; --text-muted: #6e6a86;
+  --primary: #ea9a97; --primary-hover: #c4a7e7; --accent: #c4a7e7;
+  --tab-active: #393552; --tab-hover: #2a273f;
+  --danger: #eb6f92; --success: #9ccfd8; --warning: #f6c177;
+}
+
+/* ── MATRIX — terminal black + neon green ─────────────────────────────────── */
+[data-theme="matrix"] {
+  --vex-bg-base: #050807; --vex-bg-elevated: #0c130d; --vex-bg-deep: #081009;
+  --vex-glass-strong: #081009; --vex-glass-medium: #081009; --vex-glass-light: #0c130d;
+  --vex-glass-tab-active: #12200f; --vex-glass-tab-inactive: #081009; --vex-glass-input: #050807;
+  --vex-border-subtle: #14301a; --vex-border-medium: #14301a; --vex-border-strong: #1d4a28;
+  --vex-border-accent: #22c55e; --vex-border-accent-strong: #22c55e;
+  --vex-accent: #22c55e; --vex-accent-dim: #22c55e38; --vex-accent-glow: #22c55e2e;
+  --vex-text-primary: #b8f0c0; --vex-text-secondary: #6fae7a; --vex-text-muted: #4f8458;
+  --vex-text-accent: #4ade80; --vex-success: #22c55e; --vex-danger: #f87171; --vex-danger-hover: #fca5a5; --vex-warning: #eab308;
+  --bg: #050807; --bg-2: #081009; --sidebar: #050807; --surface: #0c130d;
+  --border: #14301a; --text: #b8f0c0; --text-muted: #4f8458;
+  --primary: #22c55e; --primary-hover: #4ade80; --accent: #4ade80;
+  --tab-active: #14301a; --tab-hover: #0c130d;
+  --danger: #f87171; --success: #22c55e; --warning: #eab308;
+}
+
+/* ── MOCHA — coffee + cream ───────────────────────────────────────────────── */
+[data-theme="mocha"] {
+  --vex-bg-base: #1c1714; --vex-bg-elevated: #2a2320; --vex-bg-deep: #221c19;
+  --vex-glass-strong: #221c19; --vex-glass-medium: #221c19; --vex-glass-light: #2a2320;
+  --vex-glass-tab-active: #3a302a; --vex-glass-tab-inactive: #221c19; --vex-glass-input: #1c1714;
+  --vex-border-subtle: #3a302a; --vex-border-medium: #3a302a; --vex-border-strong: #4e4138;
+  --vex-border-accent: #d2956a; --vex-border-accent-strong: #d2956a;
+  --vex-accent: #d2956a; --vex-accent-dim: #d2956a38; --vex-accent-glow: #d2956a2e;
+  --vex-text-primary: #ecdfd6; --vex-text-secondary: #b8a698; --vex-text-muted: #8c7a6c;
+  --vex-text-accent: #e8b890; --vex-success: #a3b18a; --vex-danger: #d98c7a; --vex-danger-hover: #e8a896; --vex-warning: #e0b088;
+  --bg: #1c1714; --bg-2: #221c19; --sidebar: #1c1714; --surface: #2a2320;
+  --border: #3a302a; --text: #ecdfd6; --text-muted: #8c7a6c;
+  --primary: #d2956a; --primary-hover: #e8b890; --accent: #e8b890;
+  --tab-active: #3a302a; --tab-hover: #2a2320;
+  --danger: #d98c7a; --success: #a3b18a; --warning: #e0b088;
+}
+
+/* ── SOLARIZED — the classic dark ─────────────────────────────────────────── */
+[data-theme="solarized"] {
+  --vex-bg-base: #00252e; --vex-bg-elevated: #073642; --vex-bg-deep: #002b36;
+  --vex-glass-strong: #002b36; --vex-glass-medium: #002b36; --vex-glass-light: #073642;
+  --vex-glass-tab-active: #0a4150; --vex-glass-tab-inactive: #002b36; --vex-glass-input: #00252e;
+  --vex-border-subtle: #0a4150; --vex-border-medium: #0a4150; --vex-border-strong: #14586a;
+  --vex-border-accent: #268bd2; --vex-border-accent-strong: #268bd2;
+  --vex-accent: #268bd2; --vex-accent-dim: #268bd238; --vex-accent-glow: #268bd22e;
+  --vex-text-primary: #93a1a1; --vex-text-secondary: #839496; --vex-text-muted: #586e75;
+  --vex-text-accent: #2aa198; --vex-success: #859900; --vex-danger: #dc322f; --vex-danger-hover: #e85650; --vex-warning: #b58900;
+  --bg: #00252e; --bg-2: #002b36; --sidebar: #00252e; --surface: #073642;
+  --border: #0a4150; --text: #93a1a1; --text-muted: #586e75;
+  --primary: #268bd2; --primary-hover: #2aa198; --accent: #2aa198;
+  --tab-active: #0a4150; --tab-hover: #073642;
+  --danger: #dc322f; --success: #859900; --warning: #b58900;
+}
+
+/* ── VAPORWAVE — synth purple + cyan + pink ───────────────────────────────── */
+[data-theme="vaporwave"] {
+  --vex-bg-base: #1a0f2e; --vex-bg-elevated: #271640; --vex-bg-deep: #1f1233;
+  --vex-glass-strong: #1f1233; --vex-glass-medium: #1f1233; --vex-glass-light: #271640;
+  --vex-glass-tab-active: #371f56; --vex-glass-tab-inactive: #1f1233; --vex-glass-input: #1a0f2e;
+  --vex-border-subtle: #371f56; --vex-border-medium: #371f56; --vex-border-strong: #4a2a72;
+  --vex-border-accent: #ff71ce; --vex-border-accent-strong: #ff71ce;
+  --vex-accent: #ff71ce; --vex-accent-dim: #ff71ce38; --vex-accent-glow: #ff71ce2e;
+  --vex-text-primary: #f0e6ff; --vex-text-secondary: #b8a6d9; --vex-text-muted: #8a7aa8;
+  --vex-text-accent: #05d9e8; --vex-success: #05ffa1; --vex-danger: #ff5680; --vex-danger-hover: #ff7a9c; --vex-warning: #ffd319;
+  --bg: #1a0f2e; --bg-2: #1f1233; --sidebar: #1a0f2e; --surface: #271640;
+  --border: #371f56; --text: #f0e6ff; --text-muted: #8a7aa8;
+  --primary: #ff71ce; --primary-hover: #05d9e8; --accent: #05d9e8;
+  --tab-active: #371f56; --tab-hover: #271640;
+  --danger: #ff5680; --success: #05ffa1; --warning: #ffd319;
+}
+
+/* ── CUSTOM — graphite dark base; the user's image becomes the start-page wallpaper ─ */
+[data-theme="custom"] {
+  --vex-bg-base: #0e0e12; --vex-bg-elevated: #1a1a22; --vex-bg-deep: #141419;
+  --vex-glass-strong: #141419; --vex-glass-medium: #141419; --vex-glass-light: #1a1a22;
+  --vex-glass-tab-active: #262630; --vex-glass-tab-inactive: #141419; --vex-glass-input: #0e0e12;
+  --vex-border-subtle: #2a2a35; --vex-border-medium: #2a2a35; --vex-border-strong: #3a3a48;
+  --vex-border-accent: #8b8bff; --vex-border-accent-strong: #8b8bff;
+  --vex-accent: #8b8bff; --vex-accent-dim: #8b8bff38; --vex-accent-glow: #8b8bff2e;
+  --vex-text-primary: #e6e6f0; --vex-text-secondary: #a0a0b4; --vex-text-muted: #6e6e82;
+  --vex-text-accent: #b0b0ff; --vex-success: #34d399; --vex-danger: #f87171; --vex-danger-hover: #fca5a5; --vex-warning: #fbbf24;
+  --bg: #0e0e12; --bg-2: #141419; --sidebar: #0e0e12; --surface: #1a1a22;
+  --border: #2a2a35; --text: #e6e6f0; --text-muted: #6e6e82;
+  --primary: #8b8bff; --primary-hover: #b0b0ff; --accent: #b0b0ff;
+  --tab-active: #2a2a35; --tab-hover: #1a1a22;
+  --danger: #f87171; --success: #34d399; --warning: #fbbf24;
+}

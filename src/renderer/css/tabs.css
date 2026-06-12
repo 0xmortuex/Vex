@@ -30,7 +30,8 @@
   font-weight: 600;
 }
 
-#btn-new-tab {
+#btn-new-tab,
+#btn-collapse-tabs {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -44,7 +45,8 @@
   transition: all var(--transition);
 }
 
-#btn-new-tab:hover {
+#btn-new-tab:hover,
+#btn-collapse-tabs:hover {
   background: var(--surface);
   color: var(--text);
 }

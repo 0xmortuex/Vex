@@ -31,10 +31,11 @@ describe('ThemeManager', () => {
     installGlobals();
   });
 
-  it('exposes exactly the 8 expected themes, oxford first', async () => {
+  it('exposes the expected themes, oxford first', async () => {
     const TM = await loadThemeManager();
     expect(TM.availableThemes).toEqual([
-      'oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin'
+      'oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin',
+      'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'custom'
     ]);
     expect(TM.DEFAULT_THEME).toBe('oxford');
   });
@@ -105,10 +106,12 @@ describe('ThemeManager', () => {
     const TM = await loadThemeManager();
     await TM.init();
     expect(TM.getCurrentTheme()).toBe('oxford');
-    const seen = [TM.cycleTheme()];
-    for (let i = 0; i < 6; i++) seen.push(TM.cycleTheme());
-    expect(seen).toEqual(['default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin']);
-    // One more wraps back to oxford.
+    const ids = TM.availableThemes;
+    const seen = [];
+    for (let i = 0; i < ids.length - 1; i++) seen.push(TM.cycleTheme());
+    // Cycles through every non-oxford theme in registry order…
+    expect(seen).toEqual(ids.slice(1));
+    // …then one more wraps back to oxford.
     expect(TM.cycleTheme()).toBe('oxford');
   });
 

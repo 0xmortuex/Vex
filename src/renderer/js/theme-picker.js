@@ -38,11 +38,16 @@ const ThemePicker = {
       const card = document.createElement('button');
       card.className = 'vtp-card' + (t.id === current ? ' active' : '');
       card.dataset.theme = t.id;
+      const accent = t.accent || 'var(--primary)';
+      // Accent swatch sits behind the PNG: if the preview is missing (new themes
+      // ship without one) the colored swatch shows instead of a broken image.
+      const swatch = `background:linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 35%, #111))`;
+      const isCustom = t.id === 'custom';
       card.innerHTML = `
-        <div class="vtp-thumb" data-theme-preview="${t.id}">
+        <div class="vtp-thumb" data-theme-preview="${t.id}" style="${swatch}">
           <img src="../../assets/theme-previews/${t.preview}" alt="${t.label} preview"
                onerror="this.style.display='none';this.parentNode.classList.add('vtp-thumb-fallback')">
-          <span class="vtp-thumb-name">${t.label}</span>
+          <span class="vtp-thumb-name">${isCustom ? '⬆ Upload image' : t.label}</span>
         </div>
         <div class="vtp-label">
           <span class="vtp-label-text">${t.label}</span>
@@ -50,6 +55,7 @@ const ThemePicker = {
         </div>
       `;
       card.addEventListener('click', () => {
+        if (isCustom) { this._applyCustom(grid); return; }
         ThemeManager.applyTheme(t.id);
         grid.querySelectorAll('.vtp-card').forEach(c => c.classList.toggle('active', c.dataset.theme === t.id));
         window.showToast?.(`Theme: ${t.label}`, 'info', 1500);
@@ -69,6 +75,53 @@ const ThemePicker = {
     document.body.appendChild(overlay);
     this._overlay = overlay;
     requestAnimationFrame(() => overlay.classList.add('visible'));
+  },
+
+  // Custom Image theme: let the user pick an image, downscale it to a data URL,
+  // store it (ThemeManager pushes it into the start page), then apply 'custom'.
+  // If they cancel but a previous image exists, just re-apply with that one.
+  _applyCustom(grid) {
+    const apply = async () => {
+      await ThemeManager.setCustomImage(this._pendingImage || undefined);
+      ThemeManager.applyTheme('custom');
+      grid?.querySelectorAll('.vtp-card').forEach(c => c.classList.toggle('active', c.dataset.theme === 'custom'));
+      window.showToast?.('Theme: Custom Image', 'info', 1500);
+      setTimeout(() => this.close(), 180);
+    };
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      input.remove();
+      if (!file) { // cancelled
+        let has = false; try { has = !!localStorage.getItem('vex.customThemeImage'); } catch {}
+        if (has) apply(); else window.showToast?.('Pick an image to use the Custom theme');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxW = 1600;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            const cw = Math.round(img.width * scale), ch = Math.round(img.height * scale);
+            const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+            cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+            this._pendingImage = cv.toDataURL('image/jpeg', 0.82);
+          } catch { this._pendingImage = reader.result; }
+          apply();
+        };
+        img.onerror = () => window.showToast?.('Could not read that image');
+        img.src = reader.result;
+      };
+      reader.onerror = () => window.showToast?.('Could not read that file');
+      reader.readAsDataURL(file);
+    });
+    document.body.appendChild(input);
+    input.click();
   },
 
   close() {

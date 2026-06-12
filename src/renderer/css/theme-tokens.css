@@ -188,7 +188,14 @@
 [data-theme="ocean"],
 [data-theme="dracula"],
 [data-theme="nord"],
-[data-theme="catppuccin"] {
+[data-theme="catppuccin"],
+[data-theme="sunset"],
+[data-theme="rose"],
+[data-theme="matrix"],
+[data-theme="mocha"],
+[data-theme="solarized"],
+[data-theme="vaporwave"],
+[data-theme="custom"] {
   --vex-font-base: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --vex-font-heading: 'Outfit', sans-serif;
   --vex-font-mono: 'JetBrains Mono', monospace;
@@ -211,7 +218,14 @@
 [data-theme="ocean"] h1, [data-theme="ocean"] h2, [data-theme="ocean"] h3,
 [data-theme="dracula"] h1, [data-theme="dracula"] h2, [data-theme="dracula"] h3,
 [data-theme="nord"] h1, [data-theme="nord"] h2, [data-theme="nord"] h3,
-[data-theme="catppuccin"] h1, [data-theme="catppuccin"] h2, [data-theme="catppuccin"] h3 {
+[data-theme="catppuccin"] h1, [data-theme="catppuccin"] h2, [data-theme="catppuccin"] h3,
+[data-theme="sunset"] h1, [data-theme="sunset"] h2, [data-theme="sunset"] h3,
+[data-theme="rose"] h1, [data-theme="rose"] h2, [data-theme="rose"] h3,
+[data-theme="matrix"] h1, [data-theme="matrix"] h2, [data-theme="matrix"] h3,
+[data-theme="mocha"] h1, [data-theme="mocha"] h2, [data-theme="mocha"] h3,
+[data-theme="solarized"] h1, [data-theme="solarized"] h2, [data-theme="solarized"] h3,
+[data-theme="vaporwave"] h1, [data-theme="vaporwave"] h2, [data-theme="vaporwave"] h3,
+[data-theme="custom"] h1, [data-theme="custom"] h2, [data-theme="custom"] h3 {
   font-family: 'Outfit', sans-serif !important;
 }
 [data-theme="default"] body, [data-theme="default"] button, [data-theme="default"] input, [data-theme="default"] textarea, [data-theme="default"] select,
@@ -220,7 +234,14 @@
 [data-theme="ocean"] body, [data-theme="ocean"] button, [data-theme="ocean"] input, [data-theme="ocean"] textarea, [data-theme="ocean"] select,
 [data-theme="dracula"] body, [data-theme="dracula"] button, [data-theme="dracula"] input, [data-theme="dracula"] textarea, [data-theme="dracula"] select,
 [data-theme="nord"] body, [data-theme="nord"] button, [data-theme="nord"] input, [data-theme="nord"] textarea, [data-theme="nord"] select,
-[data-theme="catppuccin"] body, [data-theme="catppuccin"] button, [data-theme="catppuccin"] input, [data-theme="catppuccin"] textarea, [data-theme="catppuccin"] select {
+[data-theme="catppuccin"] body, [data-theme="catppuccin"] button, [data-theme="catppuccin"] input, [data-theme="catppuccin"] textarea, [data-theme="catppuccin"] select,
+[data-theme="sunset"] body, [data-theme="sunset"] button, [data-theme="sunset"] input, [data-theme="sunset"] textarea, [data-theme="sunset"] select,
+[data-theme="rose"] body, [data-theme="rose"] button, [data-theme="rose"] input, [data-theme="rose"] textarea, [data-theme="rose"] select,
+[data-theme="matrix"] body, [data-theme="matrix"] button, [data-theme="matrix"] input, [data-theme="matrix"] textarea, [data-theme="matrix"] select,
+[data-theme="mocha"] body, [data-theme="mocha"] button, [data-theme="mocha"] input, [data-theme="mocha"] textarea, [data-theme="mocha"] select,
+[data-theme="solarized"] body, [data-theme="solarized"] button, [data-theme="solarized"] input, [data-theme="solarized"] textarea, [data-theme="solarized"] select,
+[data-theme="vaporwave"] body, [data-theme="vaporwave"] button, [data-theme="vaporwave"] input, [data-theme="vaporwave"] textarea, [data-theme="vaporwave"] select,
+[data-theme="custom"] body, [data-theme="custom"] button, [data-theme="custom"] input, [data-theme="custom"] textarea, [data-theme="custom"] select {
   font-family: 'Outfit', sans-serif !important;
 }
 

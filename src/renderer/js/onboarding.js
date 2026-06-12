@@ -132,7 +132,7 @@ const Onboarding = {
             <button id="ob-ollama" style="padding:8px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">Set up local Ollama instead</button>
             <span id="ob-ollama-status" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
           </div>
-          <p style="font-size:11.5px;color:var(--text-muted);margin-top:4px">You can also download an on-device model later in Settings → On-Device AI. Leave blank to decide later.</p>
+          ${this._onDeviceSection()}
         </div>`;
       body.querySelector('#ob-ollama')?.addEventListener('click', async () => {
         const st = body.querySelector('#ob-ollama-status');
@@ -142,9 +142,50 @@ const Onboarding = {
         if (up) { st.textContent = '✓ Ollama detected — local AI ready'; try { AIRouter.setPreferLocal(true); } catch {} }
         else { st.textContent = 'Not found — opening the install guide…'; try { TabManager.createTab('https://ollama.com/download', true); } catch {} }
       });
+      this._wireOnDevice(body);
     } else {
       body.innerHTML = '';   // welcome / done have no body
     }
+  },
+
+  // On-device (WebGPU) model download UI for the AI step.
+  _onDeviceSection() {
+    if (typeof WebLLM === 'undefined' || !WebLLM.isSupported()) {
+      return `<p style="font-size:11.5px;color:var(--text-muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">Tip: on a machine with WebGPU you can also run a model fully on-device (private &amp; offline) — set it up later in Settings → On-Device AI.</p>`;
+    }
+    const opts = WebLLM.models().map(m => `<option value="${m.id}">${this._esc(m.name)} · ${this._esc(m.size)}</option>`).join('');
+    return `
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:12.5px;color:var(--text);font-weight:600;margin-bottom:4px">Or run AI on-device (WebGPU) — private &amp; offline</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="ob-wl-model" style="min-width:180px">${opts}</select>
+          <button id="ob-wl-dl" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600">Download now</button>
+        </div>
+        <div id="ob-wl-prog" style="display:none;margin-top:8px"><div style="height:7px;background:var(--bg);border:1px solid var(--border);border-radius:5px;overflow:hidden"><div id="ob-wl-bar" style="height:100%;width:0%;background:var(--primary)"></div></div><div id="ob-wl-ptext" style="font-size:11px;color:var(--text-muted);margin-top:5px;font-family:'JetBrains Mono',monospace"></div></div>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:6px">First download is a few minutes (cached after). You can skip and do this later.</p>
+      </div>`;
+  },
+  _wireOnDevice(body) {
+    const dl = body.querySelector('#ob-wl-dl');
+    if (!dl || typeof WebLLM === 'undefined') return;
+    const prog = body.querySelector('#ob-wl-prog');
+    const bar = body.querySelector('#ob-wl-bar');
+    const ptext = body.querySelector('#ob-wl-ptext');
+    WebLLM.onProgress((p) => { if (prog) { prog.style.display = 'block'; bar.style.width = Math.round((p.progress || 0) * 100) + '%'; ptext.textContent = p.text || ''; } });
+    dl.addEventListener('click', async () => {
+      if (WebLLM.isLoading()) return;
+      const id = body.querySelector('#ob-wl-model')?.value;
+      dl.disabled = true; dl.textContent = 'Downloading…';
+      try {
+        await WebLLM.load(id);
+        WebLLM.setPreferred(true);
+        dl.textContent = '✓ Ready';
+        window.showToast?.('🧠 On-device model ready');
+      } catch (e) {
+        dl.disabled = false; dl.textContent = 'Download now';
+        window.showToast?.('Download failed: ' + (e.message || 'error'));
+      }
+    });
   },
 
   async _commitAndNext(key, overlay) {
