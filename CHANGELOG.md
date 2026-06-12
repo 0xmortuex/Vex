@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.11.5 (2026-06-12) — Spinner fix
+
+### Fixed
+- **Loading spinners no longer jump up-and-left each cycle.** The shared `spin` keyframe baked in a `translate(-50%,-50%)` that only the centered webview loader needed, so every other spinner (AI panel "Thinking", history, sync, generic) skipped on loop. The generic spinner now rotates cleanly in place; the centered loader keeps its own keyframe.
+
 ## v2.11.4 (2026-06-12) — AI Backend refresh button
 
 ### Added
