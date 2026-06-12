@@ -35,6 +35,9 @@ try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
 let mainWindow = null;
 let adBlockerEnabled = true;
 let pendingOpenUrl = null;
+// Widevine/DRM (castLabs) status, surfaced in Settings → About so users can tell
+// whether protected playback (Spotify/Netflix) is actually enabled.
+let _widevineStatus = 'unknown';
 
 // === Privacy hardening: fingerprint farbling seed, DNS-over-HTTPS, tracker tally ===
 // Config persisted to userData/privacy.json. Everything defaults OFF so normal
@@ -1625,9 +1628,20 @@ app.whenReady().then(async () => {
     const { components } = require('electron');
     if (components && typeof components.whenReady === 'function') {
       await components.whenReady();
-      console.log('[Widevine] components ready:', typeof components.status === 'function' ? components.status() : 'ok');
+      const st = typeof components.status === 'function' ? components.status() : null;
+      console.log('[Widevine] components ready:', st);
+      // status() maps component → version string when the CDM loaded OK.
+      const wv = st && (st['Widevine Content Decryption Module'] || st.WIDEVINE || JSON.stringify(st));
+      _widevineStatus = app.isPackaged
+        ? (wv ? ('ready (' + wv + ')') : 'loaded')
+        : 'dev mode — protected playback needs the installed build';
+    } else {
+      _widevineStatus = 'unavailable (this Electron build has no Widevine)';
     }
-  } catch (e) { console.warn('[Widevine] component init failed:', e && e.message); }
+  } catch (e) {
+    _widevineStatus = 'failed: ' + (e && e.message);
+    console.warn('[Widevine] component init failed:', e && e.message);
+  }
 
   createWindow();
   setupAutoUpdater();
@@ -2061,6 +2075,7 @@ ipcMain.handle('download-update', async () => {
 });
 ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
 ipcMain.handle('get-app-version', () => app.getVersion());
+ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
 
 // Set as default browser — opens Windows Default Apps settings
 ipcMain.handle('set-as-default-browser', async () => {

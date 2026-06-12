@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.16.1 (2026-06-12) — Widevine/DRM status
+
+### Added
+- **DRM (Widevine) status in Settings → About** — shows whether protected playback (Spotify, Netflix) is actually enabled, so you can tell at a glance if DRM is ready, loading, or only works in the installed build.
+
+### Note
+- Protected (DRM) playback requires the **installed, VMP-signed build** — it won't work when running Vex from source (`npm start`). If Spotify says "Playback of protected content is not enabled", check the new DRM line in Settings → About.
+
 ## v2.16.0 (2026-06-12) — Theme previews + 6 more themes
 
 ### Added

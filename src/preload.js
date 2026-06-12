@@ -125,6 +125,7 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Phase 9: Updates
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  widevineStatus: () => ipcRenderer.invoke('widevine:status'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),

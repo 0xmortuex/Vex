@@ -791,6 +791,17 @@
   if (elVer) elVer.textContent = window.vex.electronVersion || window.vex.getElectronVersion?.() || '-';
   if (crVer) crVer.textContent = window.vex.chromeVersion || window.vex.getChromeVersion?.() || '-';
   if (ndVer) ndVer.textContent = window.vex.nodeVersion || window.vex.getNodeVersion?.() || '-';
+  // Widevine / DRM status (so users can tell why Spotify/Netflix won't play)
+  (async () => {
+    const wvEl = document.getElementById('about-widevine');
+    if (!wvEl) return;
+    try {
+      const r = await window.vex.widevineStatus?.();
+      const s = r?.status || 'unknown';
+      wvEl.textContent = s;
+      wvEl.style.color = /ready|loaded/.test(s) ? '#22c55e' : 'var(--danger)';
+    } catch { wvEl.textContent = 'unknown'; }
+  })();
   // Check-updates button
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
     const status = document.getElementById('update-check-status');
