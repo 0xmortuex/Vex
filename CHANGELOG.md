@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.16.2 (2026-06-12) — Real preview screenshots for every theme
+
+### Changed
+- **Every theme now has a real screenshot preview** in the picker (not a flat swatch or mini-mockup) — all 21 themes are rendered consistently as an actual Vex window in their own colors. Regenerate anytime with `npm run capture-themes`.
+
 ## v2.16.1 (2026-06-12) — Widevine/DRM status
 
 ### Added

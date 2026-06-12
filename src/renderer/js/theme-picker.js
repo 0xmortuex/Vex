@@ -39,15 +39,15 @@ const ThemePicker = {
       card.className = 'vtp-card' + (t.id === current ? ' active' : '');
       card.dataset.theme = t.id;
       const isCustom = !!t.upload;
-      // New themes ship a live CSS mini-UI mockup (drawn from their palette) so
-      // they look like real previews; the original themes use their PNG.
-      const thumbInner = t.mock
-        ? this._mockHtml(t.mock) + (isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '')
-        : `<img src="../../assets/theme-previews/${t.preview}" alt="${t.label} preview"
-               onerror="this.style.display='none';this.parentNode.classList.add('vtp-thumb-fallback')">
-           <span class="vtp-thumb-name">${t.label}</span>`;
+      // Every theme has a captured PNG preview; the CSS mockup sits behind it as
+      // a live fallback if the image ever fails to load.
+      const mock = t.mock ? this._mockHtml(t.mock) : '';
+      const img = t.preview
+        ? `<img src="../../assets/theme-previews/${t.preview}" alt="${t.label} preview" onerror="this.style.display='none'">`
+        : '';
+      const upload = isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '';
       card.innerHTML = `
-        <div class="vtp-thumb" data-theme-preview="${t.id}">${thumbInner}</div>
+        <div class="vtp-thumb" data-theme-preview="${t.id}">${mock}${img}${upload}</div>
         <div class="vtp-label">
           <span class="vtp-label-text">${t.label}</span>
           <span class="vtp-check" aria-hidden="true">&#10003;</span>
