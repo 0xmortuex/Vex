@@ -17,6 +17,26 @@ const CommandBar = {
     { id: 'peek', label: 'Peek Current Page', hint: 'Preview the active page in a floating overlay (Shift+click links to peek them)', icon: '👁', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof VexPeek !== 'undefined') VexPeek.open(t.url); } },
     { id: 'zap', label: 'Zap Element', hint: 'Click any element on this page to hide it forever on this site', icon: '⚡', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } },
     { id: 'boost', label: 'Boost This Site', hint: 'Custom CSS / JS for the current site', icon: '🎨', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } },
+    { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: '📚', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) ReadLater.add(t.url, t.title); } },
+    { id: 'library', label: 'Library', hint: 'Read-later queue + auto-archived tabs', icon: '📚', isPrimary: true, action: () => SidebarManager.openPanel('library') },
+    { id: 'clip', label: 'Clip to Notes', hint: 'Save the selected text (or this link) into your Clippings note', icon: '✂️', action: () => ClipToNotes.clip() },
+    { id: 'tabai', label: 'AI Tab Command', hint: 'Tell AI what to do with your tabs — "close all YouTube tabs", "group my shopping tabs"', icon: '🗂', action: () => TabAI.open() },
+    { id: 'otr', label: 'New Off-the-Record Tab', hint: 'Ephemeral tab: no history, cookies vanish when closed', icon: '🕶', action: () => TabManager.createTab(START_URL, true, null, { partition: 'otr-' + Date.now() }) },
+    { id: 'qr', label: 'QR Code for This Page', hint: 'Show a QR code to open this page on your phone', icon: '📱', action: async () => {
+      const t = TabManager.getActiveTab();
+      if (!t || !t.url) { window.showToast?.('Open a page first'); return; }
+      const dataUrl = await window.vex.qrMake(t.url);
+      if (!dataUrl) { window.showToast?.('QR failed'); return; }
+      document.getElementById('vex-qr')?.remove();
+      const m = document.createElement('div');
+      m.id = 'vex-qr';
+      m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';
+      m.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.5)"><img src="' + dataUrl + '" style="display:block"><div style="font:12px \'Outfit\',sans-serif;color:#333;margin-top:8px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t.url.replace(/</g, '&lt;') + '</div></div>';
+      m.addEventListener('click', () => m.remove());
+      document.body.appendChild(m);
+    } },
+    { id: 'pinsite', label: 'Pin Site to Sidebar', hint: 'Keep the current site as a sidebar web panel (Vivaldi-style)', icon: '📌', action: () => SidebarManager.pinCurrentSite() },
+    { id: 'resmon', label: 'Resource Monitor', hint: 'Live CPU / memory per browser process', icon: '📊', action: () => ResourceMonitor.open() },
     { id: 'focus', label: 'Focus 25', hint: 'Hide all chrome + block distracting sites for 25 minutes (run again to stop)', icon: '🎯', action: () => FocusMode.toggle(25) },
     { id: 'focus50', label: 'Focus 50', hint: 'A 50-minute focus session', icon: '🎯', action: () => FocusMode.toggle(50) },
     { id: 'compact', label: 'Compact Mode', hint: 'Collapse the sidebars for maximum page space', icon: '🗜', action: () => CompactMode.toggle() },

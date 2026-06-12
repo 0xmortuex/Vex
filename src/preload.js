@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld('vex', {
   // RSS feeds (fetched in main to dodge CORS)
   rssFetch: (url) => ipcRenderer.invoke('rss:fetch', url),
 
+  // QR code + resource metrics
+  qrMake: (text) => ipcRenderer.invoke('qr:make', text),
+  appMetrics: () => ipcRenderer.invoke('app:metrics'),
+
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),

@@ -104,6 +104,34 @@ const WebviewManager = {
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
     // Mouse gestures (right-drag strokes announced by preload-webview.js)
     if (typeof MouseGestures !== 'undefined') MouseGestures.attach(webview);
+    // Now Playing mini-bar (which tab is making noise)
+    if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
+    // Right-click an image → reverse-search it with Google Lens
+    webview.addEventListener('context-menu', (e) => {
+      const p = e.params || {};
+      if (p.mediaType !== 'image' || !p.srcURL || !/^https?:/i.test(p.srcURL)) return;
+      document.querySelectorAll('.vex-img-menu').forEach(m => m.remove());
+      const menu = document.createElement('div');
+      menu.className = 'tab-context-menu vex-img-menu';
+      const r = webview.getBoundingClientRect();
+      menu.style.left = (r.left + (p.x || 0)) + 'px';
+      menu.style.top = (r.top + (p.y || 0)) + 'px';
+      const items = [
+        { label: '🔍 Search image with Lens', act: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(p.srcURL), true) },
+        { label: 'Copy image address', act: () => { navigator.clipboard?.writeText(p.srcURL); window.showToast?.('Image URL copied'); } },
+        { label: 'Open image in new tab', act: () => TabManager.createTab(p.srcURL, true) },
+      ];
+      items.forEach(it => {
+        const el = document.createElement('div');
+        el.className = 'tab-context-item';
+        el.textContent = it.label;
+        el.addEventListener('click', () => { it.act(); menu.remove(); });
+        menu.appendChild(el);
+      });
+      document.body.appendChild(menu);
+      if (window.TabManager?._clampMenuToViewport) TabManager._clampMenuToViewport(menu, parseInt(menu.style.left), parseInt(menu.style.top));
+      if (window.TabManager?._attachMenuDismissal) TabManager._attachMenuDismissal(menu);
+    });
 
     webview.addEventListener('did-navigate', (e) => {
       const url = e.url;
@@ -113,8 +141,9 @@ const WebviewManager = {
       this._updateFavicon(tab.id, url);
       if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
 
-      // Add to history (both legacy storage and new HistoryPanel)
-      if (!isStartPage(url)) {
+      // Add to history (both legacy storage and new HistoryPanel) — but never
+      // for Off-the-Record tabs (in-memory partition, no trace).
+      if (!isStartPage(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
         const t = TabManager.tabs.find(t => t.id === tab.id);
         VexStorage.addHistory({ url, title: t?.title || url });
         if (typeof HistoryPanel !== 'undefined') {
