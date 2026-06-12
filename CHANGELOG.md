@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.20.3 (2026-06-12) — Theme previews actually render now
+
+### Fixed
+- The theme preview thumbnails were **collapsing to zero size**, so every card showed only a flat colored label bar instead of the preview. Two layout bugs caused it: the thumb used `aspect-ratio` for its height (which computes nothing when its only child is absolutely positioned), and the card is a `<button>`, whose UA default `align-items: flex-start` stopped the thumb from stretching to full width. The thumb now has an explicit width and height, so the detailed mini-window preview renders for every theme. Verified by capturing the real picker CSS, not a simplified mock.
+
 ## v2.20.2 (2026-06-12) — Bulletproof theme previews
 
 ### Fixed

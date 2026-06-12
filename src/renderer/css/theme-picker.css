@@ -64,6 +64,11 @@
 .vtp-card {
   display: flex;
   flex-direction: column;
+  /* <button> defaults to align-items:flex-start in the UA stylesheet, which
+     stops the thumb (its only child is absolutely positioned, so 0 intrinsic
+     width) from stretching — it collapsed to width:0 and the preview vanished.
+     Force stretch so the thumb fills the card width. */
+  align-items: stretch;
   padding: 0;
   background: var(--vex-glass-light, var(--bg-2));
   border: 2px solid var(--vex-border-medium, var(--border));
@@ -85,11 +90,13 @@
 
 .vtp-thumb {
   position: relative;
-  aspect-ratio: 16 / 10;
+  /* Explicit height + width — NOT aspect-ratio. Inside the <button> flex card the
+     only child is absolutely positioned, so aspect-ratio computed no height and
+     align-items:flex-start gave no width; the thumb collapsed and previews
+     vanished. Pin both dimensions so it can never collapse again. */
+  width: 100%;
+  height: 116px;
   background: var(--vex-bg-deep, var(--bg));
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
 }
 .vtp-thumb img {
