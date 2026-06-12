@@ -65,7 +65,7 @@ describe('sidebar context menu (jsdom integration)', () => {
     fakeWebview = { reload: vi.fn(), openDevTools: vi.fn(), getWebContentsId: vi.fn(() => 42) };
   });
 
-  it('right-click on a sidebar icon opens a menu with Refresh + DevTools', () => {
+  it('right-click on a sidebar icon opens a menu with customization + Refresh + DevTools', () => {
     SidebarManager.init();
     const icon = document.querySelector('.sidebar-icon[data-panel="claude"]');
 
@@ -74,7 +74,13 @@ describe('sidebar context menu (jsdom integration)', () => {
     const menu = document.querySelector('.tab-context-menu');
     expect(menu).not.toBeNull();
     const labels = [...menu.querySelectorAll('.tab-context-item')].map(el => el.textContent);
-    expect(labels).toEqual(['Refresh', 'Open DevTools']);
+    // Customization items + the original Refresh/DevTools + delete/reset.
+    expect(labels).toEqual([
+      'Rename…', 'Change icon…', 'Change link…',
+      'Switch to Claude', 'Switch to Gemini', 'Switch to ChatGPT',
+      'Refresh', 'Open DevTools',
+      'Delete (hide)', 'Reset to default',
+    ]);
   });
 
   it('clicking Refresh on an inactive panel shows the panel AND reloads the webview', () => {

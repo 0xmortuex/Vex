@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.0.5 (2026-06-12) — Settings glow-up & customizable sidebar
+
+### Added
+- **Customizable sidebar buttons** — right-click a service icon (Claude / WhatsApp / Spotify) to **Rename**, **Change icon** (15-icon picker), **Change link**, **Delete (hide)**, or **Reset**. Claude can one-click **Switch to Claude / Gemini / ChatGPT**. Customizations persist across launches.
+
+### Changed
+- **Settings redesign** — the flat list is now vivid, color-coded **category cards** with icons, a sticky category nav, and livelier toggles/inputs/buttons. All existing settings and handlers are unchanged.
+
+
 ## v2.0.4 (2026-06-12) — Guided tour
 
 ### Added
