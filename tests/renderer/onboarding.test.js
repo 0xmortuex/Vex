@@ -46,33 +46,51 @@ describe('Onboarding gate', () => {
 });
 
 describe('Onboarding resume (relaunch)', () => {
+  const ALL_MISSING = ['theme', 'name', 'weather', 'github', 'search', 'defaultbrowser', 'aicloud', 'ollama', 'ondevice', 'sync', 'passwords'];
+
+  // Save a value for every step so the profile counts as fully configured.
+  const completeAll = () => {
+    localStorage.setItem('vex.theme', 'ocean');
+    localStorage.setItem('vex.userName', 'Alex');
+    localStorage.setItem('vex.weatherLoc', '{}');
+    localStorage.setItem('vex.githubUsername', 'octocat');
+    localStorage.setItem('vex.searchEngine', 'duckduckgo');
+    localStorage.setItem('vex.defaultBrowserConfigured', 'true');
+    localStorage.setItem('vex.aiWorkerUrl', 'https://x.workers.dev');
+    localStorage.setItem('vex.syncWorkerUrl', 'https://s.workers.dev');
+    localStorage.setItem('vex.vaultSeeded', 'true');
+  };
+
   it('lists every optional step as missing on a clean profile', () => {
-    expect(Onboarding._missingStepKeys()).toEqual(['theme', 'name', 'weather', 'github', 'ai']);
+    expect(Onboarding._missingStepKeys()).toEqual(ALL_MISSING);
   });
 
   it('drops steps whose data is already saved', () => {
     localStorage.setItem('vex.theme', 'ocean');
     localStorage.setItem('vex.userName', 'Alex');
-    expect(Onboarding._missingStepKeys()).toEqual(['weather', 'github', 'ai']);
+    expect(Onboarding._missingStepKeys()).not.toContain('theme');
+    expect(Onboarding._missingStepKeys()).not.toContain('name');
+    expect(Onboarding._missingStepKeys()).toContain('weather');
   });
 
-  it('treats AI as done for any of cloud / local / on-device prefs', () => {
-    localStorage.setItem('vex.preferOnDeviceAI', 'true');
-    expect(Onboarding._missingStepKeys()).not.toContain('ai');
-    localStorage.clear();
-    localStorage.setItem('vex.preferLocalAI', 'true');
-    expect(Onboarding._missingStepKeys()).not.toContain('ai');
-    localStorage.clear();
-    localStorage.setItem('vex.aiWorkerUrl', 'https://x.workers.dev');
-    expect(Onboarding._missingStepKeys()).not.toContain('ai');
+  it('any one AI backend (cloud / local / on-device) clears all three AI steps', () => {
+    for (const k of ['vex.aiWorkerUrl', 'vex.preferLocalAI', 'vex.preferOnDeviceAI']) {
+      localStorage.clear();
+      localStorage.setItem(k, k === 'vex.aiWorkerUrl' ? 'https://x.workers.dev' : 'true');
+      const m = Onboarding._missingStepKeys();
+      expect(m).not.toContain('aicloud');
+      expect(m).not.toContain('ollama');
+      expect(m).not.toContain('ondevice');
+    }
+  });
+
+  it('shows all three AI steps when no backend is configured', () => {
+    const m = Onboarding._missingStepKeys();
+    expect(m).toEqual(expect.arrayContaining(['aicloud', 'ollama', 'ondevice']));
   });
 
   it('relaunch builds welcome + only-missing + done, and skips when nothing is missing', () => {
-    localStorage.setItem('vex.theme', 'ocean');
-    localStorage.setItem('vex.userName', 'Alex');
-    localStorage.setItem('vex.weatherLoc', '{}');
-    localStorage.setItem('vex.githubUsername', 'octocat');
-    localStorage.setItem('vex.aiWorkerUrl', 'https://x.workers.dev');
+    completeAll();
     const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
     const toast = vi.fn(); globalThis.window.showToast = toast;
     Onboarding.relaunch();
@@ -84,6 +102,20 @@ describe('Onboarding resume (relaunch)', () => {
     expect(render).toHaveBeenCalled();
     expect(Onboarding.activeSteps.map(s => s.key)).toEqual(['welcome', 'github', 'done']);
     render.mockRestore();
+  });
+});
+
+describe('Onboarding step bodies render without throwing', () => {
+  it('every step key produces a body (no exceptions)', () => {
+    globalThis.ThemeManager = { THEMES: [{ id: 'oxford', label: 'Oxford' }], currentTheme: 'oxford', applyTheme() {} };
+    globalThis.WebLLM = undefined;   // exercises the "no WebGPU" branch
+    globalThis.window.vex = { isDefaultBrowser: () => Promise.resolve(false), setAsDefaultBrowser: () => Promise.resolve(), vaultSave: () => Promise.resolve() };
+    const keys = Onboarding.STEPS().map(s => s.key);
+    for (const key of keys) {
+      const body = document.createElement('div');
+      expect(() => Onboarding._renderBody(key, body)).not.toThrow();
+    }
+    delete globalThis.ThemeManager;
   });
 });
 

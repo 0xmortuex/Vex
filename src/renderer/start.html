@@ -1092,12 +1092,13 @@
   <div class="loc-modal" id="loc-modal">
     <div class="loc-modal-card">
       <h3>Set your location</h3>
-      <p>Type your city for accurate weather. Stored only on this device.</p>
-      <input type="text" id="loc-input" placeholder="e.g. Istanbul" autocomplete="off" spellcheck="false">
+      <p>Type a city or district (e.g. “Ataşehir”), search, then pick the right match. Stored only on this device.</p>
+      <input type="text" id="loc-input" placeholder="e.g. Ataşehir or Istanbul" autocomplete="off" spellcheck="false">
+      <div class="loc-results" id="loc-results" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
       <div class="loc-status" id="loc-status"></div>
       <div class="loc-actions">
         <button class="ghost" id="loc-cancel">Cancel</button>
-        <button class="primary" id="loc-save">Save</button>
+        <button class="primary" id="loc-save">Search</button>
       </div>
     </div>
   </div>
@@ -1632,29 +1633,43 @@
       const modal = document.getElementById('loc-modal');
       const input = document.getElementById('loc-input');
       const status = document.getElementById('loc-status');
-      const open = () => { modal.classList.add('show'); status.textContent = ''; input.value = ''; setTimeout(() => input.focus(), 30); };
+      const results = document.getElementById('loc-results');
+      const open = () => { modal.classList.add('show'); status.textContent = ''; input.value = ''; if (results) results.innerHTML = ''; setTimeout(() => input.focus(), 30); };
       const close = () => modal.classList.remove('show');
       document.getElementById('weather-loc-btn')?.addEventListener('click', open);
       document.getElementById('loc-cancel')?.addEventListener('click', close);
       modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
-      const save = async () => {
-        const q = input.value.trim();
-        if (!q) { status.textContent = 'Type a city name.'; return; }
-        status.textContent = 'Looking up…';
-        try {
-          const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=tr`);
-          const d = await r.json();
-          const hit = d && d.results && d.results[0];
-          if (!hit) { status.textContent = 'Couldn’t find that place. Try another spelling.'; return; }
-          const loc = { lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.country_code ? ', ' + hit.country_code : '') };
-          localStorage.setItem('vex.weatherLoc', JSON.stringify(loc));
-          close();
-          syncLocBtn();
-          loadWeather();
-        } catch { status.textContent = 'Lookup failed — check your connection.'; }
+      const pick = (hit) => {
+        const loc = { lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? ', ' + hit.admin1 : '') + (hit.country_code ? ', ' + hit.country_code : '') };
+        localStorage.setItem('vex.weatherLoc', JSON.stringify(loc));
+        close();
+        syncLocBtn();
+        loadWeather();
       };
-      document.getElementById('loc-save')?.addEventListener('click', save);
-      input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') close(); });
+      // Search up to 5 matches and let the user pick the exact one — so districts
+      // (e.g. "Ataşehir") resolve correctly instead of snapping to a stray top hit.
+      const search = async () => {
+        const q = input.value.trim();
+        if (!q) { status.textContent = 'Type a city or district.'; return; }
+        status.textContent = 'Searching…';
+        if (results) results.innerHTML = '';
+        let list = [];
+        try {
+          const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
+          const d = await r.json();
+          list = (d && d.results) || [];
+        } catch { status.textContent = 'Lookup failed — check your connection.'; return; }
+        if (!list.length) { status.textContent = 'No matches. Try the nearest town or a different spelling.'; return; }
+        if (list.length === 1) { pick(list[0]); return; }
+        status.textContent = 'Pick the right one:';
+        results.innerHTML = list.map((hit, i) => {
+          const label = [hit.name, hit.admin1, hit.country].filter(Boolean).join(' · ');
+          return `<button data-i="${i}" style="text-align:left;padding:9px 11px;background:var(--vex-bg-base,var(--bg));border:1px solid var(--vex-border-subtle,var(--border));border-radius:8px;color:var(--vex-text-primary,var(--text));cursor:pointer;font:inherit;font-size:12.5px">${label.replace(/</g, '&lt;')}</button>`;
+        }).join('');
+        results.querySelectorAll('[data-i]').forEach(btn => btn.addEventListener('click', () => pick(list[+btn.dataset.i])));
+      };
+      document.getElementById('loc-save')?.addEventListener('click', search);
+      input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); if (e.key === 'Escape') close(); });
     })();
 
     // --- Daily Qur'an verse (Turkish, Diyanet translation) ---
