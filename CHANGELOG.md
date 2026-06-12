@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.15.1 (2026-06-12) — Fix "Check for Updates"
+
+### Fixed
+- **"Check for Updates" no longer closes the app.** It was invoking electron-updater's native checker, which on this build can spawn native helpers that crash the process. The manual check is now a lightweight HTTPS version lookup (fetches the latest release's version and compares) — it can't take the app down, tells you if you're up to date, and links straight to the download when a newer version exists.
+
 ## v2.15.0 (2026-06-12) — Search engines, more themes, custom wallpaper & more
 
 ### Added

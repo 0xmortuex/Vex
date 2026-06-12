@@ -794,10 +794,24 @@
   // Check-updates button
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
     const status = document.getElementById('update-check-status');
-    if (status) status.textContent = 'Checking...';
-    const r = await UpdateNotifier.checkManually();
+    if (status) status.textContent = 'Checking\u2026';
+    let r = null;
+    try { r = await window.vex.checkForUpdates?.(); } catch (e) { r = { ok: false, error: e.message }; }
     localStorage.setItem('vex.lastUpdateCheck', Date.now().toString());
-    if (status) status.textContent = (r?.ok && r.info?.version) ? 'Update: v' + r.info.version : 'Up to date \u2014 checked just now';
+    if (!status) return;
+    if (r?.ok && r.hasUpdate) {
+      status.textContent = '';
+      const a = document.createElement('a');
+      a.href = '#'; a.style.color = 'var(--primary)'; a.style.cursor = 'pointer';
+      a.textContent = `Update available: v${r.latest} \u2014 download`;
+      a.addEventListener('click', (e) => { e.preventDefault(); TabManager.createTab(r.url, true); SidebarManager.hideActivePanel?.(); });
+      status.appendChild(a);
+      window.showToast?.(`\ud83c\udf89 Vex v${r.latest} is available`);
+    } else if (r?.ok) {
+      status.textContent = `Up to date (v${r.current}) \u2014 checked just now`;
+    } else {
+      status.textContent = r?.error ? `Couldn't check: ${r.error}` : 'Update check failed';
+    }
   });
   // Show last check time
   const lastCheck = localStorage.getItem('vex.lastUpdateCheck');

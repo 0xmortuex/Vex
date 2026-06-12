@@ -2023,10 +2023,36 @@ ipcMain.handle('open-private-window', () => {
 });
 
 // Update IPC
+// Lightweight manual check: fetch latest.yml from the GitHub "latest" release and
+// compare versions ourselves. We deliberately do NOT call
+// autoUpdater.checkForUpdates() here — on this (castLabs, unsigned) build it can
+// spawn native helpers (7za/differential tooling) that crash the process on
+// machines missing the MSVC runtime, which made the app close on "Check for
+// updates". This path only does an HTTPS GET + a string compare, so it can't
+// take the app down; if an update exists we point the user at the release page.
+function _cmpVer(a, b) {
+  const pa = String(a).split(/[.\-+]/).map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split(/[.\-+]/).map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d > 0 ? 1 : -1;
+  }
+  return 0;
+}
 ipcMain.handle('check-for-updates', async () => {
-  if (!autoUpdater) return { ok: false, error: 'Updater not available in dev mode' };
-  try { const r = await autoUpdater.checkForUpdates(); return { ok: true, info: r?.updateInfo }; }
-  catch (e) { return { ok: false, error: e.message }; }
+  const current = app.getVersion();
+  const RELEASES = 'https://github.com/0xmortuex/Vex/releases/latest';
+  try {
+    const res = await net.fetch('https://github.com/0xmortuex/Vex/releases/latest/download/latest.yml', { redirect: 'follow' });
+    if (!res.ok) return { ok: false, error: 'Could not reach the update server', current, url: RELEASES };
+    const text = await res.text();
+    const m = text.match(/version:\s*([0-9][0-9A-Za-z.\-+]*)/i);
+    const latest = m ? m[1].trim() : null;
+    if (!latest) return { ok: false, error: 'No version info found', current, url: RELEASES };
+    return { ok: true, current, latest, hasUpdate: _cmpVer(latest, current) > 0, url: RELEASES };
+  } catch (e) {
+    return { ok: false, error: e.message, current, url: RELEASES };
+  }
 });
 ipcMain.handle('download-update', async () => {
   if (!autoUpdater) return { ok: false };
