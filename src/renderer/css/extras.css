@@ -1,0 +1,22 @@
+/* === Vex extras: Focus mode + Compact mode === */
+
+/* Compact mode: collapse both sidebars; content takes the full width. */
+body.compact-mode #icon-sidebar,
+body.compact-mode #tabs-sidebar { display: none !important; }
+
+/* Focus mode: everything compact hides, plus the tools bar; top bar slims and
+   dims until hovered, so the page is all you see. */
+body.focus-mode #icon-sidebar,
+body.focus-mode #tabs-sidebar { display: none !important; }
+body.focus-mode #top-bar { opacity: 0.45; transition: opacity .2s ease; }
+body.focus-mode #top-bar:hover { opacity: 1; }
+body.focus-mode::after {
+  content: '🎯';
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  z-index: 9999;
+  font-size: 16px;
+  opacity: 0.7;
+  pointer-events: none;
+}

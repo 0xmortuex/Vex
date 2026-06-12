@@ -588,6 +588,24 @@
   if (typeof VexSkills !== 'undefined') VexSkills.init();
   if (typeof VexBoosts !== 'undefined') VexBoosts.init();
 
+  // Tier 2/3 extras: compact mode, bookmarks, feeds, command chains
+  if (typeof CompactMode !== 'undefined') CompactMode.init();
+  if (typeof Bookmarks !== 'undefined') Bookmarks.init();
+  if (typeof VexFeeds !== 'undefined') VexFeeds.init();
+  if (typeof CommandChains !== 'undefined') CommandChains.init();
+
+  // Settings toggles: mouse gestures + cookie-consent hiding
+  const gToggle = document.getElementById('setting-gestures');
+  if (gToggle && typeof MouseGestures !== 'undefined') {
+    gToggle.checked = MouseGestures.enabled();
+    gToggle.addEventListener('change', () => MouseGestures.setEnabled(gToggle.checked));
+  }
+  const cToggle = document.getElementById('setting-consent');
+  if (cToggle && typeof ConsentBlock !== 'undefined') {
+    cToggle.checked = ConsentBlock.enabled();
+    cToggle.addEventListener('change', () => ConsentBlock.setEnabled(cToggle.checked));
+  }
+
   // Cross-device handoff: receive tabs sent from other Vex devices (mobile).
   // Polls on focus + every 2 minutes when Vex Sync is signed in.
   const checkDrops = async () => {

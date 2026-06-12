@@ -40,6 +40,7 @@
   <link rel="stylesheet" href="css/tour.css">
   <link rel="stylesheet" href="css/settings-redesign.css">
   <link rel="stylesheet" href="css/peek.css">
+  <link rel="stylesheet" href="css/extras.css">
 </head>
 <body>
   <!-- Top Bar -->
@@ -169,6 +170,12 @@
       <button class="sidebar-icon" data-panel="downloads" title="Downloads">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </button>
+      <button class="sidebar-icon" data-panel="bookmarks" title="Bookmarks">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <button class="sidebar-icon" data-panel="feeds" title="Feeds (RSS)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>
+      </button>
       <button class="sidebar-icon" data-panel="history" title="History (Ctrl+H)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       </button>
@@ -211,6 +218,8 @@
         <div class="panel" id="panel-github" style="display: none;"></div>
         <div class="panel" id="panel-notes" style="display: none;"></div>
         <div class="panel" id="panel-downloads" style="display: none;"></div>
+        <div class="panel" id="panel-bookmarks" style="display: none;"></div>
+        <div class="panel" id="panel-feeds" style="display: none;"></div>
         <div class="panel" id="panel-history" style="display: none;"></div>
         <div class="panel" id="panel-memory" style="display: none;"></div>
         <div class="panel" id="panel-schedules" style="display: none;"></div>
@@ -486,6 +495,35 @@
               <label class="setting-label">Passwords</label>
               <div id="passwords-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading passwords...</div>
+              </div>
+            </div>
+
+            <!-- Focus mode blocklist -->
+            <div class="setting-group">
+              <label class="setting-label">Focus</label>
+              <div id="focus-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
+            <!-- Command chains (macros) -->
+            <div class="setting-group">
+              <label class="setting-label">Command Chains</label>
+              <div id="chains-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
+            <!-- Input & page behavior toggles -->
+            <div class="setting-group">
+              <label class="setting-label">Browsing extras</label>
+              <div class="setting-toggle-row">
+                <span>Mouse gestures (hold right button + drag)</span>
+                <label class="toggle"><input type="checkbox" id="setting-gestures" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Auto-hide cookie consent banners</span>
+                <label class="toggle"><input type="checkbox" id="setting-consent" checked><span class="toggle-slider"></span></label>
               </div>
             </div>
 
@@ -811,6 +849,12 @@
   <script src="js/skills.js"></script>
   <script src="js/boosts.js"></script>
   <script src="js/passwords.js"></script>
+  <script src="js/focus-mode.js"></script>
+  <script src="js/page-extras.js"></script>
+  <script src="js/gestures.js"></script>
+  <script src="js/compose-chains.js"></script>
+  <script src="js/bookmarks.js"></script>
+  <script src="js/rss.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

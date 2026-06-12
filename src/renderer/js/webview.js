@@ -27,7 +27,7 @@ const WebviewManager = {
     const container = document.getElementById('webviews-container');
     const webview = document.createElement('webview');
     webview.setAttribute('src', tab.url);
-    webview.setAttribute('partition', 'persist:main');
+    webview.setAttribute('partition', tab.partition || 'persist:main');
     webview.setAttribute('allowpopups', '');
     webview.setAttribute('webpreferences', 'contextIsolation=yes');
     webview.dataset.tabId = tab.id;
@@ -96,14 +96,19 @@ const WebviewManager = {
         const t = TabManager.tabs.find(x => x.id === tab.id);
         if (typeof VexBoosts !== 'undefined' && t && t.url) VexBoosts.applyTo(webview, t.url);
         if (typeof PasswordVault !== 'undefined' && t && t.url) PasswordVault.autofill(webview, t.url);
+        if (typeof ConsentBlock !== 'undefined') ConsentBlock.applyTo(webview);
       } catch {}
     });
 
     // Password capture (login-form submits announced by preload-webview.js)
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
+    // Mouse gestures (right-drag strokes announced by preload-webview.js)
+    if (typeof MouseGestures !== 'undefined') MouseGestures.attach(webview);
 
     webview.addEventListener('did-navigate', (e) => {
       const url = e.url;
+      // Focus-mode site blocker bounces distracting hosts back.
+      if (typeof FocusMode !== 'undefined' && FocusMode.guard(webview, url)) return;
       TabManager.updateTab(tab.id, { url });
       this._updateFavicon(tab.id, url);
       if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }

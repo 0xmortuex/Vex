@@ -89,7 +89,7 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue'],
+  customPanels: ['settings', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds'],
 
   panelConfigs: {
     start: { url: null, partition: null },
@@ -105,7 +105,9 @@ const SidebarManager = {
     history: { url: null, partition: null },
     memory: { url: null, partition: null },
     schedules: { url: null, partition: null },
-    shortcuts: { url: null, partition: null }
+    shortcuts: { url: null, partition: null },
+    bookmarks: { url: null, partition: null },
+    feeds: { url: null, partition: null }
   },
 
   _origIcons: {},
@@ -209,6 +211,8 @@ const SidebarManager = {
     if (panelName === 'schedules') SchedulesPanel.init();
     if (panelName === 'shortcuts') ShortcutsPanel.init();
     if (panelName === 'queue') QueuePanel.init();
+    if (panelName === 'bookmarks' && typeof Bookmarks !== 'undefined') Bookmarks.renderPanel(panelEl);
+    if (panelName === 'feeds' && typeof VexFeeds !== 'undefined') VexFeeds.renderPanel(panelEl);
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');
@@ -249,6 +253,12 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof PasswordVault !== 'undefined') {
       // Saved passwords list each time Settings opens
       PasswordVault.renderPanel(document.getElementById('passwords-panel-content'));
+    }
+    if (panelName === 'settings' && typeof FocusMode !== 'undefined') {
+      FocusMode.renderPanel(document.getElementById('focus-panel-content'));
+    }
+    if (panelName === 'settings' && typeof CommandChains !== 'undefined') {
+      CommandChains.renderPanel(document.getElementById('chains-panel-content'));
     }
     if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
       // Categorize + colorize the settings panel (presentation only).

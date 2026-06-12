@@ -297,6 +297,17 @@ ipcMain.handle('permission:respond', (_e, payload) => {
   }
   return { ok: true };
 });
+// === RSS fetch (renderer fetch would be CORS-blocked for arbitrary feeds) ===
+ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
+  try {
+    if (!feedUrl || !/^https?:\/\//i.test(feedUrl)) return null;
+    const res = await net.fetch(feedUrl, { headers: { 'User-Agent': 'Vex Browser RSS' } });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return text.length > 2 * 1024 * 1024 ? null : text;
+  } catch { return null; }
+});
+
 // === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
 // The renderer never sees the file; plaintext secrets only cross IPC when the
 // user autofills/copies. If safeStorage is unavailable (rare: no keychain),
@@ -1231,6 +1242,10 @@ function createWindow() {
   const sessions = [
     session.defaultSession,
     session.fromPartition('persist:main'),
+    // Container tabs (isolated cookie jars) need the preload too.
+    session.fromPartition('persist:container-work'),
+    session.fromPartition('persist:container-personal'),
+    session.fromPartition('persist:container-shopping'),
     ...partitions.map(p => session.fromPartition(p))
   ];
   for (const ses of sessions) {
