@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.1 (2026-06-12) — Lazy session restore (big memory win)
+
+### Changed
+- **Lazy session restore** — on launch, only the focused tab loads a webview; the rest of your saved session restores as lightweight placeholders (title + favicon) and materializes the instant you click them. On a real session this cut startup memory by ~60% (≈950 MB → ≈390 MB private). Sleeping tabs and tab groups are unaffected; auto-sleep skips not-yet-loaded tabs.
+
 ## v2.3.0 (2026-06-12) — Library, AI tab commands & the works
 
 ### Added

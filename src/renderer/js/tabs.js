@@ -163,19 +163,23 @@ const TabManager = {
             scrollPosition: t.scrollPosition || null
           });
         } else {
-          const tab = {
+          // Lazy restore: rebuild the tab record WITHOUT a webview. It
+          // materializes (creates its webview, loads the URL) only when first
+          // activated — see switchTab → _materializeTab. So a big saved session
+          // costs almost nothing at launch; only the focused tab is live.
+          // Saved title + favicon keep the sidebar looking right meanwhile.
+          this.tabs.push({
             id,
             url: tabUrl,
-            title: isStartPage(t.url) ? 'New Tab' : 'Loading...',
-            favicon: null,
-            loading: true,
+            title: t.title || (isStartPage(t.url) ? 'New Tab' : (t.url || 'Tab')),
+            favicon: t.favicon || null,
+            loading: false,
             pinned: !!t.pinned,
             unread: false,
             groupId: t.groupId || null,
-            stackId: t.stackId || null
-          };
-          this.tabs.push(tab);
-          WebviewManager.createWebview(tab);
+            stackId: t.stackId || null,
+            _lazy: true
+          });
         }
       }
       // On launch, always focus a Home (vex://start) tab rather than the
