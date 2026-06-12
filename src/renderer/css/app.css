@@ -681,6 +681,13 @@ body.tabs-hidden #tabs-sidebar {
   width: 0 !important; min-width: 0 !important;
   overflow: hidden; border-right: none; opacity: 0; pointer-events: none;
 }
+/* Collapse the whole left side (icon rail included) so the toggle truly closes
+   the sidebar. The top-bar toggle stays visible to reopen it. */
+#icon-sidebar { transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease; }
+body.tabs-hidden #icon-sidebar {
+  width: 0 !important; min-width: 0 !important;
+  overflow: hidden; border-right: none; opacity: 0; pointer-events: none;
+}
 
 /* Reveal hint on left edge when tabs hidden */
 body.tabs-hidden #icon-sidebar::after {

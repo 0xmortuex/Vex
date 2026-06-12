@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.20.0 (2026-06-12) — Live theme previews + sidebar fixes
+
+### Changed
+- **Theme previews now render live from CSS** in each theme's own colors — no image files at all. Every theme (originals included) is the exact same format, and previews can never be stale, cached, or mismatched between builds again.
+
+### Fixed
+- The **close-sidebar button** (next to the Vex Sync icon) now collapses the **entire** left sidebar — icon rail included; click again to reopen. Removed the duplicate toggle that was next to the AI button.
+
 ## v2.19.1 (2026-06-12) — Sidebar toggle by the sync icon
 
 ### Added

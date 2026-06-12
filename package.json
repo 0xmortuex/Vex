@@ -1,6 +1,6 @@
 {
   "name": "vex",
-  "version": "2.19.1",
+  "version": "2.20.0",
   "description": "Vex — a browser built just for you",
   "author": {
     "name": "0xmortuex",
@@ -13,7 +13,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "capture-themes": "electron scripts/capture-theme-previews.js",
     "pack": "electron-builder --dir",
     "build-icons": "node scripts/svg-to-png.js && electron-icon-builder --input=assets/icon-source.png --output=assets --flatten && node scripts/finalize-icons.js",
     "dist": "npm run build-icons && rimraf dist && electron-builder",

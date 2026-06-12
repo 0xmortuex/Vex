@@ -218,3 +218,26 @@
 .vtp-card:hover .vtp-star { opacity: 1; }
 .vtp-star.on { opacity: 1; color: #fbbf24; }
 .vtp-star:hover { transform: scale(1.12); }
+
+/* === Live CSS theme preview (mini Vex window, themed by data-theme) === */
+.vtp-live { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+.vl-top { height: 20%; min-height: 22px; display: flex; align-items: center; gap: 4px; padding: 0 7px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.vl-logo { width: 10px; height: 10px; border-radius: 2px; transform: rotate(45deg); background: linear-gradient(135deg, var(--primary), var(--accent, var(--primary))); flex: none; }
+.vl-pill { width: 32px; height: 9px; border-radius: 99px; border: 1px solid var(--border); flex: none; }
+.vl-url { flex: 1; height: 10px; border-radius: 99px; background: var(--bg); border: 1px solid var(--border); }
+.vl-b2 { width: 16px; height: 9px; border-radius: 3px; background: var(--primary); flex: none; }
+.vl-body { flex: 1; display: flex; min-height: 0; }
+.vl-rail { width: 14%; min-width: 18px; background: var(--sidebar, var(--bg)); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; }
+.vl-rail i { width: 60%; height: 9px; border-radius: 3px; background: var(--text); opacity: 0.16; }
+.vl-rail i.on { background: var(--primary); opacity: 1; }
+.vl-main { flex: 1; padding: 9px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.vl-card { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 7px; display: flex; align-items: center; gap: 7px; }
+.vl-circ { width: 15px; height: 15px; border-radius: 50%; background: var(--primary); opacity: 0.9; flex: none; }
+.vl-cl { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.vl-cl b { display: block; width: 52%; height: 5px; border-radius: 3px; background: var(--text); opacity: 0.72; }
+.vl-cl u { display: block; width: 82%; height: 4px; border-radius: 2px; background: var(--text); opacity: 0.3; }
+.vl-field { display: flex; gap: 7px; }
+.vl-input { flex: 1; height: 15px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); }
+.vl-go { width: 38px; height: 15px; border-radius: 4px; background: var(--primary); flex: none; }
+.vl-rows { display: flex; flex-direction: column; gap: 4px; }
+.vl-rows u { display: block; width: 86%; height: 4px; border-radius: 2px; background: var(--text); opacity: 0.24; }

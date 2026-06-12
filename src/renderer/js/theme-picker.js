@@ -9,11 +9,6 @@
 // If a preview file is missing the card falls back to a labelled color chip so
 // the picker is still usable.
 
-// Cache-bust token for preview images: the app version, so updating Vex always
-// reloads the regenerated previews instead of serving stale cached ones.
-let PREVIEW_CB = 'v';
-try { if (typeof window !== 'undefined' && window.vex?.getAppVersion) window.vex.getAppVersion().then(v => { if (v) PREVIEW_CB = v; }); } catch {}
-
 const ThemePicker = {
   _overlay: null,
   _keyHandler: null,
@@ -84,13 +79,12 @@ const ThemePicker = {
     card.dataset.theme = t.id;
     const isCustom = !!t.upload;
     const fav = ThemeManager.isFavorite(t.id);
-    const mock = t.mock ? this._mockHtml(t.mock) : '';
-    const img = t.preview
-      ? `<img src="../../assets/theme-previews/${t.preview}?b=${encodeURIComponent(PREVIEW_CB)}" alt="${t.label} preview" onerror="this.style.display='none'">`
-      : '';
+    // Live CSS preview — a mini Vex window rendered with the theme's own variables
+    // (scoped via data-theme). No image files, so previews are always identical in
+    // style and can never be stale/cached/mismatched between builds.
     const upload = isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '';
     card.innerHTML = `
-      <div class="vtp-thumb" data-theme-preview="${t.id}">${mock}${img}${upload}
+      <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t.id)}${upload}
         <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</span>
       </div>
       <div class="vtp-label">
@@ -113,17 +107,19 @@ const ThemePicker = {
     return card;
   },
 
-  // A tiny CSS browser mockup (sidebar + tab dots + toolbar + text rows + an
-  // accent button) drawn from a theme's palette, so new themes get a real-looking
-  // preview without a screenshot PNG.
-  _mockHtml(m) {
-    const v = `--m-bg:${m.bg};--m-side:${m.side};--m-surf:${m.surf};--m-txt:${m.txt};--m-acc:${m.acc}`;
-    return `<div class="vtp-mock" style="${v}">
-        <div class="vtp-mock-side"><i class="on"></i><i></i><i></i><i></i></div>
-        <div class="vtp-mock-main">
-          <div class="vtp-mock-bar"></div>
-          <div class="vtp-mock-rows"><u></u><u></u><u style="width:55%"></u></div>
-          <div class="vtp-mock-pill"></div>
+  // A live mini Vex window rendered from the theme's own CSS variables (the
+  // wrapper carries data-theme, so var(--bg)/--surface/--primary/etc. resolve to
+  // that theme). Identical structure for every theme → perfectly consistent.
+  _livePreview(id) {
+    return `<div class="vtp-live" data-theme="${id}">
+        <div class="vl-top"><span class="vl-logo"></span><span class="vl-pill"></span><span class="vl-url"></span><span class="vl-b2"></span></div>
+        <div class="vl-body">
+          <div class="vl-rail"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+          <div class="vl-main">
+            <div class="vl-card"><span class="vl-circ"></span><span class="vl-cl"><b></b><u></u></span></div>
+            <div class="vl-field"><span class="vl-input"></span><span class="vl-go"></span></div>
+            <div class="vl-rows"><u></u><u></u><u style="width:48%"></u></div>
+          </div>
         </div>
       </div>`;
   },
