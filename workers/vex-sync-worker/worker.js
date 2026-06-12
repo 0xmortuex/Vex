@@ -141,6 +141,14 @@ export default {
         await env.VEX_AUTH_KV.delete(`attempts:${emailHash}`);
         await sendMagicCode(email, code, env);
 
+        // No-email fallback: without RESEND_API_KEY the code can't reach the
+        // user, so return it in the response. ⚠ This means anyone who knows
+        // your worker URL can enroll as any email — fine for a personal
+        // deployment you keep private; set RESEND_API_KEY to turn it off.
+        if (!env.RESEND_API_KEY) {
+          return json({ ok: true, message: 'No email configured — use this code', devCode: code });
+        }
+
         return json({ ok: true, message: 'Code sent to email' });
       }
 

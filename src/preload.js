@@ -48,6 +48,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Peek overlay (shift+click a link → floating preview)
   onPeekOpen: (cb) => ipcRenderer.on('peek:open', (_e, d) => cb(d)),
 
+  // RSS feeds (fetched in main to dodge CORS)
+  rssFetch: (url) => ipcRenderer.invoke('rss:fetch', url),
+
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),

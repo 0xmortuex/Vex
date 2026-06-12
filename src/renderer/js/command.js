@@ -17,6 +17,17 @@ const CommandBar = {
     { id: 'peek', label: 'Peek Current Page', hint: 'Preview the active page in a floating overlay (Shift+click links to peek them)', icon: '👁', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof VexPeek !== 'undefined') VexPeek.open(t.url); } },
     { id: 'zap', label: 'Zap Element', hint: 'Click any element on this page to hide it forever on this site', icon: '⚡', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } },
     { id: 'boost', label: 'Boost This Site', hint: 'Custom CSS / JS for the current site', icon: '🎨', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } },
+    { id: 'focus', label: 'Focus 25', hint: 'Hide all chrome + block distracting sites for 25 minutes (run again to stop)', icon: '🎯', action: () => FocusMode.toggle(25) },
+    { id: 'focus50', label: 'Focus 50', hint: 'A 50-minute focus session', icon: '🎯', action: () => FocusMode.toggle(50) },
+    { id: 'compact', label: 'Compact Mode', hint: 'Collapse the sidebars for maximum page space', icon: '🗜', action: () => CompactMode.toggle() },
+    { id: 'readaloud', label: 'Read Aloud', hint: 'Speak this article out loud (run again to stop)', icon: '🔊', action: () => ReadAloud.toggle() },
+    { id: 'compose', label: 'AI Compose', hint: 'Let AI write or rewrite text into the focused input on the page', icon: '✍️', action: () => AICompose.open() },
+    { id: 'bookmark', label: 'Bookmark This Page', hint: 'Star/unstar the current page', icon: '⭐', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) Bookmarks.toggle(t.url, t.title); } },
+    { id: 'bookmarks', label: 'Bookmarks', hint: 'Open the bookmarks panel', icon: '🔖', isPrimary: true, action: () => SidebarManager.openPanel ? SidebarManager.openPanel('bookmarks') : SidebarManager.showPanel('bookmarks') },
+    { id: 'feeds', label: 'Feeds (RSS)', hint: 'Open your feed reader', icon: '📰', isPrimary: true, action: () => SidebarManager.openPanel ? SidebarManager.openPanel('feeds') : SidebarManager.showPanel('feeds') },
+    { id: 'container-work', label: 'New Work Container Tab', hint: 'Isolated cookies — log into a second account', icon: '🗄', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-work' }) },
+    { id: 'container-personal', label: 'New Personal Container Tab', hint: 'Isolated cookies — log into a second account', icon: '🗄', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-personal' }) },
+    { id: 'container-shopping', label: 'New Shopping Container Tab', hint: 'Isolated cookies — tracked separately from your main session', icon: '🛒', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-shopping' }) },
     { id: 'sendphone', label: 'Send to Phone', hint: 'Hand this tab off to your other Vex devices (needs Vex Sync)', icon: '📲', action: async () => {
       const t = TabManager.getActiveTab();
       if (!t || !t.url) { window.showToast?.('No active page to send'); return; }

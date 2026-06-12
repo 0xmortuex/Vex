@@ -376,6 +376,45 @@ function _isVexStartPage(href) {
   }, true);
 })();
 
+
+// === Mouse-gesture tracker — right-button drag → direction(s) to host ===
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+  let sx = 0, sy = 0, tracking = false, moves = [];
+  const TH = 40; // px before a stroke counts
+  function dirOf(dx, dy) {
+    if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "R" : "L";
+    return dy > 0 ? "D" : "U";
+  }
+  document.addEventListener("mousedown", (e) => {
+    if (e.button !== 2) return;
+    tracking = true; sx = e.screenX; sy = e.screenY; moves = [];
+  }, true);
+  document.addEventListener("mousemove", (e) => {
+    if (!tracking) return;
+    const dx = e.screenX - sx, dy = e.screenY - sy;
+    if (Math.abs(dx) < TH && Math.abs(dy) < TH) return;
+    const d = dirOf(dx, dy);
+    if (moves[moves.length - 1] !== d && moves.length < 2) moves.push(d);
+    sx = e.screenX; sy = e.screenY;
+  }, true);
+  document.addEventListener("mouseup", (e) => {
+    if (e.button !== 2) return;
+    tracking = false;
+  }, true);
+  document.addEventListener("contextmenu", (e) => {
+    if (moves.length) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      try { ipcRenderer.sendToHost("vex-gesture", moves.join("")); } catch {}
+      moves = [];
+    }
+  }, true);
+})();
+
 // Export the pure origin matcher for unit tests (renderer loads this file as a
 // preload where module is undefined, so this guard keeps runtime unchanged).
 if (typeof module !== 'undefined' && module.exports) {

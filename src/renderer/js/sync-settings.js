@@ -109,9 +109,14 @@ const SyncSettings = (() => {
       const btn = document.getElementById('btn-send-code');
       btn.disabled = true; btn.textContent = 'Sending...';
       try {
-        await SyncEngine.requestCode(email);
+        const resp = await SyncEngine.requestCode(email);
         document.getElementById('step-code').hidden = false;
         document.getElementById('sync-code-input').focus();
+        // No-email worker deployments return the code directly (devCode).
+        if (resp && resp.devCode) {
+          document.getElementById('sync-code-input').value = resp.devCode;
+          window.showToast?.('Code filled in \u2014 click Verify');
+        }
         btn.textContent = 'Sent \u2713';
         setTimeout(() => { btn.textContent = 'Resend Code'; btn.disabled = false; }, 3000);
       } catch (err) {

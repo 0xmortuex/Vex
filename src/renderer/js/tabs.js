@@ -230,7 +230,7 @@ const TabManager = {
     this.setupDragDrop();
   },
 
-  createTab(url, activate = true, groupId = null) {
+  createTab(url, activate = true, groupId = null, opts = null) {
     const id = `tab-${++this.tabCounter}`;
     // A start tab gets the active theme baked into its URL (?theme=) so the
     // file://-loaded start page renders in-theme; real URLs pass through.
@@ -245,7 +245,9 @@ const TabManager = {
       pinned: false,
       unread: false,
       groupId: groupId,
-      stackId: null
+      stackId: null,
+      // Container tabs: an isolated cookie jar (persist:container-<name>)
+      partition: (opts && opts.partition) || null
     };
 
     this.tabs.push(tab);

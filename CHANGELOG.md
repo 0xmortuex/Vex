@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.2.0 (2026-06-12) — Focus, gestures, bookmarks, feeds & more
+
+### Added
+- **Focus Mode** — Ctrl+K → "Focus 25/50": hides all chrome and blocks distracting sites (editable blocklist in Settings → Focus) for the session.
+- **Compact Mode** — collapse both sidebars for maximum page space (persists).
+- **Mouse gestures** — hold right button and drag: ← back, → forward, ↑ top, ↓ reload, ↓→ close tab, ↓← reopen.
+- **Bookmarks** — ☆ in the URL bar + a Bookmarks sidebar panel with folders and search.
+- **Feeds (RSS)** — a minimal, algorithm-free feed reader panel.
+- **Read Aloud** — text-to-speech for the current article.
+- **AI Compose** — AI writes/rewrites text straight into the focused input on the page.
+- **Command Chains** — run several command-bar actions as one command (Settings → Command Chains).
+- **Container tabs** — Work/Personal/Shopping tabs with isolated cookies (log into two accounts at once).
+- **Cookie-banner auto-hide** — major consent walls are hidden and scroll unlocked (toggle in Settings).
+- **Screenshot annotation** — pen/box/arrow editor on captured screenshots.
+- Sync worker: no-email dev fallback for sign-in (returns the code when RESEND_API_KEY is absent).
+
 ## v2.1.0 (2026-06-12) — Peek, Skills, Boosts, Handoff & Passwords
 
 ### Added
