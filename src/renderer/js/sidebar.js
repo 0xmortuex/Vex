@@ -347,6 +347,9 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof WebLLM !== 'undefined') {
       WebLLM.renderSettings(document.getElementById('webllm-panel-content'));
     }
+    if (panelName === 'settings' && typeof McpClient !== 'undefined') {
+      McpClient.renderSettings(document.getElementById('mcp-panel-content'));
+    }
     if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
       // Categorize + colorize the settings panel (presentation only).
       SettingsUI.enhance();

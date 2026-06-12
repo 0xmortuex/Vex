@@ -19,6 +19,7 @@ const SettingsUI = {
     { name: 'Personas',    emoji: '🎭', color: '#8b5cf6', match: ['persona'] },
     { name: 'AI Memory',   emoji: '🧠', color: '#c084fc', match: ['ai memory'] },
     { name: 'On-Device',   emoji: '🖥', color: '#2dd4bf', match: ['on-device', 'webgpu'] },
+    { name: 'MCP',         emoji: '🔌', color: '#38bdf8', match: ['mcp'] },
     { name: 'Skills',      emoji: '⚡', color: '#fbbf24', match: ['skill'] },
     { name: 'Boosts',      emoji: '🎨', color: '#f472b6', match: ['boost'] },
     { name: 'Passwords',   emoji: '🔑', color: '#34d399', match: ['password'] },

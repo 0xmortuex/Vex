@@ -139,6 +139,7 @@ const CommandBar = {
     { id: 'remember-fact', label: 'AI: Remember a Fact', hint: 'Tell Vex AI something to keep in mind in every chat', icon: '🧠', action: () => { if (typeof AIMemory !== 'undefined') AIMemory.promptAdd(); } },
     { id: 'ai-memory', label: 'AI Memory', hint: 'Manage the facts Vex AI remembers about you', icon: '🧠', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('ai-memory-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
     { id: 'ondevice-ai', label: 'On-Device AI (WebGPU)', hint: 'Download a small model that runs fully locally — private & offline', icon: '🖥', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('webllm-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
+    { id: 'mcp', label: 'MCP Servers & Tools', hint: 'Connect to Model Context Protocol servers and run their tools', icon: '🔌', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('mcp-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
     // Phase 16: tab auto-grouping
     { id: 'group-tabs', label: 'Organize My Tabs', hint: 'AI clusters open tabs into groups', shortcut: 'Ctrl+Shift+G', icon: '🗂️', isPrimary: true, action: () => TabGrouper?.analyzeAndPropose() },
     { id: 'group-undo', label: 'Undo Last Grouping', hint: 'Revert the last AI group-apply', icon: '↩', action: () => TabGrouper?.undoLastGrouping() },
