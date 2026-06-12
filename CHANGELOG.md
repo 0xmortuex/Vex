@@ -1,9 +1,9 @@
 # Changelog
 
-## v2.16.4 (2026-06-12) — Consistent app-style previews for all themes
+## v2.16.5 (2026-06-12) — Revert to the original previews
 
-### Changed
-- **All 21 theme previews are now generated the same way** — a faithful full-app render (top bar, sidebar, tabs, Settings/Vex Sync content) at 1400×600 — so every theme card in the picker is consistent with the rest, each in its own colors.
+### Fixed
+- Restored the **original theme preview screenshots** (the real ones that were always there). v2.16.4 had overwritten them with a generated render — reverted to the v2.16.3 state (original screenshots for the first themes; matching previews for the newer ones).
 
 ## v2.16.3 (2026-06-12) — Restore original previews, match the new ones to them
 
