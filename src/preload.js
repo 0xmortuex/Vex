@@ -45,6 +45,15 @@ contextBridge.exposeInMainWorld('vex', {
   // Downloads (with progress tracking)
   onTabCreateFromExternal: (cb) => ipcRenderer.on('tab:create-from-external', (_e, d) => cb(d)),
 
+  // Peek overlay (shift+click a link → floating preview)
+  onPeekOpen: (cb) => ipcRenderer.on('peek:open', (_e, d) => cb(d)),
+
+  // Password vault (safeStorage-encrypted in main)
+  vaultList: () => ipcRenderer.invoke('vault:list'),
+  vaultGet: (host) => ipcRenderer.invoke('vault:get', host),
+  vaultSave: (entry) => ipcRenderer.invoke('vault:save', entry),
+  vaultDelete: (q) => ipcRenderer.invoke('vault:delete', q),
+
   // Permission prompts (geolocation, mic, camera, notifications, ...)
   onPermissionRequest:  (cb) => ipcRenderer.on('permission:request', (_e, d) => cb(d)),
   permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),

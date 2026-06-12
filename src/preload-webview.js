@@ -337,6 +337,45 @@ function _isVexStartPage(href) {
   }
 })();
 
+
+// === Password capture — offer to save credentials on login-form submit ===
+// Runs in every guest page. On submit of a form containing a password field,
+// sends {host, username, password} to the HOST renderer only (sendToHost —
+// never to the page). The host shows a save prompt; nothing is stored here.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  function extract(form) {
+    try {
+      const pw = form.querySelector("input[type=password]");
+      if (!pw || !pw.value) return null;
+      let user = "";
+      const cands = form.querySelectorAll("input[type=text],input[type=email],input:not([type])");
+      for (const c of cands) { if (c.value && c !== pw) { user = c.value; } }
+      if (!user) return null;
+      return { username: String(user).slice(0, 200), password: String(pw.value).slice(0, 500) };
+    } catch { return null; }
+  }
+
+  document.addEventListener("submit", (e) => {
+    try {
+      if (location.protocol !== "https:") return; // never capture over plain HTTP
+      const form = e.target;
+      if (!form || form.nodeName !== "FORM") return;
+      const creds = extract(form);
+      if (!creds) return;
+      ipcRenderer.sendToHost("vex-cred-submit", {
+        host: location.hostname.replace(/^www./, ""),
+        username: creds.username,
+        password: creds.password
+      });
+    } catch {}
+  }, true);
+})();
+
 // Export the pure origin matcher for unit tests (renderer loads this file as a
 // preload where module is undefined, so this guard keeps runtime unchanged).
 if (typeof module !== 'undefined' && module.exports) {

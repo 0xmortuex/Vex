@@ -1,0 +1,172 @@
+/* === Vex Settings — categorized, lively redesign ===
+   Loaded after the base styles so it layers on top. Works in every theme by
+   building on the --primary / --surface / --border / --text tokens, with a
+   per-category accent (--cat-color, set by settings-ui.js). */
+
+.settings-content {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 26px 26px 90px;
+}
+
+.settings-content > h2 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 4px 0 6px;
+  background: linear-gradient(90deg, var(--text), color-mix(in srgb, var(--primary) 70%, var(--text)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Sticky category chip nav (built by settings-ui.js) */
+.set-nav {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 0 14px;
+  margin-bottom: 6px;
+  background: linear-gradient(180deg, var(--bg, var(--vex-bg-base)) 70%, transparent);
+}
+.set-nav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .14s ease;
+  white-space: nowrap;
+}
+.set-nav-chip:hover {
+  color: var(--chip-color, var(--primary));
+  border-color: var(--chip-color, var(--primary));
+  background: color-mix(in srgb, var(--chip-color, var(--primary)) 12%, var(--surface));
+  transform: translateY(-1px);
+}
+
+/* Each setting-group becomes a vivid category card */
+.settings-content .setting-group {
+  position: relative;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--cat-color, var(--primary)) 6%, var(--surface)),
+      var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px 20px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.settings-content .setting-group::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg,
+    var(--cat-color, var(--primary)),
+    color-mix(in srgb, var(--cat-color, var(--primary)) 50%, transparent));
+}
+.settings-content .setting-group:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+  border-color: color-mix(in srgb, var(--cat-color, var(--primary)) 45%, var(--border));
+}
+
+/* Category header (label) — bigger, with a colored icon chip */
+.settings-content .setting-label {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.settings-content .setting-label .set-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  font-size: 16px;
+  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--cat-color, var(--primary)) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cat-color, var(--primary)) 35%, transparent);
+}
+
+.settings-content .setting-row-label {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+  font-weight: 500;
+}
+
+/* Inputs / selects */
+.settings-content select,
+.settings-content input[type="text"] {
+  background: var(--bg, var(--vex-glass-input));
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+.settings-content select:focus,
+.settings-content input[type="text"]:focus {
+  border-color: var(--cat-color, var(--primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cat-color, var(--primary)) 20%, transparent);
+}
+
+/* Toggle rows */
+.settings-content .setting-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: 13.5px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.settings-content .setting-toggle-row:first-of-type { border-top: none; }
+
+/* Toggle switch — accent gradient when on */
+.settings-content .toggle input:checked + .toggle-slider {
+  background: linear-gradient(135deg,
+    var(--cat-color, var(--primary)),
+    color-mix(in srgb, var(--cat-color, var(--primary)) 60%, #ffffff));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--cat-color, var(--primary)) 45%, transparent);
+}
+
+/* Buttons inside settings — give them life */
+.settings-content button {
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+.settings-content button:hover { transform: translateY(-1px); filter: brightness(1.06); }
+.settings-content button:active { transform: translateY(0); }
+
+/* Make the AI status card and radio group feel less flat */
+.settings-content .ai-status-card {
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+  border-radius: 12px;
+}
+.settings-content .status-badge {
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 600;
+}

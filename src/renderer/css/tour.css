@@ -1,0 +1,106 @@
+/* === Vex interactive tour (spotlight onboarding) === */
+
+.vex-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 100000; /* above command bar, AI panel, everything */
+}
+.vex-tour[hidden] { display: none; }
+
+/* The bright "hole" around the highlighted element. A huge box-shadow darkens
+   the rest of the window; the element shows through. */
+.vex-tour-hole {
+  position: fixed;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.66);
+  border: 2px solid var(--primary, #6366f1);
+  transition: top .22s ease, left .22s ease, width .22s ease, height .22s ease;
+}
+
+.vex-tour-card {
+  position: fixed;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface, #151921);
+  color: var(--text, #e5e9f0);
+  border: 1px solid var(--border, #1f2530);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  z-index: 100001;
+  transition: top .22s ease, left .22s ease;
+}
+.vex-tour-step {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7482);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.vex-tour-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary, #6366f1);
+  margin-bottom: 8px;
+}
+.vex-tour-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text, #e5e9f0);
+}
+.vex-tour-text kbd {
+  background: var(--bg, #0a0c10);
+  border: 1px solid var(--border, #1f2530);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-family: var(--vex-font-mono, monospace);
+}
+.vex-tour-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+.vex-tour-spacer { flex: 1; }
+.vex-tour-btns button {
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  padding: 8px 14px;
+}
+.vex-tour-skip {
+  background: transparent;
+  color: var(--text-muted, #6b7482);
+  padding: 8px 4px !important;
+}
+.vex-tour-skip:hover { color: var(--text, #e5e9f0); }
+.vex-tour-back {
+  background: var(--bg-2, #0f1218);
+  color: var(--text, #e5e9f0);
+  border: 1px solid var(--border, #1f2530) !important;
+}
+.vex-tour-next {
+  background: var(--primary, #6366f1);
+  color: #fff;
+  font-weight: 600;
+}
+.vex-tour-next:hover { background: var(--primary-hover, #5558e6); }
+
+/* "Take a tour" button on the welcome card */
+.welcome-actions .btn-tour {
+  background: transparent;
+  color: var(--primary, #6366f1);
+  border: 1px solid var(--primary, #6366f1);
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.welcome-actions .btn-tour:hover { background: var(--accent-glow, rgba(99, 102, 241, 0.12)); }

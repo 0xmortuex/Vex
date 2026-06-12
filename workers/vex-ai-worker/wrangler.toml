@@ -12,5 +12,5 @@ compatibility_date = "2024-01-01"
 # If you need to deploy before provisioning, delete this block — the worker
 # fails open (no limit) when the binding is absent.
 kv_namespaces = [
-  { binding = "VEX_AI_KV", id = "REPLACE_WITH_KV_NAMESPACE_ID" }
+  { binding = "VEX_AI_KV", id = "a3f1642d5b874cadad63fc97e6bdd3a6" }
 ]

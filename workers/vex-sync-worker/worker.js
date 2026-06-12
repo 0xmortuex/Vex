@@ -282,7 +282,48 @@ export default {
           const blobKey = `blob:${session.emailHash}`;
           await env.VEX_SYNC_KV.delete(blobKey);
           await env.VEX_SYNC_KV.delete(devicesKey);
+          await env.VEX_SYNC_KV.delete(`drop:${session.emailHash}`);
           return json({ ok: true });
+        }
+
+        // ====== DROP — cross-device tab handoff ("Send to Phone/Desktop") ======
+        // A small mailbox per account: POST adds {url,title} stamped with the
+        // sending device; GET delivers (and consumes) every item that was NOT
+        // sent by the requesting device. Plain URLs/titles only — no page data.
+        if (path === '/sync/drop' && request.method === 'POST') {
+          const { url: dropUrl, title } = await request.json();
+          if (!dropUrl || typeof dropUrl !== 'string' || !/^https?:\/\//i.test(dropUrl)) {
+            return json({ error: 'Invalid url' }, 400);
+          }
+          const dropKey = `drop:${session.emailHash}`;
+          const existing = await env.VEX_SYNC_KV.get(dropKey);
+          let items = [];
+          try { items = existing ? JSON.parse(existing) : []; } catch { items = []; }
+          items.push({
+            id: randomId(8),
+            url: dropUrl.slice(0, 2048),
+            title: String(title || '').slice(0, 300),
+            fromDeviceId: session.deviceId,
+            fromDeviceName: session.deviceName,
+            at: new Date().toISOString()
+          });
+          if (items.length > 20) items = items.slice(-20);
+          await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(items), { expirationTtl: 60 * 60 * 24 * 7 });
+          return json({ ok: true });
+        }
+
+        if (path === '/sync/drop' && request.method === 'GET') {
+          const dropKey = `drop:${session.emailHash}`;
+          const existing = await env.VEX_SYNC_KV.get(dropKey);
+          let items = [];
+          try { items = existing ? JSON.parse(existing) : []; } catch { items = []; }
+          const mine = items.filter(i => i.fromDeviceId !== session.deviceId);
+          const rest = items.filter(i => i.fromDeviceId === session.deviceId);
+          if (mine.length) {
+            if (rest.length) await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(rest), { expirationTtl: 60 * 60 * 24 * 7 });
+            else await env.VEX_SYNC_KV.delete(dropKey);
+          }
+          return json({ ok: true, items: mine });
         }
       }
 

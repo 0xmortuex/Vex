@@ -581,6 +581,30 @@
   // WebHID device chooser (navigator.hid.requestDevice)
   if (typeof HidPicker !== 'undefined') HidPicker.init();
 
+  // Peek overlay — shift+click a link → floating preview
+  if (typeof VexPeek !== 'undefined') VexPeek.init();
+
+  // AI Skills (saved prompts) + Boosts (per-site customization)
+  if (typeof VexSkills !== 'undefined') VexSkills.init();
+  if (typeof VexBoosts !== 'undefined') VexBoosts.init();
+
+  // Cross-device handoff: receive tabs sent from other Vex devices (mobile).
+  // Polls on focus + every 2 minutes when Vex Sync is signed in.
+  const checkDrops = async () => {
+    try {
+      if (typeof SyncEngine === 'undefined' || !SyncEngine.isEnabled?.()) return;
+      const items = await SyncEngine.dropFetch();
+      items.forEach(item => {
+        if (!item || !item.url) return;
+        try { TabManager.createTab(item.url, false); } catch {}
+        window.showToast?.(`📲 Tab from ${item.fromDeviceName || 'another device'}: ${item.title || item.url}`);
+      });
+    } catch {}
+  };
+  window.addEventListener('focus', checkDrops);
+  setInterval(checkDrops, 2 * 60 * 1000);
+  setTimeout(checkDrops, 8000); // shortly after launch
+
   // External link → new tab (target="_blank", window.open, middle-click)
   window.vex?.onTabCreateFromExternal?.((data) => {
     if (!data || !data.url) return;
@@ -787,15 +811,27 @@
         <div class="welcome-feature"><span class="feature-icon">&#9889;</span><div><strong>No bloat</strong><br><span>Only the features you actually use</span></div></div>
       </div>
       <div class="welcome-actions">
+        <button class="btn-tour" id="welcome-tour">Take a tour</button>
         <button class="btn-primary" id="welcome-start">Let's Go</button>
       </div>
     </div>`;
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add('show'));
-    document.getElementById('welcome-start')?.addEventListener('click', () => {
+    const closeWelcome = () => {
       overlay.classList.remove('show');
       setTimeout(() => overlay.remove(), 400);
+    };
+    document.getElementById('welcome-start')?.addEventListener('click', () => {
+      try { localStorage.setItem('vex.tourSeen', '1'); } catch {}
+      closeWelcome();
     });
+    document.getElementById('welcome-tour')?.addEventListener('click', () => {
+      closeWelcome();
+      setTimeout(() => { try { VexTour.start(); } catch {} }, 420);
+    });
+  } else if (!localStorage.getItem('vex.tourSeen')) {
+    // Existing user who hasn't seen the tour yet — offer it once after load.
+    setTimeout(() => { try { if (typeof VexTour !== 'undefined') VexTour.start(); } catch {} }, 1000);
   }
 
   // === Phase 8: Scheduler ===

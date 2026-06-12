@@ -8,6 +8,6 @@ compatibility_date = "2024-01-01"
 #   wrangler kv namespace create VEX_AUTH_KV
 # See SELF_HOSTING.md. (Optional email delivery: wrangler secret put RESEND_API_KEY)
 kv_namespaces = [
-  { binding = "VEX_SYNC_KV", id = "REPLACE_WITH_VEX_SYNC_KV_ID" },
-  { binding = "VEX_AUTH_KV", id = "REPLACE_WITH_VEX_AUTH_KV_ID" }
+  { binding = "VEX_SYNC_KV", id = "40c0bad652014244a39befef24c28b32" },
+  { binding = "VEX_AUTH_KV", id = "2ad5d370a6ad477ab1e95285f5fc671d" }
 ]

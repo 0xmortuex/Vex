@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents } = require('electron');
+const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents, safeStorage } = require('electron');
 
 // Enable Chromium's rich print preview UI (Save as PDF, margin controls,
 // pages-per-sheet, background graphics, etc.). Without these flags Electron
@@ -297,6 +297,56 @@ ipcMain.handle('permission:respond', (_e, payload) => {
   }
   return { ok: true };
 });
+// === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
+// The renderer never sees the file; plaintext secrets only cross IPC when the
+// user autofills/copies. If safeStorage is unavailable (rare: no keychain),
+// the vault refuses to save rather than writing plaintext.
+const VAULT_FILE = () => path.join(app.getPath('userData'), 'vault.dat');
+function vaultLoad() {
+  try {
+    const fsx = require('fs');
+    if (!fsx.existsSync(VAULT_FILE())) return [];
+    const enc = fsx.readFileSync(VAULT_FILE());
+    const raw = safeStorage.decryptString(enc);
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (err) {
+    console.error('[Vault] load failed:', err.message);
+    return [];
+  }
+}
+function vaultSave(arr) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('OS encryption unavailable');
+  const fsx = require('fs');
+  fsx.writeFileSync(VAULT_FILE(), safeStorage.encryptString(JSON.stringify(arr)));
+}
+ipcMain.handle('vault:list', () => {
+  // Metadata only — no passwords cross this channel.
+  return vaultLoad().map(e => ({ host: e.host, username: e.username, updatedAt: e.updatedAt }));
+});
+ipcMain.handle('vault:get', (_e, host) => {
+  if (!host || typeof host !== 'string') return [];
+  return vaultLoad().filter(e => e.host === host);
+});
+ipcMain.handle('vault:save', (_e, entry) => {
+  const { host, username, password } = entry || {};
+  if (!host || !username || !password) return { ok: false, error: 'Missing fields' };
+  try {
+    const arr = vaultLoad();
+    const existing = arr.find(e => e.host === host && e.username === username);
+    if (existing) { existing.password = password; existing.updatedAt = new Date().toISOString(); }
+    else arr.push({ host, username, password, updatedAt: new Date().toISOString() });
+    vaultSave(arr);
+    return { ok: true, updated: !!existing };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('vault:delete', (_e, { host, username } = {}) => {
+  try {
+    vaultSave(vaultLoad().filter(e => !(e.host === host && e.username === username)));
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('permissions:list',     () => loadPermissionDecisions());
 ipcMain.handle('permissions:revoke',   (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; savePermissionDecisions(d); return { ok: true }; });
 ipcMain.handle('permissions:clear-all', () => { savePermissionDecisions({}); return { ok: true }; });
@@ -789,10 +839,17 @@ app.on('web-contents-created', (_event, contents) => {
     try {
       const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
       if (win && url) {
-        win.webContents.send('tab:create-from-external', {
-          url,
-          background: disposition === 'background-tab' || disposition === 'save-to-disk'
-        });
+        // Shift+click (and window.open popups that survived the filters above)
+        // arrive as 'new-window' — open those in the Peek overlay instead of a
+        // full tab. Plain target=_blank / middle-click stay tabs.
+        if (disposition === 'new-window') {
+          win.webContents.send('peek:open', { url });
+        } else {
+          win.webContents.send('tab:create-from-external', {
+            url,
+            background: disposition === 'background-tab' || disposition === 'save-to-disk'
+          });
+        }
       }
     } catch (err) { console.error('[new-window] forward failed:', err.message); }
     return { action: 'deny' };
