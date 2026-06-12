@@ -17,6 +17,7 @@ const SettingsUI = {
     { name: 'Sync',        emoji: '🔄', color: '#06b6d4', match: ['sync'] },
     { name: 'AI',          emoji: '✦', color: '#d4a574', match: ['ai backend', 'ai b', 'assistant'] },
     { name: 'Personas',    emoji: '🎭', color: '#8b5cf6', match: ['persona'] },
+    { name: 'AI Memory',   emoji: '🧠', color: '#c084fc', match: ['ai memory'] },
     { name: 'Skills',      emoji: '⚡', color: '#fbbf24', match: ['skill'] },
     { name: 'Boosts',      emoji: '🎨', color: '#f472b6', match: ['boost'] },
     { name: 'Passwords',   emoji: '🔑', color: '#34d399', match: ['password'] },

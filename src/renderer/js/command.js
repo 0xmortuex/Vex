@@ -136,6 +136,8 @@ const CommandBar = {
     // Phase 15: personas
     { id: 'personas', label: 'Manage AI Personas', hint: 'Create, edit, export AI personas', icon: '🎭', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('personas-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
     { id: 'persona-new', label: 'New Persona...', hint: 'Create a custom AI assistant', icon: '➕', action: () => { if (typeof PersonasSettings !== 'undefined') PersonasSettings.showPersonaEditor(null); } },
+    { id: 'remember-fact', label: 'AI: Remember a Fact', hint: 'Tell Vex AI something to keep in mind in every chat', icon: '🧠', action: () => { if (typeof AIMemory !== 'undefined') AIMemory.promptAdd(); } },
+    { id: 'ai-memory', label: 'AI Memory', hint: 'Manage the facts Vex AI remembers about you', icon: '🧠', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('ai-memory-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
     // Phase 16: tab auto-grouping
     { id: 'group-tabs', label: 'Organize My Tabs', hint: 'AI clusters open tabs into groups', shortcut: 'Ctrl+Shift+G', icon: '🗂️', isPrimary: true, action: () => TabGrouper?.analyzeAndPropose() },
     { id: 'group-undo', label: 'Undo Last Grouping', hint: 'Revert the last AI group-apply', icon: '↩', action: () => TabGrouper?.undoLastGrouping() },

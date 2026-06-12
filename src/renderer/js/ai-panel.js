@@ -319,12 +319,20 @@ const AIPanel = {
       const featureMap = { chat: 'chat', summarize: 'summarize', translate: 'translate', explain: 'explain' };
       const feature = featureMap[action] || 'chat';
       const persona = this.getActivePersona();
+      // Persistent AI memory: prepend remembered facts as a system message at the
+      // FRONT of the history (kept ≤10 total so the worker's slice(-10) preserves
+      // it). Additive — works on both local + cloud without changing the prompt.
+      let conversationHistory = conv.filter(m => m.role !== 'system').slice(-10);
+      if (feature === 'chat' && typeof AIMemory !== 'undefined') {
+        const memMsg = AIMemory.historyMessage();
+        if (memMsg) conversationHistory = [memMsg, ...conversationHistory.slice(-9)];
+      }
       const aiResult = await AIRouter.callAI(feature, {
         message: opts.message,
         pageContext,
         selectedText: opts.selectedText,
         targetLanguage: opts.targetLanguage,
-        conversationHistory: conv.filter(m => m.role !== 'system').slice(-10),
+        conversationHistory,
         persona: persona ? {
           id: persona.id,
           systemPrompt: persona.systemPrompt,

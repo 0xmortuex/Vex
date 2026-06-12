@@ -341,6 +341,9 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof PrivacyPack !== 'undefined') {
       PrivacyPack.renderSettings(document.getElementById('privacy-panel-content'));
     }
+    if (panelName === 'settings' && typeof AIMemory !== 'undefined') {
+      AIMemory.renderSettings(document.getElementById('ai-memory-panel-content'));
+    }
     if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
       // Categorize + colorize the settings panel (presentation only).
       SettingsUI.enhance();

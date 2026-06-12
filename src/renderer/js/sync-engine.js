@@ -33,6 +33,8 @@ const SyncEngine = (() => {
     // (per-tab selections live under vex.activePersonaByTab.* and are NOT
     // synced — tab ids are device-local)
     'vex.personas', 'vex.activePersona',
+    // Persistent AI memory (facts the assistant remembers) — follows you across devices
+    'vex.aiMemory',
     // Phase 16: tab auto-grouping preferences + remembered patterns
     // (groupPatterns uses local group ids, but that's fine — matching is
     // reconstructed from patterns on the other device)
