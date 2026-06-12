@@ -543,6 +543,20 @@
     }
   }
 
+  // === Memory guard (adaptive — sleeps idle tabs only under memory pressure) ===
+  if (settings.memCeilingMB === undefined) { settings.memCeilingMB = 1200; await VexStorage.saveSettings(settings); }
+  const memCeilingSel = document.getElementById('setting-mem-ceiling');
+  if (memCeilingSel) {
+    memCeilingSel.value = String(settings.memCeilingMB ?? 1200);
+    const applyMemGuard = () => {
+      settings.memCeilingMB = parseInt(memCeilingSel.value || '0', 10);
+      VexStorage.saveSettings(settings);
+      TabManager.startMemoryGuard(settings.memCeilingMB);
+    };
+    memCeilingSel.addEventListener('change', applyMemGuard);
+  }
+  TabManager.startMemoryGuard(settings.memCeilingMB ?? 1200);
+
   // === Split Screen ===
   window.vex.onToggleSplit(() => SplitScreen.toggle());
   window.vex.onTogglePip(() => { if (window.PiPManager) window.PiPManager.toggle(); });

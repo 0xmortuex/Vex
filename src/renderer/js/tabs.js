@@ -1261,6 +1261,37 @@ const TabManager = {
     }
   },
 
+  // === Memory-pressure guard (adaptive) ===
+  // Only when total browser memory crosses the ceiling, sleep the least-
+  // recently-viewed background tabs (never the active or pinned ones) until
+  // back under. Light sessions are never touched; heavy ones stay capped —
+  // this is what keeps Vex near its floor without disrupting normal use.
+  startMemoryGuard(ceilingMB) {
+    this.stopMemoryGuard();
+    this._memCeiling = ceilingMB || 0;
+    if (!this._memCeiling) return;
+    this._memGuard = setInterval(() => this._memorySweep(), 45000);
+    setTimeout(() => this._memorySweep(), 20000);
+  },
+  stopMemoryGuard() { if (this._memGuard) { clearInterval(this._memGuard); this._memGuard = null; } },
+  async _memorySweep() {
+    if (!this._memCeiling || !(window.vex && window.vex.appMetrics)) return;
+    let metrics;
+    try { metrics = await window.vex.appMetrics(); } catch { return; }
+    const totalMB = metrics.reduce((s, p) => s + (p.memKB || 0), 0) / 1024;
+    if (totalMB <= this._memCeiling) return;
+    const cands = this.tabs
+      .filter(t => t.id !== this.activeTabId && !t.pinned && !t.sleeping && !t._lazy)
+      .sort((a, b) => (a.lastViewedAt || 0) - (b.lastViewedAt || 0));
+    let slept = 0;
+    for (const t of cands) {
+      if (slept >= 5) break; // small batches; re-evaluate next tick
+      await this.sleepTab(t.id);
+      slept++;
+    }
+    if (slept) window.showToast?.(`💤 High memory — slept ${slept} idle tab${slept === 1 ? '' : 's'}`);
+  },
+
   // === Recently Closed ===
   reopenLastClosed() {
     const list = getRecentlyClosed();

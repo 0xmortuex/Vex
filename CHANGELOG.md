@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.2 (2026-06-12) — Adaptive memory guard
+
+### Added
+- **Memory guard** (Settings → Performance) — when total browser memory crosses a ceiling (default 1.2 GB), Vex sleeps the least-recently-used background tabs (never the active or pinned ones) until back under. Light sessions are untouched; heavy ones stay capped, keeping Vex near its floor without disrupting normal use. Off / 0.9 / 1.2 / 1.6 / 2.4 GB.
+
 ## v2.3.1 (2026-06-12) — Lazy session restore (big memory win)
 
 ### Changed
