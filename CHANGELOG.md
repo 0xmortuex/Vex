@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.14.0 (2026-06-12) — First-run setup wizard
+
+### Added
+- **First-run setup wizard** — on a fresh install, Vex now walks you step-by-step through setting up each tool: pick a **theme**, your **name**, **weather** location, **GitHub** username, and **AI backend** (cloud worker URL / detect Ollama / on-device later). Every step has a **Skip**, and there's a **Skip setup** to bail entirely. Re-run anytime via Ctrl+K → "Run Setup Wizard". Existing installs never see it.
+
+### Changed
+- **Weather now shows °C** instead of °F on the start page.
+
 ## v2.13.0 (2026-06-12) — Theme button on the start page
 
 ### Added

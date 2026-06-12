@@ -1240,10 +1240,10 @@
           const loc = await (await fetch('https://ipapi.co/json/')).json();
           lat = loc.latitude; lon = loc.longitude; city = loc.city;
         }
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=fahrenheit`);
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=celsius`);
         const data = await res.json();
         const temp = Math.round(data.current_weather.temperature);
-        document.getElementById('weather-temp').textContent = `${temp}°F`;
+        document.getElementById('weather-temp').textContent = `${temp}°C`;
         document.getElementById('weather-desc').textContent =
           (codes[data.current_weather.weathercode] || 'Unknown') + (city ? ` · ${city}` : '');
       } catch {

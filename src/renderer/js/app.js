@@ -631,6 +631,9 @@
   // MCP client (loads configured servers; connects on demand only)
   if (typeof McpClient !== 'undefined') McpClient.init();
 
+  // First-run setup wizard (shows once on a fresh install only)
+  if (typeof Onboarding !== 'undefined') Onboarding.maybeStart();
+
   // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
   window.addEventListener('keydown', (e) => {
     if (!e.ctrlKey || !e.altKey || !['1', '2', '3'].includes(e.key)) return;
