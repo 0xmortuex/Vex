@@ -951,6 +951,7 @@
   }
   if (tabsToggleBtn) tabsToggleBtn.addEventListener('click', toggleTabsSidebar);
   document.getElementById('btn-collapse-tabs')?.addEventListener('click', toggleTabsSidebar);
+  document.getElementById('btn-toggle-tabs-left')?.addEventListener('click', toggleTabsSidebar);
   // Restore on load
   if (localStorage.getItem('vex.tabsHidden') === 'true') {
     document.body.classList.add('tabs-hidden');

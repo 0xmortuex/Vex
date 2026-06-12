@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.19.1 (2026-06-12) — Sidebar toggle by the sync icon
+
+### Added
+- A **close/open left sidebar** button in the top bar, right next to the Vex Sync icon (also still on Ctrl+B and in the tabs header).
+
 ## v2.19.0 (2026-06-12) — Force-refresh theme previews
 
 ### Fixed
