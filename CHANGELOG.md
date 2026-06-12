@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.4 (2026-06-12) — Guided tour
+
+### Added
+- **Interactive tour** — a spotlight walkthrough that highlights every control (address bar, vertical tabs, workspaces, command bar, AI agent, split screen…) with Back / Next / Skip. Offered automatically on first run; replay anytime via `Ctrl+K` → "Tour".
+
+
 ## v1.2.0 (2026-04-16) — Polish & Cleanup
 
 ### Changed
