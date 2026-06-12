@@ -84,6 +84,17 @@ const WebviewManager = {
           if (entry) HistoryIndexer.queueForIndexing(entry, webview);
         } catch (e) { /* best-effort */ }
       }, 2000);
+
+      // Full-text recall: index the page's readable text locally so it can be
+      // found later by content (waits for dynamic content to settle).
+      setTimeout(() => {
+        try {
+          if (typeof Recall === 'undefined') return;
+          const url = webview.getURL && webview.getURL();
+          const t = TabManager.tabs.find(x => x.id === tab.id);
+          if (url) Recall.indexPage(webview, url, t && t.title);
+        } catch (e) { /* best-effort */ }
+      }, 2500);
     });
 
     webview.addEventListener('page-title-updated', (e) => {
@@ -97,6 +108,10 @@ const WebviewManager = {
         if (typeof VexBoosts !== 'undefined' && t && t.url) VexBoosts.applyTo(webview, t.url);
         if (typeof PasswordVault !== 'undefined' && t && t.url) PasswordVault.autofill(webview, t.url);
         if (typeof ConsentBlock !== 'undefined') ConsentBlock.applyTo(webview);
+        // Reading & accessibility pack (dyslexia font / CVD filter / ruler)
+        if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.applyTo(webview);
+        // Re-apply persistent highlights for this page
+        if (typeof Annotations !== 'undefined' && t && t.url) Annotations.applyTo(webview, t.url);
       } catch {}
     });
 
@@ -452,6 +467,12 @@ const WebviewManager = {
         label: 'Copy',
         action: () => webview.copy()
       });
+      if (typeof Annotations !== 'undefined') {
+        items.push({
+          label: '🖍 Highlight',
+          action: () => Annotations.highlight('yellow')
+        });
+      }
       // AI options for selected text
       if (typeof AIPanel !== 'undefined') {
         const sel = e.params.selectionText;

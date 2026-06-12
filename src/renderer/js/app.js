@@ -612,6 +612,10 @@
   if (typeof ReadLater !== 'undefined') ReadLater.init();
   if (typeof TabArchiver !== 'undefined') TabArchiver.init();
 
+  // Reading & accessibility pack + persistent highlights + full-text recall
+  if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.init();
+  if (typeof Annotations !== 'undefined') Annotations.init();
+
   // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
   window.addEventListener('keydown', (e) => {
     if (!e.ctrlKey || !e.altKey || !['1', '2', '3'].includes(e.key)) return;

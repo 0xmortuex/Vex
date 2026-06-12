@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.4.0 (2026-06-12) — Reading pack: highlights, recall & accessibility
+
+### Added
+- **Persistent highlights** — select text on any page and highlight it (Ctrl+K → "Highlight", or right-click → Highlight; yellow/green/pink). Highlights are stored locally per-URL and **reappear every time you revisit the page**. Add a note to any highlight. New **Highlights** sidebar panel lists every highlight across all pages, grouped by page, with a count badge.
+- **Recall ("memex")** — full-text search of everything you've read. As you browse, the readable text of each page is indexed locally (capped, stored in `userData/recall.json`, never uploaded). The new **Recall** sidebar panel finds any page by its *content* — "that paragraph about DPI throttling" — not just its title. Off-the-record/container/file pages are never indexed. Toggle + clear in Settings → Recall.
+- **Reading & Accessibility pack** (Settings → Reading & Accessibility), applied to every page:
+  - **Dyslexia-friendly fonts** — Lexend, Atkinson Hyperlegible, OpenDyslexic.
+  - **Color-vision filters** — protanopia / deuteranopia / tritanopia simulation + grayscale (feColorMatrix).
+  - **Reading ruler** — a translucent bar that follows your cursor to keep your place.
+  - **Bionic Reading** (Ctrl+K) — bolds the start of each word to speed reading; run again to undo.
+  - **Speed Read / RSVP** (Ctrl+K) — flashes the article one word at a time at an adjustable 150–900 WPM.
+  - **Translate Selection** (Ctrl+K) — translate highlighted text into your language inline.
+
 ## v2.3.2 (2026-06-12) — Adaptive memory guard
 
 ### Added

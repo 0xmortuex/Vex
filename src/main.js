@@ -316,6 +316,75 @@ ipcMain.handle('app:metrics', () => {
   } catch { return []; }
 });
 
+// === Full-text recall ("memex") — index the text of pages you read, search it
+// later. Stored as a capped JSON log in userData; local only, never uploaded. ===
+const RECALL_FILE = () => path.join(app.getPath('userData'), 'recall.json');
+const RECALL_MAX = 2000;
+let _recallCache = null;
+function recallLoad() {
+  if (_recallCache) return _recallCache;
+  try {
+    const fsx = require('fs');
+    _recallCache = fsx.existsSync(RECALL_FILE()) ? JSON.parse(fsx.readFileSync(RECALL_FILE(), 'utf8')) : [];
+    if (!Array.isArray(_recallCache)) _recallCache = [];
+  } catch { _recallCache = []; }
+  return _recallCache;
+}
+let _recallSaveTimer = null;
+function recallPersist() {
+  clearTimeout(_recallSaveTimer);
+  _recallSaveTimer = setTimeout(() => {
+    try { require('fs').writeFileSync(RECALL_FILE(), JSON.stringify(_recallCache || [])); } catch {}
+  }, 1500);
+}
+ipcMain.handle('recall:index', (_e, entry) => {
+  try {
+    const { url, title, text } = entry || {};
+    if (!url || !/^https?:/i.test(url) || !text || text.length < 120) return { ok: false };
+    const arr = recallLoad();
+    const i = arr.findIndex(e => e.url === url);
+    const rec = { url, title: String(title || '').slice(0, 300), text: String(text).slice(0, 6000), at: Date.now() };
+    if (i >= 0) arr[i] = rec; else arr.unshift(rec);
+    if (arr.length > RECALL_MAX) arr.length = RECALL_MAX;
+    recallPersist();
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('recall:search', (_e, query) => {
+  try {
+    const q = String(query || '').toLowerCase().trim();
+    if (!q) return [];
+    const terms = q.split(/\s+/).filter(Boolean);
+    const arr = recallLoad();
+    const scored = [];
+    for (const e of arr) {
+      const hay = (e.title + ' ' + e.text).toLowerCase();
+      let score = 0;
+      for (const t of terms) { const n = hay.split(t).length - 1; if (!n) { score = 0; break; } score += n; }
+      if (score > 0) {
+        const idx = e.text.toLowerCase().indexOf(terms[0]);
+        const snippet = idx >= 0 ? e.text.slice(Math.max(0, idx - 60), idx + 120) : e.text.slice(0, 160);
+        scored.push({ url: e.url, title: e.title, at: e.at, score, snippet });
+      }
+    }
+    return scored.sort((a, b) => b.score - a.score).slice(0, 40);
+  } catch { return []; }
+});
+ipcMain.handle('recall:clear', () => { _recallCache = []; recallPersist(); return { ok: true }; });
+
+// === Translate arbitrary text/word (free Google endpoint, via main to dodge CORS) ===
+ipcMain.handle('translate:text', async (_e, { text, tl } = {}) => {
+  try {
+    if (!text) return null;
+    const u = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' +
+      encodeURIComponent(tl || 'en') + '&dt=t&q=' + encodeURIComponent(String(text).slice(0, 400));
+    const res = await net.fetch(u);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data && data[0]) ? data[0].map(s => s[0]).join('') : null;
+  } catch { return null; }
+});
+
 // === RSS fetch (renderer fetch would be CORS-blocked for arbitrary feeds) ===
 ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   try {

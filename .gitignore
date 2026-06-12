@@ -10,6 +10,7 @@ dist/
 
 # Local scratch / throwaway harnesses — never part of a release
 tmp_*.js
+dist-build.log
 test-output/
 test-icons/
 GLASSMORPHISM_TESTING.md

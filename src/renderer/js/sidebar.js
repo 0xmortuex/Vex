@@ -89,7 +89,7 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library'],
+  customPanels: ['settings', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library', 'annotations', 'recall'],
 
   panelConfigs: {
     start: { url: null, partition: null },
@@ -108,7 +108,9 @@ const SidebarManager = {
     shortcuts: { url: null, partition: null },
     bookmarks: { url: null, partition: null },
     feeds: { url: null, partition: null },
-    library: { url: null, partition: null }
+    library: { url: null, partition: null },
+    annotations: { url: null, partition: null },
+    recall: { url: null, partition: null }
   },
 
   // ---- Pin ANY site as a sidebar panel (Vivaldi-style web panels) ----
@@ -278,6 +280,8 @@ const SidebarManager = {
     if (panelName === 'bookmarks' && typeof Bookmarks !== 'undefined') Bookmarks.renderPanel(panelEl);
     if (panelName === 'feeds' && typeof VexFeeds !== 'undefined') VexFeeds.renderPanel(panelEl);
     if (panelName === 'library' && typeof ReadLater !== 'undefined') ReadLater.renderPanel(panelEl);
+    if (panelName === 'annotations' && typeof Annotations !== 'undefined') Annotations.renderPanel(panelEl);
+    if (panelName === 'recall' && typeof Recall !== 'undefined') Recall.renderPanel(panelEl);
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');
@@ -327,6 +331,12 @@ const SidebarManager = {
     }
     if (panelName === 'settings' && typeof TabArchiver !== 'undefined') {
       TabArchiver.renderSettings(document.getElementById('library-panel-content'));
+    }
+    if (panelName === 'settings' && typeof AccessibilityPack !== 'undefined') {
+      AccessibilityPack.renderPanel(document.getElementById('a11y-panel-content'));
+    }
+    if (panelName === 'settings' && typeof Recall !== 'undefined') {
+      Recall.renderSettings(document.getElementById('recall-panel-content'));
     }
     if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
       // Categorize + colorize the settings panel (presentation only).

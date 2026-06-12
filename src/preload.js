@@ -55,6 +55,12 @@ contextBridge.exposeInMainWorld('vex', {
   qrMake: (text) => ipcRenderer.invoke('qr:make', text),
   appMetrics: () => ipcRenderer.invoke('app:metrics'),
 
+  // Full-text recall (memex) + translate (both run in main)
+  recallIndex: (entry) => ipcRenderer.invoke('recall:index', entry),
+  recallSearch: (q) => ipcRenderer.invoke('recall:search', q),
+  recallClear: () => ipcRenderer.invoke('recall:clear'),
+  translateText: (text, tl) => ipcRenderer.invoke('translate:text', { text, tl }),
+
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),

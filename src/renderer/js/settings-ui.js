@@ -22,6 +22,8 @@ const SettingsUI = {
     { name: 'Passwords',   emoji: '🔑', color: '#34d399', match: ['password'] },
     { name: 'Focus',       emoji: '🎯', color: '#fb7185', match: ['focus'] },
     { name: 'Library',     emoji: '📚', color: '#38bdf8', match: ['library'] },
+    { name: 'Reading',     emoji: '📖', color: '#818cf8', match: ['reading', 'accessibility'] },
+    { name: 'Recall',      emoji: '🔎', color: '#2dd4bf', match: ['recall'] },
     { name: 'Chains',      emoji: '⛓', color: '#a3a3a3', match: ['chain'] },
     { name: 'Extras',      emoji: '🖱', color: '#60a5fa', match: ['browsing extras', 'gesture'] },
     { name: 'Extensions',  emoji: '🧩', color: '#10b981', match: ['extension'] },
