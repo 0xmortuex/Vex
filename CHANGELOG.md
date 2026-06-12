@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.11.3 (2026-06-12) — Settings scroll fix
+
+### Fixed
+- **Settings scrolls again** while the category bar stays pinned. v2.11.2 pinned the header but accidentally killed scrolling (the panel toggles `display:block`, which overrode the flex layout). The header is now an absolutely-pinned overlay and the list keeps its normal scroll — best of both.
+
 ## v2.11.2 (2026-06-12) — Settings header fix
 
 ### Fixed

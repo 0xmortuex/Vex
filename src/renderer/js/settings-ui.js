@@ -55,6 +55,7 @@ const SettingsUI = {
     });
     const nav = (root.parentElement || root).querySelector('.set-nav');
     if (nav) nav.style.display = q ? 'none' : '';
+    this._syncPad(root);
     let empty = root.querySelector('.set-empty');
     if (q && !any) {
       if (!empty) { empty = document.createElement('div'); empty.className = 'set-empty'; empty.style.cssText = 'color:var(--text-muted);font-size:13px;padding:20px 4px'; root.appendChild(empty); }
@@ -91,8 +92,10 @@ const SettingsUI = {
       inner.appendChild(search);
       inner.appendChild(nav);
       toolbar.appendChild(inner);
-      panel.insertBefore(toolbar, root);                 // above the scroll area
+      panel.insertBefore(toolbar, root);                 // pinned over the scroll area
       search.addEventListener('input', () => SettingsUI._filter(root, search.value));
+      // Keep the scroll area's top padding matched to the (variable-height) toolbar.
+      window.addEventListener('resize', () => SettingsUI._syncPad(root));
     } else {
       nav = toolbar.querySelector('.set-nav');
       search = toolbar.querySelector('.set-search');
@@ -124,6 +127,21 @@ const SettingsUI = {
         nav.appendChild(navChip);
       }
     });
+
+    // Push the scroll content below the absolute toolbar (and let anchored jumps
+    // clear it too). Measured after the chips are in, so wrapping is accounted for.
+    this._syncPad(root);
+  },
+
+  // Match the scroll area's top padding + scroll-padding to the toolbar height.
+  _syncPad(root) {
+    if (!root) return;
+    const panel = root.parentElement || root;
+    const tb = panel.querySelector('.set-toolbar');
+    if (!tb) return;
+    const h = (tb.offsetHeight || 88) + 8;
+    root.style.paddingTop = h + 'px';
+    root.style.scrollPaddingTop = h + 'px';
   },
 };
 

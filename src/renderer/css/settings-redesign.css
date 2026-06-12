@@ -21,14 +21,18 @@
 }
 
 /* Fixed toolbar: search box + category chip nav (built by settings-ui.js).
-   It's a flex header in #panel-settings (a flex column) ABOVE the scrolling
-   .settings-content, so it stays put without relying on position:sticky. */
+   Absolutely pinned to the top of #panel-settings (which is position:absolute),
+   so it stays put regardless of how the panel toggles display. The scroll area
+   below gets a matching padding-top (set in JS) so content scrolls underneath. */
 .set-toolbar {
-  flex: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 8;
   padding: 16px 52px 12px;
   background: var(--bg, var(--surface, #15120c));
   border-bottom: 1px solid var(--border);
-  z-index: 8;
 }
 .set-toolbar-inner {
   max-width: 960px;
@@ -55,14 +59,8 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-/* With the toolbar now a flex sibling above it, the scroll area must size from
-   the remaining space (not height:100%, which would overflow past the toolbar
-   and clip the bottom). id+class beats the base .settings-content rule. */
-#panel-settings .settings-content {
-  height: auto;
-  min-height: 0;
-  padding-top: 24px;
-}
+/* The scroll area keeps its full-height scroll (from app.css); padding-top is set
+   in JS to match the absolute toolbar so the first group clears it. */
 .set-nav-chip {
   display: inline-flex;
   align-items: center;
