@@ -50,7 +50,26 @@ const DOH_PROVIDERS = {
   quad9: 'https://dns.quad9.net/dns-query',
 };
 const _trackerTally = Object.create(null);
+const _trackerSites = Object.create(null); // tracker host -> Set of first-party site hosts
 let _trackerTotal = 0;
+// Record one blocked request: bump the per-tracker count and remember which
+// first-party site it was loaded on (so we can show cross-site trackers — the
+// ones that follow you around the web). webContents.fromId resolves the tab that
+// initiated the request; only runs on blocks (a fraction of traffic).
+function _recordTracker(reqUrl, wcId) {
+  try {
+    const h = new URL(reqUrl).hostname.replace(/^www\./, '');
+    _trackerTally[h] = (_trackerTally[h] || 0) + 1; _trackerTotal++;
+    if (wcId != null) {
+      const wc = webContents.fromId(wcId);
+      const purl = wc && typeof wc.getURL === 'function' ? wc.getURL() : '';
+      if (purl && /^https?:/i.test(purl)) {
+        const site = new URL(purl).hostname.replace(/^www\./, '');
+        if (site && site !== h) (_trackerSites[h] || (_trackerSites[h] = new Set())).add(site);
+      }
+    }
+  } catch {}
+}
 function privacyLoad() {
   try { const fs = require('fs'); if (fs.existsSync(PRIVACY_FILE())) privacyCfg = { ...privacyCfg, ...JSON.parse(fs.readFileSync(PRIVACY_FILE(), 'utf8')) }; } catch {}
   return privacyCfg;
@@ -651,7 +670,7 @@ function wireAdblockerOnSession(ses, tag) {
   ses.__vexAdblockWired = true;
   ses.webRequest.onBeforeRequest((details, callback) => {
     if (adBlockerEnabled && shouldBlock(details.url)) {
-      try { const h = new URL(details.url).hostname.replace(/^www\./, ''); _trackerTally[h] = (_trackerTally[h] || 0) + 1; _trackerTotal++; } catch {}
+      _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
       callback({ cancel: false });
@@ -1966,7 +1985,7 @@ ipcMain.handle('open-private-window', () => {
   });
   privSession.webRequest.onBeforeRequest((details, callback) => {
     const blocked = adBlockerEnabled && shouldBlock(details.url);
-    if (blocked) { try { const h = new URL(details.url).hostname.replace(/^www\./, ''); _trackerTally[h] = (_trackerTally[h] || 0) + 1; _trackerTotal++; } catch {} }
+    if (blocked) _recordTracker(details.url, details.webContentsId);
     callback({ cancel: blocked });
   });
   const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -2038,12 +2057,24 @@ ipcMain.handle('privacy:set-config', (_e, cfg) => {
 });
 ipcMain.handle('privacy:tracker-stats', () => {
   const byHost = Object.keys(_trackerTally)
-    .map(h => ({ host: h, count: _trackerTally[h] }))
+    .map(h => ({ host: h, count: _trackerTally[h], sites: _trackerSites[h] ? Array.from(_trackerSites[h]) : [] }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 100);
-  return { total: _trackerTotal, byHost };
+  // Cross-site trackers: the ones seen on more than one of your sites — i.e. the
+  // companies actually following you around the web.
+  const crossSite = byHost
+    .filter(t => t.sites.length > 1)
+    .map(t => ({ host: t.host, siteCount: t.sites.length, sites: t.sites.slice(0, 30) }))
+    .sort((a, b) => b.siteCount - a.siteCount)
+    .slice(0, 40);
+  return { total: _trackerTotal, byHost, crossSite };
 });
-ipcMain.handle('privacy:tracker-reset', () => { for (const k in _trackerTally) delete _trackerTally[k]; _trackerTotal = 0; return { ok: true }; });
+ipcMain.handle('privacy:tracker-reset', () => {
+  for (const k in _trackerTally) delete _trackerTally[k];
+  for (const k in _trackerSites) delete _trackerSites[k];
+  _trackerTotal = 0;
+  return { ok: true };
+});
 
 app.on('window-all-closed', () => {
   app.quit();

@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.8.0 (2026-06-12) — Cross-site tracker insights
+
+### Added
+- **"Following you across sites"** in the Privacy Report (Ctrl+K → "Privacy Report") — Vex now records *which of your sites* each blocked tracker appeared on, and surfaces the ones seen on multiple sites: the companies actually following you around the web, ranked by reach, with the site list. Turns the raw block count into a real privacy picture (Ghostery/Disconnect-style).
+
 ## v2.7.0 (2026-06-12) — Persistent AI memory
 
 ### Added

@@ -63,13 +63,18 @@ const PrivacyPack = {
 
   async showReport() {
     const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
-    let stats = { total: 0, byHost: [] };
+    let stats = { total: 0, byHost: [], crossSite: [] };
     try { stats = (await window.vex?.privacyTrackerStats?.()) || stats; } catch {}
     document.getElementById('vex-privacy-report')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-privacy-report';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     const rows = stats.byHost.slice(0, 25).map(t => `<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.host)}</span><span style="color:var(--primary);font-weight:700;font-family:'JetBrains Mono',monospace">${t.count}</span></div>`).join('') || '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0">Nothing blocked yet this session.</div>';
+    const cross = (stats.crossSite || []);
+    const crossRows = cross.length ? cross.slice(0, 12).map(t => `<div style="padding:7px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px"><span style="color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.host)}</span><span style="color:#f97316;font-weight:700;font-family:'JetBrains Mono',monospace;flex:none">${t.siteCount} sites</span></div>
+        <div style="font-size:10.5px;color:var(--text-muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.sites.join(' · '))}</div></div>`).join('')
+      : '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0">No tracker has been seen across multiple sites yet — browse a bit and check back.</div>';
     const dohLabel = this.cfg.doh === 'off' ? 'Off' : (this.cfg.doh === 'strict' ? 'Strict — ' + this.cfg.dohProvider : 'On — ' + this.cfg.dohProvider);
     m.innerHTML = `<div style="width:440px;max-width:94vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
         <div style="padding:18px 20px 12px">
@@ -79,7 +84,9 @@ const PrivacyPack = {
             <div style="flex:1;background:var(--bg);border-radius:11px;padding:12px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Fingerprint</div><div style="font-size:12px;color:${this.cfg.farble ? '#22c55e' : 'var(--text-muted)'}">${this.cfg.farble ? '● Protected' : '○ Off'}</div><div style="font-size:13px;font-weight:700;color:var(--text);margin:8px 0 4px">DNS</div><div style="font-size:12px;color:${this.cfg.doh !== 'off' ? '#22c55e' : 'var(--text-muted)'}">${this.cfg.doh !== 'off' ? '● ' : '○ '}${esc(dohLabel)}</div></div>
           </div>
         </div>
-        <div style="padding:4px 20px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700">Top blocked domains</div>
+        <div style="padding:4px 20px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700">🕸 Following you across sites</div>
+        <div style="padding:0 20px;max-height:30vh;overflow-y:auto">${crossRows}</div>
+        <div style="padding:12px 20px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700">Top blocked domains</div>
         <div style="padding:0 20px;overflow-y:auto;flex:1">${rows}</div>
         <div style="padding:14px 20px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border)">
           <button id="pr-reset" style="padding:8px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Reset counters</button>
