@@ -11,7 +11,8 @@ const THEMES = [
   'oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin',
   'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave',
   'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome',
-  'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'custom',
+  'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian',
+  'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'custom',
 ];
 const args = process.argv.slice(2).filter(a => !a.startsWith('-'));
 const list = args.length ? args : THEMES;

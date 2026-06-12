@@ -37,7 +37,8 @@ describe('ThemeManager', () => {
       'oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin',
       'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave',
       'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome',
-      'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'custom'
+      'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian',
+      'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'custom'
     ]);
     expect(TM.DEFAULT_THEME).toBe('oxford');
   });
@@ -115,6 +116,21 @@ describe('ThemeManager', () => {
     expect(seen).toEqual(ids.slice(1));
     // …then one more wraps back to oxford.
     expect(TM.cycleTheme()).toBe('oxford');
+  });
+
+  it('favorites: toggle adds/removes, persists, and ignores unknown ids', async () => {
+    const TM = await loadThemeManager();
+    expect(TM.getFavorites()).toEqual([]);
+    expect(TM.toggleFavorite('ocean')).toBe(true);
+    expect(TM.isFavorite('ocean')).toBe(true);
+    expect(TM.toggleFavorite('matrix')).toBe(true);
+    expect(TM.getFavorites()).toEqual(['ocean', 'matrix']);
+    expect(JSON.parse(localStorage.getItem('vex.favThemes'))).toEqual(['ocean', 'matrix']);
+    expect(TM.toggleFavorite('ocean')).toBe(false);      // remove
+    expect(TM.getFavorites()).toEqual(['matrix']);
+    // A stored id that's no longer a real theme is filtered out.
+    localStorage.setItem('vex.favThemes', JSON.stringify(['matrix', 'bogus']));
+    expect(TM.getFavorites()).toEqual(['matrix']);
   });
 
   it('applyTheme dispatches "theme-changed" CustomEvent with detail.theme', async () => {

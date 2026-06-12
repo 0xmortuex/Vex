@@ -209,6 +209,12 @@
 [data-theme="honey"],
 [data-theme="mint"],
 [data-theme="obsidian"],
+[data-theme="ruby"],
+[data-theme="lime"],
+[data-theme="bronze"],
+[data-theme="plum"],
+[data-theme="arctic"],
+[data-theme="wine"],
 [data-theme="custom"] {
   --vex-font-base: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --vex-font-heading: 'Outfit', sans-serif;
@@ -253,6 +259,12 @@
 [data-theme="honey"] h1, [data-theme="honey"] h2, [data-theme="honey"] h3,
 [data-theme="mint"] h1, [data-theme="mint"] h2, [data-theme="mint"] h3,
 [data-theme="obsidian"] h1, [data-theme="obsidian"] h2, [data-theme="obsidian"] h3,
+[data-theme="ruby"] h1, [data-theme="ruby"] h2, [data-theme="ruby"] h3,
+[data-theme="lime"] h1, [data-theme="lime"] h2, [data-theme="lime"] h3,
+[data-theme="bronze"] h1, [data-theme="bronze"] h2, [data-theme="bronze"] h3,
+[data-theme="plum"] h1, [data-theme="plum"] h2, [data-theme="plum"] h3,
+[data-theme="arctic"] h1, [data-theme="arctic"] h2, [data-theme="arctic"] h3,
+[data-theme="wine"] h1, [data-theme="wine"] h2, [data-theme="wine"] h3,
 [data-theme="custom"] h1, [data-theme="custom"] h2, [data-theme="custom"] h3 {
   font-family: 'Outfit', sans-serif !important;
 }
@@ -283,6 +295,12 @@
 [data-theme="honey"] body, [data-theme="honey"] button, [data-theme="honey"] input, [data-theme="honey"] textarea, [data-theme="honey"] select,
 [data-theme="mint"] body, [data-theme="mint"] button, [data-theme="mint"] input, [data-theme="mint"] textarea, [data-theme="mint"] select,
 [data-theme="obsidian"] body, [data-theme="obsidian"] button, [data-theme="obsidian"] input, [data-theme="obsidian"] textarea, [data-theme="obsidian"] select,
+[data-theme="ruby"] body, [data-theme="ruby"] button, [data-theme="ruby"] input, [data-theme="ruby"] textarea, [data-theme="ruby"] select,
+[data-theme="lime"] body, [data-theme="lime"] button, [data-theme="lime"] input, [data-theme="lime"] textarea, [data-theme="lime"] select,
+[data-theme="bronze"] body, [data-theme="bronze"] button, [data-theme="bronze"] input, [data-theme="bronze"] textarea, [data-theme="bronze"] select,
+[data-theme="plum"] body, [data-theme="plum"] button, [data-theme="plum"] input, [data-theme="plum"] textarea, [data-theme="plum"] select,
+[data-theme="arctic"] body, [data-theme="arctic"] button, [data-theme="arctic"] input, [data-theme="arctic"] textarea, [data-theme="arctic"] select,
+[data-theme="wine"] body, [data-theme="wine"] button, [data-theme="wine"] input, [data-theme="wine"] textarea, [data-theme="wine"] select,
 [data-theme="custom"] body, [data-theme="custom"] button, [data-theme="custom"] input, [data-theme="custom"] textarea, [data-theme="custom"] select {
   font-family: 'Outfit', sans-serif !important;
 }

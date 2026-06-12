@@ -51,6 +51,12 @@ const ThemeManager = {
     { id: 'honey',      label: 'Honey',       preview: 'honey.png',      accent: '#f59e0b', mock: { bg: '#161106', side: '#1d1609', surf: '#261d0c', txt: '#f0e2c0', acc: '#f59e0b' } },
     { id: 'mint',       label: 'Mint',        preview: 'mint.png',       accent: '#2dd4bf', mock: { bg: '#0a1614', side: '#0d1d1a', surf: '#122624', txt: '#c8f0ea', acc: '#2dd4bf' } },
     { id: 'obsidian',   label: 'Obsidian',    preview: 'obsidian.png',   accent: '#94a3b8', mock: { bg: '#08090b', side: '#0e1013', surf: '#141619', txt: '#d8dde5', acc: '#94a3b8' } },
+    { id: 'ruby',       label: 'Ruby',        preview: 'ruby.png',       accent: '#e11d48', mock: { bg: '#170a0f', side: '#1f0d13', surf: '#2a1018', txt: '#f0cdd6', acc: '#e11d48' } },
+    { id: 'lime',       label: 'Lime',        preview: 'lime.png',       accent: '#84cc16', mock: { bg: '#0f1505', side: '#14200a', surf: '#1c2610', txt: '#dcecc0', acc: '#84cc16' } },
+    { id: 'bronze',     label: 'Bronze',      preview: 'bronze.png',     accent: '#c0824a', mock: { bg: '#15100a', side: '#1c1509', surf: '#251c10', txt: '#ecdcc8', acc: '#c0824a' } },
+    { id: 'plum',       label: 'Plum',        preview: 'plum.png',       accent: '#c026d3', mock: { bg: '#150a17', side: '#1d0d20', surf: '#261029', txt: '#f0d4f5', acc: '#c026d3' } },
+    { id: 'arctic',     label: 'Arctic',      preview: 'arctic.png',     accent: '#38bdf8', mock: { bg: '#0a1118', side: '#0d1822', surf: '#122230', txt: '#d0e4f0', acc: '#38bdf8' } },
+    { id: 'wine',       label: 'Wine',        preview: 'wine.png',       accent: '#be123c', mock: { bg: '#14080c', side: '#1d0a11', surf: '#260e16', txt: '#f0cdd4', acc: '#be123c' } },
     { id: 'custom',     label: 'Custom Image', preview: 'custom.png',    accent: '#8b8bff', mock: { bg: '#0e0e12', side: '#141419', surf: '#1a1a22', txt: '#e6e6f0', acc: '#8b8bff' }, upload: true },
   ],
 
@@ -170,6 +176,20 @@ const ThemeManager = {
       if (isStart) { try { jobs.push(wv.executeJavaScript(js).catch(() => {})); } catch {} }
     }
     try { await Promise.all(jobs); } catch {}
+  },
+
+  // --- Favorite themes (starred in the picker) ---
+  FAV_KEY: 'vex.favThemes',
+  getFavorites() {
+    try { const a = JSON.parse(localStorage.getItem(this.FAV_KEY) || '[]'); return Array.isArray(a) ? a.filter(id => this.availableThemes.includes(id)) : []; }
+    catch { return []; }
+  },
+  isFavorite(id) { return this.getFavorites().includes(id); },
+  toggleFavorite(id) {
+    let f = this.getFavorites();
+    if (f.includes(id)) f = f.filter(x => x !== id); else f.push(id);
+    try { localStorage.setItem(this.FAV_KEY, JSON.stringify(f)); } catch {}
+    return f.includes(id);
   },
 
   cycleTheme() {

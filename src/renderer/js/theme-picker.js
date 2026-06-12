@@ -30,39 +30,10 @@ const ThemePicker = {
         <h2>Choose a Theme</h2>
         <button class="vtp-close" aria-label="Close">&times;</button>
       </div>
-      <div class="vtp-grid"></div>
+      <div class="vtp-sections"></div>
     `;
-
-    const grid = modal.querySelector('.vtp-grid');
-    for (const t of ThemeManager.THEMES) {
-      const card = document.createElement('button');
-      card.className = 'vtp-card' + (t.id === current ? ' active' : '');
-      card.dataset.theme = t.id;
-      const isCustom = !!t.upload;
-      // Every theme has a captured PNG preview; the CSS mockup sits behind it as
-      // a live fallback if the image ever fails to load.
-      const mock = t.mock ? this._mockHtml(t.mock) : '';
-      const img = t.preview
-        ? `<img src="../../assets/theme-previews/${t.preview}" alt="${t.label} preview" onerror="this.style.display='none'">`
-        : '';
-      const upload = isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '';
-      card.innerHTML = `
-        <div class="vtp-thumb" data-theme-preview="${t.id}">${mock}${img}${upload}</div>
-        <div class="vtp-label">
-          <span class="vtp-label-text">${t.label}</span>
-          <span class="vtp-check" aria-hidden="true">&#10003;</span>
-        </div>
-      `;
-      card.addEventListener('click', () => {
-        if (isCustom) { this._applyCustom(grid); return; }
-        ThemeManager.applyTheme(t.id);
-        grid.querySelectorAll('.vtp-card').forEach(c => c.classList.toggle('active', c.dataset.theme === t.id));
-        window.showToast?.(`Theme: ${t.label}`, 'info', 1500);
-        // Brief beat so the active tick reads, then dismiss.
-        setTimeout(() => this.close(), 180);
-      });
-      grid.appendChild(card);
-    }
+    this._modal = modal;
+    this._renderSections();
 
     modal.querySelector('.vtp-close').addEventListener('click', () => this.close());
     overlay.addEventListener('click', (e) => { if (e.target === overlay) this.close(); });
@@ -74,6 +45,67 @@ const ThemePicker = {
     document.body.appendChild(overlay);
     this._overlay = overlay;
     requestAnimationFrame(() => overlay.classList.add('visible'));
+  },
+
+  // Build the Favorites + All Themes sections (re-called when a star toggles).
+  _renderSections() {
+    const modal = this._modal;
+    if (!modal) return;
+    const container = modal.querySelector('.vtp-sections');
+    const current = ThemeManager.getCurrentTheme();
+    const favIds = ThemeManager.getFavorites();
+    const byId = {}; ThemeManager.THEMES.forEach(t => byId[t.id] = t);
+    const favThemes = favIds.map(id => byId[id]).filter(Boolean);
+    container.innerHTML = '';
+
+    const section = (title, themes) => {
+      if (!themes.length) return;
+      const h = document.createElement('div');
+      h.className = 'vtp-section-title';
+      h.textContent = title;
+      container.appendChild(h);
+      const grid = document.createElement('div');
+      grid.className = 'vtp-grid';
+      themes.forEach(t => grid.appendChild(this._makeCard(t, current)));
+      container.appendChild(grid);
+    };
+    section('★ Favorites', favThemes);
+    section(favThemes.length ? 'All themes' : '', ThemeManager.THEMES);
+  },
+
+  _makeCard(t, current) {
+    const card = document.createElement('button');
+    card.className = 'vtp-card' + (t.id === current ? ' active' : '');
+    card.dataset.theme = t.id;
+    const isCustom = !!t.upload;
+    const fav = ThemeManager.isFavorite(t.id);
+    const mock = t.mock ? this._mockHtml(t.mock) : '';
+    const img = t.preview
+      ? `<img src="../../assets/theme-previews/${t.preview}" alt="${t.label} preview" onerror="this.style.display='none'">`
+      : '';
+    const upload = isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '';
+    card.innerHTML = `
+      <div class="vtp-thumb" data-theme-preview="${t.id}">${mock}${img}${upload}
+        <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</span>
+      </div>
+      <div class="vtp-label">
+        <span class="vtp-label-text">${t.label}</span>
+        <span class="vtp-check" aria-hidden="true">&#10003;</span>
+      </div>
+    `;
+    card.querySelector('.vtp-star').addEventListener('click', (e) => {
+      e.stopPropagation();
+      ThemeManager.toggleFavorite(t.id);
+      this._renderSections();
+    });
+    card.addEventListener('click', () => {
+      if (isCustom) { this._applyCustom(this._modal); return; }
+      ThemeManager.applyTheme(t.id);
+      this._modal.querySelectorAll('.vtp-card').forEach(c => c.classList.toggle('active', c.dataset.theme === t.id));
+      window.showToast?.(`Theme: ${t.label}`, 'info', 1500);
+      setTimeout(() => this.close(), 180);
+    });
+    return card;
   },
 
   // A tiny CSS browser mockup (sidebar + tab dots + toolbar + text rows + an

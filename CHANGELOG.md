@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.18.0 (2026-06-12) — Favorite themes + 6 more themes
+
+### Added
+- **Favorite themes** — hover any theme card in the picker (Ctrl+Shift+Y or the start-page Theme button) and click the **star** to favorite it. Starred themes appear in a **★ Favorites** section at the top of the picker.
+- **6 more themes** — Ruby, Lime, Bronze, Plum, Arctic, and Wine (35 total).
+- All previews remain one consistent generated style.
+
 ## v2.17.0 (2026-06-12) — 8 more themes + uniform previews
 
 ### Added

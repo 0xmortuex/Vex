@@ -195,3 +195,26 @@
   border-radius: 999px;
   backdrop-filter: blur(4px);
 }
+
+/* === Favorites: section titles + star toggle on each card === */
+.vtp-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--vex-text-secondary, var(--text-muted));
+  margin: 16px 2px 9px;
+}
+.vtp-section-title:first-child { margin-top: 2px; }
+.vtp-star {
+  position: absolute;
+  top: 7px; right: 8px; z-index: 3;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; color: #fff;
+  background: rgba(0,0,0,0.42);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  cursor: pointer; opacity: 0; transition: opacity .12s ease, transform .1s ease;
+}
+.vtp-card:hover .vtp-star { opacity: 1; }
+.vtp-star.on { opacity: 1; color: #fbbf24; }
+.vtp-star:hover { transform: scale(1.12); }
