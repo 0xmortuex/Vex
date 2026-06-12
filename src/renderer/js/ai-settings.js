@@ -118,15 +118,18 @@ const AISettings = (() => {
         toast(`Model set to ${e.target.value}`, 'success');
       }
     });
-    document.getElementById('btn-refresh-ollama')?.addEventListener('click', async () => {
-      const btn = document.getElementById('btn-refresh-ollama');
-      btn.disabled = true; btn.textContent = 'Checking...';
+    const refreshOllama = async (btn) => {
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
       const available = await AIRouter.refreshOllamaStatus();
       console.log('[AISettings] Refresh → Ollama available:', available);
       await refreshStatus();
       await populateModels();
-      btn.disabled = false; btn.textContent = 'Refresh Ollama Status';
-    });
+      if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+      toast(available ? 'Ollama is running' : 'Ollama still not detected', available ? 'success' : 'error');
+    };
+    document.getElementById('btn-refresh-ollama')?.addEventListener('click', (e) => refreshOllama(e.currentTarget));
+    document.getElementById('btn-refresh-ollama-inline')?.addEventListener('click', (e) => refreshOllama(e.currentTarget));
     document.getElementById('btn-install-ollama')?.addEventListener('click', showOllamaInstallDialog);
     document.querySelectorAll('#routing-grid select').forEach(sel => {
       sel.addEventListener('change', () => {

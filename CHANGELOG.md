@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.11.4 (2026-06-12) — AI Backend refresh button
+
+### Added
+- A **Refresh** button right next to the "Local (Ollama)" status in Settings → AI Backend, so you can re-check Ollama on the spot (it re-pings and reloads the model list). The existing "Refresh Ollama Status" button still works too.
+
 ## v2.11.3 (2026-06-12) — Settings scroll fix
 
 ### Fixed
