@@ -10,7 +10,8 @@ const fs = require('fs');
 const THEMES = [
   'oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin',
   'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave',
-  'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'custom',
+  'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome',
+  'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'custom',
 ];
 const args = process.argv.slice(2).filter(a => !a.startsWith('-'));
 const list = args.length ? args : THEMES;

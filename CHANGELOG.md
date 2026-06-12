@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.17.0 (2026-06-12) — 8 more themes + uniform previews
+
+### Added
+- **8 new themes** — Slate, Emerald, Amethyst, Volcano, Sapphire, Honey, Mint, and Obsidian (29 total).
+
+### Changed
+- **All theme previews now use one consistent style** — every theme card is the same full-app render in its own colors, so the whole picker is uniform.
+
 ## v2.16.5 (2026-06-12) — Revert to the original previews
 
 ### Fixed

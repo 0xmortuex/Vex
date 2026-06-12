@@ -201,6 +201,14 @@
 [data-theme="sakura"],
 [data-theme="cyberpunk"],
 [data-theme="monochrome"],
+[data-theme="slate"],
+[data-theme="emerald"],
+[data-theme="amethyst"],
+[data-theme="volcano"],
+[data-theme="sapphire"],
+[data-theme="honey"],
+[data-theme="mint"],
+[data-theme="obsidian"],
 [data-theme="custom"] {
   --vex-font-base: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --vex-font-heading: 'Outfit', sans-serif;
@@ -237,6 +245,14 @@
 [data-theme="sakura"] h1, [data-theme="sakura"] h2, [data-theme="sakura"] h3,
 [data-theme="cyberpunk"] h1, [data-theme="cyberpunk"] h2, [data-theme="cyberpunk"] h3,
 [data-theme="monochrome"] h1, [data-theme="monochrome"] h2, [data-theme="monochrome"] h3,
+[data-theme="slate"] h1, [data-theme="slate"] h2, [data-theme="slate"] h3,
+[data-theme="emerald"] h1, [data-theme="emerald"] h2, [data-theme="emerald"] h3,
+[data-theme="amethyst"] h1, [data-theme="amethyst"] h2, [data-theme="amethyst"] h3,
+[data-theme="volcano"] h1, [data-theme="volcano"] h2, [data-theme="volcano"] h3,
+[data-theme="sapphire"] h1, [data-theme="sapphire"] h2, [data-theme="sapphire"] h3,
+[data-theme="honey"] h1, [data-theme="honey"] h2, [data-theme="honey"] h3,
+[data-theme="mint"] h1, [data-theme="mint"] h2, [data-theme="mint"] h3,
+[data-theme="obsidian"] h1, [data-theme="obsidian"] h2, [data-theme="obsidian"] h3,
 [data-theme="custom"] h1, [data-theme="custom"] h2, [data-theme="custom"] h3 {
   font-family: 'Outfit', sans-serif !important;
 }
@@ -259,6 +275,14 @@
 [data-theme="sakura"] body, [data-theme="sakura"] button, [data-theme="sakura"] input, [data-theme="sakura"] textarea, [data-theme="sakura"] select,
 [data-theme="cyberpunk"] body, [data-theme="cyberpunk"] button, [data-theme="cyberpunk"] input, [data-theme="cyberpunk"] textarea, [data-theme="cyberpunk"] select,
 [data-theme="monochrome"] body, [data-theme="monochrome"] button, [data-theme="monochrome"] input, [data-theme="monochrome"] textarea, [data-theme="monochrome"] select,
+[data-theme="slate"] body, [data-theme="slate"] button, [data-theme="slate"] input, [data-theme="slate"] textarea, [data-theme="slate"] select,
+[data-theme="emerald"] body, [data-theme="emerald"] button, [data-theme="emerald"] input, [data-theme="emerald"] textarea, [data-theme="emerald"] select,
+[data-theme="amethyst"] body, [data-theme="amethyst"] button, [data-theme="amethyst"] input, [data-theme="amethyst"] textarea, [data-theme="amethyst"] select,
+[data-theme="volcano"] body, [data-theme="volcano"] button, [data-theme="volcano"] input, [data-theme="volcano"] textarea, [data-theme="volcano"] select,
+[data-theme="sapphire"] body, [data-theme="sapphire"] button, [data-theme="sapphire"] input, [data-theme="sapphire"] textarea, [data-theme="sapphire"] select,
+[data-theme="honey"] body, [data-theme="honey"] button, [data-theme="honey"] input, [data-theme="honey"] textarea, [data-theme="honey"] select,
+[data-theme="mint"] body, [data-theme="mint"] button, [data-theme="mint"] input, [data-theme="mint"] textarea, [data-theme="mint"] select,
+[data-theme="obsidian"] body, [data-theme="obsidian"] button, [data-theme="obsidian"] input, [data-theme="obsidian"] textarea, [data-theme="obsidian"] select,
 [data-theme="custom"] body, [data-theme="custom"] button, [data-theme="custom"] input, [data-theme="custom"] textarea, [data-theme="custom"] select {
   font-family: 'Outfit', sans-serif !important;
 }
