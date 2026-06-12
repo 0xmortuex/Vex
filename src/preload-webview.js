@@ -415,6 +415,78 @@ function _isVexStartPage(href) {
   }, true);
 })();
 
+// === Fingerprint farbling (Brave-style) — opt-in, default OFF ===
+// When the user enables "Fingerprint protection", we inject tiny, per-session,
+// deterministic noise into the readouts most used for canvas/WebGL/audio
+// fingerprinting, and normalize a couple of navigator values. The noise is
+// imperceptible (LSB-level) so pages still render correctly, but the hashes
+// fingerprinting scripts compute differ from everyone else's AND change each
+// session, so you can't be silently tracked across sites. Config is read
+// synchronously from main BEFORE any page script runs (an async invoke would be
+// too late — a page could read the canvas first).
+(function () {
+  let ipcRenderer = null;
+  try { ipcRenderer = require('electron').ipcRenderer; } catch { return; }
+  if (!ipcRenderer) return;
+  let cfg;
+  try { cfg = ipcRenderer.sendSync('privacy:config-sync'); } catch { return; }
+  if (!cfg || !cfg.farble) return;
+
+  // The injected source runs in the page's MAIN world. The seed is baked in so
+  // the page can't read it back out of an IPC bridge.
+  const src = `(function(){'use strict';
+    var SEED=${(cfg.seed >>> 0)};
+    function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+    function rng(salt){return mulberry32((SEED^(salt>>>0))>>>0);}
+    try{
+      // --- Canvas readout farbling (does NOT mutate the visible canvas) ---
+      function noisyCopy(canvas){
+        try{
+          var w=canvas.width,h=canvas.height;if(!w||!h||w*h>6000000)return null;
+          var c=document.createElement('canvas');c.width=w;c.height=h;
+          var g=c.getContext('2d');if(!g)return null;
+          g.drawImage(canvas,0,0);
+          var img=g.getImageData(0,0,w,h);var d=img.data;var r=rng(w*31+h);
+          for(var i=0;i<d.length;i+=4){if(r()<0.05){var n=(r()*3|0)-1;d[i]=Math.max(0,Math.min(255,d[i]+n));d[i+1]=Math.max(0,Math.min(255,d[i+1]+n));d[i+2]=Math.max(0,Math.min(255,d[i+2]+n));}}
+          g.putImageData(img,0,0);return c;
+        }catch(e){return null;}
+      }
+      var origToDataURL=HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL=function(){var c=noisyCopy(this);try{return origToDataURL.apply(c||this,arguments);}catch(e){return origToDataURL.apply(this,arguments);}};
+      var origToBlob=HTMLCanvasElement.prototype.toBlob;
+      if(origToBlob){HTMLCanvasElement.prototype.toBlob=function(){var c=noisyCopy(this);try{return origToBlob.apply(c||this,arguments);}catch(e){return origToBlob.apply(this,arguments);}};}
+      var origGID=CanvasRenderingContext2D.prototype.getImageData;
+      CanvasRenderingContext2D.prototype.getImageData=function(){var res=origGID.apply(this,arguments);try{var d=res.data;var r=rng(d.length);for(var i=0;i<d.length;i+=4){if(r()<0.05){var n=(r()*3|0)-1;d[i]=Math.max(0,Math.min(255,d[i]+n));}}}catch(e){}return res;};
+
+      // --- WebGL: mask the GPU vendor/renderer strings used to fingerprint ---
+      function patchGL(proto){if(!proto)return;var gp=proto.getParameter;proto.getParameter=function(p){if(p===37445)return 'Google Inc.';if(p===37446)return 'ANGLE (Generic GPU, Direct3D11)';return gp.apply(this,arguments);};}
+      if(window.WebGLRenderingContext)patchGL(WebGLRenderingContext.prototype);
+      if(window.WebGL2RenderingContext)patchGL(WebGL2RenderingContext.prototype);
+
+      // --- Audio: perturb time/frequency readouts at the LSB level ---
+      if(window.AnalyserNode){
+        var gffd=AnalyserNode.prototype.getFloatFrequencyData;
+        AnalyserNode.prototype.getFloatFrequencyData=function(a){gffd.apply(this,arguments);try{var r=rng(a.length);for(var i=0;i<a.length;i++)a[i]=a[i]+(r()-0.5)*0.0002;}catch(e){}};
+      }
+      if(window.AudioBuffer){
+        var gcd=AudioBuffer.prototype.getChannelData;
+        AudioBuffer.prototype.getChannelData=function(){var a=gcd.apply(this,arguments);try{var r=rng(a.length|0);for(var i=0;i<a.length;i+=137)a[i]=a[i]+(r()-0.5)*1e-7;}catch(e){}return a;};
+      }
+
+      // --- Normalize a couple of high-entropy navigator values ---
+      try{Object.defineProperty(navigator,'hardwareConcurrency',{get:function(){return 8;},configurable:true});}catch(e){}
+      try{Object.defineProperty(navigator,'deviceMemory',{get:function(){return 8;},configurable:true});}catch(e){}
+    }catch(e){}
+  })();`;
+
+  try {
+    const s = document.createElement('script');
+    s.textContent = src;
+    (document.head || document.documentElement).appendChild(s);
+    s.remove();
+  } catch (err) { /* best-effort */ }
+})();
+
 // Export the pure origin matcher for unit tests (renderer loads this file as a
 // preload where module is undefined, so this guard keeps runtime unchanged).
 if (typeof module !== 'undefined' && module.exports) {

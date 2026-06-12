@@ -35,6 +35,37 @@ try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
 let mainWindow = null;
 let adBlockerEnabled = true;
 let pendingOpenUrl = null;
+
+// === Privacy hardening: fingerprint farbling seed, DNS-over-HTTPS, tracker tally ===
+// Config persisted to userData/privacy.json. Everything defaults OFF so normal
+// browsing is untouched until the user opts in (Settings → Privacy Hardening).
+let privacyCfg = { farble: false, doh: 'off', dohProvider: 'cloudflare' };
+// One stable seed per app run: farbling noise is consistent within a session
+// (so a single site sees a coherent fingerprint) but changes across sessions
+// (so it can't be used to link you over time). crypto so it's unguessable.
+const FARBLE_SEED = (() => { try { return require('crypto').randomBytes(4).readUInt32LE(0); } catch { return 0x9e3779b9; } })();
+const DOH_PROVIDERS = {
+  cloudflare: 'https://cloudflare-dns.com/dns-query',
+  google: 'https://dns.google/dns-query',
+  quad9: 'https://dns.quad9.net/dns-query',
+};
+const _trackerTally = Object.create(null);
+let _trackerTotal = 0;
+function privacyLoad() {
+  try { const fs = require('fs'); if (fs.existsSync(PRIVACY_FILE())) privacyCfg = { ...privacyCfg, ...JSON.parse(fs.readFileSync(PRIVACY_FILE(), 'utf8')) }; } catch {}
+  return privacyCfg;
+}
+function privacySave() { try { require('fs').writeFileSync(PRIVACY_FILE(), JSON.stringify(privacyCfg)); } catch {} }
+const PRIVACY_FILE = () => path.join(app.getPath('userData'), 'privacy.json');
+function applyDoH() {
+  try {
+    if (privacyCfg.doh === 'off') { app.configureHostResolver({ secureDnsMode: 'off', secureDnsServers: [] }); return; }
+    const server = DOH_PROVIDERS[privacyCfg.dohProvider] || DOH_PROVIDERS.cloudflare;
+    // 'automatic' = opportunistic (falls back to system DNS if DoH fails — safe);
+    // 'secure' = strict (DoH only, hardest privacy but can break captive portals).
+    app.configureHostResolver({ secureDnsMode: privacyCfg.doh === 'strict' ? 'secure' : 'automatic', secureDnsServers: [server] });
+  } catch (e) { console.error('[privacy] DoH apply failed:', e.message); }
+}
 // Track fullscreen state ourselves: Electron's BrowserWindow.isFullScreen()
 // returns false on transparent + frameless windows (frame: false, transparent:
 // true) on Windows, even after setFullScreen(true) and after the
@@ -597,6 +628,7 @@ function wireAdblockerOnSession(ses, tag) {
   ses.__vexAdblockWired = true;
   ses.webRequest.onBeforeRequest((details, callback) => {
     if (adBlockerEnabled && shouldBlock(details.url)) {
+      try { const h = new URL(details.url).hostname.replace(/^www\./, ''); _trackerTally[h] = (_trackerTally[h] || 0) + 1; _trackerTotal++; } catch {}
       callback({ cancel: true });
     } else {
       callback({ cancel: false });
@@ -1300,6 +1332,10 @@ function createWindow() {
   wireAdblockerOnSession(session.fromPartition('persist:main'), 'persist:main');
   partitions.forEach(p => wireAdblockerOnSession(session.fromPartition(p), p));
 
+  // Privacy hardening: load saved config and apply DNS-over-HTTPS (no-op when off).
+  privacyLoad();
+  applyDoH();
+
   // Set user agent to Chrome to avoid "unsupported browser" blocks
   const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   session.defaultSession.setUserAgent(chromeUA);
@@ -1906,7 +1942,9 @@ ipcMain.handle('open-private-window', () => {
     callback({ responseHeaders: rh });
   });
   privSession.webRequest.onBeforeRequest((details, callback) => {
-    callback({ cancel: adBlockerEnabled && shouldBlock(details.url) });
+    const blocked = adBlockerEnabled && shouldBlock(details.url);
+    if (blocked) { try { const h = new URL(details.url).hostname.replace(/^www\./, ''); _trackerTally[h] = (_trackerTally[h] || 0) + 1; _trackerTotal++; } catch {} }
+    callback({ cancel: blocked });
   });
   const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   privSession.setUserAgent(chromeUA);
@@ -1963,6 +2001,26 @@ ipcMain.handle('adblocker-set-state', (event, enabled) => {
   adBlockerEnabled = enabled;
   return adBlockerEnabled;
 });
+
+// === Privacy hardening IPC ===
+// Synchronous config read for the webview preload (must know the farble flag +
+// seed BEFORE any page script runs, so an async invoke would be too late).
+ipcMain.on('privacy:config-sync', (e) => { e.returnValue = { farble: !!privacyCfg.farble, seed: FARBLE_SEED }; });
+ipcMain.handle('privacy:get-config', () => privacyLoad());
+ipcMain.handle('privacy:set-config', (_e, cfg) => {
+  privacyCfg = { ...privacyCfg, ...(cfg || {}) };
+  privacySave();
+  applyDoH();
+  return privacyCfg;
+});
+ipcMain.handle('privacy:tracker-stats', () => {
+  const byHost = Object.keys(_trackerTally)
+    .map(h => ({ host: h, count: _trackerTally[h] }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 100);
+  return { total: _trackerTotal, byHost };
+});
+ipcMain.handle('privacy:tracker-reset', () => { for (const k in _trackerTally) delete _trackerTally[k]; _trackerTotal = 0; return { ok: true }; });
 
 app.on('window-all-closed', () => {
   app.quit();

@@ -45,6 +45,7 @@ const CommandBar = {
     } },
     { id: 'pinsite', label: 'Pin Site to Sidebar', hint: 'Keep the current site as a sidebar web panel (Vivaldi-style)', icon: '📌', action: () => SidebarManager.pinCurrentSite() },
     { id: 'resmon', label: 'Resource Monitor', hint: 'Live CPU / memory per browser process', icon: '📊', action: () => ResourceMonitor.open() },
+    { id: 'privacy', label: 'Privacy Report', hint: 'Trackers blocked + fingerprint/DNS protection status', icon: '🛡', action: () => { if (typeof PrivacyPack !== 'undefined') PrivacyPack.showReport(); } },
     { id: 'focus', label: 'Focus 25', hint: 'Hide all chrome + block distracting sites for 25 minutes (run again to stop)', icon: '🎯', action: () => FocusMode.toggle(25) },
     { id: 'focus50', label: 'Focus 50', hint: 'A 50-minute focus session', icon: '🎯', action: () => FocusMode.toggle(50) },
     { id: 'compact', label: 'Compact Mode', hint: 'Collapse the sidebars for maximum page space', icon: '🗜', action: () => CompactMode.toggle() },

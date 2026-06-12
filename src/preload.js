@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('vex', {
   recallClear: () => ipcRenderer.invoke('recall:clear'),
   translateText: (text, tl) => ipcRenderer.invoke('translate:text', { text, tl }),
 
+  // Privacy hardening (fingerprint farbling, DoH, tracker tally) — all in main
+  privacyGetConfig: () => ipcRenderer.invoke('privacy:get-config'),
+  privacySetConfig: (cfg) => ipcRenderer.invoke('privacy:set-config', cfg),
+  privacyTrackerStats: () => ipcRenderer.invoke('privacy:tracker-stats'),
+  privacyTrackerReset: () => ipcRenderer.invoke('privacy:tracker-reset'),
+
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),

@@ -338,6 +338,9 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof Recall !== 'undefined') {
       Recall.renderSettings(document.getElementById('recall-panel-content'));
     }
+    if (panelName === 'settings' && typeof PrivacyPack !== 'undefined') {
+      PrivacyPack.renderSettings(document.getElementById('privacy-panel-content'));
+    }
     if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
       // Categorize + colorize the settings panel (presentation only).
       SettingsUI.enhance();
