@@ -344,6 +344,9 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof AIMemory !== 'undefined') {
       AIMemory.renderSettings(document.getElementById('ai-memory-panel-content'));
     }
+    if (panelName === 'settings' && typeof WebLLM !== 'undefined') {
+      WebLLM.renderSettings(document.getElementById('webllm-panel-content'));
+    }
     if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
       // Categorize + colorize the settings panel (presentation only).
       SettingsUI.enhance();

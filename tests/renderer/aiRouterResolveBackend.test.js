@@ -22,9 +22,9 @@ function stubOllama(up) {
   globalThis.Ollama = { ping: vi.fn(async () => up) };
 }
 
-let savedOllama;
-beforeEach(() => { savedOllama = globalThis.Ollama; });
-afterEach(() => { globalThis.Ollama = savedOllama; vi.restoreAllMocks(); });
+let savedOllama, savedWebLLM;
+beforeEach(() => { savedOllama = globalThis.Ollama; savedWebLLM = globalThis.WebLLM; });
+afterEach(() => { globalThis.Ollama = savedOllama; globalThis.WebLLM = savedWebLLM; vi.restoreAllMocks(); });
 
 describe('AIRouter.resolveBackend — Ollama fallback when cloud is unconfigured', () => {
   it('explicit cloud pref + no Worker URL → cloud (unchanged)', async () => {
@@ -58,5 +58,39 @@ describe('AIRouter.resolveBackend — Ollama fallback when cloud is unconfigured
     const AIRouter = await loadRouter();
     stubOllama(false);
     await expect(AIRouter.callAI('groupTabs', { tabs: [] })).rejects.toThrow(/not configured/i);
+  });
+});
+
+describe('AIRouter.resolveBackend — on-device (WebLLM) routing', () => {
+  function stubWebLLM({ preferred, loaded }) {
+    globalThis.WebLLM = { preferred: () => preferred, isLoaded: () => loaded };
+  }
+
+  it('chat → ondevice when WebLLM is preferred AND a model is loaded', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(true);
+    stubWebLLM({ preferred: true, loaded: true });
+    expect(await AIRouter.resolveBackend('chat')).toBe('ondevice');
+  });
+
+  it('does NOT route to ondevice when no model is loaded', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(true);
+    stubWebLLM({ preferred: true, loaded: false });
+    expect(await AIRouter.resolveBackend('chat')).not.toBe('ondevice');
+  });
+
+  it('does NOT route agent to ondevice even when loaded (small models stay off agent)', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(true);
+    stubWebLLM({ preferred: true, loaded: true });
+    expect(await AIRouter.resolveBackend('agent')).not.toBe('ondevice');
+  });
+
+  it('ignored entirely when preference is off', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(true);
+    stubWebLLM({ preferred: false, loaded: true });
+    expect(await AIRouter.resolveBackend('chat')).not.toBe('ondevice');
   });
 });

@@ -84,9 +84,21 @@ const AIRouter = (() => {
     }
   }
 
+  // On-device (WebLLM/WebGPU) wins for chat-like features when the user has
+  // turned it on AND a model is actually loaded. Small models can't do the
+  // agent / structured-history features well, so those still route normally.
+  const ONDEVICE_FEATURES = ['chat', 'summarize', 'explain', 'translate', 'groupTabs'];
+  function onDeviceReady(feature) {
+    try {
+      return typeof WebLLM !== 'undefined' && WebLLM.preferred() && WebLLM.isLoaded() && ONDEVICE_FEATURES.includes(feature);
+    } catch { return false; }
+  }
+
   async function resolveBackend(feature) {
     let decision;
-    if (forceCloud) {
+    if (onDeviceReady(feature)) {
+      decision = 'ondevice';
+    } else if (forceCloud) {
       decision = 'cloud';
     } else {
       const pref = routingPrefs[feature] || 'auto';
@@ -152,8 +164,42 @@ const AIRouter = (() => {
   }
 
   async function callBackend(backend, feature, request) {
+    if (backend === 'ondevice') return await callOnDevice(feature, request);
     if (backend === 'local') return await callLocal(feature, request);
     return await callCloud(feature, request);
+  }
+
+  // ---------- ON-DEVICE (WebLLM / WebGPU) ----------
+  // Mirrors the Ollama path (small models → tight JSON prompts) but runs the
+  // model locally in the renderer. Any failure throws and callAI falls back to
+  // cloud/local automatically.
+  async function callOnDevice(feature, request) {
+    if (typeof WebLLM === 'undefined' || !WebLLM.isLoaded()) throw new Error('On-device model not loaded');
+    const isStructured = ['summarize', 'translate', 'explain'].includes(feature);
+    const systemPrompt = (!isStructured && request.persona?.systemPrompt)
+      ? request.persona.systemPrompt
+      : (LOCAL_SYSTEM_PROMPTS[feature] || LOCAL_SYSTEM_PROMPTS.chat);
+    const temperature = request.persona?.temperature ?? 0.5;
+
+    let userMessage = '';
+    if (request.pageContext) {
+      const pc = request.pageContext;
+      userMessage += `Page title: ${pc.title || ''}\nURL: ${pc.url || ''}\n\nContent:\n${(pc.text || '').substring(0, 4000)}\n\n`;
+    }
+    if (request.selectedText) userMessage += `Selected text: "${request.selectedText}"\n\n`;
+    if (request.message) userMessage += `User: ${request.message}`;
+    if (!userMessage) userMessage = JSON.stringify(request);
+
+    const msgs = [{ role: 'system', content: systemPrompt }];
+    if (feature === 'chat' && Array.isArray(request.conversationHistory)) {
+      for (const m of request.conversationHistory.slice(-10)) {
+        if (m && m.role && m.content) msgs.push({ role: m.role, content: m.content });
+      }
+    }
+    msgs.push({ role: 'user', content: userMessage });
+
+    const text = await WebLLM.chat(msgs, { temperature, maxTokens: 2000, json: true });
+    return { result: text, backend: 'ondevice', model: WebLLM.loadedModel() };
   }
 
   // ---------- LOCAL (Ollama) ----------

@@ -625,6 +625,9 @@
   // Persistent AI memory (facts injected into chat system context)
   if (typeof AIMemory !== 'undefined') AIMemory.init();
 
+  // On-device AI (WebLLM/WebGPU) — reads prefs only; never downloads on launch
+  if (typeof WebLLM !== 'undefined') WebLLM.init();
+
   // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
   window.addEventListener('keydown', (e) => {
     if (!e.ctrlKey || !e.altKey || !['1', '2', '3'].includes(e.key)) return;
