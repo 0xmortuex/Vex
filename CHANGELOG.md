@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.16.3 (2026-06-12) — Restore original previews, match the new ones to them
+
+### Fixed
+- **Restored the original theme preview screenshots** (Oxford, Ocean, Midnight, etc.) that v2.16.2 had overwritten, and regenerated the new themes' previews in the **same full-app style** (top bar, sidebar, tabs, Settings content) at the same 1400×600 — so every theme's preview now looks consistent with the originals.
+
 ## v2.16.2 (2026-06-12) — Real preview screenshots for every theme
 
 ### Changed

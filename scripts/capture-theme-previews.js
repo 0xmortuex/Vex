@@ -5,16 +5,20 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const THEMES = [
+// Only the newer themes — the original 8 keep their hand-captured screenshots.
+// Pass `--all` to regenerate every theme.
+const ALL = [
   'oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin',
   'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave',
   'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'custom',
 ];
+const NEW = ['sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'custom'];
+const THEMES = process.argv.includes('--all') ? ALL : NEW;
 const OUT = path.join(__dirname, '..', 'assets', 'theme-previews');
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({
-    width: 1280, height: 800, show: false,
+    width: 1400, height: 600, show: false,
     webPreferences: { offscreen: false },
   });
   for (const id of THEMES) {
