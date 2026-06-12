@@ -1,9 +1,9 @@
 
-> vex@2.3.0 dist
+> vex@2.3.1 dist
 > npm run build-icons && rimraf dist && electron-builder
 
 
-> vex@2.3.0 build-icons
+> vex@2.3.1 build-icons
 > node scripts/svg-to-png.js && electron-icon-builder --input=assets/icon-source.png --output=assets --flatten && node scripts/finalize-icons.js
 
 [svg-to-png] wrote C:\Claude code free\vex\assets\icon-source.png (1024x1024)

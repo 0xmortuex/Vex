@@ -120,6 +120,9 @@ const VexStorage = {
       id: t.id,
       url: t.url,
       title: t.title,
+      // Persist the favicon so lazily-restored tabs show their icon before
+      // their webview is ever created.
+      favicon: t.favicon || null,
       pinned: t.pinned || false,
       groupId: t.groupId || null,
       // Phase 4a: tab-stack membership rides on the tab record alongside
