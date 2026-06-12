@@ -9,6 +9,11 @@
 // If a preview file is missing the card falls back to a labelled color chip so
 // the picker is still usable.
 
+// Cache-bust token for preview images: the app version, so updating Vex always
+// reloads the regenerated previews instead of serving stale cached ones.
+let PREVIEW_CB = 'v';
+try { if (typeof window !== 'undefined' && window.vex?.getAppVersion) window.vex.getAppVersion().then(v => { if (v) PREVIEW_CB = v; }); } catch {}
+
 const ThemePicker = {
   _overlay: null,
   _keyHandler: null,
@@ -81,7 +86,7 @@ const ThemePicker = {
     const fav = ThemeManager.isFavorite(t.id);
     const mock = t.mock ? this._mockHtml(t.mock) : '';
     const img = t.preview
-      ? `<img src="../../assets/theme-previews/${t.preview}" alt="${t.label} preview" onerror="this.style.display='none'">`
+      ? `<img src="../../assets/theme-previews/${t.preview}?b=${encodeURIComponent(PREVIEW_CB)}" alt="${t.label} preview" onerror="this.style.display='none'">`
       : '';
     const upload = isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '';
     card.innerHTML = `

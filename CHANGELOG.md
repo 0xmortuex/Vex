@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.19.0 (2026-06-12) — Force-refresh theme previews
+
+### Fixed
+- **Theme previews now always reload after an update** — preview images are cache-busted by app version, so the regenerated (uniform) previews show instead of stale cached screenshots. All 35 themes share one identical preview style.
+
 ## v2.18.0 (2026-06-12) — Favorite themes + 6 more themes
 
 ### Added
