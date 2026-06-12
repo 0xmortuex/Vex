@@ -67,17 +67,36 @@ describe('fetch — 429 short-circuit', () => {
   });
 
   it('rejects oversized bodies with 413', async () => {
+    // The cap was raised to 4 MB so screenshot-to-code (a downscaled image) fits;
+    // anything beyond that is still rejected before reaching the model.
     const env = { VEX_AI_KV: makeKV() };
     const req = new Request('https://ai.test/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'CF-Connecting-IP': '198.51.100.50',
-        'content-length': String(300 * 1024),
+        'content-length': String(5 * 1024 * 1024),
       },
       body: JSON.stringify({ action: 'chat', message: 'x' }),
     });
     const res = await worker.fetch(req, env);
     expect(res.status).toBe(413);
+  });
+
+  it('allows a sub-4MB image body through the size gate (screenshot-to-code)', async () => {
+    // 1 MB is under the cap → must NOT be rejected with 413 (it'll fail later for
+    // other reasons like missing key, but not at the size gate).
+    const env = { VEX_AI_KV: makeKV() };
+    const req = new Request('https://ai.test/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'CF-Connecting-IP': '198.51.100.51',
+        'content-length': String(1024 * 1024),
+      },
+      body: JSON.stringify({ action: 'screenshot-to-code', image: 'data:image/png;base64,AAAA' }),
+    });
+    const res = await worker.fetch(req, env);
+    expect(res.status).not.toBe(413);
   });
 });

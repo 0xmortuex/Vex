@@ -176,7 +176,7 @@ const AgentLoop = {
           data = await AIRouter.callAI('agent', {
             userGoal: goal,
             pageContext,
-            availableTools: AGENT_TOOLS,
+            availableTools: [...AGENT_TOOLS, ...(typeof McpClient !== 'undefined' ? McpClient.agentToolDefs() : [])],
             conversationHistory: this._history.slice(-20),
             lastToolResult: lastResult
           });
@@ -381,7 +381,7 @@ const AgentLoop = {
 
       const data = await AIRouter.callAI('agent', {
         userGoal: goal, pageContext,
-        availableTools: AGENT_TOOLS, conversationHistory: history.slice(-20), lastToolResult: lastResult
+        availableTools: [...AGENT_TOOLS, ...(typeof McpClient !== 'undefined' ? McpClient.agentToolDefs() : [])], conversationHistory: history.slice(-20), lastToolResult: lastResult
       });
       const decision = this._parseAgentResponse(data.result);
       if (!decision?.tool) throw new Error('AI returned invalid response');

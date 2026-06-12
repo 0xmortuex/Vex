@@ -87,6 +87,42 @@ const McpClient = (() => {
 
   function init() { load(); }
 
+  // ---------------- Agent integration ----------------
+  // Expose connected servers' tools to the autonomous agent as tool defs shaped
+  // like the built-in AGENT_TOOLS ({name, description, parameters}). Names are
+  // namespaced "mcp__<serverId>__<toolName>" so they can't collide with built-ins.
+  function agentToolDefs() {
+    const defs = [];
+    servers.forEach(s => {
+      const sess = _sessions[s.id];
+      if (!sess || !Array.isArray(sess.tools)) return;
+      sess.tools.forEach(t => {
+        const params = {};
+        const props = t.inputSchema && t.inputSchema.properties;
+        if (props) Object.keys(props).forEach(k => { params[k] = (props[k] && props[k].type) || 'string'; });
+        defs.push({ name: 'mcp__' + s.id + '__' + t.name, description: '[MCP · ' + s.name + '] ' + (t.description || t.name), parameters: params });
+      });
+    });
+    return defs;
+  }
+
+  // Execute a namespaced MCP tool name chosen by the agent. Returns a string
+  // (flattened tool output) or throws.
+  async function agentCall(prefixedName, params) {
+    if (typeof prefixedName !== 'string' || !prefixedName.startsWith('mcp__')) throw new Error('Not an MCP tool');
+    const rest = prefixedName.slice(5);
+    const idx = rest.indexOf('__');
+    if (idx < 0) throw new Error('Malformed MCP tool name');
+    const serverId = rest.slice(0, idx), toolName = rest.slice(idx + 2);
+    const server = servers.find(s => s.id === serverId);
+    if (!server) throw new Error('MCP server not connected');
+    const r = await callTool(server, toolName, params || {});
+    const parts = (r && r.content) || [];
+    const text = parts.map(p => p && p.type === 'text' ? p.text : JSON.stringify(p)).join('\n');
+    if (r && r.isError) throw new Error(text || 'MCP tool error');
+    return text || r;
+  }
+
   // ---------------- UI ----------------
   const esc = (s) => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
 
@@ -190,7 +226,7 @@ const McpClient = (() => {
     });
   }
 
-  return { load, save, list, addServer, removeServer, connect, callTool, session, init, renderSettings, openExplorer, _parseBody };
+  return { load, save, list, addServer, removeServer, connect, callTool, session, init, renderSettings, openExplorer, agentToolDefs, agentCall, _parseBody };
 })();
 
 if (typeof window !== 'undefined') window.McpClient = McpClient;

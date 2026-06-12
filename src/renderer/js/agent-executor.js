@@ -132,6 +132,13 @@ const AgentExecutor = {
           return { ok: true, result: { askingUser: true, question: params.question } };
 
         default:
+          // MCP tools surface as "mcp__<serverId>__<toolName>" — route them to
+          // the connected MCP server. Kept out of the switch so the built-in
+          // tool set is untouched.
+          if (typeof toolName === 'string' && toolName.startsWith('mcp__') && typeof McpClient !== 'undefined') {
+            const out = await McpClient.agentCall(toolName, params);
+            return { ok: true, result: out };
+          }
           return { ok: false, error: 'Unknown tool: ' + toolName };
       }
     } catch (err) {

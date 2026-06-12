@@ -203,7 +203,15 @@ Confidence: 0.0-1.0. Only include groups with confidence > 0.6.
 
 If tabs are too diverse to meaningfully group, return { "groups": [], "ungrouped": [...all tabs], "reasoning": "Tabs are too varied — no strong clusters detected." }
 
-Return ONLY valid JSON. No markdown fences.`
+Return ONLY valid JSON. No markdown fences.`,
+
+  "screenshot-to-code": `You are an expert front-end engineer. You are given a screenshot of a web page or UI. Reproduce it as faithfully as possible in clean, self-contained code.
+
+Rules:
+- Match layout, spacing, colors, typography, and components as closely as you can from the image.
+- Use placeholder text/links where real content is unknown. Use inline SVG or simple colored blocks for images/icons.
+- Output a SINGLE complete, self-contained file that renders standalone (no external build step).
+- Do NOT include explanations, comments about your process, or markdown fences — output ONLY the code, starting at the first character of the document.`
 };
 
 // Per-IP rate limit backed by VEX_AI_KV. This worker proxies a PAID model with
@@ -254,10 +262,11 @@ export default {
     }
 
     // Reject oversized payloads before they reach the model — a multi-MB body is
-    // both an abuse vector and a token-cost blowup. Page text is already
-    // truncated client-side; 256 KB is well above any legitimate request.
+    // both an abuse vector and a token-cost blowup. Text actions are tiny (page
+    // text is truncated client-side); the only legitimately large body is a
+    // downscaled screenshot for screenshot-to-code, so allow up to 4 MB.
     const contentLength = parseInt(request.headers.get("content-length") || "0", 10);
-    if (contentLength > 256 * 1024) {
+    if (contentLength > 4 * 1024 * 1024) {
       return Response.json({ error: "Request too large" }, { status: 413, headers: cors });
     }
 
@@ -268,6 +277,40 @@ export default {
 
       if (!action || !SYSTEM_PROMPTS[action]) {
         return Response.json({ error: "Invalid action" }, { status: 400, headers: cors });
+      }
+
+      // Screenshot → code — a vision request. Sends the screenshot as an image
+      // content block to the (vision-capable) model and returns generated code.
+      if (action === "screenshot-to-code") {
+        const image = body.image;
+        if (!image || typeof image !== "string" || !/^data:image\//.test(image)) {
+          return Response.json({ error: "A screenshot image is required" }, { status: 400, headers: cors });
+        }
+        const framework = body.framework || "html";
+        const fwText = framework === "tailwind"
+          ? "Use a single HTML file with Tailwind CSS via the CDN <script src=\"https://cdn.tailwindcss.com\"></script>."
+          : framework === "react"
+            ? "Use a single HTML file that loads React + Babel from a CDN and defines the UI in one inline <script type=\"text/babel\">."
+            : "Use a single HTML file with plain inline CSS in a <style> tag.";
+        const msgs = [
+          { role: "system", content: SYSTEM_PROMPTS["screenshot-to-code"] },
+          { role: "user", content: [
+            { type: "text", text: `Reproduce this UI. ${fwText} Output ONLY the complete file.` },
+            { type: "image_url", image_url: { url: image } },
+          ] },
+        ];
+        const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENROUTER_API_KEY, "HTTP-Referer": "https://github.com/0xmortuex/Vex", "X-Title": "Vex Screenshot-to-Code" },
+          body: JSON.stringify({ model: "anthropic/claude-sonnet-4", max_tokens: 6000, messages: msgs }),
+        });
+        if (!aiRes.ok) { const s = aiRes.status; return Response.json({ error: s === 429 ? "Rate limited" : "AI request failed" }, { status: s, headers: cors }); }
+        const aiData = await aiRes.json();
+        let code = aiData.choices?.[0]?.message?.content || "";
+        // Strip accidental markdown fences if the model added them.
+        code = code.replace(/^```[a-z]*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+        if (!code) return Response.json({ error: "Empty AI response" }, { status: 502, headers: cors });
+        return Response.json({ result: code }, { status: 200, headers: cors });
       }
 
       // Agent mode — different message construction
