@@ -42,20 +42,55 @@ const SettingsUI = {
     return { name: 'Other', emoji: '⚙️', color: 'var(--primary)' };
   },
 
+  // Live-filter the setting groups by the search query. Hiding the chip nav while
+  // searching keeps the result list clean.
+  _filter(root, query) {
+    const q = (query || '').trim().toLowerCase();
+    const groups = Array.from(root.querySelectorAll('.setting-group'));
+    let any = false;
+    groups.forEach(g => {
+      const match = !q || (g.textContent || '').toLowerCase().includes(q);
+      g.style.display = match ? '' : 'none';
+      if (match) any = true;
+    });
+    const nav = root.querySelector('.set-nav');
+    if (nav) nav.style.display = q ? 'none' : '';
+    let empty = root.querySelector('.set-empty');
+    if (q && !any) {
+      if (!empty) { empty = document.createElement('div'); empty.className = 'set-empty'; empty.style.cssText = 'color:var(--text-muted);font-size:13px;padding:20px 4px'; root.appendChild(empty); }
+      empty.textContent = 'No settings match “' + query + '”.';
+      empty.style.display = '';
+    } else if (empty) { empty.style.display = 'none'; }
+  },
+
   enhance() {
     const root = document.querySelector('#panel-settings .settings-content');
     if (!root) return;
     const groups = Array.from(root.children).filter(el => el.classList && el.classList.contains('setting-group'));
     if (!groups.length) return;
 
-    // (Re)build the sticky chip nav right under the <h2>.
-    let nav = root.querySelector('.set-nav');
-    if (!nav) {
+    // (Re)build the sticky toolbar (search + chip nav) right under the <h2>.
+    let toolbar = root.querySelector('.set-toolbar');
+    let nav, search;
+    if (!toolbar) {
+      toolbar = document.createElement('div');
+      toolbar.className = 'set-toolbar';
+      search = document.createElement('input');
+      search.className = 'set-search';
+      search.type = 'search';
+      search.placeholder = 'Search settings…';
+      search.spellcheck = false;
       nav = document.createElement('div');
       nav.className = 'set-nav';
+      toolbar.appendChild(search);
+      toolbar.appendChild(nav);
       const h2 = root.querySelector('h2');
-      if (h2) h2.insertAdjacentElement('afterend', nav);
-      else root.insertBefore(nav, root.firstChild);
+      if (h2) h2.insertAdjacentElement('afterend', toolbar);
+      else root.insertBefore(toolbar, root.firstChild);
+      search.addEventListener('input', () => SettingsUI._filter(root, search.value));
+    } else {
+      nav = toolbar.querySelector('.set-nav');
+      search = toolbar.querySelector('.set-search');
     }
     nav.innerHTML = '';
     const seen = new Set();

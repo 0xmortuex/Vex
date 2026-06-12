@@ -20,17 +20,40 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* Sticky category chip nav (built by settings-ui.js) */
-.set-nav {
+/* Sticky toolbar: search box + category chip nav (built by settings-ui.js).
+   Sticky lives on the WRAPPER (a direct child of the scrolling .settings-content)
+   with a solid background so scrolled content never shows through behind it. */
+.set-toolbar {
   position: sticky;
   top: 0;
-  z-index: 6;
+  z-index: 8;
+  margin: 0 auto 6px;
+  padding: 10px 0 12px;
+  background: var(--bg, var(--surface, #15120c));
+  border-bottom: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.set-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 14px;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13.5px;
+  outline: none;
+}
+.set-search:focus {
+  border-color: var(--primary);
+}
+.set-nav {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 12px 0 14px;
-  margin-bottom: 6px;
-  background: linear-gradient(180deg, var(--bg, var(--vex-bg-base)) 70%, transparent);
 }
 .set-nav-chip {
   display: inline-flex;

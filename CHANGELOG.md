@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.11.1 (2026-06-12) — Fixes
+
+### Fixed
+- **On-device AI chat hung on "Thinking…"** — the local path was forcing JSON-grammar generation, which stalls small WebGPU models. On-device chat now uses a plain-text prompt (so it actually responds), is scoped to chat only, and has a 120s timeout that falls back to cloud/Ollama if anything stalls — so the spinner can never loop forever.
+- **Settings category bar now stays pinned** while you scroll (the sticky styling moved onto a solid toolbar wrapper).
+
+### Added
+- **Search bar in Settings** — filter all settings by keyword; the category chips hide while searching.
+
 ## v2.11.0 (2026-06-12) — Screenshot-to-code + MCP tools in the agent
 
 ### Added
