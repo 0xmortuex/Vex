@@ -195,6 +195,12 @@
 [data-theme="mocha"],
 [data-theme="solarized"],
 [data-theme="vaporwave"],
+[data-theme="aurora"],
+[data-theme="crimson"],
+[data-theme="gold"],
+[data-theme="sakura"],
+[data-theme="cyberpunk"],
+[data-theme="monochrome"],
 [data-theme="custom"] {
   --vex-font-base: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --vex-font-heading: 'Outfit', sans-serif;
@@ -225,6 +231,12 @@
 [data-theme="mocha"] h1, [data-theme="mocha"] h2, [data-theme="mocha"] h3,
 [data-theme="solarized"] h1, [data-theme="solarized"] h2, [data-theme="solarized"] h3,
 [data-theme="vaporwave"] h1, [data-theme="vaporwave"] h2, [data-theme="vaporwave"] h3,
+[data-theme="aurora"] h1, [data-theme="aurora"] h2, [data-theme="aurora"] h3,
+[data-theme="crimson"] h1, [data-theme="crimson"] h2, [data-theme="crimson"] h3,
+[data-theme="gold"] h1, [data-theme="gold"] h2, [data-theme="gold"] h3,
+[data-theme="sakura"] h1, [data-theme="sakura"] h2, [data-theme="sakura"] h3,
+[data-theme="cyberpunk"] h1, [data-theme="cyberpunk"] h2, [data-theme="cyberpunk"] h3,
+[data-theme="monochrome"] h1, [data-theme="monochrome"] h2, [data-theme="monochrome"] h3,
 [data-theme="custom"] h1, [data-theme="custom"] h2, [data-theme="custom"] h3 {
   font-family: 'Outfit', sans-serif !important;
 }
@@ -241,6 +253,12 @@
 [data-theme="mocha"] body, [data-theme="mocha"] button, [data-theme="mocha"] input, [data-theme="mocha"] textarea, [data-theme="mocha"] select,
 [data-theme="solarized"] body, [data-theme="solarized"] button, [data-theme="solarized"] input, [data-theme="solarized"] textarea, [data-theme="solarized"] select,
 [data-theme="vaporwave"] body, [data-theme="vaporwave"] button, [data-theme="vaporwave"] input, [data-theme="vaporwave"] textarea, [data-theme="vaporwave"] select,
+[data-theme="aurora"] body, [data-theme="aurora"] button, [data-theme="aurora"] input, [data-theme="aurora"] textarea, [data-theme="aurora"] select,
+[data-theme="crimson"] body, [data-theme="crimson"] button, [data-theme="crimson"] input, [data-theme="crimson"] textarea, [data-theme="crimson"] select,
+[data-theme="gold"] body, [data-theme="gold"] button, [data-theme="gold"] input, [data-theme="gold"] textarea, [data-theme="gold"] select,
+[data-theme="sakura"] body, [data-theme="sakura"] button, [data-theme="sakura"] input, [data-theme="sakura"] textarea, [data-theme="sakura"] select,
+[data-theme="cyberpunk"] body, [data-theme="cyberpunk"] button, [data-theme="cyberpunk"] input, [data-theme="cyberpunk"] textarea, [data-theme="cyberpunk"] select,
+[data-theme="monochrome"] body, [data-theme="monochrome"] button, [data-theme="monochrome"] input, [data-theme="monochrome"] textarea, [data-theme="monochrome"] select,
 [data-theme="custom"] body, [data-theme="custom"] button, [data-theme="custom"] input, [data-theme="custom"] textarea, [data-theme="custom"] select {
   font-family: 'Outfit', sans-serif !important;
 }

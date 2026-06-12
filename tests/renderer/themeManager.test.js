@@ -35,7 +35,8 @@ describe('ThemeManager', () => {
     const TM = await loadThemeManager();
     expect(TM.availableThemes).toEqual([
       'oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin',
-      'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'custom'
+      'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave',
+      'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'custom'
     ]);
     expect(TM.DEFAULT_THEME).toBe('oxford');
   });

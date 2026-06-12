@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.16.0 (2026-06-12) — Theme previews + 6 more themes
+
+### Added
+- **6 more themes** — Aurora, Crimson, Gold, Sakura, Cyberpunk, and Monochrome (21 themes total).
+- **Live preview cards** — themes without a screenshot now render a real mini-UI mockup (sidebar, tabs, toolbar, text, accent button) drawn from their own palette, so every theme in the picker looks like a proper preview instead of a flat swatch.
+
 ## v2.15.1 (2026-06-12) — Fix "Check for Updates"
 
 ### Fixed

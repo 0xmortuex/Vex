@@ -121,3 +121,105 @@
   --tab-active: #2a2a35; --tab-hover: #1a1a22;
   --danger: #f87171; --success: #34d399; --warning: #fbbf24;
 }
+
+/* ── AURORA — emerald + teal northern lights ──────────────────────────────── */
+[data-theme="aurora"] {
+  --vex-bg-base: #0a1612; --vex-bg-elevated: #102a22; --vex-bg-deep: #0d1f18;
+  --vex-glass-strong: #0d1f18; --vex-glass-medium: #0d1f18; --vex-glass-light: #102a22;
+  --vex-glass-tab-active: #163a2e; --vex-glass-tab-inactive: #0d1f18; --vex-glass-input: #0a1612;
+  --vex-border-subtle: #163a2e; --vex-border-medium: #163a2e; --vex-border-strong: #1f5340;
+  --vex-border-accent: #34d399; --vex-border-accent-strong: #34d399;
+  --vex-accent: #34d399; --vex-accent-dim: #34d39938; --vex-accent-glow: #34d3992e;
+  --vex-text-primary: #c8f0e0; --vex-text-secondary: #84c0aa; --vex-text-muted: #5e9382;
+  --vex-text-accent: #6ee7b7; --vex-success: #34d399; --vex-danger: #fb7185; --vex-danger-hover: #fda4af; --vex-warning: #fcd34d;
+  --bg: #0a1612; --bg-2: #0d1f18; --sidebar: #0a1612; --surface: #102a22;
+  --border: #163a2e; --text: #c8f0e0; --text-muted: #5e9382;
+  --primary: #34d399; --primary-hover: #6ee7b7; --accent: #a78bfa;
+  --tab-active: #163a2e; --tab-hover: #102a22;
+  --danger: #fb7185; --success: #34d399; --warning: #fcd34d;
+}
+
+/* ── CRIMSON — deep red on black ──────────────────────────────────────────── */
+[data-theme="crimson"] {
+  --vex-bg-base: #160a0c; --vex-bg-elevated: #2a1015; --vex-bg-deep: #1e0d10;
+  --vex-glass-strong: #1e0d10; --vex-glass-medium: #1e0d10; --vex-glass-light: #2a1015;
+  --vex-glass-tab-active: #3a161d; --vex-glass-tab-inactive: #1e0d10; --vex-glass-input: #160a0c;
+  --vex-border-subtle: #3a161d; --vex-border-medium: #3a161d; --vex-border-strong: #4e1e27;
+  --vex-border-accent: #ef4444; --vex-border-accent-strong: #ef4444;
+  --vex-accent: #ef4444; --vex-accent-dim: #ef444438; --vex-accent-glow: #ef44442e;
+  --vex-text-primary: #f0d0d4; --vex-text-secondary: #c89aa0; --vex-text-muted: #9a6e74;
+  --vex-text-accent: #f87171; --vex-success: #4ade80; --vex-danger: #ef4444; --vex-danger-hover: #f87171; --vex-warning: #fbbf24;
+  --bg: #160a0c; --bg-2: #1e0d10; --sidebar: #160a0c; --surface: #2a1015;
+  --border: #3a161d; --text: #f0d0d4; --text-muted: #9a6e74;
+  --primary: #ef4444; --primary-hover: #f87171; --accent: #f87171;
+  --tab-active: #3a161d; --tab-hover: #2a1015;
+  --danger: #ef4444; --success: #4ade80; --warning: #fbbf24;
+}
+
+/* ── GOLD — black + gold luxury ───────────────────────────────────────────── */
+[data-theme="gold"] {
+  --vex-bg-base: #12100a; --vex-bg-elevated: #221d12; --vex-bg-deep: #1a160e;
+  --vex-glass-strong: #1a160e; --vex-glass-medium: #1a160e; --vex-glass-light: #221d12;
+  --vex-glass-tab-active: #322a18; --vex-glass-tab-inactive: #1a160e; --vex-glass-input: #12100a;
+  --vex-border-subtle: #322a18; --vex-border-medium: #322a18; --vex-border-strong: #463a22;
+  --vex-border-accent: #d4af37; --vex-border-accent-strong: #d4af37;
+  --vex-accent: #d4af37; --vex-accent-dim: #d4af3738; --vex-accent-glow: #d4af372e;
+  --vex-text-primary: #ecdfb8; --vex-text-secondary: #c0ac84; --vex-text-muted: #908060;
+  --vex-text-accent: #e6c55a; --vex-success: #a3b18a; --vex-danger: #e07a5f; --vex-danger-hover: #ec9680; --vex-warning: #d4af37;
+  --bg: #12100a; --bg-2: #1a160e; --sidebar: #12100a; --surface: #221d12;
+  --border: #322a18; --text: #ecdfb8; --text-muted: #908060;
+  --primary: #d4af37; --primary-hover: #e6c55a; --accent: #e6c55a;
+  --tab-active: #322a18; --tab-hover: #221d12;
+  --danger: #e07a5f; --success: #a3b18a; --warning: #d4af37;
+}
+
+/* ── SAKURA — cherry-blossom dusk ─────────────────────────────────────────── */
+[data-theme="sakura"] {
+  --vex-bg-base: #1a0f14; --vex-bg-elevated: #2a1820; --vex-bg-deep: #22131a;
+  --vex-glass-strong: #22131a; --vex-glass-medium: #22131a; --vex-glass-light: #2a1820;
+  --vex-glass-tab-active: #3a2230; --vex-glass-tab-inactive: #22131a; --vex-glass-input: #1a0f14;
+  --vex-border-subtle: #3a2230; --vex-border-medium: #3a2230; --vex-border-strong: #4e2e40;
+  --vex-border-accent: #f9a8d4; --vex-border-accent-strong: #f9a8d4;
+  --vex-accent: #f9a8d4; --vex-accent-dim: #f9a8d438; --vex-accent-glow: #f9a8d42e;
+  --vex-text-primary: #f0d8e4; --vex-text-secondary: #c8a4b8; --vex-text-muted: #9a7888;
+  --vex-text-accent: #fbcfe8; --vex-success: #86efac; --vex-danger: #fb7185; --vex-danger-hover: #fda4af; --vex-warning: #fcd34d;
+  --bg: #1a0f14; --bg-2: #22131a; --sidebar: #1a0f14; --surface: #2a1820;
+  --border: #3a2230; --text: #f0d8e4; --text-muted: #9a7888;
+  --primary: #f9a8d4; --primary-hover: #fbcfe8; --accent: #fbcfe8;
+  --tab-active: #3a2230; --tab-hover: #2a1820;
+  --danger: #fb7185; --success: #86efac; --warning: #fcd34d;
+}
+
+/* ── CYBERPUNK — neon yellow + cyan ───────────────────────────────────────── */
+[data-theme="cyberpunk"] {
+  --vex-bg-base: #0a0a12; --vex-bg-elevated: #15151f; --vex-bg-deep: #0f0f18;
+  --vex-glass-strong: #0f0f18; --vex-glass-medium: #0f0f18; --vex-glass-light: #15151f;
+  --vex-glass-tab-active: #20202e; --vex-glass-tab-inactive: #0f0f18; --vex-glass-input: #0a0a12;
+  --vex-border-subtle: #20202e; --vex-border-medium: #20202e; --vex-border-strong: #303042;
+  --vex-border-accent: #fde047; --vex-border-accent-strong: #fde047;
+  --vex-accent: #fde047; --vex-accent-dim: #fde04738; --vex-accent-glow: #fde0472e;
+  --vex-text-primary: #e8e8f0; --vex-text-secondary: #a4a4c0; --vex-text-muted: #74748c;
+  --vex-text-accent: #22d3ee; --vex-success: #4ade80; --vex-danger: #fb3d8a; --vex-danger-hover: #ff6aa6; --vex-warning: #fde047;
+  --bg: #0a0a12; --bg-2: #0f0f18; --sidebar: #0a0a12; --surface: #15151f;
+  --border: #20202e; --text: #e8e8f0; --text-muted: #74748c;
+  --primary: #fde047; --primary-hover: #22d3ee; --accent: #22d3ee;
+  --tab-active: #20202e; --tab-hover: #15151f;
+  --danger: #fb3d8a; --success: #4ade80; --warning: #fde047;
+}
+
+/* ── MONOCHROME — pure grayscale ──────────────────────────────────────────── */
+[data-theme="monochrome"] {
+  --vex-bg-base: #0d0d0d; --vex-bg-elevated: #1f1f1f; --vex-bg-deep: #141414;
+  --vex-glass-strong: #141414; --vex-glass-medium: #141414; --vex-glass-light: #1f1f1f;
+  --vex-glass-tab-active: #2c2c2c; --vex-glass-tab-inactive: #141414; --vex-glass-input: #0d0d0d;
+  --vex-border-subtle: #2c2c2c; --vex-border-medium: #2c2c2c; --vex-border-strong: #3d3d3d;
+  --vex-border-accent: #d4d4d4; --vex-border-accent-strong: #d4d4d4;
+  --vex-accent: #d4d4d4; --vex-accent-dim: #d4d4d438; --vex-accent-glow: #d4d4d42e;
+  --vex-text-primary: #e5e5e5; --vex-text-secondary: #a3a3a3; --vex-text-muted: #737373;
+  --vex-text-accent: #fafafa; --vex-success: #a3a3a3; --vex-danger: #d4d4d4; --vex-danger-hover: #fafafa; --vex-warning: #a3a3a3;
+  --bg: #0d0d0d; --bg-2: #141414; --sidebar: #0d0d0d; --surface: #1f1f1f;
+  --border: #2c2c2c; --text: #e5e5e5; --text-muted: #737373;
+  --primary: #d4d4d4; --primary-hover: #fafafa; --accent: #fafafa;
+  --tab-active: #2c2c2c; --tab-hover: #1f1f1f;
+  --danger: #d4d4d4; --success: #a3a3a3; --warning: #a3a3a3;
+}

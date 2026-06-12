@@ -38,17 +38,16 @@ const ThemePicker = {
       const card = document.createElement('button');
       card.className = 'vtp-card' + (t.id === current ? ' active' : '');
       card.dataset.theme = t.id;
-      const accent = t.accent || 'var(--primary)';
-      // Accent swatch sits behind the PNG: if the preview is missing (new themes
-      // ship without one) the colored swatch shows instead of a broken image.
-      const swatch = `background:linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 35%, #111))`;
-      const isCustom = t.id === 'custom';
-      card.innerHTML = `
-        <div class="vtp-thumb" data-theme-preview="${t.id}" style="${swatch}">
-          <img src="../../assets/theme-previews/${t.preview}" alt="${t.label} preview"
+      const isCustom = !!t.upload;
+      // New themes ship a live CSS mini-UI mockup (drawn from their palette) so
+      // they look like real previews; the original themes use their PNG.
+      const thumbInner = t.mock
+        ? this._mockHtml(t.mock) + (isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '')
+        : `<img src="../../assets/theme-previews/${t.preview}" alt="${t.label} preview"
                onerror="this.style.display='none';this.parentNode.classList.add('vtp-thumb-fallback')">
-          <span class="vtp-thumb-name">${isCustom ? '⬆ Upload image' : t.label}</span>
-        </div>
+           <span class="vtp-thumb-name">${t.label}</span>`;
+      card.innerHTML = `
+        <div class="vtp-thumb" data-theme-preview="${t.id}">${thumbInner}</div>
         <div class="vtp-label">
           <span class="vtp-label-text">${t.label}</span>
           <span class="vtp-check" aria-hidden="true">&#10003;</span>
@@ -75,6 +74,21 @@ const ThemePicker = {
     document.body.appendChild(overlay);
     this._overlay = overlay;
     requestAnimationFrame(() => overlay.classList.add('visible'));
+  },
+
+  // A tiny CSS browser mockup (sidebar + tab dots + toolbar + text rows + an
+  // accent button) drawn from a theme's palette, so new themes get a real-looking
+  // preview without a screenshot PNG.
+  _mockHtml(m) {
+    const v = `--m-bg:${m.bg};--m-side:${m.side};--m-surf:${m.surf};--m-txt:${m.txt};--m-acc:${m.acc}`;
+    return `<div class="vtp-mock" style="${v}">
+        <div class="vtp-mock-side"><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="vtp-mock-main">
+          <div class="vtp-mock-bar"></div>
+          <div class="vtp-mock-rows"><u></u><u></u><u style="width:55%"></u></div>
+          <div class="vtp-mock-pill"></div>
+        </div>
+      </div>`;
   },
 
   // Custom Image theme: let the user pick an image, downscale it to a data URL,

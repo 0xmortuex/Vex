@@ -129,3 +129,69 @@
   transition: opacity 0.15s ease;
 }
 .vtp-card.active .vtp-check { opacity: 1; }
+
+/* === Live mini-UI mockup previews for themes without a screenshot PNG === */
+.vtp-mock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  background: var(--m-bg);
+}
+.vtp-mock-side {
+  width: 24%;
+  background: var(--m-side);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 0;
+  align-items: center;
+}
+.vtp-mock-side i {
+  width: 46%;
+  height: 7px;
+  border-radius: 3px;
+  background: var(--m-txt);
+  opacity: 0.18;
+}
+.vtp-mock-side i.on { background: var(--m-acc); opacity: 1; }
+.vtp-mock-main {
+  flex: 1;
+  padding: 9px 9px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.vtp-mock-bar {
+  height: 11px;
+  border-radius: 5px;
+  background: var(--m-surf);
+}
+.vtp-mock-rows { display: flex; flex-direction: column; gap: 5px; }
+.vtp-mock-rows u {
+  display: block;
+  width: 85%;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--m-txt);
+  opacity: 0.28;
+}
+.vtp-mock-pill {
+  width: 42px;
+  height: 13px;
+  border-radius: 6px;
+  background: var(--m-acc);
+  margin-top: 1px;
+}
+.vtp-thumb-upload {
+  position: absolute;
+  bottom: 7px;
+  right: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: rgba(0,0,0,0.45);
+  padding: 3px 7px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
