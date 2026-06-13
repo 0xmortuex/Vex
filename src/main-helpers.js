@@ -48,6 +48,37 @@ function findLaunchUrl(argv) {
   return null;
 }
 
+// === open-url buffering ===
+// Canonical (tested) form of the cold-start link race fix. On a cold start
+// the main process sends the clicked link via the 'open-url' IPC at the
+// window's did-finish-load, but the renderer registers its handler late in its
+// async init — so without buffering that first URL is dropped and Vex opens to
+// the start page. deliver(url) is called by the IPC listener; attach(cb) is
+// called when the renderer registers. URLs delivered before attach() are
+// buffered and flushed (in order) on attach. A throwing cb never breaks
+// delivery of later URLs.
+//
+// NOTE: preload.js is sandboxed and cannot require() this module, so it mirrors
+// this exact logic inline. Keep the two in sync; this copy is the spec + test
+// target.
+function createOpenUrlBuffer() {
+  let cb = null;
+  const buffer = [];
+  return {
+    deliver(url) {
+      if (cb) { try { cb(url); } catch { /* swallow — keep delivering */ } }
+      else buffer.push(url);
+    },
+    attach(fn) {
+      cb = fn;
+      while (buffer.length) {
+        const u = buffer.shift();
+        try { cb(u); } catch { /* swallow */ }
+      }
+    },
+  };
+}
+
 // === Fullscreen shortcut decider ===
 // Pure-decision variant of handleFullscreenShortcut. Takes the input event +
 // current tracked-state and returns a descriptor of what to do, so it can be
@@ -273,6 +304,7 @@ module.exports = {
   isOAuthPopupUrl,
   normalizeLaunchArg,
   findLaunchUrl,
+  createOpenUrlBuffer,
   decideFullscreenAction,
   handleFullscreenShortcut,
   safeJoin,

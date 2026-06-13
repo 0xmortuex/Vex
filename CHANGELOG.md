@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.24.1 (2026-06-13) — Clicked links open with Vex on cold start
+
+### Fixed
+- **Clicking a link when Vex isn't already running now opens the link**, not just the browser. On a cold launch the link arrived before the page had finished wiring up its handler, so it was dropped and Vex showed the start page. Vex now buffers the incoming link until the page is ready and then navigates to it. Verified in real Electron.
+
 ## v2.24.0 (2026-06-13) — Group colors actually change + match every theme
 
 ### Fixed

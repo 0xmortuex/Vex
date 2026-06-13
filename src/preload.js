@@ -1,5 +1,28 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// === open-url buffering (cold-start link race fix) ===
+// On a COLD start (Vex not already running) the main process sends the clicked
+// link via the 'open-url' IPC at the window's did-finish-load. But the renderer
+// only registers its handler late in its async init (after PersistentStorage /
+// ThemeManager / TabManager.init …), so that first message arrived before any
+// listener existed and was dropped — Vex opened to the start page instead of
+// the link. Fix: subscribe HERE at preload-eval time (which runs before the
+// page's scripts) and buffer URLs until the renderer attaches its callback.
+//
+// This mirrors createOpenUrlBuffer() in main-helpers.js (the tested spec) —
+// preload is sandboxed and can't require() it, so keep the two in sync.
+let _openUrlCb = null;
+const _openUrlBuffer = [];
+ipcRenderer.on('open-url', (_, url) => {
+  console.log('[Vex URL] preload: received open-url IPC ->', url);
+  if (_openUrlCb) {
+    try { _openUrlCb(url); } catch (err) { console.error('[Vex URL] preload: onOpenUrl cb threw:', err && err.stack || err); }
+  } else {
+    console.log('[Vex URL] preload: no handler yet — buffering URL');
+    _openUrlBuffer.push(url);
+  }
+});
+
 contextBridge.exposeInMainWorld('vex', {
   // Window controls
   minimize: () => ipcRenderer.send('window-minimize'),
@@ -135,18 +158,16 @@ contextBridge.exposeInMainWorld('vex', {
   onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_, i) => cb(i)),
   onUpdateError: (cb) => ipcRenderer.on('update-error', (_, e) => cb(e)),
 
-  // Default browser
+  // Default browser. Attaches the renderer's handler and immediately flushes any
+  // URLs that arrived (and were buffered) before this point — see the early
+  // ipcRenderer.on('open-url') subscription at the top of this file.
   onOpenUrl: (cb) => {
-    console.log('[Vex URL] preload: renderer registered onOpenUrl listener');
-    ipcRenderer.on('open-url', (_, url) => {
-      console.log('[Vex URL] preload: received open-url IPC ->', url);
-      try {
-        cb(url);
-        console.log('[Vex URL] preload: renderer callback returned without throwing');
-      } catch (err) {
-        console.error('[Vex URL] preload: renderer callback threw:', err && err.stack || err);
-      }
-    });
+    console.log('[Vex URL] preload: renderer registered onOpenUrl listener; flushing', _openUrlBuffer.length, 'buffered URL(s)');
+    _openUrlCb = cb;
+    while (_openUrlBuffer.length) {
+      const url = _openUrlBuffer.shift();
+      try { cb(url); } catch (err) { console.error('[Vex URL] preload: onOpenUrl cb threw:', err && err.stack || err); }
+    }
   },
   setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
