@@ -11,6 +11,20 @@ const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, ne
 app.commandLine.appendSwitch('enable-features', 'PrintPreview');
 app.commandLine.appendSwitch('enable-print-preview');
 
+// Disable Chromium's third-party storage partitioning. Since Chrome ~115 this
+// is on by default and it BREAKS redirect-based federated sign-in: Firebase's
+// signInWithRedirect (used by ElevenLabs' "Sign in with Google", many others)
+// writes a pending-login token to sessionStorage, bounces to the auth handler
+// on the provider/authDomain, then returns — and the auth-handler iframe gets a
+// *partitioned* storage bucket, so it can't read the state it wrote. The result
+// is Firebase's "Unable to process request due to missing initial state" page.
+// Turning the feature off restores the unpartitioned behavior these flows rely
+// on. Tradeoff: third-party storage is no longer isolated per top-site (a minor
+// privacy reduction) — acceptable here because Vex's ad/tracker blocker already
+// strips the cross-site trackers that would exploit it. MUST run before any
+// other app.* access (Chromium freezes its feature list on first touch).
+app.commandLine.appendSwitch('disable-features', 'ThirdPartyStoragePartitioning');
+
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');

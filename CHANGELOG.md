@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.25.1 (2026-06-13) — "Sign in with Google" works again (Firebase redirect logins)
+
+### Fixed
+- **Federated sign-in (e.g. "Sign in with Google" on ElevenLabs and other Firebase sites) no longer fails** with *"Unable to process request due to missing initial state."* Chromium's third-party storage partitioning was isolating the auth-handler's storage so the redirect couldn't read its own login state. Vex now disables that partitioning, restoring redirect-based logins. (Vex's ad/tracker blocker still handles the cross-site tracking that partitioning was guarding against.)
+
 ## v2.25.0 (2026-06-13) — Customize every left-sidebar button
 
 ### Added
