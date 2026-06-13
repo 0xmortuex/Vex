@@ -79,7 +79,7 @@ describe('sidebar context menu (jsdom integration)', () => {
       'Rename…', 'Change icon…', 'Change link…',
       'Switch to Claude', 'Switch to Gemini', 'Switch to ChatGPT',
       'Refresh', 'Open DevTools',
-      'Delete (hide)', 'Reset to default',
+      'Hide button', 'Reset to default',
     ]);
   });
 
@@ -126,24 +126,32 @@ describe('sidebar context menu (jsdom integration)', () => {
     expect(fakeWebview.reload).toHaveBeenCalledTimes(1);
   });
 
-  it('right-click on a custom panel (settings) does NOT open the menu', () => {
+  it('right-click on a custom panel (settings) opens a reduced menu — no Change link, no Hide', () => {
     document.body.innerHTML += `<button class="sidebar-icon" data-panel="settings"></button>`;
     SidebarManager.init();
 
     document.querySelector('.sidebar-icon[data-panel="settings"]')
       .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 
-    expect(document.querySelector('.tab-context-menu')).toBeNull();
+    const menu = document.querySelector('.tab-context-menu');
+    expect(menu).not.toBeNull();
+    const labels = [...menu.querySelectorAll('.tab-context-item')].map(el => el.textContent);
+    expect(labels).toEqual(['Rename…', 'Change icon…', 'Reset to default']); // Settings is un-hideable
+    expect(labels).not.toContain('Change link…');
   });
 
-  it('right-click on the Start (house) icon does NOT open the menu', () => {
+  it('right-click on the Start (house) icon opens a reduced menu (Rename/Change icon/Hide/Reset)', () => {
     document.body.innerHTML += `<button class="sidebar-icon" data-panel="start"></button>`;
     SidebarManager.init();
 
     document.querySelector('.sidebar-icon[data-panel="start"]')
       .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 
-    expect(document.querySelector('.tab-context-menu')).toBeNull();
+    const menu = document.querySelector('.tab-context-menu');
+    expect(menu).not.toBeNull();
+    const labels = [...menu.querySelectorAll('.tab-context-item')].map(el => el.textContent);
+    expect(labels).toEqual(['Rename…', 'Change icon…', 'Hide button', 'Reset to default']);
+    expect(labels).not.toContain('Change link…');
   });
 
   it('opening a second context menu replaces the first (no stacking)', () => {

@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.25.0 (2026-06-13) — Customize every left-sidebar button
+
+### Added
+- **Every left-sidebar button can now be customized**, not just the web-app ones. **Right-click any button** → Rename, Change icon, Hide, Reset. Buttons that open a website (Claude/Spotify/WhatsApp, pinned sites) also get **Change link** + service switch.
+- **Settings → Sidebar Buttons** — a master list to **rename, change icon, change link (web buttons), show/hide, and reorder** every button, and the place to **restore hidden buttons** (previously there was no way back once a button was hidden).
+
+### Fixed
+- The sidebar right-click menu no longer leaves an invisible overlay behind after you pick an item (same class of bug fixed for the tab/group menus).
+
 ## v2.24.1 (2026-06-13) — Clicked links open with Vex on cold start
 
 ### Fixed

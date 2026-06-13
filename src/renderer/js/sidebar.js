@@ -151,16 +151,21 @@ const SidebarManager = {
       const btn = document.createElement('button');
       btn.className = 'sidebar-icon';
       btn.dataset.panel = p.id;
-      btn.title = p.name + ' (pinned site — right-click to unpin)';
+      btn.title = p.name + ' (pinned site — right-click for options)';
       btn.innerHTML = '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(host) + '&sz=32" style="width:18px;height:18px;border-radius:4px" onerror="this.replaceWith(document.createTextNode(\'🌐\'))">';
       btn.addEventListener('click', () => this.togglePanel(p.id));
+      // Full customization menu (Rename / Change icon / Change link / Unpin).
       btn.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        if (confirm('Unpin ' + p.name + ' from the sidebar?')) this.unpinSite(p.id);
+        this.showContextMenu(e, p.id);
       });
+      // Capture originals so "Reset to default" works for pinned sites too.
+      this._origIcons[p.id] = { html: btn.innerHTML, title: btn.title };
+      this._origUrls[p.id] = p.url;
       const spacer = document.querySelector('#icon-sidebar .sidebar-spacer');
       if (spacer) spacer.parentElement.insertBefore(btn, spacer);
     }
+    this.applySidebarOrder();
   },
 
   unpinSite(id) {
@@ -170,6 +175,7 @@ const SidebarManager = {
     document.getElementById('panel-' + id)?.remove();
     delete this.panelConfigs[id];
     delete this.panelWebviews[id];
+    this.renderSidebarManager();
     window.showToast?.('Unpinned');
   },
 
@@ -197,14 +203,14 @@ const SidebarManager = {
         }
         this.togglePanel(panel);
       });
-      // Right-click → context menu with Refresh + Open DevTools. Only meaningful
-      // for panels that host a webview (Claude, Spotify, WhatsApp). Custom
-      // panels (settings, history, downloads, ...) and the Start icon get no
-      // menu since there's nothing to refresh.
+      // Right-click → customization menu. Every sidebar button gets one now:
+      // URL-backed buttons (Claude/Spotify/WhatsApp, pinned sites) get the full
+      // menu incl. Change link / Switch service / Refresh; internal feature
+      // panels (Notes, Downloads, …) get Rename / Change icon / Hide / Reset.
+      // showContextMenu() decides which items to show per button type.
       btn.addEventListener('contextmenu', (e) => {
         const panel = btn.dataset.panel;
-        if (!panel || panel === 'start') return;
-        if (this.customPanels.includes(panel)) return;
+        if (!panel) return;
         e.preventDefault();
         this.showContextMenu(e, panel);
       });
@@ -215,6 +221,10 @@ const SidebarManager = {
 
     // Mount user-pinned site panels (Vivaldi-style web panels).
     this.loadSitePanels();
+
+    // Apply saved button order + populate the Settings → Sidebar manager.
+    this.applySidebarOrder();
+    this.renderSidebarManager();
 
     // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
     // openDevTools on webContents.getFocusedWebContents(). The previous
@@ -420,7 +430,21 @@ const SidebarManager = {
     this.showPanel(name);
   },
 
-  // ---- Per-button customization (name / icon / link / hide) ----
+  // ---- Per-button customization (name / icon / link / hide / order) ----
+
+  // A button is "URL-backed" if clicking it loads a web page: the AI/web-app
+  // panels (Claude/Spotify/WhatsApp), pinned sites (site_*), or any panel the
+  // user has given a link override. Those offer Change link + Switch service +
+  // Refresh/DevTools; internal feature panels (Notes, Downloads, …) only offer
+  // Rename / Change icon / Hide / Reset (Change link doesn't apply — they open
+  // Vex's own UI, not a URL).
+  _isUrlPanel(panel) {
+    if (!panel) return false;
+    if (panel.startsWith('site_')) return true;
+    const cfg = this.panelConfigs[panel];
+    return !!(cfg && cfg.url);
+  },
+
   applyPanelOverrides() {
     const ov = loadPanelOverrides();
     Object.keys(ov).forEach(panel => {
@@ -444,6 +468,7 @@ const SidebarManager = {
       const wv = this.panelWebviews[panel];
       try { if (typeof wv.loadURL === 'function') wv.loadURL(patch.url); else wv.src = patch.url; } catch (err) {}
     }
+    this.renderSidebarManager();
     window.showToast?.('Updated');
   },
 
@@ -455,10 +480,105 @@ const SidebarManager = {
       btn.title = this._origIcons[panel].title;
       btn.style.display = '';
     }
-    if (this.panelConfigs[panel]) this.panelConfigs[panel].url = this._origUrls[panel];
+    if (this.panelConfigs[panel] && (panel in this._origUrls)) this.panelConfigs[panel].url = this._origUrls[panel];
     const wv = this.panelWebviews[panel];
     if (wv && this._origUrls[panel]) { try { wv.loadURL?.(this._origUrls[panel]); } catch (err) {} }
+    this.applySidebarOrder();
+    this.renderSidebarManager();
     window.showToast?.('Reset to default');
+  },
+
+  _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; },
+
+  // ---- Sidebar order (reorder the top buttons) ----
+  _loadOrder() { try { const a = JSON.parse(localStorage.getItem('vex.sidebarOrder') || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
+  _saveOrder(a) { try { localStorage.setItem('vex.sidebarOrder', JSON.stringify(a)); } catch {} },
+
+  // The reorderable region is every .sidebar-icon ABOVE the spacer — Settings
+  // and the tools-bar stay pinned at the bottom. Returns buttons in DOM order.
+  _topButtons() {
+    const bar = document.getElementById('icon-sidebar');
+    if (!bar) return [];
+    const out = [];
+    for (const el of Array.from(bar.children)) {
+      if (el.classList && el.classList.contains('sidebar-spacer')) break;
+      if (el.classList && el.classList.contains('sidebar-icon') && el.dataset.panel) out.push(el);
+    }
+    return out;
+  },
+
+  applySidebarOrder() {
+    const bar = document.getElementById('icon-sidebar');
+    if (!bar) return;
+    const spacer = bar.querySelector('.sidebar-spacer');
+    const btns = this._topButtons();
+    const order = this._loadOrder();
+    if (!btns.length || !order.length) return; // no custom order → keep HTML order
+    const byPanel = {};
+    btns.forEach(b => { byPanel[b.dataset.panel] = b; });
+    const seen = new Set();
+    const seq = [];
+    order.forEach(p => { if (byPanel[p]) { seq.push(byPanel[p]); seen.add(p); } });
+    btns.forEach(b => { if (!seen.has(b.dataset.panel)) seq.push(b); }); // new buttons keep their spot at the end
+    seq.forEach(b => { if (spacer) bar.insertBefore(b, spacer); else bar.appendChild(b); });
+  },
+
+  moveButton(panel, dir) {
+    const panels = this._topButtons().map(b => b.dataset.panel);
+    let order = this._loadOrder().filter(p => panels.includes(p));
+    panels.forEach(p => { if (!order.includes(p)) order.push(p); }); // seed from current order
+    const i = order.indexOf(panel);
+    const j = dir < 0 ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    this._saveOrder(order);
+    this.applySidebarOrder();
+    this.renderSidebarManager();
+  },
+
+  // ---- Settings → Sidebar manager (master list: show/hide + restore, rename,
+  // change icon, change link for URL buttons, reorder) ----
+  renderSidebarManager() {
+    const host = document.getElementById('sidebar-manager-list');
+    if (!host) return;
+    const ov = loadPanelOverrides();
+    const btns = this._topButtons();
+    host.innerHTML = '';
+    btns.forEach((btn) => {
+      const panel = btn.dataset.panel;
+      const o = ov[panel] || {};
+      const hidden = !!o.hidden;
+      const name = o.name || btn.title || panel;
+      const isUrl = this._isUrlPanel(panel);
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 2px;border-bottom:1px solid var(--border)';
+      const btnCss = 'background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;width:26px;height:26px;display:grid;place-items:center;font-size:12px;padding:0';
+      row.innerHTML =
+        '<span style="width:22px;height:22px;display:grid;place-items:center;opacity:' + (hidden ? '0.4' : '1') + '">' + btn.innerHTML + '</span>' +
+        '<span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (hidden ? 'opacity:0.5;text-decoration:line-through' : '') + '">' + this._esc(name) + '</span>' +
+        '<button data-act="up"     title="Move up"     style="' + btnCss + '">▲</button>' +
+        '<button data-act="down"   title="Move down"   style="' + btnCss + '">▼</button>' +
+        '<button data-act="rename" title="Rename"      style="' + btnCss + '">✎</button>' +
+        '<button data-act="icon"   title="Change icon" style="' + btnCss + '">★</button>' +
+        (isUrl ? '<button data-act="link" title="Change link" style="' + btnCss + '">🔗</button>' : '') +
+        '<button data-act="toggle" title="' + (hidden ? 'Show' : 'Hide') + '" style="' + btnCss + '">' + (hidden ? '+' : '−') + '</button>' +
+        (panel.startsWith('site_') ? '' : '<button data-act="reset" title="Reset to default" style="' + btnCss + '">↺</button>');
+      row.querySelectorAll('button[data-act]').forEach(b => {
+        b.addEventListener('click', (ev) => {
+          const act = b.dataset.act;
+          if (act === 'up') this.moveButton(panel, -1);
+          else if (act === 'down') this.moveButton(panel, +1);
+          else if (act === 'rename') this.renamePanel(panel);
+          else if (act === 'icon') {
+            const r = b.getBoundingClientRect();
+            this.showIconPicker({ clientX: r.left, clientY: r.bottom }, panel);
+          } else if (act === 'link') this.changePanelLink(panel);
+          else if (act === 'toggle') this.setPanelOverride(panel, { hidden: !hidden });
+          else if (act === 'reset') this.resetPanelOverride(panel);
+        });
+      });
+      host.appendChild(row);
+    });
   },
 
   switchPanelService(panel, key) {
@@ -497,12 +617,13 @@ const SidebarManager = {
     if (window.TabManager?._attachMenuDismissal) TabManager._attachMenuDismissal(pop);
   },
 
-  // Right-click context menu for panel icons (Claude/Spotify/WhatsApp).
-  // Reuses TabManager's .tab-context-menu styling + dismissal helpers so the
-  // outside-click / Esc / viewport-clamp behavior matches the tab menu the
-  // user already knows.
+  // Right-click context menu for ANY sidebar button. The item set adapts to the
+  // button type (see _isUrlPanel): URL-backed buttons get the full menu;
+  // internal feature panels get Rename / Change icon / Hide / Reset; pinned
+  // sites get Unpin instead of Hide. Reuses TabManager's .tab-context-menu
+  // styling + dismissal helpers so behavior matches the tab menu.
   showContextMenu(e, panelName) {
-    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu').forEach(m => m.remove());
+    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu, .context-menu-overlay').forEach(m => m.remove());
 
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
@@ -510,24 +631,28 @@ const SidebarManager = {
     menu.style.left = x + 'px';
     menu.style.top  = y + 'px';
 
+    const isUrl = this._isUrlPanel(panelName);
+    const isSite = panelName.startsWith('site_');
+
     const items = [
       { label: 'Rename…', action: () => this.renamePanel(panelName) },
       { label: 'Change icon…', action: () => this.showIconPicker(e, panelName) },
-      { label: 'Change link…', action: () => this.changePanelLink(panelName) },
-      { separator: true },
-      { label: 'Switch to Claude', action: () => this.switchPanelService(panelName, 'claude') },
-      { label: 'Switch to Gemini', action: () => this.switchPanelService(panelName, 'gemini') },
-      { label: 'Switch to ChatGPT', action: () => this.switchPanelService(panelName, 'chatgpt') },
-      { separator: true },
-      { label: 'Refresh', action: makeRefreshAction(this, panelName) },
-      {
+    ];
+    // Change link + service switch + refresh/devtools only make sense for
+    // buttons that actually load a web page.
+    if (isUrl) {
+      items.push({ label: 'Change link…', action: () => this.changePanelLink(panelName) });
+      items.push({ separator: true });
+      items.push({ label: 'Switch to Claude', action: () => this.switchPanelService(panelName, 'claude') });
+      items.push({ label: 'Switch to Gemini', action: () => this.switchPanelService(panelName, 'gemini') });
+      items.push({ label: 'Switch to ChatGPT', action: () => this.switchPanelService(panelName, 'chatgpt') });
+      items.push({ separator: true });
+      items.push({ label: 'Refresh', action: makeRefreshAction(this, panelName) });
+      items.push({
         label: 'Open DevTools',
         action: () => {
           const wv = this.panelWebviews[panelName];
-          if (!wv) {
-            this.showPanel(panelName);
-            return;
-          }
+          if (!wv) { this.showPanel(panelName); return; }
           const id  = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
           const url = typeof wv.getURL === 'function' ? wv.getURL() : null;
           if (window.vexDevTools?.openForWebContents) {
@@ -538,11 +663,18 @@ const SidebarManager = {
             try { wv.openDevTools(); } catch (err) { console.error('[Sidebar] wv.openDevTools error:', err); }
           }
         }
-      },
-      { separator: true },
-      { label: 'Delete (hide)', danger: true, action: () => this.setPanelOverride(panelName, { hidden: true }) },
-      { label: 'Reset to default', action: () => this.resetPanelOverride(panelName) },
-    ];
+      });
+    }
+    items.push({ separator: true });
+    if (isSite) {
+      // Pinned sites are removed entirely, not just hidden.
+      items.push({ label: 'Unpin', danger: true, action: () => this.unpinSite(panelName) });
+    } else if (panelName !== 'settings') {
+      // Settings stays un-hideable — it's the gateway to the Sidebar manager
+      // where hidden buttons are restored.
+      items.push({ label: 'Hide button', danger: true, action: () => this.setPanelOverride(panelName, { hidden: true }) });
+    }
+    items.push({ label: 'Reset to default', action: () => this.resetPanelOverride(panelName) });
 
     items.forEach(item => {
       if (item.separator) {
@@ -555,7 +687,12 @@ const SidebarManager = {
       const el = document.createElement('div');
       el.className = 'tab-context-item' + (item.danger ? ' danger' : '');
       el.textContent = item.label;
-      el.addEventListener('click', () => { item.action(); menu.remove(); });
+      // Use _dismissMenu (not bare menu.remove) so the dismissal overlay is
+      // torn down too — otherwise it lingers and eats the next click.
+      el.addEventListener('click', () => {
+        item.action();
+        if (window.TabManager?._dismissMenu) TabManager._dismissMenu(menu); else menu.remove();
+      });
       menu.appendChild(el);
     });
 
