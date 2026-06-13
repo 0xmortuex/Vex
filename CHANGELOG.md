@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.24.0 (2026-06-13) — Group colors fixed + theme-matched
+
+### Fixed
+- **Changing a tab group's color now works reliably.** Right-click a group → “🎨 Change color” → pick a swatch and it applies. The picker (and every group/tab/stack context menu) no longer leaves an invisible full-screen overlay behind that silently swallowed your next click and stacked up with each menu use — the bug that made group menus feel frozen/broken.
+
+### Changed
+- **Group colors now match every theme.** The color choices are built from the active theme's own palette, so picking a color in Dracula gives you Dracula's purple/pink/green, Ocean gives its cyans, and so on. New groups default to the current theme's accent. Group pills already harmonized per-theme on render; now the choices do too.
+
 ## v2.23.0 (2026-06-13) — Wizard shows everything + all settings re-editable
 
 ### Changed

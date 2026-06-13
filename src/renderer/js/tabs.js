@@ -753,7 +753,7 @@ const TabManager = {
 
   // Phase 4c — Feature 5. Right-click menu for a stack header.
   showStackContextMenu(event, stackId) {
-    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu').forEach(m => m.remove());
+    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu, .context-menu-overlay').forEach(m => m.remove());
     const stack = this.stacks.find(s => s.id === stackId);
     if (!stack) return;
     const members = this.tabs.filter(t => t.stackId === stackId);
@@ -775,7 +775,7 @@ const TabManager = {
     menu.querySelectorAll('.tab-context-item').forEach(item => {
       item.addEventListener('click', () => {
         const action = item.dataset.action;
-        menu.remove();
+        this._dismissMenu(menu);
         this._handleStackAction(action, stackId);
       });
     });
@@ -821,7 +821,7 @@ const TabManager = {
 
   // Right-click menu for a group header
   showGroupContextMenu(event, groupId) {
-    document.querySelectorAll('.tab-group-context-menu, .tab-context-menu').forEach(m => m.remove());
+    document.querySelectorAll('.tab-group-context-menu, .tab-context-menu, .context-menu-overlay').forEach(m => m.remove());
     const group = this.groups.find(g => g.id === groupId);
     if (!group) return;
     const tabsInGroup = this.tabs.filter(t => t.groupId === groupId);
@@ -853,7 +853,7 @@ const TabManager = {
       item.addEventListener('click', () => {
         if (item.classList.contains('disabled')) return;
         const action = item.dataset.action;
-        menu.remove();
+        this._dismissMenu(menu);
         this._handleGroupAction(action, groupId);
       });
     });
@@ -926,7 +926,10 @@ const TabManager = {
     const name = await this._promptInput('New group', 'Group name', '');
     if (!name || !name.trim()) return;
     const id = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    this.groups.push({ id, name: name.trim(), color: GROUP_COLORS[0], collapsed: false });
+    // Default a new group to the active theme's accent so it matches the
+    // current theme; the user can recolor from the theme palette via right-click.
+    const defaultColor = this._themeGroupPalette()[0] || GROUP_COLORS[0];
+    this.groups.push({ id, name: name.trim(), color: defaultColor, collapsed: false });
     this._setTabGroup(tab.id, id);
     VexStorage.saveGroups(this.groups);
     this.rebuildAllTabs();
@@ -934,8 +937,51 @@ const TabManager = {
     window.showToast?.(`Created group "${name.trim()}"`, 'success');
   },
 
+  // Build the group-color palette from the ACTIVE theme's own tokens so the
+  // choices always belong to the current theme — pick in Dracula and you get
+  // Dracula's purple/pink/green; pick in Ocean and you get its cyans. Each
+  // theme block in theme-tokens.css defines these semantic vars as plain hex,
+  // and getComputedStyle returns custom properties as their authored value
+  // (not resolved), so we read real colors here. Falls back to the fixed
+  // GROUP_COLORS list when the tokens can't be read (e.g. jsdom under vitest).
+  _themeGroupPalette() {
+    try {
+      const cs = getComputedStyle(document.documentElement);
+      const names = [
+        '--vex-accent', '--vex-text-accent', '--vex-success',
+        '--vex-warning', '--vex-danger', '--accent', '--primary',
+        '--vex-border-accent-strong',
+      ];
+      const seen = new Set();
+      const out = [];
+      for (const n of names) {
+        const v = (cs.getPropertyValue(n) || '').trim();
+        // Skip empties and anything still symbolic (var()/color-mix) — those
+        // aren't paintable as a swatch background or storable as group.color.
+        if (!v || /^(transparent|inherit|initial)$/i.test(v)) continue;
+        if (/var\(|color-mix/i.test(v)) continue;
+        const key = v.toLowerCase().replace(/\s+/g, '');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(v);
+      }
+      // Pad to at least 6 distinct swatches from the fixed palette if a theme
+      // happens to reuse one hue across several tokens.
+      for (const c of GROUP_COLORS) {
+        if (out.length >= 8) break;
+        const key = c.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(c);
+      }
+      return out.length >= 4 ? out.slice(0, 8) : GROUP_COLORS;
+    } catch {
+      return GROUP_COLORS;
+    }
+  },
+
   _showGroupColorPicker(groupId, onPick) {
-    const colors = GROUP_COLORS;
+    const colors = this._themeGroupPalette();
     document.querySelectorAll('.group-color-picker-overlay').forEach(o => o.remove());
     const overlay = document.createElement('div');
     overlay.className = 'group-color-picker-overlay';
@@ -960,7 +1006,7 @@ const TabManager = {
 
   showContextMenu(e, tab) {
     // Remove existing menu
-    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu').forEach(m => m.remove());
+    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu, .context-menu-overlay').forEach(m => m.remove());
 
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
@@ -1025,7 +1071,7 @@ const TabManager = {
         }
         el.addEventListener('click', () => {
           item.action();
-          menu.remove();
+          this._dismissMenu(menu);
         });
         menu.appendChild(el);
       }
@@ -1439,6 +1485,14 @@ const TabManager = {
   // menu lands on the overlay (a host-doc element) and dismisses cleanly on
   // the very first press. This matches Chrome's own context-menu behavior:
   // first click dismisses the menu, second click acts on the page.
+  // Fully dismiss a context menu built with _attachMenuDismissal — removes
+  // both the menu and its full-screen dismissal overlay. Item-click handlers
+  // MUST use this instead of bare menu.remove() or the overlay is orphaned.
+  _dismissMenu(menu) {
+    if (menu && typeof menu._closeMenu === 'function') menu._closeMenu();
+    else menu?.remove();
+  },
+
   _attachMenuDismissal(menu) {
     const overlay = document.createElement('div');
     overlay.className = 'context-menu-overlay';
@@ -1460,6 +1514,12 @@ const TabManager = {
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', onBlur, true);
     }
+    // Expose close() so item-click handlers can tear the WHOLE menu down —
+    // overlay included. Calling bare menu.remove() on a click used to leave
+    // the transparent z:999 dismissal overlay orphaned over the entire window,
+    // silently eating the next click (and stacking one orphan per menu use).
+    // That's the "group context menu / change-color feels broken" bug.
+    menu._closeMenu = close;
 
     // mousedown (not click) so we close BEFORE the user releases — feels
     // instant and avoids any race with click handlers fired afterward.
