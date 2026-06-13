@@ -61,8 +61,12 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
         groups.forEach(g => {
           try {
             // Same shape tab-grouper uses — push into TabManager.groups directly.
+            // Prefer a theme palette ref so AI groups match + re-theme like manual ones.
             const gid = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-            TabManager.groups.push({ id: gid, name: g.name, color: HEX[g.color] || '#6366f1', collapsed: false });
+            const color = (typeof TabManager !== 'undefined' && typeof TabManager._aiGroupColorRef === 'function')
+              ? TabManager._aiGroupColorRef(g.color)
+              : (HEX[g.color] || '#6366f1');
+            TabManager.groups.push({ id: gid, name: g.name, color, collapsed: false });
             if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups);
             g.ids.forEach(id => { if (TabManager._setTabGroup) TabManager._setTabGroup(id, gid); });
             TabManager.rebuildAllTabs?.(); TabManager.persistTabs?.();

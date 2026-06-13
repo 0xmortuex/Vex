@@ -977,6 +977,28 @@ const TabManager = {
     return GROUP_COLORS.map(c => ({ ref: c, color: c }));
   },
 
+  // Map an AI-suggested color NAME (indigo/cyan/green/amber/red/violet/rose/
+  // teal — what the AI grouper + AI tab-media emit) to a theme palette ref, so
+  // AI-created groups also match the theme and re-theme on switch like manual
+  // ones. Same name → same palette slot (keeps the AI's "these groups differ"
+  // intent). Falls back to the AI's fixed hex when the live theme palette can't
+  // be read (e.g. jsdom, or before themes load).
+  _aiGroupColorRef(name) {
+    const order = ['indigo', 'violet', 'cyan', 'teal', 'green', 'amber', 'rose', 'red'];
+    const pal = this._themeGroupPalette();
+    // pal is the fixed fallback when ref === color (hex) for the first entry.
+    const isLiveTheme = Array.isArray(pal) && pal.length && pal[0].ref !== pal[0].color;
+    if (isLiveTheme) {
+      const idx = order.indexOf(name);
+      return pal[(idx < 0 ? 0 : idx) % pal.length].ref;
+    }
+    const HEX = {
+      indigo: '#6366f1', cyan: '#06b6d4', green: '#22c55e', amber: '#f59e0b',
+      red: '#ef4444', violet: '#8b5cf6', rose: '#f43f5e', teal: '#14b8a6',
+    };
+    return HEX[name] || '#6366f1';
+  },
+
   _showGroupColorPicker(groupId, onPick) {
     const colors = this._themeGroupPalette();
     document.querySelectorAll('.group-color-picker-overlay').forEach(o => o.remove());

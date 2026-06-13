@@ -485,8 +485,12 @@ const TabGrouper = (() => {
     let created = 0;
     for (const g of groupsToApply) {
       const displayName = `${g.emoji ? g.emoji + ' ' : ''}${g.name}`.trim();
-      const hex = COLOR_HEX[g.color] || '#6366f1';
-      const newGroupId = _createGroup({ name: displayName, color: hex });
+      // Prefer a theme palette ref (matches + re-themes); fall back to the fixed
+      // hex when TabManager/the theme palette isn't available.
+      const color = (typeof TabManager !== 'undefined' && typeof TabManager._aiGroupColorRef === 'function')
+        ? TabManager._aiGroupColorRef(g.color)
+        : (COLOR_HEX[g.color] || '#6366f1');
+      const newGroupId = _createGroup({ name: displayName, color });
       if (!newGroupId) continue;
       for (const tabId of g.tabIds) _assignTabToGroup(tabId, newGroupId);
       if (rememberPatterns && g.pattern) {

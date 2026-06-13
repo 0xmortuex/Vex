@@ -7,9 +7,7 @@
 - The group/tab/stack right-click menus no longer leave an invisible full-screen overlay behind that could swallow your next click.
 
 ### Changed
-- **Group colors now match every theme — and re-match when you switch themes.** Colors are stored as theme references and the choices are drawn from the active theme's palette, so a group is Dracula's purple in Dracula and Ocean's cyan in Ocean — switching themes recolors your groups live. New groups default to the current theme's accent.
-
-> Note: groups created by the AI auto-grouper still use fixed colors (they don't re-theme yet) — a follow-up.
+- **Group colors now match every theme — and re-match when you switch themes.** Colors are stored as theme references and the choices are drawn from the active theme's palette, so a group is Dracula's purple in Dracula and Ocean's cyan in Ocean — switching themes recolors your groups live. New groups default to the current theme's accent. This applies to **AI-created groups** too (auto-grouper and the AI tab command) — they map onto the theme palette and re-theme like manual groups.
 
 ## v2.23.0 (2026-06-13) — Wizard shows everything + all settings re-editable
 

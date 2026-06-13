@@ -115,6 +115,35 @@ describe('_themeGroupPalette', () => {
   });
 });
 
+describe('_aiGroupColorRef — AI groups map to theme refs', () => {
+  it('returns theme palette refs when a live theme is present (same name → same slot)', async () => {
+    installGlobals();
+    const TM = await loadTabManager();
+    // Simulate a live theme palette (jsdom can't resolve CSS vars).
+    TM._themeGroupPalette = () => ([
+      { ref: 'var(--vex-accent)', color: '#1e3a5f' },
+      { ref: 'var(--vex-text-accent)', color: '#1e3a5f' },
+      { ref: 'var(--vex-success)', color: '#2f6b3f' },
+      { ref: 'var(--vex-warning)', color: '#c2611a' },
+      { ref: 'var(--vex-danger)', color: '#9c2a1a' },
+    ]);
+    const red = TM._aiGroupColorRef('red');
+    expect(red.startsWith('var(--')).toBe(true);
+    expect(TM._aiGroupColorRef('red')).toBe(red);        // deterministic
+    // different AI names should generally land on different refs
+    expect(TM._aiGroupColorRef('green')).not.toBe(TM._aiGroupColorRef('indigo'));
+  });
+
+  it('falls back to a fixed hex when no live theme palette is available', async () => {
+    installGlobals();
+    const TM = await loadTabManager(); // jsdom → palette is the fixed fallback
+    const v = TM._aiGroupColorRef('red');
+    expect(typeof v).toBe('string');
+    expect(v.startsWith('#')).toBe(true);
+    expect(TM._aiGroupColorRef('nonsense')).toMatch(/^#/); // unknown → still a color
+  });
+});
+
 describe('horizontal bar refresh wiring (single render, no double-paint)', () => {
   it('rebuildAllTabs does NOT itself call HorizontalTabs.render (the wrapper does)', async () => {
     // HorizontalTabs._patchTabManager wraps rebuildAllTabs to call render()
