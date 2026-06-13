@@ -1021,8 +1021,12 @@ app.on('web-contents-created', (_event, contents) => {
     // dead-ending the flow (accounts.google.com/gsi/transform, blank page).
     // Allow it as a real popup window; it inherits the opener's persist:main
     // session so login cookies match.
-    if (_mainHelpers.isOAuthPopupUrl(url)) {
-      console.log(`[new-window] allowing OAuth identity popup -> ${url}`);
+    // Firebase / federated sign-in popups: the identity provider hosts above,
+    // PLUS the site's own /__/auth/handler popup (e.g. ElevenLabs' "Sign in with
+    // Google"). Both rely on window.opener to post the credential back; routing
+    // them into Peek/a tab severs the opener and the popup hangs blank.
+    if (_mainHelpers.isOAuthPopupUrl(url) || _mainHelpers.isAuthHandlerPopupUrl(url)) {
+      console.log(`[new-window] allowing federated-auth popup -> ${url}`);
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {

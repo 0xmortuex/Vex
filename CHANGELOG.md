@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.25.2 (2026-06-13) — Firebase sign-in popup no longer opens blank in Peek
+
+### Fixed
+- **"Sign in with Google" popups that loaded blank now complete.** The Firebase auth-handler popup (e.g. `elevenlabs.io/__/auth/handler`) was being routed into the Peek overlay, which severed `window.opener` so the popup could never hand the login back — it just sat white. Vex now opens the auth handler as a real popup window (matched by the `/__/auth/handler` path, since it lives on the site's own domain), keeping the opener intact. Together with v2.25.1 this fixes federated sign-in on ElevenLabs and similar sites.
+
 ## v2.25.1 (2026-06-13) — "Sign in with Google" works again (Firebase redirect logins)
 
 ### Fixed

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isOAuthPopupUrl } from '../../src/main-helpers.js';
+import { isOAuthPopupUrl, isAuthHandlerPopupUrl } from '../../src/main-helpers.js';
 
 // Google/Microsoft/Apple identity endpoints run a POPUP-based OAuth
 // handshake — the popup postMessages the credential back to window.opener
@@ -66,5 +66,46 @@ describe('isOAuthPopupUrl', () => {
     it('null', () => expect(isOAuthPopupUrl(null)).toBe(false));
     it('undefined', () => expect(isOAuthPopupUrl(undefined)).toBe(false));
     it('not a URL at all', () => expect(isOAuthPopupUrl('not a url')).toBe(false));
+  });
+});
+
+// Firebase / federated auth handler popups, matched by PATH on any host (the
+// authDomain is the site's own domain). Routing these into Peek/a tab severs
+// window.opener and the popup hangs blank — the ElevenLabs "Sign in with
+// Google" bug. setWindowOpenHandler must 'allow' them as real popup windows.
+describe('isAuthHandlerPopupUrl', () => {
+  describe('Firebase auth handler/iframe paths → true (on any host)', () => {
+    it('ElevenLabs own-domain auth handler (the reported case)', () => {
+      expect(isAuthHandlerPopupUrl('https://elevenlabs.io/__/auth/handler?state=AMbdmDmK85u9H0')).toBe(true);
+    });
+    it('classic firebaseapp.com authDomain handler', () => {
+      expect(isAuthHandlerPopupUrl('https://my-app.firebaseapp.com/__/auth/handler?apiKey=x')).toBe(true);
+    });
+    it('the auth iframe endpoint', () => {
+      expect(isAuthHandlerPopupUrl('https://foo.web.app/__/auth/iframe')).toBe(true);
+    });
+    it('with a hash fragment', () => {
+      expect(isAuthHandlerPopupUrl('https://site.com/__/auth/handler#x')).toBe(true);
+    });
+  });
+
+  describe('non-auth-handler URLs → false', () => {
+    it('a regular page on a Firebase-hosted site', () => {
+      expect(isAuthHandlerPopupUrl('https://elevenlabs.io/app/sign-up')).toBe(false);
+    });
+    it('a path that merely contains the segment but does not end with it', () => {
+      expect(isAuthHandlerPopupUrl('https://evil.com/__/auth/handler/extra')).toBe(false);
+    });
+    it('a lookalike path', () => {
+      expect(isAuthHandlerPopupUrl('https://evil.com/auth/handler')).toBe(false);
+    });
+    it('non-http(s) scheme', () => {
+      expect(isAuthHandlerPopupUrl('app://x/__/auth/handler')).toBe(false);
+    });
+    it('empty / null / malformed', () => {
+      expect(isAuthHandlerPopupUrl('')).toBe(false);
+      expect(isAuthHandlerPopupUrl(null)).toBe(false);
+      expect(isAuthHandlerPopupUrl('not a url')).toBe(false);
+    });
   });
 });

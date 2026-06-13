@@ -296,12 +296,33 @@ function isOAuthPopupUrl(url) {
   }
 }
 
+// Firebase / federated-auth handler popups. signInWithPopup opens
+// window.open('https://<authDomain>/__/auth/handler?…'), and the popup
+// postMessages the credential back to window.opener, then self-closes. The
+// authDomain is the SITE'S OWN domain (e.g. elevenlabs.io, foo.firebaseapp.com),
+// so we can't host-allowlist it — match by the well-known Firebase auth PATH
+// instead. Routing these into the Peek overlay or a tab severs window.opener,
+// so the popup loads blank and the sign-in never completes ("no response").
+// Allowing them as real popup windows keeps the opener intact. http+https only;
+// path match is exact (handler/iframe) so it can't be spoofed by a query/hash.
+function isAuthHandlerPopupUrl(url) {
+  if (typeof url !== 'string' || !url) return false;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    return /\/__\/auth\/(handler|iframe)$/.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
   resolveAndReplaceMisspelling,
   OAUTH_POPUP_HOSTS,
   isOAuthPopupUrl,
+  isAuthHandlerPopupUrl,
   normalizeLaunchArg,
   findLaunchUrl,
   createOpenUrlBuffer,
