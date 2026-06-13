@@ -1,12 +1,15 @@
 # Changelog
 
-## v2.24.0 (2026-06-13) — Group colors fixed + theme-matched
+## v2.24.0 (2026-06-13) — Group colors actually change + match every theme
 
 ### Fixed
-- **Changing a tab group's color now works reliably.** Right-click a group → “🎨 Change color” → pick a swatch and it applies. The picker (and every group/tab/stack context menu) no longer leaves an invisible full-screen overlay behind that silently swallowed your next click and stacked up with each menu use — the bug that made group menus feel frozen/broken.
+- **Changing a tab group's color now actually changes it.** Group pills on the top bar were all rendering the *same* color no matter what you picked. Root cause: the pill color was being computed on the page root (where the group's own color isn't known), so every group fell back to one fixed default. The color is now computed on each group's own pill, so picks are distinct and apply immediately. Verified in real Chromium across themes, not just unit tests.
+- The group/tab/stack right-click menus no longer leave an invisible full-screen overlay behind that could swallow your next click.
 
 ### Changed
-- **Group colors now match every theme.** The color choices are built from the active theme's own palette, so picking a color in Dracula gives you Dracula's purple/pink/green, Ocean gives its cyans, and so on. New groups default to the current theme's accent. Group pills already harmonized per-theme on render; now the choices do too.
+- **Group colors now match every theme — and re-match when you switch themes.** Colors are stored as theme references and the choices are drawn from the active theme's palette, so a group is Dracula's purple in Dracula and Ocean's cyan in Ocean — switching themes recolors your groups live. New groups default to the current theme's accent.
+
+> Note: groups created by the AI auto-grouper still use fixed colors (they don't re-theme yet) — a follow-up.
 
 ## v2.23.0 (2026-06-13) — Wizard shows everything + all settings re-editable
 

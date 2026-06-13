@@ -881,8 +881,9 @@ const TabManager = {
         break;
       }
       case 'change-color': {
-        this._showGroupColorPicker(groupId, (hex) => {
-          group.color = hex;
+        this._showGroupColorPicker(groupId, (colorValue) => {
+          // colorValue is a CSS color or a var(--vex-*) ref (see _themeGroupPalette).
+          group.color = colorValue;
           VexStorage.saveGroups(this.groups);
           this.rebuildAllTabs();
         });
@@ -926,9 +927,10 @@ const TabManager = {
     const name = await this._promptInput('New group', 'Group name', '');
     if (!name || !name.trim()) return;
     const id = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    // Default a new group to the active theme's accent so it matches the
-    // current theme; the user can recolor from the theme palette via right-click.
-    const defaultColor = this._themeGroupPalette()[0] || GROUP_COLORS[0];
+    // Default a new group to the active theme's accent (as a var() ref so it
+    // re-matches when the theme changes); recolor from the theme palette via
+    // right-click.
+    const defaultColor = (this._themeGroupPalette()[0] || {}).ref || GROUP_COLORS[0];
     this.groups.push({ id, name: name.trim(), color: defaultColor, collapsed: false });
     this._setTabGroup(tab.id, id);
     VexStorage.saveGroups(this.groups);
@@ -939,45 +941,40 @@ const TabManager = {
 
   // Build the group-color palette from the ACTIVE theme's own tokens so the
   // choices always belong to the current theme — pick in Dracula and you get
-  // Dracula's purple/pink/green; pick in Ocean and you get its cyans. Each
-  // theme block in theme-tokens.css defines these semantic vars as plain hex,
-  // and getComputedStyle returns custom properties as their authored value
-  // (not resolved), so we read real colors here. Falls back to the fixed
-  // GROUP_COLORS list when the tokens can't be read (e.g. jsdom under vitest).
+  // Dracula's purple/pink/green; pick in Ocean and you get its cyans.
+  //
+  // Returns [{ ref, color }] where:
+  //   • ref   — what we STORE on the group: a CSS var() reference like
+  //             "var(--vex-accent)". Stored as a var() so the group RE-MATCHES
+  //             the theme when the user switches themes — the var re-resolves
+  //             live against the new [data-theme] with zero re-render.
+  //   • color — the var's CURRENTLY resolved hex, used to paint the swatch and
+  //             to de-dup roles that collapse to the same hue in this theme.
+  // getComputedStyle returns custom properties as their authored value, and the
+  // theme blocks define these semantic vars as plain hex, so reading them gives
+  // real colors. Falls back to fixed hexes (ref == color) when tokens can't be
+  // read (e.g. jsdom under vitest) — those simply won't re-theme.
   _themeGroupPalette() {
+    const roles = [
+      '--vex-accent', '--vex-text-accent', '--vex-success',
+      '--vex-warning', '--vex-danger', '--accent', '--primary',
+    ];
     try {
       const cs = getComputedStyle(document.documentElement);
-      const names = [
-        '--vex-accent', '--vex-text-accent', '--vex-success',
-        '--vex-warning', '--vex-danger', '--accent', '--primary',
-        '--vex-border-accent-strong',
-      ];
       const seen = new Set();
       const out = [];
-      for (const n of names) {
-        const v = (cs.getPropertyValue(n) || '').trim();
-        // Skip empties and anything still symbolic (var()/color-mix) — those
-        // aren't paintable as a swatch background or storable as group.color.
-        if (!v || /^(transparent|inherit|initial)$/i.test(v)) continue;
-        if (/var\(|color-mix/i.test(v)) continue;
+      for (const r of roles) {
+        const v = (cs.getPropertyValue(r) || '').trim();
+        // Skip empties and anything still symbolic — can't de-dup or preview it.
+        if (!v || /var\(|color-mix/i.test(v) || /^(transparent|inherit|initial)$/i.test(v)) continue;
         const key = v.toLowerCase().replace(/\s+/g, '');
         if (seen.has(key)) continue;
         seen.add(key);
-        out.push(v);
+        out.push({ ref: `var(${r})`, color: v });
       }
-      // Pad to at least 6 distinct swatches from the fixed palette if a theme
-      // happens to reuse one hue across several tokens.
-      for (const c of GROUP_COLORS) {
-        if (out.length >= 8) break;
-        const key = c.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(c);
-      }
-      return out.length >= 4 ? out.slice(0, 8) : GROUP_COLORS;
-    } catch {
-      return GROUP_COLORS;
-    }
+      if (out.length >= 4) return out.slice(0, 8);
+    } catch { /* fall through to fixed palette */ }
+    return GROUP_COLORS.map(c => ({ ref: c, color: c }));
   },
 
   _showGroupColorPicker(groupId, onPick) {
@@ -989,7 +986,7 @@ const TabManager = {
       <div class="group-color-picker">
         <div class="group-color-picker-title">Pick a color</div>
         <div class="group-color-grid">
-          ${colors.map(c => `<button class="group-color-swatch" data-color="${c}" style="background:${c}" title="${c}"></button>`).join('')}
+          ${colors.map(c => `<button class="group-color-swatch" data-color="${c.ref}" style="background:${c.color}" title="${c.color}"></button>`).join('')}
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -1142,6 +1139,10 @@ const TabManager = {
     document.querySelectorAll('.tab-item').forEach((el, i) => {
       el.setAttribute('data-tab-index', String(i + 1).padStart(2, '0'));
     });
+    // NB: the horizontal top bar is refreshed automatically — HorizontalTabs
+    // ._patchTabManager() wraps rebuildAllTabs() to call its render() after
+    // this returns. Do NOT call HorizontalTabs.render() here too, or every
+    // rebuild paints the top bar twice.
   },
 
   setupNewTabButton() {

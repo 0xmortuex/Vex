@@ -89,17 +89,20 @@ describe('group change-color flow', () => {
 });
 
 describe('_themeGroupPalette', () => {
-  it('returns a non-empty list of distinct colors', async () => {
+  it('returns a non-empty list of {ref,color} with distinct refs', async () => {
     installGlobals();
     const TM = await loadTabManager();
     const pal = TM._themeGroupPalette();
     expect(Array.isArray(pal)).toBe(true);
     expect(pal.length).toBeGreaterThanOrEqual(4);
-    expect(new Set(pal).size).toBe(pal.length); // all distinct
-    pal.forEach(c => expect(typeof c).toBe('string'));
+    pal.forEach(c => {
+      expect(typeof c.ref).toBe('string');
+      expect(typeof c.color).toBe('string');
+    });
+    expect(new Set(pal.map(c => c.ref)).size).toBe(pal.length); // distinct refs
   });
 
-  it('a new group defaults to the first palette color', async () => {
+  it('a new group defaults to the first palette ref', async () => {
     installGlobals();
     const TM = await loadTabManager();
     TM.rebuildAllTabs = vi.fn(); TM.persistTabs = vi.fn();
@@ -108,6 +111,22 @@ describe('_themeGroupPalette', () => {
     TM.tabs = [tab];
     await TM._newGroupFromTab(tab);
     const created = TM.groups[TM.groups.length - 1];
-    expect(created.color).toBe(TM._themeGroupPalette()[0]);
+    expect(created.color).toBe(TM._themeGroupPalette()[0].ref);
+  });
+});
+
+describe('horizontal bar refresh wiring (single render, no double-paint)', () => {
+  it('rebuildAllTabs does NOT itself call HorizontalTabs.render (the wrapper does)', async () => {
+    // HorizontalTabs._patchTabManager wraps rebuildAllTabs to call render()
+    // after it. The original rebuildAllTabs must NOT also call render(), or the
+    // top bar paints twice per rebuild. This guards against re-introducing the
+    // redundant call.
+    installGlobals();
+    globalThis.HorizontalTabs = { render: vi.fn() };
+    const TM = await loadTabManager();
+    TM.tabs = []; TM.groups = [];
+    TM.rebuildAllTabs();
+    expect(globalThis.HorizontalTabs.render).not.toHaveBeenCalled();
+    globalThis.HorizontalTabs = undefined;
   });
 });

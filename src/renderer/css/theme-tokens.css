@@ -231,6 +231,37 @@
   --group-pill-fg: #ffffff;
   --group-pill-strip: var(--group-color, #6366f1);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GROUP PILL TOKENS — derived ON THE PILL ELEMENT (critical).
+   --group-color is set inline per group on the pill/strip/group element. The
+   --group-pill-* blocks above live on [data-theme] (i.e. <html>), where
+   --group-color is NOT set — so color-mix/var there always saw the #6366f1
+   fallback and baked ONE fixed color that every pill inherited. That is why
+   changing a group's color did nothing and every group looked the same.
+   Re-declaring the tokens on the elements that actually carry --group-color
+   makes the derivation resolve per-group AND re-resolve live on theme switch
+   (group.color is stored as a var(--vex-*) ref). Light baseline = muted toward
+   the cream surface; dark themes (listed) override to the vivid hue. ───────── */
+.top-group-label, .top-tab.in-group, .tab-group {
+  --group-pill-bg: color-mix(in srgb, var(--group-color, #6366f1) 22%, var(--vex-bg-base));
+  --group-pill-fg: color-mix(in srgb, var(--group-color, #6366f1) 60%, #1f1c18);
+  --group-pill-strip: color-mix(in srgb, var(--group-color, #6366f1) 55%, var(--vex-bg-base));
+}
+:is([data-theme="default"],[data-theme="midnight"],[data-theme="forest"],[data-theme="ocean"],
+   [data-theme="dracula"],[data-theme="nord"],[data-theme="catppuccin"],[data-theme="sunset"],
+   [data-theme="rose"],[data-theme="matrix"],[data-theme="mocha"],[data-theme="solarized"],
+   [data-theme="vaporwave"],[data-theme="aurora"],[data-theme="crimson"],[data-theme="gold"],
+   [data-theme="sakura"],[data-theme="cyberpunk"],[data-theme="monochrome"],[data-theme="slate"],
+   [data-theme="emerald"],[data-theme="amethyst"],[data-theme="volcano"],[data-theme="sapphire"],
+   [data-theme="honey"],[data-theme="mint"],[data-theme="obsidian"],[data-theme="ruby"],
+   [data-theme="lime"],[data-theme="bronze"],[data-theme="plum"],[data-theme="arctic"],
+   [data-theme="wine"],[data-theme="custom"]) :is(.top-group-label, .top-tab.in-group, .tab-group) {
+  --group-pill-bg: var(--group-color, #6366f1);
+  --group-pill-fg: #ffffff;
+  --group-pill-strip: var(--group-color, #6366f1);
+}
+
 /* Dark themes restore the sans heading font (override the :root Fraunces rule). */
 [data-theme="default"] h1, [data-theme="default"] h2, [data-theme="default"] h3,
 [data-theme="midnight"] h1, [data-theme="midnight"] h2, [data-theme="midnight"] h3,
