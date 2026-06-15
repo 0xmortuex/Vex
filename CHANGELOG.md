@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.26.3 (2026-06-15) — DRM Retry now resets the stuck component-updater state
+
+### Fixed
+- **DRM Retry now actually recovers a stuck Widevine install.** On affected machines the standard Widevine CDM had registered but never finished downloading (empty `WidevineCdm` folder, no version recorded), and the component updater kept backing off — so clearing only the folder (v2.26.2) didn't help. Retry now also drops the updater's record of the Widevine components from `Local State` (preserving the encryption key that protects your saved passwords/cookies), so the relaunch re-downloads the CDM from scratch.
+
 ## v2.26.2 (2026-06-15) — DRM Retry now clears the cached component (clean re-download)
 
 ### Fixed

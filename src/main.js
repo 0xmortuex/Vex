@@ -2177,12 +2177,28 @@ ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: ap
 ipcMain.handle('widevine:retry', () => {
   try {
     const ud = app.getPath('userData');
-    // castLabs/Chromium component locations (best-effort; force:true ignores
-    // missing dirs). We deliberately do NOT touch unrelated caches.
+    // 1) Remove the stale/empty standard-CDM dir + cached crx so the next launch
+    //    re-fetches. We keep MediaFoundationWidevineCdm (it installs fine) — the
+    //    updater re-registers it from disk on relaunch.
     for (const rel of ['WidevineCdm', 'component_crx_cache', 'widevine_cdm_hint']) {
       try { fs.rmSync(path.join(ud, rel), { recursive: true, force: true }); } catch {}
     }
-    console.log('[Widevine] cleared component cache; relaunching for clean install');
+    // 2) The real blocker: the component updater records each component in
+    //    "Local State" → updateclientdata and backs off re-downloading one that
+    //    previously failed (the standard Widevine CDM has no installed version
+    //    there). Drop that record so the updater treats the components as new and
+    //    downloads them cleanly. Preserve everything else — especially os_crypt,
+    //    whose key decrypts saved cookies/passwords; wiping the whole file would
+    //    lose them.
+    try {
+      const lsPath = path.join(ud, 'Local State');
+      const ls = JSON.parse(fs.readFileSync(lsPath, 'utf8'));
+      if (ls && ls.updateclientdata) {
+        delete ls.updateclientdata;
+        fs.writeFileSync(lsPath, JSON.stringify(ls));
+      }
+    } catch (e) { console.warn('[Widevine] could not reset Local State:', e && e.message); }
+    console.log('[Widevine] reset component state; relaunching for clean install');
     app.relaunch();
     app.exit(0);
     return { ok: true };
