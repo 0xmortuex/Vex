@@ -29,6 +29,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
+const { initEngine: initAdblockEngine, engineBlocks } = require('./adblocker-engine');
 const { createPipWindow, closePipWindow } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
@@ -692,12 +693,43 @@ function wireAdblockerOnSession(ses, tag) {
   if (!ses || ses.__vexAdblockWired) return;
   ses.__vexAdblockWired = true;
   ses.webRequest.onBeforeRequest((details, callback) => {
-    if (adBlockerEnabled && shouldBlock(details.url)) {
+    // Engine verdict (EasyList) ORed with the legacy domain list so we never
+    // regress an existing block while the richer engine adds coverage. When the
+    // engine isn't ready yet engineBlocks() returns null and the legacy list
+    // carries on alone.
+    if (adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
       callback({ cancel: false });
     }
+  });
+}
+
+// Keep request Client Hints (Sec-CH-UA*) consistent with the spoofed Chrome UA.
+// setUserAgent fixes the UA string, but Chromium still derives the Sec-CH-UA
+// brand list from its real build — leaking "Electron"/app branding to sites that
+// sniff Client Hints (which modern sites prefer over the UA string). We rewrite
+// the brand hints to a plain Chrome 124 desktop identity whenever the request
+// carries them. onBeforeSendHeaders is a distinct webRequest event (no clash with
+// onBeforeRequest / onHeadersReceived) and nothing else in Vex registers it.
+const CH_UA = '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"';
+const CH_UA_FULL = '"Chromium";v="124.0.0.0", "Google Chrome";v="124.0.0.0", "Not-A.Brand";v="99.0.0.0"';
+function wireClientHintsOnSession(ses) {
+  if (!ses || ses.__vexCHWired) return;
+  ses.__vexCHWired = true;
+  ses.webRequest.onBeforeSendHeaders((details, callback) => {
+    const h = details.requestHeaders || {};
+    for (const k of Object.keys(h)) {
+      switch (k.toLowerCase()) {
+        case 'sec-ch-ua': h[k] = CH_UA; break;
+        case 'sec-ch-ua-full-version-list': h[k] = CH_UA_FULL; break;
+        case 'sec-ch-ua-full-version': h[k] = '"124.0.0.0"'; break;
+        case 'sec-ch-ua-mobile': h[k] = '?0'; break;
+        case 'sec-ch-ua-platform': h[k] = '"Windows"'; break;
+      }
+    }
+    callback({ requestHeaders: h });
   });
 }
 
@@ -1401,6 +1433,14 @@ function createWindow() {
   wireAdblockerOnSession(session.fromPartition('persist:main'), 'persist:main');
   partitions.forEach(p => wireAdblockerOnSession(session.fromPartition(p), p));
 
+  // Upgrade the request blocker to the EasyList + EasyPrivacy engine. Async &
+  // fire-and-forget: the handlers above OR the engine verdict with the legacy
+  // domain list, so blocking works immediately and gets richer once this
+  // resolves. Serialized engine is cached under userData for instant relaunch.
+  initAdblockEngine(path.join(app.getPath('userData'), 'vex-adblock-engine.bin'))
+    .then(ok => console.log('[Vex] EasyList adblock engine', ok ? 'ready' : 'unavailable — using domain list'))
+    .catch(() => {});
+
   // Privacy hardening: load saved config and apply DNS-over-HTTPS (no-op when off).
   privacyLoad();
   applyDoH();
@@ -1416,6 +1456,12 @@ function createWindow() {
   session.defaultSession.setUserAgent(chromeUA);
   session.fromPartition('persist:main').setUserAgent(chromeUA);
   partitions.forEach(p => session.fromPartition(p).setUserAgent(chromeUA));
+
+  // Normalize Sec-CH-UA Client Hints to match the spoofed Chrome UA on the same
+  // sessions, so UA and CH agree (sites that sniff CH won't see Electron).
+  wireClientHintsOnSession(session.defaultSession);
+  wireClientHintsOnSession(session.fromPartition('persist:main'));
+  partitions.forEach(p => wireClientHintsOnSession(session.fromPartition(p)));
 
   // Downloads — wire on every session tabs might use. Previously only the
   // default session had a listener, so webview downloads (partition=persist:main)
@@ -2042,12 +2088,13 @@ ipcMain.handle('open-private-window', () => {
     callback({ responseHeaders: rh });
   });
   privSession.webRequest.onBeforeRequest((details, callback) => {
-    const blocked = adBlockerEnabled && shouldBlock(details.url);
+    const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
     if (blocked) _recordTracker(details.url, details.webContentsId);
     callback({ cancel: blocked });
   });
   const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   privSession.setUserAgent(chromeUA);
+  wireClientHintsOnSession(privSession);
 
   const privWin = new BrowserWindow({
     width: 1200, height: 800, frame: false, titleBarStyle: 'hidden',

@@ -64,12 +64,11 @@ const WebviewManager = {
         }
       } catch {}
 
-      // Force dark mode if enabled
+      // Force dark mode — now per-site (the legacy 'vex.forceDarkSites'=true flag
+      // still forces it everywhere for backward compat). Toggle per site from the
+      // page right-click menu; the choice persists in 'vex.forceDarkHosts'.
       try {
-        const forceDark = localStorage.getItem('vex.forceDarkSites') === 'true';
-        if (forceDark) {
-          webview.insertCSS('html{filter:invert(1) hue-rotate(180deg);background:#0a0c10!important}img,video,iframe,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}');
-        }
+        if (this._shouldForceDark(webview.getURL && webview.getURL())) this._applyForceDark(webview);
       } catch {}
 
       // Phase 12: Queue most-recent history entry for AI indexing
@@ -158,7 +157,7 @@ const WebviewManager = {
 
       // Add to history (both legacy storage and new HistoryPanel) — but never
       // for Off-the-Record tabs (in-memory partition, no trace).
-      if (!isStartPage(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
+      if (!isStartPage(url) && !/^about:/i.test(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
         const t = TabManager.tabs.find(t => t.id === tab.id);
         VexStorage.addHistory({ url, title: t?.title || url });
         if (typeof HistoryPanel !== 'undefined') {
@@ -246,14 +245,110 @@ const WebviewManager = {
       this.showContextMenu(e, webview);
     });
 
+    webview._lastActive = Date.now();
     container.appendChild(webview);
     this.webviews.set(tab.id, webview);
+    this._ensureHibernateSweep();
   },
 
   showWebview(tabId) {
     this.webviews.forEach((wv, id) => {
-      wv.classList.toggle('active', id === tabId);
+      const active = id === tabId;
+      wv.classList.toggle('active', active);
+      if (active) { wv._lastActive = Date.now(); this._wake(wv); }
     });
+    this._ensureHibernateSweep();
+  },
+
+  // === Tab hibernation ===
+  // Background tabs idle longer than vex.tabHibernateMinutes (default 30; 0/blank
+  // disables) are navigated to about:blank to free their page heap/DOM, and
+  // reloaded from the remembered URL when next focused. The active tab, audible
+  // tabs, pinned tabs, and local/start pages are never suspended.
+  _hibernateMinutes() {
+    try { const v = parseInt(localStorage.getItem('vex.tabHibernateMinutes'), 10); return Number.isFinite(v) ? v : 30; }
+    catch { return 30; }
+  },
+  _ensureHibernateSweep() {
+    if (this._hibTimer) return;
+    this._hibTimer = setInterval(() => this._hibernateSweep(), 60 * 1000);
+  },
+  _wake(wv) {
+    try {
+      if (wv.dataset.hibernated !== '1') return;
+      const url = wv.dataset.hibernatedUrl;
+      delete wv.dataset.hibernated;
+      if (url) { try { wv.loadURL(url); } catch { wv.src = url; } }
+    } catch {}
+  },
+  _hibernateSweep() {
+    try {
+      const mins = this._hibernateMinutes();
+      if (!mins || mins <= 0) return;
+      const cutoff = Date.now() - mins * 60 * 1000;
+      this.webviews.forEach((wv, id) => {
+        if (id === TabManager.activeTabId) return;
+        if (wv.dataset.hibernated === '1') return;
+        if ((wv._lastActive || 0) > cutoff) return;
+        const tab = TabManager.tabs.find(t => t.id === id);
+        if (!tab || tab.audible || tab.pinned) return;
+        let url; try { url = wv.getURL(); } catch { return; }
+        if (!url || /^about:/i.test(url) || url.startsWith('file:') || isStartPage(url)) return;
+        wv.dataset.hibernatedUrl = url;
+        wv.dataset.hibernated = '1';
+        try { wv.loadURL('about:blank'); } catch { wv.src = 'about:blank'; }
+      });
+    } catch {}
+  },
+
+  // === Per-site dark mode ===
+  DARK_CSS: 'html{filter:invert(1) hue-rotate(180deg);background:#0a0c10!important}img,video,iframe,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}',
+  _forceDarkHosts() {
+    try { return new Set(JSON.parse(localStorage.getItem('vex.forceDarkHosts') || '[]')); } catch { return new Set(); }
+  },
+  _hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } },
+  _shouldForceDark(url) {
+    try {
+      if (localStorage.getItem('vex.forceDarkSites') === 'true') return true; // legacy global
+      const host = this._hostOf(url);
+      return !!host && this._forceDarkHosts().has(host);
+    } catch { return false; }
+  },
+  _applyForceDark(wv) {
+    try {
+      if (wv._forceDarkKey || typeof wv.insertCSS !== 'function') return;
+      const p = wv.insertCSS(this.DARK_CSS);
+      if (p && typeof p.then === 'function') p.then(key => { wv._forceDarkKey = key; }).catch(() => {});
+    } catch {}
+  },
+  _removeForceDark(wv) {
+    try {
+      if (wv._forceDarkKey && typeof wv.removeInsertedCSS === 'function') wv.removeInsertedCSS(wv._forceDarkKey).catch(() => {});
+    } catch {}
+    wv._forceDarkKey = null;
+  },
+  toggleForceDarkForSite(webview) {
+    try {
+      const host = this._hostOf(webview.getURL());
+      if (!host) return;
+      const hosts = this._forceDarkHosts();
+      if (hosts.has(host)) { hosts.delete(host); this._removeForceDark(webview); window.showToast?.(`Dark mode off — ${host}`); }
+      else { hosts.add(host); this._applyForceDark(webview); window.showToast?.(`Dark mode on — ${host}`); }
+      localStorage.setItem('vex.forceDarkHosts', JSON.stringify([...hosts]));
+    } catch {}
+  },
+  resetSite(webview) {
+    try {
+      const host = this._hostOf(webview.getURL());
+      if (!host) return;
+      const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}'); delete zooms[host];
+      localStorage.setItem('vex.zooms', JSON.stringify(zooms));
+      try { webview.setZoomFactor(1); } catch {}
+      const hosts = this._forceDarkHosts(); hosts.delete(host);
+      localStorage.setItem('vex.forceDarkHosts', JSON.stringify([...hosts]));
+      this._removeForceDark(webview);
+      window.showToast?.(`Reset site settings — ${host}`);
+    } catch {}
   },
 
   destroyWebview(tabId) {
@@ -384,6 +479,8 @@ const WebviewManager = {
     // divs across repeated right-clicks.
     document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove());
 
+    const curUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
+
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
     // params.x/y from the Electron 'context-menu' event are already in
@@ -453,7 +550,13 @@ const WebviewManager = {
       { label: 'Reload', action: () => webview.reload() },
       { sep: true },
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
-      { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL()) }
+      { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL()) },
+      { sep: true },
+      // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
+      // "Reset this site" clears this host's saved zoom and dark-mode override.
+      { label: this._shouldForceDark(curUrl) ? '\u{1F319} Dark mode: on for this site' : '\u{1F319} Dark mode for this site',
+        action: () => this.toggleForceDarkForSite(webview) },
+      { label: 'Reset this site’s settings', action: () => this.resetSite(webview) }
     ];
 
     if (e.params.selectionText) {
@@ -611,10 +714,15 @@ const WebviewManager = {
 
   _updateFavicon(tabId, url) {
     try {
-      const domain = new URL(url).hostname;
-      if (domain && !isStartPage(url)) {
-        const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-        TabManager.updateTab(tabId, { favicon });
+      const u = new URL(url);
+      if (u.hostname && !isStartPage(url) && /^https?:$/.test(u.protocol)) {
+        // Privacy: use the site's OWN first-party /favicon.ico rather than
+        // Google's s2 favicon service (which would leak every domain you visit
+        // to Google — at odds with Vex's tracker blocker + fingerprint farbling).
+        // This is a provisional icon; the real one from the page's <link rel=icon>
+        // arrives via the 'page-favicon-updated' event and overwrites it. The tab
+        // UI's <img> onerror handles sites with no /favicon.ico.
+        TabManager.updateTab(tabId, { favicon: `${u.origin}/favicon.ico` });
       }
     } catch {}
   }

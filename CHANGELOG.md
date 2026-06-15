@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.26.0 (2026-06-15) — EasyList ad blocking, tab hibernation, per-site dark mode & privacy fixes
+
+### Added
+- **EasyList + EasyPrivacy ad/tracker blocking.** The request blocker now runs on the full EasyList + EasyPrivacy filter sets (via `@ghostery/adblocker`), a huge coverage jump over the previous hand-maintained domain list. It's wired surgically — Vex calls the engine's matcher inside its own request handler rather than handing over `webRequest`, so the tracker counter, per-partition wiring, and frame-ancestors stripping all keep working. The legacy list is still ORed in so nothing regresses, the engine never blocks page navigations, and the compiled engine is cached under your profile for instant, offline-safe startup.
+- **Tab hibernation.** Background tabs left idle past a threshold (default 30 min; set `vex.tabHibernateMinutes` to `0` to disable) are suspended to free memory and reloaded when you click back. The active tab, audio-playing tabs, pinned tabs, and local/start pages are never suspended.
+- **Per-site dark mode.** Right-click a page → **Dark mode for this site** to force-darken just that site (remembered per host). Right-click → **Reset this site’s settings** clears that site's saved zoom and dark-mode override. The old global force-dark toggle still works.
+
+### Fixed
+- **Favicons no longer leak your browsing to Google.** Tab icons previously came from Google's `s2/favicons` service, which told Google every domain you opened — at odds with Vex's tracker blocker. Vex now uses each site's own first-party favicon (with a clean placeholder fallback).
+- **Client Hints now match the spoofed Chrome user-agent.** `Sec-CH-UA` request headers were still advertising Electron even with the Chrome UA set; they're now normalized to Chrome 124 on every tab session, so sites that sniff Client Hints (which most modern sites prefer over the UA string) see a consistent desktop Chrome.
+
 ## v2.25.3 (2026-06-15) — Fix site layouts broken by the consent blocker (e.g. Roblox footer mid-page)
 
 ### Fixed

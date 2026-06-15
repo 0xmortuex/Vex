@@ -93,6 +93,21 @@ const TabManager = {
   _legacySeedIds: new Set(['cusa', 'school', 'dev', 'chat']),
 
   async init() {
+    // Favicon fallback: tab favicons now point at the site's first-party
+    // /favicon.ico (no Google leak). When a site has none, the <img> errors —
+    // swap it for the neutral placeholder. One delegated capture-phase listener
+    // (the 'error' event doesn't bubble) covers every .tab-favicon in tabs,
+    // stacks and group chips, and is CSP-safe (no inline handlers).
+    if (!this._faviconErrWired) {
+      this._faviconErrWired = true;
+      document.addEventListener('error', (e) => {
+        const img = e.target;
+        if (!img || img.nodeName !== 'IMG' || !img.classList.contains('tab-favicon')) return;
+        img.onerror = null;
+        img.outerHTML = '<div class="tab-favicon-placeholder"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/></svg></div>';
+      }, true);
+    }
+
     this.groups = (await VexStorage.loadGroups()) || [];
     this.stacks = (typeof VexStorage.loadStacks === 'function')
       ? ((await VexStorage.loadStacks()) || [])
