@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.26.4 (2026-06-15) — Build fails loudly when the Widevine (VMP) signature is invalid
+
+### Changed
+- **The build now verifies the VMP signature and fails if it's invalid.** Root-causing the persistent "DRM failed" reports showed the packaged app was being signed with an invalid/dev fallback signature (`vmp verify-pkg` → `InvalidSignature`), which makes castLabs' component server withhold the software Widevine CDM — so DRM playback silently broke. `scripts/vmp-sign.js` now runs `vmp verify-pkg` after signing and aborts the build (with remediation steps) instead of shipping a broken-DRM build. Set `VEX_SKIP_VMP_VERIFY=1` to build a knowingly-unsigned dev build. **Fixing DRM requires a valid castLabs EVS signature** (`python -m castlabs_evs.account reauth` / `signup`, then rebuild) — it is not an app-code issue.
+
 ## v2.26.3 (2026-06-15) — DRM Retry now resets the stuck component-updater state
 
 ### Fixed
