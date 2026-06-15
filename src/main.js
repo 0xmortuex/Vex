@@ -1405,9 +1405,16 @@ function createWindow() {
   privacyLoad();
   applyDoH();
 
-  // Set user agent to Chrome to avoid "unsupported browser" blocks
+  // Set user agent to Chrome to avoid "unsupported browser" blocks AND broken
+  // UA-sniffed layouts. persist:main is where every regular tab lives, so it
+  // MUST get the Chrome UA too — otherwise tabs leak the default Electron UA
+  // ("…Electron/30.x… vex/X.Y.Z…") and sites that branch on UA serve a degraded
+  // layout (e.g. Roblox rendered its global footer in the middle of the page
+  // instead of pinned to the bottom). defaultSession + the named panel
+  // partitions were already covered; persist:main was the gap.
   const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   session.defaultSession.setUserAgent(chromeUA);
+  session.fromPartition('persist:main').setUserAgent(chromeUA);
   partitions.forEach(p => session.fromPartition(p).setUserAgent(chromeUA));
 
   // Downloads — wire on every session tabs might use. Previously only the

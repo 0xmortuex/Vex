@@ -57,11 +57,27 @@ const ConsentBlock = {
 
   applyTo(webview) {
     if (!this.enabled()) return;
-    const css = this.SELECTORS.join(',') + '{display:none!important;visibility:hidden!important}'
-      + 'html,body{overflow:auto!important;position:static!important}';
+    const sel = this.SELECTORS.join(',');
+    const hideCss = sel + '{display:none!important;visibility:hidden!important}';
+    // Scroll/position un-lock that undoes a banner's body scroll-lock. This must
+    // NOT be applied blanket: forcing html,body to position:static + overflow:auto
+    // overrides sites that legitimately position/scroll on body and wrecks their
+    // layout (Roblox anchored its global footer to <body>, so position:static
+    // dropped it into the middle of the page). We add it ONLY once a consent
+    // element is actually present, re-checking briefly for banners that mount
+    // after dom-ready. The hide rule is safe everywhere — the selectors are
+    // specific CMP/cookie-banner IDs that don't match ordinary markup.
+    const unlockCss = 'html,body{overflow:auto!important;position:static!important}';
     const js = `(function(){try{
+      var sel=${JSON.stringify(sel)};
       var id='vex-consent-style';
-      if(!document.getElementById(id)){var el=document.createElement('style');el.id=id;el.textContent=${JSON.stringify(css)};document.documentElement.appendChild(el);}
+      function ensure(){var el=document.getElementById(id);if(!el){el=document.createElement('style');el.id=id;document.documentElement.appendChild(el);}return el;}
+      function paint(){var has=!!document.querySelector(sel);ensure().textContent=${JSON.stringify(hideCss)}+(has?${JSON.stringify(unlockCss)}:'');return has;}
+      if(!paint() && typeof MutationObserver==='function'){
+        var n=0;var mo=new MutationObserver(function(){if(paint()||++n>40)mo.disconnect();});
+        try{mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+        setTimeout(function(){try{mo.disconnect();}catch(e){}},10000);
+      }
     }catch(e){}})();`;
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}
   },
