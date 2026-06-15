@@ -2168,12 +2168,28 @@ ipcMain.handle('download-update', async () => {
 ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
 ipcMain.handle('get-app-version', () => app.getVersion());
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
-// Retry DRM setup: relaunch Vex so the castLabs component install runs fresh.
-// whenReady() is memoized within a run, so a clean relaunch is the reliable way
-// to re-attempt a transient first-run failure.
+// Retry DRM setup: CLEAR the cached Widevine component, then relaunch so the
+// castLabs component install runs from scratch. A plain relaunch isn't enough
+// when the first download left a partial/corrupted component on disk — the
+// updater sees the broken cached copy and keeps failing across restarts. Wiping
+// these dirs forces a clean re-download. whenReady() is also memoized per run,
+// so the relaunch is what actually re-attempts the install.
 ipcMain.handle('widevine:retry', () => {
-  try { app.relaunch(); app.exit(0); return { ok: true }; }
-  catch (e) { return { ok: false, error: e && e.message }; }
+  try {
+    const ud = app.getPath('userData');
+    // castLabs/Chromium component locations (best-effort; force:true ignores
+    // missing dirs). We deliberately do NOT touch unrelated caches.
+    for (const rel of ['WidevineCdm', 'component_crx_cache', 'widevine_cdm_hint']) {
+      try { fs.rmSync(path.join(ud, rel), { recursive: true, force: true }); } catch {}
+    }
+    console.log('[Widevine] cleared component cache; relaunching for clean install');
+    app.relaunch();
+    app.exit(0);
+    return { ok: true };
+  } catch (e) {
+    console.warn('[Widevine] retry failed:', e && e.message);
+    return { ok: false, error: e && e.message };
+  }
 });
 
 // Set as default browser — opens Windows Default Apps settings

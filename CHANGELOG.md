@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.26.2 (2026-06-15) — DRM Retry now clears the cached component (clean re-download)
+
+### Fixed
+- **The DRM "Retry" button now clears the cached Widevine component before relaunching.** A plain relaunch didn't help when the first install left a partial/corrupted component on disk — the updater kept reusing the broken copy and failing every time. Retry now wipes the component cache under your profile so the relaunch re-downloads it cleanly.
+
 ## v2.26.1 (2026-06-15) — Resilient Widevine/DRM setup + Retry button
 
 ### Fixed
