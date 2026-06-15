@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.26.1 (2026-06-15) — Resilient Widevine/DRM setup + Retry button
+
+### Fixed
+- **DRM ("Widevine") setup is now resilient and recoverable.** Settings → About could show *"DRM failed: …"* with no way to recover, and a stalled CDM download could even delay the main window. The castLabs Widevine component now initializes fire-and-forget (never blocks window creation), each attempt races a 30s timeout, and a slow first-run download gets a second attempt. When it does fail, **Settings → About now shows a Retry button** that relaunches Vex to re-run the install (the reliable fix for a transient first-run network failure), and the status re-polls so a slow download flips to "ready" on its own. Protected playback (Spotify/Netflix) works once the CDM reports ready.
+
 ## v2.26.0 (2026-06-15) — EasyList ad blocking, tab hibernation, per-site dark mode & privacy fixes
 
 ### Added

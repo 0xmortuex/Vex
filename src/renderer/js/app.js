@@ -857,12 +857,39 @@
   (async () => {
     const wvEl = document.getElementById('about-widevine');
     if (!wvEl) return;
+    const retryBtn = document.getElementById('btn-widevine-retry');
+    const paint = (s) => {
+      const ok = /ready|loaded/.test(s);
+      wvEl.textContent = s;
+      wvEl.style.color = ok ? '#22c55e' : 'var(--danger)';
+      // Offer a Retry (relaunch) only when the CDM actually failed/timed out —
+      // not for the benign "dev mode"/"unavailable" states.
+      if (retryBtn) retryBtn.style.display = /failed|timed out/i.test(s) ? '' : 'none';
+    };
     try {
       const r = await window.vex.widevineStatus?.();
-      const s = r?.status || 'unknown';
-      wvEl.textContent = s;
-      wvEl.style.color = /ready|loaded/.test(s) ? '#22c55e' : 'var(--danger)';
-    } catch { wvEl.textContent = 'unknown'; }
+      paint(r?.status || 'unknown');
+    } catch { paint('unknown'); }
+    if (retryBtn && !retryBtn._wired) {
+      retryBtn._wired = true;
+      retryBtn.addEventListener('click', async () => {
+        retryBtn.disabled = true;
+        retryBtn.textContent = 'Restarting…';
+        try { await window.vex.widevineRetry?.(); } catch {}
+      });
+    }
+    // Re-poll a few times so a slow first-run CDM download flips to "ready"
+    // without the user reopening Settings.
+    let polls = 0;
+    const t = setInterval(async () => {
+      if (++polls > 10) return clearInterval(t);
+      try {
+        const r = await window.vex.widevineStatus?.();
+        const s = r?.status || 'unknown';
+        paint(s);
+        if (/ready|loaded/.test(s)) clearInterval(t);
+      } catch {}
+    }, 3000);
   })();
   // Check-updates button
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {

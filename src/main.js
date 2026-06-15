@@ -54,6 +54,43 @@ let pendingOpenUrl = null;
 // whether protected playback (Spotify/Netflix) is actually enabled.
 let _widevineStatus = 'unknown';
 
+// Initialize the castLabs Widevine CDM "component". First run downloads it from
+// Google's component server (a few seconds), cached afterwards. Made robust:
+//   - fire-and-forget (never blocks window creation — playback happens later);
+//   - each attempt races a 30s timeout so a stalled download can't wedge things,
+//     and a second attempt gives a genuinely slow first-run download more time;
+//   - failures leave an actionable status (Settings → About shows a Retry button
+//     that relaunches Vex to re-run the install — the reliable recovery for a
+//     transient first-run network failure, since whenReady() is memoized per run).
+async function initWidevine(attempts = 2) {
+  let components;
+  try { ({ components } = require('electron')); } catch {}
+  if (!components || typeof components.whenReady !== 'function') {
+    _widevineStatus = 'unavailable (this Electron build has no Widevine)';
+    return;
+  }
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await Promise.race([
+        components.whenReady(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timed out — check your internet connection')), 30000)),
+      ]);
+      const st = typeof components.status === 'function' ? components.status() : null;
+      console.log('[Widevine] components ready:', st);
+      const wv = st && (st['Widevine Content Decryption Module'] || st.WIDEVINE || JSON.stringify(st));
+      _widevineStatus = app.isPackaged
+        ? (wv ? ('ready (' + wv + ')') : 'loaded')
+        : 'dev mode — protected playback needs the installed build';
+      return;
+    } catch (e) {
+      const msg = (e && e.message) || 'unknown error';
+      _widevineStatus = 'failed: ' + msg;
+      console.warn(`[Widevine] component init failed (attempt ${i}/${attempts}):`, msg);
+      if (i < attempts) await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+}
+
 // === Privacy hardening: fingerprint farbling seed, DNS-over-HTTPS, tracker tally ===
 // Config persisted to userData/privacy.json. Everything defaults OFF so normal
 // browsing is untouched until the user opts in (Settings → Privacy Hardening).
@@ -1690,29 +1727,9 @@ app.whenReady().then(async () => {
     return new Response('Not Found', { status: 404 });
   });
 
-  // castLabs Electron ships Widevine as a loadable "component" that must be
-  // initialized before any DRM/EME playback works. Without this, the Spotify
-  // panel loads, searches, and navigates fine — but Play and other playback
-  // actions silently do nothing (no CDM to decrypt the stream). First run
-  // downloads the CDM (a few seconds); it's cached afterwards.
-  try {
-    const { components } = require('electron');
-    if (components && typeof components.whenReady === 'function') {
-      await components.whenReady();
-      const st = typeof components.status === 'function' ? components.status() : null;
-      console.log('[Widevine] components ready:', st);
-      // status() maps component → version string when the CDM loaded OK.
-      const wv = st && (st['Widevine Content Decryption Module'] || st.WIDEVINE || JSON.stringify(st));
-      _widevineStatus = app.isPackaged
-        ? (wv ? ('ready (' + wv + ')') : 'loaded')
-        : 'dev mode — protected playback needs the installed build';
-    } else {
-      _widevineStatus = 'unavailable (this Electron build has no Widevine)';
-    }
-  } catch (e) {
-    _widevineStatus = 'failed: ' + (e && e.message);
-    console.warn('[Widevine] component init failed:', e && e.message);
-  }
+  // castLabs Widevine CDM. Fire-and-forget so a slow/failed CDM download never
+  // blocks window creation (playback happens later); see initWidevine() above.
+  initWidevine();
 
   createWindow();
   setupAutoUpdater();
@@ -2151,6 +2168,13 @@ ipcMain.handle('download-update', async () => {
 ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
 ipcMain.handle('get-app-version', () => app.getVersion());
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
+// Retry DRM setup: relaunch Vex so the castLabs component install runs fresh.
+// whenReady() is memoized within a run, so a clean relaunch is the reliable way
+// to re-attempt a transient first-run failure.
+ipcMain.handle('widevine:retry', () => {
+  try { app.relaunch(); app.exit(0); return { ok: true }; }
+  catch (e) { return { ok: false, error: e && e.message }; }
+});
 
 // Set as default browser — opens Windows Default Apps settings
 ipcMain.handle('set-as-default-browser', async () => {
