@@ -83,5 +83,70 @@ const ConsentBlock = {
   },
 };
 
-if (typeof window !== 'undefined') { window.ReadAloud = ReadAloud; window.ConsentBlock = ConsentBlock; }
-if (typeof module !== 'undefined' && module.exports) module.exports = { ReadAloud, ConsentBlock };
+// ---- Copy & right-click unlock — bypass sites that block selection/copy ----
+// Re-enables text selection, right-click, and copy/cut on pages that disable
+// them via JS or CSS (the common "you can't copy this" walls). It does NOT
+// crack DRM or read canvas-rendered editors (e.g. Google Docs has no selectable
+// DOM text). Two entry points:
+//   • applyTo(webview)       — auto-applied on every page load when the global
+//                              toggle (Settings → Browsing extras) is ON.
+//   • applyNow()             — on-demand from the command bar; unlocks just the
+//                              current page regardless of the global toggle.
+// Default is OFF so it never interferes with legit copy handlers in web apps
+// (spreadsheets, code editors). The injected script:
+//   1. stops the site's capture-phase block handlers (stopPropagation, NOT
+//      stopImmediatePropagation — so Vex's own gesture handler still runs and
+//      we never call preventDefault, letting the native copy/menu proceed);
+//   2. nulls the inline on* blockers sites re-assign (re-cleared for ~10s);
+//   3. forces user-select back on via injected CSS.
+const CopyUnlock = {
+  KEY: 'vex.copyUnlock',
+  enabled() { try { return localStorage.getItem(this.KEY) === 'on'; } catch { return false; } },
+  setEnabled(on) { try { localStorage.setItem(this.KEY, on ? 'on' : 'off'); } catch {} },
+
+  _script() {
+    return `(function(){try{
+      if (window.__vexCopyUnlock) return; window.__vexCopyUnlock = true;
+      // Block only copy/selection-related events at capture; stopPropagation
+      // (not Immediate, not preventDefault) bypasses the site's own blockers
+      // on inner nodes while leaving the native copy/menu and Vex gestures.
+      var STOP = ['contextmenu','copy','cut','selectstart','dragstart','beforecopy'];
+      STOP.forEach(function(type){
+        try { document.addEventListener(type, function(e){ e.stopPropagation(); }, true); } catch(_){}
+      });
+      // Sites re-assign inline on* handlers; clear the copy/selection ones for a
+      // short window after load.
+      var PROPS = ['oncontextmenu','oncopy','oncut','onselectstart','ondragstart','onbeforecopy'];
+      function clearOn(){
+        var nodes = [document, document.documentElement, document.body];
+        for (var n=0;n<nodes.length;n++){ if(!nodes[n]) continue;
+          for (var p=0;p<PROPS.length;p++){ try{ nodes[n][PROPS[p]] = null; }catch(_){} } }
+      }
+      clearOn();
+      var ticks=0; var iv=setInterval(function(){ clearOn(); if(++ticks>20){ try{clearInterval(iv);}catch(_){} } }, 500);
+      // Force selection back on (overrides user-select:none).
+      var id='vex-copy-unlock-style';
+      if(!document.getElementById(id)){
+        var st=document.createElement('style'); st.id=id;
+        st.textContent='*,*::before,*::after{-webkit-user-select:auto!important;-moz-user-select:auto!important;-ms-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;}html,body{-webkit-user-select:auto!important;user-select:auto!important;}';
+        (document.head||document.documentElement).appendChild(st);
+      }
+    }catch(e){}})();`;
+  },
+
+  applyTo(webview, force) {
+    if (!force && !this.enabled()) return;
+    try { webview.executeJavaScript(this._script()).catch(() => {}); } catch {}
+  },
+
+  // On-demand: unlock the active page now, regardless of the global toggle.
+  applyNow() {
+    const wv = (typeof WebviewManager !== 'undefined') ? WebviewManager.getActiveWebview() : null;
+    if (!wv) { window.showToast?.('Open a page first'); return; }
+    this.applyTo(wv, true);
+    window.showToast?.('🔓 Copy & right-click unlocked on this page');
+  },
+};
+
+if (typeof window !== 'undefined') { window.ReadAloud = ReadAloud; window.ConsentBlock = ConsentBlock; window.CopyUnlock = CopyUnlock; }
+if (typeof module !== 'undefined' && module.exports) module.exports = { ReadAloud, ConsentBlock, CopyUnlock };

@@ -107,6 +107,8 @@ const WebviewManager = {
         if (typeof VexBoosts !== 'undefined' && t && t.url) VexBoosts.applyTo(webview, t.url);
         if (typeof PasswordVault !== 'undefined' && t && t.url) PasswordVault.autofill(webview, t.url);
         if (typeof ConsentBlock !== 'undefined') ConsentBlock.applyTo(webview);
+        // Copy & right-click unlock (only when the global toggle is on)
+        if (typeof CopyUnlock !== 'undefined') CopyUnlock.applyTo(webview);
         // Reading & accessibility pack (dyslexia font / CVD filter / ruler)
         if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.applyTo(webview);
         // Re-apply persistent highlights for this page

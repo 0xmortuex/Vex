@@ -714,6 +714,15 @@
     cToggle.checked = ConsentBlock.enabled();
     cToggle.addEventListener('change', () => ConsentBlock.setEnabled(cToggle.checked));
   }
+  const cuToggle = document.getElementById('setting-copyunlock');
+  if (cuToggle && typeof CopyUnlock !== 'undefined') {
+    cuToggle.checked = CopyUnlock.enabled();
+    cuToggle.addEventListener('change', () => {
+      CopyUnlock.setEnabled(cuToggle.checked);
+      // Apply to the page already open so the change is felt immediately.
+      if (cuToggle.checked) { const wv = WebviewManager.getActiveWebview(); if (wv) CopyUnlock.applyTo(wv, true); }
+    });
+  }
 
   // Cross-device handoff: receive tabs sent from other Vex devices (mobile).
   // Polls on focus + every 2 minutes when Vex Sync is signed in.

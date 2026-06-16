@@ -59,6 +59,7 @@ const CommandBar = {
     { id: 'focus50', label: 'Focus 50', hint: 'A 50-minute focus session', icon: '🎯', action: () => FocusMode.toggle(50) },
     { id: 'compact', label: 'Compact Mode', hint: 'Collapse the sidebars for maximum page space', icon: '🗜', action: () => CompactMode.toggle() },
     { id: 'readaloud', label: 'Read Aloud', hint: 'Speak this article out loud (run again to stop)', icon: '🔊', action: () => ReadAloud.toggle() },
+    { id: 'copyunlock', label: 'Unlock Copy & Right-Click', hint: 'Bypass sites that block selecting, copying, or right-click on this page', icon: '🔓', action: () => { if (typeof CopyUnlock !== 'undefined') CopyUnlock.applyNow(); } },
     { id: 'compose', label: 'AI Compose', hint: 'Let AI write or rewrite text into the focused input on the page', icon: '✍️', action: () => AICompose.open() },
     { id: 'bookmark', label: 'Bookmark This Page', hint: 'Star/unstar the current page', icon: '⭐', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) Bookmarks.toggle(t.url, t.title); } },
     { id: 'bookmarks', label: 'Bookmarks', hint: 'Open the bookmarks panel', icon: '🔖', isPrimary: true, action: () => SidebarManager.openPanel ? SidebarManager.openPanel('bookmarks') : SidebarManager.showPanel('bookmarks') },

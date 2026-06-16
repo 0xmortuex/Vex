@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.0 (2026-06-16) — Copy Unlock: bypass sites that block selecting & copying
+
+### Added
+- **Copy Unlock — re-enable selecting, copying, and right-click on sites that disable them.** Lots of pages turn off text selection and the right-click menu (via CSS `user-select:none`, `oncontextmenu` blockers, or capture-phase handlers that swallow `copy`/`selectstart`). Vex can now bypass that. Two ways to use it: **Ctrl+K → "Unlock Copy & Right-Click"** unlocks just the current page on demand (the "let me copy this" button), or turn on **Settings → Browsing extras → "Always allow copy & right-click (bypass site blocks)"** to apply it automatically on every page. The unlock re-enables selection via injected CSS, clears the inline `on*` blockers sites re-assign, and stops their capture-phase block handlers **without** calling `preventDefault` — so the native copy and context menu go through, and Vex's own mouse gestures keep working. Default is **off** so it never interferes with legitimate copy handlers in web apps (spreadsheets, code editors). Note: it can't read canvas-rendered editors like Google Docs (there's no selectable text there) and never touches DRM-protected media.
+
 ## v2.26.5 (2026-06-15) — Reliable build gate for invalid Widevine (VMP) signing
 
 ### Changed
