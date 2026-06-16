@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isOAuthPopupUrl, isAuthHandlerPopupUrl } from '../../src/main-helpers.js';
+import { isOAuthPopupUrl, isAuthHandlerPopupUrl, isOAuthShapedUrl, shouldKeepPopupReal } from '../../src/main-helpers.js';
 
 // Google/Microsoft/Apple identity endpoints run a POPUP-based OAuth
 // handshake — the popup postMessages the credential back to window.opener
@@ -107,5 +107,85 @@ describe('isAuthHandlerPopupUrl', () => {
       expect(isAuthHandlerPopupUrl(null)).toBe(false);
       expect(isAuthHandlerPopupUrl('not a url')).toBe(false);
     });
+  });
+});
+
+// Provider-agnostic OAuth-shape detector. Gates on URL shape, not host, so a
+// Discord (or any "Login with X") popup stays a real opener-connected popup —
+// the fix for the Ticket Tool / tickettool.xyz Discord-OAuth handback failure.
+describe('isOAuthShapedUrl', () => {
+  describe('OAuth-shaped URLs → true', () => {
+    it('Discord oauth2 authorize (the reported failing flow)', () => {
+      expect(isOAuthShapedUrl('https://discord.com/oauth2/authorize?client_id=123&redirect_uri=https%3A%2F%2Ftickettool.xyz%2Fcb&response_type=code&scope=identify')).toBe(true);
+    });
+    it('Discord /api/oauth2/authorize variant', () => {
+      expect(isOAuthShapedUrl('https://discord.com/api/oauth2/authorize?client_id=1&redirect_uri=x&response_type=code')).toBe(true);
+    });
+    it('Ticket Tool auth callback (api.tickettool.xyz/api/auth/callback?code=...)', () => {
+      expect(isOAuthShapedUrl('https://api.tickettool.xyz/api/auth/callback?code=abc123')).toBe(true);
+    });
+    it('Google identity authorize (response_type=code)', () => {
+      expect(isOAuthShapedUrl('https://accounts.google.com/o/oauth2/v2/auth?client_id=x&redirect_uri=y&response_type=code')).toBe(true);
+    });
+    it('Microsoft identity authorize', () => {
+      expect(isOAuthShapedUrl('https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=x&redirect_uri=y&response_type=code')).toBe(true);
+    });
+    it('Apple authorize (/auth/authorize path)', () => {
+      expect(isOAuthShapedUrl('https://appleid.apple.com/auth/authorize?client_id=x&redirect_uri=y')).toBe(true);
+    });
+    it('generic authorize with client_id + redirect_uri but no response_type', () => {
+      expect(isOAuthShapedUrl('https://id.example.com/oauth/authorize?client_id=a&redirect_uri=b')).toBe(true);
+    });
+  });
+
+  describe('non-OAuth URLs → false', () => {
+    it('a normal https page', () => {
+      expect(isOAuthShapedUrl('https://example.com/some/page')).toBe(false);
+    });
+    it('a blog post that merely mentions oauth in the path', () => {
+      expect(isOAuthShapedUrl('https://example.com/blog/oauth-tips')).toBe(false);
+    });
+    it('a Google search for an oauth term', () => {
+      expect(isOAuthShapedUrl('https://www.google.com/search?q=oauth/authorize')).toBe(false);
+    });
+    it('data: URL', () => expect(isOAuthShapedUrl('data:text/html,<p>hi</p>')).toBe(false));
+    it('javascript: URL', () => expect(isOAuthShapedUrl('javascript:alert(1)')).toBe(false));
+    it('about:blank', () => expect(isOAuthShapedUrl('about:blank')).toBe(false));
+    it('empty / null / malformed', () => {
+      expect(isOAuthShapedUrl('')).toBe(false);
+      expect(isOAuthShapedUrl(null)).toBe(false);
+      expect(isOAuthShapedUrl('not a url')).toBe(false);
+    });
+  });
+});
+
+// The combined gate used by setWindowOpenHandler — keeps a popup as a real
+// opener-connected window. Must be true for Discord + the 4 existing allowlisted
+// providers, false for ordinary pages and pseudo-schemes.
+describe('shouldKeepPopupReal', () => {
+  it('Discord OAuth authorize', () => {
+    expect(shouldKeepPopupReal('https://discord.com/oauth2/authorize?client_id=1&redirect_uri=x&response_type=code')).toBe(true);
+  });
+  it('Ticket Tool callback', () => {
+    expect(shouldKeepPopupReal('https://api.tickettool.xyz/api/auth/callback?code=abc')).toBe(true);
+  });
+  it('Google identity (allowlisted host)', () => {
+    expect(shouldKeepPopupReal('https://accounts.google.com/gsi/transform')).toBe(true);
+  });
+  it('Microsoft identity (allowlisted host)', () => {
+    expect(shouldKeepPopupReal('https://login.microsoftonline.com/common/oauth2/v2.0/authorize')).toBe(true);
+  });
+  it('Apple identity (allowlisted host)', () => {
+    expect(shouldKeepPopupReal('https://appleid.apple.com/auth/authorize?response_type=code')).toBe(true);
+  });
+  it('Firebase auth handler (path-matched)', () => {
+    expect(shouldKeepPopupReal('https://my-app.firebaseapp.com/__/auth/handler?apiKey=x')).toBe(true);
+  });
+  it('a normal page → false (routes to Peek/tab)', () => {
+    expect(shouldKeepPopupReal('https://example.com/some/page')).toBe(false);
+  });
+  it('data: / javascript: → false', () => {
+    expect(shouldKeepPopupReal('data:text/html,x')).toBe(false);
+    expect(shouldKeepPopupReal('javascript:alert(1)')).toBe(false);
   });
 });

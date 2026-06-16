@@ -316,6 +316,39 @@ function isAuthHandlerPopupUrl(url) {
   }
 }
 
+// Provider-agnostic OAuth detector — gates on the SHAPE of the URL, not a host
+// allowlist. Discord (and most "Login with X" dashboards) open a popup-based
+// OAuth handshake from an arbitrary host; routing it into Peek/a tab severs
+// window.opener so the popup's postMessage/window.close handback to the
+// originating tab fails (the auth code exchanges fine, but the session never
+// gets handed back). Keeping ANY OAuth-shaped popup as a real popup preserves
+// the opener. Matches an authorize request OR an auth callback:
+//   - path  /oauth/authorize, /oauth2/authorize, /oauth/auth, /oauth2/auth
+//   - path  /auth/authorize, /auth/callback
+//   - query response_type=code
+//   - query has BOTH client_id AND redirect_uri
+// http/https only; data:/javascript:/about: etc. are rejected.
+function isOAuthShapedUrl(url) {
+  if (typeof url !== 'string' || !url) return false;
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+  const path = u.pathname || '';
+  if (/\/oauth2?\/(authorize|auth)\b/i.test(path)) return true;
+  if (/\/auth\/(authorize|callback)\b/i.test(path)) return true;
+  const q = u.searchParams;
+  if ((q.get('response_type') || '').toLowerCase() === 'code') return true;
+  if (q.has('client_id') && q.has('redirect_uri')) return true;
+  return false;
+}
+
+// Single decision: keep this popup as a REAL opener-connected window (vs route
+// into Peek/a tab). Combines the conservative host/Firebase allowlists with the
+// provider-agnostic OAuth-shape detector.
+function shouldKeepPopupReal(url) {
+  return isOAuthPopupUrl(url) || isAuthHandlerPopupUrl(url) || isOAuthShapedUrl(url);
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
@@ -323,6 +356,8 @@ module.exports = {
   OAUTH_POPUP_HOSTS,
   isOAuthPopupUrl,
   isAuthHandlerPopupUrl,
+  isOAuthShapedUrl,
+  shouldKeepPopupReal,
   normalizeLaunchArg,
   findLaunchUrl,
   createOpenUrlBuffer,

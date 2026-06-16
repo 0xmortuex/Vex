@@ -1049,6 +1049,67 @@ app.on('web-contents-created', (_event, contents) => {
   // via main/gmail/, no webview. persist:gmail partition is kept in the
   // partitions array in case a future OAuth flow reuses it.)
 
+  // Resolve THIS webContents' (the opener tab's) partition string so popups we
+  // allow can be pinned EXPLICITLY to the SAME session — not the default
+  // session, not a fresh one.
+  //
+  // getLastWebPreferences() does NOT expose `partition` for webview guests
+  // (verified: scripts/verify-oauth-popup-partition.js), so derive it from the
+  // opener session's on-disk partition path instead:
+  //     <userData>/Partitions/<name>  ->  persist:<name>
+  // This is reliable for persist:main and the container tabs (persist:container-*).
+  //
+  // DELIBERATE EXCEPTION — off-the-record tabs ('otr-<ts>') use an IN-MEMORY
+  // partition with NO on-disk storage path, so the partition string is NOT
+  // derivable here (and getLastWebPreferences omits `partition`). We return null
+  // and let the popup INHERIT the opener's session implicitly. This is correct,
+  // not a gap to be "fixed": scripts/verify-oauth-popup-partition.js (Scenario B)
+  // proves inheritance yields popup.session === opener.session === the OTR jar,
+  // the auth cookie lands in that OTR session and NOT in persist:main, and the
+  // jar stays ephemeral (no storage path, no Partitions dir). There is no
+  // partition string to set for an in-memory session; making OTR "explicit"
+  // would require a renderer→main webContents-id→partition registry, which we
+  // deliberately chose NOT to build. Do not force a partition here.
+  const resolveOpenerPartition = () => {
+    try {
+      const wp = typeof contents.getLastWebPreferences === 'function' ? contents.getLastWebPreferences() : null;
+      if (wp && typeof wp.partition === 'string' && wp.partition) return wp.partition; // future-proof
+    } catch { /* ignore */ }
+    try {
+      const p = contents.session && contents.session.getStoragePath && contents.session.getStoragePath();
+      if (p) {
+        const m = /[\\/]Partitions[\\/]([^\\/]+)$/.exec(p);
+        if (m) return 'persist:' + m[1];
+      }
+    } catch { /* ignore */ }
+    return null;
+  };
+  // Build overrideBrowserWindowOptions for an allowed popup, pinning it to the
+  // opener tab's partition explicitly (the actual fix for container/OTR cases).
+  const popupOverrides = () => {
+    const webPreferences = { contextIsolation: true, nodeIntegration: false };
+    const part = resolveOpenerPartition();
+    if (part) webPreferences.partition = part;
+    return { autoHideMenuBar: true, webPreferences };
+  };
+
+  // Diagnostic proof: every popup we ALLOW (OAuth/print) creates a window here.
+  // Log whether its session is literally the opener's session and where each
+  // partition stores on disk — so "the cookie landed in the right partition" is
+  // observable, not assumed. (Denied/Peek popups never create a window.)
+  contents.on('did-create-window', (win, details) => {
+    try {
+      const openerSes = contents.session;
+      const popupSes = win.webContents.session;
+      console.log('[popup-session] partition=%s sameSession=%s openerStorage=%s popupStorage=%s url=%s',
+        resolveOpenerPartition() || '(inherited/default)',
+        popupSes === openerSes,
+        (openerSes.getStoragePath && openerSes.getStoragePath()) || '(in-memory)',
+        (popupSes.getStoragePath && popupSes.getStoragePath()) || '(in-memory)',
+        (details && details.url) || '(no url)');
+    } catch (err) { console.error('[popup-session] log failed:', err.message); }
+  });
+
   contents.setWindowOpenHandler((details) => {
     const { url, disposition, frameName, features } = details || {};
     // External-protocol window.open (e.g. Roblox Play button spawns a hidden
@@ -1075,13 +1136,7 @@ app.on('web-contents-created', (_event, contents) => {
       /print/i.test(featuresStr);
     if (isPopupLikePrint) {
       console.log(`[new-window] allowing print/preview popup -> ${url || '(no url)'} frame=${frameName || '-'}`);
-      return {
-        action: 'allow',
-        overrideBrowserWindowOptions: {
-          autoHideMenuBar: true,
-          webPreferences: { contextIsolation: true, nodeIntegration: false }
-        }
-      };
+      return { action: 'allow', overrideBrowserWindowOptions: popupOverrides() };
     }
     // OAuth identity popups (Google GSI / Microsoft IDP / Sign in with Apple)
     // run a popup-based handshake — the popup postMessages the credential back
@@ -1094,15 +1149,15 @@ app.on('web-contents-created', (_event, contents) => {
     // PLUS the site's own /__/auth/handler popup (e.g. ElevenLabs' "Sign in with
     // Google"). Both rely on window.opener to post the credential back; routing
     // them into Peek/a tab severs the opener and the popup hangs blank.
-    if (_mainHelpers.isOAuthPopupUrl(url) || _mainHelpers.isAuthHandlerPopupUrl(url)) {
-      console.log(`[new-window] allowing federated-auth popup -> ${url}`);
-      return {
-        action: 'allow',
-        overrideBrowserWindowOptions: {
-          autoHideMenuBar: true,
-          webPreferences: { contextIsolation: true, nodeIntegration: false }
-        }
-      };
+    //
+    // shouldKeepPopupReal also covers provider-agnostic OAuth-SHAPED popups
+    // (Discord and other "Login with X" dashboards) by URL shape, not host —
+    // see isOAuthShapedUrl. The popup is pinned to the OPENER TAB's partition
+    // (popupOverrides), so cookies land where the originating tab can read them,
+    // for container/OTR tabs too — not just persist:main.
+    if (_mainHelpers.shouldKeepPopupReal(url)) {
+      console.log(`[new-window] allowing OAuth/federated-auth popup -> ${url}`);
+      return { action: 'allow', overrideBrowserWindowOptions: popupOverrides() };
     }
     console.log(`[new-window] ${disposition} -> ${url}`);
     try {

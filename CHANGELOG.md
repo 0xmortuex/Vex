@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.27.5 (2026-06-17) — Fix: Discord (and other) OAuth logins failing in popups
+
+### Fixed
+- **OAuth logins that use a popup now complete and log the originating tab in** — previously a Discord-OAuth flow (e.g. the Ticket Tool dashboard at tickettool.xyz) had its auth popup routed into the Peek overlay, which severed `window.opener`, so after authorizing, the callback showed *"Login process is successful. But something went wrong…"* — the code exchange worked but the session handback to the tab failed. Vex now keeps **any OAuth-shaped popup** (not just the 4 hard-coded providers) as a real popup with `window.opener` intact, gating on URL *shape* — path `…/oauth2?/(authorize|auth)` or `…/auth/(authorize|callback)`, or `response_type=code`, or `client_id`+`redirect_uri` — instead of a host allowlist. The popup is also pinned **explicitly to the originating tab's session partition**, so the login cookie lands where the tab can read it — verified for container tabs (`persist:container-work`) and off-the-record tabs, not just the default session.
+
+### Notes
+- This widens the real-popup (opener-intact) treatment from the 4-host allowlist to any OAuth-shaped popup. That is standard browser behavior and applies only to OAuth-shaped popups (non-OAuth `window.open` popups still route to Peek); it does not change data isolation (the popup shares the opener tab's partition, as the allowlisted providers already did).
+- New `scripts/verify-oauth-popup-partition.js` proves the popup's session in real Electron (identity, on-disk partition path, cookie landing, ephemeral OTR, `window.opener` non-null). Unit tests added for the OAuth-shape detector.
+
 ## v2.27.4 (2026-06-16) — "Copy Text from Doc" reliably gets the real Google Docs text
 
 ### Fixed
