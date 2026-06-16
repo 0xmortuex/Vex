@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.3 (2026-06-16) — "Copy Text from Doc" now gets the REAL text (no OCR mistakes)
+
+### Changed
+- **"Copy Text from Doc" now extracts the document's actual text first, like the dedicated "unlock copy" extensions — exact, no OCR errors.** Instead of jumping to OCR, it now fetches Google's own real-text render endpoints from inside the page (so they carry your Google login cookies), in order: **`/mobilebasic`** (Google's server-rendered plain-HTML version — gated differently from the download, so it still serves the real text on most copy-disabled docs), then **`/export?format=txt`**, then **`/export?format=html`**. Sheets use `export?format=csv` + `htmlview`; Slides use the text export. The first path that returns real content wins → exact text with zero mistakes. It detects sign-in / "request access" interstitials and skips them instead of returning a junk login page. **OCR (Tesseract.js, on-device) is now only a last resort** if Google hard-gates every text path.
+
 ## v2.27.2 (2026-06-16) — Copy text out of Google Docs & copy-locked pages
 
 ### Added

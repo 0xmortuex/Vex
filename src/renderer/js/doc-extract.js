@@ -1,15 +1,19 @@
-// === Doc Text Extractor — pull text out of Google Docs & copy-locked pages ===
+// === Doc Text Extractor — pull REAL text out of Google Docs & copy-locked pages ===
 // Copy Unlock only re-enables selection of *DOM* text. Google Docs renders its
-// text on a <canvas>, so there's no selectable text to unlock — it needs a
-// different approach entirely. This module:
-//   1. Google Docs/Sheets fast path — fetches the document's own export endpoint
-//      from INSIDE the page (so it carries your Google login cookies). Returns
-//      perfect text when you have view access and export isn't hard-blocked.
-//   2. OCR fallback — captures the rendered page and reads the pixels with
-//      Tesseract.js (loaded on demand from a CDN, like the on-device AI engine).
-//      This works on fully locked, canvas-rendered docs: if you can see it, OCR
-//      can read it. Runs entirely on your machine — the image never leaves it.
-// Result is copied to the clipboard and shown in a panel you can select/edit.
+// text on a <canvas>, so there's nothing to unlock — it needs a different
+// approach. Like the "unlock copy" extensions, this gets the document's ACTUAL
+// text (no OCR, no mistakes) by fetching one of Google's own text/HTML render
+// endpoints from INSIDE the page, so the request carries your Google login
+// cookies. We try several because the owner's "disable copy/download" applies
+// to them differently:
+//   1. /mobilebasic        — server-rendered plain-HTML version (usually still
+//                            served even when the txt download is disabled)
+//   2. /export?format=txt  — clean plain text (perfect, but the first thing an
+//                            owner's "disable download" blocks)
+//   3. /export?format=html — HTML export
+// First one that returns real content wins → exact text, zero mistakes.
+// Only if ALL of those are hard-blocked do we fall back to OCR of the rendered
+// pixels (Tesseract.js, on-device) — imperfect, but works on anything visible.
 const DocExtract = {
   _ocrLib: null,
 
@@ -19,18 +23,18 @@ const DocExtract = {
     const t = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
     const url = (t && t.url) || '';
 
-    // 1) Google Docs/Sheets export fast path (authenticated, perfect text).
-    const g = this._googleExport(url);
+    // 1) Google Docs/Sheets/Slides — try the real-text render paths (Dex-style).
+    const g = this._google(url);
     if (g) {
-      window.showToast?.(`Fetching text from this ${g.kind}…`);
+      window.showToast?.(`Getting the real text from this ${g.label}…`);
       try {
-        const text = await this._fetchInPage(wv, g.exportUrl);
-        if (text && text.trim().length > 4) { this._showResult(text, `Google ${g.kind} export`); return; }
-      } catch (_) { /* locked/blocked — fall through to OCR */ }
-      window.showToast?.('Export blocked — reading the page with OCR instead…');
+        const text = await this._tryGoogleText(wv, g);
+        if (text) { this._showResult(text, `Google ${g.label}`); return; }
+      } catch (_) { /* fall through */ }
+      window.showToast?.('This doc is fully locked — reading the pixels with OCR instead…');
     }
 
-    // 2) OCR fallback — works on canvas-rendered/locked docs and images.
+    // 2) OCR fallback — works on anything visible, but may contain mistakes.
     try {
       await this._ocr(wv);
     } catch (e) {
@@ -38,33 +42,75 @@ const DocExtract = {
     }
   },
 
-  // Recognize a Google Docs/Sheets URL and build its plain-text export URL.
-  _googleExport(url) {
+  // Parse a Google Docs/Sheets/Slides URL → { type, id, label } or null.
+  _google(url) {
     try {
       const u = new URL(url);
       if (u.hostname !== 'docs.google.com') return null;
-      const m = u.pathname.match(/^\/(document|spreadsheets)\/d\/([^/]+)/);
-      if (!m) return null; // presentations / drawings → OCR
-      const id = m[2];
-      if (m[1] === 'document') return { kind: 'Doc', exportUrl: `https://docs.google.com/document/d/${id}/export?format=txt` };
-      return { kind: 'Sheet', exportUrl: `https://docs.google.com/spreadsheets/d/${id}/export?format=csv` };
+      const m = u.pathname.match(/^\/(document|spreadsheets|presentation)\/d\/([^/]+)/);
+      if (!m) return null;
+      const type = m[1], id = m[2];
+      const label = type === 'document' ? 'Doc' : type === 'spreadsheets' ? 'Sheet' : 'Slides';
+      return { type, id, label };
     } catch { return null; }
   },
 
-  // Fetch from inside the page so the request carries the user's Google cookies
-  // (same-origin + credentials). Returns text, or throws if blocked.
-  _fetchInPage(wv, exportUrl) {
+  // Ordered list of real-text endpoints to try for this doc type.
+  _candidates(g) {
+    const base = `https://docs.google.com`;
+    if (g.type === 'document') return [
+      { url: `${base}/document/d/${g.id}/mobilebasic`, mode: 'html' },
+      { url: `${base}/document/d/${g.id}/export?format=txt`, mode: 'text' },
+      { url: `${base}/document/d/${g.id}/export?format=html`, mode: 'html' },
+    ];
+    if (g.type === 'spreadsheets') return [
+      { url: `${base}/spreadsheets/d/${g.id}/export?format=csv`, mode: 'text' },
+      { url: `${base}/spreadsheets/d/${g.id}/htmlview`, mode: 'html' },
+    ];
+    // presentation
+    return [
+      { url: `${base}/presentation/d/${g.id}/export/txt`, mode: 'text' },
+    ];
+  },
+
+  async _tryGoogleText(wv, g) {
+    for (const c of this._candidates(g)) {
+      try {
+        const text = await this._fetchInPage(wv, c.url, c.mode);
+        if (text && text.trim().length > 4) return text;
+      } catch (_) { /* try next */ }
+    }
+    return null;
+  },
+
+  // Fetch from inside the page (same-origin + cookies). For HTML endpoints,
+  // parse to clean text. Detects sign-in / "request access" pages as blocked.
+  _fetchInPage(wv, url, mode) {
     const js = `(async()=>{try{
-      const r = await fetch(${JSON.stringify(exportUrl)}, { credentials:'include' });
+      const r = await fetch(${JSON.stringify(url)}, { credentials:'include' });
       if (!r.ok) return { ok:false, status:r.status };
-      const t = await r.text();
-      // A 403/redirect can return an HTML login/permission page; treat as blocked.
-      if (/^\\s*<(!doctype|html)/i.test(t)) return { ok:false, status:'restricted' };
+      let t = await r.text();
+      const mode = ${JSON.stringify(mode)};
+      // A permission/sign-in interstitial means we don't really have access.
+      if (/(\\bYou need (permission|access)\\b|request access|accounts\\.google\\.com\\/ServiceLogin|id=["']?gaia)/i.test(t) && t.length < 4000) {
+        return { ok:false, status:'no-access' };
+      }
+      if (mode === 'html') {
+        const doc = new DOMParser().parseFromString(t, 'text/html');
+        doc.querySelectorAll('script,style,noscript,head').forEach(e => e.remove());
+        const body = doc.body || doc.documentElement;
+        t = (body.innerText || body.textContent || '').replace(/[\\t ]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
+      } else {
+        // Plain-text endpoint that actually returned an HTML error/login page.
+        if (/^\\s*<(!doctype|html)\\b/i.test(t)) return { ok:false, status:'restricted' };
+        t = t.trim();
+      }
+      if (!t || t.length < 5) return { ok:false, status:'empty' };
       return { ok:true, text:t };
     }catch(e){ return { ok:false, error:String(e) }; }})()`;
     return wv.executeJavaScript(js).then(res => {
       if (res && res.ok && res.text) return res.text;
-      throw new Error('export blocked (' + ((res && (res.status || res.error)) || '?') + ')');
+      throw new Error('blocked (' + ((res && (res.status || res.error)) || '?') + ')');
     });
   },
 
@@ -72,8 +118,7 @@ const DocExtract = {
     window.showToast?.('Reading the visible page with OCR — first run downloads the engine…');
     const img = await wv.capturePage();
     if (!img) throw new Error('capture failed');
-    // Keep native resolution (don't downscale — OCR needs the detail).
-    const dataUrl = img.toDataURL();
+    const dataUrl = img.toDataURL(); // native resolution — OCR needs the detail
     if (!dataUrl || dataUrl.length < 100) throw new Error('capture was empty');
 
     const Tesseract = await this._loadOcr();
