@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.4 (2026-06-16) — "Copy Text from Doc" reliably gets the real Google Docs text
+
+### Fixed
+- **"Copy Text from Doc" now actually gets the real text from Google Docs instead of falling back to OCR.** The previous version fetched Google's `mobilebasic`/export endpoints from *inside* the editor page, where Google Docs' service worker intercepts the request and returns the canvas app shell (no real text) — so every text path looked blocked and it dropped to OCR. It now loads Google's plain-HTML render (`/mobilebasic` for Docs, `/htmlview` for Sheets) as a **real top-level navigation in a hidden, off-screen webview on your logged-in session** — the manual "change the URL to mobilebasic" trick, automated — and reads the rendered text. A real navigation gets the genuine text page, so you get exact text with no OCR mistakes. The in-page export fetch is now a secondary path and OCR is only a last resort. The result panel header shows which path ran ("Google Doc (real text)" vs "OCR (visible page)").
+
 ## v2.27.3 (2026-06-16) — "Copy Text from Doc" now gets the REAL text (no OCR mistakes)
 
 ### Changed

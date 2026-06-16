@@ -1,19 +1,22 @@
 // === Doc Text Extractor — pull REAL text out of Google Docs & copy-locked pages ===
 // Copy Unlock only re-enables selection of *DOM* text. Google Docs renders its
-// text on a <canvas>, so there's nothing to unlock — it needs a different
-// approach. Like the "unlock copy" extensions, this gets the document's ACTUAL
-// text (no OCR, no mistakes) by fetching one of Google's own text/HTML render
-// endpoints from INSIDE the page, so the request carries your Google login
-// cookies. We try several because the owner's "disable copy/download" applies
-// to them differently:
-//   1. /mobilebasic        — server-rendered plain-HTML version (usually still
-//                            served even when the txt download is disabled)
-//   2. /export?format=txt  — clean plain text (perfect, but the first thing an
-//                            owner's "disable download" blocks)
-//   3. /export?format=html — HTML export
-// First one that returns real content wins → exact text, zero mistakes.
-// Only if ALL of those are hard-blocked do we fall back to OCR of the rendered
-// pixels (Tesseract.js, on-device) — imperfect, but works on anything visible.
+// text on a <canvas>, so there's nothing to unlock. Like the dedicated "unlock
+// copy" extensions, this gets the document's ACTUAL text (no OCR, no mistakes).
+//
+// Primary method (the reliable one): load Google's plain-HTML render of the doc
+// — /mobilebasic for Docs, /htmlview for Sheets — in a HIDDEN off-screen
+// <webview> on the persist:main session (your logged-in Google session). Because
+// it's a real top-level navigation, Google's service worker serves the real
+// text page (not the canvas app shell), and we read its rendered innerText. This
+// is exactly the manual "change the URL to mobilebasic" trick, automated, and it
+// bypasses most "disable copy/paste" locks because that render path is gated
+// differently from the download.
+//
+// Secondary: fetch /export?format=txt|html from inside the page.
+// Last resort: OCR of the rendered pixels (Tesseract.js, on-device) — imperfect,
+// but works on anything visible.
+//
+// Result is copied to the clipboard and shown in a panel you can select/edit.
 const DocExtract = {
   _ocrLib: null,
 
@@ -23,18 +26,26 @@ const DocExtract = {
     const t = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
     const url = (t && t.url) || '';
 
-    // 1) Google Docs/Sheets/Slides — try the real-text render paths (Dex-style).
     const g = this._google(url);
     if (g) {
-      window.showToast?.(`Getting the real text from this ${g.label}…`);
+      // 1) Real-text render in a hidden webview (the reliable, Dex-style path).
+      const viewUrl = this._viewUrl(g);
+      if (viewUrl) {
+        window.showToast?.(`Getting the real text from this ${g.label}…`);
+        try {
+          const text = await this._viaHiddenWebview(viewUrl);
+          if (text) { this._showResult(text, `Google ${g.label} (real text)`); return; }
+        } catch (_) { /* fall through */ }
+      }
+      // 2) Secondary: in-page export fetch.
       try {
         const text = await this._tryGoogleText(wv, g);
-        if (text) { this._showResult(text, `Google ${g.label}`); return; }
+        if (text) { this._showResult(text, `Google ${g.label} export`); return; }
       } catch (_) { /* fall through */ }
       window.showToast?.('This doc is fully locked — reading the pixels with OCR instead…');
     }
 
-    // 2) OCR fallback — works on anything visible, but may contain mistakes.
+    // 3) OCR fallback.
     try {
       await this._ocr(wv);
     } catch (e) {
@@ -55,19 +66,65 @@ const DocExtract = {
     } catch { return null; }
   },
 
-  // Ordered list of real-text endpoints to try for this doc type.
+  // Google's plain-HTML render URL for this doc type (real selectable text).
+  _viewUrl(g) {
+    if (g.type === 'document') return `https://docs.google.com/document/d/${g.id}/mobilebasic`;
+    if (g.type === 'spreadsheets') return `https://docs.google.com/spreadsheets/d/${g.id}/htmlview`;
+    return null; // presentations → export/OCR
+  },
+
+  // Load the plain-HTML render in a hidden off-screen webview on the user's
+  // logged-in session, then read its rendered text. Resolves '' if blocked.
+  _viaHiddenWebview(viewUrl) {
+    return new Promise((resolve) => {
+      let wv;
+      try {
+        wv = document.createElement('webview');
+        wv.setAttribute('partition', 'persist:main'); // carries the Google login
+        wv.setAttribute('webpreferences', 'contextIsolation=yes');
+        wv.setAttribute('src', viewUrl);
+        wv.style.cssText = 'position:fixed;left:-10000px;top:0;width:1000px;height:800px;opacity:0;pointer-events:none';
+        document.body.appendChild(wv);
+      } catch { resolve(''); return; }
+
+      let done = false;
+      const cleanup = () => { try { clearTimeout(timer); } catch {} try { wv.remove(); } catch {} };
+      const finish = (text) => { if (done) return; done = true; cleanup(); resolve(text || ''); };
+
+      const read = async () => {
+        try {
+          // Small settle for any client-side hydration on the plain page.
+          await new Promise(r => setTimeout(r, 300));
+          const text = await wv.executeJavaScript(
+            "(function(){try{var b=document.body;return b?(b.innerText||b.textContent||''):'';}catch(e){return '';}})()"
+          );
+          const clean = (text || '').replace(/\n{3,}/g, '\n\n').trim();
+          const head = clean.slice(0, 600);
+          // Reject sign-in / permission interstitials.
+          if (clean.length > 20 && !/\b(you need (permission|access)|request access|sign in to continue|couldn'?t preview)\b/i.test(head)) {
+            finish(clean);
+          } else {
+            finish('');
+          }
+        } catch { finish(''); }
+      };
+
+      wv.addEventListener('did-finish-load', read);
+      wv.addEventListener('did-fail-load', (e) => { if (e && e.isMainFrame === false) return; finish(''); });
+      const timer = setTimeout(() => finish(''), 15000);
+    });
+  },
+
+  // Ordered in-page export endpoints (secondary).
   _candidates(g) {
-    const base = `https://docs.google.com`;
+    const base = 'https://docs.google.com';
     if (g.type === 'document') return [
-      { url: `${base}/document/d/${g.id}/mobilebasic`, mode: 'html' },
       { url: `${base}/document/d/${g.id}/export?format=txt`, mode: 'text' },
       { url: `${base}/document/d/${g.id}/export?format=html`, mode: 'html' },
     ];
     if (g.type === 'spreadsheets') return [
       { url: `${base}/spreadsheets/d/${g.id}/export?format=csv`, mode: 'text' },
-      { url: `${base}/spreadsheets/d/${g.id}/htmlview`, mode: 'html' },
     ];
-    // presentation
     return [
       { url: `${base}/presentation/d/${g.id}/export/txt`, mode: 'text' },
     ];
@@ -78,30 +135,26 @@ const DocExtract = {
       try {
         const text = await this._fetchInPage(wv, c.url, c.mode);
         if (text && text.trim().length > 4) return text;
-      } catch (_) { /* try next */ }
+      } catch (_) { /* next */ }
     }
     return null;
   },
 
-  // Fetch from inside the page (same-origin + cookies). For HTML endpoints,
-  // parse to clean text. Detects sign-in / "request access" pages as blocked.
   _fetchInPage(wv, url, mode) {
     const js = `(async()=>{try{
       const r = await fetch(${JSON.stringify(url)}, { credentials:'include' });
       if (!r.ok) return { ok:false, status:r.status };
       let t = await r.text();
       const mode = ${JSON.stringify(mode)};
-      // A permission/sign-in interstitial means we don't really have access.
-      if (/(\\bYou need (permission|access)\\b|request access|accounts\\.google\\.com\\/ServiceLogin|id=["']?gaia)/i.test(t) && t.length < 4000) {
+      if (/(\\bYou need (permission|access)\\b|request access|accounts\\.google\\.com\\/ServiceLogin)/i.test(t) && t.length < 4000) {
         return { ok:false, status:'no-access' };
       }
       if (mode === 'html') {
         const doc = new DOMParser().parseFromString(t, 'text/html');
         doc.querySelectorAll('script,style,noscript,head').forEach(e => e.remove());
         const body = doc.body || doc.documentElement;
-        t = (body.innerText || body.textContent || '').replace(/[\\t ]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
+        t = (body.textContent || '').replace(/[\\t ]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
       } else {
-        // Plain-text endpoint that actually returned an HTML error/login page.
         if (/^\\s*<(!doctype|html)\\b/i.test(t)) return { ok:false, status:'restricted' };
         t = t.trim();
       }
@@ -110,7 +163,7 @@ const DocExtract = {
     }catch(e){ return { ok:false, error:String(e) }; }})()`;
     return wv.executeJavaScript(js).then(res => {
       if (res && res.ok && res.text) return res.text;
-      throw new Error('blocked (' + ((res && (res.status || res.error)) || '?') + ')');
+      throw new Error('blocked');
     });
   },
 
@@ -118,7 +171,7 @@ const DocExtract = {
     window.showToast?.('Reading the visible page with OCR — first run downloads the engine…');
     const img = await wv.capturePage();
     if (!img) throw new Error('capture failed');
-    const dataUrl = img.toDataURL(); // native resolution — OCR needs the detail
+    const dataUrl = img.toDataURL();
     if (!dataUrl || dataUrl.length < 100) throw new Error('capture was empty');
 
     const Tesseract = await this._loadOcr();
