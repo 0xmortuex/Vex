@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.2 (2026-06-16) — Copy text out of Google Docs & copy-locked pages
+
+### Added
+- **"Copy Text from Doc" — get the text out of Google Docs and copy-locked pages.** Copy Unlock (v2.27.0) re-enables selection of normal page text, but **Google Docs renders its text on a `<canvas>`**, so there's no selectable text to unlock — it needs a different approach. The new tool (Quick Tools menu → "Copy Text from Doc", or Ctrl+K → "Copy Text from Doc") gets the text two ways automatically: (1) **Google export fast path** — for Docs/Sheets it fetches the document's own `/export?format=txt|csv` endpoint *from inside the page*, so it carries your Google login cookies and returns exact text when you have view access; (2) **OCR fallback** — if export is blocked or the doc is canvas-rendered, it captures the rendered page and reads the pixels with Tesseract.js (loaded on demand, runs **entirely on your machine** — the image never leaves it). The extracted text is copied to your clipboard and shown in a panel you can select and edit. OCR works per visible screen (scroll + re-run for long docs); the export path needs you signed into Google with view access.
+
 ## v2.27.1 (2026-06-16) — Quick Tools menu in the top bar (puzzle button)
 
 ### Added
