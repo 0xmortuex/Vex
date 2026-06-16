@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.1 (2026-06-16) — Quick Tools menu in the top bar (puzzle button)
+
+### Added
+- **A "Quick Tools & Extensions" button in the top bar, just left of the AI button.** Click the puzzle icon for a one-tap menu of handy per-page tools — **Unlock Copy & Right-Click** (the new Copy Unlock feature, first in the list), Reading Mode, Dark mode for this site, Translate Page, Read Aloud, Zap Element, Boost This Site, Screenshot, Responsive Preview, and Privacy Report — plus **Manage Chrome extensions…** which opens Settings. Each item runs the same action as its command-bar entry, so behavior stays consistent. The popover is themed (matches every theme, light or dark), and dismisses on Esc or an outside click.
+
 ## v2.27.0 (2026-06-16) — Copy Unlock: bypass sites that block selecting & copying
 
 ### Added
