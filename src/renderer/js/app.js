@@ -660,6 +660,9 @@
   // Peek overlay — shift+click a link → floating preview
   if (typeof VexPeek !== 'undefined') VexPeek.init();
 
+  // Dim Vex behind the real (opener-connected) OAuth/login popup, Peek-style
+  if (typeof OAuthPopupBackdrop !== 'undefined') OAuthPopupBackdrop.init();
+
   // AI Skills (saved prompts) + Boosts (per-site customization)
   if (typeof VexSkills !== 'undefined') VexSkills.init();
   if (typeof VexBoosts !== 'undefined') VexBoosts.init();

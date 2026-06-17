@@ -71,6 +71,13 @@ contextBridge.exposeInMainWorld('vex', {
   // Peek overlay (shift+click a link → floating preview)
   onPeekOpen: (cb) => ipcRenderer.on('peek:open', (_e, d) => cb(d)),
 
+  // OAuth/login popup backdrop — the auth popup is a REAL (opener-connected)
+  // child window dressed like Peek; main dims Vex behind it via these events,
+  // and a backdrop click dismisses the frameless popup.
+  onOAuthPopupOpen: (cb) => ipcRenderer.on('oauth-popup:open', () => cb()),
+  onOAuthPopupClose: (cb) => ipcRenderer.on('oauth-popup:close', () => cb()),
+  dismissOAuthPopup: () => ipcRenderer.send('oauth-popup:dismiss'),
+
   // RSS feeds (fetched in main to dodge CORS)
   rssFetch: (url) => ipcRenderer.invoke('rss:fetch', url),
 

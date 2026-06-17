@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isOAuthPopupUrl, isAuthHandlerPopupUrl, isOAuthShapedUrl, shouldKeepPopupReal } from '../../src/main-helpers.js';
+import { isOAuthPopupUrl, isAuthHandlerPopupUrl, isOAuthShapedUrl, shouldKeepPopupReal, isScriptedHandbackPopup } from '../../src/main-helpers.js';
 
 // Google/Microsoft/Apple identity endpoints run a POPUP-based OAuth
 // handshake — the popup postMessages the credential back to window.opener
@@ -187,5 +187,59 @@ describe('shouldKeepPopupReal', () => {
   it('data: / javascript: → false', () => {
     expect(shouldKeepPopupReal('data:text/html,x')).toBe(false);
     expect(shouldKeepPopupReal('javascript:alert(1)')).toBe(false);
+  });
+});
+
+// Redirect-proof gate: keep a SCRIPTED window.open popup real (opener intact)
+// based on window SHAPE, not its first URL — so an OAuth flow that opens at a
+// non-OAuth-shaped bounce URL and only redirects into the provider afterward
+// (the Ticket Tool / Discord case, proven: disp=new-window frame=login) still
+// stays a real opener-connected popup. Must NOT match bare shift+click so that
+// shift+click → Peek is preserved.
+describe('isScriptedHandbackPopup', () => {
+  describe('scripted window.open popups → true (kept real, opener intact)', () => {
+    it('Ticket Tool: new-window + features + frame name (the proven failing case)', () => {
+      expect(isScriptedHandbackPopup('new-window', 'width=500,height=700', 'login')).toBe(true);
+    });
+    it('new-window with features but no name', () => {
+      expect(isScriptedHandbackPopup('new-window', 'width=480,height=640,popup', '')).toBe(true);
+    });
+    it('new-window with a frame name but empty features', () => {
+      expect(isScriptedHandbackPopup('new-window', '', 'oauthpopup')).toBe(true);
+    });
+    it('features passed as an array (Electron can hand either form)', () => {
+      expect(isScriptedHandbackPopup('new-window', ['width=500', 'height=700'], '')).toBe(true);
+    });
+    it('a lone noopener feature still counts as scripted (non-empty features)', () => {
+      expect(isScriptedHandbackPopup('new-window', 'noopener', '')).toBe(true);
+    });
+  });
+
+  describe('NOT a scripted handback popup → false (falls through to Peek/tab)', () => {
+    it('bare shift+click: new-window, no features, no name → stays Peek', () => {
+      expect(isScriptedHandbackPopup('new-window', '', '')).toBe(false);
+    });
+    it('shift+click with undefined features/frameName', () => {
+      expect(isScriptedHandbackPopup('new-window', undefined, undefined)).toBe(false);
+    });
+    it('whitespace-only features with no name → false', () => {
+      expect(isScriptedHandbackPopup('new-window', '   ', '')).toBe(false);
+    });
+    it('reserved _blank target with no features → false (that is a plain new tab)', () => {
+      expect(isScriptedHandbackPopup('new-window', '', '_blank')).toBe(false);
+    });
+    it('foreground-tab (target=_blank / featureless window.open) → false, stays a tab', () => {
+      expect(isScriptedHandbackPopup('foreground-tab', '', 'login')).toBe(false);
+    });
+    it('background-tab (ctrl/middle-click) → false', () => {
+      expect(isScriptedHandbackPopup('background-tab', '', '')).toBe(false);
+    });
+    it('default disposition → false', () => {
+      expect(isScriptedHandbackPopup('default', 'width=500', 'x')).toBe(false);
+    });
+    it('missing/empty disposition → false', () => {
+      expect(isScriptedHandbackPopup('', 'width=500', 'x')).toBe(false);
+      expect(isScriptedHandbackPopup(undefined, 'width=500', 'x')).toBe(false);
+    });
   });
 });

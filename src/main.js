@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents, safeStorage } = require('electron');
+const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents, safeStorage, clipboard } = require('electron');
 
 // Enable Chromium's rich print preview UI (Save as PDF, margin controls,
 // pages-per-sheet, background graphics, etc.). Without these flags Electron
@@ -50,6 +50,13 @@ try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
 let mainWindow = null;
 let adBlockerEnabled = true;
 let pendingOpenUrl = null;
+// The currently-open Peek-style auth popup window (frameless OAuth child), so a
+// backdrop click in the renderer can dismiss it. Null when none is open.
+let _activePeekOAuthPopup = null;
+// Maps each auth popup's chrome-bar WebContentsView id → its popup BrowserWindow,
+// so 'popup-chrome:action' IPC (back/reload/copy/open-as-tab/close) routes to the
+// right window.
+const _peekChromeByWc = new Map();
 // Widevine/DRM (castLabs) status, surfaced in Settings → About so users can tell
 // whether protected playback (Spotify/Netflix) is actually enabled.
 let _widevineStatus = 'unknown';
@@ -1084,13 +1091,45 @@ app.on('web-contents-created', (_event, contents) => {
     } catch { /* ignore */ }
     return null;
   };
+  // Set by the OAuth/scripted-popup allow branches just before they return, and
+  // read once in did-create-window (which fires synchronously right after the
+  // handler returns, before any other popup can open). Marks a popup that should
+  // get the Peek-style look: frameless, parented, centered over a dimmed Vex.
+  let pendingPeekPopup = false;
+
   // Build overrideBrowserWindowOptions for an allowed popup, pinning it to the
   // opener tab's partition explicitly (the actual fix for container/OTR cases).
-  const popupOverrides = () => {
+  // opts.peek -> dress it as the in-app Peek overlay (a frameless card centered
+  // over the main window). It stays a REAL opener-connected window — Peek the
+  // overlay can't host the opener, but a frameless child window can, so this is
+  // how we keep the login working while restoring the old in-app look.
+  const popupOverrides = (opts = {}) => {
     const webPreferences = { contextIsolation: true, nodeIntegration: false };
     const part = resolveOpenerPartition();
     if (part) webPreferences.partition = part;
-    return { autoHideMenuBar: true, webPreferences };
+    const base = { autoHideMenuBar: true, webPreferences };
+    if (!opts.peek) return base;
+    // A compact landscape rectangle in the Peek style — big enough for an OAuth
+    // consent screen, clamped so it never dominates the display.
+    let width = 720, height = 560;
+    try {
+      const wa = require('electron').screen.getPrimaryDisplay().workAreaSize;
+      width = Math.min(760, Math.round(wa.width * 0.5));
+      height = Math.min(620, Math.round(wa.height * 0.64));
+    } catch { /* fall back to defaults */ }
+    return {
+      ...base,
+      parent: (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined,
+      frame: false,
+      center: true,
+      width,
+      height,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      backgroundColor: '#0a0c10',
+      hasShadow: true,
+    };
   };
 
   // Diagnostic proof: every popup we ALLOW (OAuth/print) creates a window here.
@@ -1108,6 +1147,53 @@ app.on('web-contents-created', (_event, contents) => {
         (popupSes.getStoragePath && popupSes.getStoragePath()) || '(in-memory)',
         (details && details.url) || '(no url)');
     } catch (err) { console.error('[popup-session] log failed:', err.message); }
+
+    // Peek-style auth popup: dim Vex behind it, allow Esc / backdrop-click to
+    // dismiss (frameless windows have no native close button), and clear the dim
+    // when it closes (incl. the provider's own window.close() on success).
+    const isPeek = pendingPeekPopup;
+    pendingPeekPopup = false;
+    if (isPeek) {
+      _activePeekOAuthPopup = win;
+      try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('oauth-popup:open'); } catch {}
+      try {
+        win.webContents.on('before-input-event', (_e, input) => {
+          if (input && input.type === 'keyDown' && input.key === 'Escape') {
+            try { if (!win.isDestroyed()) win.close(); } catch {}
+          }
+        });
+      } catch {}
+
+      // Overlay the Peek chrome bar (back · reload · url · Open as tab · copy ·
+      // close) across the top of the auth content. The auth web contents fills
+      // the window and can't be inset (it's not a contentView child — proven by
+      // scripts/probe-popup-chrome.js), so the bar sits over the top ~44px; OAuth
+      // consent cards are vertically centered, so the Authorize button stays clear.
+      const BAR_H = 44;
+      let chromeView = null;
+      try {
+        const { WebContentsView } = require('electron');
+        chromeView = new WebContentsView({ webPreferences: { nodeIntegration: true, contextIsolation: false } });
+        win.contentView.addChildView(chromeView);
+        const layout = () => {
+          try { const [w] = win.getContentSize(); chromeView.setBounds({ x: 0, y: 0, width: w, height: BAR_H }); } catch {}
+        };
+        layout();
+        win.on('resize', layout);
+        chromeView.webContents.loadFile(path.join(__dirname, 'renderer', 'popup-chrome.html'));
+        _peekChromeByWc.set(chromeView.webContents.id, win);
+        const pushUrl = () => { try { chromeView.webContents.send('popup-chrome:url', win.webContents.getURL()); } catch {} };
+        chromeView.webContents.on('did-finish-load', pushUrl);
+        win.webContents.on('did-navigate', pushUrl);
+        win.webContents.on('did-navigate-in-page', pushUrl);
+      } catch (err) { console.error('[peek-popup] chrome bar setup failed:', err.message); }
+
+      win.on('closed', () => {
+        if (_activePeekOAuthPopup === win) _activePeekOAuthPopup = null;
+        try { if (chromeView) _peekChromeByWc.delete(chromeView.webContents.id); } catch {}
+        try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('oauth-popup:close'); } catch {}
+      });
+    }
   });
 
   contents.setWindowOpenHandler((details) => {
@@ -1157,7 +1243,22 @@ app.on('web-contents-created', (_event, contents) => {
     // for container/OTR tabs too — not just persist:main.
     if (_mainHelpers.shouldKeepPopupReal(url)) {
       console.log(`[new-window] allowing OAuth/federated-auth popup -> ${url}`);
-      return { action: 'allow', overrideBrowserWindowOptions: popupOverrides() };
+      pendingPeekPopup = true;
+      return { action: 'allow', overrideBrowserWindowOptions: popupOverrides({ peek: true }) };
+    }
+    // Redirect-proof gate: a scripted window.open popup (disposition 'new-window'
+    // WITH features or a frame name) is a real opener-connected window in every
+    // browser, regardless of where it navigates next. URL-shape gating above only
+    // sees the FIRST url, so OAuth flows that open at a non-shaped BOUNCE url and
+    // redirect into the provider afterward (Ticket Tool -> Discord) slip past it;
+    // setWindowOpenHandler never re-fires on in-window redirects. Keep these real
+    // and pinned to the opener tab's partition. Bare shift+click (no features, no
+    // name) is NOT matched and still falls through to Peek below. Proven by
+    // scripts/verify-oauth-popup-partition.js (Scenario C — bounce-then-OAuth).
+    if (_mainHelpers.isScriptedHandbackPopup(disposition, features, frameName)) {
+      console.log(`[new-window] allowing scripted window.open popup (disp=${disposition} frame=${frameName || '-'}) -> ${url}`);
+      pendingPeekPopup = true;
+      return { action: 'allow', overrideBrowserWindowOptions: popupOverrides({ peek: true }) };
     }
     console.log(`[new-window] ${disposition} -> ${url}`);
     try {
@@ -1934,6 +2035,36 @@ ipcMain.on('window-maximize', () => {
   }
 });
 ipcMain.on('window-close', () => mainWindow?.close());
+
+// Backdrop click behind a Peek-style auth popup → dismiss the frameless popup
+// (it has no native close button). Esc inside the popup does the same (wired in
+// did-create-window). No-op if nothing is open.
+ipcMain.on('oauth-popup:dismiss', () => {
+  try { if (_activePeekOAuthPopup && !_activePeekOAuthPopup.isDestroyed()) _activePeekOAuthPopup.close(); } catch {}
+});
+
+// Peek-style auth popup chrome-bar buttons → act on the popup's auth web contents.
+// 'Open as tab' promotes the popup's current URL into a real Vex tab (and closes
+// the popup); the rest mirror the Peek bar (back/reload/copy/close).
+ipcMain.on('popup-chrome:action', (e, payload) => {
+  const win = _peekChromeByWc.get(e.sender.id);
+  if (!win || win.isDestroyed()) return;
+  const wc = win.webContents;
+  const action = payload && payload.action;
+  try {
+    if (action === 'back') { if (wc.canGoBack()) wc.goBack(); }
+    else if (action === 'reload') { wc.reload(); }
+    else if (action === 'close') { win.close(); }
+    else if (action === 'copy') { clipboard.writeText(wc.getURL()); }
+    else if (action === 'open-as-tab') {
+      const url = wc.getURL();
+      if (url && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('tab:create-from-external', { url, background: false });
+      }
+      win.close();
+    }
+  } catch (err) { console.error('[popup-chrome] action failed:', err.message); }
+});
 
 ipcMain.handle('get-start-page-path', () => 'vex://start');
 ipcMain.handle('get-start-page-url', () => {

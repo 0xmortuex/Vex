@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!--
+  Chrome bar for the Peek-style auth popup. This is a TRUSTED local page (never
+  loads remote content), rendered as a WebContentsView overlaid on the top edge
+  of the real, opener-connected auth popup window (see main.js did-create-window).
+  It reproduces the Peek overlay bar (back · reload · url · Open as tab · copy ·
+  close) so the login keeps the old in-app look. nodeIntegration is on because
+  it's our own local UI; it talks to main via ipcRenderer only.
+-->
+<style>
+  :root {
+    --surface: #151921; --bg: #0a0c10; --bg-2: #0f1218;
+    --border: #1f2530; --text: #e5e9f0; --text-muted: #6b7482;
+    --primary: #6366f1; --primary-hover: #5558e6; --danger: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 10px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    user-select: none;
+    -webkit-app-region: drag;            /* drag the bar to move the popup */
+  }
+  .grp { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .url {
+    flex: 1; min-width: 0;
+    font-size: 12px; color: var(--text-muted);
+    font-family: ui-monospace, Consolas, monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 0 4px;
+    -webkit-app-region: no-drag;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 28px; padding: 0 8px;
+    border: none; border-radius: 7px;
+    background: transparent; color: var(--text-muted);
+    font-family: inherit; font-size: 12px; cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  .btn:hover { background: var(--bg-2); color: var(--text); }
+  .promote { background: var(--primary); color: #fff; font-weight: 600; }
+  .promote:hover { background: var(--primary-hover); color: #fff; }
+  .close:hover { color: var(--danger); }
+  svg { display: block; }
+</style>
+</head>
+<body>
+  <div class="grp">
+    <button class="btn" data-act="back" title="Back">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="btn" data-act="reload" title="Reload">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13.5 2v3h-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div class="url" id="url" title=""></div>
+  <div class="grp">
+    <button class="btn promote" data-act="open-as-tab" title="Open as tab">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 3H3v10h10v-3M9 3h4v4M13 3L7.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Open as tab</span>
+    </button>
+    <button class="btn" data-act="copy" title="Copy link">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    </button>
+    <button class="btn close" data-act="close" title="Close (Esc)">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+<script>
+  const { ipcRenderer } = require('electron');
+  document.querySelectorAll('[data-act]').forEach(b =>
+    b.addEventListener('click', () => ipcRenderer.send('popup-chrome:action', { action: b.dataset.act })));
+  ipcRenderer.on('popup-chrome:url', (_e, url) => {
+    const el = document.getElementById('url');
+    el.textContent = url || '';
+    el.title = url || '';
+  });
+</script>
+</body>
+</html>

@@ -13,6 +13,14 @@
 //     in the OTR session, cookie absent from persist:main, and the OTR session
 //     is ephemeral (no on-disk storage path / no Partitions dir).
 //
+//   Scenario C — BOUNCE then OAuth (the real Ticket Tool / Discord flow):
+//     the popup opens at a NON-OAuth-shaped bounce URL (window.open with
+//     features + a name) that 302-redirects into an OAuth-shaped URL. URL-shape
+//     gating sees only the first (non-shaped) url and would DENY → Peek dead-end;
+//     only the disposition+features gate keeps it real. We prove the popup stays
+//     a real window with window.opener intact THROUGH the redirect, pinned to the
+//     opener's partition, with the post-redirect cookie in the right jar.
+//
 // Run:  npx electron scripts/verify-oauth-popup-partition.js
 // Exit 0 = all assertions passed; 1 = a failure (prints which).
 
@@ -53,17 +61,38 @@ const server = http.createServer((req, res) => {
   if (u.pathname === '/host.html') {
     const p = u.searchParams.get('p');
     const c = u.searchParams.get('c');
+    const b = u.searchParams.get('b') === '1' ? '&bounce=1' : '';
     res.end(`<!doctype html><meta charset=utf-8>
       <webview id=wv partition="${p}" allowpopups webpreferences="contextIsolation=yes"
-               src="http://localhost:${port}/opener.html?c=${encodeURIComponent(c)}"
+               src="http://localhost:${port}/opener.html?c=${encodeURIComponent(c)}${b}"
                style="width:600px;height:400px"></webview>`);
   } else if (u.pathname === '/opener.html') {
     const c = u.searchParams.get('c');
-    res.end(`<!doctype html><meta charset=utf-8><title>opener</title><script>
-      const popupUrl = 'http://localhost:${port}/oauth.html?c=${encodeURIComponent(c)}&client_id=1&redirect_uri=x&response_type=code';
-      window._popup = window.open(popupUrl, 'oauthpopup');
-      document.title = window._popup ? 'opened' : 'blocked';
-    </script>`);
+    const bounce = u.searchParams.get('bounce') === '1';
+    if (bounce) {
+      // Scenario C: open at a NON-OAuth-shaped bounce URL with window features
+      // and a name (a scripted handback popup). /bounce 302-redirects into the
+      // OAuth-shaped /oauth.html — modelling Ticket Tool -> Discord. The gate
+      // must keep this real on SHAPE (disposition+features), not first-url shape.
+      res.end(`<!doctype html><meta charset=utf-8><title>opener</title><script>
+        const bounceUrl = 'http://localhost:${port}/bounce?c=${encodeURIComponent(c)}';
+        window._popup = window.open(bounceUrl, 'login', 'width=500,height=700');
+        document.title = window._popup ? 'opened' : 'blocked';
+      </script>`);
+    } else {
+      res.end(`<!doctype html><meta charset=utf-8><title>opener</title><script>
+        const popupUrl = 'http://localhost:${port}/oauth.html?c=${encodeURIComponent(c)}&client_id=1&redirect_uri=x&response_type=code';
+        window._popup = window.open(popupUrl, 'oauthpopup');
+        document.title = window._popup ? 'opened' : 'blocked';
+      </script>`);
+    }
+  } else if (u.pathname === '/bounce') {
+    // Non-OAuth-shaped bounce (like api.tickettool.xyz/api/auth/login) that
+    // 302-redirects into the real OAuth-shaped URL. Same window, opener intact.
+    const c = u.searchParams.get('c') || 'vexbounce';
+    res.statusCode = 302;
+    res.setHeader('location', `http://localhost:${port}/oauth.html?c=${encodeURIComponent(c)}&client_id=1&redirect_uri=x&response_type=code`);
+    res.end('redirecting');
   } else if (u.pathname === '/oauth.html') {
     const c = (u.searchParams.get('c') || 'vexoauth').replace(/[^a-z0-9_]/gi, '');
     res.end(`<!doctype html><meta charset=utf-8><title>oauth</title><script>
@@ -79,8 +108,11 @@ app.on('web-contents-created', (_e, contents) => {
   if (contents.getType() !== 'webview' || !cur) return;
   cur.guest = contents;
   contents.setWindowOpenHandler((details) => {
-    const { url } = details || {};
-    if (helpers.shouldKeepPopupReal(url)) {
+    const { url, disposition, frameName, features } = details || {};
+    // Mirror main.js's combined gate exactly: keep the popup real if the FIRST
+    // url is OAuth-shaped OR it's a scripted window.open popup (shape, not url).
+    if (helpers.shouldKeepPopupReal(url) ||
+        helpers.isScriptedHandbackPopup(disposition, features, frameName)) {
       const webPreferences = { contextIsolation: true, nodeIntegration: false };
       const part = resolveOpenerPartition(contents);
       if (part) webPreferences.partition = part;            // explicit for persist:*
@@ -91,11 +123,12 @@ app.on('web-contents-created', (_e, contents) => {
   contents.on('did-create-window', (win) => { cur.popupWin = win; });
 });
 
-async function runScenario(partition, cookie, port) {
+async function runScenario(partition, cookie, port, opts = {}) {
   cur = { guest: null, popupWin: null, host: null };
   const host = new BrowserWindow({ show: false, webPreferences: { webviewTag: true, contextIsolation: true, nodeIntegration: false } });
   cur.host = host;
-  await host.loadURL(`http://localhost:${port}/host.html?p=${encodeURIComponent(partition)}&c=${encodeURIComponent(cookie)}`);
+  const b = opts.bounce ? '&b=1' : '';
+  await host.loadURL(`http://localhost:${port}/host.html?p=${encodeURIComponent(partition)}&c=${encodeURIComponent(cookie)}${b}`);
   let tries = 0;
   while ((!cur.popupWin || cur.popupWin.webContents.isLoading()) && tries++ < 80) await wait(100);
   await wait(300);
@@ -163,6 +196,44 @@ app.whenReady().then(() => {
         check('B: OTR session has NO on-disk storage path (ephemeral)', !otrPath && !popupPath);
         const otrDir = path.join(app.getPath('userData'), 'Partitions', OTR);
         check('B: no Partitions/' + OTR + ' dir written to disk', !fs.existsSync(otrDir));
+      }
+      try { s.popupWin && !s.popupWin.isDestroyed() && s.popupWin.close(); } catch {}
+      try { s.host && !s.host.isDestroyed() && s.host.close(); } catch {}
+    }
+
+    // ===== Scenario C: BOUNCE then OAuth — the real Ticket Tool/Discord flow =====
+    // The popup opens at a NON-OAuth-shaped bounce URL (like
+    // api.tickettool.xyz/api/auth/login) WITH window features + a name, then
+    // 302-redirects into an OAuth-shaped URL. URL-shape gating alone would DENY
+    // this (first url not shaped) and the popup would dead-end in Peek — the bug.
+    // It can only stay real via the disposition+features gate. We prove the popup
+    // stays real with window.opener intact THROUGH the redirect, pinned to the
+    // opener's partition.
+    {
+      const bounceFirstUrl = `http://localhost:${port}/bounce?c=vexbounce`;
+      // The thing that makes this scenario meaningful: the FIRST url is NOT
+      // OAuth-shaped, so the old shape-only gate could never have allowed it.
+      check('C: first (bounce) URL is NOT OAuth-shaped — shape gate cannot save it',
+        helpers.shouldKeepPopupReal(bounceFirstUrl) === false);
+      const s = await runScenario('persist:container-work', 'vexbounce', port, { bounce: true });
+      console.log('\n-- Scenario C: persist:container-work, bounce -> OAuth redirect --');
+      check('C: scripted bounce popup allowed as a real window (disposition gate)',
+        !!s.popupWin && !s.popupWin.isDestroyed());
+      if (s.popupWin) {
+        const finalUrl = s.popupWin.webContents.getURL();
+        console.log('      popup final URL =', finalUrl);
+        check('C: popup redirected through bounce into the OAuth URL', /\/oauth\.html/.test(finalUrl));
+        const openerSes = s.guest.session, popupSes = s.popupWin.webContents.session;
+        check('C: popup.session === opener.session', popupSes === openerSes);
+        const pp = (popupSes.getStoragePath && popupSes.getStoragePath()) || '';
+        check('C: popup pinned to …/Partitions/container-work', /[\\/]Partitions[\\/]container-work$/.test(pp));
+        const hasOpener = await s.popupWin.webContents.executeJavaScript('!!window.opener').catch(() => false);
+        check('C: window.opener STILL non-null after the redirect', hasOpener === true);
+        await wait(150);
+        const inC = await session.fromPartition('persist:container-work').cookies.get({ name: 'vexbounce' });
+        const inM = await session.fromPartition('persist:main').cookies.get({ name: 'vexbounce' });
+        check('C: post-redirect cookie present in persist:container-work', inC.length > 0);
+        check('C: post-redirect cookie ABSENT from persist:main', inM.length === 0);
       }
       try { s.popupWin && !s.popupWin.isDestroyed() && s.popupWin.close(); } catch {}
       try { s.host && !s.host.isDestroyed() && s.host.close(); } catch {}

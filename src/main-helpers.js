@@ -349,6 +349,36 @@ function shouldKeepPopupReal(url) {
   return isOAuthPopupUrl(url) || isAuthHandlerPopupUrl(url) || isOAuthShapedUrl(url);
 }
 
+// === Scripted-popup detector (the redirect-proof OAuth fix) ===
+// URL-shape gating (shouldKeepPopupReal) only sees the popup's FIRST url, so a
+// flow that opens at a non-OAuth-shaped BOUNCE url and only THEN redirects into
+// the provider defeats it — setWindowOpenHandler never re-fires on in-window
+// redirects, so later OAuth-shaped urls can't be re-gated. This was the Ticket
+// Tool / Discord failure: window.open('https://api.tickettool.xyz/api/auth/login',
+// 'login', <features>) -> 302 -> discord.com/oauth2/authorize -> callback, all
+// after the popup already exists.
+//
+// Gate on the WINDOW SHAPE instead of the first url: a scripted window.open
+// popup IS a real opener-connected window in every browser, regardless of where
+// it navigates afterward. Chromium emits disposition 'new-window' for exactly
+// two cases — a scripted window.open with window features, and a user shift+click
+// — so 'new-window' + (features OR a frame name) isolates the scripted popup
+// while leaving bare shift+click (no features, no name) to fall through to Peek,
+// preserving that behavior. A featureless window.open(url,'name') comes through
+// as 'foreground-tab', not 'new-window', so it stays a tab (unchanged).
+//
+// NOTE — this widens the set of popups that keep a live window.opener from
+// {OAuth-shaped urls + allowlisted providers + Firebase} to {any scripted
+// window.open popup}. That is standard browser behavior; the reverse-tabnabbing
+// exposure is the same as any browser popup (rel=noopener would mitigate, but
+// noopener hardening is deliberately not applied here).
+function isScriptedHandbackPopup(disposition, features, frameName) {
+  if (disposition !== 'new-window') return false;
+  const f = Array.isArray(features) ? features.join(',') : (typeof features === 'string' ? features : '');
+  const named = typeof frameName === 'string' && frameName.length > 0 && frameName !== '_blank';
+  return f.trim().length > 0 || named;
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
@@ -358,6 +388,7 @@ module.exports = {
   isAuthHandlerPopupUrl,
   isOAuthShapedUrl,
   shouldKeepPopupReal,
+  isScriptedHandbackPopup,
   normalizeLaunchArg,
   findLaunchUrl,
   createOpenUrlBuffer,

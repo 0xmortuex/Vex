@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.27.6 (2026-06-17) — OAuth popups survive redirect-started flows + Peek-style login window
+
+### Fixed
+- **Discord/Ticket Tool login now actually completes.** v2.27.5 gated on the popup's *first* URL shape, but Ticket Tool opens its login popup at a non-OAuth-shaped bounce URL (`api.tickettool.xyz/api/auth/login`) that only *then* redirects into `discord.com/oauth2/authorize` → callback. `setWindowOpenHandler` never re-fires on in-window redirects, so the first-URL gate missed it and the popup still dead-ended in Peek. Vex now also keeps a popup real when it's a **scripted `window.open` popup** (disposition `new-window` *with* window features or a frame name) — a real opener-connected window in every browser, regardless of where it navigates next — so redirect-started OAuth flows survive. Bare shift+click (no features/name) still routes to Peek, unchanged.
+
+### Changed
+- **The login popup is dressed like the in-app Peek overlay again** — a compact, frameless rectangle centered over a dimmed Vex, with the Peek chrome bar (back · reload · URL · **Open as tab** · copy · close) overlaid on top. It stays a real `window.opener`-connected window (the Peek overlay itself can't host the opener, which is what broke the login), so the look is restored without breaking the handback. Drag the bar to move it; **Esc** or a backdrop click dismisses it; it auto-closes when the provider finishes.
+
+### Notes
+- This widens the opener-intact treatment from "OAuth-shaped URLs" to "any scripted `window.open` popup" — standard browser behavior; non-scripted navigations still route to tabs/Peek.
+- `scripts/verify-oauth-popup-partition.js` gains **Scenario C** (bounce → OAuth redirect): proves the popup stays real with `window.opener` intact *through* the redirect, pinned to the opener's partition — a scenario the old first-URL gate cannot pass. 24/24 checks green; unit tests added for the scripted-popup detector.
+
 ## v2.27.5 (2026-06-17) — Fix: Discord (and other) OAuth logins failing in popups
 
 ### Fixed
