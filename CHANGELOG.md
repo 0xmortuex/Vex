@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.27.8 (2026-06-17) — Search shortcuts, Master Volume, Netflix, image zoom
+
+### Added
+- **Search keywords & bangs in the address bar** — `yt cats` → YouTube, `gh vex` → GitHub, `w einstein` → Wikipedia, `a usb cable` → Amazon, etc., plus DuckDuckGo bangs anywhere (`!w einstein`, `einstein !yt`). Built-ins: `g · ddg · b · yt · gh · w/wiki · a/amazon · r/reddit · so · npm · mdn · maps · img · x/tw · imdb · tr`; add your own via `localStorage 'vex.searchKeywords'`.
+- **Master Volume** — Quick Tools → "Master Volume": one slider (0–500%) for media across every tab and panel, in real time. Above 100% boosts via Web Audio (works on tabs/normal media); cross-origin and DRM media (Netflix/Disney+/Prime) are limited to 0–100% by design (their audio can't be amplified).
+- **Netflix** — back as a sidebar panel (the "N", on its own `persist:netflix` session). **Right-click it to switch between Netflix / Prime Video / Disney+** — the icon changes to match and all three share one login jar.
+- **Zoom image** — right-click any image → "Zoom image" opens a pan & zoom lightbox (scroll to zoom at the cursor, drag to pan, double-click to fit, Esc to close).
+
+### Changed
+- Relaxed the autoplay policy so AudioContexts start immediately — required for Master Volume's boost to engage.
+
 ## v2.27.7 (2026-06-17) — Power tools: selection AI, Read Free, Media Grabber, faster suggestions
 
 ### Added

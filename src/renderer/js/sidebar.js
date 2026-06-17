@@ -46,6 +46,9 @@ const SIDEBAR_ICONS = {
   star:    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.2l1-5.8-4.3-4.1 5.9-.9z"/></svg>',
   bolt:    '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>',
   sparkle: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/></svg>',
+  netflix: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19V5l10 14V5"/></svg>',
+  prime:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>',
+  disney:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l1.5 4.3L17 9l-4.5 1.7L11 15l-1.5-4.3L5 9l4.5-1.7z" fill="currentColor" stroke="none"/><path d="M18 14v5M15.5 16.5h5"/></svg>',
 };
 
 // Quick-switch presets for AI service buttons.
@@ -53,6 +56,14 @@ const AI_SERVICES = {
   claude:  { name: 'Claude',  url: 'https://claude.ai/',            icon: 'claude' },
   gemini:  { name: 'Gemini',  url: 'https://gemini.google.com/app', icon: 'gemini' },
   chatgpt: { name: 'ChatGPT', url: 'https://chatgpt.com/',          icon: 'chatgpt' },
+};
+
+// Quick-switch presets for the streaming (Netflix) button. No `icon` key — they
+// keep the button's current icon (the streaming "N"); only name + url change.
+const STREAMING_SERVICES = {
+  netflix: { name: 'Netflix',     url: 'https://www.netflix.com/',     icon: 'netflix' },
+  prime:   { name: 'Prime Video', url: 'https://www.primevideo.com/',  icon: 'prime' },
+  disney:  { name: 'Disney+',     url: 'https://www.disneyplus.com/',  icon: 'disney' },
 };
 
 function loadPanelOverrides() { try { return JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}'); } catch { return {}; } }
@@ -96,6 +107,7 @@ const SidebarManager = {
     whatsapp: { url: 'https://web.whatsapp.com/', partition: 'persist:whatsapp' },
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
     spotify: { url: 'https://open.spotify.com/', partition: 'persist:spotify' },
+    netflix: { url: 'https://www.netflix.com/', partition: 'persist:netflix' },
     queue: { url: null, partition: null },
     settings: { url: null, partition: null },
     roblox: { url: null, partition: null },
@@ -388,6 +400,11 @@ const SidebarManager = {
             WebviewManager.showContextMenu(e, wv);
           }
         });
+        // Apply the saved Master Volume level to this panel's media (Spotify,
+        // Netflix, etc.) on load + as media appears, like tab webviews do.
+        wv.addEventListener('dom-ready', () => {
+          if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(wv);
+        });
         panelEl.appendChild(wv);
         this.panelWebviews[panelName] = wv;
       }
@@ -582,8 +599,10 @@ const SidebarManager = {
   },
 
   switchPanelService(panel, key) {
-    const s = AI_SERVICES[key]; if (!s) return;
-    this.setPanelOverride(panel, { name: s.name, url: s.url, icon: s.icon, hidden: false });
+    const s = AI_SERVICES[key] || STREAMING_SERVICES[key]; if (!s) return;
+    const patch = { name: s.name, url: s.url, hidden: false };
+    if (s.icon) patch.icon = s.icon; // streaming services keep the current icon
+    this.setPanelOverride(panel, patch);
     window.showToast?.('Switched to ' + s.name);
   },
 
@@ -643,9 +662,16 @@ const SidebarManager = {
     if (isUrl) {
       items.push({ label: 'Change link…', action: () => this.changePanelLink(panelName) });
       items.push({ separator: true });
-      items.push({ label: 'Switch to Claude', action: () => this.switchPanelService(panelName, 'claude') });
-      items.push({ label: 'Switch to Gemini', action: () => this.switchPanelService(panelName, 'gemini') });
-      items.push({ label: 'Switch to ChatGPT', action: () => this.switchPanelService(panelName, 'chatgpt') });
+      if (panelName === 'netflix') {
+        // Streaming switcher: Netflix ↔ Prime Video ↔ Disney+ (shared persist:netflix jar).
+        items.push({ label: '🎬 Switch to Netflix', action: () => this.switchPanelService(panelName, 'netflix') });
+        items.push({ label: '📺 Switch to Prime Video', action: () => this.switchPanelService(panelName, 'prime') });
+        items.push({ label: '✨ Switch to Disney+', action: () => this.switchPanelService(panelName, 'disney') });
+      } else {
+        items.push({ label: 'Switch to Claude', action: () => this.switchPanelService(panelName, 'claude') });
+        items.push({ label: 'Switch to Gemini', action: () => this.switchPanelService(panelName, 'gemini') });
+        items.push({ label: 'Switch to ChatGPT', action: () => this.switchPanelService(panelName, 'chatgpt') });
+      }
       items.push({ separator: true });
       items.push({ label: 'Refresh', action: makeRefreshAction(this, panelName) });
       items.push({

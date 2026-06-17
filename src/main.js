@@ -11,6 +11,12 @@ const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, ne
 app.commandLine.appendSwitch('enable-features', 'PrintPreview');
 app.commandLine.appendSwitch('enable-print-preview');
 
+// Let AudioContexts start without a user gesture. Required for Master Volume's
+// >100% boost: it taps each media element through a Web Audio GainNode, which is
+// silent if the context is suspended (Chromium's default autoplay policy keeps it
+// suspended until a same-page gesture, which a host-side slider doesn't provide).
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 // Disable Chromium's third-party storage partitioning. Since Chrome ~115 this
 // is on by default and it BREAKS redirect-based federated sign-in: Firebase's
 // signInWithRedirect (used by ElevenLabs' "Sign in with Google", many others)
@@ -1718,7 +1724,7 @@ function createWindow() {
   // so they can be embedded in panels. persist:main is the default tabs session;
   // it gets adblocker/permissions/downloads/preload wiring below but no header
   // strip since regular tabs don't need their own frame-ancestors loosened.
-  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify'];
+  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify', 'persist:netflix'];
 
   // Gmail: spoof Chrome UA at the session level too. The webview-tag `useragent`
   // attribute covers top-level frames; setting it on the session ensures every

@@ -18,6 +18,8 @@ const ExtensionsMenu = {
       fn: () => { const wv = (typeof WebviewManager !== 'undefined') && WebviewManager.getActiveWebview(); if (wv) WebviewManager.toggleForceDarkForSite(wv); else window.showToast?.('Open a page first'); } },
     { icon: '🌐', label: 'Translate Page', sub: 'Translate via Google Translate', cmd: 'translate' },
     { icon: '🔊', label: 'Read Aloud', sub: 'Speak the article (run again to stop)', cmd: 'readaloud' },
+    { icon: '🎚️', label: 'Master Volume', sub: 'One slider for media volume across all tabs',
+      fn: () => { if (typeof MasterVolume !== 'undefined') MasterVolume.show(); else window.showToast?.('Unavailable'); } },
     { icon: '🎯', label: 'Zap Element', sub: 'Click to hide any element forever', cmd: 'zap' },
     { icon: '🎨', label: 'Boost This Site', sub: 'Custom CSS / JS for this site', cmd: 'boost' },
     { icon: '📷', label: 'Screenshot', sub: 'Capture + annotate this page', cmd: 'screenshot' },

@@ -122,6 +122,11 @@ const WebviewManager = {
     if (typeof MouseGestures !== 'undefined') MouseGestures.attach(webview);
     // Floating Explain/Summarize/Translate bar on text selection
     if (typeof SelectionAIBar !== 'undefined') SelectionAIBar.attach(webview);
+    // Apply the saved master-volume level to this page's media (and keep it
+    // enforced as media loads). Re-checked per navigation; no-op at 100%.
+    webview.addEventListener('dom-ready', () => {
+      if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(webview);
+    });
     // Now Playing mini-bar (which tab is making noise)
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     // Right-click an image → reverse-search it with Google Lens
@@ -135,6 +140,7 @@ const WebviewManager = {
       menu.style.left = (r.left + (p.x || 0)) + 'px';
       menu.style.top = (r.top + (p.y || 0)) + 'px';
       const items = [
+        { label: '🔎 Zoom image', act: () => { if (typeof ImageZoom !== 'undefined') ImageZoom.open(p.srcURL); } },
         { label: '🔍 Search image with Lens', act: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(p.srcURL), true) },
         { label: 'Copy image address', act: () => { navigator.clipboard?.writeText(p.srcURL); window.showToast?.('Image URL copied'); } },
         { label: 'Open image in new tab', act: () => TabManager.createTab(p.srcURL, true) },

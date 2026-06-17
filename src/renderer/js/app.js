@@ -119,14 +119,20 @@
     } else if (/^[a-z0-9]([a-z0-9-]*\.)+[a-z]{2,}/i.test(val)) {
       url = 'https://' + val;
     } else {
-      // Search
-      const engines = {
-        google: 'https://www.google.com/search?q=',
-        duckduckgo: 'https://duckduckgo.com/?q=',
-        brave: 'https://search.brave.com/search?q='
-      };
-      const engine = engines[settings.searchEngine] || engines.google;
-      url = engine + encodeURIComponent(val);
+      // Keyword engines ("yt cats") and DDG bangs ("!w einstein") take
+      // precedence over the default engine.
+      const shortcut = (typeof SearchShortcuts !== 'undefined') ? SearchShortcuts.resolve(val) : null;
+      if (shortcut) {
+        url = shortcut;
+      } else {
+        const engines = {
+          google: 'https://www.google.com/search?q=',
+          duckduckgo: 'https://duckduckgo.com/?q=',
+          brave: 'https://search.brave.com/search?q='
+        };
+        const engine = engines[settings.searchEngine] || engines.google;
+        url = engine + encodeURIComponent(val);
+      }
     }
 
     // If sidebar panel is open, close it first
