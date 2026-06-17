@@ -240,9 +240,20 @@ const SidebarManager = {
     this.applySidebarOrder();
     this.renderSidebarManager();
 
-    // Discord block-bypass defaults ON in main; if the user turned it OFF before,
-    // re-apply that on startup.
-    try { if (window.vex?.discordBypass && localStorage.getItem('vex.discordBypass') === 'false') window.vex.discordBypass(false); } catch {}
+    // Discord block-bypass: main defaults to 'light'; re-apply the user's saved
+    // choice ('off' or 'strong'/ByeDPI with its preset/custom) on startup.
+    try {
+      const m = localStorage.getItem('vex.discordBypassMode');
+      if (window.vex?.setDiscordBypassMode && m && m !== 'light') {
+        let opts = {};
+        if (m === 'strong') {
+          const p = parseInt(localStorage.getItem('vex.byedpiPreset') || '-1', 10);
+          if (p === -2) opts = { custom: localStorage.getItem('vex.byedpiCustom') || '' };
+          else if (p >= 0) opts = { preset: p };
+        }
+        window.vex.setDiscordBypassMode(m, opts);
+      }
+    } catch {}
 
     // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
     // openDevTools on webContents.getFocusedWebContents(). The previous
@@ -692,18 +703,49 @@ const SidebarManager = {
           }
         });
         items.push({ separator: true });
-        // Censorship bypass toggle (DNS-over-HTTPS + SNI fragmentation). Default on.
-        const on = (localStorage.getItem('vex.discordBypass') !== 'false');
-        items.push({
-          label: on ? '🛡️ Block bypass: ON (click to disable)' : '🛡️ Block bypass: OFF (click to enable)',
-          action: () => {
-            const next = !on;
-            try { localStorage.setItem('vex.discordBypass', next ? 'true' : 'false'); } catch {}
-            try { window.vex?.discordBypass?.(next); } catch {}
-            const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} }
-            window.showToast?.(next ? 'Discord block-bypass enabled' : 'Bypass disabled — direct connection');
+        // Block-bypass mode: Off / Light (built-in DoH+fragment) / Strong (ByeDPI).
+        // byedpiPreset: -1 auto-tune · -2 custom flags · >=0 forced preset.
+        const PRESET_COUNT = 10;
+        const mode = localStorage.getItem('vex.discordBypassMode') || 'light';
+        const reload = () => { const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} } };
+        const winner = localStorage.getItem('vex.byedpiWinner');
+        const setMode = async (m, opts) => {
+          try { localStorage.setItem('vex.discordBypassMode', m); } catch {}
+          if (m === 'strong') {
+            const msg = (opts && opts.custom) ? 'Starting ByeDPI (custom)…'
+              : (opts && typeof opts.preset === 'number') ? 'Starting ByeDPI…'
+              : 'Auto-tuning ByeDPI… (downloads ~1 MB first run; can take a minute)';
+            window.showToast?.(msg);
           }
+          try {
+            const r = await window.vex?.setDiscordBypassMode?.(m, opts || {});
+            if (r && r.ok) {
+              if (m === 'strong' && typeof r.preset === 'number') { try { localStorage.setItem('vex.byedpiWinner', String(r.preset)); } catch {} }
+              window.showToast?.('Bypass: ' + m + (m === 'strong' && typeof r.preset === 'number' ? ` (mode ${r.preset + 1})` : (r.custom ? ' (custom)' : '')));
+              reload();
+            } else window.showToast?.('Bypass failed: ' + ((r && r.error) || 'unknown'), 'error');
+          } catch { window.showToast?.('Bypass failed', 'error'); }
+        };
+        const dot = (m) => (mode === m ? '● ' : '○ ');
+        items.push({ label: dot('off') + 'Bypass: Off (use your own Zapret here)', action: () => setMode('off', {}) });
+        items.push({ label: dot('light') + 'Bypass: Light (built-in)', action: () => setMode('light', {}) });
+        items.push({
+          label: dot('strong') + 'Bypass: Strong (ByeDPI, auto-tune)' + (mode === 'strong' && winner != null ? ` — mode ${(+winner) + 1}` : ''),
+          action: () => { try { localStorage.setItem('vex.byedpiPreset', '-1'); } catch {} setMode('strong', {}); }
         });
+        if (mode === 'strong') {
+          const cur = parseInt(localStorage.getItem('vex.byedpiPreset') || '-1', 10);
+          const np = (((cur >= 0 ? cur : -1) + 1) % PRESET_COUNT);
+          items.push({ label: `↻ Force next preset (${np + 1}/${PRESET_COUNT})`, action: () => { try { localStorage.setItem('vex.byedpiPreset', String(np)); } catch {} setMode('strong', { preset: np }); } });
+          items.push({
+            label: '⚙ Custom ByeDPI flags…',
+            action: async () => {
+              const cur2 = localStorage.getItem('vex.byedpiCustom') || '--fake -1 --ttl 8 --tlsrec 1+s';
+              const v = (typeof vexPromptModal === 'function') ? await vexPromptModal('ByeDPI flags', cur2) : prompt('ByeDPI flags', cur2);
+              if (v && v.trim()) { try { localStorage.setItem('vex.byedpiCustom', v.trim()); localStorage.setItem('vex.byedpiPreset', '-2'); } catch {} setMode('strong', { custom: v.trim() }); }
+            }
+          });
+        }
       } else {
         items.push({ label: 'Switch to Claude', action: () => this.switchPanelService(panelName, 'claude') });
         items.push({ label: 'Switch to Gemini', action: () => this.switchPanelService(panelName, 'gemini') });

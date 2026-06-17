@@ -1866,22 +1866,88 @@ function createWindow() {
   // resolves over DoH and fragments the TLS ClientHello SNI (see
   // src/main-dpi-bypass.js). Fail-open: if the proxy can't start, Discord loads
   // directly. Toggleable from the Discord button's right-click menu.
-  let _dpiBypassPort = 0;
-  const _applyDiscordProxy = (on) => {
-    try {
-      const ses = session.fromPartition('persist:discord');
-      if (on && _dpiBypassPort) ses.setProxy({ proxyRules: 'https=127.0.0.1:' + _dpiBypassPort + ';http=127.0.0.1:' + _dpiBypassPort });
-      else ses.setProxy({ mode: 'direct' });
-    } catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
+  // Three bypass modes for the Discord session:
+  //   'off'    — direct connection.
+  //   'light'  — Vex's built-in JS proxy (DoH + SNI fragmentation). No deps.
+  //   'strong' — ByeDPI userspace SOCKS5 desync proxy (downloaded on demand);
+  //              same power as Zapret/GoodbyeDPI without admin. Has tunable
+  //              desync presets (preset index) for per-ISP tuning.
+  const _byedpi = require('./byedpi.js');
+  let _dpiBypassPort = 0; // light (JS) proxy port
+  const _setDiscordProxy = (rules) => {
+    try { session.fromPartition('persist:discord').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
+    catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
   };
+  // Does Discord's TLS handshake actually complete through the current proxy?
+  // (Any HTTP response = the SNI/DPI block was beaten. A connection error = no.)
+  function _testDiscordReachable() {
+    return new Promise((resolve) => {
+      let done = false; const fin = (v) => { if (!done) { done = true; resolve(v); } };
+      try {
+        const req = net.request({ url: 'https://discord.com/app', session: session.fromPartition('persist:discord') });
+        const to = setTimeout(() => { try { req.abort(); } catch {} fin(false); }, 7000);
+        req.on('response', (res) => { clearTimeout(to); try { res.resume(); } catch {} fin((res.statusCode || 0) > 0); });
+        req.on('error', () => { clearTimeout(to); fin(false); });
+        req.end();
+      } catch { fin(false); }
+    });
+  }
+
+  // mode: 'off' | 'light' | 'strong'. opts: { preset?: number (>=0 forces it,
+  // <0 / undefined = auto-tune), custom?: string (raw ciadpi flags) }.
+  async function _applyDiscordBypass(mode, opts) {
+    opts = opts || {};
+    try {
+      if (mode === 'strong') {
+        const ud = app.getPath('userData');
+        // Custom flags: run exactly what the user pasted.
+        if (opts.custom && String(opts.custom).trim()) {
+          const port = await _byedpi.start(ud, _downloadBuffer, 0, opts.custom);
+          _setDiscordProxy('socks5://127.0.0.1:' + port);
+          return { ok: true, mode: 'strong', custom: true, port };
+        }
+        // Forced preset: run just that one.
+        if (typeof opts.preset === 'number' && opts.preset >= 0) {
+          const port = await _byedpi.start(ud, _downloadBuffer, opts.preset);
+          _setDiscordProxy('socks5://127.0.0.1:' + port);
+          return { ok: true, mode: 'strong', preset: opts.preset, port };
+        }
+        // Auto-tune: try presets in order, keep the first that actually reaches Discord.
+        for (let i = 0; i < _byedpi.PRESETS.length; i++) {
+          try {
+            const port = await _byedpi.start(ud, _downloadBuffer, i);
+            _setDiscordProxy('socks5://127.0.0.1:' + port);
+            if (await _testDiscordReachable()) {
+              console.log('[DPI-bypass] ByeDPI auto-tune: preset ' + i + ' works');
+              return { ok: true, mode: 'strong', preset: i, auto: true, port };
+            }
+          } catch (e) { console.warn('[DPI-bypass] preset ' + i + ' failed:', e && e.message); }
+        }
+        _byedpi.stop(); _setDiscordProxy(null);
+        return { ok: false, mode: 'strong', error: 'no preset got through (your ISP may need Zapret)' };
+      }
+      _byedpi.stop();
+      if (mode === 'light') {
+        _setDiscordProxy(_dpiBypassPort ? ('https=127.0.0.1:' + _dpiBypassPort + ';http=127.0.0.1:' + _dpiBypassPort) : null);
+        return { ok: true, mode: 'light' };
+      }
+      _setDiscordProxy(null); // off
+      return { ok: true, mode: 'off' };
+    } catch (e) {
+      console.warn('[DPI-bypass] apply failed:', e && e.message);
+      return { ok: false, mode, error: (e && e.message) || 'failed' };
+    }
+  }
+  // Start the built-in JS proxy and default the session to 'light'.
   try {
     require('./main-dpi-bypass.js').startDpiBypassProxy().then((port) => {
       _dpiBypassPort = port || 0;
-      if (port) { _applyDiscordProxy(true); console.log('[DPI-bypass] Discord routed via 127.0.0.1:' + port); }
-      else console.warn('[DPI-bypass] proxy failed to start — Discord loads directly');
+      _applyDiscordBypass('light');
     }).catch((e) => console.warn('[DPI-bypass] start error:', e && e.message));
   } catch (e) { console.warn('[DPI-bypass] init failed:', e && e.message); }
-  ipcMain.on('discord:set-bypass', (_e, on) => _applyDiscordProxy(!!on));
+  ipcMain.handle('discord:set-bypass-mode', (_e, mode, opts) => _applyDiscordBypass(mode, opts || {}));
+  ipcMain.on('discord:set-bypass', (_e, on) => _applyDiscordBypass(on ? 'light' : 'off')); // back-compat
+  app.on('before-quit', () => { try { _byedpi.stop(); } catch {} });
 
   // Ad blocker — attach on every session tabs actually use. Previously only
   // defaultSession and the two panel partitions were covered, so ads loaded

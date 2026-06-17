@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.27.10 (2026-06-18) — Stronger Discord bypass (ByeDPI, auto-tuning) [experimental]
+
+### Added
+- **Strong Discord bypass via ByeDPI** — right-click Discord → "Bypass: Strong (ByeDPI, auto-tune)". Vex downloads the official userspace ByeDPI (`ciadpi`) on demand and runs it as a local SOCKS5 desync proxy (split/disorder/fake-TTL/tlsrec) — the power of Zapret/GoodbyeDPI without admin. **Auto-tune** walks ~10 desync presets and keeps the first whose Discord TLS handshake actually completes; you can also force a specific preset or paste **custom ByeDPI flags**. ciadpi output is logged to `userData/byedpi/ciadpi.log`. Robust start (verifies it's listening, retries).
+- Three bypass levels now: **Off** (use your own Zapret), **Light** (built-in DoH + SNI fragmentation), **Strong** (ByeDPI).
+
+### Notes
+- Experimental: desync effectiveness is ISP-specific and stateful, so it may be inconsistent; antivirus can flag `ciadpi.exe`. If none of the presets get through, run Zapret and set bypass to Off.
+
 ## v2.27.9 (2026-06-18) — Discord panel with block-bypass + Vencord support
 
 ### Added

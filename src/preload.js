@@ -94,6 +94,10 @@ contextBridge.exposeInMainWorld('vex', {
   mediaDownload: (wcId, url) => ipcRenderer.invoke('media:download', wcId, url),
   // Discord censorship bypass (DoH + SNI fragmentation on persist:discord).
   discordBypass: (on) => ipcRenderer.send('discord:set-bypass', on),
+  // Bypass mode: 'off' | 'light' (built-in) | 'strong' (ByeDPI).
+  // opts = { preset?: number (>=0 forces, else auto-tune), custom?: string }.
+  // Returns { ok, mode, preset?, auto?, port?, error? }.
+  setDiscordBypassMode: (mode, opts) => ipcRenderer.invoke('discord:set-bypass-mode', mode, opts),
   // One-click Vencord install into the Discord panel.
   installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
 
