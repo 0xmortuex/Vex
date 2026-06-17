@@ -84,6 +84,14 @@ contextBridge.exposeInMainWorld('vex', {
   // QR code + resource metrics
   qrMake: (text) => ipcRenderer.invoke('qr:make', text),
   appMetrics: () => ipcRenderer.invoke('app:metrics'),
+  // Real per-tab memory: pass the materialized tabs' <webview> webContents ids,
+  // get back { totalKB, byId: { id: {memKB, pid, shared} } }.
+  tabMemory: (ids) => ipcRenderer.invoke('app:tab-memory', ids),
+  // "Read free": clear one site's data in its partition to reset metered paywalls.
+  clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
+  // Media grabber: list/download media detected on a tab (by its webContents id).
+  mediaList: (wcId) => ipcRenderer.invoke('media:list', wcId),
+  mediaDownload: (wcId, url) => ipcRenderer.invoke('media:download', wcId, url),
 
   // Full-text recall (memex) + translate (both run in main)
   recallIndex: (entry) => ipcRenderer.invoke('recall:index', entry),

@@ -415,6 +415,54 @@ function _isVexStartPage(href) {
   }, true);
 })();
 
+// === Selection AI — report a page text selection (text + on-screen rect) to
+// the HOST renderer so it can show a floating Explain/Summarize/Translate bar.
+// Coordinates are relative to THIS guest's viewport; the host offsets them by
+// the <webview>'s position. Only the host hears these (sendToHost), never the
+// page. ===
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  let lastText = "";
+  function clear() {
+    if (lastText) { lastText = ""; try { ipcRenderer.sendToHost("vex-selection-clear"); } catch {} }
+  }
+  function report() {
+    let sel;
+    try { sel = window.getSelection(); } catch { return; }
+    const text = sel ? String(sel.toString()).replace(/\s+/g, " ").trim() : "";
+    if (!text || text.length < 2) { clear(); return; }
+    // Skip selections inside editable fields — the bar would cover the caret and
+    // is rarely wanted while typing.
+    try {
+      const a = document.activeElement;
+      if (a && (a.isContentEditable || /^(input|textarea)$/i.test(a.nodeName))) return;
+    } catch {}
+    if (text === lastText) return;
+    lastText = text;
+    let rect = { x: 0, y: 0, w: 0, h: 0 };
+    try {
+      const r = sel.getRangeAt(0).getBoundingClientRect();
+      rect = { x: r.left, y: r.top, w: r.width, h: r.height };
+    } catch {}
+    try { ipcRenderer.sendToHost("vex-selection", { text: text.slice(0, 8000), rect }); } catch {}
+  }
+  // mouseup = drag-selection done; keyup with Shift = keyboard selection.
+  document.addEventListener("mouseup", () => setTimeout(report, 10), true);
+  document.addEventListener("keyup", (e) => { if (e.shiftKey) setTimeout(report, 10); }, true);
+  // Clears: empty selection, scroll (rect goes stale), or Escape.
+  let clrT = null;
+  document.addEventListener("selectionchange", () => {
+    clearTimeout(clrT);
+    clrT = setTimeout(() => { try { const s = window.getSelection(); if (!s || !String(s).trim()) clear(); } catch {} }, 250);
+  }, true);
+  document.addEventListener("scroll", clear, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") clear(); }, true);
+})();
+
 // === Fingerprint farbling (Brave-style) — opt-in, default OFF ===
 // When the user enables "Fingerprint protection", we inject tiny, per-session,
 // deterministic noise into the readouts most used for canvas/WebGL/audio

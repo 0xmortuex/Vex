@@ -1308,7 +1308,8 @@ const TabManager = {
 
   sleepAllInactive() {
     this.tabs.forEach(t => {
-      if (t.id !== this.activeTabId && !t.sleeping && !t._lazy) {
+      // Skip the active tab, already-sleeping/lazy tabs, and tabs playing audio.
+      if (t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted)) {
         this.sleepTab(t.id);
       }
     });
@@ -1330,6 +1331,9 @@ const TabManager = {
         if (t.id === this.activeTabId) return;
         if (t.sleeping || t._lazy) return;
         if (excludePinned && t.pinned) return;
+        // Never auto-sleep a tab that's actively playing audio — that would
+        // silence the user's music/video mid-playback. Muted tabs are fair game.
+        if (t.audible && !t.muted) return;
         if (!t.lastViewedAt) t.lastViewedAt = now;
         if (now - t.lastViewedAt >= threshold) {
           this.sleepTab(t.id);
@@ -1365,7 +1369,7 @@ const TabManager = {
     const totalMB = metrics.reduce((s, p) => s + (p.memKB || 0), 0) / 1024;
     if (totalMB <= this._memCeiling) return;
     const cands = this.tabs
-      .filter(t => t.id !== this.activeTabId && !t.pinned && !t.sleeping && !t._lazy)
+      .filter(t => t.id !== this.activeTabId && !t.pinned && !t.sleeping && !t._lazy && !(t.audible && !t.muted))
       .sort((a, b) => (a.lastViewedAt || 0) - (b.lastViewedAt || 0));
     let slept = 0;
     for (const t of cands) {

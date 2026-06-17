@@ -12,6 +12,8 @@ const ExtensionsMenu = {
     { icon: '🔓', label: 'Unlock Copy & Right-Click', sub: 'Bypass sites that block copy/selection', cmd: 'copyunlock' },
     { icon: '📄', label: 'Copy Text from Doc', sub: 'Google Docs & copy-locked pages (export / OCR)', cmd: 'doctext' },
     { icon: '📖', label: 'Reading Mode', sub: 'Strip clutter, focus on the article', cmd: 'read' },
+    { icon: '📰', label: 'Read Free', sub: 'Get past metered & subscriber paywalls', cmd: 'readfree' },
+    { icon: '🎬', label: 'Download Media', sub: 'Save video/audio playing on this page', cmd: 'media' },
     { icon: '🌙', label: 'Dark mode for this site', sub: 'Force-darken just this site',
       fn: () => { const wv = (typeof WebviewManager !== 'undefined') && WebviewManager.getActiveWebview(); if (wv) WebviewManager.toggleForceDarkForSite(wv); else window.showToast?.('Open a page first'); } },
     { icon: '🌐', label: 'Translate Page', sub: 'Translate via Google Translate', cmd: 'translate' },

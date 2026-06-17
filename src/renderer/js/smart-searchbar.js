@@ -104,10 +104,18 @@ function rankSuggestions(query, items, cap = 8) {
 }
 
 const SmartSearchbar = (() => {
-  const DEBOUNCE_MS = 120;          // local sources (instant-ish)
-  const WEB_DEBOUNCE_MS = 150;      // network debounce for Google Suggest
+  const DEBOUNCE_MS = 35;           // local sources (instant); tiny coalesce only
+  const WEB_DEBOUNCE_MS = 45;       // network debounce for Google Suggest (was 150)
   const MAX_RESULTS = 8;            // local cap
   const MAX_WEB_RESULTS = 8;        // web cap
+
+  // Renderer-side LRU cache of query → predictions. A backspace or re-typed
+  // query is served INSTANTLY with no IPC/network round-trip — the single
+  // biggest perceived-speed win (predictions barely change minute-to-minute).
+  const _webCache = new Map();
+  const WEB_CACHE_MAX = 250;
+  function _cacheGet(q) { const v = _webCache.get(q); if (v) { _webCache.delete(q); _webCache.set(q, v); } return v; }
+  function _cacheSet(q, list) { _webCache.set(q, list); if (_webCache.size > WEB_CACHE_MAX) _webCache.delete(_webCache.keys().next().value); }
 
   let _input = null;
   let _box = null;
@@ -270,25 +278,32 @@ const SmartSearchbar = (() => {
   // Fetch Google Suggest via the main process (window.vex.webSuggest). Debounced
   // separately from locals, fail-silent, and guarded against out-of-order
   // responses with a monotonic sequence id.
+  function _applyWeb(q, arr) {
+    _webResults = arr.slice(0, MAX_WEB_RESULTS)
+      .filter(s => typeof s === 'string' && s.trim())
+      .map(s => ({ query: s, kind: 'web' }));
+    if ((_input.value || '').trim() === q) _render();
+  }
+
   function _fetchWeb(q) {
     clearTimeout(_webTimer);
     if (!q) { _webResults = []; return; }
+    // Instant cache hit — no debounce, no IPC, no network.
+    const cached = _cacheGet(q);
+    if (cached) { _webSeq++; _applyWeb(q, cached); return; }
     const bridge = (typeof window !== 'undefined' && window.vex && typeof window.vex.webSuggest === 'function')
       ? window.vex.webSuggest : null;
     if (!bridge) { _webResults = []; return; }
     const seq = ++_webSeq;
     _webTimer = setTimeout(() => {
       Promise.resolve(bridge(q)).then((list) => {
+        const arr = Array.isArray(list) ? list : [];
+        _cacheSet(q, arr); // cache regardless of staleness — value is query-keyed
         // Ignore stale responses (a newer keystroke already fired) and any
         // response whose query no longer matches what's in the box.
         if (seq !== _webSeq) return;
         if ((_input.value || '').trim() !== q) return;
-        const arr = Array.isArray(list) ? list : [];
-        _webResults = arr.slice(0, MAX_WEB_RESULTS)
-          .filter(s => typeof s === 'string' && s.trim())
-          .map(s => ({ query: s, kind: 'web' }));
-        // Only re-render if the box is still relevant (user still typing q).
-        if ((_input.value || '').trim() === q) _render();
+        _applyWeb(q, arr);
       }).catch(() => { /* fail-silent: keep locals */ });
     }, WEB_DEBOUNCE_MS);
   }

@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.27.7 (2026-06-17) — Power tools: selection AI, Read Free, Media Grabber, faster suggestions
+
+### Added
+- **Selection AI** — select text on any page and a floating **Explain / Summarize / Translate** bar appears above it (one gesture instead of right-click → menu). The right-click menu also gains **Summarize selection**, between Explain and Translate.
+- **Read Free** — get past paywalls on the page you're reading (Quick Tools → 📰 Read Free, or Ctrl+K). Three tactics: **reset a metered paywall** (clears just that site's cookies + storage and reloads — resets "N free articles a month" counters), **open a free archived copy** on archive.today (for hard subscriber walls), or **reading mode**.
+- **Media Grabber** — find and save video/audio playing on a page (Quick Tools → 🎬 Download Media, or Ctrl+K). Progressive files (mp4/webm/mp3/…) download in one click; HLS/DASH stream links can be copied/opened for VLC or yt-dlp. DRM/MSE video (YouTube, Netflix) can't be captured and isn't listed.
+
+### Changed
+- **Address-bar suggestions are much faster** — the Google-suggest debounce dropped from ~270 ms to ~80 ms, with a renderer-side cache (backspacing/re-typing is instant, no network) and a main-side LRU cache + request timeout. Feels like Chrome now.
+- **Memory panel shows real numbers** — actual per-tab OS-process memory (was fixed 150/80/1 MB estimates), a true browser total, an "N asleep" count, and a `·shared` tag for same-site tabs that share a process.
+
+### Fixed
+- **Auto-sleep no longer silences audio** — auto-sleep, "Sleep inactive", and the memory-pressure guard now skip a tab that's actively playing audio (muted tabs are still fair game).
+
+### Internal
+- New `npm run smoke` — a real-Electron boot smoke test that asserts the renderer initializes (tab + webview render, core managers defined) in an isolated profile; catches "won't boot / renderer throws" regressions the unit tests can't.
+
 ## v2.27.6 (2026-06-17) — OAuth popups survive redirect-started flows + Peek-style login window
 
 ### Fixed

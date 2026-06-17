@@ -120,6 +120,8 @@ const WebviewManager = {
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
     // Mouse gestures (right-drag strokes announced by preload-webview.js)
     if (typeof MouseGestures !== 'undefined') MouseGestures.attach(webview);
+    // Floating Explain/Summarize/Translate bar on text selection
+    if (typeof SelectionAIBar !== 'undefined') SelectionAIBar.attach(webview);
     // Now Playing mini-bar (which tab is making noise)
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     // Right-click an image → reverse-search it with Google Lens
@@ -587,6 +589,12 @@ const WebviewManager = {
         items.push({
           label: `\u2728 Explain "${sel.substring(0, 25)}${sel.length > 25 ? '...' : ''}"`,
           action: () => { AIPanel.open(); AIPanel.sendMessage('explain', { selectedText: sel }); }
+        });
+        items.push({
+          label: '\u{1F4DD} Summarize selection',
+          // Route via chat (free-form reply) \u2014 the 'summarize' feature renders
+          // only a structured {summary} card and comes back blank for a snippet.
+          action: () => { AIPanel.open(); AIPanel.sendMessage('chat', { message: `Summarize the following text clearly and concisely:\n\n"""${sel}"""` }); }
         });
         items.push({
           label: '\u{1F310} Translate selection',

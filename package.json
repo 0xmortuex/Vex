@@ -1,6 +1,6 @@
 {
   "name": "vex",
-  "version": "2.27.6",
+  "version": "2.27.7",
   "description": "Vex — a browser built just for you",
   "author": {
     "name": "0xmortuex",
@@ -11,6 +11,7 @@
   "scripts": {
     "start": "electron .",
     "test": "vitest run",
+    "smoke": "node scripts/verify-smoke-boot.js",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "pack": "electron-builder --dir",

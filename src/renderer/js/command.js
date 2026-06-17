@@ -55,6 +55,8 @@ const CommandBar = {
     { id: 'watches', label: 'Watched Pages', hint: 'Manage the pages Vex is monitoring for changes', icon: '👁', isPrimary: true, action: () => { if (typeof PageMonitor !== 'undefined') PageMonitor.showManager(); } },
     { id: 'wayback-save', label: 'Save to Wayback Machine', hint: 'Archive this page on web.archive.org', icon: '📦', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof LinkRot !== 'undefined') LinkRot.saveToWayback(t.url); } },
     { id: 'wayback-view', label: 'View Archived Version', hint: 'Open the latest Wayback snapshot of this page (recover dead links)', icon: '🕰', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof LinkRot !== 'undefined') LinkRot.viewArchived(t.url); } },
+    { id: 'readfree', label: 'Read Free (bypass paywall)', hint: 'Reset a metered paywall (clear this site’s data + reload) or open a free archived copy', icon: '📰', action: () => { if (typeof ReadFree !== 'undefined') ReadFree.run(); } },
+    { id: 'media', label: 'Download Media on Page', hint: 'Find video/audio playing on this page and save it (progressive files; copy link for HLS)', icon: '🎬', action: () => { if (typeof MediaGrabber !== 'undefined') MediaGrabber.run(); } },
     { id: 'focus', label: 'Focus 25', hint: 'Hide all chrome + block distracting sites for 25 minutes (run again to stop)', icon: '🎯', action: () => FocusMode.toggle(25) },
     { id: 'focus50', label: 'Focus 50', hint: 'A 50-minute focus session', icon: '🎯', action: () => FocusMode.toggle(50) },
     { id: 'compact', label: 'Compact Mode', hint: 'Collapse the sidebars for maximum page space', icon: '🗜', action: () => CompactMode.toggle() },

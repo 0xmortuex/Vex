@@ -434,6 +434,73 @@ ipcMain.handle('app:metrics', () => {
   } catch { return []; }
 });
 
+// === REAL per-tab memory for the Memory panel ===
+// Maps each tab's <webview> guest (by webContents id) to its OS process's
+// working-set size, so the panel can show actual MB instead of fixed estimates.
+// Returns { totalKB, byId: { <wcId>: { memKB, pid, shared } } }. `shared` flags a
+// process backing more than one queried tab (same-site tabs share a renderer), so
+// the panel can avoid double-counting / label it. totalKB sums UNIQUE process pids
+// across the whole app (the true browser footprint), not the per-tab sum.
+ipcMain.handle('app:tab-memory', (_e, ids) => {
+  const out = { totalKB: 0, byId: {} };
+  try {
+    const metrics = app.getAppMetrics();
+    const memByPid = new Map(metrics.map(p => [p.pid, (p.memory && p.memory.workingSetSize) || 0]));
+    out.totalKB = metrics.reduce((s, p) => s + ((p.memory && p.memory.workingSetSize) || 0), 0);
+    const pidUseCount = new Map();
+    const pidById = {};
+    for (const id of Array.isArray(ids) ? ids : []) {
+      try {
+        const wc = webContents.fromId(id);
+        if (!wc || wc.isDestroyed()) continue;
+        const pid = wc.getOSProcessId();
+        pidById[id] = pid;
+        pidUseCount.set(pid, (pidUseCount.get(pid) || 0) + 1);
+      } catch { /* stale id */ }
+    }
+    for (const id of Object.keys(pidById)) {
+      const pid = pidById[id];
+      out.byId[id] = { memKB: memByPid.get(pid) || 0, pid, shared: (pidUseCount.get(pid) || 0) > 1 };
+    }
+  } catch { /* return whatever we have */ }
+  return out;
+});
+
+// === "Read free" — clear a single site's data to reset a metered paywall ===
+// Clears the origin's local storage caches + removes its cookies in the given
+// partition, so counter-based paywalls (NYT/WaPo-style "N free articles") reset
+// on reload. Subscriber-only (server-side) walls aren't affected — the renderer
+// offers an archive.today fallback for those.
+ipcMain.handle('site:clear-data', async (_e, opts) => {
+  const { partition, url } = opts || {};
+  try {
+    const ses = partition ? session.fromPartition(partition) : session.defaultSession;
+    let origin = '';
+    try { origin = new URL(url).origin; } catch {}
+    if (origin) {
+      try {
+        await ses.clearStorageData({
+          origin,
+          storages: ['localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql', 'shadercache'],
+        });
+      } catch { /* best-effort */ }
+    }
+    // Remove every cookie that would be sent to this URL (host + parent domains).
+    try {
+      const cookies = await ses.cookies.get({ url });
+      for (const c of cookies) {
+        const dom = (c.domain || '').replace(/^\./, '');
+        if (!dom) continue;
+        const cu = `http${c.secure ? 's' : ''}://${dom}${c.path || '/'}`;
+        try { await ses.cookies.remove(cu, c.name); } catch { /* ignore one */ }
+      }
+    } catch { /* best-effort */ }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // === Full-text recall ("memex") — index the text of pages you read, search it
 // later. Stored as a capped JSON log in userData; local only, never uploaded. ===
 const RECALL_FILE = () => path.join(app.getPath('userData'), 'recall.json');
@@ -777,6 +844,63 @@ function wireClientHintsOnSession(ses) {
   });
 }
 
+// === Media grabber — sniff downloadable media per tab ===
+// onCompleted (unused elsewhere) records media responses keyed by the guest's
+// webContents id, so the renderer can list what's grabbable on the current page.
+// We keep playlists (.m3u8/.mpd) but skip their individual .ts/.m4s segments
+// (noise). Cleared on main-frame navigation / tab destroy (see web-contents-created).
+const _mediaByWc = new Map(); // webContentsId -> Map(url -> {url,kind,mime,sizeKB})
+function _hdrVal(headers, name) {
+  if (!headers) return '';
+  const k = Object.keys(headers).find(h => h.toLowerCase() === name);
+  if (!k) return '';
+  const v = headers[k];
+  return Array.isArray(v) ? (v[0] || '') : (v || '');
+}
+function _mediaKind(url, ct) {
+  const u = url.toLowerCase();
+  if (/\.m3u8(\?|$)/.test(u) || /mpegurl/i.test(ct)) return 'hls';
+  if (/\.mpd(\?|$)/.test(u) || /dash\+xml/i.test(ct)) return 'dash';
+  if (/\.(mp3|m4a|aac|ogg|oga|wav|flac|opus)(\?|$)/.test(u) || /^audio\//i.test(ct)) return 'audio';
+  return 'video';
+}
+function wireMediaSnifferOnSession(ses) {
+  if (!ses || ses.__vexMediaWired) return;
+  ses.__vexMediaWired = true;
+  ses.webRequest.onCompleted({ urls: ['http://*/*', 'https://*/*'] }, (details) => {
+    try {
+      const { webContentsId, url, resourceType, responseHeaders, statusCode } = details;
+      if (!webContentsId || !url || (statusCode && statusCode >= 400)) return;
+      if (!/^https?:/i.test(url)) return;
+      if (/\.(ts|m4s)(\?|$)/i.test(url)) return; // segment noise; keep the playlist
+      const ct = (_hdrVal(responseHeaders, 'content-type') || '').split(';')[0].trim();
+      const isMedia = resourceType === 'media'
+        || /\.(mp4|m4v|webm|ogv|mov|mkv|m3u8|mpd|mp3|m4a|aac|ogg|oga|wav|flac|opus)(\?|$)/i.test(url)
+        || /^(video|audio)\//i.test(ct) || /mpegurl|dash\+xml/i.test(ct);
+      if (!isMedia) return;
+      let map = _mediaByWc.get(webContentsId);
+      if (!map) { map = new Map(); _mediaByWc.set(webContentsId, map); }
+      if (!map.has(url)) {
+        const len = parseInt(_hdrVal(responseHeaders, 'content-length'), 10);
+        map.set(url, { url, kind: _mediaKind(url, ct), mime: ct, sizeKB: Number.isFinite(len) ? Math.round(len / 1024) : 0 });
+        if (map.size > 80) map.delete(map.keys().next().value); // cap, drop oldest
+      }
+    } catch { /* sniffing is best-effort */ }
+  });
+}
+
+ipcMain.handle('media:list', (_e, wcId) => {
+  const map = _mediaByWc.get(wcId);
+  return map ? Array.from(map.values()) : [];
+});
+ipcMain.handle('media:download', (_e, wcId, url) => {
+  try {
+    const wc = webContents.fromId(wcId);
+    if (wc && !wc.isDestroyed() && url) { wc.downloadURL(url); return { ok: true }; }
+  } catch (err) { return { ok: false, error: err.message }; }
+  return { ok: false, error: 'tab not found' };
+});
+
 function wireDownloadsOnSession(ses, tag) {
   if (!ses || ses.__vexDownloadsWired) return;
   ses.__vexDownloadsWired = true;
@@ -1051,6 +1175,14 @@ app.on('web-contents-created', (_event, contents) => {
   // for extension background pages (those need their own window.open semantics).
   const type = contents.getType();
   if (type !== 'webview') return;
+
+  // Media grabber: hook this guest's session (once) to record media URLs, and
+  // reset the tab's list on a real navigation / when the tab goes away.
+  try { wireMediaSnifferOnSession(contents.session); } catch {}
+  contents.on('did-start-navigation', (_e, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) { try { _mediaByWc.delete(contents.id); } catch {} }
+  });
+  contents.on('destroyed', () => { try { _mediaByWc.delete(contents.id); } catch {} });
 
   // (Gmail webview popup-intercept removed — Gmail now uses native IMAP/SMTP
   // via main/gmail/, no webview. persist:gmail partition is kept in the
@@ -1890,6 +2022,46 @@ app.whenReady().then(async () => {
   createWindow();
   setupAutoUpdater();
 
+  // === Boot smoke test (gated by VEX_SMOKE=1) ===
+  // Boots the REAL app and asserts the renderer initialized in real Chromium —
+  // the tab system created a tab + rendered a <webview>, and the core managers
+  // are defined — then exits 0 (pass) / 1 (fail). Driven by
+  // scripts/verify-smoke-boot.js. No effect on normal runs. Catches "won't boot
+  // / renderer throws / no tab renders" regressions the jsdom unit tests can't.
+  if (process.env.VEX_SMOKE === '1' && mainWindow) {
+    const wc = mainWindow.webContents;
+    let done = false;
+    const finish = (ok, detail) => {
+      if (done) return; done = true;
+      console.log(`SMOKE: ${ok ? 'PASS' : 'FAIL'} ${detail || ''}`);
+      setTimeout(() => app.exit(ok ? 0 : 1), 150);
+    };
+    wc.on('render-process-gone', (_e, d) => finish(false, 'render-process-gone ' + (d && d.reason)));
+    const deadline = Date.now() + 25000;
+    const poll = async () => {
+      if (done) return;
+      try {
+        const s = await wc.executeJavaScript(`(function(){try{return {
+          tm: typeof TabManager!=='undefined',
+          tabs: (typeof TabManager!=='undefined'&&Array.isArray(TabManager.tabs))?TabManager.tabs.length:-1,
+          wvm: typeof WebviewManager!=='undefined',
+          wv: document.querySelectorAll('webview').length,
+          sb: typeof SidebarManager!=='undefined',
+          cb: typeof CommandBar!=='undefined'
+        };}catch(e){return {err:String(e)};}})()`, true);
+        if (s && s.tm && s.tabs >= 1 && s.wvm && s.wv >= 1 && s.sb && s.cb) {
+          finish(true, `tabs=${s.tabs} webviews=${s.wv}`); return;
+        }
+        if (Date.now() > deadline) { finish(false, 'timeout state=' + JSON.stringify(s)); return; }
+      } catch (e) {
+        if (Date.now() > deadline) { finish(false, 'timeout exec ' + e.message); return; }
+      }
+      setTimeout(poll, 400);
+    };
+    wc.once('did-finish-load', () => setTimeout(poll, 300));
+    setTimeout(poll, 1500); // safety net if load already fired
+  }
+
   // === Handle URL launched from external app (Discord, email, File Explorer) ===
   // process.argv[0] is the exe path, [1..] are the arguments Windows passed —
   // skip [0] so we don't accidentally normalise the exe location into a URL.
@@ -2091,14 +2263,32 @@ function _parseGoogleSuggest(raw) {
   } catch {}
   return [];
 }
+// LRU + TTL cache so repeat/backspaced queries return instantly without a
+// network hit (the renderer caches too; this also helps the start-page bridge).
+const _suggestCache = new Map(); // q -> { list, ts }
+const SUGGEST_TTL = 10 * 60 * 1000;
+const SUGGEST_MAX = 600;
 ipcMain.handle('web-suggest', async (_event, query) => {
   const q = (query == null ? '' : String(query)).trim();
   if (!q) return [];
+  const hit = _suggestCache.get(q);
+  if (hit && (Date.now() - hit.ts) < SUGGEST_TTL) {
+    _suggestCache.delete(q); _suggestCache.set(q, hit); // LRU bump
+    return hit.list;
+  }
   try {
     const url = 'https://suggestqueries.google.com/complete/search?client=firefox&q=' + encodeURIComponent(q);
-    const r = await net.fetch(url);
-    if (!r.ok) return [];
-    return _parseGoogleSuggest(await r.text());
+    // Bound the wait so a slow/hung request can't stall the dropdown.
+    const ctrl = new AbortController();
+    const to = setTimeout(() => { try { ctrl.abort(); } catch {} }, 2500);
+    let list = [];
+    try {
+      const r = await net.fetch(url, { signal: ctrl.signal });
+      if (r.ok) list = _parseGoogleSuggest(await r.text());
+    } finally { clearTimeout(to); }
+    _suggestCache.set(q, { list, ts: Date.now() });
+    if (_suggestCache.size > SUGGEST_MAX) _suggestCache.delete(_suggestCache.keys().next().value);
+    return list;
   } catch (e) {
     return [];
   }
