@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.27.9 (2026-06-18) — Discord panel with block-bypass + Vencord support
+
+### Added
+- **Discord in the sidebar** — a Discord panel (its own `persist:discord` login), with a built-in **censorship bypass** for regions where Discord is blocked (e.g. Turkey): the session is routed through a local proxy that resolves over **DNS-over-HTTPS** and **fragments the TLS ClientHello inside the SNI** across two TCP segments (the GoodbyeDPI/ByeDPI/Zapret "split" technique). On by default, scoped to Discord only, fail-open; toggle via right-click → "Block bypass". Best-effort — a stubborn DPI may still need a dedicated tool.
+- **One-click Vencord** — right-click the Discord icon → "Install / Update Vencord" downloads the official Vencord browser extension and loads it into the Discord panel (Vex now loads extensions into that session, and relaxes CSP there so Vencord can inject). Custom userplugins are supported by building Vencord's web extension (`pnpm buildWeb`) and loading it via Settings → Extensions.
+
 ## v2.27.8 (2026-06-17) — Search shortcuts, Master Volume, Netflix, image zoom
 
 ### Added

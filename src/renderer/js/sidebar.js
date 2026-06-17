@@ -49,6 +49,7 @@ const SIDEBAR_ICONS = {
   netflix: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19V5l10 14V5"/></svg>',
   prime:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>',
   disney:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l1.5 4.3L17 9l-4.5 1.7L11 15l-1.5-4.3L5 9l4.5-1.7z" fill="currentColor" stroke="none"/><path d="M18 14v5M15.5 16.5h5"/></svg>',
+  discord: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 5.3A17 17 0 0 0 15.7 4l-.2.4a15.6 15.6 0 0 1 3.9 1.2 13.6 13.6 0 0 0-11.8 0A15.6 15.6 0 0 1 11.5 4.4L11.3 4A17 17 0 0 0 7 5.3C4.3 9.3 3.6 13.2 4 17a17 17 0 0 0 5.1 2.6l.6-1a11 11 0 0 1-1.8-.9c.15-.1.3-.2.44-.32a9.7 9.7 0 0 0 8.3 0c.15.12.3.22.45.32a11 11 0 0 1-1.8.9l.6 1A17 17 0 0 0 21 17c.5-4.3-.5-8.2-3-11.7zM9.3 14.6c-.9 0-1.6-.84-1.6-1.86 0-1.02.69-1.86 1.6-1.86.92 0 1.63.84 1.6 1.86 0 1.02-.69 1.86-1.6 1.86zm5.4 0c-.9 0-1.6-.84-1.6-1.86 0-1.02.69-1.86 1.6-1.86.92 0 1.63.84 1.6 1.86 0 1.02-.68 1.86-1.6 1.86z"/></svg>',
 };
 
 // Quick-switch presets for AI service buttons.
@@ -108,6 +109,7 @@ const SidebarManager = {
     claude: { url: 'https://claude.ai/', partition: 'persist:claude' },
     spotify: { url: 'https://open.spotify.com/', partition: 'persist:spotify' },
     netflix: { url: 'https://www.netflix.com/', partition: 'persist:netflix' },
+    discord: { url: 'https://discord.com/app', partition: 'persist:discord' },
     queue: { url: null, partition: null },
     settings: { url: null, partition: null },
     roblox: { url: null, partition: null },
@@ -237,6 +239,10 @@ const SidebarManager = {
     // Apply saved button order + populate the Settings → Sidebar manager.
     this.applySidebarOrder();
     this.renderSidebarManager();
+
+    // Discord block-bypass defaults ON in main; if the user turned it OFF before,
+    // re-apply that on startup.
+    try { if (window.vex?.discordBypass && localStorage.getItem('vex.discordBypass') === 'false') window.vex.discordBypass(false); } catch {}
 
     // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
     // openDevTools on webContents.getFocusedWebContents(). The previous
@@ -667,6 +673,37 @@ const SidebarManager = {
         items.push({ label: '🎬 Switch to Netflix', action: () => this.switchPanelService(panelName, 'netflix') });
         items.push({ label: '📺 Switch to Prime Video', action: () => this.switchPanelService(panelName, 'prime') });
         items.push({ label: '✨ Switch to Disney+', action: () => this.switchPanelService(panelName, 'disney') });
+      } else if (panelName === 'discord') {
+        // One-click Vencord (plugins/themes) install into the Discord panel.
+        items.push({
+          label: '🧩 Install / Update Vencord',
+          action: async () => {
+            window.showToast?.('Downloading Vencord…');
+            try {
+              const r = await window.vex?.installVencord?.();
+              if (r && r.ok) {
+                window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
+                const wv = this.panelWebviews['discord'];
+                if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
+              } else {
+                window.showToast?.('Vencord install failed: ' + ((r && r.error) || 'unknown'), 'error');
+              }
+            } catch (e) { window.showToast?.('Vencord install failed', 'error'); }
+          }
+        });
+        items.push({ separator: true });
+        // Censorship bypass toggle (DNS-over-HTTPS + SNI fragmentation). Default on.
+        const on = (localStorage.getItem('vex.discordBypass') !== 'false');
+        items.push({
+          label: on ? '🛡️ Block bypass: ON (click to disable)' : '🛡️ Block bypass: OFF (click to enable)',
+          action: () => {
+            const next = !on;
+            try { localStorage.setItem('vex.discordBypass', next ? 'true' : 'false'); } catch {}
+            try { window.vex?.discordBypass?.(next); } catch {}
+            const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} }
+            window.showToast?.(next ? 'Discord block-bypass enabled' : 'Bypass disabled — direct connection');
+          }
+        });
       } else {
         items.push({ label: 'Switch to Claude', action: () => this.switchPanelService(panelName, 'claude') });
         items.push({ label: 'Switch to Gemini', action: () => this.switchPanelService(panelName, 'gemini') });

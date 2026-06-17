@@ -92,6 +92,10 @@ contextBridge.exposeInMainWorld('vex', {
   // Media grabber: list/download media detected on a tab (by its webContents id).
   mediaList: (wcId) => ipcRenderer.invoke('media:list', wcId),
   mediaDownload: (wcId, url) => ipcRenderer.invoke('media:download', wcId, url),
+  // Discord censorship bypass (DoH + SNI fragmentation on persist:discord).
+  discordBypass: (on) => ipcRenderer.send('discord:set-bypass', on),
+  // One-click Vencord install into the Discord panel.
+  installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
 
   // Full-text recall (memex) + translate (both run in main)
   recallIndex: (entry) => ipcRenderer.invoke('recall:index', entry),

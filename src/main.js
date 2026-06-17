@@ -944,7 +944,9 @@ function wireDownloadsOnSession(ses, tag) {
 const extensionsDir = path.join(userDataPath, 'extensions');
 if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true });
 
-const EXT_PARTITIONS = ['persist:main']; // tabs all share this; add more if new partitions appear
+// Chrome extensions load into these sessions. persist:discord is included so the
+// Vencord browser extension (and others) apply inside the Discord panel.
+const EXT_PARTITIONS = ['persist:main', 'persist:discord'];
 
 function _copyDirRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
@@ -1122,6 +1124,105 @@ ipcMain.handle('extensions:install-zip', async () => {
       : { ok: false, error: 'Extracted but extension didn\'t load (check console for details)' };
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+// Download a URL to a Buffer via Electron net (follows redirects, e.g. GitHub
+// release → objects.githubusercontent.com).
+function _downloadBuffer(url, depth = 0) {
+  return new Promise((resolve, reject) => {
+    if (depth > 5) return reject(new Error('too many redirects'));
+    try {
+      const req = net.request(url);
+      req.on('response', (res) => {
+        const sc = res.statusCode;
+        if (sc >= 300 && sc < 400 && res.headers.location) {
+          const loc = Array.isArray(res.headers.location) ? res.headers.location[0] : res.headers.location;
+          res.resume();
+          return resolve(_downloadBuffer(loc, depth + 1));
+        }
+        if (sc !== 200) { res.resume(); return reject(new Error('HTTP ' + sc)); }
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+      req.end();
+    } catch (e) { reject(e); }
+  });
+}
+
+// Extract a zip Buffer into the extensions dir (zip-slip-safe) and load it into
+// every EXT_PARTITIONS session. Mirrors extensions:install-zip but works from a
+// buffer (used by the Vencord auto-installer). forceSlug pins the folder name so
+// a re-install can find + replace the old copy.
+async function _installExtFromZipBuffer(zipBuffer, forceSlug) {
+  let AdmZip;
+  try { AdmZip = require('adm-zip'); } catch { return { ok: false, error: 'adm-zip missing' }; }
+  if (zipBuffer.slice(0, 4).toString() === 'Cr24') {
+    const v = zipBuffer.readUInt32LE(4);
+    if (v === 2) zipBuffer = zipBuffer.slice(16 + zipBuffer.readUInt32LE(8) + zipBuffer.readUInt32LE(12));
+    else if (v === 3) zipBuffer = zipBuffer.slice(12 + zipBuffer.readUInt32LE(8));
+  }
+  const zip = new AdmZip(zipBuffer);
+  const entries = zip.getEntries();
+  let manifestEntry = entries.find(e => e.entryName === 'manifest.json');
+  let rootPath = '';
+  if (!manifestEntry) {
+    const cands = entries.filter(e => !e.isDirectory && e.entryName.endsWith('/manifest.json'))
+      .sort((a, b) => a.entryName.split('/').length - b.entryName.split('/').length);
+    if (cands.length) { manifestEntry = cands[0]; rootPath = manifestEntry.entryName.replace(/manifest\.json$/, ''); }
+  }
+  if (!manifestEntry) return { ok: false, error: 'No manifest.json in archive' };
+  const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
+  const slug = forceSlug || String(manifest.name || 'extension').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+  const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
+  fs.mkdirSync(destFolder, { recursive: true });
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+    const name = entry.entryName;
+    if (rootPath && !name.startsWith(rootPath)) continue;
+    const rel = rootPath ? name.slice(rootPath.length) : name;
+    if (!rel) continue;
+    let outPath;
+    try { outPath = safeJoin(destFolder, rel); } catch { continue; }
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, entry.getData());
+  }
+  if (!fs.existsSync(path.join(destFolder, 'manifest.json'))) {
+    fs.rmSync(destFolder, { recursive: true, force: true });
+    return { ok: false, error: 'manifest not at root after extract' };
+  }
+  const ext = await _loadExtensionEverywhere(destFolder);
+  return ext ? { ok: true, name: ext.name, version: ext.manifest.version } : { ok: false, error: 'extension did not load' };
+}
+
+// Remove any previously-installed extension whose folder slug starts with prefix
+// (unload from every session + delete on disk), so re-installing doesn't stack.
+function _removeExtBySlugPrefix(prefix) {
+  try {
+    for (const e of _extEntries()) {
+      if (!path.basename(e.path).startsWith(prefix + '-')) continue;
+      for (const ses of [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))]) {
+        try { for (const ex of ses.getAllExtensions()) if (path.resolve(ex.path) === path.resolve(e.path)) ses.removeExtension(ex.id); } catch {}
+      }
+      try { fs.rmSync(e.path, { recursive: true, force: true }); } catch {}
+    }
+  } catch {}
+}
+
+// One-click Vencord: download the official chromium browser extension and load
+// it into the Discord panel session (persist:discord, included in EXT_PARTITIONS).
+ipcMain.handle('discord:install-vencord', async () => {
+  const URL_VENCORD = 'https://github.com/Vendicated/Vencord/releases/download/devbuild/extension-chrome.zip';
+  try {
+    const buf = await _downloadBuffer(URL_VENCORD);
+    if (!buf || buf.length < 50000) return { ok: false, error: 'download too small / failed' };
+    _removeExtBySlugPrefix('vencord');
+    return await _installExtFromZipBuffer(buf, 'vencord');
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || 'install failed' };
   }
 });
 
@@ -1724,7 +1825,7 @@ function createWindow() {
   // so they can be embedded in panels. persist:main is the default tabs session;
   // it gets adblocker/permissions/downloads/preload wiring below but no header
   // strip since regular tabs don't need their own frame-ancestors loosened.
-  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify', 'persist:netflix'];
+  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify', 'persist:netflix', 'persist:discord'];
 
   // Gmail: spoof Chrome UA at the session level too. The webview-tag `useragent`
   // attribute covers top-level frames; setting it on the session ensures every
@@ -1735,6 +1836,11 @@ function createWindow() {
   // IMAP/SMTP client, not a webview. See src/main/gmail/.)
   partitions.forEach(partName => {
     const ses = session.fromPartition(partName);
+    // The Discord panel additionally drops CSP entirely so the Vencord browser
+    // extension can inject its bundle + load themes/QuickCSS (the extension would
+    // normally relax CSP via declarativeNetRequest, which Electron only partly
+    // supports). Scoped to persist:discord only — every other session keeps CSP.
+    const stripAllCsp = (partName === 'persist:discord');
 
     ses.webRequest.onHeadersReceived((details, callback) => {
       const responseHeaders = { ...details.responseHeaders };
@@ -1742,20 +1848,40 @@ function createWindow() {
         delete responseHeaders['x-frame-options'];
         delete responseHeaders['X-Frame-Options'];
         delete responseHeaders['X-FRAME-OPTIONS'];
-        if (responseHeaders['content-security-policy']) {
-          responseHeaders['content-security-policy'] = responseHeaders['content-security-policy'].map(
-            csp => csp.replace(/frame-ancestors[^;]*;?/gi, '')
-          );
-        }
-        if (responseHeaders['Content-Security-Policy']) {
-          responseHeaders['Content-Security-Policy'] = responseHeaders['Content-Security-Policy'].map(
-            csp => csp.replace(/frame-ancestors[^;]*;?/gi, '')
-          );
+        for (const k of Object.keys(responseHeaders)) {
+          const lk = k.toLowerCase();
+          if (lk === 'content-security-policy' || lk === 'content-security-policy-report-only') {
+            if (stripAllCsp) delete responseHeaders[k];
+            else responseHeaders[k] = responseHeaders[k].map(csp => csp.replace(/frame-ancestors[^;]*;?/gi, ''));
+          }
         }
       }
       callback({ responseHeaders });
     });
   });
+
+  // === DPI-bypass for the Discord panel ===
+  // Discord is blocked in some regions (e.g. Turkey) via DNS poisoning + SNI/DPI
+  // filtering. Route the persist:discord session through a local proxy that
+  // resolves over DoH and fragments the TLS ClientHello SNI (see
+  // src/main-dpi-bypass.js). Fail-open: if the proxy can't start, Discord loads
+  // directly. Toggleable from the Discord button's right-click menu.
+  let _dpiBypassPort = 0;
+  const _applyDiscordProxy = (on) => {
+    try {
+      const ses = session.fromPartition('persist:discord');
+      if (on && _dpiBypassPort) ses.setProxy({ proxyRules: 'https=127.0.0.1:' + _dpiBypassPort + ';http=127.0.0.1:' + _dpiBypassPort });
+      else ses.setProxy({ mode: 'direct' });
+    } catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
+  };
+  try {
+    require('./main-dpi-bypass.js').startDpiBypassProxy().then((port) => {
+      _dpiBypassPort = port || 0;
+      if (port) { _applyDiscordProxy(true); console.log('[DPI-bypass] Discord routed via 127.0.0.1:' + port); }
+      else console.warn('[DPI-bypass] proxy failed to start — Discord loads directly');
+    }).catch((e) => console.warn('[DPI-bypass] start error:', e && e.message));
+  } catch (e) { console.warn('[DPI-bypass] init failed:', e && e.message); }
+  ipcMain.on('discord:set-bypass', (_e, on) => _applyDiscordProxy(!!on));
 
   // Ad blocker — attach on every session tabs actually use. Previously only
   // defaultSession and the two panel partitions were covered, so ads loaded
