@@ -116,6 +116,17 @@ const WebviewManager = {
       } catch {}
     });
 
+    // Start page loads via file:// (bypassing main's HTML bake), so inject the
+    // current GUI Style so the home page matches Classic/Glass.
+    webview.addEventListener('dom-ready', () => {
+      try {
+        if (typeof isStartPage === 'function' && isStartPage(webview.getURL())) {
+          const gs = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
+          webview.executeJavaScript(`document.documentElement.setAttribute('data-gui-style', ${JSON.stringify(gs)})`).catch(() => {});
+        }
+      } catch {}
+    });
+
     // Password capture (login-form submits announced by preload-webview.js)
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
     // Mouse gestures (right-drag strokes announced by preload-webview.js)

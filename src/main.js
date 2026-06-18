@@ -348,9 +348,12 @@ function savePermissionDecisions(data) {
   catch (err) { console.error('[Permissions] save failed:', err.message); }
 }
 
-function wirePermissionsOnSession(ses, tag) {
+function wirePermissionsOnSession(ses, tag, opts) {
   if (!ses || ses.__vexPermsWired) return;
   ses.__vexPermsWired = true;
+  opts = opts || {};
+  // Media family — mic/camera/screen-share + audio in/out device selection.
+  const MEDIA_PERMS = new Set(['media', 'microphone', 'camera', 'audioCapture', 'videoCapture', 'speaker-selection', 'display-capture']);
 
   ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
     let origin = 'unknown';
@@ -364,6 +367,12 @@ function wirePermissionsOnSession(ses, tag) {
     // never surfaced/resolved there, so play and other actions did nothing.
     const AUTO_ALLOW = new Set(['fullscreen', 'pointerLock', 'clipboard-read', 'clipboard-sanitized-write', 'mediaKeySystem']);
     if (AUTO_ALLOW.has(permission)) return callback(true);
+
+    // Dedicated Discord panel session: auto-grant mic/camera/output-device so
+    // voice & screen-share work. The generic prompt never surfaces in a panel
+    // webview (same reason mediaKeySystem is auto-allowed above), which left
+    // Discord unable to see any input/output device.
+    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return callback(true);
 
     const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture']);
     if (!NEEDS_PROMPT.has(permission)) {
@@ -403,6 +412,7 @@ function wirePermissionsOnSession(ses, tag) {
     // DRM playback (EME) is auto-OK like a normal browser, so the sync check
     // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
     if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;
+    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return true;
     const decisions = loadPermissionDecisions();
     return decisions[`${requestingOrigin}::${permission}`] === 'allow';
   });
@@ -419,6 +429,43 @@ ipcMain.handle('permission:respond', (_e, payload) => {
     d[`${origin}::${permission}`] = decision;
     savePermissionDecisions(d);
   }
+  return { ok: true };
+});
+
+// === Screen share (getDisplayMedia) — Electron ships no picker, so without a
+// DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
+// does nothing. We enumerate screens+windows via desktopCapturer, show our own
+// picker in the renderer, and hand the chosen source back (with system-audio
+// loopback so "share sound" works). ===
+const _pendingScreenPicks = new Map();
+function wireDisplayMediaOnSession(ses) {
+  if (!ses || ses.__vexDisplayWired || typeof ses.setDisplayMediaRequestHandler !== 'function') return;
+  ses.__vexDisplayWired = true;
+  ses.setDisplayMediaRequestHandler((request, callback) => {
+    const { desktopCapturer } = require('electron');
+    desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
+      .then((sources) => {
+        if (!sources || !sources.length) return callback();
+        const id = 'scr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        _pendingScreenPicks.set(id, { callback, sources });
+        const payload = { id, sources: sources.map((s) => ({
+          id: s.id, name: s.name, isScreen: /screen/i.test(s.id),
+          thumbnail: (s.thumbnail && !s.thumbnail.isEmpty()) ? s.thumbnail.toDataURL() : '',
+          icon: (s.appIcon && !s.appIcon.isEmpty()) ? s.appIcon.toDataURL() : '',
+        })) };
+        try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screen-picker:open', payload); } catch {}
+        setTimeout(() => { if (_pendingScreenPicks.has(id)) { _pendingScreenPicks.delete(id); try { callback(); } catch {} } }, 90000);
+      })
+      .catch(() => { try { callback(); } catch {} });
+  });
+}
+ipcMain.handle('screen-picker:choose', (_e, { id, sourceId } = {}) => {
+  const p = _pendingScreenPicks.get(id);
+  if (!p) return { ok: false };
+  _pendingScreenPicks.delete(id);
+  if (!sourceId) { try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
+  const src = p.sources.find((s) => s.id === sourceId);
+  try { p.callback(src ? { video: src, audio: 'loopback' } : undefined); } catch {}
   return { ok: true };
 });
 // === QR code for the current page (qrcode npm package, rendered in main) ===
@@ -1825,7 +1872,7 @@ function createWindow() {
   // so they can be embedded in panels. persist:main is the default tabs session;
   // it gets adblocker/permissions/downloads/preload wiring below but no header
   // strip since regular tabs don't need their own frame-ancestors loosened.
-  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify', 'persist:netflix', 'persist:discord'];
+  const partitions = ['persist:whatsapp', 'persist:claude', 'persist:spotify', 'persist:netflix', 'persist:discord', 'persist:roblox'];
 
   // Gmail: spoof Chrome UA at the session level too. The webview-tag `useragent`
   // attribute covers top-level frames; setting it on the session ensures every
@@ -1897,6 +1944,56 @@ function createWindow() {
   async function _testDiscordRobust() {
     if (!(await _testOne('https://discord.com/app'))) return false;
     return await _testOne('https://discord.com/api/v9/gateway');
+  }
+
+  // --- Roblox panel bypass: Roblox is blocked by the same ISP/DPI, so the
+  // desync that beats Discord beats Roblox too. We SHARE the single ByeDPI
+  // instance — reuse a running one (never restart one Discord may be using); if
+  // none is up, start the known-good preset and route persist:roblox through it.
+  const _setRobloxProxy = (rules) => {
+    try { session.fromPartition('persist:roblox').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
+    catch (e) { console.warn('[DPI-bypass] roblox setProxy failed:', e && e.message); }
+  };
+  function _testRoblox(url) {
+    return new Promise((resolve) => {
+      let done = false; const fin = (v) => { if (!done) { done = true; resolve(v); } };
+      try {
+        const req = net.request({ url, session: session.fromPartition('persist:roblox') });
+        const to = setTimeout(() => { try { req.abort(); } catch {} fin(false); }, 6000);
+        req.on('response', (res) => { clearTimeout(to); try { res.resume(); } catch {} fin((res.statusCode || 0) > 0); });
+        req.on('error', () => { clearTimeout(to); fin(false); });
+        req.end();
+      } catch { fin(false); }
+    });
+  }
+  async function _testRobloxRobust() {
+    if (!(await _testRoblox('https://www.roblox.com/'))) return false;
+    return await _testRoblox('https://www.roblox.com/home');
+  }
+  async function _applyRobloxBypass(on) {
+    if (!on) { _setRobloxProxy(null); return { ok: true, off: true }; }
+    try {
+      // Reuse a ByeDPI that's already up (e.g. Discord bypass) — never restart it.
+      if (_byedpi.isRunning && _byedpi.isRunning()) {
+        _setRobloxProxy('socks5://127.0.0.1:' + _byedpi.getPort());
+        return { ok: true, reused: true, port: _byedpi.getPort() };
+      }
+      // Otherwise start the known-good preset and route Roblox through it.
+      const ud = app.getPath('userData');
+      const port = await _byedpi.start(ud, _downloadBuffer, 0);
+      _setRobloxProxy('socks5://127.0.0.1:' + port);
+      if (await _testRobloxRobust()) return { ok: true, port, preset: 0 };
+      // Preset 0 didn't pass — sweep the rest (safe: no other consumer yet).
+      for (let i = 1; i < _byedpi.PRESETS.length; i++) {
+        try {
+          const p = await _byedpi.start(ud, _downloadBuffer, i);
+          _setRobloxProxy('socks5://127.0.0.1:' + p);
+          if (await _testRobloxRobust()) return { ok: true, port: p, preset: i };
+        } catch {}
+      }
+      _byedpi.stop(); _setRobloxProxy(null);
+      return { ok: false, error: 'no mode got through' };
+    } catch (e) { _setRobloxProxy(null); return { ok: false, error: (e && e.message) || 'failed' }; }
   }
 
   // mode: 'off' | 'light' | 'strong'. opts: { preset?: number (>=0 forces it,
@@ -1990,6 +2087,11 @@ function createWindow() {
     }).catch((e) => console.warn('[DPI-bypass] start error:', e && e.message));
   } catch (e) { console.warn('[DPI-bypass] init failed:', e && e.message); }
   ipcMain.handle('discord:set-bypass-mode', (_e, mode, opts) => _applyDiscordBypass(mode, opts || {}));
+  ipcMain.handle('roblox:set-bypass', (_e, on) => _applyRobloxBypass(!!on));
+  ipcMain.handle('gui-style:set', (_e, style) => {
+    try { fs.writeFileSync(getStorageFile('gui-style'), JSON.stringify(style === 'glass' ? 'glass' : 'classic')); } catch {}
+    return { ok: true };
+  });
   ipcMain.on('discord:set-bypass', (_e, on) => _applyDiscordBypass(on ? 'light' : 'off')); // back-compat
   app.on('before-quit', () => { try { _byedpi.stop(); } catch {} });
 
@@ -2039,7 +2141,7 @@ function createWindow() {
 
   wirePermissionsOnSession(session.defaultSession, 'default');
   wirePermissionsOnSession(session.fromPartition('persist:main'), 'persist:main');
-  partitions.forEach(p => wirePermissionsOnSession(session.fromPartition(p), p));
+  partitions.forEach(p => wirePermissionsOnSession(session.fromPartition(p), p, { autoAllowMedia: p === 'persist:discord' }));
 
   // WebHID — same fan-out as permissions: default + tabs (persist:main) + the
   // sidebar-panel partitions, so navigator.hid.requestDevice() shows the Vex
@@ -2047,6 +2149,12 @@ function createWindow() {
   wireWebHidOnSession(session.defaultSession, 'default');
   wireWebHidOnSession(session.fromPartition('persist:main'), 'persist:main');
   partitions.forEach(p => wireWebHidOnSession(session.fromPartition(p), p));
+
+  // Screen share (getDisplayMedia) — fan out the picker to every session a page
+  // can run in, so Discord Go Live / Share Screen works.
+  wireDisplayMediaOnSession(session.defaultSession);
+  wireDisplayMediaOnSession(session.fromPartition('persist:main'));
+  partitions.forEach(p => wireDisplayMediaOnSession(session.fromPartition(p)));
 
   // Webview preload (PiP helpers + geolocation IP fallback) — attach to every
   // session so ALL pages get the polyfill. Use setPreloads so we don't clobber
@@ -2221,10 +2329,16 @@ app.whenReady().then(async () => {
         // documentElement.dataset.theme. Always inject (oxford included) so the
         // served HTML carries an explicit theme.
         const safe = theme.replace(/[^a-z]/g, '');
-        html = html.replace('<html lang="en">', `<html lang="en" data-theme="${safe}">`);
+        // Also bake the GUI Style (classic|glass) so the start page matches.
+        let guiStyle = 'classic';
+        try {
+          const gf = getStorageFile('gui-style');
+          if (fs.existsSync(gf)) { const g = JSON.parse(fs.readFileSync(gf, 'utf-8')); if (g === 'glass') guiStyle = 'glass'; }
+        } catch {}
+        html = html.replace('<html lang="en">', `<html lang="en" data-theme="${safe}" data-gui-style="${guiStyle}">`);
         html = html.replace(
           '</head>',
-          `<script>document.documentElement.setAttribute("data-theme","${safe}");</script></head>`
+          `<script>document.documentElement.setAttribute("data-theme","${safe}");document.documentElement.setAttribute("data-gui-style","${guiStyle}");</script></head>`
         );
         // Cache-Control: no-store is critical here — without it Chromium's
         // heuristic cache for custom-protocol responses keeps the FIRST HTML
@@ -2785,6 +2899,30 @@ ipcMain.handle('download-update', async () => {
 });
 ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
 ipcMain.handle('get-app-version', () => app.getVersion());
+// Release notes for the "What's New" update log. Fetches the GitHub release for
+// the given tag (default: current version), falling back to the latest release.
+ipcMain.handle('updates:notes', async (_e, tag) => {
+  const ver = tag || ('v' + app.getVersion());
+  const fetchJson = (url) => new Promise((resolve) => {
+    try {
+      const req = net.request({ url });
+      req.setHeader('User-Agent', 'Vex');
+      req.setHeader('Accept', 'application/vnd.github+json');
+      let body = '';
+      const to = setTimeout(() => { try { req.abort(); } catch {} resolve(null); }, 8000);
+      req.on('response', (res) => {
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => { clearTimeout(to); try { resolve(JSON.parse(body)); } catch { resolve(null); } });
+      });
+      req.on('error', () => { clearTimeout(to); resolve(null); });
+      req.end();
+    } catch { resolve(null); }
+  });
+  let rel = await fetchJson('https://api.github.com/repos/0xmortuex/Vex/releases/tags/' + encodeURIComponent(ver));
+  if (!rel || !rel.tag_name) rel = await fetchJson('https://api.github.com/repos/0xmortuex/Vex/releases/latest');
+  if (!rel || !rel.tag_name) return null;
+  return { version: rel.tag_name, name: rel.name || rel.tag_name, body: rel.body || '', url: rel.html_url, publishedAt: rel.published_at };
+});
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
 // Retry DRM setup: CLEAR the cached Widevine component, then relaunch so the
 // castLabs component install runs from scratch. A plain relaunch isn't enough

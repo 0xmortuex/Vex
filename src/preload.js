@@ -102,6 +102,13 @@ contextBridge.exposeInMainWorld('vex', {
   installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
   // Auto-configure sweep progress: { phase:'testing'|'done', label, i, total, ok, via, preset }.
   onDiscordBypassProgress: (cb) => ipcRenderer.on('discord:bypass-progress', (_e, d) => cb(d)),
+  // Screen-share source picker (Discord Go Live / Share Screen).
+  onScreenPickerOpen: (cb) => ipcRenderer.on('screen-picker:open', (_e, d) => cb(d)),
+  chooseScreenSource: (id, sourceId) => ipcRenderer.invoke('screen-picker:choose', { id, sourceId }),
+  // Roblox panel block-bypass (shares Discord's ByeDPI).
+  setRobloxBypass: (on) => ipcRenderer.invoke('roblox:set-bypass', on),
+  // Persist the GUI Style so the start page (served by main, separate origin) can match.
+  setGuiStyle: (style) => ipcRenderer.invoke('gui-style:set', style),
 
   // Full-text recall (memex) + translate (both run in main)
   recallIndex: (entry) => ipcRenderer.invoke('recall:index', entry),
@@ -178,6 +185,7 @@ contextBridge.exposeInMainWorld('vex', {
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, i) => cb(i)),
   onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', cb),
   onUpdateDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, p) => cb(p)),

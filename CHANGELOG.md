@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.27.13 (2026-06-18) — Glass GUI, Discord voice/screen-share, Roblox panel, update logs
+
+### Added
+- **New "Glass" GUI Style** (Settings → GUI Style) — a whole-UI look you switch with one click: **tabs move on top**, a Chrome/Firefox-style **shortcuts bar** appears below the address bar, window controls move to the tab row, and the chrome + home page turn **frosted glass** with a soft glow. Self-contained palette (independent of your color themes); Classic stays the default.
+- **Discord voice now captures your headset** — mic input *and* output/device selection work in the Discord panel (the media permission is auto-granted for the dedicated Discord session, which was previously blocked by a prompt that never surfaced).
+- **Screen share / Go Live** — a proper "Choose what to share" picker (screens + windows, with thumbnails) for `getDisplayMedia`, including system-audio loopback.
+- **Roblox as a sidebar panel** — opens `roblox.com` as a clean panel like Discord (replacing the old Roblox Hub), with a **🛡️ Block bypass** toggle that shares Discord's ByeDPI for censored networks.
+- **Update logs ("What's New")** — after Vex auto-updates, a modal shows that release's notes pulled straight from the GitHub release. Re-openable anytime.
+
 ## v2.27.12 (2026-06-18) — The Roku Channel in the streaming switcher
 
 ### Added

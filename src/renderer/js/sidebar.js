@@ -103,7 +103,7 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'roblox', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library', 'annotations', 'recall'],
+  customPanels: ['settings', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library', 'annotations', 'recall'],
 
   panelConfigs: {
     start: { url: null, partition: null },
@@ -114,7 +114,7 @@ const SidebarManager = {
     discord: { url: 'https://discord.com/app', partition: 'persist:discord' },
     queue: { url: null, partition: null },
     settings: { url: null, partition: null },
-    roblox: { url: null, partition: null },
+    roblox: { url: 'https://www.roblox.com/', partition: 'persist:roblox' },
     github: { url: null, partition: null },
     notes: { url: null, partition: null },
     downloads: { url: null, partition: null },
@@ -256,6 +256,14 @@ const SidebarManager = {
     } catch {}
     // Live progress for the auto-configure sweep → update the progress card.
     try { window.vex?.onDiscordBypassProgress?.((p) => { if (p && p.phase === 'testing') this._updateDiscordProgress(`Testing ${p.label}… (${p.i}/${p.total})`); }); } catch {}
+    // Re-apply the saved Roblox bypass (shares Discord's ByeDPI) on startup.
+    try {
+      if (localStorage.getItem('vex.robloxBypass') === 'on' && window.vex?.setRobloxBypass) {
+        Promise.resolve(window.vex.setRobloxBypass(true)).then((r) => {
+          if (r && r.ok) { const wv = this.panelWebviews['roblox']; if (wv) { try { wv.reload(); } catch {} } }
+        }).catch(() => {});
+      }
+    } catch {}
 
     // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
     // openDevTools on webContents.getFocusedWebContents(). The previous
@@ -311,7 +319,6 @@ const SidebarManager = {
     panelEl.style.display = 'block';
 
     // Initialize custom panels on first open
-    if (panelName === 'roblox') RobloxPanel.init();
     if (panelName === 'github') GitHubPanel.init();
     if (panelName === 'notes') NotesPanel.init();
     if (panelName === 'downloads') DownloadsPanel.init();
@@ -842,6 +849,23 @@ const SidebarManager = {
             }
           });
         }
+      } else if (panelName === 'roblox') {
+        // Roblox is blocked by the same ISP/DPI as Discord — share the bypass.
+        const robloxOn = (localStorage.getItem('vex.robloxBypass') === 'on');
+        items.push({
+          label: robloxOn ? '🛡️ Block bypass: On' : '🛡️ Block bypass: Off',
+          action: async () => {
+            const on = !robloxOn;
+            try { localStorage.setItem('vex.robloxBypass', on ? 'on' : 'off'); } catch {}
+            window.showToast?.(on ? 'Turning on Roblox bypass…' : 'Roblox bypass off');
+            try {
+              const r = await window.vex?.setRobloxBypass?.(on);
+              const wv = this.panelWebviews['roblox'];
+              if (r && r.ok) { if (wv) { try { wv.reload(); } catch {} } }
+              else window.showToast?.("Couldn't bypass — try Zapret", 'error');
+            } catch { window.showToast?.('Bypass failed', 'error'); }
+          }
+        });
       } else {
         items.push({ label: 'Switch to Claude', action: () => this.switchPanelService(panelName, 'claude') });
         items.push({ label: 'Switch to Gemini', action: () => this.switchPanelService(panelName, 'gemini') });

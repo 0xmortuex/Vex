@@ -1,0 +1,187 @@
+/* === Vex GUI Style: "Glass" ===========================================
+   A selectable whole-UI look (Settings → Appearance → GUI Style). Everything
+   here is scoped under body[data-gui-style="glass"] so it ONLY applies when the
+   Glass style is active — Classic (the default) is completely untouched.
+
+   Two things change:
+   1) LAYOUT — the chrome becomes a flex column so tabs sit ABOVE the address
+      bar, with a shortcuts/speed-dial bar (#gui-shortcuts-bar) where the tabs
+      used to be. Glass forces the horizontal tab strip.
+   2) SKIN — frosted-glass translucent chrome with a soft color glow behind.
+   Only the CHROME is glassed; webview/page content is never blurred.        */
+
+/* ---- 0. Glass owns its ENTIRE palette ----
+   Override every core token so the active Classic color theme can't leak in.
+   Glass looks identical no matter which theme is selected — everything matches. */
+body[data-gui-style="glass"] {
+  /* legacy token family */
+  --bg: #0b0d18; --bg-2: #11142a; --sidebar: rgba(255,255,255,0.05); --surface: #171a2e;
+  --border: rgba(255,255,255,0.12); --text: #eef0ff; --text-muted: #a6abd4;
+  --primary: #8b8bf5; --primary-hover: #a5a5fb; --accent: #e07fb8;
+  --radius: 10px; --radius-sm: 7px; --radius-lg: 14px;
+  /* --vex- token family */
+  --vex-bg-base: #0b0d18; --vex-bg-elevated: #14182c; --vex-bg-deep: #080a14;
+  --vex-glass-strong: rgba(255,255,255,0.10); --vex-glass-medium: rgba(255,255,255,0.07); --vex-glass-light: rgba(255,255,255,0.05);
+  --vex-glass-tab-active: rgba(255,255,255,0.20); --vex-glass-tab-inactive: rgba(255,255,255,0.07); --vex-glass-input: rgba(255,255,255,0.12);
+  --vex-border-subtle: rgba(255,255,255,0.12); --vex-border-medium: rgba(255,255,255,0.18); --vex-border-strong: rgba(255,255,255,0.26);
+  --vex-border-accent: rgba(139,139,245,0.5); --vex-border-accent-strong: rgba(139,139,245,0.7);
+  --vex-accent: #8b8bf5; --vex-accent-dim: rgba(139,139,245,0.6); --vex-accent-glow: rgba(139,139,245,0.28);
+  --vex-text-primary: #eef0ff; --vex-text-secondary: #c4c8ec; --vex-text-muted: #9499c4; --vex-text-accent: #b9b9ff;
+}
+
+/* ---- 1. Layout: tabs on top → toolbar → shortcuts → content ---- */
+body[data-gui-style="glass"] { display: flex; flex-direction: column; }
+body[data-gui-style="glass"] #top-tab-bar      { order: 1; }
+body[data-gui-style="glass"] #top-bar          { order: 2; }
+body[data-gui-style="glass"] #gui-shortcuts-bar{ order: 3; }
+body[data-gui-style="glass"] #main-layout      { order: 4; flex: 1 1 auto; height: auto !important; min-height: 0; }
+/* Everything else (modals, overlays, panels — mostly position:fixed/hidden) is
+   pushed past the content so it can never land above the tabs in the flex flow. */
+body[data-gui-style="glass"] > *:not(#top-tab-bar):not(#top-bar):not(#gui-shortcuts-bar):not(#main-layout) { order: 10; }
+/* Glass always uses the horizontal tab strip (tabs on top). */
+body[data-gui-style="glass"] .top-tab-bar { display: flex !important; border-bottom: none; border-top: 1px solid transparent; }
+
+/* ---- 2. Background glow ---- */
+body[data-gui-style="glass"] {
+  background:
+    radial-gradient(1000px 520px at 10% -8%, rgba(99,102,241,0.42), transparent 60%),
+    radial-gradient(1000px 620px at 96% 108%, rgba(236,72,153,0.34), transparent 55%),
+    var(--vex-bg-base, #0b0d18) !important;
+  background-attachment: fixed;
+}
+
+/* ---- 3. Frosted chrome ---- */
+body[data-gui-style="glass"] #top-bar,
+body[data-gui-style="glass"] .top-tab-bar,
+body[data-gui-style="glass"] #gui-shortcuts-bar,
+body[data-gui-style="glass"] #icon-sidebar,
+body[data-gui-style="glass"] #tabs-sidebar {
+  background: rgba(255,255,255,0.06) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-color: rgba(255,255,255,0.12) !important;
+}
+body[data-gui-style="glass"] #top-bar { border: 1px solid rgba(255,255,255,0.12) !important; }
+
+/* Slimmer left rail in Glass (Classic stays 54px). */
+body[data-gui-style="glass"] #icon-sidebar {
+  width: 46px !important; min-width: 46px !important;
+  border-right: 1px solid rgba(255,255,255,0.10) !important;
+  padding-left: 4px !important; padding-right: 4px !important; gap: 6px !important;
+}
+body[data-gui-style="glass"] .sidebar-icon { width: 38px !important; height: 38px !important; border-radius: 10px !important; }
+body[data-gui-style="glass"] .sidebar-icon svg { width: 22px !important; height: 22px !important; }
+
+/* address bar */
+body[data-gui-style="glass"] #url-bar {
+  background: rgba(255,255,255,0.13) !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+body[data-gui-style="glass"] #url-input { color: #f3f4ff !important; }
+body[data-gui-style="glass"] #url-input::placeholder { color: rgba(255,255,255,0.5) !important; }
+
+/* nav / window / tool buttons */
+body[data-gui-style="glass"] .nav-btn,
+body[data-gui-style="glass"] #top-bar-right button,
+body[data-gui-style="glass"] #nav-buttons button {
+  background: rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.10) !important;
+}
+body[data-gui-style="glass"] .nav-btn:hover,
+body[data-gui-style="glass"] #top-bar-right button:hover { background: rgba(255,255,255,0.16) !important; }
+
+/* Force the quick-tools / AI / split / command buttons to match (some carry
+   their own styling that the generic rule above didn't beat). */
+body[data-gui-style="glass"] #top-bar-right > button,
+body[data-gui-style="glass"] #btn-extensions,
+body[data-gui-style="glass"] #btn-toggle-ai,
+body[data-gui-style="glass"] #btn-split,
+body[data-gui-style="glass"] #btn-command {
+  background: rgba(255,255,255,0.10) !important;
+  border: 1px solid rgba(255,255,255,0.16) !important;
+  color: #eef0ff !important;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+body[data-gui-style="glass"] #top-bar-right > button svg { stroke: #eef0ff !important; }
+body[data-gui-style="glass"] #btn-toggle-ai svg,
+body[data-gui-style="glass"] #btn-command svg { stroke: #eef0ff !important; }
+
+/* Tool buttons sized to MATCH the shortcut chips (32px tall) so the chrome reads
+   consistently — not bigger, not smaller. */
+body[data-gui-style="glass"] #top-bar-right > button {
+  height: 32px !important; min-width: 32px !important;
+  display: inline-flex !important; align-items: center; justify-content: center;
+}
+body[data-gui-style="glass"] #btn-extensions,
+body[data-gui-style="glass"] #btn-split,
+body[data-gui-style="glass"] #btn-command { width: 32px !important; padding: 0 !important; }
+/* icons match the main nav buttons (16px) so the tool buttons read identical */
+body[data-gui-style="glass"] #top-bar-right > button svg { width: 16px !important; height: 16px !important; }
+/* shortcut chips: same 32px height as the tool buttons */
+body[data-gui-style="glass"] #gui-shortcuts-bar .gsc { min-height: 32px; }
+
+/* Window controls (min/max/close) — relocated by gui-style.js onto the tab-bar
+   row (top-right), like a tabs-on-top browser. Make sure they're visible there. */
+body[data-gui-style="glass"] #top-tab-bar .tab-bar-trailing {
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+  -webkit-app-region: no-drag;
+}
+body[data-gui-style="glass"] #window-controls { display: flex !important; gap: 2px; -webkit-app-region: no-drag; }
+body[data-gui-style="glass"] .win-btn {
+  width: 30px; height: 30px; background: transparent !important; border: none !important;
+  color: #eef0ff !important; opacity: 0.85; border-radius: 8px;
+}
+body[data-gui-style="glass"] .win-btn:hover { background: rgba(255,255,255,0.16) !important; opacity: 1; }
+body[data-gui-style="glass"] .win-btn-close:hover { background: #e0485a !important; color: #fff !important; }
+/* keep tabs from overrunning the controls */
+body[data-gui-style="glass"] #top-tabs-list { flex: 1 1 auto; min-width: 0; }
+
+/* tabs */
+body[data-gui-style="glass"] .top-tab {
+  background: rgba(255,255,255,0.07) !important;
+  border: 1px solid rgba(255,255,255,0.10) !important;
+  border-radius: 11px 11px 4px 4px !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+body[data-gui-style="glass"] .top-tab.active,
+body[data-gui-style="glass"] .top-tab[data-active="true"] {
+  background: rgba(255,255,255,0.20) !important;
+  color: #fff !important;
+}
+
+/* ---- 4. Shortcuts / speed-dial bar ---- */
+#gui-shortcuts-bar { display: none; }
+body[data-gui-style="glass"] #gui-shortcuts-bar {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 12px; min-height: 44px; flex-shrink: 0;
+  overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+  -webkit-app-region: no-drag;
+}
+body[data-gui-style="glass"] #gui-shortcuts-bar::-webkit-scrollbar { height: 0; }
+#gui-shortcuts-bar .gsc {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 10px; cursor: pointer;
+  font-size: 12.5px; color: #eef0ff; flex-shrink: 0;
+  background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.12);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+#gui-shortcuts-bar .gsc:hover { background: rgba(255,255,255,0.18); }
+#gui-shortcuts-bar .gsc .ic {
+  width: 18px; height: 18px; border-radius: 6px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff;
+  background-size: cover; background-position: center;
+}
+#gui-shortcuts-bar .gsc-edit { margin-left: auto; opacity: 0.7; font-size: 12px; padding: 6px 10px; }
+
+/* ---- 5. Cards / panels inside content pick up a subtle glass too ---- */
+body[data-gui-style="glass"] #ai-panel,
+body[data-gui-style="glass"] .panel,
+body[data-gui-style="glass"] #content-area > .home-screen {
+  background: rgba(255,255,255,0.04) !important;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}

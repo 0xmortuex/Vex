@@ -518,6 +518,17 @@
   updateIndexingStats();
   setInterval(updateIndexingStats, 5000);
 
+  // GUI Style picker (Classic vs Glass) — see js/gui-style.js
+  const guiSel = document.getElementById('setting-gui-style');
+  if (guiSel) {
+    guiSel.value = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
+    guiSel.addEventListener('change', (e) => {
+      const v = e.target.value === 'glass' ? 'glass' : 'classic';
+      try { window.VexGuiStyle?.set(v); } catch {}
+      showToast('GUI Style: ' + v, 'info');
+    });
+  }
+
   // Tab layout picker
   const layoutSel = document.getElementById('setting-tab-layout');
   if (layoutSel) {

@@ -34,6 +34,7 @@
   <link rel="stylesheet" href="css/tab-grouper.css">
   <link rel="stylesheet" href="css/tab-stacks.css">
   <link rel="stylesheet" href="css/horizontal-tabs.css">
+  <link rel="stylesheet" href="css/gui-glass.css">
   <link rel="stylesheet" href="css/agent.css">
   <link rel="stylesheet" href="css/schedules-panel.css">
   <link rel="stylesheet" href="css/update-notifier.css">
@@ -460,6 +461,19 @@
                 <summary>Advanced: Per-Feature Routing</summary>
                 <div class="routing-grid" id="routing-grid"></div>
               </details>
+            </div>
+
+            <!-- GUI Style (whole-UI look category) -->
+            <div class="setting-group">
+              <label class="setting-label">GUI Style</label>
+              <div class="setting-toggle-row">
+                <span>Overall look of the interface</span>
+                <select id="setting-gui-style" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="classic">Classic (your themes)</option>
+                  <option value="glass">Glass (frosted · tabs on top · shortcuts bar)</option>
+                </select>
+              </div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Glass moves tabs above the address bar, adds a shortcuts bar, and applies a frosted look. Your color themes still apply in Classic.</div>
             </div>
 
             <!-- Tab layout -->
@@ -979,6 +993,9 @@
   <script src="js/media-grabber.js"></script>
   <script src="js/master-volume.js"></script>
   <script src="js/image-zoom.js"></script>
+  <script src="js/screen-picker.js"></script>
+  <script src="js/update-log.js"></script>
+  <script src="js/gui-style.js"></script>
   <script src="js/skills.js"></script>
   <script src="js/boosts.js"></script>
   <script src="js/passwords.js"></script>
