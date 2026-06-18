@@ -1817,6 +1817,8 @@ function createWindow() {
     titleBarStyle: 'hidden',
     transparent: true,  // Required for backdrop-filter on Windows
     backgroundColor: '#00000000',  // Fully transparent
+    show: false,        // show only once painted — avoids the blank/transparent
+                        // window that lands in the taskbar but never surfaces
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       webviewTag: true,
@@ -1827,6 +1829,20 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Show + focus the window once the first frame is ready. A transparent,
+  // frameless window shown before paint can render blank (you see through it).
+  // Fallback timer in case 'ready-to-show' is missed on some GPUs.
+  const _showMainWindow = () => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    } catch {}
+  };
+  mainWindow.once('ready-to-show', _showMainWindow);
+  setTimeout(_showMainWindow, 4000);
 
   if (enableDevToolsAtStartup) {
     mainWindow.webContents.once('did-finish-load', () => {

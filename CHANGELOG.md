@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.27.14 (2026-06-18) — Glass shortcuts bar (favicons + custom) & window-show fix
+
+### Added
+- **Glass shortcuts bar upgrade** — each shortcut now shows the site's **real favicon** (letter-chip fallback), an **＋ Add shortcut** button, and **right-click any shortcut → edit name / link / color, or delete**. Custom shortcuts persist.
+
+### Fixed
+- **Window sometimes opened in the taskbar but never surfaced** — the transparent/frameless window is now created hidden and shown only once it's painted (with a safety fallback), fixing the blank/unfocusable launch.
+
 ## v2.27.13 (2026-06-18) — Glass GUI, Discord voice/screen-share, Roblox panel, update logs
 
 ### Added

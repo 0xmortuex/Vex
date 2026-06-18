@@ -175,7 +175,11 @@ body[data-gui-style="glass"] #gui-shortcuts-bar::-webkit-scrollbar { height: 0; 
   display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff;
   background-size: cover; background-position: center;
 }
-#gui-shortcuts-bar .gsc-edit { margin-left: auto; opacity: 0.7; font-size: 12px; padding: 6px 10px; }
+#gui-shortcuts-bar .gsc .ic.has-img { background: transparent !important; }
+#gui-shortcuts-bar .gsc .ic img { width: 18px; height: 18px; border-radius: 5px; display: block; object-fit: contain; }
+/* "Add shortcut" button at the end of the bar */
+#gui-shortcuts-bar .gsc-add { margin-left: auto; opacity: 0.85; }
+#gui-shortcuts-bar .gsc-add .ic { background: rgba(255,255,255,0.14); color: #eef0ff; font-size: 14px; }
 
 /* ---- 5. Cards / panels inside content pick up a subtle glass too ---- */
 body[data-gui-style="glass"] #ai-panel,
