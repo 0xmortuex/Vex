@@ -241,19 +241,19 @@ const SidebarManager = {
     this.renderSidebarManager();
 
     // Discord block-bypass: main defaults to 'light'; re-apply the user's saved
-    // choice ('off' or 'strong'/ByeDPI with its preset/custom) on startup.
+    // On ('auto') / Off choice on startup.
     try {
       const m = localStorage.getItem('vex.discordBypassMode');
-      if (window.vex?.setDiscordBypassMode && m && m !== 'light') {
-        let opts = {};
-        if (m === 'strong') {
-          const p = parseInt(localStorage.getItem('vex.byedpiPreset') || '-1', 10);
-          if (p === -2) opts = { custom: localStorage.getItem('vex.byedpiCustom') || '' };
-          else if (p >= 0) opts = { preset: p };
-        }
-        window.vex.setDiscordBypassMode(m, opts);
+      if (window.vex?.setDiscordBypassMode && (m === 'auto' || m === 'off')) {
+        // Re-run the sweep on startup; when it lands on a working mode, reload the
+        // Discord panel (if already open) so it picks up the proxy — no blank flash.
+        Promise.resolve(window.vex.setDiscordBypassMode(m, {})).then((r) => {
+          if (r && r.ok) { const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} } }
+        }).catch(() => {});
       }
     } catch {}
+    // Live progress for the auto-configure sweep → update the progress card.
+    try { window.vex?.onDiscordBypassProgress?.((p) => { if (p && p.phase === 'testing') this._updateDiscordProgress(`Testing ${p.label}… (${p.i}/${p.total})`); }); } catch {}
 
     // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
     // openDevTools on webContents.getFocusedWebContents(). The previous
@@ -290,6 +290,8 @@ const SidebarManager = {
   },
 
   showPanel(panelName) {
+    // A fresh open of Discord re-arms the "looks blocked" prompt.
+    if (panelName === 'discord') this._discordPromptDismissed = false;
     // Hide all panels
     document.querySelectorAll('#panels-container .panel').forEach(p => {
       p.style.display = 'none';
@@ -422,6 +424,14 @@ const SidebarManager = {
         wv.addEventListener('dom-ready', () => {
           if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(wv);
         });
+        // Discord: if the page fails to connect (it's blocked), offer the bypass.
+        if (panelName === 'discord') {
+          wv.addEventListener('did-fail-load', (e) => {
+            if (!e.isMainFrame || e.errorCode === -3) return; // ignore aborts
+            this._showDiscordBlockedPrompt(wv, panelEl);
+          });
+          wv.addEventListener('did-finish-load', () => this._hideDiscordBlockedPrompt());
+        }
         panelEl.appendChild(wv);
         this.panelWebviews[panelName] = wv;
       }
@@ -658,6 +668,117 @@ const SidebarManager = {
   // internal feature panels get Rename / Change icon / Hide / Reset; pinned
   // sites get Unpin instead of Hide. Reuses TabManager's .tab-context-menu
   // styling + dismissal helpers so behavior matches the tab menu.
+  // ---- Discord "looks blocked" prompt (auto-offer the bypass) ----
+  _hideDiscordBlockedPrompt() {
+    if (this._discordPromptEl) { try { this._discordPromptEl.remove(); } catch {} this._discordPromptEl = null; }
+  },
+
+  _showDiscordBlockedPrompt(wv, panelEl) {
+    if (this._discordPromptDismissed || !panelEl) return;
+    this._hideDiscordBlockedPrompt();
+    this._injectDiscordPromptStyles();
+    const ov = document.createElement('div');
+    ov.className = 'discord-blocked-ov';
+    ov.innerHTML = `<div class="dbo-card">
+        <div class="dbo-ico">🛡️</div>
+        <div class="dbo-title">Discord looks blocked</div>
+        <div class="dbo-msg">Turn on the bypass to try to get through.</div>
+        <div class="dbo-row">
+          <button class="dbo-btn primary" data-act="on">Enable bypass</button>
+          <button class="dbo-btn ghost" data-act="dismiss">Not now</button>
+        </div>
+      </div>`;
+    try { panelEl.style.position = 'relative'; } catch {}
+    panelEl.appendChild(ov);
+    this._discordPromptEl = ov;
+    ov.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => this._discordPromptAction(b.dataset.act, wv)));
+  },
+
+  _discordPromptAction(act) {
+    if (act === 'on') { this._enableBypassAuto(); return; }
+    this._discordPromptDismissed = true; this._hideDiscordBlockedPrompt();
+  },
+
+  // Auto-configure: run the main-side sweep (built-in + every ByeDPI desync mode,
+  // each rigorously tested) with a live progress card, keeping the first that works.
+  async _enableBypassAuto() {
+    try { this.showPanel('discord'); } catch {}   // ensure the panel (and its progress card) is visible
+    const wv = this.panelWebviews['discord'];
+    try { localStorage.setItem('vex.discordBypassMode', 'auto'); } catch {}
+    this._showDiscordProgress('Setting up bypass…', 'Trying connection methods…');
+    try {
+      const r = await window.vex?.setDiscordBypassMode?.('auto', {});
+      if (r && r.ok) { this._hideDiscordBlockedPrompt(); if (wv) { try { wv.reload(); } catch {} } else this.showPanel('discord'); }
+      else this._showDiscordFailCard();
+    } catch { this._showDiscordFailCard(); }
+  },
+
+  _showDiscordProgress(title, sub) {
+    const panelEl = document.getElementById('panel-discord');
+    if (!panelEl) return;
+    this._injectDiscordPromptStyles();
+    this._hideDiscordBlockedPrompt();
+    const ov = document.createElement('div');
+    ov.className = 'discord-blocked-ov';
+    ov.innerHTML = `<div class="dbo-card"><div class="dbo-spin"></div><div class="dbo-title">${this._esc(title)}</div><div class="dbo-msg dbo-progress">${this._esc(sub || '')}</div></div>`;
+    try { panelEl.style.position = 'relative'; } catch {}
+    panelEl.appendChild(ov);
+    this._discordPromptEl = ov;
+  },
+
+  _updateDiscordProgress(text) {
+    if (this._discordPromptEl) { const el = this._discordPromptEl.querySelector('.dbo-progress'); if (el) el.textContent = text; }
+  },
+
+  _showDiscordFailCard() {
+    const panelEl = document.getElementById('panel-discord');
+    if (!panelEl) return;
+    this._hideDiscordBlockedPrompt();
+    this._injectDiscordPromptStyles();
+    const ov = document.createElement('div');
+    ov.className = 'discord-blocked-ov';
+    ov.innerHTML = `<div class="dbo-card">
+        <div class="dbo-ico">😕</div>
+        <div class="dbo-title">Couldn't get through</div>
+        <div class="dbo-msg">None of the built-in methods beat your network. For tough ISPs, run <b>Zapret</b> and turn bypass off — Discord works through it.</div>
+        <div class="dbo-row">
+          <button class="dbo-btn primary" data-act="retry">Try again</button>
+          <button class="dbo-btn" data-act="off">Turn off (use Zapret)</button>
+          <button class="dbo-btn ghost" data-act="dismiss">Dismiss</button>
+        </div>
+      </div>`;
+    try { panelEl.style.position = 'relative'; } catch {}
+    panelEl.appendChild(ov);
+    this._discordPromptEl = ov;
+    ov.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+      const a = b.dataset.act;
+      if (a === 'retry') this._enableBypassAuto();
+      else if (a === 'off') { try { localStorage.setItem('vex.discordBypassMode', 'off'); } catch {} try { window.vex?.setDiscordBypassMode?.('off', {}); } catch {} this._hideDiscordBlockedPrompt(); window.showToast?.('Bypass off — start Zapret, then reload Discord'); }
+      else { this._discordPromptDismissed = true; this._hideDiscordBlockedPrompt(); }
+    }));
+  },
+
+  _injectDiscordPromptStyles() {
+    if (document.getElementById('discord-blocked-styles')) return;
+    const st = document.createElement('style');
+    st.id = 'discord-blocked-styles';
+    st.textContent = `
+      .discord-blocked-ov{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(10,12,16,0.82);backdrop-filter:blur(3px);}
+      .dbo-card{width:360px;max-width:88%;padding:22px;border-radius:16px;text-align:center;background:var(--surface,#1b1b24);border:1px solid var(--border,rgba(255,255,255,0.1));box-shadow:0 20px 60px rgba(0,0,0,0.55);font-family:inherit;}
+      .dbo-ico{font-size:30px;margin-bottom:8px;}
+      .dbo-spin{width:30px;height:30px;margin:0 auto 12px;border:3px solid var(--border,rgba(255,255,255,0.18));border-top-color:var(--primary,#6366f1);border-radius:50%;animation:dboSpin .8s linear infinite;}
+      @keyframes dboSpin{to{transform:rotate(360deg)}}
+      .dbo-title{font-size:16px;font-weight:700;color:var(--text,#e9e9ee);margin-bottom:8px;}
+      .dbo-msg{font-size:12.5px;line-height:1.5;color:var(--text-muted,#9a9aa5);margin-bottom:16px;}
+      .dbo-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+      .dbo-btn{border:1px solid var(--border,rgba(255,255,255,0.14));background:transparent;color:var(--text,#e9e9ee);border-radius:9px;padding:8px 13px;font-size:12.5px;font-family:inherit;cursor:pointer;}
+      .dbo-btn:hover{background:color-mix(in srgb,var(--primary,#6366f1) 16%,transparent);}
+      .dbo-btn.primary{background:var(--primary,#6366f1);border-color:transparent;color:#fff;font-weight:600;}
+      .dbo-btn.ghost{border-color:transparent;color:var(--text-muted,#9a9aa5);}
+    `;
+    document.head.appendChild(st);
+  },
+
   showContextMenu(e, panelName) {
     document.querySelectorAll('.tab-context-menu, .tab-group-context-menu, .context-menu-overlay').forEach(m => m.remove());
 
@@ -703,46 +824,18 @@ const SidebarManager = {
           }
         });
         items.push({ separator: true });
-        // Block-bypass mode: Off / Light (built-in DoH+fragment) / Strong (ByeDPI).
-        // byedpiPreset: -1 auto-tune · -2 custom flags · >=0 forced preset.
-        const PRESET_COUNT = 10;
-        const mode = localStorage.getItem('vex.discordBypassMode') || 'light';
-        const reload = () => { const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} } };
-        const winner = localStorage.getItem('vex.byedpiWinner');
-        const setMode = async (m, opts) => {
-          try { localStorage.setItem('vex.discordBypassMode', m); } catch {}
-          if (m === 'strong') {
-            const msg = (opts && opts.custom) ? 'Starting ByeDPI (custom)…'
-              : (opts && typeof opts.preset === 'number') ? 'Starting ByeDPI…'
-              : 'Auto-tuning ByeDPI… (downloads ~1 MB first run; can take a minute)';
-            window.showToast?.(msg);
-          }
-          try {
-            const r = await window.vex?.setDiscordBypassMode?.(m, opts || {});
-            if (r && r.ok) {
-              if (m === 'strong' && typeof r.preset === 'number') { try { localStorage.setItem('vex.byedpiWinner', String(r.preset)); } catch {} }
-              window.showToast?.('Bypass: ' + m + (m === 'strong' && typeof r.preset === 'number' ? ` (mode ${r.preset + 1})` : (r.custom ? ' (custom)' : '')));
-              reload();
-            } else window.showToast?.('Bypass failed: ' + ((r && r.error) || 'unknown'), 'error');
-          } catch { window.showToast?.('Bypass failed', 'error'); }
-        };
-        const dot = (m) => (mode === m ? '● ' : '○ ');
-        items.push({ label: dot('off') + 'Bypass: Off (use your own Zapret here)', action: () => setMode('off', {}) });
-        items.push({ label: dot('light') + 'Bypass: Light (built-in)', action: () => setMode('light', {}) });
-        items.push({
-          label: dot('strong') + 'Bypass: Strong (ByeDPI, auto-tune)' + (mode === 'strong' && winner != null ? ` — mode ${(+winner) + 1}` : ''),
-          action: () => { try { localStorage.setItem('vex.byedpiPreset', '-1'); } catch {} setMode('strong', {}); }
-        });
-        if (mode === 'strong') {
-          const cur = parseInt(localStorage.getItem('vex.byedpiPreset') || '-1', 10);
-          const np = (((cur >= 0 ? cur : -1) + 1) % PRESET_COUNT);
-          items.push({ label: `↻ Force next preset (${np + 1}/${PRESET_COUNT})`, action: () => { try { localStorage.setItem('vex.byedpiPreset', String(np)); } catch {} setMode('strong', { preset: np }); } });
+        // Block bypass: a single "auto-configure" action that sweeps every method
+        // and an off switch (for people running Zapret).
+        const bypassOn = ((localStorage.getItem('vex.discordBypassMode') || 'light') !== 'off');
+        items.push({ label: '🔧 Auto-configure bypass', action: () => this._enableBypassAuto() });
+        if (bypassOn) {
           items.push({
-            label: '⚙ Custom ByeDPI flags…',
+            label: '🛡️ Turn bypass off (use Zapret)',
             action: async () => {
-              const cur2 = localStorage.getItem('vex.byedpiCustom') || '--fake -1 --ttl 8 --tlsrec 1+s';
-              const v = (typeof vexPromptModal === 'function') ? await vexPromptModal('ByeDPI flags', cur2) : prompt('ByeDPI flags', cur2);
-              if (v && v.trim()) { try { localStorage.setItem('vex.byedpiCustom', v.trim()); localStorage.setItem('vex.byedpiPreset', '-2'); } catch {} setMode('strong', { custom: v.trim() }); }
+              try { localStorage.setItem('vex.discordBypassMode', 'off'); } catch {}
+              try { await window.vex?.setDiscordBypassMode?.('off', {}); } catch {}
+              const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} }
+              window.showToast?.('Bypass off');
             }
           });
         }

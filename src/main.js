@@ -1878,19 +1878,25 @@ function createWindow() {
     try { session.fromPartition('persist:discord').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
     catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
   };
-  // Does Discord's TLS handshake actually complete through the current proxy?
-  // (Any HTTP response = the SNI/DPI block was beaten. A connection error = no.)
-  function _testDiscordReachable() {
+  // One request through the Discord session's current proxy. Any HTTP response =
+  // the handshake completed (block beaten); a connection error = blocked.
+  function _testOne(url) {
     return new Promise((resolve) => {
       let done = false; const fin = (v) => { if (!done) { done = true; resolve(v); } };
       try {
-        const req = net.request({ url: 'https://discord.com/app', session: session.fromPartition('persist:discord') });
-        const to = setTimeout(() => { try { req.abort(); } catch {} fin(false); }, 7000);
+        const req = net.request({ url, session: session.fromPartition('persist:discord') });
+        const to = setTimeout(() => { try { req.abort(); } catch {} fin(false); }, 6000);
         req.on('response', (res) => { clearTimeout(to); try { res.resume(); } catch {} fin((res.statusCode || 0) > 0); });
         req.on('error', () => { clearTimeout(to); fin(false); });
         req.end();
       } catch { fin(false); }
     });
+  }
+  // Rigorous: TWO requests must both succeed, so a flaky single pass (the DPI is
+  // probabilistic) doesn't get mistaken for a working bypass.
+  async function _testDiscordRobust() {
+    if (!(await _testOne('https://discord.com/app'))) return false;
+    return await _testOne('https://discord.com/api/v9/gateway');
   }
 
   // mode: 'off' | 'light' | 'strong'. opts: { preset?: number (>=0 forces it,
@@ -1898,6 +1904,44 @@ function createWindow() {
   async function _applyDiscordBypass(mode, opts) {
     opts = opts || {};
     try {
+      if (mode === 'auto') {
+        // Auto-configure sweep: try EVERY ByeDPI desync preset first (the real
+        // tools), rigorously testing each (two requests must pass), keeping the
+        // first that works. Built-in light is only a last resort — it tends to
+        // pass the test flukily without actually carrying the app, so trying it
+        // first would short-circuit the whole sweep. Every preset's real result
+        // is appended to byedpi/sweep.log for diagnosis.
+        const ud = app.getPath('userData');
+        const total = _byedpi.PRESETS.length + 1;
+        const send = (p) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('discord:bypass-progress', p); } catch {} };
+        const swlog = (line) => { try { fs.appendFileSync(path.join(ud, 'byedpi', 'sweep.log'), `[${new Date().toISOString()}] ${line}\n`); } catch {} };
+        swlog('--- auto-configure sweep start ---');
+        // 1) ByeDPI desync presets (preset 0 already worked for the maintainer)
+        for (let i = 0; i < _byedpi.PRESETS.length; i++) {
+          send({ phase: 'testing', label: 'mode ' + (i + 1), i: i + 1, total });
+          const flags = (_byedpi.PRESETS[i] || []).join(' ');
+          try {
+            const port = await _byedpi.start(ud, _downloadBuffer, i);
+            _setDiscordProxy('socks5://127.0.0.1:' + port);
+            const ok = await _testDiscordRobust();
+            swlog(`mode ${i + 1} [${flags}]: listening=yes test=${ok ? 'PASS' : 'fail'}`);
+            if (ok) { send({ phase: 'done', ok: true, via: 'byedpi', preset: i }); return { ok: true, mode: 'auto', via: 'byedpi', preset: i }; }
+          } catch (e) { swlog(`mode ${i + 1} [${flags}]: launch FAILED — ${(e && e.message) || e}`); }
+        }
+        // 2) built-in light as a last resort
+        send({ phase: 'testing', label: 'built-in', i: total, total });
+        try {
+          _byedpi.stop();
+          _setDiscordProxy(_dpiBypassPort ? ('https=127.0.0.1:' + _dpiBypassPort + ';http=127.0.0.1:' + _dpiBypassPort) : null);
+          const ok = await _testDiscordRobust();
+          swlog(`built-in light: test=${ok ? 'PASS' : 'fail'}`);
+          if (ok) { send({ phase: 'done', ok: true, via: 'light' }); return { ok: true, mode: 'auto', via: 'light' }; }
+        } catch {}
+        _byedpi.stop(); _setDiscordProxy(null);
+        swlog('--- no mode got through ---');
+        send({ phase: 'done', ok: false });
+        return { ok: false, mode: 'auto', error: 'no mode got through' };
+      }
       if (mode === 'strong') {
         const ud = app.getPath('userData');
         // Custom flags: run exactly what the user pasted.
@@ -1917,7 +1961,7 @@ function createWindow() {
           try {
             const port = await _byedpi.start(ud, _downloadBuffer, i);
             _setDiscordProxy('socks5://127.0.0.1:' + port);
-            if (await _testDiscordReachable()) {
+            if (await _testDiscordRobust()) {
               console.log('[DPI-bypass] ByeDPI auto-tune: preset ' + i + ' works');
               return { ok: true, mode: 'strong', preset: i, auto: true, port };
             }

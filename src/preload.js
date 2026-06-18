@@ -100,6 +100,8 @@ contextBridge.exposeInMainWorld('vex', {
   setDiscordBypassMode: (mode, opts) => ipcRenderer.invoke('discord:set-bypass-mode', mode, opts),
   // One-click Vencord install into the Discord panel.
   installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
+  // Auto-configure sweep progress: { phase:'testing'|'done', label, i, total, ok, via, preset }.
+  onDiscordBypassProgress: (cb) => ipcRenderer.on('discord:bypass-progress', (_e, d) => cb(d)),
 
   // Full-text recall (memex) + translate (both run in main)
   recallIndex: (entry) => ipcRenderer.invoke('recall:index', entry),

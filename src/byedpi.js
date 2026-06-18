@@ -18,19 +18,23 @@ const { spawn } = require('child_process');
 
 const BYEDPI_URL = 'https://github.com/hufrea/byedpi/releases/download/v0.17.3/byedpi-17.3-x86_64-w64.zip';
 
-// Ordered best-first. Index 0 is the combo that worked for the first tester
-// (fake low-TTL packet + TLS-record split). Auto-tune walks the list in order.
+// Ordered best-first. v0.17.3 does NOT support --md5sig (it errors out), so we
+// use only flags this build accepts. Index 0 is the combo that already WORKED
+// for the maintainer. The fake-SNI ones impersonate an allowed domain in the
+// fake ClientHello (low TTL → dies before the server) so the DPI whitelists the
+// connection. Auto-configure walks the list, rigorously testing each.
+const FAKE_SNI = 'www.google.com';
 const PRESETS = [
-  ['--fake', '-1', '--ttl', '8', '--tlsrec', '1+s'],                 // 0  fake + tlsrec  (known-good)
-  ['--fake', '-1', '--ttl', '6', '--tlsrec', '1+s', '--disorder', '1'], // 1  fake + tlsrec + disorder
-  ['--disorder', '1', '--auto=torst', '--fake', '-1', '--ttl', '8'],  // 2  disorder + fake (auto)
-  ['--auto=torst', '--tlsrec', '1+s', '--disorder', '1'],            // 3  auto + tlsrec + disorder
-  ['--split', '1+s', '--disorder', '3+s'],                           // 4  README "Windows"
-  ['--fake', '-1', '--ttl', '10'],                                   // 5  plain fake, higher TTL
-  ['--oob', '1', '--tlsrec', '1+s'],                                 // 6  OOB + tlsrec
-  ['--disorder', '1+s'],                                             // 7  disorder at SNI
-  ['--tlsrec', '1+s', '--split', '2'],                               // 8  tlsrec + split
-  ['--fake', '-1', '--ttl', '4', '--tlsrec', '1+s', '--split', '1+s'], // 9  aggressive combo
+  ['--fake', '-1', '--ttl', '8', '--tlsrec', '1+s'],                                  // 0  KNOWN-WORKED before
+  ['--fake', '-1', '--ttl', '8', '--fake-sni', FAKE_SNI],                              // 1  fake allowed-SNI
+  ['--fake', '-1', '--ttl', '6', '--fake-sni', FAKE_SNI, '--tlsrec', '1+s'],           // 2  fake-SNI + tlsrec
+  ['--fake', '-1', '--ttl', '8', '--fake-tls-mod', 'rand'],                            // 3  randomized fake
+  ['--fake', '-1', '--ttl', '8', '--fake-sni', FAKE_SNI, '--auto=torst', '--tlsrec', '1+s'], // 4 fake-SNI + auto + tlsrec
+  ['--auto=torst', '--fake', '-1', '--ttl', '8', '--tlsrec', '1+s'],                   // 5  auto + fake + tlsrec
+  ['--disorder', '1', '--fake', '-1', '--ttl', '8'],                                   // 6  disorder + fake
+  ['--split', '1+s', '--disorder', '3+s'],                                             // 7  split + disorder
+  ['--tlsrec', '1+s', '--split', '2'],                                                 // 8  tlsrec + split
+  ['--oob', '1', '--tlsrec', '1+s'],                                                   // 9  OOB + tlsrec
 ];
 
 let _proc = null;

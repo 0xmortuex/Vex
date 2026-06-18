@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.27.11 (2026-06-18) — Discord bypass: one-click Auto-configure (now actually works)
+
+### Added
+- **🔧 Auto-configure bypass** (right-click Discord, and the auto "Discord looks blocked" popup) — sweeps every ByeDPI desync mode, **rigorously tests each against a real Discord handshake** (two requests must both pass, so a fluke doesn't win), shows a live "Testing mode X/N…" card, and keeps the first that genuinely works. Built-in light is only a last resort. Each mode's real result is logged to `userData/byedpi/sweep.log`.
+- The bypass now **runs on startup** and, on success, **auto-reloads the Discord panel** so it just works with no blank flash.
+
+### Fixed
+- **ByeDPI presets that silently crashed** — `--md5sig` isn't supported by ByeDPI v0.17.3, so every preset using it exited immediately ("unknown option") and the sweep never reached a working mode. Presets reworked to valid flags only; the known-good `--fake -1 --ttl 8 --tlsrec 1+s` is tried first, plus `--fake-sni` (fake an allowed domain so the DPI whitelists the connection).
+- The sweep no longer **short-circuits on the built-in light test** (which could pass without actually carrying the app) — ByeDPI desync modes are tried first.
+
+### Changed
+- Simplified the Discord right-click menu to **Auto-configure bypass** + **Turn bypass off (use Zapret)** — no more Light/Strong/preset/custom clutter.
+
 ## v2.27.10 (2026-06-18) — Stronger Discord bypass (ByeDPI, auto-tuning) [experimental]
 
 ### Added
