@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.16 (2026-06-18) — "What's New" closes when you open the release
+
+### Fixed
+- The "What's New" modal now **closes automatically** when you click "View latest release on GitHub" (the release opens in your browser, so there's no reason to keep the modal up).
+
 ## v2.27.15 (2026-06-18) — "What's New" opens the latest release in your browser
 
 ### Fixed

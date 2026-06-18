@@ -84,6 +84,7 @@
     ov.querySelector('.whatsnew-link[data-ext]')?.addEventListener('click', (e) => {
       e.preventDefault();
       try { window.vex?.openExternal?.('https://github.com/0xmortuex/Vex/releases/latest'); } catch {}
+      close(); // the release opens in the browser — no reason to keep the modal up
     });
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     document.addEventListener('keydown', function onEsc(e) { if (e.key === 'Escape') { document.removeEventListener('keydown', onEsc); close(); } });
