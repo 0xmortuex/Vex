@@ -75,12 +75,16 @@
         </div>
         <div class="whatsnew-body">${bodyHtml}</div>
         <div class="whatsnew-foot">
-          <a class="whatsnew-link" href="${notes && notes.url ? esc(notes.url) : 'https://github.com/0xmortuex/Vex/releases'}" target="_blank" rel="noopener">View on GitHub →</a>
+          <a class="whatsnew-link" href="#" data-ext>View latest release on GitHub →</a>
           <button class="whatsnew-btn">Got it</button>
         </div>
       </div>`;
     const close = () => { ov.remove(); _open = false; };
     ov.querySelector('.whatsnew-btn').addEventListener('click', close);
+    ov.querySelector('.whatsnew-link[data-ext]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      try { window.vex?.openExternal?.('https://github.com/0xmortuex/Vex/releases/latest'); } catch {}
+    });
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     document.addEventListener('keydown', function onEsc(e) { if (e.key === 'Escape') { document.removeEventListener('keydown', onEsc); close(); } });
     document.body.appendChild(ov);

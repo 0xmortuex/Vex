@@ -2915,6 +2915,12 @@ ipcMain.handle('download-update', async () => {
 });
 ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
 ipcMain.handle('get-app-version', () => app.getVersion());
+// Open an http(s) URL in the system's default browser (used by the "What's New"
+// modal so GitHub renders properly instead of in an in-app window).
+ipcMain.handle('open-external', (_e, url) => {
+  try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
+  return { ok: false };
+});
 // Release notes for the "What's New" update log. Fetches the GitHub release for
 // the given tag (default: current version), falling back to the latest release.
 ipcMain.handle('updates:notes', async (_e, tag) => {

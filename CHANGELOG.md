@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.15 (2026-06-18) — "What's New" opens the latest release in your browser
+
+### Fixed
+- The **"View on GitHub"** link in the update-log modal now opens the **latest release** in your **system browser** (so GitHub renders properly), instead of an in-app window where its stylesheet could fail and show a bare navigation menu.
+
 ## v2.27.14 (2026-06-18) — Glass shortcuts bar (favicons + custom) & window-show fix
 
 ### Added

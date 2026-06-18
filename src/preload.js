@@ -186,6 +186,7 @@ contextBridge.exposeInMainWorld('vex', {
   installUpdate: () => ipcRenderer.invoke('install-update'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, i) => cb(i)),
   onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', cb),
   onUpdateDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, p) => cb(p)),
