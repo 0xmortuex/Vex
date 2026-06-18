@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.12 (2026-06-18) — The Roku Channel in the streaming switcher
+
+### Added
+- **The Roku Channel** (free, licensed) joins the streaming panel switcher — right-click the streaming icon → **📡 Switch to Roku Channel**, alongside Netflix / Prime Video / Disney+. Shares the same session and swaps the URL + icon.
+
 ## v2.27.11 (2026-06-18) — Discord bypass: one-click Auto-configure (now actually works)
 
 ### Added

@@ -49,6 +49,7 @@ const SIDEBAR_ICONS = {
   netflix: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19V5l10 14V5"/></svg>',
   prime:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>',
   disney:  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l1.5 4.3L17 9l-4.5 1.7L11 15l-1.5-4.3L5 9l4.5-1.7z" fill="currentColor" stroke="none"/><path d="M18 14v5M15.5 16.5h5"/></svg>',
+  roku:    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M8 15V9h2.3a1.6 1.6 0 0 1 0 3.2H8M10.6 12.2L12.6 15"/></svg>',
   discord: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 5.3A17 17 0 0 0 15.7 4l-.2.4a15.6 15.6 0 0 1 3.9 1.2 13.6 13.6 0 0 0-11.8 0A15.6 15.6 0 0 1 11.5 4.4L11.3 4A17 17 0 0 0 7 5.3C4.3 9.3 3.6 13.2 4 17a17 17 0 0 0 5.1 2.6l.6-1a11 11 0 0 1-1.8-.9c.15-.1.3-.2.44-.32a9.7 9.7 0 0 0 8.3 0c.15.12.3.22.45.32a11 11 0 0 1-1.8.9l.6 1A17 17 0 0 0 21 17c.5-4.3-.5-8.2-3-11.7zM9.3 14.6c-.9 0-1.6-.84-1.6-1.86 0-1.02.69-1.86 1.6-1.86.92 0 1.63.84 1.6 1.86 0 1.02-.69 1.86-1.6 1.86zm5.4 0c-.9 0-1.6-.84-1.6-1.86 0-1.02.69-1.86 1.6-1.86.92 0 1.63.84 1.6 1.86 0 1.02-.68 1.86-1.6 1.86z"/></svg>',
 };
 
@@ -65,6 +66,7 @@ const STREAMING_SERVICES = {
   netflix: { name: 'Netflix',     url: 'https://www.netflix.com/',     icon: 'netflix' },
   prime:   { name: 'Prime Video', url: 'https://www.primevideo.com/',  icon: 'prime' },
   disney:  { name: 'Disney+',     url: 'https://www.disneyplus.com/',  icon: 'disney' },
+  roku:    { name: 'The Roku Channel', url: 'https://therokuchannel.roku.com/', icon: 'roku' },
 };
 
 function loadPanelOverrides() { try { return JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}'); } catch { return {}; } }
@@ -805,6 +807,7 @@ const SidebarManager = {
         items.push({ label: '🎬 Switch to Netflix', action: () => this.switchPanelService(panelName, 'netflix') });
         items.push({ label: '📺 Switch to Prime Video', action: () => this.switchPanelService(panelName, 'prime') });
         items.push({ label: '✨ Switch to Disney+', action: () => this.switchPanelService(panelName, 'disney') });
+        items.push({ label: '📡 Switch to Roku Channel', action: () => this.switchPanelService(panelName, 'roku') });
       } else if (panelName === 'discord') {
         // One-click Vencord (plugins/themes) install into the Discord panel.
         items.push({
