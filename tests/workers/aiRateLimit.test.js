@@ -4,7 +4,7 @@
 // ships in the public app. Without a per-IP limit, anyone who reads the URL can
 // drain credits. These tests pin the limiter and the 429 short-circuit.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import worker, { aiRateLimited } from '../../workers/vex-ai-worker/worker.js';
 
 function makeKV() {
@@ -84,19 +84,30 @@ describe('fetch — 429 short-circuit', () => {
   });
 
   it('allows a sub-4MB image body through the size gate (screenshot-to-code)', async () => {
-    // 1 MB is under the cap → must NOT be rejected with 413 (it'll fail later for
-    // other reasons like missing key, but not at the size gate).
-    const env = { VEX_AI_KV: makeKV() };
-    const req = new Request('https://ai.test/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'CF-Connecting-IP': '198.51.100.51',
-        'content-length': String(1024 * 1024),
-      },
-      body: JSON.stringify({ action: 'screenshot-to-code', image: 'data:image/png;base64,AAAA' }),
-    });
-    const res = await worker.fetch(req, env);
-    expect(res.status).not.toBe(413);
+    // 1 MB is under the cap → must NOT be rejected with 413. Past the size gate
+    // the worker calls OpenRouter, so stub global fetch — otherwise it makes a
+    // real network request that hangs (no key/network) and the test flakes out
+    // on a timeout under full-suite load.
+    const fetchStub = vi.fn(async () => new Response(
+      JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchStub);
+    try {
+      const env = { VEX_AI_KV: makeKV(), OPENROUTER_API_KEY: 'test-key' };
+      const req = new Request('https://ai.test/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '198.51.100.51',
+          'content-length': String(1024 * 1024),
+        },
+        body: JSON.stringify({ action: 'screenshot-to-code', image: 'data:image/png;base64,AAAA' }),
+      });
+      const res = await worker.fetch(req, env);
+      expect(res.status).not.toBe(413);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
