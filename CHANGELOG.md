@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.19 (2026-06-19) — "Prevent from sleeping" per tab
+
+### Added
+- **Right-click a tab → ☕ Prevent from sleeping** — choose how long to keep it awake: **1 / 5 / 12 / 24 hours, Custom…, or Never (until reverted)**. Kept-awake tabs are skipped by auto-sleep + the memory-pressure guard, show a small ☕ marker, and the setting persists across restarts. Manual "Sleep Tab" still works (it overrides). Re-open the menu to change or "Allow sleeping again".
+
 ## v2.27.18 (2026-06-19) — Hotfix: Discord panel rendered blank
 
 ### Fixed

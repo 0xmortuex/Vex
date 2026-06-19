@@ -514,6 +514,7 @@ const TabManager = {
     // Sleeping tabs render dimmed. Set here so any render path (init restore,
     // rebuildAllTabs) shows the state — not just the old init sleeping branch.
     if (tab.sleeping) el.classList.add('sleeping');
+    if (this._isKeptAwake(tab)) el.classList.add('kept-awake');
 
     el.innerHTML = `
       ${tab.loading
@@ -1083,7 +1084,8 @@ const TabManager = {
       { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => this.toggleMuteTab(tab.id) },
       { label: 'Mute All Others', action: () => this.muteAllOtherTabs(tab.id) },
       { sep: true },
-      { label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id) },
+      { label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id, true) },
+      { label: this._isKeptAwake(tab) ? '☕ Keep awake — change…' : '☕ Prevent from sleeping…', action: () => this._showKeepAwakeChooser(tab) },
       { sep: true },
       { label: 'Close', action: () => this.closeTab(tab.id), danger: true },
       { label: 'Close Others', action: () => this.closeOtherTabs(tab.id), danger: true },
@@ -1242,9 +1244,14 @@ const TabManager = {
   },
 
   // === Sleep/Wake ===
-  async sleepTab(id) {
+  // force=true bypasses "Prevent from sleeping" (used by the manual Sleep Tab
+  // menu); auto-sleep paths call without force so they respect the keep-awake.
+  _isKeptAwake(tab) { return !!(tab && tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil); },
+
+  async sleepTab(id, force) {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab || tab.sleeping || tab.id === this.activeTabId) return;
+    if (!force && this._isKeptAwake(tab)) return;
 
     tab.originalUrl = tab.url;
 
@@ -1304,6 +1311,82 @@ const TabManager = {
     if (typeof HorizontalTabs !== 'undefined') HorizontalTabs.render?.();
 
     this.persistTabs();
+  },
+
+  _refreshKeepAwakeIndicator(tab) {
+    try {
+      const sel = '[data-tab-id="' + ((window.CSS && CSS.escape) ? CSS.escape(tab.id) : tab.id) + '"]';
+      document.querySelectorAll(sel).forEach(el => el.classList.toggle('kept-awake', this._isKeptAwake(tab)));
+    } catch {}
+  },
+
+  _injectKeepAwakeStyles() {
+    if (document.getElementById('keepawake-styles')) return;
+    const st = document.createElement('style');
+    st.id = 'keepawake-styles';
+    st.textContent = `
+      .keepawake-ov{position:fixed;inset:0;z-index:2147483400;display:flex;align-items:center;justify-content:center;background:rgba(8,10,14,0.72);backdrop-filter:blur(4px);font-family:inherit;}
+      .ka-card{width:330px;max-width:90vw;background:var(--surface,#1b1b24);border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:16px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,0.6);color:var(--text,#e9e9ee);}
+      .ka-title{font-size:14px;font-weight:700;margin-bottom:4px;}
+      .ka-sub{font-size:12px;color:var(--text-muted,#9a9aa5);margin-bottom:12px;}
+      .ka-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+      .ka-btn{border:1px solid var(--border,rgba(255,255,255,0.14));background:var(--bg,#0e0e16);color:var(--text,#e9e9ee);border-radius:9px;padding:9px;font-size:12.5px;cursor:pointer;font-family:inherit;}
+      .ka-btn:hover{background:var(--primary,#6366f1);border-color:transparent;color:#fff;}
+      .ka-stop{width:100%;margin-top:8px;color:#ff6b81;border-color:rgba(224,85,106,0.4);}
+      .ka-cancel{width:100%;margin-top:8px;background:transparent;border:1px solid var(--border,rgba(255,255,255,0.14));color:var(--text-muted,#9a9aa5);border-radius:9px;padding:8px;font-size:12.5px;cursor:pointer;font-family:inherit;}
+      .tab.kept-awake .tab-title::after{content:'☕';font-size:9px;margin-left:4px;opacity:.85;}
+    `;
+    document.head.appendChild(st);
+  },
+
+  _showKeepAwakeChooser(tab) {
+    if (!tab) return;
+    document.querySelectorAll('.keepawake-ov').forEach(e => e.remove());
+    this._injectKeepAwakeStyles();
+    const HOUR = 3600 * 1000;
+    const setKeep = (until, msg) => {
+      tab.keepAwakeUntil = until;
+      if (until && tab.sleeping) { try { this.wakeTab(tab.id); } catch {} }
+      this._refreshKeepAwakeIndicator(tab);
+      this.persistTabs();
+      if (msg) { try { window.showToast?.(msg); } catch {} }
+    };
+    const ov = document.createElement('div');
+    ov.className = 'keepawake-ov';
+    const active = this._isKeptAwake(tab);
+    ov.innerHTML = `<div class="ka-card">
+        <div class="ka-title">☕ Prevent "${this._escapeHtml((tab.title || 'tab').slice(0, 38))}" from sleeping</div>
+        <div class="ka-sub">Keep this tab awake for:</div>
+        <div class="ka-grid">
+          <button class="ka-btn" data-ms="${1 * HOUR}">1 hour</button>
+          <button class="ka-btn" data-ms="${5 * HOUR}">5 hours</button>
+          <button class="ka-btn" data-ms="${12 * HOUR}">12 hours</button>
+          <button class="ka-btn" data-ms="${24 * HOUR}">24 hours</button>
+          <button class="ka-btn" data-ms="custom">Custom…</button>
+          <button class="ka-btn" data-ms="never">Never (until reverted)</button>
+        </div>
+        ${active ? '<button class="ka-stop ka-btn">Allow sleeping again</button>' : ''}
+        <button class="ka-cancel">Cancel</button>
+      </div>`;
+    const close = () => ov.remove();
+    ov.addEventListener('click', e => { if (e.target === ov) close(); });
+    ov.querySelector('.ka-cancel').addEventListener('click', close);
+    ov.querySelector('.ka-stop')?.addEventListener('click', () => { setKeep(0, 'Tab can sleep again'); close(); });
+    ov.querySelectorAll('.ka-btn[data-ms]').forEach(b => b.addEventListener('click', async () => {
+      const v = b.dataset.ms;
+      if (v === 'never') { setKeep(Number.MAX_SAFE_INTEGER, 'Tab kept awake until you revert it'); close(); return; }
+      if (v === 'custom') {
+        close();
+        let val = null;
+        try { val = (typeof vexPromptModal === 'function') ? await vexPromptModal('Keep awake for how many hours?', '3') : prompt('Keep awake for how many hours?', '3'); } catch {}
+        const h = parseFloat(val);
+        if (h > 0) setKeep(Date.now() + h * HOUR, `Tab kept awake for ${h} hour${h === 1 ? '' : 's'}`);
+        return;
+      }
+      setKeep(Date.now() + parseInt(v, 10), `Tab kept awake for ${b.textContent}`);
+      close();
+    }));
+    document.body.appendChild(ov);
   },
 
   sleepAllInactive() {

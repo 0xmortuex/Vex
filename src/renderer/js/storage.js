@@ -131,7 +131,9 @@ const VexStorage = {
       stackId: t.stackId || null,
       sleeping: t.sleeping || false,
       originalUrl: t.originalUrl || null,
-      scrollPosition: t.scrollPosition || null
+      scrollPosition: t.scrollPosition || null,
+      // "Prevent from sleeping" expiry (ms epoch; large value = until reverted).
+      keepAwakeUntil: t.keepAwakeUntil || 0
     }));
     return this.save('tabs', serialized);
   },

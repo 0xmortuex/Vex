@@ -475,7 +475,7 @@ describe('persistence — saveStacks / loadStacks roundtrip', () => {
       { id: 't1', url: 'https://x', title: 'X', pinned: false, groupId: null, stackId: 'stk_a' },
     ]);
     expect(store.tabs).toEqual([
-      { id: 't1', url: 'https://x', title: 'X', favicon: null, pinned: false, groupId: null, stackId: 'stk_a', sleeping: false, originalUrl: null, scrollPosition: null },
+      { id: 't1', url: 'https://x', title: 'X', favicon: null, pinned: false, groupId: null, stackId: 'stk_a', sleeping: false, originalUrl: null, scrollPosition: null, keepAwakeUntil: 0 },
     ]);
   });
 
