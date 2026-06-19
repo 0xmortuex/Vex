@@ -1343,6 +1343,11 @@ app.on('web-contents-created', (_event, contents) => {
   const type = contents.getType();
   if (type !== 'webview') return;
 
+  // Tor tabs: stop WebRTC from leaking the real IP around the SOCKS proxy.
+  // disable_non_proxied_udp forces any WebRTC traffic through the proxy (Tor
+  // can't carry UDP, so it's effectively disabled — exactly what we want).
+  try { if (contents.session && contents.session.__vexTor) contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); } catch {}
+
   // Media grabber: hook this guest's session (once) to record media URLs, and
   // reset the tab's list on a real navigation / when the tab goes away.
   try { wireMediaSnifferOnSession(contents.session); } catch {}
@@ -2997,6 +3002,73 @@ ipcMain.handle('identity:create', () => {
     } catch {}
     return { ok: true, partition: part, label: `Chrome ${v}` };
   } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// === Tor session (maximum-security private tab) ===
+// Routes a throwaway, fully isolated session through a local Tor SOCKS5 proxy
+// (Tor Browser on 9150, or a tor service on 9050), with remote DNS (no leak),
+// WebRTC disabled, all site permissions denied, and the fingerprint-resistance
+// preload. Requires Tor to be running locally; the renderer guides the user to
+// start Tor Browser if it isn't detected.
+function _probeTcp(port, host = '127.0.0.1', timeout = 700) {
+  return new Promise((resolve) => {
+    let net; try { net = require('net'); } catch { return resolve(false); }
+    const sock = new net.Socket();
+    let done = false;
+    const finish = (ok) => { if (done) return; done = true; try { sock.destroy(); } catch {} resolve(ok); };
+    try {
+      sock.setTimeout(timeout);
+      sock.once('connect', () => finish(true));
+      sock.once('timeout', () => finish(false));
+      sock.once('error', () => finish(false));
+      sock.connect(port, host);
+    } catch { finish(false); }
+  });
+}
+async function detectTorPort() {
+  for (const p of [9150, 9050]) { if (await _probeTcp(p)) return p; } // 9150 = Tor Browser, 9050 = tor service
+  return null;
+}
+ipcMain.handle('tor:create', async () => {
+  try {
+    const port = await detectTorPort();
+    if (!port) return { ok: false, reason: 'not-running' };
+    const part = `tor-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+    const ses = session.fromPartition(part); // no persist: → in-memory, wiped on close
+    ses.__vexTor = true; // tag so web-contents-created disables WebRTC for it
+    // Route EVERYTHING (incl. DNS) through Tor. socks5:// makes Chromium resolve
+    // hostnames at the proxy, so there's no local DNS leak.
+    await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
+    // Consistent masked desktop identity + client hints (less unique than the
+    // raw Electron UA), adblock, header strip, and the hardening preload.
+    const idn = buildIdentity('124');
+    ses.__vexCH = idn.ch;
+    ses.setUserAgent(idn.ua);
+    wireClientHintsOnSession(ses);
+    wireDownloadsOnSession(ses, 'tor');
+    // Maximum security: deny every site permission (geolocation, camera, mic,
+    // notifications, clipboard, etc.) — overrides any wired handler.
+    try { ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false)); } catch {}
+    try { ses.setPermissionCheckHandler(() => false); } catch {}
+    ses.webRequest.onHeadersReceived((details, callback) => {
+      const rh = { ...details.responseHeaders };
+      delete rh['x-frame-options']; delete rh['X-Frame-Options']; delete rh['X-FRAME-OPTIONS'];
+      if (rh['content-security-policy']) rh['content-security-policy'] = rh['content-security-policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
+      if (rh['Content-Security-Policy']) rh['Content-Security-Policy'] = rh['Content-Security-Policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
+      callback({ responseHeaders: rh });
+    });
+    ses.webRequest.onBeforeRequest((details, callback) => {
+      const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
+      if (blocked) _recordTracker(details.url, details.webContentsId);
+      callback({ cancel: blocked });
+    });
+    try {
+      const preloadPath = path.join(__dirname, 'preload-webview.js');
+      const existing = ses.getPreloads ? ses.getPreloads() : [];
+      if (!existing.includes(preloadPath)) ses.setPreloads([...existing, preloadPath]);
+    } catch {}
+    return { ok: true, partition: part, port };
+  } catch (err) { return { ok: false, reason: 'error', error: err.message }; }
 });
 
 ipcMain.handle('open-private-window', () => {

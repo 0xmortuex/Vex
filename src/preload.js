@@ -174,6 +174,8 @@ contextBridge.exposeInMainWorld('vex', {
   openPrivateWindow: () => ipcRenderer.invoke('open-private-window'),
   // New Identity: a throwaway isolated session (random consistent Chrome UA).
   createIdentity: () => ipcRenderer.invoke('identity:create'),
+  // Tor session: isolated, proxied through a local Tor SOCKS5 (max security).
+  createTor: () => ipcRenderer.invoke('tor:create'),
   onToggleMuteTab: (callback) => ipcRenderer.on('toggle-mute-tab', callback),
 
   // Tabs sidebar toggle

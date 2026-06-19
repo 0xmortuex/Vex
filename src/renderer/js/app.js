@@ -199,6 +199,7 @@
   document.getElementById('btn-reload').addEventListener('click', () => WebviewManager.reload());
   document.getElementById('btn-onboarding')?.addEventListener('click', () => { if (typeof Onboarding !== 'undefined') Onboarding.relaunch(); });
   document.getElementById('btn-command').addEventListener('click', () => CommandBar.toggle());
+  document.getElementById('btn-tor')?.addEventListener('click', () => { if (typeof TorSession !== 'undefined') TorSession.open(); });
 
   // === Window Controls ===
   document.getElementById('btn-minimize').addEventListener('click', () => window.vex.minimize());

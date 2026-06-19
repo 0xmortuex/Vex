@@ -33,6 +33,7 @@ const CommandBar = {
     { id: 'wsnap', label: 'Workspace Time-Travel', hint: 'Restore a past set of open tabs for this workspace', icon: '🕰️', action: () => { if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.open(); } },
     { id: 'catchup', label: 'Catch Me Up', hint: 'AI digest of your RSS feeds + unread Read Later', icon: '☕', action: () => { if (typeof CatchMeUp !== 'undefined') CatchMeUp.open(); } },
     { id: 'otr', label: 'New Off-the-Record Tab', hint: 'Ephemeral tab: no history, cookies vanish when closed', icon: '🕶', action: () => TabManager.createTab(START_URL, true, null, { partition: 'otr-' + Date.now() }) },
+    { id: 'tor', label: 'New Tor Tab', hint: 'Maximum-security private tab routed through Tor (needs Tor running)', icon: '🧅', action: () => { if (typeof TorSession !== 'undefined') TorSession.open(); } },
     { id: 'identity', label: 'New Identity Tab', hint: 'Fresh isolated session + a new browser fingerprint — no carry-over from your logins', icon: '🎭', action: async () => {
       try {
         const r = await window.vex?.createIdentity?.();
