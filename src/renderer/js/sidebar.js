@@ -415,7 +415,16 @@ const SidebarManager = {
           wv.setAttribute('partition', config.partition);
         }
         wv.setAttribute('allowpopups', '');
-        wv.setAttribute('webpreferences', 'contextIsolation=yes');
+        // Discord freezes for a few seconds when you toggle the panel off (or
+        // switch tabs) and come back: hiding the panel sets the guest to
+        // display:none, and Electron's default backgroundThrottling lets
+        // Chromium suspend the page — so on return the heavy Discord SPA has to
+        // reconnect its gateway and replay throttled timers before it paints.
+        // Keep the Discord guest running while hidden so re-showing is instant.
+        const wp = panelName === 'discord'
+          ? 'contextIsolation=yes,backgroundThrottling=no'
+          : 'contextIsolation=yes';
+        wv.setAttribute('webpreferences', wp);
         wv.style.width = '100%';
         wv.style.height = '100%';
         // Wire the guest right-click → Vex context menu, exactly like normal

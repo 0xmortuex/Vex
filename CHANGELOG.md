@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.20 (2026-06-19) — Discord panel no longer freezes on return
+
+### Fixed
+- **The Discord panel froze for a few seconds** when you closed it (clicked the Discord button again) or switched to another tab and came back. Hiding the panel sets the guest to `display:none`, and Electron's default background throttling let Chromium suspend the page — so on return the heavy Discord SPA had to reconnect its gateway and replay throttled timers before it could paint. The Discord panel's webview now runs with `backgroundThrottling=no`, so it stays live while hidden and re-shows instantly. (Scoped to Discord only; other panels keep default throttling to save battery.)
+
 ## v2.27.19 (2026-06-19) — "Prevent from sleeping" per tab
 
 ### Added
