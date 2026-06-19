@@ -680,6 +680,18 @@
   // Dim Vex behind the real (opener-connected) OAuth/login popup, Peek-style
   if (typeof OAuthPopupBackdrop !== 'undefined') OAuthPopupBackdrop.init();
 
+  // Main → renderer toast bridge (Discord pop-out pin feedback, etc.)
+  try { window.vex?.onToast?.((m) => { if (m) window.showToast?.(m); }); } catch {}
+  // One-time hint the first time a Discord stream pop-out opens this session.
+  let _discordPopoutHinted = false;
+  try {
+    window.vex?.onDiscordPopoutOpen?.(() => {
+      if (_discordPopoutHinted) return;
+      _discordPopoutHinted = true;
+      window.showToast?.('Pop-out floats on top · Ctrl+Shift+P to toggle');
+    });
+  } catch {}
+
   // AI Skills (saved prompts) + Boosts (per-site customization)
   if (typeof VexSkills !== 'undefined') VexSkills.init();
   if (typeof VexBoosts !== 'undefined') VexBoosts.init();
@@ -688,6 +700,7 @@
   if (typeof CompactMode !== 'undefined') CompactMode.init();
   if (typeof Bookmarks !== 'undefined') Bookmarks.init();
   if (typeof VexFeeds !== 'undefined') VexFeeds.init();
+  if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.init();
   if (typeof CommandChains !== 'undefined') CommandChains.init();
 
   // Library (read later + auto-archive)

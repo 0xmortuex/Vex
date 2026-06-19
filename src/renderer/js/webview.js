@@ -127,6 +127,16 @@ const WebviewManager = {
       } catch {}
     });
 
+    // Keyboard link hints (press `f`): tell the guest whether the feature is on.
+    // Default ON; toggle via the `vex.linkHints` setting. Injected each load so a
+    // setting change applies on next navigation without restart.
+    webview.addEventListener('dom-ready', () => {
+      try {
+        const on = localStorage.getItem('vex.linkHints') !== 'off';
+        webview.executeJavaScript(`window.__vexLinkHintsEnabled = ${on};`).catch(() => {});
+      } catch {}
+    });
+
     // Password capture (login-form submits announced by preload-webview.js)
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
     // Mouse gestures (right-drag strokes announced by preload-webview.js)

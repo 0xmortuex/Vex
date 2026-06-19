@@ -427,6 +427,9 @@ function _isVexStartPage(href) {
   if (!ipcRenderer || !ipcRenderer.sendToHost) return;
 
   let lastText = "";
+  // Captured at report() time so the host can replace the selection in place
+  // (Rewrite / Fix / Shorten) even after focus moves to the host bar.
+  let editEl = null, editKind = "", editStart = 0, editEnd = 0, editRange = null;
   function clear() {
     if (lastText) { lastText = ""; try { ipcRenderer.sendToHost("vex-selection-clear"); } catch {} }
   }
@@ -435,11 +438,19 @@ function _isVexStartPage(href) {
     try { sel = window.getSelection(); } catch { return; }
     const text = sel ? String(sel.toString()).replace(/\s+/g, " ").trim() : "";
     if (!text || text.length < 2) { clear(); return; }
-    // Skip selections inside editable fields — the bar would cover the caret and
-    // is rarely wanted while typing.
+    // Detect an editable selection so the host can offer in-place AI edits. We
+    // capture the field + offsets now; an input/textarea keeps them after blur,
+    // and a contenteditable range is restored before we insert.
+    let editable = false;
+    editEl = null; editKind = ""; editRange = null;
     try {
       const a = document.activeElement;
-      if (a && (a.isContentEditable || /^(input|textarea)$/i.test(a.nodeName))) return;
+      if (a && /^(input|textarea)$/i.test(a.nodeName) && !a.readOnly && !a.disabled
+          && typeof a.selectionStart === "number" && a.selectionEnd > a.selectionStart) {
+        editable = true; editEl = a; editKind = "field"; editStart = a.selectionStart; editEnd = a.selectionEnd;
+      } else if (a && a.isContentEditable && sel.rangeCount) {
+        editable = true; editEl = a; editKind = "ce"; editRange = sel.getRangeAt(0).cloneRange();
+      }
     } catch {}
     if (text === lastText) return;
     lastText = text;
@@ -448,8 +459,33 @@ function _isVexStartPage(href) {
       const r = sel.getRangeAt(0).getBoundingClientRect();
       rect = { x: r.left, y: r.top, w: r.width, h: r.height };
     } catch {}
-    try { ipcRenderer.sendToHost("vex-selection", { text: text.slice(0, 8000), rect }); } catch {}
+    try { ipcRenderer.sendToHost("vex-selection", { text: text.slice(0, 8000), rect, editable }); } catch {}
   }
+
+  // Host → guest: replace the captured selection with AI-transformed text.
+  ipcRenderer.on("vex-replace-selection", (_e, data) => {
+    const t = data && typeof data.text === "string" ? data.text : null;
+    if (t == null || !editEl) return;
+    try {
+      if (editKind === "field" && editEl.isConnected) {
+        editEl.focus();
+        if (typeof editEl.setRangeText === "function") {
+          editEl.setRangeText(t, editStart, editEnd, "end");
+        } else {
+          const v = editEl.value || "";
+          editEl.value = v.slice(0, editStart) + t + v.slice(editEnd);
+        }
+        editEl.dispatchEvent(new Event("input", { bubbles: true }));
+        editEl.dispatchEvent(new Event("change", { bubbles: true }));
+      } else if (editKind === "ce" && editEl.isConnected && editRange) {
+        editEl.focus();
+        const s = window.getSelection();
+        s.removeAllRanges(); s.addRange(editRange);
+        document.execCommand("insertText", false, t);
+      }
+    } catch (_) { /* best-effort */ }
+    clear();
+  });
   // mouseup = drag-selection done; keyup with Shift = keyboard selection.
   document.addEventListener("mouseup", () => setTimeout(report, 10), true);
   document.addEventListener("keyup", (e) => { if (e.shiftKey) setTimeout(report, 10); }, true);
@@ -533,6 +569,138 @@ function _isVexStartPage(href) {
     (document.head || document.documentElement).appendChild(s);
     s.remove();
   } catch (err) { /* best-effort */ }
+})();
+
+// === Keyboard link hints (Vimium-style) ===
+// Press `f` to overlay a short letter label on every clickable thing in view;
+// type the label to click it (Shift while typing → open links in a new tab via
+// a normal click on a target=_blank clone). Esc cancels. Runs only in the top
+// frame, only when not typing in a field, and only while enabled — the host
+// injects window.__vexLinkHintsEnabled (default on) so it can be turned off per
+// the `vex.linkHints` setting and never permanently shadows a site's own `f`.
+(function () {
+  'use strict';
+  if (window.top !== window.self) return; // top frame only
+
+  const ALPHA = 'asdfghjklqwertyuiopzxcvbnm'; // home row first → easier to type
+  let active = false, hints = [], typed = '', overlay = null, openInNewTab = false;
+
+  function enabled() { return window.__vexLinkHintsEnabled !== false; }
+
+  function isEditable(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (el.isContentEditable) return true;
+    return false;
+  }
+
+  function labelsFor(n) {
+    // 1-char labels while they fit, else 2-char combinations.
+    const out = [];
+    if (n <= ALPHA.length) { for (let i = 0; i < n; i++) out.push(ALPHA[i]); return out; }
+    for (let i = 0; i < ALPHA.length && out.length < n; i++)
+      for (let j = 0; j < ALPHA.length && out.length < n; j++) out.push(ALPHA[i] + ALPHA[j]);
+    return out;
+  }
+
+  const CLICKABLE = 'a[href],button,input:not([type=hidden]),textarea,select,[role=button],[role=link],[role=tab],[role=menuitem],[onclick],[tabindex]:not([tabindex="-1"]),summary,label[for]';
+
+  function collect() {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const seen = new Set(), els = [];
+    document.querySelectorAll(CLICKABLE).forEach((el) => {
+      if (seen.has(el)) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) return;
+      if (r.bottom < 0 || r.right < 0 || r.top > vh || r.left > vw) return;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0') return;
+      if (el.disabled) return;
+      seen.add(el); els.push({ el, r });
+    });
+    return els;
+  }
+
+  function start(newTab) {
+    if (active || !enabled()) return;
+    const els = collect();
+    if (!els.length) return;
+    active = true; typed = ''; openInNewTab = !!newTab;
+    const labels = labelsFor(els.length);
+    overlay = document.createElement('div');
+    overlay.setAttribute('data-vex-linkhints', '1');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none';
+    hints = els.map((e, i) => {
+      const tag = document.createElement('span');
+      tag.textContent = labels[i].toUpperCase();
+      tag.style.cssText = 'position:fixed;font:700 11px/1.4 system-ui,sans-serif;color:#1a1a00;background:linear-gradient(#ffe14d,#ffc400);border:1px solid #b38b00;border-radius:4px;padding:0 4px;box-shadow:0 2px 5px rgba(0,0,0,.4);transform:translate(-2px,-2px)';
+      tag.style.left = Math.max(0, e.r.left) + 'px';
+      tag.style.top = Math.max(0, e.r.top) + 'px';
+      overlay.appendChild(tag);
+      return { label: labels[i], el: e.el, tag };
+    });
+    document.documentElement.appendChild(overlay);
+  }
+
+  function stop() {
+    active = false; typed = '';
+    if (overlay) { try { overlay.remove(); } catch (_) {} overlay = null; }
+    hints = [];
+  }
+
+  function activate(el) {
+    stop();
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) {
+      try { el.focus(); } catch (_) {}
+      return;
+    }
+    if (openInNewTab && tag === 'A' && el.href) {
+      // A real click with ctrl emulated → Vex's new-window handler makes a tab.
+      try {
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true, metaKey: true }));
+        return;
+      } catch (_) {}
+    }
+    try { el.click(); } catch (_) { try { el.focus(); } catch (__) {} }
+  }
+
+  function refilter() {
+    let matches = 0, exact = null;
+    hints.forEach((h) => {
+      const on = h.label.startsWith(typed);
+      h.tag.style.display = on ? '' : 'none';
+      if (on) { matches++; if (h.label === typed) exact = h; }
+    });
+    if (exact) { activate(exact.el); return; }
+    if (matches === 0) stop();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (!enabled()) return;
+    if (active) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); stop(); return; }
+      if (e.key === 'Backspace') { e.preventDefault(); e.stopImmediatePropagation(); typed = typed.slice(0, -1); refilter(); return; }
+      const k = (e.key || '').toLowerCase();
+      if (k.length === 1 && ALPHA.includes(k)) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        typed += k; refilter();
+      } else if (e.key !== 'Shift') { stop(); }
+      return;
+    }
+    // Trigger: bare `f` (or Shift+f → open links in a new tab), never in a field.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (isEditable(document.activeElement)) return;
+    if ((e.key === 'f' || e.key === 'F')) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      start(e.shiftKey);
+    }
+  }, true);
+
+  window.addEventListener('scroll', () => { if (active) stop(); }, true);
+  window.addEventListener('resize', () => { if (active) stop(); }, true);
+  window.addEventListener('blur', () => { if (active) stop(); });
 })();
 
 // Export the pure origin matcher for unit tests (renderer loads this file as a

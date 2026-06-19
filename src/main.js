@@ -144,6 +144,15 @@ function privacyLoad() {
 }
 function privacySave() { try { require('fs').writeFileSync(PRIVACY_FILE(), JSON.stringify(privacyCfg)); } catch {} }
 const PRIVACY_FILE = () => path.join(app.getPath('userData'), 'privacy.json');
+
+// Remembered geometry + on-top pref for the Discord stream pop-out (PiP-style).
+const POPOUT_STATE_FILE = () => path.join(app.getPath('userData'), 'popout-state.json');
+function readPopoutState() {
+  try { return JSON.parse(fs.readFileSync(POPOUT_STATE_FILE(), 'utf8')) || {}; } catch { return {}; }
+}
+function writePopoutState(state) {
+  try { fs.writeFileSync(POPOUT_STATE_FILE(), JSON.stringify(state || {})); } catch { /* ignore */ }
+}
 function applyDoH() {
   try {
     if (privacyCfg.doh === 'off') { app.configureHostResolver({ secureDnsMode: 'off', secureDnsServers: [] }); return; }
@@ -884,11 +893,15 @@ function wireClientHintsOnSession(ses) {
   ses.__vexCHWired = true;
   ses.webRequest.onBeforeSendHeaders((details, callback) => {
     const h = details.requestHeaders || {};
+    // Per-session override (set for ephemeral "New Identity" sessions) keeps the
+    // brand hints consistent with that session's spoofed Chrome version; falls
+    // back to the global Chrome-124 identity for every normal session.
+    const ch = ses.__vexCH || null;
     for (const k of Object.keys(h)) {
       switch (k.toLowerCase()) {
-        case 'sec-ch-ua': h[k] = CH_UA; break;
-        case 'sec-ch-ua-full-version-list': h[k] = CH_UA_FULL; break;
-        case 'sec-ch-ua-full-version': h[k] = '"124.0.0.0"'; break;
+        case 'sec-ch-ua': h[k] = (ch && ch.ua) || CH_UA; break;
+        case 'sec-ch-ua-full-version-list': h[k] = (ch && ch.full) || CH_UA_FULL; break;
+        case 'sec-ch-ua-full-version': h[k] = (ch && ch.fullVer) || '"124.0.0.0"'; break;
         case 'sec-ch-ua-mobile': h[k] = '?0'; break;
         case 'sec-ch-ua-platform': h[k] = '"Windows"'; break;
       }
@@ -1382,6 +1395,10 @@ app.on('web-contents-created', (_event, contents) => {
   // handler returns, before any other popup can open). Marks a popup that should
   // get the Peek-style look: frameless, parented, centered over a dimmed Vex.
   let pendingPeekPopup = false;
+  // Set by the Discord pop-out branch just before it returns; read once in
+  // did-create-window so the new window can restore its remembered size/position
+  // and behave like a picture-in-picture stream window (always-on-top, toggle).
+  let pendingDiscordPopout = false;
 
   // Build overrideBrowserWindowOptions for an allowed popup, pinning it to the
   // opener tab's partition explicitly (the actual fix for container/OTR cases).
@@ -1480,6 +1497,63 @@ app.on('web-contents-created', (_event, contents) => {
         try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('oauth-popup:close'); } catch {}
       });
     }
+
+    // Discord stream / screen-share pop-out: make it behave like a real
+    // picture-in-picture window — restore its last size/position, float it on
+    // top by default (so you can watch a friend's screen while doing other
+    // things), and let Ctrl+Shift+P toggle the on-top pin. State persists in
+    // userData/popout-state.json so it opens where you left it next time.
+    const isDiscordPopout = pendingDiscordPopout;
+    pendingDiscordPopout = false;
+    if (isDiscordPopout) {
+      try {
+        const st = readPopoutState();
+        if (st.bounds && Number.isFinite(st.bounds.width) && Number.isFinite(st.bounds.height)) {
+          try { win.setBounds(st.bounds); } catch {}
+        }
+        // `onTop` is the user's pin PREFERENCE. We use the gentle 'floating'
+        // level (not 'screen-saver', which sits above fullscreen apps and traps
+        // Alt+Tab), and we DROP always-on-top entirely while the pop-out itself
+        // is fullscreen — an always-on-top fullscreen window blocks app
+        // switching. It's restored when leaving fullscreen.
+        let onTop = st.alwaysOnTop !== false; // default ON (PiP-like)
+        const applyOnTop = () => {
+          try { win.setAlwaysOnTop(onTop && !win.isFullScreen(), 'floating'); } catch {}
+        };
+        applyOnTop();
+
+        const persist = () => {
+          try {
+            if (win.isDestroyed()) return;
+            const cur = readPopoutState();
+            if (!win.isMinimized() && !win.isMaximized() && !win.isFullScreen()) cur.bounds = win.getBounds();
+            cur.alwaysOnTop = onTop; // store the preference, not the transient fullscreen state
+            writePopoutState(cur);
+          } catch { /* ignore */ }
+        };
+        let saveTimer = null;
+        const debouncedPersist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(persist, 400); };
+        win.on('resize', debouncedPersist);
+        win.on('move', debouncedPersist);
+        // Fullscreen ⇄ windowed: never keep on-top while fullscreen (Alt+Tab trap).
+        win.on('enter-full-screen', applyOnTop);
+        win.on('leave-full-screen', applyOnTop);
+
+        win.webContents.on('before-input-event', (_e, input) => {
+          if (input && input.type === 'keyDown' && input.control && input.shift &&
+              (input.key === 'P' || input.key === 'p')) {
+            onTop = !onTop;
+            applyOnTop();
+            persist();
+            try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', onTop ? 'Pop-out pinned on top' : 'Pop-out unpinned'); } catch {}
+          }
+        });
+
+        win.on('closed', () => { clearTimeout(saveTimer); });
+        // Let the renderer surface a one-line discoverability hint.
+        try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:discord-popout-open'); } catch {}
+      } catch (err) { console.error('[discord-popout] setup failed:', err.message); }
+    }
   });
 
   contents.setWindowOpenHandler((details) => {
@@ -1554,6 +1628,7 @@ app.on('web-contents-created', (_event, contents) => {
     try { openerUrl = contents.getURL() || ''; } catch { /* opener gone */ }
     if (disposition === 'new-window' && _mainHelpers.isDiscordHostUrl(openerUrl)) {
       console.log(`[new-window] Discord pop-out -> real resizable window -> ${url || '(blank)'}`);
+      pendingDiscordPopout = true;
       return { action: 'allow', overrideBrowserWindowOptions: popupOverrides() };
     }
     if (_mainHelpers.isScriptedHandbackPopup(disposition, features, frameName)) {
@@ -2870,6 +2945,58 @@ ipcMain.handle('downloads:show-in-folder', (_e, filePath) => {
 ipcMain.handle('downloads:open-folder', async () => {
   try { await shell.openPath(app.getPath('downloads')); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
+});
+
+// === New Identity tab ===
+// A throwaway, fully isolated session (in-memory partition → cookies/storage
+// vanish on close) with a consistent, randomly-picked Chrome identity. Unlike
+// the fixed containers (work/personal/shopping), each call is a brand-new jar,
+// so sites can't correlate it with any existing login. The UA + client-hints
+// are rotated together (same Chrome version) so the fingerprint stays coherent.
+const IDENTITY_VERSIONS = ['122', '123', '124', '125', '126'];
+function buildIdentity(v) {
+  return {
+    ua: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${v}.0.0.0 Safari/537.36`,
+    ch: {
+      ua: `"Chromium";v="${v}", "Google Chrome";v="${v}", "Not-A.Brand";v="99"`,
+      full: `"Chromium";v="${v}.0.0.0", "Google Chrome";v="${v}.0.0.0", "Not-A.Brand";v="99.0.0.0"`,
+      fullVer: `"${v}.0.0.0"`,
+    },
+  };
+}
+ipcMain.handle('identity:create', () => {
+  try {
+    const part = `vexid-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+    const ses = session.fromPartition(part); // no persist: → in-memory, wiped on close
+    const v = IDENTITY_VERSIONS[Math.floor(Math.random() * IDENTITY_VERSIONS.length)];
+    const idn = buildIdentity(v);
+    ses.__vexCH = idn.ch;
+    ses.setUserAgent(idn.ua);
+    wireClientHintsOnSession(ses);
+    wireDownloadsOnSession(ses, 'identity');
+    wirePermissionsOnSession(ses, 'identity');
+    try { wireDisplayMediaOnSession(ses); } catch {}
+    try { wireMediaSnifferOnSession(ses); } catch {}
+    // Header stripping + ad blocker, mirroring the private-window session.
+    ses.webRequest.onHeadersReceived((details, callback) => {
+      const rh = { ...details.responseHeaders };
+      delete rh['x-frame-options']; delete rh['X-Frame-Options']; delete rh['X-FRAME-OPTIONS'];
+      if (rh['content-security-policy']) rh['content-security-policy'] = rh['content-security-policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
+      if (rh['Content-Security-Policy']) rh['Content-Security-Policy'] = rh['Content-Security-Policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
+      callback({ responseHeaders: rh });
+    });
+    ses.webRequest.onBeforeRequest((details, callback) => {
+      const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
+      if (blocked) _recordTracker(details.url, details.webContentsId);
+      callback({ cancel: blocked });
+    });
+    try {
+      const preloadPath = path.join(__dirname, 'preload-webview.js');
+      const existing = ses.getPreloads ? ses.getPreloads() : [];
+      if (!existing.includes(preloadPath)) ses.setPreloads([...existing, preloadPath]);
+    } catch {}
+    return { ok: true, partition: part, label: `Chrome ${v}` };
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('open-private-window', () => {

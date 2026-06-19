@@ -38,6 +38,38 @@ const Recall = {
     try { return (await window.vex.recallSearch(q)) || []; } catch { return []; }
   },
 
+  // "Search by meaning" without an embedding model: ask the wired AI to expand
+  // the query into related terms/synonyms, run each through the same full-text
+  // index, then merge + rank (original-query hits weighted highest, then by how
+  // often a page surfaces across the expansions). No new dependency, works with
+  // whatever AI backend the user has (cloud or local Ollama/WebLLM).
+  async searchSmart(q) {
+    const base = await this.search(q);
+    if (typeof AIRouter === 'undefined' || typeof AIRouter.callAI !== 'function') return base;
+    let terms = [];
+    try {
+      const res = await AIRouter.callAI('chat', { message:
+        `I'm searching the full text of pages I've already read for: "${q}".\n` +
+        `List up to 6 alternative search queries — synonyms, related concepts, and specific terms — that would surface relevant pages. Return ONLY the queries, one per line, no numbering or commentary.` });
+      const out = String((res && (res.result || res.text || res.message)) || '');
+      terms = out.split('\n').map(s => s.replace(/^[-*\d.)\s]+/, '').trim())
+        .filter(s => s && s.length <= 60 && s.toLowerCase() !== q.toLowerCase()).slice(0, 6);
+    } catch { return base; }
+    if (!terms.length) return base;
+
+    const seen = new Map(); // url -> { hit, score }
+    const add = (hit, score) => {
+      if (!hit || !hit.url) return;
+      const cur = seen.get(hit.url);
+      if (cur) { cur.score += score; if (!cur.hit.snippet && hit.snippet) cur.hit.snippet = hit.snippet; }
+      else seen.set(hit.url, { hit, score });
+    };
+    base.forEach((h, i) => add(h, 100 - Math.min(i, 50)));
+    const lists = await Promise.all(terms.map(t => this.search(t)));
+    lists.forEach(list => list.forEach((h, i) => add(h, 10 - Math.min(i, 9))));
+    return [...seen.values()].sort((a, b) => b.score - a.score).map(v => v.hit);
+  },
+
   renderPanel(container) {
     if (!container) return;
     const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
@@ -45,17 +77,21 @@ const Recall = {
       <div style="padding:0 12px 8px">
         <input id="recall-q" type="text" placeholder="Search everything you've read…" spellcheck="false" autocomplete="off"
           style="width:100%;box-sizing:border-box;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;outline:none;font-family:'Outfit',sans-serif">
-        <p class="setting-info muted" style="margin:7px 2px 0">Searches the full text of pages you've visited — find a page by what it <em>said</em>.</p>
+        <label style="display:flex;align-items:center;gap:6px;margin:8px 2px 0;font-size:11.5px;color:var(--text-muted);cursor:pointer;user-select:none">
+          <input type="checkbox" id="recall-smart" style="accent-color:var(--primary)">
+          <span>✨ Smart search <span style="opacity:.7">— find by meaning (AI expands your query · press Enter)</span></span>
+        </label>
       </div>
-      <div id="recall-results" style="padding:2px 10px 24px;overflow-y:auto;max-height:calc(100vh - 160px)"></div>`;
+      <div id="recall-results" style="padding:2px 10px 24px;overflow-y:auto;max-height:calc(100vh - 170px)"></div>`;
     const input = container.querySelector('#recall-q');
+    const smartChk = container.querySelector('#recall-smart');
     const out = container.querySelector('#recall-results');
     let timer = null;
-    const run = async () => {
+    const run = async (smart) => {
       const q = input.value.trim();
       if (!q) { out.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px">Type to search your reading history.</div>'; return; }
-      out.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px">Searching…</div>';
-      const hits = await this.search(q);
+      out.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px">' + (smart ? 'Thinking…' : 'Searching…') + '</div>';
+      const hits = smart ? await this.searchSmart(q) : await this.search(q);
       if (!hits.length) { out.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px">No pages matched “' + esc(q) + '”.</div>'; return; }
       out.innerHTML = '';
       hits.forEach(h => {
@@ -75,7 +111,17 @@ const Recall = {
         out.appendChild(r);
       });
     };
-    input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 180); });
+    // Instant full-text as you type (unless Smart is on — that runs on Enter to
+    // avoid an AI round-trip per keystroke).
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      if (smartChk.checked) return;
+      timer = setTimeout(() => run(false), 180);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); run(smartChk.checked); }
+    });
+    smartChk.addEventListener('change', () => { if (input.value.trim()) run(smartChk.checked); });
     setTimeout(() => input.focus(), 40);
   },
 

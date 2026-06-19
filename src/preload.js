@@ -78,6 +78,11 @@ contextBridge.exposeInMainWorld('vex', {
   onOAuthPopupClose: (cb) => ipcRenderer.on('oauth-popup:close', () => cb()),
   dismissOAuthPopup: () => ipcRenderer.send('oauth-popup:dismiss'),
 
+  // Generic main → renderer toast (e.g. Discord pop-out pin feedback).
+  onToast: (cb) => ipcRenderer.on('vex:toast', (_e, msg) => cb(msg)),
+  // Fires once when a Discord stream pop-out window opens (discoverability hint).
+  onDiscordPopoutOpen: (cb) => ipcRenderer.on('vex:discord-popout-open', () => cb()),
+
   // RSS feeds (fetched in main to dodge CORS)
   rssFetch: (url) => ipcRenderer.invoke('rss:fetch', url),
 
@@ -167,6 +172,8 @@ contextBridge.exposeInMainWorld('vex', {
   isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
   onFullscreenChanged: (callback) => ipcRenderer.on('fullscreen-changed', (_, state) => callback(state)),
   openPrivateWindow: () => ipcRenderer.invoke('open-private-window'),
+  // New Identity: a throwaway isolated session (random consistent Chrome UA).
+  createIdentity: () => ipcRenderer.invoke('identity:create'),
   onToggleMuteTab: (callback) => ipcRenderer.on('toggle-mute-tab', callback),
 
   // Tabs sidebar toggle

@@ -30,7 +30,18 @@ const CommandBar = {
     { id: 'speedread', label: 'Speed Read (RSVP)', hint: 'Flash this article one word at a time at your chosen WPM', icon: '⏩', action: () => { if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.rsvp(); } },
     { id: 'translate-selection', label: 'Translate Selection', hint: 'Translate the highlighted text into your language', icon: '🌐', action: () => { if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.translateSelection(); } },
     { id: 'tabai', label: 'AI Tab Command', hint: 'Tell AI what to do with your tabs — "close all YouTube tabs", "group my shopping tabs"', icon: '🗂', action: () => TabAI.open() },
+    { id: 'wsnap', label: 'Workspace Time-Travel', hint: 'Restore a past set of open tabs for this workspace', icon: '🕰️', action: () => { if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.open(); } },
+    { id: 'catchup', label: 'Catch Me Up', hint: 'AI digest of your RSS feeds + unread Read Later', icon: '☕', action: () => { if (typeof CatchMeUp !== 'undefined') CatchMeUp.open(); } },
     { id: 'otr', label: 'New Off-the-Record Tab', hint: 'Ephemeral tab: no history, cookies vanish when closed', icon: '🕶', action: () => TabManager.createTab(START_URL, true, null, { partition: 'otr-' + Date.now() }) },
+    { id: 'identity', label: 'New Identity Tab', hint: 'Fresh isolated session + a new browser fingerprint — no carry-over from your logins', icon: '🎭', action: async () => {
+      try {
+        const r = await window.vex?.createIdentity?.();
+        if (r && r.ok && r.partition) {
+          TabManager.createTab(START_URL, true, null, { partition: r.partition });
+          window.showToast?.(`New identity · ${r.label || 'fresh session'}`);
+        } else { window.showToast?.('Could not create identity', 'error'); }
+      } catch { window.showToast?.('Could not create identity', 'error'); }
+    } },
     { id: 'qr', label: 'QR Code for This Page', hint: 'Show a QR code to open this page on your phone', icon: '📱', action: async () => {
       const t = TabManager.getActiveTab();
       if (!t || !t.url) { window.showToast?.('Open a page first'); return; }

@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.27.21 (2026-06-19) — Feature drop: inline AI edits, link hints, smart recall & more
+
+### Added
+- **Inline AI text edits** — select text in any editable field and the selection bar now offers **✍️ Rewrite / ✓ Fix / ✂️ Shorten**, which transform the text and write it back in place (read-only Explain/Summarize/Translate still there for any selection).
+- **Keyboard link hints** — press **`f`** on a page to overlay letter labels on every link/button; type the label to click. **Shift+F** opens a link in a new tab, **Esc** cancels. Toggle with the `vex.linkHints` setting (default on).
+- **New Identity tab** (command bar) — opens a throwaway, fully isolated session (cookies/storage vanish on close) with a freshly rotated, self-consistent Chrome fingerprint. Unlike the fixed containers, sites can't correlate it with your logins.
+- **Smart Recall** — the Recall panel has a **✨ Smart search** toggle: the AI expands your natural-language query into related terms and merges the full-text results, so you can find a page by *meaning*. (Press Enter to run; no new dependency.)
+- **Catch Me Up** (command bar) — an AI digest of your newest RSS items + unread Read Later, with the source articles listed to open directly.
+- **Workspace Time-Travel** (command bar) — auto-snapshots each workspace's open tabs every 10 minutes (and on demand); restore any past tab set non-destructively as new tabs.
+
+### Changed
+- **Auto-reject cookie banners** — the consent blocker now actively clicks "Reject all" across the major CMPs (OneTrust, Cookiebot, Didomi, Usercentrics, Quantcast, Google FC…) instead of only hiding the banner, so the opt-out is actually recorded.
+
+### Fixed
+- **Discord stream pop-out** — now remembers its size/position and floats picture-in-picture style (**Ctrl+Shift+P** toggles the on-top pin). Crucially, always-on-top is **automatically dropped while the pop-out is fullscreen**, so **Alt+Tab works** (the earlier pin level trapped app-switching).
+
 ## v2.27.20 (2026-06-19) — Discord panel: no freeze on return + working stream pop-out
 
 ### Fixed

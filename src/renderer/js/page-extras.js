@@ -68,13 +68,37 @@ const ConsentBlock = {
     // after dom-ready. The hide rule is safe everywhere — the selectors are
     // specific CMP/cookie-banner IDs that don't match ordinary markup.
     const unlockCss = 'html,body{overflow:auto!important;position:static!important}';
+    // Known "reject all" buttons across the major CMPs, plus a scoped text match
+    // inside consent containers — so we record a real opt-out (banner stays gone
+    // next visit) instead of only hiding it. Text matching is confined to the
+    // consent containers above so we never click a stray "reject" elsewhere.
+    const rejectIds = JSON.stringify([
+      '#onetrust-reject-all-handler', '.ot-pc-refuse-all-handler',
+      '#CybotCookiebotDialogBodyButtonDecline', '#CybotCookiebotDialogBodyLevelButtonLevelOptinDeclineAll',
+      '#didomi-notice-disagree-button', '.didomi-continue-without-agreeing',
+      'button[mode="primary"].qc-cmp2-summary-button', '[data-testid="uc-deny-all-button"]',
+      '.fc-cta-do-not-consent', '.fc-button.fc-cta-do-not-consent',
+      '[data-testid="reject-all"]', '[aria-label="Reject all"]', '[title="Reject all"]',
+    ]);
     const js = `(function(){try{
       var sel=${JSON.stringify(sel)};
+      var REJECT_IDS=${rejectIds};
+      var RX=/(^\\s*(reject|decline|refuse|deny|disagree)\\b)|reject all|decline all|only necessary|necessary only|essential( cookies)? only|continue without accepting|do not (sell|share|accept)/i;
+      var clicked=false;
+      function vis(el){if(!el)return false;var r=el.getBoundingClientRect();if(r.width<2||r.height<2)return false;var cs=getComputedStyle(el);return cs.visibility!=='hidden'&&cs.display!=='none';}
+      function tryReject(){
+        if(clicked)return true;
+        for(var i=0;i<REJECT_IDS.length;i++){var b=document.querySelector(REJECT_IDS[i]);if(b&&vis(b)){try{b.click();clicked=true;return true;}catch(e){}}}
+        var cs=document.querySelectorAll(sel);
+        for(var c=0;c<cs.length;c++){var bs=cs[c].querySelectorAll('button,a,[role=button],input[type=button],input[type=submit]');
+          for(var j=0;j<bs.length;j++){var t=(bs[j].textContent||bs[j].value||'').trim();if(t&&t.length<40&&RX.test(t)&&vis(bs[j])){try{bs[j].click();clicked=true;return true;}catch(e){}}}}
+        return false;
+      }
       var id='vex-consent-style';
       function ensure(){var el=document.getElementById(id);if(!el){el=document.createElement('style');el.id=id;document.documentElement.appendChild(el);}return el;}
-      function paint(){var has=!!document.querySelector(sel);ensure().textContent=${JSON.stringify(hideCss)}+(has?${JSON.stringify(unlockCss)}:'');return has;}
+      function paint(){var has=!!document.querySelector(sel);if(has)tryReject();ensure().textContent=${JSON.stringify(hideCss)}+(has?${JSON.stringify(unlockCss)}:'');return has;}
       if(!paint() && typeof MutationObserver==='function'){
-        var n=0;var mo=new MutationObserver(function(){if(paint()||++n>40)mo.disconnect();});
+        var n=0;var mo=new MutationObserver(function(){if((paint()&&clicked)||++n>40)mo.disconnect();});
         try{mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
         setTimeout(function(){try{mo.disconnect();}catch(e){}},10000);
       }

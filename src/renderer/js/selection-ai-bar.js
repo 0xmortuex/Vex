@@ -17,13 +17,17 @@ const SelectionAIBar = {
   _styled: false,
   _globalsWired: false,
 
+  _webview: null,
+  _editable: false,
+  _busy: false,
+
   attach(webview) {
     webview.addEventListener('ipc-message', (e) => {
       if (e.channel === 'vex-selection') {
         const d = e.args && e.args[0];
-        if (d && d.text) this._show(webview, d.text, d.rect);
+        if (d && d.text) this._show(webview, d.text, d.rect, !!d.editable);
       } else if (e.channel === 'vex-selection-clear') {
-        this.hide();
+        if (!this._busy) this.hide();
       }
     });
     this._wireGlobals();
@@ -65,6 +69,8 @@ const SelectionAIBar = {
         white-space: nowrap;
       }
       #vex-selection-ai button:hover { background: var(--primary, #6366f1); color: #fff; }
+      #vex-selection-ai button:disabled { cursor: default; }
+      #vex-selection-ai .vex-sel-div { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--border, #1f2530); }
     `;
     document.head.appendChild(s);
   },
@@ -77,7 +83,11 @@ const SelectionAIBar = {
     el.innerHTML = `
       <button data-act="explain">✨ Explain</button>
       <button data-act="summarize">📝 Summarize</button>
-      <button data-act="translate">🌐 Translate</button>`;
+      <button data-act="translate">🌐 Translate</button>
+      <span class="vex-sel-div" data-edit></span>
+      <button data-act="rewrite" data-edit>✍️ Rewrite</button>
+      <button data-act="fix" data-edit>✓ Fix</button>
+      <button data-act="shorten" data-edit>✂️ Shorten</button>`;
     // Don't let clicks on the bar count as an "outside" dismiss.
     el.addEventListener('mousedown', (e) => e.stopPropagation(), true);
     el.querySelectorAll('button').forEach(b =>
@@ -86,9 +96,16 @@ const SelectionAIBar = {
     this._el = el;
   },
 
-  _show(webview, text, rect) {
+  _show(webview, text, rect, editable) {
     this._text = text;
+    this._webview = webview;
+    this._editable = !!editable;
+    this._busy = false;
     this._build();
+    // In-place edit actions (Rewrite/Fix/Shorten) only make sense when the
+    // selection sits in an editable field we can write back into.
+    this._el.querySelectorAll('[data-edit]').forEach(n => { n.style.display = editable ? '' : 'none'; });
+    this._el.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
     // Guest-viewport coords → host window coords via the webview's position.
     let host = { left: 0, top: 0 };
     try { host = webview.getBoundingClientRect(); } catch {}
@@ -110,10 +127,23 @@ const SelectionAIBar = {
     });
   },
 
+  // In-place edit prompts — each returns ONLY the transformed text.
+  _EDIT_PROMPTS: {
+    rewrite: 'Rewrite the following text to be clearer and read more naturally. Keep the original language and meaning. Return ONLY the rewritten text with no quotes, labels, or commentary:\n\n',
+    fix: 'Correct the spelling, grammar, and punctuation in the following text. Keep the wording and language otherwise unchanged. Return ONLY the corrected text with no quotes or commentary:\n\n',
+    shorten: 'Make the following text more concise while preserving its meaning and language. Return ONLY the shortened text with no quotes or commentary:\n\n',
+  },
+
   _run(act) {
     const text = this._text;
+    if (!text) return;
+
+    // In-place edits: transform with the AI and write the result back into the
+    // field via the guest preload (vex-replace-selection).
+    if (this._EDIT_PROMPTS[act]) { this._runEdit(act, text); return; }
+
     this.hide();
-    if (!text || typeof AIPanel === 'undefined') return;
+    if (typeof AIPanel === 'undefined') return;
     AIPanel.open();
     if (act === 'explain') AIPanel.sendMessage('explain', { selectedText: text });
     else if (act === 'translate') AIPanel.sendMessage('translate', { selectedText: text, targetLanguage: 'English' });
@@ -123,6 +153,38 @@ const SelectionAIBar = {
       // chat (free-form reply) so a selection summary always renders.
       AIPanel.sendMessage('chat', { message: `Summarize the following text clearly and concisely:\n\n"""${text}"""` });
     }
+  },
+
+  async _runEdit(act, text) {
+    if (this._busy) return;
+    if (typeof AIRouter === 'undefined' || typeof AIRouter.callAI !== 'function') {
+      window.showToast?.('AI not available', 'error'); this.hide(); return;
+    }
+    const wv = this._webview;
+    this._busy = true;
+    this._setBusy(true);
+    try {
+      const res = await AIRouter.callAI('chat', { message: this._EDIT_PROMPTS[act] + '"""' + text + '"""' });
+      let out = (res && (res.result || res.text || res.message)) || '';
+      out = String(out).trim()
+        .replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '')
+        .replace(/^["'""]+|["'""]+$/g, '')
+        .trim();
+      if (!out) { window.showToast?.('AI returned nothing', 'error'); return; }
+      try { wv?.send('vex-replace-selection', { text: out }); } catch {}
+      window.showToast?.(act === 'fix' ? 'Fixed' : act === 'shorten' ? 'Shortened' : 'Rewritten');
+    } catch (err) {
+      console.error('[SelectionAIBar] edit failed:', err);
+      window.showToast?.('AI edit failed', 'error');
+    } finally {
+      this._busy = false;
+      this.hide();
+    }
+  },
+
+  _setBusy(on) {
+    if (!this._el) return;
+    this._el.querySelectorAll('button').forEach(b => { b.disabled = on; b.style.opacity = on ? '0.5' : ''; });
   },
 
   hide() { if (this._el) this._el.style.display = 'none'; },
