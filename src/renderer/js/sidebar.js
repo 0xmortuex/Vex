@@ -443,6 +443,8 @@ const SidebarManager = {
         }
         panelEl.appendChild(wv);
         this.panelWebviews[panelName] = wv;
+        // Discord (web) lacks the desktop app's back/forward — add a slim nav bar.
+        if (panelName === 'discord') this._addDiscordNav(panelEl, wv);
       }
     }
 
@@ -786,6 +788,54 @@ const SidebarManager = {
       .dbo-btn.ghost{border-color:transparent;color:var(--text-muted,#9a9aa5);}
     `;
     document.head.appendChild(st);
+  },
+
+  // Slim back/forward/reload bar for the Discord panel (web Discord has no
+  // history buttons, and the panel isn't a tab so the main toolbar can't drive
+  // it). Themed via --vex-* tokens so it matches Classic and Glass.
+  _injectPanelNavStyles() {
+    if (document.getElementById('panel-nav-styles')) return;
+    const st = document.createElement('style');
+    st.id = 'panel-nav-styles';
+    st.textContent = `
+      .panel.has-panel-nav { display:flex; flex-direction:column; }
+      .panel.has-panel-nav > webview { flex:1 1 auto; height:auto !important; width:100% !important; }
+      .panel-navbar { display:flex; align-items:center; gap:6px; padding:5px 8px; flex-shrink:0;
+        border-bottom:1px solid var(--vex-border-subtle, rgba(255,255,255,0.1));
+        background:var(--vex-glass-medium, rgba(15,15,22,0.55));
+        -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+      .panel-navbar .pnav-btn { width:30px; height:26px; border-radius:7px;
+        border:1px solid var(--vex-border-subtle, rgba(255,255,255,0.12));
+        background:var(--vex-glass-light, rgba(255,255,255,0.06));
+        color:var(--vex-text-primary, #e9e9ee); cursor:pointer; font-size:16px; line-height:1;
+        display:grid; place-items:center; padding:0; }
+      .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-glass-strong, rgba(255,255,255,0.14)); }
+      .panel-navbar .pnav-btn:disabled { opacity:0.3; cursor:default; }
+    `;
+    document.head.appendChild(st);
+  },
+
+  _addDiscordNav(panelEl, wv) {
+    if (!panelEl || !wv || panelEl.querySelector(':scope > .panel-navbar')) return;
+    this._injectPanelNavStyles();
+    panelEl.classList.add('has-panel-nav');
+    const nav = document.createElement('div');
+    nav.className = 'panel-navbar';
+    nav.innerHTML = '<button class="pnav-btn pnav-back" title="Back">‹</button>'
+      + '<button class="pnav-btn pnav-fwd" title="Forward">›</button>'
+      + '<button class="pnav-btn pnav-reload" title="Reload">⟳</button>';
+    const back = nav.querySelector('.pnav-back');
+    const fwd = nav.querySelector('.pnav-fwd');
+    const reload = nav.querySelector('.pnav-reload');
+    back.addEventListener('click', () => { try { if (wv.canGoBack()) wv.goBack(); } catch {} });
+    fwd.addEventListener('click', () => { try { if (wv.canGoForward()) wv.goForward(); } catch {} });
+    reload.addEventListener('click', () => { try { wv.reload(); } catch {} });
+    const upd = () => { try { back.disabled = !wv.canGoBack(); fwd.disabled = !wv.canGoForward(); } catch {} };
+    wv.addEventListener('did-navigate', upd);
+    wv.addEventListener('did-navigate-in-page', upd);
+    wv.addEventListener('dom-ready', upd);
+    panelEl.insertBefore(nav, panelEl.firstChild);
+    upd();
   },
 
   showContextMenu(e, panelName) {

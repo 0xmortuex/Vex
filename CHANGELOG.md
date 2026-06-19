@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.27.17 (2026-06-19) — Discord login in tabs + panel back/forward
+
+### Added
+- **Discord works in normal tabs through the bypass** — when the Discord bypass is on, `discord.com` / `discord.gg` / `discordapp.com` now route through it in regular tabs too (via a PAC script; everything else stays direct). Fixes the **OAuth "Login with Discord" authorize page** and "Open in Discord" links hanging on censored networks. (TCP only — voice still needs Zapret.)
+- **Back / forward / reload bar on the Discord panel** — web Discord lacks the desktop app's history buttons, so the panel now has a slim nav bar (themed for Classic + Glass).
+
 ## v2.27.16 (2026-06-18) — "What's New" closes when you open the release
 
 ### Fixed

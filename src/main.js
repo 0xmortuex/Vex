@@ -1937,9 +1937,31 @@ function createWindow() {
   //              desync presets (preset index) for per-ISP tuning.
   const _byedpi = require('./byedpi.js');
   let _dpiBypassPort = 0; // light (JS) proxy port
+  // Route Discord domains through the bypass on the NORMAL browsing sessions too,
+  // so the OAuth authorize page + discord.com links work in regular Vex tabs —
+  // not just the Discord sidebar panel. A PAC script sends ONLY discord.* through
+  // ByeDPI (everything else stays direct). TCP only — voice UDP still needs Zapret.
+  const _BROWSING_SESSIONS = ['persist:main', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping'];
+  function _routeBrowsingDiscord(port) {
+    let cfg = { mode: 'direct' };
+    if (port) {
+      const pac = "function FindProxyForURL(u,h){if("
+        + "shExpMatch(h,'discord.com')||shExpMatch(h,'*.discord.com')||"
+        + "shExpMatch(h,'discordapp.com')||shExpMatch(h,'*.discordapp.com')||"
+        + "shExpMatch(h,'discord.gg')||shExpMatch(h,'*.discord.gg')||"
+        + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + port + "';return 'DIRECT';}";
+      cfg = { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
+    }
+    for (const p of _BROWSING_SESSIONS) { try { session.fromPartition(p).setProxy(cfg); } catch {} }
+    try { session.defaultSession.setProxy(cfg); } catch {}
+  }
   const _setDiscordProxy = (rules) => {
     try { session.fromPartition('persist:discord').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
     catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
+    // Mirror Discord-domain routing onto normal tabs when (and only when) the
+    // panel is going through ByeDPI's SOCKS proxy.
+    const m = rules && /socks5?:\/\/127\.0\.0\.1:(\d+)/.exec(String(rules));
+    _routeBrowsingDiscord(m ? parseInt(m[1], 10) : 0);
   };
   // One request through the Discord session's current proxy. Any HTTP response =
   // the handshake completed (block beaten); a connection error = blocked.
