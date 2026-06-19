@@ -798,18 +798,16 @@ const SidebarManager = {
     const st = document.createElement('style');
     st.id = 'panel-nav-styles';
     st.textContent = `
-      .panel.has-panel-nav { display:flex; flex-direction:column; }
-      .panel.has-panel-nav > webview { flex:1 1 auto; height:auto !important; width:100% !important; }
-      .panel-navbar { display:flex; align-items:center; gap:6px; padding:5px 8px; flex-shrink:0;
-        border-bottom:1px solid var(--vex-border-subtle, rgba(255,255,255,0.1));
-        background:var(--vex-glass-medium, rgba(15,15,22,0.55));
-        -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
-      .panel-navbar .pnav-btn { width:30px; height:26px; border-radius:7px;
-        border:1px solid var(--vex-border-subtle, rgba(255,255,255,0.12));
-        background:var(--vex-glass-light, rgba(255,255,255,0.06));
-        color:var(--vex-text-primary, #e9e9ee); cursor:pointer; font-size:16px; line-height:1;
-        display:grid; place-items:center; padding:0; }
-      .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-glass-strong, rgba(255,255,255,0.14)); }
+      .panel-navbar { position:absolute; top:7px; left:7px; z-index:30; display:flex; gap:4px;
+        opacity:0.5; transition:opacity .15s; }
+      .panel-navbar:hover { opacity:1; }
+      .panel-navbar .pnav-btn { width:26px; height:24px; border-radius:7px;
+        border:1px solid var(--vex-border-subtle, rgba(255,255,255,0.16));
+        background:var(--vex-glass-strong, rgba(20,20,28,0.72));
+        color:var(--vex-text-primary, #e9e9ee); cursor:pointer; font-size:15px; line-height:1;
+        display:grid; place-items:center; padding:0;
+        -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+      .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-accent, #6366f1); color:#fff; }
       .panel-navbar .pnav-btn:disabled { opacity:0.3; cursor:default; }
     `;
     document.head.appendChild(st);
@@ -818,7 +816,9 @@ const SidebarManager = {
   _addDiscordNav(panelEl, wv) {
     if (!panelEl || !wv || panelEl.querySelector(':scope > .panel-navbar')) return;
     this._injectPanelNavStyles();
-    panelEl.classList.add('has-panel-nav');
+    // Float the controls OVER the panel (absolute) — never resize the webview, or
+    // it collapses (the panel's display is toggled inline by showPanel).
+    try { panelEl.style.position = 'relative'; } catch {}
     const nav = document.createElement('div');
     nav.className = 'panel-navbar';
     nav.innerHTML = '<button class="pnav-btn pnav-back" title="Back">‹</button>'

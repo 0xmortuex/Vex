@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.18 (2026-06-19) — Hotfix: Discord panel rendered blank
+
+### Fixed
+- **Discord panel showed only the top and went blank below** in v2.27.17 — the new back/forward bar restructured the panel into a flex column, but `showPanel` sets the panel's display inline, so the layout never applied and the webview collapsed. The nav buttons now **float over the panel** (the webview is never resized).
+
 ## v2.27.17 (2026-06-19) — Discord login in tabs + panel back/forward
 
 ### Added
