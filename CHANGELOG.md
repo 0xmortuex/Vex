@@ -1,9 +1,10 @@
 # Changelog
 
-## v2.27.20 (2026-06-19) — Discord panel no longer freezes on return
+## v2.27.20 (2026-06-19) — Discord panel: no freeze on return + working stream pop-out
 
 ### Fixed
 - **The Discord panel froze for a few seconds** when you closed it (clicked the Discord button again) or switched to another tab and came back. Hiding the panel sets the guest to `display:none`, and Electron's default background throttling let Chromium suspend the page — so on return the heavy Discord SPA had to reconnect its gateway and replay throttled timers before it could paint. The Discord panel's webview now runs with `backgroundThrottling=no`, so it stays live while hidden and re-shows instantly. (Scoped to Discord only; other panels keep default throttling to save battery.)
+- **Discord "Pop Out" (watching a friend's screen-share / stream) opened in a cramped preview** where **Full Screen did nothing** and **"Open as tab" loaded a blank tab**. The pop-out is a scripted `window.open` from Discord, so it was being dressed as the Peek auth-popup card (which forces `fullscreenable: false` and bolts on a stream-breaking "Open as tab" bar). Discord pop-outs now open as a **normal resizable, fullscreenable window** pinned to the Discord session — fullscreen works and the broken chrome bar is gone.
 
 ## v2.27.19 (2026-06-19) — "Prevent from sleeping" per tab
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isOAuthPopupUrl, isAuthHandlerPopupUrl, isOAuthShapedUrl, shouldKeepPopupReal, isScriptedHandbackPopup } from '../../src/main-helpers.js';
+import { isOAuthPopupUrl, isAuthHandlerPopupUrl, isOAuthShapedUrl, shouldKeepPopupReal, isScriptedHandbackPopup, isDiscordHostUrl } from '../../src/main-helpers.js';
 
 // Google/Microsoft/Apple identity endpoints run a POPUP-based OAuth
 // handshake — the popup postMessages the credential back to window.opener
@@ -240,6 +240,44 @@ describe('isScriptedHandbackPopup', () => {
     it('missing/empty disposition → false', () => {
       expect(isScriptedHandbackPopup('', 'width=500', 'x')).toBe(false);
       expect(isScriptedHandbackPopup(undefined, 'width=500', 'x')).toBe(false);
+    });
+  });
+});
+
+// Discord-opener detector. When a Discord page scripts a window.open (the
+// "Pop Out" stream/screen-share/voice window), setWindowOpenHandler keeps it a
+// real window but as a PLAIN resizable+fullscreenable one — not the Peek auth
+// card (which disabled Full Screen and added a stream-breaking "Open as tab").
+describe('isDiscordHostUrl', () => {
+  describe('Discord web hosts → true', () => {
+    it('discord.com app route (the opener while watching a stream)', () => {
+      expect(isDiscordHostUrl('https://discord.com/channels/123/456')).toBe(true);
+    });
+    it('bare discord.com', () => expect(isDiscordHostUrl('https://discord.com/app')).toBe(true));
+    it('ptb./canary. subdomains', () => {
+      expect(isDiscordHostUrl('https://ptb.discord.com/app')).toBe(true);
+      expect(isDiscordHostUrl('https://canary.discord.com/app')).toBe(true);
+    });
+    it('discordapp.com (legacy) + discordapp.net (media)', () => {
+      expect(isDiscordHostUrl('https://discordapp.com/app')).toBe(true);
+      expect(isDiscordHostUrl('https://cdn.discordapp.net/x')).toBe(true);
+    });
+    it('discord.gg invite host', () => expect(isDiscordHostUrl('https://discord.gg/abc')).toBe(true));
+  });
+
+  describe('non-Discord / spoofy / malformed → false', () => {
+    it('a deceptive suffix host (discord.com.evil.example)', () => {
+      expect(isDiscordHostUrl('https://discord.com.evil.example/app')).toBe(false);
+    });
+    it('a host that merely contains discord as a substring', () => {
+      expect(isDiscordHostUrl('https://notdiscord.com/app')).toBe(false);
+    });
+    it('a regular page', () => expect(isDiscordHostUrl('https://example.com/x')).toBe(false));
+    it('non-http(s) scheme', () => expect(isDiscordHostUrl('app://discord.com/x')).toBe(false));
+    it('empty / null / malformed', () => {
+      expect(isDiscordHostUrl('')).toBe(false);
+      expect(isDiscordHostUrl(null)).toBe(false);
+      expect(isDiscordHostUrl('not a url')).toBe(false);
     });
   });
 });

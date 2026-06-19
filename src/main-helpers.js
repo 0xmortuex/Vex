@@ -379,6 +379,27 @@ function isScriptedHandbackPopup(disposition, features, frameName) {
   return f.trim().length > 0 || named;
 }
 
+// Is this URL a Discord web host? Used to recognise Discord's own scripted
+// popups — the "Pop Out" stream / screen-share / voice / picture-in-picture
+// window. Those are real opener-connected windows (Discord renders the live
+// video into them), so they must stay real, but as NORMAL resizable +
+// fullscreenable windows — NOT the constrained Peek auth-popup chrome, which
+// disabled Full Screen and bolted on an "Open as tab" button that dead-ends on
+// a live stream URL. http/https only.
+function isDiscordHostUrl(url) {
+  if (typeof url !== 'string' || !url) return false;
+  let h;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    h = u.hostname.toLowerCase();
+  } catch { return false; }
+  return /(^|\.)discord\.com$/.test(h)
+      || /(^|\.)discordapp\.com$/.test(h)
+      || /(^|\.)discordapp\.net$/.test(h)
+      || /(^|\.)discord\.gg$/.test(h);
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
@@ -389,6 +410,7 @@ module.exports = {
   isOAuthShapedUrl,
   shouldKeepPopupReal,
   isScriptedHandbackPopup,
+  isDiscordHostUrl,
   normalizeLaunchArg,
   findLaunchUrl,
   createOpenUrlBuffer,

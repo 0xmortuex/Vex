@@ -1541,6 +1541,21 @@ app.on('web-contents-created', (_event, contents) => {
     // and pinned to the opener tab's partition. Bare shift+click (no features, no
     // name) is NOT matched and still falls through to Peek below. Proven by
     // scripts/verify-oauth-popup-partition.js (Scenario C — bounce-then-OAuth).
+    // Discord "Pop Out" (stream / screen-share / voice / picture-in-picture) is a
+    // scripted window.open from a Discord page. It IS a real opener-connected
+    // window — Discord paints the live video into it — so it must stay real, but
+    // as a NORMAL resizable + fullscreenable window. The generic scripted-popup
+    // branch below would dress it as the Peek auth card (fullscreenable:false +
+    // an "Open as tab" chrome bar), which is exactly why Full Screen did nothing
+    // and "Open as tab" dead-ended on a blank stream URL. Give it a plain window
+    // pinned to the opener's (persist:discord) partition instead. (about:blank
+    // popouts are already handled real-and-plain by the print/blank branch above.)
+    let openerUrl = '';
+    try { openerUrl = contents.getURL() || ''; } catch { /* opener gone */ }
+    if (disposition === 'new-window' && _mainHelpers.isDiscordHostUrl(openerUrl)) {
+      console.log(`[new-window] Discord pop-out -> real resizable window -> ${url || '(blank)'}`);
+      return { action: 'allow', overrideBrowserWindowOptions: popupOverrides() };
+    }
     if (_mainHelpers.isScriptedHandbackPopup(disposition, features, frameName)) {
       console.log(`[new-window] allowing scripted window.open popup (disp=${disposition} frame=${frameName || '-'}) -> ${url}`);
       pendingPeekPopup = true;
