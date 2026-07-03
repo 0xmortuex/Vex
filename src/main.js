@@ -1275,12 +1275,73 @@ function _removeExtBySlugPrefix(prefix) {
 // One-click Vencord: download the official chromium browser extension and load
 // it into the Discord panel session (persist:discord, included in EXT_PARTITIONS).
 ipcMain.handle('discord:install-vencord', async () => {
+  // Prefer a LOCAL build if one exists (Fadi's custom userplugins/plugins aren't
+  // in the official devbuild), so the familiar button never clobbers them with
+  // the upstream build. Falls back to the official download when there's no
+  // local build.
+  const localZip = _findLocalVencordZip();
+  if (localZip) {
+    try {
+      const buf = fs.readFileSync(localZip);
+      if (buf && buf.length >= 50000) {
+        try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: localZip })); } catch {}
+        _removeExtBySlugPrefix('vencord');
+        const r = await _installExtFromZipBuffer(buf, 'vencord');
+        if (r.ok) return { ...r, source: 'local:' + localZip };
+      }
+    } catch { /* fall back to official */ }
+  }
   const URL_VENCORD = 'https://github.com/Vendicated/Vencord/releases/download/devbuild/extension-chrome.zip';
   try {
     const buf = await _downloadBuffer(URL_VENCORD);
     if (!buf || buf.length < 50000) return { ok: false, error: 'download too small / failed' };
     _removeExtBySlugPrefix('vencord');
     return await _installExtFromZipBuffer(buf, 'vencord');
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || 'install failed' };
+  }
+});
+
+// Install Vencord from a LOCAL build (Fadi's src/userplugins + src/plugins),
+// so custom plugins that aren't in the official devbuild show up in the Discord
+// panel. Point it at the `extension-chrome.zip` produced by `pnpm buildWeb`
+// (dist/extension-chrome.zip). Autodetects the common checkout, remembers the
+// last-used path, and replaces the official Vencord (slug 'vencord').
+function _findLocalVencordZip(customPath) {
+  const tryResolve = (p) => {
+    try {
+      if (!p || !fs.existsSync(p)) return null;
+      if (fs.statSync(p).isDirectory()) {
+        for (const sub of ['dist/extension-chrome.zip', 'extension-chrome.zip']) {
+          const q = path.join(p, sub);
+          if (fs.existsSync(q)) return q;
+        }
+        return null;
+      }
+      return /\.zip$/i.test(p) ? p : null;
+    } catch { return null; }
+  };
+  const cands = [];
+  if (customPath) cands.push(customPath);
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(userDataPath, 'vencord-local.json'), 'utf8'));
+    if (cfg && cfg.path) cands.push(cfg.path);
+  } catch {}
+  cands.push('C:\\vencord-dev\\dist\\extension-chrome.zip');
+  cands.push('C:\\vencord-dev');
+  for (const c of cands) { const r = tryResolve(c); if (r) return r; }
+  return null;
+}
+ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
+  try {
+    const zipPath = _findLocalVencordZip(customPath);
+    if (!zipPath) return { ok: false, error: 'No local Vencord build found. Build it first: cd vencord-dev && pnpm buildWeb' };
+    const buf = fs.readFileSync(zipPath);
+    if (!buf || buf.length < 50000) return { ok: false, error: 'build zip too small / not a real build' };
+    try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
+    _removeExtBySlugPrefix('vencord');
+    const r = await _installExtFromZipBuffer(buf, 'vencord');
+    return r.ok ? { ...r, source: zipPath } : r;
   } catch (e) {
     return { ok: false, error: (e && e.message) || 'install failed' };
   }

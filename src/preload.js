@@ -105,6 +105,9 @@ contextBridge.exposeInMainWorld('vex', {
   setDiscordBypassMode: (mode, opts) => ipcRenderer.invoke('discord:set-bypass-mode', mode, opts),
   // One-click Vencord install into the Discord panel.
   installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
+  // Install a LOCAL Vencord build (your custom userplugins/plugins). Optional
+  // path points at the build's extension-chrome.zip or its repo/dist folder.
+  installVencordLocal: (path) => ipcRenderer.invoke('discord:install-vencord-local', path),
   // Auto-configure sweep progress: { phase:'testing'|'done', label, i, total, ok, via, preset }.
   onDiscordBypassProgress: (cb) => ipcRenderer.on('discord:bypass-progress', (_e, d) => cb(d)),
   // Screen-share source picker (Discord Go Live / Share Screen).

@@ -892,6 +892,24 @@ const SidebarManager = {
             } catch (e) { window.showToast?.('Vencord install failed', 'error'); }
           }
         });
+        // Install YOUR local Vencord build (custom userplugins that aren't in the
+        // official devbuild). Point Vex at the extension-chrome.zip from `pnpm buildWeb`.
+        items.push({
+          label: '🧩 Install my Vencord build (custom plugins)',
+          action: async () => {
+            window.showToast?.('Installing your Vencord build…');
+            try {
+              const r = await window.vex?.installVencordLocal?.();
+              if (r && r.ok) {
+                window.showToast?.(`Your Vencord ${r.version || ''} installed — reloading Discord`);
+                const wv = this.panelWebviews['discord'];
+                if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
+              } else {
+                window.showToast?.('Local Vencord install failed: ' + ((r && r.error) || 'unknown'), 'error');
+              }
+            } catch (e) { window.showToast?.('Local Vencord install failed', 'error'); }
+          }
+        });
         items.push({ separator: true });
         // Block bypass: a single "auto-configure" action that sweeps every method
         // and an off switch (for people running Zapret).
