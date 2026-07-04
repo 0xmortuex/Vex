@@ -1,5 +1,57 @@
 // === Preload script for webviews — video PiP + detection ===
 
+// Keep Discord (in the Vex panel) always "visible" to its own app logic.
+// The panel is display:none whenever you switch to another tab, which flips the
+// page's visibilityState to 'hidden'. Discord reacts by tearing down its gateway
+// WebSocket and, when it can't resume on return, does a full reload — the
+// "random disconnection → loading screen". backgroundThrottling keeps the
+// process alive, but only spoofing the Page Visibility API stops the
+// reconnect/reload. Scoped to Discord so other sites' visibility behaviour
+// (video auto-pause, etc.) is untouched. Injected into the page's MAIN world at
+// document-start — and because the preload runs before the parser creates
+// <html>, we wait for documentElement instead of a plain appendChild (which
+// would silently no-op when documentElement is still null).
+(function () {
+  'use strict';
+  try {
+    if (!/(^|\.)discord\.com$/i.test(location.hostname) &&
+        !/(^|\.)discordapp\.com$/i.test(location.hostname)) return;
+  } catch (e) { return; }
+  var code = '(function(){try{' +
+    'var vis=function(){return "visible";};' +
+    'Object.defineProperty(document,"visibilityState",{get:vis,configurable:true});' +
+    'Object.defineProperty(document,"webkitVisibilityState",{get:vis,configurable:true});' +
+    'Object.defineProperty(document,"hidden",{get:function(){return false;},configurable:true});' +
+    'Object.defineProperty(document,"webkitHidden",{get:function(){return false;},configurable:true});' +
+    'var block=function(e){e.stopImmediatePropagation();};' +
+    'window.addEventListener("visibilitychange",block,true);' +
+    'document.addEventListener("visibilitychange",block,true);' +
+    'window.addEventListener("webkitvisibilitychange",block,true);' +
+    'document.addEventListener("webkitvisibilitychange",block,true);' +
+    'try{Object.defineProperty(document,"hasFocus",{value:function(){return true;},configurable:true,writable:true});}catch(e){}' +
+    '}catch(e){}})();';
+  function injectVis() {
+    try {
+      var root = document.documentElement || document.head || document.body;
+      if (!root) return false;
+      var s = document.createElement('script');
+      s.textContent = code;
+      root.appendChild(s);
+      s.remove();
+      return true;
+    } catch (e) { return false; }
+  }
+  if (!injectVis()) {
+    try {
+      var obs = new MutationObserver(function () {
+        if (document.documentElement && injectVis()) obs.disconnect();
+      });
+      obs.observe(document, { childList: true, subtree: true });
+      document.addEventListener('readystatechange', injectVis, true);
+    } catch (e) { /* best-effort */ }
+  }
+})();
+
 (function () {
   'use strict';
 

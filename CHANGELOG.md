@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.22 (2026-07-04) — Discord panel: no more random reloads
+
+### Fixed
+- **The Discord panel randomly reconnected and dropped to the loading screen** when you switched to another tab and came back. Hiding the panel (`display:none`) flipped its Page Visibility to "hidden", so Discord tore down its gateway WebSocket and did a full reload when it couldn't resume. Vex now keeps the Discord guest reporting as always-visible (Page Visibility API spoofed, scoped to Discord only), so it stays connected across tab switches with no loading-screen flash.
+
 ## v2.27.21 (2026-06-19) — Feature drop: inline AI edits, link hints, smart recall & more
 
 ### Added
