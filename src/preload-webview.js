@@ -1,91 +1,65 @@
 // === Preload script for webviews — video PiP + detection ===
+//
+// Per-site main-world patches (Discord visibility spoof, HEVC mask, …) live in
+// src/site-tweaks.js, registered as its OWN preload next to this one: webview
+// preloads run sandboxed, where require() only resolves 'electron', so this
+// file cannot require the registry locally.
 
-// Keep Discord (in the Vex panel) always "visible" to its own app logic.
-// The panel is display:none whenever you switch to another tab, which flips the
-// page's visibilityState to 'hidden'. Discord reacts by tearing down its gateway
-// WebSocket and, when it can't resume on return, does a full reload — the
-// "random disconnection → loading screen". backgroundThrottling keeps the
-// process alive, but only spoofing the Page Visibility API stops the
-// reconnect/reload. Scoped to Discord so other sites' visibility behaviour
-// (video auto-pause, etc.) is untouched. Injected into the page's MAIN world at
-// document-start — and because the preload runs before the parser creates
-// <html>, we wait for documentElement instead of a plain appendChild (which
-// would silently no-op when documentElement is still null).
+// Surface media decode failures to the host. Two signals, both reported at
+// most once per element via sendToHost so the embedder (webview.js) can log
+// them against the tab:
+//   'vex-media-error'  — the element fired an error event (src/decode/network
+//                        failure; carries MediaError code + message).
+//   'vex-media-frozen' — the frozen-decode signature: currentTime advancing
+//                        with a video track present but zero new decoded
+//                        frames (exactly how the TikTok HEVC bug manifested —
+//                        audio fine, one keyframe, no error event at all).
 (function () {
   'use strict';
-  try {
-    if (!/(^|\.)discord\.com$/i.test(location.hostname) &&
-        !/(^|\.)discordapp\.com$/i.test(location.hostname)) return;
-  } catch (e) { return; }
-  var code = '(function(){try{' +
-    'var vis=function(){return "visible";};' +
-    'Object.defineProperty(document,"visibilityState",{get:vis,configurable:true});' +
-    'Object.defineProperty(document,"webkitVisibilityState",{get:vis,configurable:true});' +
-    'Object.defineProperty(document,"hidden",{get:function(){return false;},configurable:true});' +
-    'Object.defineProperty(document,"webkitHidden",{get:function(){return false;},configurable:true});' +
-    'var block=function(e){e.stopImmediatePropagation();};' +
-    'window.addEventListener("visibilitychange",block,true);' +
-    'document.addEventListener("visibilitychange",block,true);' +
-    'window.addEventListener("webkitvisibilitychange",block,true);' +
-    'document.addEventListener("webkitvisibilitychange",block,true);' +
-    'try{Object.defineProperty(document,"hasFocus",{value:function(){return true;},configurable:true,writable:true});}catch(e){}' +
-    '}catch(e){}})();';
-  function injectVis() {
+  var ipcRenderer;
+  try { ipcRenderer = require('electron').ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  var reported = new WeakSet();
+  function report(channel, el, extra) {
+    if (reported.has(el)) return;
+    reported.add(el);
     try {
-      var root = document.documentElement || document.head || document.body;
-      if (!root) return false;
-      var s = document.createElement('script');
-      s.textContent = code;
-      root.appendChild(s);
-      s.remove();
-      return true;
-    } catch (e) { return false; }
-  }
-  if (!injectVis()) {
-    try {
-      var obs = new MutationObserver(function () {
-        if (document.documentElement && injectVis()) obs.disconnect();
-      });
-      obs.observe(document, { childList: true, subtree: true });
-      document.addEventListener('readystatechange', injectVis, true);
+      ipcRenderer.sendToHost(channel, Object.assign({
+        src: String(el.currentSrc || el.src || '').slice(0, 300),
+        tag: el.tagName ? el.tagName.toLowerCase() : '?',
+      }, extra || {}));
     } catch (e) { /* best-effort */ }
   }
-})();
 
-// Hide HEVC/H.265 support from TikTok. Electron (castLabs 30.x) answers "yes"
-// to MediaSource.isTypeSupported/canPlayType for hvc1/hev1 because the
-// platform-HEVC path exists, so TikTok serves its bytevc1 (H.265) streams —
-// but the actual hardware decode fails, leaving one frozen keyframe while the
-// audio track plays on. Rejecting HEVC in the codec probes makes TikTok fall
-// back to H.264 (avc1), which decodes everywhere. Scoped to tiktok.com so
-// sites where HEVC playback works are untouched. Injected with
-// webFrame.executeJavaScript rather than a <script> element (the Discord
-// block's mechanism) because TikTok's CSP blocks inline scripts;
-// webFrame.executeJavaScript reaches the main world without being subject to
-// page CSP, and at preload time no page script has run yet.
-(function () {
-  'use strict';
-  try {
-    if (!/(^|\.)tiktok\.com$/i.test(location.hostname)) return;
-    var webFrame = require('electron').webFrame;
-    webFrame.executeJavaScript('(function(){try{' +
-      'var bad=/hev1|hvc1|hevc/i;' +
-      'if(window.MediaSource&&MediaSource.isTypeSupported){' +
-        'var mso=MediaSource.isTypeSupported.bind(MediaSource);' +
-        'MediaSource.isTypeSupported=function(t){return bad.test(String(t))?false:mso(t);};' +
-      '}' +
-      'var cpt=HTMLMediaElement.prototype.canPlayType;' +
-      'HTMLMediaElement.prototype.canPlayType=function(t){return bad.test(String(t))?"":cpt.call(this,t);};' +
-      'if(navigator.mediaCapabilities&&navigator.mediaCapabilities.decodingInfo){' +
-        'var di=navigator.mediaCapabilities.decodingInfo.bind(navigator.mediaCapabilities);' +
-        'navigator.mediaCapabilities.decodingInfo=function(cfg){' +
-          'try{if(cfg&&cfg.video&&bad.test(String(cfg.video.contentType)))' +
-            'return Promise.resolve({supported:false,smooth:false,powerEfficient:false,keySystemAccess:null});' +
-          '}catch(e){}' +
-          'return di(cfg);};' +
-      '}' +
-      '}catch(e){}})();').catch(function () { /* best-effort */ });
-  } catch (e) { /* best-effort */ }
+  // Resource/decode errors bubble as capture-phase 'error' events.
+  document.addEventListener('error', function (e) {
+    var el = e.target;
+    if (!el || !(el instanceof HTMLMediaElement) || !el.error) return;
+    report('vex-media-error', el, { code: el.error.code, message: String(el.error.message || '').slice(0, 200) });
+  }, true);
+
+  // Frozen-decode check: 4s after a video starts playing, playback time must
+  // have advanced but decoded frames must not have — one probe per element.
+  var probed = new WeakSet();
+  document.addEventListener('playing', function (e) {
+    var el = e.target;
+    if (!el || el.tagName !== 'VIDEO' || probed.has(el)) return;
+    probed.add(el);
+    var t0 = el.currentTime;
+    var f0 = 0;
+    try { f0 = el.getVideoPlaybackQuality().totalVideoFrames; } catch (err) { return; }
+    setTimeout(function () {
+      try {
+        if (el.paused || el.ended || !el.isConnected) return;
+        var advanced = el.currentTime - t0 > 2;
+        var frames = el.getVideoPlaybackQuality().totalVideoFrames - f0;
+        if (advanced && frames === 0 && el.videoWidth > 0) {
+          report('vex-media-frozen', el, { advancedSec: Math.round(el.currentTime - t0) });
+        }
+      } catch (err) { /* best-effort */ }
+    }, 4000);
+  }, true);
 })();
 
 (function () {

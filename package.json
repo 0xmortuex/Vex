@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@vitest/ui": "^4.1.5",
-    "electron": "github:castlabs/electron-releases#v30.5.1+wvcus",
+    "electron": "github:castlabs/electron-releases#v42.5.2+wvcus",
     "electron-builder": "^24.0.0",
     "electron-icon-builder": "^2.0.1",
     "jsdom": "^29.1.1",

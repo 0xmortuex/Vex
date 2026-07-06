@@ -67,6 +67,19 @@ const _peekChromeByWc = new Map();
 // whether protected playback (Spotify/Netflix) is actually enabled.
 let _widevineStatus = 'unknown';
 
+// Both guest-page preloads. site-tweaks.js is a separate preload (not required
+// from preload-webview.js) because webview preloads run sandboxed, where
+// require() only resolves 'electron' — a local require never loads.
+const GUEST_PRELOADS = [
+  path.join(__dirname, 'preload-webview.js'),
+  path.join(__dirname, 'site-tweaks.js'),
+];
+function attachGuestPreloads(ses) {
+  const existing = ses.getPreloads ? ses.getPreloads() : [];
+  const missing = GUEST_PRELOADS.filter(p => !existing.includes(p));
+  if (missing.length) ses.setPreloads([...existing, ...missing]);
+}
+
 // Initialize the castLabs Widevine CDM "component". First run downloads it from
 // Google's component server (a few seconds), cached afterwards. Made robust:
 //   - fire-and-forget (never blocks window creation — playback happens later);
@@ -2350,10 +2363,9 @@ function createWindow() {
   wireDisplayMediaOnSession(session.fromPartition('persist:main'));
   partitions.forEach(p => wireDisplayMediaOnSession(session.fromPartition(p)));
 
-  // Webview preload (PiP helpers + geolocation IP fallback) — attach to every
-  // session so ALL pages get the polyfill. Use setPreloads so we don't clobber
-  // any existing preload set elsewhere.
-  const webviewPreload = path.join(__dirname, 'preload-webview.js');
+  // Webview preloads (PiP helpers + geolocation IP fallback, and the per-site
+  // main-world tweaks) — attach to every session so ALL pages get them. Use
+  // setPreloads so we don't clobber any existing preload set elsewhere.
   const sessions = [
     session.defaultSession,
     session.fromPartition('persist:main'),
@@ -2364,12 +2376,8 @@ function createWindow() {
     ...partitions.map(p => session.fromPartition(p))
   ];
   for (const ses of sessions) {
-    try {
-      const existing = ses.getPreloads ? ses.getPreloads() : [];
-      if (!existing.includes(webviewPreload)) {
-        ses.setPreloads([...existing, webviewPreload]);
-      }
-    } catch (err) { console.error('[Preload] attach failed:', err.message); }
+    try { attachGuestPreloads(ses); }
+    catch (err) { console.error('[Preload] attach failed:', err.message); }
   }
 
 
@@ -3056,11 +3064,7 @@ ipcMain.handle('identity:create', () => {
       if (blocked) _recordTracker(details.url, details.webContentsId);
       callback({ cancel: blocked });
     });
-    try {
-      const preloadPath = path.join(__dirname, 'preload-webview.js');
-      const existing = ses.getPreloads ? ses.getPreloads() : [];
-      if (!existing.includes(preloadPath)) ses.setPreloads([...existing, preloadPath]);
-    } catch {}
+    try { attachGuestPreloads(ses); } catch {}
     return { ok: true, partition: part, label: `Chrome ${v}` };
   } catch (err) { return { ok: false, error: err.message }; }
 });
@@ -3123,11 +3127,7 @@ ipcMain.handle('tor:create', async () => {
       if (blocked) _recordTracker(details.url, details.webContentsId);
       callback({ cancel: blocked });
     });
-    try {
-      const preloadPath = path.join(__dirname, 'preload-webview.js');
-      const existing = ses.getPreloads ? ses.getPreloads() : [];
-      if (!existing.includes(preloadPath)) ses.setPreloads([...existing, preloadPath]);
-    } catch {}
+    try { attachGuestPreloads(ses); } catch {}
     return { ok: true, partition: part, port };
   } catch (err) { return { ok: false, reason: 'error', error: err.message }; }
 });
@@ -3136,11 +3136,7 @@ ipcMain.handle('open-private-window', () => {
   const privSession = session.fromPartition(`private:${Date.now()}`);
   wireDownloadsOnSession(privSession, 'private');
   wirePermissionsOnSession(privSession, 'private');
-  try {
-    const preloadPath = path.join(__dirname, 'preload-webview.js');
-    const existing = privSession.getPreloads ? privSession.getPreloads() : [];
-    if (!existing.includes(preloadPath)) privSession.setPreloads([...existing, preloadPath]);
-  } catch {}
+  try { attachGuestPreloads(privSession); } catch {}
   // Apply header stripping + ad blocker to private session
   privSession.webRequest.onHeadersReceived((details, callback) => {
     const rh = { ...details.responseHeaders };

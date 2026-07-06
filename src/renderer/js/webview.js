@@ -137,6 +137,23 @@ const WebviewManager = {
       } catch {}
     });
 
+    // Media decode failures announced by preload-webview.js. Always logged
+    // (with the page URL, so "video frozen on site X" reports are diagnosable
+    // from the host console); the frozen-decode signature additionally gets
+    // one toast per session — it's the actionable one (codec/GPU decode bug,
+    // like TikTok's HEVC freeze) and a page can't spam it.
+    webview.addEventListener('ipc-message', (e) => {
+      if (e.channel !== 'vex-media-error' && e.channel !== 'vex-media-frozen') return;
+      const d = (e.args && e.args[0]) || {};
+      console.warn(`[MediaHealth] ${e.channel} on ${webview.getURL()}`, d);
+      if (e.channel === 'vex-media-frozen' && !window.__vexFrozenMediaToastShown) {
+        window.__vexFrozenMediaToastShown = true;
+        if (typeof window.showToast === 'function') {
+          window.showToast('A video on this page is frozen (decoder failure) — see console for details', 'warning');
+        }
+      }
+    });
+
     // Password capture (login-form submits announced by preload-webview.js)
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
     // Mouse gestures (right-drag strokes announced by preload-webview.js)
