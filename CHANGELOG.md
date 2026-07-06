@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.28.0 (2026-07-07) — Electron 42 (Chromium 148) + media-health hardening
+
+### Changed
+- **Electron upgraded 30.5.1 → 42.5.2 (castLabs, Widevine)** — Chromium jumps 124 → 148, picking up two years of security patches, codec/GPU fixes, and web-platform features. Verified: full test suite, smoke boot, Widevine CDM initialization (4.10.3050.0), and the site-tweak injections all pass on the new runtime.
+- **Per-site page patches now live in one registry** (`src/site-tweaks.js`) instead of hand-rolled blocks in the webview preload. The Discord always-visible spoof and the HEVC mask are entries in a table (host pattern + main-world code + injection mechanism), unit-tested, and registered as their own preload — webview preloads are sandboxed, so the registry can't be `require`d from the main preload (verified: a local require silently never loads there).
+
+### Added
+- **Media decode failures are now surfaced.** Guest pages report media error events and the frozen-decode signature (playback time advancing, zero new decoded frames — exactly how the TikTok HEVC bug manifested, with no error event at all) to the host, which logs them against the page URL and shows a one-per-session toast. The next codec bug gets diagnosed from the console instead of from a vibe description.
+- **HEVC mask extended to Instagram** — Reels serve H.265 the same way TikTok does, with the same frozen-frame failure mode on GPUs where hardware HEVC decode is broken; Instagram now falls back to H.264 too (verified live: HEVC probes denied, H.264 intact).
+- **One-command releases** — `node scripts/release.js <version> "<title>"` verifies the CHANGELOG entry exists, bumps versions, commits only the release files, pushes, builds + publishes the GitHub release, and updates the website's version badge, so the repo, the release, and the website can no longer disagree.
+
 ## v2.27.23 (2026-07-07) — TikTok: videos no longer freeze on the first frame
 
 ### Fixed
