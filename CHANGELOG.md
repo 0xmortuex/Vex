@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.27.23 (2026-07-07) — TikTok: videos no longer freeze on the first frame
+
+### Fixed
+- **TikTok videos showed a single frozen frame while the audio played on.** TikTok probes the browser for HEVC/H.265 support and serves its `bytevc1` (H.265) streams when the browser says yes — Electron's codec probes answer "yes" (the platform-HEVC path exists), but the actual hardware decode fails, so only the first keyframe ever rendered. Vex now hides HEVC from TikTok's codec probes (`MediaSource.isTypeSupported`, `canPlayType`, `mediaCapabilities.decodingInfo`), so TikTok falls back to H.264, which decodes everywhere. Scoped to tiktok.com; injected via `webFrame.executeJavaScript` because TikTok's CSP blocks inline-script injection.
+
 ## v2.27.22 (2026-07-04) — Discord panel: no more random reloads
 
 ### Fixed

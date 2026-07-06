@@ -52,6 +52,42 @@
   }
 })();
 
+// Hide HEVC/H.265 support from TikTok. Electron (castLabs 30.x) answers "yes"
+// to MediaSource.isTypeSupported/canPlayType for hvc1/hev1 because the
+// platform-HEVC path exists, so TikTok serves its bytevc1 (H.265) streams —
+// but the actual hardware decode fails, leaving one frozen keyframe while the
+// audio track plays on. Rejecting HEVC in the codec probes makes TikTok fall
+// back to H.264 (avc1), which decodes everywhere. Scoped to tiktok.com so
+// sites where HEVC playback works are untouched. Injected with
+// webFrame.executeJavaScript rather than a <script> element (the Discord
+// block's mechanism) because TikTok's CSP blocks inline scripts;
+// webFrame.executeJavaScript reaches the main world without being subject to
+// page CSP, and at preload time no page script has run yet.
+(function () {
+  'use strict';
+  try {
+    if (!/(^|\.)tiktok\.com$/i.test(location.hostname)) return;
+    var webFrame = require('electron').webFrame;
+    webFrame.executeJavaScript('(function(){try{' +
+      'var bad=/hev1|hvc1|hevc/i;' +
+      'if(window.MediaSource&&MediaSource.isTypeSupported){' +
+        'var mso=MediaSource.isTypeSupported.bind(MediaSource);' +
+        'MediaSource.isTypeSupported=function(t){return bad.test(String(t))?false:mso(t);};' +
+      '}' +
+      'var cpt=HTMLMediaElement.prototype.canPlayType;' +
+      'HTMLMediaElement.prototype.canPlayType=function(t){return bad.test(String(t))?"":cpt.call(this,t);};' +
+      'if(navigator.mediaCapabilities&&navigator.mediaCapabilities.decodingInfo){' +
+        'var di=navigator.mediaCapabilities.decodingInfo.bind(navigator.mediaCapabilities);' +
+        'navigator.mediaCapabilities.decodingInfo=function(cfg){' +
+          'try{if(cfg&&cfg.video&&bad.test(String(cfg.video.contentType)))' +
+            'return Promise.resolve({supported:false,smooth:false,powerEfficient:false,keySystemAccess:null});' +
+          '}catch(e){}' +
+          'return di(cfg);};' +
+      '}' +
+      '}catch(e){}})();').catch(function () { /* best-effort */ });
+  } catch (e) { /* best-effort */ }
+})();
+
 (function () {
   'use strict';
 
