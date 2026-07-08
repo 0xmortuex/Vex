@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.28.1 (2026-07-08) — Sidebar toggle: no more leftover strip
+
+### Fixed
+- **Closing the left sidebar (Ctrl+B) left an empty colored strip behind.** The toggle zeroed only the rail's width — its own margin, padding and border stayed, and the Glass GUI style's fixed 46px rail width overrode the collapse entirely. The rail now collapses to nothing in both Classic and Glass styles, and the page/webviews (including the sidebar site panels) reflow to use the full window width.
+
 ## v2.28.0 (2026-07-07) — Electron 42 (Chromium 148) + media-health hardening
 
 ### Changed
