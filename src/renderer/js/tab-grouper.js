@@ -56,7 +56,7 @@ const TabGrouper = (() => {
   function _toast(msg, kind, dur) {
     if (typeof window.showToast === 'function') window.showToast(msg, kind, dur);
   }
-  function _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function _esc(s) { return window.escapeHtml(s); }
 
   // ---------- Tab/group API bridge over TabManager ----------
   function _allTabs() { return (typeof TabManager !== 'undefined') ? TabManager.tabs.slice() : []; }

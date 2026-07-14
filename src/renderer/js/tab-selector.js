@@ -85,5 +85,5 @@ const TabSelector = {
     if (summary) summary.textContent = `${count} tab${count !== 1 ? 's' : ''} included`;
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  _esc(s) { return window.escapeHtml(s); }
 };

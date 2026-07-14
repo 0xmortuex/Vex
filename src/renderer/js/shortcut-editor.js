@@ -3,7 +3,7 @@
 const ShortcutEditor = (() => {
 
   function _toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
-  function _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function _esc(s) { return window.escapeHtml(s); }
 
   function renderPanel(container) {
     if (!container) container = document.getElementById('shortcuts-editor-content');
@@ -63,8 +63,8 @@ const ShortcutEditor = (() => {
         renderPanel(container);
       });
     });
-    document.getElementById('btn-reset-all-shortcuts')?.addEventListener('click', () => {
-      if (!confirm('Reset ALL shortcuts to defaults? Custom bindings will be lost.')) return;
+    document.getElementById('btn-reset-all-shortcuts')?.addEventListener('click', async () => {
+      if (!await vexConfirm({ title: 'Reset shortcuts', message: 'Reset ALL shortcuts to defaults? Custom bindings will be lost.', okLabel: 'Reset all', danger: true })) return;
       ShortcutsRegistry.resetAll();
       renderPanel(container);
       _toast('Shortcuts reset', 'success');

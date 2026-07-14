@@ -23,7 +23,7 @@ function installGlobals() {
   globalThis.TabGrouper = undefined;
   if (!globalThis.window.vex) globalThis.window.vex = { getStartPageUrl: () => new Promise(() => {}) };
 }
-async function loadTabManager() { vi.resetModules(); return (await import('../../src/renderer/js/tabs.js')).TabManager; }
+async function loadTabManager() { vi.resetModules(); await import('../../src/renderer/js/vex-utils.js'); return (await import('../../src/renderer/js/tabs.js')).TabManager; }
 function fakeTab(id, over = {}) { return { id, url: `https://${id}.example/`, title: `Tab ${id}`, favicon: null, loading: false, pinned: false, groupId: null, stackId: null, ...over }; }
 
 beforeEach(() => {

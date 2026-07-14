@@ -1,7 +1,8 @@
 /* === Vex extra themes (v2.15) ===
    Six new vivid palettes + the custom-image theme. Loaded after theme-tokens.css.
    The shared dark-theme base rules (radius/fonts/group pills, sans headings) in
-   theme-tokens.css already include these ids in their grouped selectors. */
+   theme-tokens.css apply to every non-oxford data-theme automatically via
+   :not([data-theme="oxford"]) selectors — no per-theme registration needed. */
 
 /* ── SUNSET — warm dusk, coral + amber ────────────────────────────────────── */
 [data-theme="sunset"] {

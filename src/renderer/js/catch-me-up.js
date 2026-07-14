@@ -42,7 +42,7 @@ const CatchMeUp = {
     m.querySelector('#cmu-close').addEventListener('click', () => this._close());
 
     const body = m.querySelector('#cmu-body');
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
 
     const items = await this._gather();
     if (!items.length) {

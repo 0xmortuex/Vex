@@ -110,7 +110,7 @@ const NowPlaying = {
       document.body.appendChild(bar);
     }
     bar.innerHTML = '';
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     this.playing.forEach((title, tabId) => {
       const t = TabManager.tabs.find(x => x.id === tabId);
       const row = document.createElement('div');

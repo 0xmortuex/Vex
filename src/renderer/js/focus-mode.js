@@ -63,7 +63,7 @@ const FocusMode = {
 
   renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:10px">Sites blocked while a focus session is running (<kbd>Ctrl</kbd>+<kbd>K</kbd> → "Focus 25"). One per line.</p>
       <textarea id="focus-blocklist" rows="5" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none;resize:vertical;font-family:'JetBrains Mono',monospace">${esc(this.blocklist().join('\n'))}</textarea>

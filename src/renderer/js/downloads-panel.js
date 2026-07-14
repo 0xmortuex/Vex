@@ -54,7 +54,7 @@ const DownloadsPanel = {
     this.downloads.unshift(dl);
     this.activeDownloads.set(dl.id, dl);
     this.save();
-    this.renderList();
+    this._prependRow(dl);
     this._updateBadge();
     window.showToast?.(`Downloading ${dl.filename}…`, 'info', 2500);
   },
@@ -76,7 +76,7 @@ const DownloadsPanel = {
     if (data.path) dl.path = data.path;
     this.activeDownloads.delete(data.id);
     this.save();
-    this.renderList();
+    this._replaceRow(dl);
     this._updateBadge();
 
     if (dl.state === 'completed') {
@@ -141,19 +141,53 @@ const DownloadsPanel = {
     const list = document.getElementById('downloads-list');
     if (!list) return;
     if (this.downloads.length === 0) {
-      list.innerHTML = '<div class="downloads-empty">No downloads yet</div>';
+      list.innerHTML = window.VexUI
+        ? '<div class="downloads-empty">' + VexUI.emptyState('download', 'No downloads yet', 'Files you download will appear here') + '</div>'
+        : '<div class="downloads-empty">No downloads yet</div>';
       return;
     }
     list.innerHTML = this.downloads.map(dl => this._rowHtml(dl)).join('');
-    list.querySelectorAll('[data-action="open-file"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsOpenFile?.(b.dataset.path)));
-    list.querySelectorAll('[data-action="show-in-folder"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsShowInFolder?.(b.dataset.path)));
-    list.querySelectorAll('[data-action="remove"]').forEach(b => b.addEventListener('click', () => {
+    list.querySelectorAll('.download-item').forEach(row => this._bindRowActions(row));
+  },
+
+  // Wire up a single row's action buttons (used by renderList and the
+  // incremental _prependRow/_replaceRow paths).
+  _bindRowActions(rowEl) {
+    rowEl.querySelectorAll('[data-action="open-file"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsOpenFile?.(b.dataset.path)));
+    rowEl.querySelectorAll('[data-action="show-in-folder"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsShowInFolder?.(b.dataset.path)));
+    rowEl.querySelectorAll('[data-action="remove"]').forEach(b => b.addEventListener('click', () => {
       this.downloads = this.downloads.filter(d => d.id !== b.dataset.id);
       this.activeDownloads.delete(b.dataset.id);
       this.save();
       this.renderList();
       this._updateBadge();
     }));
+  },
+
+  // Build a row element from _rowHtml without re-rendering the whole list.
+  _buildRow(dl) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = this._rowHtml(dl);
+    return tmp.firstElementChild;
+  },
+
+  // Prepend a new download's row (full renderList only when leaving the empty state).
+  _prependRow(dl) {
+    const list = document.getElementById('downloads-list');
+    if (!list) return;
+    if (list.querySelector('.downloads-empty')) { this.renderList(); return; }
+    const row = this._buildRow(dl);
+    list.prepend(row);
+    this._bindRowActions(row);
+  },
+
+  // Swap a finished download's row in place (buttons differ between states).
+  _replaceRow(dl) {
+    const row = document.querySelector(`.download-item[data-id="${dl.id}"]`);
+    if (!row) { this.renderList(); return; }
+    const newRow = this._buildRow(dl);
+    row.replaceWith(newRow);
+    this._bindRowActions(newRow);
   },
 
   // Update a single row's progress bar without full re-render (smoother).
@@ -215,7 +249,7 @@ const DownloadsPanel = {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  _esc(s) { return window.escapeHtml(s); }
 };
 
 window.DownloadsPanel = DownloadsPanel;

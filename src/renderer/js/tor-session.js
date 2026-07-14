@@ -55,7 +55,7 @@ const TorSession = {
     m.querySelector('#tor-retry').addEventListener('click', () => { close(); this.open(); });
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; },
+  _esc(s) { return window.escapeHtml(s); },
 };
 
 if (typeof window !== 'undefined') window.TorSession = TorSession;

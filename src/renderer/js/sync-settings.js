@@ -7,11 +7,7 @@ const SyncSettings = (() => {
     if (typeof window.showToast === 'function') window.showToast(msg, kind);
   }
 
-  function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str == null ? '' : String(str);
-    return d.innerHTML;
-  }
+  function escapeHtml(str) { return window.escapeHtml(str); }
 
   function getRelativeTime(iso) {
     if (!iso) return 'never';
@@ -263,14 +259,14 @@ const SyncSettings = (() => {
     });
 
     document.getElementById('btn-sign-out')?.addEventListener('click', async () => {
-      if (!confirm('Sign out? Your local data stays. You can sign back in anytime.')) return;
+      if (!await vexConfirm({ title: 'Sign out of sync', message: 'Sign out? Your local data stays. You can sign back in anytime.', okLabel: 'Sign out' })) return;
       await SyncEngine.signOut(true);
       await renderSyncPanel(document.getElementById('sync-panel-content'));
       toast('Signed out', 'success');
     });
 
     document.getElementById('btn-wipe-cloud')?.addEventListener('click', async () => {
-      if (!confirm('Wipe ALL cloud data? This cannot be undone. Local data on each device is safe.')) return;
+      if (!await vexConfirm({ title: 'Wipe cloud data', message: 'Wipe ALL cloud data? This cannot be undone. Local data on each device is safe.', okLabel: 'Wipe everything', danger: true })) return;
       const ok = await SyncEngine.wipeAllCloudData();
       toast(ok ? 'Cloud data wiped' : 'Wipe failed', ok ? 'success' : 'error');
     });
@@ -278,7 +274,7 @@ const SyncSettings = (() => {
     container.querySelectorAll('[data-device-id]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.deviceId;
-        if (!confirm('Remove this device from sync?')) return;
+        if (!await vexConfirm({ title: 'Remove device', message: 'Remove this device from sync?', okLabel: 'Remove', danger: true })) return;
         await SyncEngine.removeDevice(id);
         await renderSyncPanel(document.getElementById('sync-panel-content'));
         toast('Device removed', 'success');

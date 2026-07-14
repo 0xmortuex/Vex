@@ -16,13 +16,16 @@ const Bookmarks = {
 
   has(url) { return this.items.some(b => b.url === url); },
 
-  toggle(url, title) {
+  async toggle(url, title) {
     if (!url) return;
     if (this.has(url)) {
       this.items = this.items.filter(b => b.url !== url);
       window.showToast?.('Bookmark removed');
     } else {
-      const folder = prompt('Save bookmark to folder (blank = Unsorted):', '') || '';
+      // Native prompt() is disabled in Electron's renderer (always returned
+      // null here, silently skipping the folder question) — use the in-app
+      // prompt. Cancel still bookmarks, just into Unsorted.
+      const folder = await vexPrompt({ title: 'Bookmark this page', label: 'Folder (blank = Unsorted)', okLabel: 'Bookmark' }) || '';
       this.items.unshift({ id: 'bm' + Date.now(), url, title: title || url, folder: folder.trim(), at: Date.now() });
       window.showToast?.('★ Bookmarked');
     }
@@ -59,7 +62,7 @@ const Bookmarks = {
 
   renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `
       <div class="panel-header"><h2>Bookmarks</h2></div>
       <div style="padding:0 16px 10px"><input id="bm-search" type="text" placeholder="Search bookmarks…" style="width:100%;box-sizing:border-box;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;font-family:'Outfit',sans-serif"></div>
@@ -69,7 +72,7 @@ const Bookmarks = {
       q = (q || '').toLowerCase();
       list.innerHTML = '';
       const items = this.items.filter(b => !q || (b.title + ' ' + b.url + ' ' + b.folder).toLowerCase().includes(q));
-      if (!items.length) { list.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:30px 10px">No bookmarks yet — hit the ☆ in the URL bar.</div>'; return; }
+      if (!items.length) { list.innerHTML = window.VexUI ? VexUI.emptyState('bookmark', 'No bookmarks yet', 'Hit the ☆ in the URL bar to save a page') : '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:30px 10px">No bookmarks yet — hit the ☆ in the URL bar.</div>'; return; }
       const folders = {};
       items.forEach(b => { const f = b.folder || 'Unsorted'; (folders[f] = folders[f] || []).push(b); });
       Object.keys(folders).sort().forEach(f => {

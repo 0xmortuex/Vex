@@ -896,11 +896,21 @@ function wireAdblockerOnSession(ses, tag) {
 // setUserAgent fixes the UA string, but Chromium still derives the Sec-CH-UA
 // brand list from its real build — leaking "Electron"/app branding to sites that
 // sniff Client Hints (which modern sites prefer over the UA string). We rewrite
-// the brand hints to a plain Chrome 124 desktop identity whenever the request
+// the brand hints to a plain Chrome desktop identity whenever the request
 // carries them. onBeforeSendHeaders is a distinct webRequest event (no clash with
 // onBeforeRequest / onHeadersReceived) and nothing else in Vex registers it.
-const CH_UA = '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"';
-const CH_UA_FULL = '"Chromium";v="124.0.0.0", "Google Chrome";v="124.0.0.0", "Not-A.Brand";v="99.0.0.0"';
+// The Chrome version is derived from the real Chromium build (not hardcoded):
+// a pinned version goes stale — a spoofed "Chrome 124" in 2026 reads as a
+// 2-year-old browser, and sites like Crunchyroll refuse playback on outdated
+// versions while navigator.userAgentData (unspoofable from the session layer)
+// contradicts it with the real major. Deriving keeps UA, Sec-CH-UA, and
+// userAgentData version-consistent across Electron upgrades.
+const CHROME_FULL_VERSION = process.versions.chrome || '148.0.0.0';
+const CHROME_MAJOR = CHROME_FULL_VERSION.split('.')[0];
+// Real Chrome sends a reduced UA (major.0.0.0) — mirror that exactly.
+const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`;
+const CH_UA = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="99"`;
+const CH_UA_FULL = `"Chromium";v="${CHROME_FULL_VERSION}", "Google Chrome";v="${CHROME_FULL_VERSION}", "Not-A.Brand";v="99.0.0.0"`;
 function wireClientHintsOnSession(ses) {
   if (!ses || ses.__vexCHWired) return;
   ses.__vexCHWired = true;
@@ -908,13 +918,13 @@ function wireClientHintsOnSession(ses) {
     const h = details.requestHeaders || {};
     // Per-session override (set for ephemeral "New Identity" sessions) keeps the
     // brand hints consistent with that session's spoofed Chrome version; falls
-    // back to the global Chrome-124 identity for every normal session.
+    // back to the global real-Chromium-version identity for every normal session.
     const ch = ses.__vexCH || null;
     for (const k of Object.keys(h)) {
       switch (k.toLowerCase()) {
         case 'sec-ch-ua': h[k] = (ch && ch.ua) || CH_UA; break;
         case 'sec-ch-ua-full-version-list': h[k] = (ch && ch.full) || CH_UA_FULL; break;
-        case 'sec-ch-ua-full-version': h[k] = (ch && ch.fullVer) || '"124.0.0.0"'; break;
+        case 'sec-ch-ua-full-version': h[k] = (ch && ch.fullVer) || `"${CHROME_FULL_VERSION}"`; break;
         case 'sec-ch-ua-mobile': h[k] = '?0'; break;
         case 'sec-ch-ua-platform': h[k] = '"Windows"'; break;
       }
@@ -2328,10 +2338,9 @@ function createWindow() {
   // layout (e.g. Roblox rendered its global footer in the middle of the page
   // instead of pinned to the bottom). defaultSession + the named panel
   // partitions were already covered; persist:main was the gap.
-  const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-  session.defaultSession.setUserAgent(chromeUA);
-  session.fromPartition('persist:main').setUserAgent(chromeUA);
-  partitions.forEach(p => session.fromPartition(p).setUserAgent(chromeUA));
+  session.defaultSession.setUserAgent(CHROME_UA);
+  session.fromPartition('persist:main').setUserAgent(CHROME_UA);
+  partitions.forEach(p => session.fromPartition(p).setUserAgent(CHROME_UA));
 
   // Normalize Sec-CH-UA Client Hints to match the spoofed Chrome UA on the same
   // sessions, so UA and CH agree (sites that sniff CH won't see Electron).
@@ -3027,7 +3036,9 @@ ipcMain.handle('downloads:open-folder', async () => {
 // the fixed containers (work/personal/shopping), each call is a brand-new jar,
 // so sites can't correlate it with any existing login. The UA + client-hints
 // are rotated together (same Chrome version) so the fingerprint stays coherent.
-const IDENTITY_VERSIONS = ['122', '123', '124', '125', '126'];
+// Rotate within the last few Chrome majors relative to the real build — a
+// hardcoded list ages into "ancient browser" territory (blockable/fingerprintable).
+const IDENTITY_VERSIONS = [-2, -1, 0].map(d => String(Number(CHROME_MAJOR) + d));
 function buildIdentity(v) {
   return {
     ua: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${v}.0.0.0 Safari/537.36`,
@@ -3150,8 +3161,7 @@ ipcMain.handle('open-private-window', () => {
     if (blocked) _recordTracker(details.url, details.webContentsId);
     callback({ cancel: blocked });
   });
-  const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-  privSession.setUserAgent(chromeUA);
+  privSession.setUserAgent(CHROME_UA);
   wireClientHintsOnSession(privSession);
 
   const privWin = new BrowserWindow({

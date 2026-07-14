@@ -91,7 +91,7 @@ const MediaGrabber = {
     this._onKey = this._onDoc = null;
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; },
+  _esc(s) { return window.escapeHtml(s); },
 
   _injectStyles() {
     if (document.getElementById('mediagrab-styles')) return;

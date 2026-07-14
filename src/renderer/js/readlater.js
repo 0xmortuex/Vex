@@ -50,7 +50,7 @@ const ReadLater = {
 
   renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `<div class="panel-header"><h2>Library</h2></div><div id="lib-body" style="padding:0 10px 20px;overflow-y:auto;max-height:calc(100vh - 110px)"></div>`;
     const body = container.querySelector('#lib-body');
     const section = (label) => { const h = document.createElement('div'); h.style.cssText = 'font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;padding:12px 8px 4px'; h.textContent = label; body.appendChild(h); };
@@ -71,7 +71,7 @@ const ReadLater = {
     const unread = this.items.filter(i => !i.read);
     const read = this.items.filter(i => i.read).slice(0, 20);
     section('📚 Read later' + (unread.length ? ' (' + unread.length + ')' : ''));
-    if (!unread.length) body.insertAdjacentHTML('beforeend', '<div style="font-size:12px;color:var(--text-muted);padding:4px 8px">Empty — Ctrl+K → "Read Later" on any page.</div>');
+    if (!unread.length) body.insertAdjacentHTML('beforeend', window.VexUI ? VexUI.emptyState('inbox', 'Nothing saved yet', 'Ctrl+K → "Read Later" on any page') : '<div style="font-size:12px;color:var(--text-muted);padding:4px 8px">Empty — Ctrl+K → "Read Later" on any page.</div>');
     unread.forEach(it => row(it, { open: (x) => { this.open(x); }, remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
     if (read.length) {
       section('Done');

@@ -283,5 +283,5 @@ const WorkspaceManager = {
     document.getElementById('workspace-modal')?.classList.remove('visible');
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  _esc(s) { return window.escapeHtml(s); }
 };

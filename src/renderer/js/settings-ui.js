@@ -143,6 +143,32 @@ const SettingsUI = {
     root.style.paddingTop = h + 'px';
     root.style.scrollPaddingTop = h + 'px';
   },
+
+  // Deep link into a settings sub-section: open the Settings panel, scroll the
+  // element with the given id into view and flash it briefly. Retries over a
+  // few animation frames instead of a timing-sensitive setTimeout — the settings
+  // markup is static, so the element normally exists on the first frame.
+  openSection(anchorId) {
+    if (!anchorId) return;
+    const mgr = (typeof SidebarManager !== 'undefined') ? SidebarManager : window.SidebarManager;
+    if (mgr && typeof mgr.openPanel === 'function') mgr.openPanel('settings');
+    else if (mgr && typeof mgr.showPanel === 'function') mgr.showPanel('settings');
+    else if (typeof window.openPanel === 'function') window.openPanel('settings');
+    let tries = 0;
+    const attempt = () => {
+      const el = document.getElementById(anchorId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.remove('settings-anchor-flash');
+        void el.offsetWidth; // restart the animation if it was already running
+        el.classList.add('settings-anchor-flash');
+        setTimeout(() => el.classList.remove('settings-anchor-flash'), 1300);
+      } else if (++tries < 10) {
+        requestAnimationFrame(attempt);
+      }
+    };
+    requestAnimationFrame(attempt);
+  },
 };
 
 if (typeof window !== 'undefined') window.SettingsUI = SettingsUI;

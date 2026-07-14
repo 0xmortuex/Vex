@@ -21,7 +21,7 @@ const LocationSettings = (() => {
     catch { return fb; }
   }
   function _set(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch {} }
-  function _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function _esc(s) { return window.escapeHtml(s); }
   function _toast(m, k, d) { if (typeof window.showToast === 'function') window.showToast(m, k, d); }
 
   function render(container) {

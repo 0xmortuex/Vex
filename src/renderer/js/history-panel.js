@@ -66,10 +66,14 @@ const HistoryPanel = {
       });
     });
 
-    // Keyword input — live render
+    // Keyword input — debounced render (re-rendering thousands of grouped
+    // rows on every keystroke is too heavy)
     const input = document.getElementById('history-search-input');
+    let searchDebounce = null;
     input?.addEventListener('input', () => {
-      if (this.searchMode === 'keyword') this.renderList();
+      if (this.searchMode !== 'keyword') return;
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => this.renderList(), 120);
     });
     input?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && this.searchMode === 'ai') this.runAISearch(e.target.value);
@@ -88,8 +92,8 @@ const HistoryPanel = {
       });
     });
 
-    document.getElementById('history-clear-btn')?.addEventListener('click', () => {
-      if (confirm('Clear all browsing history?')) {
+    document.getElementById('history-clear-btn')?.addEventListener('click', async () => {
+      if (await vexConfirm({ title: 'Clear history', message: 'Clear all browsing history?', okLabel: 'Clear', danger: true })) {
         this.entries = [];
         this.save();
         this.lastAISearch = null;
@@ -172,7 +176,9 @@ const HistoryPanel = {
 
     const filtered = this.getKeywordFiltered();
     if (filtered.length === 0) {
-      list.innerHTML = '<div class="history-empty">No history found</div>';
+      list.innerHTML = window.VexUI
+        ? VexUI.emptyState('history', 'No history found', 'Try a different search or time filter')
+        : '<div class="history-empty">No history found</div>';
       return;
     }
 
@@ -191,8 +197,8 @@ const HistoryPanel = {
           let favicon = e.favicon;
           if (!favicon) { try { favicon = `https://www.google.com/s2/favicons?domain=${new URL(e.url).hostname}&sz=32`; } catch {} }
           return `
-            <div class="history-item" data-id="${e.id}" data-url="${this._esc(e.url)}">
-              <img src="${favicon || ''}" alt="" onerror="this.style.display='none'">
+            <div class="history-item" data-id="${e.id}" data-url="${this._esc(e.url)}" tabindex="0" role="link">
+              <img src="${favicon || ''}" alt="" loading="lazy" onerror="this.style.display='none'">
               <div class="history-item-info">
                 <div class="history-item-title">${this._esc(e.title)}</div>
                 <div class="history-item-url">${this._esc(e.url)}</div>
@@ -215,6 +221,9 @@ const HistoryPanel = {
           SidebarManager.hideActivePanel();
           TabManager.createTab(el.dataset.url, true);
         }
+      });
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
       });
     });
   },
@@ -289,8 +298,8 @@ const HistoryPanel = {
       const timeAgo = this._relativeTime(entry.visitedAt);
       let host = ''; try { host = new URL(entry.url).hostname; } catch {}
       html += `
-        <div class="history-item ai-result" data-url="${this._esc(entry.url)}">
-          <img src="${host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32` : ''}" width="20" height="20" onerror="this.style.display='none'">
+        <div class="history-item ai-result" data-url="${this._esc(entry.url)}" tabindex="0" role="link">
+          <img src="${host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32` : ''}" width="20" height="20" loading="lazy" onerror="this.style.display='none'">
           <div class="history-item-info item-content">
             <div class="history-item-title item-title">${this._esc(entry.title || 'Untitled')}</div>
             <div class="history-item-url item-url">${this._esc(entry.url)}</div>
@@ -313,6 +322,9 @@ const HistoryPanel = {
         if (!url) return;
         SidebarManager.hideActivePanel();
         TabManager.createTab(url, true);
+      });
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
       });
     });
   },
@@ -340,7 +352,7 @@ const HistoryPanel = {
     }, 50);
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  _esc(s) { return window.escapeHtml(s); }
 };
 
 window.HistoryPanel = HistoryPanel;

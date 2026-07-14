@@ -111,7 +111,7 @@ body {
 }
 
 .nav-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--vex-hover-fill, rgba(255,255,255,0.06));
   color: var(--vex-text-primary);
 }
 
@@ -201,7 +201,7 @@ body {
 }
 
 .win-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--vex-hover-fill, rgba(255,255,255,0.06));
   color: var(--vex-text-primary);
 }
 
@@ -408,7 +408,7 @@ body {
 .setting-label {
   display: block;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--vex-text-muted);
@@ -527,7 +527,7 @@ body {
   border-radius: var(--vex-radius-md);
   padding: 6px 10px;
   z-index: 50;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
 }
 
 #find-input {
@@ -581,7 +581,7 @@ body {
   color: var(--vex-text-primary);
   font-size: 13px;
   z-index: 1000;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
   animation: toastIn 0.3s ease;
 }
 
@@ -641,7 +641,7 @@ body {
   border: 1px solid var(--vex-border-accent);
   border-left: 3px solid var(--vex-accent);
   border-radius: var(--vex-radius-md); padding: 10px 14px; display: flex; align-items: center; gap: 8px;
-  min-width: 220px; max-width: 360px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  min-width: 220px; max-width: 360px; box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
   transform: translateX(calc(100% + 40px)); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
   pointer-events: auto; font-size: 13px; color: var(--vex-text-primary);
 }
@@ -744,7 +744,7 @@ body.tabs-hidden #icon-sidebar:hover::after { opacity: 0.4; }
 
 /* Private mode indicator */
 body.private-mode #vex-logo::after {
-  content: ' (Private)'; font-size: 10px; color: #a855f7;
+  content: ' (Private)'; font-size: 11px; color: #a855f7;
   font-family: 'Outfit', sans-serif; font-weight: 400;
 }
 
@@ -760,7 +760,7 @@ body.private-mode #vex-logo::after {
   border: 1px solid var(--border);
   border-radius: 16px;
   z-index: 9500;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+  box-shadow: 0 20px 60px var(--vex-shadow-color, rgba(0,0,0,0.5));
   overflow: hidden;
   animation: ask-ai-slide-in 0.18s ease;
 }
@@ -813,7 +813,7 @@ body.private-mode #vex-logo::after {
   border-radius: var(--vex-radius-md); padding: 14px 18px;
   display: flex; align-items: center; gap: 14px;
   z-index: 99000;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.45);
+  box-shadow: 0 10px 40px var(--vex-shadow-color, rgba(0,0,0,0.5));
   opacity: 0;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 600px; width: 92%;
@@ -862,7 +862,7 @@ body.private-mode #vex-logo::after {
   -webkit-backdrop-filter: var(--vex-blur-heavy);
   border: 1px solid var(--vex-border-accent);
   border-radius: var(--vex-radius-lg);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 18px 60px var(--vex-shadow-color, rgba(0,0,0,0.5));
   width: 420px; max-width: 92%; max-height: 70vh;
   display: flex; flex-direction: column;
   padding: 18px;
@@ -927,7 +927,7 @@ body.private-mode #vex-logo::after {
   margin-top: 3px; display: flex; align-items: center; gap: 8px;
 }
 .perm-badge {
-  font-size: 10px; padding: 1px 8px; border-radius: 8px;
+  font-size: 11px; padding: 1px 8px; border-radius: 8px;
   font-weight: 600; font-family: 'JetBrains Mono', monospace;
 }
 .perm-badge.allow { background: rgba(111, 191, 115, 0.15); color: var(--vex-success); }

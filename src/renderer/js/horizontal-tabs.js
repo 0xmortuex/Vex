@@ -5,7 +5,7 @@
 
 const HorizontalTabs = (() => {
 
-  function _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function _esc(s) { return window.escapeHtml(s); }
   function _host(url) { try { return new URL(url).hostname; } catch { return ''; } }
 
   function isActive() { return document.body.dataset.tabLayout === 'horizontal'; }
@@ -138,11 +138,15 @@ const HorizontalTabs = (() => {
     const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing">\ud83d\udd0a</span>'
                 : tab.muted              ? '<span class="audio-indicator" title="Muted">\ud83d\udd07</span>'
                 : '';
+    const sleep = tab.sleeping
+      ? '<span class="sleep-indicator" title="Sleeping"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>'
+      : '';
 
     el.innerHTML = `
       ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" onerror="this.style.display='none'">` : '<span class="tab-favicon"></span>'}
       ${audio}
       <span class="tab-title">${_esc(tab.title || 'New Tab')}</span>
+      ${sleep}
       <button class="tab-close" title="Close tab" aria-label="Close">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
           <line x1="1" y1="1" x2="9" y2="9"/>

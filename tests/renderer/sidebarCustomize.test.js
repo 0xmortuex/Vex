@@ -6,6 +6,7 @@
 // (not just the home-page shortcuts).
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+require('../../src/renderer/js/vex-utils.js'); // installs window.escapeHtml (loaded first in index.html)
 const { SidebarManager } = require('../../src/renderer/js/sidebar.js');
 
 function setupDom() {

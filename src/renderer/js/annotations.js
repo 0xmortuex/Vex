@@ -121,13 +121,13 @@ const Annotations = {
 
   renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `<div class="panel-header"><h2>Highlights</h2></div>
       <p class="setting-info muted" style="padding:0 12px">Select text on any page, then <strong>Ctrl+K → Highlight</strong> (or right-click). Highlights reappear when you revisit the page.</p>
       <div id="an-body" style="padding:4px 10px 24px;overflow-y:auto;max-height:calc(100vh - 130px)"></div>`;
     const body = container.querySelector('#an-body');
     const pages = Object.keys(this.store).filter(k => this.store[k] && this.store[k].length);
-    if (!pages.length) { body.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:10px 8px">No highlights yet.</div>'; return; }
+    if (!pages.length) { body.innerHTML = window.VexUI ? VexUI.emptyState('highlight', 'No highlights yet', 'Select text on a page, then Ctrl+K → Highlight') : '<div style="font-size:12px;color:var(--text-muted);padding:10px 8px">No highlights yet.</div>'; return; }
     // Most recently annotated page first.
     pages.sort((a, b) => Math.max(...this.store[b].map(h => h.at || 0)) - Math.max(...this.store[a].map(h => h.at || 0)));
     pages.forEach(k => {

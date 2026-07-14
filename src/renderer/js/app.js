@@ -336,8 +336,8 @@
   }
 
   // Clear data button
-  document.getElementById('setting-clear-data')?.addEventListener('click', () => {
-    if (confirm('Clear all browsing data? This cannot be undone.')) {
+  document.getElementById('setting-clear-data')?.addEventListener('click', async () => {
+    if (await vexConfirm({ title: 'Clear browsing data', message: 'Clear all browsing data? This cannot be undone.', okLabel: 'Clear data', danger: true })) {
       localStorage.clear();
       showToast('Browsing data cleared. Restart for full effect.');
     }
@@ -471,8 +471,8 @@
   });
 
   // Reset to defaults
-  document.getElementById('setting-reset')?.addEventListener('click', () => {
-    if (confirm('Reset all Vex settings to defaults? This cannot be undone.')) {
+  document.getElementById('setting-reset')?.addEventListener('click', async () => {
+    if (await vexConfirm({ title: 'Reset settings', message: 'Reset all Vex settings to defaults? This cannot be undone.', okLabel: 'Reset', danger: true })) {
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -497,8 +497,8 @@
     showToast(n > 0 ? `Re-indexing ${n} tab${n === 1 ? '' : 's'}…` : 'No unindexed open tabs');
     setTimeout(updateIndexingStats, 500);
   });
-  document.getElementById('btn-clear-summaries')?.addEventListener('click', () => {
-    if (!confirm('Remove all AI summaries from history? Your browsing history itself stays; only the AI-generated descriptions are deleted.')) return;
+  document.getElementById('btn-clear-summaries')?.addEventListener('click', async () => {
+    if (!await vexConfirm({ title: 'Clear AI summaries', message: 'Remove all AI summaries from history? Your browsing history itself stays; only the AI-generated descriptions are deleted.', okLabel: 'Remove', danger: true })) return;
     if (window.HistoryPanel && Array.isArray(HistoryPanel.entries)) {
       HistoryPanel.entries.forEach(e => {
         delete e.summary; delete e.tags; delete e.contentType;
@@ -562,8 +562,8 @@
   document.getElementById('btn-group-tabs-now')?.addEventListener('click', () => {
     TabGrouper?.analyzeAndPropose();
   });
-  document.getElementById('btn-clear-patterns')?.addEventListener('click', () => {
-    if (!confirm('Clear all remembered group patterns? New tabs won\u2019t auto-join groups anymore.')) return;
+  document.getElementById('btn-clear-patterns')?.addEventListener('click', async () => {
+    if (!await vexConfirm({ title: 'Clear group patterns', message: 'Clear all remembered group patterns? New tabs won\u2019t auto-join groups anymore.', okLabel: 'Clear', danger: true })) return;
     TabGrouper?.clearPatterns();
     showToast('Patterns cleared', 'success');
     updateGroupPatternsCount();
@@ -1176,18 +1176,9 @@
     splitCloseRight.addEventListener('click', () => SplitScreen.deactivate());
   }
 
-  // === Download Notifications ===
-  window.vex.onDownloadStarted((event, data) => {
-    showToast(`Downloading: ${data.fileName}`);
-  });
-
-  window.vex.onDownloadComplete((event, data) => {
-    if (data.state === 'completed') {
-      showToast(`Downloaded: ${data.fileName}`);
-    } else {
-      showToast(`Download failed: ${data.fileName}`);
-    }
-  });
+  // Download start/complete/fail notifications are handled by
+  // DownloadsPanel (js/downloads-panel.js) and DownloadToast — no
+  // duplicate toasts here.
 
   function showToast(message, type, duration) {
     type = type || 'info';
@@ -1196,8 +1187,17 @@
     if (!container) {
       container = document.createElement('div');
       container.id = 'toast-container';
+      // Announce toasts to screen readers without stealing focus.
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-live', 'polite');
       document.body.appendChild(container);
     }
+    // Skip exact duplicates of a toast that is still visible.
+    for (const t of container.children) {
+      if (t.textContent === message) return;
+    }
+    // Cap visible toasts at 4 — drop the oldest first.
+    while (container.children.length >= 4) container.firstElementChild.remove();
     const el = document.createElement('div');
     el.className = 'toast-item ' + type;
     el.textContent = message;

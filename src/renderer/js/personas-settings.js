@@ -3,7 +3,7 @@
 const PersonasSettings = (() => {
 
   function toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
-  function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function escapeHtml(s) { return window.escapeHtml(s); }
 
   function renderPanel(container) {
     if (!container) container = document.getElementById('personas-panel-content');
@@ -104,9 +104,9 @@ const PersonasSettings = (() => {
         toast('Duplicated', 'success');
         renderPanel(container);
       });
-      card.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
+      card.querySelector('[data-action="delete"]')?.addEventListener('click', async () => {
         const p = PersonasManager.getById(personaId);
-        if (!confirm(`Delete "${p.name}"?`)) return;
+        if (!await vexConfirm({ title: 'Delete persona', message: `Delete "${p.name}"?`, okLabel: 'Delete', danger: true })) return;
         PersonasManager.remove(personaId);
         toast('Deleted', 'success');
         renderPanel(container);

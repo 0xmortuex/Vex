@@ -124,7 +124,7 @@ const McpClient = (() => {
   }
 
   // ---------------- UI ----------------
-  const esc = (s) => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
+  const esc = (s) => window.escapeHtml(s);
 
   function renderSettings(container) {
     if (!container) return;

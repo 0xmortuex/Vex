@@ -1,0 +1,114 @@
+/* Unified dialog — vexConfirm / vexPrompt / vexAlert (js/vex-dialog.js). */
+
+.vex-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100050;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: vex-dialog-fade 0.14s ease-out;
+}
+
+.vex-dialog {
+  width: 400px;
+  max-width: 92vw;
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--vex-radius-lg, 12px);
+  padding: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  animation: vex-dialog-pop 0.14s ease-out;
+  font-family: var(--vex-font-base, 'Outfit', sans-serif);
+}
+
+.vex-dialog-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.vex-dialog-msg {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-muted, var(--text));
+  white-space: pre-wrap;
+}
+
+.vex-dialog-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted, var(--text));
+  margin: 10px 0 2px;
+}
+
+.vex-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--vex-radius-md, 8px);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.vex-dialog-input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.vex-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.vex-dialog-btn {
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: var(--vex-radius-md, 8px);
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.vex-dialog-btn:hover {
+  border-color: var(--primary);
+}
+
+.vex-dialog-btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.vex-dialog-btn.danger {
+  background: var(--danger, #d3455b);
+  border-color: var(--danger, #d3455b);
+  color: #fff;
+  font-weight: 600;
+}
+
+@keyframes vex-dialog-fade {
+  from { opacity: 0; }
+}
+
+@keyframes vex-dialog-pop {
+  from { transform: scale(0.97); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vex-dialog-overlay,
+  .vex-dialog { animation: none; }
+}

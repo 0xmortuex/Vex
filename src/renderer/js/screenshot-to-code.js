@@ -6,7 +6,7 @@
 // the worker deployed with that action; older workers return a clear message).
 
 const ScreenshotToCode = {
-  esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; },
+  esc(s) { return window.escapeHtml(s); },
 
   async start() {
     const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;

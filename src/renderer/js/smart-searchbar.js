@@ -132,11 +132,7 @@ const SmartSearchbar = (() => {
   let _webSeq = 0;
   let _lastQuery = '';
 
-  function _esc(s) {
-    const d = document.createElement('div');
-    d.textContent = s == null ? '' : String(s);
-    return d.innerHTML;
-  }
+  function _esc(s) { return window.escapeHtml(s); }
 
   function _displayUrl(url) {
     const n = _normalizeUrl(url);

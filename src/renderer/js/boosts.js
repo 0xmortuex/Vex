@@ -107,7 +107,7 @@ const VexBoosts = {
     host = host || this._activeHost();
     if (!host) { window.showToast?.('Open a page first'); return; }
     const b = this.boosts[host] || { zaps: [], css: '', js: '' };
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     document.getElementById('boost-edit-modal')?.remove();
     const m = document.createElement('div');
     m.id = 'boost-edit-modal';
@@ -151,7 +151,7 @@ const VexBoosts = {
   renderPanel(container) {
     if (!container) return;
     const hosts = Object.keys(this.boosts).sort();
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `<p class="setting-info muted" style="margin-bottom:10px">Per-site tweaks: hidden elements (zaps), custom CSS, and custom JS. Use <strong>Ctrl+K → "Zap Element"</strong> on any page, or <strong>"Boost This Site"</strong> for the editor.</p>`;
     if (!hosts.length) {
       container.innerHTML += '<div style="font-size:12.5px;color:var(--text-muted)">No boosted sites yet.</div>';

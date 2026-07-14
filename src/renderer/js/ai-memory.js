@@ -45,7 +45,7 @@ const AIMemory = {
 
   renderSettings(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:8px">Facts the AI keeps in mind in every chat (local <em>and</em> cloud). Stored only on this device. Great for your name, role, tone preferences, languages, stack…</p>
       <div class="setting-toggle-row"><span>Use my memory in AI chats</span><label class="toggle"><input type="checkbox" id="mem-enabled" ${this.data.enabled ? 'checked' : ''}><span class="toggle-slider"></span></label></div>

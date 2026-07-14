@@ -56,7 +56,9 @@ const SchedulesPanel = {
     const tasks = Scheduler.getAllTasks();
 
     if (tasks.length === 0) {
-      c.innerHTML = '<div class="sched-empty">No scheduled tasks yet. Create one or use a template.</div>';
+      c.innerHTML = window.VexUI
+        ? VexUI.emptyState('clock', 'No scheduled tasks yet', 'Create one or use a template')
+        : '<div class="sched-empty">No scheduled tasks yet. Create one or use a template.</div>';
       return;
     }
 
@@ -113,7 +115,9 @@ const SchedulesPanel = {
     const history = Scheduler.getHistory();
 
     if (history.length === 0) {
-      c.innerHTML = '<div class="sched-empty">No task history yet.</div>';
+      c.innerHTML = window.VexUI
+        ? VexUI.emptyState('history', 'No task history yet', 'Completed runs will show up here')
+        : '<div class="sched-empty">No task history yet.</div>';
       return;
     }
 
@@ -248,5 +252,5 @@ const SchedulesPanel = {
     return 'in ' + Math.round(ms / 86400000) + ' days';
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  _esc(s) { return window.escapeHtml(s); }
 };

@@ -152,12 +152,12 @@ const CommandBar = {
     { id: 'remember', label: 'Remember... (AI History Search)', hint: 'Find a page by meaning: "that article about DPI"', shortcut: 'Ctrl+Shift+H', icon: '🧠', isPrimary: true, action: () => HistoryPanel.openInAIMode?.() },
     { id: 'reindex', label: 'Re-index Open Tabs', hint: 'Generate AI summaries for currently open tabs', icon: '🔄', action: () => { const n = HistoryIndexer?.reindexOpenTabs?.() || 0; window.showToast?.(n > 0 ? `Re-indexing ${n} tabs…` : 'No unindexed open tabs'); } },
     // Phase 15: personas
-    { id: 'personas', label: 'Manage AI Personas', hint: 'Create, edit, export AI personas', icon: '🎭', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('personas-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
+    { id: 'personas', label: 'Manage AI Personas', hint: 'Create, edit, export AI personas', icon: '🎭', action: () => { if (window.SettingsUI?.openSection) SettingsUI.openSection('personas-panel-content'); else SidebarManager.openPanel('settings'); } },
     { id: 'persona-new', label: 'New Persona...', hint: 'Create a custom AI assistant', icon: '➕', action: () => { if (typeof PersonasSettings !== 'undefined') PersonasSettings.showPersonaEditor(null); } },
     { id: 'remember-fact', label: 'AI: Remember a Fact', hint: 'Tell Vex AI something to keep in mind in every chat', icon: '🧠', action: () => { if (typeof AIMemory !== 'undefined') AIMemory.promptAdd(); } },
-    { id: 'ai-memory', label: 'AI Memory', hint: 'Manage the facts Vex AI remembers about you', icon: '🧠', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('ai-memory-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
-    { id: 'ondevice-ai', label: 'On-Device AI (WebGPU)', hint: 'Download a small model that runs fully locally — private & offline', icon: '🖥', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('webllm-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
-    { id: 'mcp', label: 'MCP Servers & Tools', hint: 'Connect to Model Context Protocol servers and run their tools', icon: '🔌', action: () => { SidebarManager.openPanel('settings'); setTimeout(() => document.getElementById('mcp-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); } },
+    { id: 'ai-memory', label: 'AI Memory', hint: 'Manage the facts Vex AI remembers about you', icon: '🧠', action: () => { if (window.SettingsUI?.openSection) SettingsUI.openSection('ai-memory-panel-content'); else SidebarManager.openPanel('settings'); } },
+    { id: 'ondevice-ai', label: 'On-Device AI (WebGPU)', hint: 'Download a small model that runs fully locally — private & offline', icon: '🖥', action: () => { if (window.SettingsUI?.openSection) SettingsUI.openSection('webllm-panel-content'); else SidebarManager.openPanel('settings'); } },
+    { id: 'mcp', label: 'MCP Servers & Tools', hint: 'Connect to Model Context Protocol servers and run their tools', icon: '🔌', action: () => { if (window.SettingsUI?.openSection) SettingsUI.openSection('mcp-panel-content'); else SidebarManager.openPanel('settings'); } },
     // Phase 16: tab auto-grouping
     { id: 'group-tabs', label: 'Organize My Tabs', hint: 'AI clusters open tabs into groups', shortcut: 'Ctrl+Shift+G', icon: '🗂️', isPrimary: true, action: () => TabGrouper?.analyzeAndPropose() },
     { id: 'group-undo', label: 'Undo Last Grouping', hint: 'Revert the last AI group-apply', icon: '↩', action: () => TabGrouper?.undoLastGrouping() },
@@ -227,12 +227,10 @@ const CommandBar = {
     // Handle > commands
     if (q.startsWith('>')) {
       const cmd = q.slice(1).trim();
-      this.results = this.commands.filter(c =>
-        c.id.includes(cmd) || c.label.toLowerCase().includes(cmd)
-      );
+      this.results = cmd ? this._rankCommands(cmd) : this.commands.slice();
     } else if (q === '') {
-      // Show default commands
-      this.results = this.commands.slice(0, 8);
+      // Recently used commands first, then the defaults.
+      this.results = this._defaultResults();
     } else {
       // Mix: search + URL + commands
       this.results = [];
@@ -271,15 +269,100 @@ const CommandBar = {
 
       // (AI fallback removed — use Ctrl+J for Ask Vex AI)
 
-      // Matching commands
-      const matching = this.commands.filter(c =>
-        c.id.includes(q) || c.label.toLowerCase().includes(q) || (c.hint && c.hint.toLowerCase().includes(q))
-      );
-      this.results.push(...matching);
+      // Matching commands — fuzzy-scored, best first.
+      this.results.push(...this._rankCommands(q));
     }
 
     this.selectedIndex = 0;
     this.renderResults();
+  },
+
+  // ---- Fuzzy matching + usage-based ranking -------------------------------
+
+  // Score how well command `c` matches query `q` (both lowercase).
+  // Tiers: label prefix > word prefix > id prefix > token match (any order) >
+  // substring > hint substring > in-order subsequence ("svs" → "Save Session").
+  _scoreCommand(q, c) {
+    if (!q) return 0;
+    const label = c.label.toLowerCase();
+    const id = c.id.toLowerCase();
+    const hint = (c.hint || '').toLowerCase();
+
+    let score = 0;
+    if (label.startsWith(q)) score = 100;
+    else if (label.split(/\s+/).some(w => w.startsWith(q))) score = 85;
+    else if (id.startsWith(q)) score = 80;
+    else if (q.includes(' ') && q.split(/\s+/).filter(Boolean).every(t => label.includes(t) || hint.includes(t))) score = 70;
+    else if (label.includes(q) || id.includes(q)) score = 60;
+    else if (hint.includes(q)) score = 45;
+    else if (q.length >= 2) {
+      let from = 0, ok = true;
+      for (const ch of q) {
+        const idx = label.indexOf(ch, from);
+        if (idx === -1) { ok = false; break; }
+        from = idx + 1;
+      }
+      if (ok) score = 30;
+    }
+    return score;
+  },
+
+  _rankCommands(q) {
+    const usage = this._usage();
+    const now = Date.now();
+    return this.commands
+      .map(c => {
+        let score = this._scoreCommand(q, c);
+        if (score > 0) {
+          const u = usage[c.id];
+          if (u) score += Math.min(12, (u.n || 0) * 3) + ((now - (u.at || 0)) < 864e5 ? 3 : 0);
+        }
+        return { c, score };
+      })
+      .filter(e => e.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(e => e.c);
+  },
+
+  // Empty-query view: most recently used commands first, defaults fill the rest.
+  _defaultResults() {
+    const usage = this._usage();
+    const recent = Object.entries(usage)
+      .sort((a, b) => (b[1].at || 0) - (a[1].at || 0))
+      .slice(0, 5)
+      .map(([id]) => this.commands.find(c => c.id === id))
+      .filter(Boolean);
+    const rest = this.commands.filter(c => !recent.includes(c));
+    return [...recent, ...rest].slice(0, 8);
+  },
+
+  USAGE_KEY: 'vex.commandUsage',
+  _usage() {
+    try {
+      const o = JSON.parse(localStorage.getItem(this.USAGE_KEY) || '{}');
+      return o && typeof o === 'object' ? o : {};
+    } catch { return {}; }
+  },
+  _recordUsage(item) {
+    // Transient entries (Go to…, Search…) aren't reusable commands.
+    if (!item?.id || item.id === 'url' || item.id === 'search') return;
+    const u = this._usage();
+    const e = u[item.id] || { n: 0, at: 0 };
+    e.n = Math.min(999, (e.n || 0) + 1);
+    e.at = Date.now();
+    u[item.id] = e;
+    const ids = Object.keys(u);
+    if (ids.length > 60) {
+      ids.sort((a, b) => (u[a].at || 0) - (u[b].at || 0));
+      ids.slice(0, ids.length - 60).forEach(id => delete u[id]);
+    }
+    try { localStorage.setItem(this.USAGE_KEY, JSON.stringify(u)); } catch {}
+  },
+
+  _execute(item) {
+    this._recordUsage(item);
+    this.close();
+    item.action();
   },
 
   renderResults() {
@@ -305,8 +388,7 @@ const CommandBar = {
       `;
 
       el.addEventListener('click', () => {
-        this.close();
-        item.action();
+        this._execute(item);
       });
 
       el.addEventListener('mouseenter', () => {
@@ -343,10 +425,7 @@ const CommandBar = {
   executeSelected() {
     if (this.results.length === 0) return;
     const item = this.results[this.selectedIndex];
-    if (item) {
-      this.close();
-      item.action();
-    }
+    if (item) this._execute(item);
   },
 
   async showHistory() {

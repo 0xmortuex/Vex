@@ -290,7 +290,7 @@
   padding: 6px;
   z-index: 1000;
   min-width: 180px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 12px 40px var(--vex-shadow-color, rgba(0,0,0,0.5));
   animation: tab-ctx-in 0.14s ease;
 }
 @keyframes tab-ctx-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
@@ -339,7 +339,7 @@
 .group-color-picker {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; padding: 20px 22px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 40px var(--vex-shadow-color, rgba(0,0,0,0.5));
   font-family: 'Outfit', sans-serif;
 }
 .group-color-picker-title {
@@ -381,7 +381,7 @@
 .vex-prompt {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; padding: 22px 24px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 40px var(--vex-shadow-color, rgba(0,0,0,0.5));
   min-width: 320px;
 }
 .vex-prompt-title {

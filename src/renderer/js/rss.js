@@ -51,7 +51,7 @@ const VexFeeds = {
 
   async renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `
       <div class="panel-header"><h2>Feeds</h2></div>
       <div style="padding:0 16px 10px;display:flex;gap:6px">
@@ -84,7 +84,7 @@ const VexFeeds = {
     if (!this.feeds.length) return;
     const items = await this.fetchAll();
     const list = container.querySelector('#feed-list');
-    list.innerHTML = items.length ? '' : '<div style="text-align:center;color:var(--text-muted);font-size:12.5px;padding:24px">No items.</div>';
+    list.innerHTML = items.length ? '' : (window.VexUI ? VexUI.emptyState('rss', 'No items', 'New posts from your feeds will appear here') : '<div style="text-align:center;color:var(--text-muted);font-size:12.5px;padding:24px">No items.</div>');
     items.forEach(it => {
       const row = document.createElement('div');
       row.style.cssText = 'padding:9px 8px;border-radius:8px;cursor:pointer';

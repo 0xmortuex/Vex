@@ -75,7 +75,7 @@ const PageMonitor = {
   },
 
   showManager() {
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     document.getElementById('vex-watches')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-watches';

@@ -3,7 +3,7 @@
 const AISettings = (() => {
 
   function toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
-  function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function escapeHtml(s) { return window.escapeHtml(s); }
 
   async function renderAISettings() {
     await refreshStatus();

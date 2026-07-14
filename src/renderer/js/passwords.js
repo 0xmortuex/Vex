@@ -30,7 +30,7 @@ const PasswordVault = {
 
   _offerSave(data, isUpdate) {
     document.getElementById('vex-pw-offer')?.remove();
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     const card = document.createElement('div');
     card.id = 'vex-pw-offer';
     card.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:95000;width:320px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,0.5);font-family:\'Outfit\',sans-serif';
@@ -81,7 +81,7 @@ const PasswordVault = {
   // --- Settings → Passwords ---
   async renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     let list = [];
     try { list = await window.vex.vaultList(); } catch {}
     container.innerHTML = `<p class="setting-info muted" style="margin-bottom:10px">Saved logins are encrypted with your OS keychain (Windows DPAPI) and autofilled on matching sites. Vex offers to save when you log in.</p>`;
@@ -106,7 +106,7 @@ const PasswordVault = {
         } catch {}
       });
       row.querySelector('[data-del]').addEventListener('click', async () => {
-        if (!confirm('Delete the saved password for ' + entry.username + ' on ' + entry.host + '?')) return;
+        if (!await vexConfirm({ title: 'Delete password', message: 'Delete the saved password for ' + entry.username + ' on ' + entry.host + '?', okLabel: 'Delete', danger: true })) return;
         await window.vex.vaultDelete({ host: entry.host, username: entry.username });
         this.renderPanel(container);
       });

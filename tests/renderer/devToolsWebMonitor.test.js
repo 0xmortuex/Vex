@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+require('../../src/renderer/js/vex-utils.js'); // installs window.escapeHtml (loaded first in index.html)
 const { JsonApiViewer } = require('../../src/renderer/js/devtools-pack.js');
 const { PageMonitor, LinkRot } = require('../../src/renderer/js/web-monitor.js');
 

@@ -208,9 +208,5 @@ const GitHubPanel = {
     return `${months}mo ago`;
   },
 
-  _escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str || '';
-    return div.innerHTML;
-  }
+  _escapeHtml(str) { return window.escapeHtml(str); }
 };

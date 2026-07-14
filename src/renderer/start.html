@@ -8,6 +8,22 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Spectral:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+    /* Accessibility baseline (mirrors css/a11y.css — this page is a separate
+       document, so the chrome's stylesheets don't reach it). */
+    :focus-visible {
+      outline: 2px solid var(--vex-accent, #7aa2ff) !important;
+      outline-offset: 2px;
+    }
+    input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
     /* Inlined theme tokens — start.html is served standalone via vex://start
        (separate document from the main shell, so the parent's data-theme attr
        is invisible). main.js bakes data-theme into the served HTML and the JS
@@ -30,7 +46,7 @@
       --vex-accent-glow: rgba(30, 58, 95, 0.08);
       --vex-text-primary: #1f1c18;
       --vex-text-secondary: #6a6253;
-      --vex-text-muted: #a89a7d;
+      --vex-text-muted: #7a6e54;
       --vex-blur-medium: blur(0px);
       --vex-blur-light: blur(0px);
       --vex-radius-sm: 4px;
@@ -43,7 +59,7 @@
       --vex-border-subtle: #e2d9c6; --vex-border-medium: #e2d9c6; --vex-border-strong: #d8ccb0;
       --vex-border-accent: #1e3a5f; --vex-border-accent-strong: #1e3a5f;
       --vex-accent: #1e3a5f; --vex-accent-dim: #dde6f0; --vex-accent-glow: rgba(30,58,95,0.08);
-      --vex-text-primary: #1f1c18; --vex-text-secondary: #6a6253; --vex-text-muted: #a89a7d;
+      --vex-text-primary: #1f1c18; --vex-text-secondary: #6a6253; --vex-text-muted: #7a6e54;
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 4px; --vex-radius-md: 6px; --vex-radius-lg: 10px;
     }

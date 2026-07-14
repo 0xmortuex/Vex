@@ -2,7 +2,7 @@
 
 const ExtensionsSettings = (() => {
   function _toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
-  function _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function _esc(s) { return window.escapeHtml(s); }
 
   async function render(container) {
     if (!container) container = document.getElementById('extensions-panel-content');
@@ -95,7 +95,7 @@ const ExtensionsSettings = (() => {
     container.querySelectorAll('[data-folder]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const folder = btn.dataset.folder;
-        if (!confirm(`Uninstall "${folder}"? Restart Vex to fully unload from running tabs.`)) return;
+        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${folder}"? Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
         const r = await window.vex.extensionsUninstall(folder);
         if (r.ok) { _toast('Uninstalled \u2014 restart Vex to fully remove', 'success'); render(container); }
         else _toast('Uninstall failed: ' + (r.error || 'unknown'), 'error');

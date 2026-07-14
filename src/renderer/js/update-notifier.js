@@ -112,5 +112,5 @@ const UpdateNotifier = {
     return result;
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  _esc(s) { return window.escapeHtml(s); }
 };

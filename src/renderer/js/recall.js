@@ -72,7 +72,7 @@ const Recall = {
 
   renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `<div class="panel-header"><h2>Recall</h2></div>
       <div style="padding:0 12px 8px">
         <input id="recall-q" type="text" placeholder="Search everything you've read…" spellcheck="false" autocomplete="off"
@@ -92,7 +92,7 @@ const Recall = {
       if (!q) { out.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px">Type to search your reading history.</div>'; return; }
       out.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px">' + (smart ? 'Thinking…' : 'Searching…') + '</div>';
       const hits = smart ? await this.searchSmart(q) : await this.search(q);
-      if (!hits.length) { out.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px">No pages matched “' + esc(q) + '”.</div>'; return; }
+      if (!hits.length) { out.innerHTML = window.VexUI ? VexUI.emptyState('search', 'No pages matched “' + q + '”', 'Try different words, or turn on Smart search') : '<div style="font-size:12px;color:var(--text-muted);padding:8px">No pages matched “' + esc(q) + '”.</div>'; return; }
       out.innerHTML = '';
       hits.forEach(h => {
         let host = h.url; try { host = new URL(h.url).hostname.replace(/^www\./, ''); } catch {}

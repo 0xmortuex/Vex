@@ -1,0 +1,41 @@
+/* Accessibility baseline — loaded LAST so it wins the cascade.
+ *
+ * Why: dozens of components strip `outline: none` with no keyboard-visible
+ * replacement, and nothing in the app respected prefers-reduced-motion.
+ * :focus-visible only fires for keyboard/assistive focus, so mouse clicks
+ * keep the clean outline-free look everywhere. */
+
+:focus-visible {
+  outline: 2px solid var(--primary, #7aa2ff) !important;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Inputs draw their own focus ring via border/box-shadow; a tight offset
+ * looks intentional instead of doubled. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+}
+
+/* The webview hosts page content — an app-side ring around the whole page
+ * is noise, and the guest page manages its own focus. */
+webview:focus-visible {
+  outline: none !important;
+}
+
+/* Vestibular safety: collapse all animation/transition to imperceptible
+ * durations. Spinners render as static glyphs; state changes still apply
+ * (duration is near-zero, not `none`, so transitionend/animationend and
+ * animation-fill-mode keep working). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

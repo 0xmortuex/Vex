@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+require('../../src/renderer/js/vex-utils.js'); // installs window.escapeHtml (loaded first in index.html)
 const { Onboarding } = require('../../src/renderer/js/onboarding.js');
 
 beforeEach(() => {

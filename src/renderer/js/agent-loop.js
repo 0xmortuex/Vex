@@ -207,7 +207,9 @@ const AgentLoop = {
 
         // Handle ask_user
         if (decision.tool === 'ask_user') {
-          const answer = prompt(decision.parameters?.question || 'What should I do?');
+          // Native prompt() is disabled in Electron's renderer (always
+          // returned null, so the agent never actually got an answer).
+          const answer = await vexPrompt({ title: 'The agent has a question', message: decision.parameters?.question || 'What should I do?', okLabel: 'Answer' });
           this._history.push({ role: 'user', content: answer || '' });
           lastResult = { userAnswer: answer || '' };
           this._renderStep('ask', 'Asked: ' + (decision.parameters?.question || ''), 'info');
@@ -287,7 +289,7 @@ const AgentLoop = {
     const isSafe = SAFE_TOOLS.includes(decision.tool);
 
     if (this._mode === 'auto') {
-      return intent !== 'risky' || confirm('Risky action: ' + decision.tool + '\n\n' + (decision.thought || '') + '\n\nProceed?');
+      return intent !== 'risky' || vexConfirm({ title: 'Risky agent action', message: decision.tool + '\n\n' + (decision.thought || ''), okLabel: 'Proceed', danger: true });
     }
     if (this._mode === 'ask') {
       if (isSafe) return true;

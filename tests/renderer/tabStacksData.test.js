@@ -44,6 +44,7 @@ function installGlobals(savedTabs = [], savedGroups = [], savedStacks = []) {
 
 async function loadTabManager() {
   vi.resetModules();
+  await import('../../src/renderer/js/vex-utils.js'); // installs window.escapeHtml (loaded first in index.html)
   const mod = await import('../../src/renderer/js/tabs.js');
   return mod.TabManager;
 }

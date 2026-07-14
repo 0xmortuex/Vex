@@ -62,7 +62,7 @@ const PrivacyPack = {
   },
 
   async showReport() {
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     let stats = { total: 0, byHost: [], crossSite: [] };
     try { stats = (await window.vex?.privacyTrackerStats?.()) || stats; } catch {}
     document.getElementById('vex-privacy-report')?.remove();

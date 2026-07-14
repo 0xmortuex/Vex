@@ -73,30 +73,10 @@ function loadPanelOverrides() { try { return JSON.parse(localStorage.getItem('ve
 function savePanelOverrides(o) { try { localStorage.setItem('vex.panelOverrides', JSON.stringify(o)); } catch {} }
 function normalizeServiceUrl(u) { u = (u || '').trim(); if (!u) return ''; if (!/^https?:\/\//i.test(u)) u = 'https://' + u; return u; }
 
-// Electron disables window.prompt, so use a small in-app modal instead.
+// Electron disables window.prompt — thin compat alias over the unified
+// dialog (js/vex-dialog.js); many call sites across the app use this name.
 function vexPromptModal(title, value) {
-  return new Promise(resolve => {
-    document.getElementById('vex-prompt-modal')?.remove();
-    const m = document.createElement('div');
-    m.id = 'vex-prompt-modal';
-    m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';
-    m.innerHTML = `<div style="width:360px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px">${title}</div>
-      <input id="vex-prompt-input" type="text" value="" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:14px;outline:none;font-family:'Outfit',sans-serif">
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-        <button id="vex-prompt-cancel" style="padding:8px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Cancel</button>
-        <button id="vex-prompt-ok" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Save</button>
-      </div></div>`;
-    document.body.appendChild(m);
-    const input = m.querySelector('#vex-prompt-input');
-    input.value = value || '';
-    input.focus(); input.select();
-    const done = (v) => { m.remove(); resolve(v); };
-    m.querySelector('#vex-prompt-ok').addEventListener('click', () => done(input.value));
-    m.querySelector('#vex-prompt-cancel').addEventListener('click', () => done(null));
-    m.addEventListener('click', (e) => { if (e.target === m) done(null); });
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(input.value); if (e.key === 'Escape') done(null); });
-  });
+  return window.vexPrompt({ title, value, okLabel: 'Save' });
 }
 
 const SidebarManager = {
@@ -552,7 +532,7 @@ const SidebarManager = {
     window.showToast?.('Reset to default');
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; },
+  _esc(s) { return window.escapeHtml(s); },
 
   // ---- Sidebar order (reorder the top buttons) ----
   _loadOrder() { try { const a = JSON.parse(localStorage.getItem('vex.sidebarOrder') || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },

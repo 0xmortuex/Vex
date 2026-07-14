@@ -31,6 +31,7 @@ function installGlobals() {
 // Loads the real TabManager and wires it as the global HorizontalTabs reads.
 async function loadModules() {
   vi.resetModules();
+  await import('../../src/renderer/js/vex-utils.js'); // installs window.escapeHtml (loaded first in index.html)
   const tabsMod = await import('../../src/renderer/js/tabs.js');
   globalThis.TabManager = tabsMod.TabManager;
   await import('../../src/renderer/js/horizontal-tabs.js');

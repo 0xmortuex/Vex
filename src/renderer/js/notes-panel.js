@@ -45,7 +45,7 @@ const NotesPanel = {
             <textarea id="notes-content-area" placeholder="Start writing..."></textarea>
           </div>
         </div>
-        <div class="notes-empty" id="notes-empty-state">Select or create a note</div>
+        <div class="notes-empty" id="notes-empty-state">${window.VexUI ? VexUI.emptyState('note', 'Select or create a note', 'Your notes live here, synced across tabs') : 'Select or create a note'}</div>
       </div>
     `;
 
@@ -247,5 +247,5 @@ const NotesPanel = {
       .replace(/^(.+)$/gm, (m) => m.startsWith('<') ? m : `<p>${m}</p>`);
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  _esc(s) { return window.escapeHtml(s); }
 };

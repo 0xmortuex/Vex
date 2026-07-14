@@ -44,7 +44,7 @@
   /* Text */
   --vex-text-primary: #1f1c18;   /* headings */
   --vex-text-secondary: #6a6253; /* body / secondary */
-  --vex-text-muted: #a89a7d;     /* muted / labels */
+  --vex-text-muted: #7a6e54;     /* muted / labels — ~4.5:1 on cream (was #a89a7d, 2.6:1) */
   --vex-text-accent: #1e3a5f;
 
   /* Semantic */
@@ -52,6 +52,10 @@
   --vex-danger: #9c2a1a;
   --vex-danger-hover: #c0392b;
   --vex-warning: #c2611a;
+
+  /* Chrome interaction + elevation — light-tuned; dark themes override below */
+  --vex-hover-fill: rgba(30, 58, 95, 0.07);   /* subtle navy hover that reads on cream */
+  --vex-shadow-color: rgba(31, 28, 24, 0.18); /* soft warm elevation shadow */
 
   /* Tab-group pills — derived per-theme from --group-color (the stored group
      identity hex, set inline on each pill/strip). Light themes mute the hue
@@ -134,12 +138,14 @@
   --vex-accent-glow: rgba(30, 58, 95, 0.10);
   --vex-text-primary: #1f1c18;
   --vex-text-secondary: #6a6253;
-  --vex-text-muted: #a89a7d;
+  --vex-text-muted: #7a6e54;
   --vex-text-accent: #1e3a5f;
   --vex-success: #2f6b3f;
   --vex-danger: #9c2a1a;
   --vex-danger-hover: #c0392b;
   --vex-warning: #c2611a;
+  --vex-hover-fill: rgba(30, 58, 95, 0.07);
+  --vex-shadow-color: rgba(31, 28, 24, 0.18);
   --group-pill-bg: color-mix(in srgb, var(--group-color, #6366f1) 22%, var(--vex-bg-base));
   --group-pill-fg: color-mix(in srgb, var(--group-color, #6366f1) 55%, #1f1c18);
   --group-pill-strip: color-mix(in srgb, var(--group-color, #6366f1) 55%, var(--vex-bg-base));
@@ -182,40 +188,17 @@
    below applies to every dark theme via [data-theme] grouping.
    ══════════════════════════════════════════════════════════════════════════ */
 
-[data-theme="default"],
-[data-theme="midnight"],
-[data-theme="forest"],
-[data-theme="ocean"],
-[data-theme="dracula"],
-[data-theme="nord"],
-[data-theme="catppuccin"],
-[data-theme="sunset"],
-[data-theme="rose"],
-[data-theme="matrix"],
-[data-theme="mocha"],
-[data-theme="solarized"],
-[data-theme="vaporwave"],
-[data-theme="aurora"],
-[data-theme="crimson"],
-[data-theme="gold"],
-[data-theme="sakura"],
-[data-theme="cyberpunk"],
-[data-theme="monochrome"],
-[data-theme="slate"],
-[data-theme="emerald"],
-[data-theme="amethyst"],
-[data-theme="volcano"],
-[data-theme="sapphire"],
-[data-theme="honey"],
-[data-theme="mint"],
-[data-theme="obsidian"],
-[data-theme="ruby"],
-[data-theme="lime"],
-[data-theme="bronze"],
-[data-theme="plum"],
-[data-theme="arctic"],
-[data-theme="wine"],
-[data-theme="custom"] {
+/* Shared hover/elevation tokens for every dark theme (Oxford is the only
+   light theme — it keeps the navy/warm values from :root above). */
+html[data-theme]:not([data-theme="oxford"]) {
+  --vex-hover-fill: rgba(255, 255, 255, 0.06);
+  --vex-shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Oxford is the only light theme, so every other data-theme value (including
+   "custom" and any future dark theme) gets the classic sans/glass base tokens
+   automatically — no per-theme selector list to maintain. */
+html[data-theme]:not([data-theme="oxford"]) {
   --vex-font-base: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --vex-font-heading: 'Outfit', sans-serif;
   --vex-font-mono: 'JetBrains Mono', monospace;
@@ -248,91 +231,30 @@
   --group-pill-fg: color-mix(in srgb, var(--group-color, #6366f1) 60%, #1f1c18);
   --group-pill-strip: color-mix(in srgb, var(--group-color, #6366f1) 55%, var(--vex-bg-base));
 }
-:is([data-theme="default"],[data-theme="midnight"],[data-theme="forest"],[data-theme="ocean"],
-   [data-theme="dracula"],[data-theme="nord"],[data-theme="catppuccin"],[data-theme="sunset"],
-   [data-theme="rose"],[data-theme="matrix"],[data-theme="mocha"],[data-theme="solarized"],
-   [data-theme="vaporwave"],[data-theme="aurora"],[data-theme="crimson"],[data-theme="gold"],
-   [data-theme="sakura"],[data-theme="cyberpunk"],[data-theme="monochrome"],[data-theme="slate"],
-   [data-theme="emerald"],[data-theme="amethyst"],[data-theme="volcano"],[data-theme="sapphire"],
-   [data-theme="honey"],[data-theme="mint"],[data-theme="obsidian"],[data-theme="ruby"],
-   [data-theme="lime"],[data-theme="bronze"],[data-theme="plum"],[data-theme="arctic"],
-   [data-theme="wine"],[data-theme="custom"]) :is(.top-group-label, .top-tab.in-group, .tab-group) {
+html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-group, .tab-group) {
   --group-pill-bg: var(--group-color, #6366f1);
   --group-pill-fg: #ffffff;
   --group-pill-strip: var(--group-color, #6366f1);
 }
 
-/* Dark themes restore the sans heading font (override the :root Fraunces rule). */
-[data-theme="default"] h1, [data-theme="default"] h2, [data-theme="default"] h3,
-[data-theme="midnight"] h1, [data-theme="midnight"] h2, [data-theme="midnight"] h3,
-[data-theme="forest"] h1, [data-theme="forest"] h2, [data-theme="forest"] h3,
-[data-theme="ocean"] h1, [data-theme="ocean"] h2, [data-theme="ocean"] h3,
-[data-theme="dracula"] h1, [data-theme="dracula"] h2, [data-theme="dracula"] h3,
-[data-theme="nord"] h1, [data-theme="nord"] h2, [data-theme="nord"] h3,
-[data-theme="catppuccin"] h1, [data-theme="catppuccin"] h2, [data-theme="catppuccin"] h3,
-[data-theme="sunset"] h1, [data-theme="sunset"] h2, [data-theme="sunset"] h3,
-[data-theme="rose"] h1, [data-theme="rose"] h2, [data-theme="rose"] h3,
-[data-theme="matrix"] h1, [data-theme="matrix"] h2, [data-theme="matrix"] h3,
-[data-theme="mocha"] h1, [data-theme="mocha"] h2, [data-theme="mocha"] h3,
-[data-theme="solarized"] h1, [data-theme="solarized"] h2, [data-theme="solarized"] h3,
-[data-theme="vaporwave"] h1, [data-theme="vaporwave"] h2, [data-theme="vaporwave"] h3,
-[data-theme="aurora"] h1, [data-theme="aurora"] h2, [data-theme="aurora"] h3,
-[data-theme="crimson"] h1, [data-theme="crimson"] h2, [data-theme="crimson"] h3,
-[data-theme="gold"] h1, [data-theme="gold"] h2, [data-theme="gold"] h3,
-[data-theme="sakura"] h1, [data-theme="sakura"] h2, [data-theme="sakura"] h3,
-[data-theme="cyberpunk"] h1, [data-theme="cyberpunk"] h2, [data-theme="cyberpunk"] h3,
-[data-theme="monochrome"] h1, [data-theme="monochrome"] h2, [data-theme="monochrome"] h3,
-[data-theme="slate"] h1, [data-theme="slate"] h2, [data-theme="slate"] h3,
-[data-theme="emerald"] h1, [data-theme="emerald"] h2, [data-theme="emerald"] h3,
-[data-theme="amethyst"] h1, [data-theme="amethyst"] h2, [data-theme="amethyst"] h3,
-[data-theme="volcano"] h1, [data-theme="volcano"] h2, [data-theme="volcano"] h3,
-[data-theme="sapphire"] h1, [data-theme="sapphire"] h2, [data-theme="sapphire"] h3,
-[data-theme="honey"] h1, [data-theme="honey"] h2, [data-theme="honey"] h3,
-[data-theme="mint"] h1, [data-theme="mint"] h2, [data-theme="mint"] h3,
-[data-theme="obsidian"] h1, [data-theme="obsidian"] h2, [data-theme="obsidian"] h3,
-[data-theme="ruby"] h1, [data-theme="ruby"] h2, [data-theme="ruby"] h3,
-[data-theme="lime"] h1, [data-theme="lime"] h2, [data-theme="lime"] h3,
-[data-theme="bronze"] h1, [data-theme="bronze"] h2, [data-theme="bronze"] h3,
-[data-theme="plum"] h1, [data-theme="plum"] h2, [data-theme="plum"] h3,
-[data-theme="arctic"] h1, [data-theme="arctic"] h2, [data-theme="arctic"] h3,
-[data-theme="wine"] h1, [data-theme="wine"] h2, [data-theme="wine"] h3,
-[data-theme="custom"] h1, [data-theme="custom"] h2, [data-theme="custom"] h3 {
+/* Dark themes restore the sans heading font (override the :root Fraunces rule).
+   :where() keeps this at the old enumerated specificity (0,1,1): it must beat
+   the `:root h1..h3` Fraunces rule by source order, but must NOT out-rank the
+   (0,2,1) `:root .panel-header h2` / `:root .settings-content h2` rules, which
+   the old per-theme lists also lost to. Both are !important. */
+[data-theme]:where(:not([data-theme="oxford"])) h1,
+[data-theme]:where(:not([data-theme="oxford"])) h2,
+[data-theme]:where(:not([data-theme="oxford"])) h3 {
   font-family: 'Outfit', sans-serif !important;
 }
-[data-theme="default"] body, [data-theme="default"] button, [data-theme="default"] input, [data-theme="default"] textarea, [data-theme="default"] select,
-[data-theme="midnight"] body, [data-theme="midnight"] button, [data-theme="midnight"] input, [data-theme="midnight"] textarea, [data-theme="midnight"] select,
-[data-theme="forest"] body, [data-theme="forest"] button, [data-theme="forest"] input, [data-theme="forest"] textarea, [data-theme="forest"] select,
-[data-theme="ocean"] body, [data-theme="ocean"] button, [data-theme="ocean"] input, [data-theme="ocean"] textarea, [data-theme="ocean"] select,
-[data-theme="dracula"] body, [data-theme="dracula"] button, [data-theme="dracula"] input, [data-theme="dracula"] textarea, [data-theme="dracula"] select,
-[data-theme="nord"] body, [data-theme="nord"] button, [data-theme="nord"] input, [data-theme="nord"] textarea, [data-theme="nord"] select,
-[data-theme="catppuccin"] body, [data-theme="catppuccin"] button, [data-theme="catppuccin"] input, [data-theme="catppuccin"] textarea, [data-theme="catppuccin"] select,
-[data-theme="sunset"] body, [data-theme="sunset"] button, [data-theme="sunset"] input, [data-theme="sunset"] textarea, [data-theme="sunset"] select,
-[data-theme="rose"] body, [data-theme="rose"] button, [data-theme="rose"] input, [data-theme="rose"] textarea, [data-theme="rose"] select,
-[data-theme="matrix"] body, [data-theme="matrix"] button, [data-theme="matrix"] input, [data-theme="matrix"] textarea, [data-theme="matrix"] select,
-[data-theme="mocha"] body, [data-theme="mocha"] button, [data-theme="mocha"] input, [data-theme="mocha"] textarea, [data-theme="mocha"] select,
-[data-theme="solarized"] body, [data-theme="solarized"] button, [data-theme="solarized"] input, [data-theme="solarized"] textarea, [data-theme="solarized"] select,
-[data-theme="vaporwave"] body, [data-theme="vaporwave"] button, [data-theme="vaporwave"] input, [data-theme="vaporwave"] textarea, [data-theme="vaporwave"] select,
-[data-theme="aurora"] body, [data-theme="aurora"] button, [data-theme="aurora"] input, [data-theme="aurora"] textarea, [data-theme="aurora"] select,
-[data-theme="crimson"] body, [data-theme="crimson"] button, [data-theme="crimson"] input, [data-theme="crimson"] textarea, [data-theme="crimson"] select,
-[data-theme="gold"] body, [data-theme="gold"] button, [data-theme="gold"] input, [data-theme="gold"] textarea, [data-theme="gold"] select,
-[data-theme="sakura"] body, [data-theme="sakura"] button, [data-theme="sakura"] input, [data-theme="sakura"] textarea, [data-theme="sakura"] select,
-[data-theme="cyberpunk"] body, [data-theme="cyberpunk"] button, [data-theme="cyberpunk"] input, [data-theme="cyberpunk"] textarea, [data-theme="cyberpunk"] select,
-[data-theme="monochrome"] body, [data-theme="monochrome"] button, [data-theme="monochrome"] input, [data-theme="monochrome"] textarea, [data-theme="monochrome"] select,
-[data-theme="slate"] body, [data-theme="slate"] button, [data-theme="slate"] input, [data-theme="slate"] textarea, [data-theme="slate"] select,
-[data-theme="emerald"] body, [data-theme="emerald"] button, [data-theme="emerald"] input, [data-theme="emerald"] textarea, [data-theme="emerald"] select,
-[data-theme="amethyst"] body, [data-theme="amethyst"] button, [data-theme="amethyst"] input, [data-theme="amethyst"] textarea, [data-theme="amethyst"] select,
-[data-theme="volcano"] body, [data-theme="volcano"] button, [data-theme="volcano"] input, [data-theme="volcano"] textarea, [data-theme="volcano"] select,
-[data-theme="sapphire"] body, [data-theme="sapphire"] button, [data-theme="sapphire"] input, [data-theme="sapphire"] textarea, [data-theme="sapphire"] select,
-[data-theme="honey"] body, [data-theme="honey"] button, [data-theme="honey"] input, [data-theme="honey"] textarea, [data-theme="honey"] select,
-[data-theme="mint"] body, [data-theme="mint"] button, [data-theme="mint"] input, [data-theme="mint"] textarea, [data-theme="mint"] select,
-[data-theme="obsidian"] body, [data-theme="obsidian"] button, [data-theme="obsidian"] input, [data-theme="obsidian"] textarea, [data-theme="obsidian"] select,
-[data-theme="ruby"] body, [data-theme="ruby"] button, [data-theme="ruby"] input, [data-theme="ruby"] textarea, [data-theme="ruby"] select,
-[data-theme="lime"] body, [data-theme="lime"] button, [data-theme="lime"] input, [data-theme="lime"] textarea, [data-theme="lime"] select,
-[data-theme="bronze"] body, [data-theme="bronze"] button, [data-theme="bronze"] input, [data-theme="bronze"] textarea, [data-theme="bronze"] select,
-[data-theme="plum"] body, [data-theme="plum"] button, [data-theme="plum"] input, [data-theme="plum"] textarea, [data-theme="plum"] select,
-[data-theme="arctic"] body, [data-theme="arctic"] button, [data-theme="arctic"] input, [data-theme="arctic"] textarea, [data-theme="arctic"] select,
-[data-theme="wine"] body, [data-theme="wine"] button, [data-theme="wine"] input, [data-theme="wine"] textarea, [data-theme="wine"] select,
-[data-theme="custom"] body, [data-theme="custom"] button, [data-theme="custom"] input, [data-theme="custom"] textarea, [data-theme="custom"] select {
+/* Dark-theme body/UI font. :where() keeps the old (0,1,1) specificity so the
+   (0,2,0) `:root [style*="JetBrains"]` mono restore above still out-ranks this
+   for mono-labelled buttons/inputs, exactly as the enumerated lists did. */
+[data-theme]:where(:not([data-theme="oxford"])) body,
+[data-theme]:where(:not([data-theme="oxford"])) button,
+[data-theme]:where(:not([data-theme="oxford"])) input,
+[data-theme]:where(:not([data-theme="oxford"])) textarea,
+[data-theme]:where(:not([data-theme="oxford"])) select {
   font-family: 'Outfit', sans-serif !important;
 }
 

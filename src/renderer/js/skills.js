@@ -57,7 +57,7 @@ const VexSkills = {
   // --- Settings → AI Skills management UI ---
   renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:10px">Reusable AI commands you can run on any page from the command bar (<kbd>Ctrl</kbd>+<kbd>K</kbd> → type the skill's name).</p>
       <div class="skills-list"></div>
@@ -90,7 +90,7 @@ const VexSkills = {
 
   _editModal(sk, container) {
     document.getElementById('skill-edit-modal')?.remove();
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     const m = document.createElement('div');
     m.id = 'skill-edit-modal';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';

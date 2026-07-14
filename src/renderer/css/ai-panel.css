@@ -171,7 +171,7 @@
 .mt-per-tab summary { cursor: pointer; font-size: 11px; color: var(--text-muted); }
 .mt-tab-sum { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); font-size: 11px; }
 .mt-tab-sum strong { color: var(--text); }
-.mt-tab-sum span { color: var(--text-muted); }
+.mt-tab-sum span, .mt-tab-sum .mt-tab-sum-body { color: var(--text-muted); }
 .mt-table {
   width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 10px;
 }

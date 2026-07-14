@@ -7,7 +7,7 @@
 //   several device widths in one overlay, so you can eyeball responsive layouts.
 
 const JsonApiViewer = {
-  esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; },
+  esc(s) { return window.escapeHtml(s); },
 
   // --- Collapsible, coloured JSON tree ---
   renderValue(v, key) {

@@ -1,7 +1,7 @@
 // === Vex: Site permissions manager (Settings > Site Permissions) ===
 
 const PermissionsSettings = (() => {
-  function _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function _esc(s) { return window.escapeHtml(s); }
   function _toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
 
   async function render(container) {
@@ -49,7 +49,7 @@ const PermissionsSettings = (() => {
       });
     });
     document.getElementById('btn-clear-all-permissions')?.addEventListener('click', async () => {
-      if (!confirm('Clear all site permissions? Every site will need to ask again.')) return;
+      if (!await vexConfirm({ title: 'Clear permissions', message: 'Clear all site permissions? Every site will need to ask again.', okLabel: 'Clear all', danger: true })) return;
       await window.vex.permissionsClearAll();
       _toast('All permissions cleared', 'success');
       render(container);

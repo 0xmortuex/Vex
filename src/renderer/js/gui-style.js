@@ -94,7 +94,7 @@
     });
     const add = document.createElement('div');
     add.className = 'gsc gsc-add';
-    add.innerHTML = '<span class="ic">＋</span><span>Add shortcut</span>';
+    add.innerHTML = '<span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span>Add shortcut</span>';
     add.addEventListener('click', () => editShortcut(-1));
     bar.appendChild(add);
   }

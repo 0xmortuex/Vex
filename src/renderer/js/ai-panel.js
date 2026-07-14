@@ -14,6 +14,22 @@ const AIPanel = {
     document.getElementById('ai-send')?.addEventListener('click', () => this._sendChat());
     document.getElementById('ai-clear')?.addEventListener('click', () => this._clearChat());
 
+    // Markdown links: a plain <a> click inside the chrome document would
+    // navigate the whole app window — intercept once (delegated) and open
+    // left/middle clicks in a new tab instead.
+    const msgsEl = document.getElementById('ai-messages');
+    if (msgsEl) {
+      const openMdLink = (e) => {
+        const a = e.target?.closest?.('a.vex-md-link');
+        if (!a) return;
+        e.preventDefault();
+        if (e.button !== 0 && e.button !== 1) return;
+        if (typeof TabManager !== 'undefined') TabManager.createTab(a.href, true);
+      };
+      msgsEl.addEventListener('click', openMdLink);
+      msgsEl.addEventListener('auxclick', openMdLink);
+    }
+
     document.getElementById('ai-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._sendChat(); }
     });
@@ -25,10 +41,11 @@ const AIPanel = {
     });
     document.getElementById('manage-personas-btn')?.addEventListener('click', () => {
       document.getElementById('persona-dropdown').hidden = true;
-      if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('settings');
-      setTimeout(() => {
-        document.getElementById('personas-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+      if (window.SettingsUI?.openSection) {
+        SettingsUI.openSection('personas-panel-content');
+      } else if (typeof SidebarManager !== 'undefined') {
+        SidebarManager.openPanel('settings');
+      }
     });
     document.addEventListener('click', (e) => {
       const dd = document.getElementById('persona-dropdown');
@@ -425,15 +442,15 @@ const AIPanel = {
     let html = '<div class="mt-badge">Analyzed ' + tabs.length + ' tabs</div>';
 
     if (parsed.reply) {
-      html += '<div class="mt-reply">' + this._esc(parsed.reply).replace(/\n/g, '<br>') + '</div>';
+      html += '<div class="mt-reply">' + this._md(parsed.reply) + '</div>';
     }
 
     if (parsed.perTab?.length) {
       html += '<details class="mt-per-tab"><summary>Per-tab summaries</summary>';
       parsed.perTab.forEach(t => {
         const tab = tabs[(t.tabIndex || 1) - 1];
-        html += '<div class="mt-tab-sum"><strong>' + this._esc(t.title || tab?.title || '') + '</strong><br>'
-          + '<span>' + this._esc(t.summary || '') + '</span></div>';
+        html += '<div class="mt-tab-sum"><strong>' + this._esc(t.title || tab?.title || '') + '</strong>'
+          + '<div class="mt-tab-sum-body">' + this._md(t.summary || '') + '</div></div>';
       });
       html += '</details>';
     }
@@ -503,7 +520,9 @@ const AIPanel = {
       el.className = `ai-msg ${m.role}`;
       const contentEl = document.createElement('div');
       contentEl.className = 'ai-msg-content';
-      contentEl.innerHTML = this._esc(m.content).replace(/\n/g, '<br>');
+      contentEl.innerHTML = m.role === 'assistant'
+        ? this._md(m.content)
+        : this._esc(m.content).replace(/\n/g, '<br>');
       el.appendChild(contentEl);
       if (m.role === 'assistant') el.appendChild(this._makeCopyBtn(contentEl));
       container.appendChild(el);
@@ -523,12 +542,12 @@ const AIPanel = {
     let html = '';
 
     if (action === 'chat') {
-      html = this._esc(parsed.reply || '').replace(/\n/g, '<br>');
+      html = this._md(parsed.reply || '');
       if (parsed.citations?.length) {
         parsed.citations.forEach(c => { html += `<div class="citation">"${this._esc(c.text)}"</div>`; });
       }
     } else if (action === 'summarize') {
-      html = `<strong>${this._esc(parsed.title || 'Summary')}</strong><br><br>${this._esc(parsed.summary || '').replace(/\n/g, '<br>')}`;
+      html = `<strong>${this._esc(parsed.title || 'Summary')}</strong><br><br>${this._md(parsed.summary || '')}`;
       if (parsed.keyPoints?.length) {
         html += '<br><br><strong>Key Points:</strong><ul>' + parsed.keyPoints.map(p => `<li>${this._esc(p)}</li>`).join('') + '</ul>';
       }
@@ -537,7 +556,7 @@ const AIPanel = {
       html = `<strong>Translation (${this._esc(parsed.targetLanguage || '')})</strong><br><br>${this._esc(parsed.translation || '').replace(/\n/g, '<br>')}`;
       if (parsed.notes) html += `<div class="ai-meta">Note: ${this._esc(parsed.notes)}</div>`;
     } else if (action === 'explain') {
-      html = `<strong>Explanation</strong><br><br>${this._esc(parsed.explanation || '').replace(/\n/g, '<br>')}`;
+      html = `<strong>Explanation</strong><br><br>${this._md(parsed.explanation || '')}`;
       if (parsed.keyTerms?.length) {
         html += '<br><br><strong>Key Terms:</strong><ul>';
         parsed.keyTerms.forEach(t => { html += `<li><strong>${this._esc(t.term)}:</strong> ${this._esc(t.definition)}</li>`; });
@@ -700,5 +719,9 @@ const AIPanel = {
     container.scrollTop = container.scrollHeight;
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  _esc(s) { return window.escapeHtml(s || ''); },
+
+  // Free-text AI output → sanitized markdown HTML. Falls back to the plain
+  // escape path if vex-markdown.js failed to load (never raw HTML).
+  _md(s) { return window.VexMarkdown ? VexMarkdown.render(s || '') : this._esc(s).replace(/\n/g, '<br>'); }
 };

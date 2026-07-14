@@ -81,7 +81,7 @@ const WorkspaceSnapshots = {
     const body = document.getElementById('vex-wsnap-body');
     if (!body) return;
     const list = this._all()[this._wsId()] || [];
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     if (!list.length) { body.innerHTML = `<div style="color:var(--text-muted);padding:18px 4px;text-align:center">No snapshots yet for this workspace.</div>`; return; }
     body.innerHTML = list.map(s => {
       const titles = s.tabs.slice(0, 3).map(t => esc(t.title)).join(' · ');

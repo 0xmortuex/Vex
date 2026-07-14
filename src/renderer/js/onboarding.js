@@ -19,6 +19,8 @@ const Onboarding = {
   step: 0,
   activeSteps: null,   // the step list currently being walked (full run or resume subset)
   _pendingLoc: null,   // weather location the user picked from the results list
+  _session: {},        // values typed this run — survive Back/Skip so navigation never loses input
+  _keyHandler: null,   // document-level Escape handler, live only while the wizard is open
 
   done() { try { return localStorage.getItem(this.KEY) === 'true'; } catch { return true; } },
   finish() { try { localStorage.setItem(this.KEY, 'true'); } catch {} this._close(); this._reloadStartPages(); },
@@ -32,7 +34,7 @@ const Onboarding = {
     setTimeout(() => this.start(), 900);
   },
 
-  start() { this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._render(); },
+  start() { this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._session = {}; this._render(); },
 
   // Re-open the wizard on demand (the top-bar setup button). Shows ALL steps,
   // each pre-filled with whatever's already saved and tagged "✓ already set" so
@@ -41,6 +43,7 @@ const Onboarding = {
     this.activeSteps = this.STEPS();
     this.step = 0;
     this._pendingLoc = null;
+    this._session = {};
     this._render();
   },
 
@@ -90,7 +93,7 @@ const Onboarding = {
     }
   },
 
-  _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; },
+  _esc(s) { return window.escapeHtml(s); },
 
   STEPS() {
     return [
@@ -110,7 +113,22 @@ const Onboarding = {
     ];
   },
 
-  _close() { document.getElementById('vex-onboarding')?.remove(); },
+  _close() {
+    document.getElementById('vex-onboarding')?.remove();
+    if (this._keyHandler) { document.removeEventListener('keydown', this._keyHandler); this._keyHandler = null; }
+  },
+
+  // Snapshot whatever's typed on the current step so Back/Skip navigation
+  // (which re-renders from scratch) never throws away this session's input.
+  _stash(key, overlay) {
+    const grab = (sel) => { const el = overlay.querySelector(sel); return el ? el.value : null; };
+    if (key === 'name')         this._session.name = grab('#ob-name');
+    else if (key === 'github')  this._session.github = grab('#ob-gh');
+    else if (key === 'aicloud') this._session.aicloud = grab('#ob-ai-url');
+    else if (key === 'sync')    this._session.sync = grab('#ob-sync-url');
+    else if (key === 'weather') this._session.weatherText = grab('#ob-city');
+    else if (key === 'search')  this._session.engine = this._pendingEngine;
+  },
 
   _render() {
     const steps = this.activeSteps || this.STEPS();
@@ -122,10 +140,12 @@ const Onboarding = {
     overlay.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
     const dots = steps.map((_, i) => `<span style="width:7px;height:7px;border-radius:50%;background:${i === this.step ? 'var(--primary)' : 'var(--border)'};display:inline-block"></span>`).join(' ');
     const isLast = this.step === steps.length - 1;
+    const pct = Math.round(((this.step + 1) / steps.length) * 100);
     overlay.innerHTML = `
       <div style="width:520px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
         <div style="padding:24px 26px 8px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">STEP ${this.step + 1} / ${steps.length}</span><span style="flex:1"></span>${dots}</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span id="ob-progress-label" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Step ${this.step + 1} of ${steps.length}</span><span style="flex:1"></span>${dots}</div>
+          <div style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:21px;font-weight:700;color:var(--text)">${this._esc(s.title)}</span>
             ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);padding:3px 9px;border-radius:999px;white-space:nowrap">✓ already set</span>' : ''}
@@ -136,16 +156,19 @@ const Onboarding = {
         <div style="display:flex;align-items:center;gap:8px;padding:16px 26px;border-top:1px solid var(--border)">
           <button id="ob-skipall" style="background:none;border:none;color:var(--text-muted);font-family:inherit;font-size:12.5px;cursor:pointer">Skip setup</button>
           <span style="flex:1"></span>
-          ${this.step > 0 && !isLast ? `<button id="ob-back" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Back</button>` : ''}
+          ${this.step > 0 ? `<button id="ob-back" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Back</button>` : ''}
           ${!isLast ? `<button id="ob-skip" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Skip</button>` : ''}
           <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:#fff;border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${this.step === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
     overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
-    overlay.querySelector('#ob-back')?.addEventListener('click', () => { this.step--; this._render(); });
-    overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this.step++; this._render(); });
+    overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
+    overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
+    // Escape = the same bail-out as the "Skip setup" button.
+    this._keyHandler = (e) => { if (e.key === 'Escape') { e.preventDefault(); this.finish(); } };
+    document.addEventListener('keydown', this._keyHandler);
     this._renderBody(s.key, overlay.querySelector('#ob-body'));
   },
 
@@ -168,13 +191,14 @@ const Onboarding = {
         b.style.borderColor = 'var(--primary)';
       }));
     } else if (key === 'name') {
-      let v = ''; try { v = localStorage.getItem('vex.userName') || ''; } catch {}
+      let v = this._session.name;
+      if (v == null) { try { v = localStorage.getItem('vex.userName') || ''; } catch { v = ''; } }
       body.innerHTML = input('ob-name', 'e.g. Alex', v);
     } else if (key === 'weather') {
       this._pendingLoc = null;
       body.innerHTML = `
         <div style="display:flex;gap:8px">
-          <div style="flex:1">${input('ob-city', 'e.g. Ataşehir or Istanbul')}</div>
+          <div style="flex:1">${input('ob-city', 'e.g. Ataşehir or Istanbul', this._session.weatherText || '')}</div>
           <button id="ob-city-search" style="padding:0 16px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Search</button>
         </div>
         <div id="ob-city-results" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
@@ -183,11 +207,13 @@ const Onboarding = {
       body.querySelector('#ob-city-search')?.addEventListener('click', run);
       body.querySelector('#ob-city')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
     } else if (key === 'github') {
-      let v = ''; try { v = localStorage.getItem('vex.githubUsername') || ''; } catch {}
+      let v = this._session.github;
+      if (v == null) { try { v = localStorage.getItem('vex.githubUsername') || ''; } catch { v = ''; } }
       body.innerHTML = input('ob-gh', 'e.g. octocat', v);
     } else if (key === 'search') {
       const ENGINES = this._engines();
-      let cur = 'google'; try { cur = localStorage.getItem('vex.searchEngine') || 'google'; } catch {}
+      let cur = this._session.engine;
+      if (cur == null) { try { cur = localStorage.getItem('vex.searchEngine') || 'google'; } catch { cur = 'google'; } }
       body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">${ENGINES.map(e =>
         `<button data-engine="${e.id}" style="padding:13px 6px;border-radius:11px;border:2px solid ${e.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12.5px;display:flex;flex-direction:column;align-items:center;gap:8px">
           <span style="width:30px;height:30px;border-radius:8px;background:${e.color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px">${this._esc(e.glyph)}</span>${this._esc(e.name)}</button>`).join('')}</div>`;
@@ -212,7 +238,8 @@ const Onboarding = {
         if (st) st.textContent = 'Opened Windows settings — pick Vex as your “Web browser”.';
       });
     } else if (key === 'aicloud') {
-      let cur = ''; try { cur = localStorage.getItem('vex.aiWorkerUrl') || ''; } catch {}
+      let cur = this._session.aicloud;
+      if (cur == null) { try { cur = localStorage.getItem('vex.aiWorkerUrl') || ''; } catch { cur = ''; } }
       body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">
         <label style="font-size:12.5px;color:var(--text-muted)">Cloud AI Worker URL (Claude — see SELF_HOSTING.md)</label>
         ${input('ob-ai-url', 'https://your-vex-ai.workers.dev', cur)}
@@ -236,7 +263,8 @@ const Onboarding = {
       body.innerHTML = this._onDeviceSection();
       this._wireOnDevice(body);
     } else if (key === 'sync') {
-      let cur = ''; try { cur = localStorage.getItem('vex.syncWorkerUrl') || ''; } catch {}
+      let cur = this._session.sync;
+      if (cur == null) { try { cur = localStorage.getItem('vex.syncWorkerUrl') || ''; } catch { cur = ''; } }
       body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">
         <label style="font-size:12.5px;color:var(--text-muted)">Sync Worker URL (deploy your own — see SELF_HOSTING.md)</label>
         ${input('ob-sync-url', 'https://your-vex-sync.workers.dev', cur)}
@@ -354,6 +382,7 @@ const Onboarding = {
   },
 
   async _commitAndNext(key, overlay) {
+    this._stash(key, overlay);   // so Back onto this step re-shows exactly what was typed
     if (key === 'name') {
       const v = overlay.querySelector('#ob-name')?.value.trim() || '';
       this._setStart('vex.userName', v || null);

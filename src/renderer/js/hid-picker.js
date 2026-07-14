@@ -5,7 +5,7 @@
 // reconnects need no re-prompt. Reply with the chosen deviceId, or '' to cancel.
 
 const HidPicker = (() => {
-  function _esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function _esc(s) { return window.escapeHtml(s); }
   // Vendor/product ids come as numbers; show them as the familiar 0xXXXX form.
   function _hex(n) { return (typeof n === 'number' && !Number.isNaN(n)) ? '0x' + n.toString(16).padStart(4, '0') : '?'; }
   function _name(dev) { return (dev && dev.name && dev.name.trim()) ? dev.name.trim() : 'Unknown HID device'; }

@@ -876,7 +876,7 @@ const TabManager = {
     this._attachMenuDismissal(menu);
   },
 
-  _handleGroupAction(action, groupId) {
+  async _handleGroupAction(action, groupId) {
     const group = this.groups.find(g => g.id === groupId);
     if (!group) return;
     const tabsInGroup = this.tabs.filter(t => t.groupId === groupId);
@@ -910,7 +910,7 @@ const TabManager = {
         break;
       }
       case 'close-tabs': {
-        if (!confirm(`Close ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} in "${group.name}"? The group itself stays.`)) return;
+        if (!await vexConfirm({ title: 'Close tabs', message: `Close ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} in "${group.name}"? The group itself stays.`, okLabel: 'Close tabs', danger: true })) return;
         tabsInGroup.forEach(t => this.closeTab(t.id));
         break;
       }
@@ -924,7 +924,7 @@ const TabManager = {
         break;
       }
       case 'delete': {
-        if (!confirm(`Delete "${group.name}" and close all ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} inside? This cannot be undone.`)) return;
+        if (!await vexConfirm({ title: 'Delete group', message: `Delete "${group.name}" and close all ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} inside? This cannot be undone.`, okLabel: 'Delete group', danger: true })) return;
         tabsInGroup.forEach(t => this.closeTab(t.id));
         this.groups = this.groups.filter(g => g.id !== groupId);
         VexStorage.saveGroups(this.groups);
@@ -1555,42 +1555,13 @@ const TabManager = {
     tab.pinned ? this.unpinTab(tab.id) : this.pinTab(tab.id);
   },
 
-  _escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  },
+  _escapeHtml(str) { return window.escapeHtml(str); },
 
-  // Custom prompt — Electron's renderer disables window.prompt(). Returns a
-  // Promise that resolves to the entered string, or null on cancel/escape.
+  // Custom prompt — Electron's renderer disables window.prompt(). Thin
+  // wrapper over the unified dialog (js/vex-dialog.js). Resolves to the
+  // entered string, or null on cancel/escape.
   _promptInput(title, label, defaultValue) {
-    return new Promise(resolve => {
-      document.querySelectorAll('.vex-prompt-overlay').forEach(o => o.remove());
-      const overlay = document.createElement('div');
-      overlay.className = 'vex-prompt-overlay';
-      overlay.innerHTML = `
-        <div class="vex-prompt">
-          <div class="vex-prompt-title">${this._escapeHtml(title || 'Input')}</div>
-          ${label ? `<div class="vex-prompt-label">${this._escapeHtml(label)}</div>` : ''}
-          <input type="text" class="vex-prompt-input" value="${this._escapeHtml(defaultValue || '')}">
-          <div class="vex-prompt-actions">
-            <button class="vex-prompt-cancel">Cancel</button>
-            <button class="vex-prompt-ok">OK</button>
-          </div>
-        </div>`;
-      document.body.appendChild(overlay);
-      const input = overlay.querySelector('.vex-prompt-input');
-      const done = (val) => { overlay.remove(); resolve(val); };
-      input.focus();
-      input.select();
-      overlay.querySelector('.vex-prompt-ok').addEventListener('click', () => done(input.value));
-      overlay.querySelector('.vex-prompt-cancel').addEventListener('click', () => done(null));
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter')  { e.preventDefault(); done(input.value); }
-        if (e.key === 'Escape') { e.preventDefault(); done(null); }
-      });
-    });
+    return window.vexPrompt({ title: title || 'Input', label, value: defaultValue });
   },
 
   // Shared dismissal wiring for any context menu we open.

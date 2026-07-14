@@ -18,7 +18,7 @@ const AICompose = {
       })()`);
     } catch {}
     document.getElementById('vex-compose-modal')?.remove();
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     const m = document.createElement('div');
     m.id = 'vex-compose-modal';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';
@@ -98,7 +98,7 @@ const CommandChains = {
   },
   renderPanel(container) {
     if (!container) return;
-    const esc = (s) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; };
+    const esc = (s) => window.escapeHtml(s);
     const baseCmds = CommandBar.commands.filter(c => !String(c.id).startsWith('chain:'));
     container.innerHTML = `<p class="setting-info muted" style="margin-bottom:10px">Chains run several command-bar actions in order as one command (e.g. Reading mode → Read aloud).</p>`;
     this.chains.forEach(ch => {
