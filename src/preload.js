@@ -278,6 +278,9 @@ contextBridge.exposeInMainWorld('vex', {
     onRequest:        (cb) => ipcRenderer.on('ext:renderer-request', (_e, d) => cb(d)),
     respond:          (id, result) => ipcRenderer.send('ext:renderer-response', { id, result }),
     onSidePanel:      (cb) => ipcRenderer.on('ext-host:side-panel', (_e, d) => cb(d)),
+    // Opening the panel in Vex must look like a toolbar-icon click in Chrome,
+    // or the extension never learns which tab the conversation belongs to.
+    actionClicked:    () => ipcRenderer.invoke('ext-host:action-clicked'),
   },
 
   // Direct Anthropic backend. The API key lives in the main process only —

@@ -277,6 +277,18 @@ const ExtHostPanel = {
 
     el.classList.add('visible');
     this._open = true;
+
+    // Tell the extension the toolbar icon was "clicked" for the current tab.
+    // In Chrome that click is what binds the conversation to a tab; opening
+    // the panel from Vex's own UI otherwise leaves the extension with no
+    // current tab and every message fails with "No active tab".
+    //
+    // Fired after the panel is visible so the extension's own listener is
+    // already running, and re-fired on each open so switching tabs and
+    // reopening rebinds to the tab you're actually looking at.
+    try { await window.vex.extHost.actionClicked(); } catch (err) {
+      console.warn('[vex-ext] could not notify the extension which tab to use', err);
+    }
   },
 
   close() {

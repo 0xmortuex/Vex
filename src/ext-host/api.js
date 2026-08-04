@@ -129,6 +129,28 @@ function matches(tab, q) {
   return true;
 }
 
+// Compact, readable rendering of call arguments and results for the log.
+// Tabs are reduced to id/url/active, which is what almost every question
+// about extension behaviour turns out to hinge on.
+function summarize(v, depth = 0) {
+  try {
+    if (v == null) return String(v);
+    if (Array.isArray(v)) {
+      if (!v.length) return '[]';
+      return '[' + v.slice(0, 4).map(x => summarize(x, depth + 1)).join(', ') + (v.length > 4 ? `, +${v.length - 4}` : '') + ']';
+    }
+    if (typeof v === 'object') {
+      if (typeof v.id === 'number' && 'url' in v) {
+        return `tab#${v.id}${v.active ? '*' : ''}<${String(v.url || '(blank)').slice(0, 60)}>`;
+      }
+      const s = JSON.stringify(v);
+      return s.length > 160 ? s.slice(0, 160) + '…' : s;
+    }
+    const s = String(v);
+    return s.length > 80 ? s.slice(0, 80) + '…' : s;
+  } catch { return '?'; }
+}
+
 function emit(key, ...args) {
   const set = _subs.get(key);
   if (!set || !set.size) return;
@@ -647,9 +669,10 @@ function register({ onSidePanelOpen } = {}) {
     }
     try {
       const out = await fn.apply(impl, args || []);
-      // Trace successes too, compactly. When a message "does nothing", the
-      // useful signal is where the call sequence stops, not just what threw.
-      diag.write('api ', `chrome.${namespace}.${method} -> ok`);
+      // Trace successes too, with enough of the result to be useful. "-> ok"
+      // alone was actively misleading once: tabs.query succeeded and the
+      // extension still refused, and the answer was in *which* tabs came back.
+      diag.write('api ', `chrome.${namespace}.${method}(${summarize(args)}) -> ${summarize(out)}`);
       return out;
     } catch (err) {
       // The shim converts this into runtime.lastError, which extensions
@@ -678,12 +701,40 @@ function register({ onSidePanelOpen } = {}) {
   });
 
   // Vex's renderer registers itself and reports which guest is the active tab.
+  // Opening the panel from Vex's UI has to look like clicking the extension's
+  // toolbar icon in Chrome. That click is how the extension learns which tab
+  // the conversation is about: it receives action.onClicked WITH the tab and
+  // binds its session to it. Without it the extension has no current tab, and
+  // every tool it later runs fails its own `if (!ctx.tabId)` guard with
+  // "No active tab" — long after the last chrome.* call, which is why this
+  // looked like nothing happening rather than an API failure.
+  ipcMain.handle('ext-host:action-clicked', async () => {
+    const wc = activeGuest();
+    if (!wc) { diag.write('host', 'panel opened but there is no page tab to bind to'); return { ok: false, error: 'No page open' }; }
+    const tab = toTab(wc, 0, wc.id);
+    diag.write('host', `panel opened -> action.onClicked ${summarize(tab)}`);
+    emit('action.onClicked', tab);
+    return { ok: true, tabId: wc.id };
+  });
+
   ipcMain.on('ext:renderer-ready', (e) => {
     _rendererWc = e.sender;
     diag.write('host', 'renderer registered — tab operations available');
   });
   ipcMain.on('ext:set-active-tab', (_e, id) => {
     const n = Number(id) || null;
+    // The extension's own pages are webviews too, so the renderer can report
+    // the Claude panel itself as the active tab the moment it opens. Accepting
+    // that would point the conversation at the panel instead of the page.
+    if (n != null) {
+      const wc = wcById(n);
+      let url = '';
+      try { url = wc ? (wc.getURL() || '') : ''; } catch {}
+      if (url.startsWith('chrome-extension://')) {
+        diag.write('host', `ignoring active-tab ${n} (that's the extension's own page)`);
+        return;
+      }
+    }
     if (n !== _activeTabId) diag.write('host', 'active tab -> ' + n);
     _activeTabId = n;
   });
