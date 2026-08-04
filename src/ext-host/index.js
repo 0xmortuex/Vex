@@ -59,7 +59,7 @@ async function installFrom(app, srcDir) {
   const ext = await loadInto(_sessions, dest);
   if (!ext) return { ok: false, error: 'Files were patched but the extension did not attach.' };
 
-  api.setExtension(ext.id, prep.manifest);
+  api.setExtension(ext.id, prep.manifest, dest);
   _loaded = { id: ext.id, name: ext.name, version: ext.manifest.version, path: dest };
   writeState(app, { srcDir, dest, id: ext.id, name: ext.name, version: ext.manifest.version });
 
@@ -143,7 +143,7 @@ function init(app, sessions, opts = {}) {
       if (!ext) return;
       let manifest = null;
       try { manifest = JSON.parse(fs.readFileSync(path.join(st.dest, 'manifest.json'), 'utf8')); } catch {}
-      api.setExtension(ext.id, manifest);
+      api.setExtension(ext.id, manifest, st.dest);
       _loaded = { id: ext.id, name: ext.name, version: ext.manifest.version, path: st.dest };
       console.log('[vex-ext] restored', ext.name, ext.manifest.version);
     }).catch(err => console.error('[vex-ext] restore failed:', err.message));

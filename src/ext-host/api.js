@@ -11,10 +11,14 @@
 // tab and then attaches the debugger to it must land on the same page.
 
 const { ipcMain, webContents, BrowserWindow, Notification, session, app, shell } = require('electron');
+const fs = require('fs');
+const path = require('path');
 
 let _activeTabId = null;         // told to us by Vex's renderer
 let _manifest = null;            // the installed extension's manifest
 let _extensionId = null;
+let _extPath = null;             // on-disk root, for scripting file injection
+const _insertedCss = new Map();  // insertCSS key -> webContents id
 let _onSidePanelOpen = null;     // callback into Vex's renderer
 
 // event key -> Set<WebContents> (the SW / extension pages that subscribed)
@@ -249,8 +253,20 @@ const API = {
     async getZoom(id) { const wc = wcById(id ?? _activeTabId); return wc ? wc.getZoomFactor() : 1; },
     async duplicate(id) { const wc = wcById(id); if (!wc) return null; return askRenderer('tabs.create', { url: wc.getURL(), active: true }); },
     async detectLanguage() { return 'en'; },
-    async group() { return -1; },
-    async ungroup() { return undefined; },
+    async group(options) {
+      const o = options || {};
+      const tabIds = [].concat(o.tabIds || []).map(Number).filter(Boolean);
+      const res = await askRenderer('tabs.group', {
+        tabIds,
+        groupId: o.groupId,
+        createProperties: o.createProperties || {},
+      });
+      return res && res.groupId != null ? res.groupId : -1;
+    },
+    async ungroup(tabIds) {
+      await askRenderer('tabs.ungroup', { tabIds: [].concat(tabIds || []).map(Number).filter(Boolean) });
+      return undefined;
+    },
     async move(id) { const wc = wcById(id); return wc ? toTab(wc) : null; },
     async highlight() { return { id: 1, focused: true }; },
     async discard(id) { const wc = wcById(id); return wc ? toTab(wc) : null; },
@@ -301,11 +317,14 @@ const API = {
     async getPanelBehavior() { return { openPanelOnActionClick: true }; },
   },
 
+  // Vex has real tab groups, so these are real too — Claude can create, name,
+  // recolour and collapse groups here exactly as it does in Chrome. The group
+  // list lives in the renderer's TabManager, so every call round-trips there.
   tabGroups: {
-    async query() { return []; },
-    async get() { return null; },
-    async update() { return null; },
-    async move() { return null; },
+    async query(q) { return (await askRenderer('tabGroups.query', q || {})) || []; },
+    async get(groupId) { return await askRenderer('tabGroups.get', { groupId }); },
+    async update(groupId, props) { return await askRenderer('tabGroups.update', { groupId, props: props || {} }); },
+    async move(groupId) { return await askRenderer('tabGroups.get', { groupId }); },
   },
 
   windows: {
@@ -483,7 +502,73 @@ const API = {
     async openPopup() { if (_onSidePanelOpen) _onSidePanelOpen(true); return undefined; },
   },
 
+  // Electron ships a native chrome.scripting, but it resolves tabIds in its
+  // OWN id space — which is not the webContents id space chrome.tabs and
+  // chrome.debugger use here. Calling it with a tab id from chrome.tabs.get
+  // fails with "No tab with id N", and since the extension reads page content
+  // through executeScript (13 call sites), that failure silently kills the
+  // whole answer path: the message is sent, nothing comes back.
+  //
+  // So this is overridden too, on the same webContents ids as everything else.
   scripting: {
+    async executeScript(injection) {
+      const inj = injection || {};
+      const target = inj.target || {};
+      const wc = wcById(target.tabId) || wcById(_activeTabId);
+      if (!wc) throw new Error('No tab with id ' + target.tabId);
+
+      let expression = null;
+      if (inj.funcSource) {
+        // The shim stringifies `func` for us — a function can't cross IPC.
+        const args = JSON.stringify(inj.args || []);
+        expression = `(function(){ try { return (${inj.funcSource}).apply(null, ${args}); } catch (e) { throw e; } })()`;
+      } else if (Array.isArray(inj.files) && inj.files.length) {
+        const parts = [];
+        for (const rel of inj.files) {
+          const abs = path.join(_extPath || '', String(rel).replace(/^\/+/, ''));
+          // Never let a crafted path escape the extension directory.
+          if (!_extPath || !abs.startsWith(_extPath)) throw new Error('Refusing to inject outside the extension: ' + rel);
+          parts.push(fs.readFileSync(abs, 'utf8'));
+        }
+        expression = parts.join('\n;\n');
+      } else {
+        throw new Error('executeScript needs func or files');
+      }
+
+      // userGesture=true so the injected code can do things a real click could.
+      const result = await wc.executeJavaScript(expression, true);
+      return [{ frameId: 0, documentId: String(wc.id), result }];
+    },
+
+    async insertCSS(injection) {
+      const inj = injection || {};
+      const wc = wcById((inj.target || {}).tabId) || wcById(_activeTabId);
+      if (!wc) throw new Error('No tab to insert CSS into');
+      let css = inj.css || '';
+      if (!css && Array.isArray(inj.files)) {
+        for (const rel of inj.files) {
+          const abs = path.join(_extPath || '', String(rel).replace(/^\/+/, ''));
+          if (!_extPath || !abs.startsWith(_extPath)) throw new Error('Refusing to read outside the extension: ' + rel);
+          css += fs.readFileSync(abs, 'utf8') + '\n';
+        }
+      }
+      const key = await wc.insertCSS(css);
+      _insertedCss.set(key, wc.id);
+      return undefined;
+    },
+
+    async removeCSS() {
+      // Chrome removes by matching the original injection; Electron needs the
+      // key it handed back. Clearing everything we inserted is the honest
+      // approximation and is what callers actually want.
+      for (const [key, wcId] of [..._insertedCss]) {
+        const wc = wcById(wcId);
+        if (wc) { try { await wc.removeInsertedCSS(key); } catch {} }
+        _insertedCss.delete(key);
+      }
+      return undefined;
+    },
+
     async registerContentScripts() { return undefined; },
     async getRegisteredContentScripts() { return []; },
     async unregisterContentScripts() { return undefined; },
@@ -547,7 +632,11 @@ function register({ onSidePanelOpen } = {}) {
   });
 }
 
-function setExtension(id, manifest) { _extensionId = id; _manifest = manifest; }
+function setExtension(id, manifest, extPath) {
+  _extensionId = id;
+  _manifest = manifest;
+  _extPath = extPath ? path.resolve(extPath) : null;
+}
 function activeTabId() { return _activeTabId; }
 
 module.exports = { register, setExtension, activeTabId, API, toTab, matches };

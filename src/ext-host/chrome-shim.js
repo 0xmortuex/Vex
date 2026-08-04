@@ -275,10 +275,37 @@
     if (!chrome.action.onClicked) chrome.action.onClicked = ev('action.onClicked');
   }
 
-  if (chrome.scripting && !chrome.scripting.registerContentScripts) {
-    for (const k of ['registerContentScripts', 'getRegisteredContentScripts', 'unregisterContentScripts', 'updateContentScripts']) {
-      chrome.scripting[k] = m('scripting', k);
-    }
+  // chrome.scripting is overridden wholesale, not gap-filled. Electron ships a
+  // native one, but it resolves tab ids in its own id space — passing it an id
+  // that came from chrome.tabs.get throws "No tab with id N". Since the
+  // extension reads page content through executeScript, that mismatch silently
+  // breaks answering questions about the page.
+  {
+    const scripting = ns('scripting', {
+      methods: ['registerContentScripts', 'getRegisteredContentScripts', 'unregisterContentScripts', 'updateContentScripts'],
+      statics: { ExecutionWorld: Object.freeze({ ISOLATED: 'ISOLATED', MAIN: 'MAIN' }) },
+    }, { force: true });
+
+    // `func` is a live function object and cannot cross IPC, so it's
+    // stringified here and re-created in the page by the main process.
+    const withSource = (injection) => {
+      const inj = Object.assign({}, injection || {});
+      if (typeof inj.func === 'function') {
+        inj.funcSource = inj.func.toString();
+        delete inj.func;
+      }
+      return inj;
+    };
+
+    scripting.executeScript = function (injection, cb) {
+      return m('scripting', 'executeScript').call(this, withSource(injection), ...(cb ? [cb] : []));
+    };
+    scripting.insertCSS = function (injection, cb) {
+      return m('scripting', 'insertCSS').call(this, withSource(injection), ...(cb ? [cb] : []));
+    };
+    scripting.removeCSS = function (injection, cb) {
+      return m('scripting', 'removeCSS').call(this, withSource(injection), ...(cb ? [cb] : []));
+    };
   }
 
   console.log('[vex-ext] chrome shim installed (' +
