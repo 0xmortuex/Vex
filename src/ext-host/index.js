@@ -137,15 +137,28 @@ function init(app, sessions, opts = {}) {
   ipcMain.handle('ext-host:open-folder', () => { shell.openPath(hostDir(app)); return { ok: true }; });
 
   // Re-load whatever was installed last run.
+  //
+  // Re-patch from the original source when it's still there, rather than just
+  // re-loading the existing copy. The shim ships with Vex, so a Vex update
+  // that fixes a chrome.* API would otherwise never reach an already-installed
+  // extension — it would keep running the shim it was patched with, and the
+  // fix would look like it hadn't worked. Re-patching costs one directory copy
+  // at startup and keeps the two permanently in sync.
   const st = readState(app);
-  if (st && st.dest && fs.existsSync(path.join(st.dest, 'manifest.json'))) {
+  if (st && st.srcDir && fs.existsSync(path.join(String(st.srcDir), 'manifest.json'))) {
+    installFrom(app, st.srcDir)
+      .then(r => console.log('[vex-ext]', r.ok ? `re-patched ${r.name} ${r.version} on startup` : 're-patch failed: ' + r.error))
+      .catch(err => console.error('[vex-ext] re-patch failed:', err.message));
+  } else if (st && st.dest && fs.existsSync(path.join(st.dest, 'manifest.json'))) {
+    // Source is gone (Chrome uninstalled or updated the folder away) — fall
+    // back to the copy we already have so the extension still works.
     loadInto(_sessions, st.dest).then(ext => {
       if (!ext) return;
       let manifest = null;
       try { manifest = JSON.parse(fs.readFileSync(path.join(st.dest, 'manifest.json'), 'utf8')); } catch {}
       api.setExtension(ext.id, manifest, st.dest);
       _loaded = { id: ext.id, name: ext.name, version: ext.manifest.version, path: st.dest };
-      console.log('[vex-ext] restored', ext.name, ext.manifest.version);
+      console.log('[vex-ext] restored', ext.name, ext.manifest.version, '(source missing — shim not refreshed)');
     }).catch(err => console.error('[vex-ext] restore failed:', err.message));
   }
 }
