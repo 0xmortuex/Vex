@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="css/app.css">
   <link rel="stylesheet" href="css/vex-dialog.css">
   <link rel="stylesheet" href="css/vex-ui.css">
+  <link rel="stylesheet" href="css/agent-indicator.css">
+  <link rel="stylesheet" href="css/ext-host-panel.css">
   <link rel="stylesheet" href="css/tabs.css">
   <link rel="stylesheet" href="css/sidebar.css">
   <link rel="stylesheet" href="css/command.css">
@@ -436,6 +438,24 @@
                 </div>
               </div>
 
+              <!-- Direct Anthropic API — bring your own key, no worker hop -->
+              <div class="setting-row" id="claude-key-row" style="margin-top:14px;flex-direction:column;align-items:stretch;gap:8px">
+                <div class="setting-label" style="display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                    <strong>Anthropic API key</strong>
+                    <span class="setting-hint">Talk to Claude directly instead of through the Cloudflare Worker. Encrypted with your OS keychain; never leaves this machine except to api.anthropic.com.</span>
+                  </div>
+                  <span class="status-badge" id="claude-key-status">&mdash;</span>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input type="password" id="claude-key-input" placeholder="sk-ant-..." autocomplete="off" spellcheck="false"
+                         style="flex:1;padding:7px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px">
+                  <button id="claude-key-save" class="btn-primary" style="padding:7px 14px;border-radius:7px;cursor:pointer;font-family:inherit;font-size:12px">Save</button>
+                  <button id="claude-key-clear" style="padding:7px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-family:inherit;font-size:12px">Remove</button>
+                </div>
+                <div id="claude-key-msg" class="setting-info muted" style="font-size:11px;min-height:14px"></div>
+              </div>
+
               <div class="setting-row" style="margin-top:14px">
                 <div class="setting-label">
                   <strong>AI Mode</strong>
@@ -499,6 +519,19 @@
               <label class="setting-label">Site Permissions</label>
               <div id="permissions-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading permissions...</div>
+              </div>
+            </div>
+
+            <!-- Claude for Chrome, running through Vex's extension host -->
+            <div class="setting-group">
+              <label class="setting-label">Claude for Chrome</label>
+              <p class="setting-info muted" style="margin-bottom:10px">
+                Runs Anthropic's real Claude extension inside Vex. Vex supplies the Chrome APIs Electron
+                doesn't ship, so the extension can read tabs and drive pages just as it does in Chrome.
+                Your original Chrome install is never modified &mdash; Vex works on a copy.
+              </p>
+              <div id="ext-host-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading&hellip;</div>
               </div>
             </div>
 
@@ -963,6 +996,9 @@
   <script src="js/ollama.js"></script>
   <script src="js/ai-router.js"></script>
   <script src="js/ai-settings.js"></script>
+  <script src="js/claude-settings.js"></script>
+  <script src="js/ext-host-panel.js"></script>
+  <script src="js/ext-host-settings.js"></script>
   <script src="js/personas-builtin.js"></script>
   <script src="js/personas-manager.js"></script>
   <script src="js/personas-settings.js"></script>
@@ -984,6 +1020,9 @@
   <script src="js/multi-tab-context.js"></script>
   <script src="js/tab-selector.js"></script>
   <script src="js/dom-extractor.js"></script>
+  <script src="js/agent-cdp.js"></script>
+  <script src="js/ax-snapshot.js"></script>
+  <script src="js/agent-indicator.js"></script>
   <script src="js/agent-executor.js"></script>
   <script src="js/agent-loop.js"></script>
   <script src="js/scheduler.js"></script>

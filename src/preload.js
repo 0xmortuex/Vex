@@ -249,7 +249,47 @@ contextBridge.exposeInMainWorld('vex', {
   syncLoadKey: () => ipcRenderer.invoke('sync-load-key'),
   syncSaveMeta: (meta) => ipcRenderer.invoke('sync-save-meta', meta),
   syncLoadMeta: () => ipcRenderer.invoke('sync-load-meta'),
-  syncClearState: () => ipcRenderer.invoke('sync-clear-state')
+  syncClearState: () => ipcRenderer.invoke('sync-clear-state'),
+
+  // Chrome DevTools Protocol bridge — the agent drives pages through this so
+  // its clicks and keystrokes are trusted events. Guest pages can't reach it
+  // (they load preload-webview.js, which has no CDP surface); only Vex's own
+  // renderer can, and main allowlists the CDP methods it will forward.
+  cdp: {
+    attach:     (webContentsId) => ipcRenderer.invoke('cdp:attach', webContentsId),
+    detach:     (webContentsId) => ipcRenderer.invoke('cdp:detach', webContentsId),
+    detachAll:  () => ipcRenderer.invoke('cdp:detach-all'),
+    isAttached: (webContentsId) => ipcRenderer.invoke('cdp:is-attached', webContentsId),
+    send:       (webContentsId, method, params) => ipcRenderer.invoke('cdp:send', webContentsId, method, params),
+  },
+
+  // Chrome extension host — runs the real Claude for Chrome extension inside
+  // Vex by bridging the chrome.* APIs Electron doesn't ship.
+  extHost: {
+    status:           () => ipcRenderer.invoke('ext-host:status'),
+    installFolder:    () => ipcRenderer.invoke('ext-host:install-folder'),
+    installPath:      (dir) => ipcRenderer.invoke('ext-host:install-path', dir),
+    findChromeCopies: () => ipcRenderer.invoke('ext-host:find-chrome-copies'),
+    uninstall:        () => ipcRenderer.invoke('ext-host:uninstall'),
+    openFolder:       () => ipcRenderer.invoke('ext-host:open-folder'),
+    // Vex's renderer owns the tab list, so main forwards tab operations here.
+    rendererReady:    () => ipcRenderer.send('ext:renderer-ready'),
+    setActiveTab:     (webContentsId) => ipcRenderer.send('ext:set-active-tab', webContentsId),
+    onRequest:        (cb) => ipcRenderer.on('ext:renderer-request', (_e, d) => cb(d)),
+    respond:          (id, result) => ipcRenderer.send('ext:renderer-response', { id, result }),
+    onSidePanel:      (cb) => ipcRenderer.on('ext-host:side-panel', (_e, d) => cb(d)),
+  },
+
+  // Direct Anthropic backend. The API key lives in the main process only —
+  // nothing here can read it back, by design.
+  claude: {
+    status:    () => ipcRenderer.invoke('claude:status'),
+    configure: (apiKey) => ipcRenderer.invoke('claude:configure', apiKey),
+    clear:     () => ipcRenderer.invoke('claude:clear'),
+    message:   (payload) => ipcRenderer.invoke('claude:message', payload),
+    cancel:    (requestId) => ipcRenderer.invoke('claude:cancel', requestId),
+    onDelta:   (cb) => ipcRenderer.on('claude:delta', (_e, d) => cb(d)),
+  }
 });
 
 contextBridge.exposeInMainWorld('vexDevTools', {

@@ -40,6 +40,9 @@ const { createPipWindow, closePipWindow } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
+const _cdpBridge = require('./cdp-bridge');
+const _anthropicClient = require('./anthropic-client');
+const _extHost = require('./ext-host');
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
 console.log('[Vex URL] ====== Vex process boot ======');
@@ -1399,6 +1402,26 @@ ipcMain.handle('extensions:open-folder', () => { shell.openPath(extensionsDir); 
 
 // Load installed extensions once the app is ready
 app.whenReady().then(() => { loadAllExtensionsOnStartup().catch(() => {}); });
+
+// CDP bridge (trusted agent input + accessibility tree) and the direct
+// Anthropic backend. Both register their own IPC handlers; the Anthropic one
+// needs `app` for the userData path where the encrypted key lives.
+_cdpBridge.register();
+_anthropicClient.register(app);
+
+// Chrome extension host. Registers the bridge preload on every session the
+// extension can run in — this must happen before any extension loads, or its
+// service worker starts without the bridge and stays inert for its lifetime.
+app.whenReady().then(() => {
+  const extSessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))];
+  _extHost.init(app, extSessions, {
+    onSidePanelOpen: (open) => {
+      for (const w of BrowserWindow.getAllWindows()) {
+        try { w.webContents.send('ext-host:side-panel', { open }); } catch {}
+      }
+    },
+  });
+});
 
 // === External protocol forwarding ===
 // Custom-scheme URLs (roblox://, mailto:, discord://, etc.) aren't handled by

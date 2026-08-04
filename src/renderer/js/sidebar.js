@@ -321,6 +321,14 @@ const SidebarManager = {
       // Phase 14: populate the AI Backend section each time Settings opens
       AISettings.renderAISettings();
     }
+    if (panelName === 'settings' && typeof ClaudeSettings !== 'undefined') {
+      // Anthropic direct-API key block, in the same AI Backend section
+      ClaudeSettings.wire();
+    }
+    if (panelName === 'settings' && typeof ExtHostSettings !== 'undefined') {
+      // Claude for Chrome install/remove, above the generic extensions list
+      ExtHostSettings.render();
+    }
     if (panelName === 'settings' && typeof PersonasSettings !== 'undefined') {
       // Phase 15: render the Personas grid each time Settings opens
       PersonasSettings.renderPanel(document.getElementById('personas-panel-content'));

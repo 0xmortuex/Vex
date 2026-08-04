@@ -1,0 +1,74 @@
+/* === Claude for Chrome side panel, hosted in Vex's chrome === */
+
+#ext-host-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 92vw;
+  z-index: 9997;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #17171b);
+  border-left: 1px solid var(--border, #33333a);
+  box-shadow: -12px 0 34px -18px rgba(0, 0, 0, .8);
+  transform: translateX(100%);
+  transition: transform .22s cubic-bezier(.22, .61, .36, 1);
+  visibility: hidden;
+}
+
+#ext-host-panel.visible {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.ext-host-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border, #33333a);
+  background: var(--bg, #101014);
+  font-family: 'Outfit', system-ui, sans-serif;
+  -webkit-app-region: drag;
+}
+
+.ext-host-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #eee);
+}
+
+.ext-host-close {
+  -webkit-app-region: no-drag;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text-muted, #9a9aa2);
+  border: 0;
+  border-radius: 6px;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ext-host-close:hover {
+  background: var(--surface-2, #26262c);
+  color: var(--text, #eee);
+}
+
+.ext-host-body {
+  flex: 1;
+  min-height: 0;
+  background: #F4F1EA;
+}
+
+.ext-host-body webview {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}

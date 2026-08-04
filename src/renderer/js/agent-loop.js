@@ -20,8 +20,10 @@ const AGENT_TOOLS = [
   { name: 'click', description: 'Click an element by selector', parameters: { selector: 'string' } },
   { name: 'type_text', description: 'Type into an input field', parameters: { selector: 'string', text: 'string', clearFirst: 'boolean' } },
   { name: 'select_option', description: 'Select dropdown option', parameters: { selector: 'string', value: 'string' } },
-  { name: 'scroll', description: 'Scroll the page', parameters: { direction: 'up|down|top|bottom', amount: 'number' } },
+  { name: 'press_key', description: 'Press a key in the focused element — use Enter to submit a form or search box after typing', parameters: { key: 'Enter|Tab|Escape|Backspace|Delete|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown' } },
+  { name: 'scroll', description: 'Scroll the page', parameters: { direction: 'up|down|top|bottom', amount: 'number (optional)' } },
   { name: 'extract_elements', description: 'Get all interactive elements with selectors', parameters: {} },
+  { name: 'accessibility_tree', description: 'Get the page accessibility tree — shows structure, roles, labels and states (disabled, checked, expanded) that a selector list cannot convey. Prefer this when the page layout is unclear.', parameters: {} },
   { name: 'extract_text', description: 'Get page text content', parameters: { selector: 'string (optional)' } },
   { name: 'screenshot', description: 'Capture current page', parameters: {} },
   { name: 'list_tabs', description: 'List all open tabs', parameters: {} },
@@ -32,7 +34,24 @@ const AGENT_TOOLS = [
   { name: 'ask_user', description: 'Ask user for clarification', parameters: { question: 'string' } }
 ];
 
-const SAFE_TOOLS = ['extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'scroll', 'wait', 'search_in_page'];
+const SAFE_TOOLS = ['extract_elements', 'accessibility_tree', 'extract_text', 'screenshot', 'list_tabs', 'scroll', 'wait', 'search_in_page'];
+
+// System prompt for the direct-Anthropic path. The Cloudflare Worker builds
+// its own prompt server-side, so this is only used when the user has supplied
+// their own API key and Vex talks to the Messages API directly.
+const AGENT_SYSTEM = [
+  'You are Vex\'s browser agent. You control a real browser tab on the user\'s machine to accomplish their goal.',
+  '',
+  'How you see the page: each turn you get the current URL and title, a list of interactive elements with CSS selectors, and an accessibility outline showing structure, labels and states. Call screenshot when you need to see the page visually — layout, images, or anything the text does not capture.',
+  '',
+  'How you act: your clicks and keystrokes are real browser input events, so pages respond exactly as they would to the user. After typing into a search box or form field, press Enter with press_key — typing alone does not submit.',
+  '',
+  'Use the selectors given to you rather than guessing. If an element is not there, look again with extract_elements or accessibility_tree instead of retrying the same selector.',
+  '',
+  'Call finish as soon as the goal is met, with a summary answering what the user actually asked. Call ask_user only when you genuinely cannot proceed without an answer.',
+  '',
+  'Set intent to "risky" on any action that sends a message, makes a purchase, deletes something, or is otherwise hard to undo — the user is asked to confirm those.',
+].join('\n');
 
 // === Phase 18: Tool-call loop detection ===
 // Stops the agent from calling the same (tool, args) pair more than MAX_IDENTICAL
@@ -134,6 +153,136 @@ const AgentLoop = {
     return result;
   },
 
+  // === Direct Anthropic backend ===========================================
+  // When the user has supplied their own API key, the agent talks to the
+  // Messages API directly and gets real tool_use blocks back. That removes the
+  // whole class of failure where the model wrote valid-looking JSON that
+  // parseAgentResponse couldn't recover from a fenced code block.
+  //
+  // The Cloudflare Worker path is untouched and is still used when no key is
+  // configured, so nothing regresses for existing users.
+  _claudeMsgs: [],
+  _claudeOn: false,
+
+  async _claudeCheck() {
+    try {
+      if (!window.vex?.claude) return false;
+      const s = await window.vex.claude.status();
+      return !!(s && s.configured);
+    } catch { return false; }
+  },
+
+  _claudeStart(goal) {
+    this._claudeMsgs = [{ role: 'user', content: [{ type: 'text', text: 'Goal: ' + goal }] }];
+  },
+
+  // Build the user turn carrying this iteration's page state (and the previous
+  // tool's result, as a tool_result block when there is one to answer).
+  _claudeAppendState(pageContext, axText, lastToolUseId, lastResult) {
+    const blocks = [];
+
+    if (lastToolUseId) {
+      const payload = typeof lastResult?.result === 'string'
+        ? lastResult.result
+        : JSON.stringify(lastResult?.result ?? lastResult ?? {}).slice(0, 12000);
+      const content = [{ type: 'text', text: lastResult?.ok ? payload : ('Error: ' + (lastResult?.error || 'failed')) }];
+
+      // Screenshots ride back inside the tool_result, which is what lets the
+      // model actually look at the page instead of being told a screenshot
+      // happened somewhere.
+      if (lastResult?.image?.data) {
+        content.push({
+          type: 'image',
+          source: { type: 'base64', media_type: lastResult.image.mediaType || 'image/jpeg', data: lastResult.image.data },
+        });
+      }
+      blocks.push({
+        type: 'tool_result',
+        tool_use_id: lastToolUseId,
+        content,
+        ...(lastResult?.ok ? {} : { is_error: true }),
+      });
+    }
+
+    let state = '';
+    if (pageContext) {
+      state += `Current page: ${pageContext.title || '(untitled)'}\nURL: ${pageContext.url || '(unknown)'}\n`;
+      if (Array.isArray(pageContext.elements) && pageContext.elements.length) {
+        state += `\nInteractive elements:\n${JSON.stringify(pageContext.elements).slice(0, 12000)}\n`;
+      }
+      if (axText) state += `\nAccessibility outline:\n${axText.slice(0, 12000)}\n`;
+    } else {
+      state += 'No page is loaded in the active tab.\n';
+    }
+    blocks.push({ type: 'text', text: state });
+
+    this._claudeMsgs.push({ role: 'user', content: blocks });
+    this._claudeCompact();
+  },
+
+  // Keep the transcript from ballooning. Dropping whole messages is not an
+  // option: every tool_result must keep the tool_use it answers, and deleting
+  // the assistant turn that owns one makes the next request fail outright.
+  // Assistant turns are also replayed verbatim because thinking blocks must
+  // come back unmodified. So instead of removing anything, this shrinks the
+  // bulky parts of older *user* turns in place — old screenshots and stale
+  // page snapshots, which the model has no reason to re-read once it has
+  // moved on. Structure and pairing survive untouched.
+  _claudeCompact(keepRecent = 6, maxChars = 600) {
+    const trimBlock = (b) => {
+      if (!b || typeof b !== 'object') return b;
+      if (b.type === 'image') return { type: 'text', text: '[screenshot from an earlier step — omitted]' };
+      if (b.type === 'text' && typeof b.text === 'string' && b.text.length > maxChars) {
+        return { type: 'text', text: b.text.slice(0, maxChars) + '\n… (earlier page state trimmed)' };
+      }
+      if (b.type === 'tool_result' && Array.isArray(b.content)) {
+        return { ...b, content: b.content.map(trimBlock) };
+      }
+      return b;
+    };
+
+    const cutoff = this._claudeMsgs.length - keepRecent;
+    for (let i = 1; i < cutoff; i++) {
+      const m = this._claudeMsgs[i];
+      if (!m || m.role !== 'user' || !Array.isArray(m.content)) continue;
+      m.content = m.content.map(trimBlock);
+    }
+  },
+
+  async _claudeTurn(tools) {
+    const res = await window.vex.claude.message({
+      requestId: 'agent-' + Date.now(),
+      mode: 'agent',
+      system: AGENT_SYSTEM,
+      messages: this._claudeMsgs,
+      tools,
+    });
+
+    if (!res.ok) {
+      if (res.refusal) {
+        throw new Error('Claude declined this request' + (res.refusal.category ? ` (${res.refusal.category})` : '') + '. ' + (res.refusal.explanation || ''));
+      }
+      throw new Error(res.error || 'Request failed');
+    }
+
+    // Echo the assistant turn back verbatim next time — thinking blocks must
+    // be replayed unmodified or the API rejects the follow-up.
+    this._claudeMsgs.push({ role: 'assistant', content: res.content });
+
+    const tu = res.toolUses[0];
+    if (!tu) {
+      // No tool call means the model answered in prose — treat that as the
+      // final answer rather than an error.
+      return { tool: 'finish', parameters: { summary: res.text || 'Done' }, thought: '', intent: 'action', _noTool: true };
+    }
+
+    const params = { ...(tu.input || {}) };
+    const intent = params.intent || 'action';
+    delete params.intent;
+
+    return { tool: tu.name, parameters: params, thought: res.text || res.thinking || '', intent, _toolUseId: tu.id };
+  },
+
   async start(goal, mode) {
     if (this._running) { window.showToast?.('Agent already running'); return; }
     this._running = true;
@@ -144,9 +293,38 @@ const AgentLoop = {
 
     this._renderStep('agent-start', 'Agent started: ' + goal, 'info');
 
+    // Pick the backend once per run so the transcript stays on one model.
+    this._claudeOn = await this._claudeCheck();
+    if (this._claudeOn) this._claudeStart(goal);
+
+    // Attach the debugger so clicks and keystrokes are trusted events. If it
+    // can't attach — DevTools open on this tab is the usual reason — say so
+    // once and let the executor fall back to scripted interaction.
+    AgentExecutor._cdpOk = true;
+    const startWv = WebviewManager.getActiveWebview();
+    if (startWv && typeof AgentCDP !== 'undefined' && AgentCDP.available()) {
+      const att = await AgentCDP.attach(startWv);
+      if (!att.ok) {
+        AgentExecutor._cdpOk = false;
+        this._renderStep('cdp', 'Using scripted input — ' + att.error + ' Some sites may not respond.', 'warn');
+      }
+    } else {
+      AgentExecutor._cdpOk = false;
+    }
+
+    if (typeof AgentIndicator !== 'undefined') AgentIndicator.show(this._claudeOn ? 'Claude' : 'Vex AI');
+
     try {
       let iteration = 0;
       let lastResult = null;
+      // Set when the model's decision came back as a real tool_use block, so
+      // the next turn can answer it with a matching tool_result.
+      let lastToolUseId = null;
+
+      // Main converts these to JSON Schema. The list is identical every turn,
+      // which is what lets the prompt cache hold across iterations.
+      const allTools = [...AGENT_TOOLS, ...(typeof McpClient !== 'undefined' ? McpClient.agentToolDefs() : [])];
+      const claudeTools = this._claudeOn ? allTools : [];
       // Phase 18: stall detection — stop if URL + tool combo stays the same
       // for STALL_THRESHOLD consecutive iterations.
       let stallCounter = 0;
@@ -159,43 +337,55 @@ const AgentLoop = {
         // Get current page state
         const wv = WebviewManager.getActiveWebview();
         let pageContext = null;
+        let axText = '';
         if (wv) {
           try {
             const dom = await DOMExtractor.extractInteractiveElements(wv);
             const text = await PageContext.extractPageContext(wv);
             pageContext = { url: dom.url, title: dom.title, elements: dom.elements, text: text?.text || '' };
           } catch {}
+          // The accessibility outline is best-effort: it needs CDP, and a run
+          // without it is still perfectly workable.
+          if (AgentExecutor._cdpOk && typeof AXSnapshot !== 'undefined') {
+            try {
+              const snap = await AXSnapshot.capture(wv, { maxLines: 250 });
+              if (snap.ok) axText = snap.text;
+            } catch {}
+          }
         }
 
         this._renderStep('thinking', 'Thinking... (step ' + iteration + ')', 'loading');
 
-        // Ask AI for next action
-        // Phase 14: agent always cloud — routed through AIRouter for consistency
-        let data;
+        let decision;
         try {
-          data = await AIRouter.callAI('agent', {
-            userGoal: goal,
-            pageContext,
-            availableTools: [...AGENT_TOOLS, ...(typeof McpClient !== 'undefined' ? McpClient.agentToolDefs() : [])],
-            conversationHistory: this._history.slice(-20),
-            lastToolResult: lastResult
-          });
+          if (this._claudeOn) {
+            this._claudeAppendState(pageContext, axText, lastToolUseId, lastResult);
+            decision = await this._claudeTurn(claudeTools);
+          } else {
+            // Cloudflare Worker path — unchanged.
+            const data = await AIRouter.callAI('agent', {
+              userGoal: goal,
+              pageContext,
+              availableTools: allTools,
+              conversationHistory: this._history.slice(-20),
+              lastToolResult: lastResult
+            });
+            document.querySelector('.agent-step-thinking')?.remove();
+            decision = this._parseAgentResponse(data.result);
+            if (!decision || !decision.tool) {
+              console.error('[Agent] Full raw response:', data.result);
+              this._renderError('AI did not return a valid tool call', data.result);
+              break;
+            }
+          }
         } catch (err) {
           document.querySelector('.agent-step-thinking')?.remove();
           this._renderStep('error', 'Error: ' + (err.message || 'Request failed'), 'error');
           break;
         }
 
-        // Remove thinking indicator
         document.querySelector('.agent-step-thinking')?.remove();
-
-        const decision = this._parseAgentResponse(data.result);
-
-        if (!decision || !decision.tool) {
-          console.error('[Agent] Full raw response:', data.result);
-          this._renderError('AI did not return a valid tool call', data.result);
-          break;
-        }
+        lastToolUseId = decision._toolUseId || null;
 
         this._history.push({ role: 'assistant', content: JSON.stringify(decision) });
 
@@ -211,7 +401,7 @@ const AgentLoop = {
           // returned null, so the agent never actually got an answer).
           const answer = await vexPrompt({ title: 'The agent has a question', message: decision.parameters?.question || 'What should I do?', okLabel: 'Answer' });
           this._history.push({ role: 'user', content: answer || '' });
-          lastResult = { userAnswer: answer || '' };
+          lastResult = { ok: true, result: 'The user answered: ' + (answer || '(no answer)') };
           this._renderStep('ask', 'Asked: ' + (decision.parameters?.question || ''), 'info');
           continue;
         }
@@ -234,6 +424,7 @@ const AgentLoop = {
 
         // Execute
         this._renderStep('action', `${decision.thought || ''}\n→ ${decision.tool}(${JSON.stringify(decision.parameters || {})})`, 'action');
+        if (typeof AgentIndicator !== 'undefined') AgentIndicator.setStep('is running ' + decision.tool);
         lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {});
         toolCallHistory.add(decision.tool, decision.parameters || {}, lastResult);
         this._history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
@@ -272,13 +463,23 @@ const AgentLoop = {
     }
 
     this._running = false;
+    await this._teardown();
     document.getElementById('ai-send-agent')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
     this._renderStep('end', 'Agent finished', 'info');
   },
 
+  // Release the debugger and drop the overlay. Detaching matters: while the
+  // agent holds the debugger, DevTools can't open on that tab.
+  async _teardown() {
+    try { if (typeof AgentCDP !== 'undefined') await AgentCDP.detach(); } catch {}
+    try { if (typeof AgentIndicator !== 'undefined') AgentIndicator.hide(); } catch {}
+    this._claudeMsgs = [];
+  },
+
   stop() {
     this._running = false;
+    this._teardown();
     document.getElementById('ai-send-agent')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
   },
@@ -329,6 +530,24 @@ const AgentLoop = {
     });
   },
 
+  // Live token stream from the direct-Anthropic path. Registered once; the
+  // handler is a no-op whenever no "thinking" bubble is on screen, so it costs
+  // nothing on the worker path.
+  _deltaWired: false,
+  _wireDeltas() {
+    if (this._deltaWired || !window.vex?.claude?.onDelta) return;
+    this._deltaWired = true;
+    window.vex.claude.onDelta((d) => {
+      const live = document.querySelector('.agent-step-thinking .agent-live');
+      if (!live || !d || !d.text) return;
+      // Thinking summaries and answer text both land here; the summary is the
+      // useful one to surface while the model is still deciding what to do.
+      live.textContent = (live.textContent + d.text).slice(-600);
+      const c = document.getElementById('ai-messages');
+      if (c) c.scrollTop = c.scrollHeight;
+    });
+  },
+
   _renderError(error, rawResponse) {
     const container = document.getElementById('ai-messages');
     if (!container) return;
@@ -350,9 +569,11 @@ const AgentLoop = {
     if (type === 'thinking') {
       const el = document.createElement('div');
       el.className = 'ai-msg assistant loading agent-step-thinking';
-      el.innerHTML = AIPanel._esc(text) + ' <span class="ai-spinner"></span>';
+      el.innerHTML = AIPanel._esc(text) + ' <span class="ai-spinner"></span>'
+        + '<div class="agent-live" style="margin-top:6px;font-size:11px;color:var(--text-muted);white-space:pre-wrap"></div>';
       container.appendChild(el);
       container.scrollTop = container.scrollHeight;
+      this._wireDeltas();
       return;
     }
 
@@ -365,47 +586,83 @@ const AgentLoop = {
   },
 
   // Headless agent — runs without UI, returns result. Used by Scheduler.
+  // Uses the same backend selection as the interactive run, so a user who
+  // configured only an Anthropic key still gets working scheduled tasks.
   async startHeadless(goal, mode, opts = {}) {
     const maxIter = opts.maxIterations || 15;
     const history = [];
     let lastResult = null;
+    let lastToolUseId = null;
 
-    for (let i = 0; i < maxIter; i++) {
-      const wv = WebviewManager.getActiveWebview();
-      let pageContext = null;
-      if (wv) {
-        try {
-          const dom = await DOMExtractor.extractInteractiveElements(wv);
-          const text = await PageContext.extractPageContext(wv);
-          pageContext = { url: dom.url, title: dom.title, elements: dom.elements, text: text?.text || '' };
-        } catch {}
-      }
+    const allTools = [...AGENT_TOOLS, ...(typeof McpClient !== 'undefined' ? McpClient.agentToolDefs() : [])];
+    const useClaude = await this._claudeCheck();
+    if (useClaude) this._claudeStart(goal);
 
-      const data = await AIRouter.callAI('agent', {
-        userGoal: goal, pageContext,
-        availableTools: [...AGENT_TOOLS, ...(typeof McpClient !== 'undefined' ? McpClient.agentToolDefs() : [])], conversationHistory: history.slice(-20), lastToolResult: lastResult
-      });
-      const decision = this._parseAgentResponse(data.result);
-      if (!decision?.tool) throw new Error('AI returned invalid response');
-
-      history.push({ role: 'assistant', content: JSON.stringify(decision) });
-
-      if (decision.tool === 'finish') {
-        return { summary: decision.parameters?.summary || 'Done', iterations: i + 1 };
-      }
-      if (decision.tool === 'ask_user') {
-        throw new Error('Scheduled task needs user input: ' + (decision.parameters?.question || ''));
-      }
-      if (decision.intent === 'risky') {
-        throw new Error('Risky action (' + decision.tool + ') aborted for safety');
-      }
-
-      lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {});
-      history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
-      await new Promise(r => setTimeout(r, 300));
+    AgentExecutor._cdpOk = true;
+    const startWv = WebviewManager.getActiveWebview();
+    if (startWv && typeof AgentCDP !== 'undefined' && AgentCDP.available()) {
+      const att = await AgentCDP.attach(startWv);
+      if (!att.ok) AgentExecutor._cdpOk = false;
+    } else {
+      AgentExecutor._cdpOk = false;
     }
 
-    return { summary: 'Task reached max iterations', iterations: maxIter };
+    try {
+      for (let i = 0; i < maxIter; i++) {
+        const wv = WebviewManager.getActiveWebview();
+        let pageContext = null;
+        let axText = '';
+        if (wv) {
+          try {
+            const dom = await DOMExtractor.extractInteractiveElements(wv);
+            const text = await PageContext.extractPageContext(wv);
+            pageContext = { url: dom.url, title: dom.title, elements: dom.elements, text: text?.text || '' };
+          } catch {}
+          if (AgentExecutor._cdpOk && typeof AXSnapshot !== 'undefined') {
+            try {
+              const snap = await AXSnapshot.capture(wv, { maxLines: 250 });
+              if (snap.ok) axText = snap.text;
+            } catch {}
+          }
+        }
+
+        let decision;
+        if (useClaude) {
+          this._claudeAppendState(pageContext, axText, lastToolUseId, lastResult);
+          decision = await this._claudeTurn(allTools);
+        } else {
+          const data = await AIRouter.callAI('agent', {
+            userGoal: goal, pageContext,
+            availableTools: allTools, conversationHistory: history.slice(-20), lastToolResult: lastResult
+          });
+          decision = this._parseAgentResponse(data.result);
+        }
+        if (!decision?.tool) throw new Error('AI returned invalid response');
+        lastToolUseId = decision._toolUseId || null;
+
+        history.push({ role: 'assistant', content: JSON.stringify(decision) });
+
+        if (decision.tool === 'finish') {
+          return { summary: decision.parameters?.summary || 'Done', iterations: i + 1 };
+        }
+        if (decision.tool === 'ask_user') {
+          throw new Error('Scheduled task needs user input: ' + (decision.parameters?.question || ''));
+        }
+        if (decision.intent === 'risky') {
+          throw new Error('Risky action (' + decision.tool + ') aborted for safety');
+        }
+
+        lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {});
+        history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      return { summary: 'Task reached max iterations', iterations: maxIter };
+    } finally {
+      // Always release the debugger — a scheduled run that threw would
+      // otherwise leave DevTools unusable on that tab until restart.
+      await this._teardown();
+    }
   }
 };
 
