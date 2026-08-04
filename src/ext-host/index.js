@@ -13,6 +13,7 @@ const { ipcMain, dialog, session, shell } = require('electron');
 
 const install = require('./install');
 const api = require('./api');
+const diag = require('./diag');
 
 let _hostDir = null;      // where patched extensions live
 let _loaded = null;       // { id, name, version, path }
@@ -70,9 +71,20 @@ async function installFrom(app, srcDir) {
 function init(app, sessions, opts = {}) {
   _sessions = sessions.filter(Boolean);
 
-  // Preloads first — before any extension gets a chance to start a worker.
+  // Diagnostics before anything else, so a failure during extension startup is
+  // captured too. Path is logged so it can be found without hunting.
+  const logPath = diag.init(app, { enabled: opts.diagnostics !== false });
+  if (logPath) console.log('[vex-ext] diagnostics ->', logPath);
+  diag.attach(app, _sessions, 'fcoeoabgfenejglbffodgkkbkcdhcgfn');
+
+  // Preloads next — before any extension gets a chance to start a worker.
   install.registerPreloads(_sessions);
   api.register({ onSidePanelOpen: opts.onSidePanelOpen });
+
+  ipcMain.handle('ext-host:diagnostics', () => {
+    try { return { ok: true, path: diag.file(), text: fs.readFileSync(diag.file(), 'utf8').slice(-60000) }; }
+    catch (err) { return { ok: false, error: err.message }; }
+  });
 
   ipcMain.handle('ext-host:status', () => ({
     installed: !!_loaded,

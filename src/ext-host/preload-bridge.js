@@ -59,10 +59,33 @@ const api = {
   },
 };
 
+// Two different worlds to reach, depending on where this preload is running.
+//
+// Service workers and contextIsolation-enabled frames need contextBridge —
+// the preload's globals are genuinely separate from the target's.
+//
+// Vex's <webview> guests run with contextIsolation DISABLED, and there
+// contextBridge throws outright ("can only be used when contextIsolation is
+// enabled"). But in that mode the preload already shares a global scope with
+// the page, so a plain assignment is both sufficient and correct. Without this
+// fallback the side panel — which is a webview — silently gets no bridge, and
+// every chrome.* shim in it goes inert: the extension loads, renders, accepts
+// a message, and then can do nothing with it.
+let exposed = false;
 try {
   contextBridge.exposeInMainWorld('vexBridge', api);
+  exposed = true;
 } catch (err) {
-  // exposeInMainWorld throws if the context is already torn down; nothing we
-  // can do, and the shim degrades to no-op stubs.
-  console.error('[vex-ext] bridge exposure failed', err);
+  try {
+    globalThis.vexBridge = api;
+    exposed = true;
+  } catch (err2) {
+    console.error('[vex-ext] bridge exposure failed both ways:', err && err.message, '/', err2 && err2.message);
+  }
+}
+
+if (exposed && typeof globalThis.vexBridge === 'undefined') {
+  // contextBridge reported success but nothing landed — belt and braces, since
+  // a missing bridge is invisible until a user action mysteriously does nothing.
+  try { globalThis.vexBridge = api; } catch {}
 }

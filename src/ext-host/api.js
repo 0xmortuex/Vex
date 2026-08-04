@@ -13,6 +13,7 @@
 const { ipcMain, webContents, BrowserWindow, Notification, session, app, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const diag = require('./diag');
 
 let _activeTabId = null;         // told to us by Vex's renderer
 let _manifest = null;            // the installed extension's manifest
@@ -601,10 +602,31 @@ function register({ onSidePanelOpen } = {}) {
 
   ipcMain.handle('ext:api', async (_e, { namespace, method, args }) => {
     const impl = API[namespace];
-    if (!impl) throw new Error('Unimplemented namespace: chrome.' + namespace);
+    if (!impl) {
+      const err = 'Unimplemented namespace: chrome.' + namespace;
+      diag.write('API!', err);
+      throw new Error(err);
+    }
     const fn = impl[method];
-    if (typeof fn !== 'function') throw new Error('Unimplemented: chrome.' + namespace + '.' + method);
-    return fn.apply(impl, args || []);
+    if (typeof fn !== 'function') {
+      const err = 'Unimplemented: chrome.' + namespace + '.' + method;
+      diag.write('API!', err);
+      throw new Error(err);
+    }
+    try {
+      const out = await fn.apply(impl, args || []);
+      // Trace successes too, compactly. When a message "does nothing", the
+      // useful signal is where the call sequence stops, not just what threw.
+      diag.write('api ', `chrome.${namespace}.${method} -> ok`);
+      return out;
+    } catch (err) {
+      // The shim converts this into runtime.lastError, which extensions
+      // routinely ignore — so record it here or it vanishes without trace.
+      let a = '';
+      try { a = JSON.stringify(args || []).slice(0, 300); } catch {}
+      diag.write('API!', `chrome.${namespace}.${method}(${a}) -> ${err && err.message}`);
+      throw err;
+    }
   });
 
   ipcMain.on('ext:subscribe', (e, key) => {
