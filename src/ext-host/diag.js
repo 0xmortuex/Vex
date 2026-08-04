@@ -63,18 +63,21 @@ function attach(app, sessions, extensionId) {
     const isExt = (u) => typeof u === 'string' && extensionId && u.startsWith('chrome-extension://' + extensionId);
     const hook = () => {
       try {
+        // All levels, not just errors. When a feature quietly does nothing the
+        // useful signal is usually an info-level line ("bridge missing",
+        // "shim installed") rather than a thrown error.
         wc.on('console-message', (ev) => {
           const lvl = ev && ev.level;
-          if (lvl === 'error' || lvl === 'warning' || lvl === 2 || lvl === 3) {
-            write('PAGE', `[${lvl}] ${ev.message} @ ${String(ev.sourceId || '').split('/').pop()}:${ev.lineNumber || 0}`);
-          }
+          write('PAGE', `[${lvl}] ${ev.message} @ ${String(ev.sourceId || '').split('/').pop()}:${ev.lineNumber || 0}`);
         });
         wc.on('render-process-gone', (_ev, details) => write('PAGE', 'render-process-gone ' + JSON.stringify(details)));
         wc.on('preload-error', (_ev, p, err) => write('PAGE', 'preload-error ' + p + ' ' + (err && err.message)));
       } catch {}
     };
-    if (isExt(url)) hook();
-    else wc.once('did-navigate', (_ev, u) => { if (isExt(u)) hook(); });
+    if (isExt(url)) { write('PAGE', 'extension page created: ' + url); hook(); }
+    else wc.once('did-navigate', (_ev, u) => {
+      if (isExt(u)) { write('PAGE', 'extension page navigated: ' + u); hook(); }
+    });
   });
 }
 

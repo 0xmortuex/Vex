@@ -35,9 +35,35 @@ function guests() {
   try {
     return webContents.getAllWebContents().filter(wc => {
       if (wc.isDestroyed()) return false;
-      try { return wc.getType() === 'webview'; } catch { return false; }
+      try {
+        if (wc.getType() !== 'webview') return false;
+        // The extension's own pages render in webviews too (the side panel is
+        // one). They are not browsing tabs, and offering them as tabs makes
+        // the extension try to act on itself.
+        const u = wc.getURL() || '';
+        if (u.startsWith('chrome-extension://')) return false;
+        return true;
+      } catch { return false; }
     });
   } catch { return []; }
+}
+
+// Which guest counts as "the active tab".
+//
+// The renderer reports this as the user switches tabs, but there are windows
+// where it hasn't reported yet — startup, or a tab closing — and during those
+// the extension asks for the active tab, gets nothing, and throws "No active
+// tab" with no way to recover. Falling back to the first real guest keeps it
+// working, since a browser showing any page always has a current one.
+function activeGuest() {
+  const list = guests();
+  if (!list.length) return null;
+  const known = list.find(wc => wc.id === _activeTabId);
+  if (known) return known;
+  if (_activeTabId != null) {
+    diag.write('warn', `active tab ${_activeTabId} is not a live guest; falling back to ${list[0].id}`);
+  }
+  return list[0];
 }
 
 function wcById(id) {
@@ -49,17 +75,20 @@ function wcById(id) {
   } catch { return null; }
 }
 
-function toTab(wc, index = 0) {
+function toTab(wc, index = 0, activeId = null) {
   let url = '', title = '';
   try { url = wc.getURL() || ''; } catch {}
   try { title = wc.getTitle() || ''; } catch {}
+  // Resolve "active" against the same fallback everything else uses, so a tab
+  // is never reported as active:false across the board.
+  const act = activeId != null ? activeId : (() => { const g = activeGuest(); return g ? g.id : null; })();
   return {
     id: wc.id,
     index,
     windowId: 1,
-    active: wc.id === _activeTabId,
-    highlighted: wc.id === _activeTabId,
-    selected: wc.id === _activeTabId,
+    active: wc.id === act,
+    highlighted: wc.id === act,
+    selected: wc.id === act,
     url,
     pendingUrl: url,
     title,
@@ -212,11 +241,15 @@ function debuggerAttach(target) {
 const API = {
   tabs: {
     async query(q) {
-      const list = guests().map((wc, i) => toTab(wc, i));
-      return list.filter(t => matches(t, q));
+      const act = activeGuest();
+      const actId = act ? act.id : null;
+      const list = guests().map((wc, i) => toTab(wc, i, actId));
+      const out = list.filter(t => matches(t, q));
+      if (!out.length) diag.write('warn', `tabs.query(${JSON.stringify(q || {})}) matched nothing of ${list.length} guest(s)`);
+      return out;
     },
     async get(id) { const wc = wcById(id); return wc ? toTab(wc) : null; },
-    async getCurrent() { const wc = wcById(_activeTabId); return wc ? toTab(wc) : null; },
+    async getCurrent() { const wc = activeGuest(); return wc ? toTab(wc) : null; },
     async create(props) {
       // Vex owns tab creation, so this is delegated to the renderer.
       const created = await askRenderer('tabs.create', props || {});
@@ -227,9 +260,8 @@ const API = {
       return undefined;
     },
     async update(id, props) {
-      const tabId = typeof id === 'object' ? _activeTabId : id;
       const p = typeof id === 'object' ? id : props;
-      const wc = wcById(tabId);
+      const wc = typeof id === 'object' ? activeGuest() : (wcById(id) || activeGuest());
       if (!wc) return null;
       if (p && p.url) wc.loadURL(p.url);
       if (p && p.muted !== undefined) wc.setAudioMuted(!!p.muted);
@@ -237,21 +269,21 @@ const API = {
       return toTab(wc);
     },
     async reload(id, props) {
-      const wc = wcById(typeof id === 'object' || id == null ? _activeTabId : id);
+      const wc = (typeof id === 'object' || id == null) ? activeGuest() : (wcById(id) || activeGuest());
       if (!wc) return undefined;
       if (props && props.bypassCache) wc.reloadIgnoringCache(); else wc.reload();
       return undefined;
     },
-    async goBack(id) { const wc = wcById(id ?? _activeTabId); if (wc && wc.canGoBack()) wc.goBack(); return undefined; },
-    async goForward(id) { const wc = wcById(id ?? _activeTabId); if (wc && wc.canGoForward()) wc.goForward(); return undefined; },
+    async goBack(id) { const wc = (wcById(id) || activeGuest()); if (wc && wc.canGoBack()) wc.goBack(); return undefined; },
+    async goForward(id) { const wc = (wcById(id) || activeGuest()); if (wc && wc.canGoForward()) wc.goForward(); return undefined; },
     async captureVisibleTab() {
-      const wc = wcById(_activeTabId);
+      const wc = activeGuest();
       if (!wc) return undefined;
       const img = await wc.capturePage();
       return 'data:image/jpeg;base64,' + img.toJPEG(80).toString('base64');
     },
-    async setZoom(id, factor) { const wc = wcById(id ?? _activeTabId); if (wc) wc.setZoomFactor(factor || 1); return undefined; },
-    async getZoom(id) { const wc = wcById(id ?? _activeTabId); return wc ? wc.getZoomFactor() : 1; },
+    async setZoom(id, factor) { const wc = (wcById(id) || activeGuest()); if (wc) wc.setZoomFactor(factor || 1); return undefined; },
+    async getZoom(id) { const wc = (wcById(id) || activeGuest()); return wc ? wc.getZoomFactor() : 1; },
     async duplicate(id) { const wc = wcById(id); if (!wc) return null; return askRenderer('tabs.create', { url: wc.getURL(), active: true }); },
     async detectLanguage() { return 'en'; },
     async group(options) {
@@ -272,13 +304,13 @@ const API = {
     async highlight() { return { id: 1, focused: true }; },
     async discard(id) { const wc = wcById(id); return wc ? toTab(wc) : null; },
     async executeScript(id, details) {
-      const wc = wcById(typeof id === 'object' ? _activeTabId : id);
+      const wc = typeof id === 'object' ? activeGuest() : (wcById(id) || activeGuest());
       const d = typeof id === 'object' ? id : details;
       if (!wc || !d || !d.code) return [];
       return [await wc.executeJavaScript(d.code, true)];
     },
     async insertCSS(id, details) {
-      const wc = wcById(typeof id === 'object' ? _activeTabId : id);
+      const wc = typeof id === 'object' ? activeGuest() : (wcById(id) || activeGuest());
       const d = typeof id === 'object' ? id : details;
       if (!wc || !d || !d.code) return undefined;
       await wc.insertCSS(d.code);
@@ -346,8 +378,8 @@ const API = {
   },
 
   webNavigation: {
-    async getFrame() { const wc = wcById(_activeTabId); return wc ? { url: wc.getURL(), parentFrameId: -1, errorOccurred: false } : null; },
-    async getAllFrames() { const wc = wcById(_activeTabId); return wc ? [{ frameId: 0, parentFrameId: -1, url: wc.getURL(), errorOccurred: false }] : []; },
+    async getFrame() { const wc = activeGuest(); return wc ? { url: wc.getURL(), parentFrameId: -1, errorOccurred: false } : null; },
+    async getAllFrames() { const wc = activeGuest(); return wc ? [{ frameId: 0, parentFrameId: -1, url: wc.getURL(), errorOccurred: false }] : []; },
   },
 
   notifications: (() => {
@@ -375,7 +407,7 @@ const API = {
 
   downloads: {
     async download(opts) {
-      const wc = wcById(_activeTabId);
+      const wc = activeGuest();
       if (wc && opts && opts.url) { wc.downloadURL(opts.url); return 1; }
       return -1;
     },
@@ -515,7 +547,7 @@ const API = {
     async executeScript(injection) {
       const inj = injection || {};
       const target = inj.target || {};
-      const wc = wcById(target.tabId) || wcById(_activeTabId);
+      const wc = wcById(target.tabId) || activeGuest();
       if (!wc) throw new Error('No tab with id ' + target.tabId);
 
       let expression = null;
@@ -543,7 +575,7 @@ const API = {
 
     async insertCSS(injection) {
       const inj = injection || {};
-      const wc = wcById((inj.target || {}).tabId) || wcById(_activeTabId);
+      const wc = wcById((inj.target || {}).tabId) || activeGuest();
       if (!wc) throw new Error('No tab to insert CSS into');
       let css = inj.css || '';
       if (!css && Array.isArray(inj.files)) {
@@ -646,8 +678,15 @@ function register({ onSidePanelOpen } = {}) {
   });
 
   // Vex's renderer registers itself and reports which guest is the active tab.
-  ipcMain.on('ext:renderer-ready', (e) => { _rendererWc = e.sender; });
-  ipcMain.on('ext:set-active-tab', (_e, id) => { _activeTabId = Number(id) || null; });
+  ipcMain.on('ext:renderer-ready', (e) => {
+    _rendererWc = e.sender;
+    diag.write('host', 'renderer registered — tab operations available');
+  });
+  ipcMain.on('ext:set-active-tab', (_e, id) => {
+    const n = Number(id) || null;
+    if (n !== _activeTabId) diag.write('host', 'active tab -> ' + n);
+    _activeTabId = n;
+  });
   ipcMain.on('ext:renderer-response', (_e, { id, result }) => {
     const resolve = _pending.get(id);
     if (resolve) { _pending.delete(id); resolve(result); }
