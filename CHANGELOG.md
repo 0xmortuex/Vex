@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.29.0 (2026-08-25) — Choose-your-Vex onboarding, tab drag-reorder & a stack of long-standing fixes
+
+### Added
+- **"Choose your starting point"** — a new wizard step right after Welcome. Pick **The Mortuex Setup** (everything on, exactly how Vex's creator runs it), **Minimal** (a clean browser — no app panels, empty shortcut bar), **Custom** (per-panel and per-shortcut checkboxes plus a Glass toggle), or **Use a shared setup** (paste a setup code). Each card has a visual preview; every choice is reversible in Settings → Sidebar.
+- **Shareable setup codes** — export your whole setup (panels, shortcuts, theme, Glass/Classic) as a `VEXSETUP1.` code from the wizard; anyone can paste it into theirs and Vex arranges itself to match. Codes are validated live and sanitized on import.
+- **Drag tabs to reorder** — hold and drag tabs on the top strip like any browser: an insertion line shows where the tab lands, dropping into a group joins it, dragging into the pinned zone pins it, and pulling a tab out of a stack keeps stack bookkeeping intact.
+- **Declutter nudge** — two weeks after install, if several app panels were never opened, Vex offers (once, dismissible) to hide them.
+- **Right-click menus in editable fields now offer Cut / Copy / Paste / Select All**, with spellcheck suggestions on top.
+
+### Fixed
+- **Google sign-in rejected Vex** ("This browser or app may not be secure") — the page-visible `navigator.userAgentData` lacked the "Google Chrome" brand the spoofed UA claims; a scoped site tweak grafts it in, version-consistent with the real Chromium build.
+- **Tabs shrank on every tab switch and stopped covering the strip** — the size classifier measured its own class-forced widths back (a one-way ratchet) and `very-narrow` tabs were hard-locked at 40px. Sizing is now computed from available width, tabs always fill the bar, and stale scroll offsets are clamped.
+- **"An unknown error occurred while enabling push notifications"** — Electron cannot service Web Push, but advertised the API, so sites walked into an always-failing subscribe. The Push API is now hidden from feature detection, and direct `subscribe()` callers get a clean Chrome-like `NotAllowedError` instead of a crash. Regular notifications keep working, and Windows toasts now display in every run (AppUserModelID set at startup).
+- **Right-click did nothing in the sidebar app panels** (Discord, Claude, Spotify, WhatsApp…) — the menu wiring guarded on a `window` property that never existed. Panels now get the full Vex context menu.
+- **Spellcheck never actually worked** — no Hunspell dictionary was ever downloaded and sessions were never configured. Sessions now get explicit languages and the en-US dictionary is installed from the main process (immune to per-session proxies), so misspelled words get red squiggles and right-click suggestions everywhere, including the Discord panel.
+- **Console spam `file:///C:/sync/...` on boot** when sync state existed without a configured worker URL — all sync endpoints now bail cleanly when unconfigured.
+
 ## v2.28.1 (2026-07-08) — Sidebar toggle: no more leftover strip
 
 ### Fixed
