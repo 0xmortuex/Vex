@@ -157,7 +157,11 @@ const SyncEngine = (() => {
   }
 
   async function signOut(removeFromServer = false) {
-    if (removeFromServer && state.sessionToken && state.deviceId) {
+    // Every remote call below must bail when no Sync Worker URL is configured:
+    // fetch(`${''}/sync/...`) is a RELATIVE request, which the file:// host
+    // page resolves to file:///C:/sync/... — console ERR_FILE_NOT_FOUND spam
+    // on boot for anyone whose sync state restored without a worker URL.
+    if (removeFromServer && state.sessionToken && state.deviceId && syncWorkerUrl()) {
       try {
         await fetch(`${syncWorkerUrl()}/sync/devices/${state.deviceId}`, {
           method: 'DELETE',
@@ -299,7 +303,7 @@ const SyncEngine = (() => {
   // ===== DEVICES =====
 
   async function listDevices() {
-    if (!state.enabled) return [];
+    if (!state.enabled || !syncWorkerUrl()) return [];
     const r = await fetch(`${syncWorkerUrl()}/sync/devices`, {
       headers: { 'Authorization': `Bearer ${state.sessionToken}` }
     });
@@ -309,7 +313,7 @@ const SyncEngine = (() => {
   }
 
   async function removeDevice(deviceId) {
-    if (!state.enabled) return;
+    if (!state.enabled || !syncWorkerUrl()) return;
     await fetch(`${syncWorkerUrl()}/sync/devices/${deviceId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${state.sessionToken}` }
@@ -317,7 +321,7 @@ const SyncEngine = (() => {
   }
 
   async function wipeAllCloudData() {
-    if (!state.enabled) return false;
+    if (!state.enabled || !syncWorkerUrl()) return false;
     const r = await fetch(`${syncWorkerUrl()}/sync/all`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${state.sessionToken}` }
@@ -396,6 +400,7 @@ const SyncEngine = (() => {
     if (!state.enabled || !state.sessionToken) {
       throw new Error('Sign in to Vex Sync first (Settings → Vex Sync)');
     }
+    requireSyncUrl();
     const r = await fetch(`${syncWorkerUrl()}/sync/drop`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.sessionToken}` },
@@ -409,7 +414,7 @@ const SyncEngine = (() => {
   }
 
   async function dropFetch() {
-    if (!state.enabled || !state.sessionToken) return [];
+    if (!state.enabled || !state.sessionToken || !syncWorkerUrl()) return [];
     try {
       const r = await fetch(`${syncWorkerUrl()}/sync/drop`, {
         headers: { 'Authorization': `Bearer ${state.sessionToken}` }
