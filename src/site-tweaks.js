@@ -87,6 +87,48 @@ const SITE_TWEAKS = [
       '}' +
       '}catch(e){}})();',
   },
+  {
+    // Google sign-in rejects Vex ("Couldn't sign you in — this browser or app
+    // may not be secure", /v3/signin/rejected) even though the session layer
+    // spoofs the Chrome UA string and rewrites the Sec-CH-UA request headers.
+    // Cause: those cover only the *headers* — the JS-visible
+    // navigator.userAgentData still reports Electron's real brand list, which
+    // is Chromium + GREASE with no "Google Chrome" entry (verified against
+    // this Electron build, 2026-08-25). A UA string claiming Chrome whose
+    // userAgentData lacks the "Google Chrome" brand is the contradiction
+    // Google's embedded-browser detector trips on. Fix by wrapping the real
+    // NavigatorUAData and grafting a "Google Chrome" brand (copying the
+    // Chromium entry's version, so it tracks Electron upgrades) into brands
+    // and fullVersionList; everything else (platformVersion, architecture,
+    // full Chromium version) passes through from the real object so all
+    // values stay self-consistent. Scoped to google.com — the detector runs
+    // on accounts.google.com pages.
+    name: 'google-uadata',
+    hosts: /(^|\.)google\.com$/i,
+    mechanism: 'webFrame',
+    code: '(function(){try{' +
+      'var G="Google Chrome";' +
+      'var real=navigator.userAgentData;' +
+      'if(!real||!real.brands)return;' +
+      'if(real.brands.some(function(b){return b.brand===G;}))return;' +
+      'var m=(navigator.userAgent.match(/Chrome\\/(\\d+)/)||[])[1]||"148";' +
+      'var graft=function(list,fb){' +
+        'var out=(list||[]).slice();' +
+        'var cr=out.filter(function(b){return b.brand==="Chromium";})[0];' +
+        'out.push({brand:G,version:(cr&&cr.version)||fb});' +
+        'return out;};' +
+      'var brands=graft(real.brands,m);' +
+      'var base=function(){return {brands:brands,mobile:real.mobile,platform:real.platform};};' +
+      'var uad={brands:brands,mobile:real.mobile,platform:real.platform,' +
+        'getHighEntropyValues:function(hints){' +
+          'return real.getHighEntropyValues.call(real,hints).then(function(r){' +
+            'var o=Object.assign({},r,base());' +
+            'if(r.fullVersionList)o.fullVersionList=graft(r.fullVersionList,m+".0.0.0");' +
+            'return o;},function(){return base();});},' +
+        'toJSON:function(){return base();}};' +
+      'Object.defineProperty(Navigator.prototype,"userAgentData",{get:function(){return uad;},configurable:true});' +
+      '}catch(e){}})();',
+  },
 ];
 
 // Entries whose hosts pattern matches `hostname`.
