@@ -95,6 +95,99 @@ describe('Onboarding step bodies render without throwing', () => {
   });
 });
 
+describe('Setup style step (Full Vex / Minimal / Custom)', () => {
+  const stubEnv = () => {
+    const calls = { style: [], rendered: 0, overridesApplied: 0 };
+    globalThis.window.VexGuiStyle = {
+      set: (s) => calls.style.push(s),
+      get: () => 'classic',
+      render: () => { calls.rendered++; },
+      defaults: () => [
+        { name: 'Google', url: 'https://www.google.com' },
+        { name: 'YouTube', url: 'https://www.youtube.com' },
+        { name: 'Reddit', url: 'https://www.reddit.com' },
+      ],
+    };
+    globalThis.SidebarManager = { applyPanelOverrides: () => { calls.overridesApplied++; } };
+    return calls;
+  };
+  const overrides = () => JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}');
+
+  it('is the second step, right after welcome', () => {
+    const keys = Onboarding.STEPS().map(s => s.key);
+    expect(keys[0]).toBe('welcome');
+    expect(keys[1]).toBe('setupstyle');
+  });
+
+  it('_isStepDone reflects a saved profile', () => {
+    expect(Onboarding._isStepDone('setupstyle')).toBe(false);
+    localStorage.setItem('vex.setupProfile', 'minimal');
+    expect(Onboarding._isStepDone('setupstyle')).toBe(true);
+  });
+
+  it('renders three profile cards; the checklist shows only for Custom', () => {
+    stubEnv();
+    Onboarding._session = {};
+    const body = document.createElement('div');
+    Onboarding._renderBody('setupstyle', body);
+    const cards = body.querySelectorAll('[data-profile]');
+    expect([...cards].map(c => c.dataset.profile)).toEqual(['owner', 'minimal', 'custom']);
+    const zone = body.querySelector('#ob-setup-custom');
+    expect(zone.style.display).toBe('none');
+    cards[2].click();
+    expect(zone.style.display).toBe('flex');
+    expect(body.querySelectorAll('[data-panel]').length).toBe(Onboarding._APP_PANELS().length);
+    expect(body.querySelectorAll('[data-shortcut]').length).toBe(3);
+  });
+
+  it('Minimal hides every app panel, empties the shortcut bar, uses Classic', () => {
+    const calls = stubEnv();
+    Onboarding._applySetupProfile({ profile: 'minimal' });
+    const ov = overrides();
+    for (const p of Onboarding._APP_PANELS()) expect(ov[p.id]?.hidden).toBe(true);
+    expect(localStorage.getItem('vex.shortcuts')).toBe('[]');
+    expect(calls.style).toContain('classic');
+    expect(calls.overridesApplied).toBeGreaterThan(0);
+    expect(localStorage.getItem('vex.setupProfile')).toBe('minimal');
+  });
+
+  it('Full Vex (owner) un-hides panels, restores stock shortcuts, uses Glass', () => {
+    const calls = stubEnv();
+    // Simulate a prior Minimal choice plus an unrelated override that must survive.
+    localStorage.setItem('vex.panelOverrides', JSON.stringify({
+      discord: { hidden: true, name: 'DC' },
+      spotify: { hidden: true },
+    }));
+    localStorage.setItem('vex.shortcuts', '[]');
+    Onboarding._applySetupProfile({ profile: 'owner' });
+    const ov = overrides();
+    expect(ov.discord.hidden).toBeUndefined();
+    expect(ov.discord.name).toBe('DC');       // non-visibility override kept
+    expect(ov.spotify).toBeUndefined();       // emptied override pruned
+    expect(localStorage.getItem('vex.shortcuts')).toBeNull(); // stock set
+    expect(calls.style).toContain('glass');
+    expect(localStorage.getItem('vex.setupProfile')).toBe('owner');
+  });
+
+  it('Custom hides exactly the unchecked panels and keeps chosen shortcuts', () => {
+    stubEnv();
+    Onboarding._applySetupProfile({
+      profile: 'custom',
+      panels: ['discord', 'spotify'],
+      shortcuts: ['Google', 'Reddit'],
+      glass: true,
+    });
+    const ov = overrides();
+    expect(ov.discord).toBeUndefined();
+    expect(ov.spotify).toBeUndefined();
+    expect(ov.whatsapp?.hidden).toBe(true);
+    expect(ov.netflix?.hidden).toBe(true);
+    const sc = JSON.parse(localStorage.getItem('vex.shortcuts'));
+    expect(sc.map(s => s.name)).toEqual(['Google', 'Reddit']);
+    expect(localStorage.getItem('vex.setupProfile')).toBe('custom');
+  });
+});
+
 describe('Onboarding._setStart', () => {
   it('writes to host localStorage and pushes JS into live start-page webviews', () => {
     const calls = [];

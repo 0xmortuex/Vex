@@ -23,7 +23,9 @@
   function loadShortcuts() {
     try {
       const sc = JSON.parse(localStorage.getItem('vex.shortcuts') || 'null');
-      if (Array.isArray(sc) && sc.length) return sc.filter(s => s && s.url);
+      // A stored EMPTY array is an intentional "no shortcuts" (the Minimal
+      // setup profile) — only a missing/invalid key falls back to defaults.
+      if (Array.isArray(sc)) return sc.filter(s => s && s.url);
     } catch {}
     return DEFAULT_SHORTCUTS.map(s => ({ ...s }));
   }
@@ -233,5 +235,12 @@
     }
   });
 
-  window.VexGuiStyle = { set: apply, get: current, render: () => { const b = document.getElementById('gui-shortcuts-bar'); if (b) renderBar(b); } };
+  window.VexGuiStyle = {
+    set: apply,
+    get: current,
+    render: () => { const b = document.getElementById('gui-shortcuts-bar'); if (b) renderBar(b); },
+    // The stock shortcut set — the onboarding setup-style step builds its
+    // pick-and-choose list from this so the two never drift apart.
+    defaults: () => DEFAULT_SHORTCUTS.map(s => ({ ...s })),
+  };
 })();

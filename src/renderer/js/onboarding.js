@@ -54,6 +54,7 @@ const Onboarding = {
   // setting up cloud AI doesn't mark the Ollama / on-device steps as done.
   _isStepDone(key) {
     switch (key) {
+      case 'setupstyle':     return this._has('vex.setupProfile');
       case 'theme':          return this._has('vex.theme');
       case 'name':           return this._has('vex.userName');
       case 'weather':        return this._has('vex.weatherLoc');
@@ -98,6 +99,7 @@ const Onboarding = {
   STEPS() {
     return [
       { key: 'welcome',        title: 'Welcome to Vex 👋',        sub: 'Let’s set up the bits that make Vex feel like yours. Skip anything you don’t want — you can re-open this wizard anytime from the ✦ button by the reload button.' },
+      { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' },
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' },
       { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Leave blank for none.' },
       { key: 'weather',        title: 'Weather location',         sub: 'Type a city OR a district (e.g. “Ataşehir”), then pick the right match for accurate weather.' },
@@ -122,7 +124,8 @@ const Onboarding = {
   // (which re-renders from scratch) never throws away this session's input.
   _stash(key, overlay) {
     const grab = (sel) => { const el = overlay.querySelector(sel); return el ? el.value : null; };
-    if (key === 'name')         this._session.name = grab('#ob-name');
+    if (key === 'setupstyle')   this._stashSetupStyle(overlay);
+    else if (key === 'name')    this._session.name = grab('#ob-name');
     else if (key === 'github')  this._session.github = grab('#ob-gh');
     else if (key === 'aicloud') this._session.aicloud = grab('#ob-ai-url');
     else if (key === 'sync')    this._session.sync = grab('#ob-sync-url');
@@ -176,9 +179,139 @@ const Onboarding = {
     return `<input id="${id}" placeholder="${this._esc(ph)}" value="${this._esc(val || '')}" spellcheck="false" autocomplete="off" style="width:100%;box-sizing:border-box;padding:11px 13px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;font-family:'Outfit',sans-serif">`;
   },
 
+  // === Setup style — Full Vex / Minimal / Custom pick-and-choose ===
+  //
+  // The sidebar app panels the profiles govern. Core surfaces (start,
+  // downloads, history, bookmarks, settings) are never hidden here — a
+  // browser without them reads as broken, and the Sidebar manager can hide
+  // them later if someone really wants to.
+  _APP_PANELS() {
+    return [
+      { id: 'whatsapp',    name: 'WhatsApp' },
+      { id: 'claude',      name: 'Claude AI' },
+      { id: 'spotify',     name: 'Spotify' },
+      { id: 'netflix',     name: 'Netflix' },
+      { id: 'discord',     name: 'Discord' },
+      { id: 'roblox',      name: 'Roblox' },
+      { id: 'github',      name: 'GitHub stats' },
+      { id: 'notes',       name: 'Notes' },
+      { id: 'queue',       name: 'Tab queue' },
+      { id: 'feeds',       name: 'RSS feeds' },
+      { id: 'annotations', name: 'Annotations' },
+      { id: 'recall',      name: 'Recall' },
+      { id: 'memory',      name: 'AI memory' },
+      { id: 'schedules',   name: 'Schedules' },
+      { id: 'library',     name: 'Library' },
+    ];
+  },
+  _shortcutDefaults() {
+    try { const d = window.VexGuiStyle?.defaults?.(); if (Array.isArray(d) && d.length) return d; } catch {}
+    return [{ name: 'Google', url: 'https://www.google.com' }, { name: 'YouTube', url: 'https://www.youtube.com' }];
+  },
+
+  _renderSetupStyle(body) {
+    const APP = this._APP_PANELS();
+    const SC = this._shortcutDefaults();
+    // Session state survives Back/Skip; first open pre-selects the saved
+    // profile (relaunch) or Full Vex (fresh install — matches what they see).
+    if (!this._session.setup) {
+      let saved = null; try { saved = localStorage.getItem('vex.setupProfile'); } catch {}
+      this._session.setup = {
+        profile: saved || 'owner',
+        panels: APP.map(p => p.id),
+        shortcuts: SC.map(s => s.name),
+        glass: (() => { try { return (window.VexGuiStyle?.get?.() || 'classic') === 'glass'; } catch { return false; } })(),
+      };
+    }
+    const sel = this._session.setup;
+    const card = (id, icon, title, desc) => `
+      <button data-profile="${id}" style="text-align:left;display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:12px;border:2px solid ${sel.profile === id ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit">
+        <span style="font-size:20px;line-height:1">${icon}</span>
+        <span style="display:flex;flex-direction:column;gap:3px">
+          <span style="font-size:14px;font-weight:700">${this._esc(title)}</span>
+          <span style="font-size:12px;color:var(--text-muted);line-height:1.45">${this._esc(desc)}</span>
+        </span>
+      </button>`;
+    const check = (kind, id, label, on) => `
+      <label style="display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:var(--bg);cursor:pointer;font-size:12px;color:var(--text)">
+        <input type="checkbox" data-${kind}="${this._esc(id)}" ${on ? 'checked' : ''} style="accent-color:var(--primary)">${this._esc(label)}
+      </label>`;
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:9px">
+        ${card('owner', '✨', 'Full Vex', 'Everything switched on, the way Vex’s creator runs it — every app panel (WhatsApp, Discord, Spotify, Netflix…), the full shortcut bar, and the Glass look.')}
+        ${card('minimal', '🍃', 'Minimal', 'Just a fast, clean browser: tabs, downloads, history, bookmarks, settings. No app panels, an empty shortcut bar. Add features whenever you want them.')}
+        ${card('custom', '🎛️', 'Custom', 'Pick exactly which app panels and shortcuts you keep — check what you want, uncheck the rest.')}
+        <div id="ob-setup-custom" style="display:${sel.profile === 'custom' ? 'flex' : 'none'};flex-direction:column;gap:10px;padding:12px;border:1px dashed var(--border);border-radius:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--text)">Sidebar app panels <span id="ob-setup-count" style="font-weight:400;color:var(--text-muted)"></span></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">${APP.map(p => check('panel', p.id, p.name, sel.panels.includes(p.id))).join('')}</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-top:2px">Shortcut bar</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">${SC.map(s => check('shortcut', s.name, s.name, sel.shortcuts.includes(s.name))).join('')}</div>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text);cursor:pointer;margin-top:2px">
+            <input type="checkbox" id="ob-setup-glass" ${sel.glass ? 'checked' : ''} style="accent-color:var(--primary)">Glass look — frosted UI, tabs on top, shortcut bar
+          </label>
+        </div>
+      </div>`;
+    const updateCount = () => {
+      const el = body.querySelector('#ob-setup-count');
+      if (el) el.textContent = `· ${body.querySelectorAll('[data-panel]:checked').length} of ${APP.length} kept`;
+    };
+    updateCount();
+    body.querySelectorAll('[data-profile]').forEach(b => b.addEventListener('click', () => {
+      sel.profile = b.dataset.profile;
+      body.querySelectorAll('[data-profile]').forEach(x => x.style.borderColor = x.dataset.profile === sel.profile ? 'var(--primary)' : 'var(--border)');
+      const z = body.querySelector('#ob-setup-custom');
+      if (z) z.style.display = sel.profile === 'custom' ? 'flex' : 'none';
+    }));
+    body.addEventListener('change', updateCount);
+  },
+
+  _stashSetupStyle(overlay) {
+    const sel = this._session.setup;
+    if (!sel) return;
+    const body = overlay.querySelector('#ob-body');
+    if (!body || !body.querySelector('[data-profile]')) return;
+    sel.panels = [...body.querySelectorAll('[data-panel]:checked')].map(i => i.dataset.panel);
+    sel.shortcuts = [...body.querySelectorAll('[data-shortcut]:checked')].map(i => i.dataset.shortcut);
+    const g = body.querySelector('#ob-setup-glass');
+    if (g) sel.glass = g.checked;
+  },
+
+  _applySetupProfile(sel) {
+    const APP = this._APP_PANELS().map(p => p.id);
+    let hidden, shortcuts, glass;
+    if (sel.profile === 'minimal') {
+      hidden = APP; shortcuts = []; glass = false;
+    } else if (sel.profile === 'custom') {
+      hidden = APP.filter(p => !sel.panels.includes(p));
+      shortcuts = this._shortcutDefaults().filter(s => sel.shortcuts.includes(s.name));
+      glass = !!sel.glass;
+    } else { // owner — everything on, stock shortcuts, Glass
+      hidden = []; shortcuts = null; glass = true;
+    }
+    // Panel visibility rides the existing per-button override store, so the
+    // Settings → Sidebar manager shows hidden panels with a Show button —
+    // nothing chosen here is a dead end.
+    let ov = {};
+    try { ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {}; } catch {}
+    for (const p of APP) {
+      if (hidden.includes(p)) ov[p] = Object.assign({}, ov[p], { hidden: true });
+      else if (ov[p]) { delete ov[p].hidden; if (!Object.keys(ov[p]).length) delete ov[p]; }
+    }
+    try { localStorage.setItem('vex.panelOverrides', JSON.stringify(ov)); } catch {}
+    try { if (typeof SidebarManager !== 'undefined') SidebarManager.applyPanelOverrides(); } catch {}
+    // Shortcuts feed BOTH the Glass bar and the start page's speed dial (same
+    // key, mirrored into start-page storage). null = stock set.
+    this._setStart('vex.shortcuts', shortcuts == null ? null : JSON.stringify(shortcuts));
+    try { window.VexGuiStyle?.render?.(); } catch {}
+    try { window.VexGuiStyle?.set?.(glass ? 'glass' : 'classic'); } catch {}
+    try { localStorage.setItem('vex.setupProfile', sel.profile); } catch {}
+  },
+
   _renderBody(key, body) {
     const input = (id, ph, val) => this._input(id, ph, val);
-    if (key === 'theme') {
+    if (key === 'setupstyle') {
+      this._renderSetupStyle(body);
+    } else if (key === 'theme') {
       const themes = (typeof ThemeManager !== 'undefined' ? ThemeManager.THEMES : []);
       const cur = (typeof ThemeManager !== 'undefined' ? ThemeManager.currentTheme : '');
       body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${themes.map(t =>
@@ -383,7 +516,9 @@ const Onboarding = {
 
   async _commitAndNext(key, overlay) {
     this._stash(key, overlay);   // so Back onto this step re-shows exactly what was typed
-    if (key === 'name') {
+    if (key === 'setupstyle') {
+      if (this._session.setup) this._applySetupProfile(this._session.setup);
+    } else if (key === 'name') {
       const v = overlay.querySelector('#ob-name')?.value.trim() || '';
       this._setStart('vex.userName', v || null);
     } else if (key === 'github') {
