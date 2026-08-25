@@ -7,6 +7,8 @@
 - **Shareable setup codes** — export your whole setup (panels, shortcuts, theme, Glass/Classic) as a `VEXSETUP1.` code from the wizard; anyone can paste it into theirs and Vex arranges itself to match. Codes are validated live and sanitized on import.
 - **Drag tabs to reorder** — hold and drag tabs on the top strip like any browser: an insertion line shows where the tab lands, dropping into a group joins it, dragging into the pinned zone pins it, and pulling a tab out of a stack keeps stack bookkeeping intact.
 - **Declutter nudge** — two weeks after install, if several app panels were never opened, Vex offers (once, dismissible) to hide them.
+- **Daily wisdom, your way** — the start-page daily verse is now a choice: Qur'an (Turkish or English), Bible, Tanakh, secular quotes from philosophers and writers, or off entirely. Bible/Tanakh/quotes rotate through curated local sets — no network needed.
+- **Start page language** — English or Türkçe, covering the greeting, labels, search placeholder, and the daily verse (full interface translation is on the roadmap).
 - **Right-click menus in editable fields now offer Cut / Copy / Paste / Select All**, with spellcheck suggestions on top.
 
 ### Fixed
@@ -16,6 +18,7 @@
 - **Right-click did nothing in the sidebar app panels** (Discord, Claude, Spotify, WhatsApp…) — the menu wiring guarded on a `window` property that never existed. Panels now get the full Vex context menu.
 - **Spellcheck never actually worked** — no Hunspell dictionary was ever downloaded and sessions were never configured. Sessions now get explicit languages and the en-US dictionary is installed from the main process (immune to per-session proxies), so misspelled words get red squiggles and right-click suggestions everywhere, including the Discord panel.
 - **Console spam `file:///C:/sync/...` on boot** when sync state existed without a configured worker URL — all sync endpoints now bail cleanly when unconfigured.
+- **"What's New" showed "Couldn't load the release notes (offline?)" to online users** — release notes now come from the changelog bundled inside the app (no network, no rate limits); GitHub is only a last-resort fallback.
 
 ## v2.28.1 (2026-07-08) — Sidebar toggle: no more leftover strip
 
