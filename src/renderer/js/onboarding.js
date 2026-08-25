@@ -55,6 +55,8 @@ const Onboarding = {
   _isStepDone(key) {
     switch (key) {
       case 'setupstyle':     return this._has('vex.setupProfile');
+      case 'language':       return this._has('vex.lang');
+      case 'wisdom':         return this._has('vex.wisdomSource');
       case 'theme':          return this._has('vex.theme');
       case 'name':           return this._has('vex.userName');
       case 'weather':        return this._has('vex.weatherLoc');
@@ -101,6 +103,8 @@ const Onboarding = {
       { key: 'welcome',        title: 'Welcome to Vex 👋',        sub: 'Let’s set up the bits that make Vex feel like yours. Skip anything you don’t want — you can re-open this wizard anytime from the ✦ button by the reload button.' },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' },
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' },
+      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the start page language — greeting, labels, and the daily verse. (Full interface translation is on the roadmap.)' },
+      { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' },
       { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Leave blank for none.' },
       { key: 'weather',        title: 'Weather location',         sub: 'Type a city OR a district (e.g. “Ataşehir”), then pick the right match for accurate weather.' },
       { key: 'github',         title: 'GitHub username',          sub: 'Optional — shows your repo/follower stats + activity on the start page.' },
@@ -125,6 +129,8 @@ const Onboarding = {
   _stash(key, overlay) {
     const grab = (sel) => { const el = overlay.querySelector(sel); return el ? el.value : null; };
     if (key === 'setupstyle')   this._stashSetupStyle(overlay);
+    else if (key === 'language') this._session.lang = this._pendingLang;
+    else if (key === 'wisdom')  this._session.wisdom = this._pendingWisdom;
     else if (key === 'name')    this._session.name = grab('#ob-name');
     else if (key === 'github')  this._session.github = grab('#ob-gh');
     else if (key === 'aicloud') this._session.aicloud = grab('#ob-ai-url');
@@ -452,6 +458,43 @@ const Onboarding = {
         body.querySelectorAll('[data-theme]').forEach(x => x.style.borderColor = 'var(--border)');
         b.style.borderColor = 'var(--primary)';
       }));
+    } else if (key === 'language') {
+      const LANGS = [
+        { id: 'en', name: 'English', glyph: '🇬🇧' },
+        { id: 'tr', name: 'Türkçe', glyph: '🇹🇷' },
+      ];
+      let cur = this._session.lang;
+      if (cur == null) { try { cur = localStorage.getItem('vex.lang') || 'en'; } catch { cur = 'en'; } }
+      this._pendingLang = cur;
+      body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">${LANGS.map(l =>
+        `<button data-lang="${l.id}" style="padding:16px 6px;border-radius:11px;border:2px solid ${l.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <span style="font-size:22px">${l.glyph}</span>${this._esc(l.name)}</button>`).join('')}</div>
+        <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0">More languages are on the way — this currently covers the start page and the daily verse.</p>`;
+      body.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => {
+        this._pendingLang = b.dataset.lang;
+        body.querySelectorAll('[data-lang]').forEach(x => x.style.borderColor = 'var(--border)');
+        b.style.borderColor = 'var(--primary)';
+      }));
+    } else if (key === 'wisdom') {
+      const SOURCES = [
+        { id: 'quran',   name: 'Qur’an',        desc: 'A daily ayah' },
+        { id: 'bible',   name: 'Bible',         desc: 'A daily verse' },
+        { id: 'tanakh',  name: 'Tanakh',        desc: 'A daily passage' },
+        { id: 'secular', name: 'Quotes',        desc: 'Philosophers & writers' },
+        { id: 'off',     name: 'None',          desc: 'No daily text' },
+      ];
+      let cur = this._session.wisdom;
+      if (cur == null) { try { cur = localStorage.getItem('vex.wisdomSource') || 'quran'; } catch { cur = 'quran'; } }
+      this._pendingWisdom = cur;
+      body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">${SOURCES.map(s =>
+        `<button data-wisdom="${s.id}" style="padding:14px 6px;border-radius:11px;border:2px solid ${s.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12.5px;display:flex;flex-direction:column;align-items:center;gap:5px">
+          <span style="font-weight:700">${this._esc(s.name)}</span><span style="font-size:11px;color:var(--text-muted)">${this._esc(s.desc)}</span></button>`).join('')}</div>
+        <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0">Shown in the language you picked. Change it anytime by re-running this wizard (✦ button).</p>`;
+      body.querySelectorAll('[data-wisdom]').forEach(b => b.addEventListener('click', () => {
+        this._pendingWisdom = b.dataset.wisdom;
+        body.querySelectorAll('[data-wisdom]').forEach(x => x.style.borderColor = 'var(--border)');
+        b.style.borderColor = 'var(--primary)';
+      }));
     } else if (key === 'name') {
       let v = this._session.name;
       if (v == null) { try { v = localStorage.getItem('vex.userName') || ''; } catch { v = ''; } }
@@ -659,6 +702,15 @@ const Onboarding = {
       } else if (sel) {
         this._applySetupProfile(sel);
       }
+    } else if (key === 'language') {
+      // Mirrored into start-page storage; the greeting/labels/verse re-read it
+      // on the reload that finish() triggers.
+      this._setStart('vex.lang', this._pendingLang || 'en');
+    } else if (key === 'wisdom') {
+      this._setStart('vex.wisdomSource', this._pendingWisdom || 'quran');
+      // The Qur'an cache is per-edition; drop it so a language/source change
+      // shows the right text immediately rather than a day later.
+      this._setStart('vex.quranVerse', null);
     } else if (key === 'name') {
       const v = overlay.querySelector('#ob-name')?.value.trim() || '';
       this._setStart('vex.userName', v || null);

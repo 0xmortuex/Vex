@@ -1079,7 +1079,7 @@
   </div>
 
   <div class="shortcuts-section">
-    <h3>Quick Access</h3>
+    <h3 id="qa-label">Quick Access</h3>
     <div class="shortcuts-grid" id="shortcuts-grid">
       <!-- Populated by JS -->
     </div>
@@ -1184,11 +1184,12 @@
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
       document.getElementById('date-text').textContent = now.toLocaleDateString('en-US', options);
 
-      // Update greeting
+      // Update greeting (localized via vex.lang — set in the setup wizard)
       const hour = now.getHours();
-      let greeting = 'Good evening';
-      if (hour < 12) greeting = 'Good morning';
-      else if (hour < 18) greeting = 'Good afternoon';
+      const isTr = (() => { try { return localStorage.getItem('vex.lang') === 'tr'; } catch { return false; } })();
+      let greeting = isTr ? 'İyi akşamlar' : 'Good evening';
+      if (hour < 12) greeting = isTr ? 'Günaydın' : 'Good morning';
+      else if (hour < 18) greeting = isTr ? 'İyi günler' : 'Good afternoon';
       // Optional personalization: set a display name in Settings (stored as
       // localStorage 'vex.userName'). Empty by default so a fresh install shows
       // a neutral greeting with no name.
@@ -1710,38 +1711,202 @@
       input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); if (e.key === 'Escape') close(); });
     })();
 
-    // --- Daily Qur'an verse (Turkish, Diyanet translation) ---
-    async function loadQuranVerse() {
-      const TOTAL = 6236;                         // total ayahs in the Qur'an
+    // --- Daily wisdom: Qur'an / Bible / Tanakh / secular quotes / off ---
+    // Source + language are picked in the setup wizard (re-openable anytime)
+    // and mirrored into this page's storage as vex.wisdomSource / vex.lang.
+    // The Qur'an keeps its full-corpus daily API (offline-graceful, cached);
+    // the other traditions rotate through curated local sets — no network.
+    const WISDOM_LOCAL = {
+      bible: {
+        en: [
+          ['The LORD is my shepherd; I shall not want.', 'Psalm 23:1'],
+          ['God is our refuge and strength, a very present help in trouble.', 'Psalm 46:1'],
+          ['Thy word is a lamp unto my feet, and a light unto my path.', 'Psalm 119:105'],
+          ['Trust in the LORD with all thine heart; and lean not unto thine own understanding.', 'Proverbs 3:5'],
+          ['Commit thy works unto the LORD, and thy thoughts shall be established.', 'Proverbs 16:3'],
+          ['They that wait upon the LORD shall renew their strength; they shall mount up with wings as eagles.', 'Isaiah 40:31'],
+          ['Fear thou not; for I am with thee: be not dismayed; for I am thy God.', 'Isaiah 41:10'],
+          ['Blessed are the peacemakers: for they shall be called the children of God.', 'Matthew 5:9'],
+          ['Take therefore no thought for the morrow: for the morrow shall take thought for the things of itself.', 'Matthew 6:34'],
+          ['Ask, and it shall be given you; seek, and ye shall find; knock, and it shall be opened unto you.', 'Matthew 7:7'],
+          ['And ye shall know the truth, and the truth shall make you free.', 'John 8:32'],
+          ['Peace I leave with you, my peace I give unto you.', 'John 14:27'],
+          ['And we know that all things work together for good to them that love God.', 'Romans 8:28'],
+          ['Be not overcome of evil, but overcome evil with good.', 'Romans 12:21'],
+          ['And now abideth faith, hope, charity, these three; but the greatest of these is charity.', '1 Corinthians 13:13'],
+          ['Let all your things be done with charity.', '1 Corinthians 16:14'],
+          ['Let us not be weary in well doing: for in due season we shall reap, if we faint not.', 'Galatians 6:9'],
+          ['Be careful for nothing; but in every thing by prayer let your requests be made known unto God.', 'Philippians 4:6'],
+          ['I can do all things through Christ which strengtheneth me.', 'Philippians 4:13'],
+          ['Be strong and of a good courage; for the LORD thy God is with thee whithersoever thou goest.', 'Joshua 1:9'],
+        ],
+        tr: [
+          ['RAB çobanımdır, eksiğim olmaz.', 'Mezmur 23:1'],
+          ['Tanrı sığınağımız ve gücümüzdür, sıkıntıda hep yardıma hazırdır.', 'Mezmur 46:1'],
+          ['Sözün adımlarım için çıra, yolum için ışıktır.', 'Mezmur 119:105'],
+          ['RAB’be bütün yüreğinle güven, kendi anlayışına dayanma.', 'Süleyman’ın Özdeyişleri 3:5'],
+          ['Yaptığın her işi RAB’be emanet et, tasarıların gerçekleşir.', 'Süleyman’ın Özdeyişleri 16:3'],
+          ['RAB’be umut bağlayanlar yeni güç bulur, kanat açıp yükselirler kartallar gibi.', 'Yeşaya 40:31'],
+          ['Korkma, çünkü ben seninleyim; yılma, çünkü Tanrın benim.', 'Yeşaya 41:10'],
+          ['Ne mutlu barışı sağlayanlara! Çünkü onlara Tanrı oğulları denecek.', 'Matta 5:9'],
+          ['Yarın için kaygılanmayın; yarının kaygısı yarının olsun.', 'Matta 6:34'],
+          ['Dileyin, size verilecek; arayın, bulacaksınız; kapıyı çalın, size açılacaktır.', 'Matta 7:7'],
+          ['Gerçeği bileceksiniz ve gerçek sizi özgür kılacak.', 'Yuhanna 8:32'],
+          ['Size esenlik bırakıyorum, size kendi esenliğimi veriyorum.', 'Yuhanna 14:27'],
+          ['Tanrı’yı sevenler için her şeyin iyilikle sonuçlanacağını biliriz.', 'Romalılar 8:28'],
+          ['Kötülüğe yenilme, kötülüğü iyilikle yen.', 'Romalılar 12:21'],
+          ['Kalıcı olan üç şey vardır: iman, umut, sevgi. Bunların en üstünü de sevgidir.', '1. Korintliler 13:13'],
+          ['Her şeyi sevgiyle yapın.', '1. Korintliler 16:14'],
+          ['İyilik yapmaktan usanmayalım; vazgeçmezsek mevsiminde biçeriz.', 'Galatyalılar 6:9'],
+          ['Hiçbir şey için kaygılanmayın; her durumda isteklerinizi Tanrı’ya dua ile bildirin.', 'Filipililer 4:6'],
+          ['Beni güçlendirenin aracılığıyla her şeyi yapabilirim.', 'Filipililer 4:13'],
+          ['Güçlü ve yürekli ol; korkma, çünkü gideceğin her yerde Tanrın RAB seninledir.', 'Yeşu 1:9'],
+        ],
+      },
+      tanakh: {
+        en: [
+          ['In the beginning God created the heaven and the earth.', 'Genesis 1:1'],
+          ['Hear, O Israel: the LORD our God, the LORD is one.', 'Deuteronomy 6:4'],
+          ['Be strong and of good courage; for the LORD thy God, He it is that doth go with thee.', 'Deuteronomy 31:6'],
+          ['I will lift up mine eyes unto the mountains: from whence shall my help come? My help cometh from the LORD.', 'Psalm 121:1–2'],
+          ['The LORD is my light and my salvation; whom shall I fear?', 'Psalm 27:1'],
+          ['Depart from evil, and do good; seek peace, and pursue it.', 'Psalm 34:15'],
+          ['The beginning of wisdom is: Get wisdom; yea, with all thy getting get understanding.', 'Proverbs 4:7'],
+          ['A soft answer turneth away wrath; but a grievous word stirreth up anger.', 'Proverbs 15:1'],
+          ['To every thing there is a season, and a time to every purpose under the heaven.', 'Ecclesiastes 3:1'],
+          ['What doth the LORD require of thee: only to do justly, and to love mercy, and to walk humbly with thy God.', 'Micah 6:8'],
+          ['Nation shall not lift up sword against nation, neither shall they learn war any more.', 'Isaiah 2:4'],
+          ['Thou shalt love thy neighbour as thyself.', 'Leviticus 19:18'],
+          ['This is the day which the LORD hath made; we will rejoice and be glad in it.', 'Psalm 118:24'],
+          ['The name of the LORD is a strong tower: the righteous runneth into it, and is set up on high.', 'Proverbs 18:10'],
+          ['Behold, how good and how pleasant it is for brethren to dwell together in unity!', 'Psalm 133:1'],
+          ['If I am not for myself, who will be for me? And if I am only for myself, what am I? And if not now, when?', 'Pirkei Avot 1:14'],
+        ],
+        tr: [
+          ['Başlangıçta Tanrı göğü ve yeri yarattı.', 'Yaratılış 1:1'],
+          ['Dinle, ey İsrail! Tanrımız RAB tek RAB’dir.', 'Yasa’nın Tekrarı 6:4'],
+          ['Güçlü ve yürekli olun; çünkü seninle gidecek olan Tanrın RAB’dir.', 'Yasa’nın Tekrarı 31:6'],
+          ['Gözlerimi dağlara kaldırıyorum: Yardımım nereden gelecek? Yardımım RAB’den gelir.', 'Mezmur 121:1–2'],
+          ['RAB ışığım ve kurtuluşumdur; kimden korkayım?', 'Mezmur 27:1'],
+          ['Kötülükten sakın, iyilik yap; esenliği ara, onun ardından git.', 'Mezmur 34:14'],
+          ['Bilgeliğin başlangıcı şudur: Bilgeliği edin; her edindiğinle birlikte akıl da edin.', 'Süleyman’ın Özdeyişleri 4:7'],
+          ['Yumuşak yanıt öfkeyi dindirir; sert söz ise öfkeyi körükler.', 'Süleyman’ın Özdeyişleri 15:1'],
+          ['Her şeyin mevsimi, göğün altındaki her olayın bir zamanı vardır.', 'Vaiz 3:1'],
+          ['RAB senden ne ister: Yalnız adil olmanı, sadakati sevmeni ve Tanrın’la alçakgönüllülükle yürümeni.', 'Mika 6:8'],
+          ['Ulus ulusa kılıç kaldırmayacak, savaşı artık öğrenmeyecekler.', 'Yeşaya 2:4'],
+          ['Komşunu kendin gibi seveceksin.', 'Levililer 19:18'],
+          ['Bugün RAB’bin yarattığı gündür; onda sevinip coşalım.', 'Mezmur 118:24'],
+          ['RAB’bin adı güçlü kuledir; doğru kişi ona koşar ve korunur.', 'Süleyman’ın Özdeyişleri 18:10'],
+          ['Kardeşlerin birlik içinde yaşaması ne iyi, ne güzeldir!', 'Mezmur 133:1'],
+          ['Ben kendim için değilsem, kim benim için? Yalnız kendim içinsem, ben neyim? Şimdi değilse, ne zaman?', 'Pirke Avot 1:14'],
+        ],
+      },
+      secular: {
+        en: [
+          ['Very little is needed to make a happy life; it is all within yourself, in your way of thinking.', 'Marcus Aurelius · Meditations'],
+          ['We suffer more often in imagination than in reality.', 'Seneca · Letters'],
+          ['Make the best use of what is in your power, and take the rest as it happens.', 'Epictetus'],
+          ['A journey of a thousand miles begins with a single step.', 'Lao Tzu · Tao Te Ching'],
+          ['It does not matter how slowly you go as long as you do not stop.', 'Confucius'],
+          ['The unexamined life is not worth living.', 'Socrates'],
+          ['No man ever steps in the same river twice.', 'Heraclitus'],
+          ['Yesterday I was clever, so I wanted to change the world. Today I am wise, so I am changing myself.', 'Rumi'],
+          ['Learning never exhausts the mind.', 'Leonardo da Vinci'],
+          ['Simplify, simplify.', 'Henry David Thoreau · Walden'],
+          ['Trust thyself: every heart vibrates to that iron string.', 'Ralph Waldo Emerson · Self-Reliance'],
+          ['Whoever is happy will make others happy too.', 'Anne Frank'],
+          ['If you don’t like something, change it. If you can’t change it, change your attitude.', 'Maya Angelou'],
+          ['He who has a why to live can bear almost any how.', 'Friedrich Nietzsche'],
+          ['In the depth of winter, I finally learned that within me there lay an invincible summer.', 'Albert Camus'],
+          ['The best way to predict the future is to invent it.', 'Alan Kay'],
+        ],
+        tr: [
+          ['Mutlu bir yaşam için çok az şey gerekir; hepsi senin içinde, düşünce biçiminde.', 'Marcus Aurelius · Düşünceler'],
+          ['Gerçekte olduğundan çok, hayal gücümüzde acı çekeriz.', 'Seneca · Mektuplar'],
+          ['Elinde olanı en iyi şekilde kullan; gerisini olduğu gibi karşıla.', 'Epiktetos'],
+          ['Bin millik yolculuk tek bir adımla başlar.', 'Lao Tzu · Tao Te Ching'],
+          ['Ne kadar yavaş gittiğin önemli değil, yeter ki durma.', 'Konfüçyüs'],
+          ['Sorgulanmamış bir hayat yaşamaya değmez.', 'Sokrates'],
+          ['Kimse aynı nehre iki kez giremez.', 'Herakleitos'],
+          ['Dün zekiydim, dünyayı değiştirmek istedim. Bugün bilgeyim, kendimi değiştiriyorum.', 'Mevlâna'],
+          ['Öğrenmek zihni asla yormaz.', 'Leonardo da Vinci'],
+          ['Sadeleştir, sadeleştir.', 'Henry David Thoreau · Walden'],
+          ['Kendine güven: her yürek o demir tele titreşir.', 'Ralph Waldo Emerson'],
+          ['Mutlu olan, başkalarını da mutlu eder.', 'Anne Frank'],
+          ['Bir şeyi beğenmiyorsan değiştir; değiştiremiyorsan bakışını değiştir.', 'Maya Angelou'],
+          ['Yaşamak için bir “neden”i olan, hemen her “nasıl”a katlanabilir.', 'Friedrich Nietzsche'],
+          ['Kışın ortasında, içimde yenilmez bir yaz olduğunu öğrendim.', 'Albert Camus'],
+          ['Geleceği öngörmenin en iyi yolu onu icat etmektir.', 'Alan Kay'],
+        ],
+      },
+    };
+    function wisdomPrefs() {
+      let src = 'quran', lang = 'en';
+      try { src = localStorage.getItem('vex.wisdomSource') || 'quran'; } catch {}
+      try { lang = localStorage.getItem('vex.lang') === 'tr' ? 'tr' : 'en'; } catch {}
+      return { src, lang };
+    }
+    async function loadDailyWisdom() {
+      const { src, lang } = wisdomPrefs();
+      const box = document.getElementById('quran-verse');
+      if (src === 'off') { if (box) box.style.display = 'none'; return; }
       const epochDay = Math.floor(Date.now() / 86400000);
-      const ayah = (epochDay % TOTAL) + 1;        // deterministic, changes daily
-      const render = (v) => {
-        if (!v || !v.text) return;
-        document.getElementById('quran-text').textContent = '“' + v.text + '”';
-        document.getElementById('quran-ref').textContent = v.ref || '';
-        document.getElementById('quran-verse').style.display = 'block';
+      const render = (text, ref) => {
+        if (!text) return;
+        document.getElementById('quran-text').textContent = '“' + text + '”';
+        document.getElementById('quran-ref').textContent = ref || '';
+        box.style.display = 'block';
       };
+      if (src !== 'quran') {
+        const set = (WISDOM_LOCAL[src] && (WISDOM_LOCAL[src][lang] || WISDOM_LOCAL[src].en)) || null;
+        if (!set || !set.length) { box.style.display = 'none'; return; }
+        const [text, ref] = set[epochDay % set.length];
+        render(text, ref);
+        return;
+      }
+      // Qur'an — daily ayah over the whole corpus (cached; hidden when offline)
+      const TOTAL = 6236;
+      const ayah = (epochDay % TOTAL) + 1;
+      const edition = lang === 'tr' ? 'tr.diyanet' : 'en.asad';
       try {
         const cached = JSON.parse(localStorage.getItem('vex.quranVerse') || 'null');
-        if (cached && cached.day === epochDay && cached.text) { render(cached); return; }
+        if (cached && cached.day === epochDay && cached.ed === edition && cached.text) { render(cached.text, cached.ref); return; }
       } catch {}
       try {
-        const res = await fetch(`https://api.alquran.cloud/v1/ayah/${ayah}/tr.diyanet`);
+        const res = await fetch(`https://api.alquran.cloud/v1/ayah/${ayah}/${edition}`);
         const data = await res.json();
         const a = data && data.data;
         if (a && a.text) {
           const surah = a.surah || {};
-          const v = {
-            day: epochDay,
-            text: a.text,
-            ref: (surah.englishName || 'Kur’an') + ' Suresi · ' + (surah.number || '') + ':' + (a.numberInSurah || '')
-          };
-          try { localStorage.setItem('vex.quranVerse', JSON.stringify(v)); } catch {}
-          render(v);
+          const name = surah.englishName || (lang === 'tr' ? 'Kur’an' : 'Qur’an');
+          const ref = lang === 'tr'
+            ? name + ' Suresi · ' + (surah.number || '') + ':' + (a.numberInSurah || '')
+            : 'Surah ' + name + ' · ' + (surah.number || '') + ':' + (a.numberInSurah || '');
+          try { localStorage.setItem('vex.quranVerse', JSON.stringify({ day: epochDay, ed: edition, text: a.text, ref })); } catch {}
+          render(a.text, ref);
         }
       } catch { /* offline / API down — leave hidden */ }
     }
-    loadQuranVerse();
+    loadDailyWisdom();
+
+    // Start-page chrome strings follow vex.lang too (greeting is handled in
+    // updateClock). Kept to a tiny dictionary — the wizard notes that full
+    // interface translation is a separate effort.
+    (function applyStartLang() {
+      let tr = false;
+      try { tr = localStorage.getItem('vex.lang') === 'tr'; } catch {}
+      if (!tr) return;
+      const s = document.getElementById('search-input');
+      if (s) s.placeholder = 'İnternette ara...';
+      const qa = document.getElementById('qa-label');
+      if (qa) qa.textContent = 'Hızlı Erişim';
+      const th = document.getElementById('theme-toggle-btn');
+      if (th) {
+        for (const n of th.childNodes) {
+          if (n.nodeType === 3 && n.textContent.trim()) { n.textContent = ' Tema'; break; }
+        }
+      }
+    })();
 
     // Theme button → open the app's theme picker (host handles via VEX_CMD).
     document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {

@@ -196,6 +196,60 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
   });
 });
 
+describe('Language + daily-wisdom steps', () => {
+  it('are steps, in order, right after theme', () => {
+    const keys = Onboarding.STEPS().map(s => s.key);
+    const themeIdx = keys.indexOf('theme');
+    expect(keys[themeIdx + 1]).toBe('language');
+    expect(keys[themeIdx + 2]).toBe('wisdom');
+  });
+
+  it('_isStepDone reflects saved language / wisdom choices', () => {
+    expect(Onboarding._isStepDone('language')).toBe(false);
+    expect(Onboarding._isStepDone('wisdom')).toBe(false);
+    localStorage.setItem('vex.lang', 'tr');
+    localStorage.setItem('vex.wisdomSource', 'bible');
+    expect(Onboarding._isStepDone('language')).toBe(true);
+    expect(Onboarding._isStepDone('wisdom')).toBe(true);
+  });
+
+  it('language step renders both options and records the click', () => {
+    Onboarding._session = {};
+    const body = document.createElement('div');
+    Onboarding._renderBody('language', body);
+    const opts = [...body.querySelectorAll('[data-lang]')].map(b => b.dataset.lang);
+    expect(opts).toEqual(['en', 'tr']);
+    body.querySelector('[data-lang="tr"]').click();
+    expect(Onboarding._pendingLang).toBe('tr');
+  });
+
+  it('wisdom step offers all five sources (Qur’an, Bible, Tanakh, Quotes, None)', () => {
+    Onboarding._session = {};
+    const body = document.createElement('div');
+    Onboarding._renderBody('wisdom', body);
+    const opts = [...body.querySelectorAll('[data-wisdom]')].map(b => b.dataset.wisdom);
+    expect(opts).toEqual(['quran', 'bible', 'tanakh', 'secular', 'off']);
+    body.querySelector('[data-wisdom="off"]').click();
+    expect(Onboarding._pendingWisdom).toBe('off');
+  });
+
+  it('committing writes vex.lang / vex.wisdomSource and clears the ayah cache', async () => {
+    Onboarding._session = {};
+    localStorage.setItem('vex.quranVerse', '{"day":1}');
+    const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
+    const overlay = document.createElement('div');
+    overlay.innerHTML = '<div id="ob-body"></div>';
+    Onboarding._pendingLang = 'tr';
+    await Onboarding._commitAndNext('language', overlay);
+    expect(localStorage.getItem('vex.lang')).toBe('tr');
+    Onboarding._pendingWisdom = 'tanakh';
+    await Onboarding._commitAndNext('wisdom', overlay);
+    expect(localStorage.getItem('vex.wisdomSource')).toBe('tanakh');
+    expect(localStorage.getItem('vex.quranVerse')).toBeNull();
+    render.mockRestore();
+  });
+});
+
 describe('Shareable setup codes', () => {
   const stubEnv = (glass = 'glass') => {
     globalThis.window.VexGuiStyle = {
