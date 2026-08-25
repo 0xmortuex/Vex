@@ -400,9 +400,40 @@ function isDiscordHostUrl(url) {
       || /(^|\.)discord\.gg$/.test(h);
 }
 
+// === "What's New" — local release notes from the bundled CHANGELOG.md ===
+// Extracts one release entry from the changelog markdown. Entries look like:
+//   ## v2.29.0 (2026-08-25) — Title
+//   ...body until the next "## v" heading...
+// Exact-version match first; when the running version has no entry yet (a dev
+// build mid-cycle), the newest entry is returned instead. Returns
+// { version, name, body, publishedAt } or null. Pure (text in, object out) so
+// the parsing is unit-testable without touching the filesystem.
+function parseChangelogEntry(md, version) {
+  if (typeof md !== 'string' || !md) return null;
+  // The repo checks out with CRLF on Windows; a trailing \r breaks both the
+  // heading-suffix match (JS "." excludes \r) and pollutes the body.
+  md = md.replace(/\r/g, '');
+  const exact = new RegExp('^## (v' + String(version || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')((?:[^\\S\\n][^\\n]*)?)$', 'm');
+  let m = exact.exec(md);
+  if (!m) m = /^## (v\d[^\s\n]*)((?:[^\S\n][^\n]*)?)$/m.exec(md);
+  if (!m) return null;
+  const rest = md.slice(m.index + m[0].length);
+  const next = /^## v/m.exec(rest);
+  const body = rest.slice(0, next ? next.index : undefined).trim();
+  if (!body) return null;
+  const meta = (m[2] || '').match(/^\s*\(([^)]*)\)\s*(?:—\s*(.*))?$/);
+  return {
+    version: m[1],
+    name: meta && meta[2] ? `${m[1]} — ${meta[2].trim()}` : m[1],
+    body,
+    publishedAt: meta && meta[1] ? meta[1] : null,
+  };
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
+  parseChangelogEntry,
   resolveAndReplaceMisspelling,
   OAUTH_POPUP_HOSTS,
   isOAuthPopupUrl,

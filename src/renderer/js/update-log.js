@@ -66,7 +66,7 @@
     injectStyles();
     const ov = document.createElement('div');
     ov.className = 'whatsnew-ov';
-    const bodyHtml = notes && notes.body ? mdToHtml(notes.body) : '<div class="whatsnew-empty">Couldn\'t load the release notes (offline?). Check the releases page.</div>';
+    const bodyHtml = notes && notes.body ? mdToHtml(notes.body) : '<div class="whatsnew-empty">No release notes for this build — the releases page has the full history.</div>';
     ov.innerHTML = `
       <div class="whatsnew-card">
         <div class="whatsnew-head">

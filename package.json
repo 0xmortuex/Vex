@@ -53,6 +53,7 @@
     },
     "files": [
       "src/**/*",
+      "CHANGELOG.md",
       "assets/icon.svg",
       "assets/icon.ico",
       "assets/theme-previews/*.png",

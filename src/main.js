@@ -3303,10 +3303,22 @@ ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
   return { ok: false };
 });
-// Release notes for the "What's New" update log. Fetches the GitHub release for
-// the given tag (default: current version), falling back to the latest release.
+// Release notes for the "What's New" update log. LOCAL-FIRST: the bundled
+// CHANGELOG.md always has the running version's notes, needs no network, and
+// can't 404, rate-limit, or return an empty body — all three of which the
+// GitHub path did (the "Couldn't load the release notes (offline?)" dialog
+// was a fetch that SUCCEEDED against a fallback release with no body, shown
+// to a user who was online). GitHub remains only as a fallback for the
+// unlikely case the local file is unreadable.
 ipcMain.handle('updates:notes', async (_e, tag) => {
   const ver = tag || ('v' + app.getVersion());
+  try {
+    const md = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+    const local = _mainHelpers.parseChangelogEntry(md, ver.replace(/^v/, ''));
+    if (local) return { ...local, url: 'https://github.com/0xmortuex/Vex/releases' };
+  } catch (err) {
+    console.warn('[WhatsNew] local changelog unavailable, falling back to GitHub:', err.message);
+  }
   const fetchJson = (url) => new Promise((resolve) => {
     try {
       const req = net.request({ url });
