@@ -410,10 +410,14 @@ const SidebarManager = {
         // Wire the guest right-click → Vex context menu, exactly like normal
         // tab webviews do in WebviewManager.createWebview. Without this, panel
         // webviews (Claude/Spotify/WhatsApp) swallowed right-clicks entirely —
-        // no menu, and spellcheck suggestions never surfaced. Guarded in case
-        // webview.js hasn't loaded yet.
+        // no menu, and spellcheck suggestions never surfaced. Guard with
+        // typeof, NOT window.WebviewManager: webview.js declares a top-level
+        // `const`, which is visible across classic scripts but is NOT a window
+        // property — the old `window.WebviewManager &&` guard was always
+        // undefined, silently eating every panel right-click (found live via
+        // CDP, 2026-08-25).
         wv.addEventListener('context-menu', (e) => {
-          if (window.WebviewManager && typeof WebviewManager.showContextMenu === 'function') {
+          if (typeof WebviewManager !== 'undefined' && typeof WebviewManager.showContextMenu === 'function') {
             WebviewManager.showContextMenu(e, wv);
           }
         });

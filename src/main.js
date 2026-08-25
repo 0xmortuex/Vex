@@ -31,6 +31,12 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // other app.* access (Chromium freezes its feature list on first touch).
 app.commandLine.appendSwitch('disable-features', 'ThirdPartyStoragePartitioning');
 
+// Windows toast identity. Web-page notifications surface as OS toasts, and on
+// Windows a toast is silently dropped unless the process has an
+// AppUserModelID. Packaged installs get one via the electron-builder shortcut,
+// but the runtime call makes dev runs behave the same. Matches build.appId.
+app.setAppUserModelId('com.vex.browser');
+
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -931,6 +937,78 @@ function wireClientHintsOnSession(ses) {
     }
     callback({ requestHeaders: h });
   });
+}
+
+// === Spellcheck — enable + pin dictionary languages per session ===
+// Electron's spellchecker follows the OS locale by default; when that locale
+// has no Chromium Hunspell dictionary (e.g. Turkish), the checker silently
+// stays OFF for every page — no red squiggles, context-menu params carry
+// spellcheckEnabled:false, and no suggestions ever populate (observed live
+// 2026-08-25; userData/Dictionaries had never been created). Pin the language
+// list to the intersection of what the user plausibly types (app locale +
+// en-US) and what Hunspell actually offers, so the dictionary download kicks
+// in and misspelledWord/dictionarySuggestions reach the context menu.
+// Chromium looks for the Hunspell .bdic on disk (userData/Dictionaries)
+// before downloading it through the SESSION's network stack. Sessions routed
+// through the ByeDPI/DPI-bypass proxy (persist:discord) fail that in-session
+// download silently, leaving spellcheck dead exactly where the user types
+// most. Fetch the en-US dictionary once from the MAIN process (net.fetch —
+// system network, no session proxy) into the folder Chromium reads; the
+// en-US-10-1 name/version has been stable in Chromium for a decade.
+const SPELL_DICT_FILE = 'en-US-10-1.bdic';
+const SPELL_DICT_URL = 'https://redirector.gvt1.com/edgedl/chrome/dict/en-us-10-1.bdic';
+let _spellDictReady = null;
+function ensureSpellDictionary() {
+  if (_spellDictReady) return _spellDictReady;
+  _spellDictReady = (async () => {
+    const dir = path.join(userDataPath, 'Dictionaries');
+    const file = path.join(dir, SPELL_DICT_FILE);
+    try {
+      if (fs.existsSync(file) && fs.statSync(file).size > 0) return;
+      fs.mkdirSync(dir, { recursive: true });
+      const res = await net.fetch(SPELL_DICT_URL);
+      if (!res.ok) { console.warn('[Spellcheck] dictionary fetch HTTP', res.status); return; }
+      const buf = Buffer.from(await res.arrayBuffer());
+      fs.writeFileSync(file, buf);
+      console.log('[Spellcheck] en-US dictionary installed,', buf.length, 'bytes');
+    } catch (err) {
+      console.warn('[Spellcheck] dictionary fetch failed:', err.message);
+    }
+  })();
+  return _spellDictReady;
+}
+
+function wireSpellcheckOnSession(ses) {
+  if (!ses || ses.__vexSpellWired) return;
+  ses.__vexSpellWired = true;
+  try {
+    const avail = ses.availableSpellCheckerLanguages || [];
+    const want = [];
+    try {
+      const l = app.getLocale();
+      if (l) { want.push(l, l.split('-')[0]); }
+    } catch {}
+    want.push('en-US', 'en');
+    const langs = [...new Set(want)].filter(l => avail.includes(l));
+    // A blocked/unreachable dictionary CDN is otherwise invisible — the
+    // checker just never turns on. Surface it in the log.
+    ses.on('spellcheck-dictionary-download-failure', (_e, lang) => {
+      console.warn('[Spellcheck] dictionary download failed:', lang);
+    });
+    // Enable AFTER the on-disk dictionary is ensured, so the spellcheck
+    // service initializes against a present file instead of kicking off an
+    // in-session download that may go through a broken proxy.
+    ensureSpellDictionary().finally(() => {
+      try {
+        ses.setSpellCheckerEnabled(true);
+        if (langs.length) ses.setSpellCheckerLanguages(langs);
+      } catch (err) {
+        console.warn('[Spellcheck] enable failed:', err.message);
+      }
+    });
+  } catch (err) {
+    console.warn('[Spellcheck] wiring failed:', err.message);
+  }
 }
 
 // === Media grabber — sniff downloadable media per tab ===
@@ -2387,6 +2465,7 @@ function createWindow() {
   for (const ses of sessions) {
     try { attachGuestPreloads(ses); }
     catch (err) { console.error('[Preload] attach failed:', err.message); }
+    wireSpellcheckOnSession(ses);
   }
 
 

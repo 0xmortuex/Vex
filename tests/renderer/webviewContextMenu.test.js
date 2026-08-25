@@ -177,6 +177,81 @@ describe('showContextMenu — misspelled word with no suggestions', () => {
 });
 
 // ===========================================================================
+// Editable contexts — standard edit commands (Cut/Copy/Paste/Select All)
+// ===========================================================================
+describe('showContextMenu — editable contexts', () => {
+  it('adds Cut/Copy/Paste/Select All when isEditable, honoring editFlags', async () => {
+    const WM = await loadWebviewManager();
+    const wv = fakeWebview({ cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn() });
+    WM.showContextMenu(
+      fakeEvent({ isEditable: true, editFlags: { canCut: false, canCopy: false, canPaste: true } }),
+      wv,
+    );
+
+    const menu = document.querySelector('.tab-context-menu');
+    const rows = [...menu.querySelectorAll('.tab-context-item')];
+    const byLabel = (l) => rows.find(r => r.textContent === l);
+    expect(byLabel('Cut')).toBeTruthy();
+    expect(byLabel('Cut').style.pointerEvents).toBe('none');      // canCut: false
+    expect(byLabel('Copy').style.pointerEvents).toBe('none');     // canCopy: false
+    expect(byLabel('Paste').style.pointerEvents).not.toBe('none'); // canPaste: true
+    expect(byLabel('Select All')).toBeTruthy();
+
+    byLabel('Paste').dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    expect(wv.paste).toHaveBeenCalled();
+  });
+
+  it('spelling suggestions come before the edit commands', async () => {
+    const WM = await loadWebviewManager();
+    WM.showContextMenu(
+      fakeEvent({
+        misspelledWord: 'wrold',
+        dictionarySuggestions: ['world'],
+        isEditable: true,
+        editFlags: { canCut: true, canCopy: true, canPaste: true },
+      }),
+      fakeWebview({ cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn() }),
+    );
+
+    const menu = document.querySelector('.tab-context-menu');
+    expect(menu.children[0].textContent).toBe('world');
+    expect(menu.children[1].classList.contains('tab-context-sep')).toBe(true);
+    expect(menu.children[2].textContent).toBe('Cut');
+  });
+
+  it('editable + selection does not duplicate Copy', async () => {
+    const WM = await loadWebviewManager();
+    WM.showContextMenu(
+      fakeEvent({ isEditable: true, editFlags: {}, selectionText: 'hello there' }),
+      fakeWebview({ cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn() }),
+    );
+    const labels = [...document.querySelectorAll('.tab-context-item')].map(i => i.textContent);
+    expect(labels.filter(l => l === 'Copy')).toHaveLength(1);
+  });
+
+  it('adds no edit commands for non-editable contexts', async () => {
+    const WM = await loadWebviewManager();
+    WM.showContextMenu(fakeEvent({}), fakeWebview());
+    const labels = [...document.querySelectorAll('.tab-context-item')].map(i => i.textContent);
+    expect(labels).not.toContain('Cut');
+    expect(labels).not.toContain('Paste');
+    expect(labels).not.toContain('Select All');
+  });
+});
+
+// ===========================================================================
+// window export — guards like `window.WebviewManager && ...` must work
+// (top-level `const` alone is NOT a window property; sidebar/gui-style
+// panel right-clicks silently no-oped on that guard)
+// ===========================================================================
+describe('window.WebviewManager export', () => {
+  it('is published on window', async () => {
+    const WM = await loadWebviewManager();
+    expect(window.WebviewManager).toBe(WM);
+  });
+});
+
+// ===========================================================================
 // No misspelled word — no spelling section at all
 // ===========================================================================
 describe('showContextMenu — no misspelled word', () => {

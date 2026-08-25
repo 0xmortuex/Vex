@@ -129,6 +129,10 @@ const HorizontalTabs = (() => {
     if (tab.sleeping) el.classList.add('sleeping');
     el.dataset.tabId = tab.id;
     el.title = `${tab.title || 'New Tab'}\n${tab.url || ''}`;
+    // Drag-to-reorder (native HTML5 DnD, same as the vertical sidebar).
+    // Stack CHIPS are not draggable (no data-tab-id), but expanded members
+    // are — dragging one onto the strip pulls it out of its stack.
+    el.draggable = true;
 
     let favicon = tab.favicon;
     if (!favicon) {
@@ -188,6 +192,86 @@ const HorizontalTabs = (() => {
     return el;
   }
 
+  // Move draggedId so it sits immediately before/after targetId in
+  // TabManager.tabs. The dragged tab adopts the target's section (pinned
+  // state + group membership) — the strip renders pinned/loose/grouped tabs
+  // in separate passes, so without adoption the tab would teleport out of
+  // the spot it was visibly dropped into. Returns true if anything moved.
+  function reorderTab(draggedId, targetId, after) {
+    if (typeof TabManager === 'undefined') return false;
+    const tabs = TabManager.tabs || [];
+    const dragged = tabs.find(t => t.id === draggedId);
+    const target = tabs.find(t => t.id === targetId);
+    if (!dragged || !target || dragged === target) return false;
+    // Joining a stack needs its own bookkeeping (topTabId etc.) — in-stack
+    // tabs are excluded as drop targets, this is just the safety net.
+    if (target.stackId) return false;
+    // Dragging a member OUT of its stack routes through removeTabFromStack
+    // so topTabId reassignment / auto-disband invariants hold.
+    if (dragged.stackId) TabManager.removeTabFromStack?.(dragged.id);
+    dragged.pinned = !!target.pinned;
+    dragged.groupId = target.groupId || null;
+    tabs.splice(tabs.indexOf(dragged), 1);
+    tabs.splice(tabs.indexOf(target) + (after ? 1 : 0), 0, dragged);
+    TabManager.rebuildAllTabs(); // repaints the sidebar and (via patch) this bar
+    TabManager.persistTabs?.();
+    return true;
+  }
+
+  function _setupDragDrop(list) {
+    let dragId = null;
+
+    const clearMarkers = () => {
+      list.querySelectorAll('.drop-before, .drop-after').forEach(el =>
+        el.classList.remove('drop-before', 'drop-after'));
+    };
+    // Nearest reorderable tab to the pointer's x — so drops land sensibly on
+    // the empty strip tail and on group labels / stack chips, not only when
+    // the pointer is exactly over a tab. after = pointer past its midpoint.
+    const targetAt = (x) => {
+      let best = null, bestDist = Infinity;
+      for (const el of list.querySelectorAll('.top-tab[data-tab-id]:not(.in-stack)')) {
+        if (el.dataset.tabId === dragId) continue;
+        const r = el.getBoundingClientRect();
+        const center = r.left + r.width / 2;
+        const d = Math.abs(x - center);
+        if (d < bestDist) { bestDist = d; best = { el, after: x > center }; }
+      }
+      return best;
+    };
+
+    list.addEventListener('dragstart', (e) => {
+      const el = e.target.closest('.top-tab[data-tab-id]');
+      if (!el) return;
+      dragId = el.dataset.tabId;
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragId);
+    });
+    list.addEventListener('dragend', () => {
+      dragId = null;
+      list.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+      clearMarkers();
+    });
+    list.addEventListener('dragover', (e) => {
+      if (!dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      clearMarkers();
+      const t = targetAt(e.clientX);
+      if (t) t.el.classList.add(t.after ? 'drop-after' : 'drop-before');
+    });
+    list.addEventListener('drop', (e) => {
+      if (!dragId) return;
+      e.preventDefault();
+      const t = targetAt(e.clientX);
+      const id = dragId;
+      dragId = null;
+      clearMarkers();
+      if (t) reorderTab(id, t.el.dataset.tabId, t.after);
+    });
+  }
+
   function _patchTabManager() {
     if (typeof TabManager === 'undefined' || TabManager.__horizWired) return;
     TabManager.__horizWired = true;
@@ -214,24 +298,32 @@ const HorizontalTabs = (() => {
     }
   }
 
-  // Toggle narrow/very-narrow classes based on the *average* width each tab
-  // would get in the container. This is more stable than per-tab measurement
-  // because freshly rendered tabs may briefly measure at their flex-basis
-  // (200 px) before the browser settles the layout, causing false-negative
-  // "wide" reads. CSS container queries aren't reliable in Electron 30's
-  // Chromium, so we compute this in JS.
+  // Toggle narrow/very-narrow classes based on the *prospective* width each
+  // flexible tab gets: (container width − fixed-width occupants − gaps) ÷ tab
+  // count. NEVER measure the tabs' current rendered widths for this — a
+  // freshly re-rendered tab (flex-basis 0) measures near zero for a frame,
+  // which mis-applies .very-narrow, and a tab already forced small by a size
+  // class then reads that forced width back on every subsequent pass. That
+  // feedback loop was the "tabs shrink on every switch and stop covering the
+  // bar" bug: one early mis-measure ratcheted the whole strip down to 40 px
+  // chips it could never grow back from.
   function applyTabSizeClasses() {
     const container = document.getElementById('top-tabs-list');
     if (!container) return;
     const tabs = Array.from(container.querySelectorAll('.top-tab:not(.pinned)'));
     if (!tabs.length) return;
+    const total = container.clientWidth;
+    if (!total) return; // hidden bar (vertical layout) — nothing to size
 
-    // Measure actual rendered widths — pinned tabs share the bar but shouldn't
-    // factor into the average, and the old container-width/count estimate
-    // mis-classified when a pinned row or group label was present.
-    let total = 0;
-    for (const t of tabs) total += t.getBoundingClientRect().width;
-    const avg = total / tabs.length;
+    // Pinned tabs and group labels occupy fixed width; their measurement is
+    // safe (their size never depends on the classes this function toggles).
+    let fixed = 0;
+    container.querySelectorAll('.top-tab.pinned, .top-group-label').forEach(el => {
+      fixed += el.getBoundingClientRect().width;
+    });
+    fixed += 2 * Math.max(0, container.children.length - 1); // flex gap: 2px
+
+    const avg = (total - fixed) / tabs.length;
 
     const narrow     = avg < 80;   // below ~6 chars — hide title
     const veryNarrow = avg < 56;   // too tight for close button
@@ -240,6 +332,12 @@ const HorizontalTabs = (() => {
       tab.classList.toggle('narrow', narrow);
       tab.classList.toggle('very-narrow', veryNarrow);
     }
+
+    // The wheel-scroll fallback can leave a stale scrollLeft behind after
+    // tabs close or shrink; with overflow:hidden that shows up as tabs
+    // bunched left of a dead gap at the strip's right edge. Clamp it.
+    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+    if (container.scrollLeft > maxScroll) container.scrollLeft = maxScroll;
   }
 
   // Wrap render so size classes are re-applied on every refresh.
@@ -258,6 +356,7 @@ const HorizontalTabs = (() => {
     // Wheel scroll fallback — only fires when overflow is present (50+ tabs).
     const list = document.getElementById('top-tabs-list');
     if (list) {
+      _setupDragDrop(list);
       list.addEventListener('wheel', (e) => {
         if (!e.deltaY || list.scrollWidth <= list.clientWidth) return;
         e.preventDefault();
@@ -276,7 +375,7 @@ const HorizontalTabs = (() => {
     requestAnimationFrame(() => requestAnimationFrame(applyTabSizeClasses));
   }
 
-  return { init, render };
+  return { init, render, reorderTab };
 })();
 
 window.HorizontalTabs = HorizontalTabs;

@@ -88,6 +88,30 @@ const SITE_TWEAKS = [
       '}catch(e){}})();',
   },
   {
+    // Web Push is unsupported in Electron: Chromium's push service (the FCM
+    // registration client) lives in the //chrome layer and isn't compiled in,
+    // so registration.pushManager.subscribe() ALWAYS rejects ("Registration
+    // failed - push service error") — after the user has already granted the
+    // notification permission. Sites surface that as "An unknown error
+    // occurred while enabling push notifications for your browser." The
+    // build still advertises the full Push API surface (verified 2026-08-25:
+    // PushManager on window, pushManager on ServiceWorkerRegistration), so
+    // feature detection walks sites straight into the failure. Hide the API
+    // instead: sites then take their no-push path (the one they already ship
+    // for older Safari) — plain Notification, which Vex does support — or
+    // hide their push toggle, rather than erroring. Applies to every host:
+    // any site can attempt a push subscription.
+    name: 'hide-web-push',
+    hosts: /(?:)/,
+    mechanism: 'webFrame',
+    code: '(function(){try{' +
+      'delete window.PushManager;' +
+      'delete window.PushSubscription;' +
+      'delete window.PushSubscriptionOptions;' +
+      'if(window.ServiceWorkerRegistration)delete ServiceWorkerRegistration.prototype.pushManager;' +
+      '}catch(e){}})();',
+  },
+  {
     // Google sign-in rejects Vex ("Couldn't sign you in — this browser or app
     // may not be secure", /v3/signin/rejected) even though the session layer
     // spoofs the Chrome UA string and rewrites the Sec-CH-UA request headers.

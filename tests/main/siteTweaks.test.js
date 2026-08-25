@@ -15,21 +15,27 @@ describe('site-tweaks registry', () => {
   });
 
   it('host patterns match the intended sites and subdomains only', () => {
-    const names = (host) => tweaksForHost(host).map(t => t.name);
-    expect(names('discord.com')).toContain('discord-always-visible');
-    expect(names('canary.discord.com')).toContain('discord-always-visible');
-    expect(names('www.tiktok.com')).toContain('hevc-mask');
-    expect(names('www.instagram.com')).toContain('hevc-mask');
-    expect(names('accounts.google.com')).toContain('google-uadata');
-    expect(names('google.com')).toContain('google-uadata');
+    // hide-web-push is deliberately global — exclude it when asserting the
+    // per-site tweaks stay scoped.
+    const GLOBAL = ['hide-web-push'];
+    const scoped = (host) => tweaksForHost(host).map(t => t.name).filter(n => !GLOBAL.includes(n));
+    expect(scoped('discord.com')).toContain('discord-always-visible');
+    expect(scoped('canary.discord.com')).toContain('discord-always-visible');
+    expect(scoped('www.tiktok.com')).toContain('hevc-mask');
+    expect(scoped('www.instagram.com')).toContain('hevc-mask');
+    expect(scoped('accounts.google.com')).toContain('google-uadata');
+    expect(scoped('google.com')).toContain('google-uadata');
     // suffix tricks must NOT match
-    expect(names('evil-tiktok.com')).toEqual([]);
-    expect(names('evilgoogle.com')).toEqual([]);
-    expect(names('google.com.evil.example')).toEqual([]);
-    expect(names('tiktok.com.evil.example')).toEqual([]);
-    expect(names('nodiscord.com')).toEqual([]);
-    // unrelated sites get nothing
-    expect(names('youtube.com')).toEqual([]);
+    expect(scoped('evil-tiktok.com')).toEqual([]);
+    expect(scoped('evilgoogle.com')).toEqual([]);
+    expect(scoped('google.com.evil.example')).toEqual([]);
+    expect(scoped('tiktok.com.evil.example')).toEqual([]);
+    expect(scoped('nodiscord.com')).toEqual([]);
+    // unrelated sites get only the global tweaks
+    expect(scoped('youtube.com')).toEqual([]);
+    // ...which apply everywhere
+    expect(tweaksForHost('youtube.com').map(t => t.name)).toContain('hide-web-push');
+    expect(tweaksForHost('example.org').map(t => t.name)).toContain('hide-web-push');
   });
 
   it('hevc-mask blocks HEVC probes and passes everything else through', async () => {
@@ -77,6 +83,33 @@ describe('site-tweaks registry', () => {
     expect(ctx.document.visibilityState).toBe('visible');
     expect(ctx.document.hidden).toBe(false);
     expect(listeners.some(([name]) => name === 'visibilitychange')).toBe(true);
+  });
+
+  it('hide-web-push removes the whole Push API surface, leaves Notification alone', () => {
+    const entry = SITE_TWEAKS.find(t => t.name === 'hide-web-push');
+    function PushManager() {}
+    function ServiceWorkerRegistration() {}
+    Object.defineProperty(ServiceWorkerRegistration.prototype, 'pushManager', {
+      get: () => ({}), configurable: true,
+    });
+    const ctx = {
+      PushManager,
+      PushSubscription: function () {},
+      PushSubscriptionOptions: function () {},
+      ServiceWorkerRegistration,
+      Notification: function () {},
+      Object,
+    };
+    ctx.window = ctx; // the tweak reads window.PushManager etc.
+    vm.createContext(ctx);
+    new vm.Script(entry.code).runInContext(ctx);
+
+    expect('PushManager' in ctx.window).toBe(false);
+    expect('PushSubscription' in ctx.window).toBe(false);
+    expect('PushSubscriptionOptions' in ctx.window).toBe(false);
+    expect('pushManager' in ServiceWorkerRegistration.prototype).toBe(false);
+    // Plain notifications keep working — they're the fallback sites should use.
+    expect('Notification' in ctx.window).toBe(true);
   });
 
   it('google-uadata grafts a "Google Chrome" brand into the real userAgentData', async () => {
