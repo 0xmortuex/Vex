@@ -141,11 +141,16 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 }
 .top-tab.narrow .tab-title { display: none; }
 
-/* Very narrow: hide close too, icon only */
+/* Very narrow: hide close too, icon only. Keeps flex-grow (no fixed 40px
+   lock): the tabs must always fill the bar's full width — the old
+   `flex: 0 0 40px` left a growing empty gap at the right edge and fed the
+   JS measurement loop its own forced width, ratcheting the strip smaller
+   on every re-render. */
 .top-tab.very-narrow {
-  min-width: 40px;
-  max-width: 40px;
-  flex: 0 0 40px;
+  /* 28px = favicon + borders. Letting the minimum drop this far means a
+     crowded strip squeezes like Chrome's (every tab stays visible) instead
+     of overflowing tabs past the bar's clipped right edge. */
+  min-width: 28px;
   padding: 0;
   justify-content: center;
 }
@@ -224,6 +229,12 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   -webkit-app-region: no-drag;
 }
 .top-group-label:hover { transform: translateY(-1px); opacity: 0.92; }
+
+/* Drag-to-reorder — dim the tab being dragged, show an insertion line on the
+   edge of the tab it would land next to (inset so overflow:hidden can't clip it) */
+.top-tab.dragging { opacity: 0.4; }
+.top-tab.drop-before { box-shadow: inset 3px 0 0 0 var(--vex-border-accent, var(--primary, #6366f1)); }
+.top-tab.drop-after  { box-shadow: inset -3px 0 0 0 var(--vex-border-accent, var(--primary, #6366f1)); }
 
 /* + new-tab button */
 .new-tab-btn {
