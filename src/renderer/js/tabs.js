@@ -1599,7 +1599,19 @@ const TabManager = {
     overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:transparent;';
 
     const onKey  = (ev) => { if (ev.key === 'Escape') close('escape'); };
-    const onBlur = () => close('window-blur');
+    // Guest right-clicks churn focus guest↔host for a beat AFTER the menu
+    // opens (pages like Discord refocus their composer to show their own
+    // caret menu), and that churn fires host-window blur. Ignore blur in the
+    // first moments so the menu isn't dismissed before the user ever sees
+    // it; a real app-switch after that still closes it.
+    const openedAt = Date.now();
+    const onBlur = () => {
+      if (Date.now() - openedAt < 400) {
+        console.log('[Vex menu] ignoring early window-blur (guest focus churn)');
+        return;
+      }
+      close('window-blur');
+    };
     function close(reason) {
       // Diagnostic: surfaces WHY a context menu was dismissed. The
       // guest↔host focus 'window-blur' race (which used to eat <webview>

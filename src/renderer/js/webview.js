@@ -591,8 +591,24 @@ const WebviewManager = {
       spellingItems.push({ sep: true });
     }
 
+    // Standard edit commands for editable contexts (message composers, inputs)
+    // — what a normal browser menu offers there. Sites with fully custom menus
+    // never reach here (they preventDefault), so this only shows where the
+    // native menu would have. editFlags comes from Chromium and reflects the
+    // current selection/clipboard state.
+    const editItems = [];
+    if (e.params.isEditable) {
+      const f = e.params.editFlags || {};
+      editItems.push({ label: 'Cut', action: () => webview.cut?.(), disabled: f.canCut === false });
+      editItems.push({ label: 'Copy', action: () => webview.copy?.(), disabled: f.canCopy === false });
+      editItems.push({ label: 'Paste', action: () => webview.paste?.(), disabled: f.canPaste === false });
+      editItems.push({ label: 'Select All', action: () => webview.selectAll?.() });
+      editItems.push({ sep: true });
+    }
+
     const items = [
       ...spellingItems,
+      ...editItems,
       { label: 'Back', action: () => webview.goBack(), disabled: !webview.canGoBack() },
       { label: 'Forward', action: () => webview.goForward(), disabled: !webview.canGoForward() },
       { label: 'Reload', action: () => webview.reload() },
@@ -616,10 +632,13 @@ const WebviewManager = {
           TabManager.createTab(`https://www.google.com/search?q=${q}`, true);
         }
       });
-      items.push({
-        label: 'Copy',
-        action: () => webview.copy()
-      });
+      // Editable contexts already got a Copy row in editItems above.
+      if (!e.params.isEditable) {
+        items.push({
+          label: 'Copy',
+          action: () => webview.copy()
+        });
+      }
       if (typeof Annotations !== 'undefined') {
         items.push({
           label: '🖍 Highlight',
@@ -781,6 +800,12 @@ const WebviewManager = {
     } catch {}
   }
 };
+
+// Publish on window too: the top-level `const` is visible to other classic
+// scripts through the shared script scope, but it is NOT a window property —
+// guards like `window.WebviewManager && ...` (gui-style.js, formerly
+// sidebar.js) were always undefined and silently skipped their branch.
+if (typeof window !== 'undefined') window.WebviewManager = WebviewManager;
 
 // Renderer-safe export — the renderer loads this file via <script> tag where
 // `module` is undefined, so the guard keeps the global WebviewManager surface
