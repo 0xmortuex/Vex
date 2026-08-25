@@ -48,6 +48,11 @@
   // Init tab preview (deferred to avoid slowing startup)
   setTimeout(() => TabPreview.init(), 1000);
 
+  // One-time declutter nudge (no-ops until 14 days after install; never over
+  // the onboarding wizard). Deferred well past boot so it can't fight the
+  // first paint or the wizard's own appearance.
+  setTimeout(() => { try { SidebarManager.maybeOfferDeclutter(); } catch {} }, 8000);
+
   // NOTE: Tabs are restored automatically by TabManager.init() above (System 1,
   // persisted continuously to vex.tabs). The old "reopen last session?" prompt
   // (RestorePrompt) was a redundant SECOND restore path that re-opened the same

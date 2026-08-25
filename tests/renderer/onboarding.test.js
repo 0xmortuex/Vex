@@ -125,19 +125,27 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
     expect(Onboarding._isStepDone('setupstyle')).toBe(true);
   });
 
-  it('renders three profile cards; the checklist shows only for Custom', () => {
+  it('renders four profile cards (Mortuex/Minimal/Custom/Code) with thumbnails; zones follow selection', () => {
     stubEnv();
     Onboarding._session = {};
     const body = document.createElement('div');
     Onboarding._renderBody('setupstyle', body);
     const cards = body.querySelectorAll('[data-profile]');
-    expect([...cards].map(c => c.dataset.profile)).toEqual(['owner', 'minimal', 'custom']);
+    expect([...cards].map(c => c.dataset.profile)).toEqual(['owner', 'minimal', 'custom', 'code']);
+    expect(cards[0].textContent).toContain('The Mortuex Setup');
+    // Every card carries a preview thumbnail.
+    for (const c of cards) expect(c.querySelector('svg')).toBeTruthy();
     const zone = body.querySelector('#ob-setup-custom');
+    const codeZone = body.querySelector('#ob-setup-code');
     expect(zone.style.display).toBe('none');
+    expect(codeZone.style.display).toBe('none');
     cards[2].click();
     expect(zone.style.display).toBe('flex');
     expect(body.querySelectorAll('[data-panel]').length).toBe(Onboarding._APP_PANELS().length);
     expect(body.querySelectorAll('[data-shortcut]').length).toBe(3);
+    cards[3].click();
+    expect(zone.style.display).toBe('none');
+    expect(codeZone.style.display).toBe('flex');
   });
 
   it('Minimal hides every app panel, empties the shortcut bar, uses Classic', () => {
@@ -185,6 +193,88 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
     const sc = JSON.parse(localStorage.getItem('vex.shortcuts'));
     expect(sc.map(s => s.name)).toEqual(['Google', 'Reddit']);
     expect(localStorage.getItem('vex.setupProfile')).toBe('custom');
+  });
+});
+
+describe('Shareable setup codes', () => {
+  const stubEnv = (glass = 'glass') => {
+    globalThis.window.VexGuiStyle = {
+      set: vi.fn(), get: () => glass, render: vi.fn(),
+      defaults: () => [{ name: 'Google', url: 'https://www.google.com' }],
+    };
+    globalThis.SidebarManager = { applyPanelOverrides: vi.fn() };
+    globalThis.ThemeManager = { THEMES: [{ id: 'oxford', label: 'Oxford' }], applyTheme: vi.fn() };
+  };
+
+  it('encode → decode roundtrips the current setup', () => {
+    stubEnv('glass');
+    localStorage.setItem('vex.theme', 'oxford');
+    localStorage.setItem('vex.panelOverrides', JSON.stringify({ netflix: { hidden: true }, roblox: { hidden: true }, discord: { name: 'DC' } }));
+    localStorage.setItem('vex.shortcuts', JSON.stringify([{ name: 'Google', url: 'https://www.google.com' }]));
+    const code = Onboarding._encodeSetupCode();
+    expect(code.startsWith('VEXSETUP1.')).toBe(true);
+    const d = Onboarding._decodeSetupCode(code);
+    expect(d).toEqual({
+      theme: 'oxford',
+      glass: true,
+      hidden: expect.arrayContaining(['netflix', 'roblox']),
+      shortcuts: [{ name: 'Google', url: 'https://www.google.com' }],
+    });
+    expect(d.hidden).toHaveLength(2); // discord (rename only) is NOT hidden
+  });
+
+  it('rejects garbage, wrong prefix, and non-JSON payloads', () => {
+    expect(Onboarding._decodeSetupCode('')).toBeNull();
+    expect(Onboarding._decodeSetupCode('hello')).toBeNull();
+    expect(Onboarding._decodeSetupCode('VEXSETUP2.abc')).toBeNull();
+    expect(Onboarding._decodeSetupCode('VEXSETUP1.!!!')).toBeNull();
+    expect(Onboarding._decodeSetupCode('VEXSETUP1.' + btoa('not json').replace(/=+$/, ''))).toBeNull();
+  });
+
+  it('sanitizes: unknown panels dropped, non-http shortcut URLs stripped', () => {
+    const evil = 'VEXSETUP1.' + btoa(JSON.stringify({
+      v: 1, theme: 'x"y', glass: true,
+      hidden: ['discord', 'settings', '__proto__', 'downloads'],
+      shortcuts: [{ name: 'ok', url: 'https://ok.example' }, { name: 'bad', url: 'javascript:alert(1)' }, { url: 42 }],
+    })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const d = Onboarding._decodeSetupCode(evil);
+    expect(d.hidden).toEqual(['discord']);   // only real app panels survive
+    expect(d.shortcuts).toEqual([{ name: 'ok', url: 'https://ok.example' }]);
+    expect(d.theme).toBeNull();              // invalid theme id rejected
+  });
+
+  it('_applySetupCode applies panels, shortcuts, look, theme, and marks the profile imported', () => {
+    stubEnv('classic');
+    Onboarding._applySetupCode({
+      theme: 'oxford', glass: true, hidden: ['whatsapp', 'netflix'],
+      shortcuts: [{ name: 'G', url: 'https://g.example' }],
+    });
+    const ov = JSON.parse(localStorage.getItem('vex.panelOverrides'));
+    expect(ov.whatsapp.hidden).toBe(true);
+    expect(ov.netflix.hidden).toBe(true);
+    expect(JSON.parse(localStorage.getItem('vex.shortcuts'))).toEqual([{ name: 'G', url: 'https://g.example' }]);
+    expect(window.VexGuiStyle.set).toHaveBeenCalledWith('glass');
+    expect(globalThis.ThemeManager.applyTheme).toHaveBeenCalledWith('oxford');
+    expect(localStorage.getItem('vex.setupProfile')).toBe('imported');
+  });
+
+  it('an unknown theme id in a code is ignored (no applyTheme call)', () => {
+    stubEnv('classic');
+    Onboarding._applySetupCode({ theme: 'not-a-theme', glass: false, hidden: [], shortcuts: null });
+    expect(globalThis.ThemeManager.applyTheme).not.toHaveBeenCalled();
+  });
+
+  it('an invalid code blocks Save & continue with an inline error', async () => {
+    stubEnv();
+    Onboarding._session = { setup: { profile: 'code', code: 'VEXSETUP1.garbage!!!' } };
+    Onboarding.step = 1;
+    const overlay = document.createElement('div');
+    overlay.innerHTML = '<div id="ob-body"></div><div id="ob-setup-code-status"></div>';
+    const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
+    await Onboarding._commitAndNext('setupstyle', overlay);
+    expect(Onboarding.step).toBe(1);   // did not advance
+    expect(overlay.querySelector('#ob-setup-code-status').textContent).toContain('not a valid setup code');
+    render.mockRestore();
   });
 });
 

@@ -96,11 +96,18 @@ const SITE_TWEAKS = [
     // occurred while enabling push notifications for your browser." The
     // build still advertises the full Push API surface (verified 2026-08-25:
     // PushManager on window, pushManager on ServiceWorkerRegistration), so
-    // feature detection walks sites straight into the failure. Hide the API
-    // instead: sites then take their no-push path (the one they already ship
-    // for older Safari) — plain Notification, which Vex does support — or
-    // hide their push toggle, rather than erroring. Applies to every host:
-    // any site can attempt a push subscription.
+    // feature detection walks sites straight into the failure. Two-part fix,
+    // covering both site styles:
+    //   1. Hide PushManager from window — feature-detecting sites take their
+    //      no-push path (the one they ship for older Safari): plain
+    //      Notification, which Vex supports, or no push toggle at all.
+    //   2. Replace registration.pushManager with a shim whose subscribe()
+    //      rejects with NotAllowedError — sites that DON'T feature-detect
+    //      (they call subscribe directly) get the same clean "user denied"
+    //      state a real Chrome produces for a blocked permission, instead of
+    //      a TypeError on undefined that they'd surface as another "unknown
+    //      error". Applies to every host: any site can attempt a push
+    //      subscription.
     name: 'hide-web-push',
     hosts: /(?:)/,
     mechanism: 'webFrame',
@@ -108,7 +115,11 @@ const SITE_TWEAKS = [
       'delete window.PushManager;' +
       'delete window.PushSubscription;' +
       'delete window.PushSubscriptionOptions;' +
-      'if(window.ServiceWorkerRegistration)delete ServiceWorkerRegistration.prototype.pushManager;' +
+      'if(window.ServiceWorkerRegistration){' +
+        'var deny=function(){return Promise.reject(new DOMException("Push service unavailable in this browser","NotAllowedError"));};' +
+        'var shim={subscribe:deny,getSubscription:function(){return Promise.resolve(null);},permissionState:function(){return Promise.resolve("denied");}};' +
+        'Object.defineProperty(ServiceWorkerRegistration.prototype,"pushManager",{get:function(){return shim;},configurable:true});' +
+      '}' +
       '}catch(e){}})();',
   },
   {

@@ -85,10 +85,11 @@ describe('site-tweaks registry', () => {
     expect(listeners.some(([name]) => name === 'visibilitychange')).toBe(true);
   });
 
-  it('hide-web-push removes the whole Push API surface, leaves Notification alone', () => {
+  it('hide-web-push hides PushManager and shims registration.pushManager to a clean denial', async () => {
     const entry = SITE_TWEAKS.find(t => t.name === 'hide-web-push');
     function PushManager() {}
     function ServiceWorkerRegistration() {}
+    function DOMException(message, name) { this.message = message; this.name = name; }
     Object.defineProperty(ServiceWorkerRegistration.prototype, 'pushManager', {
       get: () => ({}), configurable: true,
     });
@@ -97,17 +98,27 @@ describe('site-tweaks registry', () => {
       PushSubscription: function () {},
       PushSubscriptionOptions: function () {},
       ServiceWorkerRegistration,
+      DOMException,
       Notification: function () {},
       Object,
+      Promise,
     };
     ctx.window = ctx; // the tweak reads window.PushManager etc.
     vm.createContext(ctx);
     new vm.Script(entry.code).runInContext(ctx);
 
+    // Feature detectors see no push support…
     expect('PushManager' in ctx.window).toBe(false);
     expect('PushSubscription' in ctx.window).toBe(false);
     expect('PushSubscriptionOptions' in ctx.window).toBe(false);
-    expect('pushManager' in ServiceWorkerRegistration.prototype).toBe(false);
+    // …but direct callers get a Chrome-like "permission denied", not a
+    // TypeError on undefined.
+    const reg = new ServiceWorkerRegistration();
+    const pm = reg.pushManager;
+    expect(pm).toBeTruthy();
+    await expect(pm.subscribe()).rejects.toMatchObject({ name: 'NotAllowedError' });
+    await expect(pm.getSubscription()).resolves.toBeNull();
+    await expect(pm.permissionState()).resolves.toBe('denied');
     // Plain notifications keep working — they're the fallback sites should use.
     expect('Notification' in ctx.window).toBe(true);
   });

@@ -280,6 +280,12 @@ const SidebarManager = {
   },
 
   showPanel(panelName) {
+    // Usage timestamps feed the one-time declutter nudge (maybeOfferDeclutter).
+    try {
+      const u = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {};
+      u[panelName] = Date.now();
+      localStorage.setItem('vex.panelUsage', JSON.stringify(u));
+    } catch {}
     // A fresh open of Discord re-arms the "looks blocked" prompt.
     if (panelName === 'discord') this._discordPromptDismissed = false;
     // Hide all panels
@@ -476,6 +482,62 @@ const SidebarManager = {
 
   openPanel(name) {
     this.showPanel(name);
+  },
+
+  // ---- One-time declutter nudge ----
+  // Two weeks after install, if several app panels have never been opened,
+  // offer (once, dismissible) to hide them. Complements the wizard's setup
+  // profiles: someone who kept everything "just in case" gets one gentle
+  // chance to trim without hunting through Settings.
+  DECLUTTER_AFTER_MS: 14 * 24 * 60 * 60 * 1000,
+
+  // The visible app panels not opened within the window (or ever). Pure
+  // (time injected) so tests can pin the clock.
+  _declutterCandidates(now) {
+    const APP = (window.Onboarding && typeof Onboarding._APP_PANELS === 'function') ? Onboarding._APP_PANELS() : [];
+    let usage = {}, ov = {};
+    try { usage = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {}; } catch {}
+    try { ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {}; } catch {}
+    return APP.filter(p =>
+      !(ov[p.id] && ov[p.id].hidden) &&
+      (!usage[p.id] || now - usage[p.id] >= this.DECLUTTER_AFTER_MS));
+  },
+
+  async maybeOfferDeclutter(opts) {
+    const now = (opts && opts.now) || Date.now();
+    try {
+      if (localStorage.getItem('vex.declutterDone') === 'true') return false;
+      // Never on top of (or before) onboarding — retry on a later boot instead.
+      if (document.getElementById('vex-onboarding')) return false;
+      if (window.Onboarding && typeof Onboarding.done === 'function' && !Onboarding.done()) return false;
+      let installedAt = parseInt(localStorage.getItem('vex.installedAt'), 10);
+      if (!Number.isFinite(installedAt) || installedAt <= 0) {
+        localStorage.setItem('vex.installedAt', String(now));
+        return false;
+      }
+      if (!(opts && opts.force) && now - installedAt < this.DECLUTTER_AFTER_MS) return false;
+      const cand = this._declutterCandidates(now);
+      // One-time either way: an active user with ≤1 idle panel shouldn't be
+      // re-evaluated forever.
+      localStorage.setItem('vex.declutterDone', 'true');
+      if (cand.length < 2) return false;
+      const names = cand.map(p => p.name).join(', ');
+      const ok = await window.vexConfirm({
+        title: 'Tidy up your sidebar?',
+        message: `You haven’t used these panels: ${names}. Hide them? (Everything stays one click away in Settings → Sidebar.)`,
+        okLabel: `Hide ${cand.length} panels`,
+        cancelLabel: 'Keep everything',
+      });
+      if (ok) {
+        let ov = {};
+        try { ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {}; } catch {}
+        for (const p of cand) ov[p.id] = Object.assign({}, ov[p.id], { hidden: true });
+        try { localStorage.setItem('vex.panelOverrides', JSON.stringify(ov)); } catch {}
+        this.applyPanelOverrides();
+        window.showToast?.(`Hidden ${cand.length} panels — restore any of them in Settings → Sidebar`);
+      }
+      return ok;
+    } catch { return false; }
   },
 
   // ---- Per-button customization (name / icon / link / hide / order) ----

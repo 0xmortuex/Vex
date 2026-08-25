@@ -209,6 +209,103 @@ const Onboarding = {
     return [{ name: 'Google', url: 'https://www.google.com' }, { name: 'YouTube', url: 'https://www.youtube.com' }];
   },
 
+  // Mini browser-mockup thumbnails for the setup-style cards — a glanceable
+  // preview of what each profile turns the chrome into. Pure presentational
+  // SVG built from theme tokens so they recolor with the theme.
+  _setupThumb(kind) {
+    const P = 'var(--primary)', B = 'var(--border)', M = 'var(--text-muted)';
+    const frame = (inner) => `
+      <svg width="76" height="52" viewBox="0 0 76 52" fill="none" aria-hidden="true" style="flex-shrink:0">
+        <rect x="1" y="1" width="74" height="50" rx="6" stroke="${B}" stroke-width="1.5" fill="none"/>
+        ${inner}
+      </svg>`;
+    const rail = (n) => Array.from({ length: n }, (_, i) =>
+      `<circle cx="8.5" cy="${13 + i * 6.4}" r="2.2" fill="${i === 0 ? P : M}" opacity="${i === 0 ? 1 : 0.55}"/>`).join('');
+    const chips = (n) => Array.from({ length: n }, (_, i) =>
+      `<rect x="${17 + i * 14}" y="6" width="11" height="4.5" rx="2.25" fill="${i === 0 ? P : M}" opacity="${i === 0 ? 0.9 : 0.45}"/>`).join('');
+    if (kind === 'owner') return frame(`${chips(4)}${rail(6)}<rect x="17" y="14" width="53" height="32" rx="3" fill="${P}" opacity="0.14"/><rect x="21" y="19" width="30" height="3" rx="1.5" fill="${M}" opacity="0.6"/><rect x="21" y="26" width="42" height="3" rx="1.5" fill="${M}" opacity="0.35"/>`);
+    if (kind === 'minimal') return frame(`${rail(3)}<rect x="17" y="8" width="53" height="38" rx="3" fill="${M}" opacity="0.08"/><rect x="30" y="24" width="27" height="3.5" rx="1.75" fill="${M}" opacity="0.5"/>`);
+    if (kind === 'custom') return frame(`${rail(4)}<rect x="17" y="8" width="53" height="38" rx="3" fill="${M}" opacity="0.06"/>
+      <rect x="22" y="14" width="8" height="8" rx="2" stroke="${P}" stroke-width="1.5" fill="none"/><path d="M24 18l2 2 3-3.5" stroke="${P}" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      <rect x="34" y="14" width="8" height="8" rx="2" stroke="${M}" stroke-width="1.5" fill="none" opacity="0.5"/>
+      <rect x="22" y="27" width="8" height="8" rx="2" stroke="${P}" stroke-width="1.5" fill="none"/><path d="M24 31l2 2 3-3.5" stroke="${P}" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      <rect x="34" y="27" width="8" height="8" rx="2" stroke="${M}" stroke-width="1.5" fill="none" opacity="0.5"/>`);
+    // 'code' — a shared setup code
+    return frame(`<path d="M28 18l-8 8 8 8M48 18l8 8-8 8" stroke="${P}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="35.5" y="16" width="5" height="20" rx="2.5" transform="rotate(14 38 26)" fill="${M}" opacity="0.5"/>`);
+  },
+
+  // === Shareable setup codes ("VEXSETUP1.<base64url json>") ===
+  // Captures theme + Glass/Classic + hidden panels + shortcut bar. Compact
+  // enough to paste in a chat; versioned so future fields stay decodable.
+  _encodeSetupCode() {
+    let theme = null, shortcuts = null, ov = {};
+    try { theme = localStorage.getItem('vex.theme') || null; } catch {}
+    try { const sc = JSON.parse(localStorage.getItem('vex.shortcuts') || 'null'); if (Array.isArray(sc)) shortcuts = sc.map(s => ({ name: s.name || '', url: s.url })); } catch {}
+    try { ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {}; } catch {}
+    const APP = this._APP_PANELS().map(p => p.id);
+    const data = {
+      v: 1,
+      theme,
+      glass: (() => { try { return (window.VexGuiStyle?.get?.() || 'classic') === 'glass'; } catch { return false; } })(),
+      hidden: APP.filter(p => ov[p] && ov[p].hidden),
+      shortcuts,   // null = stock set
+    };
+    const json = JSON.stringify(data);
+    const b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return 'VEXSETUP1.' + b64;
+  },
+
+  // Returns the decoded + sanitized setup object, or null if the code is not
+  // a valid setup code. Sanitizing here means import can never smuggle in
+  // arbitrary keys, unknown panels, or non-http(s) shortcut URLs.
+  _decodeSetupCode(code) {
+    try {
+      code = String(code || '').trim();
+      const m = code.match(/^VEXSETUP1\.([A-Za-z0-9_-]+)$/);
+      if (!m) return null;
+      const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+      const json = decodeURIComponent(escape(atob(b64 + '==='.slice(0, (4 - b64.length % 4) % 4))));
+      const d = JSON.parse(json);
+      if (!d || d.v !== 1) return null;
+      const APP = new Set(this._APP_PANELS().map(p => p.id));
+      const out = {
+        theme: typeof d.theme === 'string' && /^[a-z0-9-]{1,40}$/i.test(d.theme) ? d.theme : null,
+        glass: !!d.glass,
+        hidden: Array.isArray(d.hidden) ? d.hidden.filter(p => APP.has(p)) : [],
+        shortcuts: null,
+      };
+      if (Array.isArray(d.shortcuts)) {
+        out.shortcuts = d.shortcuts
+          .filter(s => s && typeof s.url === 'string' && /^https?:\/\//i.test(s.url))
+          .slice(0, 24)
+          .map(s => ({ name: String(s.name || '').slice(0, 40), url: s.url.slice(0, 500) }));
+      }
+      return out;
+    } catch { return null; }
+  },
+
+  _applySetupCode(d) {
+    const APP = this._APP_PANELS().map(p => p.id);
+    let ov = {};
+    try { ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {}; } catch {}
+    for (const p of APP) {
+      if (d.hidden.includes(p)) ov[p] = Object.assign({}, ov[p], { hidden: true });
+      else if (ov[p]) { delete ov[p].hidden; if (!Object.keys(ov[p]).length) delete ov[p]; }
+    }
+    try { localStorage.setItem('vex.panelOverrides', JSON.stringify(ov)); } catch {}
+    try { if (typeof SidebarManager !== 'undefined') SidebarManager.applyPanelOverrides(); } catch {}
+    this._setStart('vex.shortcuts', d.shortcuts == null ? null : JSON.stringify(d.shortcuts));
+    try { window.VexGuiStyle?.render?.(); } catch {}
+    try { window.VexGuiStyle?.set?.(d.glass ? 'glass' : 'classic'); } catch {}
+    if (d.theme) {
+      try {
+        const themes = (typeof ThemeManager !== 'undefined' && ThemeManager.THEMES) || [];
+        if (themes.some(t => t.id === d.theme)) ThemeManager.applyTheme(d.theme);
+      } catch {}
+    }
+    try { localStorage.setItem('vex.setupProfile', 'imported'); } catch {}
+  },
+
   _renderSetupStyle(body) {
     const APP = this._APP_PANELS();
     const SC = this._shortcutDefaults();
@@ -217,16 +314,17 @@ const Onboarding = {
     if (!this._session.setup) {
       let saved = null; try { saved = localStorage.getItem('vex.setupProfile'); } catch {}
       this._session.setup = {
-        profile: saved || 'owner',
+        profile: (saved === 'imported' ? 'code' : saved) || 'owner',
         panels: APP.map(p => p.id),
         shortcuts: SC.map(s => s.name),
         glass: (() => { try { return (window.VexGuiStyle?.get?.() || 'classic') === 'glass'; } catch { return false; } })(),
+        code: '',
       };
     }
     const sel = this._session.setup;
-    const card = (id, icon, title, desc) => `
-      <button data-profile="${id}" style="text-align:left;display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:12px;border:2px solid ${sel.profile === id ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit">
-        <span style="font-size:20px;line-height:1">${icon}</span>
+    const card = (id, title, desc) => `
+      <button data-profile="${id}" style="text-align:left;display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:12px;border:2px solid ${sel.profile === id ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit">
+        ${this._setupThumb(id)}
         <span style="display:flex;flex-direction:column;gap:3px">
           <span style="font-size:14px;font-weight:700">${this._esc(title)}</span>
           <span style="font-size:12px;color:var(--text-muted);line-height:1.45">${this._esc(desc)}</span>
@@ -238,9 +336,10 @@ const Onboarding = {
       </label>`;
     body.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:9px">
-        ${card('owner', '✨', 'Full Vex', 'Everything switched on, the way Vex’s creator runs it — every app panel (WhatsApp, Discord, Spotify, Netflix…), the full shortcut bar, and the Glass look.')}
-        ${card('minimal', '🍃', 'Minimal', 'Just a fast, clean browser: tabs, downloads, history, bookmarks, settings. No app panels, an empty shortcut bar. Add features whenever you want them.')}
-        ${card('custom', '🎛️', 'Custom', 'Pick exactly which app panels and shortcuts you keep — check what you want, uncheck the rest.')}
+        ${card('owner', 'The Mortuex Setup', 'Vex fully loaded — every app panel (WhatsApp, Discord, Spotify, Netflix…), the full shortcut bar, the Glass look. Exactly how Vex’s creator runs it.')}
+        ${card('minimal', 'Minimal', 'Just a fast, clean browser: tabs, downloads, history, bookmarks, settings. No app panels, an empty shortcut bar. Add features whenever you want them.')}
+        ${card('custom', 'Custom', 'Pick exactly which app panels and shortcuts you keep — check what you want, uncheck the rest.')}
+        ${card('code', 'Use a shared setup', 'Got a setup code from a friend or a creator? Paste it and Vex arranges itself to match — panels, shortcuts, theme, look.')}
         <div id="ob-setup-custom" style="display:${sel.profile === 'custom' ? 'flex' : 'none'};flex-direction:column;gap:10px;padding:12px;border:1px dashed var(--border);border-radius:12px">
           <div style="font-size:12px;font-weight:700;color:var(--text)">Sidebar app panels <span id="ob-setup-count" style="font-weight:400;color:var(--text-muted)"></span></div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">${APP.map(p => check('panel', p.id, p.name, sel.panels.includes(p.id))).join('')}</div>
@@ -250,19 +349,47 @@ const Onboarding = {
             <input type="checkbox" id="ob-setup-glass" ${sel.glass ? 'checked' : ''} style="accent-color:var(--primary)">Glass look — frosted UI, tabs on top, shortcut bar
           </label>
         </div>
+        <div id="ob-setup-code" style="display:${sel.profile === 'code' ? 'flex' : 'none'};flex-direction:column;gap:8px;padding:12px;border:1px dashed var(--border);border-radius:12px">
+          ${this._input('ob-setup-code-input', 'VEXSETUP1.…', sel.code)}
+          <div id="ob-setup-code-status" style="font-size:12px;color:var(--text-muted);min-height:16px"></div>
+        </div>
+        <button id="ob-setup-export" style="align-self:flex-start;background:none;border:none;color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;padding:2px 0;text-decoration:underline;text-underline-offset:3px">📤 Copy my current setup as a shareable code</button>
       </div>`;
     const updateCount = () => {
       const el = body.querySelector('#ob-setup-count');
       if (el) el.textContent = `· ${body.querySelectorAll('[data-panel]:checked').length} of ${APP.length} kept`;
     };
+    // Live validation so a pasted code is judged before Save & continue.
+    const validateCode = () => {
+      const st = body.querySelector('#ob-setup-code-status');
+      const raw = body.querySelector('#ob-setup-code-input')?.value.trim() || '';
+      if (!st) return;
+      if (!raw) { st.textContent = 'Paste a code that starts with VEXSETUP1.'; st.style.color = 'var(--text-muted)'; return; }
+      const d = this._decodeSetupCode(raw);
+      if (!d) { st.textContent = '✗ Not a valid setup code — check it copied completely.'; st.style.color = 'var(--danger, #ef4444)'; return; }
+      const sc = d.shortcuts == null ? 'stock shortcuts' : `${d.shortcuts.length} shortcut${d.shortcuts.length === 1 ? '' : 's'}`;
+      st.textContent = `✓ Valid — ${APP.length - d.hidden.length} of ${APP.length} panels, ${sc}, ${d.glass ? 'Glass' : 'Classic'} look${d.theme ? `, “${d.theme}” theme` : ''}.`;
+      st.style.color = 'var(--text)';
+    };
     updateCount();
+    validateCode();
     body.querySelectorAll('[data-profile]').forEach(b => b.addEventListener('click', () => {
       sel.profile = b.dataset.profile;
       body.querySelectorAll('[data-profile]').forEach(x => x.style.borderColor = x.dataset.profile === sel.profile ? 'var(--primary)' : 'var(--border)');
       const z = body.querySelector('#ob-setup-custom');
       if (z) z.style.display = sel.profile === 'custom' ? 'flex' : 'none';
+      const c = body.querySelector('#ob-setup-code');
+      if (c) c.style.display = sel.profile === 'code' ? 'flex' : 'none';
+      if (sel.profile === 'code') body.querySelector('#ob-setup-code-input')?.focus();
     }));
     body.addEventListener('change', updateCount);
+    body.querySelector('#ob-setup-code-input')?.addEventListener('input', validateCode);
+    body.querySelector('#ob-setup-export')?.addEventListener('click', async (e) => {
+      const code = this._encodeSetupCode();
+      try { await navigator.clipboard.writeText(code); } catch {}
+      e.target.textContent = '✓ Copied — send it to anyone; they paste it under “Use a shared setup”.';
+      window.showToast?.('📤 Setup code copied to clipboard');
+    });
   },
 
   _stashSetupStyle(overlay) {
@@ -274,6 +401,8 @@ const Onboarding = {
     sel.shortcuts = [...body.querySelectorAll('[data-shortcut]:checked')].map(i => i.dataset.shortcut);
     const g = body.querySelector('#ob-setup-glass');
     if (g) sel.glass = g.checked;
+    const c = body.querySelector('#ob-setup-code-input');
+    if (c) sel.code = c.value;
   },
 
   _applySetupProfile(sel) {
@@ -517,7 +646,19 @@ const Onboarding = {
   async _commitAndNext(key, overlay) {
     this._stash(key, overlay);   // so Back onto this step re-shows exactly what was typed
     if (key === 'setupstyle') {
-      if (this._session.setup) this._applySetupProfile(this._session.setup);
+      const sel = this._session.setup;
+      if (sel && sel.profile === 'code') {
+        const d = this._decodeSetupCode(sel.code);
+        if (!d) {
+          // Don't advance past a bad code — surface why, right where they typed.
+          const st = overlay.querySelector('#ob-setup-code-status');
+          if (st) { st.textContent = '✗ That’s not a valid setup code — paste the full code (starts with VEXSETUP1.), or pick another option.'; st.style.color = 'var(--danger, #ef4444)'; }
+          return;
+        }
+        this._applySetupCode(d);
+      } else if (sel) {
+        this._applySetupProfile(sel);
+      }
     } else if (key === 'name') {
       const v = overlay.querySelector('#ob-name')?.value.trim() || '';
       this._setStart('vex.userName', v || null);
