@@ -1026,9 +1026,19 @@
 
   // URL bar double-click selects all
   document.getElementById('url-input')?.addEventListener('dblclick', (e) => e.target.select());
-  // First-run welcome
-  if (!localStorage.getItem('vex.hasRunBefore')) {
-    localStorage.setItem('vex.hasRunBefore', 'true');
+  // First-run welcome. The setup wizard (Onboarding.maybeStart, above) is now
+  // the primary first-run experience, so on a genuinely fresh install we do
+  // NOT also stack this legacy welcome card on top of it — that produced two
+  // welcomes at once. The wizard owns the welcome and carries the "Take a
+  // tour" button on its final step; this card only shows for the leftover
+  // case of an existing user who predates it (has run before flag unset but
+  // onboarding already marked done via the prior-data check).
+  const wizardOwnsWelcome = (typeof Onboarding !== 'undefined' && !Onboarding.done());
+  const firstRun = !localStorage.getItem('vex.hasRunBefore');
+  // Mark "has run" now either way, so the wizard taking over first-run doesn't
+  // leave this card armed to appear on the NEXT launch.
+  if (firstRun) localStorage.setItem('vex.hasRunBefore', 'true');
+  if (firstRun && !wizardOwnsWelcome) {
     const overlay = document.createElement('div');
     overlay.className = 'welcome-overlay';
     overlay.innerHTML = `<div class="welcome-card">
@@ -1060,8 +1070,11 @@
       closeWelcome();
       setTimeout(() => { try { VexTour.start(); } catch {} }, 420);
     });
-  } else if (!localStorage.getItem('vex.tourSeen')) {
+  } else if (!wizardOwnsWelcome && !localStorage.getItem('vex.tourSeen')) {
     // Existing user who hasn't seen the tour yet — offer it once after load.
+    // Guarded by !wizardOwnsWelcome so a fresh install (wizard showing) never
+    // auto-launches the tour on top of the wizard — the wizard's own "Take a
+    // tour" button is the entry point there.
     setTimeout(() => { try { if (typeof VexTour !== 'undefined') VexTour.start(); } catch {} }, 1000);
   }
 

@@ -23,7 +23,17 @@ const Onboarding = {
   _keyHandler: null,   // document-level Escape handler, live only while the wizard is open
 
   done() { try { return localStorage.getItem(this.KEY) === 'true'; } catch { return true; } },
-  finish() { try { localStorage.setItem(this.KEY, 'true'); } catch {} this._close(); this._reloadStartPages(); },
+  finish() {
+    try { localStorage.setItem(this.KEY, 'true'); } catch {}
+    // The wizard is now the single first-run welcome and owns the tour entry
+    // point (its final step's "Take a tour" button). Mark the tour as seen so
+    // app.js never auto-offers it separately; launch it only if asked.
+    const wantTour = this._wantTour;
+    try { localStorage.setItem('vex.tourSeen', '1'); } catch {}
+    this._close();
+    this._reloadStartPages();
+    if (wantTour) setTimeout(() => { try { window.VexTour?.start?.(); } catch {} }, 450);
+  },
 
   // Show only on a genuinely fresh install — never to existing users on update.
   maybeStart() {
@@ -34,7 +44,7 @@ const Onboarding = {
     setTimeout(() => this.start(), 900);
   },
 
-  start() { this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._session = {}; this._render(); },
+  start() { this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._session = {}; this._wantTour = false; this._render(); },
 
   // Re-open the wizard on demand (the top-bar setup button). Shows ALL steps,
   // each pre-filled with whatever's already saved and tagged "✓ already set" so
@@ -44,6 +54,7 @@ const Onboarding = {
     this.step = 0;
     this._pendingLoc = null;
     this._session = {};
+    this._wantTour = false;
     this._render();
   },
 
@@ -599,8 +610,25 @@ const Onboarding = {
           body.querySelector('#ob-pw-pass').value = '';
         } catch (e) { if (st) st.textContent = 'Could not save: ' + (e.message || 'error'); }
       });
+    } else if (key === 'done') {
+      // Single first-run welcome ends here; offer the interface tour as an
+      // opt-in button instead of a second stacked welcome overlay.
+      body.innerHTML = `
+        <button id="ob-take-tour" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">
+          <span style="font-size:18px">🧭</span>
+          <span style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:13.5px;font-weight:600">Take a quick tour</span>
+            <span style="font-size:11.5px;color:var(--text-muted)">A 60-second walkthrough of tabs, the sidebar, AI, and more — right after you finish.</span>
+          </span>
+        </button>`;
+      const btn = body.querySelector('#ob-take-tour');
+      btn?.addEventListener('click', () => {
+        this._wantTour = !this._wantTour;
+        btn.style.borderColor = this._wantTour ? 'var(--primary)' : 'var(--border)';
+        btn.querySelector('span:last-child span:first-child').textContent = this._wantTour ? '✓ Tour queued — starts when you finish' : 'Take a quick tour';
+      });
     } else {
-      body.innerHTML = '';   // welcome / done have no body
+      body.innerHTML = '';   // welcome has no body
     }
   },
 
