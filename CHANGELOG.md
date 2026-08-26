@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.29.5 (2026-08-27) — DRM playback actually fixed (valid VMP signature)
+
+### Fixed
+- **Spotify, Netflix, Prime Video, Disney+ — all DRM playback failing (tracks skip / "can't play right now" / video won't start).** The real cause was a packaging bug, not app code. Vex's Widevine Verified Media Path (VMP) signing ran as electron-builder's `afterPack` hook, which fires *before* Authenticode code-signing — so a valid VMP signature was applied and then immediately invalidated when Authenticode re-wrote `Vex.exe`. Shipped builds carried a signature that castLabs' own verifier rejects (`InvalidSignature`), so streaming services' license servers refused the Widevine license (Spotify returned HTTP 403: audio downloaded but couldn't be decrypted, so each track auto-skipped to the next; Netflix/Prime/Disney+ failed the same way). Fixed by moving the signer to the `afterSign` hook, so VMP signing is the last step to touch the binary and the signature stays valid. This supersedes the 2.29.2 and 2.29.4 attempts — those treated symptoms of individual Spotify tracks, but the invalid signature was the root cause and it affected *all* protected playback, not a subset.
+
 ## v2.29.4 (2026-08-26) — Spotify playback: the real fix (hardware DRM)
 
 ### Fixed
