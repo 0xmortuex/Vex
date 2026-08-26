@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.29.2 (2026-08-26) — Claude notification error suppressed
+
+### Fixed
+- **"An unknown error occurred while enabling push notifications" on the Claude panel** persisted even after 2.29.1 removed the Push API — claude.ai shows its notification toggle based on the Notification API and then attempts a push subscription that no Electron browser can service. Vex now reports notifications as unavailable on claude.ai, so it shows a normal "notifications blocked" state instead of an error. (Web Push is an inherent Electron limitation; foreground notifications from claude.ai are disabled as part of this.)
+
+### Known issues
+- **Some Spotify tracks show "Spotify can't play this right now."** This build's Widevine DRM provides only the basic software level (SW_SECURE_CRYPTO); a minority of tracks demand a higher robustness (SW_SECURE_DECODE or hardware L1) that Electron's Widevine can't provide, so those specific tracks won't play. Most tracks are unaffected. Refreshing the Widevine component (Settings → About → retry) may help.
+
 ## v2.29.1 (2026-08-26) — Password saving, push-notification & first-run fixes
 
 ### Added
