@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.29.4 (2026-08-26) — Spotify playback: the real fix (hardware DRM)
+
+### Fixed
+- **"Spotify can't play this right now" on a subset of tracks — actually fixed this time.** The tracks that failed play fine in Chrome, so it was never a Spotify restriction: Chrome enables hardware-backed Widevine decryption by default and Electron does not, so Vex only offered the basic software robustness (SW_SECURE_CRYPTO) and the tracks that need more failed. Vex now enables `HardwareSecureDecryption`, which activates the MediaFoundation Widevine CDM — verified on a signed build to unlock SW_SECURE_DECODE and all hardware robustness levels. Falls back to software automatically on machines without hardware DRM, so it can't regress them. (The 2.29.2 robustness-retry was treating the symptom; this addresses the cause. As a bonus, Netflix/other DRM video can now use HD/hardware paths too.)
+
 ## v2.29.3 (2026-08-26) — Spellcheck fix sticks in Discord
 
 ### Fixed

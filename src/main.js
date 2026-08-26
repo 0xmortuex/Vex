@@ -8,7 +8,25 @@ const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, ne
 // switch, so apply both. MUST run before any other app.* access — Chromium
 // initializes its feature list on first app touch, and reading e.g.
 // app.isPackaged in a console.log was previously happening above this block.
-app.commandLine.appendSwitch('enable-features', 'PrintPreview');
+// NB: Chromium keeps only the LAST --enable-features occurrence (it does not
+// merge), and Electron's appendSwitch overwrites a repeated switch — so every
+// feature we enable must live in this ONE comma-separated list, never a second
+// appendSwitch('enable-features', …) call.
+//
+// PrintPreview: rich print UI (Save as PDF, margins, background graphics);
+// without it Electron falls back to the bare Windows print dialog.
+//
+// HardwareSecureDecryption: use the MediaFoundation-based Widevine CDM (the
+// "Google Widevine Windows CDM" component, installed but idle by default in
+// Electron) for hardware-backed decryption. Chrome enables this by default, so
+// tracks that request a higher Widevine robustness than the software CDM's
+// SW_SECURE_CRYPTO — a subset of Spotify's catalog — play in Chrome but showed
+// "Spotify can't play this right now" in Vex (confirmed 2026-08-26: the same
+// tracks play in Chrome, fail in the Vex panel). Enabling it exposes the
+// higher robustness levels the software-only path lacked. Falls back to
+// software automatically where the hardware path isn't available, so it can't
+// regress machines that lack it.
+app.commandLine.appendSwitch('enable-features', 'PrintPreview,HardwareSecureDecryption');
 app.commandLine.appendSwitch('enable-print-preview');
 
 // Let AudioContexts start without a user gesture. Required for Master Volume's
