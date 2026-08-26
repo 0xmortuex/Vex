@@ -36,6 +36,11 @@ describe('site-tweaks registry', () => {
     // ...which apply everywhere
     expect(tweaksForHost('youtube.com').map(t => t.name)).toContain('hide-web-push');
     expect(tweaksForHost('example.org').map(t => t.name)).toContain('hide-web-push');
+    // notif-deny-broken-push is scoped to claude.ai only.
+    expect(tweaksForHost('claude.ai').map(t => t.name)).toContain('notif-deny-broken-push');
+    expect(scoped('claude.ai')).toContain('notif-deny-broken-push');
+    expect(tweaksForHost('example.org').map(t => t.name)).not.toContain('notif-deny-broken-push');
+    expect(tweaksForHost('evilclaude.ai').map(t => t.name)).not.toContain('notif-deny-broken-push');
   });
 
   it('hevc-mask blocks HEVC probes and passes everything else through', async () => {
@@ -116,6 +121,34 @@ describe('site-tweaks registry', () => {
     expect(new ServiceWorkerRegistration().pushManager).toBeUndefined();
     // Plain notifications keep working — the fallback sites should use.
     expect('Notification' in ctx.window).toBe(true);
+  });
+
+  it('notif-deny-broken-push forces Notification permission to denied', async () => {
+    const entry = SITE_TWEAKS.find(t => t.name === 'notif-deny-broken-push');
+    function Notification() {}
+    Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true });
+    Notification.requestPermission = () => Promise.resolve('granted');
+    const ctx = { window: { Notification }, Object, Promise };
+    ctx.window.window = ctx.window;
+    vm.createContext(ctx);
+    new vm.Script(entry.code).runInContext(ctx);
+
+    // The site now sees notifications as denied → shows its normal "blocked"
+    // state and never reaches the failing push subscribe.
+    expect(ctx.window.Notification.permission).toBe('denied');
+    await expect(ctx.window.Notification.requestPermission()).resolves.toBe('denied');
+    // Callback form also gets 'denied'.
+    let cbVal = null;
+    ctx.window.Notification.requestPermission((v) => { cbVal = v; });
+    expect(cbVal).toBe('denied');
+  });
+
+  it('notif-deny-broken-push no-ops safely when Notification is absent', () => {
+    const entry = SITE_TWEAKS.find(t => t.name === 'notif-deny-broken-push');
+    const ctx = { window: {}, Object, Promise };
+    ctx.window.window = ctx.window;
+    vm.createContext(ctx);
+    expect(() => new vm.Script(entry.code).runInContext(ctx)).not.toThrow();
   });
 
   it('google-uadata grafts a "Google Chrome" brand into the real userAgentData', async () => {

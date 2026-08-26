@@ -124,6 +124,31 @@ const SITE_TWEAKS = [
       '}catch(e){}})();',
   },
   {
+    // Notification-availability suppression for sites whose "enable
+    // notifications" flow gates on the Notification API (not PushManager) and
+    // then attempts a Web Push subscription that Electron can never service —
+    // so hide-web-push (above) doesn't stop them, and clicking Enable shows
+    // "An unknown error occurred while enabling push notifications" (observed
+    // on claude.ai, confirmed 2026-08-26: the toggle is Notification-gated,
+    // permission granted, then pushManager.subscribe fails). Since Web Push
+    // is impossible in Electron regardless, present notifications as DENIED so
+    // the site shows its normal "notifications blocked/unsupported" state
+    // instead of an error. Forcing permission to "denied" (rather than
+    // deleting Notification) is the gentle path: a site reading
+    // Notification.permission gets a valid value and never reaches the failing
+    // subscribe. TRADE-OFF: foreground notifications from these sites won't
+    // fire either — accepted deliberately (user choice, 2026-08-26). Scoped to
+    // a curated host list; extend `hosts` as more sites surface the error.
+    name: 'notif-deny-broken-push',
+    hosts: /(^|\.)claude\.ai$/i,
+    mechanism: 'webFrame',
+    code: '(function(){try{' +
+      'if(!window.Notification)return;' +
+      'try{Object.defineProperty(window.Notification,"permission",{get:function(){return "denied";},configurable:true});}catch(e){}' +
+      'try{window.Notification.requestPermission=function(cb){try{if(typeof cb==="function")cb("denied");}catch(e){}return Promise.resolve("denied");};}catch(e){}' +
+      '}catch(e){}})();',
+  },
+  {
     // Google sign-in rejects Vex ("Couldn't sign you in — this browser or app
     // may not be secure", /v3/signin/rejected) even though the session layer
     // spoofs the Chrome UA string and rewrites the Sec-CH-UA request headers.
