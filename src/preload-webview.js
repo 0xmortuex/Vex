@@ -400,40 +400,77 @@ function _isVexStartPage(href) {
 })();
 
 
-// === Password capture — offer to save credentials on login-form submit ===
-// Runs in every guest page. On submit of a form containing a password field,
-// sends {host, username, password} to the HOST renderer only (sendToHost —
-// never to the page). The host shows a save prompt; nothing is stored here.
+// === Password capture — offer to save credentials on login ===
+// Runs in every guest page. Sends {host, username, password} to the HOST
+// renderer only (sendToHost — never to the page); the host shows a save
+// prompt, nothing is stored here. A native <form> "submit" is the easy case,
+// but modern logins (Spotify, Google, most React SPAs) submit via a button +
+// fetch with NO submit event, and split email/password across separate views.
+// So we also fire on Enter and on clicks of submit-like controls, and we
+// REMEMBER the last username-ish value typed so a multi-step login still
+// pairs it with the password.
 (function () {
   "use strict";
   let ipcRenderer = null;
   try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
   if (!ipcRenderer || !ipcRenderer.sendToHost) return;
 
-  function extract(form) {
+  let lastUser = "";
+  document.addEventListener("input", (e) => {
     try {
-      const pw = form.querySelector("input[type=password]");
-      if (!pw || !pw.value) return null;
-      let user = "";
-      const cands = form.querySelectorAll("input[type=text],input[type=email],input:not([type])");
-      for (const c of cands) { if (c.value && c !== pw) { user = c.value; } }
-      if (!user) return null;
-      return { username: String(user).slice(0, 200), password: String(pw.value).slice(0, 500) };
-    } catch { return null; }
-  }
+      const el = e.target;
+      if (!el || el.tagName !== "INPUT") return;
+      const t = (el.type || "text").toLowerCase();
+      if (t === "password") return;
+      if (t === "email" || t === "text" || t === "tel" || t === "") {
+        const v = String(el.value || "").trim();
+        const hint = ((el.name || "") + (el.id || "") + (el.autocomplete || "")).toLowerCase();
+        if (v && v.length <= 200 && (t === "email" || /@|user|name|login|mail|phone|tel/.test(hint) || v.length >= 3)) {
+          lastUser = v;
+        }
+      }
+    } catch {}
+  }, true);
 
-  document.addEventListener("submit", (e) => {
+  let lastSent = 0;
+  function tryCapture() {
     try {
       if (location.protocol !== "https:") return; // never capture over plain HTTP
-      const form = e.target;
-      if (!form || form.nodeName !== "FORM") return;
-      const creds = extract(form);
-      if (!creds) return;
+      const pw = document.querySelector("input[type=password]");
+      if (!pw || !pw.value) return;
+      let user = lastUser;
+      if (!user) {
+        const cands = document.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
+        for (const c of cands) { if (c.value && c !== pw) { user = c.value; break; } }
+      }
+      if (!user) return;
+      const now = Date.now();
+      if (now - lastSent < 1500) return; // debounce repeated triggers
+      lastSent = now;
       ipcRenderer.sendToHost("vex-cred-submit", {
-        host: location.hostname.replace(/^www./, ""),
-        username: creds.username,
-        password: creds.password
+        host: location.hostname.replace(/^www\./, ""),
+        username: String(user).slice(0, 200),
+        password: String(pw.value).slice(0, 500)
       });
+    } catch {}
+  }
+
+  document.addEventListener("submit", tryCapture, true);
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const el = e.target;
+    if (el && el.tagName === "INPUT") setTimeout(tryCapture, 60);
+  }, true);
+  document.addEventListener("click", (e) => {
+    try {
+      const el = e.target;
+      if (!el || !el.closest) return;
+      const ctl = el.closest("button,[type=submit],input[type=submit],[role=button]");
+      if (!ctl) return;
+      // Only submit-looking controls, to avoid capturing on unrelated buttons.
+      const label = ((ctl.textContent || "") + (ctl.value || "") + (ctl.getAttribute && (ctl.getAttribute("aria-label") || "") || "")).toLowerCase();
+      const isSubmit = (ctl.type === "submit") || /sign\s*in|log\s*in|login|continue|next|submit|giriş|devam|oturum/.test(label);
+      if (isSubmit) setTimeout(tryCapture, 80);
     } catch {}
   }, true);
 })();

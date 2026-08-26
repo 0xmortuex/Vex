@@ -163,6 +163,13 @@ const SITE_TWEAKS = [
             'return o;},function(){return base();});},' +
         'toJSON:function(){return base();}};' +
       'Object.defineProperty(Navigator.prototype,"userAgentData",{get:function(){return uad;},configurable:true});' +
+      // Best-effort second signal: real Chrome exposes a populated window.chrome
+      // (runtime/app/csi/loadTimes); Electron's is an empty {} (or absent),
+      // which is a known "not a real browser" tell. Fill a minimal realistic
+      // stub if it's empty. NOTE: this is hardening, not a guaranteed defeat of
+      // Google's embedded-context block — that block uses server-side signals
+      // too. Kept scoped to google.com.
+      'try{var c=window.chrome;if(!c||Object.keys(c).length===0){var noop=function(){};var now=function(){return Date.now();};window.chrome={app:{isInstalled:false,InstallState:{DISABLED:"disabled",INSTALLED:"installed",NOT_INSTALLED:"not_installed"},RunningState:{CANNOT_RUN:"cannot_run",READY_TO_RUN:"ready_to_run",RUNNING:"running"}},runtime:{connect:noop,sendMessage:noop,onMessage:{addListener:noop,removeListener:noop},id:undefined},csi:function(){return {onloadT:now(),startE:now(),pageT:0,tran:15};},loadTimes:function(){return {requestTime:now()/1000,startLoadTime:now()/1000,commitLoadTime:now()/1000,finishDocumentLoadTime:0,finishLoadTime:0,firstPaintTime:0,firstPaintAfterLoadTime:0,navigationType:"Other",wasFetchedViaSpdy:true,wasNpnNegotiated:true,npnNegotiatedProtocol:"h2",wasAlternateProtocolAvailable:false,connectionInfo:"h2"};}};}}catch(e){}' +
       '}catch(e){}})();',
   },
 ];

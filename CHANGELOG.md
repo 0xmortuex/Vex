@@ -1,10 +1,16 @@
 # Changelog
 
-## v2.29.1 (2026-08-26) — Push-notification & first-run welcome fixes
+## v2.29.1 (2026-08-26) — Password saving, push-notification & first-run fixes
+
+### Added
+- **Password saving that actually catches modern logins.** Vex now offers to save your login on sites that submit with a button + JavaScript (Spotify, Google, most apps) and across multi-step email-then-password flows — not just old-style form submits. Saved logins autofill on return, and **clicking an empty login field brings the saved data back** (click-to-fill). Sidebar panels (Spotify, WhatsApp, Claude…) get save + autofill too, which they didn't before.
 
 ### Fixed
 - **"An unknown error occurred while enabling push notifications" on the Claude panel (and other sites).** v2.29.0 shimmed the Push API to a rejecting object, but sites detect push by whether `pushManager` exists — so they still tried and errored. Vex now fully removes the Web Push surface, emulating a browser without push (like older Safari), which every major site handles gracefully by simply not offering push. Regular notifications are unaffected.
 - **Two welcome screens on a fresh install.** The setup wizard and a legacy welcome card both appeared at once. The wizard is now the single first-run welcome, with "Take a tour" moved onto its final step.
+
+### Changed
+- **More Google sign-in hardening.** In addition to the userAgentData fix, Vex now presents a fully-populated `window.chrome` (runtime/app/csi/loadTimes) on Google pages so the browser fingerprint matches real Chrome more completely.
 
 ## v2.29.0 (2026-08-25) — Choose-your-Vex onboarding, tab drag-reorder & a stack of long-standing fixes
 

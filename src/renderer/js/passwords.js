@@ -64,16 +64,23 @@ const PasswordVault = {
     try { creds = await window.vex.vaultGet(host); } catch { return; }
     if (!creds || !creds.length) return;
     const c = creds[0];
+    // Fills on load AND on focus (click-to-fill): clicking an empty email or
+    // password field re-fills the saved login, which also covers multi-step
+    // logins (email view → password view) that never reload the page, so the
+    // one-shot dom-ready fill would otherwise miss the password step. Uses the
+    // native value setter so React/Vue controlled inputs actually register the
+    // change (plain el.value is ignored by their synthetic event system).
     const js = `(function(){try{
-      var pw=document.querySelector('input[type=password]');
-      if(!pw||pw.value)return;
-      var form=pw.form||document;
-      var user=null;
-      var cands=form.querySelectorAll('input[type=text],input[type=email],input:not([type])');
-      for(var i=0;i<cands.length;i++){var c=cands[i];var r=c.getBoundingClientRect();if(r.width>0&&!c.value){user=c;break;}}
-      var fire=function(el,val){el.focus();el.value=val;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));};
-      if(user)fire(user,${JSON.stringify(c.username)});
-      fire(pw,${JSON.stringify(c.password)});
+      var U=${JSON.stringify(c.username)},P=${JSON.stringify(c.password)};
+      var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
+      var fire=function(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+      function visible(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}}
+      function userField(pw){var scope=(pw&&pw.form)||document;var cands=scope.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');for(var i=0;i<cands.length;i++){if(visible(cands[i]))return cands[i];}return null;}
+      function fill(force){var pw=document.querySelector('input[type=password]');var user=userField(pw);if(user&&(force||!user.value))fire(user,U);if(pw&&(force||!pw.value))fire(pw,P);}
+      fill(false);
+      if(!window.__vexPwFocusWired){window.__vexPwFocusWired=true;
+        document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT')return;var t=(el.type||'').toLowerCase();if((t==='password'||t==='email'||t==='text'||t==='tel'||t==='')&&!el.value){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
+      }
     }catch(e){}})();`;
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}
   },

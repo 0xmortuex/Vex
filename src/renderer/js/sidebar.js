@@ -427,10 +427,16 @@ const SidebarManager = {
             WebviewManager.showContextMenu(e, wv);
           }
         });
+        // Password vault — panels (Spotify, Claude, WhatsApp…) get the same
+        // save-prompt + autofill as tab webviews. Without this, logging into
+        // the Spotify panel never offered to save and never autofilled (the
+        // vault was only wired in WebviewManager.createWebview for tabs).
+        if (typeof PasswordVault !== 'undefined') PasswordVault.attach(wv);
         // Apply the saved Master Volume level to this panel's media (Spotify,
         // Netflix, etc.) on load + as media appears, like tab webviews do.
         wv.addEventListener('dom-ready', () => {
           if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(wv);
+          if (typeof PasswordVault !== 'undefined') { try { PasswordVault.autofill(wv, wv.getURL()); } catch {} }
         });
         // Discord: if the page fails to connect (it's blocked), offer the bypass.
         if (panelName === 'discord') {
