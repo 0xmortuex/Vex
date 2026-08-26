@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.29.1 (2026-08-26) — Push-notification & first-run welcome fixes
+
+### Fixed
+- **"An unknown error occurred while enabling push notifications" on the Claude panel (and other sites).** v2.29.0 shimmed the Push API to a rejecting object, but sites detect push by whether `pushManager` exists — so they still tried and errored. Vex now fully removes the Web Push surface, emulating a browser without push (like older Safari), which every major site handles gracefully by simply not offering push. Regular notifications are unaffected.
+- **Two welcome screens on a fresh install.** The setup wizard and a legacy welcome card both appeared at once. The wizard is now the single first-run welcome, with "Take a tour" moved onto its final step.
+
 ## v2.29.0 (2026-08-25) — Choose-your-Vex onboarding, tab drag-reorder & a stack of long-standing fixes
 
 ### Added
