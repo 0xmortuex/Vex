@@ -41,6 +41,9 @@ describe('site-tweaks registry', () => {
     expect(scoped('claude.ai')).toContain('notif-deny-broken-push');
     expect(tweaksForHost('example.org').map(t => t.name)).not.toContain('notif-deny-broken-push');
     expect(tweaksForHost('evilclaude.ai').map(t => t.name)).not.toContain('notif-deny-broken-push');
+    // spotify-drm-robustness-fallback is scoped to spotify.com.
+    expect(tweaksForHost('open.spotify.com').map(t => t.name)).toContain('spotify-drm-robustness-fallback');
+    expect(tweaksForHost('example.org').map(t => t.name)).not.toContain('spotify-drm-robustness-fallback');
   });
 
   it('hevc-mask blocks HEVC probes and passes everything else through', async () => {
@@ -121,6 +124,41 @@ describe('site-tweaks registry', () => {
     expect(new ServiceWorkerRegistration().pushManager).toBeUndefined();
     // Plain notifications keep working — the fallback sites should use.
     expect('Notification' in ctx.window).toBe(true);
+  });
+
+  it('spotify-drm-robustness-fallback retries with SW_SECURE_CRYPTO when the original request fails', async () => {
+    const entry = SITE_TWEAKS.find(t => t.name === 'spotify-drm-robustness-fallback');
+    const calls = [];
+    // Fake CDM: rejects anything above SW_SECURE_CRYPTO (like Electron's).
+    const fakeRMKSA = (ks, configs) => {
+      calls.push(JSON.parse(JSON.stringify(configs)));
+      const tooHigh = configs.some(c => (c.audioCapabilities || []).some(a => a.robustness && a.robustness !== '' && a.robustness !== 'SW_SECURE_CRYPTO'));
+      return tooHigh ? Promise.reject(new Error('unsupported robustness')) : Promise.resolve({ ok: true });
+    };
+    const ctx = {
+      navigator: { requestMediaKeySystemAccess: fakeRMKSA },
+      Object, Promise, Array,
+    };
+    ctx.window = ctx;
+    vm.createContext(ctx);
+    new vm.Script(entry.code).runInContext(ctx);
+
+    // A request that asks for SW_SECURE_DECODE (what Spotify does for some
+    // tracks) now succeeds via the downgraded retry.
+    const access = await ctx.navigator.requestMediaKeySystemAccess('com.widevine.alpha', [
+      { initDataTypes: ['cenc'], audioCapabilities: [{ contentType: 'audio/mp4; codecs="mp4a.40.2"', robustness: 'SW_SECURE_DECODE' }] },
+    ]);
+    expect(access).toEqual({ ok: true });
+    expect(calls).toHaveLength(2);                                   // original + retry
+    expect(calls[0][0].audioCapabilities[0].robustness).toBe('SW_SECURE_DECODE');
+    expect(calls[1][0].audioCapabilities[0].robustness).toBe('SW_SECURE_CRYPTO'); // downgraded
+
+    // A request that already works is untouched (no retry).
+    calls.length = 0;
+    await ctx.navigator.requestMediaKeySystemAccess('com.widevine.alpha', [
+      { audioCapabilities: [{ contentType: 'audio/mp4', robustness: 'SW_SECURE_CRYPTO' }] },
+    ]);
+    expect(calls).toHaveLength(1);
   });
 
   it('notif-deny-broken-push forces Notification permission to denied', async () => {

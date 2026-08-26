@@ -149,6 +149,42 @@ const SITE_TWEAKS = [
       '}catch(e){}})();',
   },
   {
+    // Spotify: "Spotify can't play this right now" on a SUBSET of tracks.
+    // Spotify is audio, which normally negotiates Widevine at
+    // SW_SECURE_CRYPTO (the level Electron's castLabs Widevine provides —
+    // verified on the installed VMP-signed build, 2026-08-26: CDM 4.10.3050.0,
+    // SW_SECURE_CRYPTO ok, SW_SECURE_DECODE unavailable). But Spotify requests
+    // the HIGHER SW_SECURE_DECODE robustness for some tracks, and this CDM
+    // can't satisfy it, so requestMediaKeySystemAccess rejects and those tracks
+    // won't play while the rest do. Fix: try the request as-is first, and only
+    // if it rejects, retry with any above-SW_SECURE_CRYPTO robustness dropped
+    // to SW_SECURE_CRYPTO — the level actually available. This never weakens a
+    // request that already works (retry runs only on failure) and never touches
+    // video sites (scoped to spotify.com); audio content plays fine under
+    // SW_SECURE_CRYPTO. If Spotify's license server were to hard-require the
+    // higher level the track still won't play — no worse than today.
+    name: 'spotify-drm-robustness-fallback',
+    hosts: /(^|\.)spotify\.com$/i,
+    mechanism: 'webFrame',
+    code: '(function(){try{' +
+      'if(!navigator.requestMediaKeySystemAccess)return;' +
+      'var orig=navigator.requestMediaKeySystemAccess.bind(navigator);' +
+      'var down=function(configs){return (configs||[]).map(function(cfg){' +
+        'var c=Object.assign({},cfg);' +
+        '["audioCapabilities","videoCapabilities"].forEach(function(k){' +
+          'if(Array.isArray(c[k]))c[k]=c[k].map(function(cap){' +
+            'var cc=Object.assign({},cap);' +
+            'if(cc.robustness&&cc.robustness!==""&&cc.robustness!=="SW_SECURE_CRYPTO")cc.robustness="SW_SECURE_CRYPTO";' +
+            'return cc;});' +
+        '});' +
+        'return c;});};' +
+      'navigator.requestMediaKeySystemAccess=function(ks,configs){' +
+        'return orig(ks,configs).catch(function(err){' +
+          'try{return orig(ks,down(configs));}catch(e){return Promise.reject(err);}' +
+        '});};' +
+      '}catch(e){}})();',
+  },
+  {
     // Google sign-in rejects Vex ("Couldn't sign you in — this browser or app
     // may not be secure", /v3/signin/rejected) even though the session layer
     // spoofs the Chrome UA string and rewrites the Sec-CH-UA request headers.
