@@ -31,6 +31,7 @@ function fakeWebview(over = {}) {
     goBack: vi.fn(),
     goForward: vi.fn(),
     reload: vi.fn(),
+    focus: vi.fn(),
     executeJavaScript: vi.fn(() => Promise.resolve()),
     ...over,
   };
@@ -107,9 +108,16 @@ describe('showContextMenu — spelling suggestions', () => {
     const menu = document.querySelector('.tab-context-menu');
     menu.children[1].dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
 
-    // JSON-encoded suggestion keeps quotes/backslashes from breaking the literal.
-    expect(execSpy).toHaveBeenCalledWith(`document.execCommand('insertText', false, "fixtures")`);
+    // Replacement now runs a wrapped script that focuses + re-selects before
+    // execCommand (so Slate editors keep the fix); assert the injected JS
+    // carries the JSON-encoded suggestion through execCommand insertText.
     expect(execSpy).toHaveBeenCalledTimes(1);
+    const injected = execSpy.mock.calls[0][0];
+    expect(injected).toContain('execCommand');
+    expect(injected).toContain('insertText');
+    expect(injected).toContain('"fixtures"');   // JSON-encoded suggestion
+    // The webview frame is focused first so Slate is active when we replace.
+    expect(wv.focus).toHaveBeenCalled();
     // The menu closes after an item is actioned.
     expect(document.querySelector('.tab-context-menu')).toBeNull();
   });

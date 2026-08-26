@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.29.3 (2026-08-26) — Spellcheck fix sticks in Discord
+
+### Fixed
+- **Right-click "fix word" reverted in the Discord composer.** Clicking a spelling suggestion replaced the word, but as soon as you clicked next to it and typed, the misspelled word came back. Discord's editor (Slate.js) keeps its own model and reconciles the DOM to it — and because clicking Vex's menu takes focus off the Discord frame, the replacement never reached Slate's model. Vex now re-focuses the frame and re-selects the word before replacing, so the fix registers and sticks. Plain inputs and other editors (e.g. Claude) are unaffected.
+
 ## v2.29.2 (2026-08-26) — Claude notification error suppressed
 
 ### Fixed

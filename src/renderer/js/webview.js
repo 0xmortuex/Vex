@@ -559,20 +559,54 @@ const WebviewManager = {
             action: () => {
               // Replace the word via the GUEST PAGE, not
               // webContents.replaceMisspelling — that API returns success but
-              // silently no-ops on castLabs Electron 30.5.1+wvcus (verified on
-              // <input>/<textarea> AND contenteditable/React). Chromium auto-
-              // selects the misspelled word on right-click, so running
-              // execCommand('insertText') in the guest replaces the current
-              // selection and dispatches real beforeinput/input events — which
-              // updates <input>, <textarea>, and contenteditable editors (e.g.
-              // claude.ai's React editor) where the native API failed. The
-              // suggestion is JSON-encoded so quotes/backslashes can't break
-              // out of the injected string literal.
+              // silently no-ops on castLabs Electron (verified on
+              // <input>/<textarea> AND contenteditable/React). We run
+              // execCommand('insertText') in the guest, which replaces the
+              // current selection and fires real beforeinput/input events.
+              //
+              // But for Slate.js editors (Discord's composer) the naive
+              // approach reverted: clicking Vex's context menu takes focus off
+              // the Discord frame, so execCommand changed the DOM while Slate
+              // wasn't actively processing — Slate's internal model kept the
+              // MISSPELLED word, and the user's next keystroke made Slate
+              // reconcile the DOM back to its model, undoing the fix (root-
+              // caused live, 2026-08-26). Fix: (1) re-focus the WEBVIEW frame
+              // so the guest is the focused frame when we replace, and (2) in
+              // the guest, focus the editable and re-select the misspelled word
+              // (Chromium's right-click selection is dropped when focus leaves)
+              // before execCommand — so Slate processes the edit into its model
+              // and it sticks. Plain <input>/<textarea>/claude.ai are
+              // unaffected (they already worked; this only adds focus + a
+              // re-select that no-ops when the selection is already correct).
               if (typeof webview.executeJavaScript !== 'function') {
                 console.warn('[Vex spell] webview.executeJavaScript unavailable');
                 return;
               }
-              const js = `document.execCommand('insertText', false, ${JSON.stringify(suggestion)})`;
+              try { if (typeof webview.focus === 'function') webview.focus(); } catch {}
+              const word = e.params.misspelledWord || '';
+              const js = `(function(){try{
+                var word=${JSON.stringify(word)}, repl=${JSON.stringify(suggestion)};
+                var sel=window.getSelection();
+                var anchor=sel&&sel.anchorNode;
+                var host=anchor?(anchor.nodeType===1?anchor:anchor.parentElement):null;
+                while(host&&!(host.isContentEditable||host.tagName==='INPUT'||host.tagName==='TEXTAREA'))host=host.parentElement;
+                if(!host)host=document.activeElement;
+                if(host&&host.focus)host.focus();
+                // Re-select the misspelled word only if the live selection isn't
+                // already exactly it (Chromium selects it on right-click; focus
+                // churn can drop that selection).
+                var curSel=window.getSelection();
+                if(word&&(!curSel||curSel.toString()!==word)){
+                  if(host&&(host.tagName==='INPUT'||host.tagName==='TEXTAREA')){
+                    var v=host.value||'',p=host.selectionStart||0,i=v.lastIndexOf(word,p);if(i<0)i=v.indexOf(word);
+                    if(i>=0)host.setSelectionRange(i,i+word.length);
+                  } else if(host){
+                    var wk=document.createTreeWalker(host,NodeFilter.SHOW_TEXT),tn;
+                    while((tn=wk.nextNode())){var k=tn.data.indexOf(word);if(k>=0){var rg=document.createRange();rg.setStart(tn,k);rg.setEnd(tn,k+word.length);curSel.removeAllRanges();curSel.addRange(rg);break;}}
+                  }
+                }
+                document.execCommand('insertText', false, repl);
+              }catch(e){}})();`;
               try {
                 const r = webview.executeJavaScript(js);
                 if (r && typeof r.then === 'function') {
