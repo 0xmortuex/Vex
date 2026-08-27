@@ -908,11 +908,19 @@
     const retryBtn = document.getElementById('btn-widevine-retry');
     const paint = (s) => {
       const ok = /ready|loaded/.test(s);
+      const failed = /failed|timed out/i.test(s);
       wvEl.textContent = s;
       wvEl.style.color = ok ? '#22c55e' : 'var(--danger)';
-      // Offer a Retry (relaunch) only when the CDM actually failed/timed out —
-      // not for the benign "dev mode"/"unavailable" states.
-      if (retryBtn) retryBtn.style.display = /failed|timed out/i.test(s) ? '' : 'none';
+      // Offer the button ONLY when the CDM actually failed/timed out — never on a
+      // healthy CDM. Resetting a working CDM is destructive (it clears/reprovisions
+      // Widevine and can fail to re-download), and the "provider blocked the device
+      // cert" rationale was a misdiagnosis: DRM failures were an invalid VMP
+      // signature, fixed at build level in v2.29.5. A "Reset DRM" on a ready CDM
+      // would be a footgun, so it's gated to the failure case only.
+      if (retryBtn) {
+        retryBtn.style.display = failed ? '' : 'none';
+        if (!retryBtn.disabled) retryBtn.textContent = 'Retry';
+      }
     };
     try {
       const r = await window.vex.widevineStatus?.();
@@ -921,6 +929,14 @@
     if (retryBtn && !retryBtn._wired) {
       retryBtn._wired = true;
       retryBtn.addEventListener('click', async () => {
+        // The button only appears when the CDM failed to load. Confirm before the
+        // retry since it clears the failed component, re-downloads it, and restarts.
+        const ok = await (window.vexConfirm ? window.vexConfirm({
+          title: 'Retry DRM component?',
+          message: 'The Widevine DRM component failed to load. This clears and re-downloads it, then restarts Vex.',
+          okLabel: 'Retry & restart',
+        }) : Promise.resolve(true));
+        if (!ok) return;
         retryBtn.disabled = true;
         retryBtn.textContent = 'Restarting…';
         try { await window.vex.widevineRetry?.(); } catch {}
