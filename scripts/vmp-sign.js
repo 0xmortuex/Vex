@@ -42,7 +42,30 @@ exports.default = async function (context) {
   const freshOk = /signature request successful/i.test(signOut);
   const devOnly = /valid for development only/i.test(signOut);
   if (freshOk && !devOnly) {
-    console.log('[VMP] fresh EVS signature acquired — Widevine/DRM enabled');
+    // A fresh signature was REQUESTED — but that alone does NOT prove the shipped
+    // binary still matches it. Verify the packaged signature as the authoritative
+    // final gate. (v2.29.4 shipped broken DRM because the signer ran as `afterPack`,
+    // BEFORE Authenticode re-wrote Vex.exe: the "success" marker printed yet a
+    // standalone verify-pkg failed. Running verify-pkg here — last — makes shipping
+    // an invalid signature impossible.)
+    let verifyOut = '';
+    try {
+      verifyOut = execSync(`python -m castlabs_evs.vmp verify-pkg "${appOutDir}" 2>&1`, { encoding: 'utf8' });
+      process.stdout.write(verifyOut);
+    } catch (err) {
+      verifyOut = (err.stdout || '') + (err.stderr || '');
+      if (verifyOut) process.stdout.write(verifyOut);
+    }
+    if (!/signature is valid/i.test(verifyOut)) {
+      console.error('');
+      console.error('[VMP] BUILD ABORTED — a signature was issued but verify-pkg did NOT confirm it on the');
+      console.error('      packaged app. Something re-wrote the binary after signing — check the hook order:');
+      console.error('      VMP signing MUST run as electron-builder `afterSign`, never `afterPack` (afterPack');
+      console.error('      runs before Authenticode, which invalidates the signature). Refusing to ship broken DRM.');
+      console.error('');
+      throw new Error('VMP post-sign verify-pkg failed — packaged signature invalid, aborting.');
+    }
+    console.log('[VMP] fresh EVS signature acquired AND verify-pkg confirmed valid — Widevine/DRM enabled');
     return;
   }
 
