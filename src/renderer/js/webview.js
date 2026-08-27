@@ -557,44 +557,30 @@ const WebviewManager = {
           spellingItems.push({
             label: suggestion,
             action: () => {
-              // Replace the word via the GUEST PAGE, not
-              // webContents.replaceMisspelling — that API returns success but
-              // silently no-ops on castLabs Electron (verified on
-              // <input>/<textarea> AND contenteditable/React). We run
-              // execCommand('insertText') in the guest, which replaces the
-              // current selection and fires real beforeinput/input events.
-              //
-              // But for Slate.js editors (Discord's composer) the naive
-              // approach reverted: clicking Vex's context menu takes focus off
-              // the Discord frame, so execCommand changed the DOM while Slate
-              // wasn't actively processing — Slate's internal model kept the
-              // MISSPELLED word, and the user's next keystroke made Slate
-              // reconcile the DOM back to its model, undoing the fix (root-
-              // caused live, 2026-08-26). Fix: (1) re-focus the WEBVIEW frame
-              // so the guest is the focused frame when we replace, and (2) in
-              // the guest, focus the editable and re-select the misspelled word
-              // (Chromium's right-click selection is dropped when focus leaves)
-              // before execCommand — so Slate processes the edit into its model
-              // and it sticks. Plain <input>/<textarea>/claude.ai are
-              // unaffected (they already worked; this only adds focus + a
-              // re-select that no-ops when the selection is already correct).
+              // Replace the misspelled word with the suggestion in two steps:
+              // (1) select the word in the guest, then (2) TYPE the replacement
+              // as trusted input via webview.sendInputEvent. execCommand and
+              // webContents.replaceMisspelling both change the DOM but do NOT
+              // update Slate.js's model (Discord), so the fix reverted on the
+              // next keystroke — trusted input is the only thing that sticks.
+              // See the inline notes on each step below (verified live 2026-08-27).
               if (typeof webview.executeJavaScript !== 'function') {
                 console.warn('[Vex spell] webview.executeJavaScript unavailable');
                 return;
               }
               try { if (typeof webview.focus === 'function') webview.focus(); } catch {}
               const word = e.params.misspelledWord || '';
-              const js = `(function(){try{
-                var word=${JSON.stringify(word)}, repl=${JSON.stringify(suggestion)};
+              // Step 1 (in the GUEST): focus the editable and select the
+              // misspelled word. Chromium selects it on right-click but drops
+              // that selection when Vex's custom menu takes focus, so re-select.
+              const selectJs = `(function(){try{
+                var word=${JSON.stringify(word)};
                 var sel=window.getSelection();
                 var anchor=sel&&sel.anchorNode;
                 var host=anchor?(anchor.nodeType===1?anchor:anchor.parentElement):null;
                 while(host&&!(host.isContentEditable||host.tagName==='INPUT'||host.tagName==='TEXTAREA'))host=host.parentElement;
                 if(!host)host=document.activeElement;
                 if(host&&host.focus)host.focus();
-                // Re-select the misspelled word only if the live selection isn't
-                // already exactly it (Chromium selects it on right-click; focus
-                // churn can drop that selection).
                 var curSel=window.getSelection();
                 if(word&&(!curSel||curSel.toString()!==word)){
                   if(host&&(host.tagName==='INPUT'||host.tagName==='TEXTAREA')){
@@ -605,13 +591,49 @@ const WebviewManager = {
                     while((tn=wk.nextNode())){var k=tn.data.indexOf(word);if(k>=0){var rg=document.createRange();rg.setStart(tn,k);rg.setEnd(tn,k+word.length);curSel.removeAllRanges();curSel.addRange(rg);break;}}
                   }
                 }
-                document.execCommand('insertText', false, repl);
-              }catch(e){}})();`;
+                // Report selection success. <input>/<textarea> selections are NOT
+                // reflected by window.getSelection(), so check them via value+range.
+                if(host&&(host.tagName==='INPUT'||host.tagName==='TEXTAREA')){
+                  try{return host.value.substring(host.selectionStart,host.selectionEnd)===word;}catch(_){return true;}
+                }
+                var s2=window.getSelection();
+                return !!(s2&&s2.toString()===word);
+              }catch(e){return false;}})();`;
+              const repl = String(suggestion);
+              // Step 2: type the replacement as TRUSTED char input via
+              // webview.sendInputEvent. This is the crux — verified live against
+              // Discord's Slate.js composer (2026-08-27): execCommand('insertText')
+              // and webContents.replaceMisspelling both change the DOM but never
+              // update Slate's internal model, so the next keystroke reconciles
+              // back to the misspelled word (or corrupts it). Only trusted input
+              // goes through Slate's model and sticks. The first char replaces the
+              // selected word; the rest insert after it. ~25 ms/char lets Slate
+              // process each. Non-Slate editors work with this too; the
+              // execCommand fallback is only for platforms without sendInputEvent.
+              const typeTrusted = () => {
+                if (typeof webview.sendInputEvent !== 'function') {
+                  try { webview.executeJavaScript(`try{document.execCommand('insertText',false,${JSON.stringify(repl)})}catch(_){}`); } catch {}
+                  return;
+                }
+                let i = 0;
+                const sendNext = () => {
+                  if (i >= repl.length) return;
+                  try { webview.sendInputEvent({ type: 'char', keyCode: repl[i] }); }
+                  catch (err) { console.warn('[Vex spell] sendInputEvent failed:', err); }
+                  i++;
+                  setTimeout(sendNext, 25);
+                };
+                sendNext();
+              };
               try {
-                const r = webview.executeJavaScript(js);
+                const r = webview.executeJavaScript(selectJs);
                 if (r && typeof r.then === 'function') {
-                  r.then(() => console.log('[Vex spell] replaced misspelling with', JSON.stringify(suggestion)))
-                   .catch(err => console.warn('[Vex spell] insertText failed:', err));
+                  r.then((ok) => {
+                    if (!ok) console.warn('[Vex spell] word not re-selected; typing anyway');
+                    setTimeout(typeTrusted, 25);
+                  }).catch((err) => { console.warn('[Vex spell] select failed:', err); setTimeout(typeTrusted, 25); });
+                } else {
+                  setTimeout(typeTrusted, 25);
                 }
               } catch (err) {
                 console.error('[Vex spell] replace error:', err);
