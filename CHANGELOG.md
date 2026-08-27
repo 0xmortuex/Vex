@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.29.6 (2026-08-27) — Safer DRM settings + build guardrail
+
+### Fixed
+- **Removed a "Reset DRM" button that appeared on a *healthy* DRM component.** Settings → About offered a reset even when Widevine was working; resetting a healthy component is destructive (it clears and re-downloads it, then restarts Vex) and was based on a misdiagnosis. The button now appears only when the DRM component has actually failed to load, labeled "Retry," with a confirmation first.
+
+### Changed
+- **Builds now verify the packaged app's Verified Media Path (VMP) signature and abort if it's invalid** — a fail-closed guard so a build can never again ship broken Spotify/Netflix/Prime DRM (the cause of the pre-2.29.5 breakage). Belt-and-suspenders on top of the 2.29.5 `afterSign` fix.
+
 ## v2.29.5 (2026-08-27) — DRM playback actually fixed (valid VMP signature)
 
 ### Fixed
