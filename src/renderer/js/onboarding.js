@@ -124,7 +124,7 @@ const Onboarding = {
       { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL for the most capable AI. See SELF_HOSTING.md. Skip if you’ll use local AI instead.' },
       { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' },
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' },
-      { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of tabs, bookmarks & more across devices. Paste your Sync Worker URL (optional).' },
+      { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' },
       { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' },
       { key: 'done',           title: 'All set ✨',               sub: 'You’re ready. Everything here lives in Settings if you want to change it later.' },
     ];
@@ -581,10 +581,24 @@ const Onboarding = {
     } else if (key === 'sync') {
       let cur = this._session.sync;
       if (cur == null) { try { cur = localStorage.getItem('vex.syncWorkerUrl') || ''; } catch { cur = ''; } }
-      body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">
-        <label style="font-size:12.5px;color:var(--text-muted)">Sync Worker URL (deploy your own — see SELF_HOSTING.md)</label>
-        ${input('ob-sync-url', 'https://your-vex-sync.workers.dev', cur)}
-        <p style="font-size:11.5px;color:var(--text-muted);margin:2px 0 0">Everything is end-to-end encrypted on your device before it’s sent. Leave blank to keep sync off.</p>
+      body.innerHTML = `<div style="display:flex;flex-direction:column;gap:11px">
+        <p style="font-size:12.5px;color:var(--text);margin:0;line-height:1.55">
+          <b>Vex Sync</b> mirrors your tabs, bookmarks, history &amp; settings across your devices, <b>end-to-end
+          encrypted</b> — everything is scrambled on your device before it leaves, so no one (not even us) can read
+          it. It runs on <i>your own</i> free Cloudflare account, so you fully own your data.
+        </p>
+        <div style="background:rgba(127,127,127,.09);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.6">
+          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings → Sync.</b>
+          <div style="margin-top:7px;color:var(--text)">To turn it on now, 3 steps:</div>
+          <ol style="margin:5px 0 0;padding-left:18px">
+            <li>Create a free <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener" style="color:var(--primary)">Cloudflare account</a>.</li>
+            <li>Open the <a href="https://github.com/0xmortuex/Vex/blob/main/SELF_HOSTING.md#2-sync-worker-vex-sync-worker" target="_blank" rel="noopener" style="color:var(--primary)">step-by-step deploy guide</a> — it runs a few <code>wrangler</code> commands (~2 min) and prints a URL.</li>
+            <li>Paste that URL below (it looks like <code>https://vex-sync.<i>you</i>.workers.dev</code>) and continue.</li>
+          </ol>
+        </div>
+        <label style="font-size:12.5px;color:var(--text)">Sync Worker URL <span style="color:var(--text-muted)">— paste it from step 2, or leave blank</span></label>
+        ${input('ob-sync-url', 'https://vex-sync.your-name.workers.dev', cur)}
+        <p style="font-size:11.5px;color:var(--text-muted);margin:0">Blank keeps Sync off. To link another device later, just paste the same URL there too.</p>
       </div>`;
     } else if (key === 'passwords') {
       body.innerHTML = `

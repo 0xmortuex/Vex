@@ -1636,7 +1636,29 @@
     }
     function syncLocBtn() {
       const btn = document.getElementById('weather-loc-btn');
-      if (btn) btn.style.display = getSavedLoc() ? 'none' : '';
+      if (!btn) return;
+      // Keep the button ALWAYS available so the location can be changed anytime —
+      // it used to vanish once a location was saved, trapping a wrong
+      // detected/saved city with no way to fix it. Just relabel it.
+      btn.textContent = getSavedLoc() ? '📍 Change' : '📍 Set location';
+    }
+    // Approximate location from IP. Tries multiple free providers in order and
+    // validates the coordinates, so one provider failing/rate-limiting doesn't
+    // break the weather (the old code sent `undefined` coords to the API).
+    async function ipGeo() {
+      const providers = [
+        ['https://ipapi.co/json/',            j => ({ lat: +j.latitude, lon: +j.longitude, city: j.city })],
+        ['https://ipwho.is/',                 j => (j && j.success !== false ? { lat: +j.latitude, lon: +j.longitude, city: j.city } : null)],
+        ['https://get.geojs.io/v1/ip/geo.json', j => ({ lat: +j.latitude, lon: +j.longitude, city: j.city })],
+      ];
+      for (const [url, map] of providers) {
+        try {
+          const j = await (await fetch(url, { cache: 'no-store' })).json();
+          const m = map(j);
+          if (m && Number.isFinite(m.lat) && Number.isFinite(m.lon)) return m;
+        } catch {}
+      }
+      return null;
     }
     async function loadWeather() {
       const codes = {
@@ -1646,22 +1668,31 @@
         71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Rain showers',
         81: 'Moderate showers', 82: 'Violent showers', 95: 'Thunderstorm'
       };
+      const tempEl = document.getElementById('weather-temp');
+      const descEl = document.getElementById('weather-desc');
       try {
         let lat, lon, city;
         const saved = getSavedLoc();
         if (saved) { lat = saved.lat; lon = saved.lon; city = saved.city; }
         else {
-          const loc = await (await fetch('https://ipapi.co/json/')).json();
-          lat = loc.latitude; lon = loc.longitude; city = loc.city;
+          const g = await ipGeo();
+          if (!g) throw new Error('geo unavailable');
+          lat = g.lat; lon = g.lon; city = g.city;
         }
+        if (!Number.isFinite(+lat) || !Number.isFinite(+lon)) throw new Error('bad coords');
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=celsius`);
         const data = await res.json();
+        if (!data || !data.current_weather) throw new Error('no weather');
         const temp = Math.round(data.current_weather.temperature);
-        document.getElementById('weather-temp').textContent = `${temp}°C`;
-        document.getElementById('weather-desc').textContent =
-          (codes[data.current_weather.weathercode] || 'Unknown') + (city ? ` · ${city}` : '');
+        tempEl.textContent = `${temp}°C`;
+        descEl.textContent = (codes[data.current_weather.weathercode] || 'Unknown') + (city ? ` · ${city}` : '');
+        try { localStorage.setItem('vex.weatherCache', JSON.stringify({ temp, desc: descEl.textContent, t: Date.now() })); } catch {}
       } catch {
-        document.getElementById('weather-desc').textContent = 'Unable to load weather';
+        // Fall back to the last good reading if we have one; else a clear,
+        // actionable message instead of a dead "Unable to load weather".
+        let shown = false;
+        try { const c = JSON.parse(localStorage.getItem('vex.weatherCache') || 'null'); if (c && c.temp != null) { tempEl.textContent = `${c.temp}°C`; descEl.textContent = (c.desc || '') + ' · offline'; shown = true; } } catch {}
+        if (!shown) { tempEl.textContent = '--°'; descEl.textContent = getSavedLoc() ? 'Weather unavailable — retrying' : 'Set your location 📍'; }
       }
       syncLocBtn();
     }
