@@ -199,6 +199,13 @@ const WebviewManager = {
       const url = e.url;
       // Focus-mode site blocker bounces distracting hosts back.
       if (typeof FocusMode !== 'undefined' && FocusMode.guard(webview, url)) return;
+      // NEVER let a blank navigation erase the tab's real URL. Tab hibernation,
+      // a renderer crash, or the OS suspending/killing the page on sleep can
+      // navigate a webview to about:blank — if that overwrote tab.url there'd be
+      // nothing to restore, and refresh would just reload about:blank (the exact
+      // "tabs stuck on about:blank after wake, won't come back" bug). Keep the
+      // last real URL in tab.url; reload()/render-process-gone recover from it.
+      if (/^about:blank\b/i.test(url)) return;
       TabManager.updateTab(tab.id, { url });
       this._updateFavicon(tab.id, url);
       if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
@@ -224,6 +231,20 @@ const WebviewManager = {
       if (e.isMainFrame) {
         TabManager.updateTab(tab.id, { url: e.url });
       }
+    });
+
+    // OS sleep/resume (or a plain crash) can kill a webview's renderer process,
+    // leaving it blank. Self-heal: reload the tab's real URL so the page comes
+    // back on its own — no manual refresh needed. tab.url is preserved above;
+    // hibernated tabs also stash the URL in dataset.hibernatedUrl.
+    webview.addEventListener('render-process-gone', () => {
+      try {
+        const t = TabManager.tabs.find(t => t.id === tab.id);
+        const real = webview.dataset.hibernatedUrl || (t && t.url);
+        if (real && !/^about:blank\b/i.test(real)) {
+          setTimeout(() => { try { delete webview.dataset.hibernated; webview.loadURL(real); } catch { try { webview.src = real; } catch {} } }, 400);
+        }
+      } catch {}
     });
 
     webview.addEventListener('new-window', (e) => {
@@ -320,6 +341,33 @@ const WebviewManager = {
   _ensureHibernateSweep() {
     if (this._hibTimer) return;
     this._hibTimer = setInterval(() => this._hibernateSweep(), 60 * 1000);
+    this._startResumeWatch();
+  },
+  // System sleep/resume recovery (pure renderer — no IPC). A suspended machine
+  // "skips" real time between our ticks; a big skip means the PC was asleep, so
+  // on wake we reload any webview the OS blanked while suspended, from its real
+  // URL. That's what makes tabs come back on their own after you wake the PC,
+  // instead of sitting on about:blank.
+  _startResumeWatch() {
+    if (this._resumeTimer) return;
+    let last = Date.now();
+    const PERIOD = 30000;
+    this._resumeTimer = setInterval(() => {
+      const now = Date.now(), gap = now - last; last = now;
+      if (gap > PERIOD + 90000) this._recoverBlankWebviews(); // >~2 min real-time skip ⇒ was asleep
+    }, PERIOD);
+  },
+  _recoverBlankWebviews() {
+    this.webviews.forEach((wv, id) => {
+      try {
+        if (wv.dataset && wv.dataset.hibernated === '1') return; // intentionally hibernated; wakes on focus
+        let cur; try { cur = wv.getURL(); } catch { cur = ''; }
+        if (cur && !/^about:blank\b/i.test(cur)) return; // still has real content
+        const tab = TabManager.tabs.find(t => t.id === id);
+        const real = (wv.dataset && wv.dataset.hibernatedUrl) || (tab && tab.url);
+        if (real && !/^about:blank\b/i.test(real)) { try { delete wv.dataset.hibernated; wv.loadURL(real); } catch { try { wv.src = real; } catch {} } }
+      } catch {}
+    });
   },
   _wake(wv) {
     try {
@@ -434,9 +482,25 @@ const WebviewManager = {
     if (wv && wv.canGoForward()) wv.goForward();
   },
 
+  // If the active webview is blank (hibernated / crashed / OS-sleep-killed) but
+  // its tab still knows the real URL, return that URL so callers reload the page
+  // instead of about:blank. Returns null when a plain reload is correct.
+  _blankRecoveryUrl(wv) {
+    let cur; try { cur = wv.getURL(); } catch { cur = ''; }
+    if (cur && !/^about:blank\b/i.test(cur)) return null;
+    const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
+    const real = (wv.dataset && wv.dataset.hibernatedUrl) || (tab && tab.url);
+    return (real && !/^about:blank\b/i.test(real)) ? real : null;
+  },
   reload() {
     const wv = this.getActiveWebview();
-    if (wv) wv.reload();
+    if (!wv) return;
+    // A plain wv.reload() on a blanked tab just reloads about:blank, so the page
+    // never comes back. Restore the real URL instead — this is the fix for
+    // "tabs stuck on about:blank after wake, won't come back even on refresh".
+    const real = this._blankRecoveryUrl(wv);
+    if (real) { try { if (wv.dataset) delete wv.dataset.hibernated; wv.loadURL(real); } catch { try { wv.src = real; } catch {} } return; }
+    wv.reload();
   },
 
   // Hard reload: clear the webview's HTTP cache in the main process, then
@@ -446,6 +510,10 @@ const WebviewManager = {
     console.log('[Vex] hard reload triggered — renderer callback');
     const wv = this.getActiveWebview();
     if (!wv) return;
+    // Blanked tab (hibernated/crashed/OS-sleep) → restore its real URL rather
+    // than hard-reloading about:blank.
+    const _real = this._blankRecoveryUrl(wv);
+    if (_real) { try { if (wv.dataset) delete wv.dataset.hibernated; wv.loadURL(_real); } catch { try { wv.src = _real; } catch {} } return; }
     try {
       const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
       if (id != null && window.vex?.hardReloadWebview) {
