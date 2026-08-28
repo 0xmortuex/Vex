@@ -175,7 +175,8 @@ const TabManager = {
             stackId: t.stackId || null,
             sleeping: true,
             originalUrl: isStartPage(t.url) ? tabUrl : (t.originalUrl || t.url),
-            scrollPosition: t.scrollPosition || null
+            scrollPosition: t.scrollPosition || null,
+            keepAwakeUntil: t.keepAwakeUntil || 0
           });
         } else {
           // Lazy restore: rebuild the tab record WITHOUT a webview. It
@@ -193,6 +194,7 @@ const TabManager = {
             unread: false,
             groupId: t.groupId || null,
             stackId: t.stackId || null,
+            keepAwakeUntil: t.keepAwakeUntil || 0,
             _lazy: true
           });
         }

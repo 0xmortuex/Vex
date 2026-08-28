@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.29.8 (2026-08-28) — "Prevent from sleeping" actually sticks
+
+### Fixed
+- **"Prevent from sleeping" was leaky.** A tab you'd kept awake could still get put to sleep by the background idle-hibernation sweep (which only spared the active/audible/pinned tabs, not kept-awake ones) — and the setting was dropped entirely when Vex restarted, because the restore code didn't carry the keep-awake flag back onto the tab. Both are fixed: the hibernation sweep now respects keep-awake, and the setting survives a restart (a timed "keep awake for N hours" resumes with its remaining time; "until reverted" stays until you turn it off).
+
 ## v2.29.7 (2026-08-28) — Cleaner sidebar, theme-aware Glass, and a wave of fixes
 
 ### Added

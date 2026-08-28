@@ -415,7 +415,10 @@ const WebviewManager = {
         if (wv.dataset.hibernated === '1') return;
         if ((wv._lastActive || 0) > cutoff) return;
         const tab = TabManager.tabs.find(t => t.id === id);
-        if (!tab || tab.audible || tab.pinned) return;
+        // Respect "Prevent from sleeping" — the manual sleepTab() honors it, but
+        // this idle-hibernation sweep was ignoring it, so a kept-awake tab still
+        // got navigated to about:blank.
+        if (!tab || tab.audible || tab.pinned || (TabManager._isKeptAwake && TabManager._isKeptAwake(tab))) return;
         let url; try { url = wv.getURL(); } catch { return; }
         if (!url || /^about:/i.test(url) || url.startsWith('file:') || isStartPage(url)) return;
         wv.dataset.hibernatedUrl = url;
