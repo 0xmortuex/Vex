@@ -138,6 +138,12 @@ contextBridge.exposeInMainWorld('vex', {
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),
   vaultSave: (entry) => ipcRenderer.invoke('vault:save', entry),
   vaultDelete: (q) => ipcRenderer.invoke('vault:delete', q),
+  // TOTP authenticator (2FA). Secrets stay in the main process — the renderer
+  // only ever gets metadata (totpList) and the finished 6-digit codes (totpCodes).
+  totpList: () => ipcRenderer.invoke('totp:list'),
+  totpCodes: () => ipcRenderer.invoke('totp:codes'),
+  totpAdd: (input) => ipcRenderer.invoke('totp:add', input),
+  totpDelete: (id) => ipcRenderer.invoke('totp:delete', id),
 
   // Permission prompts (geolocation, mic, camera, notifications, ...)
   onPermissionRequest:  (cb) => ipcRenderer.on('permission:request', (_e, d) => cb(d)),

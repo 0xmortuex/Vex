@@ -205,6 +205,9 @@
       <button class="sidebar-icon" data-panel="recall" title="Recall (full-text search of pages you've read)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.5-3.5"/><path d="M8 11h6M11 8v6" opacity="0.55"/></svg>
       </button>
+      <button class="sidebar-icon" data-panel="authenticator" title="Authenticator — 2FA codes (Discord, Roblox, GitHub…)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 3v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V5z"/><circle cx="12" cy="10" r="1.7"/><path d="M12 11.7V15"/></svg>
+      </button>
       <button class="sidebar-icon" data-panel="history" title="History (Ctrl+H)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       </button>
@@ -257,6 +260,7 @@
         <div class="panel" id="panel-feeds" style="display: none;"></div>
         <div class="panel" id="panel-annotations" style="display: none;"></div>
         <div class="panel" id="panel-recall" style="display: none;"></div>
+        <div class="panel" id="panel-authenticator" style="display: none;"></div>
         <div class="panel" id="panel-history" style="display: none;"></div>
         <div class="panel" id="panel-memory" style="display: none;"></div>
         <div class="panel" id="panel-schedules" style="display: none;"></div>
@@ -1022,6 +1026,7 @@
   <script src="js/accessibility.js"></script>
   <script src="js/annotations.js"></script>
   <script src="js/recall.js"></script>
+  <script src="js/authenticator.js"></script>
   <script src="js/privacy-pack.js"></script>
   <script src="js/devtools-pack.js"></script>
   <script src="js/web-monitor.js"></script>

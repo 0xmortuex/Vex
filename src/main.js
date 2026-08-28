@@ -753,6 +753,105 @@ ipcMain.handle('vault:delete', (_e, { host, username } = {}) => {
   } catch (err) { return { ok: false, error: err.message }; }
 });
 
+// === TOTP authenticator — 2FA codes (Discord/Roblox/GitHub/etc.) generated
+// locally per RFC 6238. Secrets are encrypted at rest with safeStorage
+// (OS keychain/DPAPI), same as the vault, and the SECRET NEVER LEAVES THE MAIN
+// PROCESS: the renderer only ever receives the finished 6-digit codes
+// (totp:codes), so a compromised web/renderer context can't read your seeds. ===
+const TOTP_FILE = () => path.join(app.getPath('userData'), 'totp.dat');
+function totpLoad() {
+  try {
+    const fsx = require('fs');
+    if (!fsx.existsSync(TOTP_FILE())) return [];
+    const arr = JSON.parse(safeStorage.decryptString(fsx.readFileSync(TOTP_FILE())));
+    return Array.isArray(arr) ? arr : [];
+  } catch (err) { console.error('[TOTP] load failed:', err.message); return []; }
+}
+function totpSave(arr) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('OS encryption unavailable');
+  require('fs').writeFileSync(TOTP_FILE(), safeStorage.encryptString(JSON.stringify(arr)));
+}
+function _b32decode(s) {
+  const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  s = String(s).replace(/=+$/, '').replace(/\s/g, '').toUpperCase();
+  let bits = 0, val = 0; const out = [];
+  for (const ch of s) { const i = A.indexOf(ch); if (i < 0) continue; val = (val << 5) | i; bits += 5; if (bits >= 8) { out.push((val >>> (bits - 8)) & 0xff); bits -= 8; } }
+  return Buffer.from(out);
+}
+function _totpCode(secret, { digits = 6, period = 30, algorithm = 'sha1' } = {}, when = Date.now()) {
+  const key = _b32decode(secret);
+  if (!key.length) throw new Error('Invalid secret');
+  const counter = Math.floor((when / 1000) / period);
+  const buf = Buffer.alloc(8);
+  buf.writeUInt32BE(Math.floor(counter / 0x100000000), 0);
+  buf.writeUInt32BE(counter >>> 0, 4);
+  const h = require('crypto').createHmac(algorithm, key).update(buf).digest();
+  const off = h[h.length - 1] & 0x0f;
+  const bin = ((h[off] & 0x7f) << 24) | ((h[off + 1] & 0xff) << 16) | ((h[off + 2] & 0xff) << 8) | (h[off + 3] & 0xff);
+  return String(bin % (10 ** digits)).padStart(digits, '0');
+}
+function _parseOtpauth(uri) {
+  try {
+    const u = new URL(String(uri).trim());
+    if (u.protocol !== 'otpauth:') return null;
+    if (u.host && u.host.toLowerCase() !== 'totp') return null; // TOTP only (not HOTP)
+    const secret = (u.searchParams.get('secret') || '').replace(/\s/g, '');
+    if (!secret) return null;
+    let label = decodeURIComponent((u.pathname || '').replace(/^\//, ''));
+    let issuer = u.searchParams.get('issuer') || '';
+    if (label.includes(':')) { const p = label.split(':'); if (!issuer) issuer = p[0].trim(); label = p.slice(1).join(':').trim(); }
+    const alg = (u.searchParams.get('algorithm') || 'SHA1').toLowerCase();
+    return {
+      label: label || issuer || 'Account', issuer,
+      secret,
+      algorithm: ['sha1', 'sha256', 'sha512'].includes(alg) ? alg : 'sha1',
+      digits: parseInt(u.searchParams.get('digits'), 10) || 6,
+      period: parseInt(u.searchParams.get('period'), 10) || 30,
+    };
+  } catch { return null; }
+}
+ipcMain.handle('totp:list', () => totpLoad().map(e => ({ id: e.id, label: e.label, issuer: e.issuer, digits: e.digits, period: e.period })));
+ipcMain.handle('totp:codes', () => {
+  const now = Date.now();
+  return totpLoad().map(e => {
+    try {
+      const code = _totpCode(e.secret, e, now);
+      const remaining = e.period - Math.floor((now / 1000) % e.period);
+      return { id: e.id, code, period: e.period, remaining };
+    } catch { return { id: e.id, code: null, period: e.period, remaining: 0, error: true }; }
+  });
+});
+ipcMain.handle('totp:add', (_e, input) => {
+  try {
+    let entry;
+    if (typeof input === 'string') {
+      entry = _parseOtpauth(input) || { label: 'Account', issuer: '', secret: input.replace(/\s/g, ''), algorithm: 'sha1', digits: 6, period: 30 };
+    } else if (input && typeof input === 'object') {
+      const parsed = _parseOtpauth(input.secret || '');
+      entry = parsed || {
+        label: (input.label || '').trim() || 'Account',
+        issuer: (input.issuer || '').trim(),
+        secret: String(input.secret || '').replace(/\s/g, ''),
+        algorithm: ['sha1', 'sha256', 'sha512'].includes(String(input.algorithm || '').toLowerCase()) ? String(input.algorithm).toLowerCase() : 'sha1',
+        digits: parseInt(input.digits, 10) || 6,
+        period: parseInt(input.period, 10) || 30,
+      };
+      if (parsed && (input.label || '').trim()) entry.label = String(input.label).trim(); // user override
+      if (parsed && (input.issuer || '').trim()) entry.issuer = String(input.issuer).trim();
+    } else return { ok: false, error: 'No input' };
+    if (!entry.secret) return { ok: false, error: 'No secret found in what you pasted' };
+    _totpCode(entry.secret, entry); // validate — throws on a bad key
+    entry.id = require('crypto').randomUUID();
+    entry.created = new Date().toISOString();
+    const arr = totpLoad(); arr.push(entry); totpSave(arr);
+    return { ok: true, id: entry.id, label: entry.label, issuer: entry.issuer };
+  } catch (err) { return { ok: false, error: err.message || 'Invalid key' }; }
+});
+ipcMain.handle('totp:delete', (_e, id) => {
+  try { totpSave(totpLoad().filter(e => e.id !== id)); return { ok: true }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('permissions:list',     () => loadPermissionDecisions());
 ipcMain.handle('permissions:revoke',   (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; savePermissionDecisions(d); return { ok: true }; });
 ipcMain.handle('permissions:clear-all', () => { savePermissionDecisions({}); return { ok: true }; });
