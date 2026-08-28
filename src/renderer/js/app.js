@@ -1109,7 +1109,10 @@
 
   // AI toggle button in top bar — syncs active state with panel
   // === Tabs sidebar toggle (Ctrl+B) ===
-  const tabsToggleBtn = document.getElementById('btn-toggle-tabs');
+  // The toolbar toggle button is #btn-toggle-tabs-left (there is no
+  // #btn-toggle-tabs element), so the active/pressed state must target it or it
+  // never shows. Clicks are bound separately below on the real buttons.
+  const tabsToggleBtn = document.getElementById('btn-toggle-tabs-left');
   function toggleTabsSidebar() {
     document.body.classList.toggle('tabs-hidden');
     tabsToggleBtn?.classList.toggle('active', document.body.classList.contains('tabs-hidden'));
@@ -1117,7 +1120,7 @@
   }
   if (tabsToggleBtn) tabsToggleBtn.addEventListener('click', toggleTabsSidebar);
   document.getElementById('btn-collapse-tabs')?.addEventListener('click', toggleTabsSidebar);
-  document.getElementById('btn-toggle-tabs-left')?.addEventListener('click', toggleTabsSidebar);
+  // (btn-toggle-tabs-left is tabsToggleBtn above — bound once, not twice.)
   // Restore on load
   if (localStorage.getItem('vex.tabsHidden') === 'true') {
     document.body.classList.add('tabs-hidden');

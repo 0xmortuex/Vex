@@ -15,7 +15,9 @@
 
 .download-toast {
   pointer-events: auto;
-  background: var(--vex-glass-strong);
+  /* Opaque: floats over the page's <webview> (backdrop-filter can't frost that),
+     so a translucent bg would let the page show through in the default theme. */
+  background: var(--vex-bg-elevated, #1b1e2e);
   backdrop-filter: var(--vex-blur-heavy);
   -webkit-backdrop-filter: var(--vex-blur-heavy);
   border: 1px solid var(--vex-border-medium);

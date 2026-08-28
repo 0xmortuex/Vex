@@ -17,7 +17,10 @@
   max-width: 600px;            /* match #url-bar max-width */
   z-index: 1000;
 
-  background: var(--vex-glass-strong);
+  /* Opaque: this URL-autocomplete dropdown hangs over the top of the page's
+     <webview>; backdrop-filter can't frost webview content, so a translucent bg
+     made suggestions unreadable over the page in the default theme. */
+  background: var(--vex-bg-elevated, #1b1e2e);
   backdrop-filter: var(--vex-blur-medium);
   -webkit-backdrop-filter: var(--vex-blur-medium);
   border: 1px solid var(--vex-border-medium);

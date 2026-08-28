@@ -460,14 +460,37 @@ const Onboarding = {
     } else if (key === 'theme') {
       const themes = (typeof ThemeManager !== 'undefined' ? ThemeManager.THEMES : []);
       const cur = (typeof ThemeManager !== 'undefined' ? ThemeManager.currentTheme : '');
-      body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${themes.map(t =>
-        `<button data-theme="${t.id}" style="padding:14px 6px;border-radius:11px;border:2px solid ${t.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:11.5px;display:flex;flex-direction:column;align-items:center;gap:7px">
-          <span style="width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:linear-gradient(135deg,var(--primary),var(--surface))"></span>${this._esc(t.label)}</button>`).join('')}</div>`;
+      // The "Look" chooser is synced with the live Glass/Classic setting
+      // (VexGuiStyle) so it isn't buried in the Custom setup card — it's a
+      // first-class choice on every path, and reflects whatever the setup-style
+      // step already applied.
+      let curGui = 'classic';
+      try { curGui = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic'; } catch {}
+      const look = (id, label, desc) => `
+        <button data-gui="${id}" style="text-align:left;padding:12px 14px;border-radius:11px;border:2px solid ${id === curGui ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;display:flex;flex-direction:column;gap:3px">
+          <span style="font-size:13px;font-weight:700">${this._esc(label)}</span>
+          <span style="font-size:11.5px;color:var(--text-muted);line-height:1.4">${this._esc(desc)}</span>
+        </button>`;
+      body.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${themes.map(t =>
+          `<button data-theme="${t.id}" style="padding:14px 6px;border-radius:11px;border:2px solid ${t.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:11.5px;display:flex;flex-direction:column;align-items:center;gap:7px">
+            <span style="width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:linear-gradient(135deg,var(--primary),var(--surface))"></span>${this._esc(t.label)}</button>`).join('')}</div>
+        <div style="margin-top:16px;font-size:12px;font-weight:700;color:var(--text)">Look</div>
+        <div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">The overall Vex chrome — switch anytime in Settings → Appearance.</div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+          ${look('glass', 'Glass', 'Frosted UI, tabs on top, a shortcut bar.')}
+          ${look('classic', 'Classic', 'Solid UI, tabs down the sidebar.')}
+        </div>`;
       body.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', () => {
         const id = b.dataset.theme;
         try { ThemeManager.applyTheme(id); } catch {}
         body.querySelectorAll('[data-theme]').forEach(x => x.style.borderColor = 'var(--border)');
         b.style.borderColor = 'var(--primary)';
+      }));
+      body.querySelectorAll('[data-gui]').forEach(b => b.addEventListener('click', () => {
+        const g = b.dataset.gui;
+        try { window.VexGuiStyle?.set(g); } catch {}
+        body.querySelectorAll('[data-gui]').forEach(x => x.style.borderColor = x.dataset.gui === g ? 'var(--primary)' : 'var(--border)');
       }));
     } else if (key === 'language') {
       const LANGS = [

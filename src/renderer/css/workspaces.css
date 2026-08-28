@@ -25,7 +25,9 @@
 
 #workspace-dropdown {
   position: absolute; top: 100%; left: 0; margin-top: 6px;
-  background: var(--vex-glass-strong);
+  /* Opaque: this switcher overhangs the page's <webview> (backdrop-filter can't
+     frost it), so a translucent bg let the page bleed through in the default theme. */
+  background: var(--vex-bg-elevated, #1b1e2e);
   backdrop-filter: var(--vex-blur-heavy);
   -webkit-backdrop-filter: var(--vex-blur-heavy);
   border: 1px solid var(--vex-border-medium);

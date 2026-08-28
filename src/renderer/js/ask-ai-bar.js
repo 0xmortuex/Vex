@@ -6,6 +6,7 @@ const AskAIBar = (() => {
   let bar = null;
   let input = null;
   let outsideClickHandler = null;
+  let blurHandler = null;
 
   function _el() {
     if (!bar) bar = document.getElementById('ask-ai-bar');
@@ -39,6 +40,10 @@ const AskAIBar = (() => {
         if (!bar.contains(e.target)) close();
       };
       document.addEventListener('mousedown', outsideClickHandler);
+      // A click inside the page's <webview> never reaches the host document, so
+      // also close on window blur (focus entering the guest fires it).
+      blurHandler = () => close();
+      window.addEventListener('blur', blurHandler);
     }, 0);
   }
 
@@ -50,6 +55,10 @@ const AskAIBar = (() => {
     if (outsideClickHandler) {
       document.removeEventListener('mousedown', outsideClickHandler);
       outsideClickHandler = null;
+    }
+    if (blurHandler) {
+      window.removeEventListener('blur', blurHandler);
+      blurHandler = null;
     }
   }
 

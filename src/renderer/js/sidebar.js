@@ -213,6 +213,11 @@ const SidebarManager = {
       });
     });
 
+    // One-time: hide the niche feature panels by default so the sidebar ships
+    // lean (the browser core + apps stay; the rest are one click away in
+    // Settings → Sidebar). Runs once per install; respects later user choices.
+    this._applyLeanDefault();
+
     // Apply any saved per-button customizations (name/icon/link/hidden).
     this.applyPanelOverrides();
 
@@ -563,15 +568,42 @@ const SidebarManager = {
     return !!(cfg && cfg.url);
   },
 
+  // Niche feature panels hidden from the rail by default — they stay fully
+  // available in Settings → Sidebar (Show) and the command bar (Ctrl+K). The
+  // browser core (start/bookmarks/history/downloads/settings), the app panels
+  // (WhatsApp/Claude/Spotify/Netflix/Discord/Roblox) and Notes/Authenticator
+  // stay visible.
+  DEFAULT_HIDDEN_PANELS: ['queue', 'memory', 'schedules', 'library', 'feeds', 'annotations', 'recall'],
+
+  // Applied once per install (guarded by vex.sidebarLeanV1). Merges hidden:true
+  // onto each default-hidden panel; a later Show in Settings sticks because this
+  // never runs again. Idempotent and safe if the flag is pre-set (e.g. applied
+  // live to an already-running instance).
+  _applyLeanDefault() {
+    try {
+      if (localStorage.getItem('vex.sidebarLeanV1')) return;
+      const ov = loadPanelOverrides();
+      for (const p of this.DEFAULT_HIDDEN_PANELS) ov[p] = Object.assign({}, ov[p], { hidden: true });
+      savePanelOverrides(ov);
+      localStorage.setItem('vex.sidebarLeanV1', '1');
+    } catch {}
+  },
+
   applyPanelOverrides() {
     const ov = loadPanelOverrides();
+    // Iterate EVERY sidebar button, not just the ones with an override — a
+    // panel whose override was removed (e.g. un-hidden by switching setup
+    // profile from Minimal back to Full) must have its display reset, or it
+    // stays stuck at display:none. Applying URL overrides still only needs the
+    // override map, so that stays keyed off ov.
     Object.keys(ov).forEach(panel => {
       const o = ov[panel] || {};
       if (o.url && this.panelConfigs[panel]) this.panelConfigs[panel].url = o.url;
-      const btn = document.querySelector('.sidebar-icon[data-panel="' + panel + '"]');
-      if (!btn) return;
-      if (o.hidden) { btn.style.display = 'none'; return; }
-      btn.style.display = '';
+    });
+    document.querySelectorAll('.sidebar-icon[data-panel]').forEach(btn => {
+      const panel = btn.dataset.panel;
+      const o = ov[panel] || {};
+      btn.style.display = o.hidden ? 'none' : '';
       if (o.name) btn.title = o.name;
       if (o.icon && SIDEBAR_ICONS[o.icon]) btn.innerHTML = SIDEBAR_ICONS[o.icon];
     });
@@ -733,8 +765,8 @@ const SidebarManager = {
       pop.appendChild(b);
     });
     document.body.appendChild(pop);
-    if (window.TabManager?._clampMenuToViewport) TabManager._clampMenuToViewport(pop, e.clientX, e.clientY);
-    if (window.TabManager?._attachMenuDismissal) TabManager._attachMenuDismissal(pop);
+    if (window.Tabs?._clampMenuToViewport) TabManager._clampMenuToViewport(pop, e.clientX, e.clientY);
+    if (window.Tabs?._attachMenuDismissal) TabManager._attachMenuDismissal(pop);
   },
 
   // Right-click context menu for ANY sidebar button. The item set adapts to the
@@ -1047,7 +1079,7 @@ const SidebarManager = {
       // torn down too — otherwise it lingers and eats the next click.
       el.addEventListener('click', () => {
         item.action();
-        if (window.TabManager?._dismissMenu) TabManager._dismissMenu(menu); else menu.remove();
+        if (window.Tabs?._dismissMenu) TabManager._dismissMenu(menu); else menu.remove();
       });
       menu.appendChild(el);
     });
@@ -1055,10 +1087,10 @@ const SidebarManager = {
     document.body.appendChild(menu);
 
     // Reuse TabManager's clamp + dismissal so behavior matches the tab menu.
-    if (window.TabManager?._clampMenuToViewport) {
+    if (window.Tabs?._clampMenuToViewport) {
       TabManager._clampMenuToViewport(menu, x, y);
     }
-    if (window.TabManager?._attachMenuDismissal) {
+    if (window.Tabs?._attachMenuDismissal) {
       TabManager._attachMenuDismissal(menu);
     } else {
       // Defensive fallback if tabs.js loads after sidebar.js for any reason.

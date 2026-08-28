@@ -14,7 +14,10 @@
   pointer-events: none;
   width: 280px;
 
-  background: var(--vex-glass-strong, rgba(38, 34, 30, 0.65));
+  /* Opaque: this hover preview floats over the page's <webview>, and
+     backdrop-filter can't frost webview content, so a translucent bg let the
+     page bleed through (default theme's --vex-glass-strong is only 0.65 alpha). */
+  background: var(--vex-bg-elevated, #252220);
   -webkit-backdrop-filter: var(--vex-blur-medium, blur(20px) saturate(140%));
   backdrop-filter: var(--vex-blur-medium, blur(20px) saturate(140%));
   border: 1px solid var(--vex-border-medium, rgba(255, 255, 255, 0.1));

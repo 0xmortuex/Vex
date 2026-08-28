@@ -59,7 +59,7 @@
     try {
       if (window.WebviewManager && typeof WebviewManager.getActiveWebview === 'function') {
         const wv = WebviewManager.getActiveWebview();
-        if (wv && typeof wv.loadURL === 'function') { wv.loadURL(url); return; }
+        if (wv && typeof wv.loadURL === 'function') { wv.loadURL(url).catch(() => {}); return; }
       }
     } catch {}
     try {

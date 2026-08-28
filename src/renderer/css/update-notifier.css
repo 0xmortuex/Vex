@@ -1,7 +1,8 @@
 /* === Update Notification === */
 .update-notif {
   position: fixed; bottom: 20px; right: 20px; width: 360px;
-  background: var(--vex-glass-strong);
+  /* Opaque: floats over the page's <webview> (backdrop-filter can't frost it). */
+  background: var(--vex-bg-elevated, #1b1e2e);
   backdrop-filter: var(--vex-blur-heavy);
   -webkit-backdrop-filter: var(--vex-blur-heavy);
   border: 1px solid var(--vex-border-medium);

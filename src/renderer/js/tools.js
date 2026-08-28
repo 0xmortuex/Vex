@@ -146,15 +146,22 @@ const VexTools = {
       const el = document.createElement('div');
       el.className = `tab-context-item${item.danger ? ' danger' : ''}`;
       el.textContent = item.label;
-      el.addEventListener('click', () => { item.action(); menu.remove(); });
+      el.addEventListener('click', () => { item.action(); if (window.Tabs?._dismissMenu) Tabs._dismissMenu(menu); else menu.remove(); });
       menu.appendChild(el);
     });
 
     document.body.appendChild(menu);
-    setTimeout(() => {
-      const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } };
-      document.addEventListener('click', close);
-    }, 0);
+    // Overlay-based dismissal so a click into the page's <webview> (whose events
+    // never reach the host document) still closes the menu — matches the tab and
+    // sidebar context menus.
+    if (window.Tabs?._attachMenuDismissal) {
+      TabManager._attachMenuDismissal(menu);
+    } else {
+      setTimeout(() => {
+        const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } };
+        document.addEventListener('click', close);
+      }, 0);
+    }
   },
 
   showEditModal(tool) {

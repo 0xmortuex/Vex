@@ -1222,10 +1222,14 @@ const TabManager = {
       if (!targetEl) return;
 
       const targetId = targetEl.dataset.tabId;
-      if (draggedId === targetId) return;
+      // Stack-header rows are also .tab-item but carry only dataset.stackId (no
+      // tabId). Without this guard targetIdx becomes -1 and splice(-1,0) drops
+      // the tab before the LAST tab instead of onto the target.
+      if (!targetId || draggedId === targetId) return;
 
       const dragIdx = this.tabs.findIndex(t => t.id === draggedId);
       const targetIdx = this.tabs.findIndex(t => t.id === targetId);
+      if (dragIdx < 0 || targetIdx < 0) return;
 
       const [dragged] = this.tabs.splice(dragIdx, 1);
       this.tabs.splice(targetIdx, 0, dragged);

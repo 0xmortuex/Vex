@@ -69,11 +69,16 @@ const ExtensionsMenu = {
     btn.classList.add('active');
 
     // Dismiss on outside click / Esc (deferred so the opening click doesn't close it).
+    // A click INSIDE the page's <webview> never reaches the host document, so
+    // also close on window blur (focus moving into the guest fires it) — else
+    // the menu stays stuck open when the user clicks the web page.
     this._onDoc = (ev) => { if (this._menu && !this._menu.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) this.close(); };
     this._onKey = (ev) => { if (ev.key === 'Escape') this.close(); };
+    this._onBlur = () => this.close();
     setTimeout(() => {
       document.addEventListener('mousedown', this._onDoc, true);
       document.addEventListener('keydown', this._onKey, true);
+      window.addEventListener('blur', this._onBlur);
     }, 0);
   },
 
@@ -82,7 +87,8 @@ const ExtensionsMenu = {
     document.getElementById('btn-extensions')?.classList.remove('active');
     if (this._onDoc) document.removeEventListener('mousedown', this._onDoc, true);
     if (this._onKey) document.removeEventListener('keydown', this._onKey, true);
-    this._onDoc = this._onKey = null;
+    if (this._onBlur) window.removeEventListener('blur', this._onBlur);
+    this._onDoc = this._onKey = this._onBlur = null;
   },
 
   _run(it) {

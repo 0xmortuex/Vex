@@ -1185,15 +1185,31 @@ ipcMain.handle('media:download', (_e, wcId, url) => {
   return { ok: false, error: 'tab not found' };
 });
 
+// Chrome-style collision handling: setting an explicit save path bypasses
+// Electron's automatic "file (1).ext" dedup, so a second download of the same
+// name would silently OVERWRITE the first on disk. Find a free name instead.
+function _uniqueDownloadPath(dir, filename) {
+  const fs = require('fs');
+  let candidate = path.join(dir, filename);
+  if (!fs.existsSync(candidate)) return candidate;
+  const ext = path.extname(filename);
+  const base = path.basename(filename, ext);
+  for (let i = 1; i < 1000; i++) {
+    candidate = path.join(dir, `${base} (${i})${ext}`);
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  return path.join(dir, `${base} (${Date.now()})${ext}`);
+}
+
 function wireDownloadsOnSession(ses, tag) {
   if (!ses || ses.__vexDownloadsWired) return;
   ses.__vexDownloadsWired = true;
   ses.on('will-download', (event, item) => {
-    const savePath = path.join(app.getPath('downloads'), item.getFilename());
+    const savePath = _uniqueDownloadPath(app.getPath('downloads'), item.getFilename());
     item.setSavePath(savePath);
     const info = {
       id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      fileName: item.getFilename(),
+      fileName: path.basename(savePath),
       url: item.getURL(),
       totalBytes: item.getTotalBytes(),
       path: savePath,

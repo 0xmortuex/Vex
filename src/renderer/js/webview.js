@@ -187,12 +187,15 @@ const WebviewManager = {
         const el = document.createElement('div');
         el.className = 'tab-context-item';
         el.textContent = it.label;
-        el.addEventListener('click', () => { it.act(); menu.remove(); });
+        // _dismissMenu (not bare menu.remove) so the dismissal overlay is torn
+        // down with the menu — otherwise it orphans over the page and eats the
+        // next click.
+        el.addEventListener('click', () => { it.act(); if (window.Tabs?._dismissMenu) Tabs._dismissMenu(menu); else menu.remove(); });
         menu.appendChild(el);
       });
       document.body.appendChild(menu);
-      if (window.TabManager?._clampMenuToViewport) TabManager._clampMenuToViewport(menu, parseInt(menu.style.left), parseInt(menu.style.top));
-      if (window.TabManager?._attachMenuDismissal) TabManager._attachMenuDismissal(menu);
+      if (window.Tabs?._clampMenuToViewport) TabManager._clampMenuToViewport(menu, parseInt(menu.style.left), parseInt(menu.style.top));
+      if (window.Tabs?._attachMenuDismissal) TabManager._attachMenuDismissal(menu);
     });
 
     webview.addEventListener('did-navigate', (e) => {
@@ -465,7 +468,13 @@ const WebviewManager = {
       // Electron webview DOM element uses .src or .loadURL()
       // .loadURL() is the correct webview API method, but .src works as fallback
       if (typeof wv.loadURL === 'function') {
-        wv.loadURL(url);
+        // A navigation superseded by another rejects with ERR_ABORTED (-3);
+        // that's expected (and the webview shows its own error UI for real
+        // failures), so ignore the abort instead of leaking an uncaught rejection.
+        wv.loadURL(url).catch(err => {
+          const m = String((err && err.message) || err);
+          if (!/ERR_ABORTED|\(-3\)/.test(m)) console.warn('[Vex] navigate failed:', m);
+        });
       } else {
         wv.src = url;
       }
@@ -698,10 +707,10 @@ const WebviewManager = {
                 if (r && typeof r.then === 'function') {
                   r.then((ok) => {
                     if (!ok) console.warn('[Vex spell] word not re-selected; typing anyway');
-                    setTimeout(typeTrusted, 25);
-                  }).catch((err) => { console.warn('[Vex spell] select failed:', err); setTimeout(typeTrusted, 25); });
+                    setTimeout(typeTrusted, 180);
+                  }).catch((err) => { console.warn('[Vex spell] select failed:', err); setTimeout(typeTrusted, 180); });
                 } else {
-                  setTimeout(typeTrusted, 25);
+                  setTimeout(typeTrusted, 180);
                 }
               } catch (err) {
                 console.error('[Vex spell] replace error:', err);

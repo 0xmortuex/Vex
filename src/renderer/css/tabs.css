@@ -282,9 +282,11 @@
 /* Tab Context Menu */
 .tab-context-menu {
   position: fixed;
-  background: var(--vex-glass-strong);
-  backdrop-filter: var(--vex-blur-heavy);
-  -webkit-backdrop-filter: var(--vex-blur-heavy);
+  /* OPAQUE, not glass: this menu opens over the webview, and backdrop-filter
+     cannot frost <webview> content — a translucent background let the page's
+     colors bleed through and camouflaged the items. An elevated solid surface
+     stays readable over any page in any theme. */
+  background: var(--vex-bg-elevated, #1b1e2e);
   border: 1px solid var(--vex-border-medium);
   border-radius: var(--vex-radius-md);
   padding: 6px;

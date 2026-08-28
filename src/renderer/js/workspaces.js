@@ -195,13 +195,20 @@ const WorkspaceManager = {
 
   showDropdown() {
     document.getElementById('workspace-dropdown')?.classList.add('visible');
+    const onBlur = () => close();
     const close = (e) => {
-      if (!e.target.closest('#workspace-switcher')) {
+      // No event = window blur (focus moved into the page's <webview>, whose
+      // clicks never reach the host document) → always close.
+      if (!e || !e.target || !e.target.closest('#workspace-switcher')) {
         this.hideDropdown();
         document.removeEventListener('click', close);
+        window.removeEventListener('blur', onBlur);
       }
     };
-    setTimeout(() => document.addEventListener('click', close), 0);
+    setTimeout(() => {
+      document.addEventListener('click', close);
+      window.addEventListener('blur', onBlur);
+    }, 0);
   },
 
   hideDropdown() {

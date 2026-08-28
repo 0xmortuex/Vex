@@ -133,11 +133,11 @@ const HistoryIndexer = (() => {
   function reindexOpenTabs() {
     if (!window.HistoryPanel || !Array.isArray(HistoryPanel.entries)) return 0;
     const unindexed = HistoryPanel.entries.filter(e => !e.indexed);
-    if (!window.TabManager || !Array.isArray(TabManager.tabs)) return 0;
+    if (!window.Tabs || !Array.isArray(Tabs.tabs)) return 0;
 
     let queued = 0;
     for (const entry of unindexed) {
-      const tab = TabManager.tabs.find(t => {
+      const tab = Tabs.tabs.find(t => {
         try {
           const wv = t.webview;
           return wv && typeof wv.getURL === 'function' && wv.getURL() === entry.url;

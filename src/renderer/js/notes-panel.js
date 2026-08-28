@@ -41,7 +41,7 @@ const NotesPanel = {
             <div class="spacer"></div>
             <span class="notes-word-count" id="notes-word-count">0 words</span>
           </div>
-          <div class="notes-editor-area">
+          <div class="notes-editor-area" id="notes-editor-area">
             <textarea id="notes-content-area" placeholder="Start writing..."></textarea>
           </div>
         </div>

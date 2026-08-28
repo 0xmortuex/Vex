@@ -10,23 +10,37 @@
    2) SKIN — frosted-glass translucent chrome with a soft color glow behind.
    Only the CHROME is glassed; webview/page content is never blurred.        */
 
-/* ---- 0. Glass owns its ENTIRE palette ----
-   Override every core token so the active Classic color theme can't leak in.
-   Glass looks identical no matter which theme is selected — everything matches. */
+/* ---- 0. Glass palette DERIVES from the active color theme ----
+   The frosted SURFACES stay theme-agnostic white-alpha (translucent whites read
+   on any hue), but the base tint, the accent, the glow and the accent borders
+   are mixed from the theme's --primary/--accent — so switching color theme
+   actually recolors Glass instead of leaving it a fixed indigo.
+   --primary / --accent are intentionally NOT overridden here: Glass inherits
+   them from the active theme (set on <html>), and everything below reads them. */
 body[data-gui-style="glass"] {
-  /* legacy token family */
-  --bg: #0b0d18; --bg-2: #11142a; --sidebar: rgba(255,255,255,0.05); --surface: #171a2e;
+  /* The active theme's SIGNATURE color lives in --vex-accent (dark themes pin
+     --primary to a fixed brand indigo, so --vex-accent is the reliable source).
+     --g-accent is that color; --g-accent2 is a lighter tint for the 2nd glow. */
+  --g-accent:  var(--vex-accent, var(--primary, #8b8bf5));
+  --g-accent2: color-mix(in srgb, var(--g-accent) 58%, #ffffff);
+  /* legacy token family — a DARK, theme-tinted base so the chrome takes the hue */
+  --bg:   color-mix(in srgb, var(--g-accent) 12%, #07080f);
+  --bg-2: color-mix(in srgb, var(--g-accent) 16%, #0b0c15);
+  --sidebar: rgba(255,255,255,0.05);
+  --surface: color-mix(in srgb, var(--g-accent) 14%, #12141f);
   --border: rgba(255,255,255,0.12); --text: #eef0ff; --text-muted: #a6abd4;
-  --primary: #8b8bf5; --primary-hover: #a5a5fb; --accent: #e07fb8;
   --radius: 10px; --radius-sm: 7px; --radius-lg: 14px;
-  /* --vex- token family */
-  --vex-bg-base: #0b0d18; --vex-bg-elevated: #14182c; --vex-bg-deep: #080a14;
+  /* --vex- token family — dark tinted bases + theme-agnostic frosted surfaces */
+  --vex-bg-base:     color-mix(in srgb, var(--g-accent) 12%, #07080f);
+  --vex-bg-elevated: color-mix(in srgb, var(--g-accent) 18%, #0d0f18);
+  --vex-bg-deep:     color-mix(in srgb, var(--g-accent) 9%, #05060b);
   --vex-glass-strong: rgba(255,255,255,0.10); --vex-glass-medium: rgba(255,255,255,0.07); --vex-glass-light: rgba(255,255,255,0.05);
   --vex-glass-tab-active: rgba(255,255,255,0.20); --vex-glass-tab-inactive: rgba(255,255,255,0.07); --vex-glass-input: rgba(255,255,255,0.12);
   --vex-border-subtle: rgba(255,255,255,0.12); --vex-border-medium: rgba(255,255,255,0.18); --vex-border-strong: rgba(255,255,255,0.26);
-  --vex-border-accent: rgba(139,139,245,0.5); --vex-border-accent-strong: rgba(139,139,245,0.7);
-  --vex-accent: #8b8bf5; --vex-accent-dim: rgba(139,139,245,0.6); --vex-accent-glow: rgba(139,139,245,0.28);
-  --vex-text-primary: #eef0ff; --vex-text-secondary: #c4c8ec; --vex-text-muted: #9499c4; --vex-text-accent: #b9b9ff;
+  --vex-text-primary: #eef0ff; --vex-text-secondary: #c4c8ec; --vex-text-muted: #9499c4;
+  /* The ACCENT tokens (--vex-accent, --vex-accent-dim/glow, --vex-border-accent*,
+     --vex-text-accent, --primary, --accent) are intentionally NOT overridden —
+     they inherit from the active theme, so Glass takes on the theme's color. */
 }
 
 /* ---- 1. Layout: tabs on top → toolbar → shortcuts → content ---- */
@@ -44,8 +58,8 @@ body[data-gui-style="glass"] .top-tab-bar { display: flex !important; border-bot
 /* ---- 2. Background glow ---- */
 body[data-gui-style="glass"] {
   background:
-    radial-gradient(1000px 520px at 10% -8%, rgba(99,102,241,0.42), transparent 60%),
-    radial-gradient(1000px 620px at 96% 108%, rgba(236,72,153,0.34), transparent 55%),
+    radial-gradient(1000px 520px at 10% -8%, color-mix(in srgb, var(--g-accent) 42%, transparent), transparent 60%),
+    radial-gradient(1000px 620px at 96% 108%, color-mix(in srgb, var(--g-accent2) 32%, transparent), transparent 55%),
     var(--vex-bg-base, #0b0d18) !important;
   background-attachment: fixed;
 }

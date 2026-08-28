@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.29.7 (2026-08-28) — Cleaner sidebar, theme-aware Glass, and a wave of fixes
+
+### Added
+- **The sidebar ships lean.** Only the browser core, your apps, Notes, Authenticator and GitHub stats show by default; the niche panels (Tab queue, RSS, Library, Annotations, Recall, AI memory, Schedules) are tucked away — one click to bring any back in **Settings → Sidebar**, or open them anytime with **Ctrl+K**.
+- **Glass is now a first-class choice in the setup wizard**, and **the Glass look takes on your color theme** — pick Crimson and the frosted chrome glows red, Emerald green, and so on, instead of a fixed indigo.
+
+### Fixed
+- **Notes were unusable.** Selecting or creating a note threw an error and the editor never populated — the panel is fully working again.
+- **Autofill typed your email into the wrong places.** In Discord, the "+ Add role" picker and "Find or start a conversation" search got your saved email. Autofill now only fills genuine login fields (never search/combobox boxes), while real logins — including 2-step email-first ones — still fill.
+- **Right-click and popup menus wouldn't close when you clicked the web page.** The sidebar-button menu, tab menu, tools menu, extensions menu, media/volume/read-free popups and more now dismiss on the first click anywhere.
+- **Menus were camouflaged over web pages.** The tab right-click menu and the URL-bar suggestions were semi-transparent and hard to read over a site; they're now solid.
+- **Downloads silently overwrote same-name files.** A second `image.png` clobbered the first on disk — Vex now keeps both (`image (1).png`).
+- **Sidebar buttons vanished when switching setup style** (Minimal ⇄ Full) and didn't come back; switching now restores every panel.
+- **Smaller fixes:** URL-bar ArrowUp now reaches the last suggestion; the command palette no longer shows a duplicate "History"; dragging a tab onto a stack no longer misplaces it; open-tab full-text history indexing works again; the tab-sidebar toggle shows its pressed state; a benign navigation error no longer spams the console; and the Discord spellcheck replacement is more reliable.
+
 ## v2.29.6 (2026-08-27) — Safer DRM settings + build guardrail
 
 ### Fixed

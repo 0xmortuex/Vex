@@ -54,9 +54,13 @@ const ReadFree = {
 
     this._onKey = (e) => { if (e.key === 'Escape') this.close(); };
     this._onDoc = (e) => { if (this._el && !this._el.contains(e.target)) this.close(); };
+    // Page <webview> clicks don't reach the host document, so also close on
+    // window blur (focus into the guest fires it) — else the popup stays stuck.
+    this._onBlur = () => this.close();
     setTimeout(() => {
       document.addEventListener('keydown', this._onKey, true);
       document.addEventListener('mousedown', this._onDoc, true);
+      window.addEventListener('blur', this._onBlur);
     }, 0);
   },
 
@@ -99,7 +103,8 @@ const ReadFree = {
     if (this._el) { this._el.remove(); this._el = null; }
     if (this._onKey) document.removeEventListener('keydown', this._onKey, true);
     if (this._onDoc) document.removeEventListener('mousedown', this._onDoc, true);
-    this._onKey = this._onDoc = null;
+    if (this._onBlur) window.removeEventListener('blur', this._onBlur);
+    this._onKey = this._onDoc = this._onBlur = null;
   },
 
   _injectStyles() {

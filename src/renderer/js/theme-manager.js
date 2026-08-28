@@ -148,7 +148,10 @@ const ThemeManager = {
               newUrl = url.split('#')[0].split('?')[0] + `?theme=${safe}`;
             }
             try {
-              if (typeof wv.loadURL === 'function') wv.loadURL(newUrl);
+              // .catch: a start-page reload superseded by another navigation
+              // rejects with ERR_ABORTED (-3) — expected and self-healing, but
+              // without a catch it surfaces as an uncaught rejection on startup.
+              if (typeof wv.loadURL === 'function') wv.loadURL(newUrl).catch(() => {});
               else wv.src = newUrl;
             } catch {}
           }

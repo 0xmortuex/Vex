@@ -335,7 +335,9 @@ const SmartSearchbar = (() => {
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      _selectedIndex = (_selectedIndex - 1 + _results.length) % _results.length;
+      // From the unselected state (-1) OR the first row, wrap to the LAST row.
+      // (The old (idx-1+N)%N mapped -1 → N-2, skipping the last suggestion.)
+      _selectedIndex = (_selectedIndex <= 0) ? _results.length - 1 : _selectedIndex - 1;
       _refreshSelection();
       return true;
     }
