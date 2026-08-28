@@ -31,8 +31,6 @@ const PersonasSettings = (() => {
   function renderPersonaCard(persona) {
     const prompt = persona.systemPrompt || '';
     const preview = prompt.length > 140 ? prompt.substring(0, 140) + '\u2026' : prompt;
-    const backendIcon = persona.preferredBackend === 'local' ? '\ud83d\udd12'
-                       : persona.preferredBackend === 'cloud' ? '\u2601\ufe0f' : '\u2699\ufe0f';
     return `
       <div class="persona-card ${persona.isBuiltIn ? 'builtin' : ''}" data-persona-id="${escapeHtml(persona.id)}">
         <div class="persona-card-header">
@@ -46,7 +44,6 @@ const PersonasSettings = (() => {
         <div class="persona-card-prompt">${escapeHtml(preview)}</div>
         <div class="persona-card-meta">
           <span class="meta-item">\ud83c\udf21\ufe0f ${persona.temperature}</span>
-          <span class="meta-item">${backendIcon} ${escapeHtml(persona.preferredBackend)}</span>
           <span class="meta-item">${(persona.quickPrompts || []).length} prompts</span>
         </div>
         <div class="persona-card-actions">
@@ -159,21 +156,11 @@ const PersonasSettings = (() => {
           <textarea id="pe-prompt" rows="10" placeholder="You are [persona name]. Your job is to...">${escapeHtml(p.systemPrompt)}</textarea>
         </div>
 
-        <div class="form-row">
-          <div class="form-field" style="flex:1">
-            <label>Temperature <span class="hint">(0 = focused, 1 = creative)</span></label>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input type="range" id="pe-temperature" min="0" max="1" step="0.1" value="${p.temperature}" style="flex:1">
-              <span id="pe-temp-value" style="font-family:'JetBrains Mono',monospace;min-width:30px;text-align:right">${p.temperature}</span>
-            </div>
-          </div>
-          <div class="form-field" style="flex:1">
-            <label>Preferred AI Backend</label>
-            <select id="pe-backend">
-              <option value="auto" ${p.preferredBackend === 'auto' ? 'selected' : ''}>Auto</option>
-              <option value="cloud" ${p.preferredBackend === 'cloud' ? 'selected' : ''}>Cloud (Claude)</option>
-              <option value="local" ${p.preferredBackend === 'local' ? 'selected' : ''}>Local (Ollama)</option>
-            </select>
+        <div class="form-field">
+          <label>Temperature <span class="hint">(0 = focused, 1 = creative)</span></label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="range" id="pe-temperature" min="0" max="1" step="0.1" value="${p.temperature}" style="flex:1">
+            <span id="pe-temp-value" style="font-family:'JetBrains Mono',monospace;min-width:30px;text-align:right">${p.temperature}</span>
           </div>
         </div>
 
@@ -181,25 +168,6 @@ const PersonasSettings = (() => {
           <label>Quick Prompts <span class="hint">(one per line, max 5 &mdash; appear as buttons)</span></label>
           <textarea id="pe-prompts" rows="4" placeholder="Summarize this page&#10;Explain in simple terms&#10;Find the key argument">${escapeHtml((p.quickPrompts || []).join('\n'))}</textarea>
         </div>
-
-        <details class="advanced-section">
-          <summary>Advanced</summary>
-          <div class="form-field">
-            <label>Default tab context</label>
-            <select id="pe-context">
-              <option value="current" ${p.tabContextDefault === 'current' ? 'selected' : ''}>Current tab</option>
-              <option value="all" ${p.tabContextDefault === 'all' ? 'selected' : ''}>All open tabs</option>
-              <option value="group" ${p.tabContextDefault === 'group' ? 'selected' : ''}>Current group</option>
-              <option value="none" ${p.tabContextDefault === 'none' ? 'selected' : ''}>No context</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label style="display:flex;align-items:center;gap:8px">
-              <input type="checkbox" id="pe-followups" ${p.suggestedFollowUps ? 'checked' : ''}>
-              Suggest follow-up questions
-            </label>
-          </div>
-        </details>
 
         <div class="modal-actions" style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
           <button class="btn-secondary" id="pe-cancel">Cancel</button>
@@ -220,9 +188,6 @@ const PersonasSettings = (() => {
         icon: document.getElementById('pe-icon').value.trim() || '\ud83e\udd16',
         systemPrompt: document.getElementById('pe-prompt').value.trim(),
         temperature: parseFloat(document.getElementById('pe-temperature').value),
-        preferredBackend: document.getElementById('pe-backend').value,
-        tabContextDefault: document.getElementById('pe-context').value,
-        suggestedFollowUps: document.getElementById('pe-followups').checked,
         quickPrompts: document.getElementById('pe-prompts').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 5)
       };
       if (!data.name) { toast('Name required', 'warn'); return; }
