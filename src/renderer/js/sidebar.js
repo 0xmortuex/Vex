@@ -83,7 +83,7 @@ const SidebarManager = {
   activePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library', 'annotations', 'recall', 'authenticator'],
+  customPanels: ['settings', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library', 'annotations', 'recall', 'authenticator', 'privacy'],
 
   panelConfigs: {
     start: { url: null, partition: null },
@@ -107,7 +107,8 @@ const SidebarManager = {
     library: { url: null, partition: null },
     annotations: { url: null, partition: null },
     recall: { url: null, partition: null },
-    authenticator: { url: null, partition: null }
+    authenticator: { url: null, partition: null },
+    privacy: { url: null, partition: null }
   },
 
   // ---- Pin ANY site as a sidebar panel (Vivaldi-style web panels) ----
@@ -325,6 +326,7 @@ const SidebarManager = {
     if (panelName === 'annotations' && typeof Annotations !== 'undefined') Annotations.renderPanel(panelEl);
     if (panelName === 'recall' && typeof Recall !== 'undefined') Recall.renderPanel(panelEl);
     if (panelName === 'authenticator' && typeof Authenticator !== 'undefined') Authenticator.renderPanel(panelEl);
+    if (panelName === 'privacy' && typeof PrivacyDashboard !== 'undefined') PrivacyDashboard.renderPanel(panelEl);
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');
