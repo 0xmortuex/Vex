@@ -219,7 +219,14 @@ const WebviewManager = {
       // nothing to restore, and refresh would just reload about:blank (the exact
       // "tabs stuck on about:blank after wake, won't come back" bug). Keep the
       // last real URL in tab.url; reload()/render-process-gone recover from it.
-      if (/^about:blank\b/i.test(url)) return;
+      //
+      // data: URLs get the same treatment. Reading mode loads the article as a
+      // data:text/html snapshot; if that overwrote tab.url it'd be persisted and,
+      // after a restart (when ReadingMode's in-memory original-URL map is gone),
+      // the tab would be permanently stuck on the snapshot. It would also dump a
+      // multi-KB data: URL into history. Reading mode is a transient view, not a
+      // destination — leave tab.url on the real page and keep it out of history.
+      if (/^about:blank\b/i.test(url) || /^data:/i.test(url)) return;
       TabManager.updateTab(tab.id, { url });
       this._updateFavicon(tab.id, url);
       if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }

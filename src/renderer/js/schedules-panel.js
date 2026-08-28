@@ -212,7 +212,13 @@ const SchedulesPanel = {
       btn.addEventListener('click', () => btn.classList.toggle('selected'));
     });
 
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('visible'); });
+    // Guard: #sched-modal is a persistent element, so this backdrop listener
+    // would stack one copy per open (the inner-button listeners don't leak —
+    // those elements are rebuilt each time). Wire it exactly once.
+    if (!modal._backdropWired) {
+      modal._backdropWired = true;
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('visible'); });
+    }
     modal.querySelector('#sm-cancel').addEventListener('click', () => modal.classList.remove('visible'));
     modal.querySelector('#sm-save').addEventListener('click', () => {
       const name = modal.querySelector('#sm-name').value.trim();

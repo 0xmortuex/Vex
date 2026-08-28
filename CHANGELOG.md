@@ -22,6 +22,9 @@
 - **The AI chat could lock up.** An error in the wrong spot could leave the panel permanently refusing to send; it always recovers now.
 - **PiP button now refreshes when you switch tabs** (it could show stale state from the previous tab).
 - **Agent mode:** filling several fields on one page no longer aborts as "stuck," and the agent's type/select actions now report real success/failure instead of always "ok."
+- **Reading Mode could trap a tab.** Entering Reading Mode and then restarting (or restoring the tab from a session) left the tab stuck on the article snapshot with no way back to the real page, and dumped a huge snapshot URL into your history. Reading Mode is now treated as the temporary view it is — the tab keeps its real page and history stays clean.
+- **Restored tab stacks no longer vanish**, tab drag-reorder drops where you expect, and very large downloads (≥1 TB) show the right size unit.
+- **Fewer trackers:** the tab strip and history stopped fetching favicons from Google (which revealed your visited domains) — they use the site's own favicon now.
 - **Smaller fixes:** URL-bar ArrowUp now reaches the last suggestion; the command palette no longer shows a duplicate "History"; dragging a tab onto a stack no longer misplaces it; open-tab full-text history indexing works again; the tab-sidebar toggle shows its pressed state; a benign navigation error no longer spams the console; and the Discord spellcheck replacement is more reliable.
 
 ## v2.29.6 (2026-08-27) — Safer DRM settings + build guardrail
