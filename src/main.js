@@ -144,7 +144,7 @@ async function initWidevine(attempts = 2) {
 // === Privacy hardening: fingerprint farbling seed, DNS-over-HTTPS, tracker tally ===
 // Config persisted to userData/privacy.json. Everything defaults OFF so normal
 // browsing is untouched until the user opts in (Settings → Privacy Hardening).
-let privacyCfg = { farble: false, doh: 'off', dohProvider: 'cloudflare' };
+let privacyCfg = { farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false };
 // One stable seed per app run: farbling noise is consistent within a session
 // (so a single site sees a coherent fingerprint) but changes across sessions
 // (so it can't be used to link you over time). crypto so it's unguessable.
@@ -178,6 +178,40 @@ function _recordTracker(reqUrl, wcId) {
 function privacyLoad() {
   try { const fs = require('fs'); if (fs.existsSync(PRIVACY_FILE())) privacyCfg = { ...privacyCfg, ...JSON.parse(fs.readFileSync(PRIVACY_FILE(), 'utf8')) }; } catch {}
   return privacyCfg;
+}
+
+// --- HTTPS-Only mode (privacyCfg.httpsOnly) ---------------------------------
+// When on, upgrade http:// document navigations to https:// so you never load a
+// page in the clear where an encrypted version exists. Safety-critical detail:
+// we ONLY ever fall back to http for a host WE upgraded (tracked per-webContents
+// in _httpsUpgradedByWc) — never for a site the user explicitly requested over
+// https, which would be a silent downgrade. A host that genuinely has no https
+// is remembered for the session (_httpsOnlyFailed) so it stops being upgraded.
+const _httpsOnlyFailed = new Set();       // bare hosts known http-only this session
+const _httpsUpgradedByWc = new Map();     // wcId -> Set<bareHost> we upgraded (scoped fallback)
+function _httpsIsLocal(h) {
+  return h === 'localhost' || h === '::1' || h === '[::1]'
+    || /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || /\.local$/i.test(h) || /\.onion$/i.test(h);
+}
+function _httpsIsIpLiteral(h) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.includes(':'); }
+// Returns the https URL to redirect to, or null to leave the request alone.
+function _httpsUpgradeURL(details) {
+  if (!privacyCfg.httpsOnly) return null;
+  const rt = details.resourceType;
+  if (rt !== 'mainFrame' && rt !== 'subFrame') return null;
+  let u; try { u = new URL(details.url); } catch { return null; }
+  if (u.protocol !== 'http:') return null;
+  const hn = u.hostname;
+  if (_httpsIsLocal(hn) || _httpsIsIpLiteral(hn)) return null;   // local/dev/IP: no upgrade
+  if (u.port && u.port !== '80') return null;                    // custom-port http servers rarely have https
+  const bare = hn.replace(/^www\./, '');
+  if (_httpsOnlyFailed.has(bare)) return null;                   // proven http-only — don't loop
+  u.protocol = 'https:';
+  if (u.port === '80') u.port = '';
+  const wc = details.webContentsId;
+  if (wc != null) { let s = _httpsUpgradedByWc.get(wc); if (!s) { s = new Set(); _httpsUpgradedByWc.set(wc, s); } s.add(bare); }
+  return u.toString();
 }
 function privacySave() { try { require('fs').writeFileSync(PRIVACY_FILE(), JSON.stringify(privacyCfg)); } catch {} }
 const PRIVACY_FILE = () => path.join(app.getPath('userData'), 'privacy.json');
@@ -1080,7 +1114,9 @@ function wireAdblockerOnSession(ses, tag) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
-      callback({ cancel: false });
+      const upgraded = _httpsUpgradeURL(details);
+      if (upgraded) callback({ redirectURL: upgraded });
+      else callback({ cancel: false });
     }
   });
 }
@@ -1719,7 +1755,29 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('did-start-navigation', (_e, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) { try { _mediaByWc.delete(contents.id); } catch {} }
   });
-  contents.on('destroyed', () => { try { _mediaByWc.delete(contents.id); } catch {} });
+  contents.on('destroyed', () => { try { _mediaByWc.delete(contents.id); } catch {} try { _httpsUpgradedByWc.delete(contents.id); } catch {} });
+
+  // HTTPS-Only fallback: if a page WE upgraded to https can't load (no https, SSL
+  // failure, reset…), drop that host back to http for the rest of the session so
+  // the site still works. Scoped strictly to our own upgrades (never a downgrade
+  // of a site the user asked for over https). ERR_ABORTED (-3) is a superseded
+  // navigation, not a real failure — ignore it.
+  contents.on('did-fail-load', (_e, errorCode, _desc, validatedURL, isMainFrame) => {
+    if (!isMainFrame || !privacyCfg.httpsOnly || errorCode === -3) return;
+    let u; try { u = new URL(validatedURL); } catch { return; }
+    if (u.protocol !== 'https:') return;
+    const bare = u.hostname.replace(/^www\./, '');
+    const s = _httpsUpgradedByWc.get(contents.id);
+    if (!s || !s.has(bare)) return;               // only OUR upgrades fall back
+    s.delete(bare);
+    _httpsOnlyFailed.add(bare);
+    const httpUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
+    try { contents.loadURL(httpUrl); } catch {}
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', '⚠ ' + bare + ' has no HTTPS — loaded over an unencrypted connection'); } catch {}
+  });
+  // A clean main-frame load means there's no pending upgrade left to fall back
+  // for on this tab — clearing avoids a stale entry ever downgrading a later nav.
+  contents.on('did-finish-load', () => { try { _httpsUpgradedByWc.delete(contents.id); } catch {} });
 
   // (Gmail webview popup-intercept removed — Gmail now uses native IMAP/SMTP
   // via main/gmail/, no webview. persist:gmail partition is kept in the

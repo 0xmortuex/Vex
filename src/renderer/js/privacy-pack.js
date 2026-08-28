@@ -8,7 +8,7 @@
 // the "Privacy Report" overlay (Ctrl+K → Privacy Report).
 
 const PrivacyPack = {
-  cfg: { farble: false, doh: 'off', dohProvider: 'cloudflare' },
+  cfg: { farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false },
 
   async init() {
     try { const c = await window.vex?.privacyGetConfig?.(); if (c) this.cfg = { ...this.cfg, ...c }; } catch {}
@@ -28,6 +28,12 @@ const PrivacyPack = {
         <label class="toggle"><input type="checkbox" id="priv-farble" ${c.farble ? 'checked' : ''}><span class="toggle-slider"></span></label>
       </div>
       <p class="setting-info muted" style="margin:4px 0 12px;font-size:11px">Applies to pages you open <em>after</em> toggling. A few canvas-heavy apps (some games, design tools) may look slightly off — turn back off if so.</p>
+
+      <div class="setting-toggle-row">
+        <span>HTTPS-Only mode <span class="muted" style="font-size:11px">— always try the encrypted https version of a site first</span></span>
+        <label class="toggle"><input type="checkbox" id="priv-https-only" ${c.httpsOnly ? 'checked' : ''}><span class="toggle-slider"></span></label>
+      </div>
+      <p class="setting-info muted" style="margin:4px 0 12px;font-size:11px">Upgrades page loads from http to https. If a site genuinely has no https, Vex falls back to http for that site automatically (with a warning) so nothing breaks.</p>
 
       <div class="setting-row-label">DNS-over-HTTPS (encrypt your DNS lookups)</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -49,6 +55,10 @@ const PrivacyPack = {
     container.querySelector('#priv-farble').addEventListener('change', (e) => {
       this.setCfg({ farble: e.target.checked });
       window.showToast?.(e.target.checked ? '🛡 Fingerprint protection on (new pages)' : 'Fingerprint protection off');
+    });
+    container.querySelector('#priv-https-only').addEventListener('change', (e) => {
+      this.setCfg({ httpsOnly: e.target.checked });
+      window.showToast?.(e.target.checked ? '🔒 HTTPS-Only mode on' : 'HTTPS-Only mode off');
     });
     const dohSel = container.querySelector('#priv-doh');
     const provSel = container.querySelector('#priv-doh-provider');
