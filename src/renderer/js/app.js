@@ -226,6 +226,28 @@
   window.vex.onZoomOut(() => WebviewManager.zoomOut());
   window.vex.onZoomReset(() => WebviewManager.zoomReset());
 
+  // Core browsing shortcuts (Ctrl+L / Ctrl+Tab / Ctrl+1-9 / Ctrl+D) that must
+  // also work while a web page has focus. The main process forwards them from
+  // the guest <webview> to these channels; the same functions are bound to the
+  // host-focus ShortcutsRegistry below so both focus states behave identically.
+  const focusAddressBar = () => { const u = document.getElementById('url-input'); if (u) { u.focus(); u.select(); } };
+  const cycleTab = (dir) => {
+    const tabs = TabManager.tabs || [];
+    if (!tabs.length) return;
+    let i = tabs.findIndex(t => t.id === TabManager.activeTabId);
+    if (i < 0) i = 0;
+    TabManager.switchTab(tabs[(i + dir + tabs.length) % tabs.length].id);
+  };
+  const jumpToTab = (n) => { const t = (TabManager.tabs || [])[n - 1]; if (t) TabManager.switchTab(t.id); };
+  const bookmarkCurrent = () => { const t = TabManager.getActiveTab && TabManager.getActiveTab(); if (t && t.url && window.Bookmarks) Bookmarks.toggle(t.url, t.title); };
+  window.vex.onFocusAddressBar?.(focusAddressBar);
+  window.vex.onNextTab?.(() => cycleTab(1));
+  window.vex.onPrevTab?.(() => cycleTab(-1));
+  window.vex.onJumpToTab?.((n) => jumpToTab(n));
+  window.vex.onBookmarkCurrent?.(bookmarkCurrent);
+  // Host-focus bindings for these are registered in the ShortcutsRegistry block
+  // below (after ShortcutsRegistry.init()), reusing the functions above.
+
   // === Find in Page ===
   window.vex.onFindInPage(() => toggleFindBar());
 
@@ -841,7 +863,10 @@
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
     ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.());
     ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
-    ShortcutsRegistry.register('focus-url',      () => document.getElementById('url-bar')?.focus());
+    ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing
+    ShortcutsRegistry.register('next-tab',       () => cycleTab(1));
+    ShortcutsRegistry.register('prev-tab',       () => cycleTab(-1));
+    ShortcutsRegistry.register('bookmark',       bookmarkCurrent);
     ShortcutsRegistry.register('find-in-page',   () => { const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
   }
 

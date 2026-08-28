@@ -261,6 +261,39 @@ function handleHardReloadShortcut(event, input) {
   return false;
 }
 
+// Forward the core browser-navigation shortcuts from a focused GUEST page to the
+// renderer. before-input-event only fires where focus is, so without this the
+// user's tab/URL/zoom shortcuts do nothing the moment they click into a web page
+// (the host chrome handles them via ShortcutsRegistry when IT has focus).
+// Deliberately narrow: ONLY pure browser combos that web apps never use — so we
+// never steal Ctrl+B (bold), Ctrl+K (Discord/Slack quick switcher), Ctrl+M, etc.
+// Those still work when the chrome is focused.
+function handleBrowserShortcut(event, input) {
+  if (!mainWindow || mainWindow.isDestroyed() || !input || input.type !== 'keyDown') return false;
+  const ctrl = input.control || input.meta;
+  if (!ctrl || input.alt) return false;
+  const key = input.key || '';
+  const lk = key.toLowerCase();
+  const send = (ch, ...a) => { mainWindow.webContents.send(ch, ...a); event.preventDefault(); return true; };
+  if (input.shift) {
+    if (key === 'Tab') return send('prev-tab');
+    return false; // other Ctrl+Shift+* combos are not ours to intercept in the guest
+  }
+  switch (lk) {
+    case 't': return send('new-tab');
+    case 'w': return send('close-tab');
+    case 'l': return send('focus-address-bar');
+    case 'f': return send('find-in-page');
+    case 'd': return send('bookmark-current');
+    case '=': case '+': return send('zoom-in');
+    case '-': return send('zoom-out');
+    case '0': return send('zoom-reset');
+    case 'tab': return send('next-tab');
+  }
+  if (lk >= '1' && lk <= '9') return send('jump-to-tab', parseInt(lk, 10));
+  return false;
+}
+
 // === URL/path normalisation for argv from Windows shell ===
 // Windows passes a double-clicked .html as an absolute file path
 // (C:\Users\…\foo.html), not a file:// URL. Browsers register for both http(s)
@@ -1993,6 +2026,7 @@ app.on('web-contents-created', (_event, contents) => {
     if (handleFullscreenShortcut(event, input)) return;
     if (handleHardReloadShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
+    if (handleBrowserShortcut(event, input)) return;
   });
 });
 const storagePath = path.join(userDataPath, 'vex-storage');
@@ -2508,20 +2542,29 @@ function createWindow() {
     }
   }
   // Start the built-in JS proxy and default the session to 'light'.
-  try {
-    require('./main-dpi-bypass.js').startDpiBypassProxy().then((port) => {
-      _dpiBypassPort = port || 0;
-      _applyDiscordBypass('light');
-    }).catch((e) => console.warn('[DPI-bypass] start error:', e && e.message));
-  } catch (e) { console.warn('[DPI-bypass] init failed:', e && e.message); }
-  ipcMain.handle('discord:set-bypass-mode', (_e, mode, opts) => _applyDiscordBypass(mode, opts || {}));
-  ipcMain.handle('roblox:set-bypass', (_e, on) => _applyRobloxBypass(!!on));
-  ipcMain.handle('gui-style:set', (_e, style) => {
-    try { fs.writeFileSync(getStorageFile('gui-style'), JSON.stringify(style === 'glass' ? 'glass' : 'classic')); } catch {}
-    return { ok: true };
-  });
-  ipcMain.on('discord:set-bypass', (_e, on) => _applyDiscordBypass(on ? 'light' : 'off')); // back-compat
-  app.on('before-quit', () => { try { _byedpi.stop(); } catch {} });
+  // Run-once guard: these one-time registrations live inside createWindow(),
+  // which has a second call site (app.on('activate')). It isn't reachable today
+  // (window-all-closed quits the app), but if it ever became re-openable, a
+  // second ipcMain.handle() for the same channel throws "Attempted to register a
+  // second handler…" and a fresh before-quit listener would leak. The guard
+  // makes the block idempotent so that can never happen.
+  if (!ipcMain.__vexBypassWired) {
+    ipcMain.__vexBypassWired = true;
+    try {
+      require('./main-dpi-bypass.js').startDpiBypassProxy().then((port) => {
+        _dpiBypassPort = port || 0;
+        _applyDiscordBypass('light');
+      }).catch((e) => console.warn('[DPI-bypass] start error:', e && e.message));
+    } catch (e) { console.warn('[DPI-bypass] init failed:', e && e.message); }
+    ipcMain.handle('discord:set-bypass-mode', (_e, mode, opts) => _applyDiscordBypass(mode, opts || {}));
+    ipcMain.handle('roblox:set-bypass', (_e, on) => _applyRobloxBypass(!!on));
+    ipcMain.handle('gui-style:set', (_e, style) => {
+      try { fs.writeFileSync(getStorageFile('gui-style'), JSON.stringify(style === 'glass' ? 'glass' : 'classic')); } catch {}
+      return { ok: true };
+    });
+    ipcMain.on('discord:set-bypass', (_e, on) => _applyDiscordBypass(on ? 'light' : 'off')); // back-compat
+    app.on('before-quit', () => { try { _byedpi.stop(); } catch {} });
+  }
 
   // Ad blocker — attach on every session tabs actually use. Previously only
   // defaultSession and the two panel partitions were covered, so ads loaded

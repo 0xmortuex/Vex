@@ -55,6 +55,13 @@ contextBridge.exposeInMainWorld('vex', {
   onNewTab: (callback) => ipcRenderer.on('new-tab', callback),
   onCloseTab: (callback) => ipcRenderer.on('close-tab', callback),
   onReloadTab: (callback) => ipcRenderer.on('reload-tab', callback),
+  // Core browser shortcuts forwarded from a focused page's <webview> guest
+  // (they don't reach the host document otherwise).
+  onFocusAddressBar: (callback) => ipcRenderer.on('focus-address-bar', callback),
+  onNextTab: (callback) => ipcRenderer.on('next-tab', callback),
+  onPrevTab: (callback) => ipcRenderer.on('prev-tab', callback),
+  onJumpToTab: (callback) => ipcRenderer.on('jump-to-tab', (_e, n) => callback(n)),
+  onBookmarkCurrent: (callback) => ipcRenderer.on('bookmark-current', callback),
   onHardReloadTab: (callback) => ipcRenderer.on('hard-reload-tab', callback),
   hardReloadWebview: (webContentsId) => ipcRenderer.invoke('webview:hard-reload', webContentsId),
   onNavigateBack: (callback) => ipcRenderer.on('navigate-back', callback),

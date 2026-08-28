@@ -3,6 +3,7 @@
 ## v2.29.7 (2026-08-28) — Cleaner sidebar, theme-aware Glass, and a wave of fixes
 
 ### Added
+- **Keyboard shortcuts now work while a web page has focus.** Previously, the moment you clicked into a site, the core browser shortcuts did nothing — only fullscreen/devtools/hard-reload reached the browser. Now **Ctrl+T** (new tab), **Ctrl+W** (close), **Ctrl+L** (address bar), **Ctrl+Tab / Ctrl+Shift+Tab** (switch tabs), **Ctrl+1–9** (jump to tab), **Ctrl +/−/0** (zoom), **Ctrl+F** (find) and **Ctrl+D** (bookmark) work everywhere. App shortcuts that web pages legitimately use (Ctrl+B bold, Ctrl+K quick-switcher) are deliberately left to the page.
 - **The sidebar ships lean.** Only the browser core, your apps, Notes, Authenticator and GitHub stats show by default; the niche panels (Tab queue, RSS, Library, Annotations, Recall, AI memory, Schedules) are tucked away — one click to bring any back in **Settings → Sidebar**, or open them anytime with **Ctrl+K**.
 - **Glass is now a first-class choice in the setup wizard**, and **the Glass look takes on your color theme** — pick Crimson and the frosted chrome glows red, Emerald green, and so on, instead of a fixed indigo.
 
