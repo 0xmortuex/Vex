@@ -75,11 +75,22 @@ const PasswordVault = {
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
       var fire=function(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
       function visible(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}}
-      function userField(pw){var scope=(pw&&pw.form)||document;var cands=scope.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');for(var i=0;i<cands.length;i++){if(visible(cands[i]))return cands[i];}return null;}
-      function fill(force){var pw=document.querySelector('input[type=password]');var user=userField(pw);if(user&&(force||!user.value))fire(user,U);if(pw&&(force||!pw.value))fire(pw,P);}
+      function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
+      // Search / combobox / chat inputs are NOT login fields. This is what caused
+      // the bug: the email got typed into Discord's "Find or start a conversation",
+      // the role picker, etc. Exclude them explicitly.
+      function isSearchy(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;if(el.getAttribute('aria-autocomplete'))return true;return /search|find|filter|query|recipient|channel|message|mention|invite|\\brole\\b|emoji|gif|jump to/.test(meta(el));}
+      // Strong "this is a login username/email field" signal.
+      function loginSignal(el){var t=(el.type||'').toLowerCase();if(t==='email')return true;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='username'||ac==='email')return true;return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|phone number|account name/.test(meta(el));}
+      function looksLikeUser(el){if(!visible(el))return false;var t=(el.type||'').toLowerCase();if(!(t===''||t==='text'||t==='email'||t==='tel'))return false;return !isSearchy(el);}
+      function userField(pw){var scope=(pw&&pw.form)||document;var cands=scope.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');var signal=null,plain=null;for(var i=0;i<cands.length;i++){var el=cands[i];if(!looksLikeUser(el))continue;if(loginSignal(el)){signal=el;break;}if(!plain)plain=el;}return signal||(pw?plain:null);}
+      // Only fill the username when this is really a login: a password field is
+      // present, OR the field itself carries a strong login signal (covers
+      // email-first 2-step logins). Never fill a lone search box.
+      function fill(force){var pw=document.querySelector('input[type=password]');var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value))fire(user,U);if(pw&&(force||!pw.value))fire(pw,P);}
       fill(false);
       if(!window.__vexPwFocusWired){window.__vexPwFocusWired=true;
-        document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT')return;var t=(el.type||'').toLowerCase();if((t==='password'||t==='email'||t==='text'||t==='tel'||t==='')&&!el.value){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
+        document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT'||el.value)return;var t=(el.type||'').toLowerCase();if(t==='password'||(looksLikeUser(el)&&(loginSignal(el)||document.querySelector('input[type=password]')))){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
       }
     }catch(e){}})();`;
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}
