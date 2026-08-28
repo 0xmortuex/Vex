@@ -23,10 +23,10 @@
   // Load settings
   const settings = await VexStorage.loadSettings();
 
-  // Apply settings
-  if (!settings.tabsVisible) {
-    document.getElementById('tabs-sidebar').classList.add('hidden');
-  }
+  // (Sidebar visibility is handled solely by the Ctrl+B / collapse-button
+  // mechanism — body.tabs-hidden + vex.tabsHidden — restored later in init. The
+  // old settings.tabsVisible restore here was a second, conflicting source of
+  // truth and did nothing in the horizontal/Glass layout.)
 
   // Expose TabManager globally for cross-module access
   window.Tabs = TabManager;
@@ -321,13 +321,11 @@
   // === Settings Panel ===
   const searchEngineSelect = document.getElementById('setting-search-engine');
   const adBlockerToggle = document.getElementById('setting-adblocker');
-  const tabsVisibleToggle = document.getElementById('setting-tabs-visible');
 
   // Prefer the start-page mirror key if the user set the engine there/in the wizard.
   try { settings.searchEngine = localStorage.getItem('vex.searchEngine') || settings.searchEngine || 'google'; } catch {}
   searchEngineSelect.value = settings.searchEngine || 'google';
   adBlockerToggle.checked = settings.adBlocker !== false;
-  tabsVisibleToggle.checked = settings.tabsVisible !== false;
 
   searchEngineSelect.addEventListener('change', () => {
     settings.searchEngine = searchEngineSelect.value;
@@ -342,29 +340,11 @@
     window.vex.setAdBlockerState(adBlockerToggle.checked);
   });
 
-  tabsVisibleToggle.addEventListener('change', () => {
-    settings.tabsVisible = tabsVisibleToggle.checked;
-    VexStorage.saveSettings(settings);
-    document.getElementById('tabs-sidebar').classList.toggle('hidden', !tabsVisibleToggle.checked);
-  });
-
-  // Accent color picker
-  document.querySelectorAll('.accent-opt').forEach(opt => {
-    opt.addEventListener('click', () => {
-      document.querySelectorAll('.accent-opt').forEach(o => o.style.borderColor = 'transparent');
-      opt.style.borderColor = 'var(--text)';
-      const color = opt.dataset.color;
-      document.documentElement.style.setProperty('--primary', color);
-      settings.accentColor = color;
-      VexStorage.saveSettings(settings);
-    });
-  });
-  // Apply saved accent color
-  if (settings.accentColor) {
-    document.documentElement.style.setProperty('--primary', settings.accentColor);
-    const activeOpt = document.querySelector(`.accent-opt[data-color="${settings.accentColor}"]`);
-    if (activeOpt) activeOpt.style.borderColor = 'var(--text)';
-  }
+  // (Removed: the "Theme Accent Color" swatches and the "Show tabs sidebar"
+  // toggle. The accent picker only set --primary inline and permanently fought
+  // the selected theme's palette; the toggle duplicated Ctrl+B via a separate,
+  // never-synced mechanism and did nothing in the horizontal/Glass layout.
+  // Accent now comes from the theme; sidebar is toggled with Ctrl+B.)
 
   // Clear data button
   document.getElementById('setting-clear-data')?.addEventListener('click', async () => {

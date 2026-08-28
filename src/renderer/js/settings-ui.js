@@ -8,7 +8,7 @@ const SettingsUI = {
   CATS: [
     { name: 'General',     emoji: '🔍', color: '#6366f1', match: ['general', 'search engine'] },
     { name: 'Browser',     emoji: '🌐', color: '#0ea5e9', match: ['default browser'] },
-    { name: 'Appearance',  emoji: '🎨', color: '#a855f7', match: ['appearance', 'theme'] },
+    { name: 'Appearance',  emoji: '🎨', color: '#a855f7', match: ['appearance', 'theme', 'gui style', 'tab layout'] },
     { name: 'Privacy',     emoji: '🛡️', color: '#22c55e', match: ['privacy', 'security'] },
     { name: 'Performance', emoji: '⚡', color: '#f97316', match: ['performance', 'sleep'] },
     { name: 'Sessions',    emoji: '💾', color: '#f59e0b', match: ['session'] },

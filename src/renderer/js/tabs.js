@@ -517,6 +517,10 @@ const TabManager = {
     // rebuildAllTabs) shows the state — not just the old init sleeping branch.
     if (tab.sleeping) el.classList.add('sleeping');
     if (this._isKeptAwake(tab)) el.classList.add('kept-awake');
+    if (tab.partition && !String(tab.partition).startsWith('persist:')) {
+      el.classList.add('private-tab');
+      if (String(tab.partition).startsWith('tor-')) el.classList.add('tor-tab');
+    }
 
     el.innerHTML = `
       ${tab.loading
@@ -525,6 +529,11 @@ const TabManager = {
           ? `<img class="tab-favicon" src="${tab.favicon}" alt="">`
           : '<div class="tab-favicon-placeholder"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/></svg></div>'
       }
+      ${(tab.partition && !String(tab.partition).startsWith('persist:'))
+        ? (String(tab.partition).startsWith('tor-')
+            ? '<span class="tab-private tor" title="Tor tab — routed through Tor">🧅</span>'
+            : '<span class="tab-private" title="Private (off-the-record) tab">🔒</span>')
+        : ''}
       <div class="tab-info">
         <div class="tab-title">${this._escapeHtml(tab.title)}</div>
       </div>

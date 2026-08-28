@@ -129,6 +129,12 @@ const HorizontalTabs = (() => {
     if (tab.id === activeId) el.classList.add('active');
     if (tab.loading) el.classList.add('loading');
     if (tab.sleeping) el.classList.add('sleeping');
+    // Private/ephemeral tabs (Tor, off-the-record) get a class for tinting +
+    // a badge, so you can tell at a glance which tabs are private.
+    if (tab.partition && !String(tab.partition).startsWith('persist:')) {
+      el.classList.add('private-tab');
+      if (String(tab.partition).startsWith('tor-')) el.classList.add('tor-tab');
+    }
     el.dataset.tabId = tab.id;
     el.title = `${tab.title || 'New Tab'}\n${tab.url || ''}`;
     // Drag-to-reorder (native HTML5 DnD, same as the vertical sidebar).
@@ -148,9 +154,16 @@ const HorizontalTabs = (() => {
       ? '<span class="sleep-indicator" title="Sleeping"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>'
       : '';
 
+    const priv = (tab.partition && !String(tab.partition).startsWith('persist:'))
+      ? (String(tab.partition).startsWith('tor-')
+          ? '<span class="tab-private tor" title="Tor tab — routed through Tor">🧅</span>'
+          : '<span class="tab-private" title="Private (off-the-record) tab">🔒</span>')
+      : '';
+
     el.innerHTML = `
       ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" onerror="this.style.display='none'">` : '<span class="tab-favicon"></span>'}
       ${audio}
+      ${priv}
       <span class="tab-title">${_esc(tab.title || 'New Tab')}</span>
       ${sleep}
       <button class="tab-close" title="Close tab" aria-label="Close">
