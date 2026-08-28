@@ -1882,8 +1882,12 @@ app.on('web-contents-created', (_event, contents) => {
     // Autofill saved credentials into sign-in POPUP windows (OAuth "Sign in with
     // Google", etc.). These are separate BrowserWindows, so the renderer's
     // PasswordVault never reaches them. Fires on each load — covers the
-    // email→password step and async-rendered fields.
-    try { win.webContents.on('did-finish-load', () => _autofillPopup(win.webContents)); } catch {}
+    // email→password step and async-rendered fields. NOT for the Discord stream
+    // pop-out: it's a video window, never a login form, and there's no reason to
+    // run field-scanning JS inside it while it's setting up a WebRTC stream.
+    if (!pendingDiscordPopout) {
+      try { win.webContents.on('did-finish-load', () => _autofillPopup(win.webContents)); } catch {}
+    }
 
     // Peek-style auth popup: dim Vex behind it, allow Esc / backdrop-click to
     // dismiss (frameless windows have no native close button), and clear the dim
@@ -1983,7 +1987,24 @@ app.on('web-contents-created', (_event, contents) => {
           }
         });
 
-        win.on('closed', () => { clearTimeout(saveTimer); });
+        win.on('closed', () => { clearTimeout(saveTimer); console.log('[discord-popout] window closed'); });
+
+        // Zombie-window guard + diagnostics. Symptom seen: popping out a live
+        // screen-share spawns a white window that you can't switch to (its
+        // renderer hangs/crashes, so Windows lists a dead frame in Alt+Tab).
+        // If the render process goes (crash/OOM/GPU) or the window wedges,
+        // destroy it so no ghost is left behind — and log the reason so the
+        // real cause is visible on the next attempt instead of guessed at.
+        win.webContents.on('render-process-gone', (_e, d) => {
+          console.error('[discord-popout] render-process-gone reason=%s exitCode=%s — destroying window', d && d.reason, d && d.exitCode);
+          try { if (!win.isDestroyed()) win.destroy(); } catch {}
+        });
+        win.webContents.on('did-fail-load', (_e, ec, ed, u) => {
+          if (ec === -3) return; // ERR_ABORTED (a superseded nav) — not a real failure
+          console.error('[discord-popout] did-fail-load code=%s desc=%s url=%s', ec, ed, u);
+        });
+        win.on('unresponsive', () => { console.error('[discord-popout] window unresponsive'); });
+
         // Let the renderer surface a one-line discoverability hint.
         try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:discord-popout-open'); } catch {}
       } catch (err) { console.error('[discord-popout] setup failed:', err.message); }
