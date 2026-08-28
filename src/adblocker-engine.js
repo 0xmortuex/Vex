@@ -1,14 +1,20 @@
 // === Vex EasyList-backed block engine ===
 //
-// Wraps @ghostery/adblocker (EasyList + EasyPrivacy prebuilt lists) and exposes
-// a synchronous match() that Vex's EXISTING webRequest handlers call. We do NOT
-// use the library's enableBlockingInSession(): Electron allows only one
-// webRequest listener per event (the adblocker's own docs note this), so handing
-// it the session would clobber Vex's frame-ancestors stripping, tracker counter,
-// and per-partition wiring. Instead the engine acts as a smarter shouldBlock() —
-// network-filter matching only (no cosmetic/DOM injection) — loaded once at
-// startup with the serialized engine cached to disk so subsequent launches are
-// instant and offline-safe.
+// Wraps @ghostery/adblocker (the FULL prebuilt list set — EasyList, EasyPrivacy,
+// Peter Lowe's, the uBlock Origin filters + badware/privacy/unbreak/quick-fixes,
+// and annoyances) and exposes:
+//   - a synchronous match() (engineBlocks) that Vex's EXISTING webRequest
+//     handlers call for NETWORK blocking. We do NOT use the library's
+//     enableBlockingInSession() for the network side: Electron allows only one
+//     webRequest listener per event, so handing it the session would clobber
+//     Vex's frame-ancestors stripping, tracker counter, and per-partition wiring.
+//   - COSMETIC filtering (enableCosmeticFiltering): element hiding + scriptlet
+//     injection, wired the same way enableBlockingInSession does its cosmetic
+//     half (a frame preload + two ipcMain handlers) but WITHOUT its network half,
+//     so it stacks cleanly on top of Vex's own network blocker. This is what
+//     catches the visible ads that network blocking alone leaves behind
+//     (first-party ad slots, leftover placeholders) — reliably, in-process,
+//     rather than depending on an extension's content scripts reaching guests.
 //
 // engineBlocks(details) returns:
 //   true  → block this request (engine matched a filter)
@@ -34,7 +40,9 @@ async function initEngine(cachePath) {
       read: (p) => fsp.readFile(p),
       write: (p, buf) => fsp.writeFile(p, buf),
     };
-    const blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, caching);
+    // Full list set (default config → cosmetic + network filters both parsed),
+    // so enableCosmeticFiltering() below has real cosmetic rules to serve.
+    const blocker = await ElectronBlocker.fromPrebuiltFull(fetch, caching);
     _engine = { blocker, fromElectronDetails };
     return true;
   } catch (e) {
@@ -60,4 +68,33 @@ function engineBlocks(details) {
 
 function isReady() { return !!_engine; }
 
-module.exports = { initEngine, engineBlocks, isReady };
+// --- Cosmetic filtering (element hiding + scriptlets) --------------------------
+// The @ghostery cosmetic preload (added to Vex's GUEST_PRELOADS so it loads in
+// every webview) asks main, per page, for the element-hiding rules to apply.
+// This registers the two ipcMain handlers it calls (once). isEnabled() gates
+// injection so cosmetic filtering follows the ad-blocker on/off toggle live.
+// Returns true if the handlers are in place.
+let _cosmeticHandlersWired = false;
+function enableCosmeticFiltering(isEnabled) {
+  if (!_engine) return false;
+  if (_cosmeticHandlersWired) return true;
+  try {
+    const { ipcMain } = require('electron');
+    ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', (event, url, msg) => {
+      try {
+        if (isEnabled && !isEnabled()) return;
+        return _engine.blocker.onInjectCosmeticFilters(event, url, msg);
+      } catch { /* ignore per-frame failures */ }
+    });
+    ipcMain.handle('@ghostery/adblocker/is-mutation-observer-enabled', (event) => {
+      try { return _engine.blocker.onIsMutationObserverEnabled(event); } catch { return false; }
+    });
+    _cosmeticHandlersWired = true;
+    return true;
+  } catch (e) {
+    console.error('[Vex adblock-engine] cosmetic handlers failed:', e && e.message);
+    return false;
+  }
+}
+
+module.exports = { initEngine, engineBlocks, isReady, enableCosmeticFiltering };

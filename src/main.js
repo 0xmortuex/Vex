@@ -59,7 +59,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
-const { initEngine: initAdblockEngine, engineBlocks } = require('./adblocker-engine');
+const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
 const { createPipWindow, closePipWindow } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
@@ -97,6 +97,12 @@ let _widevineStatus = 'unknown';
 const GUEST_PRELOADS = [
   path.join(__dirname, 'preload-webview.js'),
   path.join(__dirname, 'site-tweaks.js'),
+  // Cosmetic ad-filtering preload (@ghostery). Self-contained bundle that only
+  // require()s 'electron', so it's safe in the sandboxed guest context. It asks
+  // main (ipc) for element-hiding rules per page and applies them — this is what
+  // hides the visible ads network blocking alone can't stop. Handlers are
+  // registered by enableCosmeticFiltering() once the engine is ready.
+  require.resolve('@ghostery/adblocker-electron-preload'),
 ];
 function attachGuestPreloads(ses) {
   const existing = ses.getPreloads ? ses.getPreloads() : [];
@@ -2699,8 +2705,18 @@ function createWindow() {
   // fire-and-forget: the handlers above OR the engine verdict with the legacy
   // domain list, so blocking works immediately and gets richer once this
   // resolves. Serialized engine is cached under userData for instant relaunch.
-  initAdblockEngine(path.join(app.getPath('userData'), 'vex-adblock-engine.bin'))
-    .then(ok => console.log('[Vex] EasyList adblock engine', ok ? 'ready' : 'unavailable — using domain list'))
+  // Cache filename bumped to -full so the richer prebuilt list set (and its
+  // cosmetic rules) rebuilds instead of loading the old ads+tracking cache.
+  initAdblockEngine(path.join(app.getPath('userData'), 'vex-adblock-engine-full.bin'))
+    .then(ok => {
+      console.log('[Vex] adblock engine', ok ? 'ready (full lists)' : 'unavailable — using domain list');
+      if (!ok) return;
+      // Stack COSMETIC filtering (element hiding) on top of the network blocker.
+      // The preload is injected into every webview via GUEST_PRELOADS; this just
+      // registers the ipc handlers it calls. Gated on the ad-blocker toggle.
+      const cosOk = enableCosmeticFiltering(() => adBlockerEnabled);
+      console.log('[Vex] cosmetic ad filtering handlers', cosOk ? 'ready' : 'unavailable');
+    })
     .catch(() => {});
 
   // Privacy hardening: load saved config and apply DNS-over-HTTPS (no-op when off).
