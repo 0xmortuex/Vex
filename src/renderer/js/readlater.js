@@ -60,7 +60,7 @@ const ReadLater = {
       r.addEventListener('mouseenter', () => r.style.background = 'var(--surface)');
       r.addEventListener('mouseleave', () => r.style.background = '');
       let host = it.url; try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch {}
-      r.innerHTML = `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32" style="width:16px;height:16px;border-radius:4px" onerror="this.style.visibility='hidden'">
+      r.innerHTML = `<img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" onerror="this.style.visibility='hidden'">
         <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</div><div style="font-size:10.5px;color:var(--text-muted)">${esc(host)}</div></div>
         <button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px">✕</button>`;
       r.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) return; opts.open(it); });

@@ -679,7 +679,7 @@ const AIPanel = {
         const summary = entry.summary ? (entry.summary.length > 120 ? entry.summary.substring(0, 120) + '…' : entry.summary) : '';
         html += `
           <div class="chat-history-item" data-url="${this._esc(entry.url)}">
-            <img src="${host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=16` : ''}" width="14" height="14" onerror="this.style.display='none'">
+            <img src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" width="14" height="14" onerror="this.style.display='none'">
             <div class="chat-history-content">
               <div class="chat-history-title">${this._esc(entry.title || 'Untitled')}</div>
               ${summary ? `<div class="chat-history-summary">${this._esc(summary)}</div>` : ''}

@@ -107,7 +107,7 @@ const VexTools = {
   addTool(name, url, desc) {
     const tool = { id: 'tool_' + Date.now(), name, url, desc: desc || '', svg: '' };
     // Auto-generate a favicon-based display
-    try { const domain = new URL(url).hostname; tool.faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`; } catch {}
+    try { const domain = new URL(url).hostname; tool.faviconUrl = `https://${domain}/favicon.ico`; } catch {}
     this.tools.push(tool);
     this.save();
     this.renderToolsBar();
@@ -123,7 +123,7 @@ const VexTools = {
     const tool = this.tools.find(t => t.id === id);
     if (tool) {
       tool.name = name; tool.url = url; tool.desc = desc || '';
-      try { const domain = new URL(url).hostname; tool.faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`; } catch {}
+      try { const domain = new URL(url).hostname; tool.faviconUrl = `https://${domain}/favicon.ico`; } catch {}
       this.save();
       this.renderToolsBar();
     }

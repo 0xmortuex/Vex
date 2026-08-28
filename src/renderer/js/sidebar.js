@@ -149,7 +149,7 @@ const SidebarManager = {
       btn.className = 'sidebar-icon';
       btn.dataset.panel = p.id;
       btn.title = p.name + ' (pinned site — right-click for options)';
-      btn.innerHTML = '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(host) + '&sz=32" style="width:18px;height:18px;border-radius:4px" onerror="this.replaceWith(document.createTextNode(\'🌐\'))">';
+      btn.innerHTML = '<img src="https://' + encodeURIComponent(host) + '/favicon.ico" style="width:18px;height:18px;border-radius:4px" onerror="this.replaceWith(document.createTextNode(\'🌐\'))">';
       btn.addEventListener('click', () => this.togglePanel(p.id));
       // Full customization menu (Rename / Change icon / Change link / Unpin).
       btn.addEventListener('contextmenu', (e) => {

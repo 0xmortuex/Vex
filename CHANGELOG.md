@@ -24,7 +24,7 @@
 - **Agent mode:** filling several fields on one page no longer aborts as "stuck," and the agent's type/select actions now report real success/failure instead of always "ok."
 - **Reading Mode could trap a tab.** Entering Reading Mode and then restarting (or restoring the tab from a session) left the tab stuck on the article snapshot with no way back to the real page, and dumped a huge snapshot URL into your history. Reading Mode is now treated as the temporary view it is — the tab keeps its real page and history stays clean.
 - **Restored tab stacks no longer vanish**, tab drag-reorder drops where you expect, and very large downloads (≥1 TB) show the right size unit.
-- **Fewer trackers:** the tab strip and history stopped fetching favicons from Google (which revealed your visited domains) — they use the site's own favicon now.
+- **No more favicon tracking.** Vex was fetching site icons from Google (`google.com/s2/favicons`) across the tab strip, history, bookmarks, Recall, Read-Later, the sidebar's pinned sites, the start-page speed dial, and more — which quietly told Google every domain in your tabs, history and bookmarks. Every one of those now uses the site's own first-party favicon. Nothing about your browsing goes to Google.
 - **Smaller fixes:** URL-bar ArrowUp now reaches the last suggestion; the command palette no longer shows a duplicate "History"; dragging a tab onto a stack no longer misplaces it; open-tab full-text history indexing works again; the tab-sidebar toggle shows its pressed state; a benign navigation error no longer spams the console; and the Discord spellcheck replacement is more reliable.
 
 ## v2.29.6 (2026-08-27) — Safer DRM settings + build guardrail

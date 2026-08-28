@@ -1230,7 +1230,7 @@
       localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts));
     }
     function getFavicon(url) {
-      try { return 'https://www.google.com/s2/favicons?domain=' + new URL(url).hostname + '&sz=64'; } catch { return ''; }
+      try { return 'https://' + new URL(url).hostname + '/favicon.ico'; } catch { return ''; }
     }
 
     // === Ready-made icon library (right-click a shortcut → Change icon) ===

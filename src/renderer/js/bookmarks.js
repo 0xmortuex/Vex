@@ -87,7 +87,7 @@ const Bookmarks = {
           row.addEventListener('mouseleave', () => row.style.background = '');
           let hostTxt = b.url; try { hostTxt = new URL(b.url).hostname.replace(/^www\./, ''); } catch {}
           row.innerHTML = `
-            <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostTxt)}&sz=32" style="width:16px;height:16px;border-radius:4px" onerror="this.style.visibility='hidden'">
+            <img src="https://${encodeURIComponent(hostTxt)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" onerror="this.style.visibility='hidden'">
             <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.title)}</div><div style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(hostTxt)}</div></div>
             <button data-del style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px">✕</button>`;
           row.addEventListener('click', (e) => { if (e.target.closest('[data-del]')) return; SidebarManager.hideActivePanel?.(); TabManager.createTab(b.url, true); });

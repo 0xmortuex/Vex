@@ -102,7 +102,7 @@ const Recall = {
         r.addEventListener('mouseenter', () => r.style.background = 'var(--surface)');
         r.addEventListener('mouseleave', () => r.style.background = '');
         r.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
-            <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32" style="width:15px;height:15px;border-radius:3px" onerror="this.style.visibility='hidden'">
+            <img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:15px;height:15px;border-radius:3px" onerror="this.style.visibility='hidden'">
             <div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.title)}</div>
             <span style="font-size:10.5px;color:var(--text-muted);flex:none">${when}</span></div>
           <div style="font-size:11.5px;color:var(--text-muted);margin:3px 0 0 23px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(h.snippet || '')}</div>

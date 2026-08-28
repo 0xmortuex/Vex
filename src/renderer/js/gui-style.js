@@ -46,7 +46,7 @@
     try { return new URL(s.url).hostname.replace(/^www\./, ''); } catch { return s.url; }
   }
   function faviconUrl(url) {
-    try { return 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(new URL(url).hostname); } catch { return ''; }
+    try { return 'https://' + encodeURIComponent(new URL(url).hostname) + '/favicon.ico'; } catch { return ''; }
   }
   function normalizeUrl(u) {
     u = String(u || '').trim();
