@@ -29,16 +29,20 @@ const ShortcutEditor = (() => {
           <div class="shortcut-category">
             <h3>${_esc(cat)}</h3>
             <div class="shortcut-list">
-              ${items.map(s => `
+              ${items.map(s => {
+                const locked = s.system || !s.hasHandler;
+                return `
                 <div class="shortcut-row" data-id="${_esc(s.id)}">
                   <div class="shortcut-label">
                     ${_esc(s.label)}
-                    ${!s.hasHandler ? '<span class="sys-tag" title="Handled at system level; binding is informational">system</span>' : ''}
+                    ${locked ? '<span class="sys-tag" title="Handled at the window/system level \u2014 the shortcut works but keeps its default and can\u2019t be reassigned here">system</span>' : ''}
                   </div>
-                  <button class="shortcut-key ${s.isCustom ? 'custom' : ''}" data-id="${_esc(s.id)}">${formatKeyCombo(s.current)}</button>
-                  ${s.isCustom ? `<button class="btn-reset-sm" data-id="${_esc(s.id)}" title="Reset to default">\u21bb</button>` : '<span></span>'}
+                  ${locked
+                    ? `<span class="shortcut-key locked" title="Fixed shortcut \u2014 works, but can\u2019t be reassigned">${formatKeyCombo(s.current)}</span>`
+                    : `<button class="shortcut-key ${s.isCustom ? 'custom' : ''}" data-id="${_esc(s.id)}">${formatKeyCombo(s.current)}</button>`}
+                  ${(!locked && s.isCustom) ? `<button class="btn-reset-sm" data-id="${_esc(s.id)}" title="Reset to default">\u21bb</button>` : '<span></span>'}
                 </div>
-              `).join('')}
+              `; }).join('')}
             </div>
           </div>
         `).join('')}
@@ -53,7 +57,7 @@ const ShortcutEditor = (() => {
   }
 
   function wireHandlers(container) {
-    container.querySelectorAll('.shortcut-key').forEach(btn => {
+    container.querySelectorAll('button.shortcut-key').forEach(btn => {
       btn.addEventListener('click', () => startCapture(btn, container));
     });
     container.querySelectorAll('.btn-reset-sm').forEach(btn => {
@@ -94,6 +98,9 @@ const ShortcutEditor = (() => {
         renderPanel(panelContainer);
       } else if (res && res.conflict) {
         _toast(`"${combo}" is already used by "${res.conflictLabel}"`, 'warn');
+        stop();
+      } else if (res && res.system) {
+        _toast('That shortcut is fixed at the system level and can’t be reassigned', 'warn');
         stop();
       } else {
         _toast('Invalid shortcut', 'error');

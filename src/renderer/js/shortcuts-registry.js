@@ -34,7 +34,10 @@ const ShortcutsRegistry = (() => {
     // Panels
     'history-panel':  { default: 'Ctrl+H',       label: 'History Panel',              category: 'Panels' },
     'memory-panel':   { default: 'Ctrl+Shift+M', label: 'Memory Panel (tab usage)',   category: 'Panels' },
-    'private-window': { default: 'Ctrl+Shift+N', label: 'Private Window',             category: 'Panels' },
+    // Ctrl+Shift+N is claimed by Notes at the main-process level, so this used a
+    // dead key. Ctrl+Alt+N is free (and not intercepted by main.js), so the
+    // renderer registry actually fires it — and it stays user-rebindable.
+    'private-window': { default: 'Ctrl+Alt+N',   label: 'Private Window',             category: 'Panels' },
     'sessions':       { default: 'Ctrl+Shift+O', label: 'Sessions Menu',              category: 'Panels' },
     'schedules':      { default: 'Ctrl+Shift+L', label: 'Schedules Panel',            category: 'Panels' },
 
@@ -47,6 +50,21 @@ const ShortcutsRegistry = (() => {
     // Window
     'fullscreen':     { default: 'F11',          label: 'Fullscreen',                 category: 'Window' }
   };
+
+  // These combos are ALSO claimed by the main-process keyboard layer
+  // (main.js before-input-event), which fires them and preventDefault()s the
+  // event before this renderer registry ever sees the key. Rebinding them here
+  // can't move the key off its default — the OS-level default always wins — so
+  // they're flagged `system` and the editor shows them as fixed rather than
+  // promising a rebind it can't deliver. (The shortcut still WORKS; it just
+  // can't be reassigned from here.) Keep this list in sync with main.js.
+  const SYSTEM_SHORTCUTS = new Set([
+    'command-bar', 'find-in-page', 'new-tab', 'close-tab', 'reload', 'zoom-reset',
+    'split-screen', 'pip', 'sessions', 'reopen-tab', 'history-ai', 'history-panel',
+    'memory-panel', 'sleep-tab', 'screenshot', 'fullscreen', 'mute-tab', 'ai-panel',
+    'schedules', 'tabs-sidebar',
+  ]);
+  for (const id of SYSTEM_SHORTCUTS) { if (DEFAULT_SHORTCUTS[id]) DEFAULT_SHORTCUTS[id].system = true; }
 
   let userShortcuts = {};
   const handlers = new Map();
@@ -87,6 +105,7 @@ const ShortcutsRegistry = (() => {
 
   function setShortcut(id, combo) {
     if (!DEFAULT_SHORTCUTS[id]) return false;
+    if (DEFAULT_SHORTCUTS[id].system) return { system: true }; // fixed at the main-process level
     const all = getAllShortcuts();
     for (const [otherId, data] of Object.entries(all)) {
       if (otherId !== id && data.current === combo) {

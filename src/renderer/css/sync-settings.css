@@ -234,6 +234,10 @@
   font-family: 'Outfit', sans-serif;
 }
 .shortcut-key:hover { border-color: var(--primary); }
+/* Locked (system / handler-less) shortcuts render as a non-interactive span:
+   dimmed, no pointer, no hover highlight — it displays the key but can't rebind. */
+.shortcut-key.locked { cursor: default; opacity: 0.65; min-width: 0; }
+.shortcut-key.locked:hover { border-color: var(--border); }
 .shortcut-key.capturing {
   background: var(--vex-accent-dim);
   border-color: var(--primary);
