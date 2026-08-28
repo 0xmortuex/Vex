@@ -1,12 +1,18 @@
 # Changelog
 
-## v2.29.8 (2026-08-28) — "Prevent from sleeping" actually sticks + Tor hardening
+## v2.29.8 (2026-08-28) — Privacy tools, HTTPS-Only, keep-awake fix + Tor hardening
 
 ### Added
+- **Privacy Dashboard** — a new 🛡️ sidebar panel showing, live, how much Vex is blocking for you: a running "requests blocked this session" total, the cross-site trackers that follow you across multiple sites, and a ranked top-offenders list. Read-only view over the blocking Vex already does — nothing new is sent anywhere.
+- **HTTPS-Only mode** (Settings → Privacy, off by default). Always tries the encrypted https version of a site first. If a site genuinely has no https, Vex falls back to http for just that site (with a warning) so nothing breaks — and a site you asked for over https is never silently downgraded.
+- **Authenticator: add accounts by QR screenshot.** In the Add form, click/drag/paste a screenshot of a 2FA QR code and Vex reads it for you (decoded locally, no network) — no more hunting for the "enter a code manually" option. Manual entry is still there.
 - **Notes button in the top toolbar** (beside the 🧅 Tor button), so it's one click away without opening the sidebar. The sidebar Notes button stays too (hide it in Settings → Sidebar if you want just the toolbar one).
 - **Authenticator: click anywhere on a code to copy it.** No more hunting for the little copy button — click (or press Enter on) the whole row and the 2FA code is on your clipboard, with a quick flash to confirm.
+- **Private tabs are now marked at a glance.** Tor and off-the-record tabs show a 🧅/🔒 badge and a subtle violet edge in both the tab sidebar and the horizontal/Glass strip, so you always know which tabs aren't being saved.
+- **Autofill now works in sign-in popups.** "Sign in with Google/Discord/…" opens a small separate window; your saved login now fills there too (same phishing-safe, real-login-field-only logic as the main autofill).
 
 ### Changed
+- **Removed the dead "Appearance" settings section.** The accent-color swatches fought the color themes (and did nothing useful once themes existed), and the "Show tabs sidebar" toggle duplicated the sidebar's own collapse button. The Appearance chip now jumps straight to the real look controls (GUI Style / Tab Layout).
 - **The Tor tab now opens a search page you can use right away.** Clicking the onion used to land you on the Tor "check" page, which felt like a dead end. It now opens DuckDuckGo (which works cleanly over Tor — unlike Google, which drowns you in CAPTCHAs), so you can just start searching. The background check still confirms you're on Tor.
 
 ### Fixed
