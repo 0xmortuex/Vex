@@ -17,7 +17,13 @@ const Authenticator = {
           <button id="auth-add-toggle" class="auth-add-btn">+ Add</button>
         </div>
         <div id="auth-add-form" class="auth-add-form" style="display:none">
-          <p class="auth-hint">On the site's 2FA screen, choose <b>“can't scan / enter a code manually”</b> and paste that setup key below — or paste the whole <code>otpauth://</code> link.</p>
+          <p class="auth-hint">Scan a QR screenshot, or add manually: on the site's 2FA screen choose <b>“can't scan / enter a code manually”</b> and paste that setup key — or the whole <code>otpauth://</code> link.</p>
+          <div id="auth-qr-drop" class="auth-qr-drop" title="Click to pick a QR image — or drag one here, or paste (Ctrl+V) a screenshot">
+            <span class="auth-qr-icon">📷</span>
+            <span>Scan a QR code — <b>click</b>, drag an image here, or paste a screenshot</span>
+          </div>
+          <input id="auth-qr-file" type="file" accept="image/*" style="display:none">
+          <div class="auth-or">or enter it manually</div>
           <input id="auth-secret" type="text" placeholder="Setup key  or  otpauth://… link" autocomplete="off" spellcheck="false">
           <input id="auth-label" type="text" placeholder="Label — e.g. Discord (you@email)" autocomplete="off">
           <div class="auth-actions">
@@ -36,8 +42,73 @@ const Authenticator = {
     el.querySelector('#auth-save').addEventListener('click', () => this._add());
     el.querySelector('#auth-secret').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._add(); });
     el.querySelector('#auth-label').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._add(); });
+
+    // --- QR import: click to pick, drag-drop an image, or paste a screenshot ---
+    const drop = el.querySelector('#auth-qr-drop');
+    const fileInput = el.querySelector('#auth-qr-file');
+    drop.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => { const f = fileInput.files && fileInput.files[0]; if (f) this._handleQrFile(f); fileInput.value = ''; });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drag'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault(); drop.classList.remove('drag');
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) this._handleQrFile(f);
+    });
+    // Paste a screenshot anywhere while the add form is open.
+    if (this._onPaste) document.removeEventListener('paste', this._onPaste);
+    this._onPaste = (e) => {
+      const form = el.querySelector('#auth-add-form');
+      if (!form || form.style.display === 'none') return;
+      const items = (e.clipboardData && e.clipboardData.items) || [];
+      for (const it of items) {
+        if (it.type && it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) { e.preventDefault(); this._handleQrFile(f); return; } }
+      }
+    };
+    document.addEventListener('paste', this._onPaste);
+
     await this._refreshList();
     this._startTicking();
+  },
+
+  // Decode a QR code out of an image File and, if it's an otpauth:// URI, add it.
+  async _handleQrFile(file) {
+    const el = this._el; if (!el) return;
+    const status = el.querySelector('#auth-status');
+    const form = el.querySelector('#auth-add-form');
+    if (form && form.style.display === 'none') form.style.display = 'block';
+    if (!file || !/^image\//.test(file.type || '')) { if (status) status.textContent = 'That’s not an image.'; return; }
+    if (typeof jsQR === 'undefined') { if (status) status.textContent = 'QR reader failed to load.'; return; }
+    if (status) status.textContent = 'Reading QR…';
+    let text = null;
+    try { text = await this._decodeQrFromFile(file); } catch { text = null; }
+    if (!text) { if (status) status.textContent = 'No QR code found in that image — try a clearer/tighter screenshot.'; return; }
+    if (!/^otpauth:\/\//i.test(text.trim())) { if (status) status.textContent = 'That QR isn’t a 2FA (otpauth) code.'; return; }
+    el.querySelector('#auth-secret').value = text.trim();
+    if (status) status.textContent = 'QR read — adding…';
+    await this._add();
+  },
+
+  _decodeQrFromFile(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { try { resolve(this._decodeQrFromImage(img)); } finally { URL.revokeObjectURL(url); } };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image load failed')); };
+      img.src = url;
+    });
+  },
+
+  _decodeQrFromImage(img) {
+    const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (!w || !h) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h);
+    const r = jsQR(data.data, w, h, { inversionAttempts: 'attemptBoth' });
+    return r && r.data ? r.data : null;
   },
 
   async _add() {
@@ -147,7 +218,14 @@ const Authenticator = {
       .auth-add-btn{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
       .auth-add-form{background:rgba(127,127,127,.08);border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:12px}
       .auth-hint{font-size:11.5px;color:var(--text-muted);margin:0 0 8px;line-height:1.5}
-      .auth-add-form input{width:100%;box-sizing:border-box;padding:8px 10px;margin-bottom:7px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:12.5px}
+      .auth-qr-drop{display:flex;align-items:center;gap:9px;padding:12px 12px;margin-bottom:8px;border:1.5px dashed var(--vex-border-medium,var(--border));border-radius:10px;background:rgba(127,127,127,.05);color:var(--text-muted);font-size:11.5px;line-height:1.4;cursor:pointer;text-align:left;transition:border-color .12s,background .12s,color .12s}
+      .auth-qr-drop:hover{border-color:var(--primary);color:var(--text);background:color-mix(in srgb, var(--primary) 7%, transparent)}
+      .auth-qr-drop.drag{border-color:var(--primary);background:color-mix(in srgb, var(--primary) 14%, transparent);color:var(--text)}
+      .auth-qr-drop b{color:var(--text);font-weight:600}
+      .auth-qr-icon{font-size:19px;flex-shrink:0;filter:grayscale(.2)}
+      .auth-or{display:flex;align-items:center;gap:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin:2px 0 8px}
+      .auth-or::before,.auth-or::after{content:'';flex:1;height:1px;background:var(--border)}
+      .auth-add-form input[type=text]{width:100%;box-sizing:border-box;padding:8px 10px;margin-bottom:7px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:12.5px}
       .auth-actions{display:flex;align-items:center;gap:10px}
       .auth-save{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
       .auth-status{font-size:11.5px;color:var(--text-muted)}
