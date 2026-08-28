@@ -218,6 +218,7 @@ const SidebarManager = {
     // lean (the browser core + apps stay; the rest are one click away in
     // Settings → Sidebar). Runs once per install; respects later user choices.
     this._applyLeanDefault();
+    this._hideBookmarksOnce();
 
     // Apply any saved per-button customizations (name/icon/link/hidden).
     this.applyPanelOverrides();
@@ -572,10 +573,10 @@ const SidebarManager = {
 
   // Niche feature panels hidden from the rail by default — they stay fully
   // available in Settings → Sidebar (Show) and the command bar (Ctrl+K). The
-  // browser core (start/bookmarks/history/downloads/settings), the app panels
+  // browser core (start/history/downloads/settings), the app panels
   // (WhatsApp/Claude/Spotify/Netflix/Discord/Roblox) and Notes/Authenticator
-  // stay visible.
-  DEFAULT_HIDDEN_PANELS: ['queue', 'memory', 'schedules', 'library', 'feeds', 'annotations', 'recall'],
+  // stay visible. Bookmarks is default-off too (still one click away to re-show).
+  DEFAULT_HIDDEN_PANELS: ['queue', 'memory', 'schedules', 'library', 'feeds', 'annotations', 'recall', 'bookmarks'],
 
   // Applied once per install (guarded by vex.sidebarLeanV1). Merges hidden:true
   // onto each default-hidden panel; a later Show in Settings sticks because this
@@ -588,6 +589,23 @@ const SidebarManager = {
       for (const p of this.DEFAULT_HIDDEN_PANELS) ov[p] = Object.assign({}, ov[p], { hidden: true });
       savePanelOverrides(ov);
       localStorage.setItem('vex.sidebarLeanV1', '1');
+    } catch {}
+  },
+
+  // Bookmarks became default-off AFTER the lean default shipped, so existing
+  // installs (which already set vex.sidebarLeanV1) won't get it from
+  // _applyLeanDefault. This one-time migration hides Bookmarks for them too —
+  // once, and only if they haven't explicitly chosen to Show it — so it stays
+  // optional (re-show in Settings → Sidebar and it sticks).
+  _hideBookmarksOnce() {
+    try {
+      if (localStorage.getItem('vex.sidebarBookmarksHiddenV1')) return;
+      const ov = loadPanelOverrides();
+      if (!ov.bookmarks || ov.bookmarks.hidden !== false) {
+        ov.bookmarks = Object.assign({}, ov.bookmarks, { hidden: true });
+        savePanelOverrides(ov);
+      }
+      localStorage.setItem('vex.sidebarBookmarksHiddenV1', '1');
     } catch {}
   },
 
@@ -616,6 +634,9 @@ const SidebarManager = {
     ov[panel] = Object.assign({}, ov[panel], patch);
     savePanelOverrides(ov);
     this.applyPanelOverrides();
+    // If we just hid the button for the panel that's currently open, close the
+    // panel too — otherwise its content stays on screen and "Hide" looks broken.
+    if (patch.hidden && this.activePanel === panel) this.hideActivePanel();
     if (patch.url && this.panelWebviews[panel]) {
       const wv = this.panelWebviews[panel];
       try { if (typeof wv.loadURL === 'function') wv.loadURL(patch.url); else wv.src = patch.url; } catch (err) {}
