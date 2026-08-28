@@ -143,6 +143,17 @@ const WebviewManager = {
     // one toast per session — it's the actionable one (codec/GPU decode bug,
     // like TikTok's HEVC freeze) and a page can't spam it.
     webview.addEventListener('ipc-message', (e) => {
+      // PiP video-detection from the guest preload (sent via sendToHost because a
+      // guest window.postMessage can't cross to the host). Re-emit as a host
+      // window message so PiPManager (app.js) handles it unchanged. Gate on the
+      // active tab so a background tab's video doesn't toggle the toolbar button.
+      if (e.channel === 'vex-video-detected' || e.channel === 'vex-pip-fallback') {
+        try {
+          if (typeof WebviewManager !== 'undefined' && WebviewManager.getActiveWebview && WebviewManager.getActiveWebview() !== webview && e.channel === 'vex-video-detected') return;
+          window.postMessage(Object.assign({ type: e.channel }, (e.args && e.args[0]) || {}), '*');
+        } catch {}
+        return;
+      }
       if (e.channel !== 'vex-media-error' && e.channel !== 'vex-media-frozen') return;
       const d = (e.args && e.args[0]) || {};
       console.warn(`[MediaHealth] ${e.channel} on ${webview.getURL()}`, d);

@@ -92,8 +92,9 @@
     toggle() {
       const wv = WebviewManager.getActiveWebview();
       if (wv) {
-        // Try native PiP first via message to webview content
-        wv.contentWindow?.postMessage({ type: 'vex-request-pip' }, '*');
+        // Ask the guest for native PiP over the webview IPC channel (wv.send);
+        // wv.contentWindow.postMessage doesn't reach the guest across processes.
+        if (typeof wv.send === 'function') { try { wv.send('vex-request-pip'); } catch {} }
         // Fallback: open as popup window
         setTimeout(() => {
           if (!document.pictureInPictureElement) {

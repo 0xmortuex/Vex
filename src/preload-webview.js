@@ -65,17 +65,22 @@
 (function () {
   'use strict';
 
+  // This IIFE has its own ipcRenderer — it is NOT shared from the media-health
+  // IIFE above. The PiP video-detection bridge (sendToHost / on) needs it.
+  let ipcRenderer;
+  try { ipcRenderer = require('electron').ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
   let lastVideoCount = 0;
 
   function checkForVideos() {
     const videos = document.querySelectorAll('video');
     if (videos.length !== lastVideoCount) {
       lastVideoCount = videos.length;
-      window.postMessage({
-        type: 'vex-video-detected',
-        hasVideo: videos.length > 0,
-        videoCount: videos.length
-      }, '*');
+      // sendToHost, NOT window.postMessage: a <webview> guest's window.postMessage
+      // never crosses to the host renderer, so the toolbar PiP button's show/hide
+      // never fired. The host re-emits this as a window message for PiPManager.
+      try { ipcRenderer.sendToHost('vex-video-detected', { hasVideo: videos.length > 0, videoCount: videos.length }); } catch {}
     }
   }
 
@@ -124,8 +129,13 @@
     window.addEventListener('load', setupVideoPipButtons);
   }
 
-  // Watch for dynamically added videos
-  const obs = new MutationObserver(setupVideoPipButtons);
+  // Watch for dynamically added videos — DEBOUNCED. A subtree childList observer
+  // fires continuously on busy SPAs (Discord, Twitter/X); running querySelectorAll
+  // ('video') + getComputedStyle on every mutation is a steady CPU drain. Coalesce
+  // bursts into one scan after 600ms of quiet.
+  let pipScanTimer = null;
+  const scheduleScan = () => { if (pipScanTimer) return; pipScanTimer = setTimeout(() => { pipScanTimer = null; setupVideoPipButtons(); }, 600); };
+  const obs = new MutationObserver(scheduleScan);
   if (document.body) {
     obs.observe(document.body, { childList: true, subtree: true });
   } else {
@@ -134,21 +144,19 @@
     });
   }
 
-  // Periodic fallback check
-  setInterval(setupVideoPipButtons, 3000);
+  // Periodic fallback check (slower now that the observer is the primary path).
+  setInterval(setupVideoPipButtons, 5000);
 
-  // Listen for PiP request from parent
-  window.addEventListener('message', (e) => {
-    if (e.data && e.data.type === 'vex-request-pip') {
-      const videos = document.querySelectorAll('video');
-      const video = Array.from(videos).find(v => !v.paused) || videos[0];
-      if (video && document.pictureInPictureEnabled) {
-        video.requestPictureInPicture().catch(() => {
-          window.postMessage({ type: 'vex-pip-fallback' }, '*');
-        });
-      } else {
-        window.postMessage({ type: 'vex-pip-fallback' }, '*');
-      }
+  // Listen for a PiP request from the host toolbar button. Comes over the
+  // webview IPC channel (wv.send), not window.postMessage — the host can't reach
+  // the guest window across the process boundary.
+  ipcRenderer.on('vex-request-pip', () => {
+    const videos = document.querySelectorAll('video');
+    const video = Array.from(videos).find(v => !v.paused) || videos[0];
+    if (video && document.pictureInPictureEnabled) {
+      video.requestPictureInPicture().catch(() => { try { ipcRenderer.sendToHost('vex-pip-fallback'); } catch {} });
+    } else {
+      try { ipcRenderer.sendToHost('vex-pip-fallback'); } catch {}
     }
   });
 })();
@@ -425,7 +433,12 @@ function _isVexStartPage(href) {
       if (t === "email" || t === "text" || t === "tel" || t === "") {
         const v = String(el.value || "").trim();
         const hint = ((el.name || "") + (el.id || "") + (el.autocomplete || "")).toLowerCase();
-        if (v && v.length <= 200 && (t === "email" || /@|user|name|login|mail|phone|tel/.test(hint) || v.length >= 3)) {
+        // Only remember a value as the username if the field actually looks like
+        // a login field. The old `|| v.length >= 3` made ANY 3+ char text input
+        // (a search box, a comment) the remembered username, so the save prompt
+        // offered the wrong one. A signal-less username field is still caught by
+        // the same-form fallback in tryCapture().
+        if (v && v.length <= 200 && (t === "email" || /@|user|name|login|mail|phone|tel/.test(hint))) {
           lastUser = v;
         }
       }
@@ -440,7 +453,10 @@ function _isVexStartPage(href) {
       if (!pw || !pw.value) return;
       let user = lastUser;
       if (!user) {
-        const cands = document.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
+        // Scope to the password's own form so a search box elsewhere on the page
+        // can't be mistaken for the username.
+        const scope = pw.form || document;
+        const cands = scope.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
         for (const c of cands) { if (c.value && c !== pw) { user = c.value; break; } }
       }
       if (!user) return;

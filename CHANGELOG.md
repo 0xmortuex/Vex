@@ -14,6 +14,8 @@
 - **Menus were camouflaged over web pages.** The tab right-click menu and the URL-bar suggestions were semi-transparent and hard to read over a site; they're now solid.
 - **Downloads silently overwrote same-name files.** A second `image.png` clobbered the first on disk — Vex now keeps both (`image (1).png`).
 - **Sidebar buttons vanished when switching setup style** (Minimal ⇄ Full) and didn't come back; switching now restores every panel.
+- **Picture-in-Picture toolbar button never worked right.** The page→browser "there's a video here" signal used a message channel that can't cross the `<webview>` boundary, so the toolbar PiP button's show/hide never fired and its click couldn't reach the video. Rewired over the correct webview IPC — the button now shows only when the active tab has a video and triggers native PiP. Also debounced the per-page video scan so it no longer churns CPU on busy sites like Discord.
+- **"Save password?" could offer the wrong username** — anything typed into a 3+ character text field (a search box, a comment) was remembered as the login name. It now only remembers real username/email fields, scoped to the login form.
 - **Smaller fixes:** URL-bar ArrowUp now reaches the last suggestion; the command palette no longer shows a duplicate "History"; dragging a tab onto a stack no longer misplaces it; open-tab full-text history indexing works again; the tab-sidebar toggle shows its pressed state; a benign navigation error no longer spams the console; and the Discord spellcheck replacement is more reliable.
 
 ## v2.29.6 (2026-08-27) — Safer DRM settings + build guardrail
