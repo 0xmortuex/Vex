@@ -665,12 +665,16 @@ const TabManager = {
         console.warn('[Tabs] renderStacks: skipping empty stack', stack.id);
         continue;
       }
-      const topTab = this.tabs.find(t => t.id === stack.topTabId && t.stackId === stack.id);
+      let topTab = this.tabs.find(t => t.id === stack.topTabId && t.stackId === stack.id);
       if (!topTab) {
-        // topTabId points at a tab that doesn't exist or isn't in this stack.
-        // 4a's _fallbackTopTab on init should prevent this — log and skip.
-        console.warn('[Tabs] renderStacks: orphan topTabId for stack', stack.id, '→', stack.topTabId);
-        continue;
+        // topTabId is stale — most commonly because tab ids are reassigned on
+        // restore (tab-${++counter}) but topTabId still points at a previous
+        // session's id. Fall back to the first member (as the horizontal strip
+        // already does) so the stack stays VISIBLE instead of vanishing, and
+        // repair the id so it resolves directly next render.
+        topTab = members[0];
+        if (topTab) stack.topTabId = topTab.id;
+        else { console.warn('[Tabs] renderStacks: no members for stack', stack.id); continue; }
       }
 
       // Phase 4c — expansion is ephemeral UI state in _expandedStackIds.
@@ -1228,10 +1232,13 @@ const TabManager = {
       if (!targetId || draggedId === targetId) return;
 
       const dragIdx = this.tabs.findIndex(t => t.id === draggedId);
-      const targetIdx = this.tabs.findIndex(t => t.id === targetId);
-      if (dragIdx < 0 || targetIdx < 0) return;
-
+      if (dragIdx < 0) return;
       const [dragged] = this.tabs.splice(dragIdx, 1);
+      // Recompute the target index AFTER removing the dragged tab. With a
+      // pre-splice index the drop lands after the target when dragging down but
+      // before it when dragging up (direction-dependent off-by-one).
+      const targetIdx = this.tabs.findIndex(t => t.id === targetId);
+      if (targetIdx < 0) { this.tabs.splice(dragIdx, 0, dragged); return; } // target vanished — put it back
       this.tabs.splice(targetIdx, 0, dragged);
 
       this.rebuildAllTabs();

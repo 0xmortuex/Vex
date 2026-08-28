@@ -195,7 +195,7 @@ const HistoryPanel = {
         ${items.slice(0, 100).map(e => {
           const time = new Date(e.visitedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           let favicon = e.favicon;
-          if (!favicon) { try { favicon = `https://www.google.com/s2/favicons?domain=${new URL(e.url).hostname}&sz=32`; } catch {} }
+          if (!favicon) { try { favicon = new URL(e.url).origin + '/favicon.ico'; } catch {} } // first-party, no Google leak
           return `
             <div class="history-item" data-id="${e.id}" data-url="${this._esc(e.url)}" tabindex="0" role="link">
               <img src="${favicon || ''}" alt="" loading="lazy" onerror="this.style.display='none'">
@@ -299,7 +299,7 @@ const HistoryPanel = {
       let host = ''; try { host = new URL(entry.url).hostname; } catch {}
       html += `
         <div class="history-item ai-result" data-url="${this._esc(entry.url)}" tabindex="0" role="link">
-          <img src="${host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32` : ''}" width="20" height="20" loading="lazy" onerror="this.style.display='none'">
+          <img src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" width="20" height="20" loading="lazy" onerror="this.style.display='none'">
           <div class="history-item-info item-content">
             <div class="history-item-title item-title">${this._esc(entry.title || 'Untitled')}</div>
             <div class="history-item-url item-url">${this._esc(entry.url)}</div>

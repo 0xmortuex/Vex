@@ -85,8 +85,10 @@ const HorizontalTabs = (() => {
 
       let favicon = topTab.favicon;
       if (!favicon) {
-        const host = _host(topTab.url || '');
-        if (host) favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=16`;
+        // First-party /favicon.ico — no Google s2/favicons leak (matches the
+        // tabs.js sidebar path; the delegated tab-favicon error handler swaps a
+        // 404 for the neutral placeholder).
+        try { favicon = new URL(topTab.url || '').origin + '/favicon.ico'; } catch {}
       }
       chip.innerHTML = `
         ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" onerror="this.style.display='none'">` : '<span class="tab-favicon"></span>'}
@@ -136,8 +138,8 @@ const HorizontalTabs = (() => {
 
     let favicon = tab.favicon;
     if (!favicon) {
-      const host = _host(tab.url || '');
-      if (host) favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=16`;
+      // First-party /favicon.ico — no Google s2/favicons leak.
+      try { favicon = new URL(tab.url || '').origin + '/favicon.ico'; } catch {}
     }
     const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing">\ud83d\udd0a</span>'
                 : tab.muted              ? '<span class="audio-indicator" title="Muted">\ud83d\udd07</span>'
