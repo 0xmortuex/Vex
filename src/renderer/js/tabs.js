@@ -1356,7 +1356,6 @@ const TabManager = {
       .ka-btn:hover{background:var(--primary,#6366f1);border-color:transparent;color:#fff;}
       .ka-stop{width:100%;margin-top:8px;color:#ff6b81;border-color:rgba(224,85,106,0.4);}
       .ka-cancel{width:100%;margin-top:8px;background:transparent;border:1px solid var(--border,rgba(255,255,255,0.14));color:var(--text-muted,#9a9aa5);border-radius:9px;padding:8px;font-size:12.5px;cursor:pointer;font-family:inherit;}
-      .tab.kept-awake .tab-title::after{content:'☕';font-size:9px;margin-left:4px;opacity:.85;}
     `;
     document.head.appendChild(st);
   },

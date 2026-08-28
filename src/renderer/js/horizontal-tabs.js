@@ -129,6 +129,9 @@ const HorizontalTabs = (() => {
     if (tab.id === activeId) el.classList.add('active');
     if (tab.loading) el.classList.add('loading');
     if (tab.sleeping) el.classList.add('sleeping');
+    // "Prevent from sleeping" (☕) — mirror the vertical sidebar so the badge
+    // shows on the horizontal/Glass strip too, and survives a restart.
+    if (window.Tabs && window.Tabs._isKeptAwake && window.Tabs._isKeptAwake(tab)) el.classList.add('kept-awake');
     // Private/ephemeral tabs (Tor, off-the-record) get a class for tinting +
     // a badge, so you can tell at a glance which tabs are private.
     if (tab.partition && !String(tab.partition).startsWith('persist:')) {

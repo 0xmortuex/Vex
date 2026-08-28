@@ -267,6 +267,19 @@
    so you can tell at a glance which tabs are private. Covers both the vertical
    sidebar (.tab-item) and the horizontal/Glass strip (.top-tab). */
 .tab-private { font-size: 10px; line-height: 1; flex-shrink: 0; margin: 0 1px; }
+
+/* "Prevent from sleeping" (☕) indicator. Lives here (always loaded) rather than
+   in the lazily-injected chooser styles, so a kept-awake tab shows its badge
+   immediately on launch/restore — not only after the chooser has been opened.
+   Targets the real tab element classes (.tab-item vertical, .top-tab horizontal);
+   the old rule used `.tab`, which matches neither, so the badge never appeared. */
+.tab-item.kept-awake .tab-title::after,
+.top-tab.kept-awake .tab-title::after {
+  content: '☕';
+  font-size: 9px;
+  margin-left: 4px;
+  opacity: 0.85;
+}
 .tab-item.private-tab, .top-tab.private-tab { border-color: color-mix(in srgb, #a855f7 42%, var(--vex-border-medium, var(--border))) !important; }
 .tab-item.tor-tab, .top-tab.tor-tab { border-color: color-mix(in srgb, #7c3aed 55%, var(--vex-border-medium, var(--border))) !important; }
 .top-tab.tor-tab { box-shadow: inset 0 0 0 1px color-mix(in srgb, #7c3aed 30%, transparent); }
