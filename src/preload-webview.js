@@ -147,6 +147,11 @@
   // Periodic fallback check (slower now that the observer is the primary path).
   setInterval(setupVideoPipButtons, 5000);
 
+  // Host asks for a fresh video report when this tab becomes active (a tab
+  // switch isn't a video-count change, so checkForVideos wouldn't otherwise
+  // re-emit). Resetting lastVideoCount forces the next check to report.
+  ipcRenderer.on('vex-rescan-video', () => { lastVideoCount = -1; checkForVideos(); });
+
   // Listen for a PiP request from the host toolbar button. Comes over the
   // webview IPC channel (wv.send), not window.postMessage — the host can't reach
   // the guest window across the process boundary.

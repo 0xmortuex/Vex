@@ -1027,20 +1027,27 @@
        matches the Glass chrome, regardless of the selected color theme. Cards
        already use these tokens, so they become frosted automatically. */
     html[data-gui-style="glass"] {
-      --vex-bg-base:#0b0d18; --vex-glass-strong:rgba(255,255,255,0.10); --vex-glass-medium:rgba(255,255,255,0.07);
+      /* Glass DERIVES from the active theme's --vex-accent (matches the chrome).
+         Previously this hardcoded an indigo palette, so Glass + any non-indigo
+         theme (ruby, emerald…) left the start page navy while the chrome was
+         themed. Frosted surfaces stay theme-agnostic white-alpha. */
+      --g-accent: var(--vex-accent, #8b8bf5);
+      --g-accent2: color-mix(in srgb, var(--g-accent) 58%, #ffffff);
+      --vex-bg-base: color-mix(in srgb, var(--g-accent) 12%, #07080f);
+      --vex-glass-strong:rgba(255,255,255,0.10); --vex-glass-medium:rgba(255,255,255,0.07);
       --vex-glass-light:rgba(255,255,255,0.05); --vex-glass-input:rgba(255,255,255,0.12);
       --vex-border-subtle:rgba(255,255,255,0.12); --vex-border-medium:rgba(255,255,255,0.18); --vex-border-strong:rgba(255,255,255,0.26);
-      --vex-border-accent:rgba(139,139,245,0.5); --vex-border-accent-strong:rgba(139,139,245,0.7);
-      --vex-accent:#8b8bf5; --vex-accent-dim:rgba(139,139,245,0.22); --vex-accent-glow:rgba(139,139,245,0.28);
       --vex-text-primary:#eef0ff; --vex-text-secondary:#c4c8ec; --vex-text-muted:#9499c4;
       --vex-blur-medium:blur(20px) saturate(140%); --vex-blur-light:blur(12px) saturate(120%);
       --vex-radius-sm:7px; --vex-radius-md:10px; --vex-radius-lg:14px;
+      /* --vex-accent + accent-dim/glow + border-accent* intentionally NOT set —
+         they inherit from the theme so the accent matches the chrome. */
     }
     html[data-gui-style="glass"] body {
       background:
-        radial-gradient(1100px 560px at 8% -10%, rgba(99,102,241,0.42), transparent 60%),
-        radial-gradient(1100px 640px at 98% 110%, rgba(236,72,153,0.32), transparent 55%),
-        #0b0d18 !important;
+        radial-gradient(1100px 560px at 8% -10%, color-mix(in srgb, var(--g-accent) 42%, transparent), transparent 60%),
+        radial-gradient(1100px 640px at 98% 110%, color-mix(in srgb, var(--g-accent2) 32%, transparent), transparent 55%),
+        color-mix(in srgb, var(--g-accent) 12%, #07080f) !important;
       background-attachment: fixed;
     }
   </style>

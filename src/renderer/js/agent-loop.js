@@ -246,7 +246,12 @@ const AgentLoop = {
 
         // Phase 18: Stall detection — same URL + same tool for N iterations = done
         const currentUrl = pageContext?.url || '';
-        const marker = `${currentUrl}::${decision.tool}`;
+        // Include the parameters: without them, typing into 4 different fields
+        // (type_text × N on one page) or clicking 4 buttons all share a marker
+        // and trip the stall abort at step 4. Arg-aware = only a truly repeated
+        // action counts as a stall (the exact-repeat loop detector above still
+        // handles same-args spins).
+        const marker = `${currentUrl}::${decision.tool}::${JSON.stringify(decision.parameters || {})}`;
         if (marker === lastProgressMarker) {
           stallCounter++;
           if (stallCounter >= STALL_THRESHOLD) {

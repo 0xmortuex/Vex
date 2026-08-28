@@ -213,16 +213,60 @@ const Scheduler = {
     localStorage.setItem(this.HISTORY_KEY, '[]');
   },
 
+  // Most recent scheduled occurrence AT OR BEFORE `now` for a recurring task
+  // (daily/weekly/monthly), or null. This is what decides whether a run is DUE —
+  // separate from calculateNextRun() (the next FUTURE run, shown in the UI).
+  // calculateNextRun rolls forward the instant now passes the scheduled time, so
+  // the old check could only fire in the 60s BEFORE the time (≈60s early) and
+  // never caught a run that was missed while the app slept. This fires AT the
+  // time and catches up a missed one within CATCHUP.
+  _dueOccurrence(task, now) {
+    const [h, m] = (task.time || '09:00').split(':').map(Number);
+    if (task.frequency === 'daily') {
+      const d = new Date(now); d.setHours(h, m, 0, 0);
+      if (d > now) d.setDate(d.getDate() - 1);
+      return d;
+    }
+    if (task.frequency === 'weekly') {
+      const days = task.daysOfWeek || [];
+      if (!days.length) return null;
+      for (let i = 0; i < 8; i++) {
+        const c = new Date(now); c.setDate(c.getDate() - i); c.setHours(h, m, 0, 0);
+        if (c <= now && days.includes(c.getDay())) return c;
+      }
+      return null;
+    }
+    if (task.frequency === 'monthly') {
+      const d = new Date(now); d.setDate(task.dayOfMonth || 1); d.setHours(h, m, 0, 0);
+      if (d > now) d.setMonth(d.getMonth() - 1);
+      return d;
+    }
+    return null;
+  },
+
   _checkDueTasks() {
     const now = new Date();
+    const CATCHUP = 6 * 60 * 60 * 1000; // run a missed occurrence up to 6h late (e.g. after sleep); older is skipped
+    const recurring = { daily: true, weekly: true, monthly: true };
     for (const task of this.getAllTasks().filter(t => t.enabled)) {
-      const next = this.calculateNextRun(task);
-      if (!next) continue;
-      const diff = next - now;
-      if (diff <= 60000 && diff >= -60000) {
+      if (recurring[task.frequency]) {
+        const occ = this._dueOccurrence(task, now);
+        if (!occ) continue;
+        const sinceOcc = now - occ;
+        if (sinceOcc < 0 || sinceOcc > CATCHUP) continue;      // not reached yet, or too stale
         const last = task.lastRunAt ? new Date(task.lastRunAt) : null;
-        if (last && (now - last) < 90000) continue;
+        if (last && last >= occ) continue;                      // already ran this occurrence
         this.runTask(task).catch(e => console.error('[Scheduler] Task error:', e));
+      } else {
+        // 'once' and 'custom' (cron) keep the next-run window.
+        const next = this.calculateNextRun(task);
+        if (!next) continue;
+        const diff = next - now;
+        if (diff <= 60000 && diff >= -60000) {
+          const last = task.lastRunAt ? new Date(task.lastRunAt) : null;
+          if (last && (now - last) < 90000) continue;
+          this.runTask(task).catch(e => console.error('[Scheduler] Task error:', e));
+        }
       }
     }
   },

@@ -315,22 +315,25 @@ const AIPanel = {
     if (this._sending) return;
     this._sending = true;
 
-    const tabId = this._getTabId();
-    const wv = WebviewManager.getActiveWebview();
-    let pageContext = null;
-    if (wv) { try { pageContext = await PageContext.extractPageContext(wv); } catch {} }
-
-    const conv = this._getConv(tabId);
-
-    // Add user message for chat
-    if (action === 'chat' && opts.message) {
-      conv.push({ role: 'user', content: opts.message });
-      this._renderMessages();
-    }
-
-    const loadingEl = this._addLoading();
-
+    // Everything runs inside the try so a throw in the pre-work (getConv,
+    // renderMessages, addLoading) can't latch _sending=true forever and lock out
+    // every future send. finally always clears it.
+    let loadingEl = null;
     try {
+      const tabId = this._getTabId();
+      const wv = WebviewManager.getActiveWebview();
+      let pageContext = null;
+      if (wv) { try { pageContext = await PageContext.extractPageContext(wv); } catch {} }
+
+      const conv = this._getConv(tabId);
+
+      // Add user message for chat
+      if (action === 'chat' && opts.message) {
+        conv.push({ role: 'user', content: opts.message });
+        this._renderMessages();
+      }
+
+      loadingEl = this._addLoading();
       // Phase 14: route through AIRouter for local/cloud selection.
       // Map action → feature name.
       const featureMap = { chat: 'chat', summarize: 'summarize', translate: 'translate', explain: 'explain' };
@@ -370,9 +373,9 @@ const AIPanel = {
     } catch (err) {
       loadingEl?.remove();
       this._addError(err.message || 'Network error');
+    } finally {
+      this._sending = false;
     }
-
-    this._sending = false;
   },
 
   async _sendChat() {

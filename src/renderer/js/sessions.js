@@ -43,9 +43,18 @@ const SessionManager = {
     if (!session) return;
 
     if (replace) {
-      // Close all current tabs
-      while (TabManager.tabs.length > 0) {
-        TabManager.closeTab(TabManager.tabs[0].id);
+      // Close all current tabs. closeTab() auto-creates a START_URL tab whenever
+      // the set hits zero, so without _bulkClosing this while-loop would spin
+      // forever (close → auto-recreate → length still > 0 → …) and freeze the
+      // browser. _bulkClosing makes closeTab skip the auto-create (same guard the
+      // workspace-switch bulk close uses).
+      TabManager._bulkClosing = true;
+      try {
+        while (TabManager.tabs.length > 0) {
+          TabManager.closeTab(TabManager.tabs[0].id);
+        }
+      } finally {
+        TabManager._bulkClosing = false;
       }
       // Restore groups
       if (session.groups) {

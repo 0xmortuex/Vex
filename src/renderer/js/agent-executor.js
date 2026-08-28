@@ -49,29 +49,33 @@ const AgentExecutor = {
           return clickRes.ok ? { ok: true, result: 'Clicked element' } : clickRes;
 
         case 'type_text':
-          await wv.executeJavaScript(`
+          const typeRes = await wv.executeJavaScript(`
             (() => {
               const el = document.querySelector(${JSON.stringify(params.selector)});
-              if (!el) return;
+              if (!el) return { ok: false, error: 'Element not found' };
               el.focus();
               if (${params.clearFirst ? 'true' : 'false'}) el.value = '';
               el.value = (el.value || '') + ${JSON.stringify(params.text || '')};
               el.dispatchEvent(new Event('input', { bubbles: true }));
               el.dispatchEvent(new Event('change', { bubbles: true }));
+              return { ok: true };
             })()
           `);
-          return { ok: true, result: 'Typed text' };
+          // Report the truth: an early return on a missing element must NOT read
+          // as success, or the agent submits an empty field and never corrects.
+          return (typeRes && typeRes.ok) ? { ok: true, result: 'Typed text' } : { ok: false, error: (typeRes && typeRes.error) || 'Element not found' };
 
         case 'select_option':
-          await wv.executeJavaScript(`
+          const selRes = await wv.executeJavaScript(`
             (() => {
               const el = document.querySelector(${JSON.stringify(params.selector)});
-              if (!el) return;
+              if (!el) return { ok: false, error: 'Element not found' };
               el.value = ${JSON.stringify(params.value || '')};
               el.dispatchEvent(new Event('change', { bubbles: true }));
+              return { ok: true };
             })()
           `);
-          return { ok: true, result: 'Selected option' };
+          return (selRes && selRes.ok) ? { ok: true, result: 'Selected option' } : { ok: false, error: (selRes && selRes.error) || 'Element not found' };
 
         case 'scroll':
           const dir = params.direction || 'down';

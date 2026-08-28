@@ -338,7 +338,14 @@ const WebviewManager = {
     this.webviews.forEach((wv, id) => {
       const active = id === tabId;
       wv.classList.toggle('active', active);
-      if (active) { wv._lastActive = Date.now(); this._wake(wv); }
+      if (active) {
+        wv._lastActive = Date.now(); this._wake(wv);
+        // Refresh the PiP toolbar button for the newly-active page. The guest
+        // only auto-emits video state on a count change (not on tab switch), so
+        // hide the button now and ask this guest to re-report.
+        try { const b = document.getElementById('pip-btn'); if (b) b.style.display = 'none'; } catch {}
+        try { if (typeof wv.send === 'function') wv.send('vex-rescan-video'); } catch {}
+      }
     });
     this._ensureHibernateSweep();
   },

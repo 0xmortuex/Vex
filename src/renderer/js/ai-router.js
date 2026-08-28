@@ -162,7 +162,7 @@ const AIRouter = (() => {
       try {
         return await callBackend(fallback, feature, request);
       } catch (err2) {
-        throw new Error(`Both ${primary} and ${fallback} AI failed: ${err.message}`);
+        throw new Error(`Both ${primary} (${err.message}) and ${fallback} (${err2.message}) AI failed`);
       }
     }
   }

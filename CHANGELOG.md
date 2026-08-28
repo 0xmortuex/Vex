@@ -16,6 +16,12 @@
 - **Sidebar buttons vanished when switching setup style** (Minimal ⇄ Full) and didn't come back; switching now restores every panel.
 - **Picture-in-Picture toolbar button never worked right.** The page→browser "there's a video here" signal used a message channel that can't cross the `<webview>` boundary, so the toolbar PiP button's show/hide never fired and its click couldn't reach the video. Rewired over the correct webview IPC — the button now shows only when the active tab has a video and triggers native PiP. Also debounced the per-page video scan so it no longer churns CPU on busy sites like Discord.
 - **"Save password?" could offer the wrong username** — anything typed into a 3+ character text field (a search box, a comment) was remembered as the login name. It now only remembers real username/email fields, scoped to the login form.
+- **Restoring a saved session froze the browser.** Clearing the current tabs hit a loop where closing the last tab auto-created a new one, so the "close all" never finished. Restore now completes instantly.
+- **The start page didn't match the theme in Glass mode.** With Glass on, the start page kept a fixed indigo/navy background regardless of the color theme, so themes like Ruby left it clashing with the themed chrome. It now derives its color from the theme, matching the rest of the window.
+- **Scheduled tasks fired up to a minute early and could be skipped.** Daily/weekly/monthly tasks now fire *at* their time (not ~60s before), and a task missed while the computer was asleep runs when you're back (up to 6 hours late) instead of being silently skipped.
+- **The AI chat could lock up.** An error in the wrong spot could leave the panel permanently refusing to send; it always recovers now.
+- **PiP button now refreshes when you switch tabs** (it could show stale state from the previous tab).
+- **Agent mode:** filling several fields on one page no longer aborts as "stuck," and the agent's type/select actions now report real success/failure instead of always "ok."
 - **Smaller fixes:** URL-bar ArrowUp now reaches the last suggestion; the command palette no longer shows a duplicate "History"; dragging a tab onto a stack no longer misplaces it; open-tab full-text history indexing works again; the tab-sidebar toggle shows its pressed state; a benign navigation error no longer spams the console; and the Discord spellcheck replacement is more reliable.
 
 ## v2.29.6 (2026-08-27) — Safer DRM settings + build guardrail
