@@ -763,6 +763,43 @@ ipcMain.handle('vault:list', () => {
   // Metadata only — no passwords cross this channel.
   return vaultLoad().map(e => ({ host: e.host, username: e.username, updatedAt: e.updatedAt }));
 });
+
+// Autofill for OAuth / sign-in POPUP windows (separate BrowserWindows, so the
+// renderer's PasswordVault can't reach them). Injected into the popup's own
+// webContents on each load. Same hardened login-field logic as passwords.js:
+// only a real login field is filled (email/username signal or a password field
+// present) — never a search/combobox — and only when the popup's host exactly
+// matches a saved credential (so a phishing popup can't harvest it).
+function _popupAutofillJs(username, password) {
+  return `(function(){try{
+    var U=${JSON.stringify(username)},P=${JSON.stringify(password)};
+    var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
+    var fire=function(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+    var vis=function(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}};
+    var meta=function(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}};
+    var searchy=function(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;return /search|find|filter|query/.test(meta(el));};
+    var loginSig=function(el){var t=(el.type||'').toLowerCase();if(t==='email')return true;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='username'||ac==='email')return true;return /e-?mail|user-?name|userid|login|phone|account|identifier/.test(meta(el));};
+    var userField=function(pw){var scope=(pw&&pw.form)||document;var c=scope.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');var sig=null,plain=null;for(var i=0;i<c.length;i++){var el=c[i];if(!vis(el)||searchy(el))continue;if(loginSig(el)){sig=el;break;}if(!plain)plain=el;}return sig||(pw?plain:null);};
+    var fill=function(){var pw=document.querySelector('input[type=password]');var u=userField(pw);if(u&&(pw||loginSig(u))&&!u.value)fire(u,U);if(pw&&!pw.value)fire(pw,P);};
+    fill();
+    // OAuth pages build their fields asynchronously (and step email→password on
+    // the same URL), so retry for a few seconds.
+    var n=0;var iv=setInterval(function(){fill();if(++n>10)clearInterval(iv);},400);
+  }catch(e){}})();`;
+}
+function _autofillPopup(wc) {
+  try {
+    if (!wc || wc.isDestroyed()) return;
+    const u = wc.getURL();
+    let host = '';
+    try { host = new URL(u).hostname.replace(/^www\./, ''); } catch { return; }
+    if (!host || !/^https:/i.test(u)) return;
+    const creds = vaultLoad().filter(e => e.host === host);
+    if (!creds.length) return;
+    const c = creds[0];
+    wc.executeJavaScript(_popupAutofillJs(c.username, c.password)).catch(() => {});
+  } catch {}
+}
 ipcMain.handle('vault:get', (_e, host) => {
   if (!host || typeof host !== 'string') return [];
   return vaultLoad().filter(e => e.host === host);
@@ -1783,6 +1820,12 @@ app.on('web-contents-created', (_event, contents) => {
         (popupSes.getStoragePath && popupSes.getStoragePath()) || '(in-memory)',
         (details && details.url) || '(no url)');
     } catch (err) { console.error('[popup-session] log failed:', err.message); }
+
+    // Autofill saved credentials into sign-in POPUP windows (OAuth "Sign in with
+    // Google", etc.). These are separate BrowserWindows, so the renderer's
+    // PasswordVault never reaches them. Fires on each load — covers the
+    // email→password step and async-rendered fields.
+    try { win.webContents.on('did-finish-load', () => _autofillPopup(win.webContents)); } catch {}
 
     // Peek-style auth popup: dim Vex behind it, allow Esc / backdrop-click to
     // dismiss (frameless windows have no native close button), and clear the dim
