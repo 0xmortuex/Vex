@@ -72,30 +72,40 @@ const Authenticator = {
       const iss = (a.issuer || '').trim();
       const lab = (a.label || '').trim();
       const title = iss && lab && lab.toLowerCase() !== iss.toLowerCase() ? `${iss} · ${lab}` : (iss || lab || 'Account');
-      return `<div class="auth-item" data-id="${this._esc(a.id)}">
+      return `<div class="auth-item" data-id="${this._esc(a.id)}" title="Click to copy the code" role="button" tabindex="0">
         <div class="auth-info">
           <div class="auth-name">${this._esc(title)}</div>
           <div class="auth-code" data-code>••• •••</div>
         </div>
         <div class="auth-ctrls">
           <svg class="auth-ring" width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" fill="none" stroke="var(--border)" stroke-width="2"/><circle data-ring cx="11" cy="11" r="9" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" transform="rotate(-90 11 11)" stroke-dasharray="56.55" stroke-dashoffset="0"/></svg>
-          <button class="auth-copy" data-copy title="Copy code">📋</button>
           <button class="auth-del" data-del title="Remove account">🗑</button>
         </div>
       </div>`;
     }).join('');
+    // Delete — stopPropagation so removing an account doesn't also copy its code.
     box.querySelectorAll('.auth-del').forEach(b => b.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const id = e.currentTarget.closest('.auth-item').dataset.id;
       const ok = await (window.vexConfirm ? window.vexConfirm({ title: 'Remove this account?', message: 'You will need the site’s setup key again to re-add it — make sure you still have another way to sign in.', okLabel: 'Remove', danger: true }) : Promise.resolve(true));
       if (!ok) return;
       await window.vex.totpDelete(id);
       await this._refreshList();
     }));
-    box.querySelectorAll('.auth-copy').forEach(b => b.addEventListener('click', (e) => {
-      const id = e.currentTarget.closest('.auth-item').dataset.id;
+    // Click ANYWHERE on the row (or Enter/Space) to copy the code — no button hunt.
+    const copyFrom = (item) => {
+      const id = item.dataset.id;
       const code = this._codes[id] && this._codes[id].code;
-      if (code) { try { navigator.clipboard.writeText(code); } catch {} window.showToast?.('Code copied'); }
-    }));
+      if (!code) return;
+      try { navigator.clipboard.writeText(code); } catch {}
+      window.showToast?.('Code copied');
+      item.classList.add('copied');
+      setTimeout(() => item.classList.remove('copied'), 550);
+    };
+    box.querySelectorAll('.auth-item').forEach(item => {
+      item.addEventListener('click', (e) => { if (!e.target.closest('.auth-del')) copyFrom(item); });
+      item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); copyFrom(item); } });
+    });
     await this._tick();
   },
 
@@ -143,12 +153,16 @@ const Authenticator = {
       .auth-status{font-size:11.5px;color:var(--text-muted)}
       .auth-list{display:flex;flex-direction:column;gap:8px}
       .auth-empty{color:var(--text-muted);font-size:12.5px;text-align:center;padding:24px 8px;line-height:1.6}
-      .auth-item{display:flex;align-items:center;justify-content:space-between;background:rgba(127,127,127,.06);border:1px solid var(--border);border-radius:10px;padding:9px 11px}
+      .auth-item{display:flex;align-items:center;justify-content:space-between;background:rgba(127,127,127,.06);border:1px solid var(--border);border-radius:10px;padding:9px 11px;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,transform .06s}
+      .auth-item:hover{background:rgba(127,127,127,.13);border-color:var(--vex-border-medium,var(--border))}
+      .auth-item:active{transform:scale(0.995)}
+      .auth-item:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+      .auth-item.copied{background:color-mix(in srgb, var(--primary) 22%, transparent);border-color:var(--primary)}
       .auth-name{font-size:11.5px;color:var(--text-muted);margin-bottom:2px}
       .auth-code{font-size:20px;font-weight:600;letter-spacing:2px;font-variant-numeric:tabular-nums}
       .auth-ctrls{display:flex;align-items:center;gap:6px}
-      .auth-copy,.auth-del{background:none;border:none;cursor:pointer;font-size:14px;opacity:.65;padding:3px;line-height:1}
-      .auth-copy:hover,.auth-del:hover{opacity:1}
+      .auth-del{background:none;border:none;cursor:pointer;font-size:14px;opacity:.6;padding:3px;line-height:1}
+      .auth-del:hover{opacity:1}
     `;
     document.head.appendChild(st);
   },

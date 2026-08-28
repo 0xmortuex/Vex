@@ -4,6 +4,10 @@
 
 ### Added
 - **Notes button in the top toolbar** (beside the 🧅 Tor button), so it's one click away without opening the sidebar. The sidebar Notes button stays too (hide it in Settings → Sidebar if you want just the toolbar one).
+- **Authenticator: click anywhere on a code to copy it.** No more hunting for the little copy button — click (or press Enter on) the whole row and the 2FA code is on your clipboard, with a quick flash to confirm.
+
+### Changed
+- **The Tor tab now opens a search page you can use right away.** Clicking the onion used to land you on the Tor "check" page, which felt like a dead end. It now opens DuckDuckGo (which works cleanly over Tor — unlike Google, which drowns you in CAPTCHAs), so you can just start searching. The background check still confirms you're on Tor.
 
 ### Fixed
 - **Tor tabs leaked into your saved session.** A tab opened over Tor was being persisted and, on the next launch, reopened as a *normal* tab — reloading a page you'd browsed privately over your real connection, and recording its URL. Tor (and off-the-record) tabs are now never saved — they vanish on close, as they should.

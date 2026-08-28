@@ -9,14 +9,18 @@
 // the top-right toolbar.
 
 const TorSession = {
-  VERIFY_URL: 'https://check.torproject.org/',
+  // The Tor tab lands on a SEARCH page so you can browse right away — not the
+  // Tor check page (which read as a dead-end). DuckDuckGo, not Google, because
+  // Google over Tor buries you in CAPTCHAs while DDG works cleanly (and is
+  // privacy-first). Verification still happens in the background (tor:verify).
+  SEARCH_URL: 'https://duckduckgo.com/',
 
   async open() {
     let r;
     try { r = await window.vex?.createTor?.(); } catch { r = null; }
     if (r && r.ok && r.partition) {
       try {
-        TabManager.createTab(this.VERIFY_URL, true, null, { partition: r.partition });
+        TabManager.createTab(this.SEARCH_URL, true, null, { partition: r.partition });
         window.showToast?.(`🧅 Tor tab via 127.0.0.1:${r.port} — checking connection…`);
       } catch { window.showToast?.('Could not open Tor tab', 'error'); return; }
       // The port being open doesn't mean Tor is ready — actually confirm we're
