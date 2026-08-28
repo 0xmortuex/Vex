@@ -192,6 +192,7 @@ contextBridge.exposeInMainWorld('vex', {
   createIdentity: () => ipcRenderer.invoke('identity:create'),
   // Tor session: isolated, proxied through a local Tor SOCKS5 (max security).
   createTor: () => ipcRenderer.invoke('tor:create'),
+  verifyTor: (partition) => ipcRenderer.invoke('tor:verify', partition),
   onToggleMuteTab: (callback) => ipcRenderer.on('toggle-mute-tab', callback),
 
   // Tabs sidebar toggle

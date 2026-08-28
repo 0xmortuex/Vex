@@ -1,8 +1,13 @@
 # Changelog
 
-## v2.29.8 (2026-08-28) — "Prevent from sleeping" actually sticks
+## v2.29.8 (2026-08-28) — "Prevent from sleeping" actually sticks + Tor hardening
+
+### Added
+- **Notes button in the top toolbar** (beside the 🧅 Tor button), so it's one click away without opening the sidebar. The sidebar Notes button stays too (hide it in Settings → Sidebar if you want just the toolbar one).
 
 ### Fixed
+- **Tor tabs leaked into your saved session.** A tab opened over Tor was being persisted and, on the next launch, reopened as a *normal* tab — reloading a page you'd browsed privately over your real connection, and recording its URL. Tor (and off-the-record) tabs are now never saved — they vanish on close, as they should.
+- **Tor now tells you if you're actually on Tor.** Finding Tor's port open doesn't mean Tor has finished connecting. Vex now verifies the tab really routes through Tor (via check.torproject.org) and shows a clear result — "🧅 Connected · exit IP …" on success, or a plain warning if the port's open but traffic isn't going through yet (still bootstrapping) or the proxy isn't Tor at all.
 - **"Prevent from sleeping" was leaky.** A tab you'd kept awake could still get put to sleep by the background idle-hibernation sweep (which only spared the active/audible/pinned tabs, not kept-awake ones) — and the setting was dropped entirely when Vex restarted, because the restore code didn't carry the keep-awake flag back onto the tab. Both are fixed: the hibernation sweep now respects keep-awake, and the setting survives a restart (a timed "keep awake for N hours" resumes with its remaining time; "until reverted" stays until you turn it off).
 
 ## v2.29.7 (2026-08-28) — Cleaner sidebar, theme-aware Glass, and a wave of fixes

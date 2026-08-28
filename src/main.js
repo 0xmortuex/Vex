@@ -3398,6 +3398,32 @@ ipcMain.handle('tor:create', async () => {
   } catch (err) { return { ok: false, reason: 'error', error: err.message }; }
 });
 
+// Confirm the session actually routes through Tor. A detected/open SOCKS port
+// doesn't mean Tor has finished bootstrapping (Tor Browser opens 9150 while still
+// connecting) — so fetch check.torproject.org's JSON API THROUGH the Tor session
+// and read IsTor. Returns { ok, isTor, ip } or { ok:false, error }.
+ipcMain.handle('tor:verify', async (_e, partition) => {
+  try {
+    if (!partition || typeof partition !== 'string') return { ok: false, error: 'bad-partition' };
+    const ses = session.fromPartition(partition);
+    const data = await new Promise((resolve, reject) => {
+      let body = '';
+      let req;
+      try { req = net.request({ url: 'https://check.torproject.org/api/ip', session: ses }); }
+      catch (e) { return reject(e); }
+      const to = setTimeout(() => { try { req.abort(); } catch {} reject(new Error('timeout')); }, 20000);
+      req.on('response', (res) => {
+        res.on('data', (c) => { body += c; if (body.length > 8192) { try { req.abort(); } catch {} } });
+        res.on('end', () => { clearTimeout(to); try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+        res.on('error', (e) => { clearTimeout(to); reject(e); });
+      });
+      req.on('error', (e) => { clearTimeout(to); reject(e); });
+      req.end();
+    });
+    return { ok: true, isTor: !!data.IsTor, ip: String(data.IP || '') };
+  } catch (err) { return { ok: false, error: err && err.message }; }
+});
+
 ipcMain.handle('open-private-window', () => {
   const privSession = session.fromPartition(`private:${Date.now()}`);
   wireDownloadsOnSession(privSession, 'private');

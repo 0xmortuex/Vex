@@ -116,7 +116,14 @@ const VexStorage = {
   },
 
   async saveTabs(tabs) {
-    const serialized = tabs.map(t => ({
+    const serialized = tabs
+      // Ephemeral tabs (Tor 🧅, off-the-record) live in an in-memory partition
+      // that's wiped on close — NEVER persist them. Restoring one would resurrect
+      // the URL as a normal persist:main tab: it'd leak what you browsed
+      // privately into your saved session AND reload it over your real
+      // connection (no Tor, no isolation). Persist-partitioned tabs are fine.
+      .filter(t => !(t.partition && !String(t.partition).startsWith('persist:')))
+      .map(t => ({
       id: t.id,
       url: t.url,
       title: t.title,

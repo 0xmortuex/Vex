@@ -206,6 +206,9 @@
   document.getElementById('btn-onboarding')?.addEventListener('click', () => { if (typeof Onboarding !== 'undefined') Onboarding.relaunch(); });
   document.getElementById('btn-command').addEventListener('click', () => CommandBar.toggle());
   document.getElementById('btn-tor')?.addEventListener('click', () => { if (typeof TorSession !== 'undefined') TorSession.open(); });
+  // Notes quick-access in the top toolbar (beside Tor), in addition to the
+  // sidebar button — toggles the Notes panel.
+  document.getElementById('btn-notes-top')?.addEventListener('click', () => { if (typeof SidebarManager !== 'undefined') SidebarManager.togglePanel('notes'); });
 
   // === Window Controls ===
   document.getElementById('btn-minimize').addEventListener('click', () => window.vex.minimize());

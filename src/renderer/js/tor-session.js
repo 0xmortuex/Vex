@@ -17,8 +17,20 @@ const TorSession = {
     if (r && r.ok && r.partition) {
       try {
         TabManager.createTab(this.VERIFY_URL, true, null, { partition: r.partition });
-        window.showToast?.(`🧅 Tor session via 127.0.0.1:${r.port} — verifying…`);
-      } catch { window.showToast?.('Could not open Tor tab', 'error'); }
+        window.showToast?.(`🧅 Tor tab via 127.0.0.1:${r.port} — checking connection…`);
+      } catch { window.showToast?.('Could not open Tor tab', 'error'); return; }
+      // The port being open doesn't mean Tor is ready — actually confirm we're
+      // routing through Tor, and tell the user plainly either way.
+      try {
+        const v = await window.vex?.verifyTor?.(r.partition);
+        if (v && v.ok && v.isTor) {
+          window.showToast?.(`🧅 Connected to Tor · exit IP ${v.ip || '?'}`);
+        } else if (v && v.ok && !v.isTor) {
+          window.showToast?.('⚠ That proxy works but it isn’t Tor — check your Tor setup.', 'error');
+        } else {
+          window.showToast?.('⚠ Tor’s port is open but traffic didn’t go through — it may still be connecting. Give it a few seconds and reopen.', 'error');
+        }
+      } catch {}
       return;
     }
     this._guide(r);
