@@ -1741,6 +1741,10 @@ function handleExternalProtocol(url) {
   return true;
 }
 
+// Per-webContents throttle for the Claude-panel auto-Google-login click, so a
+// cancelled/failed OAuth can't loop back into re-clicking. wcId -> last attempt.
+const _claudeGoogleClick = new Map();
+
 // === Route webview new-window requests into Vex tabs (not new BrowserWindows) ===
 // The renderer's webview 'new-window' DOM event is legacy and unreliable in
 // Electron 30+. setWindowOpenHandler in main is the supported path.
@@ -1761,7 +1765,7 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('did-start-navigation', (_e, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) { try { _mediaByWc.delete(contents.id); } catch {} }
   });
-  contents.on('destroyed', () => { try { _mediaByWc.delete(contents.id); } catch {} try { _httpsUpgradedByWc.delete(contents.id); } catch {} });
+  contents.on('destroyed', () => { try { _mediaByWc.delete(contents.id); } catch {} try { _httpsUpgradedByWc.delete(contents.id); } catch {} try { _claudeGoogleClick.delete(contents.id); } catch {} });
 
   // HTTPS-Only fallback: if a page WE upgraded to https can't load (no https, SSL
   // failure, reset…), drop that host back to http for the rest of the session so
@@ -1784,6 +1788,33 @@ app.on('web-contents-created', (_event, contents) => {
   // A clean main-frame load means there's no pending upgrade left to fall back
   // for on this tab — clearing avoids a stale entry ever downgrading a later nav.
   contents.on('did-finish-load', () => { try { _httpsUpgradedByWc.delete(contents.id); } catch {} });
+
+  // Claude panel: auto-continue login with Google. Claude's "Continue with
+  // Google" opens the OAuth popup via window.open, which the browser only allows
+  // under transient USER ACTIVATION — a page script's plain .click() (and even
+  // main's sendInputEvent) don't grant it, so the popup is silently blocked
+  // (proven live). executeJavaScript(code, true) DOES run with a user gesture, so
+  // the button's .click() → window.open is permitted. Scoped to the Claude PANEL
+  // session (persist:claude) + its login page; throttled per tab so a cancelled
+  // login can't loop.
+  contents.on('did-finish-load', async () => {
+    try {
+      const sp = contents.session && contents.session.getStoragePath && contents.session.getStoragePath();
+      const m = /[\\/]Partitions[\\/]([^\\/]+)$/.exec(sp || '');
+      if (!m || m[1] !== 'claude') return;                       // Claude panel only
+      if (!/claude\.ai\/login/i.test(contents.getURL() || '')) return; // login page only
+      const last = _claudeGoogleClick.get(contents.id) || 0;
+      if (Date.now() - last < 30000) return;                     // throttle: no loop on cancel
+      const clickJs = "(function(){var ns=document.querySelectorAll('button,a,[role=button]');for(var i=0;i<ns.length;i++){var n=ns[i];var t=((n.textContent||'')+' '+(n.getAttribute('aria-label')||'')).toLowerCase();if(t.indexOf('continue with google')>=0||t.indexOf('sign in with google')>=0){var r=n.getBoundingClientRect();if(r.width>0&&r.height>0){n.click();return true;}}}return false;})()";
+      for (let i = 0; i < 12; i++) {
+        if (contents.isDestroyed()) return;
+        // userGesture=true → the .click()'s window.open passes the activation gate.
+        const clicked = await contents.executeJavaScript(clickJs, true).catch(() => false);
+        if (clicked) { _claudeGoogleClick.set(contents.id, Date.now()); console.log('[claude-auto-google] clicked Continue with Google'); return; }
+        await new Promise(r => setTimeout(r, 400));
+      }
+    } catch { /* ignore */ }
+  });
 
   // (Gmail webview popup-intercept removed — Gmail now uses native IMAP/SMTP
   // via main/gmail/, no webview. persist:gmail partition is kept in the
