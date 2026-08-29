@@ -579,9 +579,24 @@ const Onboarding = {
     } else if (key === 'aicloud') {
       let cur = this._session.aicloud;
       if (cur == null) { try { cur = localStorage.getItem('vex.aiWorkerUrl') || ''; } catch { cur = ''; } }
-      body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">
-        <label style="font-size:12.5px;color:var(--text-muted)">Cloud AI Worker URL (Claude — see SELF_HOSTING.md)</label>
-        ${input('ob-ai-url', 'https://your-vex-ai.workers.dev', cur)}
+      body.innerHTML = `<div style="display:flex;flex-direction:column;gap:11px">
+        <p style="font-size:12.5px;color:var(--text);margin:0;line-height:1.55">
+          <b>Cloud AI</b> gives Vex its most capable assistant (<b>Claude</b>) — for chat, page summaries,
+          translation, and Agent mode. It runs on <i>your own</i> free Cloudflare Worker with <i>your own</i>
+          API key, so you fully own it and there's no middleman.
+        </p>
+        <div style="background:rgba(127,127,127,.09);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.6">
+          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings → AI.</b> Prefer zero setup? Use <b>Local AI (Ollama)</b> or <b>On-device AI</b> on the next two steps instead.
+          <div style="margin-top:7px;color:var(--text)">To turn it on now, 3 steps:</div>
+          <ol style="margin:5px 0 0;padding-left:18px">
+            <li>Create a free <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener" style="color:var(--primary)">Cloudflare account</a>, and grab a free <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:var(--primary)">OpenRouter API key</a> (this is what talks to Claude).</li>
+            <li>Open the <a href="https://github.com/0xmortuex/Vex/blob/main/SELF_HOSTING.md#1-ai-assistant-worker-vex-ai-worker" target="_blank" rel="noopener" style="color:var(--primary)">step-by-step deploy guide</a> — a few <code>wrangler</code> commands (~2 min) that take your API key and print a URL.</li>
+            <li>Paste that URL below (it looks like <code>https://vex-ai.<i>you</i>.workers.dev</code>) and continue.</li>
+          </ol>
+        </div>
+        <label style="font-size:12.5px;color:var(--text)">Cloud AI Worker URL <span style="color:var(--text-muted)">— paste it from step 2, or leave blank</span></label>
+        ${input('ob-ai-url', 'https://vex-ai.your-name.workers.dev', cur)}
+        <p style="font-size:11.5px;color:var(--text-muted);margin:0">Blank keeps Cloud AI off — you can still use Local or On-device AI, and add this anytime in Settings → AI.</p>
       </div>`;
     } else if (key === 'ollama') {
       body.innerHTML = `
