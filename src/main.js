@@ -804,6 +804,19 @@ ipcMain.handle('vault:list', () => {
   return vaultLoad().map(e => ({ host: e.host, username: e.username, updatedAt: e.updatedAt }));
 });
 
+// Disables WebAuthn get() (the passkey / "Windows Security → security key"
+// prompt) in a page — injected into sign-in popups (mirrors the site-tweak that
+// covers tabs/panels). Rejects publicKey requests so sign-in falls back, and
+// reports no platform/conditional authenticator.
+const _WEBAUTHN_DISABLE_JS = '(function(){try{' +
+  'var nc=navigator.credentials;' +
+  'if(nc&&typeof nc.get==="function"){var orig=nc.get.bind(nc);nc.get=function(opts){try{if(opts&&opts.publicKey){return Promise.reject(new DOMException("Passkey sign-in is disabled in Vex","NotAllowedError"));}}catch(e){}return orig(opts);};}' +
+  'if(window.PublicKeyCredential){' +
+    'try{window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};}catch(e){}' +
+    'try{window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};}catch(e){}' +
+  '}' +
+  '}catch(e){}})();';
+
 // Autofill for OAuth / sign-in POPUP windows (separate BrowserWindows, so the
 // renderer's PasswordVault can't reach them). Injected into the popup's own
 // webContents on each load. Same hardened login-field logic as passwords.js:
@@ -1924,6 +1937,11 @@ app.on('web-contents-created', (_event, contents) => {
     // run field-scanning JS inside it while it's setting up a WebRTC stream.
     if (!pendingDiscordPopout) {
       try { win.webContents.on('did-finish-load', () => _autofillPopup(win.webContents)); } catch {}
+      // Sign-in popups (Google/Microsoft OAuth) also trigger the OS passkey /
+      // "Windows Security" dialog. Popups don't get site-tweaks (no guest
+      // preload), so disable WebAuthn get() here too, on each load. Runs before
+      // the user reaches the passkey step, so the prompt never appears.
+      try { win.webContents.on('did-finish-load', () => { try { win.webContents.executeJavaScript(_WEBAUTHN_DISABLE_JS).catch(() => {}); } catch {} }); } catch {}
     }
 
     // Peek-style auth popup: dim Vex behind it, allow Esc / backdrop-click to

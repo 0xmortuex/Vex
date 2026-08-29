@@ -149,6 +149,27 @@ const SITE_TWEAKS = [
       '}catch(e){}})();',
   },
   {
+    // Suppress the OS "Windows Security → Sign in with a passkey / Insert your
+    // security key" dialog. That native prompt is triggered whenever a site asks
+    // for a WebAuthn credential (navigator.credentials.get with a `publicKey`).
+    // We reject those requests (as if the prompt were dismissed) so sign-in falls
+    // back to password/other methods, and report no platform/conditional
+    // authenticator so sites don't offer passkey autofill in the first place.
+    // Password autofill via the Credential Management API (no publicKey) still
+    // works; create()/registration is untouched. Applied everywhere.
+    name: 'disable-webauthn-passkey-prompt',
+    hosts: /.*/,
+    mechanism: 'webFrame',
+    code: '(function(){try{' +
+      'var nc=navigator.credentials;' +
+      'if(nc&&typeof nc.get==="function"){var orig=nc.get.bind(nc);nc.get=function(opts){try{if(opts&&opts.publicKey){return Promise.reject(new DOMException("Passkey sign-in is disabled in Vex","NotAllowedError"));}}catch(e){}return orig(opts);};}' +
+      'if(window.PublicKeyCredential){' +
+        'try{window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};}catch(e){}' +
+        'try{window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};}catch(e){}' +
+      '}' +
+      '}catch(e){}})();',
+  },
+  {
     // Spotify: "Spotify can't play this right now" on a SUBSET of tracks.
     // Spotify is audio, which normally negotiates Widevine at
     // SW_SECURE_CRYPTO (the level Electron's castLabs Widevine provides —
