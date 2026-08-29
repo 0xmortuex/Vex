@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.30.1 (unreleased) — Fixes
+
+### Fixed
+- **Email-code autofill could fill a *stale* code from a previous attempt.** If a code had been emailed moments earlier (e.g. a retry), the autofill filled that older code right before the new one landed — so the login failed with "invalid code." It now snapshots whatever code is already in your inbox the moment the code screen opens, and only fills a code that's *different* — the one your current attempt actually triggers. (The previous timestamp check was too coarse: Gmail's row timestamps are minute-granular, so a retry within the same minute slipped through. Comparing the code value instead is exact.)
+
 ## v2.30.0 (2026-08-29) — A browser built for you: rearrange the UI
 
 ### Added

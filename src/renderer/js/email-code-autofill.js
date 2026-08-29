@@ -58,39 +58,29 @@ const EmailCodeAutofill = {
     return null;
   },
 
-  // Scrape the newest verification code from Gmail's inbox — but ONLY from an
-  // email that arrived at/after `minTimeMs`. This is what stops us filling a
-  // stale code still sitting in the inbox from a previous login: a code page can
-  // appear with a 15-minute-old code at the top, and we must wait for the *fresh*
-  // one instead. Every inbox row carries an absolute timestamp in a [title]/
-  // [aria-label] tooltip ("Sat, Aug 29, 2026, 3:41 PM") that Date.parse handles.
+  // Read Gmail's inbox: report whether it has actually loaded (any rows), and the
+  // newest verification code in it (from the first code-bearing row — rows are
+  // newest-first). Timestamps are only minute-granular in Gmail, so we do NOT
+  // gate on them (a code from a retry a few seconds ago rounds to the same minute
+  // as the real one); tryFill instead compares the code VALUE against a baseline.
   //
   // We read textContent, NOT innerText: innerText returns "" for anything not
   // being rendered, and Gmail stops rendering when it's not the foreground tab —
   // so a backgrounded inbox scrapes to nothing with innerText. textContent is
   // populated regardless of render state, so this works on a hidden Gmail. Gmail
   // also puts the code in the row's subject/snippet, so the row text is enough.
-  async _scrapeFreshCode(gmailWv, minTimeMs) {
+  async _readInbox(gmailWv) {
     const js = `(function(){try{
-      function rowTime(row){
-        var els=row.querySelectorAll('[title],[aria-label]');
-        for(var k=0;k<els.length;k++){var v=els[k].getAttribute('title')||els[k].getAttribute('aria-label')||'';if(v&&/\\d/.test(v)){var d=Date.parse(v);if(!isNaN(d))return d;}}
-        return 0;
-      }
       var rows=Array.prototype.slice.call(document.querySelectorAll('tr.zA'));
       var out=[];
-      for(var i=0;i<rows.length&&i<12;i++){out.push({text:(rows[i].textContent||'').replace(/\\s+/g,' ').trim(),time:rowTime(rows[i])});}
-      return JSON.stringify(out);
-    }catch(e){return '[]';}})()`;
-    let rows;
-    try { rows = JSON.parse(await gmailWv.executeJavaScript(js)); } catch { return null; }
-    for (const row of (rows || [])) {                 // rows are newest-first
-      if (row.time && row.time >= minTimeMs) {
-        const code = this._extractCode(row.text);
-        if (code) return code;
-      }
-    }
-    return null;
+      for(var i=0;i<rows.length&&i<12;i++){out.push((rows[i].textContent||'').replace(/\\s+/g,' ').trim());}
+      return JSON.stringify({loaded: rows.length>0, rows: out});
+    }catch(e){return JSON.stringify({loaded:false, rows:[]});}})()`;
+    let data;
+    try { data = JSON.parse(await gmailWv.executeJavaScript(js)); } catch { return { loaded: false, code: null }; }
+    let code = null;
+    for (const text of (data.rows || [])) { const c = this._extractCode(text); if (c) { code = c; break; } }
+    return { loaded: !!data.loaded, code };
   },
 
   // Does the login page have an EMPTY one-time-code field to fill?
@@ -149,16 +139,20 @@ const EmailCodeAutofill = {
   // Entry point: called on load AND on in-page (SPA) navigation. Polls, waiting
   // for a code field to appear (SPA renders it a beat late), then fills from an
   // open Gmail. Bails within ~15s if the page never looks like a code screen.
+  //
+  // Stale-code guard (the important bit): a code page can open with a code ALREADY
+  // in the inbox — left over from a previous/failed attempt seconds ago. We must
+  // fill the one THIS attempt triggers, which lands a moment later. So we snapshot
+  // the newest code the first time we see a loaded inbox (the "baseline") and only
+  // fill once a DIFFERENT code shows up. If the inbox has no code at baseline, the
+  // first code to arrive is the one we want. Comparing values (not timestamps)
+  // works even when both codes fall in the same Gmail minute.
   async tryFill(loginWv, url) {
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
       if (this._running) return;                                 // one poll at a time
       this._running = true;
-      // The code we want was emailed when this page appeared — accept only emails
-      // from around now (small backdate: the code is sent a beat before the page
-      // navigates in), never an older code left over from a previous login.
-      const freshSince = Date.now() - 90000;
-      let sawField = false, plausible = false;
+      let sawField = false, plausible = false, baseline = null, baselineSet = false;
       for (let i = 0; i < 22; i++) {
         if (loginWv.isConnected === false) break;
         const hasField = await this._hasEmptyCodeField(loginWv);
@@ -169,10 +163,13 @@ const EmailCodeAutofill = {
         if (hasField) {
           const gmailWv = this._findGmailWebview();
           if (gmailWv) {
-            const code = await this._scrapeFreshCode(gmailWv, freshSince);
-            if (code) {
-              const ok = await this._injectCode(loginWv, code);
-              if (ok) { try { window.showToast?.('📧 Filled the code from your email'); } catch {} break; }
+            const { loaded, code } = await this._readInbox(gmailWv);
+            if (loaded) {
+              if (!baselineSet) { baseline = code; baselineSet = true; }   // pre-existing code — don't fill it, wait for a new one
+              else if (code && code !== baseline) {
+                const ok = await this._injectCode(loginWv, code);
+                if (ok) { try { window.showToast?.('📧 Filled the code from your email'); } catch {} break; }
+              }
             }
           }
         }
