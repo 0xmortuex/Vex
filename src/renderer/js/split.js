@@ -109,25 +109,39 @@ const SplitScreen = {
 
     SidebarManager.hideActivePanel();
 
+    // Ensure BOTH panes have a live webview FIRST. Most tabs are sleeping/lazy
+    // and have no webview, so the pane was blank — the core split-screen bug.
+    // Wake/materialize creates the webview synchronously, so the pane fills in.
+    const leftWv = this._ensureWebview(this.leftTabId);
+    const rightWv = this._ensureWebview(this.rightTabId);
+
     const container = document.getElementById('webviews-container');
-    container.style.display = 'grid';
-    container.classList.add('split-mode');
+    container.classList.add('split-mode'); // .split-mode CSS sets display:grid
     container.style.gridTemplateColumns = `${this.splitRatio}fr 4px ${1 - this.splitRatio}fr`;
 
-    // Hide all webviews first
+    // Hide all webviews first, then reveal exactly the two split panes.
     container.querySelectorAll('webview').forEach(wv => {
       wv.classList.remove('active', 'split-left', 'split-right');
     });
-
-    // Show left and right
-    const leftWv = WebviewManager.webviews.get(this.leftTabId);
-    const rightWv = WebviewManager.webviews.get(this.rightTabId);
 
     if (leftWv) leftWv.classList.add('split-left');
     if (rightWv) rightWv.classList.add('split-right');
 
     // Update mini URL bars
     this.updateMiniUrlBars();
+  },
+
+  // A split pane needs a real webview. Sleeping/lazy tabs have none, so wake or
+  // materialize them (both create the webview synchronously). Returns the element.
+  _ensureWebview(tabId) {
+    try {
+      const tab = TabManager.tabs.find(t => t.id === tabId);
+      if (tab && !WebviewManager.webviews.has(tabId)) {
+        if (tab.sleeping) TabManager.wakeTab(tabId);
+        else if (tab._lazy) TabManager._materializeTab(tab);
+      }
+      return WebviewManager.webviews.get(tabId) || null;
+    } catch { return null; }
   },
 
   updateMiniUrlBars() {
