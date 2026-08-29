@@ -13,8 +13,28 @@ const PasswordVault = {
   _never() { try { return JSON.parse(localStorage.getItem(this.NEVER_KEY) || '[]'); } catch { return []; } },
   _addNever(host) { const n = this._never(); if (!n.includes(host)) { n.push(host); try { localStorage.setItem(this.NEVER_KEY, JSON.stringify(n)); } catch {} } },
 
+  // Remembered login emails (host -> email), for passwordless logins (magic
+  // link / email code, e.g. Spotify) where there's no password to save. Lets us
+  // pre-fill just the email so you only enter the emailed code. Stored locally.
+  _emailsKey: 'vex.loginEmails',
+  _loadEmails() { try { return JSON.parse(localStorage.getItem(this._emailsKey) || '{}') || {}; } catch { return {}; } },
+  _rememberedEmail(host) { try { return this._loadEmails()[host] || ''; } catch { return ''; } },
+  _rememberEmail(host, email) {
+    try {
+      if (!host || !email || String(email).indexOf('@') < 0) return;
+      const m = this._loadEmails(); m[host] = String(email).slice(0, 200);
+      localStorage.setItem(this._emailsKey, JSON.stringify(m));
+    } catch {}
+  },
+
   attach(webview) {
     webview.addEventListener('ipc-message', async (e) => {
+      // Passwordless: remember the email the user typed on a login page.
+      if (e.channel === 'vex-login-email') {
+        const d = (e.args && e.args[0]) || {};
+        this._rememberEmail(d.host, d.email);
+        return;
+      }
       if (e.channel !== 'vex-cred-submit') return;
       const data = (e.args && e.args[0]) || {};
       if (!data.host || !data.username || !data.password) return;
@@ -62,7 +82,7 @@ const PasswordVault = {
     if (!host || !/^https:/i.test(url)) return;
     let creds = [];
     try { creds = await window.vex.vaultGet(host); } catch { return; }
-    if (!creds || !creds.length) return;
+    if (!creds || !creds.length) { this._autofillEmailOnly(webview, host); return; }
     const c = creds[0];
     // Fills on load AND on focus (click-to-fill): clicking an empty email or
     // password field re-fills the saved login, which also covers multi-step
@@ -91,6 +111,32 @@ const PasswordVault = {
       fill(false);
       if(!window.__vexPwFocusWired){window.__vexPwFocusWired=true;
         document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT'||el.value)return;var t=(el.type||'').toLowerCase();if(t==='password'||(looksLikeUser(el)&&(loginSignal(el)||document.querySelector('input[type=password]')))){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
+      }
+    }catch(e){}})();`;
+    try { webview.executeJavaScript(js).catch(() => {}); } catch {}
+  },
+
+  // No saved credential for this host, but we remembered the email used here
+  // (passwordless login). Pre-fill ONLY a genuine login email/username field —
+  // never a password, never a search box — on load and on click-to-fill.
+  _autofillEmailOnly(webview, host) {
+    const email = this._rememberedEmail(host);
+    if (!email) return;
+    const js = `(function(){try{
+      var U=${JSON.stringify(email)};
+      var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
+      var fire=function(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+      function visible(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}}
+      function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
+      function isSearchy(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;if(el.getAttribute('aria-autocomplete'))return true;return /search|find|filter|query|recipient|channel|message|mention|invite|\\brole\\b|emoji|gif|jump to/.test(meta(el));}
+      function loginSignal(el){var t=(el.type||'').toLowerCase();if(t==='email')return true;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='username'||ac==='email')return true;return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|phone number|account name/.test(meta(el));}
+      function looksLikeUser(el){if(!visible(el))return false;var t=(el.type||'').toLowerCase();if(!(t===''||t==='text'||t==='email'||t==='tel'))return false;return !isSearchy(el);}
+      // Only a field that BOTH looks like a user field AND carries a login signal.
+      function userField(){var cands=document.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');for(var i=0;i<cands.length;i++){var el=cands[i];if(looksLikeUser(el)&&loginSignal(el))return el;}return null;}
+      function fill(){var u=userField();if(u&&!u.value)fire(u,U);}
+      fill();
+      if(!window.__vexEmailFocusWired){window.__vexEmailFocusWired=true;
+        document.addEventListener('focusin',function(e){try{var el=e.target;if(el&&el.tagName==='INPUT'&&!el.value&&looksLikeUser(el)&&loginSignal(el)){setTimeout(fill,0);}}catch(e){}},true);
       }
     }catch(e){}})();`;
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}

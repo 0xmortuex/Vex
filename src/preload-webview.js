@@ -476,11 +476,25 @@ function _isVexStartPage(href) {
     } catch {}
   }
 
-  document.addEventListener("submit", tryCapture, true);
+  // Passwordless logins (magic link / email code, e.g. Spotify) never produce a
+  // password to save — but we can remember the EMAIL the user typed so the host
+  // pre-fills it next time. Fired on the same submit gestures as tryCapture.
+  function rememberEmail() {
+    try {
+      if (location.protocol !== "https:") return;
+      const em = lastUser;
+      if (!em || em.indexOf("@") < 0 || em.length > 200) return;
+      ipcRenderer.sendToHost("vex-login-email", { host: location.hostname.replace(/^www\./, ""), email: em });
+    } catch {}
+  }
+
+  document.addEventListener("submit", () => { tryCapture(); rememberEmail(); }, true);
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     const el = e.target;
-    if (el && el.tagName === "INPUT") setTimeout(tryCapture, 60);
+    // Capture NOW (before a React SPA clears the password on submit) AND after a
+    // short delay (for sites that populate the field late). Debounce dedupes.
+    if (el && el.tagName === "INPUT") { tryCapture(); setTimeout(tryCapture, 60); rememberEmail(); }
   }, true);
   document.addEventListener("click", (e) => {
     try {
@@ -489,9 +503,16 @@ function _isVexStartPage(href) {
       const ctl = el.closest("button,[type=submit],input[type=submit],[role=button]");
       if (!ctl) return;
       // Only submit-looking controls, to avoid capturing on unrelated buttons.
+      // Match on the visible label OR on the control's own attributes — Spotify's
+      // button is <button data-testid="login-button" id="login-button"> and some
+      // locales/labels won't match the text list.
+      const attrs = ((ctl.id || "") + " " + (ctl.name || "") + " " + ((ctl.getAttribute && ctl.getAttribute("data-testid")) || "")).toLowerCase();
       const label = ((ctl.textContent || "") + (ctl.value || "") + (ctl.getAttribute && (ctl.getAttribute("aria-label") || "") || "")).toLowerCase();
-      const isSubmit = (ctl.type === "submit") || /sign\s*in|log\s*in|login|continue|next|submit|giriş|devam|oturum/.test(label);
-      if (isSubmit) setTimeout(tryCapture, 80);
+      const isSubmit = (ctl.type === "submit")
+        || /sign\s*in|log\s*in|login|continue|next|submit|giriş|devam|oturum/.test(label)
+        || /login|signin|sign-in|submit/.test(attrs);
+      // Capture synchronously (before the password field can be cleared) + delayed.
+      if (isSubmit) { tryCapture(); setTimeout(tryCapture, 80); rememberEmail(); }
     } catch {}
   }, true);
 })();
