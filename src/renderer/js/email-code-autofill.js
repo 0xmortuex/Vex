@@ -103,24 +103,41 @@ const EmailCodeAutofill = {
 
   _running: false,
 
+  // Is this page plausibly waiting for an emailed code? A one-time-code field, OR
+  // clear "we emailed you a code" wording (the field may render a beat later).
+  async _looksLikeCodePage(loginWv) {
+    const js = `(function(){try{
+      if(document.querySelector('input[autocomplete="one-time-code"]'))return true;
+      return /verification code|enter the (code|digits)|we (sent|emailed)(?: you)? a code|one[-\\s]?time (code|password)|check your email|code we sent|enter (the )?code/i.test(document.body.innerText||'');
+    }catch(e){return false;}})()`;
+    try { return await loginWv.executeJavaScript(js); } catch { return false; }
+  },
+
   // Entry point: called on pages that may be waiting for an emailed code.
   async tryFill(loginWv, url) {
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
-      if (this._running) return;                              // one poll at a time
-      if (!(await this._hasEmptyCodeField(loginWv))) return;  // not a code screen → don't poll
+      if (this._running) return;                                 // one poll at a time
+      if (!(await this._looksLikeCodePage(loginWv))) return;     // not a code screen → don't poll
       this._running = true;
-      // Poll for ~60s, re-checking for Gmail each time: the email lands a few
-      // seconds after you request it, and you may open/switch to Gmail only then.
+      // Poll ~60s. The code field may render a beat after load (SPA), the email
+      // lands a few seconds after you request it, and you may open Gmail only
+      // then — so re-check the field AND Gmail each time.
+      let sawField = false;
       for (let i = 0; i < 20; i++) {
         if (loginWv.isConnected === false) break;
-        if (!(await this._hasEmptyCodeField(loginWv))) break; // filled or navigated away
-        const gmailWv = this._findGmailWebview();
-        if (gmailWv) {
-          const code = await this._scrapeLatestCode(gmailWv);
-          if (code) {
-            const ok = await this._injectCode(loginWv, code);
-            if (ok) { try { window.showToast?.('📧 Filled the code from your email'); } catch {} break; }
+        const hasField = await this._hasEmptyCodeField(loginWv);
+        if (hasField) sawField = true;
+        else if (sawField) break;                                // field appeared then gone → done
+        else if (i >= 4) break;                                  // ~15s grace: field never showed
+        if (hasField) {
+          const gmailWv = this._findGmailWebview();
+          if (gmailWv) {
+            const code = await this._scrapeLatestCode(gmailWv);
+            if (code) {
+              const ok = await this._injectCode(loginWv, code);
+              if (ok) { try { window.showToast?.('📧 Filled the code from your email'); } catch {} break; }
+            }
           }
         }
         await new Promise(r => setTimeout(r, 3000));
