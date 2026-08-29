@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.29.10 (unreleased) — Auto-fill 2FA codes
+
+### Added
+- **Vex auto-fills your 2FA codes.** On a site's authenticator-app (TOTP) 2FA screen, Vex now fills the 6-digit code straight from its built-in Authenticator — no opening the panel, reading, and typing. It only fills a genuine one-time-code field (never a search or promo-code box), and — importantly — a code is only ever entered on the site it belongs to: the match is by the account's issuer against the site's real domain, so a look-alike/phishing host (e.g. `github.com.evil.com`) gets nothing. Add your accounts to the Authenticator (scan the QR or paste the key) and 2FA becomes one less thing to type. *(Note: this is for authenticator-app codes — it can't automate phone-approval prompts like GitHub Mobile, which require your phone by design.)*
+
 ## v2.29.9 (2026-08-29) — Tor with one click, no Tor Browser needed
 
 ### Added
