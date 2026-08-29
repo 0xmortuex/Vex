@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.29.8 (2026-08-28) — Privacy tools, HTTPS-Only, keep-awake fix + Tor hardening
+## v2.29.8 (2026-08-29) — Privacy & sign-in polish: stronger ad blocker, smart autofill, no passkey nag
 
 ### Added
 - **Privacy Dashboard** — a new 🛡️ sidebar panel showing, live, how much Vex is blocking for you: a running "requests blocked this session" total, the cross-site trackers that follow you across multiple sites, and a ranked top-offenders list. Read-only view over the blocking Vex already does — nothing new is sent anywhere.
