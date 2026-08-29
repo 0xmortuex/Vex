@@ -29,6 +29,10 @@ const LayoutEditor = {
   // Zones an item can be dragged BETWEEN (the top bar's button clusters + the
   // address-bar interior). Each holds interchangeable button-like controls.
   ZONES: ['top-bar-left', 'url-bar', 'top-bar-right'],
+  // Whole top-bar sections that can be reordered as blocks (Phase 3) — e.g. move
+  // the address bar to the left, or swap the two clusters. Grabbed by a grip so
+  // it never clashes with dragging a button that lives inside a region.
+  REGIONS: ['top-bar-left', 'url-bar-wrapper', 'top-bar-right'],
   LABELS: {
     'vex-logo': 'Vex logo', 'workspace-switcher': 'Workspace switcher', 'sync-indicator': 'Sync indicator',
     'btn-toggle-tabs-left': 'Sidebar toggle', 'nav-buttons': 'Back / Forward / Reload', 'btn-onboarding': 'Setup wizard',
@@ -71,6 +75,13 @@ const LayoutEditor = {
   applyLayout() {
     const L = this._load();
     const order = L.order || {};
+    // Region order: reorder the whole sections inside #top-bar (the drag region
+    // overlay is absolute, so leaving it in place is fine). Done before items so
+    // zone placement below still lands correctly inside each moved region.
+    if (Array.isArray(L.regions) && L.regions.length) {
+      const topbar = document.getElementById('top-bar');
+      if (topbar) L.regions.forEach(id => { const n = document.getElementById(id); if (n && this.REGIONS.includes(id)) topbar.appendChild(n); });
+    }
     // Cross-zone placement: an item's home is whichever zone lists its id (each
     // id is listed in at most one). Move each into its zone, in the saved order.
     // Items not listed anywhere keep their HTML-default spot.
@@ -101,6 +112,10 @@ const LayoutEditor = {
     this._onDrop = this._onDrop || this._drop.bind(this);
     this._onDragEnd = this._onDragEnd || this._dragEnd.bind(this);
     this._onZoneDragOver = this._onZoneDragOver || this._zoneDragOver.bind(this);
+    this._onRegionDragStart = this._onRegionDragStart || this._regionDragStart.bind(this);
+    this._onRegionDragOver = this._onRegionDragOver || this._regionDragOver.bind(this);
+    this._onRegionDrop = this._onRegionDrop || this._regionDrop.bind(this);
+    this._onRegionDragEnd = this._onRegionDragEnd || this._regionDragEnd.bind(this);
     this._clickBlocker = this._clickBlocker || ((e) => {
       const item = e.target.closest && e.target.closest('[data-layout-item]');
       if (item && !(e.target.closest && e.target.closest('.le-ctl'))) { e.preventDefault(); e.stopPropagation(); }
@@ -109,6 +124,7 @@ const LayoutEditor = {
     this.ZONES.forEach(id => { const z = document.getElementById(id); if (z) z.addEventListener('dragover', this._onZoneDragOver); });
     this._decorated = new Set();
     this._decorate();
+    this._decorateRegions();
     this._buildBar();
     try { window.showToast?.('🧩 Edit layout — drag to reorder, ✕ to hide'); } catch {}
   },
@@ -129,9 +145,16 @@ const LayoutEditor = {
       n.removeEventListener('dragend', this._onDragEnd);
       delete n._leItem;
     });
+    // Region grips + listeners.
+    this.REGIONS.forEach(id => {
+      const el = document.getElementById(id); if (!el) return;
+      el.classList.remove('le-region', 'le-region-dragging');
+      el.removeEventListener('dragover', this._onRegionDragOver);
+      el.removeEventListener('drop', this._onRegionDrop);
+    });
     // Global sweep: a shortcuts-bar re-render (VexGuiStyle.set) can strand ✕
     // badges on replaced chips, so never rely on the tracked set alone here.
-    document.querySelectorAll('.le-x').forEach(x => x.remove());
+    document.querySelectorAll('.le-x, .le-region-grip').forEach(x => x.remove());
     document.querySelectorAll('[data-layout-item]').forEach(n => n.removeAttribute('data-layout-item'));
     this._decorated = null;
     if (this._bar) { this._bar.remove(); this._bar = null; }
@@ -244,6 +267,55 @@ const LayoutEditor = {
     this._save(L);
   },
 
+  // ---- Region drag (Phase 3): move whole sections by their grip ----
+  _decorateRegions() {
+    this.REGIONS.forEach(id => {
+      const el = document.getElementById(id); if (!el) return;
+      el.classList.add('le-region');
+      if (!el.querySelector(':scope > .le-region-grip')) {
+        const g = document.createElement('span');
+        g.className = 'le-region-grip le-ctl';
+        g.textContent = '⠿';
+        g.title = 'Drag to move this whole section';
+        g.setAttribute('draggable', 'true');
+        g.addEventListener('dragstart', this._onRegionDragStart);
+        g.addEventListener('dragend', this._onRegionDragEnd);
+        el.appendChild(g);
+      }
+      el.addEventListener('dragover', this._onRegionDragOver);
+      el.addEventListener('drop', this._onRegionDrop);
+    });
+  },
+  _regionDragStart(e) {
+    const grip = e.target.closest('.le-region-grip'); if (!grip) return;
+    this._regionDrag = grip.parentElement;
+    e.stopPropagation();
+    this._regionDrag.classList.add('le-region-dragging');
+    try { e.dataTransfer.setData('text/plain', 'region'); e.dataTransfer.effectAllowed = 'move'; } catch {}
+  },
+  _regionDragOver(e) {
+    if (!this._regionDrag) return;
+    const over = e.currentTarget;
+    if (over === this._regionDrag || !this.REGIONS.includes(over.id)) return;
+    e.preventDefault(); e.stopPropagation();
+    const topbar = document.getElementById('top-bar'); if (!topbar) return;
+    const r = over.getBoundingClientRect();
+    const before = e.clientX < r.left + r.width / 2;
+    topbar.insertBefore(this._regionDrag, before ? over : over.nextSibling);
+  },
+  _regionDrop(e) { if (this._regionDrag) { e.preventDefault(); e.stopPropagation(); } },
+  _regionDragEnd() {
+    if (!this._regionDrag) return;
+    this._regionDrag.classList.remove('le-region-dragging');
+    this._persistRegions();
+    this._regionDrag = null;
+  },
+  _persistRegions() {
+    const topbar = document.getElementById('top-bar'); if (!topbar) return;
+    const order = Array.from(topbar.children).filter(n => this.REGIONS.includes(n.id)).map(n => n.id);
+    const L = this._load(); L.regions = order; this._save(L);
+  },
+
   _persistOrder(container) {
     if (!container) return;
     if (container.id === 'icon-sidebar') {
@@ -315,7 +387,10 @@ const LayoutEditor = {
   },
 
   _resetToolbar() {
-    const L = this._load(); L.order = {}; L.hidden = {}; this._save(L);
+    const L = this._load(); L.order = {}; L.hidden = {}; L.regions = []; this._save(L);
+    // Regions back to default order.
+    const topbar = document.getElementById('top-bar');
+    if (topbar) this.REGIONS.forEach(id => { const n = document.getElementById(id); if (n) topbar.appendChild(n); });
     // Move every control back into its DEFAULT zone, in default order (this also
     // pulls back anything that had crossed into another zone), and un-hide all.
     this.GROUPS.forEach(g => {
@@ -329,7 +404,7 @@ const LayoutEditor = {
     try { window.showToast?.('Toolbar layout reset'); } catch {}
   },
 
-  _refresh() { if (this._editing) { this._decorate(); this._renderTray(); } },
+  _refresh() { if (this._editing) { this._decorate(); this._decorateRegions(); this._renderTray(); } },
 
   // ---- Floating control bar ----
   _buildBar() {
@@ -374,6 +449,10 @@ const LayoutEditor = {
       body.layout-editing #icon-sidebar [data-layout-item]{ outline-offset:-2px; }
       .le-x{ position:absolute; top:-6px; right:-6px; width:15px; height:15px; border-radius:50%; background:#e5484d; color:#fff; font-size:9px; line-height:15px; text-align:center; cursor:pointer; z-index:6; box-shadow:0 1px 3px rgba(0,0,0,.45); }
       .le-x:hover{ transform:scale(1.15); }
+      body.layout-editing .le-region{ position:relative; outline:2px solid var(--primary,var(--accent,#d4a574)); outline-offset:-2px; border-radius:8px; }
+      body.layout-editing .le-region.le-region-dragging{ opacity:.5; }
+      .le-region-grip{ position:absolute; top:1px; left:1px; z-index:8; width:15px; height:15px; border-radius:4px; background:var(--primary,var(--accent,#d4a574)); color:#111; font-size:11px; line-height:15px; text-align:center; cursor:grab; box-shadow:0 1px 3px rgba(0,0,0,.4); }
+      .le-region-grip:active{ cursor:grabbing; }
       #le-bar{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:100000; display:flex; gap:14px; align-items:center; flex-wrap:wrap; max-width:92vw;
         background:var(--surface,#222); color:var(--text,#eee); border:1px solid var(--border,#444); border-radius:12px; padding:10px 14px; box-shadow:0 8px 30px rgba(0,0,0,.4); font-family:'Outfit',sans-serif; }
       #le-bar .le-bar-title{ font-size:12.5px; font-weight:600; }
