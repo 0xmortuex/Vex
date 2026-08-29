@@ -6,6 +6,7 @@
 - **Split screen showed a blank right pane.** Split-screen paired the active tab with the "next" tab — but almost every other tab is asleep with no live webview, so the right side came up empty. It now wakes/materializes both tabs before splitting, so both panes actually show their pages.
 
 ### Added
+- **Split screen now does 3 and 4 panes.** Beyond the classic side-by-side, split into **3 equal columns** or a **2×2 quad** — open the command palette (Ctrl+K) and pick "Split into 3 panes" / "Split into 4 panes." The 2-pane split keeps its draggable divider.
 - **Cloud AI setup now has a proper walkthrough in the setup wizard** — matching the Vex Sync step: what it is (Claude, on your own Cloudflare Worker + OpenRouter key) and 3 clear steps, instead of a bare "paste a URL" box.
 - **Vex auto-fills your 2FA codes.** On a site's authenticator-app (TOTP) 2FA screen, Vex now fills the 6-digit code straight from its built-in Authenticator — no opening the panel, reading, and typing. It only fills a genuine one-time-code field (never a search or promo-code box), and — importantly — a code is only ever entered on the site it belongs to: the match is by the account's issuer against the site's real domain, so a look-alike/phishing host (e.g. `github.com.evil.com`) gets nothing. Add your accounts to the Authenticator (scan the QR or paste the key) and 2FA becomes one less thing to type. *(Note: this is for authenticator-app codes — it can't automate phone-approval prompts like GitHub Mobile, which require your phone by design.)*
 

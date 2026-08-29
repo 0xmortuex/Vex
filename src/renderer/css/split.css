@@ -6,21 +6,29 @@
   grid-template-rows: 1fr;
 }
 
+/* 3-way: three equal columns. 4-way: a 2x2 quad. The thin gap shows the
+   container's border colour, reading as a clean divider between panes. */
+#webviews-container.split-mode.split-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr;
+  gap: 3px;
+  background: var(--border);
+}
+#webviews-container.split-mode.split-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  background: var(--border);
+}
+
 #webviews-container.split-mode webview {
   position: relative;
   display: none;
 }
 
-#webviews-container.split-mode webview.split-left {
+/* A pane's grid-column / grid-row are set inline by split.js per layout. */
+#webviews-container.split-mode webview.split-pane {
   display: flex;
-  grid-column: 1;
-  grid-row: 1;
-}
-
-#webviews-container.split-mode webview.split-right {
-  display: flex;
-  grid-column: 3;
-  grid-row: 1;
 }
 
 /* Split divider */

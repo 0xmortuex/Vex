@@ -104,6 +104,8 @@ const CommandBar = {
     { id: 'chatgpt', label: 'ChatGPT', hint: 'Open ChatGPT', icon: '🤖', action: () => TabManager.createTab('https://chat.openai.com', true) },
     { id: 'pip', label: 'Picture-in-Picture', hint: 'Pop video into floating window', shortcut: 'Ctrl+Shift+P', icon: '📺', action: () => { if (typeof PiPManager !== 'undefined') PiPManager.toggle(); } },
     { id: 'split', label: 'Split Screen', hint: 'Toggle split-screen view', shortcut: 'Ctrl+Shift+S', icon: '⬛', action: () => SplitScreen.toggle() },
+    { id: 'split3', label: 'Split into 3 panes', hint: 'Three tabs side by side', icon: '⬛', action: () => SplitScreen.setLayout(3) },
+    { id: 'split4', label: 'Split into 4 panes', hint: 'Four tabs in a 2×2 grid', icon: '⬛', action: () => SplitScreen.setLayout(4) },
     // Tool commands
     { id: 'flashmind', label: 'FlashMind', hint: 'AI-powered flashcard study tool', icon: '💡', action: () => VexTools.openToolById('flashmind') },
     { id: 'loopholemap', label: 'LoopholeMap', hint: 'Legal loophole mapper', icon: '🗺', action: () => VexTools.openToolById('loopholemap') },
