@@ -3,6 +3,7 @@
 ## v2.29.10 (unreleased) — Auto-fill 2FA codes
 
 ### Fixed
+- **Split screen broke after opening a sidebar panel.** Opening a panel (Discord, etc.) while split-screen was on left the content area stuck in a half-width grid when you came back — the split layout's forced grid was overriding the panel's hide. Opening a panel now cleanly exits split first.
 - **Split screen showed a blank right pane.** Split-screen paired the active tab with the "next" tab — but almost every other tab is asleep with no live webview, so the right side came up empty. It now wakes/materializes both tabs before splitting, so both panes actually show their pages.
 
 ### Added

@@ -288,6 +288,11 @@ const SidebarManager = {
   },
 
   showPanel(panelName) {
+    // Split screen and sidebar panels both own the content area — opening a panel
+    // must exit split first. Otherwise .split-mode's `display:grid !important`
+    // beats the inline `display:none` below, so the container never hides and you
+    // come back to a broken half-width grid (reported live).
+    if (typeof SplitScreen !== 'undefined' && SplitScreen.active) { try { SplitScreen.deactivate(); } catch {} }
     // Usage timestamps feed the one-time declutter nudge (maybeOfferDeclutter).
     try {
       const u = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {};
