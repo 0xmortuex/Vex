@@ -11,6 +11,8 @@
 - **Authenticator: click anywhere on a code to copy it.** No more hunting for the little copy button — click (or press Enter on) the whole row and the 2FA code is on your clipboard, with a quick flash to confirm.
 - **Private tabs are now marked at a glance.** Tor and off-the-record tabs show a 🧅/🔒 badge and a subtle violet edge in both the tab sidebar and the horizontal/Glass strip, so you always know which tabs aren't being saved.
 - **Autofill now works in sign-in popups.** "Sign in with Google/Discord/…" opens a small separate window; your saved login now fills there too (same phishing-safe, real-login-field-only logic as the main autofill).
+- **Login-email pre-fill for passwordless sites.** Sites like Spotify log you in with an emailed code (no password to save), so full autofill never applied. Vex now remembers, per site, the email you type on a login page and pre-fills it next time — so you only enter the code. Email only, never a password, and only into a real login field (never a search box).
+- **Claude sidebar auto-logs-in with Google.** When the Claude panel shows its logged-out screen, Vex auto-clicks "Continue with Google" for you (with a proper user-gesture, so the Google sign-in actually opens). Scoped to the Claude panel and throttled so a cancelled login can't loop.
 
 ### Changed
 - **Removed the dead "Appearance" settings section.** The accent-color swatches fought the color themes (and did nothing useful once themes existed), and the "Show tabs sidebar" toggle duplicated the sidebar's own collapse button. The Appearance chip now jumps straight to the real look controls (GUI Style / Tab Layout).
