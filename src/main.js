@@ -60,6 +60,7 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
+const _torLauncher = require('./tor-launcher');
 const { createPipWindow, closePipWindow } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
@@ -250,7 +251,7 @@ let isFullscreenTracked = false;
 const enableDevToolsAtStartup = process.argv.includes('--dev-tools') || !app.isPackaged;
 
 // Clean up global shortcuts on quit
-app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
+app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} try { _torLauncher.stop(); } catch {} });
 
 // F11 / Escape fullscreen handling — shared between the main-window and every
 // <webview> guest webContents, because before-input-event only fires on the
@@ -3547,10 +3548,24 @@ async function detectTorPort() {
   for (const p of [9150, 9050]) { if (await _probeTcp(p)) return p; } // 9150 = Tor Browser, 9050 = tor service
   return null;
 }
-ipcMain.handle('tor:create', async () => {
+ipcMain.handle('tor:create', async (event) => {
   try {
-    const port = await detectTorPort();
-    if (!port) return { ok: false, reason: 'not-running' };
+    let port = await detectTorPort();
+    let launched = false;
+    if (!port) {
+      // No Tor Browser (:9150) or tor service (:9050) running — launch our own
+      // bundled Tor in the background, streaming download + bootstrap progress to
+      // the renderer so it can show real progress bars. No Tor Browser needed.
+      const wc = event && event.sender;
+      try {
+        port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => {
+          try { if (wc && !wc.isDestroyed()) wc.send('tor:progress', { phase, value, detail }); } catch {}
+        });
+        launched = true;
+      } catch (e) {
+        return { ok: false, reason: 'launch-failed', error: e && e.message };
+      }
+    }
     const part = `tor-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
     const ses = session.fromPartition(part); // no persist: → in-memory, wiped on close
     ses.__vexTor = true; // tag so web-contents-created disables WebRTC for it
@@ -3581,7 +3596,7 @@ ipcMain.handle('tor:create', async () => {
       callback({ cancel: blocked });
     });
     try { attachGuestPreloads(ses); } catch {}
-    return { ok: true, partition: part, port };
+    return { ok: true, partition: part, port, launched };
   } catch (err) { return { ok: false, reason: 'error', error: err.message }; }
 });
 

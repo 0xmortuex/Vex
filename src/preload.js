@@ -193,6 +193,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Tor session: isolated, proxied through a local Tor SOCKS5 (max security).
   createTor: () => ipcRenderer.invoke('tor:create'),
   verifyTor: (partition) => ipcRenderer.invoke('tor:verify', partition),
+  // Progress while Vex downloads + bootstraps its own Tor (no Tor Browser needed).
+  // cb({ phase:'download'|'bootstrap', value, detail }). Returns an unsubscribe fn.
+  onTorProgress: (cb) => { const h = (_e, p) => { try { cb(p); } catch {} }; ipcRenderer.on('tor:progress', h); return () => { try { ipcRenderer.removeListener('tor:progress', h); } catch {} }; },
   onToggleMuteTab: (callback) => ipcRenderer.on('toggle-mute-tab', callback),
 
   // Tabs sidebar toggle

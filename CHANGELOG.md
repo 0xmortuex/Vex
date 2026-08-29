@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.29.9 (unreleased) — Tor with one click, no Tor Browser needed
+
+### Added
+- **The Tor button now launches Tor for you.** Before, you had to already have Tor Browser (or a tor service) running — otherwise the onion button just told you to go start one. Now Vex runs Tor itself: on first use it downloads the official Tor Expert Bundle (~15 MB, one time), starts `tor` in the background, and shows **live progress bars** — a download bar, then a "connecting to the Tor network" bar with each bootstrap stage — and opens your Tor tab automatically the moment it's fully connected (verified through check.torproject.org). If you *do* already have Tor Browser/service running, it uses that instead (instant). Tor shuts down when Vex closes.
+
 ## v2.29.8 (2026-08-29) — Privacy & sign-in polish: stronger ad blocker, smart autofill, no passkey nag
 
 ### Added
