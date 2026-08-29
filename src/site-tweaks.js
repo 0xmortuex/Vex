@@ -149,6 +149,40 @@ const SITE_TWEAKS = [
       '}catch(e){}})();',
   },
   {
+    // Claude panel: auto-continue the login with Google. When claude.ai shows
+    // its logged-out screen, find the "Continue with Google" button and click it
+    // once, so the Claude sidebar signs you in without a manual click. Guards:
+    //   - throttled via sessionStorage (won't retry within 25s) so a cancelled
+    //     or failed Google login can't loop back into re-clicking;
+    //   - once-per-document flag;
+    //   - only matches a visible button whose label is literally "… with google",
+    //     so it never fires on the logged-in app.
+    name: 'claude-auto-google-login',
+    hosts: /(^|\.)claude\.ai$/i,
+    mechanism: 'webFrame',
+    code: '(function(){try{' +
+      'var KEY="__vexClaudeGoogleTs";' +
+      'try{var last=+(sessionStorage.getItem(KEY)||0);if(Date.now()-last<25000)return;}catch(e){}' +
+      'if(window.__vexClaudeGoogleDone)return;' +
+      'var tries=0;' +
+      'var iv=setInterval(function(){try{' +
+        'if(++tries>25){clearInterval(iv);return;}' +
+        'var nodes=document.querySelectorAll("button,a,[role=button]");' +
+        'for(var i=0;i<nodes.length;i++){var n=nodes[i];' +
+          'var t=((n.textContent||"")+" "+(n.getAttribute("aria-label")||"")).toLowerCase().replace(/\\s+/g," ").trim();' +
+          'if(t.indexOf("continue with google")>=0||t.indexOf("sign in with google")>=0||t.indexOf("log in with google")>=0){' +
+            'var r=n.getBoundingClientRect();' +
+            'if(r.width>0&&r.height>0){' +
+              'window.__vexClaudeGoogleDone=true;clearInterval(iv);' +
+              'try{sessionStorage.setItem(KEY,String(Date.now()));}catch(e){}' +
+              'n.click();return;' +
+            '}' +
+          '}' +
+        '}' +
+      '}catch(e){clearInterval(iv);}},350);' +
+      '}catch(e){}})();',
+  },
+  {
     // Spotify: "Spotify can't play this right now" on a SUBSET of tracks.
     // Spotify is audio, which normally negotiates Widevine at
     // SW_SECURE_CRYPTO (the level Electron's castLabs Widevine provides —
