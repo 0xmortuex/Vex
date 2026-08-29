@@ -118,6 +118,17 @@ const WebviewManager = {
       } catch {}
     });
 
+    // SPA route changes (History pushState) don't fire dom-ready — but a login
+    // flow's "enter the code" screen often appears that way. Re-run the code
+    // autofills on in-page navigation so they still trigger.
+    webview.addEventListener('did-navigate-in-page', () => {
+      try {
+        const u = webview.getURL();
+        if (typeof TotpAutofill !== 'undefined' && u) TotpAutofill.autofill(webview, u);
+        if (typeof EmailCodeAutofill !== 'undefined' && u) EmailCodeAutofill.tryFill(webview, u);
+      } catch {}
+    });
+
     // Start page loads via file:// (bypassing main's HTML bake), so inject the
     // current GUI Style so the home page matches Classic/Glass.
     webview.addEventListener('dom-ready', () => {
