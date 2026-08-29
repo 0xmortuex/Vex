@@ -57,6 +57,7 @@ const CommandBar = {
       document.body.appendChild(m);
     } },
     { id: 'pinsite', label: 'Pin Site to Sidebar', hint: 'Keep the current site as a sidebar web panel (Vivaldi-style)', icon: '📌', action: () => SidebarManager.pinCurrentSite() },
+    { id: 'editlayout', label: 'Edit Layout', hint: 'Rearrange or hide the toolbar buttons and sidebar icons in place', icon: '🧩', action: () => { if (typeof LayoutEditor !== 'undefined') LayoutEditor.enter(); } },
     { id: 'resmon', label: 'Resource Monitor', hint: 'Live CPU / memory per browser process', icon: '📊', action: () => ResourceMonitor.open() },
     { id: 'privacy', label: 'Privacy Report', hint: 'Trackers blocked + fingerprint/DNS protection status', icon: '🛡', action: () => { if (typeof PrivacyPack !== 'undefined') PrivacyPack.showReport(); } },
     { id: 'apiclient', label: 'API Client', hint: 'Send HTTP requests and browse JSON responses as a tree', icon: '🧰', action: () => { if (typeof JsonApiViewer !== 'undefined') JsonApiViewer.open(); } },

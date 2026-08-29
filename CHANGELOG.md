@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.30.0 (unreleased) — A browser built for you: rearrange the UI
+
+### Added
+- **Edit Layout — rearrange your browser's own UI in place.** Vex's tagline is "a browser built for you," so now you can actually move it around. Open it from `Ctrl+K → "Edit Layout"` or **Settings → Appearance → Layout**, and the whole chrome becomes editable where it lives: **drag to reorder, ✕ to hide.** It covers *everything*, not just plain buttons — the Vex logo, the workspace switcher, the sync indicator, the address bar and its Copy-URL / Summarize buttons, Back/Forward/Reload, every top-bar button (Tor, Notes, Extensions, AI, Split, Command), every **sidebar icon**, and every **Glass shortcut chip** (Google, YouTube, Discord…). You can also drag a top-bar button **into a different cluster** — Tor over to the left, Back to the right, or a button dropped right into the address bar. A bar at the bottom holds a **Hidden → click to restore** tray, plus **Reset toolbar** and **Done**. Your arrangement is saved and survives restarts. (Sidebar changes stay in sync with Settings → Sidebar; a shortcut's ✕ removes it — re-add with the + chip. Reordering whole regions, like moving the entire address bar, is coming next.)
+
 ## v2.29.10 (2026-08-29) — Auto-fill 2FA codes
 
 ### Fixed
