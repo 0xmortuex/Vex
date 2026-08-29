@@ -453,6 +453,7 @@ const SidebarManager = {
           if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(wv);
           if (typeof PasswordVault !== 'undefined') { try { PasswordVault.autofill(wv, wv.getURL()); } catch {} }
           if (typeof TotpAutofill !== 'undefined') { try { TotpAutofill.autofill(wv, wv.getURL()); } catch {} }
+          if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }
         });
         // Discord: if the page fails to connect (it's blocked), offer the bypass.
         if (panelName === 'discord') {

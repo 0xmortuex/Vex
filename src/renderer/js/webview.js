@@ -107,6 +107,7 @@ const WebviewManager = {
         if (typeof VexBoosts !== 'undefined' && t && t.url) VexBoosts.applyTo(webview, t.url);
         if (typeof PasswordVault !== 'undefined' && t && t.url) PasswordVault.autofill(webview, t.url);
         if (typeof TotpAutofill !== 'undefined' && t && t.url) TotpAutofill.autofill(webview, t.url);
+        if (typeof EmailCodeAutofill !== 'undefined' && t && t.url) EmailCodeAutofill.tryFill(webview, t.url);
         if (typeof ConsentBlock !== 'undefined') ConsentBlock.applyTo(webview);
         // Copy & right-click unlock (only when the global toggle is on)
         if (typeof CopyUnlock !== 'undefined') CopyUnlock.applyTo(webview);
