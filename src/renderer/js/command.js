@@ -66,6 +66,7 @@ const CommandBar = {
     { id: 'askvex', label: 'Ask Vex to do something…', hint: 'Type a request in plain English — "close all YouTube tabs", "group my shopping tabs"', icon: '✨', action: () => { if (typeof AgentCommand !== 'undefined') AgentCommand.open(); } },
     { id: 'routing', label: 'Route Through Tor / Proxy', hint: 'Send this container through Tor or a custom proxy, or open a fresh Tor container', icon: '🧅', action: () => { if (typeof ContainerRouting !== 'undefined') ContainerRouting.open(); } },
     { id: 'shortcutsguide', label: 'Shortcuts & Gestures', hint: 'Cheat-sheet of every keyboard shortcut, mouse gesture, and right-click action', icon: '⌨️', action: () => { if (typeof ShortcutsGuide !== 'undefined') ShortcutsGuide.open(); } },
+    { id: 'whatsnew', label: "What's New", hint: "Reopen this version's release notes", icon: '🎉', action: () => { try { window.VexWhatsNew?.open(); } catch {} } },
     { id: 'personaswitch', label: 'Switch AI Persona (this tab)', hint: 'Pick which AI persona this tab uses — each tab can differ', icon: '🎭', action: () => { if (typeof PersonaSwitch !== 'undefined') PersonaSwitch.open(); } },
     { id: 'stickynote', label: 'Sticky Note for This Page', hint: 'A freeform note pinned to this page (per-URL)', icon: '📝', action: () => { if (typeof StickyNotes !== 'undefined') StickyNotes.open(); } },
     { id: 'stickynotes', label: 'All Sticky Notes', hint: 'Every page you\'ve left a sticky note on', icon: '📝', action: () => { if (typeof StickyNotes !== 'undefined') StickyNotes.list(); } },
