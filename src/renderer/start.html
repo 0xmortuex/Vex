@@ -1158,22 +1158,37 @@
     // switches reload this page with a fresh ?theme= (see ThemeManager
     // .applyTheme). Falls back to oxford only when the param is missing/unknown.
     const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin', 'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'custom'];
+    function paintCustomWallpaper(img) {
+      // Dark scrim over the image so overlaid text stays readable.
+      document.body.style.backgroundImage = 'linear-gradient(rgba(8,8,12,0.62), rgba(8,8,12,0.78)), url(' + img + ')';
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundAttachment = 'fixed';
+    }
     function applyStartTheme(name) {
       const t = VEX_THEMES.includes(name) ? name : 'oxford';
       document.documentElement.setAttribute('data-theme', t);
-      // Custom Image theme: paint the user's uploaded image as the wallpaper,
-      // with a dark scrim so text stays readable.
+      if (t !== 'custom') { try { document.body.style.backgroundImage = ''; } catch {} return; }
+      // Custom Image theme: paint the user's uploaded image as the wallpaper.
+      // localStorage gives an instant no-flash paint when this guest already has
+      // it; the main-process bridge is authoritative and covers the case where
+      // this start page's localStorage was never seeded (theme picked while no
+      // start page was open). Reconcile to whatever main holds.
+      let cached = null;
+      try { cached = localStorage.getItem('vex.customThemeImage'); } catch {}
+      if (cached) { try { paintCustomWallpaper(cached); } catch {} }
       try {
-        if (t === 'custom') {
-          const img = localStorage.getItem('vex.customThemeImage');
-          if (img) {
-            document.body.style.backgroundImage = 'linear-gradient(rgba(8,8,12,0.62), rgba(8,8,12,0.78)), url(' + img + ')';
-            document.body.style.backgroundSize = 'cover';
-            document.body.style.backgroundPosition = 'center';
-            document.body.style.backgroundAttachment = 'fixed';
-          }
-        } else {
-          document.body.style.backgroundImage = '';
+        const b = window.__vexThemeBridge;
+        if (b && typeof b.getCustomImage === 'function') {
+          b.getCustomImage().then((img) => {
+            if (document.documentElement.getAttribute('data-theme') !== 'custom') return;
+            if (img && img !== cached) {
+              try { localStorage.setItem('vex.customThemeImage', img); } catch {}
+              try { paintCustomWallpaper(img); } catch {}
+            } else if (!img && !cached) {
+              try { document.body.style.backgroundImage = ''; } catch {}
+            }
+          }).catch(() => {});
         }
       } catch {}
     }

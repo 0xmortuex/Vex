@@ -167,6 +167,11 @@ const ThemeManager = {
   // start page can read it from its own (separate-session) localStorage. Awaits
   // the guest writes to avoid a reload race.
   async setCustomImage(dataUrl) {
+    // Source of truth: persist in the main process so EVERY start page can fetch
+    // it (via __vexThemeBridge), including ones opened later or when no start
+    // page was open at pick-time. The localStorage writes below stay as a
+    // no-flash fast path for start pages already on persist:main.
+    try { await window.vex?.setCustomThemeImage?.(dataUrl || null); } catch {}
     try { dataUrl ? localStorage.setItem('vex.customThemeImage', dataUrl) : localStorage.removeItem('vex.customThemeImage'); } catch {}
     if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) return;
     const js = dataUrl

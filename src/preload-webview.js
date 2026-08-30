@@ -457,6 +457,43 @@ function _isVexStartPage(href) {
   }
 })();
 
+// === Start-page theme bridge — authoritative Custom Image source from main ===
+// The start page paints the user's Custom Image wallpaper. localStorage alone is
+// unreliable (a start page must have been open when the image was picked to get
+// it), so expose the main-process copy directly. Start page only, same guard as
+// the suggest bridge above.
+(function () {
+  let href;
+  try { href = window.location.href; } catch { return; }
+  if (!_isVexStartPage(href)) return;
+
+  let ipcRenderer = null, contextBridge = null;
+  try {
+    const electron = require('electron');
+    ipcRenderer = electron.ipcRenderer;
+    contextBridge = electron.contextBridge;
+  } catch { return; }
+  if (!ipcRenderer) return;
+
+  const bridge = {
+    // Promise<string|null> — the stored Custom Image data: URL, or null.
+    getCustomImage: async () => {
+      try { return await ipcRenderer.invoke('theme:get-custom-image'); }
+      catch { return null; }
+    }
+  };
+
+  try {
+    if (contextBridge && contextBridge.exposeInMainWorld) {
+      contextBridge.exposeInMainWorld('__vexThemeBridge', bridge);
+    } else {
+      try { window.__vexThemeBridge = bridge; } catch {}
+    }
+  } catch (err) {
+    console.error('[Vex Theme] bridge expose failed:', err && err.message);
+  }
+})();
+
 
 // === Password capture — offer to save credentials on login ===
 // Runs in every guest page. Sends {host, username, password} to the HOST

@@ -184,7 +184,10 @@ const ThemePicker = {
   // If they cancel but a previous image exists, just re-apply with that one.
   _applyCustom(grid) {
     const apply = async () => {
-      await ThemeManager.setCustomImage(this._pendingImage || undefined);
+      // Only persist when a NEW image was chosen. On cancel-with-existing we
+      // re-apply the stored image untouched — passing undefined here would
+      // delete it (the intent is "keep the previous one").
+      if (this._pendingImage) await ThemeManager.setCustomImage(this._pendingImage);
       ThemeManager.applyTheme('custom');
       grid?.querySelectorAll('.vtp-card').forEach(c => c.classList.toggle('active', c.dataset.theme === 'custom'));
       window.showToast?.('Theme: Custom Image', 'info', 1500);
@@ -194,11 +197,12 @@ const ThemePicker = {
     input.type = 'file';
     input.accept = 'image/*';
     input.style.display = 'none';
-    input.addEventListener('change', () => {
+    input.addEventListener('change', async () => {
       const file = input.files && input.files[0];
       input.remove();
-      if (!file) { // cancelled
+      if (!file) { // cancelled — keep any previously stored image
         let has = false; try { has = !!localStorage.getItem('vex.customThemeImage'); } catch {}
+        if (!has) { try { has = !!(await window.vex?.getCustomThemeImage?.()); } catch {} }
         if (has) apply(); else window.showToast?.('Pick an image to use the Custom theme');
         return;
       }

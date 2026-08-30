@@ -3847,6 +3847,37 @@ ipcMain.handle('updates:list', async () => {
   }
   return [];
 });
+// === Custom Image theme — persisted in the main process so EVERY start page can
+// read it, whether or not one was open when the image was picked. The old path
+// only pushed the image into start-page guests that happened to be open at the
+// time (via localStorage on the shared persist:main partition), so choosing the
+// theme while a website was the active tab left later new-tab pages blank. This
+// on-disk copy is the authoritative source; the renderer keeps a localStorage
+// mirror purely as a no-flash fast path. Stored as the raw data: URL string. ===
+let _customThemeImage; // undefined = not loaded, null = none, string = data: URL
+function _customThemeImagePath() { return path.join(app.getPath('userData'), 'custom-theme-image.txt'); }
+function _loadCustomThemeImage() {
+  if (_customThemeImage !== undefined) return _customThemeImage;
+  try { _customThemeImage = fs.readFileSync(_customThemeImagePath(), 'utf8') || null; }
+  catch { _customThemeImage = null; }
+  return _customThemeImage;
+}
+ipcMain.handle('theme:get-custom-image', () => _loadCustomThemeImage());
+ipcMain.handle('theme:set-custom-image', (_e, dataUrl) => {
+  try {
+    if (typeof dataUrl === 'string' && /^data:image\//.test(dataUrl)) {
+      fs.writeFileSync(_customThemeImagePath(), dataUrl);
+      _customThemeImage = dataUrl;
+    } else {
+      try { fs.unlinkSync(_customThemeImagePath()); } catch {}
+      _customThemeImage = null;
+    }
+    return { ok: true };
+  } catch (e) {
+    console.warn('[Theme] custom image persist failed:', e && e.message);
+    return { ok: false, error: e && e.message };
+  }
+});
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
 // Retry DRM setup: CLEAR the cached Widevine component, then relaunch so the
 // castLabs component install runs from scratch. A plain relaunch isn't enough

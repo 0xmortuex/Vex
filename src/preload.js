@@ -223,6 +223,8 @@ contextBridge.exposeInMainWorld('vex', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   getReleaseList: () => ipcRenderer.invoke('updates:list'),
+  getCustomThemeImage: () => ipcRenderer.invoke('theme:get-custom-image'),
+  setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, i) => cb(i)),
   onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', cb),
