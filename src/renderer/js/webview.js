@@ -799,6 +799,7 @@ const WebviewManager = {
       // "Reset this site" clears this host's saved zoom and dark-mode override.
       { label: this._shouldForceDark(curUrl) ? '\u{1F319} Dark mode: on for this site' : '\u{1F319} Dark mode for this site',
         action: () => this.toggleForceDarkForSite(webview) },
+      { label: '\u{1F3AF} Zap element (hide it forever)', action: () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } catch {} } },
       { label: 'Reset this site’s settings', action: () => this.resetSite(webview) }
     ];
 
@@ -843,6 +844,10 @@ const WebviewManager = {
           action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: 'English' }); }
         });
       }
+      items.push({
+        label: '\u{1F50A} Read aloud',
+        action: () => { try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(e.params.selectionText)); } catch {} }
+      });
     }
 
     if (e.params.linkURL) {
@@ -855,6 +860,12 @@ const WebviewManager = {
         label: 'Copy Link',
         action: () => navigator.clipboard.writeText(e.params.linkURL)
       });
+      if (typeof ReadLater !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
+        items.push({
+          label: '\u{1F4DA} Read Later',
+          action: () => { try { ReadLater.add(e.params.linkURL); window.showToast?.('Saved to Library'); } catch {} }
+        });
+      }
       if (typeof LinkRot !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
         items.push({
           label: '🕰 Open Archived Version',

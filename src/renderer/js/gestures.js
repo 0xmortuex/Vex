@@ -21,6 +21,15 @@ const MouseGestures = {
     });
   },
 
+  _adjacent(delta) {
+    try {
+      const tabs = TabManager.tabs; if (!tabs || !tabs.length) return null;
+      let i = tabs.findIndex(x => x.id === TabManager.activeTabId);
+      if (i < 0) i = 0;
+      return tabs[(i + delta + tabs.length) % tabs.length].id;
+    } catch { return null; }
+  },
+
   run(dir, wv) {
     const t = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
     const act = {
@@ -30,6 +39,10 @@ const MouseGestures = {
       'D': () => { try { wv.reload(); } catch {} return '↓ Reload'; },
       'DR': () => { if (t) TabManager.closeTab(t.id); return '↓→ Close tab'; },
       'DL': () => { try { TabManager.reopenClosedTab?.(); } catch {} return '↓← Reopen tab'; },
+      'UR': () => { try { TabManager.createTab(null, true); } catch {} return '↑→ New tab'; },
+      'UL': () => { try { if (t) TabManager.createTab(t.url, true); } catch {} return '↑← Duplicate tab'; },
+      'RD': () => { const id = this._adjacent(1); if (id) TabManager.switchTab(id); return '→↓ Next tab'; },
+      'LD': () => { const id = this._adjacent(-1); if (id) TabManager.switchTab(id); return '←↓ Previous tab'; },
     }[dir];
     if (!act) return;
     const label = act();
