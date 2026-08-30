@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.30.2 (2026-08-30) — Fixes
+
+### Fixed
+- **The video pop-out couldn't be Alt+Tabbed back to.** Popping a video out gave you a floating window that stayed on top of everything — but Alt+Tab moved you to a *different* app and there was no way to get back to the pop-out: it had no taskbar button, no Alt+Tab entry, no titlebar, and no minimize button, so it read as stuck or minimized. It's now an ordinary window: it appears in the taskbar and in Alt+Tab (named "Vex — Picture-in-Picture"), it has a frame you can drag and minimize, and Alt+Tabbing to it restores it properly. It still floats on top by default — **Ctrl+Shift+P** inside the pop-out toggles that pin, and **Ctrl+W** or **Esc** closes it. (It also no longer floats above fullscreen apps, and re-popping the same page brings the existing window forward instead of restarting the video.)
+
 ## v2.30.1 (2026-08-29) — Fixes
 
 ### Fixed
