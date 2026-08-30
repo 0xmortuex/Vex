@@ -1308,12 +1308,18 @@ const TabManager = {
     const wv = WebviewManager.webviews.get(id);
     if (wv) {
       try {
-        const pos = await wv.executeJavaScript('({x: window.scrollX, y: window.scrollY})');
+        // Race the scroll read against a short timeout — a busy/hung guest can
+        // leave executeJavaScript pending forever, which used to hang the whole
+        // sleep (the "Sleep now" button appearing to do nothing).
+        const pos = await Promise.race([
+          wv.executeJavaScript('({x: window.scrollX, y: window.scrollY})'),
+          new Promise((r) => setTimeout(() => r(null), 600)),
+        ]);
         if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
           tab.scrollPosition = { x: pos.x, y: pos.y };
         }
       } catch { /* ignore */ }
-      wv.remove();
+      try { wv.remove(); } catch {}
       WebviewManager.webviews.delete(id);
     }
 

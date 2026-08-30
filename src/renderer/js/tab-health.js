@@ -78,7 +78,11 @@ const TabHealth = {
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" data-act="go">${esc((t.title || t.url || 'Tab')).slice(0, 60)}</span>
           ${mb != null ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0">${mb} MB</span>` : ''}
           <button data-act="keep" title="${kept ? 'Kept awake — click to change' : 'Prevent from sleeping'}" style="${this._btn(kept)}">☕</button>
-          ${key === 'sleeping' || key === 'lazy' ? `<button data-act="wake" title="Wake now" style="${this._btn(false)}">▲</button>` : `<button data-act="sleep" title="Sleep now" style="${this._btn(false)}">💤</button>`}
+          ${key === 'active'
+            ? '<span style="width:28px;flex-shrink:0;text-align:center;color:var(--text-muted);font-size:10px">now</span>'
+            : (key === 'sleeping' || key === 'lazy'
+              ? `<button data-act="wake" title="Wake now" style="${this._btn(false)}">▲</button>`
+              : `<button data-act="sleep" title="Sleep now" style="${this._btn(false)}">💤</button>`)}
         </div>`;
       }
     }
@@ -88,7 +92,7 @@ const TabHealth = {
       row.querySelector('[data-act="go"]')?.addEventListener('click', () => { try { TabManager.switchTab(id); } catch {} m.remove(); });
       row.querySelector('[data-act="keep"]')?.addEventListener('click', () => { const t = TabManager.tabs.find(x => x.id === id); if (t) { try { TabManager._showKeepAwakeChooser(t); } catch {} } });
       row.querySelector('[data-act="wake"]')?.addEventListener('click', () => { try { const t = TabManager.tabs.find(x => x.id === id); if (t && t.sleeping) TabManager.wakeTab(id); else if (t && t._lazy) TabManager._materializeTab(t); } catch {} setTimeout(() => this._paint(m), 300); });
-      row.querySelector('[data-act="sleep"]')?.addEventListener('click', () => { try { TabManager.sleepTab(id, true); } catch {} setTimeout(() => this._paint(m), 200); });
+      row.querySelector('[data-act="sleep"]')?.addEventListener('click', async (e) => { const btn = e.currentTarget; btn.disabled = true; btn.textContent = '…'; try { await TabManager.sleepTab(id, true); } catch {} this._paint(m); });
     });
   },
 

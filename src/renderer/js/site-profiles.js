@@ -38,7 +38,7 @@ const SiteProfiles = {
     const zooms = this._zooms(), dark = this._darkHosts(), boosts = this._boosts();
     const z = Math.round((zooms[host] || 1) * 100);
 
-    let html = '';
+    let html = `<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 12px">Per-website preferences Vex remembers automatically — zoom, forced dark mode, and custom CSS/JS. They re-apply every time you visit that site.</div>`;
     if (host) {
       html += `<div style="font-weight:700;margin:6px 0 8px">This site · <span style="color:var(--primary,var(--accent))">${esc(host)}</span></div>
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
@@ -58,7 +58,9 @@ const SiteProfiles = {
           <button id="sp-boost" style="${this._chip()}">Edit</button>
         </div>`;
     } else {
-      html += `<div style="color:var(--text-muted);margin:8px 0 16px">Open a website to tune its settings.</div>`;
+      html += `<div style="padding:12px;border:1px dashed var(--border);border-radius:9px;color:var(--text-muted);margin:2px 0 16px;font-size:12px">
+        You're on the new-tab page — there's no website to tune here. Open a site (e.g. a news page), reopen this, and you'll get zoom, dark-mode and tweak controls for it. Any sites you've already customized are listed below.
+      </div>`;
     }
 
     // All customized sites
