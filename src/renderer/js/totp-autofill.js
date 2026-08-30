@@ -38,6 +38,7 @@ const TotpAutofill = {
     const code = entry && entry.code;
     if (!code || !/^\d{4,8}$/.test(code)) return;
     this._inject(webview, code);
+    try { window.AutofillLog?.record('totp', url, true, matches[0].issuer || matches[0].label); } catch {}
   },
 
   _inject(webview, code) {

@@ -58,7 +58,30 @@ const EmailCodeAutofill = {
         }
       }
     } catch {}
+    // No Gmail tab at all. If the user opted in, read codes from a HIDDEN
+    // background Gmail — using their existing logged-in session (persist:main),
+    // so no new credentials, no IMAP/OAuth. It reads textContent (which works on
+    // an unrendered page), so it never has to be visible.
+    try { if (localStorage.getItem('vex.emailCodeHiddenReader') === '1') return this._ensureHiddenGmail(); } catch {}
     return null;
+  },
+
+  // A persistent off-screen Gmail webview, created on demand, purely for reading
+  // verification codes. Lives in the user's main session so it's already signed in.
+  _ensureHiddenGmail() {
+    let wv = document.getElementById('vex-gmail-reader');
+    if (wv) return wv;
+    try {
+      wv = document.createElement('webview');
+      wv.id = 'vex-gmail-reader';
+      wv.setAttribute('src', 'https://mail.google.com/mail/u/0/#inbox');
+      wv.setAttribute('partition', 'persist:main');
+      wv.setAttribute('webpreferences', 'contextIsolation=yes,backgroundThrottling=no');
+      // Off-screen but sized (so Gmail renders + keeps fetching), invisible + inert.
+      wv.style.cssText = 'position:fixed;left:-10000px;top:0;width:1100px;height:820px;opacity:0.01;pointer-events:none;z-index:-1';
+      document.body.appendChild(wv);
+      return wv;
+    } catch { return null; }
   },
 
   // Read Gmail's inbox: report whether it has actually loaded (any rows), and the
@@ -171,6 +194,7 @@ const EmailCodeAutofill = {
               if (!baselineSet) { baseline = code; baselineSet = true; }   // pre-existing code — don't fill it, wait for a new one
               else if (code && code !== baseline) {
                 const ok = await this._injectCode(loginWv, code);
+                try { window.AutofillLog?.record('emailcode', url, ok); } catch {}
                 if (ok) { try { window.showToast?.('📧 Filled the code from your email'); } catch {} break; }
               }
             }

@@ -2781,6 +2781,10 @@ function createWindow() {
   // resolves. Serialized engine is cached under userData for instant relaunch.
   // Cache filename bumped to -full so the richer prebuilt list set (and its
   // cosmetic rules) rebuilds instead of loading the old ads+tracking cache.
+  // Re-apply any saved per-container proxy routing (custom proxies now; Tor
+  // containers reconnect on first use).
+  try { applyStoredRoutings(); } catch {}
+
   // Register the cosmetic-filter ipc handlers NOW, before any guest page loads —
   // the guest preload starts calling them immediately, so waiting for the async
   // engine build below would make early pages throw "No handler registered". The
@@ -3649,6 +3653,56 @@ ipcMain.handle('tor:verify', async (_e, partition) => {
     return { ok: true, isTor: !!data.IsTor, ip: String(data.IP || '') };
   } catch (err) { return { ok: false, error: err && err.message }; }
 });
+
+// === Per-container routing =====================================================
+// Route a whole session (a container's persistent partition, or the default one)
+// through Tor or a custom SOCKS/HTTP proxy — persistently. Choices are saved and
+// re-applied on next launch so a "Tor container" stays a Tor container.
+const ROUTING_FILE = () => path.join(app.getPath('userData'), 'session-routing.json');
+function readRouting() { try { return JSON.parse(fs.readFileSync(ROUTING_FILE(), 'utf8')) || {}; } catch { return {}; } }
+function writeRouting(o) { try { fs.writeFileSync(ROUTING_FILE(), JSON.stringify(o || {})); } catch {} }
+
+async function applyRouting(partition, mode, custom, sender) {
+  const ses = partition ? session.fromPartition(partition) : session.defaultSession;
+  if (mode === 'tor') {
+    let port = await detectTorPort();
+    if (!port && _torLauncher) {
+      port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => {
+        try { if (sender && !sender.isDestroyed()) sender.send('tor:progress', { phase, value, detail }); } catch {}
+      });
+    }
+    if (!port) throw new Error('Tor unavailable');
+    await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
+    return { mode: 'tor', port };
+  }
+  if (mode === 'proxy' && custom) { await ses.setProxy({ proxyRules: String(custom) }); return { mode: 'proxy', custom: String(custom) }; }
+  await ses.setProxy({ mode: 'direct' });
+  return { mode: 'direct' };
+}
+
+ipcMain.handle('routing:set', async (event, partition, mode, custom) => {
+  try {
+    const r = await applyRouting(partition, mode, custom, event && event.sender);
+    const store = readRouting();
+    if (mode === 'direct') delete store[partition || 'default']; else store[partition || 'default'] = { mode, custom: custom || null };
+    writeRouting(store);
+    return { ok: true, ...r };
+  } catch (e) { return { ok: false, error: e && e.message }; }
+});
+ipcMain.handle('routing:get', (_e, partition) => { try { return readRouting()[partition || 'default'] || { mode: 'direct' }; } catch { return { mode: 'direct' }; } });
+
+// Re-apply saved routings at startup (Tor ones lazily — starting Tor for every
+// container on boot would be heavy, so a Tor container reconnects on first use;
+// custom proxies are cheap and applied immediately).
+function applyStoredRoutings() {
+  try {
+    const store = readRouting();
+    for (const [part, cfg] of Object.entries(store)) {
+      if (!cfg || cfg.mode === 'tor') continue; // Tor reconnects on demand
+      applyRouting(part === 'default' ? '' : part, cfg.mode, cfg.custom).catch(() => {});
+    }
+  } catch {}
+}
 
 ipcMain.handle('open-private-window', () => {
   const privSession = session.fromPartition(`private:${Date.now()}`);

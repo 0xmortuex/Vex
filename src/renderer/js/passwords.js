@@ -84,6 +84,7 @@ const PasswordVault = {
     try { creds = await window.vex.vaultGet(host); } catch { return; }
     if (!creds || !creds.length) { this._autofillEmailOnly(webview, host); return; }
     const c = creds[0];
+    try { window.AutofillLog?.record('password', url, true, c.username); } catch {}
     // Fills on load AND on focus (click-to-fill): clicking an empty email or
     // password field re-fills the saved login, which also covers multi-step
     // logins (email view → password view) that never reload the page, so the

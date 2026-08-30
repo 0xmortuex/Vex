@@ -404,6 +404,30 @@ const LayoutEditor = {
     try { window.showToast?.('Toolbar layout reset'); } catch {}
   },
 
+  // One-click preset layouts (Phase 4). Each is a full vex.layout blob applied on
+  // top of a clean slate. "Default" clears everything.
+  PRESETS: {
+    minimal: { hidden: { 'sync-indicator': 1, 'btn-onboarding': 1, 'btn-tor': 1, 'btn-notes-top': 1, 'btn-extensions': 1, 'btn-copy-url': 1, 'btn-ai-summarize': 1, 'workspace-switcher': 1 }, order: {}, regions: [] },
+    essentials: { hidden: { 'btn-onboarding': 1, 'sync-indicator': 1, 'btn-tor': 1 }, order: {}, regions: [] },
+  },
+  applyPreset(name) {
+    if (name === 'default') { this._resetToolbar(); return; }
+    const p = this.PRESETS[name]; if (!p) return;
+    this._save(JSON.parse(JSON.stringify(p)));
+    // Reset positions to default first, then apply the preset's hides.
+    this.GROUPS.forEach(g => {
+      if (!this.ZONES.includes(g.container)) return;
+      const zone = document.getElementById(g.container); if (!zone) return;
+      const anchor = this._zoneAnchor(zone);
+      g.items.forEach(id => { const n = document.getElementById(id); if (n) zone.insertBefore(n, anchor); });
+    });
+    const topbar = document.getElementById('top-bar');
+    if (topbar) this.REGIONS.forEach(id => { const n = document.getElementById(id); if (n) topbar.appendChild(n); });
+    this.applyLayout();
+    this._refresh();
+    try { window.showToast?.('Applied the ' + name + ' layout'); } catch {}
+  },
+
   _refresh() { if (this._editing) { this._decorate(); this._decorateRegions(); this._renderTray(); } },
 
   // ---- Floating control bar ----
@@ -415,13 +439,20 @@ const LayoutEditor = {
       '<span class="le-bar-title">🧩 Editing layout</span>' +
       '<div id="le-tray" class="le-tray"></div>' +
       '<div class="le-bar-actions">' +
-        '<button id="le-reset" class="le-btn" title="Reset the toolbar buttons to default (sidebar resets live in Settings → Sidebar)">Reset toolbar</button>' +
+        '<span class="le-tray-label" style="opacity:.7">Presets:</span>' +
+        '<button id="le-preset-default" class="le-btn" title="Everything visible, default order">Default</button>' +
+        '<button id="le-preset-essentials" class="le-btn" title="Hide the rarely-used extras">Essentials</button>' +
+        '<button id="le-preset-minimal" class="le-btn" title="Strip the toolbar down to the basics">Minimal</button>' +
+        '<button id="le-reset" class="le-btn" title="Reset the toolbar buttons to default (sidebar resets live in Settings → Sidebar)">Reset</button>' +
         '<button id="le-done" class="le-btn le-primary">Done ✓</button>' +
       '</div>';
     document.body.appendChild(bar);
     this._bar = bar;
     bar.querySelector('#le-done').addEventListener('click', () => this.exit());
     bar.querySelector('#le-reset').addEventListener('click', () => this._resetToolbar());
+    bar.querySelector('#le-preset-default').addEventListener('click', () => this.applyPreset('default'));
+    bar.querySelector('#le-preset-essentials').addEventListener('click', () => this.applyPreset('essentials'));
+    bar.querySelector('#le-preset-minimal').addEventListener('click', () => this.applyPreset('minimal'));
     this._renderTray();
   },
 

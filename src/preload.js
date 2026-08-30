@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('vex', {
   // Toggle background throttling on a live webContents (kept-awake tabs).
   setBackgroundThrottling: (wcId, enabled) => ipcRenderer.invoke('vex:set-bg-throttling', wcId, enabled),
 
+  // Per-container routing (Tor / custom proxy / direct) for a session partition.
+  routingSet: (partition, mode, custom) => ipcRenderer.invoke('routing:set', partition, mode, custom),
+  routingGet: (partition) => ipcRenderer.invoke('routing:get', partition),
+
   // Storage
   saveData: (key, data) => ipcRenderer.invoke('storage-save', key, data),
   loadData: (key) => ipcRenderer.invoke('storage-load', key),

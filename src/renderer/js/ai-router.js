@@ -37,6 +37,10 @@ const AIRouter = (() => {
   let ollamaAvailable = null;
   let checkTimer = null;
 
+  // Per-call routing logs are useful when debugging AI backends but otherwise
+  // spam the console on every request. Silence them unless vex.aiDebug is set.
+  function _dbg(...a) { try { if (localStorage.getItem('vex.aiDebug') === '1') console.log(...a); } catch {} }
+
   // ---------- Storage helpers (wrap localStorage; data is mirrored to disk) ----------
   function _load(key, fallback) {
     try {
@@ -61,7 +65,7 @@ const AIRouter = (() => {
 
   async function refreshOllamaStatus() {
     ollamaAvailable = await Ollama.ping();
-    console.log('[AIRouter] Ollama ping result:', ollamaAvailable);
+    _dbg('[AIRouter] Ollama ping result:', ollamaAvailable);
     return ollamaAvailable;
   }
 
@@ -109,7 +113,10 @@ const AIRouter = (() => {
       if (pref === 'cloud') {
         decision = 'cloud';
       } else if (pref === 'local') {
-        decision = 'local';
+        // Local-only feature (e.g. history indexing runs on-device for privacy).
+        // If Ollama isn't installed/running, skip quietly instead of failing on
+        // every page — no console spam, no doomed fetch to a dead port.
+        decision = isOllamaAvailable() ? 'local' : 'skip';
       } else {
         // auto mode
         const hasCloud = isOnline() && !!cloudWorkerUrl();
@@ -126,7 +133,7 @@ const AIRouter = (() => {
         }
       }
     }
-    console.log(`[AIRouter] resolveBackend(${feature}):`, {
+    _dbg(`[AIRouter] resolveBackend(${feature}):`, {
       decision, forceCloud, preferLocal,
       featurePref: routingPrefs[feature],
       ollamaAvailable, online: isOnline()
@@ -136,11 +143,14 @@ const AIRouter = (() => {
 
   async function callAI(feature, request) {
     const primary = await resolveBackend(feature);
+    // 'skip' = a local-only feature with no local backend available. Return
+    // nothing quietly; the caller (e.g. history indexer) just does without.
+    if (primary === 'skip') { _dbg(`[AIRouter] skipping ${feature} — no local backend`); return null; }
     const fallback = primary === 'cloud' ? 'local' : 'cloud';
-    console.log(`[AIRouter] callAI(${feature}) → using backend: ${primary}`);
+    _dbg(`[AIRouter] callAI(${feature}) → using backend: ${primary}`);
     try {
       const out = await callBackend(primary, feature, request);
-      console.log(`[AIRouter] ${primary} succeeded for ${feature}`);
+      _dbg(`[AIRouter] ${primary} succeeded for ${feature}`);
       return out;
     } catch (err) {
       console.warn(`[AIRouter] ${primary} failed for ${feature}:`, err.message);
@@ -337,14 +347,14 @@ Only include relevance > 0.5. Max 10 matches.`,
     if (preferLocal) forceCloud = false;
     _save('vex.preferLocalAI', preferLocal);
     _save('vex.forceCloudAI', forceCloud);
-    console.log('[AIRouter] setPreferLocal:', preferLocal, 'forceCloud:', forceCloud);
+    _dbg('[AIRouter] setPreferLocal:', preferLocal, 'forceCloud:', forceCloud);
   }
   function setForceCloud(v) {
     forceCloud = !!v;
     if (forceCloud) preferLocal = false;
     _save('vex.forceCloudAI', forceCloud);
     _save('vex.preferLocalAI', preferLocal);
-    console.log('[AIRouter] setForceCloud:', forceCloud, 'preferLocal:', preferLocal);
+    _dbg('[AIRouter] setForceCloud:', forceCloud, 'preferLocal:', preferLocal);
   }
   function setModel(name) {
     localModel = name;

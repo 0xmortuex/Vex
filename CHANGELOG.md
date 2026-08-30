@@ -1,6 +1,18 @@
 # Changelog
 
-## v2.30.2 (unreleased) — Fixes
+## v2.31.0 (unreleased) — Eleven new tools
+
+### Added
+- **Tab Health dashboard** (`Ctrl+K → Tab Health`) — every tab grouped by its real state (active · kept-awake · awake · hibernated · sleeping · not-loaded) with live memory and one-click keep-awake / sleep / wake. Makes the sleep system visible instead of magic.
+- **Logins & Codes hub** (`Ctrl+K → Logins & Codes`) — the three autofill systems (saved passwords, authenticator 2FA, and email-code) in one place, each with a per-kind success rate from a new local **autofill log**, plus a live "Gmail ready for codes?" status.
+- **Site Settings** (`Ctrl+K → Site Settings`) — everything Vex remembers per website (zoom, forced dark mode, custom CSS/JS boosts) for the site you're on, plus a list of every site you've customized, with per-site reset.
+- **Sidebar panel badges** — the unread count each app panel puts in its title (Discord, WhatsApp…) now shows as a badge on its sidebar icon, so the sidebar is a real dashboard.
+- **Setup Gallery** (`Ctrl+K → Setup Gallery`) — save, name, share, and switch between whole Vex setups (panels, shortcuts, theme) as portable codes; keep a personal library.
+- **Layout presets** — the layout editor gets one-click **Default / Essentials / Minimal** presets alongside the drag-to-rearrange controls.
+- **Ask Vex to do something…** (`Ctrl+K`) — a plain-English command bar that understands common tab/window actions **locally, offline** ("close all youtube tabs", "sleep the others", "group my github tabs", "split screen", "keep this awake"), asking first before anything closes, and handing anything it can't parse to the AI tab manager.
+- **Route through Tor / Proxy** (`Ctrl+K`) — send a whole container (or this session) through Tor or a custom SOCKS/HTTP proxy, persistently, or spin up a fresh Tor-routed container in one click.
+- **Email codes without a Gmail tab** — opt-in: read verification codes from a hidden background Gmail using your already-signed-in session (no IMAP, no OAuth, no new credentials). Toggle it in the Logins & Codes hub.
+- **Smoother local AI** — when Ollama isn't installed, on-device features (like history indexing) now skip quietly instead of failing on every page; verbose AI-routing logs are gated behind a debug flag. Much quieter console.
 
 ### Fixed
 - **"Never sleep" tabs now really stay ready.** A tab you kept awake still came back from a restart as an unloaded stub — clicking it reloaded the page from scratch instead of showing it instantly, and background readers (like the email-code autofill) found nothing live to read. Now every kept-awake tab is brought fully back to life on launch, is materialized the moment you turn keep-awake on (even if it had never been opened), and opts out of background throttling so its page keeps running while it's not in front — so a kept-awake Gmail keeps receiving mail in the background and the code autofill reads a current inbox. This is a big part of why the autofill was hit-or-miss.
