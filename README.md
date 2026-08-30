@@ -52,9 +52,10 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Mouse gestures** — hold right‑drag for back/forward/close/etc.
 - **Smart address bar** — autosuggest from open tabs + history, keyword search engines, and DuckDuckGo `!bang` shortcuts.
 - **Command bar** (`Ctrl+K`) — one launcher for URLs, search, panels, tools and every command below, fuzzy‑ranked by use.
-- **Personalized start page** — greeting, weather, GitHub stats, daily wisdom, speed‑dial.
+- **Personalized start page** — localized greeting & clock, live weather (city or IP), GitHub stats & recent activity, a **daily verse** (Qur'an live‑fetched, Bible/Tanakh, or Stoic quotes — or off), and a customizable speed‑dial with search‑engine switcher.
 - **QR‑to‑phone**, **image zoom lightbox**, **find in page**, **reader zoom (per‑site)**.
-- **Container / Off‑the‑Record / Identity tabs** — isolated sessions, ephemeral tabs, or a fresh fingerprint per tab.
+- **Container / Off‑the‑Record / Identity tabs** — isolated‑cookie sessions (ready‑made **Work / Personal / Shopping** containers for multiple accounts), ephemeral tabs, or a fresh fingerprint per tab.
+- **Opens apps, not dead links** — `roblox://`, `spotify:`, `steam:`, `vscode:`, `obsidian:`, `zoommtg:`, `mailto:` and more are handed off to your installed apps.
 
 ### 🔐 Privacy & security
 - **Ad & tracker blocking** — pattern blocker + full EasyList/EasyPrivacy/uBlock filter engine, **network and cosmetic** (element hiding).
@@ -77,13 +78,16 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Screenshot → Code** — capture a page, AI rebuilds it as HTML / Tailwind / React.
 - **Recall** — local full‑text search of every page you've read ("what was that article…").
 - **AI history indexing & semantic search** — find pages by *meaning*, indexed on‑device.
-- **AI Personas, AI Memory, AI Skills** — custom assistant personalities, remembered facts, saved reusable prompts.
-- **MCP client** — connect to Model Context Protocol servers and run their tools.
-- **AI Scheduler**, **Catch Me Up** (AI digest of feeds + read‑later), **AI Compose**.
+- **AI Personas** — 5 built‑in + custom personalities, a **different persona per tab**, and `@mention` switching mid‑chat.
+- **AI Memory** — facts you tell it once, injected into every chat (works on cloud *and* local).
+- **AI Skills** — saved reusable prompts that each become their own `Ctrl+K` command.
+- **AI Scheduler** — recurring headless agent tasks on a daily/weekly/monthly or **5‑field cron** schedule, with missed‑run catch‑up.
+- **MCP client** — connect to Streamable‑HTTP Model Context Protocol servers and run their tools (also exposed to the agent).
+- **Catch Me Up** (AI digest of feeds + read‑later), **AI Compose** (rewrites straight into the focused field).
 
 ### ▶️ Media & streaming
 - **Widevine / DRM playback** — Netflix, Spotify, Prime Video, Disney+, etc. (signed build).
-- **Codec fixes** — Spotify DRM‑robustness fallback and an HEVC/H.265 mask so short‑video sites fall back to playable codecs.
+- **Codec & site fixes** — Spotify DRM‑robustness fallback, an HEVC/H.265 mask so TikTok/Instagram fall back to playable codecs, a Discord "stay‑connected in the panel" spoof, a Google "this browser may not be secure" sign‑in fix, and passkey‑prompt suppression — all automatic.
 - **Media Grabber** — find and save the video/audio playing on a page.
 - **Master Volume** — one 0–500% slider across every tab.
 - **Read Aloud (TTS)**, **Now Playing** media hub, **cookie‑banner auto‑dismiss**.
@@ -111,8 +115,10 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Web Monitor** — get alerted when a page changes (restocks, status pages) + **Wayback** archiving.
 - **Focus Mode** — hide chrome + block distracting sites for 25/50 min; **Compact Mode**.
 - **Sessions** (save/restore named tab sets, auto‑save), **Workspaces**, **Workspace Time‑Travel**.
-- **Resource Monitor**, **Memory guard** (sleep idle tabs above a memory ceiling), **Downloads manager**, **History** (keyword + AI semantic search), **Send to Phone**.
-- **Command Chains** — chain commands into macros.
+- **Resource Monitor**, **Memory guard** (sleep idle tabs above a memory ceiling), **Downloads manager**, **History** (keyword + AI semantic search), **Send to Phone** (hand a tab to your other Vex devices).
+- **Command Chains** — bundle several commands into one macro (e.g. *Reading Mode → Read Aloud*); your first three run with `Ctrl+Alt+1/2/3`.
+- **Personal Queue** — a sidebar backed by your own Telegram queue bot, with done/delete.
+- **Export All Data** — download everything Vex stores as JSON (and Reset to Defaults).
 
 ### 👩‍💻 Developer tools
 - **API Client** (built‑in REST + JSON‑tree viewer), **Format JSON**, **Responsive Preview**, **DevTools** (`F12`), spellcheck.
@@ -123,6 +129,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Themes** — multi‑theme picker (`Ctrl+Shift+Y`).
 - **Per‑site Settings** — remembered zoom, forced dark mode, and custom CSS/JS **Boosts** (Zap‑to‑hide any element) per website.
 - **Setup Gallery** — save, name, share and switch whole setups (panels, shortcuts, theme) via portable `VEXSETUP1` codes.
+- **Custom Tools bar** — pin any web app as a one‑click shortcut (drag‑reorder, edit, remove).
 - **Customizable keyboard shortcuts**, **customizable sidebar** (rename/re‑icon/reorder/hide/re‑link), **Chrome extension support** (install from folder/ZIP; Vencord for Discord).
 
 ### ☁️ Sync
@@ -149,8 +156,25 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 | `Ctrl+D` | Bookmark | | `Ctrl+Shift+O` | Save session |
 | `Ctrl+Shift+Y` | Theme picker | | `Ctrl+Alt+R` | Reading mode |
 | `Ctrl+Alt+N` | Private window | | `F11` / `F12` | Fullscreen / DevTools |
+| `Ctrl+1`…`Ctrl+9` | Jump to tab N | | `Alt+←` / `Alt+→` | Back / forward |
+| `Ctrl++` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / reset | | `Ctrl+Shift+M` | Memory panel |
+| `Ctrl+Shift+N` | Notes | | `Ctrl+Shift+L` | Schedules |
+| `Ctrl+Alt+S` | Screenshot | | `Ctrl+Alt+1/2/3` | Run command‑chain 1/2/3 |
+| `Ctrl+Alt+H` | Boss key — hide/show all windows | | `Esc` | Close overlays / popups |
 
-*All shortcuts are rebindable in **Settings → Keyboard Shortcuts**.*
+*Most shortcuts are rebindable in **Settings → Keyboard Shortcuts** (a few system‑level ones are fixed).*
+
+### Power moves (right‑click & gestures)
+
+- **Mouse gestures** — hold the **right button and drag** inside a page: **←** back · **→** forward · **↑** scroll to top · **↓** reload · **↓ then →** close tab · **↓ then ←** reopen last closed tab.
+- **Rich right‑click menus:**
+  - *Page* — Back/Forward/Reload, Copy/Open URL, **🌙 dark‑mode this site**, **reset this site's settings**, Inspect Element.
+  - *Text selection* — **Search**, **🖍 Highlight**, **✨ Explain**, **📝 Summarize**, **🌐 Translate** (all straight into the AI panel).
+  - *Link* — Open in new tab, Copy, **🕰 Open archived version** (Wayback).
+  - *Image* — **🔍 Search with Google Lens**, 🔎 Zoom, Save/Copy image.
+  - *Tab* — Pin, **Duplicate**, **per‑tab volume**, move to group, mute, sleep/wake, **☕ keep awake** (1h/5h/12h/24h/custom/never), close others/right.
+  - *Tab group* — rename, recolor, **convert to a collapsed stack**, ungroup, delete.
+  - *Sidebar icon* — rename, change icon/link, switch service (Netflix ⇄ Prime/Disney+/Roku, Claude ⇄ Gemini/ChatGPT), install Vencord, refresh, hide, reset.
 
 ---
 
