@@ -26,6 +26,11 @@
       .scrpick-actions{display:flex;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--border,rgba(255,255,255,0.08));}
       .scrpick-cancel{border:1px solid var(--border,rgba(255,255,255,0.14));background:transparent;color:var(--text,#e9e9ee);border-radius:9px;padding:8px 16px;font-size:13px;font-family:inherit;cursor:pointer;}
       .scrpick-cancel:hover{background:rgba(255,255,255,0.06);}
+      .scrpick-actions{gap:14px;align-items:center;}
+      .scrpick-opts{display:flex;align-items:center;gap:14px;flex-wrap:wrap;flex:1;font-size:12px;color:var(--text-muted,#9a9aa5);}
+      .scrpick-opts label{display:flex;align-items:center;gap:5px;cursor:pointer;}
+      .scrpick-opts select{background:var(--bg,#0e0e16);color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.16));border-radius:7px;padding:5px 7px;font-size:12px;font-family:inherit;cursor:pointer;}
+      .scrpick-opts input[type=checkbox]{accent-color:var(--primary,#6366f1);cursor:pointer;}
     `;
     document.head.appendChild(st);
   }
@@ -43,11 +48,42 @@
     ov.className = 'scrpick-ov';
     const card = document.createElement('div');
     card.className = 'scrpick-card';
-    card.innerHTML = `<div class="scrpick-title">Choose what to share<span class="scrpick-sub">Screen or window</span></div><div class="scrpick-grid"></div><div class="scrpick-actions"><button class="scrpick-cancel">Cancel</button></div>`;
+    // Remembered quality/FPS/audio/cursor choice.
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem('vex.shareOpts') || '{}') || {}; } catch {}
+    const sel = (v, cur) => (String(v) === String(cur) ? ' selected' : '');
+    card.innerHTML = `<div class="scrpick-title">Choose what to share<span class="scrpick-sub">Screen or window — set the quality below</span></div><div class="scrpick-grid"></div><div class="scrpick-actions">
+      <div class="scrpick-opts">
+        <label>Quality <select id="scrpick-res">
+          <option value="0"${sel('0', saved.res)}>Source</option>
+          <option value="720"${sel('720', saved.res)}>720p</option>
+          <option value="1080"${sel('1080', saved.res == null ? '1080' : saved.res)}>1080p</option>
+          <option value="1440"${sel('1440', saved.res)}>1440p</option>
+        </select></label>
+        <label>FPS <select id="scrpick-fps">
+          <option value="15"${sel(15, saved.fps)}>15</option>
+          <option value="30"${sel(30, saved.fps == null ? 30 : saved.fps)}>30</option>
+          <option value="60"${sel(60, saved.fps)}>60</option>
+        </select></label>
+        <label><input type="checkbox" id="scrpick-audio"${saved.audio === false ? '' : ' checked'}> Share audio</label>
+        <label><input type="checkbox" id="scrpick-cursor"${saved.cursor === false ? '' : ' checked'}> Show cursor</label>
+      </div>
+      <button class="scrpick-cancel">Cancel</button></div>`;
     ov.appendChild(card);
 
+    const RES = { '0': null, '720': [1280, 720], '1080': [1920, 1080], '1440': [2560, 1440] };
+    const readOpts = () => {
+      const resVal = card.querySelector('#scrpick-res').value;
+      const fps = parseInt(card.querySelector('#scrpick-fps').value, 10) || 0;
+      const audio = card.querySelector('#scrpick-audio').checked;
+      const showCursor = card.querySelector('#scrpick-cursor').checked;
+      try { localStorage.setItem('vex.shareOpts', JSON.stringify({ res: resVal, fps, audio, cursor: showCursor })); } catch {}
+      const opts = { audio, fps, cursor: showCursor ? 'always' : 'never' };
+      const r = RES[resVal]; if (r) { opts.width = r[0]; opts.height = r[1]; }
+      return opts;
+    };
+
     let done = false;
-    const choose = (sourceId) => { if (done) return; done = true; try { window.vex.chooseScreenSource(payload.id, sourceId); } catch {} ov.remove(); };
+    const choose = (sourceId) => { if (done) return; done = true; try { window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); } catch {} ov.remove(); };
 
     const grid = card.querySelector('.scrpick-grid');
     ordered.forEach((s) => {

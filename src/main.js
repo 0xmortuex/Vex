@@ -579,14 +579,25 @@ function wireDisplayMediaOnSession(ses) {
       .catch(() => { try { callback(); } catch {} });
   });
 }
-ipcMain.handle('screen-picker:choose', (_e, { id, sourceId } = {}) => {
+// The last screen-share quality choice, read ONCE by the guest's getDisplayMedia
+// shim (preload-webview.js) so it can applyConstraints on the captured track —
+// Electron's handler can't set the video resolution/FPS itself, only the source.
+let _lastShareQuality = null;
+ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height, fps, cursor } = {}) => {
   const p = _pendingScreenPicks.get(id);
   if (!p) return { ok: false };
   _pendingScreenPicks.delete(id);
-  if (!sourceId) { try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
+  if (!sourceId) { _lastShareQuality = null; try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);
-  try { p.callback(src ? { video: src, audio: 'loopback' } : undefined); } catch {}
+  _lastShareQuality = { width: width || 0, height: height || 0, fps: fps || 0, cursor: cursor || '', at: Date.now() };
+  // audio === false → share silently; otherwise share system audio (loopback).
+  try { p.callback(src ? { video: src, audio: (audio === false ? undefined : 'loopback') } : undefined); } catch {}
   return { ok: true };
+});
+ipcMain.handle('screen-share:get-quality', () => {
+  const q = _lastShareQuality; _lastShareQuality = null;          // one-shot
+  if (!q || Date.now() - q.at > 30000) return null;
+  return { width: q.width, height: q.height, fps: q.fps, cursor: q.cursor };
 });
 // === QR code for the current page (qrcode npm package, rendered in main) ===
 ipcMain.handle('qr:make', async (_e, text) => {

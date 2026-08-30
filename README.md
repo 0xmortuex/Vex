@@ -88,6 +88,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 ### ▶️ Media & streaming
 - **Widevine / DRM playback** — Netflix, Spotify, Prime Video, Disney+, etc. (signed build).
 - **Codec & site fixes** — Spotify DRM‑robustness fallback, an HEVC/H.265 mask so TikTok/Instagram fall back to playable codecs, a Discord "stay‑connected in the panel" spoof, a Google "this browser may not be secure" sign‑in fix, and passkey‑prompt suppression — all automatic.
+- **Screen‑share settings** — when a site asks to share your screen (Discord "Go Live", Meet…), Vex's picker lets you choose the **source, resolution (up to 1440p), FPS (15/30/60), whether to share system audio, and whether to show the cursor** — Discord‑style quality control, no Nitro required.
 - **Media Grabber** — find and save the video/audio playing on a page.
 - **Master Volume** — one 0–500% slider across every tab.
 - **Read Aloud (TTS)**, **Now Playing** media hub, **cookie‑banner auto‑dismiss**.

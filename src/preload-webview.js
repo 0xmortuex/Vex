@@ -350,6 +350,51 @@
   else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === Screen-share quality shim (main world) ===
+// Electron's setDisplayMediaRequestHandler chooses the SOURCE but can't set the
+// captured resolution/FPS/audio — those come from the page's getDisplayMedia
+// constraints. Vex's picker collects the user's choice (like Discord's quality/
+// FPS/audio options); this shim reads it once, right after the stream resolves,
+// and applyConstraints() on the video track. Must run in the page's world (an
+// isolated-world preload override never reaches the page's navigator).
+(function () {
+  let proto = '';
+  try { proto = (window.location && window.location.protocol) || ''; } catch { return; }
+  if (!(proto === 'http:' || proto === 'https:')) return;
+  let contextBridge = null, ipcRenderer = null;
+  try { const e = require('electron'); contextBridge = e.contextBridge; ipcRenderer = e.ipcRenderer; } catch { return; }
+  if (!ipcRenderer) return;
+  const bridge = { getQuality: () => ipcRenderer.invoke('screen-share:get-quality') };
+  try {
+    if (contextBridge && contextBridge.exposeInMainWorld) contextBridge.exposeInMainWorld('__vexShareBridge', bridge);
+    else window.__vexShareBridge = bridge;
+  } catch { return; }
+  const shimSrc = `(function(){try{
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return;
+    var bridge = window.__vexShareBridge; if(!bridge) return;
+    var orig = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getDisplayMedia = function(constraints){
+      return orig(constraints).then(function(stream){
+        try{
+          bridge.getQuality().then(function(q){
+            if(!q) return;
+            var vt = stream.getVideoTracks && stream.getVideoTracks()[0];
+            if(!vt || !vt.applyConstraints) return;
+            var c = {};
+            if(q.width){ c.width = {ideal:q.width}; c.height = {ideal:q.height}; }
+            if(q.fps){ c.frameRate = {ideal:q.fps}; }
+            if(q.cursor){ c.cursor = q.cursor; }
+            if(Object.keys(c).length) vt.applyConstraints(c).catch(function(){});
+          }).catch(function(){});
+        }catch(e){}
+        return stream;
+      });
+    };
+  }catch(e){}})();`;
+  function inject() { try { const s = document.createElement('script'); s.textContent = shimSrc; (document.head || document.documentElement).appendChild(s); s.remove(); } catch {} }
+  if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
+})();
+
 // === Smart Searchbar suggest bridge (start page only) ===
 // The start page is a sandboxed webview guest with contextIsolation, so it
 // cannot reach the main renderer's window.vex IPC. It needs Google Suggest

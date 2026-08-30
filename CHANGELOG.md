@@ -3,6 +3,7 @@
 ## v2.31.0 (unreleased) — Eleven new tools
 
 ### Added
+- **Screen‑share quality settings.** When a site asks to share your screen (Discord "Go Live", Meet, etc.), the source picker now also lets you set **resolution** (Source / 720p / 1080p / 1440p), **FPS** (15 / 30 / 60), **share system audio** on/off, and **show cursor** on/off — the choices Discord normally gates behind Nitro. Applied to the actual capture via a page‑world `getDisplayMedia` shim, and remembered for next time.
 - **Tab Health dashboard** (`Ctrl+K → Tab Health`) — every tab grouped by its real state (active · kept-awake · awake · hibernated · sleeping · not-loaded) with live memory and one-click keep-awake / sleep / wake. Makes the sleep system visible instead of magic.
 - **Logins & Codes hub** (`Ctrl+K → Logins & Codes`) — the three autofill systems (saved passwords, authenticator 2FA, and email-code) in one place, each with a per-kind success rate from a new local **autofill log**, plus a live "Gmail ready for codes?" status.
 - **Site Settings** (`Ctrl+K → Site Settings`) — everything Vex remembers per website (zoom, forced dark mode, custom CSS/JS boosts) for the site you're on, plus a list of every site you've customized, with per-site reset.

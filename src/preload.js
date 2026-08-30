@@ -126,7 +126,7 @@ contextBridge.exposeInMainWorld('vex', {
   onDiscordBypassProgress: (cb) => ipcRenderer.on('discord:bypass-progress', (_e, d) => cb(d)),
   // Screen-share source picker (Discord Go Live / Share Screen).
   onScreenPickerOpen: (cb) => ipcRenderer.on('screen-picker:open', (_e, d) => cb(d)),
-  chooseScreenSource: (id, sourceId) => ipcRenderer.invoke('screen-picker:choose', { id, sourceId }),
+  chooseScreenSource: (id, sourceId, opts) => ipcRenderer.invoke('screen-picker:choose', Object.assign({ id, sourceId }, opts || {})),
   // Roblox panel block-bypass (shares Discord's ByeDPI).
   setRobloxBypass: (on) => ipcRenderer.invoke('roblox:set-bypass', on),
   // Persist the GUI Style so the start page (served by main, separate origin) can match.
