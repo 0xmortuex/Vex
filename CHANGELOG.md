@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.1 (2026-08-31) — Reopen "What's New"
+
+### Added
+- **"What's New" command** (`Ctrl+K → What's New`) — reopen this version's release notes any time. The update log used to appear only automatically after an update, with no way back to it.
+
 ## v2.31.0 (2026-08-31) — Eleven new tools
 
 ### Added
