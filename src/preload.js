@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('vex', {
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
 
+  // Toggle background throttling on a live webContents (kept-awake tabs).
+  setBackgroundThrottling: (wcId, enabled) => ipcRenderer.invoke('vex:set-bg-throttling', wcId, enabled),
+
   // Storage
   saveData: (key, data) => ipcRenderer.invoke('storage-save', key, data),
   loadData: (key) => ipcRenderer.invoke('storage-load', key),

@@ -29,7 +29,12 @@ const WebviewManager = {
     webview.setAttribute('src', tab.url);
     webview.setAttribute('partition', tab.partition || 'persist:main');
     webview.setAttribute('allowpopups', '');
-    webview.setAttribute('webpreferences', 'contextIsolation=yes');
+    // A kept-awake ("never sleep") tab opts out of background throttling so its
+    // page keeps running full-speed while it's not the foreground tab — Gmail
+    // keeps receiving mail in the background, so the email-code autofill reads a
+    // current inbox instead of a frozen one.
+    const keptAwake = !!(tab && tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil);
+    webview.setAttribute('webpreferences', 'contextIsolation=yes' + (keptAwake ? ',backgroundThrottling=no' : ''));
     webview.dataset.tabId = tab.id;
 
     // Events

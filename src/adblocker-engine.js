@@ -75,19 +75,24 @@ function isReady() { return !!_engine; }
 // injection so cosmetic filtering follows the ad-blocker on/off toggle live.
 // Returns true if the handlers are in place.
 let _cosmeticHandlersWired = false;
+// Register the two ipc handlers the guest cosmetic preload calls. This is
+// deliberately NOT gated on the engine being ready: the preload starts calling
+// as soon as the first page loads, which races the async engine build — if the
+// handlers aren't registered yet, every early page throws "No handler registered
+// for '@ghostery/adblocker/inject-cosmetic-filters'". So we wire the handlers up
+// front (call this at startup) and just no-op inside until the engine exists.
 function enableCosmeticFiltering(isEnabled) {
-  if (!_engine) return false;
   if (_cosmeticHandlersWired) return true;
   try {
     const { ipcMain } = require('electron');
     ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', (event, url, msg) => {
       try {
-        if (isEnabled && !isEnabled()) return;
+        if (!_engine || (isEnabled && !isEnabled())) return;
         return _engine.blocker.onInjectCosmeticFilters(event, url, msg);
       } catch { /* ignore per-frame failures */ }
     });
     ipcMain.handle('@ghostery/adblocker/is-mutation-observer-enabled', (event) => {
-      try { return _engine.blocker.onIsMutationObserverEnabled(event); } catch { return false; }
+      try { return _engine ? _engine.blocker.onIsMutationObserverEnabled(event) : false; } catch { return false; }
     });
     _cosmeticHandlersWired = true;
     return true;

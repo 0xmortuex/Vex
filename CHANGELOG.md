@@ -3,6 +3,8 @@
 ## v2.30.2 (unreleased) — Fixes
 
 ### Fixed
+- **"Never sleep" tabs now really stay ready.** A tab you kept awake still came back from a restart as an unloaded stub — clicking it reloaded the page from scratch instead of showing it instantly, and background readers (like the email-code autofill) found nothing live to read. Now every kept-awake tab is brought fully back to life on launch, is materialized the moment you turn keep-awake on (even if it had never been opened), and opts out of background throttling so its page keeps running while it's not in front — so a kept-awake Gmail keeps receiving mail in the background and the code autofill reads a current inbox. This is a big part of why the autofill was hit-or-miss.
+- **Ad blocker threw on early page loads.** The cosmetic (element-hiding) filter handlers were registered only after the filter engine finished loading in the background, so any page that loaded during that window threw "No handler registered" and got no element hiding. The handlers are now registered up front and simply wait for the engine — no error, and cosmetic filtering applies from the first page.
 - **Discord stream pop-out trapped your screen.** Popping out a stream opened a near-fullscreen window pinned always-on-top, so it covered everything — Alt+Tab switched apps but you still couldn't see or reach them without minimizing the pop-out first. The always-on-top float now only applies while the pop-out is a small (picture-in-picture-sized) window: open or resize it large and it behaves like a normal window you can Alt+Tab freely; shrink it back down and it floats on top again.
 
 ## v2.30.1 (2026-08-29) — Fixes

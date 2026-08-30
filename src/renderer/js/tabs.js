@@ -247,6 +247,19 @@ const TabManager = {
     // Drive the full activation side-effects (show webview, URL bar, wake).
     if (this.activeTabId) this.switchTab(this.activeTabId);
 
+    // "Never sleep" must survive a restart. A kept-awake tab is restored like any
+    // other — sleeping or as a lazy stub with no webview — which meant clicking it
+    // reloaded from scratch (and background readers like the email-code autofill
+    // found nothing live to read). Bring every kept-awake tab back ALIVE now, so
+    // it's instantly ready and stays loaded in the background.
+    this.tabs.forEach(t => {
+      if (t.id === this.activeTabId || !this._isKeptAwake(t)) return;
+      try {
+        if (t.sleeping) this.wakeTab(t.id);
+        else if (t._lazy) this._materializeTab(t);
+      } catch {}
+    });
+
     this.setupNewTabButton();
     this.setupDragDrop();
   },
@@ -1270,6 +1283,18 @@ const TabManager = {
   // menu); auto-sleep paths call without force so they respect the keep-awake.
   _isKeptAwake(tab) { return !!(tab && tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil); },
 
+  // Toggle background throttling on a LIVE tab's webContents without reloading it
+  // (creation-time webpreferences can't be changed in place). Used when keep-awake
+  // is turned on for an already-open tab so its background page keeps running.
+  _setBackgroundThrottling(id, enabled) {
+    try {
+      const wv = WebviewManager.webviews.get(id);
+      if (!wv || typeof wv.getWebContentsId !== 'function') return;
+      const wcId = wv.getWebContentsId();
+      if (wcId && window.vex && window.vex.setBackgroundThrottling) window.vex.setBackgroundThrottling(wcId, !!enabled);
+    } catch {}
+  },
+
   async sleepTab(id, force) {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab || tab.sleeping || tab.id === this.activeTabId) return;
@@ -1367,7 +1392,17 @@ const TabManager = {
     const HOUR = 3600 * 1000;
     const setKeep = (until, msg) => {
       tab.keepAwakeUntil = until;
-      if (until && tab.sleeping) { try { this.wakeTab(tab.id); } catch {} }
+      // Bring the tab to life right away so it's ready to use (and readable in the
+      // background) — waking a sleeping one, or materializing a lazy stub that has
+      // never had a webview. Also lift throttling on an already-live tab so a
+      // background page (e.g. Gmail) keeps updating while kept awake.
+      if (until) {
+        try {
+          if (tab.sleeping) this.wakeTab(tab.id);
+          else if (tab._lazy) this._materializeTab(tab);
+          else this._setBackgroundThrottling(tab.id, false);
+        } catch {}
+      }
       this._refreshKeepAwakeIndicator(tab);
       this.persistTabs();
       if (msg) { try { window.showToast?.(msg); } catch {} }

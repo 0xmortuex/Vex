@@ -47,9 +47,12 @@ const EmailCodeAutofill = {
       if (T && Array.isArray(T.tabs)) {
         const tab = T.tabs.find(t => isGmail(t.url) || isGmail(t.originalUrl));
         if (tab) {
+          // Mark kept-awake BEFORE (re)creating the webview so it's built with
+          // background throttling off — a woken Gmail then keeps fetching mail
+          // during the poll, so we read a fresh inbox, not a frozen one.
+          tab.keepAwakeUntil = Math.max(tab.keepAwakeUntil || 0, Date.now() + 120000);
           if (tab.sleeping && T.wakeTab) T.wakeTab(tab.id);
           else if (tab._lazy && T._materializeTab) T._materializeTab(tab);
-          tab.keepAwakeUntil = Date.now() + 120000;   // survive the ~66s poll
           return (typeof WebviewManager !== 'undefined' && WebviewManager.webviews.get(tab.id))
             || document.querySelector(`webview[data-tab-id="${tab.id}"]`) || null;
         }

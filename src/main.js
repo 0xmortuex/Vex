@@ -597,6 +597,15 @@ ipcMain.handle('qr:make', async (_e, text) => {
 });
 
 // === Per-process resource metrics for the renderer's Resource Monitor ===
+// Turn background throttling on/off for a live guest webContents (kept-awake
+// tabs opt out so their page keeps running while backgrounded). Best-effort.
+ipcMain.handle('vex:set-bg-throttling', (_e, wcId, enabled) => {
+  try {
+    const wc = webContents.fromId(wcId);
+    if (wc && !wc.isDestroyed()) wc.setBackgroundThrottling(!!enabled);
+  } catch { /* ignore */ }
+});
+
 ipcMain.handle('app:metrics', () => {
   try {
     return app.getAppMetrics().map(p => ({
@@ -2772,15 +2781,15 @@ function createWindow() {
   // resolves. Serialized engine is cached under userData for instant relaunch.
   // Cache filename bumped to -full so the richer prebuilt list set (and its
   // cosmetic rules) rebuilds instead of loading the old ads+tracking cache.
+  // Register the cosmetic-filter ipc handlers NOW, before any guest page loads —
+  // the guest preload starts calling them immediately, so waiting for the async
+  // engine build below would make early pages throw "No handler registered". The
+  // handlers no-op until the engine is ready (and follow the ad-blocker toggle).
+  enableCosmeticFiltering(() => adBlockerEnabled);
+
   initAdblockEngine(path.join(app.getPath('userData'), 'vex-adblock-engine-full.bin'))
     .then(ok => {
       console.log('[Vex] adblock engine', ok ? 'ready (full lists)' : 'unavailable — using domain list');
-      if (!ok) return;
-      // Stack COSMETIC filtering (element hiding) on top of the network blocker.
-      // The preload is injected into every webview via GUEST_PRELOADS; this just
-      // registers the ipc handlers it calls. Gated on the ad-blocker toggle.
-      const cosOk = enableCosmeticFiltering(() => adBlockerEnabled);
-      console.log('[Vex] cosmetic ad filtering handlers', cosOk ? 'ready' : 'unavailable');
     })
     .catch(() => {});
 
