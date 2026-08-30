@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.2 (2026-08-31) — Browse every release
+
+### Added
+- **What's New version picker** — the release-notes modal now has a dropdown listing every version (newest-first, back to v1.0.0). Pick any release to read its notes; the "View on GitHub" link repoints to that tag. Read from the bundled changelog, so it works offline.
+
 ## v2.31.1 (2026-08-31) — Reopen "What's New"
 
 ### Added
