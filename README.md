@@ -142,6 +142,21 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 
 ---
 
+## Invented for Vex
+
+Features that don't exist in other browsers — built by combining Vex's own stack (agent, containers, vault, Recall, Boosts):
+
+- **🔥 Burner Identity** (`Ctrl+K`) — one click for a throwaway session: an off‑the‑record container (cookies wiped on close) opened on a disposable‑email site, optionally routed through Tor. Sign up for something without it tying back to you.
+- **🕵️ Leak Canary** — quietly warns when one of *your* saved emails is already pre‑filled on a site that isn't where you saved it (a tracker leak). A local privacy tripwire, on by default.
+- **🧾 Tracker Receipts** (`Ctrl+K`) — a weekly, narrative privacy report with a trend chart: how many trackers were blocked, the worst offenders, and which sites followed you most.
+- **⚙️ Automations** (`Ctrl+K`) — if‑this‑then‑that for the browser: *when a page URL contains X* (or *at a time each day*) → open a URL, open a panel, or run a command.
+- **🎯 Focus Flows** (`Ctrl+K`) — named, composable work modes: one click opens a tab set, switches to a persona, dims the UI, and blocks distracting sites.
+- **🎧 Read‑Later as Podcast** (`Ctrl+K`) — hands‑free: Vex reads your saved articles aloud as an auto‑advancing playlist with spoken intros.
+- **🎨 AI Restyle** (`Ctrl+K`) — describe a look ("match my dark theme", "declutter", "make it Notion‑like") and the AI writes CSS to restyle the current site, saved as a per‑site Boost.
+- **🧾 Universal Form Fill** (`Ctrl+K → Fill This Form`) — one saved profile (name/email/phone/address) fills any signup or checkout form (never card numbers).
+- **📝 Sticky Notes per page** (`Ctrl+K`) — a freeform note pinned to a specific URL, reappearing when you return.
+- **🔗 Linked split‑scroll** (`Ctrl+K`) — in split screen, scroll one pane and the others follow proportionally.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action | | Shortcut | Action |

@@ -1,8 +1,9 @@
 # Changelog
 
-## v2.31.0 (unreleased) — Eleven new tools
+## v2.31.0 (2026-08-31) — Eleven new tools
 
 ### Added
+- **Ten features invented for Vex** (none exist in other browsers), each `Ctrl+K`: **🔥 Burner Identity** (throwaway OTR container + disposable email, optionally over Tor), **🕵️ Leak Canary** (warns when a saved email of yours is pre‑filled on the wrong site), **🧾 Tracker Receipts** (weekly narrative privacy report + trend), **⚙️ Automations** (if‑this‑then‑that: on a URL / at a time → open/panel/command), **🎯 Focus Flows** (composable work modes — tabs + persona + dim + block), **🎧 Read‑Later as Podcast** (auto‑advancing TTS of your saved articles), **🎨 AI Restyle** (AI writes CSS to restyle a site to a look you describe, saved as a Boost), **🧾 Universal Form Fill** (one profile fills signup/checkout forms), **📝 Sticky Notes per page**, and **🔗 Linked split‑scroll**.
 - **Shortcuts & Gestures cheat‑sheet** (`Ctrl+K → Shortcuts & Gestures`) — a searchable reference of *every* keyboard shortcut (including the hidden ones — jump‑to‑tab `Ctrl+1‑9`, the `Ctrl+Alt+H` boss key, command‑chain slots, zoom/nav), all mouse gestures, and every right‑click action. Makes the hidden features findable.
 - **More mouse gestures** — on top of back/forward/top/reload/close/reopen: **↑→ new tab**, **↑← duplicate tab**, **→↓ next tab**, **←↓ previous tab**.
 - **Per‑tab AI persona switcher** (`Ctrl+K → Switch AI Persona (this tab)`) — Vex could already run a different persona per tab and switch with `@name`, but there was no quick picker; now there is one, showing which persona the tab uses.

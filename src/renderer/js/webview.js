@@ -52,6 +52,10 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
 
+      // Leak Canary: warn if a saved email of yours is pre-filled on a site that
+      // isn't where you saved it (a tracker leak). Best-effort, throttled inside.
+      try { window.LeakCanary && window.LeakCanary.check(webview, webview.getURL && webview.getURL()); } catch {}
+
       // Detect page background color and apply to webview element
       try {
         webview.executeJavaScript(`getComputedStyle(document.body).backgroundColor`)
