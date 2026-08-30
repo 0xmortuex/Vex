@@ -38,7 +38,10 @@
       .whatsnew-card{width:560px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;background:var(--surface,#1b1b24);border:1px solid var(--border,rgba(255,255,255,0.1));border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,0.6);overflow:hidden;}
       .whatsnew-head{padding:18px 22px 14px;border-bottom:1px solid var(--border,rgba(255,255,255,0.08));}
       .whatsnew-kicker{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--primary,#6366f1);font-weight:700;}
-      .whatsnew-title{font-size:18px;font-weight:800;color:var(--text,#e9e9ee);margin-top:4px;}
+      .whatsnew-titlerow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px;}
+      .whatsnew-title{font-size:18px;font-weight:800;color:var(--text,#e9e9ee);}
+      .whatsnew-select{flex:none;max-width:52%;background:var(--bg,#12121a);color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.14));border-radius:8px;padding:5px 8px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;}
+      .whatsnew-select:hover{border-color:var(--primary,#6366f1);}
       .whatsnew-body{padding:6px 22px 18px;overflow-y:auto;color:var(--text,#e9e9ee);font-size:13.5px;line-height:1.6;}
       .whatsnew-body h4{font-size:13px;margin:16px 0 6px;color:var(--text,#e9e9ee);}
       .whatsnew-body ul{margin:4px 0 4px 2px;padding-left:18px;}
@@ -63,27 +66,61 @@
     let notes = null;
     try { notes = await window.vex.getReleaseNotes(); } catch {}
     if (!notes && !opts.force) { _open = false; return; } // silent if we can't fetch on auto-show
+
+    // Full history for the version picker (local CHANGELOG, newest-first). Falls
+    // back to just the current release when the list is unavailable.
+    let list = [];
+    try { if (typeof window.vex.getReleaseList === 'function') list = await window.vex.getReleaseList(); } catch {}
+    if (!Array.isArray(list) || !list.length) list = notes ? [notes] : [];
+    if (!list.length) list = [{ version: '', name: 'Vex', body: '' }];
+
+    // Start on the release matching the current build; else the newest entry.
+    let idx = 0;
+    if (notes && notes.version) {
+      const i = list.findIndex(e => e.version === notes.version);
+      if (i >= 0) idx = i;
+    }
+
     injectStyles();
     const ov = document.createElement('div');
     ov.className = 'whatsnew-ov';
-    const bodyHtml = notes && notes.body ? mdToHtml(notes.body) : '<div class="whatsnew-empty">No release notes for this build — the releases page has the full history.</div>';
+    const picker = list.length > 1
+      ? `<select class="whatsnew-select" title="Choose a release">${list.map((e, i) => `<option value="${i}"${i === idx ? ' selected' : ''}>${esc(e.name || e.version)}</option>`).join('')}</select>`
+      : '';
     ov.innerHTML = `
       <div class="whatsnew-card">
         <div class="whatsnew-head">
           <div class="whatsnew-kicker">What's new</div>
-          <div class="whatsnew-title">${esc(notes ? notes.name : 'Vex')}</div>
+          <div class="whatsnew-titlerow">
+            <div class="whatsnew-title"></div>
+            ${picker}
+          </div>
         </div>
-        <div class="whatsnew-body">${bodyHtml}</div>
+        <div class="whatsnew-body"></div>
         <div class="whatsnew-foot">
-          <a class="whatsnew-link" href="#" data-ext>View latest release on GitHub →</a>
+          <a class="whatsnew-link" href="#" data-ext>View on GitHub →</a>
           <button class="whatsnew-btn">Got it</button>
         </div>
       </div>`;
+
+    const titleEl = ov.querySelector('.whatsnew-title');
+    const bodyEl = ov.querySelector('.whatsnew-body');
+    const linkEl = ov.querySelector('.whatsnew-link[data-ext]');
+    const render = (i) => {
+      const e = list[i] || list[0];
+      titleEl.textContent = e.name || e.version || 'Vex';
+      bodyEl.innerHTML = e.body ? mdToHtml(e.body) : '<div class="whatsnew-empty">No release notes for this build — the releases page has the full history.</div>';
+      bodyEl.scrollTop = 0;
+      linkEl.dataset.url = e.version ? ('https://github.com/0xmortuex/Vex/releases/tag/' + e.version) : 'https://github.com/0xmortuex/Vex/releases';
+    };
+    render(idx);
+
     const close = () => { ov.remove(); _open = false; };
+    ov.querySelector('.whatsnew-select')?.addEventListener('change', (e) => render(parseInt(e.target.value, 10) || 0));
     ov.querySelector('.whatsnew-btn').addEventListener('click', close);
-    ov.querySelector('.whatsnew-link[data-ext]')?.addEventListener('click', (e) => {
+    linkEl?.addEventListener('click', (e) => {
       e.preventDefault();
-      try { window.vex?.openExternal?.('https://github.com/0xmortuex/Vex/releases/latest'); } catch {}
+      try { window.vex?.openExternal?.(linkEl.dataset.url || 'https://github.com/0xmortuex/Vex/releases'); } catch {}
       close(); // the release opens in the browser — no reason to keep the modal up
     });
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });

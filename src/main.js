@@ -3832,6 +3832,21 @@ ipcMain.handle('updates:notes', async (_e, tag) => {
   if (!rel || !rel.tag_name) return null;
   return { version: rel.tag_name, name: rel.name || rel.tag_name, body: rel.body || '', url: rel.html_url, publishedAt: rel.published_at };
 });
+// Full release history for the "What's New" version picker. Local-first from the
+// bundled CHANGELOG.md — no network, can't rate-limit, and always has every
+// shipped version. Returns [] if the file is unreadable (the picker just hides).
+ipcMain.handle('updates:list', async () => {
+  try {
+    const md = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+    const list = _mainHelpers.parseChangelogList(md);
+    if (list && list.length) {
+      return list.map((e) => ({ ...e, url: 'https://github.com/0xmortuex/Vex/releases/tag/' + e.version }));
+    }
+  } catch (err) {
+    console.warn('[WhatsNew] changelog list unavailable:', err.message);
+  }
+  return [];
+});
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
 // Retry DRM setup: CLEAR the cached Widevine component, then relaunch so the
 // castLabs component install runs from scratch. A plain relaunch isn't enough

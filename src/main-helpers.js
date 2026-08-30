@@ -430,10 +430,41 @@ function parseChangelogEntry(md, version) {
   };
 }
 
+// Parse EVERY release entry from the changelog markdown, newest-first (file
+// order). Powers the "What's New" version picker so past releases are browsable
+// offline. Returns [{ version, name, body, publishedAt }, ...] — entries with an
+// empty body are skipped. Pure (text in, array out) so it's unit-testable.
+function parseChangelogList(md) {
+  if (typeof md !== 'string' || !md) return [];
+  md = md.replace(/\r/g, '');
+  const re = /^## (v\d[^\s\n]*)((?:[^\S\n][^\n]*)?)$/gm;
+  const heads = [];
+  let m;
+  while ((m = re.exec(md))) {
+    heads.push({ version: m[1], metaRaw: m[2] || '', start: m.index, bodyStart: m.index + m[0].length });
+  }
+  const out = [];
+  for (let i = 0; i < heads.length; i++) {
+    const h = heads[i];
+    const end = i + 1 < heads.length ? heads[i + 1].start : md.length;
+    const body = md.slice(h.bodyStart, end).trim();
+    if (!body) continue;
+    const meta = h.metaRaw.match(/^\s*\(([^)]*)\)\s*(?:—\s*(.*))?$/);
+    out.push({
+      version: h.version,
+      name: meta && meta[2] ? `${h.version} — ${meta[2].trim()}` : h.version,
+      body,
+      publishedAt: meta && meta[1] ? meta[1] : null,
+    });
+  }
+  return out;
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
   parseChangelogEntry,
+  parseChangelogList,
   resolveAndReplaceMisspelling,
   OAUTH_POPUP_HOSTS,
   isOAuthPopupUrl,
