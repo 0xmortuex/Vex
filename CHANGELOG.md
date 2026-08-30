@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.30.2 (unreleased) — Fixes
+
+### Fixed
+- **Discord stream pop-out trapped your screen.** Popping out a stream opened a near-fullscreen window pinned always-on-top, so it covered everything — Alt+Tab switched apps but you still couldn't see or reach them without minimizing the pop-out first. The always-on-top float now only applies while the pop-out is a small (picture-in-picture-sized) window: open or resize it large and it behaves like a normal window you can Alt+Tab freely; shrink it back down and it floats on top again.
+
 ## v2.30.1 (2026-08-29) — Fixes
 
 ### Fixed

@@ -2011,8 +2011,22 @@ app.on('web-contents-created', (_event, contents) => {
         // is fullscreen — an always-on-top fullscreen window blocks app
         // switching. It's restored when leaving fullscreen.
         let onTop = st.alwaysOnTop !== false; // default ON (PiP-like)
+        // A pop-out that (nearly) fills the screen must NOT stay always-on-top: a
+        // topmost full-size window covers everything, so Alt+Tab switches focus
+        // but you still can't SEE what you switched to — you have to minimize the
+        // pop-out first (the "can't Alt+Tab out of it" trap). So the PiP float
+        // only applies while it's a genuinely small window; a big one behaves as a
+        // normal window. Re-checked on resize, so shrinking it makes it float and
+        // growing it releases the float.
+        const coversScreen = () => {
+          try {
+            const b = win.getBounds();
+            const wa = require('electron').screen.getDisplayMatching(b).workAreaSize;
+            return (b.width * b.height) >= (wa.width * wa.height) * 0.6;
+          } catch { return false; }
+        };
         const applyOnTop = () => {
-          try { win.setAlwaysOnTop(onTop && !win.isFullScreen(), 'floating'); } catch {}
+          try { win.setAlwaysOnTop(onTop && !win.isFullScreen() && !coversScreen(), 'floating'); } catch {}
         };
         applyOnTop();
 
@@ -2025,9 +2039,10 @@ app.on('web-contents-created', (_event, contents) => {
             writePopoutState(cur);
           } catch { /* ignore */ }
         };
-        let saveTimer = null;
+        let saveTimer = null, topTimer = null;
         const debouncedPersist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(persist, 400); };
-        win.on('resize', debouncedPersist);
+        const debouncedOnTop = () => { clearTimeout(topTimer); topTimer = setTimeout(applyOnTop, 250); };
+        win.on('resize', () => { debouncedOnTop(); debouncedPersist(); });
         win.on('move', debouncedPersist);
         // Fullscreen ⇄ windowed: never keep on-top while fullscreen (Alt+Tab trap).
         win.on('enter-full-screen', applyOnTop);
@@ -2043,7 +2058,7 @@ app.on('web-contents-created', (_event, contents) => {
           }
         });
 
-        win.on('closed', () => { clearTimeout(saveTimer); console.log('[discord-popout] window closed'); });
+        win.on('closed', () => { clearTimeout(saveTimer); clearTimeout(topTimer); console.log('[discord-popout] window closed'); });
 
         // Zombie-window guard + diagnostics. Symptom seen: popping out a live
         // screen-share spawns a white window that you can't switch to (its
