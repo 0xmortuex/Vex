@@ -686,16 +686,34 @@
       TabManager.startMemoryGuard(settings.memCeilingMB ?? 1200);
     }
   };
-  applyMemorySaver(memorySaverOn());
+  // Reusable "restart to apply" affordance for any launch-only setting: a button
+  // that appears when a restart is pending and relaunches Vex on click (the tab
+  // set is persisted, so the session comes back). Call window.vexRestartNeeded()
+  // from any setting whose effect only takes hold at launch.
+  const restartRow = document.getElementById('restart-needed-row');
+  const restartBtn = document.getElementById('btn-restart-vex');
+  const setRestartNeeded = (needed) => { if (restartRow) restartRow.style.display = needed ? '' : 'none'; };
+  window.vexRestartNeeded = () => setRestartNeeded(true);
+  restartBtn?.addEventListener('click', async () => {
+    restartBtn.disabled = true; restartBtn.textContent = '⟳ Restarting…';
+    try { await window.vex.restartApp(); }
+    catch { restartBtn.disabled = false; restartBtn.textContent = '⟳ Restart Vex to apply'; }
+  });
+
+  const memSaverBoot = memorySaverOn();
+  applyMemorySaver(memSaverBoot);
   const memSaverToggle = document.getElementById('setting-memory-saver');
   if (memSaverToggle) {
-    memSaverToggle.checked = memorySaverOn();
+    memSaverToggle.checked = memSaverBoot;
     memSaverToggle.addEventListener('change', () => {
-      try { localStorage.setItem('vex.memorySaver', memSaverToggle.checked ? '1' : '0'); } catch {}
-      applyMemorySaver(memSaverToggle.checked);
-      window.showToast?.(memSaverToggle.checked
-        ? '🧠 Memory Saver on — restart Vex to apply the rest'
-        : 'Memory Saver off — restart to fully revert', 'info', 5000);
+      const on = memSaverToggle.checked;
+      try { localStorage.setItem('vex.memorySaver', on ? '1' : '0'); } catch {}
+      applyMemorySaver(on);
+      // Runtime parts are live immediately; the launch-flag parts (in-RAM page
+      // caching, renderer cap) need a restart — but only if the state now differs
+      // from what we actually booted with, so toggling back hides the button.
+      setRestartNeeded(on !== memSaverBoot);
+      window.showToast?.(on ? '🧠 Memory Saver on' : 'Memory Saver off', 'info', 2500);
     });
   }
 

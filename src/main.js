@@ -3982,6 +3982,14 @@ ipcMain.handle('widevine:retry', () => {
   }
 });
 
+// Restart Vex — used by settings that only take effect at launch (e.g. Memory
+// Saver's command-line flags). The open tab set is persisted continuously, so a
+// relaunch restores the session; this just re-runs main with the new flags.
+ipcMain.handle('app:restart', () => {
+  try { app.relaunch(); app.exit(0); return { ok: true }; }
+  catch (e) { return { ok: false, error: e && e.message }; }
+});
+
 // Set as default browser — opens Windows Default Apps settings
 ipcMain.handle('set-as-default-browser', async () => {
   try {
