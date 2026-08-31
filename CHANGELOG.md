@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.11 (2026-09-01) — More reliable code autofill
+
+### Fixed
+- **Email-code autofill missing a code that was already in your inbox** (e.g. Spotify with Gmail open). It required the email to still show as unread *and* match verification wording — too strict when Gmail marks it read or the sender phrases it differently. It now recognizes more code phrasings and, as a last resort, fills a clear verification code that stays newest with nothing newer arriving, even if the unread flag is unreliable — while still preferring a genuinely newer code.
+
 ## v2.31.10 (2026-08-31) — Block the rest of the game ads
 
 ### Fixed
