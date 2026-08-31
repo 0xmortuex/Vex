@@ -175,13 +175,29 @@ describe('EmailCodeAutofill.tryFill', () => {
     expect(logs.at(-1)).toEqual({ ok: true, reason: 'unread-baseline' });
   });
 
-  it('does NOT fill a baseline code that is READ (already consumed)', async () => {
+  it('fills a STRONG code even if unread detection fails, after a longer grace', async () => {
+    // unread=false (e.g. Gmail markup shifted / auto-marked read) but the row is
+    // clearly a verification code that stays newest — fill it as a last resort so
+    // a real code isn't skipped just because unread detection is unreliable.
     const { A, injected, logs } = makeAutofill(scriptedReader([
-      loaded('345678', false, true),   // read -> old/consumed, never auto-fill
+      loaded('345678', false, true),
     ]));
     await run(A);
-    expect(injected).toEqual([]);
-    expect(logs.at(-1)).toEqual({ ok: false, reason: 'no-new-code' });
+    expect(injected).toEqual(['345678']);
+    expect(logs.at(-1)).toEqual({ ok: true, reason: 'strong-baseline' });
+  });
+
+  it('a genuinely newer code still wins over a strong baseline (no stale fill)', async () => {
+    // Retry case: an old strong code is the baseline; a newer one arrives before
+    // the strong-baseline grace elapses -> the NEW code is filled, not the old.
+    const { A, injected, logs } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),   // old strong code (baseline)
+      loaded('111111', false, true),
+      loaded('222222', true, true),    // new code arrives at read 3
+    ]));
+    await run(A);
+    expect(injected).toEqual(['222222']);
+    expect(logs.at(-1).reason).toBe('new-code');
   });
 
   it('does NOT last-resort fill a WEAK (non-verification) unread baseline number', async () => {

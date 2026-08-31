@@ -214,7 +214,7 @@ const EmailCodeAutofill = {
   // already sitting in the inbox" last resort, so a random 6-digit in a promo
   // never gets auto-filled.
   _isStrongCodeRow(text) {
-    return /verification|verify|one[-\s]?time|security code|login code|sign[-\s]?in code|passcode|confirm(?:ation)? code|your (?:\w+ )?code|code is|is your (?:\w+ )?code/i.test(String(text || ''));
+    return /verification|verify|one[-\s]?time|security code|login code|sign[-\s]?in code|log[-\s]?in code|passcode|access code|confirm(?:ation)? code|your (?:\w+ )?code|code is|is your (?:\w+ )?code|code to (?:log|sign) ?in|enter (?:this|the) code|use this code|temporary code|auth(?:entication)? code/i.test(String(text || ''));
   },
 
   // Does the login page have an EMPTY one-time-code field to fill?
@@ -312,16 +312,23 @@ const EmailCodeAutofill = {
                 const ok = await this._injectCode(loginWv, code);
                 this._log(url, ok, 'new-code'); filled = true;
                 if (ok) { this._toast(); this._maybeAutoSubmit(loginWv); break; }
-              } else if (code && code === baseline && baselineUnread && unread && baselineStrong) {
+              } else if (code && code === baseline && baselineStrong) {
                 // The code was already in the inbox when the page opened (so it
                 // became the baseline) — e.g. the mail synced a beat late, or the
-                // email landed as the page loaded. It's still the newest, still
-                // unread, and clearly a verification code, with nothing newer
-                // superseding it. After a short grace (so a genuine retry code can
-                // arrive first and win above), fill it instead of skipping forever.
-                if (++unreadStable >= 5) {
+                // email landed as the page loaded. It's still the newest and
+                // clearly a verification code, with nothing newer superseding it.
+                // Fill it instead of skipping forever, after a grace so a genuine
+                // retry code can arrive first and win via the path above:
+                //  • ~15s if it's still flagged unread (strong signal it's fresh)
+                //  • ~30s even if unread detection is unreliable (Gmail's markup
+                //    varies, and the email may have been auto-marked read) — a
+                //    strong code sitting at the top this long is the one wanted.
+                unreadStable++;
+                const readyUnread = baselineUnread && unread && unreadStable >= 5;
+                const readyStrong = unreadStable >= 10;
+                if (readyUnread || readyStrong) {
                   const ok = await this._injectCode(loginWv, code);
-                  this._log(url, ok, 'unread-baseline'); filled = true;
+                  this._log(url, ok, readyUnread ? 'unread-baseline' : 'strong-baseline'); filled = true;
                   if (ok) { this._toast(); this._maybeAutoSubmit(loginWv); break; }
                 }
               }
