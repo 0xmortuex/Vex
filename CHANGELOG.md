@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.8 (2026-08-31) — Cloudflare Turnstile fix
+
+### Fixed
+- **Cloudflare Turnstile "Verification failed"** on sites like gartic.io. Vex presents itself as Google Chrome in its User‑Agent and request headers, but the browser's JavaScript client‑hints (`navigator.userAgentData`) still said "Chromium" — that mismatch tripped bot detection. Vex now reports "Google Chrome" consistently across all three, so challenges verify normally.
+
 ## v2.31.7 (2026-08-31) — A Vex built for your work
 
 ### Added
