@@ -98,6 +98,47 @@ describe('EmailCodeAutofill._readInbox body fallback', () => {
   });
 });
 
+describe('EmailCodeAutofill._restoreAutoWoken', () => {
+  let origWindow;
+  beforeEach(() => { origWindow = global.window; });
+  afterEach(() => { global.window = origWindow; });
+
+  const fresh = () => Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill);
+  function fakeTabs(activeId, tabs) {
+    const slept = [];
+    global.window = { Tabs: { activeTabId: activeId, tabs, sleepTab: (id) => slept.push(id) } };
+    return slept;
+  }
+
+  it('re-sleeps a Gmail it woke, clearing the temporary keep-awake', () => {
+    const A = fresh();
+    const tab = { id: 'gmail', keepAwakeUntil: Date.now() + 120000 };
+    const slept = fakeTabs('other', [tab]);
+    A._autoWoken = 'gmail';
+    A._restoreAutoWoken();
+    expect(slept).toEqual(['gmail']);
+    expect(tab.keepAwakeUntil).toBe(0);
+    expect(A._autoWoken).toBeNull();
+  });
+
+  it('leaves the tab alone if the user is now viewing it', () => {
+    const A = fresh();
+    const tab = { id: 'gmail', keepAwakeUntil: Date.now() + 120000 };
+    const slept = fakeTabs('gmail', [tab]);   // gmail is the active tab
+    A._autoWoken = 'gmail';
+    A._restoreAutoWoken();
+    expect(slept).toEqual([]);
+  });
+
+  it('does nothing when it did not wake anything (e.g. Gmail was already live)', () => {
+    const A = fresh();
+    const slept = fakeTabs('x', [{ id: 'gmail' }]);
+    A._autoWoken = null;
+    A._restoreAutoWoken();
+    expect(slept).toEqual([]);
+  });
+});
+
 describe('EmailCodeAutofill.tryFill', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());

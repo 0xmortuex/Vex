@@ -62,12 +62,20 @@ const EmailCodeAutofill = {
         for (const p of this._PROVIDERS) {
           const tab = T.tabs.find(t => p.host.test(t.url || '') || p.host.test(t.originalUrl || ''));
           if (!tab) continue;
+          // If this tab was asleep/lazy, WE are waking it just to read a code —
+          // remember that so we can put it back to sleep afterwards (see
+          // _restoreAutoWoken). A sleeping/lazy tab is never user-kept-awake
+          // (kept-awake tabs are materialized on startup), so this only reclaims
+          // memory the user wasn't asking us to hold. If Gmail was already live,
+          // we leave it exactly as-is.
+          const wasAsleep = !!(tab.sleeping || tab._lazy);
           // Mark kept-awake BEFORE (re)creating the webview so it's built with
           // background throttling off — a woken mail tab then keeps fetching
           // during the poll, so we read a fresh inbox, not a frozen one.
           tab.keepAwakeUntil = Math.max(tab.keepAwakeUntil || 0, Date.now() + 120000);
           if (tab.sleeping && T.wakeTab) T.wakeTab(tab.id);
           else if (tab._lazy && T._materializeTab) T._materializeTab(tab);
+          if (wasAsleep) this._autoWoken = tab.id;
           const wv = (typeof WebviewManager !== 'undefined' && WebviewManager.webviews.get(tab.id))
             || document.querySelector(`webview[data-tab-id="${tab.id}"]`) || null;
           if (wv) return { wv, provider: p };
@@ -335,7 +343,27 @@ const EmailCodeAutofill = {
         this._maybeMissToast(reason, sawField);
       }
       this._running = false;
-    } catch (e) { this._running = false; }
+      this._restoreAutoWoken();
+    } catch (e) { this._running = false; this._restoreAutoWoken(); }
+  },
+
+  // If this poll woke a sleeping Gmail just to read a code, put it back to sleep
+  // now that we're done — so a Gmail the user lets sleep costs ~0 MB between
+  // codes instead of staying loaded (~300–500 MB) until auto-sleep. We only
+  // touch a tab WE woke (recorded in _findMailWebview) and never the one the user
+  // is currently viewing; the user's own never-sleep/keep-awake tabs are left
+  // untouched because those are already live and never get marked here.
+  _restoreAutoWoken() {
+    const id = this._autoWoken; this._autoWoken = null;
+    if (!id) return;
+    try {
+      const T = (typeof window !== 'undefined') && window.Tabs;
+      if (!T || !Array.isArray(T.tabs)) return;
+      const tab = T.tabs.find(t => t.id === id);
+      if (!tab || tab.id === T.activeTabId) return; // gone, or the user is looking at it now
+      tab.keepAwakeUntil = 0;                        // drop the temporary wake we set
+      if (typeof T.sleepTab === 'function') T.sleepTab(tab.id);
+    } catch {}
   },
 
   _log(url, ok, reason) { try { window.AutofillLog?.record('emailcode', url, ok, reason); } catch {} },
