@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.7 (2026-08-31) — A Vex built for your work
+
+### Added
+- **Job Profiles** — pick your profession (43 across Tech, Design, Writing, Business, Science, Health, Education, Legal, Creative) in the setup wizard or `Ctrl+K` → **Personalize for Your Job**. Vex applies a fitting theme, enables the built-in tools that job uses daily, and adds quick tool buttons next to the Tor button. You choose exactly which tools you want.
+- **🧰 Toolbox** — 10 built‑in tools, all local (no external sites): Regex tester, JSON formatter, CSV viewer, Base64, Hash (SHA‑1/256/512), Unix timestamp, Cron explainer, UUID, Word count, and Color & contrast. Open from the Toolbox button or `Ctrl+K` → **Toolbox**.
+
 ## v2.31.6 (2026-08-31) — Everyday tools
 
 ### Added
