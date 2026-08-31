@@ -87,9 +87,15 @@ const EmailCodeAutofill = {
     return null;
   },
 
-  // A persistent off-screen Gmail webview, created on demand, purely for reading
-  // verification codes. Lives in the user's main session so it's already signed in.
+  // An off-screen Gmail webview, created on demand, purely for reading
+  // verification codes. Lives in the user's main session so it's already signed
+  // in. It's a full Gmail (~300–500 MB), so it does NOT live forever: every use
+  // stamps _readerLastUse and (re)arms a cleanup timer that removes it once it's
+  // been idle for a few minutes and no autofill is running. It's re-created in
+  // milliseconds the next time a code is needed.
   _ensureHiddenGmail() {
+    this._readerLastUse = Date.now();
+    this._armReaderCleanup();
     let wv = document.getElementById('vex-gmail-reader');
     if (wv) return wv;
     try {
@@ -103,6 +109,26 @@ const EmailCodeAutofill = {
       document.body.appendChild(wv);
       return wv;
     } catch { return null; }
+  },
+
+  // Remove the hidden reader once it's been idle for READER_IDLE_MS with no poll
+  // in flight, freeing the ~300–500 MB it holds. One interval; it stops itself
+  // once the reader is gone. Each _ensureHiddenGmail call refreshes _readerLastUse
+  // so an actively-used reader is never torn down mid-use.
+  READER_IDLE_MS: 4 * 60 * 1000,
+  _armReaderCleanup() {
+    if (this._readerCleanupTimer) return;
+    this._readerCleanupTimer = setInterval(() => {
+      try {
+        const wv = document.getElementById('vex-gmail-reader');
+        if (!wv) { clearInterval(this._readerCleanupTimer); this._readerCleanupTimer = null; return; }
+        if (this._running) return; // never tear down mid-poll
+        if (Date.now() - (this._readerLastUse || 0) >= this.READER_IDLE_MS) {
+          try { wv.remove(); } catch {}
+          clearInterval(this._readerCleanupTimer); this._readerCleanupTimer = null;
+        }
+      } catch {}
+    }, 60000);
   },
 
   // Read Gmail's inbox: report whether it has actually loaded (any rows), and the

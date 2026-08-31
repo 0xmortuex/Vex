@@ -47,7 +47,14 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // privacy reduction) — acceptable here because Vex's ad/tracker blocker already
 // strips the cross-site trackers that would exploit it. MUST run before any
 // other app.* access (Chromium freezes its feature list on first touch).
-app.commandLine.appendSwitch('disable-features', 'ThirdPartyStoragePartitioning');
+//
+// SpareRendererForSitePerProcess: Chromium keeps a warm, EMPTY spare renderer
+// process around at all times so the next navigation starts a touch faster. It
+// costs a whole idle renderer (~40–130 MB) that does nothing until used —
+// disabling it lowers Vex's resting memory with only a small first-navigation
+// latency cost. (Same single disable-features list — Chromium keeps only the
+// last --disable-features occurrence, so both features must live here.)
+app.commandLine.appendSwitch('disable-features', 'ThirdPartyStoragePartitioning,SpareRendererForSitePerProcess');
 
 // Windows toast identity. Web-page notifications surface as OS toasts, and on
 // Windows a toast is silently dropped unless the process has an
