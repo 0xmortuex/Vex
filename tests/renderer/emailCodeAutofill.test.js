@@ -1,0 +1,129 @@
+// email-code autofill — the code-selection logic. The failing report was
+// "the code came but it wasn't filled": the code was already in the inbox when
+// the login page opened, so it became the immutable baseline and was skipped
+// forever. These tests lock in the fix (fill an unread, strong baseline code as
+// a last resort) while keeping the stale-code protection (never fill an old,
+// already-consumed code, and prefer a genuinely newer one).
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EmailCodeAutofill } from '../../src/renderer/js/email-code-autofill.js';
+
+// Build a test harness: a fresh autofill object with the webview/IPC-touching
+// helpers stubbed, so tryFill runs against scripted inbox reads with fake timers.
+function makeAutofill(readsFn) {
+  const injected = [];
+  const logs = [];
+  const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill, {
+    _hasEmptyCodeField: async () => true,
+    _looksLikeCodePage: async () => true,
+    _findGmailWebview: () => ({}),           // non-null "gmail webview"
+    _readInbox: async () => readsFn(),
+    _injectCode: async (_wv, code) => { injected.push(code); return true; },
+    _log: (_url, ok, reason) => { logs.push({ ok, reason }); },
+    _toast: () => {},
+  });
+  return { A, injected, logs };
+}
+
+async function run(A, iterations = 25) {
+  const loginWv = { isConnected: true };
+  const p = A.tryFill(loginWv, 'https://accounts.spotify.com/login');
+  for (let k = 0; k < iterations; k++) await vi.advanceTimersByTimeAsync(3100);
+  await p;
+}
+
+// Turn a list of inbox states into a reader that yields each once, then repeats
+// the last one forever (a real inbox keeps showing the same rows).
+function scriptedReader(states) {
+  let i = 0;
+  return () => states[Math.min(i++, states.length - 1)];
+}
+
+const loaded = (code, unread, strong) => ({ loaded: true, code, unread, strong });
+
+describe('EmailCodeAutofill._extractCode', () => {
+  it('pulls a code after verification wording', () => {
+    expect(EmailCodeAutofill._extractCode('Spotify Your verification code is 481920')).toBe('481920');
+  });
+  it('pulls a "123456 is your code" shape', () => {
+    expect(EmailCodeAutofill._extractCode('758213 is your Spotify code')).toBe('758213');
+  });
+  it('falls back to a standalone 6-digit run', () => {
+    expect(EmailCodeAutofill._extractCode('Login attempt 903214 from a new device')).toBe('903214');
+  });
+  it('returns null when there is no code', () => {
+    expect(EmailCodeAutofill._extractCode('Your weekly newsletter is here')).toBeNull();
+  });
+});
+
+describe('EmailCodeAutofill._isStrongCodeRow', () => {
+  it('true for explicit verification wording', () => {
+    expect(EmailCodeAutofill._isStrongCodeRow('Your verification code is 481920')).toBe(true);
+    expect(EmailCodeAutofill._isStrongCodeRow('481920 is your Spotify code')).toBe(true);
+  });
+  it('false for a bare number with no code wording', () => {
+    expect(EmailCodeAutofill._isStrongCodeRow('Order 481920 has shipped')).toBe(false);
+  });
+});
+
+describe('EmailCodeAutofill.tryFill', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('fills a NEWER code that arrives after the page opened (fast path)', async () => {
+    // Baseline is an old code, then a different one arrives -> fill the new one.
+    const { A, injected, logs } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),   // baseline (old, already there)
+      loaded('111111', false, true),
+      loaded('222222', true, true),    // the new code arrives
+    ]));
+    await run(A);
+    expect(injected).toEqual(['222222']);
+    expect(logs.at(-1)).toEqual({ ok: true, reason: 'new-code' });
+  });
+
+  it('fills an inbox-empty -> first code arrives case', async () => {
+    const { A, injected, logs } = makeAutofill(scriptedReader([
+      { loaded: true, code: null, unread: false, strong: false }, // baseline: no code yet
+      loaded('654321', true, true),                               // code lands
+    ]));
+    await run(A);
+    expect(injected).toEqual(['654321']);
+    expect(logs.at(-1).reason).toBe('new-code');
+  });
+
+  it('fills an UNREAD strong code that was ALREADY in the inbox (the bug) after a grace', async () => {
+    // The code is present at baseline, unread + strong, and nothing newer comes.
+    const { A, injected, logs } = makeAutofill(scriptedReader([
+      loaded('345678', true, true),    // baseline == the code we actually want
+    ]));
+    await run(A);
+    expect(injected).toEqual(['345678']);
+    expect(logs.at(-1)).toEqual({ ok: true, reason: 'unread-baseline' });
+  });
+
+  it('does NOT fill a baseline code that is READ (already consumed)', async () => {
+    const { A, injected, logs } = makeAutofill(scriptedReader([
+      loaded('345678', false, true),   // read -> old/consumed, never auto-fill
+    ]));
+    await run(A);
+    expect(injected).toEqual([]);
+    expect(logs.at(-1)).toEqual({ ok: false, reason: 'no-new-code' });
+  });
+
+  it('does NOT last-resort fill a WEAK (non-verification) unread baseline number', async () => {
+    const { A, injected, logs } = makeAutofill(scriptedReader([
+      loaded('345678', true, false),   // unread but not a verification code
+    ]));
+    await run(A);
+    expect(injected).toEqual([]);
+    expect(logs.at(-1)).toEqual({ ok: false, reason: 'no-new-code' });
+  });
+
+  it('records no-gmail when no Gmail webview is available', async () => {
+    const { A, injected, logs } = makeAutofill(scriptedReader([loaded('345678', true, true)]));
+    A._findGmailWebview = () => null;
+    await run(A);
+    expect(injected).toEqual([]);
+    expect(logs.at(-1)).toEqual({ ok: false, reason: 'no-gmail' });
+  });
+});

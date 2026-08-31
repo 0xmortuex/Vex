@@ -96,17 +96,31 @@ const EmailCodeAutofill = {
   // populated regardless of render state, so this works on a hidden Gmail. Gmail
   // also puts the code in the row's subject/snippet, so the row text is enough.
   async _readInbox(gmailWv) {
+    // Each row: t = collapsed text, u = unread (Gmail marks unread rows with the
+    // 'zE' class, read rows with 'yO'). Unread + verification wording tells us a
+    // just-arrived code apart from an old, already-consumed one.
     const js = `(function(){try{
       var rows=Array.prototype.slice.call(document.querySelectorAll('tr.zA'));
       var out=[];
-      for(var i=0;i<rows.length&&i<12;i++){out.push((rows[i].textContent||'').replace(/\\s+/g,' ').trim());}
+      for(var i=0;i<rows.length&&i<12;i++){out.push({t:(rows[i].textContent||'').replace(/\\s+/g,' ').trim(), u: rows[i].classList.contains('zE')});}
       return JSON.stringify({loaded: rows.length>0, rows: out});
     }catch(e){return JSON.stringify({loaded:false, rows:[]});}})()`;
     let data;
-    try { data = JSON.parse(await gmailWv.executeJavaScript(js)); } catch { return { loaded: false, code: null }; }
-    let code = null;
-    for (const text of (data.rows || [])) { const c = this._extractCode(text); if (c) { code = c; break; } }
-    return { loaded: !!data.loaded, code };
+    try { data = JSON.parse(await gmailWv.executeJavaScript(js)); } catch { return { loaded: false, code: null, unread: false, strong: false }; }
+    let code = null, unread = false, strong = false;
+    for (const r of (data.rows || [])) {
+      const c = this._extractCode(r.t);
+      if (c) { code = c; unread = !!r.u; strong = this._isStrongCodeRow(r.t); break; }
+    }
+    return { loaded: !!data.loaded, code, unread, strong };
+  },
+
+  // Does the row's own text carry explicit verification wording (not just a bare
+  // digit run that happened to match)? Used to gate the "fill the code that was
+  // already sitting in the inbox" last resort, so a random 6-digit in a promo
+  // never gets auto-filled.
+  _isStrongCodeRow(text) {
+    return /verification|verify|one[-\s]?time|security code|login code|sign[-\s]?in code|passcode|confirm(?:ation)? code|your (?:\w+ )?code|code is|is your (?:\w+ )?code/i.test(String(text || ''));
   },
 
   // Does the login page have an EMPTY one-time-code field to fill?
@@ -178,7 +192,9 @@ const EmailCodeAutofill = {
       if (!loginWv || !/^https:/i.test(url || '')) return;
       if (this._running) return;                                 // one poll at a time
       this._running = true;
-      let sawField = false, plausible = false, baseline = null, baselineSet = false;
+      let sawField = false, plausible = false;
+      let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
+      let filled = false, sawGmail = false, sawLoaded = false;
       for (let i = 0; i < 22; i++) {
         if (loginWv.isConnected === false) break;
         const hasField = await this._hasEmptyCodeField(loginWv);
@@ -189,22 +205,52 @@ const EmailCodeAutofill = {
         if (hasField) {
           const gmailWv = this._findGmailWebview();
           if (gmailWv) {
-            const { loaded, code } = await this._readInbox(gmailWv);
+            sawGmail = true;
+            const { loaded, code, unread, strong } = await this._readInbox(gmailWv);
             if (loaded) {
-              if (!baselineSet) { baseline = code; baselineSet = true; }   // pre-existing code — don't fill it, wait for a new one
-              else if (code && code !== baseline) {
+              sawLoaded = true;
+              if (!baselineSet) {
+                // Snapshot the newest code the first time we see a loaded inbox.
+                baseline = code; baselineSet = true; baselineUnread = !!unread; baselineStrong = !!strong; unreadStable = 0;
+              } else if (code && code !== baseline) {
+                // A DIFFERENT (newer) code arrived after we started — this is the
+                // one THIS attempt triggered. Fill it (the fast, reliable path).
                 const ok = await this._injectCode(loginWv, code);
-                try { window.AutofillLog?.record('emailcode', url, ok); } catch {}
-                if (ok) { try { window.showToast?.('📧 Filled the code from your email'); } catch {} break; }
+                this._log(url, ok, 'new-code'); filled = true;
+                if (ok) { this._toast(); break; }
+              } else if (code && code === baseline && baselineUnread && unread && baselineStrong) {
+                // The code was already in the inbox when the page opened (so it
+                // became the baseline) — e.g. Gmail synced a beat late, or the
+                // email landed as the page loaded. It's still the newest, still
+                // unread, and clearly a verification code, with nothing newer
+                // superseding it. After a short grace (so a genuine retry code can
+                // arrive first and win above), fill it instead of skipping forever.
+                if (++unreadStable >= 5) {
+                  const ok = await this._injectCode(loginWv, code);
+                  this._log(url, ok, 'unread-baseline'); filled = true;
+                  if (ok) { this._toast(); break; }
+                }
               }
             }
           }
         }
         await new Promise(r => setTimeout(r, 3000));
       }
+      // Record a miss (with a reason) so a failure is diagnosable, not silent.
+      if (!filled && (sawField || plausible)) {
+        const reason = !sawGmail ? 'no-gmail'
+          : !sawLoaded ? 'gmail-not-loaded'
+          : !baselineSet ? 'inbox-empty'
+          : baseline === null ? 'no-code-arrived'
+          : 'no-new-code';
+        this._log(url, false, reason);
+      }
       this._running = false;
     } catch (e) { this._running = false; }
   },
+
+  _log(url, ok, reason) { try { window.AutofillLog?.record('emailcode', url, ok, reason); } catch {} },
+  _toast() { try { window.showToast?.('📧 Filled the code from your email'); } catch {} },
 };
 
 if (typeof window !== 'undefined') window.EmailCodeAutofill = EmailCodeAutofill;
