@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.5 (2026-08-31) — One-click restart
+
+### Added
+- **"⟳ Restart Vex to apply" button** — settings that only take effect at launch (like Memory Saver) now offer a one-click restart instead of just asking you to do it. The button appears under the setting when a restart is pending and relaunches Vex on click; your tabs come back.
+
 ## v2.31.4 (2026-08-31) — Pick-your-pane split, login tools & Memory Saver
 
 ### Changed
