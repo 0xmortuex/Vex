@@ -666,6 +666,39 @@
   }
   TabManager.startMemoryGuard(settings.memCeilingMB ?? 1200);
 
+  // === Memory Saver mode (opt-in) ===
+  // One switch that layers aggressive memory behavior on top of the normal
+  // auto-sleep/guard: shorter auto-sleep (10 min), a lower ceiling (<=900 MB),
+  // and discard-on-minimize. The launch-flag part (bfcache off, renderer cap) is
+  // applied by main at boot from the same persisted vex.memorySaver flag; the
+  // toggle here applies the runtime parts immediately and notes a restart
+  // finishes the rest.
+  const memorySaverOn = () => { try { return localStorage.getItem('vex.memorySaver') === '1'; } catch { return false; } };
+  const applyMemorySaver = (on) => {
+    if (on) {
+      TabManager.startAutoSleep(10, settings.autoSleepExcludePinned !== false);
+      TabManager.startMemoryGuard(Math.min(settings.memCeilingMB || 1200, 900));
+      TabManager.startIdleDiscard(true);
+    } else {
+      TabManager.startIdleDiscard(false);
+      if (settings.autoSleepEnabled) TabManager.startAutoSleep(settings.autoSleepMinutes || 30, settings.autoSleepExcludePinned !== false);
+      else TabManager.stopAutoSleep();
+      TabManager.startMemoryGuard(settings.memCeilingMB ?? 1200);
+    }
+  };
+  applyMemorySaver(memorySaverOn());
+  const memSaverToggle = document.getElementById('setting-memory-saver');
+  if (memSaverToggle) {
+    memSaverToggle.checked = memorySaverOn();
+    memSaverToggle.addEventListener('change', () => {
+      try { localStorage.setItem('vex.memorySaver', memSaverToggle.checked ? '1' : '0'); } catch {}
+      applyMemorySaver(memSaverToggle.checked);
+      window.showToast?.(memSaverToggle.checked
+        ? '🧠 Memory Saver on — restart Vex to apply the rest'
+        : 'Memory Saver off — restart to fully revert', 'info', 5000);
+    });
+  }
+
   // === Split Screen ===
   window.vex.onToggleSplit(() => SplitScreen.toggle());
   window.vex.onTogglePip(() => { if (window.PiPManager) window.PiPManager.toggle(); });

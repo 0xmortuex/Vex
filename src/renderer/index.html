@@ -366,6 +366,13 @@
             <div class="setting-group">
               <label class="setting-label">Performance</label>
               <div class="setting-toggle-row">
+                <span>🧠 Memory Saver <span style="color:var(--text-muted);font-size:11px">· sleeps tabs sooner, discards them when minimized, and frees background caches. Restart to fully apply.</span></span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-memory-saver">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="setting-toggle-row">
                 <span>Auto-sleep inactive tabs</span>
                 <label class="toggle">
                   <input type="checkbox" id="setting-autosleep">
@@ -952,6 +959,7 @@
   <div id="toast" style="display: none;"></div>
 
   <script src="js/vex-config.js"></script>
+  <script src="js/lazy.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/vex-dialog.js"></script>
   <script src="js/vex-utils.js"></script>
@@ -1061,12 +1069,12 @@
   <script src="js/tab-health.js"></script>
   <script src="js/site-profiles.js"></script>
   <script src="js/logins-hub.js"></script>
-  <script src="js/password-health.js"></script>
+  <!-- password-health.js is lazy-loaded on demand via VexLazy (command / hub link) -->
   <script src="js/panel-badges.js"></script>
   <script src="js/setup-gallery.js"></script>
   <script src="js/agent-command.js"></script>
   <script src="js/container-routing.js"></script>
-  <script src="js/shortcuts-guide.js"></script>
+  <!-- shortcuts-guide.js is lazy-loaded on demand via VexLazy (command) -->
   <script src="js/persona-switch.js"></script>
   <script src="js/sticky-notes.js"></script>
   <script src="js/focus-flows.js"></script>

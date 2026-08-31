@@ -163,7 +163,7 @@ const LoginsHub = {
     body.querySelector('#lh-open-gmail')?.addEventListener('click', () => { try { TabManager.createTab('https://mail.google.com/', true); } catch {} m.remove(); });
     body.querySelector('#lh-keep-gmail')?.addEventListener('click', () => { if (g.tab) { try { TabManager._showKeepAwakeChooser(g.tab); } catch {} } });
     body.querySelector('#lh-manage-pw')?.addEventListener('click', () => { try { SettingsUI.openSection ? SettingsUI.openSection('passwords-panel-content') : SidebarManager.openPanel('settings'); } catch { try { SidebarManager.openPanel('settings'); } catch {} } m.remove(); });
-    body.querySelector('#lh-pw-health')?.addEventListener('click', () => { try { if (typeof PasswordHealth !== 'undefined') PasswordHealth.open(); } catch {} });
+    body.querySelector('#lh-pw-health')?.addEventListener('click', async () => { try { await VexLazy.ensure('js/password-health.js'); PasswordHealth.open(); } catch {} });
     body.querySelector('#lh-open-auth')?.addEventListener('click', () => { try { SidebarManager.openPanel('authenticator'); } catch {} m.remove(); });
   },
 

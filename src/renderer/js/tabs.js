@@ -1507,6 +1507,40 @@ const TabManager = {
     setTimeout(() => this._memorySweep(), 20000);
   },
   stopMemoryGuard() { if (this._memGuard) { clearInterval(this._memGuard); this._memGuard = null; } },
+
+  // === Idle discard (Memory Saver) ===
+  // When the Vex window is minimized/hidden for a few minutes, sleep every
+  // eligible background tab instead of waiting out the auto-sleep timer — you get
+  // the memory back while you're not looking, and tabs restore on return. Uses
+  // the page Visibility API (minimizing sets document.hidden). Respects the same
+  // exclusions as auto-sleep (active/pinned/audible/kept-awake).
+  IDLE_DISCARD_MS: 3 * 60 * 1000,
+  startIdleDiscard(enabled) {
+    this._stopIdleDiscard();
+    if (!enabled) return;
+    this._idleDiscardHandler = () => {
+      clearTimeout(this._idleDiscardTimer);
+      if (document.hidden) {
+        this._idleDiscardTimer = setTimeout(() => this._discardIdleTabs(), this.IDLE_DISCARD_MS);
+      }
+    };
+    document.addEventListener('visibilitychange', this._idleDiscardHandler);
+  },
+  _stopIdleDiscard() {
+    if (this._idleDiscardHandler) document.removeEventListener('visibilitychange', this._idleDiscardHandler);
+    clearTimeout(this._idleDiscardTimer);
+    this._idleDiscardHandler = null;
+  },
+  _discardIdleTabs() {
+    if (!document.hidden) return; // window came back before the timer fired
+    let slept = 0;
+    this.tabs.forEach(t => {
+      if (t.id === this.activeTabId || t.sleeping || t._lazy || t.pinned) return;
+      if (t.audible && !t.muted) return;
+      // sleepTab is a no-op for kept-awake tabs, so never-sleep is respected.
+      this.sleepTab(t.id); slept++;
+    });
+  },
   async _memorySweep() {
     if (!this._memCeiling || !(window.vex && window.vex.appMetrics)) return;
     let metrics;

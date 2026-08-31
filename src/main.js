@@ -53,8 +53,32 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // costs a whole idle renderer (~40–130 MB) that does nothing until used —
 // disabling it lowers Vex's resting memory with only a small first-navigation
 // latency cost. (Same single disable-features list — Chromium keeps only the
-// last --disable-features occurrence, so both features must live here.)
-app.commandLine.appendSwitch('disable-features', 'ThirdPartyStoragePartitioning,SpareRendererForSitePerProcess');
+// last --disable-features occurrence, so every feature must live here.)
+//
+// Memory Saver mode (opt-in, Settings → Performance): when enabled it adds more
+// memory-reducing flags at launch. These are command-line flags, so they can
+// only be applied at boot — we read the persisted setting straight from
+// vex-persist.json (the renderer mirrors localStorage there) since this runs
+// before the app is ready. BackForwardCache holds whole pages in RAM for instant
+// back/forward; OptimizationGuide* download/hold on-device ML models Vex doesn't
+// use; Translate is Chromium's built-in translator (Vex has its own). Turning
+// them off trades a little convenience for lower resting memory.
+let _memorySaver = false;
+try {
+  const _fs = require('fs'), _path = require('path');
+  const _pf = _path.join(app.getPath('userData'), 'vex-persist.json');
+  const _j = JSON.parse(_fs.readFileSync(_pf, 'utf-8'));
+  _memorySaver = _j['vex.memorySaver'] === '1' || _j['vex.memorySaver'] === 1;
+} catch {}
+let _disableFeatures = 'ThirdPartyStoragePartitioning,SpareRendererForSitePerProcess';
+if (_memorySaver) {
+  _disableFeatures += ',BackForwardCache,OptimizationGuideModelDownloading,OptimizationHints,Translate';
+  // Cap the number of renderer processes so heavy tab sets share processes
+  // instead of spawning one each. A soft cap — Chromium still isolates where it
+  // must; the trade is a little cross-tab jank under load for fewer processes.
+  app.commandLine.appendSwitch('renderer-process-limit', '8');
+}
+app.commandLine.appendSwitch('disable-features', _disableFeatures);
 
 // Windows toast identity. Web-page notifications surface as OS toasts, and on
 // Windows a toast is silently dropped unless the process has an
