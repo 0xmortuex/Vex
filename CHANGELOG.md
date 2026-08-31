@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.31.4 (2026-08-31) — Pick-your-pane split & login tools
+
+### Changed
+- **Split screen now lets you pick each pane.** Pressing split (or 3/4-pane) shows your open tabs to choose from — pane 2, then 3, then 4 — instead of grabbing whatever tab was next. Cancel keeps the panes you've chosen.
+
+### Added
+- **Email codes from more providers** — autofill now reads verification codes from Outlook, Proton, Yahoo and iCloud mail, in addition to Gmail.
+- **Test autofill** — a self-check in Logins & Codes that reports whether it can reach and read your email (found a source? inbox readable? code visible?).
+- **Auto-submit after filling a code** (opt-in) — presses the form's verify/submit button for you.
+- **Password Health** (`Ctrl+K` → Password Health, or the hub) — finds reused, weak, or 2FA-less saved passwords. The analysis runs locally in the app; your passwords never leave your machine.
+
 ## v2.31.3 (2026-08-31) — Reliable code autofill & Custom Image
 
 ### Fixed
