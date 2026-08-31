@@ -58,7 +58,13 @@ const AD_DOMAINS = [
   'intergient.com',
   'playwire.com',
   'venatusmedia.com',
-  'aniview.com'
+  'aniview.com',
+  // Fuse (game-ad mediation) + RTB House ad creatives — the other half of the
+  // makeitmeme/gartic ad stack. The EasyList engine covers these, but it loads
+  // asynchronously at startup; keeping them in this always-synchronous list
+  // blocks them even before the engine is ready (or if its cache is stale).
+  'fuseplatform.net',
+  'creativecdn.com'
 ];
 
 function _hostMatchesDomain(host, d) {
