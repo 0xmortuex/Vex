@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.9 (2026-08-31) — Block game-site ads
+
+### Fixed
+- **Ads on browser games** (makeitmeme.com and similar) now blocked. Their display ads are served through `html-load.com` — a Playwire ad network that rotates subdomains to slip past EasyList. Added it and the rest of that ad stack to Vex's block list.
+
 ## v2.31.8 (2026-08-31) — Cloudflare Turnstile fix
 
 ### Fixed
