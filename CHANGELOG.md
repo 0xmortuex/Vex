@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.6 (2026-08-31) — Everyday tools
+
+### Added
+- **Switch to an open tab from the command bar** — press `Ctrl+K`, type a tab's title or URL, and matching open tabs appear as "↪ Switch to tab".
+- **📱 Send to Phone** — show a QR code of the current page (or a right-clicked link) to open it on your phone. Generated locally — nothing leaves your machine.
+- **Paste & Go** — open the URL or search that's on your clipboard in one step.
+- **Duplicate Tab** and **Copy All Tab URLs** — from the command bar (Duplicate is also on the right-click menu).
+- **⟳ Auto-refresh** — reload a tab on an interval (30s / 1m / 5m / 15m) from the page right-click menu — for dashboards, live scores, and build logs.
+
 ## v2.31.5 (2026-08-31) — One-click restart
 
 ### Added
