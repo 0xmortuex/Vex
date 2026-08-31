@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.10 (2026-08-31) — Block the rest of the game ads
+
+### Fixed
+- **The remaining side-rail ad** on browser games (makeitmeme.com) is now blocked too. It was served by Fuse (`fuseplatform.net`) with creatives from RTB House (`creativecdn.com`); added both to the always-on block list so they're stopped even before the filter engine finishes loading at startup.
+
 ## v2.31.9 (2026-08-31) — Block game-site ads
 
 ### Fixed
