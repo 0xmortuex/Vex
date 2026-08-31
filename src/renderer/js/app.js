@@ -615,6 +615,13 @@
       try { localStorage.setItem('vex.emailCodeHiddenReader', emailHiddenToggle.checked ? '1' : '0'); } catch {}
     });
   }
+  const emailAutoSubmitToggle = document.getElementById('setting-emailcode-autosubmit');
+  if (emailAutoSubmitToggle) {
+    try { emailAutoSubmitToggle.checked = localStorage.getItem('vex.emailCodeAutoSubmit') === '1'; } catch {}
+    emailAutoSubmitToggle.addEventListener('change', () => {
+      try { localStorage.setItem('vex.emailCodeAutoSubmit', emailAutoSubmitToggle.checked ? '1' : '0'); } catch {}
+    });
+  }
 
   const autosleepToggle = document.getElementById('setting-autosleep');
   const autosleepMinutes = document.getElementById('setting-autosleep-minutes');

@@ -878,6 +878,38 @@ ipcMain.handle('vault:get', (_e, host) => {
   if (!host || typeof host !== 'string') return [];
   return vaultLoad().filter(e => e.host === host);
 });
+// Password health — analyze the vault IN THE MAIN PROCESS and return only the
+// findings (which hosts reuse a password, which are weak). The passwords
+// themselves NEVER cross the IPC boundary, matching vault:list's contract.
+ipcMain.handle('vault:health', () => {
+  try {
+    const arr = vaultLoad();
+    // Reuse: group hosts by identical password value (the value is never returned).
+    const byPw = new Map();
+    for (const e of arr) {
+      if (!e || !e.password) continue;
+      if (!byPw.has(e.password)) byPw.set(e.password, []);
+      byPw.get(e.password).push({ host: e.host, username: e.username });
+    }
+    const reused = [];
+    for (const list of byPw.values()) { if (list.length > 1) reused.push({ count: list.length, entries: list }); }
+    reused.sort((a, b) => b.count - a.count);
+    // Weak: short, digits-only, or a well-known common password.
+    const COMMON = new Set(['password', '123456', '12345678', '1234567890', 'qwerty', '111111', '123123', 'abc123', 'password1', 'iloveyou', '000000', 'letmein', 'admin', 'welcome', 'monkey', 'dragon', 'football', 'qwerty123']);
+    const weak = [];
+    for (const e of arr) {
+      if (!e || !e.password) continue;
+      const reasons = [];
+      if (e.password.length < 8) reasons.push('too short');
+      if (/^\d+$/.test(e.password)) reasons.push('digits only');
+      if (COMMON.has(e.password.toLowerCase())) reasons.push('common password');
+      if (reasons.length) weak.push({ host: e.host, username: e.username, reasons });
+    }
+    return { total: arr.length, reused, weak };
+  } catch (e) {
+    return { total: 0, reused: [], weak: [], error: e && e.message };
+  }
+});
 ipcMain.handle('vault:save', (_e, entry) => {
   const { host, username, password } = entry || {};
   if (!host || !username || !password) return { ok: false, error: 'Missing fields' };

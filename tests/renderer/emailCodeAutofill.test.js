@@ -15,11 +15,12 @@ function makeAutofill(readsFn) {
   const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill, {
     _hasEmptyCodeField: async () => true,
     _looksLikeCodePage: async () => true,
-    _findGmailWebview: () => ({}),           // non-null "gmail webview"
+    _findMailWebview: () => ({ wv: {}, provider: { id: 'gmail' } }), // non-null mail webview
     _readInbox: async () => readsFn(),
     _injectCode: async (_wv, code) => { injected.push(code); return true; },
     _log: (_url, ok, reason) => { logs.push({ ok, reason }); },
     _toast: () => {},
+    _maybeAutoSubmit: () => {},
   });
   return { A, injected, logs };
 }
@@ -151,11 +152,11 @@ describe('EmailCodeAutofill.tryFill', () => {
     expect(logs.at(-1)).toEqual({ ok: false, reason: 'no-new-code' });
   });
 
-  it('records no-gmail when no Gmail webview is available', async () => {
+  it('records no-mail when no mail webview is available', async () => {
     const { A, injected, logs } = makeAutofill(scriptedReader([loaded('345678', true, true)]));
-    A._findGmailWebview = () => null;
+    A._findMailWebview = () => null;
     await run(A);
     expect(injected).toEqual([]);
-    expect(logs.at(-1)).toEqual({ ok: false, reason: 'no-gmail' });
+    expect(logs.at(-1)).toEqual({ ok: false, reason: 'no-mail' });
   });
 });

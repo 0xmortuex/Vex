@@ -189,3 +189,21 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.split-picker-cancel {
+  margin-top: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+}
+
+.split-picker-cancel:hover {
+  background: var(--tab-hover);
+  color: var(--text);
+}

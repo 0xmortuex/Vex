@@ -28,37 +28,59 @@ const SplitScreen = {
     }
 
     const picker = document.getElementById('split-picker');
-    if (picker) picker.addEventListener('click', (e) => { if (e.target === picker) this.closePicker(); });
+    if (picker) picker.addEventListener('click', (e) => { if (e.target === picker) this._cancelPicker(); });
   },
 
   // Split button = plain on/off (2-way). Multi-pane is via setLayout(3|4).
   toggle() { if (this.active) this.deactivate(); else this.activate(2); },
 
-  // Collect up to `count` DISTINCT tabs (active first, then the rest) and split.
+  // Start a split with the active tab as pane 1, then let the user PICK each
+  // remaining pane from a list of their open tabs (instead of grabbing whatever
+  // tab happened to be next). Cancelling the first pick leaves split off.
   activate(count = 2) {
     const tabs = TabManager.tabs;
     if (tabs.length < 2) { window.showToast?.('Open at least 2 tabs to split the screen'); return; }
     count = Math.max(2, Math.min(this.MAX_PANES, count));
     const first = TabManager.activeTabId || tabs[0].id;
     this.panes = [first];
-    for (const t of tabs) { if (this.panes.length >= count) break; if (!this.panes.includes(t.id)) this.panes.push(t.id); }
     this.active = true;
     document.getElementById('btn-split')?.classList.add('active');
-    this.applySplit();
+    this._fillPanesInteractively(count);
   },
 
-  // Change pane count on the fly (from the command palette). Adds tabs from the
-  // remaining open tabs, or trims down. Re-activates if off.
+  // Change pane count on the fly (from the command palette). When adding panes,
+  // pick each new one; when trimming, drop from the end. Re-activates if off.
   setLayout(count) {
     count = Math.max(2, Math.min(this.MAX_PANES, count));
     if (!this.active) { this.activate(count); return; }
     if (this.panes.length < count) {
-      for (const t of TabManager.tabs) { if (this.panes.length >= count) break; if (!this.panes.includes(t.id)) this.panes.push(t.id); }
-      if (this.panes.length < count) window.showToast?.(`Only ${this.panes.length} tabs available — open more to fill ${count} panes`);
+      this._fillPanesInteractively(count);
     } else if (this.panes.length > count) {
       this.panes = this.panes.slice(0, count);
+      this.applySplit();
     }
-    this.applySplit();
+  },
+
+  // Fill panes up to targetCount by prompting for each new pane in turn. Applies
+  // the split as soon as we have >=2 panes (on pick, on cancel-with-enough, or
+  // when there are no more tabs to offer). If the user cancels before a 2nd pane
+  // exists, split is turned back off.
+  _fillPanesInteractively(targetCount) {
+    const step = () => {
+      if (this.panes.length >= targetCount) { this.applySplit(); return; }
+      const remaining = TabManager.tabs.filter(t => !this.panes.includes(t.id));
+      if (!remaining.length) {
+        if (this.panes.length >= 2) { this.applySplit(); }
+        else { window.showToast?.('No other tab to place in the second pane — open one more'); this.deactivate(); }
+        return;
+      }
+      this._pickTabForPane({
+        title: `Choose a tab for pane ${this.panes.length + 1}`,
+        onPick: (tabId) => { this.panes.push(tabId); step(); },
+        onCancel: () => { if (this.panes.length >= 2) this.applySplit(); else this.deactivate(); },
+      });
+    };
+    step();
   },
 
   deactivate() {
@@ -156,25 +178,39 @@ const SplitScreen = {
     setBar(rightBar, this.panes[1]);
   },
 
-  showPicker(slotIndex) {
+  // Render the tab list and resolve via onPick(tabId) / onCancel(). Only offers
+  // tabs not already in a pane. Falls back to auto-pick if the picker DOM is
+  // missing so split never dead-ends.
+  _pickTabForPane({ title, onPick, onCancel }) {
     const picker = document.getElementById('split-picker');
     const content = document.getElementById('split-picker-content');
-    if (!picker || !content) return;
-    content.innerHTML = `<h3>Choose a tab for this pane</h3>`;
-    TabManager.tabs.forEach(tab => {
-      if (this.panes.includes(tab.id)) return;
+    const avail = TabManager.tabs.filter(t => !this.panes.includes(t.id));
+    if (!picker || !content) { if (avail[0]) onPick(avail[0].id); else onCancel?.(); return; }
+    const esc = (s) => TabManager._escapeHtml(String(s == null ? '' : s));
+    content.innerHTML = '';
+    const h = document.createElement('h3'); h.textContent = title || 'Choose a tab for this pane'; content.appendChild(h);
+    avail.forEach(tab => {
       const item = document.createElement('div');
       item.className = 'split-picker-item';
-      item.innerHTML = `${tab.favicon ? `<img src="${tab.favicon}" alt="">` : ''}<span>${TabManager._escapeHtml(tab.title)}</span>`;
-      item.addEventListener('click', () => {
-        if (slotIndex != null && slotIndex < this.panes.length) this.panes[slotIndex] = tab.id;
-        else this.panes.push(tab.id);
-        this.closePicker();
-        this.applySplit();
-      });
+      let host = ''; try { host = new URL(tab.url).hostname.replace(/^www\./, ''); } catch {}
+      item.innerHTML = `${tab.favicon ? `<img src="${esc(tab.favicon)}" alt="">` : ''}<span>${esc(tab.title || host || tab.url || 'Tab')}</span>`;
+      item.addEventListener('click', () => { this._activeCancel = null; this.closePicker(); onPick(tab.id); });
       content.appendChild(item);
     });
+    const cancel = document.createElement('button');
+    cancel.className = 'split-picker-cancel';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => this._cancelPicker());
+    content.appendChild(cancel);
+    this._activeCancel = onCancel || null;
     picker.classList.add('visible');
+  },
+
+  // Backdrop click or Cancel button — resolve the open pick as a cancel, once.
+  _cancelPicker() {
+    const c = this._activeCancel; this._activeCancel = null;
+    this.closePicker();
+    try { c?.(); } catch {}
   },
 
   closePicker() { document.getElementById('split-picker')?.classList.remove('visible'); },

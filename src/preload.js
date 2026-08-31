@@ -150,6 +150,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),
+  vaultHealth: () => ipcRenderer.invoke('vault:health'),
   vaultSave: (entry) => ipcRenderer.invoke('vault:save', entry),
   vaultDelete: (q) => ipcRenderer.invoke('vault:delete', q),
   // TOTP authenticator (2FA). Secrets stay in the main process — the renderer

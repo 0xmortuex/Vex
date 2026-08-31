@@ -26,21 +26,52 @@ const LoginsHub = {
   _chip() { return "padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif"; },
 
   _hiddenReaderOn() { try { return localStorage.getItem('vex.emailCodeHiddenReader') === '1'; } catch { return false; } },
+  _autoSubmitOn() { try { return localStorage.getItem('vex.emailCodeAutoSubmit') === '1'; } catch { return false; } },
 
-  _gmailStatus() {
+  // Status of the email source across every supported provider (Gmail, Outlook,
+  // Proton, Yahoo, iCloud), not just Gmail.
+  _mailStatus() {
     try {
-      const isGmail = (s) => /(^|\/\/)mail\.google\.com/i.test(s || '');
-      const tab = (TabManager.tabs || []).find(t => isGmail(t.url) || isGmail(t.originalUrl));
+      const provs = (window.EmailCodeAutofill && EmailCodeAutofill._PROVIDERS) || [{ id: 'gmail', host: /(^|\/\/)mail\.google\.com/i }];
+      const tabs = TabManager.tabs || [];
+      let tab = null, prov = null;
+      for (const p of provs) { const t = tabs.find(x => p.host.test(x.url || '') || p.host.test(x.originalUrl || '')); if (t) { tab = t; prov = p; break; } }
       if (!tab) {
         if (this._hiddenReaderOn()) return { level: 'ok', text: 'Reading codes from a hidden background Gmail — no tab needed.' };
-        return { level: 'off', text: 'No Gmail tab open — open Gmail, or turn on the hidden reader below.' };
+        return { level: 'off', text: 'No email tab open — open your webmail, or turn on the hidden reader below.' };
       }
+      const name = prov && prov.id ? (prov.id.charAt(0).toUpperCase() + prov.id.slice(1)) : 'Email';
       const kept = TabManager._isKeptAwake && TabManager._isKeptAwake(tab);
       const live = WebviewManager.webviews.has(tab.id);
-      if (kept && live) return { level: 'ok', text: 'Gmail is open and kept awake — codes will fill automatically.', tab };
-      if (kept) return { level: 'warn', text: 'Gmail is kept awake but not loaded yet — it will materialize.', tab };
-      return { level: 'warn', text: 'Gmail is open but can still sleep — keep it awake for reliable code autofill.', tab };
-    } catch { return { level: 'off', text: 'No Gmail tab open.' }; }
+      if (kept && live) return { level: 'ok', text: `${name} is open and kept awake — codes will fill automatically.`, tab };
+      if (kept) return { level: 'warn', text: `${name} is kept awake but not loaded yet — it will materialize.`, tab };
+      return { level: 'warn', text: `${name} is open but can still sleep — keep it awake for reliable code autofill.`, tab };
+    } catch { return { level: 'off', text: 'No email tab open.' }; }
+  },
+
+  // Self-check: walk the autofill chain and report each step, so setup isn't
+  // guesswork. Never shows the real code (digits masked).
+  async _runAutofillTest(m) {
+    const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
+    const out = m.querySelector('#lh-test-out'); if (!out) return;
+    out.innerHTML = '<span style="color:var(--text-muted)">Testing…</span>';
+    const steps = [];
+    const A = window.EmailCodeAutofill;
+    const found = (A && A._findMailWebview) ? A._findMailWebview() : null;
+    if (found && found.wv) {
+      steps.push(['ok', `Found ${(found.provider && found.provider.id) || 'email'} to read from`]);
+      let read = { loaded: false, code: null };
+      try { read = await A._readInbox(found.wv, found.provider); } catch {}
+      steps.push(read.loaded ? ['ok', 'Inbox loaded and readable'] : ['fail', 'Inbox not readable yet — sign in, or let it finish loading']);
+      if (read.loaded) {
+        steps.push(read.code
+          ? ['ok', 'Latest verification code is visible (' + String(read.code).replace(/\d/g, '•') + ')']
+          : ['warn', 'No verification code in the latest emails — that’s fine if none was sent']);
+      }
+    } else {
+      steps.push(['fail', 'No email source — open Gmail/Outlook/Proton, or enable background reading above']);
+    }
+    out.innerHTML = steps.map(([s, t]) => `<div>${s === 'ok' ? '✅' : s === 'warn' ? '🟡' : '❌'} ${esc(t)}</div>`).join('');
   },
 
   async _paint(m) {
@@ -53,7 +84,7 @@ const LoginsHub = {
     const rate = (k) => { const s = stats.byKind[k]; return s && s.fills ? Math.round(100 * s.ok / s.fills) + '% · ' + s.fills : '—'; };
 
     // --- Email codes ---
-    const g = this._gmailStatus();
+    const g = this._mailStatus();
     const dot = { ok: '#4caf50', warn: '#e8a13a', off: '#e5556a' }[g.level];
     let html = `<div style="margin:8px 0 4px;font-weight:700">📧 Email-code autofill <span style="font-size:11px;color:var(--text-muted);font-weight:400">· fills verification codes from your open Gmail</span></div>
       <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
@@ -67,7 +98,16 @@ const LoginsHub = {
         <input type="checkbox" id="lh-hidden-reader" ${this._hiddenReaderOn() ? 'checked' : ''} style="cursor:pointer">
         Read codes even without a Gmail tab open <span style="color:var(--text-muted)">· uses a hidden background Gmail (your signed-in session)</span>
       </label>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('emailcode')} attempts logged.</div>`;
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-bottom:6px;cursor:pointer">
+        <input type="checkbox" id="lh-auto-submit" ${this._autoSubmitOn() ? 'checked' : ''} style="cursor:pointer">
+        Submit automatically after filling a code <span style="color:var(--text-muted)">· off by default</span>
+      </label>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <button id="lh-test-autofill" style="${this._chip()}">🧪 Test autofill</button>
+        <span style="font-size:11px;color:var(--text-muted)">Checks it can reach and read your email.</span>
+      </div>
+      <div id="lh-test-out" style="font-size:12px;color:var(--text);margin-bottom:8px"></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('emailcode')} attempts logged. Works with Gmail, Outlook, Proton, Yahoo &amp; iCloud.</div>`;
 
     // --- Passwords ---
     html += `<div style="margin:8px 0 4px;font-weight:700">🔑 Saved passwords <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${passwords.length} · fills auto on matching sites</span></div>`;
@@ -78,7 +118,7 @@ const LoginsHub = {
           <span style="color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%">${esc(p.username || '')}</span>
         </div>`).join('') + '</div>';
     } else html += `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">None yet — Vex offers to save when you log in.</div>`;
-    html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('password')} · <a id="lh-manage-pw" style="color:var(--primary,var(--accent));cursor:pointer">Manage in Settings</a></div>`;
+    html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('password')} · <a id="lh-manage-pw" style="color:var(--primary,var(--accent));cursor:pointer">Manage in Settings</a> · <a id="lh-pw-health" style="color:var(--primary,var(--accent));cursor:pointer">🛡️ Check health</a></div>`;
 
     // --- Authenticator (2FA) ---
     html += `<div style="margin:8px 0 4px;font-weight:700">🔢 Authenticator (2FA) <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${totp.length} · fills the 6-digit code on matching sites</span></div>`;
@@ -98,8 +138,10 @@ const LoginsHub = {
       // Plain-language explanation for the logged miss reasons, so a failure
       // says WHY (and what to do) instead of just "failed".
       const why = {
-        'no-gmail': 'no Gmail open',
-        'gmail-not-loaded': 'Gmail still loading',
+        'no-mail': 'no email open',
+        'mail-not-loaded': 'email still loading',
+        'no-gmail': 'no email open',            // legacy log entries
+        'gmail-not-loaded': 'email still loading',
         'inbox-empty': 'inbox empty',
         'no-code-arrived': 'no code arrived',
         'no-new-code': 'no new code',
@@ -116,9 +158,12 @@ const LoginsHub = {
     body.innerHTML = html;
     // Wire actions
     body.querySelector('#lh-hidden-reader')?.addEventListener('change', (e) => { try { localStorage.setItem('vex.emailCodeHiddenReader', e.target.checked ? '1' : '0'); } catch {} this._paint(m); });
+    body.querySelector('#lh-auto-submit')?.addEventListener('change', (e) => { try { localStorage.setItem('vex.emailCodeAutoSubmit', e.target.checked ? '1' : '0'); } catch {} });
+    body.querySelector('#lh-test-autofill')?.addEventListener('click', () => { this._runAutofillTest(m); });
     body.querySelector('#lh-open-gmail')?.addEventListener('click', () => { try { TabManager.createTab('https://mail.google.com/', true); } catch {} m.remove(); });
     body.querySelector('#lh-keep-gmail')?.addEventListener('click', () => { if (g.tab) { try { TabManager._showKeepAwakeChooser(g.tab); } catch {} } });
     body.querySelector('#lh-manage-pw')?.addEventListener('click', () => { try { SettingsUI.openSection ? SettingsUI.openSection('passwords-panel-content') : SidebarManager.openPanel('settings'); } catch { try { SidebarManager.openPanel('settings'); } catch {} } m.remove(); });
+    body.querySelector('#lh-pw-health')?.addEventListener('click', () => { try { if (typeof PasswordHealth !== 'undefined') PasswordHealth.open(); } catch {} });
     body.querySelector('#lh-open-auth')?.addEventListener('click', () => { try { SidebarManager.openPanel('authenticator'); } catch {} m.remove(); });
   },
 

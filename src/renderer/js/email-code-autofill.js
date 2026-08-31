@@ -29,40 +29,61 @@ const EmailCodeAutofill = {
     return null;
   },
 
-  // Find an open Gmail INBOX webview (the real app is always mail.google.com,
-  // for personal AND Workspace accounts). Deliberately NOT workspace.google.com
-  // /gmail — that's the marketing page, not your mail, and has nothing to read.
+  // Supported webmail providers. `host` matches the real mail app URL; `rowSel`
+  // selects inbox message rows; `isUnread` is a JS expression (over a row `el`)
+  // that's true for unread rows. Gmail is the tested primary; the others are
+  // best-effort — if a selector stops matching, we simply read no code (same as
+  // no mail open), never a wrong one. Gmail's row/unread selectors are unchanged
+  // from the original Gmail-only implementation.
+  _PROVIDERS: [
+    { id: 'gmail',   host: /(^|\/\/)mail\.google\.com/i,                 rowSel: 'tr.zA', isUnread: "el.classList.contains('zE')", hidden: 'https://mail.google.com/mail/u/0/#inbox' },
+    { id: 'outlook', host: /(^|\/\/)outlook\.(live|office|office365)\.com/i, rowSel: 'div[role="option"], .customScrollBar div[role="listitem"]', isUnread: "(el.getAttribute('aria-label')||'').toLowerCase().indexOf('unread')>=0" },
+    { id: 'proton',  host: /(^|\/\/)mail\.proton\.me/i,                   rowSel: '.item-container, [data-testid^=\"message-item\"]', isUnread: "el.getAttribute('data-unread')==='true' || (el.className||'').indexOf('read')<0" },
+    { id: 'yahoo',   host: /(^|\/\/)mail\.yahoo\.com/i,                   rowSel: 'a[data-test-id=\"message-list-item\"], li[data-test-id=\"message-list-item\"]', isUnread: "el.getAttribute('data-test-unread')==='true'" },
+    { id: 'icloud',  host: /(^|\/\/)www\.icloud\.com\/mail/i,             rowSel: '.cloud-mail-message-list-item, li[role=\"row\"]', isUnread: "(el.className||'').indexOf('unseen')>=0 || (el.className||'').indexOf('unread')>=0" },
+  ],
+
+  // Find an open webmail INBOX webview for ANY supported provider (Gmail,
+  // Outlook, Proton, Yahoo, iCloud). Returns { wv, provider } or null.
   //
-  // If Gmail is open but its tab is asleep/lazy (no live webview), wake it in the
-  // background so we have something to read — and keep it awake briefly so the
-  // hibernator doesn't re-sleep it mid-poll. We never bring it to the foreground;
-  // _scrapeFreshCode reads textContent, which is populated even while hidden.
-  _findGmailWebview() {
-    const isGmail = (s) => /(^|\/\/)mail\.google\.com/i.test(s || '');
-    const live = Array.from(document.querySelectorAll('webview'))
-      .find(w => isGmail(w.getAttribute('src')));
-    if (live) return live;
+  // If a mail tab is open but asleep/lazy (no live webview), wake it in the
+  // background so we have something to read — kept awake briefly so the
+  // hibernator doesn't re-sleep it mid-poll. We never foreground it; _readInbox
+  // reads textContent, which is populated even while hidden.
+  _findMailWebview() {
+    const wvs = Array.from(document.querySelectorAll('webview'));
+    for (const p of this._PROVIDERS) {
+      const live = wvs.find(w => p.host.test(w.getAttribute('src') || ''));
+      if (live) return { wv: live, provider: p };
+    }
     try {
       const T = (typeof window !== 'undefined') && window.Tabs;
       if (T && Array.isArray(T.tabs)) {
-        const tab = T.tabs.find(t => isGmail(t.url) || isGmail(t.originalUrl));
-        if (tab) {
+        for (const p of this._PROVIDERS) {
+          const tab = T.tabs.find(t => p.host.test(t.url || '') || p.host.test(t.originalUrl || ''));
+          if (!tab) continue;
           // Mark kept-awake BEFORE (re)creating the webview so it's built with
-          // background throttling off — a woken Gmail then keeps fetching mail
+          // background throttling off — a woken mail tab then keeps fetching
           // during the poll, so we read a fresh inbox, not a frozen one.
           tab.keepAwakeUntil = Math.max(tab.keepAwakeUntil || 0, Date.now() + 120000);
           if (tab.sleeping && T.wakeTab) T.wakeTab(tab.id);
           else if (tab._lazy && T._materializeTab) T._materializeTab(tab);
-          return (typeof WebviewManager !== 'undefined' && WebviewManager.webviews.get(tab.id))
+          const wv = (typeof WebviewManager !== 'undefined' && WebviewManager.webviews.get(tab.id))
             || document.querySelector(`webview[data-tab-id="${tab.id}"]`) || null;
+          if (wv) return { wv, provider: p };
         }
       }
     } catch {}
-    // No Gmail tab at all. If the user opted in, read codes from a HIDDEN
+    // No mail tab at all. If the user opted in, read codes from a HIDDEN
     // background Gmail — using their existing logged-in session (persist:main),
     // so no new credentials, no IMAP/OAuth. It reads textContent (which works on
     // an unrendered page), so it never has to be visible.
-    try { if (localStorage.getItem('vex.emailCodeHiddenReader') === '1') return this._ensureHiddenGmail(); } catch {}
+    try {
+      if (localStorage.getItem('vex.emailCodeHiddenReader') === '1') {
+        const wv = this._ensureHiddenGmail();
+        if (wv) return { wv, provider: this._PROVIDERS[0] };
+      }
+    } catch {}
     return null;
   },
 
@@ -95,32 +116,35 @@ const EmailCodeAutofill = {
   // so a backgrounded inbox scrapes to nothing with innerText. textContent is
   // populated regardless of render state, so this works on a hidden Gmail. Gmail
   // also puts the code in the row's subject/snippet, so the row text is enough.
-  async _readInbox(gmailWv) {
-    // Each row: t = collapsed text, u = unread (Gmail marks unread rows with the
-    // 'zE' class, read rows with 'yO'). Unread + verification wording tells us a
-    // just-arrived code apart from an old, already-consumed one.
+  async _readInbox(mailWv, provider) {
+    provider = provider || this._PROVIDERS[0];
+    // Each row: t = collapsed text, u = unread (per the provider's isUnread test —
+    // Gmail marks unread rows with the 'zE' class). Unread + verification wording
+    // tells us a just-arrived code apart from an old, already-consumed one. If a
+    // provider's unread test is unreliable it just yields false, and only the
+    // fast "a newer code arrived" path is used (still correct).
     const js = `(function(){try{
-      var rows=Array.prototype.slice.call(document.querySelectorAll('tr.zA'));
+      var rows=Array.prototype.slice.call(document.querySelectorAll(${JSON.stringify(provider.rowSel)}));
       var out=[];
-      for(var i=0;i<rows.length&&i<12;i++){out.push({t:(rows[i].textContent||'').replace(/\\s+/g,' ').trim(), u: rows[i].classList.contains('zE')});}
+      for(var i=0;i<rows.length&&i<12;i++){var el=rows[i];out.push({t:(el.textContent||'').replace(/\\s+/g,' ').trim(), u:(function(){try{return !!(${provider.isUnread || 'false'});}catch(e){return false;}})()});}
       return JSON.stringify({loaded: rows.length>0, rows: out});
     }catch(e){return JSON.stringify({loaded:false, rows:[]});}})()`;
     let data;
-    try { data = JSON.parse(await gmailWv.executeJavaScript(js)); } catch { return { loaded: false, code: null, unread: false, strong: false }; }
+    try { data = JSON.parse(await mailWv.executeJavaScript(js)); } catch { return { loaded: false, code: null, unread: false, strong: false }; }
     let code = null, unread = false, strong = false;
     for (const r of (data.rows || [])) {
       const c = this._extractCode(r.t);
       if (c) { code = c; unread = !!r.u; strong = this._isStrongCodeRow(r.t); break; }
     }
-    // Body fallback: some services put the code only in the email BODY, not the
-    // inbox subject/snippet. When the rows yield nothing and we're using the
-    // dedicated hidden reader (never the user's own visible Gmail — opening a
-    // message there would disrupt their view and mark it read), open the newest
-    // unread verification email off-screen, scrape its body, and go back.
-    // Throttled so we don't thrash the reader every poll.
-    if (!code && !!data.loaded && this._isHiddenReader(gmailWv) && (Date.now() - (this._lastBodyRead || 0) > 8000)) {
+    // Body fallback (Gmail hidden reader only): some services put the code only
+    // in the email BODY, not the inbox subject/snippet. When the rows yield
+    // nothing and we're using the dedicated hidden reader (never the user's own
+    // visible mail — opening a message there would disrupt their view and mark it
+    // read), open the newest unread verification email off-screen, scrape its
+    // body, and go back. Throttled so we don't thrash the reader every poll.
+    if (!code && !!data.loaded && provider.id === 'gmail' && this._isHiddenReader(mailWv) && (Date.now() - (this._lastBodyRead || 0) > 8000)) {
       this._lastBodyRead = Date.now();
-      const bc = await this._readNewestUnreadBody(gmailWv);
+      const bc = await this._readNewestUnreadBody(mailWv);
       if (bc) return { loaded: true, code: bc, unread: true, strong: true };
     }
     return { loaded: !!data.loaded, code, unread, strong };
@@ -230,7 +254,7 @@ const EmailCodeAutofill = {
       this._running = true;
       let sawField = false, plausible = false;
       let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
-      let filled = false, sawGmail = false, sawLoaded = false;
+      let filled = false, sawMail = false, sawLoaded = false;
       for (let i = 0; i < 22; i++) {
         if (loginWv.isConnected === false) break;
         const hasField = await this._hasEmptyCodeField(loginWv);
@@ -239,10 +263,10 @@ const EmailCodeAutofill = {
         if (!hasField && sawField) break;                        // field came and went
         if (!plausible && i >= 4) break;                         // not a code page
         if (hasField) {
-          const gmailWv = this._findGmailWebview();
-          if (gmailWv) {
-            sawGmail = true;
-            const { loaded, code, unread, strong } = await this._readInbox(gmailWv);
+          const found = this._findMailWebview();
+          if (found && found.wv) {
+            sawMail = true;
+            const { loaded, code, unread, strong } = await this._readInbox(found.wv, found.provider);
             if (loaded) {
               sawLoaded = true;
               if (!baselineSet) {
@@ -253,10 +277,10 @@ const EmailCodeAutofill = {
                 // one THIS attempt triggered. Fill it (the fast, reliable path).
                 const ok = await this._injectCode(loginWv, code);
                 this._log(url, ok, 'new-code'); filled = true;
-                if (ok) { this._toast(); break; }
+                if (ok) { this._toast(); this._maybeAutoSubmit(loginWv); break; }
               } else if (code && code === baseline && baselineUnread && unread && baselineStrong) {
                 // The code was already in the inbox when the page opened (so it
-                // became the baseline) — e.g. Gmail synced a beat late, or the
+                // became the baseline) — e.g. the mail synced a beat late, or the
                 // email landed as the page loaded. It's still the newest, still
                 // unread, and clearly a verification code, with nothing newer
                 // superseding it. After a short grace (so a genuine retry code can
@@ -264,7 +288,7 @@ const EmailCodeAutofill = {
                 if (++unreadStable >= 5) {
                   const ok = await this._injectCode(loginWv, code);
                   this._log(url, ok, 'unread-baseline'); filled = true;
-                  if (ok) { this._toast(); break; }
+                  if (ok) { this._toast(); this._maybeAutoSubmit(loginWv); break; }
                 }
               }
             }
@@ -276,8 +300,8 @@ const EmailCodeAutofill = {
       // and, when there really was an empty code field waiting, nudge the user
       // toward the fix instead of failing silently.
       if (!filled && (sawField || plausible)) {
-        const reason = !sawGmail ? 'no-gmail'
-          : !sawLoaded ? 'gmail-not-loaded'
+        const reason = !sawMail ? 'no-mail'
+          : !sawLoaded ? 'mail-not-loaded'
           : !baselineSet ? 'inbox-empty'
           : baseline === null ? 'no-code-arrived'
           : 'no-new-code';
@@ -292,21 +316,42 @@ const EmailCodeAutofill = {
   _toast() { try { window.showToast?.('📧 Filled the code from your email'); } catch {} },
 
   // Turn a silent miss into an actionable hint — only when a real empty code
-  // field was on the page, only for the fixable Gmail-availability reasons, and
+  // field was on the page, only for the fixable mail-availability reasons, and
   // throttled so it can't nag. Points at the background reader, which removes the
-  // need to keep Gmail open/awake at all.
+  // need to keep a mail tab open/awake at all.
   _maybeMissToast(reason, sawField) {
     try {
       if (!sawField) return;
-      if (reason !== 'no-gmail' && reason !== 'gmail-not-loaded') return;
+      if (reason !== 'no-mail' && reason !== 'mail-not-loaded') return;
       const now = Date.now();
       if (now - (this._lastMissToast || 0) < 120000) return;
       this._lastMissToast = now;
-      const msg = reason === 'no-gmail'
-        ? "📧 Couldn't read a code — open Gmail, or turn on background code reading (Ctrl+K → Logins & Codes)."
-        : "📧 Gmail is still loading. If codes don't fill, keep Gmail awake or enable background reading (Ctrl+K → Logins & Codes).";
+      const msg = reason === 'no-mail'
+        ? "📧 Couldn't read a code — open your email, or turn on background code reading (Ctrl+K → Logins & Codes)."
+        : "📧 Your email is still loading. If codes don't fill, keep it awake or enable background reading (Ctrl+K → Logins & Codes).";
       window.showToast?.(msg, 'info', 6500);
     } catch {}
+  },
+
+  // Optional: after filling, submit the form so the user doesn't have to click.
+  // Opt-in (localStorage 'vex.emailCodeAutoSubmit'='1') because a wrong auto-submit
+  // is more annoying than a manual click. Prefers an explicit submit button near
+  // the code field; falls back to pressing Enter in the focused field. Given a
+  // short beat so the framework registers the filled value first.
+  _maybeAutoSubmit(loginWv) {
+    try {
+      if (localStorage.getItem('vex.emailCodeAutoSubmit') !== '1') return;
+    } catch { return; }
+    const js = `(function(){try{
+      function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}
+      var re=/verify|confirm|continue|submit|next|log ?in|sign ?in|done/i;
+      var btns=Array.prototype.slice.call(document.querySelectorAll('button,[type="submit"],[role="button"]'));
+      for(var i=0;i<btns.length;i++){var b=btns[i];if(!vis(b)||b.disabled)continue;var tx=((b.innerText||b.value||b.getAttribute('aria-label')||'')).trim();if(re.test(tx)){b.click();return true;}}
+      var a=document.activeElement; if(a&&a.form){try{a.form.requestSubmit?a.form.requestSubmit():a.form.submit();return true;}catch(e){}}
+      if(a){a.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true}));a.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',keyCode:13,which:13,bubbles:true}));return true;}
+      return false;
+    }catch(e){return false;}})()`;
+    setTimeout(() => { try { loginWv.executeJavaScript(js).catch(() => {}); } catch {} }, 350);
   },
 };
 
