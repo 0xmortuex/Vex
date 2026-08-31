@@ -395,6 +395,64 @@
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === Client-Hints consistency shim (main world) ===
+// Vex spoofs the User-Agent string and the Sec-CH-UA* request headers to say
+// "Google Chrome" (castLabs Electron is really Chromium). But navigator.
+// userAgentData — which pages read directly in JS — is NOT overridable from the
+// session layer, so it still reports ONLY "Chromium" with no "Google Chrome"
+// brand. That mismatch (headers/UA say Chrome, JS says Chromium) is a classic
+// bot signal: Cloudflare Turnstile and similar checks fail with "Verification
+// failed". This patches navigator.userAgentData.brands and getHighEntropyValues
+// in the page's own world to add the "Google Chrome" brand at the real version,
+// making UA, Sec-CH-UA headers, and userAgentData all agree. Must run before any
+// page script reads it, so it's injected at document-start like the shims above.
+(function () {
+  let proto = '';
+  try { proto = (window.location && window.location.protocol) || ''; } catch { return; }
+  if (!(proto === 'http:' || proto === 'https:')) return;
+  const shimSrc = `(function(){try{
+    var uad = navigator.userAgentData;
+    if(!uad) return;
+    // navigator.userAgentData returns a FRESH object each access, so patching an
+    // instance does nothing — patch the prototype's getter/method instead.
+    var proto = Object.getPrototypeOf(uad);
+    if(!proto) return;
+    function addChrome(list){
+      var out = (list||[]).map(function(x){return {brand:x.brand, version:x.version};});
+      if(!out.some(function(x){return x.brand==='Google Chrome';})){
+        var c = out.filter(function(x){return x.brand==='Chromium';})[0];
+        if(c) out.push({brand:'Google Chrome', version:c.version});
+      }
+      return out;
+    }
+    var bd = Object.getOwnPropertyDescriptor(proto,'brands');
+    if(bd && bd.get && bd.configurable && !bd.get.__vexPatched){
+      var origBrands = bd.get;
+      var getter = function(){ try{ return addChrome(origBrands.call(this)); }catch(e){ return origBrands.call(this); } };
+      getter.__vexPatched = true;
+      try{ Object.defineProperty(proto,'brands',{configurable:true,enumerable:bd.enumerable,get:getter}); }catch(e){}
+    }
+    if(typeof proto.getHighEntropyValues==='function' && !proto.getHighEntropyValues.__vexPatched){
+      var origHEV = proto.getHighEntropyValues;
+      var patched = function(hints){
+        return origHEV.call(this,hints).then(function(res){
+          try{
+            if(res){
+              if(Array.isArray(res.brands)) res.brands = addChrome(res.brands);
+              if(Array.isArray(res.fullVersionList)) res.fullVersionList = addChrome(res.fullVersionList);
+            }
+          }catch(e){}
+          return res;
+        });
+      };
+      patched.__vexPatched = true;
+      try{ Object.defineProperty(proto,'getHighEntropyValues',{configurable:true,writable:true,value:patched}); }catch(e){}
+    }
+  }catch(e){}})();`;
+  function inject() { try { const s = document.createElement('script'); s.textContent = shimSrc; (document.head || document.documentElement).appendChild(s); s.remove(); } catch {} }
+  if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
+})();
+
 // === Smart Searchbar suggest bridge (start page only) ===
 // The start page is a sandboxed webview guest with contextIsolation, so it
 // cannot reach the main renderer's window.vex IPC. It needs Google Suggest
