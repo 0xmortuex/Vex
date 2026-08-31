@@ -807,6 +807,16 @@ const WebviewManager = {
       { label: 'Reset this site’s settings', action: () => this.resetSite(webview) }
     ];
 
+    // Right-clicking an input (e.g. the verification-code box): offer to fill the
+    // code from Gmail on demand, in case the automatic pass didn't catch it.
+    if (e.params.isEditable && typeof EmailCodeAutofill !== 'undefined') {
+      items.push({ sep: true });
+      items.push({
+        label: '\u{1F4E7} Fill code from email',
+        action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL()); window.showToast?.('📧 Looking for your code…'); } catch {} }
+      });
+    }
+
     if (e.params.selectionText) {
       items.push({ sep: true });
       items.push({

@@ -95,11 +95,20 @@ const LoginsHub = {
     const recent = (window.AutofillLog && window.AutofillLog.all().slice(0, 8)) || [];
     if (recent.length) {
       const icon = { password: '🔑', totp: '🔢', emailcode: '📧' };
+      // Plain-language explanation for the logged miss reasons, so a failure
+      // says WHY (and what to do) instead of just "failed".
+      const why = {
+        'no-gmail': 'no Gmail open',
+        'gmail-not-loaded': 'Gmail still loading',
+        'inbox-empty': 'inbox empty',
+        'no-code-arrived': 'no code arrived',
+        'no-new-code': 'no new code',
+      };
       html += `<div style="margin:8px 0 4px;font-weight:700">📊 Recent autofill activity</div>` +
         recent.map(e => `<div style="display:flex;gap:8px;padding:4px 2px;font-size:12px">
           <span>${icon[e.kind] || '•'}</span>
           <span style="flex:1;color:var(--text)">${esc(e.host)}</span>
-          <span style="color:${e.ok ? '#4caf50' : '#e5556a'}">${e.ok ? 'filled' : 'failed'}</span>
+          <span style="color:${e.ok ? '#4caf50' : '#e5556a'}">${e.ok ? 'filled' : ('failed' + (e.detail ? ' · ' + esc(why[e.detail] || e.detail) : ''))}</span>
           <span style="color:var(--text-muted)">${this._ago(e.t)}</span>
         </div>`).join('');
     }

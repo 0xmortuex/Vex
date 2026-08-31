@@ -65,6 +65,38 @@ describe('EmailCodeAutofill._isStrongCodeRow', () => {
   });
 });
 
+describe('EmailCodeAutofill._isHiddenReader', () => {
+  it('true only for the dedicated hidden reader webview', () => {
+    expect(EmailCodeAutofill._isHiddenReader({ id: 'vex-gmail-reader' })).toBe(true);
+    expect(EmailCodeAutofill._isHiddenReader({ id: 'something-else' })).toBe(false);
+    expect(EmailCodeAutofill._isHiddenReader(null)).toBe(false);
+  });
+});
+
+describe('EmailCodeAutofill._readInbox body fallback', () => {
+  // A gmail webview stub: the rows script yields no code; the body script (only
+  // reached in the hidden reader) yields a body carrying the code.
+  const makeWv = (id) => ({
+    id,
+    executeJavaScript: async (js) => {
+      if (js.includes('Back to Inbox')) return 'Hi — your Spotify verification code is 246810. It expires soon.';
+      return JSON.stringify({ loaded: true, rows: [{ t: 'Weekly newsletter — top stories', u: true }] });
+    },
+  });
+
+  it('reads the code from the email BODY when the inbox rows have none (hidden reader)', async () => {
+    const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill);
+    const r = await A._readInbox(makeWv('vex-gmail-reader'));
+    expect(r).toEqual({ loaded: true, code: '246810', unread: true, strong: true });
+  });
+
+  it('does NOT open message bodies in the user\'s own visible Gmail', async () => {
+    const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill);
+    const r = await A._readInbox(makeWv('tab-7'));   // not the hidden reader
+    expect(r.code).toBeNull();
+  });
+});
+
 describe('EmailCodeAutofill.tryFill', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());

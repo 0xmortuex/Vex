@@ -605,6 +605,17 @@
     settings.autoSleepExcludePinned = settings.autoSleepExcludePinned ?? true;
     await VexStorage.saveSettings(settings);
   }
+  // Email-code autofill: read verification codes from a hidden background Gmail
+  // (no tab needed). Stored in localStorage so it's the same flag the autofill
+  // and the Logins & Codes hub read.
+  const emailHiddenToggle = document.getElementById('setting-emailcode-hidden');
+  if (emailHiddenToggle) {
+    try { emailHiddenToggle.checked = localStorage.getItem('vex.emailCodeHiddenReader') === '1'; } catch {}
+    emailHiddenToggle.addEventListener('change', () => {
+      try { localStorage.setItem('vex.emailCodeHiddenReader', emailHiddenToggle.checked ? '1' : '0'); } catch {}
+    });
+  }
+
   const autosleepToggle = document.getElementById('setting-autosleep');
   const autosleepMinutes = document.getElementById('setting-autosleep-minutes');
   const autosleepExcludePinned = document.getElementById('setting-autosleep-exclude-pinned');

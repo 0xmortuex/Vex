@@ -112,7 +112,43 @@ const EmailCodeAutofill = {
       const c = this._extractCode(r.t);
       if (c) { code = c; unread = !!r.u; strong = this._isStrongCodeRow(r.t); break; }
     }
+    // Body fallback: some services put the code only in the email BODY, not the
+    // inbox subject/snippet. When the rows yield nothing and we're using the
+    // dedicated hidden reader (never the user's own visible Gmail — opening a
+    // message there would disrupt their view and mark it read), open the newest
+    // unread verification email off-screen, scrape its body, and go back.
+    // Throttled so we don't thrash the reader every poll.
+    if (!code && !!data.loaded && this._isHiddenReader(gmailWv) && (Date.now() - (this._lastBodyRead || 0) > 8000)) {
+      this._lastBodyRead = Date.now();
+      const bc = await this._readNewestUnreadBody(gmailWv);
+      if (bc) return { loaded: true, code: bc, unread: true, strong: true };
+    }
     return { loaded: !!data.loaded, code, unread, strong };
+  },
+
+  _isHiddenReader(wv) { return !!(wv && wv.id === 'vex-gmail-reader'); },
+
+  // Open the newest UNREAD verification-looking email in the (hidden) reader,
+  // read its body text, then return to the inbox. Best-effort; returns a code or
+  // null. Only ever called on the hidden reader (see _readInbox).
+  async _readNewestUnreadBody(gmailWv) {
+    const js = `(async function(){try{
+      var re=/verification|verify|one[-\\s]?time|security code|login code|sign[-\\s]?in code|passcode|confirm(?:ation)? code|your (?:\\w+ )?code|code is|is your (?:\\w+ )?code/i;
+      var rows=Array.prototype.slice.call(document.querySelectorAll('tr.zA.zE'));
+      var row=null;
+      for(var i=0;i<rows.length;i++){ if(re.test(rows[i].textContent||'')){ row=rows[i]; break; } }
+      if(!row) return '';
+      var open=row.querySelector('span[data-thread-id]')||row.querySelector('[role="link"]')||row;
+      open.click();
+      var body=null;
+      for(var w=0;w<24;w++){ await new Promise(function(r){setTimeout(r,150);}); body=document.querySelector('.a3s'); if(body) break; }
+      var text=body?(body.innerText||body.textContent||''):'';
+      try{ var back=document.querySelector('[aria-label="Back to Inbox"],[data-tooltip="Back to Inbox"]'); if(back){back.click();} else {location.hash='#inbox';} }catch(e){}
+      return text;
+    }catch(e){return '';}})()`;
+    let text = '';
+    try { text = await gmailWv.executeJavaScript(js); } catch { return null; }
+    return this._extractCode(text);
   },
 
   // Does the row's own text carry explicit verification wording (not just a bare
@@ -236,7 +272,9 @@ const EmailCodeAutofill = {
         }
         await new Promise(r => setTimeout(r, 3000));
       }
-      // Record a miss (with a reason) so a failure is diagnosable, not silent.
+      // Record a miss (with a reason) so a failure is diagnosable, not silent —
+      // and, when there really was an empty code field waiting, nudge the user
+      // toward the fix instead of failing silently.
       if (!filled && (sawField || plausible)) {
         const reason = !sawGmail ? 'no-gmail'
           : !sawLoaded ? 'gmail-not-loaded'
@@ -244,6 +282,7 @@ const EmailCodeAutofill = {
           : baseline === null ? 'no-code-arrived'
           : 'no-new-code';
         this._log(url, false, reason);
+        this._maybeMissToast(reason, sawField);
       }
       this._running = false;
     } catch (e) { this._running = false; }
@@ -251,6 +290,24 @@ const EmailCodeAutofill = {
 
   _log(url, ok, reason) { try { window.AutofillLog?.record('emailcode', url, ok, reason); } catch {} },
   _toast() { try { window.showToast?.('📧 Filled the code from your email'); } catch {} },
+
+  // Turn a silent miss into an actionable hint — only when a real empty code
+  // field was on the page, only for the fixable Gmail-availability reasons, and
+  // throttled so it can't nag. Points at the background reader, which removes the
+  // need to keep Gmail open/awake at all.
+  _maybeMissToast(reason, sawField) {
+    try {
+      if (!sawField) return;
+      if (reason !== 'no-gmail' && reason !== 'gmail-not-loaded') return;
+      const now = Date.now();
+      if (now - (this._lastMissToast || 0) < 120000) return;
+      this._lastMissToast = now;
+      const msg = reason === 'no-gmail'
+        ? "📧 Couldn't read a code — open Gmail, or turn on background code reading (Ctrl+K → Logins & Codes)."
+        : "📧 Gmail is still loading. If codes don't fill, keep Gmail awake or enable background reading (Ctrl+K → Logins & Codes).";
+      window.showToast?.(msg, 'info', 6500);
+    } catch {}
+  },
 };
 
 if (typeof window !== 'undefined') window.EmailCodeAutofill = EmailCodeAutofill;
