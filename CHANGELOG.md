@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.31.3 (2026-08-31) — Reliable code autofill & Custom Image
+
+### Fixed
+- **Email-code autofill now fills a code that was already in your inbox.** It snapshotted the newest code as a baseline and only filled a *different* one — so if the verification email was already there when the login page opened (Gmail woke a beat late, or the email landed as the page loaded), the code was skipped forever. It now fills an unread verification code that nothing newer supersedes, while still never filling an old, already-consumed code.
+- **Custom Image theme wallpaper is reliable.** The image is now stored by the app itself (not only pushed into whatever Gmail-style start pages happened to be open), so it shows on the new-tab page whether or not one was open when you picked it, and survives restarts. Cancelling the picker no longer wipes your existing image.
+
+### Added
+- **Read email codes from a hidden Gmail** (Settings → Privacy → Autofill, or `Ctrl+K`) — fills verification codes with no Gmail tab open or awake, using your signed-in session.
+- **"Fill code from email"** on demand — a `Ctrl+K` command and a right-click item on any input field.
+- **Email-body fallback** — reads the code from the message body when it isn't in the inbox snippet.
+- Autofill misses now say **why** (no Gmail open / still loading / no code arrived) — as a toast in the moment and in the Logins & Codes hub.
+
+### Changed
+- **"What's New" typography** — the release notes now use Vex's own fonts (Space Grotesk headings, Outfit body, JetBrains Mono for code).
+
 ## v2.31.2 (2026-08-31) — Browse every release
 
 ### Added
