@@ -3990,6 +3990,20 @@ ipcMain.handle('app:restart', () => {
   catch (e) { return { ok: false, error: e && e.message }; }
 });
 
+// Generate a QR code (PNG data URL) for "Send to phone". Done in the main process
+// with the bundled `qrcode` package — full Node, works offline, no external
+// script. Returns a data: URL or null.
+ipcMain.handle('qr:generate', async (_e, text) => {
+  try {
+    if (!text || typeof text !== 'string') return null;
+    const QR = require('qrcode');
+    return await QR.toDataURL(text, { margin: 1, width: 320, errorCorrectionLevel: 'M' });
+  } catch (e) {
+    console.warn('[QR] generate failed:', e && e.message);
+    return null;
+  }
+});
+
 // Set as default browser — opens Windows Default Apps settings
 ipcMain.handle('set-as-default-browser', async () => {
   try {

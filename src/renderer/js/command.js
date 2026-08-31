@@ -70,6 +70,11 @@ const CommandBar = {
     { id: 'routing', label: 'Route Through Tor / Proxy', hint: 'Send this container through Tor or a custom proxy, or open a fresh Tor container', icon: '🧅', action: () => { if (typeof ContainerRouting !== 'undefined') ContainerRouting.open(); } },
     { id: 'shortcutsguide', label: 'Shortcuts & Gestures', hint: 'Cheat-sheet of every keyboard shortcut, mouse gesture, and right-click action', icon: '⌨️', action: async () => { try { await VexLazy.ensure('js/shortcuts-guide.js'); ShortcutsGuide.open(); } catch {} } },
     { id: 'whatsnew', label: "What's New", hint: "Reopen this version's release notes", icon: '🎉', action: () => { try { window.VexWhatsNew?.open(); } catch {} } },
+    { id: 'sendphone', label: 'Send to Phone', hint: 'Show a QR code of this page to open it on your phone', icon: '📱', action: () => { try { if (window.SendToPhone) SendToPhone.open(); } catch {} } },
+    { id: 'pasteandgo', label: 'Paste & Go', hint: 'Open the URL (or search) currently on your clipboard in a new tab', icon: '📋', action: async () => { try { const text = ((await navigator.clipboard.readText()) || '').trim(); if (!text) { window.showToast?.('Clipboard is empty'); return; } let url; if (/^https?:\/\//i.test(text)) url = text; else if (/^[a-z0-9]([a-z0-9-]*\.)+[a-z]{2,}/i.test(text)) url = 'https://' + text; else url = 'https://www.google.com/search?q=' + encodeURIComponent(text); TabManager.createTab(url, true); } catch { window.showToast?.('Clipboard access blocked'); } } },
+    { id: 'duplicatetab', label: 'Duplicate Tab', hint: 'Open a copy of the current tab', icon: '⧉', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true); } catch {} } },
+    { id: 'copyalltabs', label: 'Copy All Tab URLs', hint: 'Copy every open tab’s URL to the clipboard', icon: '🔗', action: async () => { try { const urls = (TabManager.tabs || []).map(t => t.url).filter(u => /^https?:/i.test(u)); if (!urls.length) { window.showToast?.('No tabs to copy'); return; } await navigator.clipboard.writeText(urls.join('\n')); window.showToast?.(`Copied ${urls.length} tab URL${urls.length === 1 ? '' : 's'}`); } catch {} } },
+    { id: 'autorefresh', label: 'Auto-refresh This Tab', hint: 'Reload this tab on an interval — dashboards, live scores, build logs', icon: '⟳', action: () => { try { if (window.AutoReload) AutoReload.open(); } catch {} } },
     { id: 'personaswitch', label: 'Switch AI Persona (this tab)', hint: 'Pick which AI persona this tab uses — each tab can differ', icon: '🎭', action: () => { if (typeof PersonaSwitch !== 'undefined') PersonaSwitch.open(); } },
     { id: 'stickynote', label: 'Sticky Note for This Page', hint: 'A freeform note pinned to this page (per-URL)', icon: '📝', action: () => { if (typeof StickyNotes !== 'undefined') StickyNotes.open(); } },
     { id: 'stickynotes', label: 'All Sticky Notes', hint: 'Every page you\'ve left a sticky note on', icon: '📝', action: () => { if (typeof StickyNotes !== 'undefined') StickyNotes.list(); } },
@@ -280,6 +285,9 @@ const CommandBar = {
         });
       }
 
+      // Jump to an already-open tab whose title/URL matches.
+      this.results.push(...this._tabResults(q));
+
       // Search action
       this.results.push({
         id: 'search',
@@ -330,6 +338,38 @@ const CommandBar = {
       if (ok) score = 30;
     }
     return score;
+  },
+
+  // Open tabs matching the query, as "switch to tab" results. Titles/URLs are
+  // user content so they're escaped (renderResults uses innerHTML). Skips the
+  // active tab and start pages.
+  _tabResults(q) {
+    if (!q || typeof TabManager === 'undefined') return [];
+    const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
+    try {
+      const scored = [];
+      for (const t of (TabManager.tabs || [])) {
+        if (t.id === TabManager.activeTabId) continue;
+        if (typeof isStartPage === 'function' && isStartPage(t.url)) continue;
+        const title = (t.title || '').toLowerCase();
+        const url = (t.url || '').toLowerCase();
+        let score = 0;
+        if (title.startsWith(q)) score = 95;
+        else if (title.includes(q)) score = 75;
+        else if (url.includes(q)) score = 65;
+        if (!score) continue;
+        let host = ''; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch {}
+        const icon = t.favicon ? `<img src="${esc(t.favicon)}" style="width:16px;height:16px;border-radius:3px" alt="">` : '🗂';
+        scored.push({ score, r: {
+          id: 'tab:' + t.id,
+          icon,
+          label: esc(t.title || host || t.url || 'Tab'),
+          hint: '↪ Switch to tab · ' + esc(host || t.url || ''),
+          action: () => { try { TabManager.switchTab(t.id); } catch {} },
+        } });
+      }
+      return scored.sort((a, b) => b.score - a.score).slice(0, 6).map(e => e.r);
+    } catch { return []; }
   },
 
   _rankCommands(q) {

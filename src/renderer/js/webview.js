@@ -798,6 +798,9 @@ const WebviewManager = {
       { sep: true },
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
       { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL()) },
+      { label: '⧉ Duplicate Tab', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true); } catch {} } },
+      { label: '\u{1F4F1} Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
+      { label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? '⟳ Auto-refresh: on…' : '⟳ Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } },
       { sep: true },
       // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
       // "Reset this site" clears this host's saved zoom and dark-mode override.
@@ -873,6 +876,10 @@ const WebviewManager = {
       items.push({
         label: 'Copy Link',
         action: () => navigator.clipboard.writeText(e.params.linkURL)
+      });
+      items.push({
+        label: '\u{1F4F1} Send Link to Phone',
+        action: () => { try { if (window.SendToPhone) SendToPhone.open(e.params.linkURL); } catch {} }
       });
       if (typeof ReadLater !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
         items.push({

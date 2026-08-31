@@ -225,6 +225,7 @@ contextBridge.exposeInMainWorld('vex', {
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   getReleaseList: () => ipcRenderer.invoke('updates:list'),
   restartApp: () => ipcRenderer.invoke('app:restart'),
+  qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   getCustomThemeImage: () => ipcRenderer.invoke('theme:get-custom-image'),
   setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
