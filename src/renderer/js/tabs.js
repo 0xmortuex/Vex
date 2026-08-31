@@ -1628,6 +1628,26 @@ const TabManager = {
     window.showToast?.(`Closed ${toClose.length} tab${toClose.length === 1 ? '' : 's'} to the right`, 'success');
   },
 
+  // Close tabs whose URL duplicates another open tab, keeping one of each. The
+  // active tab is preferred as the copy that stays. URLs are normalized (origin
+  // + path + query, trailing slash dropped) so "site.com" and "site.com/" dedupe.
+  closeDuplicateTabs() {
+    const norm = (u) => { try { const x = new URL(u); return (x.origin + x.pathname + x.search).replace(/\/$/, ''); } catch { return u; } };
+    const seen = new Map(); // normalized url -> tab id to keep
+    const active = this.tabs.find(t => t.id === this.activeTabId);
+    if (active && /^https?:/i.test(active.url || '')) seen.set(norm(active.url), active.id);
+    const toClose = [];
+    for (const t of this.tabs) {
+      if (!t.url || !/^https?:/i.test(t.url) || t.pinned) continue;
+      const k = norm(t.url);
+      if (seen.has(k)) { if (t.id !== seen.get(k)) toClose.push(t.id); }
+      else seen.set(k, t.id);
+    }
+    toClose.forEach(id => this.closeTab(id));
+    window.showToast?.(toClose.length ? `Closed ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'}` : 'No duplicate tabs', 'info');
+    return toClose.length;
+  },
+
   // === Pin/Unpin (icon-only mode) ===
   pinTab(id) {
     const tab = this.tabs.find(t => t.id === id);

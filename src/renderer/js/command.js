@@ -75,6 +75,9 @@ const CommandBar = {
     { id: 'duplicatetab', label: 'Duplicate Tab', hint: 'Open a copy of the current tab', icon: '⧉', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true); } catch {} } },
     { id: 'copyalltabs', label: 'Copy All Tab URLs', hint: 'Copy every open tab’s URL to the clipboard', icon: '🔗', action: async () => { try { const urls = (TabManager.tabs || []).map(t => t.url).filter(u => /^https?:/i.test(u)); if (!urls.length) { window.showToast?.('No tabs to copy'); return; } await navigator.clipboard.writeText(urls.join('\n')); window.showToast?.(`Copied ${urls.length} tab URL${urls.length === 1 ? '' : 's'}`); } catch {} } },
     { id: 'autorefresh', label: 'Auto-refresh This Tab', hint: 'Reload this tab on an interval — dashboards, live scores, build logs', icon: '⟳', action: () => { try { if (window.AutoReload) AutoReload.open(); } catch {} } },
+    { id: 'openasapp', label: 'Open as App', hint: 'Open this site in its own clean, chromeless window — like a desktop app', icon: '🪟', action: () => { try { const t = TabManager.getActiveTab(); if (t && /^https?:/i.test(t.url || '')) window.vex.openAsApp(t.url, t.title); else window.showToast?.('Open a web page first'); } catch {} } },
+    { id: 'copymarkdown', label: 'Copy Page as Markdown', hint: 'Copy this page as a Markdown link [Title](url)', icon: '📝', action: async () => { try { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } const md = `[${(t.title || t.url).replace(/[\[\]]/g, '')}](${t.url})`; await navigator.clipboard.writeText(md); window.showToast?.('Copied as Markdown'); } catch {} } },
+    { id: 'closeduplicates', label: 'Close Duplicate Tabs', hint: 'Close tabs pointing to the same page, keeping one of each', icon: '🧹', action: () => { try { TabManager.closeDuplicateTabs(); } catch {} } },
     { id: 'personaswitch', label: 'Switch AI Persona (this tab)', hint: 'Pick which AI persona this tab uses — each tab can differ', icon: '🎭', action: () => { if (typeof PersonaSwitch !== 'undefined') PersonaSwitch.open(); } },
     { id: 'stickynote', label: 'Sticky Note for This Page', hint: 'A freeform note pinned to this page (per-URL)', icon: '📝', action: () => { if (typeof StickyNotes !== 'undefined') StickyNotes.open(); } },
     { id: 'stickynotes', label: 'All Sticky Notes', hint: 'Every page you\'ve left a sticky note on', icon: '📝', action: () => { if (typeof StickyNotes !== 'undefined') StickyNotes.list(); } },
@@ -264,6 +267,17 @@ const CommandBar = {
     } else {
       // Mix: search + URL + commands
       this.results = [];
+
+      // Inline calculator / converter — "12*7", "20cm to in", "10 usd to eur".
+      const calc = (typeof VexCalc !== 'undefined') ? VexCalc.evaluate(q) : null;
+      if (calc) {
+        this.results.push({
+          id: 'calc', isPrimary: !calc.unavailable, icon: '🧮',
+          label: window.escapeHtml ? window.escapeHtml(calc.text) : calc.text,
+          hint: calc.unavailable ? '' : 'Press Enter to copy the result',
+          action: async () => { if (calc.unavailable) return; try { await navigator.clipboard.writeText(calc.value || calc.text); window.showToast?.('Copied ' + calc.text); } catch {} },
+        });
+      }
 
       // Check if it's a URL
       if (/^https?:\/\//i.test(q) || /^[a-z0-9-]+\.[a-z]{2,}/i.test(q)) {

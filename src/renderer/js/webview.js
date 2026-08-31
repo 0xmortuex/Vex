@@ -797,7 +797,9 @@ const WebviewManager = {
       { label: 'Reload', action: () => webview.reload() },
       { sep: true },
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
+      { label: '\u{1F4DD} Copy as Markdown link', action: () => { try { const t = TabManager.getActiveTab(); const u = webview.getURL(); const title = (t && t.title) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
       { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL()) },
+      { label: '\u{1FA9F} Open as App', action: () => { try { window.vex.openAsApp(webview.getURL(), (TabManager.getActiveTab() || {}).title); } catch {} } },
       { label: '⧉ Duplicate Tab', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true); } catch {} } },
       { label: '\u{1F4F1} Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
       { label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? '⟳ Auto-refresh: on…' : '⟳ Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } },
@@ -880,6 +882,10 @@ const WebviewManager = {
       items.push({
         label: '\u{1F4F1} Send Link to Phone',
         action: () => { try { if (window.SendToPhone) SendToPhone.open(e.params.linkURL); } catch {} }
+      });
+      items.push({
+        label: '\u{1F4DD} Copy Link as Markdown',
+        action: () => { try { const txt = (e.params.linkText || e.params.selectionText || e.params.linkURL || '').replace(/[\[\]]/g, '').trim() || e.params.linkURL; navigator.clipboard.writeText(`[${txt}](${e.params.linkURL})`); window.showToast?.('Copied as Markdown'); } catch {} }
       });
       if (typeof ReadLater !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
         items.push({

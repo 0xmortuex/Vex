@@ -4004,6 +4004,43 @@ ipcMain.handle('qr:generate', async (_e, text) => {
   }
 });
 
+// Exchange rates for the inline currency converter (base USD). Fetched at most
+// every 12h and cached to disk, so it works offline after the first fetch and
+// makes no request on most calls. Returns { base, rates, at } or null.
+let _fxCache = null;
+ipcMain.handle('fx:rates', async () => {
+  const file = path.join(app.getPath('userData'), 'fx-rates.json');
+  const fresh = (o) => o && o.at && (Date.now() - o.at < 12 * 3600 * 1000);
+  if (fresh(_fxCache)) return _fxCache;
+  try { const disk = JSON.parse(fs.readFileSync(file, 'utf8')); if (fresh(disk)) { _fxCache = disk; return disk; } } catch {}
+  try {
+    const res = await net.fetch('https://open.er-api.com/v6/latest/USD');
+    const j = await res.json();
+    if (j && j.rates) {
+      _fxCache = { base: j.base_code || 'USD', rates: j.rates, at: Date.now() };
+      try { fs.writeFileSync(file, JSON.stringify(_fxCache)); } catch {}
+      return _fxCache;
+    }
+  } catch (e) { console.warn('[FX] fetch failed:', e && e.message); }
+  // Offline / failed: fall back to any (stale) disk cache.
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+});
+
+// Open a URL in its own chromeless window ("open as app" / site-specific
+// browser). Shares the main persistent session so you stay signed in.
+ipcMain.handle('app:open-as-app', (_e, url, title) => {
+  try {
+    if (!url || !/^https?:\/\//i.test(url)) return { ok: false };
+    const win = new BrowserWindow({
+      width: 1024, height: 720, autoHideMenuBar: true, title: title || 'Vex',
+      webPreferences: { partition: 'persist:main', contextIsolation: true, spellcheck: true },
+    });
+    win.setMenuBarVisibility(false);
+    win.loadURL(url);
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e && e.message }; }
+});
+
 // Set as default browser — opens Windows Default Apps settings
 ipcMain.handle('set-as-default-browser', async () => {
   try {

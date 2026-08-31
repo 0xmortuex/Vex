@@ -717,6 +717,9 @@
     });
   }
 
+  // Warm the inline calculator's currency rates (offline-cached in main).
+  try { if (window.VexCalc) VexCalc.init(); } catch {}
+
   // === Split Screen ===
   window.vex.onToggleSplit(() => SplitScreen.toggle());
   window.vex.onTogglePip(() => { if (window.PiPManager) window.PiPManager.toggle(); });
