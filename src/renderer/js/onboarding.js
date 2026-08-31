@@ -69,6 +69,7 @@ const Onboarding = {
       case 'language':       return this._has('vex.lang');
       case 'wisdom':         return this._has('vex.wisdomSource');
       case 'theme':          return this._has('vex.theme');
+      case 'job':            return this._has('vex.job');
       case 'name':           return this._has('vex.userName');
       case 'weather':        return this._has('vex.weatherLoc');
       case 'github':         return this._has('vex.githubUsername');
@@ -114,6 +115,7 @@ const Onboarding = {
       { key: 'welcome',        title: 'Welcome to Vex 👋',        sub: 'Let’s set up the bits that make Vex feel like yours. Skip anything you don’t want — you can re-open this wizard anytime from the ✦ button by the reload button.' },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' },
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' },
+      { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' },
       { key: 'language',       title: 'Language · Dil',           sub: 'Sets the start page language — greeting, labels, and the daily verse. (Full interface translation is on the roadmap.)' },
       { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' },
       { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Leave blank for none.' },
@@ -492,6 +494,16 @@ const Onboarding = {
         try { window.VexGuiStyle?.set(g); } catch {}
         body.querySelectorAll('[data-gui]').forEach(x => x.style.borderColor = x.dataset.gui === g ? 'var(--primary)' : 'var(--border)');
       }));
+    } else if (key === 'job') {
+      const cur = (window.JobProfiles && JobProfiles.current());
+      const curName = cur ? ((JobProfiles.get(cur) || {}).name || cur) : null;
+      body.innerHTML = `
+        <div style="font-size:13px;color:var(--text);line-height:1.6">Vex can reshape itself around what you do — a fitting theme, the built-in tools your job uses daily (regex, JSON, color, word count…), and quick buttons next to the Tor button. You choose exactly which tools you want, and can change or remove this anytime.</div>
+        <div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button id="ob-job-open" style="padding:11px 18px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${curName ? 'Change job…' : 'Choose my job →'}</button>
+          ${curName ? `<span style="font-size:12.5px;color:var(--text-muted)">Current: <b style="color:var(--text)">${this._esc(curName)}</b></span>` : '<span style="font-size:12px;color:var(--text-muted)">Optional — Skip to keep the default Vex.</span>'}
+        </div>`;
+      body.querySelector('#ob-job-open')?.addEventListener('click', () => { try { window.JobSetup && JobSetup.open(); } catch {} });
     } else if (key === 'language') {
       const LANGS = [
         { id: 'en', name: 'English', glyph: '🇬🇧' },

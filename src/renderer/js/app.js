@@ -720,6 +720,9 @@
   // Warm the inline calculator's currency rates (offline-cached in main).
   try { if (window.VexCalc) VexCalc.init(); } catch {}
 
+  // Restore the job profile's toolbar buttons (theme is restored by ThemeManager).
+  try { if (window.JobProfiles) JobProfiles.boot(); } catch {}
+
   // === Split Screen ===
   window.vex.onToggleSplit(() => SplitScreen.toggle());
   window.vex.onTogglePip(() => { if (window.PiPManager) window.PiPManager.toggle(); });
