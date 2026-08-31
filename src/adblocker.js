@@ -49,7 +49,16 @@ const AD_DOMAINS = [
   'smartadserver.com',
   'serving-sys.com',
   'scdn.cxense.com',
-  'cdn.cxense.com'
+  'cdn.cxense.com',
+  // Ad-reinsertion / anti-adblock CDNs that rotate subdomains (e.g.
+  // 0.stg.html-load.com, 3.stg.html-load.com) to slip past EasyList — the
+  // Playwire ad stack many browser games (makeitmeme.com, gartic, etc.) use.
+  // The engine's lists don't cover these, so block the whole domain here.
+  'html-load.com',
+  'intergient.com',
+  'playwire.com',
+  'venatusmedia.com',
+  'aniview.com'
 ];
 
 function _hostMatchesDomain(host, d) {
