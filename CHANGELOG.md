@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.31.4 (2026-08-31) — Pick-your-pane split & login tools
+## v2.31.4 (2026-08-31) — Pick-your-pane split, login tools & Memory Saver
 
 ### Changed
 - **Split screen now lets you pick each pane.** Pressing split (or 3/4-pane) shows your open tabs to choose from — pane 2, then 3, then 4 — instead of grabbing whatever tab was next. Cancel keeps the panes you've chosen.
@@ -10,6 +10,11 @@
 - **Test autofill** — a self-check in Logins & Codes that reports whether it can reach and read your email (found a source? inbox readable? code visible?).
 - **Auto-submit after filling a code** (opt-in) — presses the form's verify/submit button for you.
 - **Password Health** (`Ctrl+K` → Password Health, or the hub) — finds reused, weak, or 2FA-less saved passwords. The analysis runs locally in the app; your passwords never leave your machine.
+- **🧠 Memory Saver** (Settings → Performance) — one switch to lower RAM: sleeps tabs sooner (10 min), discards background tabs when Vex is minimized, caps renderer processes, and disables in-RAM page caching. Restart to fully apply.
+
+### Performance
+- **Email-code autofill no longer needs never-sleep on Gmail.** It wakes a sleeping Gmail only to read the code, then puts it straight back to sleep — so Gmail costs ~0 MB between codes instead of a permanent ~300–500 MB.
+- **The hidden background Gmail reader frees itself** after a few minutes idle (it used to stay resident forever), and Chromium's always-warm **spare renderer** is disabled — both lower resting memory.
 
 ## v2.31.3 (2026-08-31) — Reliable code autofill & Custom Image
 
