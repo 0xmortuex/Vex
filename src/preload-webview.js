@@ -14,6 +14,33 @@
 //                        with a video track present but zero new decoded
 //                        frames (exactly how the TikTok HEVC bug manifested —
 //                        audio fine, one keyframe, no error event at all).
+
+// === CSP-proof main-world injection ===
+// Strict-CSP sites (Adobe auth/app pages, etc.) refuse inline <script> tags via
+// script-src, which silently killed the UA / client-hints / window.chrome patches
+// below and made those sites report an "unsupported browser". contextBridge.
+// executeInMainWorld runs the code in the page’s own world at the V8 bindings
+// level, bypassing page CSP; we fall back to the <script>-tag method only where
+// that API is unavailable (non-CSP pages, older builds).
+var __vexCB;
+try { __vexCB = require('electron').contextBridge; } catch {}
+function runInMainWorld(src) {
+  try {
+    if (__vexCB && typeof __vexCB.executeInMainWorld === 'function') {
+      __vexCB.executeInMainWorld({ func: new Function(src) });
+      return true;
+    }
+  } catch {}
+  try {
+    var s = document.createElement('script');
+    s.textContent = src;
+    (document.head || document.documentElement).appendChild(s);
+    s.remove();
+    return true;
+  } catch {}
+  return false;
+}
+
 (function () {
   'use strict';
   var ipcRenderer;
@@ -405,7 +432,7 @@
       });
     };
   }catch(e){}})();`;
-  function inject() { try { const s = document.createElement('script'); s.textContent = shimSrc; (document.head || document.documentElement).appendChild(s); s.remove(); } catch {} }
+  function inject() { runInMainWorld(shimSrc); }
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
@@ -463,7 +490,7 @@
       try{ Object.defineProperty(proto,'getHighEntropyValues',{configurable:true,writable:true,value:patched}); }catch(e){}
     }
   }catch(e){}})();`;
-  function inject() { try { const s = document.createElement('script'); s.textContent = shimSrc; (document.head || document.documentElement).appendChild(s); s.remove(); } catch {} }
+  function inject() { runInMainWorld(shimSrc); }
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
@@ -497,7 +524,7 @@
       try{ c.csi = function(){ return { startE:Date.now(), onloadT:Date.now(), pageT:Math.random()*1000, tran:15 }; }; }catch(e){}
     }
   }catch(e){}})();`;
-  function inject() { try { const el = document.createElement('script'); el.textContent = src; (document.head || document.documentElement).appendChild(el); el.remove(); } catch {} }
+  function inject() { runInMainWorld(src); }
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
