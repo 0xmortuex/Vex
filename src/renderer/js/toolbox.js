@@ -136,6 +136,73 @@ const ToolboxLib = {
     }
     return out;
   },
+  // --- Base64URL + JWT ---
+  b64urlDecode(s) {
+    try { s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); } catch { return null; }
+  },
+  jwtDecode(token) {
+    try {
+      const parts = String(token || '').trim().split('.');
+      if (parts.length < 2) return null;
+      const hd = this.b64urlDecode(parts[0]); const pl = this.b64urlDecode(parts[1]);
+      if (hd == null || pl == null) return null;
+      return { header: JSON.parse(hd), payload: JSON.parse(pl) };
+    } catch { return null; }
+  },
+  // --- Case conversion ---
+  caseConvert(text, mode) {
+    const t = String(text || '');
+    const words = (t.trim().match(/[A-Za-z0-9]+/g) || []);
+    switch (mode) {
+      case 'upper': return t.toUpperCase();
+      case 'lower': return t.toLowerCase();
+      case 'title': return t.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+      case 'sentence': return t.toLowerCase().replace(/(^\s*\w|[.!?]\s+\w)/g, c => c.toUpperCase());
+      case 'camel': return words.map((w, i) => i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('');
+      case 'snake': return words.map(w => w.toLowerCase()).join('_');
+      case 'kebab': return words.map(w => w.toLowerCase()).join('-');
+      case 'constant': return words.map(w => w.toUpperCase()).join('_');
+      default: return t;
+    }
+  },
+  // --- Password generator (crypto-random; excludes look-alike chars) ---
+  passGen(len, opts) {
+    opts = opts || {};
+    let pool = '';
+    if (opts.lower !== false) pool += 'abcdefghijkmnpqrstuvwxyz';
+    if (opts.upper !== false) pool += 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    if (opts.digits !== false) pool += '23456789';
+    if (opts.symbols) pool += '!@#$%^&*-_=+?';
+    if (!pool) pool = 'abcdefghijkmnpqrstuvwxyz';
+    len = Math.max(4, Math.min(128, len || 16));
+    const a = new Uint32Array(len);
+    try { crypto.getRandomValues(a); } catch { for (let i = 0; i < len; i++) a[i] = Math.floor(Math.random() * 4294967296); }
+    let out = ''; for (let i = 0; i < len; i++) out += pool[a[i] % pool.length];
+    return out;
+  },
+  // --- Minimal, safe Markdown -> HTML (escapes first) ---
+  mdToHtml(md) {
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const lines = String(md || '').replace(/\r/g, '').split('\n');
+    let html = '', inList = false, inCode = false;
+    const inline = (t) => esc(t)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+    for (const raw of lines) {
+      if (/^```/.test(raw)) { closeList(); if (inCode) { html += '</pre>'; inCode = false; } else { html += '<pre style="background:rgba(127,127,127,0.12);padding:8px;border-radius:6px;overflow:auto">'; inCode = true; } continue; }
+      if (inCode) { html += esc(raw) + '\n'; continue; }
+      const line = raw.trimEnd(); let m;
+      if (!line.trim()) { closeList(); continue; }
+      if ((m = line.match(/^(#{1,6})\s+(.*)$/))) { closeList(); const n = m[1].length; html += '<h' + n + '>' + inline(m[2]) + '</h' + n + '>'; }
+      else if ((m = line.match(/^\s*[-*]\s+(.*)$/))) { if (!inList) { html += '<ul>'; inList = true; } html += '<li>' + inline(m[1]) + '</li>'; }
+      else { closeList(); html += '<p>' + inline(line) + '</p>'; }
+    }
+    closeList(); if (inCode) html += '</pre>';
+    return html;
+  },
 };
 
 const Toolbox = {
@@ -150,6 +217,11 @@ const Toolbox = {
     { id: 'uuid', name: 'UUID', icon: '🆔', family: 'dev', desc: 'Generate v4 UUIDs' },
     { id: 'wordcount', name: 'Word Count', icon: '¶', family: 'write', desc: 'Words, characters, reading time' },
     { id: 'color', name: 'Color & Contrast', icon: '🎨', family: 'design', desc: 'Pick colors, convert, check WCAG contrast' },
+    { id: 'jwt', name: 'JWT Decoder', icon: '🔑', family: 'dev', desc: 'Decode a JWT — header & payload (no signature check)' },
+    { id: 'urlencode', name: 'URL Encode', icon: '%', family: 'dev', desc: 'Encode / decode URL components' },
+    { id: 'caseconvert', name: 'Case Convert', icon: 'Aa', family: 'write', desc: 'UPPER, lower, Title, camelCase, snake_case, kebab' },
+    { id: 'passgen', name: 'Password Gen', icon: '🔐', family: 'general', desc: 'Generate a strong random password' },
+    { id: 'markdown', name: 'Markdown Preview', icon: '📄', family: 'write', desc: 'Live Markdown → formatted preview' },
   ],
 
   get(id) { return this.TOOLS.find(t => t.id === id); },
@@ -335,6 +407,53 @@ const Toolbox = {
       out.innerHTML = cr ? `Contrast ratio: <b>${cr}:1</b> — ${rate(cr)} <span style="color:var(--text-muted)">(AA needs 4.5, AAA 7)</span>` : '';
     };
     c1.addEventListener('input', run); c2.addEventListener('input', run); run();
+  },
+  _jwt() {
+    const { body } = this._modal('🔑 JWT Decoder', this._ta('jw-in', 'paste a JWT (eyJ...)') + this._out('jw-out'));
+    const inEl = body.querySelector('#jw-in'), out = body.querySelector('#jw-out');
+    const run = () => {
+      const d = ToolboxLib.jwtDecode(inEl.value);
+      if (!d) { out.style.color = 'var(--danger,#ef4444)'; out.textContent = inEl.value.trim() ? 'Not a valid JWT' : ''; return; }
+      out.style.color = 'var(--text)';
+      out.textContent = 'HEADER\n' + JSON.stringify(d.header, null, 2) + '\n\nPAYLOAD\n' + JSON.stringify(d.payload, null, 2) + (d.payload && d.payload.exp ? '\n\nExpires: ' + new Date(d.payload.exp * 1000).toLocaleString() : '');
+    };
+    inEl.addEventListener('input', run);
+  },
+  _urlencode() {
+    const { body } = this._modal('% URL Encode', this._ta('ue-in', 'text or an encoded URL') + `<div style="display:flex;gap:6px;margin-top:8px"><button id="ue-enc" style="padding:7px 12px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Encode</button><button id="ue-dec" style="padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Decode</button></div>` + this._out('ue-out'));
+    const inEl = body.querySelector('#ue-in'), out = body.querySelector('#ue-out');
+    body.querySelector('#ue-enc').addEventListener('click', () => { try { out.style.color = 'var(--text)'; out.textContent = encodeURIComponent(inEl.value); } catch (e) { out.textContent = 'Error'; } });
+    body.querySelector('#ue-dec').addEventListener('click', () => { try { out.style.color = 'var(--text)'; out.textContent = decodeURIComponent(inEl.value); } catch (e) { out.style.color = 'var(--danger,#ef4444)'; out.textContent = 'Malformed URL encoding'; } });
+    body.appendChild(this._copyBtn(() => out.textContent));
+  },
+  _caseconvert() {
+    const modes = [['upper','UPPER'],['lower','lower'],['title','Title'],['sentence','Sentence'],['camel','camelCase'],['snake','snake_case'],['kebab','kebab-case'],['constant','CONSTANT']];
+    const { body } = this._modal('Aa Case Convert', this._ta('cc-in', 'type or paste text') + `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">` + modes.map(m => `<button class="cc-m" data-m="${m[0]}" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11.5px;font-family:'Outfit',sans-serif">${m[1]}</button>`).join('') + `</div>` + this._out('cc-out'));
+    const inEl = body.querySelector('#cc-in'), out = body.querySelector('#cc-out');
+    body.querySelectorAll('.cc-m').forEach(b => b.addEventListener('click', () => { out.textContent = ToolboxLib.caseConvert(inEl.value, b.dataset.m); }));
+    body.appendChild(this._copyBtn(() => out.textContent));
+  },
+  _passgen() {
+    const { body } = this._modal('🔐 Password Generator', `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><label style="font-size:12px;color:var(--text-muted)">Length</label><input id="pg-len" type="range" min="6" max="48" value="16" style="flex:1"><span id="pg-lenv" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);width:24px;text-align:right">16</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--text);margin-bottom:12px">
+        <label style="cursor:pointer"><input type="checkbox" id="pg-upper" checked> A-Z</label>
+        <label style="cursor:pointer"><input type="checkbox" id="pg-lower" checked> a-z</label>
+        <label style="cursor:pointer"><input type="checkbox" id="pg-digits" checked> 0-9</label>
+        <label style="cursor:pointer"><input type="checkbox" id="pg-symbols"> !@#$</label>
+      </div>` + this._out('pg-out') + `<div style="margin-top:8px"><button id="pg-gen" style="padding:8px 16px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">↻ Generate</button></div>`);
+    const out = body.querySelector('#pg-out'), len = body.querySelector('#pg-len'), lenv = body.querySelector('#pg-lenv');
+    const gen = () => { out.style.fontSize = '15px'; out.textContent = ToolboxLib.passGen(parseInt(len.value, 10), { upper: body.querySelector('#pg-upper').checked, lower: body.querySelector('#pg-lower').checked, digits: body.querySelector('#pg-digits').checked, symbols: body.querySelector('#pg-symbols').checked }); };
+    len.addEventListener('input', () => { lenv.textContent = len.value; gen(); });
+    body.querySelectorAll('#pg-upper,#pg-lower,#pg-digits,#pg-symbols').forEach(c => c.addEventListener('change', gen));
+    body.querySelector('#pg-gen').addEventListener('click', gen); gen();
+    body.appendChild(this._copyBtn(() => out.textContent));
+  },
+  _markdown() {
+    const { body } = this._modal('📄 Markdown Preview', this._ta('md-in', '# Hello\n\n**bold**, *italic*, `code`, [link](https://example.com)\n\n- one\n- two') + `<div id="md-out" style="margin-top:10px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;line-height:1.6;overflow:auto;max-height:42vh"></div>`);
+    const inEl = body.querySelector('#md-in'), out = body.querySelector('#md-out');
+    const run = () => { out.innerHTML = ToolboxLib.mdToHtml(inEl.value); };
+    inEl.addEventListener('input', run); run();
   },
 };
 

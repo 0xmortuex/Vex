@@ -89,3 +89,32 @@ describe('ToolboxLib cron', () => {
     expect(next[0].getMinutes()).toBe(0);
   });
 });
+
+describe('ToolboxLib jwt/case/pass/markdown', () => {
+  it('decodes a JWT header+payload', () => {
+    const tok = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMiLCJuYW1lIjoiQSJ9.sig';
+    const d = ToolboxLib.jwtDecode(tok);
+    expect(d.header.alg).toBe('HS256');
+    expect(d.payload.sub).toBe('123');
+  });
+  it('rejects a non-JWT', () => { expect(ToolboxLib.jwtDecode('nope')).toBeNull(); });
+  it('converts case', () => {
+    expect(ToolboxLib.caseConvert('hello world', 'upper')).toBe('HELLO WORLD');
+    expect(ToolboxLib.caseConvert('hello world', 'snake')).toBe('hello_world');
+    expect(ToolboxLib.caseConvert('hello world', 'camel')).toBe('helloWorld');
+    expect(ToolboxLib.caseConvert('hello world', 'kebab')).toBe('hello-world');
+    expect(ToolboxLib.caseConvert('hello world', 'constant')).toBe('HELLO_WORLD');
+  });
+  it('generates a password of the right length from the pool', () => {
+    const pw = ToolboxLib.passGen(20, { upper: false, lower: true, digits: false, symbols: false });
+    expect(pw.length).toBe(20);
+    expect(/^[abcdefghijkmnpqrstuvwxyz]+$/.test(pw)).toBe(true);
+  });
+  it('renders basic markdown safely', () => {
+    const src = ['# Hi', '', '**b** and <script>'].join(String.fromCharCode(10));
+    const h = ToolboxLib.mdToHtml(src);
+    expect(h).toContain('<h1>Hi</h1>');
+    expect(h).toContain('<strong>b</strong>');
+    expect(h).toContain('&lt;script&gt;');
+  });
+});

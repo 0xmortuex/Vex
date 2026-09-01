@@ -14,7 +14,7 @@ const WorkPanel = {
     // Not set up yet — a clear call to action into the existing picker.
     if (!job) {
       container.innerHTML = `
-        <div class="panel-header"><h2>Work</h2></div>
+        <style>#panel-work .wp-tool{transition:transform .12s ease,border-color .12s ease,background .12s ease}#panel-work .wp-tool:hover{transform:translateY(-2px);border-color:var(--primary,var(--accent))}#panel-work .wp-tool:active{transform:translateY(0)}#panel-work .wp-act:hover{border-color:var(--primary,var(--accent))}#panel-work .wp-tool .wp-ic{font-size:16px}</style><div class="panel-header"><h2>Work</h2></div>
         <div style="padding:24px 18px;text-align:center;color:var(--text)">
           <div style="font-size:34px;margin-bottom:8px">🧑‍💼</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">A Vex built for your work</div>
@@ -35,12 +35,12 @@ const WorkPanel = {
       </button>`;
 
     container.innerHTML = `
-      <div class="panel-header"><h2>Work</h2></div>
+      <style>#panel-work .wp-tool{transition:transform .12s ease,border-color .12s ease,background .12s ease}#panel-work .wp-tool:hover{transform:translateY(-2px);border-color:var(--primary,var(--accent))}#panel-work .wp-tool:active{transform:translateY(0)}#panel-work .wp-act:hover{border-color:var(--primary,var(--accent))}#panel-work .wp-tool .wp-ic{font-size:16px}</style><div class="panel-header"><h2>Work</h2></div>
       <div style="padding:0 16px 16px;overflow-y:auto;max-height:calc(100vh - 120px)">
         <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:11px;margin-bottom:14px">
           <span style="width:20px;height:20px;border-radius:6px;background:${esc(themeMeta.accent || '#6366f1')};border:1px solid var(--border);flex:none"></span>
           <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(job.name)}</div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(job.name)}</div><span style="font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);border:1px solid var(--border);border-radius:5px;padding:1px 5px;flex:none">${esc(job.cat)}</span></div>
             <div style="font-size:11px;color:var(--text-muted)">Theme: ${esc(themeMeta.label || job.theme)}</div>
           </div>
           <button id="wp-change" style="padding:6px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11.5px;font-family:'Outfit',sans-serif">Change</button>
