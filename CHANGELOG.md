@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.12 (2026-09-01) — PiP return, Work panel & site-compat
+
+### Added
+- **Work sidebar panel** — a briefcase icon opens a panel for your profession (from Job Setup): your enabled tools one click away, the current job + theme, quick actions, and a link to change job or manage tools.
+
+### Fixed
+- **Picture-in-Picture "Back to tab"** now actually returns you to the tab — it switches Vex to the video’s tab, brings the window forward, and scrolls the video back into view (before, it just closed the mini window).
+- **"Unsupported browser" pages (e.g. Adobe)** — some sites checked `window.chrome` (which Electron leaves empty) to decide Vex wasn’t a real browser. Vex now presents the real-Chrome `window.chrome` fields, so these load normally.
+
 ## v2.31.11 (2026-09-01) — More reliable code autofill
 
 ### Fixed
