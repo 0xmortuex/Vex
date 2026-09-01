@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.13 (2026-09-01) — More tools & jobs
+
+### Added
+- **5 new Toolbox tools** (now 15): JWT Decoder, URL Encode/Decode, Case Convert (UPPER/lower/Title/camelCase/snake_case/kebab/CONSTANT), Password Generator, and live Markdown Preview.
+- **22 more professions** in Job Setup (now 65) — SRE, ML/Cloud/Blockchain/API/IT/SysAdmin, Motion & 3D, Technical Writer, Blogger, Social Media, Consultant, HR, Recruiter, Operations, Statistician, Civil Engineer, Dentist, Vet, Podcaster, Streamer — each mapped to the tools they use.
+
+### Changed
+- **Work panel** polish — hover effects on tool cards and a category chip on the job header.
+
 ## v2.31.12 (2026-09-01) — PiP return, Work panel & site-compat
 
 ### Added
