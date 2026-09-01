@@ -378,14 +378,7 @@ function runInMainWorld(src) {
   })();`;
 
   function inject() {
-    try {
-      const s = document.createElement('script');
-      s.textContent = polyfillSrc;
-      (document.head || document.documentElement).appendChild(s);
-      s.remove();
-    } catch (err) {
-      console.error('[Vex Geo] inject failed:', err.message);
-    }
+    if (!runInMainWorld(polyfillSrc)) console.error('[Vex Geo] inject failed');
   }
   if (document.documentElement) inject();
   else document.addEventListener('readystatechange', inject, { once: true });
@@ -919,12 +912,7 @@ function _isVexStartPage(href) {
     }catch(e){}
   })();`;
 
-  try {
-    const s = document.createElement('script');
-    s.textContent = src;
-    (document.head || document.documentElement).appendChild(s);
-    s.remove();
-  } catch (err) { /* best-effort */ }
+  runInMainWorld(src);
 })();
 
 // === Keyboard link hints (Vimium-style) ===
