@@ -81,12 +81,14 @@ const JobProfiles = {
       }
     } catch {}
     this.renderButtons();
+    try { if (window.WorkPanel) WorkPanel.refresh(); } catch {}
   },
 
   // Clear the profile (back to plain Vex — theme left as-is).
   clear() {
     try { localStorage.removeItem('vex.job'); localStorage.removeItem('vex.jobTools'); } catch {}
     this.renderButtons();
+    try { if (window.WorkPanel) WorkPanel.refresh(); } catch {}
   },
 
   // Draw the 🧰 Toolbox button + up to 3 quick tool buttons next to the Tor

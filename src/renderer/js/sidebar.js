@@ -333,6 +333,7 @@ const SidebarManager = {
     if (panelName === 'recall' && typeof Recall !== 'undefined') Recall.renderPanel(panelEl);
     if (panelName === 'authenticator' && typeof Authenticator !== 'undefined') Authenticator.renderPanel(panelEl);
     if (panelName === 'privacy' && typeof PrivacyDashboard !== 'undefined') PrivacyDashboard.renderPanel(panelEl);
+    if (panelName === 'work' && typeof WorkPanel !== 'undefined') WorkPanel.renderPanel(panelEl);
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');
