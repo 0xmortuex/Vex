@@ -225,6 +225,7 @@ contextBridge.exposeInMainWorld('vex', {
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   getReleaseList: () => ipcRenderer.invoke('updates:list'),
   restartApp: () => ipcRenderer.invoke('app:restart'),
+  focusWindow: () => ipcRenderer.invoke('app:focus'),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),
   openAsApp: (url, title) => ipcRenderer.invoke('app:open-as-app', url, title),

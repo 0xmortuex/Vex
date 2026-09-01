@@ -155,6 +155,20 @@
   // Listen for a PiP request from the host toolbar button. Comes over the
   // webview IPC channel (wv.send), not window.postMessage — the host can't reach
   // the guest window across the process boundary.
+  // "Back to tab": Chromium's native PiP button exits PiP but, in a webview
+  // browser with no tab strip, does nothing visible — the Vex window/tab isn't
+  // brought forward and the video isn't returned to view. leavepictureinpicture
+  // bubbles to document, so catch it, scroll the video back into view + resume
+  // it, and ask the host to switch to this tab and focus the window.
+  document.addEventListener('leavepictureinpicture', (e) => {
+    try {
+      const v = e.target;
+      if (v && v.scrollIntoView) { try { v.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }
+      if (v && typeof v.play === 'function') { try { v.play().catch(() => {}); } catch {} }
+      try { ipcRenderer.sendToHost('vex-pip-left'); } catch {}
+    } catch {}
+  }, true);
+
   ipcRenderer.on('vex-request-pip', () => {
     const videos = document.querySelectorAll('video');
     const video = Array.from(videos).find(v => !v.paused) || videos[0];

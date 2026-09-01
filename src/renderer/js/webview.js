@@ -169,6 +169,17 @@ const WebviewManager = {
       // guest window.postMessage can't cross to the host). Re-emit as a host
       // window message so PiPManager (app.js) handles it unchanged. Gate on the
       // active tab so a background tab's video doesn't toggle the toolbar button.
+      // PiP "Back to tab": the guest left native PiP. Switch Vex to the tab that
+      // owns the video and bring the window forward, since Chromium's native
+      // "back to tab" can't do that in a webview browser.
+      if (e.channel === 'vex-pip-left') {
+        try {
+          const id = webview.dataset.tabId;
+          if (id && typeof TabManager !== 'undefined' && TabManager.switchTab) TabManager.switchTab(id);
+          try { window.vex && window.vex.focusWindow && window.vex.focusWindow(); } catch {}
+        } catch {}
+        return;
+      }
       if (e.channel === 'vex-video-detected' || e.channel === 'vex-pip-fallback') {
         try {
           if (typeof WebviewManager !== 'undefined' && WebviewManager.getActiveWebview && WebviewManager.getActiveWebview() !== webview && e.channel === 'vex-video-detected') return;
