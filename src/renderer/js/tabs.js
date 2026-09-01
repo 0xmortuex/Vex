@@ -1281,7 +1281,18 @@ const TabManager = {
   // === Sleep/Wake ===
   // force=true bypasses "Prevent from sleeping" (used by the manual Sleep Tab
   // menu); auto-sleep paths call without force so they respect the keep-awake.
-  _isKeptAwake(tab) { return !!(tab && tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil); },
+  // Persistent per-site "never sleep" list (set in Site Settings). Unlike the
+  // per-tab coffee timer (keepAwakeUntil), this keeps EVERY tab on the host
+  // loaded across restarts. All sleep paths (auto-sleep, memory guard, idle
+  // discard) funnel through sleepTab -> _isKeptAwake, so this one gate covers them.
+  _neverSleepHosts() { try { const a = JSON.parse(localStorage.getItem('vex.neverSleepHosts') || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); } },
+  _hostOfTab(tab) { try { return new URL(tab.url).hostname.replace(/^www./, ''); } catch { return ''; } },
+  _isKeptAwake(tab) {
+    if (!tab) return false;
+    if (tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil) return true;
+    const h = this._hostOfTab(tab);
+    return !!(h && this._neverSleepHosts().has(h));
+  },
 
   // Toggle background throttling on a LIVE tab's webContents without reloading it
   // (creation-time webpreferences can't be changed in place). Used when keep-awake

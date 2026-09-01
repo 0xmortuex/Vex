@@ -7,9 +7,12 @@ const SiteProfiles = {
   _saveZooms(z) { try { localStorage.setItem('vex.zooms', JSON.stringify(z)); } catch {} },
   _darkHosts() { try { const a = JSON.parse(localStorage.getItem('vex.forceDarkHosts') || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); } },
   _boosts() { try { return JSON.parse(localStorage.getItem('vex.boosts') || '{}') || {}; } catch { return {}; } },
+  _neverSleepHosts() { try { const a = JSON.parse(localStorage.getItem('vex.neverSleepHosts') || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); } },
+  _saveNeverSleep(set) { try { localStorage.setItem('vex.neverSleepHosts', JSON.stringify([...set])); } catch {} },
 
   _activeHost() { try { const t = TabManager.getActiveTab(); return t && t.url ? new URL(t.url).hostname.replace(/^www\./, '') : ''; } catch { return ''; } },
   _activeWebview() { try { return WebviewManager.getActiveWebview ? WebviewManager.getActiveWebview() : WebviewManager.webviews.get(TabManager.activeTabId); } catch { return null; } },
+  _hostFromUrl(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } },
 
   async open() {
     document.getElementById('vex-siteprofiles')?.remove();
@@ -36,6 +39,7 @@ const SiteProfiles = {
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
     const host = this._activeHost();
     const zooms = this._zooms(), dark = this._darkHosts(), boosts = this._boosts();
+    const never = this._neverSleepHosts();
     const z = Math.round((zooms[host] || 1) * 100);
 
     let html = `<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 12px">Per-website preferences Vex remembers automatically — zoom, forced dark mode, and custom CSS/JS. They re-apply every time you visit that site.</div>`;
@@ -51,6 +55,10 @@ const SiteProfiles = {
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
           <span style="flex:1">Force dark mode</span>
           <button id="sp-dark" style="${this._chip()}">${dark.has(host) ? '✓ On' : 'Off'}</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
+          <span style="flex:1">Never let this site sleep<br><span style="font-size:10.5px;color:var(--text-muted)">Keep it loaded in the background — skips Memory Saver &amp; auto-sleep</span></span>
+          <button id="sp-nosleep" style="${this._chip()}">${never.has(host) ? '✓ On' : 'Off'}</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:16px">
           <span style="flex:1">Custom CSS / JS ${boosts[host] ? '<span style="color:var(--primary,var(--accent))">· active</span>' : ''}</span>
@@ -102,6 +110,18 @@ const SiteProfiles = {
     body.querySelector('#sp-dark')?.addEventListener('click', (e) => {
       try { if (wv && WebviewManager.toggleForceDarkForSite) WebviewManager.toggleForceDarkForSite(wv); } catch {}
       setTimeout(() => this._paint(m), 60);
+    });
+    body.querySelector('#sp-nosleep')?.addEventListener('click', () => {
+      const set = this._neverSleepHosts();
+      if (set.has(host)) { set.delete(host); }
+      else {
+        set.add(host);
+        // Take effect now: bring the tab (and any others on this host) fully alive.
+        try { (TabManager.tabs || []).forEach(t => { if (this._hostFromUrl(t.url) === host) { if (t.sleeping) TabManager.wakeTab(t.id); else if (t._lazy) TabManager._materializeTab(t); } }); } catch {}
+      }
+      this._saveNeverSleep(set);
+      try { window.showToast?.(set.has(host) ? host + ' will stay awake' : host + ' can sleep again'); } catch {}
+      this._paint(m);
     });
     body.querySelector('#sp-boost')?.addEventListener('click', () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } catch {} m.remove(); });
     body.querySelector('#sp-zap')?.addEventListener('click', () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } catch {} m.remove(); });
