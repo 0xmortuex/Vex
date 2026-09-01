@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.15 (2026-09-01) — Site-compat tooling & per-site never-sleep
+
+### Added
+- **“Show This Site’s Browser Identity”** (Ctrl+K 🕵️) — shows what the current page sees about the browser (user-agent, Chrome brand, `window.chrome`, `navigator.webdriver`, WebGL) with a plain PASS/FAIL verdict on whether a site would flag Vex as “unsupported.” A Copy button exports the report.
+- **“Never let this site sleep”** toggle in Site Settings (🌐) — keeps a chosen site loaded in the background across restarts, skipping Memory Saver, auto-sleep, and idle discard.
+
+### Fixed
+- **Strict-CSP sites** (Adobe and similar) also apply Vex’s geolocation and anti-fingerprinting patches now — they previously used an injection method those sites’ Content-Security-Policy blocked, so location and fingerprint protection silently didn’t run there. Both now use the same CSP-proof path as the v2.31.14 browser-identity fix.
+
 ## v2.31.14 (2026-09-01) — Adobe & strict-CSP sites
 
 ### Fixed
