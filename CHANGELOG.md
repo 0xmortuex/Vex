@@ -8,6 +8,7 @@
 
 ### Changed
 - **Work panel** polish — hover effects on tool cards and a category chip on the job header.
+- **Clear This Site’s Data & Reload** command (`Ctrl+K`) — wipes a site’s cookies, storage, and cached responses and hard-reloads, fixing stale “unsupported browser” redirects, login glitches, and paywalls.
 
 ## v2.31.12 (2026-09-01) — PiP return, Work panel & site-compat
 
