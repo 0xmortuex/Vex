@@ -467,6 +467,40 @@
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === Real-Chrome window.chrome shim (main world) ===
+// Electron leaves window.chrome an EMPTY object, but real Chrome exposes
+// chrome.runtime / app / loadTimes / csi. Strict browser sniffers (Adobe's
+// "unsupported browser" page, some paywalls/anti-bot checks) read those and, on
+// finding them missing, decide Vex isn't a real browser and block it. Fill in
+// the well-known fields with harmless stubs so those checks pass. Runs in the
+// page's own world (an isolated-world preload never touches the page's window).
+(function () {
+  let proto = '';
+  try { proto = (window.location && window.location.protocol) || ''; } catch { return; }
+  if (!(proto === 'http:' || proto === 'https:')) return;
+  const src = `(function(){try{
+    var w = window;
+    if(!w.chrome) { try{ w.chrome = {}; }catch(e){ return; } }
+    var c = w.chrome;
+    if(!c.runtime){
+      var noop=function(){};
+      var evt=function(){return {addListener:noop,removeListener:noop,hasListener:function(){return false;}};};
+      try{ c.runtime = { id: undefined, connect:function(){return {postMessage:noop,disconnect:noop,onMessage:evt(),onDisconnect:evt()};}, sendMessage:noop, onMessage:evt(), onConnect:evt(), onInstalledDetails:{}, PlatformOs:{MAC:'mac',WIN:'win',ANDROID:'android',CROS:'cros',LINUX:'linux',OPENBSD:'openbsd'} }; }catch(e){}
+    }
+    if(!c.app){
+      try{ c.app = { isInstalled:false, InstallState:{DISABLED:'disabled',INSTALLED:'installed',NOT_INSTALLED:'not_installed'}, RunningState:{CANNOT_RUN:'cannot_run',READY_TO_RUN:'ready_to_run',RUNNING:'running'}, getDetails:function(){return null;}, getIsInstalled:function(){return false;} }; }catch(e){}
+    }
+    if(typeof c.loadTimes !== 'function'){
+      try{ c.loadTimes = function(){ var t=Date.now()/1000; return { requestTime:t, startLoadTime:t, commitLoadTime:t, finishDocumentLoadTime:t, finishLoadTime:t, firstPaintTime:t, firstPaintAfterLoadTime:0, navigationType:'Other', wasFetchedViaSpdy:true, wasNpnNegotiated:true, npnNegotiatedProtocol:'h2', wasAlternateProtocolAvailable:false, connectionInfo:'h2' }; }; }catch(e){}
+    }
+    if(typeof c.csi !== 'function'){
+      try{ c.csi = function(){ return { startE:Date.now(), onloadT:Date.now(), pageT:Math.random()*1000, tran:15 }; }; }catch(e){}
+    }
+  }catch(e){}})();`;
+  function inject() { try { const el = document.createElement('script'); el.textContent = src; (document.head || document.documentElement).appendChild(el); el.remove(); } catch {} }
+  if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
+})();
+
 // === Smart Searchbar suggest bridge (start page only) ===
 // The start page is a sandboxed webview guest with contextIsolation, so it
 // cannot reach the main renderer's window.vex IPC. It needs Google Suggest
