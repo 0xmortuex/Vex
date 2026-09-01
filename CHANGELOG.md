@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.14 (2026-09-01) — Adobe & strict-CSP sites
+
+### Fixed
+- **Adobe “unsupported browser” (Tarayıcı desteklenmiyor)** is fixed. Adobe’s sign-in and web-app pages send a strict Content-Security-Policy that blocked the way Vex injected its “real Chrome” identity, so on those pages `navigator.userAgentData` reported only “Chromium” and Adobe rejected the browser. Vex now applies those patches in a CSP-proof way, so the Chrome brand and `window.chrome` are present everywhere — not just on lax-CSP pages. This also hardens other strict-CSP sites against the same class of “unsupported browser” / verification failures.
+
 ## v2.31.13 (2026-09-01) — More tools & jobs
 
 ### Added
