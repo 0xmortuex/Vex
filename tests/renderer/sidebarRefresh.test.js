@@ -81,6 +81,39 @@ describe('makeRefreshAction', () => {
     });
   });
 
+  describe('stale reference / reload failure hardening', () => {
+    it('reloads the LIVE panel <webview> from the DOM, not a stale stored ref', () => {
+      // Simulate a re-mounted panel: the stored ref is a detached node, while the
+      // real, attached webview lives in #panel-claude. Tests run in the node env
+      // (no DOM), so stub the document lookup makeRefreshAction uses.
+      const staleWv = fakeWebview();
+      const liveWv = { reload: vi.fn(), tagName: 'WEBVIEW' };
+      const panelEl = { querySelector: (sel) => (sel === 'webview' ? liveWv : null) };
+      globalThis.document = { getElementById: (id) => (id === 'panel-claude' ? panelEl : null) };
+
+      try {
+        const m = fakeManager({ activePanel: 'claude', panelWebviews: { claude: staleWv } });
+        makeRefreshAction(m, 'claude')();
+        expect(liveWv.reload).toHaveBeenCalledTimes(1);
+        expect(staleWv.reload).not.toHaveBeenCalled();
+      } finally {
+        delete globalThis.document;
+      }
+    });
+
+    it('falls back to loadURL(cfg.url) when reload() throws', () => {
+      const wv = { reload: vi.fn(() => { throw new Error('not attached'); }), loadURL: vi.fn() };
+      const m = fakeManager({
+        panelWebviews: { spotify: wv },
+        panelConfigs: { spotify: { url: 'https://open.spotify.com/' } },
+      });
+
+      expect(() => makeRefreshAction(m, 'spotify')()).not.toThrow();
+      expect(wv.reload).toHaveBeenCalled();
+      expect(wv.loadURL).toHaveBeenCalledWith('https://open.spotify.com/');
+    });
+  });
+
   describe('returned function is reusable', () => {
     it('captures panelName at factory time', () => {
       const claudeWv = fakeWebview();

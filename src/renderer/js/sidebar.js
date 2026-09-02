@@ -10,7 +10,18 @@
 //     one and load the URL, which is functionally a "first refresh".
 function makeRefreshAction(manager, panelName) {
   return () => {
-    const wv = manager.panelWebviews && manager.panelWebviews[panelName];
+    // Resolve the panel's webview. Prefer the LIVE <webview> in the panel's DOM
+    // over the stored reference: after a service switch, re-mount or hide/show,
+    // panelWebviews[panelName] can point at a node that's no longer in the DOM,
+    // and reload() on a detached node is a silent no-op — the "Refresh does
+    // nothing" this fixes. The stored ref is the fallback (and is what the unit
+    // tests exercise, since jsdom has no panel element).
+    let wv = manager.panelWebviews && manager.panelWebviews[panelName];
+    try {
+      const panelEl = typeof document !== 'undefined' && document.getElementById('panel-' + panelName);
+      const domWv = panelEl && typeof panelEl.querySelector === 'function' && panelEl.querySelector('webview');
+      if (domWv) wv = domWv;
+    } catch {}
     if (wv && typeof wv.reload === 'function') {
       if (manager.activePanel !== panelName && typeof manager.showPanel === 'function') {
         manager.showPanel(panelName);
@@ -19,7 +30,15 @@ function makeRefreshAction(manager, panelName) {
         wv.reload();
         console.log('[Sidebar] Refresh:', panelName);
       } catch (err) {
-        console.error('[Sidebar] Refresh failed for', panelName, '-', err);
+        // reload() throws when the element isn't attached/dom-ready yet — re-load
+        // the panel's URL instead so Refresh still does something visible.
+        console.warn('[Sidebar] reload() failed for', panelName, '— reloading URL:', err && err.message);
+        try {
+          const cfg = manager.panelConfigs && manager.panelConfigs[panelName];
+          const url = (cfg && cfg.url) || (typeof wv.getURL === 'function' ? wv.getURL() : '');
+          if (url && typeof wv.loadURL === 'function') wv.loadURL(url);
+          else if (url && typeof wv.setAttribute === 'function') wv.setAttribute('src', url);
+        } catch (e2) { console.error('[Sidebar] Refresh failed for', panelName, '-', e2 && e2.message); }
       }
     } else if (typeof manager.openPanel === 'function') {
       manager.openPanel(panelName);
