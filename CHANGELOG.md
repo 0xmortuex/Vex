@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.16 (2026-09-02) — Sidebar Refresh fix
+
+### Fixed
+- **Right-click → Refresh on a sidebar app/site button** could silently do nothing. It reloaded a stored reference to the panel’s page that could go stale after switching the panel’s service, re-mounting, or hiding and re-showing it — reloading a detached page is a no-op. Refresh now finds the panel’s live page and reloads it, and if that fails it re-opens the panel’s URL, so it always does something.
+
 ## v2.31.15 (2026-09-01) — Site-compat tooling & per-site never-sleep
 
 ### Added
