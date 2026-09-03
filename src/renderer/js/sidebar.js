@@ -1043,14 +1043,21 @@ const SidebarManager = {
             try {
               const r = await window.vex?.installVencordLocal?.();
               if (r && r.ok) {
-                // Make the result unmissable: switch to the Discord panel and
-                // reload it so Vencord re-injects, then tell the user where the
-                // feature lives (a background toast alone read as "nothing
-                // happened"). showPanel opens it if it wasn't already open.
-                const wv = this.panelWebviews['discord'];
+                // Fully RECREATE the Discord panel webview (don't just reload it):
+                // a reloaded webContents can keep running the previously-loaded
+                // Vencord build, so an updated plugin wouldn't show up. A brand-new
+                // webview binds the freshly-installed extension. Then switch to it
+                // so the result is unmissable, and say where the feature lives.
+                try {
+                  const old = this.panelWebviews['discord'];
+                  if (old) { try { old.remove(); } catch {} }
+                  delete this.panelWebviews['discord'];
+                  const panelEl = document.getElementById('panel-discord');
+                  if (panelEl) { try { panelEl.querySelector('.panel-navbar')?.remove(); } catch {} }
+                  if (this.activePanel === 'discord') this.activePanel = null;
+                } catch {}
                 this.showPanel('discord');
-                if (wv) { try { wv.reload(); } catch {} }
-                window.showToast?.(`Vencord ${r.version || ''} installed. In Discord, right-click a server → “Export/Bulk Export Servers”.`, 'success');
+                window.showToast?.(`Vencord ${r.version || ''} installed. In Discord, right-click a server → “Bulk Export Servers”.`, 'success');
               } else {
                 const why = (r && r.error) || 'unknown';
                 window.showToast?.('Vencord install failed: ' + why, 'error');

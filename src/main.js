@@ -1764,16 +1764,25 @@ function _findLocalVencordZip(customPath) {
       return /\.zip$/i.test(p) ? p : null;
     } catch { return null; }
   };
+  // An explicit path always wins. Otherwise gather every candidate that exists
+  // and pick the MOST RECENTLY BUILT zip — so a fresh `pnpm buildWeb` always
+  // wins over a stale path saved in vencord-local.json from an older build (the
+  // cause of "I reinstalled but it's still the old plugin").
+  if (customPath) { const r = tryResolve(customPath); if (r) return r; }
   const cands = [];
-  if (customPath) cands.push(customPath);
+  cands.push('C:\\vencord-dev\\dist\\extension-chrome.zip');
+  cands.push('C:\\vencord-dev');
   try {
     const cfg = JSON.parse(fs.readFileSync(path.join(userDataPath, 'vencord-local.json'), 'utf8'));
     if (cfg && cfg.path) cands.push(cfg.path);
   } catch {}
-  cands.push('C:\\vencord-dev\\dist\\extension-chrome.zip');
-  cands.push('C:\\vencord-dev');
-  for (const c of cands) { const r = tryResolve(c); if (r) return r; }
-  return null;
+  const resolved = [];
+  for (const c of cands) { const r = tryResolve(c); if (r && !resolved.includes(r)) resolved.push(r); }
+  if (!resolved.length) return null;
+  resolved.sort((a, b) => {
+    try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch { return 0; }
+  });
+  return resolved[0];
 }
 ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
   try {
