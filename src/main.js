@@ -1477,6 +1477,36 @@ function _extEntries() {
     .filter(Boolean);
 }
 
+// Diagnostic log for the local-Vencord install flow — appended to
+// <userData>/vencord-install.log so a failure on a user's machine is
+// inspectable instead of a silent "nothing happened".
+function _vlog(msg) {
+  try { fs.appendFileSync(path.join(userDataPath, 'vencord-install.log'), `[${new Date().toISOString()}] ${msg}\n`); } catch {}
+}
+
+// Keep only the NEWEST vencord-* extension folder; remove the rest. Two Vencord
+// builds loaded at once conflict — whichever registers window.Vencord first wins,
+// and that's usually the OLDER one, so a freshly-installed build appears to do
+// nothing (exactly the "still the old plugin" report). Called at startup BEFORE
+// loadExtension (files aren't locked yet, so a delete that failed mid-session
+// succeeds here) and right after an install. Best-effort.
+function _dedupeVencordFolders() {
+  try {
+    const vc = fs.readdirSync(extensionsDir, { withFileTypes: true })
+      .filter(e => e.isDirectory() && e.name.startsWith('vencord-'))
+      .map(e => ({ name: e.name, path: path.join(extensionsDir, e.name) }));
+    if (vc.length <= 1) return;
+    vc.sort((a, b) => {
+      try { return fs.statSync(b.path).mtimeMs - fs.statSync(a.path).mtimeMs; } catch { return 0; }
+    });
+    _vlog(`dedupe: ${vc.length} vencord folders; keeping ${vc[0].name}`);
+    for (let i = 1; i < vc.length; i++) {
+      try { fs.rmSync(vc[i].path, { recursive: true, force: true }); _vlog(`dedupe: removed ${vc[i].name}`); }
+      catch (e) { _vlog(`dedupe: could NOT remove ${vc[i].name} (${e.message})`); }
+    }
+  } catch (e) { _vlog(`dedupe error: ${e.message}`); }
+}
+
 async function _loadExtensionEverywhere(extPath) {
   const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))];
   let loaded = null;
@@ -1492,6 +1522,9 @@ async function _loadExtensionEverywhere(extPath) {
 }
 
 async function loadAllExtensionsOnStartup() {
+  // Collapse any duplicate Vencord builds to the newest BEFORE loading, so a
+  // stale build left behind by a locked-file delete can't shadow the new one.
+  _dedupeVencordFolders();
   for (const entry of _extEntries()) {
     try {
       const ext = await _loadExtensionEverywhere(entry.path);
@@ -1710,7 +1743,8 @@ function _removeExtBySlugPrefix(prefix) {
       for (const ses of [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))]) {
         try { for (const ex of ses.getAllExtensions()) if (path.resolve(ex.path) === path.resolve(e.path)) ses.removeExtension(ex.id); } catch {}
       }
-      try { fs.rmSync(e.path, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(e.path, { recursive: true, force: true }); if (prefix === 'vencord') _vlog(`removeOld: deleted ${e.folder}`); }
+      catch (err) { if (prefix === 'vencord') _vlog(`removeOld: FAILED to delete ${e.folder} (${err.message}) — unloaded from sessions, will be deduped next startup`); }
     }
   } catch {}
 }
@@ -1785,16 +1819,23 @@ function _findLocalVencordZip(customPath) {
   return resolved[0];
 }
 ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
+  _vlog(`install-local: START (customPath=${customPath || 'none'})`);
   try {
     const zipPath = _findLocalVencordZip(customPath);
+    _vlog(`install-local: zip = ${zipPath || 'NOT FOUND'}`);
     if (!zipPath) return { ok: false, error: 'No local Vencord build found. Build it first: cd vencord-dev && pnpm buildWeb' };
     const buf = fs.readFileSync(zipPath);
+    _vlog(`install-local: read ${buf ? buf.length : 0} bytes`);
     if (!buf || buf.length < 50000) return { ok: false, error: 'build zip too small / not a real build' };
     try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
+    _vlog(`install-local: before=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
     _removeExtBySlugPrefix('vencord');
     const r = await _installExtFromZipBuffer(buf, 'vencord');
+    _dedupeVencordFolders();
+    _vlog(`install-local: result ok=${r.ok} ${r.ok ? 'v' + r.version : 'err=' + r.error} after=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
     return r.ok ? { ...r, source: zipPath } : r;
   } catch (e) {
+    _vlog(`install-local: EXCEPTION ${(e && e.stack) || e}`);
     return { ok: false, error: (e && e.message) || 'install failed' };
   }
 });
