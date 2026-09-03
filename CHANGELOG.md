@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.17 (2026-09-02) — Panel nav, auto-refresh codes & Tor fix
+
+### Added
+- **Back / Forward / Reload on every sidebar app panel** (Spotify, Claude, pinned sites, …), not just Discord. Panels aren’t tabs, so the main toolbar couldn’t drive them — now each has its own slim bar, and the buttons always act on the panel’s current page.
+
+### Fixed
+- **Email-code autofill now refreshes your inbox for you.** It used to read whatever Gmail already had on screen, so a code often only appeared after you refreshed Gmail yourself. It now keeps prodding the inbox to fetch new mail (clicking Gmail’s own Refresh, harmlessly) for ~90s until the code arrives, then fills it.
+- **Tor wouldn’t start — “tar module missing”** after the download hit 100%. The component that unpacks Tor wasn’t bundled into the app. It’s included now, so Tor extracts and launches. (If Tor Browser or the tor service is already running on your machine, Vex still uses that instead.)
+
 ## v2.31.16 (2026-09-02) — Sidebar Refresh fix
 
 ### Fixed
