@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.21 (2026-09-03) — Master Volume boosts more sites
+
+### Fixed
+- **Master Volume boost above 100% now works on far more sites.** Boosting louder than the source needs Web Audio, which stays silent on cross-origin video/audio unless the media allows it — so those sites were stuck at 100%. Vex now makes media cross-origin-friendly and re-routes it so the boost applies, keeping playback going. (DRM video like Netflix/Disney+ still can’t be boosted past 100% — its audio is protected.)
+
 ## v2.31.20 (2026-09-03) — Vencord build self-heal + install log
 
 ### Fixed
