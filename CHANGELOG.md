@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.20 (2026-09-03) — Vencord build self-heal + install log
+
+### Fixed
+- **“Install my Vencord build” could keep loading an OLD build** when a previous build’s files were still in use (e.g. the Discord panel was open), so two builds loaded at once and the older one won. Vex now keeps only the newest build — at startup (before the files are locked) and right after installing — so a fresh build actually takes over. A restart clears any stuck old build for good.
+
+### Changed
+- Installing a local Vencord build now writes a small log to `vencord-install.log` (in the app data folder) recording each step, to make any install problem diagnosable.
+
 ## v2.31.19 (2026-09-03) — Local Vencord install loads the latest build
 
 ### Fixed
