@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.18 (2026-09-03) — Clearer Vencord build install
+
+### Fixed
+- **“Install my Vencord build (custom plugins)” felt like it did nothing.** It was actually installing (and Vencord was loading into the Discord panel), but the only sign was a brief toast and a background reload. It now switches to the Discord panel and reloads it so you see the change, with a clear message — and if the build can’t be found it explains how to produce it (`pnpm buildWeb`).
+
 ## v2.31.17 (2026-09-02) — Panel nav, auto-refresh codes & Tor fix
 
 ### Added
