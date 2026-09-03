@@ -25,6 +25,18 @@ const MasterVolume = {
   _onKey: null,
   _onDoc: null,
 
+  // Major DRM (Widevine/EME) video services whose audio can't be boosted past
+  // 100% — Web Audio isn't allowed to touch protected media. Used to show a note
+  // in the popup so the slider isn't a mystery on those sites.
+  _DRM_HOSTS: /(^|\.)(netflix\.com|disneyplus\.com|hotstar\.com|primevideo\.com|max\.com|hbomax\.com|hulu\.com|peacocktv\.com|paramountplus\.com|tv\.apple\.com)$/i,
+  _activeHostIsDrm() {
+    try {
+      const t = (typeof TabManager !== 'undefined') && TabManager.getActiveTab && TabManager.getActiveTab();
+      if (!t || !t.url) return false;
+      return this._DRM_HOSTS.test(new URL(t.url).hostname.replace(/^www\./, ''));
+    } catch { return false; }
+  },
+
   level() {
     try { const v = parseFloat(localStorage.getItem(this.KEY)); return (Number.isFinite(v) && v >= 0 && v <= this.MAX) ? v : 1; }
     catch { return 1; }
@@ -141,19 +153,24 @@ const MasterVolume = {
         <input class="mastervol-slider" type="range" min="0" max="500" step="5" value="${pct}">
       </div>
       <div class="mastervol-ticks"><span>0</span><span>100</span><span>250</span><span>500%</span></div>
-      <div class="mastervol-sub">Applies to every tab &amp; panel · above 100% boosts louder than the source</div>`;
+      <div class="mastervol-sub">Applies to every tab &amp; panel · above 100% boosts louder than the source</div>
+      <div class="mastervol-drm" hidden>🔒 This site's audio is DRM‑protected (Netflix / Disney+ / Prime), so it can't be boosted past 100% here — that's a streaming restriction, not a Vex limit. To make those louder, use a Windows system booster like <b>Equalizer APO</b> (free).</div>`;
     document.body.appendChild(el);
     this._el = el;
 
     const slider = el.querySelector('.mastervol-slider');
     const pctEl = el.querySelector('.mastervol-pct');
     const mute = el.querySelector('.mastervol-mute');
+    const drmNote = el.querySelector('.mastervol-drm');
+    const isDrm = this._activeHostIsDrm();
     let lastNonZero = pct || 100;
     const set = (p) => {
       p = Math.max(0, Math.min(500, Math.round(p)));
       slider.value = p; pctEl.textContent = p + '%';
       pctEl.style.color = p > 100 ? 'var(--warning, #e8b84a)' : 'var(--primary, #6366f1)';
       mute.textContent = p === 0 ? '🔇' : '🔊';
+      // On DRM streaming sites, explain why boost above 100% won't take effect.
+      if (drmNote) drmNote.hidden = !(p > 100 && isDrm);
       if (p > 0) lastNonZero = p;
       this.apply(p / 100);
     };
@@ -199,6 +216,9 @@ const MasterVolume = {
       .mastervol-slider{flex:1;accent-color:var(--primary,#6366f1);height:4px;cursor:pointer;}
       .mastervol-ticks{display:flex;justify-content:space-between;font-size:9.5px;color:var(--text-muted,#9a9aa5);margin-top:4px;padding:0 28px 0 32px;}
       .mastervol-sub{margin-top:10px;font-size:11px;color:var(--text-muted,#9a9aa5);line-height:1.4;}
+      .mastervol-drm{margin-top:8px;padding:8px 10px;font-size:11px;line-height:1.45;border-radius:8px;
+        color:var(--text,#e9e9ee);background:rgba(232,184,74,0.12);border:1px solid rgba(232,184,74,0.4);}
+      .mastervol-drm[hidden]{display:none;}
     `;
     document.head.appendChild(st);
   },

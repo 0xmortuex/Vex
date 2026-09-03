@@ -1505,17 +1505,28 @@ function _vlog(msg) {
 // succeeds here) and right after an install. Best-effort.
 function _dedupeVencordFolders() {
   try {
-    const vc = fs.readdirSync(extensionsDir, { withFileTypes: true })
+    const all = fs.readdirSync(extensionsDir, { withFileTypes: true })
       .filter(e => e.isDirectory() && e.name.startsWith('vencord-'))
       .map(e => ({ name: e.name, path: path.join(extensionsDir, e.name) }));
-    if (vc.length <= 1) return;
-    vc.sort((a, b) => {
+    // A vencord- folder WITHOUT a manifest.json can't load (stale/disabled/corrupt)
+    // — drop it outright so it can never be "kept" over a real build and shadow it.
+    // (This is what broke Vencord once: a disabled folder had a newer mtime and the
+    // old keep-newest logic kept it while deleting the working build.)
+    const valid = [];
+    for (const v of all) {
+      if (fs.existsSync(path.join(v.path, 'manifest.json'))) { valid.push(v); continue; }
+      try { fs.rmSync(v.path, { recursive: true, force: true }); _vlog(`dedupe: removed manifest-less ${v.name}`); }
+      catch (e) { _vlog(`dedupe: could NOT remove manifest-less ${v.name} (${e.message})`); }
+    }
+    if (valid.length <= 1) return;
+    // Keep the newest VALID build; remove the rest.
+    valid.sort((a, b) => {
       try { return fs.statSync(b.path).mtimeMs - fs.statSync(a.path).mtimeMs; } catch { return 0; }
     });
-    _vlog(`dedupe: ${vc.length} vencord folders; keeping ${vc[0].name}`);
-    for (let i = 1; i < vc.length; i++) {
-      try { fs.rmSync(vc[i].path, { recursive: true, force: true }); _vlog(`dedupe: removed ${vc[i].name}`); }
-      catch (e) { _vlog(`dedupe: could NOT remove ${vc[i].name} (${e.message})`); }
+    _vlog(`dedupe: ${valid.length} valid vencord folders; keeping ${valid[0].name}`);
+    for (let i = 1; i < valid.length; i++) {
+      try { fs.rmSync(valid[i].path, { recursive: true, force: true }); _vlog(`dedupe: removed ${valid[i].name}`); }
+      catch (e) { _vlog(`dedupe: could NOT remove ${valid[i].name} (${e.message})`); }
     }
   } catch (e) { _vlog(`dedupe error: ${e.message}`); }
 }
