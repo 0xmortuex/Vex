@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.19 (2026-09-03) — Local Vencord install loads the latest build
+
+### Fixed
+- **“Install my Vencord build” could keep running your OLD build** (e.g. it still showed only the old plugin features after you rebuilt). Vex now always installs the most recently built `extension-chrome.zip`, and fully recreates the Discord panel afterward so the freshly-installed plugins actually load instead of a reload keeping the previous version.
+
 ## v2.31.18 (2026-09-03) — Clearer Vencord build install
 
 ### Fixed
