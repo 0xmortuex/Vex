@@ -25,7 +25,7 @@ function makeAutofill(readsFn) {
   return { A, injected, logs };
 }
 
-async function run(A, iterations = 25) {
+async function run(A, iterations = 32) {   // must exceed tryFill's poll-loop length
   const loginWv = { isConnected: true };
   const p = A.tryFill(loginWv, 'https://accounts.spotify.com/login');
   for (let k = 0; k < iterations; k++) await vi.advanceTimersByTimeAsync(3100);

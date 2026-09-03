@@ -186,6 +186,27 @@ const EmailCodeAutofill = {
 
   _isHiddenReader(wv) { return !!(wv && wv.id === 'vex-gmail-reader'); },
 
+  // Force the inbox to pull new mail. A hidden/backgrounded Gmail SPA can sit on
+  // a stale inbox until refreshed — which is exactly why a code only appeared
+  // after the user hit refresh themselves. We click the inbox's OWN Refresh
+  // control (non-destructive — identical to the user clicking it), so this is
+  // safe even on the user's visible mail tab. Only fall back to a hard reload on
+  // a webview WE own (the hidden reader or a tab we woke) — never yank the
+  // user's foreground mail out from under them.
+  async _refreshInbox(mailWv, provider) {
+    try {
+      const soft = `(function(){try{
+        var b=document.querySelector('[aria-label="Refresh"],[data-tooltip="Refresh"],div.T-I.nu,button[aria-label*="Refresh"],button[title*="Refresh"]');
+        if(b){b.click();return 1;} return 0;
+      }catch(e){return 0;}})()`;
+      let clicked = 0;
+      try { clicked = await mailWv.executeJavaScript(soft); } catch {}
+      if (!clicked && (this._isHiddenReader(mailWv) || this._autoWoken)) {
+        try { mailWv.reload(); } catch {}
+      }
+    } catch {}
+  },
+
   // Open the newest UNREAD verification-looking email in the (hidden) reader,
   // read its body text, then return to the inbox. Best-effort; returns a code or
   // null. Only ever called on the hidden reader (see _readInbox).
@@ -286,10 +307,11 @@ const EmailCodeAutofill = {
       if (!loginWv || !/^https:/i.test(url || '')) return;
       if (this._running) return;                                 // one poll at a time
       this._running = true;
+      this._lastInboxRefresh = 0;                                // refresh throttle, per attempt
       let sawField = false, plausible = false;
       let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
       let filled = false, sawMail = false, sawLoaded = false;
-      for (let i = 0; i < 22; i++) {
+      for (let i = 0; i < 30; i++) {   // ~90s of polling, refreshing the inbox as it goes
         if (loginWv.isConnected === false) break;
         const hasField = await this._hasEmptyCodeField(loginWv);
         if (hasField) { sawField = true; plausible = true; }
@@ -331,6 +353,16 @@ const EmailCodeAutofill = {
                   this._log(url, ok, readyUnread ? 'unread-baseline' : 'strong-baseline'); filled = true;
                   if (ok) { this._toast(); this._maybeAutoSubmit(loginWv); break; }
                 }
+              }
+              // Keep the inbox syncing so a freshly-sent code appears without the
+              // user refreshing Gmail. Whenever we've read a loaded inbox but
+              // nothing new has filled yet, prod it to fetch new mail (throttled,
+              // fire-and-forget — the next read a few seconds later sees the
+              // result). This is the core of "keep refreshing until the code
+              // arrives."
+              if (!filled && (Date.now() - (this._lastInboxRefresh || 0) > 9000)) {
+                this._lastInboxRefresh = Date.now();
+                this._refreshInbox(found.wv, found.provider);
               }
             }
           }
