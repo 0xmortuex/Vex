@@ -5,11 +5,15 @@
 //
 // Boost >100% (and reliable control even when a site manages its own volume)
 // needs Web Audio: we tap each media element through a GainNode → destination
-// and set gain.value. Caveat: routing a CROSS-ORIGIN element (no CORS) through
-// Web Audio would silence it, so for those we fall back to element.volume
-// (0–100%, no boost). Streaming players (YouTube/Netflix/Spotify) use MSE/blob:
-// sources, which are same-origin → full gain/boost works. The gain graph also
-// can't be created if the site already tapped the element (rare) — falls back too.
+// and set gain.value. Routing a CROSS-ORIGIN element through Web Audio would
+// silence it unless it's CORS-clean — so Vex adds Access-Control-Allow-Origin to
+// media responses (main process) and this script flips such elements to
+// crossOrigin="anonymous" and reloads them (preserving position) so they become
+// tappable and boost too. DRM/EME media (Netflix/Disney+) still can't be tapped
+// (protected audio) — those stay on element.volume (0–100%). Streaming players
+// (YouTube/Spotify) use MSE/blob: sources, which are same-origin → boost directly.
+// If the site already tapped the element (rare) the gain graph can't be created —
+// falls back to element.volume.
 //
 // Level (a gain multiplier, 1 = 100%) persists in localStorage 'vex.masterVolume'
 // and is re-applied to new pages on dom-ready (wired in webview.js).
@@ -43,31 +47,56 @@ const MasterVolume = {
       function canTap(m){ try{ if(m.mediaKeys) return false; }catch(e){} return sameOrigin(m); }
       var map=new WeakMap();
       var st={g:target};
+      function isDrm(m){ try{ return !!m.mediaKeys; }catch(e){ return false; } }
+      function tap(m){
+        var c=getCtx();
+        if(c && c.state!=='running'){ resume(); }
+        if(c && c.state==='running'){
+          try{
+            var src=c.createMediaElementSource(m);
+            var gn=c.createGain(); gn.gain.value=st.g;
+            src.connect(gn); gn.connect(c.destination);
+            map.set(m,{gain:gn});
+            try{ m.volume=1; }catch(e){}
+            return true;
+          }catch(e){}
+        }
+        return false;
+      }
+      // Boost above 100% needs Web Audio, which SILENCES a cross-origin media
+      // element unless it's CORS-clean. Vex adds Access-Control-Allow-Origin to
+      // media responses (main process), so we can flip the element to
+      // crossOrigin="anonymous" and reload it (preserving position) to make it
+      // tappable. On CORS failure we revert to plain volume. DRM is never touched.
+      function makeCors(m){
+        try{
+          var srcUrl=m.currentSrc||m.src||'';
+          if(!srcUrl || srcUrl.lastIndexOf('blob:',0)===0 || srcUrl.lastIndexOf('data:',0)===0) return false;
+          var t=0; try{ t=m.currentTime; }catch(e){}
+          var wasPlaying=!m.paused;
+          map.set(m,{gain:null,corsTried:true});
+          m.crossOrigin='anonymous';
+          var onErr=function(){ try{ m.removeEventListener('error',onErr); m.crossOrigin=null; m.load(); try{ m.currentTime=t; }catch(e){} if(wasPlaying) m.play().catch(function(){}); }catch(e){} };
+          var onReady=function(){ try{ m.removeEventListener('canplay',onReady); m.currentTime=t; }catch(e){} if(wasPlaying) m.play().catch(function(){}); resume(); hook(m); };
+          m.addEventListener('error',onErr,{once:true});
+          m.addEventListener('canplay',onReady,{once:true});
+          m.load();
+          if(wasPlaying) m.play().catch(function(){});
+          return true;
+        }catch(e){ return false; }
+      }
       function hook(m){
         try{
           var rec=map.get(m);
           if(rec&&rec.gain){ rec.gain.gain.value=st.g; return; }
-          // Boost path: ONLY reroute through Web Audio when the context is
-          // actually running — rerouting into a suspended context silences the
-          // media. Until it's running we stay on element.volume (no silence),
-          // and re-hook on resume to upgrade to boost.
-          if(st.g>1 && canTap(m)){
-            var c=getCtx();
-            if(c && c.state!=='running'){ resume(); }
-            if(c && c.state==='running'){
-              try{
-                var src=c.createMediaElementSource(m);
-                var gn=c.createGain(); gn.gain.value=st.g;
-                src.connect(gn); gn.connect(c.destination);
-                map.set(m,{gain:gn});
-                try{ m.volume=1; }catch(e){}
-                return;
-              }catch(e){}
-            }
+          if(st.g>1 && !isDrm(m)){
+            if(canTap(m)){ if(tap(m)) return; }
+            // Cross-origin, not yet tried: convert to CORS + reload, then re-hook.
+            else if(!(rec&&rec.corsTried)){ if(makeCors(m)) return; }
           }
-          // 0–100% (or context not ready yet): plain element.volume — reliable.
+          // 0–100% (or boost couldn't engage): plain element.volume — reliable.
           try{ m.volume=Math.min(1,st.g); }catch(e){}
-          if(!(rec&&rec.gain)) map.set(m,{gain:null});
+          if(!(rec&&rec.gain)) map.set(m,{gain:null, corsTried: !!(rec&&rec.corsTried)});
         }catch(e){}
       }
       function applyAll(){ try{ document.querySelectorAll('video,audio').forEach(hook); }catch(e){} }

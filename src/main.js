@@ -1243,6 +1243,19 @@ const CHROME_MAJOR = CHROME_FULL_VERSION.split('.')[0];
 const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`;
 const CH_UA = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="99"`;
 const CH_UA_FULL = `"Chromium";v="${CHROME_FULL_VERSION}", "Google Chrome";v="${CHROME_FULL_VERSION}", "Not-A.Brand";v="99.0.0.0"`;
+// Add Access-Control-Allow-Origin to MEDIA responses so cross-origin <video>/
+// <audio> can be routed through Web Audio for the Master Volume boost (>100%).
+// Without CORS, tapping a cross-origin media element silences it, so boost falls
+// back to 100%. Scoped to media resource loads only; harmless for non-CORS
+// requests (the browser ignores ACAO when the request had no Origin).
+function _addMediaCorsHeaders(details, responseHeaders) {
+  try {
+    if (!responseHeaders || details.resourceType !== 'media') return;
+    const has = Object.keys(responseHeaders).some(k => k.toLowerCase() === 'access-control-allow-origin');
+    if (!has) responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+  } catch {}
+}
+
 function wireClientHintsOnSession(ses) {
   if (!ses || ses.__vexCHWired) return;
   ses.__vexCHWired = true;
@@ -2631,6 +2644,7 @@ function createWindow() {
         );
       }
     }
+    _addMediaCorsHeaders(details, responseHeaders);
     callback({ responseHeaders });
   });
 
@@ -2669,6 +2683,7 @@ function createWindow() {
           }
         }
       }
+      _addMediaCorsHeaders(details, responseHeaders);
       callback({ responseHeaders });
     });
   });
@@ -2897,6 +2912,15 @@ function createWindow() {
   // freely in regular tabs (which live in persist:main).
   wireAdblockerOnSession(session.defaultSession, 'default');
   wireAdblockerOnSession(session.fromPartition('persist:main'), 'persist:main');
+  // Media CORS for Master Volume boost on the tabs session (no other
+  // onHeadersReceived is registered on persist:main).
+  try {
+    session.fromPartition('persist:main').webRequest.onHeadersReceived((details, callback) => {
+      const responseHeaders = { ...details.responseHeaders };
+      _addMediaCorsHeaders(details, responseHeaders);
+      callback({ responseHeaders });
+    });
+  } catch {}
   partitions.forEach(p => wireAdblockerOnSession(session.fromPartition(p), p));
 
   // Upgrade the request blocker to the EasyList + EasyPrivacy engine. Async &
