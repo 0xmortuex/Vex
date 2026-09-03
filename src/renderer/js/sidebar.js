@@ -1043,13 +1043,22 @@ const SidebarManager = {
             try {
               const r = await window.vex?.installVencordLocal?.();
               if (r && r.ok) {
-                window.showToast?.(`Your Vencord ${r.version || ''} installed — reloading Discord`);
+                // Make the result unmissable: switch to the Discord panel and
+                // reload it so Vencord re-injects, then tell the user where the
+                // feature lives (a background toast alone read as "nothing
+                // happened"). showPanel opens it if it wasn't already open.
                 const wv = this.panelWebviews['discord'];
-                if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
+                this.showPanel('discord');
+                if (wv) { try { wv.reload(); } catch {} }
+                window.showToast?.(`Vencord ${r.version || ''} installed. In Discord, right-click a server → “Export/Bulk Export Servers”.`, 'success');
               } else {
-                window.showToast?.('Local Vencord install failed: ' + ((r && r.error) || 'unknown'), 'error');
+                const why = (r && r.error) || 'unknown';
+                window.showToast?.('Vencord install failed: ' + why, 'error');
+                if (typeof vexAlert === 'function') {
+                  vexAlert({ title: 'Couldn’t install your Vencord build', message: why + '\n\nBuild it first:\n  cd vencord-dev && pnpm buildWeb\n\nThat writes dist/extension-chrome.zip, which Vex looks for.' });
+                }
               }
-            } catch (e) { window.showToast?.('Local Vencord install failed', 'error'); }
+            } catch (e) { window.showToast?.('Vencord install failed: ' + (e && e.message || 'error'), 'error'); }
           }
         });
         items.push({ separator: true });
