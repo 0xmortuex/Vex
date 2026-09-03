@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.22 (2026-09-04) — Fix Vencord vanishing + DRM volume note
+
+### Fixed
+- **Vencord and its plugins could disappear after an update.** The routine that keeps a single Vencord build could keep a stale/disabled copy and delete the working one. It now ignores un-loadable copies and always keeps the real, newest build.
+
+### Added
+- **Master Volume** now explains itself on Netflix/Disney+/Prime and other DRM video: pushing past 100% there shows a note that the audio is DRM-protected (so it can’t be boosted in the browser) and suggests a Windows booster like Equalizer APO — instead of a slider that seems to do nothing.
+
 ## v2.31.21 (2026-09-03) — Master Volume boosts more sites
 
 ### Fixed
