@@ -485,8 +485,10 @@ const SidebarManager = {
         }
         panelEl.appendChild(wv);
         this.panelWebviews[panelName] = wv;
-        // Discord (web) lacks the desktop app's back/forward — add a slim nav bar.
-        if (panelName === 'discord') this._addDiscordNav(panelEl, wv);
+        // Panels aren't tabs, so the main toolbar's back/forward/reload can't
+        // drive them. Give every web panel (Spotify, Claude, Discord, pinned
+        // sites, …) its own slim back/forward/reload bar.
+        this._addPanelNav(panelEl, wv);
       }
     }
 
@@ -958,7 +960,7 @@ const SidebarManager = {
     document.head.appendChild(st);
   },
 
-  _addDiscordNav(panelEl, wv) {
+  _addPanelNav(panelEl, wv) {
     if (!panelEl || !wv || panelEl.querySelector(':scope > .panel-navbar')) return;
     this._injectPanelNavStyles();
     // Float the controls OVER the panel (absolute) — never resize the webview, or
@@ -972,10 +974,14 @@ const SidebarManager = {
     const back = nav.querySelector('.pnav-back');
     const fwd = nav.querySelector('.pnav-fwd');
     const reload = nav.querySelector('.pnav-reload');
-    back.addEventListener('click', () => { try { if (wv.canGoBack()) wv.goBack(); } catch {} });
-    fwd.addEventListener('click', () => { try { if (wv.canGoForward()) wv.goForward(); } catch {} });
-    reload.addEventListener('click', () => { try { wv.reload(); } catch {} });
-    const upd = () => { try { back.disabled = !wv.canGoBack(); fwd.disabled = !wv.canGoForward(); } catch {} };
+    // Always drive the LIVE <webview> in the panel — the captured `wv` can go
+    // stale after a service switch / re-mount, and back/reload on a detached
+    // node silently does nothing (the "back & refresh don't work" this fixes).
+    const liveWv = () => { try { return panelEl.querySelector('webview') || wv; } catch { return wv; } };
+    back.addEventListener('click', () => { const w = liveWv(); try { if (w && w.canGoBack()) w.goBack(); } catch {} });
+    fwd.addEventListener('click', () => { const w = liveWv(); try { if (w && w.canGoForward()) w.goForward(); } catch {} });
+    reload.addEventListener('click', () => { const w = liveWv(); try { if (w) w.reload(); } catch {} });
+    const upd = () => { const w = liveWv(); try { if (w) { back.disabled = !w.canGoBack(); fwd.disabled = !w.canGoForward(); } } catch {} };
     wv.addEventListener('did-navigate', upd);
     wv.addEventListener('did-navigate-in-page', upd);
     wv.addEventListener('dom-ready', upd);
