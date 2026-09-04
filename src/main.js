@@ -2731,8 +2731,26 @@ function createWindow() {
     for (const p of _BROWSING_SESSIONS) { try { session.fromPartition(p).setProxy(cfg); } catch {} }
     try { session.defaultSession.setProxy(cfg); } catch {}
   }
+  // Voice (RTC) must NOT ride the desync proxy. ByeDPI is TCP-only, so the media
+  // stream (UDP) never goes through it anyway - but its TLS-record splitting
+  // mangles Discord's long-lived voice-gateway WebSocket on *.discord.media,
+  // which the client shows as "RTC connecting" dropping and retrying every few
+  // seconds. Send voice hosts DIRECT and keep chat/login on the bypass (those
+  // are the hostnames the ISP actually blocks).
+  const _discordProxyConfig = (rules) => {
+    if (!rules) return { mode: 'direct' };
+    const spec = String(rules);
+    // Only the ByeDPI SOCKS route needs the split; anything else (light mode's
+    // http=/https= rules) is passed through unchanged.
+    const port = spec.startsWith('socks') ? parseInt(spec.slice(spec.lastIndexOf(':') + 1), 10) : 0;
+    if (!port) return { proxyRules: spec };
+    const pac = "function FindProxyForURL(u,h){"
+      + "if(shExpMatch(h,'discord.media')||shExpMatch(h,'*.discord.media'))return 'DIRECT';"
+      + "return 'SOCKS5 127.0.0.1:" + port + "';}";
+    return { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
+  };
   const _setDiscordProxy = (rules) => {
-    try { session.fromPartition('persist:discord').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
+    try { session.fromPartition('persist:discord').setProxy(_discordProxyConfig(rules)); }
     catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
     // Mirror Discord-domain routing onto normal tabs when (and only when) the
     // panel is going through ByeDPI's SOCKS proxy.
