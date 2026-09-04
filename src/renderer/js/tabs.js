@@ -1937,6 +1937,28 @@ const TabManager = {
   }
 };
 
+// === Self-heal: strip a stray context-menu dismissal overlay ===
+// .context-menu-overlay is a full-window, click-catching layer a context menu
+// installs so an outside click (even over a <webview>) closes it. If the menu
+// goes away without its close() running, the overlay stays and then SILENTLY
+// EATS EVERY CLICK in the app - buttons and menu items simply stop responding
+// with no error. Several call sites already sweep it defensively before opening
+// a new menu, which only helps once you manage to open one.
+//
+// Sweep on pointer movement (throttled, and short-circuited by a single
+// querySelector when there is no overlay) so the dead layer is gone before the
+// next click lands, rather than after.
+let _vexOverlaySweepAt = 0;
+if (typeof document !== "undefined") document.addEventListener("mousemove", () => {
+    const now = Date.now();
+    if (now - _vexOverlaySweepAt < 500) return;
+    _vexOverlaySweepAt = now;
+    if (!document.querySelector(".context-menu-overlay")) return;
+    if (document.querySelector(".tab-context-menu, .tab-group-context-menu")) return; // a menu really is open
+    document.querySelectorAll(".context-menu-overlay").forEach(o => o.remove());
+    console.warn("[Vex menu] removed a stray dismissal overlay that was swallowing clicks");
+}, true);
+
 // Renderer-safe export (Phase 4a — for tests/renderer/tabStacksData.test.js).
 // The renderer loads this file via <script> tag where `module` is undefined,
 // so the guard keeps the global TabManager surface unchanged.
