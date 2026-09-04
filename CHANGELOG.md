@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.24 (2026-09-04) — Fix clicks silently doing nothing
+
+### Fixed
+- **Buttons and menu items could stop responding entirely** (refresh on a sidebar panel, “Install my Vencord build”, and others) with no error message. A right-click menu leaves an invisible full-window layer behind to catch your next click; if that menu vanished without cleaning up, the layer stayed and swallowed every click in the app. Vex now clears a stray layer as soon as you move the mouse — before your next click.
+
 ## v2.31.23 (2026-09-04) — Discord voice reconnect fix
 
 ### Fixed
