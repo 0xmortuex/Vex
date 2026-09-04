@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.23 (2026-09-04) — Discord voice reconnect fix
+
+### Fixed
+- **Discord voice kept reconnecting every few seconds** while the DPI bypass was on. The bypass was also being applied to Discord’s voice connection, and its anti-blocking trickery breaks that kind of long-lived connection. Voice now connects directly while chat and login stay on the bypass.
+
 ## v2.31.22 (2026-09-04) — Fix Vencord vanishing + DRM volume note
 
 ### Fixed
