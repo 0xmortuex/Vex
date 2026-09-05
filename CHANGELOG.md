@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.31.25 (2026-09-05) — Picture-in-Picture fixes
+
+### Fixed
+- **The Picture-in-Picture pop-out could not be closed.** It had no title bar, no taskbar button, no keyboard shortcut and no buttons of its own, so once it appeared the only way to get rid of it was Task Manager. It now carries its own control bar — back to tab, keep-on-top and close — and Esc or Ctrl+W closes it.
+- **Picture-in-Picture opened the pop-out even when it had worked normally.** Vex checked whether the video had gone into PiP by looking at the wrong page, which could never say yes, so every press also spawned the pop-out on top of the working PiP. That is why the un-closable window kept turning up.
+- **The PiP button and Ctrl+Shift+P are now a real toggle** — pressing again leaves Picture-in-Picture instead of trying to start it a second time.
+- **The pop-out no longer floats above fullscreen apps** or traps Alt+Tab behind it, and Ctrl+Shift+P inside it toggles keep-on-top.
+- **The pop-out remembers its size, position and keep-on-top setting**, and refuses to reopen off-screen if you unplug the monitor it was on.
+- **The pop-out can no longer be left behind.** It closes with Vex instead of lingering as a floating window with nothing left to close it from, it is torn down if its page crashes or hangs, and a page can no longer refuse to let it close.
+- **Picture-in-Picture now tells you when it cannot run** on the current page, instead of silently doing nothing.
+
 ## v2.31.24 (2026-09-04) — Fix clicks silently doing nothing
 
 ### Fixed
