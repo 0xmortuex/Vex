@@ -78,6 +78,8 @@ contextBridge.exposeInMainWorld('vex', {
   onToggleSplit: (callback) => ipcRenderer.on('toggle-split', callback),
   onTogglePip: (callback) => ipcRenderer.on('toggle-pip', callback),
   openPipWindow: (url) => ipcRenderer.invoke('open-pip-window', url),
+  closePipWindow: () => ipcRenderer.invoke('close-pip-window'),
+  isPipOpen: () => ipcRenderer.invoke('is-pip-open'),
 
   // Downloads (with progress tracking)
   onTabCreateFromExternal: (cb) => ipcRenderer.on('tab:create-from-external', (_e, d) => cb(d)),

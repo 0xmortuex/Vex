@@ -197,6 +197,12 @@ function runInMainWorld(src) {
   }, true);
 
   ipcRenderer.on('vex-request-pip', () => {
+    // Toggle, not just enter: a second press of the toolbar button or
+    // Ctrl+Shift+P leaves PiP instead of re-requesting it.
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(err => console.error('[Vex PiP] exit failed:', err));
+      return;
+    }
     const videos = document.querySelectorAll('video');
     const video = Array.from(videos).find(v => !v.paused) || videos[0];
     if (video && document.pictureInPictureEnabled) {

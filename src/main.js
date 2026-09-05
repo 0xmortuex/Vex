@@ -92,7 +92,7 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
 const _torLauncher = require('./tor-launcher');
-const { createPipWindow, closePipWindow } = require('./pip');
+const { createPipWindow, closePipWindow, togglePipPin, isPipOpen } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
@@ -2569,6 +2569,7 @@ ipcMain.handle('sync-clear-state', () => {
 });
 // Flush synchronously on quit so nothing is lost
 app.on('before-quit', () => {
+  closePipWindow();
   try {
     if (_persistCache) {
       fs.writeFileSync(persistFile, JSON.stringify(_persistCache, null, 2), 'utf-8');
@@ -3060,6 +3061,10 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    // Never leave the PiP window behind: it is frameless and always-on-top,
+    // there would be no Vex UI left to close it from, and it would hold the
+    // app open past window-all-closed.
+    closePipWindow();
   });
 }
 
@@ -3552,6 +3557,25 @@ ipcMain.handle('open-pip-window', (event, url) => {
     console.error('PiP window error:', e);
     return false;
   }
+});
+
+ipcMain.handle('close-pip-window', () => { closePipWindow(); return true; });
+ipcMain.handle('is-pip-open', () => isPipOpen());
+
+// Control-bar actions from the PiP window's own preload (src/preload-pip.js).
+// The PiP window runs with contextIsolation and no contextBridge exposure,
+// so only that preload can reach these — not the page loaded inside it.
+ipcMain.on('pip:close', () => closePipWindow());
+ipcMain.on('pip:toggle-pin', () => togglePipPin());
+ipcMain.on('pip:back-to-tab', () => {
+  closePipWindow();
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  } catch (e) { console.error('[Vex PiP] back-to-tab focus failed:', e.message); }
 });
 
 ipcMain.handle('toggle-fullscreen', () => {
