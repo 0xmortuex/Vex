@@ -488,7 +488,7 @@ const SidebarManager = {
         // Panels aren't tabs, so the main toolbar's back/forward/reload can't
         // drive them. Give every web panel (Spotify, Claude, Discord, pinned
         // sites, …) its own slim back/forward/reload bar.
-        this._addPanelNav(panelEl, wv);
+        this._addPanelNav(panelEl, wv, panelName);
       }
     }
 
@@ -956,11 +956,23 @@ const SidebarManager = {
         -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
       .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-accent, #6366f1); color:#fff; }
       .panel-navbar .pnav-btn:disabled { opacity:0.3; cursor:default; }
+      /* Sites that draw their own logo/header in the top-left corner (Roblox) swallow
+         the translucent resting state: the bar is there and clickable, but it reads as
+         page chrome and looks like there is no back button at all. Those panels get a
+         solid, always-visible pill instead of the 50%-opacity glass one. */
+      .panel-navbar.pnav-strong { opacity:1; }
+      .panel-navbar.pnav-strong .pnav-btn { background:var(--vex-bg-elevated, #252220);
+        border-color:var(--vex-border-strong, rgba(255,255,255,0.28));
+        box-shadow:0 2px 10px rgba(0,0,0,0.45); }
     `;
     document.head.appendChild(st);
   },
 
-  _addPanelNav(panelEl, wv) {
+  // Panels whose site fills the top-left corner the nav bar floats over, so the
+  // default translucent pill disappears into the page (see .pnav-strong above).
+  SOLID_NAV_PANELS: ['roblox'],
+
+  _addPanelNav(panelEl, wv, panelName) {
     if (!panelEl || !wv || panelEl.querySelector(':scope > .panel-navbar')) return;
     this._injectPanelNavStyles();
     // Float the controls OVER the panel (absolute) — never resize the webview, or
@@ -968,6 +980,7 @@ const SidebarManager = {
     try { panelEl.style.position = 'relative'; } catch {}
     const nav = document.createElement('div');
     nav.className = 'panel-navbar';
+    if (this.SOLID_NAV_PANELS.includes(panelName)) nav.classList.add('pnav-strong');
     nav.innerHTML = '<button class="pnav-btn pnav-back" title="Back">‹</button>'
       + '<button class="pnav-btn pnav-fwd" title="Forward">›</button>'
       + '<button class="pnav-btn pnav-reload" title="Reload">⟳</button>';
