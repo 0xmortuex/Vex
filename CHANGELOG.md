@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.31.26 (2026-09-07) — Roblox panel back button
+
+### Fixed
+- **The Roblox panel looked like it had no back button.** Sidebar web panels have carried their own back/forward/reload bar since v2.31.17, but on Roblox you could not see it: the bar sits faintly in the panel's top-left corner, which is exactly where Roblox draws its own logo and header, so it blended into the page. It is now solid and always visible on the Roblox panel — the other panels keep the subtle look they already had.
+
+### Changed
+- **Vex now runs on a much newer browser engine** — Electron 42 / Chromium 148, up from Chromium 124. Pages that had started to complain about an outdated browser, or that relied on newer web features, should behave properly again. Widevine playback (Spotify, Netflix) is unaffected and still signed.
+
+### Internal
+- Removed `roblox-panel.js`, an unused "Roblox Hub" panel that nothing ever loaded.
+- Build toolchain upgraded alongside Electron: electron-builder 26, refreshed dependencies, and a new icon-generation script.
+
 ## v2.31.25 (2026-09-05) — Picture-in-Picture fixes
 
 ### Fixed
