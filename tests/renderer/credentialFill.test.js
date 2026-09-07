@@ -293,3 +293,73 @@ it('does not sit polling on an ordinary page of a site with a saved code', async
   await TotpAutofill.autofill(webview, webview.getURL());   // must resolve without timers
   expect(window.vex.totpCodes).not.toHaveBeenCalled();
 });
+
+describe('the mail tab has to be usable, not merely open', () => {
+  // Two faults that made "Gmail is open and logged in" still fail:
+  //  1. TabManager was read as window.TabManager. It is a top-level const in a
+  //     classic script, so that is always undefined and every TabManager branch
+  //     here was dead - including the one that wakes a sleeping mail tab.
+  //  2. Tabs are throttled while backgrounded unless kept awake, so an open
+  //     Gmail sitting behind the sign-in page never fetched the mail carrying
+  //     the code. Measured in the real app: 10 timer ticks per 10s backgrounded,
+  //     40 after the fix.
+  let tabs;
+  beforeEach(() => {
+    tabs = { tabs: [], activeTabId: null, throttled: [], woken: [], _setBackgroundThrottling(id, on) { this.throttled.push({ id, on }); }, wakeTab(id) { this.woken.push(id); }, _materializeTab(t) { this.woken.push(t.id); } };
+    globalThis.TabManager = tabs;
+    EmailCodeAutofill._liveMail = null;
+    EmailCodeAutofill._autoWoken = null;
+  });
+  afterEach(() => { delete globalThis.TabManager; });
+
+  it('resolves TabManager from the classic-script global', () => {
+    // jsdom cannot model the distinction that caused this: there globalThis IS
+    // window, so a global assignment is also window.TabManager. In the real app
+    // TabManager is a top-level const and window.TabManager is undefined, which
+    // was confirmed live before this fix. What is testable here is that the
+    // resolver reads the global binding at all.
+    expect(EmailCodeAutofill._tabs()).toBe(tabs);
+  });
+
+  it('holds a live mail tab awake and turns throttling off, then restores both', () => {
+    tabs.tabs = [{ id: 'tab-mail', url: 'https://mail.google.com/mail/u/0/#inbox', keepAwakeUntil: 0 }];
+    const wv = document.createElement('webview');
+    wv.setAttribute('data-tab-id', 'tab-mail');
+    wv.getURL = () => 'https://mail.google.com/mail/u/0/#inbox';
+    document.body.append(wv);
+    try {
+      const found = EmailCodeAutofill._findMailWebview();
+      expect(found && found.wv).toBe(wv);
+      expect(tabs.tabs[0].keepAwakeUntil).toBeGreaterThan(Date.now());
+      expect(tabs.throttled).toEqual([{ id: 'tab-mail', on: false }]);
+      EmailCodeAutofill._restoreMailThrottling();
+      expect(tabs.tabs[0].keepAwakeUntil).toBe(0);
+      expect(tabs.throttled).toEqual([{ id: 'tab-mail', on: false }, { id: 'tab-mail', on: true }]);
+    } finally { wv.remove(); }
+  });
+
+  it('leaves a tab the user kept awake exactly as they set it', () => {
+    const userSet = Date.now() + 3600000;
+    tabs.tabs = [{ id: 'tab-mail', url: 'https://mail.google.com/', keepAwakeUntil: userSet }];
+    const wv = document.createElement('webview');
+    wv.setAttribute('data-tab-id', 'tab-mail');
+    wv.getURL = () => 'https://mail.google.com/mail/u/0/#inbox';
+    document.body.append(wv);
+    try {
+      EmailCodeAutofill._findMailWebview();
+      EmailCodeAutofill._restoreMailThrottling();
+      expect(tabs.tabs[0].keepAwakeUntil).toBe(userSet);
+      expect(tabs.throttled).toEqual([{ id: 'tab-mail', on: false }]);   // never re-throttled
+    } finally { wv.remove(); }
+  });
+
+  it('wakes a sleeping mail tab — the branch that used to be dead', () => {
+    tabs.tabs = [{ id: 'tab-mail', url: 'https://mail.google.com/mail/u/0/#inbox', sleeping: true, keepAwakeUntil: 0 }];
+    globalThis.WebviewManager = { webviews: new Map() };
+    try {
+      EmailCodeAutofill._findMailWebview();
+      expect(tabs.woken).toEqual(['tab-mail']);
+      expect(tabs.tabs[0].keepAwakeUntil).toBeGreaterThan(Date.now());
+    } finally { delete globalThis.WebviewManager; }
+  });
+});

@@ -71,15 +71,26 @@ const EmailCodeAutofill = {
     try { return webview.getAttribute('src') || ''; } catch { return ''; }
   },
 
+  // TabManager is a top-level `const` in a classic script: visible to other
+  // classic scripts, but NOT a property of window - unlike WebviewManager, which
+  // webview.js explicitly assigns. Reading it as window.TabManager therefore
+  // always yielded undefined, so every TabManager branch in this file was dead:
+  // most importantly the fallback that wakes a sleeping or lazy mail tab. With
+  // Vex sleeping background tabs, an open-but-asleep Gmail simply reported
+  // "no-mail" and the code was never fetched.
+  _tabs() {
+    try { return (typeof TabManager !== 'undefined' && TabManager) || (typeof window !== 'undefined' && window.TabManager) || null; }
+    catch { return null; }
+  },
   _findMailWebview() {
     if (globalThis.window?.VexTabPolicy?.isPrivateWindow) return null;
     const wvs = Array.from(document.querySelectorAll('webview'));
     for (const p of this._PROVIDERS) {
       const live = wvs.find(w => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canReadWebview(w)) && this._matchesProvider(p, this._webviewUrl(w)));
-      if (live) return { wv: live, provider: p };
+      if (live) { this._keepMailLive(live); return { wv: live, provider: p }; }
     }
     try {
-      const T = (typeof window !== 'undefined') && window.TabManager;
+      const T = this._tabs();
       if (T && Array.isArray(T.tabs)) {
         for (const p of this._PROVIDERS) {
           const tab = T.tabs.find(t => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canPersist(t)) && this._matchesProvider(p, t.url || t.originalUrl || ''));
@@ -480,11 +491,51 @@ const EmailCodeAutofill = {
   // touch a tab WE woke (recorded in _findMailWebview) and never the one the user
   // is currently viewing; the user's own never-sleep/keep-awake tabs are left
   // untouched because those are already live and never get marked here.
+  // A mail tab that is merely OPEN is not necessarily USABLE. Tabs are created
+  // with background throttling on unless they are kept awake
+  // (webview.js: `backgroundThrottling=no` only when keptAwake), so while the
+  // user is on the sign-in page their Gmail sits backgrounded and throttled: it
+  // never fetches the mail carrying the code. _readInbox then rescrapes the same
+  // stale rows for the whole poll and reports "no-new-code" - which is exactly
+  // what the reported profile's autofill log shows. The old code deliberately
+  // left an already-live mail tab untouched, which is what made this bite.
+  //
+  // So for the duration of the poll: hold it awake and turn throttling off.
+  // _restoreAutoWoken puts both back.
+  _keepMailLive(webview) {
+    try {
+      const T = this._tabs();
+      const id = webview.getAttribute?.('data-tab-id');
+      if (!T || !id || !Array.isArray(T.tabs)) return;
+      const tab = T.tabs.find(t => t.id === id);
+      if (!tab || this._liveMail === id) return;
+      this._liveMail = id;
+      this._liveMailKeepAwake = tab.keepAwakeUntil || 0;
+      tab.keepAwakeUntil = Math.max(this._liveMailKeepAwake, Date.now() + 240000);
+      T._setBackgroundThrottling?.(id, false);
+    } catch {}
+  },
+
+  _restoreMailThrottling() {
+    const id = this._liveMail; this._liveMail = null;
+    if (!id) return;
+    try {
+      const T = this._tabs();
+      const tab = T && Array.isArray(T.tabs) && T.tabs.find(t => t.id === id);
+      // Leave a tab the user themselves kept awake exactly as they set it.
+      if (tab && (this._liveMailKeepAwake || 0) < Date.now()) {
+        tab.keepAwakeUntil = this._liveMailKeepAwake || 0;
+        T._setBackgroundThrottling?.(id, true);
+      }
+    } catch {}
+  },
+
   _restoreAutoWoken() {
+    this._restoreMailThrottling();
     const id = this._autoWoken; this._autoWoken = null;
     if (!id) return;
     try {
-      const T = (typeof window !== 'undefined') && window.TabManager;
+      const T = this._tabs();
       if (!T || !Array.isArray(T.tabs)) return;
       const tab = T.tabs.find(t => t.id === id);
       if (!tab || tab.id === T.activeTabId) return; // gone, or the user is looking at it now
