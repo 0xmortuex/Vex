@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.31.29 (2026-09-07) — Autofill and sign-in prompt fixes
+
+### Fixed
+- **Authenticator codes now fill on Roblox and other sites.** A two-factor screen appears after the password step, and Roblox shows it without loading a new page, so Vex had already looked once, found no code box, and given up. It now waits for the box to appear for as long as you stay on the site. Sites whose name matches your authenticator entry ask once, showing you the site, then remember your answer.
+- **Emailed sign-in codes now fill again.** Looking for your open mailbox could hit a tab that was still loading, which threw an error that silently abandoned the search — so with several tabs open the code was never fetched. Opening your mailbox itself also used to start a search that could never succeed and blocked the real one.
+- **The Windows passkey and security-key dialog no longer interrupts password sign-ins.** Suppressing it had become opt-in per site with an empty default, so it returned everywhere. It is suppressed on all sites again, and Settings can still narrow or disable that.
+
 ## v2.31.28 (2026-09-07) — 2FA and email-code autofill
 
 ### Fixed
