@@ -57,11 +57,25 @@ const EmailCodeAutofill = {
   // background so we have something to read — kept awake briefly so the
   // hibernator doesn't re-sleep it mid-poll. We never foreground it; _readInbox
   // reads textContent, which is populated even while hidden.
+  // getURL() THROWS ("The WebView must be attached to the DOM and the dom-ready
+  // event emitted before this method can be called") on any guest that has not
+  // finished attaching - a tab still loading, or one being materialised out of
+  // lazy/sleeping state. `w.getURL?.()` does not protect against that: the method
+  // exists, it throws when called. Unguarded, one such webview anywhere in the
+  // window made _findMailWebview throw, tryFill's outer catch swallowed it, and
+  // the whole 90-second poll died silently - which is exactly "Gmail is open and
+  // logged in but the code never fills". With several tabs open, the poll calls
+  // this thirty times, so any tab loading during it was enough.
+  _webviewUrl(webview) {
+    try { const url = webview.getURL?.(); if (url) return url; } catch { /* guest not ready yet */ }
+    try { return webview.getAttribute('src') || ''; } catch { return ''; }
+  },
+
   _findMailWebview() {
     if (globalThis.window?.VexTabPolicy?.isPrivateWindow) return null;
     const wvs = Array.from(document.querySelectorAll('webview'));
     for (const p of this._PROVIDERS) {
-      const live = wvs.find(w => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canReadWebview(w)) && this._matchesProvider(p, w.getURL?.() || w.getAttribute('src') || ''));
+      const live = wvs.find(w => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canReadWebview(w)) && this._matchesProvider(p, this._webviewUrl(w)));
       if (live) return { wv: live, provider: p };
     }
     try {

@@ -21,6 +21,36 @@ function page(html, href = 'https://github.com/login') {
   for (const input of document.querySelectorAll('input')) input.getBoundingClientRect = () => ({ width: 100, height: 20 });
   return { location, webview: { getURL: () => location.href, executeJavaScript: vi.fn(async script => vm.runInNewContext(script, { document, window, location, URL, Event, getComputedStyle, setInterval, clearInterval, setTimeout, clearTimeout })) } };
 }
+it('finds the mailbox even when another webview is not ready yet', () => {
+  // getURL() THROWS on a guest that has not finished attaching. _findMailWebview
+  // called it inside Array.find over every webview in the window, so one tab
+  // still loading made the whole lookup throw; tryFill's outer catch swallowed
+  // it and the 90 second poll died silently. Reproduced in the real app:
+  // "The WebView must be attached to the DOM and the dom-ready event emitted
+  // before this method can be called." at Array.find / _findMailWebview.
+  const loading = document.createElement('webview');
+  loading.getURL = () => { throw new Error('The WebView must be attached to the DOM and the dom-ready event emitted before this method can be called.'); };
+  loading.setAttribute('src', 'https://example.com/');
+  const gmail = document.createElement('webview');
+  gmail.getURL = () => 'https://mail.google.com/mail/u/0/#inbox';
+  document.body.append(loading, gmail);
+  try {
+    const found = EmailCodeAutofill._findMailWebview();
+    expect(found).toBeTruthy();
+    expect(found.wv).toBe(gmail);
+    expect(found.provider.id).toBe('gmail');
+  } finally { loading.remove(); gmail.remove(); }
+});
+it('falls back to the src attribute when getURL is not usable yet', () => {
+  const pending = document.createElement('webview');
+  pending.getURL = () => { throw new Error('not attached'); };
+  pending.setAttribute('src', 'https://mail.google.com/mail/u/0/#inbox');
+  document.body.append(pending);
+  try {
+    const found = EmailCodeAutofill._findMailWebview();
+    expect(found && found.wv).toBe(pending);
+  } finally { pending.remove(); }
+});
 it('rejects lookalike mail providers and private email readers', () => {
   const gmail = EmailCodeAutofill._PROVIDERS[0];
   expect(EmailCodeAutofill._matchesProvider(gmail, 'https://mail.google.com.evil.test/')).toBe(false);
