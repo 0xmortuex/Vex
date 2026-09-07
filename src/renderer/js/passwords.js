@@ -117,6 +117,7 @@ const PasswordVault = {
     // change (plain el.value is ignored by their synthetic event system).
     const js = `(function(){try{
       if(location.origin!==${JSON.stringify(new URL(url).origin)})return;
+      var ORIGIN=${JSON.stringify(new URL(url).origin)};
       var U=${JSON.stringify(c.username)},P=${JSON.stringify(c.password)};
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
       var fire=function(el,val){try{if(!visible(el)||el.disabled||el.readOnly)return;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
@@ -133,7 +134,7 @@ const PasswordVault = {
       // Only fill the username when this is really a login: a password field is
       // present, OR the field itself carries a strong login signal (covers
       // email-first 2-step logins). Never fill a lone search box.
-      function fill(force){if(location.href!==${JSON.stringify(url)})return;var pw=Array.from(document.querySelectorAll('input[type=password]')).find(visible);var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value))fire(user,U);if(pw&&(force||!pw.value))fire(pw,P);}
+      function fill(force){if(location.origin!==ORIGIN)return;var pw=Array.from(document.querySelectorAll('input[type=password]')).find(visible);var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value))fire(user,U);if(pw&&(force||!pw.value))fire(pw,P);}
       fill(false);
       if(!window.__vexPwFocusWired){window.__vexPwFocusWired=true;
         document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT'||el.value)return;var t=(el.type||'').toLowerCase();if(t==='password'||(looksLikeUser(el)&&(loginSignal(el)||document.querySelector('input[type=password]')))){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
@@ -151,10 +152,11 @@ const PasswordVault = {
     const email = this._rememberedEmail(host);
     if (!email) return;
     const js = `(function(){try{
-      if(location.href!==${JSON.stringify(url)})return;
+      var ORIGIN=${JSON.stringify(new URL(url).origin)};
+      if(location.origin!==ORIGIN)return;
       var U=${JSON.stringify(email)};
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      var fire=function(el,val){try{if(location.href!==${JSON.stringify(url)}||!visible(el)||el.disabled||el.readOnly)return;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+      var fire=function(el,val){try{if(location.origin!==ORIGIN||!visible(el)||el.disabled||el.readOnly)return;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
       function visible(el){try{var r=el.getBoundingClientRect();var s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
       function isSearchy(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;if(el.getAttribute('aria-autocomplete'))return true;return /search|find|filter|query|recipient|channel|message|mention|invite|\\brole\\b|emoji|gif|jump to/.test(meta(el));}

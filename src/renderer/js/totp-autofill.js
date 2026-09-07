@@ -3,13 +3,53 @@
 // built-in Authenticator — so you never open the panel, read, and type it.
 //
 // SAFETY: a TOTP code is only injected when the PAGE'S SITE matches a saved
-// account's issuer AND an explicitly allowed domain. Unknown issuers require
-// manual copying from the authenticator; hostname fragments are not identity.
-// Only fills a genuine
-// one-time-code field (never a search/promo box), and only when it's empty.
+// account. Three ways a site can match, in order:
+//   1. A curated map, for brands whose issuer name is not their domain
+//      (Microsoft -> live.com, AWS -> amazon.com).
+//   2. A binding the user has already confirmed for this issuer + site.
+//   3. The registrable label equals the issuer AND the user confirms it once.
+// Substring matching is deliberately gone: it let issuer "git" match "github".
+// Bare label equality is not trusted on its own either, because an attacker can
+// own a label match outright - github.io would otherwise match a GitHub account -
+// so an unbound label match asks the user first, showing the host.
+// Only fills a genuine one-time-code field (never a search/promo box), and only
+// when it's empty.
 const TotpAutofill = {
   _domains: { github: ['github.com'], google: ['google.com'], microsoft: ['live.com', 'microsoft.com', 'microsoftonline.com'], discord: ['discord.com'], gitlab: ['gitlab.com'], cloudflare: ['cloudflare.com'], amazon: ['amazon.com'], aws: ['amazon.com', 'aws.amazon.com'] },
   _norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); },
+  BIND_KEY: 'vex.totpSites',
+
+  // Registrable label: roblox.com -> roblox, accounts.roblox.com -> roblox,
+  // example.co.uk -> example. A look-alike like github.com.evil.com resolves to
+  // "evil" and can never match an account issued by GitHub.
+  _SECOND_LEVEL: ['co', 'com', 'net', 'org', 'gov', 'edu', 'ac', 'or', 'ne', 'go'],
+  _label(host) {
+    const parts = String(host || '').toLowerCase().split('.').filter(Boolean);
+    if (parts.length < 2) return '';
+    let index = parts.length - 2;
+    if (parts.length >= 3 && this._SECOND_LEVEL.indexOf(parts[index]) !== -1) index = parts.length - 3;
+    return this._norm(parts[index]);
+  },
+
+  _bindings() { try { const v = JSON.parse(localStorage.getItem(this.BIND_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; } },
+  _bindingFor(issuer, host) { return this._bindings()[this._norm(issuer) + '@' + host]; },
+  _bind(issuer, host, allowed) {
+    const all = this._bindings();
+    all[this._norm(issuer) + '@' + host] = !!allowed;
+    try { localStorage.setItem(this.BIND_KEY, JSON.stringify(all)); } catch {}
+  },
+
+  // 'curated' and 'bound' fill silently; 'label' needs a one-time confirmation.
+  _matchKind(account, host) {
+    const issuer = this._norm(account.issuer);
+    if (!issuer || issuer.length < 3) return null;
+    const domains = this._domains[issuer] || [];
+    if (domains.some(domain => host === domain || host.endsWith('.' + domain))) return 'curated';
+    if (this._label(host) !== issuer) return null;
+    const bound = this._bindingFor(account.issuer, host);
+    if (bound === false) return null;
+    return bound === true ? 'bound' : 'label';
+  },
 
   async autofill(webview, url) {
     if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
@@ -22,32 +62,81 @@ const TotpAutofill = {
     try { list = await window.vex.totpList(); } catch { return; }
     if (!list || !list.length) return;
 
-    // Match by issuer (brand names like "GitHub"/"Google"); fall back to label
-    // only when an account has no issuer. Require a real overlap, not a 1-char one.
-    const matches = list.filter((a) => {
-      const domains = this._domains[this._norm(a.issuer)] || [];
-      return domains.some(domain => host === domain || host.endsWith('.' + domain));
-    });
-    if (matches.length !== 1) return;   // exactly one → unambiguous & safe
+    const matches = list.map((a) => ({ account: a, kind: this._matchKind(a, host) })).filter((m) => m.kind);
+    if (!matches.length) return;
+    let match = matches[0];
+    if (matches.length > 1) {
+      // Several saved accounts claim this site. Filling an arbitrary one silently
+      // is worse than asking, so let the user pick (recommendation 31).
+      if (!window.vexPrompt) return;
+      const choice = await window.vexPrompt({
+        title: 'Choose an authenticator account',
+        message: matches.map((m, i) => `${i + 1}. ${m.account.issuer || ''} ${m.account.label || ''}`.trim()).join(String.fromCharCode(10)),
+        label: 'Account number', value: '',
+      });
+      const index = Number(choice) - 1;
+      if (choice === null || !Number.isInteger(index) || index < 0 || index >= matches.length) return;
+      match = matches[index];
+    }
+    if (match.kind === 'label') {
+      // Only ask about a site once it is actually showing a 2FA field. Prompting
+      // on every page load of the site would be intolerable.
+      if (!(await this._hasOtpField(webview, url))) return;
+      // The issuer happens to equal this site's registrable label. That is a good
+      // guess but an attacker can arrange it, so confirm once and remember.
+      if (!window.vexConfirm) return;
+      const ok = await window.vexConfirm({
+        title: 'Fill your 2FA code here?',
+        message: `Use the "${match.account.issuer}" authenticator code on ${host}?`,
+        okLabel: 'Fill code',
+      });
+      this._bind(match.account.issuer, host, ok);
+      if (!ok) return;
+      if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
+    }
+    const chosen = [match.account];
 
     let codes = [];
     try { codes = await window.vex.totpCodes(); } catch { return; }
-    const entry = codes.find((x) => x.id === matches[0].id);
+    const entry = codes.find((x) => x.id === chosen[0].id);
     const code = entry && entry.code;
     if (!code || !/^\d{4,8}$/.test(code)) return;
     if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
     this._inject(webview, code, url);
-    try { window.AutofillLog?.record('totp', url, true, matches[0].issuer || matches[0].label); } catch {}
+    try { window.AutofillLog?.record('totp', url, true, chosen[0].issuer || chosen[0].label); } catch {}
   },
 
+
+  // Cheap page probe: is there a visible, empty one-time-code field right now?
+  // Mirrors the isOtp rules used by the injected filler.
+  async _hasOtpField(webview, url) {
+    const js = `(function(){try{
+      if(location.origin!==${JSON.stringify(new URL(url).origin)})return false;
+      function vis(el){try{var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';}catch(e){return false;}}
+      function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
+      var all=Array.prototype.slice.call(document.querySelectorAll('input'));
+      for(var i=0;i<all.length;i++){var el=all[i];var t=(el.type||'').toLowerCase();
+        if(t==='password')continue;
+        if(!(t===''||t==='text'||t==='tel'||t==='number'))continue;
+        if(!vis(el))continue;
+        var ac=(el.getAttribute('autocomplete')||'').toLowerCase();
+        if(ac==='one-time-code')return true;
+        if(/otp|2fa|two.?factor|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code/.test(meta(el)))return true;
+        if(el.maxLength===1)return true;
+      }
+      return false;
+    }catch(e){return false;}})();`;
+    try { return !!(await webview.executeJavaScript(js)); } catch { return false; }
+  },
   _inject(webview, code, url) {
     if (!url) return;
     const js = `(function(){try{
-      if(location.href!==${JSON.stringify(url)})return;
+      var ORIGIN=${JSON.stringify(new URL(url).origin)};
+      if(location.origin!==ORIGIN)return;
       var CODE=${JSON.stringify(code)};
       var DIGITS=CODE.split('');
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      function fire(el,val){try{if(location.href!==${JSON.stringify(url)}||!vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
+      function fire(el,val){try{if(location.origin!==ORIGIN||!vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
       function vis(el){try{var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&(!el.form||new URL(el.form.action||location.href,location.href).origin===location.origin)&&r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
       // A genuine one-time-code field. Deliberately strict: autocomplete
@@ -55,7 +144,7 @@ const TotpAutofill = {
       function isOtp(el){var t=(el.type||'').toLowerCase();if(t==='password')return false;if(!(t===''||t==='text'||t==='tel'||t==='number'))return false;if(!vis(el))return false;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='one-time-code')return true;return /otp|2fa|two.?factor|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code/.test(meta(el));}
       function pageIs2fa(){try{return /two.?factor|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)/i.test(document.body.innerText||'');}catch(e){return false;}}
       function fill(){
-        if(location.href!==${JSON.stringify(url)})return false;
+        if(location.origin!==ORIGIN)return false;
         var all=Array.prototype.slice.call(document.querySelectorAll('input'));
         // Split-box case: a row of maxlength-1 numeric inputs (React OTP). Only on
         // a page that clearly IS a 2FA screen, to avoid unrelated 1-char inputs.

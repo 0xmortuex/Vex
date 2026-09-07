@@ -282,10 +282,11 @@ const EmailCodeAutofill = {
 
   _injectCode(loginWv, code, url = loginWv.getURL?.()) {
     const js = `(function(){try{
-      if(location.href!==${JSON.stringify(url)})return false;
+      var ORIGIN=${JSON.stringify(new URL(url).origin)};
+      if(location.origin!==ORIGIN)return false;
       var CODE=${JSON.stringify(code)}; var D=CODE.split('');
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      function fire(el,val){try{if(location.href!==${JSON.stringify(url)}||!vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
+      function fire(el,val){try{if(location.origin!==ORIGIN||!vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
       function vis(el){var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&s.visibility!=='hidden'&&s.display!=='none'&&r.width>0&&r.height>0&&(!el.form||new URL(el.form.action,location.href).origin===location.origin);}
       function meta(el){return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}
       function isCode(el){var t=(el.type||'').toLowerCase();if(t==='password')return false;if(!(t===''||t==='text'||t==='tel'||t==='number'))return false;if(!vis(el))return false;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='one-time-code')return true;return /otp|2fa|one.?time|verification.?code|security.?code|passcode|confirm.?code|email.?code|enter.?code/.test(meta(el));}
@@ -465,7 +466,8 @@ const EmailCodeAutofill = {
       if (localStorage.getItem('vex.emailCodeAutoSubmit') !== '1') return;
     } catch { return; }
     const js = `(function(){try{
-      if(location.href!==${JSON.stringify(url)})return false;
+      var ORIGIN=${JSON.stringify(new URL(url).origin)};
+      if(location.origin!==ORIGIN)return false;
       var field=document.activeElement;
       if(!field||field.tagName!=='INPUT'||!field.value||!field.form||new URL(field.form.action,location.href).origin!==location.origin)return false;
       function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}
