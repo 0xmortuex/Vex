@@ -332,7 +332,18 @@ const EmailCodeAutofill = {
       if (!loginWv || !/^https:/i.test(url || '')) return;
       if (globalThis.window?.VexTabPolicy && !globalThis.window?.VexTabPolicy.canReadWebview(loginWv)) return;
       const generation = loginWv._navigationGeneration;
-      const current = () => loginWv.isConnected !== false && loginWv.getURL?.() === url && loginWv._navigationGeneration === generation;
+      // Stay alive across the site's own steps. Asking for a code IS a navigation
+      // — Spotify moves from the email step to the code step and rewrites the URL
+      // — and `did-start-navigation` bumps the generation even for a same-document
+      // push, so comparing either the full URL or the generation killed the poll
+      // at exactly the moment the code field appeared. Origin is the boundary that
+      // matters: leaving the site stops the poll, changing step does not.
+      let origin = '';
+      try { origin = new URL(url).origin; } catch { return; }
+      const current = () => {
+        if (loginWv.isConnected === false) return false;
+        try { return new URL(loginWv.getURL?.() || '').origin === origin; } catch { return false; }
+      };
       if (!current()) return;
       if (this._running) return;                                 // one poll at a time
       this._running = true;
@@ -478,7 +489,17 @@ const EmailCodeAutofill = {
       if(a){a.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true}));a.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',keyCode:13,which:13,bubbles:true}));return true;}
       return false;
     }catch(e){return false;}})()`;
-    setTimeout(() => { try { if(loginWv.getURL?.()!==url||loginWv._navigationGeneration!==generation)return;loginWv.executeJavaScript(js).catch(() => {}); } catch {} }, 350);
+    // Same reasoning as tryFill's `current()`: the code step is a navigation, so
+    // pinning to the original URL/generation meant auto-submit never ran on the
+    // page it was meant for. The injected script still requires a filled input
+    // inside a same-origin form before it clicks anything.
+    setTimeout(() => {
+      try {
+        const origin = new URL(url).origin;
+        if (new URL(loginWv.getURL?.() || '').origin !== origin) return;
+        loginWv.executeJavaScript(js).catch(() => {});
+      } catch {}
+    }, 350);
   },
 };
 

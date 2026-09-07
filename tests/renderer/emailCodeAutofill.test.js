@@ -217,3 +217,44 @@ describe('EmailCodeAutofill.tryFill', () => {
     expect(logs.at(-1)).toEqual({ ok: false, reason: 'no-mail' });
   });
 });
+
+describe('EmailCodeAutofill.tryFill navigation boundary', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  // Asking a site for an email code IS a navigation: Spotify moves from the
+  // email step to the code step and rewrites the URL, and did-start-navigation
+  // bumps the generation even for a same-document push. Pinning the poll to the
+  // original URL and generation killed it at exactly the moment the code field
+  // appeared, so the code never got filled.
+  async function poll(A, hrefs) {
+    let href = hrefs[0];
+    const loginWv = { isConnected: true, getURL: () => href, _navigationGeneration: 1 };
+    const p = A.tryFill(loginWv, hrefs[0]);
+    href = hrefs[1];
+    loginWv._navigationGeneration = 2;
+    for (let k = 0; k < 32; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+  }
+
+  it('keeps polling when the site advances to its code step', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    await poll(A, [
+      'https://accounts.spotify.com/login?flow_ctx=first',
+      'https://accounts.spotify.com/login/code?flow_ctx=regenerated',
+    ]);
+    expect(injected).toContain('654321');
+  });
+
+  it('stops polling once the page has left the site', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    await poll(A, ['https://accounts.spotify.com/login', 'https://evil.test/login']);
+    expect(injected).toEqual([]);
+  });
+});

@@ -6,12 +6,16 @@
 // account. Three ways a site can match, in order:
 //   1. A curated map, for brands whose issuer name is not their domain
 //      (Microsoft -> live.com, AWS -> amazon.com).
-//   2. A binding the user has already confirmed for this issuer + site.
-//   3. The registrable label equals the issuer AND the user confirms it once.
+//   2. A binding the user has already confirmed for this account + site.
+//   3. The site's registrable label matches one of the names the account is
+//      known by (issuer, label, or the issuer prefix of an "Issuer:account"
+//      label) AND the user confirms it once.
 // Substring matching is deliberately gone: it let issuer "git" match "github".
 // Bare label equality is not trusted on its own either, because an attacker can
 // own a label match outright - github.io would otherwise match a GitHub account -
-// so an unbound label match asks the user first, showing the host.
+// so an unbound label match asks the user first, showing the host. Because that
+// confirmation is the real boundary, candidate names can be generous: an account
+// added from a raw secret has no issuer at all and would otherwise never match.
 // Only fills a genuine one-time-code field (never a search/promo box), and only
 // when it's empty.
 const TotpAutofill = {
@@ -32,21 +36,46 @@ const TotpAutofill = {
   },
 
   _bindings() { try { const v = JSON.parse(localStorage.getItem(this.BIND_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; } },
-  _bindingFor(issuer, host) { return this._bindings()[this._norm(issuer) + '@' + host]; },
-  _bind(issuer, host, allowed) {
+  _bindKey(account, host) { return this._norm(account.issuer || account.label) + '@' + host; },
+  _bindingFor(account, host) { return this._bindings()[this._bindKey(account, host)]; },
+  _bind(account, host, allowed) {
     const all = this._bindings();
-    all[this._norm(issuer) + '@' + host] = !!allowed;
+    all[this._bindKey(account, host)] = !!allowed;
     try { localStorage.setItem(this.BIND_KEY, JSON.stringify(all)); } catch {}
+  },
+
+  // Every name this account could reasonably be known by. The issuer is the
+  // reliable one, but a secret typed in by hand has no issuer at all (main.js
+  // stores issuer:'' for a raw secret) and some issuers carry a suffix, like
+  // "Roblox Corporation". Requiring an exact issuer match meant those accounts
+  // could never autofill anywhere.
+  //
+  // Being generous here is safe: these names only decide what to OFFER. Anything
+  // outside the curated map is confirmed by the user, showing the host, so the
+  // confirmation is the security boundary rather than the string comparison.
+  _names(account) {
+    const names = new Set();
+    const add = (value) => { const n = this._norm(value); if (n.length >= 3) names.add(n); };
+    const label = String(account.label || '');
+    const issuer = String(account.issuer || '');
+    add(issuer);
+    add(label);
+    if (label.includes(':')) add(label.split(':')[0]);
+    add(issuer.split(/[\s._-]+/)[0]);
+    add(label.split(/[\s._-]+/)[0]);
+    return names;
   },
 
   // 'curated' and 'bound' fill silently; 'label' needs a one-time confirmation.
   _matchKind(account, host) {
     const issuer = this._norm(account.issuer);
-    if (!issuer || issuer.length < 3) return null;
-    const domains = this._domains[issuer] || [];
-    if (domains.some(domain => host === domain || host.endsWith('.' + domain))) return 'curated';
-    if (this._label(host) !== issuer) return null;
-    const bound = this._bindingFor(account.issuer, host);
+    if (issuer.length >= 3) {
+      const domains = this._domains[issuer] || [];
+      if (domains.some(domain => host === domain || host.endsWith('.' + domain))) return 'curated';
+    }
+    const site = this._label(host);
+    if (!site || !this._names(account).has(site)) return null;
+    const bound = this._bindingFor(account, host);
     if (bound === false) return null;
     return bound === true ? 'bound' : 'label';
   },
@@ -85,12 +114,13 @@ const TotpAutofill = {
       // The issuer happens to equal this site's registrable label. That is a good
       // guess but an attacker can arrange it, so confirm once and remember.
       if (!window.vexConfirm) return;
+      const name = String(match.account.issuer || match.account.label || '').trim();
       const ok = await window.vexConfirm({
         title: 'Fill your 2FA code here?',
-        message: `Use the "${match.account.issuer}" authenticator code on ${host}?`,
+        message: name ? `Use your "${name}" authenticator code on ${host}?` : `Use your saved authenticator code on ${host}?`,
         okLabel: 'Fill code',
       });
-      this._bind(match.account.issuer, host, ok);
+      this._bind(match.account, host, ok);
       if (!ok) return;
       if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
     }
@@ -114,6 +144,7 @@ const TotpAutofill = {
       if(location.origin!==${JSON.stringify(new URL(url).origin)})return false;
       function vis(el){try{var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
+      function pageIs2fa(){try{return /two.?factor|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)/i.test(document.body.innerText||document.body.textContent||'');}catch(e){return false;}}
       var all=Array.prototype.slice.call(document.querySelectorAll('input'));
       for(var i=0;i<all.length;i++){var el=all[i];var t=(el.type||'').toLowerCase();
         if(t==='password')continue;
@@ -122,6 +153,8 @@ const TotpAutofill = {
         var ac=(el.getAttribute('autocomplete')||'').toLowerCase();
         if(ac==='one-time-code')return true;
         if(/otp|2fa|two.?factor|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code/.test(meta(el)))return true;
+        // Must mirror isOtp below, or we would prompt and then fill nothing.
+        if(/\\bcode\\b|\\bdigits?\\b/.test(meta(el))&&pageIs2fa())return true;
         if(el.maxLength===1)return true;
       }
       return false;
@@ -139,10 +172,13 @@ const TotpAutofill = {
       function fire(el,val){try{if(location.origin!==ORIGIN||!vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
       function vis(el){try{var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&(!el.form||new URL(el.form.action||location.href,location.href).origin===location.origin)&&r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
-      // A genuine one-time-code field. Deliberately strict: autocomplete
-      // one-time-code, or clear 2FA wording — never a bare "code" (promo/coupon).
-      function isOtp(el){var t=(el.type||'').toLowerCase();if(t==='password')return false;if(!(t===''||t==='text'||t==='tel'||t==='number'))return false;if(!vis(el))return false;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='one-time-code')return true;return /otp|2fa|two.?factor|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code/.test(meta(el));}
-      function pageIs2fa(){try{return /two.?factor|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)/i.test(document.body.innerText||'');}catch(e){return false;}}
+      // A genuine one-time-code field: autocomplete one-time-code, or clear 2FA
+      // wording. A BARE "code" is only accepted when the surrounding page is
+      // plainly a 2FA screen — sites like Roblox label the input just "Code",
+      // and refusing those meant 2FA autofill never fired there at all, while
+      // accepting them anywhere would grab promo/coupon boxes.
+      function isOtp(el){var t=(el.type||'').toLowerCase();if(t==='password')return false;if(!(t===''||t==='text'||t==='tel'||t==='number'))return false;if(!vis(el))return false;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='one-time-code')return true;if(/otp|2fa|two.?factor|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code/.test(meta(el)))return true;return /\\bcode\\b|\\bdigits?\\b/.test(meta(el))&&pageIs2fa();}
+      function pageIs2fa(){try{return /two.?factor|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)/i.test(document.body.innerText||document.body.textContent||'');}catch(e){return false;}}
       function fill(){
         if(location.origin!==ORIGIN)return false;
         var all=Array.prototype.slice.call(document.querySelectorAll('input'));
