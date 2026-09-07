@@ -210,3 +210,16 @@ These need live services, real hardware or a signed build, and are the remaining
 - Actual Windows display scaling and OS high-contrast themes (recommendation 56) — browser zoom and media emulation are not the same thing.
 - Live Tor/ByeDPI proxy connectivity against a real blocking network (recommendations 12, 35).
 - Autofill against real login providers, including hidden fields, nested frames and SPA navigation (recommendations 31–33).
+
+## Correction: autofill hardening was too strict (recommendations 31–33)
+
+Two claims recorded earlier were wrong in practice and are corrected here. Both were reported by the user against the shipped build.
+
+- "Password/TOTP/email-code filling checks target URLs" understated what the check did: the injected fillers compared the **full href** for exact equality on every run, including from the click-to-fill focus handler. Multi-step logins rewrite the URL between steps — Spotify regenerates `flow_ctx` — so every fill after the first silently no-opped. That defeated the click-to-fill path whose stated purpose was serving multi-step logins. All the login-fill injections now compare **origin**, which is the boundary that matters: a cross-origin navigation replaces the document and destroys the injected script, so origin cannot drift, while a same-document step change no longer blocks the fill. The outer navigation-generation and `webview.getURL()` checks are unchanged.
+- "TOTP uses explicit issuer/domain matching instead of substring matches" was accurate but the implementation reduced matching to a hardcoded eight-brand map. Every other issuer produced an empty domain list and could never match, so 2FA autofill was dead for Roblox, Spotify, Steam, Reddit and everything else. A site now matches by the curated map (for brands whose issuer is not their domain), by a binding the user already confirmed, or by a registrable-label match that asks once — showing the host — and remembers the answer. Bare label equality is deliberately not trusted on its own, because an attacker can own a label match outright (`github.io` would otherwise match a GitHub account). The prompt only appears once the page is actually showing a one-time-code field.
+
+Exact-URL checks remain, correctly, in the content-attribution paths (annotations, document extraction, Recall, the Gmail reader page): there the question is "does this content belong to this page", not "may this secret go to this site".
+
+One earlier test asserted the broken behaviour — that a same-origin navigation must stop a fill — and was rewritten. Verified against a negative control: with all three modules reverted, exactly the seven regression tests fail while all ten security tests still pass.
+
+Suite: 80 files, 983 passing.
