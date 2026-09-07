@@ -330,6 +330,15 @@ const EmailCodeAutofill = {
     if (this._running) return;
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
+      // Never poll the mailbox itself. Opening Gmail fires this like any other
+      // page, and a verification email showing in the reading pane makes the page
+      // "look like" a code page — so the mail tab started a 90 second poll that
+      // could only ever report no-mail, and because _running is a single global
+      // mutex that poll then blocked the real attempt on the site actually asking
+      // for the code. The autofill log is full of exactly that: repeated
+      // emailcode/mail.google.com/no-mail entries and no entry at all for the
+      // site the user was signing in to.
+      if (this._PROVIDERS.some((provider) => this._matchesProvider(provider, url))) return;
       if (globalThis.window?.VexTabPolicy && !globalThis.window?.VexTabPolicy.canReadWebview(loginWv)) return;
       const generation = loginWv._navigationGeneration;
       // Stay alive across the site's own steps. Asking for a code IS a navigation

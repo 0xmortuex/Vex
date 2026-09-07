@@ -258,3 +258,49 @@ describe('EmailCodeAutofill.tryFill navigation boundary', () => {
     expect(injected).toEqual([]);
   });
 });
+
+describe('EmailCodeAutofill does not poll the mailbox itself', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  // Evidence from a real profile's autofill log: repeated
+  // emailcode / mail.google.com / no-mail entries, and no entry at all for the
+  // site being signed in to. Opening Gmail started a 90s poll that could only
+  // report no-mail, and _running is one global mutex, so that poll blocked the
+  // attempt that mattered.
+  it('returns immediately on a webmail provider page', async () => {
+    const { A, logs } = makeAutofill(scriptedReader([loaded('111111', true, true)]));
+    let probed = false;
+    A._hasEmptyCodeField = async () => { probed = true; return true; };
+    const mailWv = { isConnected: true, getURL: () => 'https://mail.google.com/mail/u/0/#inbox' };
+    await A.tryFill(mailWv, 'https://mail.google.com/mail/u/0/#inbox');
+    expect(probed).toBe(false);
+    expect(logs).toEqual([]);
+    expect(A._running).toBe(false);
+  });
+
+  it('leaves the mutex free so the real login page can poll', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    await A.tryFill({ isConnected: true, getURL: () => 'https://mail.google.com/mail/u/0/#inbox' }, 'https://mail.google.com/mail/u/0/#inbox');
+    const loginWv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/login' };
+    const p = A.tryFill(loginWv, 'https://accounts.spotify.com/login');
+    for (let k = 0; k < 32; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toContain('654321');
+  });
+
+  it('still polls a normal site whose host merely contains a provider name', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    const wv = { isConnected: true, getURL: () => 'https://mail.google.com.evil.test/login' };
+    const p = A.tryFill(wv, 'https://mail.google.com.evil.test/login');
+    for (let k = 0; k < 32; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toContain('654321');
+  });
+});
