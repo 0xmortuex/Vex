@@ -25,7 +25,7 @@ function makeAutofill(readsFn) {
   return { A, injected, logs };
 }
 
-async function run(A, iterations = 32) {   // must exceed tryFill's poll-loop length
+async function run(A, iterations = 64) {   // must exceed tryFill's poll-loop length
   const loginWv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/login' };
   const p = A.tryFill(loginWv, 'https://accounts.spotify.com/login');
   for (let k = 0; k < iterations; k++) await vi.advanceTimersByTimeAsync(3100);
@@ -233,7 +233,7 @@ describe('EmailCodeAutofill.tryFill navigation boundary', () => {
     const p = A.tryFill(loginWv, hrefs[0]);
     href = hrefs[1];
     loginWv._navigationGeneration = 2;
-    for (let k = 0; k < 32; k++) await vi.advanceTimersByTimeAsync(3100);
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
     await p;
   }
 
@@ -287,7 +287,7 @@ describe('EmailCodeAutofill does not poll the mailbox itself', () => {
     await A.tryFill({ isConnected: true, getURL: () => 'https://mail.google.com/mail/u/0/#inbox' }, 'https://mail.google.com/mail/u/0/#inbox');
     const loginWv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/login' };
     const p = A.tryFill(loginWv, 'https://accounts.spotify.com/login');
-    for (let k = 0; k < 32; k++) await vi.advanceTimersByTimeAsync(3100);
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
     await p;
     expect(injected).toContain('654321');
   });
@@ -299,8 +299,50 @@ describe('EmailCodeAutofill does not poll the mailbox itself', () => {
     ]));
     const wv = { isConnected: true, getURL: () => 'https://mail.google.com.evil.test/login' };
     const p = A.tryFill(wv, 'https://mail.google.com.evil.test/login');
-    for (let k = 0; k < 32; k++) await vi.advanceTimersByTimeAsync(3100);
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
     await p;
     expect(injected).toContain('654321');
+  });
+});
+
+describe('EmailCodeAutofill keeps watching a sign-in that has no code field yet', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  // Measured on the real https://accounts.spotify.com/en/login:
+  //   looksLikeCodePage: false, hasEmptyCodeField: false, looksLikeAuthFlow: true
+  // The old loop broke at `!plausible && i >= 4` (~15s) and, because neither
+  // sawField nor plausible was ever true, did not even log a miss - which is
+  // exactly why the profile's autofill log had no Spotify entry at all. The code
+  // step then arrives in place, with no page load, so nothing re-ran.
+  it('waits through the email step and fills once the code step appears', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded(null, false, false),
+      loaded('424242', true, true),
+    ]));
+    let step = 'email';
+    A._hasEmptyCodeField = async () => step === 'code';
+    A._looksLikeCodePage = async () => step === 'code';
+    A._looksLikeAuthFlow = async () => true;
+    const wv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login' };
+    const p = A.tryFill(wv, 'https://accounts.spotify.com/en/login');
+    for (let k = 0; k < 10; k++) await vi.advanceTimersByTimeAsync(3100);   // past the old cutoff
+    step = 'code';
+    for (let k = 0; k < 54; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toContain('424242');
+  });
+
+  it('still gives up quickly on a page that is not a sign-in at all', async () => {
+    const { A, logs } = makeAutofill(scriptedReader([loaded('111111', true, true)]));
+    A._hasEmptyCodeField = async () => false;
+    A._looksLikeCodePage = async () => false;
+    A._looksLikeAuthFlow = async () => false;
+    const wv = { isConnected: true, getURL: () => 'https://news.example.test/article' };
+    const p = A.tryFill(wv, 'https://news.example.test/article');
+    for (let k = 0; k < 8; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(A._running).toBe(false);
+    expect(logs).toEqual([]);
   });
 });

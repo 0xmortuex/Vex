@@ -324,7 +324,22 @@ const EmailCodeAutofill = {
   async _looksLikeCodePage(loginWv) {
     const js = `(function(){try{
       if(document.querySelector('input[autocomplete="one-time-code"]'))return true;
-      return /verification code|enter the (code|digits)|we (sent|emailed)(?: you)? a code|one[-\\s]?time (code|password)|check your email|code we sent|enter (the )?code/i.test(document.body.innerText||'');
+      return /verification code|enter the (code|digits)|we (sent|emailed)(?: you)? a code|one[-\\s]?time (code|password)|check your email|code we sent|enter (the )?code/i.test(document.body.innerText||document.body.textContent||'');
+    }catch(e){return false;}})()`;
+    try { return await loginWv.executeJavaScript(js); } catch { return false; }
+  },
+
+  // Is this page part of a sign-in that could still reach a code step? The code
+  // screen usually arrives WITHOUT a page load - Spotify swaps its email step for
+  // the code step in place - so a page that merely looks like a sign-in has to
+  // keep the poll alive. Ending at fifteen seconds because the code field does
+  // not exist yet is why the attempt was never even logged.
+  async _looksLikeAuthFlow(loginWv) {
+    const js = `(function(){try{
+      if(document.querySelector('input[type=password]'))return true;
+      if(document.querySelector('input[type=email],input[autocomplete=username],input[autocomplete=email]'))return true;
+      if(/login|sign-?in|signin|auth|verify|challenge|account/i.test(location.pathname))return true;
+      return /log in|sign in|continue with|email address|one[-\\s]?time|passwordless/i.test(document.body.innerText||document.body.textContent||'');
     }catch(e){return false;}})()`;
     try { return await loginWv.executeJavaScript(js); } catch { return false; }
   },
@@ -373,14 +388,23 @@ const EmailCodeAutofill = {
       this._lastInboxRefresh = 0;                                // refresh throttle, per attempt
       let sawField = false, plausible = false;
       let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
-      let filled = false, sawMail = false, sawLoaded = false;
-      for (let i = 0; i < 30; i++) {   // ~90s of polling, refreshing the inbox as it goes
+      let filled = false, sawMail = false, sawLoaded = false, authFlow = null;
+      // Up to ~3 minutes on a sign-in page: requesting a code, waiting for the
+      // mail to arrive and the code step to render routinely takes longer than
+      // the old 90s, and the clock starts at page load — before the user has even
+      // typed their address. An ordinary page still leaves after ~15s below.
+      for (let i = 0; i < 60; i++) {
         if (!current()) break;
         const hasField = await this._hasEmptyCodeField(loginWv);
         if (hasField) { sawField = true; plausible = true; }
         else if (!plausible) { plausible = await this._looksLikeCodePage(loginWv); }
         if (!hasField && sawField) break;                        // field came and went
-        if (!plausible && i >= 4) break;                         // not a code page
+        if (!plausible && i >= 4) {
+          // Not a code page (yet). Keep going only while this still looks like a
+          // sign-in that could produce one; probed once, not every tick.
+          if (authFlow === null) authFlow = await this._looksLikeAuthFlow(loginWv);
+          if (!authFlow) break;
+        }
         if (hasField) {
           const found = this._findMailWebview();
           if (found && found.wv) {
