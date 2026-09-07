@@ -367,7 +367,15 @@ function handleHardReloadShortcut(event, input) {
 // Deliberately narrow: ONLY pure browser combos that web apps never use — so we
 // never steal Ctrl+B (bold), Ctrl+K (Discord/Slack quick switcher), Ctrl+M, etc.
 // Those still work when the chrome is focused.
-function handleBrowserShortcut(event, input) {
+// Apps that paint their document text into a <canvas> rather than the DOM -
+// Google Docs, Sheets and Slides - cannot be searched by Chromium's findInPage
+// at all: it walks the text tree, and canvas pixels are not in it. Measured on a
+// page holding both: DOM text 1 match, canvas text 0 matches. Those apps ship
+// their own find, so swallowing Ctrl+F there replaced a working search with a
+// find bar guaranteed to report nothing. Let the key reach the page instead.
+const { guestOwnsFind } = require('./main/find-policy');
+
+function handleBrowserShortcut(event, input, contents) {
   if (!mainWindow || mainWindow.isDestroyed() || !input || input.type !== 'keyDown') return false;
   const ctrl = input.control || input.meta;
   if (!ctrl || input.alt) return false;
@@ -382,7 +390,7 @@ function handleBrowserShortcut(event, input) {
     case 't': return send('new-tab');
     case 'w': return send('close-tab');
     case 'l': return send('focus-address-bar');
-    case 'f': return send('find-in-page');
+    case 'f': return guestOwnsFind(contents && contents.getURL && contents.getURL()) ? false : send('find-in-page');
     case 'd': return send('bookmark-current');
     case '=': case '+': return send('zoom-in');
     case '-': return send('zoom-out');
@@ -2122,7 +2130,7 @@ app.on('web-contents-created', (_event, contents) => {
     if (handleFullscreenShortcut(event, input)) return;
     if (handleHardReloadShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
-    if (handleBrowserShortcut(event, input)) return;
+    if (handleBrowserShortcut(event, input, contents)) return;
   });
 });
 const storagePath = path.join(userDataPath, 'vex-storage');

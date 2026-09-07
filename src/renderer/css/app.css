@@ -520,10 +520,14 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--vex-glass-strong);
-  backdrop-filter: var(--vex-blur-heavy);
-  -webkit-backdrop-filter: var(--vex-blur-heavy);
-  border: 1px solid var(--vex-border-medium);
+  /* Opaque, NOT glass. The find bar floats over a <webview>, and backdrop-filter
+     cannot sample a guest: the guest is its own compositing layer, so there is
+     nothing behind the bar to blur. The translucent fill therefore just let the
+     page show through, which on a white page (Google Docs) made the bar and its
+     text nearly unreadable. --vex-bg-elevated is opaque in every theme and pairs
+     with --vex-text-primary. */
+  background: var(--vex-bg-elevated);
+  border: 1px solid var(--vex-border-strong);
   border-radius: var(--vex-radius-md);
   padding: 6px 10px;
   z-index: 50;
