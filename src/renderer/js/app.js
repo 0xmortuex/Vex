@@ -15,10 +15,10 @@
   // Apply tab layout preference to <body> ASAP so CSS selectors hit before paint.
   const passkeyHosts = document.getElementById('setting-passkey-hosts');
   if (passkeyHosts) {
-    try { passkeyHosts.value = JSON.parse(localStorage.getItem('vex.passkeySuppressedHosts') || '[]').join(', '); } catch {}
+    try { passkeyHosts.value = JSON.parse(localStorage.getItem('vex.passkeySuppressedHosts') || '["*"]').join(', '); } catch {}
     passkeyHosts.addEventListener('change', () => {
       const hosts = passkeyHosts.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      if (hosts.some(s => !/^[a-z0-9.-]+$/.test(s))) { window.showToast?.('Enter hostnames without URLs or paths'); return; }
+      if (hosts.some(s => s !== '*' && !/^[a-z0-9.-]+$/.test(s))) { window.showToast?.('Enter hostnames without URLs or paths, or * for every site'); return; }
       localStorage.setItem('vex.passkeySuppressedHosts', JSON.stringify([...new Set(hosts)]));
     });
   }

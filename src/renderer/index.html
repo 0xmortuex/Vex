@@ -748,7 +748,7 @@
                   <input type="text" id="setting-ai-worker-url" class="set-input" placeholder="https://your-vex-ai.workers.dev" autocomplete="off" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:12px">
                   <label for="setting-passkey-hosts">Sites with passkey prompts disabled</label>
                   <input id="setting-passkey-hosts" class="set-input" placeholder="example.com, login.example.com">
-                  <p class="setting-info muted">Optional exact hostnames, separated by commas. These sites fall back to passwords; passkeys remain enabled everywhere else. Reload the site after changing this.</p>
+                  <p class="setting-info muted">Stops Windows showing its passkey / security-key dialog over a password login. Defaults to <b>*</b> (every site). Replace it with exact hostnames to keep passkeys elsewhere, or clear the field to allow passkey prompts everywhere. Reload the site after changing this.</p>
                   <label for="setting-ai-worker-token">AI access token</label>
                   <input type="password" id="setting-ai-worker-token" class="set-input" autocomplete="new-password" placeholder="Stored with Windows encryption">
                   <button type="button" id="save-ai-worker-token" class="btn-secondary">Save access token</button>

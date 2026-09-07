@@ -93,6 +93,40 @@ const TotpAutofill = {
 
     const matches = list.map((a) => ({ account: a, kind: this._matchKind(a, host) })).filter((m) => m.kind);
     if (!matches.length) return;
+
+    // A 2FA screen appears AFTER the password step, and sites like Roblox show it
+    // as a modal on the same URL — so dom-ready has already fired and will never
+    // fire again. Running once and giving up meant the field never existed yet at
+    // the only moment we looked. Wait for it, for as long as the user stays on
+    // this site. (_inject's own retry is ~3s, far too short to cover typing a
+    // password and submitting.)
+    if (webview._vexTotpPolling) return;
+    webview._vexTotpPolling = true;
+    try {
+      const origin = new URL(url).origin;
+      const here = () => { try { return webview.isConnected !== false && new URL(webview.getURL()).origin === origin; } catch { return false; } };
+      let ready = false;
+      for (let i = 0; i < this.WAIT_TICKS; i++) {
+        if (!here()) return;
+        if (await this._hasOtpField(webview, url)) { ready = true; break; }
+        // Only wait on a page that plausibly leads to a 2FA step. Otherwise every
+        // visit to a site with a saved code would probe the DOM for a minute.
+        if (i === 0 && !(await this._looksLikeAuthFlow(webview, url))) return;
+        await new Promise((resolve) => setTimeout(resolve, this.WAIT_INTERVAL_MS));
+      }
+      if (!ready || !here()) return;
+      await this._fill(webview, url, host, matches);
+    } finally {
+      webview._vexTotpPolling = false;
+    }
+  },
+
+  WAIT_TICKS: 40,            // ~60s, enough to type a password and submit
+  WAIT_INTERVAL_MS: 1500,
+
+  async _fill(webview, url, host, matches) {
+    const origin = new URL(url).origin;
+    const here = () => { try { return new URL(webview.getURL()).origin === origin; } catch { return false; } };
     let match = matches[0];
     if (matches.length > 1) {
       // Several saved accounts claim this site. Filling an arbitrary one silently
@@ -108,11 +142,9 @@ const TotpAutofill = {
       match = matches[index];
     }
     if (match.kind === 'label') {
-      // Only ask about a site once it is actually showing a 2FA field. Prompting
-      // on every page load of the site would be intolerable.
-      if (!(await this._hasOtpField(webview, url))) return;
-      // The issuer happens to equal this site's registrable label. That is a good
-      // guess but an attacker can arrange it, so confirm once and remember.
+      // The site's name matches this account, which is a good guess but one an
+      // attacker can arrange, so confirm once and remember. The caller has already
+      // waited for a real 2FA field, so this never fires on ordinary browsing.
       if (!window.vexConfirm) return;
       const name = String(match.account.issuer || match.account.label || '').trim();
       const ok = await window.vexConfirm({
@@ -121,8 +153,7 @@ const TotpAutofill = {
         okLabel: 'Fill code',
       });
       this._bind(match.account, host, ok);
-      if (!ok) return;
-      if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
+      if (!ok || !here()) return;
     }
     const chosen = [match.account];
 
@@ -131,11 +162,25 @@ const TotpAutofill = {
     const entry = codes.find((x) => x.id === chosen[0].id);
     const code = entry && entry.code;
     if (!code || !/^\d{4,8}$/.test(code)) return;
-    if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
+    if (!here()) return;   // origin, not exact URL: the 2FA step is a navigation
     this._inject(webview, code, url);
     try { window.AutofillLog?.record('totp', url, true, chosen[0].issuer || chosen[0].label); } catch {}
   },
 
+
+  // Is this page plausibly part of a sign-in that could reach a 2FA step? Used
+  // only to decide whether waiting for the field is worth it.
+  async _looksLikeAuthFlow(webview, url) {
+    let origin = '';
+    try { origin = new URL(url).origin; } catch { return false; }
+    const js = `(function(){try{
+      if(location.origin!==${JSON.stringify(origin)})return false;
+      if(document.querySelector('input[type=password]'))return true;
+      if(/login|sign-?in|signin|auth|verify|challenge|2fa|two-?step|security/i.test(location.pathname))return true;
+      return /two.?factor|authenticat|verification code|one.?time|2-?step|enter the (code|digits)/i.test(document.body.innerText||document.body.textContent||'');
+    }catch(e){return false;}})();`;
+    try { return !!(await webview.executeJavaScript(js)); } catch { return false; }
+  },
 
   // Cheap page probe: is there a visible, empty one-time-code field right now?
   // Mirrors the isOtp rules used by the injected filler.

@@ -1842,7 +1842,7 @@ app.on('web-contents-created', (_event, contents) => {
       // preload), so disable WebAuthn get() here too, on each load. Runs before
       // the user reaches the passkey step, so the prompt never appears.
       try { win.webContents.on('did-finish-load', () => { try {
-        if (_readPersistString('vex.passkeySuppressedHosts', []).includes(new URL(win.webContents.getURL()).hostname)) win.webContents.executeJavaScript(_WEBAUTHN_DISABLE_JS).catch(() => {});
+        if (_passkeySuppressed(new URL(win.webContents.getURL()).hostname)) win.webContents.executeJavaScript(_WEBAUTHN_DISABLE_JS).catch(() => {});
       } catch {} }); } catch {}
     }
 
@@ -2165,6 +2165,20 @@ ipcMain.handle('persist-get-all', () => _persistLoad());
 // touch the renderer's localStorage directly, so it asks us. We read from the
 // already-loaded persist cache — values land here as the same JSON-stringified
 // strings the renderer wrote via persist-set, so JSON.parse is required.
+// Should this host get the WebAuthn suppression that stops Windows from popping
+// its "Windows Security" passkey / USB-key dialog over a password login?
+//
+// This used to apply everywhere. The September audit made it opt-in per exact
+// hostname, which left the default list empty - so the dialog came back on every
+// site and there was no way to turn it off short of typing each hostname in.
+// The default is suppression everywhere again, expressed as "*", and the setting
+// still narrows it: replace "*" with hostnames to keep passkeys on elsewhere, or
+// empty the field to re-enable passkey prompts everywhere.
+function _passkeySuppressed(hostname) {
+  const hosts = _readPersistString('vex.passkeySuppressedHosts', ['*']);
+  if (!Array.isArray(hosts)) return false;
+  return hosts.includes('*') || hosts.includes(hostname);
+}
 function _readPersistString(key, fallback) {
   const raw = _persistLoad()[key];
   if (raw == null) return fallback;
@@ -3856,7 +3870,7 @@ ipcMain.handle('adblocker-set-state', (event, enabled) => {
 // seed BEFORE any page script runs, so an async invoke would be too late).
 ipcMain.on('privacy:config-sync', (e) => { e.returnValue = { farble: !!privacyCfg.farble, seed: FARBLE_SEED }; });
 ipcMain.on('compatibility:get', e => {
-  try { e.returnValue = { suppressPasskeys: _readPersistString('vex.passkeySuppressedHosts', []).includes(new URL(e.senderFrame.url).hostname) }; }
+  try { e.returnValue = { suppressPasskeys: _passkeySuppressed(new URL(e.senderFrame.url).hostname) }; }
   catch { e.returnValue = { suppressPasskeys: false }; }
 });
 ipcMain.handle('privacy:get-config', () => privacyLoad());

@@ -105,3 +105,37 @@ describe('will-attach-webview hardening', () => {
     }
   });
 });
+
+// Suppressing WebAuthn is what stops Windows popping its "Windows Security"
+// passkey / USB-key dialog over an ordinary password login. It applied
+// everywhere until the September audit made it opt-in per exact hostname, which
+// left the default list empty and brought the dialog back on every site.
+//
+// NOTE: this mirrors the rule rather than calling it. _passkeySuppressed lives
+// inside main.js, which is not importable, so this pins the intended semantics
+// but would NOT catch main.js drifting away from them. Real confirmation is the
+// Windows dialog no longer appearing over a password login.
+describe('passkey prompt suppression (mirrored rule)', () => {
+  function suppressed(stored, hostname) {
+    const hosts = stored === undefined ? ['*'] : stored;
+    if (!Array.isArray(hosts)) return false;
+    return hosts.includes('*') || hosts.includes(hostname);
+  }
+  it('suppresses everywhere when the user has never set the preference', () => {
+    expect(suppressed(undefined, 'roblox.com')).toBe(true);
+    expect(suppressed(undefined, 'accounts.google.com')).toBe(true);
+  });
+  it('honours an explicit wildcard', () => {
+    expect(suppressed(['*'], 'anything.test')).toBe(true);
+  });
+  it('narrows to exact hostnames when the user lists them', () => {
+    expect(suppressed(['roblox.com'], 'roblox.com')).toBe(true);
+    expect(suppressed(['roblox.com'], 'github.com')).toBe(false);
+  });
+  it('re-enables passkey prompts everywhere when the list is cleared', () => {
+    expect(suppressed([], 'roblox.com')).toBe(false);
+  });
+  it('ignores a corrupt stored value instead of throwing', () => {
+    expect(suppressed('not-an-array', 'roblox.com')).toBe(false);
+  });
+});
