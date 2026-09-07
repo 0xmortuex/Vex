@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.33 (2026-09-07) — Find in page
+
+### Fixed
+- **The find bar is readable again.** It was drawn as frosted glass, but a frosted panel has nothing to frost when it floats over a web page, so it came out see-through — and over a white page, such as a document, the box and the text you typed were almost invisible. It is now solid, in every theme.
+- **Ctrl+F works in Google Docs, Sheets and Slides.** Those apps draw their text in a way the browser cannot search, so the find bar could never match anything in them, and Vex was taking the key before the app could use its own search. Ctrl+F now goes straight to the document, where it works. Everywhere else the Vex find bar opens exactly as before.
+
 ## v2.31.32 (2026-09-07) — Emailed sign-in codes, end to end
 
 ### Fixed
