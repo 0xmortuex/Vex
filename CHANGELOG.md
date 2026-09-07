@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.31.27 (2026-09-07) — Sign-in and autofill fixes
+
+### Fixed
+- **Signing in with Google could crash Vex.** Opening a Google sign-in popup showed a "A JavaScript error occurred in the main process" dialog instead of filling your saved login. Popup autofill was calling into code that had moved to another module without being wired up, and the failure escaped as an uncaught error instead of being handled.
+- **Saved passwords stopped filling on Spotify.** Logins that rewrite the page address between the email and password steps — Spotify does this — stopped autofilling after the first step. Emailed sign-in codes were affected the same way.
+- **Authenticator codes stopped filling on most sites.** Two-factor autofill recognised only eight services, so Roblox, Spotify, Steam and everything else never filled. Vex now also recognises a site whose name matches your authenticator entry: it asks once, showing you the site, then remembers your answer. It only asks when a two-factor field is actually on screen.
+
 ## v2.31.26 (2026-09-07) — Roblox panel back button
 
 ### Fixed
