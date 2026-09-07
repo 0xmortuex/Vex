@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.31 (2026-09-07) — Reading the code from a background mailbox
+
+### Fixed
+- **Emailed sign-in codes are read from your mailbox even when it is in the background.** Two things stopped this. A mail tab that had gone to sleep was never woken, so Vex reported that no mailbox was open even though it was. And a mail tab that was awake but sitting behind the sign-in page was frozen by the browser, so it never received the new mail: Vex kept re-reading the same older messages and never saw the code arrive. Your mailbox is now kept awake and running while Vex waits for a code, then put back exactly as it was.
+
 ## v2.31.30 (2026-09-07) — Emailed sign-in codes on Spotify
 
 ### Fixed
