@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.32 (2026-09-07) — Emailed sign-in codes, end to end
+
+### Fixed
+- **Emailed sign-in codes now fill on Spotify and other sites.** Two remaining faults are gone. Waiting for a code was limited to one page at a time across the whole browser, so a sign-in page left open elsewhere could silently block the page you were actually using. And the wait was abandoned outright if the page had not quite finished attaching at the moment it began — which is exactly when it begins — leaving no trace of the attempt at all. An attempt that is turned away is now recorded instead of vanishing.
+
+### Notes
+- Verified by driving the whole flow inside Vex against the real Spotify code screen, with the mailbox tab asleep in the background: both the case where the code is already waiting and the case where it arrives while you wait.
+
 ## v2.31.31 (2026-09-07) — Reading the code from a background mailbox
 
 ### Fixed
