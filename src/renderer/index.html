@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self'; connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vex</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Spectral:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/accessibility-ui.css">
   <link rel="stylesheet" href="css/theme-tokens.css">
   <link rel="stylesheet" href="css/theme-extra.css">
   <link rel="stylesheet" href="css/theme-picker.css">
@@ -746,6 +746,12 @@
                 <div>
                   <label for="setting-ai-worker-url" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">AI Worker URL</label>
                   <input type="text" id="setting-ai-worker-url" class="set-input" placeholder="https://your-vex-ai.workers.dev" autocomplete="off" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+                  <label for="setting-passkey-hosts">Sites with passkey prompts disabled</label>
+                  <input id="setting-passkey-hosts" class="set-input" placeholder="example.com, login.example.com">
+                  <p class="setting-info muted">Optional exact hostnames, separated by commas. These sites fall back to passwords; passkeys remain enabled everywhere else. Reload the site after changing this.</p>
+                  <label for="setting-ai-worker-token">AI access token</label>
+                  <input type="password" id="setting-ai-worker-token" class="set-input" autocomplete="new-password" placeholder="Stored with Windows encryption">
+                  <button type="button" id="save-ai-worker-token" class="btn-secondary">Save access token</button>
                 </div>
                 <div>
                   <label for="setting-sync-worker-url" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Sync Worker URL</label>
@@ -966,8 +972,17 @@
   <!-- Notification Toast -->
   <div id="toast" style="display: none;"></div>
 
+  <script src="../diagnostics.js"></script>
+  <script src="js/image-fallback.js"></script>
+  <script src="js/service-status.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/virtual-list.js"></script>
   <script src="js/vex-config.js"></script>
   <script src="js/lazy.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/data-contracts.js"></script>
+  <script src="js/lifecycle.js"></script>
+  <script src="js/tab-policy.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/vex-dialog.js"></script>
   <script src="js/vex-utils.js"></script>
@@ -992,6 +1007,7 @@
   <script src="js/history-panel.js"></script>
   <script src="js/history-indexer.js"></script>
   <script src="js/sync-crypto.js"></script>
+  <script src="js/sync-records.js"></script>
   <script src="js/sync-engine.js"></script>
   <script src="js/sync-settings.js"></script>
   <script src="js/ollama.js"></script>
@@ -1053,6 +1069,7 @@
   <script src="js/page-extras.js"></script>
   <script src="js/gestures.js"></script>
   <script src="js/compose-chains.js"></script>
+  <script src="js/collection-store.js"></script>
   <script src="js/bookmarks.js"></script>
   <script src="js/rss.js"></script>
   <script src="js/readlater.js"></script>

@@ -1,3 +1,4 @@
+import { boundedJson, durableKV, isDevelopment, expireRecords, parseCounter } from '../shared/security.js';
 // Vex Sync Worker
 // Endpoints:
 //   POST   /auth/request-code       { email }
@@ -49,21 +50,19 @@ function timingSafeEqual(a, b) {
   return mismatch === 0;
 }
 
-// Fixed-window rate limiter backed by VEX_AUTH_KV. Time-bucketed keys give a
-// stable window; the read-then-write isn't atomic (KV is eventually consistent)
-// but that's acceptable for abuse mitigation. Fails OPEN on KV errors so an
-// outage degrades to "no limit" rather than locking every user out.
+// Fixed-window counters use the Durable Object's serialized storage adapter.
+// Missing, corrupt or unavailable quota storage fails closed.
 async function rateLimited(env, bucket, limit, windowSec) {
   try {
-    if (!env.VEX_AUTH_KV) return false;
+    if (!env.VEX_AUTH_KV) return true;
     const win = Math.floor(Date.now() / (windowSec * 1000));
     const key = `rl:${bucket}:${win}`;
-    const cur = parseInt(await env.VEX_AUTH_KV.get(key), 10) || 0;
+    const cur = parseCounter(await env.VEX_AUTH_KV.get(key));
     if (cur >= limit) return true;
     await env.VEX_AUTH_KV.put(key, String(cur + 1), { expirationTtl: windowSec + 60 });
     return false;
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -80,14 +79,15 @@ async function sendMagicCode(email, code, env) {
 
   if (env.RESEND_API_KEY) {
     try {
-      await fetch('https://api.resend.com/emails', {
+      const response = await fetch('https://api.resend.com/emails', {
+        signal: AbortSignal.timeout(10000),
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${env.RESEND_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: 'Vex Sync <onboarding@resend.dev>',
+          from: env.RESEND_FROM || 'Vex Sync <onboarding@resend.dev>',
           to: email,
           subject: `Your Vex Sync code: ${code}`,
           html: `
@@ -100,13 +100,14 @@ async function sendMagicCode(email, code, env) {
           `
         })
       });
+      if (!response.ok) throw new Error('Email delivery failed');
     } catch (err) {
-      console.error('Resend failed:', err);
+      throw Object.assign(new Error('Could not deliver verification email'), { status: 502 });
     }
   }
 }
 
-export default {
+const syncHandler = {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -114,12 +115,13 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
+    if (path.startsWith('/auth/') && !env.RESEND_API_KEY && !isDevelopment(request, env)) return json({ error: 'Email delivery is not configured' }, 503);
     const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
 
     try {
       // ====== AUTH ======
       if (path === '/auth/request-code' && request.method === 'POST') {
-        const { email } = await request.json();
+        const { email } = await boundedJson(request);
         if (!email || !email.includes('@')) {
           return json({ error: 'Invalid email' }, 400);
         }
@@ -145,7 +147,7 @@ export default {
         // user, so return it in the response. ⚠ This means anyone who knows
         // your worker URL can enroll as any email — fine for a personal
         // deployment you keep private; set RESEND_API_KEY to turn it off.
-        if (!env.RESEND_API_KEY) {
+        if (!env.RESEND_API_KEY && isDevelopment(request, env)) {
           return json({ ok: true, message: 'No email configured — use this code', devCode: code });
         }
 
@@ -153,7 +155,7 @@ export default {
       }
 
       if (path === '/auth/verify-code' && request.method === 'POST') {
-        const { email, code, deviceName } = await request.json();
+        const { email, code, deviceName } = await boundedJson(request);
         if (!email || !code) return json({ error: 'Missing email or code' }, 400);
 
         const emailHash = await hashEmail(email);
@@ -173,7 +175,7 @@ export default {
         // TTL an unlimited-guess endpoint is brute-forceable. Burn the code after
         // 5 wrong guesses — the user must request a new one.
         const attemptsKey = `attempts:${emailHash}`;
-        const attempts = parseInt(await env.VEX_AUTH_KV.get(attemptsKey), 10) || 0;
+        const attempts = parseCounter(await env.VEX_AUTH_KV.get(attemptsKey));
         if (attempts >= 5) {
           await env.VEX_AUTH_KV.delete(`code:${emailHash}`);
           await env.VEX_AUTH_KV.delete(attemptsKey);
@@ -212,7 +214,8 @@ export default {
         });
         await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
 
-        return json({ ok: true, sessionToken, deviceId, emailHash });
+        const hasEncryptedData = !!(await env.VEX_SYNC_KV.get(`blob:${emailHash}`));
+        return json({ ok: true, sessionToken, deviceId, emailHash, hasEncryptedData });
       }
 
       // ====== SYNC (auth required) ======
@@ -228,6 +231,7 @@ export default {
         // Touch lastSeenAt
         const devicesKey = `devices:${session.emailHash}`;
         const existingDevices = await env.VEX_SYNC_KV.get(devicesKey);
+        if (!existingDevices) return json({ error: 'Device revoked' }, 401);
         if (existingDevices) {
           const devices = JSON.parse(existingDevices);
           const d = devices.find(x => x.deviceId === session.deviceId);
@@ -242,7 +246,7 @@ export default {
         }
 
         if (path === '/sync/push' && request.method === 'POST') {
-          const { encryptedBlob, updatedAt } = await request.json();
+          const { encryptedBlob, updatedAt, baseRevision } = await boundedJson(request);
           if (!encryptedBlob || typeof encryptedBlob !== 'string') {
             return json({ error: 'Missing encryptedBlob' }, 400);
           }
@@ -250,14 +254,18 @@ export default {
             return json({ error: 'Blob too large (max 5 MB)' }, 413);
           }
           const blobKey = `blob:${session.emailHash}`;
+          const previous = await env.VEX_SYNC_KV.get(blobKey);
+          const revision = previous ? (JSON.parse(previous).revision || 0) : 0;
+          if (!Number.isSafeInteger(baseRevision) || baseRevision !== revision) return json({ error: 'Sync conflict: pull and merge before pushing', revision }, 409);
           const data = {
+            revision: revision + 1,
             encryptedBlob,
             updatedAt: updatedAt || new Date().toISOString(),
             pushedBy: session.deviceId,
             pushedAt: new Date().toISOString()
           };
           await env.VEX_SYNC_KV.put(blobKey, JSON.stringify(data));
-          return json({ ok: true, savedAt: data.pushedAt });
+          return json({ ok: true, savedAt: data.pushedAt, revision: data.revision });
         }
 
         if (path === '/sync/pull' && request.method === 'GET') {
@@ -299,9 +307,9 @@ export default {
         // sending device; GET delivers (and consumes) every item that was NOT
         // sent by the requesting device. Plain URLs/titles only — no page data.
         if (path === '/sync/drop' && request.method === 'POST') {
-          const { url: dropUrl, title } = await request.json();
-          if (!dropUrl || typeof dropUrl !== 'string' || !/^https?:\/\//i.test(dropUrl)) {
-            return json({ error: 'Invalid url' }, 400);
+          const { encryptedBlob } = await boundedJson(request);
+          if (typeof encryptedBlob !== 'string' || !encryptedBlob || encryptedBlob.length > 16384) {
+            return json({ error: 'Encrypted handoff required (max 16 KB)' }, 400);
           }
           const dropKey = `drop:${session.emailHash}`;
           const existing = await env.VEX_SYNC_KV.get(dropKey);
@@ -309,8 +317,7 @@ export default {
           try { items = existing ? JSON.parse(existing) : []; } catch { items = []; }
           items.push({
             id: randomId(8),
-            url: dropUrl.slice(0, 2048),
-            title: String(title || '').slice(0, 300),
+            encryptedBlob,
             fromDeviceId: session.deviceId,
             fromDeviceName: session.deviceName,
             at: new Date().toISOString()
@@ -337,7 +344,7 @@ export default {
 
       return json({ error: 'Not found' }, 404);
     } catch (err) {
-      return json({ error: err.message || 'Server error' }, 500);
+      return json({ error: err.status ? err.message : 'Sync request failed' }, err.status || 500);
     }
   }
 };
@@ -345,3 +352,19 @@ export default {
 // Named exports for unit tests (no effect on the Worker runtime, which only
 // uses the default export's fetch()).
 export { genNumericCode, timingSafeEqual, rateLimited, hashEmail };
+
+export { syncHandler };
+export class VexSyncState {
+  constructor(state, env) { this.state = state; this.env = env; }
+  fetch(request) {
+    return this.state.blockConcurrencyWhile(() => syncHandler.fetch(request, { ...this.env, VEX_AUTH_KV: durableKV(this.state.storage, 'auth:', this.env.VEX_AUTH_KV), VEX_SYNC_KV: durableKV(this.state.storage, 'sync:', this.env.VEX_SYNC_KV) }));
+  }
+  alarm() { return expireRecords(this.state.storage); }
+}
+export default {
+  fetch(request, env) {
+    if (request.method === 'OPTIONS') return syncHandler.fetch(request, env);
+    if (!env.VEX_STATE) return Promise.resolve(json({ error: 'Durable state is not configured' }, 503));
+    return env.VEX_STATE.get(env.VEX_STATE.idFromName('vex-sync')).fetch(request);
+  }
+};

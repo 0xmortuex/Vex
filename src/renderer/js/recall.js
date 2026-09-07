@@ -16,19 +16,24 @@ const Recall = {
   // Pull the page's readable text and hand it to the main-process index.
   async indexPage(webview, url, title) {
     if (!this.enabled() || !url || !window.vex?.recallIndex) return;
+    if (!webview || (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview))) return;
     if (!/^https?:/i.test(url)) return;
     if (typeof isStartPage === 'function' && isStartPage(url)) return;
     // Skip ephemeral / container-isolated tabs: don't index what the user chose
     // to keep traceless.
-    const t = typeof TabManager !== 'undefined' ? TabManager.tabs.find(x => x.url === url) : null;
-    if (t && t.partition && !String(t.partition).startsWith('persist:main')) return;
+    const partition = webview.getAttribute?.('partition');
+    if (partition && partition !== 'persist:main') return;
+    const generation = webview._navigationGeneration;
+    if (webview.getURL?.() !== url) return;
     let text = '';
     try {
       text = await webview.executeJavaScript(`(function(){try{
+        if(location.href!==${JSON.stringify(url)})return '';
         var el=document.querySelector('article,main,[role=main]')||document.body;
         return (el.innerText||'').replace(/\\s+/g,' ').trim().substring(0,16000);
       }catch(e){return ''}})();`);
     } catch {}
+    if (!this.enabled() || webview.getURL?.() !== url || webview._navigationGeneration !== generation) return;
     if (!text || text.length < 200) return; // too thin to be worth recalling
     try { await window.vex.recallIndex({ url, title: title || url, text }); this._recent++; } catch {}
   },
@@ -102,7 +107,7 @@ const Recall = {
         r.addEventListener('mouseenter', () => r.style.background = 'var(--surface)');
         r.addEventListener('mouseleave', () => r.style.background = '');
         r.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
-            <img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:15px;height:15px;border-radius:3px" onerror="this.style.visibility='hidden'">
+            <img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:15px;height:15px;border-radius:3px" data-image-fallback="hide">
             <div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.title)}</div>
             <span style="font-size:10.5px;color:var(--text-muted);flex:none">${when}</span></div>
           <div style="font-size:11.5px;color:var(--text-muted);margin:3px 0 0 23px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(h.snippet || '')}</div>

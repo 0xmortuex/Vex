@@ -13,6 +13,12 @@
 // never spends someone else's API credits or stores data on their server.
 
 const VexConfig = {
+  async fetchAI(url, options) {
+    if (!window.vex?.cloudRequest) return fetch(url, options);
+    await window.PersistentStorage?._flush?.();
+    const result = await window.vex.cloudRequest(JSON.parse(options.body));
+    return new Response(result.body, { status: result.status, headers: { 'Content-Type': 'application/json' } });
+  },
   aiWorkerUrl() {
     try { return (localStorage.getItem('vex.aiWorkerUrl') || '').trim(); } catch { return ''; }
   },

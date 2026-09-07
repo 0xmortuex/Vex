@@ -158,6 +158,7 @@ const SITE_TWEAKS = [
     // Password autofill via the Credential Management API (no publicKey) still
     // works; create()/registration is untouched. Applied everywhere.
     name: 'disable-webauthn-passkey-prompt',
+    optIn: 'suppressPasskeys',
     hosts: /.*/,
     mechanism: 'webFrame',
     code: '(function(){try{' +
@@ -257,8 +258,9 @@ const SITE_TWEAKS = [
 ];
 
 // Entries whose hosts pattern matches `hostname`.
-function tweaksForHost(hostname) {
+function tweaksForHost(hostname, options = {}) {
   return SITE_TWEAKS.filter((t) => {
+    if (t.optIn && options[t.optIn] !== true) return false;
     try { return t.hosts.test(hostname); } catch { return false; }
   });
 }
@@ -270,7 +272,11 @@ function tweaksForHost(hostname) {
 (function () {
   if (typeof document === 'undefined' || typeof location === 'undefined') return;
   let tweaks;
-  try { tweaks = tweaksForHost(location.hostname); } catch { return; }
+  try {
+    let options = {};
+    try { options = require('electron').ipcRenderer.sendSync('compatibility:get') || {}; } catch {}
+    tweaks = tweaksForHost(location.hostname, options);
+  } catch { return; }
   if (!tweaks.length) return;
 
   function injectDomScript(code) {

@@ -16,7 +16,7 @@ const WebLLM = (() => {
     { id: 'Llama-3.2-3B-Instruct-q4f16_1-MLC', name: 'Llama 3.2 3B', size: '~1.8 GB', note: 'Best quality (needs a real GPU)' },
     { id: 'Phi-3.5-mini-instruct-q4f16_1-MLC', name: 'Phi 3.5 mini', size: '~2.2 GB', note: 'Strong reasoning' },
   ];
-  const LIB_URL = 'https://esm.run/@mlc-ai/web-llm';
+  const LIB_URL = new URL('../vendor/runtime/webllm.mjs', document.currentScript.src).href;
   const MODEL_KEY = 'vex.webllmModel';
   const PREF_KEY = 'vex.preferOnDeviceAI';
 

@@ -138,7 +138,7 @@ const QueuePanel = {
     }
 
     try {
-      const res = await fetch(
+      const res = await (window.VexNet?.fetch || fetch)(
         buildQueueUrl(this.config.queueUrl, '/queue', this.config.queueSecret));
       if (res.status === 403) {
         this.renderMessage(list, 'Access denied (403) — check <code>queueSecret</code>.');
@@ -199,7 +199,7 @@ const QueuePanel = {
   async markDone(id) {
     if (!this.isConfigured()) return;
     try {
-      const res = await fetch(
+      const res = await (window.VexNet?.fetch || fetch)(
         buildQueueUrl(this.config.queueUrl, `/queue/${encodeURIComponent(id)}/done`,
           this.config.queueSecret),
         { method: 'POST' });
@@ -212,7 +212,7 @@ const QueuePanel = {
   async deleteItem(id) {
     if (!this.isConfigured()) return;
     try {
-      const res = await fetch(
+      const res = await (window.VexNet?.fetch || fetch)(
         buildQueueUrl(this.config.queueUrl, `/queue/${encodeURIComponent(id)}`,
           this.config.queueSecret),
         { method: 'DELETE' });

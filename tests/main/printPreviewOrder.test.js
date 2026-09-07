@@ -56,7 +56,7 @@ describe('main.js — print-preview switch ordering invariant', () => {
   });
 
   it('appendSwitch("enable-features", "PrintPreview") is present', () => {
-    expect(mainSrc).toMatch(/appendSwitch\(\s*['"]enable-features['"]\s*,\s*['"]PrintPreview['"]\s*\)/);
+    expect(mainSrc).toMatch(/appendSwitch\(\s*['"]enable-features['"]\s*,\s*['"]PrintPreview(?:,[^'"]*)?['"]\s*\)/);
   });
 
   // The actual regression: BOTH switches must come before ANY runtime read of
@@ -65,7 +65,7 @@ describe('main.js — print-preview switch ordering invariant', () => {
   // `commandLine` is a special pre-init API surface and does not lock
   // features — that's the whole reason it exists.
   const printPreviewLine     = () => firstLine(/appendSwitch\(\s*['"]enable-print-preview['"]/);
-  const printFeatureFlagLine = () => firstLine(/appendSwitch\(\s*['"]enable-features['"]\s*,\s*['"]PrintPreview['"]/);
+  const printFeatureFlagLine = () => firstLine(/appendSwitch\(\s*['"]enable-features['"]\s*,\s*['"]PrintPreview(?:,[^'"]*)?['"]/);
 
   // Forbidden "first app.* access" patterns. We exclude `app.commandLine` (the
   // pre-init surface) and `app.on('will-quit', ...)` because attaching event
@@ -101,12 +101,7 @@ describe('main.js — print-preview switch ordering invariant', () => {
     });
   }
 
-  it('both print-preview switches sit in the file header (line ≤ 25)', () => {
-    // Belt-and-suspenders: even if no other app.* calls existed, putting the
-    // switches near the top of the file is the contract a reader would expect
-    // from the comment in main.js. If someone moves them deep into a function,
-    // this test fails loudly.
-    expect(printPreviewLine()).toBeLessThanOrEqual(25);
-    expect(printFeatureFlagLine()).toBeLessThanOrEqual(25);
+  it('uses one feature switch so later flags cannot overwrite PrintPreview', () => {
+    expect(lines.filter(line => /appendSwitch\(\s*['"]enable-features['"]/.test(line))).toHaveLength(1);
   });
 });

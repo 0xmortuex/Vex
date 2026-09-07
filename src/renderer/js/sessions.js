@@ -22,13 +22,14 @@ const SessionManager = {
   },
 
   saveCurrentSession(name) {
+    const tabs = window.VexTabPolicy.snapshot(TabManager.tabs);
     const session = {
       id: 'sess_' + Date.now(),
       name: name || 'Session ' + new Date().toLocaleString(),
       createdAt: new Date().toISOString(),
-      tabs: TabManager.tabs.map(t => ({ url: t.url, title: t.title, groupId: t.groupId })),
-      groups: TabManager.groups,
-      activeTabIndex: TabManager.tabs.findIndex(t => t.id === TabManager.activeTabId)
+      tabs,
+      groups: TabManager.groups.map(g => ({ ...g })),
+      activeTabIndex: tabs.findIndex(t => t.id === TabManager.activeTabId)
     };
     this.sessions.unshift(session);
     if (this.sessions.length > 50) this.sessions.length = 50;
@@ -58,24 +59,34 @@ const SessionManager = {
       }
       // Restore groups
       if (session.groups) {
-        TabManager.groups = session.groups;
+        TabManager.groups = session.groups.map(g => ({ ...g }));
         await VexStorage.saveGroups(TabManager.groups);
         TabManager.renderGroups();
       }
     }
 
     // Open all tabs from session
-    for (const t of session.tabs) {
-      TabManager.createTab(t.url, false, t.groupId);
+    const restored = [];
+    let selected = null;
+    for (const [index, t] of (Array.isArray(session.tabs) ? session.tabs : []).entries()) {
+      if (!window.VexTabPolicy.canRestore(t)) continue;
+      const tab = TabManager.createTab(t.url, false, t.groupId, { partition: t.partition });
+      tab.pinned = !!t.pinned;
+      tab.keepAwakeUntil = t.keepAwakeUntil || 0;
+      TabManager.renderTabUpdate(tab);
+      restored.push(tab);
+      if (index === session.activeTabIndex) selected = tab;
     }
 
     // Activate correct tab
-    const idx = session.activeTabIndex >= 0 ? session.activeTabIndex : 0;
-    if (TabManager.tabs[idx]) {
-      TabManager.switchTab(TabManager.tabs[idx].id);
+    if (selected || restored[0]) {
+      TabManager.switchTab((selected || restored[0]).id);
+    } else if (!TabManager.tabs.length) {
+      TabManager.createTab(START_URL, true);
     }
 
     this.hideOverlay();
+    await TabManager.persistTabs();
     window.showToast?.('Restored: ' + session.name);
   },
 
@@ -189,3 +200,10 @@ const SessionManager = {
 
   _esc(s) { return window.escapeHtml(s); }
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { SessionManager };
+if (typeof window !== 'undefined') window.addEventListener('vex-sync-data-applied', () => {
+  const saved = JSON.parse(localStorage.getItem(SessionManager.STORAGE_KEY) || '[]');
+  SessionManager.sessions = Array.isArray(saved) ? saved : [];
+  SessionManager.renderList();
+});

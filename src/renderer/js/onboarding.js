@@ -31,6 +31,8 @@ const Onboarding = {
     const wantTour = this._wantTour;
     try { localStorage.setItem('vex.tourSeen', '1'); } catch {}
     this._close();
+    if (this._returnFocus?.isConnected) this._returnFocus.focus();
+    this._returnFocus = null;
     this._reloadStartPages();
     if (wantTour) setTimeout(() => { try { window.VexTour?.start?.(); } catch {} }, 450);
   },
@@ -44,12 +46,13 @@ const Onboarding = {
     setTimeout(() => this.start(), 900);
   },
 
-  start() { this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._session = {}; this._wantTour = false; this._render(); },
+  start() { this._returnFocus = document.activeElement; this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._session = {}; this._wantTour = false; this._render(); },
 
   // Re-open the wizard on demand (the top-bar setup button). Shows ALL steps,
   // each pre-filled with whatever's already saved and tagged "✓ already set" so
   // nothing is hidden but you're not redoing anything from scratch.
   relaunch() {
+    this._returnFocus = document.activeElement;
     this.activeSteps = this.STEPS();
     this.step = 0;
     this._pendingLoc = null;
@@ -129,7 +132,7 @@ const Onboarding = {
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' },
       { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' },
       { key: 'done',           title: 'All set ✨',               sub: 'You’re ready. Everything here lives in Settings if you want to change it later.' },
-    ];
+    ].map(step => ({ ...step, title: window.VexI18n?.t(step.key, step.title) || step.title, sub: window.VexI18n?.t(step.key + '.sub', step.sub) || step.sub }));
   },
 
   _close() {
@@ -154,7 +157,7 @@ const Onboarding = {
 
   _render() {
     const steps = this.activeSteps || this.STEPS();
-    const s = steps[this.step];
+    const s = this.STEPS().find(item => item.key === steps[this.step]?.key);
     if (!s) { this.finish(); return; }
     this._close();
     const overlay = document.createElement('div');
@@ -184,14 +187,30 @@ const Onboarding = {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    overlay.firstElementChild.setAttribute('role', 'dialog');
+    overlay.firstElementChild.setAttribute('aria-modal', 'true');
+    overlay.firstElementChild.setAttribute('aria-label', s.title);
+    const labels = { 'ob-skipall': ['skipSetup', 'Skip setup'], 'ob-back': ['back', 'Back'], 'ob-skip': ['skip', 'Skip'], 'ob-next': this.step === 0 ? ['getStarted', 'Get started'] : isLast ? ['finish', 'Finish'] : ['saveContinue', 'Save & continue'] };
+    for (const [id, [key, fallback]] of Object.entries(labels)) { const button = overlay.querySelector('#' + id); if (button) button.textContent = window.VexI18n?.t(key, fallback) || fallback; }
+    overlay.querySelector('#ob-progress-label').textContent = `${window.VexI18n?.t('step', 'Step') || 'Step'} ${this.step + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${steps.length}`;
     overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
     overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
     overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
     // Escape = the same bail-out as the "Skip setup" button.
-    this._keyHandler = (e) => { if (e.key === 'Escape') { e.preventDefault(); this.finish(); } };
+    this._keyHandler = (e) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape') { e.preventDefault(); this.finish(); }
+      if (e.key === 'Tab') {
+        const nodes = [...overlay.querySelectorAll('button,input,select,a[href]')].filter(node => !node.disabled && !node.hidden);
+        const first = nodes[0], last = nodes[nodes.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
+    };
     document.addEventListener('keydown', this._keyHandler);
     this._renderBody(s.key, overlay.querySelector('#ob-body'));
+    overlay.querySelector('input,button')?.focus();
   },
 
   _input(id, ph, val) {
@@ -280,6 +299,7 @@ const Onboarding = {
   _decodeSetupCode(code) {
     try {
       code = String(code || '').trim();
+      if (code.length > 131072) return null;
       const m = code.match(/^VEXSETUP1\.([A-Za-z0-9_-]+)$/);
       if (!m) return null;
       const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -719,7 +739,7 @@ const Onboarding = {
     if (results) results.innerHTML = '';
     let list = [];
     try {
-      const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
+      const r = await (window.VexNet?.fetch || fetch)(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
       const d = await r.json();
       list = (d && d.results) || [];
     } catch { if (status) status.textContent = 'Lookup failed — check your connection and try again.'; return; }
@@ -834,7 +854,7 @@ const Onboarding = {
         const city = overlay.querySelector('#ob-city')?.value.trim() || '';
         if (city) {
           try {
-            const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=tr`);
+            const r = await (window.VexNet?.fetch || fetch)(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=tr`);
             const d = await r.json();
             const hit = d && d.results && d.results[0];
             if (hit) this._setStart('vex.weatherLoc', JSON.stringify({ lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? ', ' + hit.admin1 : '') + (hit.country_code ? ', ' + hit.country_code : '') }));

@@ -69,8 +69,11 @@ const VexPeek = {
     }));
   },
 
-  open(url) {
+  open(url, partition) {
     if (!url) return;
+    clearTimeout(this._closeTimer);
+    window.removeEventListener('keydown', this._onKey, true);
+    this._partition = window.VexTabPolicy?.partitionFor(partition) || partition || 'persist:main';
     this._build();
     this._url = url;
     const E = this._els;
@@ -82,7 +85,7 @@ const VexPeek = {
     E.body.innerHTML = '';
     const wv = document.createElement('webview');
     wv.setAttribute('src', url);
-    wv.setAttribute('partition', 'persist:main');
+    wv.setAttribute('partition', this._partition);
     wv.setAttribute('webpreferences', 'contextIsolation=yes');
     wv.addEventListener('did-navigate', (e) => { if (e.url) { this._url = e.url; E.url.textContent = e.url; E.url.title = e.url; } });
     wv.addEventListener('did-navigate-in-page', (e) => { if (e.url) { this._url = e.url; E.url.textContent = e.url; } });
@@ -104,7 +107,7 @@ const VexPeek = {
     const E = this._els;
     E.root.classList.remove('show');
     window.removeEventListener('keydown', this._onKey, true);
-    setTimeout(() => {
+    this._closeTimer = setTimeout(() => {
       E.root.hidden = true;
       E.body.innerHTML = ''; // tear down the webview
       E.wv = null;
@@ -115,13 +118,13 @@ const VexPeek = {
     const url = this._url;
     this.close();
     if (url && typeof TabManager !== 'undefined') {
-      try { TabManager.createTab(url, true); } catch (err) { console.error('[Peek] promote failed:', err); }
+      try { TabManager.createTab(url, true, null, { partition: this._partition }); } catch (err) { console.error('[Peek] promote failed:', err); }
     }
   },
 
   init() {
     window.vex?.onPeekOpen?.((data) => {
-      if (data && data.url) this.open(data.url);
+      if (data && data.url) this.open(data.url, data.partition);
     });
   },
 };

@@ -91,7 +91,7 @@ const HorizontalTabs = (() => {
         try { favicon = new URL(topTab.url || '').origin + '/favicon.ico'; } catch {}
       }
       chip.innerHTML = `
-        ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" onerror="this.style.display='none'">` : '<span class="tab-favicon"></span>'}
+        ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" data-image-fallback="hide">` : '<span class="tab-favicon"></span>'}
         <span class="tab-title">${_esc(topTab.title || 'Stack')}</span>
         <span class="top-stack-count">${members.length}</span>
       `;
@@ -164,7 +164,7 @@ const HorizontalTabs = (() => {
       : '';
 
     el.innerHTML = `
-      ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" onerror="this.style.display='none'">` : '<span class="tab-favicon"></span>'}
+      ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" data-image-fallback="hide">` : '<span class="tab-favicon"></span>'}
       ${audio}
       ${priv}
       <span class="tab-title">${_esc(tab.title || 'New Tab')}</span>
@@ -293,27 +293,7 @@ const HorizontalTabs = (() => {
   function _patchTabManager() {
     if (typeof TabManager === 'undefined' || TabManager.__horizWired) return;
     TabManager.__horizWired = true;
-    // Wrap rebuildAllTabs + renderTabUpdate to also refresh us
-    const origRebuild = TabManager.rebuildAllTabs?.bind(TabManager);
-    if (origRebuild) {
-      TabManager.rebuildAllTabs = function () { origRebuild(); render(); };
-    }
-    const origUpdate = TabManager.renderTabUpdate?.bind(TabManager);
-    if (origUpdate) {
-      TabManager.renderTabUpdate = function (tab) { origUpdate(tab); render(); };
-    }
-    // switchTab changes activeTabId; patch it so the active class updates
-    const origSwitch = TabManager.switchTab?.bind(TabManager);
-    if (origSwitch) {
-      TabManager.switchTab = function (id) { origSwitch(id); render(); };
-    }
-    // closeTab only removes the sidebar .tab-item; for inactive tabs it never
-    // triggers switchTab, so without this patch the stale .top-tab stays in
-    // the horizontal bar and the user has to "click to close" twice.
-    const origClose = TabManager.closeTab?.bind(TabManager);
-    if (origClose) {
-      TabManager.closeTab = function (id) { origClose(id); render(); };
-    }
+    window.addEventListener('vex-tabs-changed', () => render());
   }
 
   // Toggle narrow/very-narrow classes based on the *prospective* width each

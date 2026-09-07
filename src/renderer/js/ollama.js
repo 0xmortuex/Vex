@@ -12,18 +12,19 @@ const Ollama = (() => {
   function getBaseUrl() { return baseUrl; }
 
   async function ping() {
+    let t;
     try {
       const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 2000);
-      const r = await fetch(`${baseUrl}/api/tags`, { method: 'GET', signal: ctl.signal });
+      t = setTimeout(() => ctl.abort(), 2000);
+      const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/tags`, { method: 'GET', signal: ctl.signal });
       clearTimeout(t);
       return r.ok;
-    } catch { return false; }
+    } catch { return false; } finally { clearTimeout(t); }
   }
 
   async function listModels() {
     try {
-      const r = await fetch(`${baseUrl}/api/tags`);
+      const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/tags`);
       if (!r.ok) return [];
       const data = await r.json();
       return (data.models || []).map(m => ({
@@ -44,7 +45,8 @@ const Ollama = (() => {
     if (systemPrompt) body.system = systemPrompt;
     if (format === 'json') body.format = 'json';
 
-    const r = await fetch(`${baseUrl}/api/generate`, {
+    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/generate`, {
+      timeoutMs: 120000, signal: options.signal,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -61,7 +63,8 @@ const Ollama = (() => {
       options: { temperature, num_predict: maxTokens }
     };
     if (format === 'json') body.format = 'json';
-    const r = await fetch(`${baseUrl}/api/chat`, {
+    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/chat`, {
+      timeoutMs: 120000, signal: options.signal,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -71,8 +74,9 @@ const Ollama = (() => {
     return data.message?.content || '';
   }
 
-  async function pullModel(modelName, onProgress) {
-    const r = await fetch(`${baseUrl}/api/pull`, {
+  async function pullModel(modelName, onProgress, signal) {
+    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/pull`, {
+      stream: true, timeoutMs: 30 * 60 * 1000, maxBytes: 32 * 1024 * 1024, signal,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: modelName, stream: true })
@@ -81,7 +85,7 @@ const Ollama = (() => {
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    while (true) {
+    try { while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
@@ -97,7 +101,7 @@ const Ollama = (() => {
           if (err.message && !/JSON/i.test(err.message)) throw err;
         }
       }
-    }
+    } } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   }
 
   function formatBytes(bytes) {

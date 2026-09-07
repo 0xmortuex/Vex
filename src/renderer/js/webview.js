@@ -24,8 +24,14 @@ const WebviewManager = {
   webviews: new Map(),
 
   createWebview(tab) {
+    if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
     const container = document.getElementById('webviews-container');
     const webview = document.createElement('webview');
+    const lifecycle = window.VexLifecycle ? new window.VexLifecycle() : null;
+    webview._lifecycle = lifecycle;
+    let crashCount = 0, lastCrash = 0, cancelRecovery = null;
+    webview._navigationGeneration = 0;
+    webview.addEventListener('did-start-navigation', event => { if (event.isMainFrame !== false) webview._navigationGeneration++; });
     webview.setAttribute('src', tab.url);
     webview.setAttribute('partition', tab.partition || 'persist:main');
     webview.setAttribute('allowpopups', '');
@@ -293,17 +299,27 @@ const WebviewManager = {
     // hibernated tabs also stash the URL in dataset.hibernatedUrl.
     webview.addEventListener('render-process-gone', () => {
       try {
+        cancelRecovery?.();
+        if (Date.now() - lastCrash > 120000) crashCount = 0;
+        lastCrash = Date.now();
+        if (++crashCount > 4) { window.showToast?.('This tab keeps crashing. Reload it manually to retry.'); return; }
         const t = TabManager.tabs.find(t => t.id === tab.id);
         const real = webview.dataset.hibernatedUrl || (t && t.url);
         if (real && !/^about:blank\b/i.test(real)) {
-          setTimeout(() => { try { delete webview.dataset.hibernated; webview.loadURL(real); } catch { try { webview.src = real; } catch {} } }, 400);
+          const recover = () => {
+            if (this.webviews.get(tab.id) !== webview || !webview.isConnected) return;
+            delete webview.dataset.hibernated;
+            try { Promise.resolve(webview.loadURL(real)).catch(() => {}); } catch { webview.src = real; }
+          };
+          if (lifecycle) cancelRecovery = lifecycle.timeout(recover, 400 * 2 ** (crashCount - 1));
+          else { const timer = setTimeout(recover, 400 * 2 ** (crashCount - 1)); cancelRecovery = () => clearTimeout(timer); }
         }
       } catch {}
     });
 
     webview.addEventListener('new-window', (e) => {
       e.preventDefault();
-      TabManager.createTab(e.url, true);
+      TabManager.createTab(e.url, true, null, { partition: tab.partition });
     });
 
     // Audio indicator
@@ -514,6 +530,8 @@ const WebviewManager = {
   destroyWebview(tabId) {
     const wv = this.webviews.get(tabId);
     if (wv) {
+      wv.dispatchEvent(new Event('vex-disposed'));
+      wv._lifecycle?.dispose();
       wv.remove();
       this.webviews.delete(tabId);
     }
@@ -767,9 +785,9 @@ const WebviewManager = {
                 const r = webview.executeJavaScript(selectJs);
                 if (r && typeof r.then === 'function') {
                   r.then((ok) => {
-                    if (!ok) console.warn('[Vex spell] word not re-selected; typing anyway');
+                    if (!ok) return; // Never insert into an unrelated caret/selection.
                     setTimeout(typeTrusted, 180);
-                  }).catch((err) => { console.warn('[Vex spell] select failed:', err); setTimeout(typeTrusted, 180); });
+                  }).catch((err) => { console.warn('[Vex spell] select failed:', err); });
                 } else {
                   setTimeout(typeTrusted, 180);
                 }
@@ -809,9 +827,9 @@ const WebviewManager = {
       { sep: true },
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
       { label: '\u{1F4DD} Copy as Markdown link', action: () => { try { const t = TabManager.getActiveTab(); const u = webview.getURL(); const title = (t && t.title) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
-      { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL()) },
+      { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL(), true, null, { partition: webview.getAttribute?.("partition") }) },
       { label: '\u{1FA9F} Open as App', action: () => { try { window.vex.openAsApp(webview.getURL(), (TabManager.getActiveTab() || {}).title); } catch {} } },
-      { label: '⧉ Duplicate Tab', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true); } catch {} } },
+      { label: '⧉ Duplicate Tab', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true, null, { partition: t.partition }); } catch {} } },
       { label: '\u{1F4F1} Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
       { label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? '⟳ Auto-refresh: on…' : '⟳ Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } },
       { sep: true },
@@ -884,7 +902,7 @@ const WebviewManager = {
       items.push({ sep: true });
       items.push({
         label: 'Open Link in New Tab',
-        action: () => TabManager.createTab(e.params.linkURL, true)
+        action: () => TabManager.createTab(e.params.linkURL, true, null, { partition: webview.getAttribute?.("partition") })
       });
       items.push({
         label: 'Copy Link',
@@ -919,7 +937,7 @@ const WebviewManager = {
       items.push({ sep: true });
       items.push({
         label: 'Open Image in New Tab',
-        action: () => TabManager.createTab(e.params.srcURL, true)
+        action: () => TabManager.createTab(e.params.srcURL, true, null, { partition: webview.getAttribute?.("partition") })
       });
       items.push({
         label: 'Copy Image',

@@ -82,7 +82,7 @@ const ScreenshotToCode = {
   async generate(image, framework) {
     const url = (typeof AIRouter !== 'undefined' && AIRouter.cloudWorkerUrl && AIRouter.cloudWorkerUrl()) || '';
     if (!url) throw new Error('Cloud AI not configured (Settings → AI). Screenshot-to-code needs the cloud vision model.');
-    const r = await fetch(url, {
+    const r = await (window.VexConfig?.fetchAI || fetch)(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'screenshot-to-code', image, framework }),

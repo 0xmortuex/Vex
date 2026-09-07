@@ -68,7 +68,7 @@ const SyncCrypto = (() => {
   }
 
   function hexToKey(hex) {
-    if (hex.length !== 64) throw new Error('Invalid recovery code — must be 64 hex chars');
+    if (typeof hex !== 'string' || !/^[0-9a-f]{64}$/i.test(hex)) throw new Error('Invalid recovery code — must be 64 hex chars');
     const bytes = new Uint8Array(32);
     for (let i = 0; i < 32; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
     return bytes;

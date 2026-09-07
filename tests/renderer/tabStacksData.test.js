@@ -459,7 +459,7 @@ describe('persistence — saveStacks / loadStacks roundtrip', () => {
 
     const s = TM.stacks.find(x => x.id === 'stk_alive');
     expect(s).toBeTruthy();
-    expect(['t1', 't2']).toContain(s.topTabId);
+    expect(TM.tabs.filter(t => t.stackId === s.id).map(t => t.id)).toContain(s.topTabId);
   });
 
   it('saveTabs serialization includes stackId field', async () => {
@@ -476,7 +476,7 @@ describe('persistence — saveStacks / loadStacks roundtrip', () => {
       { id: 't1', url: 'https://x', title: 'X', pinned: false, groupId: null, stackId: 'stk_a' },
     ]);
     expect(store.tabs).toEqual([
-      { id: 't1', url: 'https://x', title: 'X', favicon: null, pinned: false, groupId: null, stackId: 'stk_a', sleeping: false, originalUrl: null, scrollPosition: null, keepAwakeUntil: 0 },
+      { id: 't1', url: 'https://x', title: 'X', favicon: null, pinned: false, partition: null, groupId: null, stackId: 'stk_a', sleeping: false, originalUrl: null, scrollPosition: null, keepAwakeUntil: 0 },
     ]);
   });
 

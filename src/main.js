@@ -1,3 +1,4 @@
+require('./diagnostics').install(process.env.VEX_VERBOSE_DIAGNOSTICS === '1');
 const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents, safeStorage, clipboard } = require('electron');
 
 // Enable Chromium's rich print preview UI (Save as PDF, margin controls,
@@ -70,7 +71,7 @@ try {
   const _j = JSON.parse(_fs.readFileSync(_pf, 'utf-8'));
   _memorySaver = _j['vex.memorySaver'] === '1' || _j['vex.memorySaver'] === 1;
 } catch {}
-let _disableFeatures = 'ThirdPartyStoragePartitioning,SpareRendererForSitePerProcess';
+let _disableFeatures = 'SpareRendererForSitePerProcess';
 if (_memorySaver) {
   _disableFeatures += ',BackForwardCache,OptimizationGuideModelDownloading,OptimizationHints,Translate';
   // Cap the number of renderer processes so heavy tab sets share processes
@@ -96,6 +97,24 @@ const { createPipWindow, closePipWindow, togglePipPin, isPipOpen } = require('./
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
+const { createSessionSecurity } = require('./main/session-security');
+const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname });
+const boundedNetFetch = require('./main/network').createBoundedFetch(net.fetch.bind(net));
+require('./main/ipc-policy').installIpcPolicy(ipcMain, secureSessions);
+ipcMain.on('storage:flushed', event => {
+  const host = secureSessions.owner(event.sender);
+  if (!host) return;
+  clearTimeout(host.flushTimer);
+  host.allowClose = true;
+  host.win.close();
+});
+ipcMain.on('storage:flush-failed', event => {
+  const host = secureSessions.owner(event.sender);
+  if (!host) return;
+  clearTimeout(host.flushTimer);
+  host.flushing = false;
+  host.win.webContents.send('vex:toast', 'Changes could not be saved. Retry closing after the storage error is resolved.');
+});
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
 console.log('[Vex URL] ====== Vex process boot ======');
@@ -201,6 +220,9 @@ let _trackerTotal = 0;
 // initiated the request; only runs on blocks (a fraction of traffic).
 function _recordTracker(reqUrl, wcId) {
   try {
+    const source = wcId != null ? webContents.fromId(wcId) : null;
+    const partition = source && secureSessions.partitionOf(source);
+    if (partition && !partition.startsWith('persist:')) return;
     const h = new URL(reqUrl).hostname.replace(/^www\./, '');
     _trackerTally[h] = (_trackerTally[h] || 0) + 1; _trackerTotal++;
     if (wcId != null) {
@@ -251,7 +273,12 @@ function _httpsUpgradeURL(details) {
   if (wc != null) { let s = _httpsUpgradedByWc.get(wc); if (!s) { s = new Set(); _httpsUpgradedByWc.set(wc, s); } s.add(bare); }
   return u.toString();
 }
-function privacySave() { try { require('fs').writeFileSync(PRIVACY_FILE(), JSON.stringify(privacyCfg)); } catch {} }
+let privacyWrites = Promise.resolve();
+function privacySave() {
+  const bytes = JSON.stringify(privacyCfg);
+  privacyWrites = privacyWrites.catch(() => {}).then(() => atomicWrite(PRIVACY_FILE(), bytes));
+  return privacyWrites;
+}
 const PRIVACY_FILE = () => path.join(app.getPath('userData'), 'privacy.json');
 
 // Remembered geometry + on-top pref for the Discord stream pop-out (PiP-style).
@@ -450,138 +477,7 @@ function _broadcastDownloadEvent(channel, data) {
     if (!w.isDestroyed()) { try { w.webContents.send(channel, data); } catch {} }
   });
 }
-// === Site permission handler (geolocation, camera, mic, notifications, ...) ===
-const permissionsFile = path.join(userDataPath, 'permissions.json');
-const pendingPermissions = new Map();
-
-// On cold start the renderer may not have registered its 'permission:request'
-// listener yet when a webview fires a permission check. Queue sends until the
-// renderer signals ready (or the fallback flush fires), otherwise the first
-// prompt of the session silently times out.
-let _permissionsRendererReady = false;
-const _pendingPermissionSends = [];
-function _deliverPermissionRequest(payload) {
-  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
-  if (!win) return false;
-  try { win.webContents.send('permission:request', payload); return true; }
-  catch { return false; }
-}
-function sendPermissionRequest(payload) {
-  if (_permissionsRendererReady && _deliverPermissionRequest(payload)) return;
-  _pendingPermissionSends.push(payload);
-}
-function _flushPermissionQueue(reason) {
-  if (!_pendingPermissionSends.length) return;
-  console.log(`[Permissions] flushing ${_pendingPermissionSends.length} queued request(s): ${reason}`);
-  while (_pendingPermissionSends.length) {
-    const p = _pendingPermissionSends.shift();
-    if (!_deliverPermissionRequest(p)) {
-      _pendingPermissionSends.unshift(p);
-      return;
-    }
-  }
-}
-ipcMain.on('permissions:renderer-ready', () => {
-  _permissionsRendererReady = true;
-  _flushPermissionQueue('renderer signalled ready');
-});
-
-function loadPermissionDecisions() {
-  try {
-    if (fs.existsSync(permissionsFile)) {
-      return JSON.parse(fs.readFileSync(permissionsFile, 'utf-8')) || {};
-    }
-  } catch {}
-  return {};
-}
-function savePermissionDecisions(data) {
-  try { fs.writeFileSync(permissionsFile, JSON.stringify(data, null, 2), 'utf-8'); }
-  catch (err) { console.error('[Permissions] save failed:', err.message); }
-}
-
-function wirePermissionsOnSession(ses, tag, opts) {
-  if (!ses || ses.__vexPermsWired) return;
-  ses.__vexPermsWired = true;
-  opts = opts || {};
-  // Media family — mic/camera/screen-share + audio in/out device selection.
-  const MEDIA_PERMS = new Set(['media', 'microphone', 'camera', 'audioCapture', 'videoCapture', 'speaker-selection', 'display-capture']);
-
-  ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    let origin = 'unknown';
-    try { origin = new URL((details && details.requestingUrl) || webContents.getURL()).origin; } catch {}
-
-    console.log(`[Permissions] (${tag}) ${origin} requests: ${permission}`);
-
-    // Standard browser auto-allow list. mediaKeySystem (EME/Widevine DRM, used by
-    // Spotify, Netflix, etc.) is auto-allowed like a normal browser — prompting
-    // for it silently broke playback in the Spotify panel because the prompt
-    // never surfaced/resolved there, so play and other actions did nothing.
-    const AUTO_ALLOW = new Set(['fullscreen', 'pointerLock', 'clipboard-read', 'clipboard-sanitized-write', 'mediaKeySystem']);
-    if (AUTO_ALLOW.has(permission)) return callback(true);
-
-    // Dedicated Discord panel session: auto-grant mic/camera/output-device so
-    // voice & screen-share work. The generic prompt never surfaces in a panel
-    // webview (same reason mediaKeySystem is auto-allowed above), which left
-    // Discord unable to see any input/output device.
-    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return callback(true);
-
-    const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture']);
-    if (!NEEDS_PROMPT.has(permission)) {
-      // Unknown permission — deny by default, but log so we can add it later
-      console.log(`[Permissions] DENIED (unlisted): ${permission}`);
-      return callback(false);
-    }
-
-    // Check persisted decisions
-    const decisions = loadPermissionDecisions();
-    const key = `${origin}::${permission}`;
-    if (decisions[key] === 'allow') return callback(true);
-    if (decisions[key] === 'deny')  return callback(false);
-
-    // Ask the user — queued if the renderer isn't listening yet (cold start).
-    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    pendingPermissions.set(id, callback);
-    sendPermissionRequest({ id, origin, permission });
-
-    // Safety timeout — if the user ignores the prompt for 2 minutes, deny.
-    setTimeout(() => {
-      if (pendingPermissions.has(id)) {
-        pendingPermissions.delete(id);
-        try { callback(false); } catch {}
-      }
-    }, 120000);
-  });
-
-  // Sync check (used by navigator.permissions.query) — only grant if explicitly allowed
-  ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => {
-    // WebHID: keep navigator.hid available, and mark this origin as having a
-    // device request in flight — Chromium runs this 'hid' check at the start of
-    // requestDevice(), which lets the device-permission handler permit the
-    // chooser to enumerate/open for it (see wireWebHidOnSession). Per-device
-    // gating remains the interactive chooser.
-    if (permission === 'hid') { _markHidRequestActive(requestingOrigin); return true; }
-    // DRM playback (EME) is auto-OK like a normal browser, so the sync check
-    // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
-    if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;
-    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return true;
-    const decisions = loadPermissionDecisions();
-    return decisions[`${requestingOrigin}::${permission}`] === 'allow';
-  });
-}
-
-ipcMain.handle('permission:respond', (_e, payload) => {
-  const { id, decision, remember, origin, permission } = payload || {};
-  const cb = pendingPermissions.get(id);
-  if (!cb) return { ok: false, error: 'No pending request' };
-  pendingPermissions.delete(id);
-  try { cb(decision === 'allow'); } catch {}
-  if (remember && origin && permission) {
-    const d = loadPermissionDecisions();
-    d[`${origin}::${permission}`] = decision;
-    savePermissionDecisions(d);
-  }
-  return { ok: true };
-});
+const { pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -593,18 +489,23 @@ function wireDisplayMediaOnSession(ses) {
   if (!ses || ses.__vexDisplayWired || typeof ses.setDisplayMediaRequestHandler !== 'function') return;
   ses.__vexDisplayWired = true;
   ses.setDisplayMediaRequestHandler((request, callback) => {
+    const requestingContents = request.frame && webContents.fromFrame(request.frame);
+    const requestingHost = secureSessions.owner(requestingContents);
+    if (!requestingHost) { callback(); return; }
+    const requestingFrame = request.frame, requestingUrl = requestingFrame.url;
     const { desktopCapturer } = require('electron');
     desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
       .then((sources) => {
         if (!sources || !sources.length) return callback();
         const id = 'scr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-        _pendingScreenPicks.set(id, { callback, sources });
+        if (requestingContents.isDestroyed() || requestingFrame.url !== requestingUrl) return callback();
+        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl });
         const payload = { id, sources: sources.map((s) => ({
           id: s.id, name: s.name, isScreen: /screen/i.test(s.id),
           thumbnail: (s.thumbnail && !s.thumbnail.isEmpty()) ? s.thumbnail.toDataURL() : '',
           icon: (s.appIcon && !s.appIcon.isEmpty()) ? s.appIcon.toDataURL() : '',
         })) };
-        try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screen-picker:open', payload); } catch {}
+        try { if (!requestingHost.win.isDestroyed()) requestingHost.win.webContents.send('screen-picker:open', payload); } catch {}
         setTimeout(() => { if (_pendingScreenPicks.has(id)) { _pendingScreenPicks.delete(id); try { callback(); } catch {} } }, 90000);
       })
       .catch(() => { try { callback(); } catch {} });
@@ -617,7 +518,9 @@ let _lastShareQuality = null;
 ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height, fps, cursor } = {}) => {
   const p = _pendingScreenPicks.get(id);
   if (!p) return { ok: false };
+  if (p.host !== secureSessions.owner(_e.sender)) return { ok: false, error: 'Request belongs to another window' };
   _pendingScreenPicks.delete(id);
+  try { if (p.frame.detached || p.frame.url !== p.url) { p.callback(); return { ok: false, error: 'Requesting page changed' }; } } catch { try { p.callback(); } catch {} return { ok: false }; }
   if (!sourceId) { _lastShareQuality = null; try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);
   _lastShareQuality = { width: width || 0, height: height || 0, fps: fps || 0, cursor: cursor || '', at: Date.now() };
@@ -698,7 +601,7 @@ ipcMain.handle('app:tab-memory', (_e, ids) => {
 ipcMain.handle('site:clear-data', async (_e, opts) => {
   const { partition, url } = opts || {};
   try {
-    const ses = partition ? session.fromPartition(partition) : session.defaultSession;
+    const ses = partition ? secureSessions.fromPartition(partition) : session.defaultSession;
     let origin = '';
     try { origin = new URL(url).origin; } catch {}
     if (origin) {
@@ -739,14 +642,16 @@ function recallLoad() {
   } catch { _recallCache = []; }
   return _recallCache;
 }
-let _recallSaveTimer = null;
-function recallPersist() {
-  clearTimeout(_recallSaveTimer);
-  _recallSaveTimer = setTimeout(() => {
-    try { require('fs').writeFileSync(RECALL_FILE(), JSON.stringify(_recallCache || [])); } catch {}
-  }, 1500);
+let recallWrites = Promise.resolve();
+function recallPersist(erase = false) {
+  const bytes = JSON.stringify(_recallCache || []);
+  recallWrites = recallWrites.catch(() => {}).then(async () => {
+    await atomicWrite(RECALL_FILE(), bytes, { backup: !erase });
+    if (erase) await fs.promises.rm(RECALL_FILE() + '.bak', { force: true });
+  });
+  return recallWrites;
 }
-ipcMain.handle('recall:index', (_e, entry) => {
+ipcMain.handle('recall:index', async (_e, entry) => {
   try {
     const { url, title, text } = entry || {};
     if (!url || !/^https?:/i.test(url) || !text || text.length < 120) return { ok: false };
@@ -755,7 +660,7 @@ ipcMain.handle('recall:index', (_e, entry) => {
     const rec = { url, title: String(title || '').slice(0, 300), text: String(text).slice(0, 6000), at: Date.now() };
     if (i >= 0) arr[i] = rec; else arr.unshift(rec);
     if (arr.length > RECALL_MAX) arr.length = RECALL_MAX;
-    recallPersist();
+    await recallPersist();
     return { ok: true };
   } catch (err) { return { ok: false, error: err.message }; }
 });
@@ -779,7 +684,7 @@ ipcMain.handle('recall:search', (_e, query) => {
     return scored.sort((a, b) => b.score - a.score).slice(0, 40);
   } catch { return []; }
 });
-ipcMain.handle('recall:clear', () => { _recallCache = []; recallPersist(); return { ok: true }; });
+ipcMain.handle('recall:clear', async () => { _recallCache = []; await recallPersist(true); return { ok: true }; });
 
 // === Translate arbitrary text/word (free Google endpoint, via main to dodge CORS) ===
 ipcMain.handle('translate:text', async (_e, { text, tl } = {}) => {
@@ -787,7 +692,7 @@ ipcMain.handle('translate:text', async (_e, { text, tl } = {}) => {
     if (!text) return null;
     const u = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' +
       encodeURIComponent(tl || 'en') + '&dt=t&q=' + encodeURIComponent(String(text).slice(0, 400));
-    const res = await net.fetch(u);
+    const res = await boundedNetFetch(u);
     if (!res.ok) return null;
     const data = await res.json();
     return (data && data[0]) ? data[0].map(s => s[0]).join('') : null;
@@ -798,7 +703,7 @@ ipcMain.handle('translate:text', async (_e, { text, tl } = {}) => {
 ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   try {
     if (!feedUrl || !/^https?:\/\//i.test(feedUrl)) return null;
-    const res = await net.fetch(feedUrl, { headers: { 'User-Agent': 'Vex Browser RSS' } });
+    const res = await boundedNetFetch(feedUrl, { headers: { 'User-Agent': 'Vex Browser RSS' } });
     if (!res.ok) return null;
     const text = await res.text();
     return text.length > 2 * 1024 * 1024 ? null : text;
@@ -816,7 +721,7 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false, error: 'Invalid URL (must be http/https)' };
     const init = { method: String(method || 'GET').toUpperCase(), headers: headers && typeof headers === 'object' ? headers : {} };
     if (body != null && init.method !== 'GET' && init.method !== 'HEAD') init.body = String(body);
-    const res = await net.fetch(url, init);
+    const res = await boundedNetFetch(url, init);
     const buf = Buffer.from(await res.arrayBuffer());
     const capped = buf.length > 5 * 1024 * 1024;
     const text = capped ? buf.slice(0, 5 * 1024 * 1024).toString('utf8') : buf.toString('utf8');
@@ -828,137 +733,7 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
   }
 });
 
-// === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
-// The renderer never sees the file; plaintext secrets only cross IPC when the
-// user autofills/copies. If safeStorage is unavailable (rare: no keychain),
-// the vault refuses to save rather than writing plaintext.
-const VAULT_FILE = () => path.join(app.getPath('userData'), 'vault.dat');
-function vaultLoad() {
-  try {
-    const fsx = require('fs');
-    if (!fsx.existsSync(VAULT_FILE())) return [];
-    const enc = fsx.readFileSync(VAULT_FILE());
-    const raw = safeStorage.decryptString(enc);
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  } catch (err) {
-    console.error('[Vault] load failed:', err.message);
-    return [];
-  }
-}
-function vaultSave(arr) {
-  if (!safeStorage.isEncryptionAvailable()) throw new Error('OS encryption unavailable');
-  const fsx = require('fs');
-  fsx.writeFileSync(VAULT_FILE(), safeStorage.encryptString(JSON.stringify(arr)));
-}
-ipcMain.handle('vault:list', () => {
-  // Metadata only — no passwords cross this channel.
-  return vaultLoad().map(e => ({ host: e.host, username: e.username, updatedAt: e.updatedAt }));
-});
-
-// Disables WebAuthn get() (the passkey / "Windows Security → security key"
-// prompt) in a page — injected into sign-in popups (mirrors the site-tweak that
-// covers tabs/panels). Rejects publicKey requests so sign-in falls back, and
-// reports no platform/conditional authenticator.
-const _WEBAUTHN_DISABLE_JS = '(function(){try{' +
-  'var nc=navigator.credentials;' +
-  'if(nc&&typeof nc.get==="function"){var orig=nc.get.bind(nc);nc.get=function(opts){try{if(opts&&opts.publicKey){return Promise.reject(new DOMException("Passkey sign-in is disabled in Vex","NotAllowedError"));}}catch(e){}return orig(opts);};}' +
-  'if(window.PublicKeyCredential){' +
-    'try{window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};}catch(e){}' +
-    'try{window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};}catch(e){}' +
-  '}' +
-  '}catch(e){}})();';
-
-// Autofill for OAuth / sign-in POPUP windows (separate BrowserWindows, so the
-// renderer's PasswordVault can't reach them). Injected into the popup's own
-// webContents on each load. Same hardened login-field logic as passwords.js:
-// only a real login field is filled (email/username signal or a password field
-// present) — never a search/combobox — and only when the popup's host exactly
-// matches a saved credential (so a phishing popup can't harvest it).
-function _popupAutofillJs(username, password) {
-  return `(function(){try{
-    var U=${JSON.stringify(username)},P=${JSON.stringify(password)};
-    var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-    var fire=function(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
-    var vis=function(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}};
-    var meta=function(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}};
-    var searchy=function(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;return /search|find|filter|query/.test(meta(el));};
-    var loginSig=function(el){var t=(el.type||'').toLowerCase();if(t==='email')return true;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='username'||ac==='email')return true;return /e-?mail|user-?name|userid|login|phone|account|identifier/.test(meta(el));};
-    var userField=function(pw){var scope=(pw&&pw.form)||document;var c=scope.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');var sig=null,plain=null;for(var i=0;i<c.length;i++){var el=c[i];if(!vis(el)||searchy(el))continue;if(loginSig(el)){sig=el;break;}if(!plain)plain=el;}return sig||(pw?plain:null);};
-    var fill=function(){var pw=document.querySelector('input[type=password]');var u=userField(pw);if(u&&(pw||loginSig(u))&&!u.value)fire(u,U);if(pw&&!pw.value)fire(pw,P);};
-    fill();
-    // OAuth pages build their fields asynchronously (and step email→password on
-    // the same URL), so retry for a few seconds.
-    var n=0;var iv=setInterval(function(){fill();if(++n>10)clearInterval(iv);},400);
-  }catch(e){}})();`;
-}
-function _autofillPopup(wc) {
-  try {
-    if (!wc || wc.isDestroyed()) return;
-    const u = wc.getURL();
-    let host = '';
-    try { host = new URL(u).hostname.replace(/^www\./, ''); } catch { return; }
-    if (!host || !/^https:/i.test(u)) return;
-    const creds = vaultLoad().filter(e => e.host === host);
-    if (!creds.length) return;
-    const c = creds[0];
-    wc.executeJavaScript(_popupAutofillJs(c.username, c.password)).catch(() => {});
-  } catch {}
-}
-ipcMain.handle('vault:get', (_e, host) => {
-  if (!host || typeof host !== 'string') return [];
-  return vaultLoad().filter(e => e.host === host);
-});
-// Password health — analyze the vault IN THE MAIN PROCESS and return only the
-// findings (which hosts reuse a password, which are weak). The passwords
-// themselves NEVER cross the IPC boundary, matching vault:list's contract.
-ipcMain.handle('vault:health', () => {
-  try {
-    const arr = vaultLoad();
-    // Reuse: group hosts by identical password value (the value is never returned).
-    const byPw = new Map();
-    for (const e of arr) {
-      if (!e || !e.password) continue;
-      if (!byPw.has(e.password)) byPw.set(e.password, []);
-      byPw.get(e.password).push({ host: e.host, username: e.username });
-    }
-    const reused = [];
-    for (const list of byPw.values()) { if (list.length > 1) reused.push({ count: list.length, entries: list }); }
-    reused.sort((a, b) => b.count - a.count);
-    // Weak: short, digits-only, or a well-known common password.
-    const COMMON = new Set(['password', '123456', '12345678', '1234567890', 'qwerty', '111111', '123123', 'abc123', 'password1', 'iloveyou', '000000', 'letmein', 'admin', 'welcome', 'monkey', 'dragon', 'football', 'qwerty123']);
-    const weak = [];
-    for (const e of arr) {
-      if (!e || !e.password) continue;
-      const reasons = [];
-      if (e.password.length < 8) reasons.push('too short');
-      if (/^\d+$/.test(e.password)) reasons.push('digits only');
-      if (COMMON.has(e.password.toLowerCase())) reasons.push('common password');
-      if (reasons.length) weak.push({ host: e.host, username: e.username, reasons });
-    }
-    return { total: arr.length, reused, weak };
-  } catch (e) {
-    return { total: 0, reused: [], weak: [], error: e && e.message };
-  }
-});
-ipcMain.handle('vault:save', (_e, entry) => {
-  const { host, username, password } = entry || {};
-  if (!host || !username || !password) return { ok: false, error: 'Missing fields' };
-  try {
-    const arr = vaultLoad();
-    const existing = arr.find(e => e.host === host && e.username === username);
-    if (existing) { existing.password = password; existing.updatedAt = new Date().toISOString(); }
-    else arr.push({ host, username, password, updatedAt: new Date().toISOString() });
-    vaultSave(arr);
-    return { ok: true, updated: !!existing };
-  } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('vault:delete', (_e, { host, username } = {}) => {
-  try {
-    vaultSave(vaultLoad().filter(e => !(e.host === host && e.username === username)));
-    return { ok: true };
-  } catch (err) { return { ok: false, error: err.message }; }
-});
+const { _WEBAUTHN_DISABLE_JS, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain });
 
 // === TOTP authenticator — 2FA codes (Discord/Roblox/GitHub/etc.) generated
 // locally per RFC 6238. Secrets are encrypted at rest with safeStorage
@@ -966,17 +741,25 @@ ipcMain.handle('vault:delete', (_e, { host, username } = {}) => {
 // PROCESS: the renderer only ever receives the finished 6-digit codes
 // (totp:codes), so a compromised web/renderer context can't read your seeds. ===
 const TOTP_FILE = () => path.join(app.getPath('userData'), 'totp.dat');
+let totpCache = null;
+let totpWrites = Promise.resolve();
 function totpLoad() {
+  if (totpCache) return structuredClone(totpCache);
   try {
     const fsx = require('fs');
     if (!fsx.existsSync(TOTP_FILE())) return [];
     const arr = JSON.parse(safeStorage.decryptString(fsx.readFileSync(TOTP_FILE())));
-    return Array.isArray(arr) ? arr : [];
-  } catch (err) { console.error('[TOTP] load failed:', err.message); return []; }
+    if (!Array.isArray(arr)) throw new Error('Invalid authenticator storage');
+    totpCache = arr;
+    return structuredClone(arr);
+  } catch (err) { console.error('[TOTP] load failed:', err.message); throw err; }
 }
 function totpSave(arr) {
   if (!safeStorage.isEncryptionAvailable()) throw new Error('OS encryption unavailable');
-  require('fs').writeFileSync(TOTP_FILE(), safeStorage.encryptString(JSON.stringify(arr)));
+  const bytes = safeStorage.encryptString(JSON.stringify(arr));
+  totpCache = structuredClone(arr);
+  totpWrites = totpWrites.catch(() => {}).then(() => atomicWrite(TOTP_FILE(), bytes));
+  return totpWrites;
 }
 function _b32decode(s) {
   const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -986,6 +769,7 @@ function _b32decode(s) {
   return Buffer.from(out);
 }
 function _totpCode(secret, { digits = 6, period = 30, algorithm = 'sha1' } = {}, when = Date.now()) {
+  if (typeof secret !== 'string' || !/^[A-Z2-7]+={0,6}$/i.test(secret.replace(/\s/g, '')) || !Number.isInteger(digits) || digits < 4 || digits > 8 || !Number.isInteger(period) || period < 5 || period > 300 || !['sha1','sha256','sha512'].includes(algorithm)) throw new Error('Invalid authenticator parameters');
   const key = _b32decode(secret);
   if (!key.length) throw new Error('Invalid secret');
   const counter = Math.floor((when / 1000) / period);
@@ -1028,7 +812,7 @@ ipcMain.handle('totp:codes', () => {
     } catch { return { id: e.id, code: null, period: e.period, remaining: 0, error: true }; }
   });
 });
-ipcMain.handle('totp:add', (_e, input) => {
+ipcMain.handle('totp:add', async (_e, input) => {
   try {
     let entry;
     if (typeof input === 'string') {
@@ -1050,18 +834,18 @@ ipcMain.handle('totp:add', (_e, input) => {
     _totpCode(entry.secret, entry); // validate — throws on a bad key
     entry.id = require('crypto').randomUUID();
     entry.created = new Date().toISOString();
-    const arr = totpLoad(); arr.push(entry); totpSave(arr);
+    const arr = totpLoad(); arr.push(entry); await totpSave(arr);
     return { ok: true, id: entry.id, label: entry.label, issuer: entry.issuer };
   } catch (err) { return { ok: false, error: err.message || 'Invalid key' }; }
 });
-ipcMain.handle('totp:delete', (_e, id) => {
-  try { totpSave(totpLoad().filter(e => e.id !== id)); return { ok: true }; }
+ipcMain.handle('totp:delete', async (_e, id) => {
+  try { await totpSave(totpLoad().filter(e => e.id !== id)); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('permissions:list',     () => loadPermissionDecisions());
-ipcMain.handle('permissions:revoke',   (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; savePermissionDecisions(d); return { ok: true }; });
-ipcMain.handle('permissions:clear-all', () => { savePermissionDecisions({}); return { ok: true }; });
+ipcMain.handle('permissions:revoke',   async (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; await savePermissionDecisions(d); return { ok: true }; });
+ipcMain.handle('permissions:clear-all', async () => { await savePermissionDecisions({}); return { ok: true }; });
 
 // === WebHID — navigator.hid.requestDevice() device chooser =================
 // Electron does NOT pick a HID device on its own: without a 'select-hid-device'
@@ -1123,8 +907,10 @@ const pendingHidSelections = new Map();
 let _hidRendererReady = false;
 const _pendingHidSends = [];
 function _deliverHidRequest(payload) {
-  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
-  if (!win) return false;
+  const pending = pendingHidSelections.get(payload.id);
+  if (!pending) return true;
+  const win = pending.host?.win;
+  if (!win || win.isDestroyed()) return false;
   try { win.webContents.send('hid:select-request', payload); return true; }
   catch { return false; }
 }
@@ -1150,6 +936,9 @@ function wireWebHidOnSession(ses, tag) {
 
   ses.on('select-hid-device', (event, details, callback) => {
     event.preventDefault();
+    const contents = details.frame && webContents.fromFrame(details.frame);
+    const host = secureSessions.owner(contents);
+    if (!host || host.privatePartition) { callback(''); return; }
     const origin = _hidOriginFromFrame(details.frame);
     const devices = (details.deviceList || []).map(d => ({
       deviceId: d.deviceId,
@@ -1159,7 +948,7 @@ function wireWebHidOnSession(ses, tag) {
     }));
     const id = `hid_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     console.log(`[WebHID] (${tag}) ${origin} requests a device — ${devices.length} offered`);
-    pendingHidSelections.set(id, { callback, origin, devices });
+    pendingHidSelections.set(id, { callback, origin, devices, host, frame: details.frame, url: details.frame.url });
     _sendHidRequest({ id, origin, devices });
 
     // If the user ignores the chooser for 2 minutes, cancel (empty selection).
@@ -1193,6 +982,9 @@ ipcMain.handle('hid:select-respond', (_e, payload) => {
   const { id, deviceId } = payload || {};
   const pending = pendingHidSelections.get(id);
   if (!pending) return { ok: false, error: 'No pending HID request' };
+  if (pending.host !== secureSessions.owner(_e.sender)) return { ok: false, error: 'Request belongs to another window' };
+  try { if (pending.frame.detached || pending.frame.url !== pending.url) { pendingHidSelections.delete(id); pending.callback(''); return { ok: false, error: 'Requesting page changed' }; } } catch { pendingHidSelections.delete(id); return { ok: false }; }
+  if (deviceId && !pending.devices.some(device => device.deviceId === deviceId)) return { ok: false, error: 'Unknown device' };
   pendingHidSelections.delete(id);
   _clearHidRequestActive(pending.origin);
   // Persist the grant BEFORE resolving so setDevicePermissionHandler (which
@@ -1305,7 +1097,7 @@ function ensureSpellDictionary() {
     try {
       if (fs.existsSync(file) && fs.statSync(file).size > 0) return;
       fs.mkdirSync(dir, { recursive: true });
-      const res = await net.fetch(SPELL_DICT_URL);
+      const res = await boundedNetFetch(SPELL_DICT_URL);
       if (!res.ok) { console.warn('[Spellcheck] dictionary fetch HTTP', res.status); return; }
       const buf = Buffer.from(await res.arrayBuffer());
       fs.writeFileSync(file, buf);
@@ -1410,51 +1202,7 @@ ipcMain.handle('media:download', (_e, wcId, url) => {
 // Chrome-style collision handling: setting an explicit save path bypasses
 // Electron's automatic "file (1).ext" dedup, so a second download of the same
 // name would silently OVERWRITE the first on disk. Find a free name instead.
-function _uniqueDownloadPath(dir, filename) {
-  const fs = require('fs');
-  let candidate = path.join(dir, filename);
-  if (!fs.existsSync(candidate)) return candidate;
-  const ext = path.extname(filename);
-  const base = path.basename(filename, ext);
-  for (let i = 1; i < 1000; i++) {
-    candidate = path.join(dir, `${base} (${i})${ext}`);
-    if (!fs.existsSync(candidate)) return candidate;
-  }
-  return path.join(dir, `${base} (${Date.now()})${ext}`);
-}
-
-function wireDownloadsOnSession(ses, tag) {
-  if (!ses || ses.__vexDownloadsWired) return;
-  ses.__vexDownloadsWired = true;
-  ses.on('will-download', (event, item) => {
-    const savePath = _uniqueDownloadPath(app.getPath('downloads'), item.getFilename());
-    item.setSavePath(savePath);
-    const info = {
-      id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      fileName: path.basename(savePath),
-      url: item.getURL(),
-      totalBytes: item.getTotalBytes(),
-      path: savePath,
-      startedAt: new Date().toISOString()
-    };
-    console.log(`[Downloads] (${tag || 'session'}) start:`, info.fileName, info.totalBytes, 'bytes');
-    _broadcastDownloadEvent('download-started', info);
-    item.on('updated', (_e, state) => {
-      _broadcastDownloadEvent('download-progress', {
-        id: info.id,
-        receivedBytes: item.getReceivedBytes(),
-        totalBytes: item.getTotalBytes(),
-        state
-      });
-    });
-    item.once('done', (_e, state) => {
-      console.log(`[Downloads] (${tag || 'session'}) done:`, info.fileName, state);
-      _broadcastDownloadEvent('download-complete', {
-        id: info.id, fileName: info.fileName, state, path: savePath
-      });
-    });
-  });
-}
+const { wireDownloadsOnSession } = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent });
 
 // === Phase 18: Chrome extension loader ===
 const extensionsDir = path.join(userDataPath, 'extensions');
@@ -1532,7 +1280,7 @@ function _dedupeVencordFolders() {
 }
 
 async function _loadExtensionEverywhere(extPath) {
-  const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))];
+  const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))];
   let loaded = null;
   for (const ses of sessions) {
     try {
@@ -1624,7 +1372,7 @@ ipcMain.handle('extensions:install-zip', async () => {
       }
     }
     const zip = new AdmZip(zipBuffer);
-    const entries = zip.getEntries();
+    const entries = require('./main/archive-security').validateZip(zip);
 
     // Find manifest.json — prefer the root, but fall back to the shallowest
     // match if the archive has the extension inside a wrapper folder
@@ -1689,28 +1437,10 @@ ipcMain.handle('extensions:install-zip', async () => {
 
 // Download a URL to a Buffer via Electron net (follows redirects, e.g. GitHub
 // release → objects.githubusercontent.com).
-function _downloadBuffer(url, depth = 0) {
-  return new Promise((resolve, reject) => {
-    if (depth > 5) return reject(new Error('too many redirects'));
-    try {
-      const req = net.request(url);
-      req.on('response', (res) => {
-        const sc = res.statusCode;
-        if (sc >= 300 && sc < 400 && res.headers.location) {
-          const loc = Array.isArray(res.headers.location) ? res.headers.location[0] : res.headers.location;
-          res.resume();
-          return resolve(_downloadBuffer(loc, depth + 1));
-        }
-        if (sc !== 200) { res.resume(); return reject(new Error('HTTP ' + sc)); }
-        const chunks = [];
-        res.on('data', (c) => chunks.push(c));
-        res.on('end', () => resolve(Buffer.concat(chunks)));
-        res.on('error', reject);
-      });
-      req.on('error', reject);
-      req.end();
-    } catch (e) { reject(e); }
-  });
+async function _downloadBuffer(url) {
+  const response = await boundedNetFetch(url, { maxBytes: 64 * 1024 * 1024, timeoutMs: 60000 });
+  if (!response.ok) throw new Error('HTTP ' + response.status);
+  return Buffer.from(await response.arrayBuffer());
 }
 
 // Extract a zip Buffer into the extensions dir (zip-slip-safe) and load it into
@@ -1726,7 +1456,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug) {
     else if (v === 3) zipBuffer = zipBuffer.slice(12 + zipBuffer.readUInt32LE(8));
   }
   const zip = new AdmZip(zipBuffer);
-  const entries = zip.getEntries();
+  const entries = require('./main/archive-security').validateZip(zip);
   let manifestEntry = entries.find(e => e.entryName === 'manifest.json');
   let rootPath = '';
   if (!manifestEntry) {
@@ -1764,7 +1494,7 @@ function _removeExtBySlugPrefix(prefix) {
   try {
     for (const e of _extEntries()) {
       if (!path.basename(e.path).startsWith(prefix + '-')) continue;
-      for (const ses of [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))]) {
+      for (const ses of [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))]) {
         try { for (const ex of ses.getAllExtensions()) if (path.resolve(ex.path) === path.resolve(e.path)) ses.removeExtension(ex.id); } catch {}
       }
       try { fs.rmSync(e.path, { recursive: true, force: true }); if (prefix === 'vencord') _vlog(`removeOld: deleted ${e.folder}`); }
@@ -1874,7 +1604,7 @@ ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
   }
   if (!fs.existsSync(extPath)) return { ok: false, error: 'Not found' };
   try {
-    const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => session.fromPartition(p))];
+    const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))];
     for (const ses of sessions) {
       try {
         for (const ext of ses.getAllExtensions()) {
@@ -1936,7 +1666,12 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('did-start-navigation', (_e, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) { try { _mediaByWc.delete(contents.id); } catch {} }
   });
-  contents.on('destroyed', () => { try { _mediaByWc.delete(contents.id); } catch {} try { _httpsUpgradedByWc.delete(contents.id); } catch {} try { _claudeGoogleClick.delete(contents.id); } catch {} });
+  const createdContentsId = contents.id;
+  contents.on('destroyed', () => {
+    _mediaByWc.delete(createdContentsId);
+    _httpsUpgradedByWc.delete(createdContentsId);
+    _claudeGoogleClick.delete(createdContentsId);
+  });
 
   // HTTPS-Only fallback: if a page WE upgraded to https can't load (no https, SSL
   // failure, reset…), drop that host back to http for the rest of the session so
@@ -2076,6 +1811,7 @@ app.on('web-contents-created', (_event, contents) => {
   // partition stores on disk — so "the cookie landed in the right partition" is
   // observable, not assumed. (Denied/Peek popups never create a window.)
   contents.on('did-create-window', (win, details) => {
+    secureSessions.linkGuest(win.webContents, contents);
     try {
       const openerSes = contents.session;
       const popupSes = win.webContents.session;
@@ -2099,7 +1835,9 @@ app.on('web-contents-created', (_event, contents) => {
       // "Windows Security" dialog. Popups don't get site-tweaks (no guest
       // preload), so disable WebAuthn get() here too, on each load. Runs before
       // the user reaches the passkey step, so the prompt never appears.
-      try { win.webContents.on('did-finish-load', () => { try { win.webContents.executeJavaScript(_WEBAUTHN_DISABLE_JS).catch(() => {}); } catch {} }); } catch {}
+      try { win.webContents.on('did-finish-load', () => { try {
+        if (_readPersistString('vex.passkeySuppressedHosts', []).includes(new URL(win.webContents.getURL()).hostname)) win.webContents.executeJavaScript(_WEBAUTHN_DISABLE_JS).catch(() => {});
+      } catch {} }); } catch {}
     }
 
     // Peek-style auth popup: dim Vex behind it, allow Esc / backdrop-click to
@@ -2127,7 +1865,9 @@ app.on('web-contents-created', (_event, contents) => {
       let chromeView = null;
       try {
         const { WebContentsView } = require('electron');
-        chromeView = new WebContentsView({ webPreferences: { nodeIntegration: true, contextIsolation: false } });
+        chromeView = new WebContentsView({ webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload-popup-chrome.js') } });
+        chromeView.webContents.on('will-navigate', event => event.preventDefault());
+        chromeView.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
         win.contentView.addChildView(chromeView);
         const layout = () => {
           try { const [w] = win.getContentSize(); chromeView.setBounds({ x: 0, y: 0, width: w, height: BAR_H }); } catch {}
@@ -2327,7 +2067,7 @@ app.on('web-contents-created', (_event, contents) => {
         // arrive as 'new-window' — open those in the Peek overlay instead of a
         // full tab. Plain target=_blank / middle-click stay tabs.
         if (disposition === 'new-window') {
-          win.webContents.send('peek:open', { url });
+          win.webContents.send('peek:open', { url, partition: secureSessions.partitionOf(contents) });
         } else {
           win.webContents.send('tab:create-from-external', {
             url,
@@ -2380,6 +2120,21 @@ app.on('web-contents-created', (_event, contents) => {
   });
 });
 const storagePath = path.join(userDataPath, 'vex-storage');
+const { JsonStore, SecretStore, atomicWrite } = require('./main/file-store');
+const dataStore = new JsonStore(storagePath);
+const secretStore = new SecretStore(safeStorage);
+ipcMain.handle('cloud:token-save', (_event, token) => {
+  if (typeof token !== 'string' || token.length < 24 || token.length > 512) throw new Error('Use a token of 24–512 characters');
+  return secretStore.write(path.join(userDataPath, 'ai-token.enc'), token);
+});
+ipcMain.handle('cloud:request', async (_event, body) => {
+  const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
+  if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');
+  const token = await secretStore.read(path.join(userDataPath, 'ai-token.enc'));
+  if (!token) throw new Error('Set your AI access token in Cloud Services');
+  const response = await boundedNetFetch(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body), timeoutMs: 25000 });
+  return { status: response.status, body: await response.text() };
+});
 
 if (!fs.existsSync(storagePath)) {
   fs.mkdirSync(storagePath, { recursive: true });
@@ -2395,27 +2150,8 @@ function getStorageFile(key) {
 // === Persistent key/value store (survives reinstalls / Chromium-origin changes) ===
 // Backs the localStorage shim in the renderer. Single JSON file, atomic writes.
 const persistFile = path.join(userDataPath, 'vex-persist.json');
-let _persistCache = null;
-function _persistLoad() {
-  if (_persistCache) return _persistCache;
-  try {
-    if (fs.existsSync(persistFile)) {
-      _persistCache = JSON.parse(fs.readFileSync(persistFile, 'utf-8'));
-    }
-  } catch (e) { console.error('[persist] load failed:', e); }
-  if (!_persistCache) _persistCache = {};
-  return _persistCache;
-}
-function _persistSaveDebounced() {
-  if (_persistSaveDebounced._t) clearTimeout(_persistSaveDebounced._t);
-  _persistSaveDebounced._t = setTimeout(() => {
-    try {
-      const tmp = persistFile + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(_persistCache, null, 2), 'utf-8');
-      fs.renameSync(tmp, persistFile);
-    } catch (e) { console.error('[persist] save failed:', e); }
-  }, 250);
-}
+const preferences = require('./main/storage').createPreferenceStore(persistFile);
+const _persistLoad = preferences.load;
 ipcMain.handle('persist-get-all', () => _persistLoad());
 
 // === Geolocation preference exposed to webview preloads ===
@@ -2452,10 +2188,17 @@ ipcMain.handle('geolocation:get', () => {
 // Geolocation permission gate — the polyfill can't go through Chromium's
 // setPermissionRequestHandler because it has replaced navigator.geolocation,
 // so it asks us here. We reuse the existing permission prompt + decision store.
-ipcMain.handle('geolocation:check-permission', async (_e, { origin } = {}) => {
-  if (!origin || origin === 'null') return 'allow';
+ipcMain.handle('geolocation:check-permission', async (_e) => {
+  // A page can call the public bridge with any argument. Only Electron's
+  // sending frame identifies the origin whose permission we may grant.
+  let origin;
+  try {
+    const url = new URL(_e.senderFrame.url);
+    if (!['http:', 'https:'].includes(url.protocol)) return 'deny';
+    origin = url.origin;
+  } catch { return 'deny'; }
 
-  const decisions = loadPermissionDecisions();
+  const decisions = decisionsFor(_e.sender);
   const key = `${origin}::geolocation`;
   if (decisions[key] === 'allow') return 'allow';
   if (decisions[key] === 'deny') return 'deny';
@@ -2470,6 +2213,7 @@ ipcMain.handle('geolocation:check-permission', async (_e, { origin } = {}) => {
     };
     // The existing permission:respond handler calls this with (true|false)
     // and persists the decision itself when `remember` is set.
+    Object.assign(settle, { _host: secureSessions.owner(_e.sender), _contents: _e.sender, _origin: origin, _permission: 'geolocation' });
     pendingPermissions.set(id, settle);
     sendPermissionRequest({ id, origin, permission: 'geolocation' });
 
@@ -2481,17 +2225,11 @@ ipcMain.handle('geolocation:check-permission', async (_e, { origin } = {}) => {
     }, 60000);
   });
 });
-ipcMain.handle('persist-set', (_e, key, value) => {
-  const data = _persistLoad();
-  data[key] = value;
-  _persistSaveDebounced();
-  return true;
+ipcMain.handle('persist-set', async (_e, key, value) => {
+  return preferences.set(key, value);
 });
-ipcMain.handle('persist-delete', (_e, key) => {
-  const data = _persistLoad();
-  delete data[key];
-  _persistSaveDebounced();
-  return true;
+ipcMain.handle('persist-delete', async (_e, key) => {
+  return preferences.delete(key);
 });
 ipcMain.handle('get-user-data-path', () => userDataPath);
 
@@ -2523,63 +2261,25 @@ try {
 const syncKeyFile = path.join(userDataPath, 'sync-key.bin');
 const syncMetaFile = path.join(userDataPath, 'sync-meta.json');
 
-ipcMain.handle('sync-save-key', (_e, hex) => {
-  try {
-    fs.writeFileSync(syncKeyFile, String(hex || ''), { encoding: 'utf-8', mode: 0o600 });
-    return true;
-  } catch (err) {
-    console.error('[sync] save key failed:', err);
-    return false;
-  }
+ipcMain.handle('sync-save-key', (_event, hex) => {
+  if (typeof hex !== 'string' || !/^[a-f0-9]{64}$/i.test(hex)) throw new Error('Invalid sync key');
+  return secretStore.write(syncKeyFile, hex);
 });
-
-ipcMain.handle('sync-load-key', () => {
-  try {
-    if (!fs.existsSync(syncKeyFile)) return null;
-    return fs.readFileSync(syncKeyFile, 'utf-8').trim() || null;
-  } catch { return null; }
+ipcMain.handle('sync-load-key', () => secretStore.read(syncKeyFile));
+ipcMain.handle('sync-save-meta', (_event, meta) => secretStore.write(syncMetaFile, meta));
+ipcMain.handle('sync-load-meta', () => secretStore.read(syncMetaFile, JSON.parse));
+ipcMain.handle('sync-clear-state', async () => {
+  await Promise.all([secretStore.clear(syncKeyFile), secretStore.clear(syncMetaFile)]);
+  return true;
 });
-
-ipcMain.handle('sync-save-meta', (_e, meta) => {
-  try {
-    fs.writeFileSync(syncMetaFile, JSON.stringify(meta || {}, null, 2), 'utf-8');
-    return true;
-  } catch (err) {
-    console.error('[sync] save meta failed:', err);
-    return false;
-  }
-});
-
-ipcMain.handle('sync-load-meta', () => {
-  try {
-    if (!fs.existsSync(syncMetaFile)) return null;
-    return JSON.parse(fs.readFileSync(syncMetaFile, 'utf-8'));
-  } catch { return null; }
-});
-
-ipcMain.handle('sync-clear-state', () => {
-  try {
-    if (fs.existsSync(syncKeyFile)) fs.unlinkSync(syncKeyFile);
-    if (fs.existsSync(syncMetaFile)) fs.unlinkSync(syncMetaFile);
-    return true;
-  } catch (err) {
-    console.error('[sync] clear failed:', err);
-    return false;
-  }
-});
-// Flush synchronously on quit so nothing is lost
+// Windows close only after the acknowledged renderer/main storage flush.
 app.on('before-quit', () => {
   closePipWindow();
-  try {
-    if (_persistCache) {
-      fs.writeFileSync(persistFile, JSON.stringify(_persistCache, null, 2), 'utf-8');
-    }
-  } catch {}
 });
 
 // Register custom protocol BEFORE app ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true } }
+  { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } }
 ]);
 
 function createWindow() {
@@ -2603,6 +2303,7 @@ function createWindow() {
     }
   });
 
+  secureSessions.registerHost(mainWindow);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   // Show + focus the window once the first frame is ready. A transparent,
@@ -2630,32 +2331,13 @@ function createWindow() {
   // a renderer script that crashes before init() but still has the IPC channel.
   mainWindow.webContents.once('did-finish-load', () => {
     setTimeout(() => {
-      if (!_permissionsRendererReady && _pendingPermissionSends.length) {
-        console.warn('[Permissions] renderer-ready signal not received 500ms after load, flushing anyway');
-      }
-      _permissionsRendererReady = true;
-      _flushPermissionQueue('fallback after did-finish-load');
+      permissionsReady();
     }, 500);
   });
 
   // Header stripping for webviews
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
-    if (responseHeaders) {
-      delete responseHeaders['x-frame-options'];
-      delete responseHeaders['X-Frame-Options'];
-      delete responseHeaders['X-FRAME-OPTIONS'];
-      if (responseHeaders['content-security-policy']) {
-        responseHeaders['content-security-policy'] = responseHeaders['content-security-policy'].map(
-          csp => csp.replace(/frame-ancestors[^;]*;?/gi, '')
-        );
-      }
-      if (responseHeaders['Content-Security-Policy']) {
-        responseHeaders['Content-Security-Policy'] = responseHeaders['Content-Security-Policy'].map(
-          csp => csp.replace(/frame-ancestors[^;]*;?/gi, '')
-        );
-      }
-    }
     _addMediaCorsHeaders(details, responseHeaders);
     callback({ responseHeaders });
   });
@@ -2674,7 +2356,7 @@ function createWindow() {
   // (Gmail webview UA/Client Hints spoofing removed — Gmail is now a native
   // IMAP/SMTP client, not a webview. See src/main/gmail/.)
   partitions.forEach(partName => {
-    const ses = session.fromPartition(partName);
+    const ses = secureSessions.fromPartition(partName);
     // The Discord panel additionally drops CSP entirely so the Vencord browser
     // extension can inject its bundle + load themes/QuickCSS (the extension would
     // normally relax CSP via declarativeNetRequest, which Electron only partly
@@ -2683,7 +2365,7 @@ function createWindow() {
 
     ses.webRequest.onHeadersReceived((details, callback) => {
       const responseHeaders = { ...details.responseHeaders };
-      if (responseHeaders) {
+      if (stripAllCsp && /^https:\/\/(?:[a-z0-9-]+\.)?discord\.com(?::443)?\//i.test(details.url) && details.resourceType === 'mainFrame') {
         delete responseHeaders['x-frame-options'];
         delete responseHeaders['X-Frame-Options'];
         delete responseHeaders['X-FRAME-OPTIONS'];
@@ -2729,7 +2411,7 @@ function createWindow() {
         + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + port + "';return 'DIRECT';}";
       cfg = { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
     }
-    for (const p of _BROWSING_SESSIONS) { try { session.fromPartition(p).setProxy(cfg); } catch {} }
+    for (const p of _BROWSING_SESSIONS) { try { secureSessions.fromPartition(p).setProxy(cfg); } catch {} }
     try { session.defaultSession.setProxy(cfg); } catch {}
   }
   // Voice (RTC) must NOT ride the desync proxy. ByeDPI is TCP-only, so the media
@@ -2751,7 +2433,7 @@ function createWindow() {
     return { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
   };
   const _setDiscordProxy = (rules) => {
-    try { session.fromPartition('persist:discord').setProxy(_discordProxyConfig(rules)); }
+    try { secureSessions.fromPartition('persist:discord').setProxy(_discordProxyConfig(rules)); }
     catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
     // Mirror Discord-domain routing onto normal tabs when (and only when) the
     // panel is going through ByeDPI's SOCKS proxy.
@@ -2764,7 +2446,7 @@ function createWindow() {
     return new Promise((resolve) => {
       let done = false; const fin = (v) => { if (!done) { done = true; resolve(v); } };
       try {
-        const req = net.request({ url, session: session.fromPartition('persist:discord') });
+        const req = net.request({ url, session: secureSessions.fromPartition('persist:discord') });
         const to = setTimeout(() => { try { req.abort(); } catch {} fin(false); }, 6000);
         req.on('response', (res) => { clearTimeout(to); try { res.resume(); } catch {} fin((res.statusCode || 0) > 0); });
         req.on('error', () => { clearTimeout(to); fin(false); });
@@ -2784,14 +2466,14 @@ function createWindow() {
   // instance — reuse a running one (never restart one Discord may be using); if
   // none is up, start the known-good preset and route persist:roblox through it.
   const _setRobloxProxy = (rules) => {
-    try { session.fromPartition('persist:roblox').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
+    try { secureSessions.fromPartition('persist:roblox').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
     catch (e) { console.warn('[DPI-bypass] roblox setProxy failed:', e && e.message); }
   };
   function _testRoblox(url) {
     return new Promise((resolve) => {
       let done = false; const fin = (v) => { if (!done) { done = true; resolve(v); } };
       try {
-        const req = net.request({ url, session: session.fromPartition('persist:roblox') });
+        const req = net.request({ url, session: secureSessions.fromPartition('persist:roblox') });
         const to = setTimeout(() => { try { req.abort(); } catch {} fin(false); }, 6000);
         req.on('response', (res) => { clearTimeout(to); try { res.resume(); } catch {} fin((res.statusCode || 0) > 0); });
         req.on('error', () => { clearTimeout(to); fin(false); });
@@ -2929,8 +2611,8 @@ function createWindow() {
     } catch (e) { console.warn('[DPI-bypass] init failed:', e && e.message); }
     ipcMain.handle('discord:set-bypass-mode', (_e, mode, opts) => _applyDiscordBypass(mode, opts || {}));
     ipcMain.handle('roblox:set-bypass', (_e, on) => _applyRobloxBypass(!!on));
-    ipcMain.handle('gui-style:set', (_e, style) => {
-      try { fs.writeFileSync(getStorageFile('gui-style'), JSON.stringify(style === 'glass' ? 'glass' : 'classic')); } catch {}
+    ipcMain.handle('gui-style:set', async (_e, style) => {
+      await dataStore.write('gui-style', style === 'glass' ? 'glass' : 'classic');
       return { ok: true };
     });
     ipcMain.on('discord:set-bypass', (_e, on) => _applyDiscordBypass(on ? 'light' : 'off')); // back-compat
@@ -2941,17 +2623,17 @@ function createWindow() {
   // defaultSession and the two panel partitions were covered, so ads loaded
   // freely in regular tabs (which live in persist:main).
   wireAdblockerOnSession(session.defaultSession, 'default');
-  wireAdblockerOnSession(session.fromPartition('persist:main'), 'persist:main');
+  wireAdblockerOnSession(secureSessions.fromPartition('persist:main'), 'persist:main');
   // Media CORS for Master Volume boost on the tabs session (no other
   // onHeadersReceived is registered on persist:main).
   try {
-    session.fromPartition('persist:main').webRequest.onHeadersReceived((details, callback) => {
+    secureSessions.fromPartition('persist:main').webRequest.onHeadersReceived((details, callback) => {
       const responseHeaders = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, responseHeaders);
       callback({ responseHeaders });
     });
   } catch {}
-  partitions.forEach(p => wireAdblockerOnSession(session.fromPartition(p), p));
+  partitions.forEach(p => wireAdblockerOnSession(secureSessions.fromPartition(p), p));
 
   // Upgrade the request blocker to the EasyList + EasyPrivacy engine. Async &
   // fire-and-forget: the handlers above OR the engine verdict with the legacy
@@ -2959,9 +2641,7 @@ function createWindow() {
   // resolves. Serialized engine is cached under userData for instant relaunch.
   // Cache filename bumped to -full so the richer prebuilt list set (and its
   // cosmetic rules) rebuilds instead of loading the old ads+tracking cache.
-  // Re-apply any saved per-container proxy routing (custom proxies now; Tor
-  // containers reconnect on first use).
-  try { applyStoredRoutings(); } catch {}
+  // Saved routing is installed before this window can create any guests.
 
   // Register the cosmetic-filter ipc handlers NOW, before any guest page loads —
   // the guest preload starts calling them immediately, so waiting for the async
@@ -2987,50 +2667,50 @@ function createWindow() {
   // instead of pinned to the bottom). defaultSession + the named panel
   // partitions were already covered; persist:main was the gap.
   session.defaultSession.setUserAgent(CHROME_UA);
-  session.fromPartition('persist:main').setUserAgent(CHROME_UA);
-  partitions.forEach(p => session.fromPartition(p).setUserAgent(CHROME_UA));
+  secureSessions.fromPartition('persist:main').setUserAgent(CHROME_UA);
+  partitions.forEach(p => secureSessions.fromPartition(p).setUserAgent(CHROME_UA));
 
   // Normalize Sec-CH-UA Client Hints to match the spoofed Chrome UA on the same
   // sessions, so UA and CH agree (sites that sniff CH won't see Electron).
   wireClientHintsOnSession(session.defaultSession);
-  wireClientHintsOnSession(session.fromPartition('persist:main'));
-  partitions.forEach(p => wireClientHintsOnSession(session.fromPartition(p)));
+  wireClientHintsOnSession(secureSessions.fromPartition('persist:main'));
+  partitions.forEach(p => wireClientHintsOnSession(secureSessions.fromPartition(p)));
 
   // Downloads — wire on every session tabs might use. Previously only the
   // default session had a listener, so webview downloads (partition=persist:main)
   // silently saved with no IPC to the renderer → panel stayed empty.
   wireDownloadsOnSession(session.defaultSession, 'default');
-  wireDownloadsOnSession(session.fromPartition('persist:main'), 'persist:main');
-  partitions.forEach(p => wireDownloadsOnSession(session.fromPartition(p), p));
+  wireDownloadsOnSession(secureSessions.fromPartition('persist:main'), 'persist:main');
+  partitions.forEach(p => wireDownloadsOnSession(secureSessions.fromPartition(p), p));
 
   wirePermissionsOnSession(session.defaultSession, 'default');
-  wirePermissionsOnSession(session.fromPartition('persist:main'), 'persist:main');
-  partitions.forEach(p => wirePermissionsOnSession(session.fromPartition(p), p, { autoAllowMedia: p === 'persist:discord' }));
+  wirePermissionsOnSession(secureSessions.fromPartition('persist:main'), 'persist:main');
+  partitions.forEach(p => wirePermissionsOnSession(secureSessions.fromPartition(p), p, { autoAllowMedia: p === 'persist:discord' }));
 
   // WebHID — same fan-out as permissions: default + tabs (persist:main) + the
   // sidebar-panel partitions, so navigator.hid.requestDevice() shows the Vex
   // device chooser everywhere a page can run.
   wireWebHidOnSession(session.defaultSession, 'default');
-  wireWebHidOnSession(session.fromPartition('persist:main'), 'persist:main');
-  partitions.forEach(p => wireWebHidOnSession(session.fromPartition(p), p));
+  wireWebHidOnSession(secureSessions.fromPartition('persist:main'), 'persist:main');
+  partitions.forEach(p => wireWebHidOnSession(secureSessions.fromPartition(p), p));
 
   // Screen share (getDisplayMedia) — fan out the picker to every session a page
   // can run in, so Discord Go Live / Share Screen works.
   wireDisplayMediaOnSession(session.defaultSession);
-  wireDisplayMediaOnSession(session.fromPartition('persist:main'));
-  partitions.forEach(p => wireDisplayMediaOnSession(session.fromPartition(p)));
+  wireDisplayMediaOnSession(secureSessions.fromPartition('persist:main'));
+  partitions.forEach(p => wireDisplayMediaOnSession(secureSessions.fromPartition(p)));
 
   // Webview preloads (PiP helpers + geolocation IP fallback, and the per-site
   // main-world tweaks) — attach to every session so ALL pages get them. Use
   // setPreloads so we don't clobber any existing preload set elsewhere.
   const sessions = [
     session.defaultSession,
-    session.fromPartition('persist:main'),
+    secureSessions.fromPartition('persist:main'),
     // Container tabs (isolated cookie jars) need the preload too.
-    session.fromPartition('persist:container-work'),
-    session.fromPartition('persist:container-personal'),
-    session.fromPartition('persist:container-shopping'),
-    ...partitions.map(p => session.fromPartition(p))
+    secureSessions.fromPartition('persist:container-work'),
+    secureSessions.fromPartition('persist:container-personal'),
+    secureSessions.fromPartition('persist:container-shopping'),
+    ...partitions.map(p => secureSessions.fromPartition(p))
   ];
   for (const ses of sessions) {
     try { attachGuestPreloads(ses); }
@@ -3053,12 +2733,6 @@ function createWindow() {
   });
 
   // Signal renderer to save session before quit
-  mainWindow.on('close', () => {
-    if (mainWindow) {
-      mainWindow.webContents.send('save-session-before-quit');
-    }
-  });
-
   mainWindow.on('closed', () => {
     mainWindow = null;
     // Never leave the PiP window behind: it is frameless and always-on-top,
@@ -3068,33 +2742,10 @@ function createWindow() {
   });
 }
 
-// Auto-updater setup
+let disposeUpdater = null;
 function setupAutoUpdater() {
-  if (!autoUpdater || !mainWindow) return;
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.on('update-available', (info) => {
-    mainWindow?.webContents.send('update-available', { version: info.version, releaseNotes: info.releaseNotes });
-  });
-  autoUpdater.on('update-not-available', () => {
-    mainWindow?.webContents.send('update-not-available');
-  });
-  autoUpdater.on('download-progress', (p) => {
-    mainWindow?.webContents.send('update-download-progress', { percent: Math.round(p.percent), transferred: p.transferred, total: p.total });
-  });
-  autoUpdater.on('update-downloaded', (info) => {
-    mainWindow?.webContents.send('update-downloaded', { version: info.version });
-  });
-  autoUpdater.on('error', (err) => {
-    mainWindow?.webContents.send('update-error', { message: err.message });
-  });
-
-  // v2.0.0: do NOT auto-check at startup. The electron-updater startup check
-  // spawns a bundled 7za.exe (for .blockmap differential-download inspection)
-  // that links against MSVC 2015-2022 runtime, which triggers the VC++
-  // Redistributable installer prompt on machines without that runtime.
-  // Users can still trigger "Check for Updates" manually from Settings.
+  disposeUpdater?.();
+  disposeUpdater = require('./main/updates').bindUpdater(autoUpdater, () => mainWindow);
 }
 
 // v1.9.0 one-time cleanup: remove Phase 17A Memory Recorder artifacts
@@ -3183,7 +2834,8 @@ app.whenReady().then(async () => {
         try {
           const themeFile = getStorageFile('theme');
           if (fs.existsSync(themeFile)) {
-            const t = JSON.parse(fs.readFileSync(themeFile, 'utf-8'));
+            const raw = JSON.parse(fs.readFileSync(themeFile, 'utf-8'));
+            const t = raw?.$vexStore === 1 ? raw.data : raw;
             if (typeof t === 'string' && KNOWN.includes(t)) theme = t;
           }
         } catch { /* oxford on any read error */ }
@@ -3197,7 +2849,7 @@ app.whenReady().then(async () => {
         let guiStyle = 'classic';
         try {
           const gf = getStorageFile('gui-style');
-          if (fs.existsSync(gf)) { const g = JSON.parse(fs.readFileSync(gf, 'utf-8')); if (g === 'glass') guiStyle = 'glass'; }
+          if (fs.existsSync(gf)) { const raw = JSON.parse(fs.readFileSync(gf, 'utf-8')); const g = raw?.$vexStore === 1 ? raw.data : raw; if (g === 'glass') guiStyle = 'glass'; }
         } catch {}
         html = html.replace('<html lang="en">', `<html lang="en" data-theme="${safe}" data-gui-style="${guiStyle}">`);
         html = html.replace(
@@ -3225,11 +2877,11 @@ app.whenReady().then(async () => {
 
     // vex://start/css/foo.css → serve renderer/css/foo.css
     if (reqUrl.startsWith('vex://start/')) {
-      const assetPath = reqUrl.replace('vex://start/', '');
-      const fullPath = path.join(__dirname, 'renderer', assetPath);
-      if (fs.existsSync(fullPath)) {
-        return net.fetch(pathToFileURL(fullPath).toString());
-      }
+      try {
+        const assetPath = decodeURIComponent(new URL(reqUrl).pathname).replace(/^\//, '');
+        const fullPath = safeJoin(path.join(__dirname, 'renderer'), assetPath);
+        if (fs.existsSync(fullPath)) return net.fetch(pathToFileURL(fullPath).toString());
+      } catch { return new Response('Invalid asset path', { status: 400 }); }
     }
 
     return new Response('Not Found', { status: 404 });
@@ -3239,6 +2891,7 @@ app.whenReady().then(async () => {
   // blocks window creation (playback happens later); see initWidevine() above.
   initWidevine();
 
+  await applyStoredRoutings();
   createWindow();
   setupAutoUpdater();
 
@@ -3251,6 +2904,7 @@ app.whenReady().then(async () => {
   if (process.env.VEX_SMOKE === '1' && mainWindow) {
     const wc = mainWindow.webContents;
     let done = false;
+    let securityVerifying = false;
     const finish = (ok, detail) => {
       if (done) return; done = true;
       console.log(`SMOKE: ${ok ? 'PASS' : 'FAIL'} ${detail || ''}`);
@@ -3270,6 +2924,19 @@ app.whenReady().then(async () => {
           cb: typeof CommandBar!=='undefined'
         };}catch(e){return {err:String(e)};}})()`, true);
         if (s && s.tm && s.tabs >= 1 && s.wvm && s.wv >= 1 && s.sb && s.cb) {
+          if (process.env.VEX_SECURITY_SMOKE === '1' || process.env.VEX_UI_SMOKE === '1' || process.env.VEX_RESTART_PHASE) {
+            if (securityVerifying) return;
+            securityVerifying = true;
+            try {
+              const details = [];
+              if (process.env.VEX_RESTART_PHASE) details.push(await require('./main/restart-smoke').run({ mainWindow, phase: process.env.VEX_RESTART_PHASE }));
+              if (process.env.VEX_SECURITY_SMOKE === '1') details.push(await require('./main/security-smoke').run({ mainWindow, security: secureSessions, userData: userDataPath }));
+              if (process.env.VEX_UI_SMOKE === '1') details.push(await require('./main/ui-smoke').run({ mainWindow }));
+              finish(true, details.join('; '));
+            }
+            catch (error) { finish(false, error.message); }
+            return;
+          }
           finish(true, `tabs=${s.tabs} webviews=${s.wv}`); return;
         }
         if (Date.now() > deadline) { finish(false, 'timeout state=' + JSON.stringify(s)); return; }
@@ -3418,15 +3085,16 @@ app.whenReady().then(async () => {
 });
 
 // IPC handlers
-ipcMain.on('window-minimize', () => mainWindow?.minimize());
-ipcMain.on('window-maximize', () => {
-  if (mainWindow?.isMaximized()) {
-    mainWindow.unmaximize();
+ipcMain.on('window-minimize', e => secureSessions.owner(e.sender)?.win.minimize());
+ipcMain.on('window-maximize', e => {
+  const win = secureSessions.owner(e.sender)?.win;
+  if (win?.isMaximized()) {
+    win.unmaximize();
   } else {
-    mainWindow?.maximize();
+    win?.maximize();
   }
 });
-ipcMain.on('window-close', () => mainWindow?.close());
+ipcMain.on('window-close', e => secureSessions.owner(e.sender)?.win.close());
 
 // Backdrop click behind a Peek-style auth popup → dismiss the frameless popup
 // (it has no native close button). Esc inside the popup does the same (wired in
@@ -3503,7 +3171,7 @@ ipcMain.handle('web-suggest', async (_event, query) => {
     const to = setTimeout(() => { try { ctrl.abort(); } catch {} }, 2500);
     let list = [];
     try {
-      const r = await net.fetch(url, { signal: ctrl.signal });
+      const r = await boundedNetFetch(url, { signal: ctrl.signal });
       if (r.ok) list = _parseGoogleSuggest(await r.text());
     } finally { clearTimeout(to); }
     _suggestCache.set(q, { list, ts: Date.now() });
@@ -3514,29 +3182,24 @@ ipcMain.handle('web-suggest', async (_event, query) => {
   }
 });
 
-ipcMain.handle('storage-save', (event, key, data) => {
-  try {
-    fs.writeFileSync(getStorageFile(key), JSON.stringify(data, null, 2));
-    return true;
-  } catch (e) {
-    console.error('Storage save error:', e);
-    return false;
-  }
+ipcMain.handle('storage-save', (_event, key, data) => dataStore.write(key, data));
+ipcMain.handle('storage-load', (_event, key) => dataStore.read(key));
+ipcMain.handle('storage:history-add', async (_event, entry) => {
+  if (!entry || typeof entry.url !== 'string' || !/^https?:\/\//i.test(entry.url)) throw new Error('Invalid history entry');
+  await dataStore.update('history', value => [{ id: require('crypto').randomUUID(), url: entry.url, title: String(entry.title || '').slice(0, 1000), time: Date.now() }, ...(Array.isArray(value) ? value : [])].slice(0, 500));
+  return true;
 });
-
-ipcMain.handle('storage-load', (event, key) => {
-  try {
-    const file = getStorageFile(key);
-    if (fs.existsSync(file)) {
-      return JSON.parse(fs.readFileSync(file, 'utf-8'));
-    }
-    return null;
-  } catch (e) {
-    console.error('Storage load error:', e);
-    return null;
-  }
+ipcMain.handle('storage:flush', async () => { await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallWrites; await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushPermissions(); return true; });
+ipcMain.handle('browsing:clear-data', async () => {
+  await dataStore.flush(); await preferences.flush();
+  for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) { await ses.clearStorageData(); await ses.clearCache(); }
+  await dataStore.clear('history', []);
+  await dataStore.clear('sync-records', null);
+  _recallCache = [];
+  await recallPersist(true);
+  await preferences.clearKeys(['vex.history','vex.sessions','vex.archivedTabs','vex.workspaceSnapshots','vex.downloads','vex.autofillLog']);
+  return true;
 });
-
 ipcMain.handle('open-pip-window', (event, url) => {
   // Security audit M-4: a renderer-XSS could pop a frameless always-on-top
   // window pointing at file:///, chrome://, javascript:, data: html, etc.
@@ -3724,7 +3387,7 @@ function buildIdentity(v) {
 ipcMain.handle('identity:create', () => {
   try {
     const part = `vexid-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
-    const ses = session.fromPartition(part); // no persist: → in-memory, wiped on close
+    const ses = secureSessions.fromPartition(part); // no persist: → in-memory, wiped on close
     const v = IDENTITY_VERSIONS[Math.floor(Math.random() * IDENTITY_VERSIONS.length)];
     const idn = buildIdentity(v);
     ses.__vexCH = idn.ch;
@@ -3737,9 +3400,6 @@ ipcMain.handle('identity:create', () => {
     // Header stripping + ad blocker, mirroring the private-window session.
     ses.webRequest.onHeadersReceived((details, callback) => {
       const rh = { ...details.responseHeaders };
-      delete rh['x-frame-options']; delete rh['X-Frame-Options']; delete rh['X-FRAME-OPTIONS'];
-      if (rh['content-security-policy']) rh['content-security-policy'] = rh['content-security-policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
-      if (rh['Content-Security-Policy']) rh['Content-Security-Policy'] = rh['Content-Security-Policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
       callback({ responseHeaders: rh });
     });
     ses.webRequest.onBeforeRequest((details, callback) => {
@@ -3796,7 +3456,7 @@ ipcMain.handle('tor:create', async (event) => {
       }
     }
     const part = `tor-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
-    const ses = session.fromPartition(part); // no persist: → in-memory, wiped on close
+    const ses = secureSessions.fromPartition(part); // no persist: → in-memory, wiped on close
     ses.__vexTor = true; // tag so web-contents-created disables WebRTC for it
     // Route EVERYTHING (incl. DNS) through Tor. socks5:// makes Chromium resolve
     // hostnames at the proxy, so there's no local DNS leak.
@@ -3814,9 +3474,6 @@ ipcMain.handle('tor:create', async (event) => {
     try { ses.setPermissionCheckHandler(() => false); } catch {}
     ses.webRequest.onHeadersReceived((details, callback) => {
       const rh = { ...details.responseHeaders };
-      delete rh['x-frame-options']; delete rh['X-Frame-Options']; delete rh['X-FRAME-OPTIONS'];
-      if (rh['content-security-policy']) rh['content-security-policy'] = rh['content-security-policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
-      if (rh['Content-Security-Policy']) rh['Content-Security-Policy'] = rh['Content-Security-Policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
       callback({ responseHeaders: rh });
     });
     ses.webRequest.onBeforeRequest((details, callback) => {
@@ -3836,21 +3493,11 @@ ipcMain.handle('tor:create', async (event) => {
 ipcMain.handle('tor:verify', async (_e, partition) => {
   try {
     if (!partition || typeof partition !== 'string') return { ok: false, error: 'bad-partition' };
-    const ses = session.fromPartition(partition);
-    const data = await new Promise((resolve, reject) => {
-      let body = '';
-      let req;
-      try { req = net.request({ url: 'https://check.torproject.org/api/ip', session: ses }); }
-      catch (e) { return reject(e); }
-      const to = setTimeout(() => { try { req.abort(); } catch {} reject(new Error('timeout')); }, 20000);
-      req.on('response', (res) => {
-        res.on('data', (c) => { body += c; if (body.length > 8192) { try { req.abort(); } catch {} } });
-        res.on('end', () => { clearTimeout(to); try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
-        res.on('error', (e) => { clearTimeout(to); reject(e); });
-      });
-      req.on('error', (e) => { clearTimeout(to); reject(e); });
-      req.end();
-    });
+    const ses = secureSessions.fromPartition(partition);
+    const fetchThroughSession = require('./main/network').createBoundedFetch(ses.fetch.bind(ses));
+    const response = await fetchThroughSession('https://check.torproject.org/api/ip', { maxBytes: 8192, timeoutMs: 20000 });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
     return { ok: true, isTor: !!data.IsTor, ip: String(data.IP || '') };
   } catch (err) { return { ok: false, error: err && err.message }; }
 });
@@ -3860,11 +3507,17 @@ ipcMain.handle('tor:verify', async (_e, partition) => {
 // through Tor or a custom SOCKS/HTTP proxy — persistently. Choices are saved and
 // re-applied on next launch so a "Tor container" stays a Tor container.
 const ROUTING_FILE = () => path.join(app.getPath('userData'), 'session-routing.json');
-function readRouting() { try { return JSON.parse(fs.readFileSync(ROUTING_FILE(), 'utf8')) || {}; } catch { return {}; } }
-function writeRouting(o) { try { fs.writeFileSync(ROUTING_FILE(), JSON.stringify(o || {})); } catch {} }
+let routingStore;
+let routingPending = Promise.resolve();
+const routingGeneration = new Map();
+function getRoutingStore() { return routingStore ||= require('./main/storage').createPreferenceStore(ROUTING_FILE()); }
+function readRouting() { return getRoutingStore().load(); }
 
 async function applyRouting(partition, mode, custom, sender) {
-  const ses = partition ? session.fromPartition(partition) : session.defaultSession;
+  const key = partition || 'default';
+  const generation = (routingGeneration.get(key) || 0) + 1;
+  routingGeneration.set(key, generation);
+  const ses = partition ? secureSessions.fromPartition(partition) : session.defaultSession;
   if (mode === 'tor') {
     let port = await detectTorPort();
     if (!port && _torLauncher) {
@@ -3873,6 +3526,7 @@ async function applyRouting(partition, mode, custom, sender) {
       });
     }
     if (!port) throw new Error('Tor unavailable');
+    if (routingGeneration.get(key) !== generation) throw new Error('Routing changed while Tor was starting');
     await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
     return { mode: 'tor', port };
   }
@@ -3881,41 +3535,36 @@ async function applyRouting(partition, mode, custom, sender) {
   return { mode: 'direct' };
 }
 
-ipcMain.handle('routing:set', async (event, partition, mode, custom) => {
-  try {
+ipcMain.handle('routing:set', (event, partition, mode, custom) => {
+  const operation = routingPending.catch(() => {}).then(async () => {
     const r = await applyRouting(partition, mode, custom, event && event.sender);
-    const store = readRouting();
-    if (mode === 'direct') delete store[partition || 'default']; else store[partition || 'default'] = { mode, custom: custom || null };
-    writeRouting(store);
+    if (mode === 'direct') await getRoutingStore().delete(partition || 'default');
+    else await getRoutingStore().set(partition || 'default', { mode, custom: custom || null });
     return { ok: true, ...r };
-  } catch (e) { return { ok: false, error: e && e.message }; }
+  });
+  routingPending = operation;
+  return operation.catch(e => ({ ok: false, error: e && e.message }));
 });
 ipcMain.handle('routing:get', (_e, partition) => { try { return readRouting()[partition || 'default'] || { mode: 'direct' }; } catch { return { mode: 'direct' }; } });
 
 // Re-apply saved routings at startup (Tor ones lazily — starting Tor for every
 // container on boot would be heavy, so a Tor container reconnects on first use;
 // custom proxies are cheap and applied immediately).
-function applyStoredRoutings() {
-  try {
-    const store = readRouting();
-    for (const [part, cfg] of Object.entries(store)) {
-      if (!cfg || cfg.mode === 'tor') continue; // Tor reconnects on demand
-      applyRouting(part === 'default' ? '' : part, cfg.mode, cfg.custom).catch(() => {});
-    }
-  } catch {}
+async function applyStoredRoutings() {
+  await require('./main/routing').restoreRoutes({ routes: readRouting(),
+    getSession: partition => partition ? secureSessions.fromPartition(partition) : session.defaultSession,
+    applyRouting, report: err => console.warn('[Routing] Tor unavailable:', err.message) });
 }
 
 ipcMain.handle('open-private-window', () => {
-  const privSession = session.fromPartition(`private:${Date.now()}`);
+  const privatePartition = secureSessions.newPrivatePartition();
+  const privSession = secureSessions.fromPartition(privatePartition);
   wireDownloadsOnSession(privSession, 'private');
   wirePermissionsOnSession(privSession, 'private');
   try { attachGuestPreloads(privSession); } catch {}
   // Apply header stripping + ad blocker to private session
   privSession.webRequest.onHeadersReceived((details, callback) => {
     const rh = { ...details.responseHeaders };
-    delete rh['x-frame-options']; delete rh['X-Frame-Options']; delete rh['X-FRAME-OPTIONS'];
-    if (rh['content-security-policy']) rh['content-security-policy'] = rh['content-security-policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
-    if (rh['Content-Security-Policy']) rh['Content-Security-Policy'] = rh['Content-Security-Policy'].map(c => c.replace(/frame-ancestors[^;]*;?/gi, ''));
     callback({ responseHeaders: rh });
   });
   privSession.webRequest.onBeforeRequest((details, callback) => {
@@ -3931,10 +3580,12 @@ ipcMain.handle('open-private-window', () => {
     backgroundColor: '#1a0a1a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      partition: privatePartition,
       webviewTag: true, contextIsolation: true, nodeIntegration: false
     }
   });
-  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true' } });
+  secureSessions.registerHost(privWin, privatePartition);
+  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition } });
   return true;
 });
 
@@ -3962,7 +3613,7 @@ ipcMain.handle('check-for-updates', async () => {
   // it downloads Vex-Setup.exe straight away (no release-page hunting).
   const DOWNLOAD = 'https://github.com/0xmortuex/Vex/releases/latest/download/Vex-Setup.exe';
   try {
-    const res = await net.fetch('https://github.com/0xmortuex/Vex/releases/latest/download/latest.yml', { redirect: 'follow' });
+    const res = await boundedNetFetch('https://github.com/0xmortuex/Vex/releases/latest/download/latest.yml', { redirect: 'follow' });
     if (!res.ok) return { ok: false, error: 'Could not reach the update server', current, url: RELEASES, downloadUrl: DOWNLOAD };
     const text = await res.text();
     const m = text.match(/version:\s*([0-9][0-9A-Za-z.\-+]*)/i);
@@ -4002,21 +3653,13 @@ ipcMain.handle('updates:notes', async (_e, tag) => {
   } catch (err) {
     console.warn('[WhatsNew] local changelog unavailable, falling back to GitHub:', err.message);
   }
-  const fetchJson = (url) => new Promise((resolve) => {
+  const fetchJson = async (url) => {
     try {
-      const req = net.request({ url });
-      req.setHeader('User-Agent', 'Vex');
-      req.setHeader('Accept', 'application/vnd.github+json');
-      let body = '';
-      const to = setTimeout(() => { try { req.abort(); } catch {} resolve(null); }, 8000);
-      req.on('response', (res) => {
-        res.on('data', (c) => { body += c; });
-        res.on('end', () => { clearTimeout(to); try { resolve(JSON.parse(body)); } catch { resolve(null); } });
-      });
-      req.on('error', () => { clearTimeout(to); resolve(null); });
-      req.end();
-    } catch { resolve(null); }
-  });
+      const response = await boundedNetFetch(url, { maxBytes: 1024 * 1024, timeoutMs: 8000,
+        headers: { 'User-Agent': 'Vex', Accept: 'application/vnd.github+json' } });
+      return response.ok ? await response.json() : null;
+    } catch { return null; }
+  };
   let rel = await fetchJson('https://api.github.com/repos/0xmortuex/Vex/releases/tags/' + encodeURIComponent(ver));
   if (!rel || !rel.tag_name) rel = await fetchJson('https://api.github.com/repos/0xmortuex/Vex/releases/latest');
   if (!rel || !rel.tag_name) return null;
@@ -4148,7 +3791,7 @@ ipcMain.handle('fx:rates', async () => {
   if (fresh(_fxCache)) return _fxCache;
   try { const disk = JSON.parse(fs.readFileSync(file, 'utf8')); if (fresh(disk)) { _fxCache = disk; return disk; } } catch {}
   try {
-    const res = await net.fetch('https://open.er-api.com/v6/latest/USD');
+    const res = await boundedNetFetch('https://open.er-api.com/v6/latest/USD');
     const j = await res.json();
     if (j && j.rates) {
       _fxCache = { base: j.base_code || 'USD', rates: j.rates, at: Date.now() };
@@ -4206,10 +3849,14 @@ ipcMain.handle('adblocker-set-state', (event, enabled) => {
 // Synchronous config read for the webview preload (must know the farble flag +
 // seed BEFORE any page script runs, so an async invoke would be too late).
 ipcMain.on('privacy:config-sync', (e) => { e.returnValue = { farble: !!privacyCfg.farble, seed: FARBLE_SEED }; });
+ipcMain.on('compatibility:get', e => {
+  try { e.returnValue = { suppressPasskeys: _readPersistString('vex.passkeySuppressedHosts', []).includes(new URL(e.senderFrame.url).hostname) }; }
+  catch { e.returnValue = { suppressPasskeys: false }; }
+});
 ipcMain.handle('privacy:get-config', () => privacyLoad());
-ipcMain.handle('privacy:set-config', (_e, cfg) => {
+ipcMain.handle('privacy:set-config', async (_e, cfg) => {
   privacyCfg = { ...privacyCfg, ...(cfg || {}) };
-  privacySave();
+  await privacySave();
   applyDoH();
   return privacyCfg;
 });

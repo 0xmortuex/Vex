@@ -3,20 +3,20 @@
 // built-in Authenticator — so you never open the panel, read, and type it.
 //
 // SAFETY: a TOTP code is only injected when the PAGE'S SITE matches a saved
-// account's issuer (e.g. the GitHub code only ever goes into github.com). The
-// site "brand" is the registrable label (second-to-last host label), so a
-// look-alike host like github.com.evil.com resolves to brand "evil" and gets
-// nothing — the code can't be phished onto a wrong origin. Only fills a genuine
+// account's issuer AND an explicitly allowed domain. Unknown issuers require
+// manual copying from the authenticator; hostname fragments are not identity.
+// Only fills a genuine
 // one-time-code field (never a search/promo box), and only when it's empty.
 const TotpAutofill = {
+  _domains: { github: ['github.com'], google: ['google.com'], microsoft: ['live.com', 'microsoft.com', 'microsoftonline.com'], discord: ['discord.com'], gitlab: ['gitlab.com'], cloudflare: ['cloudflare.com'], amazon: ['amazon.com'], aws: ['amazon.com', 'aws.amazon.com'] },
   _norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); },
 
   async autofill(webview, url) {
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    const generation = webview._navigationGeneration;
     let host = '';
     try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { return; }
     if (!host || !/^https:/i.test(url)) return;
-    const brand = this._norm((host.split('.').slice(-2)[0]) || host);
-    if (brand.length < 3) return;
 
     let list = [];
     try { list = await window.vex.totpList(); } catch { return; }
@@ -25,10 +25,8 @@ const TotpAutofill = {
     // Match by issuer (brand names like "GitHub"/"Google"); fall back to label
     // only when an account has no issuer. Require a real overlap, not a 1-char one.
     const matches = list.filter((a) => {
-      const iss = this._norm(a.issuer);
-      if (iss) return iss.length >= 3 && (iss === brand || iss.includes(brand) || brand.includes(iss));
-      const lab = this._norm(a.label);
-      return lab.length >= 3 && (lab.includes(brand) || brand.includes(lab));
+      const domains = this._domains[this._norm(a.issuer)] || [];
+      return domains.some(domain => host === domain || host.endsWith('.' + domain));
     });
     if (matches.length !== 1) return;   // exactly one → unambiguous & safe
 
@@ -37,23 +35,27 @@ const TotpAutofill = {
     const entry = codes.find((x) => x.id === matches[0].id);
     const code = entry && entry.code;
     if (!code || !/^\d{4,8}$/.test(code)) return;
-    this._inject(webview, code);
+    if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
+    this._inject(webview, code, url);
     try { window.AutofillLog?.record('totp', url, true, matches[0].issuer || matches[0].label); } catch {}
   },
 
-  _inject(webview, code) {
+  _inject(webview, code, url) {
+    if (!url) return;
     const js = `(function(){try{
+      if(location.href!==${JSON.stringify(url)})return;
       var CODE=${JSON.stringify(code)};
       var DIGITS=CODE.split('');
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      function fire(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
-      function vis(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}}
+      function fire(el,val){try{if(location.href!==${JSON.stringify(url)}||!vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
+      function vis(el){try{var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&(!el.form||new URL(el.form.action||location.href,location.href).origin===location.origin)&&r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
       // A genuine one-time-code field. Deliberately strict: autocomplete
       // one-time-code, or clear 2FA wording — never a bare "code" (promo/coupon).
       function isOtp(el){var t=(el.type||'').toLowerCase();if(t==='password')return false;if(!(t===''||t==='text'||t==='tel'||t==='number'))return false;if(!vis(el))return false;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='one-time-code')return true;return /otp|2fa|two.?factor|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code/.test(meta(el));}
       function pageIs2fa(){try{return /two.?factor|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)/i.test(document.body.innerText||'');}catch(e){return false;}}
       function fill(){
+        if(location.href!==${JSON.stringify(url)})return false;
         var all=Array.prototype.slice.call(document.querySelectorAll('input'));
         // Split-box case: a row of maxlength-1 numeric inputs (React OTP). Only on
         // a page that clearly IS a 2FA screen, to avoid unrelated 1-char inputs.

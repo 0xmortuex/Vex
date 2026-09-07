@@ -24,7 +24,10 @@ const DocExtract = {
     const wv = (typeof WebviewManager !== 'undefined') ? WebviewManager.getActiveWebview() : null;
     if (!wv || typeof wv.capturePage !== 'function') { window.showToast?.('Open a page first'); return; }
     const t = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
-    const url = (t && t.url) || '';
+    const url = wv.getURL?.() || (t && t.url) || '';
+    const generation = wv._navigationGeneration;
+    const current = () => wv.isConnected !== false && wv.getURL?.() === url && wv._navigationGeneration === generation;
+    const partition = window.VexTabPolicy?.partitionFor(wv.getAttribute?.('partition')) || wv.getAttribute?.('partition') || 'persist:main';
 
     const g = this._google(url);
     if (g) {
@@ -33,13 +36,15 @@ const DocExtract = {
       if (viewUrl) {
         window.showToast?.(`Getting the real text from this ${g.label}…`);
         try {
-          const text = await this._viaHiddenWebview(viewUrl);
+          const text = await this._viaHiddenWebview(viewUrl, partition);
+          if (!current()) return;
           if (text) { this._showResult(text, `Google ${g.label} (real text)`); return; }
         } catch (_) { /* fall through */ }
       }
       // 2) Secondary: in-page export fetch.
       try {
         const text = await this._tryGoogleText(wv, g);
+        if (!current()) return;
         if (text) { this._showResult(text, `Google ${g.label} export`); return; }
       } catch (_) { /* fall through */ }
       window.showToast?.('This doc is fully locked — reading the pixels with OCR instead…');
@@ -47,7 +52,8 @@ const DocExtract = {
 
     // 3) OCR fallback.
     try {
-      await this._ocr(wv);
+      if (!current()) return;
+      await this._ocr(wv, current);
     } catch (e) {
       window.showToast?.('Could not extract text: ' + (e && e.message ? e.message : e));
     }
@@ -57,7 +63,7 @@ const DocExtract = {
   _google(url) {
     try {
       const u = new URL(url);
-      if (u.hostname !== 'docs.google.com') return null;
+      if (u.protocol !== 'https:' || u.hostname !== 'docs.google.com') return null;
       const m = u.pathname.match(/^\/(document|spreadsheets|presentation)\/d\/([^/]+)/);
       if (!m) return null;
       const type = m[1], id = m[2];
@@ -75,12 +81,12 @@ const DocExtract = {
 
   // Load the plain-HTML render in a hidden off-screen webview on the user's
   // logged-in session, then read its rendered text. Resolves '' if blocked.
-  _viaHiddenWebview(viewUrl) {
+  _viaHiddenWebview(viewUrl, partition = 'persist:main') {
     return new Promise((resolve) => {
       let wv;
       try {
         wv = document.createElement('webview');
-        wv.setAttribute('partition', 'persist:main'); // carries the Google login
+        wv.setAttribute('partition', partition); // use the source document's account
         wv.setAttribute('webpreferences', 'contextIsolation=yes');
         wv.setAttribute('src', viewUrl);
         wv.style.cssText = 'position:fixed;left:-10000px;top:0;width:1000px;height:800px;opacity:0;pointer-events:none';
@@ -95,8 +101,9 @@ const DocExtract = {
         try {
           // Small settle for any client-side hydration on the plain page.
           await new Promise(r => setTimeout(r, 300));
+          if (done || wv.getURL?.() !== viewUrl) { finish(''); return; }
           const text = await wv.executeJavaScript(
-            "(function(){try{var b=document.body;return b?(b.innerText||b.textContent||''):'';}catch(e){return '';}})()"
+            `(function(){try{if(location.href!==${JSON.stringify(viewUrl)})return '';var b=document.body;return b?(b.innerText||b.textContent||'').slice(0,2000000):'';}catch(e){return '';}})()`
           );
           const clean = (text || '').replace(/\n{3,}/g, '\n\n').trim();
           const head = clean.slice(0, 600);
@@ -141,8 +148,13 @@ const DocExtract = {
   },
 
   _fetchInPage(wv, url, mode) {
+    const sourceUrl = wv.getURL?.();
+    const generation = wv._navigationGeneration;
+    if (!window.VexNet?.createBoundedFetch) return Promise.reject(new Error('Network helper unavailable'));
     const js = `(async()=>{try{
-      const r = await fetch(${JSON.stringify(url)}, { credentials:'include' });
+      if(location.href!==${JSON.stringify(sourceUrl)})return {ok:false};
+      const request = (${window.VexNet.createBoundedFetch.toString()})(fetch.bind(window));
+      const r = await request(${JSON.stringify(url)}, { credentials:'include', maxBytes:2000000, timeoutMs:10000 });
       if (!r.ok) return { ok:false, status:r.status };
       let t = await r.text();
       const mode = ${JSON.stringify(mode)};
@@ -162,19 +174,22 @@ const DocExtract = {
       return { ok:true, text:t };
     }catch(e){ return { ok:false, error:String(e) }; }})()`;
     return wv.executeJavaScript(js).then(res => {
+      if (wv.getURL?.() !== sourceUrl || wv._navigationGeneration !== generation) throw new Error('Document changed');
       if (res && res.ok && res.text) return res.text;
       throw new Error('blocked');
     });
   },
 
-  async _ocr(wv) {
+  async _ocr(wv, current = () => true) {
     window.showToast?.('Reading the visible page with OCR — first run downloads the engine…');
     const img = await wv.capturePage();
+    if (!current()) return;
     if (!img) throw new Error('capture failed');
     const dataUrl = img.toDataURL();
     if (!dataUrl || dataUrl.length < 100) throw new Error('capture was empty');
 
     const Tesseract = await this._loadOcr();
+    if (!current()) return;
     const recognize = Tesseract.recognize || (Tesseract.default && Tesseract.default.recognize);
     if (typeof recognize !== 'function') throw new Error('OCR engine unavailable');
 
@@ -186,14 +201,19 @@ const DocExtract = {
       }
     });
     const text = ((data && data.text) || '').trim();
+    if (!current()) return;
     if (!text) { window.showToast?.('No readable text on the visible page'); return; }
     this._showResult(text, 'OCR (visible page)');
   },
 
   async _loadOcr() {
     if (this._ocrLib) return this._ocrLib;
-    const mod = await import(/* @vite-ignore */ 'https://esm.run/tesseract.js');
-    this._ocrLib = mod.default || mod;
+    const base = new URL('vendor/runtime/', window.location.href);
+    const mod = await import(new URL('tesseract.mjs', base).href);
+    const api = mod.default || mod;
+    this._ocrLib = { recognize: (image, language, options = {}) => api.recognize(image, language, {
+      ...options, workerPath: new URL('worker.min.js', base).href, corePath: base.href, workerBlobURL: false
+    }) };
     return this._ocrLib;
   },
 

@@ -115,8 +115,8 @@ const GitHubPanel = {
 
     try {
       const [profileRes, reposRes] = await Promise.all([
-        fetch(`https://api.github.com/users/${this.username}`),
-        fetch(`https://api.github.com/users/${this.username}/repos?sort=updated&per_page=10`)
+        (window.VexNet?.fetch || fetch)(`https://api.github.com/users/${this.username}`),
+        (window.VexNet?.fetch || fetch)(`https://api.github.com/users/${this.username}/repos?sort=updated&per_page=10`)
       ]);
 
       if (profileRes.ok && reposRes.ok) {

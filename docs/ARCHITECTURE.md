@@ -8,7 +8,13 @@ This document is meant to onboard a new contributor in ~20 minutes. It is not ex
 
 ## 1. Process model
 
-Vex is a stock Electron 30 app, but with a **single main window** (no per-tab windows) and many **`<webview>` guests** inside it.
+Vex uses castLabs Electron 42.5.2+wvcus, with browser windows containing multiple **`<webview>` guests**. Normal and private windows can coexist. `package.json` records the packaged runtime; Settings → About reports the running version.
+
+`src/main.js` coordinates application startup. Services under `src/main/` own session security, IPC schemas, permissions, downloads, updates, vault encryption, preference storage, atomic file stores and bounded network transport. `session-security.js` checks host identity and guest ownership; `ipc-schemas.js` checks each desktop bridge operation before its handler runs. Shared `renderer/js/data-contracts.js` validates imported and synced records in both processes.
+
+Private windows force an ephemeral partition on their guests and keep preference and structured-storage mutations in memory. `renderer/js/tab-policy.js` supplies the shared persistence and page-reading policy. Normal preferences are serialized by `main/storage.js`; structured files and encrypted records use the queued atomic stores in `main/file-store.js`. Storage roots are derived from Electron's `app.getPath('userData')`, not the source directory.
+
+Sync uses encrypted documents containing stable record IDs, version vectors, tombstones and retained conflict variants. Server revisions use compare-and-swap updates in a Durable Object. Restored credentials must successfully decrypt a pull before uploading. See `SELF_HOSTING.md` for migration and recovery requirements, and `recommendations-progress.md` for verification limits.
 
 ```
 ┌──────────────── electron main process (src/main.js) ────────────────┐
@@ -16,7 +22,7 @@ Vex is a stock Electron 30 app, but with a **single main window** (no per-tab wi
 │   • Owns BrowserWindow + every <webview>'s session                  │
 │   • Wires permissions, downloads, adblocker, extension loader        │
 │   • Bridges OS shell (mailto:, roblox://, Chrome shortcuts)          │
-│   • Persistent storage: src/main/userData/vex-storage/*.json         │
+│   • Persistent storage: app.getPath(userData)/vex-storage/*.json         │
 │   • IPC server — see § 2                                             │
 │                                                                      │
 └─────────┬─────────────────────────────────────┬──────────────────────┘
@@ -69,11 +75,11 @@ Two layers, by design:
 | Layer | What | Where | Used for |
 |---|---|---|---|
 | `VexStorage` (renderer) | One JSON file per key | `userData/vex-storage/<key>.json` | Tabs, groups, history, settings, shortcuts |
-| `PersistentStorage` (renderer) + `vex-persist.json` | Single JSON file with a localStorage shim | `userData/vex-persist.json` | Everything `localStorage`-y: theme prefs, scheduler tasks, recently-closed list, AI routing prefs, tab-grouper learned patterns, keyboard remappings, sync key, sessions list |
+| `PersistentStorage` (renderer) + `vex-persist.json` | Single JSON file with a localStorage shim | `userData/vex-persist.json` | Everything `localStorage`-y: theme prefs, scheduler tasks, recently-closed list, AI routing prefs, tab-grouper learned patterns, keyboard remappings and sessions list |
 
 The `PersistentStorage` shim hijacks `localStorage.setItem` / `removeItem` and mirrors writes to disk via debounced IPC (`persist-set`/`persist-delete`). Reads stay synchronous against the hydrated `localStorage`. This survives reinstalls and Chromium origin churn that would otherwise wipe localStorage.
 
-A separate file `userData/sync-key.bin` (mode `0o600`) holds the AES-GCM 256 key used by the experimental Vex Sync feature. Recovery codes are exchanged via the helpers in `src/renderer/js/sync-crypto.js`.
+A separate file `userData/sync-key.bin` holds the AES-GCM 256 key encrypted with Electron safeStorage; legacy plaintext keys are migrated without retaining a plaintext backup. Recovery codes are exchanged via the helpers in `src/renderer/js/sync-crypto.js`.
 
 ## 5. Tab features
 
@@ -90,9 +96,9 @@ A separate file `userData/sync-key.bin` (mode `0o600`) holds the AES-GCM 256 key
 ## 6. Build pipeline
 
 - `npm run dist` → `npm run build-icons` → `rimraf dist` → `electron-builder`.
-- **Electron** is the **castLabs Widevine fork** (`electron@github:castlabs/electron-releases#v30.5.1+wvcus`). This adds Widevine CDM hooks for DRM-capable builds (Netflix, Spotify Premium video).
-- After packing, `scripts/vmp-sign.js` (configured as `build.afterPack`) applies **VMP signing** so Widevine accepts the bundle.
-- Icon pipeline: `scripts/svg-to-png.js` rasterises `assets/icon.svg` → `electron-icon-builder` produces `.ico` + multi-size `.png` → `scripts/finalize-icons.js` does final cleanup.
+- **Electron** is the **castLabs Widevine fork** (`electron@github:castlabs/electron-releases#v42.5.2+wvcus`). This adds Widevine CDM hooks for DRM-capable builds (Netflix, Spotify Premium video).
+- After packing, `scripts/vmp-sign.js` (configured as `build.afterSign`) applies **VMP signing** so Widevine accepts the bundle.
+- Icon pipeline: `scripts/build-icons.js` uses sharp to rasterize the SVG and writes PNG plus a multi-resolution Windows ICO; deprecated icon-builder tooling is no longer used.
 - NSIS installer (one-click off; per-user install) writes desktop + start-menu shortcuts. `differentialPackage: false` because the auto-updater currently uses full installs.
 - Auto-updates ship via `electron-updater` against the `0xmortuex/Vex` GitHub release feed.
 

@@ -76,40 +76,7 @@ function sniSplit(buf) {
 function startDpiBypassProxy() {
   return new Promise((resolve) => {
     let started = false;
-    const server = net.createServer((client) => {
-      client.on('error', () => {});
-      client.once('data', (head) => {
-        client.pause();
-        const line = head.toString('latin1', 0, Math.min(head.length, 512));
-        const m = /^CONNECT\s+([^\s:]+):(\d+)/i.exec(line);
-        if (!m) { try { client.end('HTTP/1.1 405 Method Not Allowed\r\n\r\n'); } catch {} return; }
-        const host = m[1], port = parseInt(m[2], 10) || 443;
-        dohResolve(host).then((ip) => {
-          const up = net.connect({ host: ip || host, port }, () => {
-            up.setNoDelay(true);
-            try { client.write('HTTP/1.1 200 Connection Established\r\n\r\n'); } catch {}
-            up.pipe(client);
-            let first = true;
-            client.on('data', (chunk) => {
-              try {
-                if (first) {
-                  first = false;
-                  const sp = sniSplit(chunk);
-                  if (sp > 0 && sp < chunk.length) { up.write(chunk.slice(0, sp)); up.write(chunk.slice(sp)); }
-                  else up.write(chunk);
-                } else { up.write(chunk); }
-              } catch {}
-            });
-            client.on('end', () => { try { up.end(); } catch {} });
-            client.resume();
-          });
-          up.setNoDelay(true);
-          const kill = () => { try { up.destroy(); } catch {} try { client.destroy(); } catch {} };
-          up.on('error', kill); up.on('close', kill);
-          client.on('error', kill); client.on('close', kill);
-        }).catch(() => { try { client.destroy(); } catch {} });
-      });
-    });
+    const server = net.createServer(client => require('./main/connect-tunnel').handleConnect(client, { resolve: dohResolve, split: sniSplit }));
     server.on('error', () => { if (!started) { started = true; resolve(0); } });
     server.listen(0, '127.0.0.1', () => { started = true; resolve(server.address().port); });
   });

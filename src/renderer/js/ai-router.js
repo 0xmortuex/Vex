@@ -288,7 +288,7 @@ const AIRouter = (() => {
     if (!url) {
       throw new Error('Cloud AI is not configured. Add your AI Worker URL in Settings → AI (see SELF_HOSTING.md), or switch to local Ollama.');
     }
-    const r = await fetch(url, {
+    const r = await (window.VexConfig?.fetchAI || fetch)(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)

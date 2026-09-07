@@ -56,16 +56,16 @@ bar that does everything.
 
 | Layer | Choice |
 |---|---|
-| Shell | **Electron 30**, castLabs Widevine fork: `electron@github:castlabs/electron-releases#v30.5.1+wvcus` (DRM: Netflix/Spotify) |
-| Renderer | **Vanilla JavaScript**, no framework, no bundler/build step. Plain ES modules + per-feature CSS files |
+| Shell | **Electron 42** (Chromium 148), castLabs Widevine fork: `electron@github:castlabs/electron-releases#v42.5.2+wvcus` (DRM: Netflix/Spotify) |
+| Renderer | **Vanilla JavaScript**, no framework. Classic scripts + per-feature CSS files. `npm run build:vendor` (`scripts/bundle-browser-libs.js`) vendors third-party runtimes into `src/renderer/vendor/runtime/` so the host CSP can forbid remote script |
 | Page content | Electron `<webview>` guests; one shared `persist:main` session for tabs, isolated partitions per panel/container |
 | Ad/tracker block | `@ghostery/adblocker-electron` (EasyList + EasyPrivacy) ORed with a 52-entry legacy domain list |
 | Updates | `electron-updater` (GitHub feed) + a lightweight manual HTTPS version check |
-| Other deps | `adm-zip` (extension `.zip`/`.crx`), `qrcode` (QR feature) |
-| Build | `electron-builder` (NSIS x64); `sharp` + `electron-icon-builder` for icons; `vmp-sign.js` afterPack |
+| Other deps | `adm-zip` (extension `.zip`/`.crx`), `tar` (Tor extraction), `qrcode` (QR feature), `tesseract.js` (OCR), `@mlc-ai/web-llm` (on-device AI) |
+| Build | `electron-builder` 26 (NSIS x64); `sharp` via `scripts/build-icons.js` for icons; `vmp-sign.js` as **afterSign** — it must not run as afterPack, which executes before Authenticode rewrites `Vex.exe` and invalidates the signature (that ordering shipped broken DRM in v2.29.4) |
 | Tests | `vitest` + `jsdom` (pure-function unit tests in `tests/`) |
 | Cloud (optional) | Two **Cloudflare Workers** the user self-deploys: AI proxy (→ OpenRouter/Claude) + Sync (E2E) |
-| Local AI | **Ollama** (HTTP, localhost:11434) and **WebGPU on-device** (WebLLM via esm.run CDN) |
+| Local AI | **Ollama** (HTTP, localhost:11434) and **WebGPU on-device** (WebLLM, bundled locally rather than loaded from a CDN) |
 
 Hard constraints: no transpiled renderer code; tiny dependency surface; offline-first; all persistence
 is JSON files (plus one encrypted vault + one binary adblock cache) in `userData`.
@@ -74,7 +74,7 @@ is JSON files (plus one encrypted vault + one binary adblock cache) in `userData
 
 ## 3. ARCHITECTURE & PROCESS MODEL
 
-Stock Electron 30, **one single main window** (no per-tab windows) hosting many `<webview>` guests.
+castLabs Electron 42, with browser windows hosting many `<webview>` guests. Normal and private windows can coexist; a private window gets its own ephemeral session and cannot read another window’s storage or target its tabs (asserted by `src/main/security-smoke.js`).
 
 ```
 ┌──────── electron main process (src/main.js, ~104KB) ────────┐

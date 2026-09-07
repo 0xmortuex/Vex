@@ -371,12 +371,15 @@ const AgentLoop = {
 
   // Headless agent — runs without UI, returns result. Used by Scheduler.
   async startHeadless(goal, mode, opts = {}) {
+    if (!opts.webview) throw new Error('Scheduled tasks require a dedicated tab');
     const maxIter = opts.maxIterations || 15;
     const history = [];
     let lastResult = null;
 
     for (let i = 0; i < maxIter; i++) {
-      const wv = WebviewManager.getActiveWebview();
+      const wv = opts.webview;
+      if (opts.signal?.aborted || wv.isConnected === false) throw new Error('Scheduled task cancelled');
+      const documentUrl = wv.getURL?.(), documentGeneration = wv._navigationGeneration;
       let pageContext = null;
       if (wv) {
         try {
@@ -386,10 +389,13 @@ const AgentLoop = {
         } catch {}
       }
 
+      if (documentUrl !== wv.getURL?.() || documentGeneration !== wv._navigationGeneration) throw new Error('Scheduled page changed during extraction');
       const data = await AIRouter.callAI('agent', {
         userGoal: goal, pageContext,
-        availableTools: [...AGENT_TOOLS, ...(typeof McpClient !== 'undefined' ? McpClient.agentToolDefs() : [])], conversationHistory: history.slice(-20), lastToolResult: lastResult
+        availableTools: AGENT_TOOLS.filter(t => ['navigate', 'go_back', 'go_forward', 'reload', 'scroll', 'extract_elements', 'extract_text', 'screenshot', 'wait', 'search_in_page', 'finish'].includes(t.name)), conversationHistory: history.slice(-20), lastToolResult: lastResult
       });
+      if (opts.signal?.aborted || wv.isConnected === false) throw new Error('Scheduled task cancelled');
+      if (documentUrl !== wv.getURL?.() || documentGeneration !== wv._navigationGeneration) throw new Error('Scheduled page changed while awaiting a decision');
       const decision = this._parseAgentResponse(data.result);
       if (!decision?.tool) throw new Error('AI returned invalid response');
 
@@ -405,12 +411,14 @@ const AgentLoop = {
         throw new Error('Risky action (' + decision.tool + ') aborted for safety');
       }
 
-      lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {});
+      if (opts.signal?.aborted || wv.isConnected === false) throw new Error('Scheduled task cancelled');
+      lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {}, { webview: wv, scheduled: true });
+      if (!lastResult?.ok) throw new Error(lastResult?.error || 'Scheduled action failed');
       history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
       await new Promise(r => setTimeout(r, 300));
     }
 
-    return { summary: 'Task reached max iterations', iterations: maxIter };
+    throw new Error('Task reached max iterations without completing');
   }
 };
 
@@ -418,5 +426,5 @@ const AgentLoop = {
 // defined and we expose the pure helpers; the <script>-tag path leaves the
 // existing globals untouched.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parseAgentResponse, ToolCallHistory };
+  module.exports = { parseAgentResponse, ToolCallHistory, AgentLoop };
 }

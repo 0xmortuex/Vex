@@ -1,3 +1,8 @@
+import { boundedJson, durableKV, authenticateClient, expireRecords, parseCounter } from '../shared/security.js';
+async function readModelResponse(response) {
+  try { return await boundedJson(response, 1024 * 1024); }
+  catch { throw Object.assign(new Error('Invalid or oversized model response'), { status: 502 }); }
+}
 const SYSTEM_PROMPTS = {
   chat: `You are Vex AI, a browser assistant embedded in the Vex web browser. You help users understand web pages, answer questions, draft messages, and provide information.
 
@@ -217,10 +222,9 @@ Rules:
 // Per-IP rate limit backed by VEX_AI_KV. This worker proxies a PAID model with
 // the project's OpenRouter key and its URL ships in the public app, so without a
 // limit anyone who reads the URL can drain credits or use it as a free relay.
-// Two windows (burst + daily). Fails OPEN if the namespace isn't bound yet, so
-// the worker keeps serving while you provision KV — see wrangler.toml.
+// Two windows (burst + daily), serialized by VexAIState. Fail closed on storage errors.
 async function aiRateLimited(env, ip) {
-  if (!env.VEX_AI_KV) return false;
+  if (!env.VEX_AI_KV) return true;
   try {
     const windows = [
       { sec: 60, limit: 30 },        // burst: 30 req/min/IP
@@ -229,22 +233,22 @@ async function aiRateLimited(env, ip) {
     for (const { sec, limit } of windows) {
       const win = Math.floor(Date.now() / (sec * 1000));
       const key = `rl:${ip}:${sec}:${win}`;
-      const cur = parseInt(await env.VEX_AI_KV.get(key), 10) || 0;
+      const cur = parseCounter(await env.VEX_AI_KV.get(key));
       if (cur >= limit) return true;
       await env.VEX_AI_KV.put(key, String(cur + 1), { expirationTtl: sec + 60 });
     }
     return false;
   } catch {
-    return false;
+    return true;
   }
 }
 
-export default {
+const aiHandler = {
   async fetch(request, env) {
     const cors = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
     };
 
     if (request.method === "OPTIONS") {
@@ -255,11 +259,25 @@ export default {
       return Response.json({ error: "Method not allowed" }, { status: 405, headers: cors });
     }
 
-    const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+    const client = await authenticateClient(request, env);
+    if (!client) return Response.json({ error: 'Authentication required' }, { status: 401, headers: cors });
+    if (!env.VEX_AI_KV) return Response.json({ error: 'Quota storage unavailable' }, { status: 503, headers: cors });
+    try {
+    const admission = await (env.withQuotaLock || (operation => operation()))(async () => {
+    const clientIp = client;
+    const dailyKey = 'daily:' + client + ':' + new Date().toISOString().slice(0,10);
+    const daily = parseCounter(await env.VEX_AI_KV.get(dailyKey));
+    const quota = Number(env.DAILY_REQUEST_LIMIT || 200);
+    if (!Number.isInteger(quota) || quota < 1 || quota > 1000) throw new Error('Invalid quota configuration');
+    if (daily >= quota) return Response.json({ error: 'Daily AI quota reached' }, { status: 429, headers: cors });
+    await env.VEX_AI_KV.put(dailyKey, String(daily + 1), { expirationTtl: 86400 });
     if (await aiRateLimited(env, clientIp)) {
       return Response.json({ error: "Rate limited — slow down" },
         { status: 429, headers: { ...cors, "Retry-After": "60" } });
     }
+    return null;
+    });
+    if (admission) return admission;
 
     // Reject oversized payloads before they reach the model — a multi-MB body is
     // both an abuse vector and a token-cost blowup. Text actions are tiny (page
@@ -270,8 +288,7 @@ export default {
       return Response.json({ error: "Request too large" }, { status: 413, headers: cors });
     }
 
-    try {
-      const body = await request.json();
+      const body = await boundedJson(request);
       const { action, message, pageContext, selectedText, targetLanguage, conversationHistory,
               userGoal, availableTools, lastToolResult } = body;
 
@@ -300,12 +317,13 @@ export default {
           ] },
         ];
         const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENROUTER_API_KEY, "HTTP-Referer": "https://github.com/0xmortuex/Vex", "X-Title": "Vex Screenshot-to-Code" },
           body: JSON.stringify({ model: "anthropic/claude-sonnet-4", max_tokens: 6000, messages: msgs }),
         });
         if (!aiRes.ok) { const s = aiRes.status; return Response.json({ error: s === 429 ? "Rate limited" : "AI request failed" }, { status: s, headers: cors }); }
-        const aiData = await aiRes.json();
+        const aiData = await readModelResponse(aiRes);
         let code = aiData.choices?.[0]?.message?.content || "";
         // Strip accidental markdown fences if the model added them.
         code = code.replace(/^```[a-z]*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
@@ -330,12 +348,13 @@ export default {
         msgs.push({ role: "user", content: um });
 
         const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENROUTER_API_KEY, "HTTP-Referer": "https://github.com/0xmortuex/Vex", "X-Title": "Vex AI Agent" },
           body: JSON.stringify({ model: "anthropic/claude-sonnet-4", max_tokens: 2000, messages: msgs }),
         });
         if (!aiRes.ok) { const s = aiRes.status; return Response.json({ error: s === 429 ? "Rate limited" : "AI request failed" }, { status: s, headers: cors }); }
-        const aiData = await aiRes.json();
+        const aiData = await readModelResponse(aiRes);
         const aiContent = aiData.choices?.[0]?.message?.content;
         if (!aiContent) return Response.json({ error: "Empty AI response" }, { status: 502, headers: cors });
         return Response.json({ result: aiContent }, { status: 200, headers: cors });
@@ -358,12 +377,13 @@ export default {
         if (Array.isArray(conversationHistory)) msgs.push(...conversationHistory.slice(-6));
         msgs.push({ role: "user", content: `[${(tabContexts || []).length} TABS]\n\n${contextsText}\n\n---\n\nUser: ${message}` });
         const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENROUTER_API_KEY, "HTTP-Referer": "https://github.com/0xmortuex/Vex", "X-Title": "Vex AI Multi-Tab" },
           body: JSON.stringify({ model: "anthropic/claude-sonnet-4", max_tokens: 4000, ...(typeof body.personaTemperature === "number" ? { temperature: body.personaTemperature } : {}), messages: msgs }),
         });
         if (!aiRes.ok) { const s = aiRes.status; return Response.json({ error: s === 429 ? "Rate limited" : "AI request failed" }, { status: s, headers: cors }); }
-        const aiData = await aiRes.json();
+        const aiData = await readModelResponse(aiRes);
         const aiContent = aiData.choices?.[0]?.message?.content;
         if (!aiContent) return Response.json({ error: "Empty AI response" }, { status: 502, headers: cors });
         return Response.json({ result: aiContent }, { status: 200, headers: cors });
@@ -380,12 +400,13 @@ export default {
           { role: "user", content: um }
         ];
         const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENROUTER_API_KEY, "HTTP-Referer": "https://github.com/0xmortuex/Vex", "X-Title": "Vex AI History Index" },
           body: JSON.stringify({ model: "anthropic/claude-sonnet-4", max_tokens: 500, messages: msgs }),
         });
         if (!aiRes.ok) { const s = aiRes.status; return Response.json({ error: s === 429 ? "Rate limited" : "AI request failed" }, { status: s, headers: cors }); }
-        const aiData = await aiRes.json();
+        const aiData = await readModelResponse(aiRes);
         const aiContent = aiData.choices?.[0]?.message?.content;
         if (!aiContent) return Response.json({ error: "Empty AI response" }, { status: 502, headers: cors });
         return Response.json({ result: aiContent }, { status: 200, headers: cors });
@@ -404,12 +425,13 @@ export default {
           { role: "user", content: um }
         ];
         const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENROUTER_API_KEY, "HTTP-Referer": "https://github.com/0xmortuex/Vex", "X-Title": "Vex AI History Search" },
           body: JSON.stringify({ model: "anthropic/claude-sonnet-4", max_tokens: 2000, messages: msgs }),
         });
         if (!aiRes.ok) { const s = aiRes.status; return Response.json({ error: s === 429 ? "Rate limited" : "AI request failed" }, { status: s, headers: cors }); }
-        const aiData = await aiRes.json();
+        const aiData = await readModelResponse(aiRes);
         const aiContent = aiData.choices?.[0]?.message?.content;
         if (!aiContent) return Response.json({ error: "Empty AI response" }, { status: 502, headers: cors });
         return Response.json({ result: aiContent }, { status: 200, headers: cors });
@@ -432,12 +454,13 @@ export default {
           { role: "user", content: `Cluster these ${compact.length} open tabs:\n\n${JSON.stringify(compact, null, 2)}` }
         ];
         const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: AbortSignal.timeout(20000),
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENROUTER_API_KEY, "HTTP-Referer": "https://github.com/0xmortuex/Vex", "X-Title": "Vex AI Group Tabs" },
           body: JSON.stringify({ model: "anthropic/claude-sonnet-4", max_tokens: 2500, temperature: 0.3, messages: msgs })
         });
         if (!aiRes.ok) { const s = aiRes.status; return Response.json({ error: s === 429 ? "Rate limited" : "AI request failed" }, { status: s, headers: cors }); }
-        const aiData = await aiRes.json();
+        const aiData = await readModelResponse(aiRes);
         const aiContent = aiData.choices?.[0]?.message?.content;
         if (!aiContent) return Response.json({ error: "Empty AI response" }, { status: 502, headers: cors });
         return Response.json({ result: aiContent }, { status: 200, headers: cors });
@@ -477,6 +500,7 @@ export default {
       messages.push({ role: "user", content: userMessage });
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: AbortSignal.timeout(20000),
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -500,7 +524,7 @@ export default {
         return Response.json({ error: msg }, { status: s, headers: cors });
       }
 
-      const data = await response.json();
+      const data = await readModelResponse(response);
       const content = data.choices?.[0]?.message?.content;
 
       if (!content) {
@@ -509,10 +533,27 @@ export default {
 
       return Response.json({ result: content }, { status: 200, headers: cors });
     } catch (err) {
-      return Response.json({ error: err.message || "Internal error" }, { status: 500, headers: cors });
+      return Response.json({ error: err.status ? err.message : 'AI service unavailable' }, { status: err.status || 503, headers: cors });
     }
   },
 };
 
 // Named export for unit tests (no effect on the Worker runtime).
 export { aiRateLimited };
+
+export { aiHandler };
+export class VexAIState {
+  constructor(state, env) { this.state = state; this.env = env; }
+  fetch(request) {
+    return aiHandler.fetch(request, { ...this.env, VEX_AI_KV: durableKV(this.state.storage, 'quota:'),
+      withQuotaLock: operation => this.state.blockConcurrencyWhile(operation) });
+  }
+  alarm() { return expireRecords(this.state.storage); }
+}
+export default {
+  fetch(request, env) {
+    if (request.method === 'OPTIONS') return aiHandler.fetch(request, env);
+    if (!env.VEX_STATE) return Promise.resolve(Response.json({ error: 'Durable quotas are not configured' }, { status: 503 }));
+    return env.VEX_STATE.get(env.VEX_STATE.idFromName('vex-ai')).fetch(request);
+  }
+};

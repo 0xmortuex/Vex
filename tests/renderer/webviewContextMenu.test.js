@@ -54,6 +54,15 @@ beforeEach(() => {
 // Suggestions present
 // ===========================================================================
 describe('showContextMenu — spelling suggestions', () => {
+  it('does not type a correction if the misspelled word could not be selected', async () => {
+    const WM = await loadWebviewManager();
+    const wv = fakeWebview({ executeJavaScript: vi.fn(async () => false), sendInputEvent: vi.fn() });
+    WM.showContextMenu(fakeEvent({ misspelledWord: 'wrong', dictionarySuggestions: ['right'] }), wv);
+    document.querySelector('.tab-context-menu').children[0].dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 250));
+    expect(wv.sendInputEvent).not.toHaveBeenCalled();
+    expect(wv.executeJavaScript).toHaveBeenCalledTimes(1);
+  });
   it('puts every suggestion as a clickable item at the TOP of the menu', async () => {
     const WM = await loadWebviewManager();
     const e = fakeEvent({
@@ -97,7 +106,7 @@ describe('showContextMenu — spelling suggestions', () => {
   // the 'click' never fires. mousedown wins that race.
   it('mousedown on a suggestion replaces the word via guest execCommand insertText', async () => {
     const WM = await loadWebviewManager();
-    const execSpy = vi.fn(() => Promise.resolve());
+    const execSpy = vi.fn(() => Promise.resolve(true));
     const wv = fakeWebview({ executeJavaScript: execSpy });
 
     WM.showContextMenu(
@@ -108,11 +117,9 @@ describe('showContextMenu — spelling suggestions', () => {
     const menu = document.querySelector('.tab-context-menu');
     menu.children[1].dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
 
-    // Replacement now runs a wrapped script that focuses + re-selects before
-    // execCommand (so Slate editors keep the fix); assert the injected JS
-    // carries the JSON-encoded suggestion through execCommand insertText.
-    expect(execSpy).toHaveBeenCalledTimes(1);
-    const injected = execSpy.mock.calls[0][0];
+    // Selection happens first; insertion follows after the editor settles.
+    await vi.waitFor(() => expect(execSpy).toHaveBeenCalledTimes(2));
+    const injected = execSpy.mock.calls[1][0];
     expect(injected).toContain('execCommand');
     expect(injected).toContain('insertText');
     expect(injected).toContain('"fixtures"');   // JSON-encoded suggestion

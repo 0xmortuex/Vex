@@ -37,6 +37,16 @@ const WorkspaceManager = {
     }));
   },
 
+  reloadSyncedState() {
+    const raw = localStorage.getItem(this.STORAGE_KEY);
+    const value = raw ? JSON.parse(raw) : { workspaces: [] };
+    this.workspaces = Array.isArray(value.workspaces) ? value.workspaces : [];
+    if (!this.workspaces.length) this.workspaces = this.defaultWorkspaces.map(workspace => ({ ...workspace, tabs: [], groups: [] }));
+    if (!this.workspaces.some(workspace => workspace.id === this.activeId)) this.activeId = this.workspaces[0].id;
+    this.render();
+    this.applyThemeColor();
+  },
+
   getActive() {
     return this.workspaces.find(w => w.id === this.activeId) || this.workspaces[0];
   },
@@ -44,19 +54,15 @@ const WorkspaceManager = {
   saveCurrentState() {
     const ws = this.getActive();
     if (!ws) return;
-    ws.tabs = TabManager.tabs.map(t => ({
-      url: t.url,
-      title: t.title,
-      groupId: t.groupId,
-      pinned: t.pinned || false
-    }));
-    ws.groups = TabManager.groups;
-    ws.activeTabIndex = TabManager.tabs.findIndex(t => t.id === TabManager.activeTabId);
+    const tabs = window.VexTabPolicy.snapshot(TabManager.tabs);
+    ws.tabs = tabs;
+    ws.groups = TabManager.groups.map(g => ({ ...g }));
+    ws.activeTabIndex = tabs.findIndex(t => t.id === TabManager.activeTabId);
     this.save();
   },
 
   async switchTo(id) {
-    if (id === this.activeId || this._switching) return;
+    if (id === this.activeId || this._switching || !this.workspaces.some(w => w.id === id)) return;
     this._switching = true;
 
     try {
@@ -82,22 +88,28 @@ const WorkspaceManager = {
       this.applyThemeColor();
 
       // 6. Restore groups
-      if (ws.groups) {
-        TabManager.groups = ws.groups;
+      {
+        TabManager.groups = (ws.groups || []).map(g => ({ ...g }));
         await VexStorage.saveGroups(TabManager.groups);
       }
       TabManager.renderGroups();
 
       // 7. Recreate tabs LAZILY (no webviews yet — instant)
-      const tabsToRestore = ws.tabs && ws.tabs.length > 0 ? ws.tabs : [{ url: START_URL, title: 'New Tab' }];
+      const savedTabs = Array.isArray(ws.tabs) ? ws.tabs : [];
+      const selectedTab = savedTabs[ws.activeTabIndex];
+      const tabsToRestore = savedTabs.filter(t => window.VexTabPolicy.canRestore(t));
+      if (!tabsToRestore.length) tabsToRestore.push({ url: START_URL, title: 'New Tab' });
+      let selectedId = null;
       for (const t of tabsToRestore) {
-        TabManager.createLazyTab(t.url, t.groupId, t.title);
+        const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
+        tab.keepAwakeUntil = t.keepAwakeUntil || 0;
+        tab.favicon = t.favicon || null;
+        TabManager.renderTabUpdate(tab);
+        if (t === selectedTab) selectedId = tab.id;
       }
 
       // 8. Activate the correct tab (this materializes only ONE webview)
-      const activeIdx = (ws.activeTabIndex >= 0 && ws.activeTabIndex < TabManager.tabs.length)
-        ? ws.activeTabIndex : 0;
-      TabManager.switchTab(TabManager.tabs[activeIdx].id);
+      TabManager.switchTab(selectedId || TabManager.tabs[0].id);
 
       await TabManager.persistTabs();
 
@@ -149,11 +161,11 @@ const WorkspaceManager = {
     return ws;
   },
 
-  deleteWorkspace(id) {
-    if (this.workspaces.length <= 1) return;
+  async deleteWorkspace(id) {
+    if (this.workspaces.length <= 1 || this._switching) return;
     if (id === this.activeId) {
       const other = this.workspaces.find(w => w.id !== id);
-      if (other) this.switchTo(other.id);
+      if (other) await this.switchTo(other.id);
     }
     this.workspaces = this.workspaces.filter(w => w.id !== id);
     this.save();
@@ -292,3 +304,5 @@ const WorkspaceManager = {
 
   _esc(s) { return window.escapeHtml(s); }
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { WorkspaceManager };

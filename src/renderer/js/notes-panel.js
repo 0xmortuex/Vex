@@ -12,8 +12,7 @@ const NotesPanel = {
     if (!panel || panel.dataset.rendered) return;
     panel.dataset.rendered = 'true';
 
-    const saved = localStorage.getItem(this.STORAGE_KEY);
-    if (saved) { try { this.notes = JSON.parse(saved); } catch {} }
+    this.reloadSyncedState(false);
 
     panel.innerHTML = `
       <div class="notes-container">
@@ -53,6 +52,18 @@ const NotesPanel = {
     this.renderList();
   },
 
+  // A sync pull replaces vex.notes on disk. Without re-reading, the next edit
+  // writes this stale in-memory array back and erases every note the pull
+  // brought in - the same failure the bookmark panel had.
+  reloadSyncedState(repaint = true) {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : [];
+      if (Array.isArray(parsed)) this.notes = parsed;
+    } catch {}
+    if (!this.notes.some(note => note.id === this.activeNoteId)) this.activeNoteId = null;
+    if (repaint && document.getElementById('notes-list')) this.renderList();
+  },
   save() {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.notes));
   },
@@ -249,3 +260,9 @@ const NotesPanel = {
 
   _esc(s) { return window.escapeHtml(s); }
 };
+
+if (typeof window !== 'undefined') {
+  window.NotesPanel = NotesPanel;
+  window.addEventListener('vex-sync-data-applied', () => NotesPanel.reloadSyncedState());
+}
+if (typeof module !== 'undefined' && module.exports) module.exports = { NotesPanel };

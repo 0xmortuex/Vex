@@ -196,11 +196,13 @@ Features that don't exist in other browsers — built by combining Vex's own sta
 
 ## AI setup (bring your own backend)
 
-Vex never phones home. To use the cloud AI features you deploy **your own** Cloudflare Worker (Claude) and paste its URL in **Settings → Cloud Services** — see `SELF_HOSTING.md`. Alternatively:
+Cloud AI sends the selected prompt and page context to the configured worker and model provider. Deploy **your own** Cloudflare Worker and configure its URL and client token in **Settings → Cloud Services** — see [SELF_HOSTING.md](SELF_HOSTING.md). Update checks, blocker lists, enabled start-page services, and model downloads also make network requests. Alternatively:
 - **Local** — install [Ollama](https://ollama.com) and Vex talks to it at `localhost:11434`.
-- **On‑device** — enable WebGPU on‑device AI for fully offline, private chat (no install).
+- **On‑device** — WebGPU runs inference locally after downloading the model and runtime assets.
 
 Sync uses your own self‑hosted Worker the same way.
+
+Private windows use ephemeral sessions and exclude their tabs from saved sessions, history indexing, sync and automated page-context extraction. Downloads and explicitly copied content can outlive the window. Private browsing does not conceal traffic from the network or destination website. Compatibility exceptions such as passkeys are scoped to configured sites. See [the implementation and verification tracker](docs/recommendations-progress.md) for remaining audit work and unverified integrations.
 
 ---
 
@@ -226,7 +228,7 @@ npm run dist:win   # build the signed Windows installer
 - **Runtime:** Electron `42.5.2` (castLabs `+wvcus` — enables Widevine), **Chromium 148**, bundled Node. The exact versions are shown live in **Settings → About**.
 - **Ad blocking:** `@ghostery/adblocker-electron` with the full EasyList filter set, network + cosmetic.
 - **Privacy engine:** in‑process DoH resolver, SNI/DPI‑bypass CONNECT proxy, ByeDPI SOCKS5, Tor Expert Bundle launcher.
-- **Security:** password vault + TOTP secrets encrypted in the main process (OS keychain); secrets never cross to the renderer.
+- **Security:** password vault and TOTP seeds are encrypted at rest through Electron safeStorage. Authorized autofill sends selected passwords or generated codes through the trusted renderer into the destination form; this is not a guarantee that secrets never reach renderer memory.
 
 ---
 

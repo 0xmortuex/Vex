@@ -3,8 +3,10 @@
 const DOMExtractor = {
   async extractInteractiveElements(webview) {
     if (!webview) return { url: '', title: '', elements: [], totalFound: 0 };
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) throw new Error('Private page context is unavailable');
     try {
-      return await webview.executeJavaScript(`
+      const before = webview.getURL?.(), generation = webview._navigationGeneration;
+      const result = await webview.executeJavaScript(`
         (() => {
           const items = []; let c = 0;
           const sel = 'a[href], button, input, textarea, select, [role="button"], [role="link"], [onclick], [tabindex]:not([tabindex="-1"])';
@@ -30,13 +32,15 @@ const DOMExtractor = {
               selector: '[data-vex-id="' + vid + '"]',
               position: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
               isVisible: r.top < window.innerHeight && r.bottom > 0,
-              value: n.value !== undefined ? String(n.value).substring(0, 200) : null,
+              value: /password|hidden/i.test(n.type || '') || /password|one-time-code|cc-/i.test(n.autocomplete || '') ? null : n.value !== undefined ? String(n.value).substring(0, 200) : null,
               options: n.tagName === 'SELECT' ? Array.from(n.options).map(o => ({ value: o.value, label: o.text })).slice(0, 30) : null
             });
           });
           return { url: location.href, title: document.title, elements: items.slice(0, 100), totalFound: items.length };
         })()
       `);
+      if (generation !== webview._navigationGeneration || before !== webview.getURL?.() || (before && result.url !== before)) throw new Error('Page changed during extraction');
+      return result;
     } catch (e) {
       return { url: '', title: '', elements: [], totalFound: 0, error: e.message };
     }

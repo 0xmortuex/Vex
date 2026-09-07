@@ -233,7 +233,7 @@ describe('renderStacks() — defensive paths', () => {
     warnSpy.mockRestore();
   });
 
-  it('skips stacks whose topTabId points at a non-member', async () => {
+  it('repairs stacks whose topTabId points at a non-member', async () => {
     installGlobals();
     const TM = await loadTabManager();
     // The stack has 2 members, but its topTabId points at a tab that
@@ -249,8 +249,8 @@ describe('renderStacks() — defensive paths', () => {
 
     TM.renderStacks();
 
-    expect(document.querySelectorAll('.tab-item.tab-stack')).toHaveLength(0);
-    expect(warnSpy).toHaveBeenCalled();
+    expect(document.querySelectorAll('.tab-item.tab-stack')).toHaveLength(1);
+    expect(TM.stacks[0].topTabId).toBe('t1');
     warnSpy.mockRestore();
   });
 

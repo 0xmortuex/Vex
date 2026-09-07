@@ -391,7 +391,7 @@ const TabGrouper = (() => {
               return `
                 <div class="preview-tab">
                   <input type="checkbox" checked data-tab-id="${_esc(t.id)}">
-                  <img src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" width="14" height="14" onerror="this.style.display='none'">
+                  <img src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" width="14" height="14" data-image-fallback="hide">
                   <span>${_esc(title)}</span>
                 </div>
               `;

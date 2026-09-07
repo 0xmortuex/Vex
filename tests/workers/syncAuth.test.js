@@ -6,7 +6,7 @@
 // attempt-cap / rate-limit behaviour that closes it.
 
 import { describe, it, expect } from 'vitest';
-import worker, { genNumericCode, timingSafeEqual } from '../../workers/vex-sync-worker/worker.js';
+import { syncHandler as worker, genNumericCode, timingSafeEqual } from '../../workers/vex-sync-worker/worker.js';
 
 // ---- In-memory KV that honours expirationTtl, mirroring the Workers KV API ----
 function makeKV() {
@@ -27,11 +27,11 @@ function makeKV() {
 }
 
 function makeEnv() {
-  return { VEX_AUTH_KV: makeKV(), VEX_SYNC_KV: makeKV() }; // no RESEND_API_KEY → no email send
+  return { VEX_AUTH_KV: makeKV(), VEX_SYNC_KV: makeKV(), DEVELOPMENT_MODE: 'true' };
 }
 
 function post(path, body, ip = '10.0.0.1') {
-  return new Request('https://sync.test' + path, {
+  return new Request('http://localhost' + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
     body: JSON.stringify(body),

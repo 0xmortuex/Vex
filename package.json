@@ -12,6 +12,7 @@
     "start": "electron .",
     "test": "vitest run",
     "smoke": "node scripts/verify-smoke-boot.js",
+    "smoke:restart": "node scripts/verify-restart.js",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "pack": "electron-builder --dir",
@@ -26,8 +27,8 @@
     "predist": "npm run build:vendor",
     "predist:win": "npm run build:vendor",
     "prepublish": "npm run build:vendor",
-    "check:types": "tsc -p jsconfig.contracts.json",
-    "lint": "eslint src/main scripts/build-icons.js scripts/bundle-browser-libs.js src/diagnostics.js"
+    "check:types": "tsc -p jsconfig.contracts.json && tsc -p jsconfig.sync.json",
+    "lint": "eslint src/main scripts/build-icons.js scripts/bundle-browser-libs.js src/diagnostics.js src/renderer/js/network.js src/renderer/js/data-contracts.js src/renderer/js/sync-records.js src/renderer/js/lifecycle.js scripts/verify-source.js src/renderer/js/collection-store.js src/renderer/js/i18n.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

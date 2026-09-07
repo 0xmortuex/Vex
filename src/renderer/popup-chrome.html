@@ -73,15 +73,6 @@
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
     </button>
   </div>
-<script>
-  const { ipcRenderer } = require('electron');
-  document.querySelectorAll('[data-act]').forEach(b =>
-    b.addEventListener('click', () => ipcRenderer.send('popup-chrome:action', { action: b.dataset.act })));
-  ipcRenderer.on('popup-chrome:url', (_e, url) => {
-    const el = document.getElementById('url');
-    el.textContent = url || '';
-    el.title = url || '';
-  });
-</script>
+<script src="js/popup-chrome.js"></script>
 </body>
 </html>

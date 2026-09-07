@@ -15,6 +15,9 @@ const fs = require('fs');
 const path = require('path');
 const net = require('net');
 const { spawn } = require('child_process');
+const { verifyDigest, validateZip } = require('./main/archive-security');
+const BYEDPI_SHA256 = '70d2c94147193cb915f9c6eb5144b8d404dacbcfa90bda2383b6b211afafa456';
+const BYEDPI_EXE_SHA256 = 'eb53ceeeb981cc6735ac24bb1e51e725280b86630e80fdf19ddc4ee4a5b54ef4';
 
 const BYEDPI_URL = 'https://github.com/hufrea/byedpi/releases/download/v0.17.3/byedpi-17.3-x86_64-w64.zip';
 
@@ -70,25 +73,27 @@ function _waitListening(port, deadlineMs) {
 async function ensureBinary(userDataDir, downloadBuffer) {
   const dir = path.join(userDataDir, 'byedpi');
   const exe = path.join(dir, 'ciadpi.exe');
-  if (fs.existsSync(exe)) return exe;
+  if (fs.existsSync(exe)) { try { verifyDigest(await fs.promises.readFile(exe), BYEDPI_EXE_SHA256); return exe; } catch {} }
   fs.mkdirSync(dir, { recursive: true });
   const buf = await downloadBuffer(BYEDPI_URL);
   if (!buf || buf.length < 10000) throw new Error('ByeDPI download failed');
+  verifyDigest(buf, BYEDPI_SHA256);
   let AdmZip;
   try { AdmZip = require('adm-zip'); } catch { throw new Error('adm-zip missing'); }
   const zip = new AdmZip(buf);
   let chosen = null;
-  for (const e of zip.getEntries()) {
+  for (const e of validateZip(zip)) {
     if (e.isDirectory) continue;
     const base = path.basename(e.entryName);
     if (/\.exe$/i.test(base)) {
       const out = path.join(dir, base);
-      fs.writeFileSync(out, e.getData());
+      await fs.promises.writeFile(out, e.getData());
       if (/ciadpi/i.test(base) || !chosen) chosen = out;
     }
   }
   if (!chosen) throw new Error('no .exe inside ByeDPI archive');
   if (path.resolve(chosen) !== path.resolve(exe)) { try { fs.copyFileSync(chosen, exe); } catch { return chosen; } }
+  verifyDigest(await fs.promises.readFile(exe), BYEDPI_EXE_SHA256);
   return exe;
 }
 

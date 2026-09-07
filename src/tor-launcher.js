@@ -16,6 +16,9 @@ const net = require('net');
 const https = require('https');
 const http = require('http');
 const { spawn } = require('child_process');
+const { verifyDigest, extractTar } = require('./main/archive-security');
+const TOR_SHA256 = 'd59bff934e3ad876e1623e24ae60c19aeea56f50178093b9f86fba230639f949';
+const TOR_EXE_SHA256 = 'ea61ba0ed5b89d0622d2894b2a86f5ff34ce9b48e6e40d64341e7c0c7ee03e08';
 
 // Pinned Expert Bundle. The archive keeps old versions indefinitely, so a
 // pinned URL stays valid; bump it to ship a newer Tor.
@@ -40,6 +43,7 @@ function _freePort() {
 // follows redirects. Resolves the full Buffer.
 function _downloadWithProgress(url, onProgress, depth = 0) {
   return new Promise((resolve, reject) => {
+    if (!url.startsWith('https://')) return reject(new Error('HTTPS required for executable downloads'));
     if (depth > 6) return reject(new Error('too many redirects'));
     const lib = url.startsWith('http:') ? http : https;
     const req = lib.get(url, { headers: { 'User-Agent': 'Vex' } }, (res) => {
@@ -50,9 +54,11 @@ function _downloadWithProgress(url, onProgress, depth = 0) {
       }
       if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
       const total = parseInt(res.headers['content-length'] || '0', 10) || 0;
+      if (total > 96 * 1024 * 1024) { res.destroy(); return reject(new Error('Download too large')); }
       const chunks = [];
       let got = 0;
       res.on('data', (c) => {
+        if (got + c.length > 96 * 1024 * 1024) { req.destroy(new Error('Download too large')); return; }
         chunks.push(c); got += c.length;
         if (onProgress) { try { onProgress(got, total); } catch {} }
       });
@@ -71,19 +77,21 @@ async function ensureBinary(userDataDir, onProgress) {
   const exe = path.join(dir, 'tor', 'tor.exe');
   const geoip = path.join(dir, 'data', 'geoip');
   const geoip6 = path.join(dir, 'data', 'geoip6');
-  if (fs.existsSync(exe)) return { exe, geoip, geoip6 };
+  if (fs.existsSync(exe)) {
+    try { verifyDigest(await fs.promises.readFile(exe), TOR_EXE_SHA256); return { exe, geoip, geoip6 }; } catch {}
+  }
   fs.mkdirSync(dir, { recursive: true });
   const buf = await _downloadWithProgress(TOR_URL, (got, total) => {
     if (onProgress && total) onProgress(got / total);
   });
   if (!buf || buf.length < 1000000) throw new Error('Tor download failed (short response)');
+  verifyDigest(buf, TOR_SHA256);
   const tgz = path.join(dir, 'teb.tar.gz');
-  fs.writeFileSync(tgz, buf);
-  let tar;
-  try { tar = require('tar'); } catch { throw new Error('tar module missing'); }
-  await tar.x({ file: tgz, cwd: dir }); // auto-detects gzip; lays out tor/ and data/
+  await fs.promises.writeFile(tgz, buf);
+  await extractTar(tgz, dir);
   try { fs.unlinkSync(tgz); } catch {}
   if (!fs.existsSync(exe)) throw new Error('tor.exe not found after extract');
+  verifyDigest(await fs.promises.readFile(exe), TOR_EXE_SHA256);
   return { exe, geoip, geoip6 };
 }
 

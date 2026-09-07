@@ -15,12 +15,12 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-const electronPath = require('electron'); // string path when required from Node
+const electronPath = process.env.VEX_SMOKE_EXECUTABLE || require('electron');
 const projectRoot = path.resolve(__dirname, '..');
 const userDataDir = path.join(os.tmpdir(), 'vex-smoke-' + process.pid + '-' + Date.now());
 
 let settled = false;
-const child = spawn(electronPath, ['.', `--user-data-dir=${userDataDir}`], {
+const child = spawn(electronPath, [...(process.env.VEX_SMOKE_EXECUTABLE ? [] : ['.']), `--user-data-dir=${userDataDir}`], {
   cwd: projectRoot,
   env: { ...process.env, VEX_SMOKE: '1', VEX_SKIP_VMP_VERIFY: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -30,7 +30,7 @@ let buf = '';
 const onData = (d) => {
   const s = d.toString();
   buf += s;
-  const m = s.match(/SMOKE:\s+(PASS|FAIL)([^\n]*)/);
+  const m = buf.match(/SMOKE:\s+(PASS|FAIL)([^\n]*)\n/);
   if (m) finish(m[1] === 'PASS', (m[2] || '').trim());
 };
 child.stdout.on('data', onData);

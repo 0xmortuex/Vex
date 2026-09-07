@@ -24,6 +24,7 @@ const HistoryIndexer = (() => {
 
   function setEnabled(on) {
     enabled = !!on;
+    if (!enabled) INDEX_QUEUE.length = 0;
     try { localStorage.setItem('vex.aiIndexingEnabled', enabled ? 'true' : 'false'); } catch {}
   }
 
@@ -42,22 +43,24 @@ const HistoryIndexer = (() => {
   function queueForIndexing(historyEntry, webview) {
     if (!isEnabled()) return;
     if (!historyEntry || !webview) return;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
     if (historyEntry.indexed) return;
     if (!shouldIndex(historyEntry.url)) return;
 
     // Avoid duplicates
     if (INDEX_QUEUE.find(q => q.historyEntry.id === historyEntry.id)) return;
+    if (INDEX_QUEUE.length >= 100) return;
 
-    INDEX_QUEUE.push({ historyEntry, webview });
+    INDEX_QUEUE.push({ historyEntry, webview, generation: webview._navigationGeneration });
     if (!processing) processQueue();
   }
 
   async function processQueue() {
     processing = true;
     while (INDEX_QUEUE.length > 0) {
-      const { historyEntry, webview } = INDEX_QUEUE.shift();
+      const { historyEntry, webview, generation } = INDEX_QUEUE.shift();
       try {
-        await indexEntry(historyEntry, webview);
+        if (isEnabled() && generation === webview._navigationGeneration && webview.isConnected !== false) await indexEntry(historyEntry, webview);
       } catch (err) {
         console.warn('[HistoryIndexer] Failed to index', historyEntry.url, err);
       }
@@ -69,6 +72,8 @@ const HistoryIndexer = (() => {
 
   async function indexEntry(historyEntry, webview) {
     if (!webview || (typeof webview.isDestroyed === 'function' && webview.isDestroyed())) return;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    const generation = webview._navigationGeneration;
 
     let pageContent;
     try {
@@ -88,6 +93,7 @@ const HistoryIndexer = (() => {
       return; // Can't read (cross-origin, devtools, etc.)
     }
 
+    if (generation !== webview._navigationGeneration || webview.isConnected === false) return;
     if (!pageContent || !pageContent.text || pageContent.text.length < 100) return;
 
     // Verify URL still matches (user may have navigated away)
@@ -95,7 +101,7 @@ const HistoryIndexer = (() => {
       // Try a loose origin+path match; skip if totally different
       try {
         const a = new URL(pageContent.url), b = new URL(historyEntry.url);
-        if (a.origin !== b.origin) return;
+        if (a.origin !== b.origin || a.pathname !== b.pathname || a.search !== b.search) return;
       } catch { return; }
     }
 
@@ -106,7 +112,7 @@ const HistoryIndexer = (() => {
       aiResult = await AIRouter.callAI('historyIndex', { pageContext: pageContent });
     } catch (e) { return; }
 
-    if (!aiResult || !aiResult.result) return;
+    if (!isEnabled() || generation !== webview._navigationGeneration || !aiResult || !aiResult.result) return;
 
     let parsed;
     try {
@@ -133,18 +139,18 @@ const HistoryIndexer = (() => {
   function reindexOpenTabs() {
     if (!window.HistoryPanel || !Array.isArray(HistoryPanel.entries)) return 0;
     const unindexed = HistoryPanel.entries.filter(e => !e.indexed);
-    if (!window.Tabs || !Array.isArray(Tabs.tabs)) return 0;
+    if (typeof TabManager === 'undefined' || !Array.isArray(TabManager.tabs) || typeof WebviewManager === 'undefined') return 0;
 
     let queued = 0;
     for (const entry of unindexed) {
-      const tab = Tabs.tabs.find(t => {
+      const tab = TabManager.tabs.find(t => {
         try {
-          const wv = t.webview;
+          const wv = WebviewManager.webviews.get(t.id);
           return wv && typeof wv.getURL === 'function' && wv.getURL() === entry.url;
         } catch { return false; }
       });
-      if (tab && tab.webview) {
-        queueForIndexing(entry, tab.webview);
+      if (tab && WebviewManager.webviews.has(tab.id)) {
+        queueForIndexing(entry, WebviewManager.webviews.get(tab.id));
         queued++;
       }
     }

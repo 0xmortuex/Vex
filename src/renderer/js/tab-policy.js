@@ -1,0 +1,25 @@
+// Shared privacy and persistence contract for every tab consumer.
+(function () {
+  const query = new URLSearchParams(window.location.search);
+  const privatePartition = query.get('private') === 'true' ? query.get('partition') : null;
+  const isEphemeral = partition => !!partition && !String(partition).startsWith('persist:');
+  const policy = {
+    isPrivateWindow: !!privatePartition,
+    defaultPartition: privatePartition || 'persist:main',
+    partitionFor(partition) { return privatePartition || partition || 'persist:main'; },
+    canRestore(tab) { return !!tab && !isEphemeral(tab.partition) && typeof tab.url === 'string' && /^(https?:|about:|file:|vex:)/i.test(tab.url); },
+    canPersist(tab) { return !privatePartition && policy.canRestore(tab); },
+    canReadWebview(webview) {
+      return !privatePartition && !!webview && !isEphemeral(webview.getAttribute?.('partition'));
+    },
+    serialize(tab) {
+      return { id: tab.id, url: tab.url, title: tab.title || '', favicon: tab.favicon || null,
+        partition: tab.partition || null, pinned: !!tab.pinned, groupId: tab.groupId || null,
+        stackId: tab.stackId || null, sleeping: !!tab.sleeping, originalUrl: tab.originalUrl || null,
+        scrollPosition: tab.scrollPosition || null, keepAwakeUntil: tab.keepAwakeUntil || 0 };
+    },
+    snapshot(tabs) { return tabs.filter(t => policy.canPersist(t)).map(t => policy.serialize(t)); },
+    sourceOptions(webview) { return { partition: policy.partitionFor(webview?.getAttribute?.('partition')) }; },
+  };
+  window.VexTabPolicy = Object.freeze(policy);
+})();

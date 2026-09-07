@@ -17,6 +17,10 @@ const { execSync } = require('child_process');
 exports.default = async function (context) {
   const appOutDir = context.appOutDir;
   const skip = process.env.VEX_SKIP_VMP_VERIFY === '1';
+  if (skip) {
+    console.warn('[VMP] Explicit no-DRM test build: signing skipped. Not a release artifact.');
+    return;
+  }
   const force = !skip; // real builds force a fresh sign; no-DRM builds use cache
   console.log('[VMP] signing:', appOutDir, force ? '(forcing fresh EVS signature)' : '(no-DRM / cached path)');
 

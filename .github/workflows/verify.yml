@@ -1,0 +1,42 @@
+name: Verify Vex
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 7 * * 1'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check:source
+      - run: npm run check:types
+      - run: npm run lint
+      - run: npm test -- --maxWorkers=4
+      - run: npm run smoke
+      - run: npm run smoke:restart
+      - run: npm run smoke
+        env:
+          VEX_SECURITY_SMOKE: '1'
+          VEX_UI_SMOKE: '1'
+      - run: node scripts/build-icons.js scratchpad/ci-icons
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --audit-level=high
+        if: github.event_name == 'schedule'
+      - run: npm run pack -- --config.directories.output=scratchpad/ci-package
+        env:
+          VEX_SKIP_VMP_VERIFY: '1'
+      - run: npm run smoke
+        env:
+          VEX_SMOKE_EXECUTABLE: scratchpad/ci-package/win-unpacked/Vex.exe
+          VEX_SECURITY_SMOKE: '1'
+          VEX_UI_SMOKE: '1'

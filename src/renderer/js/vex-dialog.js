@@ -24,6 +24,7 @@
   }
 
   let counter = 0;
+  const t = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
 
   function open(opts) {
     return new Promise(resolve => {
@@ -40,10 +41,10 @@
           ${opts.message ? `<div class="vex-dialog-msg">${esc(opts.message)}</div>` : ''}
           ${opts.input ? `
             ${opts.input.label ? `<label class="vex-dialog-label" for="${id}-input">${esc(opts.input.label)}</label>` : ''}
-            <input class="vex-dialog-input" id="${id}-input" type="text" placeholder="${esc(opts.input.placeholder || '')}">` : ''}
+            <input class="vex-dialog-input" id="${id}-input" type="text" aria-label="${esc(opts.input.label || opts.title || 'Vex')}" placeholder="${esc(opts.input.placeholder || '')}">` : ''}
           <div class="vex-dialog-actions">
-            ${opts.cancelLabel === null ? '' : `<button class="vex-dialog-btn" data-cancel>${esc(opts.cancelLabel || 'Cancel')}</button>`}
-            <button class="vex-dialog-btn ${opts.danger ? 'danger' : 'primary'}" data-ok>${esc(opts.okLabel || 'OK')}</button>
+            ${opts.cancelLabel === null ? '' : `<button class="vex-dialog-btn" data-cancel>${esc(opts.cancelLabel || t('cancel', 'Cancel'))}</button>`}
+            <button class="vex-dialog-btn ${opts.danger ? 'danger' : 'primary'}" data-ok>${esc(opts.okLabel || t('ok', 'OK'))}</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
@@ -89,7 +90,7 @@
   }
 
   window.vexConfirm = function (o) {
-    if (typeof o === 'string') o = { title: 'Confirm', message: o };
+    if (typeof o === 'string') o = { title: t('confirm', 'Confirm'), message: o };
     return open(o);
   };
 

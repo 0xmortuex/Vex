@@ -175,6 +175,23 @@ const HistoryPanel = {
     if (!list) return;
 
     const filtered = this.getKeywordFiltered();
+    list._virtualDispose?.();
+    if (filtered.length > 100 && window.VexVirtualList) {
+      window.VexVirtualList.mount(list, filtered, entry => {
+        const row = document.createElement('div'); row.className = 'history-item'; row.tabIndex = 0; row.setAttribute('role', 'link');
+        const text = document.createElement('div'); text.className = 'history-item-info';
+        const title = document.createElement('div'); title.className = 'history-item-title'; title.textContent = entry.title || entry.url;
+        const detail = document.createElement('div'); detail.className = 'history-item-url'; detail.textContent = new Date(entry.visitedAt || entry.time).toLocaleString() + ' · ' + entry.url;
+        text.append(title, detail);
+        const remove = document.createElement('button'); remove.textContent = '×'; remove.setAttribute('aria-label', 'Delete history entry');
+        remove.addEventListener('click', event => { event.stopPropagation(); this.deleteEntry(entry.id); });
+        row.append(text, remove);
+        row.addEventListener('click', () => { SidebarManager.hideActivePanel(); TabManager.createTab(entry.url, true); });
+        row.addEventListener('keydown', event => { if (event.target === row && event.key === 'Enter') row.click(); });
+        return row;
+      });
+      return;
+    }
     if (filtered.length === 0) {
       list.innerHTML = window.VexUI
         ? VexUI.emptyState('history', 'No history found', 'Try a different search or time filter')
@@ -197,8 +214,8 @@ const HistoryPanel = {
           let favicon = e.favicon;
           if (!favicon) { try { favicon = new URL(e.url).origin + '/favicon.ico'; } catch {} } // first-party, no Google leak
           return `
-            <div class="history-item" data-id="${e.id}" data-url="${this._esc(e.url)}" tabindex="0" role="link">
-              <img src="${favicon || ''}" alt="" loading="lazy" onerror="this.style.display='none'">
+            <div class="history-item" data-id="${this._esc(e.id)}" data-url="${this._esc(e.url)}" tabindex="0" role="link">
+              <img src="${this._esc(favicon || '')}" alt="" loading="lazy" data-image-fallback="hide">
               <div class="history-item-info">
                 <div class="history-item-title">${this._esc(e.title)}</div>
                 <div class="history-item-url">${this._esc(e.url)}</div>
@@ -299,7 +316,7 @@ const HistoryPanel = {
       let host = ''; try { host = new URL(entry.url).hostname; } catch {}
       html += `
         <div class="history-item ai-result" data-url="${this._esc(entry.url)}" tabindex="0" role="link">
-          <img src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" width="20" height="20" loading="lazy" onerror="this.style.display='none'">
+          <img src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" width="20" height="20" loading="lazy" data-image-fallback="hide">
           <div class="history-item-info item-content">
             <div class="history-item-title item-title">${this._esc(entry.title || 'Untitled')}</div>
             <div class="history-item-url item-url">${this._esc(entry.url)}</div>
@@ -356,3 +373,9 @@ const HistoryPanel = {
 };
 
 window.HistoryPanel = HistoryPanel;
+window.addEventListener('vex-sync-data-applied', () => {
+  const saved = JSON.parse(localStorage.getItem(HistoryPanel.STORAGE_KEY) || '[]');
+  HistoryPanel.entries = Array.isArray(saved) ? saved : [];
+  HistoryPanel.lastAISearch = null;
+  HistoryPanel.renderList();
+});

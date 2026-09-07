@@ -1,0 +1,8 @@
+{
+  "environment": "Node/jsdom: DOM construction only, not Chromium layout or FPS",
+  "items": 10000,
+  "fullMs": 85,
+  "virtualMs": 14,
+  "fullNodes": 10000,
+  "virtualNodes": 16
+}

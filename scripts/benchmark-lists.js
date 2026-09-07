@@ -1,0 +1,14 @@
+const { JSDOM } = require('jsdom');
+const fs = require('fs');
+const vm = require('vm');
+const { performance } = require('perf_hooks');
+const dom = new JSDOM('<div id="list"></div>'), document = dom.window.document;
+const list = document.getElementById('list'), items = Array.from({ length: 10000 }, (_, i) => i);
+const row = n => { const element = document.createElement('div'); element.textContent = 'History entry ' + n; return element; };
+let start = performance.now(); items.forEach(n => list.append(row(n)));
+const fullMs = performance.now() - start, fullNodes = list.childElementCount;
+list.replaceChildren();
+vm.runInNewContext(fs.readFileSync('src/renderer/js/virtual-list.js','utf8'), { window: dom.window, document, requestAnimationFrame: () => 0, cancelAnimationFrame: () => {} });
+start = performance.now(); dom.window.VexVirtualList.mount(list, items, row);
+const result = { environment: 'Node/jsdom: DOM construction only, not Chromium layout or FPS', items: items.length, fullMs: Math.round(fullMs), virtualMs: Math.round(performance.now() - start), fullNodes, virtualNodes: list.querySelectorAll('[data-virtual-index]').length };
+console.log(JSON.stringify(result, null, 2)); dom.window.close();

@@ -35,7 +35,12 @@ if (window.vex?.getStartPageUrl) {
 }
 
 function isStartPage(url) {
-  return url === 'vex://start' || url === START_URL || url?.startsWith('vex://start') || url?.includes('start.html');
+  if (typeof url !== 'string' || !url) return false;
+  try {
+    const parsed = new URL(url);
+    return (parsed.protocol === 'vex:' && parsed.hostname === 'start') ||
+      (parsed.protocol === 'file:' && /\/renderer\/start\.html$/i.test(parsed.pathname));
+  } catch { return false; }
 }
 
 // Build the start-page URL carrying the active theme. At runtime the start page
@@ -76,6 +81,7 @@ const TabManager = {
   tabs: [],
   activeTabId: null,
   tabCounter: 0,
+  _newId() { this.tabCounter++; return 'tab-' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)); },
   _autoSleepInterval: null,
   groups: [],
   // Phase 4a — tab stacks. Mutually exclusive with groups (a tab may have
@@ -153,10 +159,12 @@ const TabManager = {
     // "container missing" fallback stripped groupId off every restored tab —
     // leaving them ungrouped until the auto-grouper lazily re-assigned them one
     // by one on activation. Building first and rendering last fixes that.
-    const savedTabs = await VexStorage.loadTabs();
+    const savedTabs = loadedTabs.filter(t => !t.partition || String(t.partition).startsWith('persist:'));
+    const restoredIds = new Map();
     if (savedTabs.length > 0) {
       for (const t of savedTabs) {
-        const id = `tab-${++this.tabCounter}`;
+        const id = /^tab-[a-f0-9-]{36}$/i.test(t.id || '') && !this.tabs.some(tab => tab.id === t.id) ? t.id : this._newId();
+        restoredIds.set(t.id, id);
         // Restored start tabs reload in the CURRENT persisted theme: rebuild
         // their URL with a fresh ?theme= (the saved one may carry a stale
         // theme). Non-start tabs keep their saved URL untouched.
@@ -165,6 +173,7 @@ const TabManager = {
           // Sleeping at shutdown → stay sleeping; no webview, scroll preserved.
           this.tabs.push({
             id,
+            partition: t.partition || null,
             url: tabUrl,
             title: t.title || (isStartPage(t.url) ? 'New Tab' : t.url),
             favicon: null,
@@ -186,6 +195,7 @@ const TabManager = {
           // Saved title + favicon keep the sidebar looking right meanwhile.
           this.tabs.push({
             id,
+            partition: t.partition || null,
             url: tabUrl,
             title: t.title || (isStartPage(t.url) ? 'New Tab' : (t.url || 'Tab')),
             favicon: t.favicon || null,
@@ -208,7 +218,7 @@ const TabManager = {
       let home = this.tabs.find(t => isStartPage(t.url));
       if (!home) {
         home = {
-          id: `tab-${++this.tabCounter}`,
+          id: this._newId(),
           url: startUrlWithTheme(),
           title: 'New Tab',
           favicon: null,
@@ -224,7 +234,7 @@ const TabManager = {
       this.activeTabId = home.id;
     } else {
       const tab = {
-        id: `tab-${++this.tabCounter}`,
+        id: this._newId(),
         url: startUrlWithTheme(),
         title: 'New Tab',
         favicon: null,
@@ -237,6 +247,12 @@ const TabManager = {
       this.tabs.push(tab);
       WebviewManager.createWebview(tab);
       this.activeTabId = tab.id;
+    }
+
+    // Stack tops refer to saved IDs; tabs get fresh IDs during restoration.
+    for (const stack of this.stacks) {
+      stack.topTabId = restoredIds.get(stack.topTabId) ||
+        this.tabs.find(t => t.stackId === stack.id)?.id || null;
     }
 
     // Single ordered render pass. rebuildAllTabs() internally does
@@ -265,7 +281,7 @@ const TabManager = {
   },
 
   createTab(url, activate = true, groupId = null, opts = null) {
-    const id = `tab-${++this.tabCounter}`;
+    const id = this._newId();
     // A start tab gets the active theme baked into its URL (?theme=) so the
     // file://-loaded start page renders in-theme; real URLs pass through.
     const target = url || START_URL;
@@ -273,15 +289,17 @@ const TabManager = {
     const tab = {
       id,
       url: resolvedUrl,
-      title: isStartPage(target) ? 'New Tab' : 'Loading...',
-      favicon: null,
+      title: isStartPage(target) ? 'New Tab' : (opts?.title || 'Loading...'),
+      favicon: opts?.favicon || null,
       loading: true,
-      pinned: false,
+      pinned: !!opts?.pinned,
+      scrollPosition: opts?.scrollPosition || null,
+      keepAwakeUntil: opts?.keepAwakeUntil || 0,
       unread: false,
       groupId: groupId,
       stackId: null,
       // Container tabs: an isolated cookie jar (persist:container-<name>)
-      partition: (opts && opts.partition) || null
+      partition: window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null
     };
 
     this.tabs.push(tab);
@@ -297,6 +315,7 @@ const TabManager = {
   },
 
   switchTab(id) {
+    this._notifyTabsChanged();
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
 
@@ -306,6 +325,7 @@ const TabManager = {
     this.activeTabId = id;
     tab.unread = false;
     tab.lastViewedAt = Date.now();
+    tab._lastActive = tab.lastViewedAt;
 
     // Wake sleeping tab on activation
     if (tab.sleeping) {
@@ -340,17 +360,17 @@ const TabManager = {
   },
 
   closeTab(id) {
+    this._notifyTabsChanged();
     const idx = this.tabs.findIndex(t => t.id === id);
     if (idx === -1) return;
 
     // Save to recently closed before destroying (skip during bulk ops)
     if (!this._bulkClosing) {
       const tab = this.tabs[idx];
-      if (tab && !isStartPage(tab.url)) {
+      if (tab && !isStartPage(tab.url) && (window.VexTabPolicy ? window.VexTabPolicy.canPersist(tab) : (!tab.partition || String(tab.partition).startsWith('persist:')))) {
         const list = getRecentlyClosed();
         list.unshift({
-          url: tab.url, title: tab.title, favicon: tab.favicon,
-          groupId: tab.groupId, closedAt: new Date().toISOString()
+          ...(window.VexTabPolicy?.serialize(tab) || { url: tab.url, title: tab.title, favicon: tab.favicon, groupId: tab.groupId, partition: tab.partition || null }), closedAt: new Date().toISOString()
         });
         saveRecentlyClosed(list);
       }
@@ -423,20 +443,21 @@ const TabManager = {
   },
 
   // Create a tab with lazy webview — webview only created when activated
-  createLazyTab(url, groupId, title) {
-    const id = `tab-${++this.tabCounter}`;
+  createLazyTab(url, groupId, title, opts = {}) {
+    const id = this._newId();
     const tab = {
       id,
       url: url || START_URL,
       title: title || (isStartPage(url) ? 'New Tab' : url),
       favicon: null,
       loading: false,
-      pinned: false,
+      pinned: !!opts.pinned,
       unread: false,
       groupId: groupId,
       stackId: null,
       _lazy: true  // webview not yet created
     };
+    tab.partition = window.VexTabPolicy?.partitionFor(opts.partition) || opts.partition || null;
     this.tabs.push(tab);
     this.renderTab(tab);
     return tab;
@@ -539,7 +560,7 @@ const TabManager = {
       ${tab.loading
         ? '<div class="tab-loading"></div>'
         : tab.favicon
-          ? `<img class="tab-favicon" src="${tab.favicon}" alt="">`
+          ? '<img class="tab-favicon" alt="">'
           : '<div class="tab-favicon-placeholder"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/></svg></div>'
       }
       ${(tab.partition && !String(tab.partition).startsWith('persist:'))
@@ -558,6 +579,8 @@ const TabManager = {
       </button>
     `;
 
+    const tabIcon = el.querySelector('img.tab-favicon');
+    if (tabIcon) tabIcon.src = tab.favicon;
     el.addEventListener('click', (e) => {
       if (e.target.closest('.tab-close')) {
         this.closeTab(tab.id);
@@ -577,6 +600,7 @@ const TabManager = {
   },
 
   renderTabUpdate(tab) {
+    this._notifyTabsChanged();
     const el = document.querySelector(`.tab-item[data-tab-id="${tab.id}"]`);
     if (!el) return;
 
@@ -587,7 +611,9 @@ const TabManager = {
           faviconArea.outerHTML = '<div class="tab-loading"></div>';
         }
       } else if (tab.favicon) {
-        faviconArea.outerHTML = `<img class="tab-favicon" src="${tab.favicon}" alt="">`;
+        const image = document.createElement('img');
+        image.className = 'tab-favicon'; image.alt = ''; image.src = tab.favicon;
+        faviconArea.replaceWith(image);
       } else {
         faviconArea.outerHTML = '<div class="tab-favicon-placeholder"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/></svg></div>';
       }
@@ -714,7 +740,7 @@ const TabManager = {
       el.style.setProperty('--stack-color', stack.color || '#d4a574');
 
       const favicon = topTab.favicon
-        ? `<img class="tab-favicon" src="${topTab.favicon}" alt="">`
+        ? '<img class="tab-favicon" alt="">'
         : `<div class="tab-favicon-placeholder">${this._escapeHtml((topTab.title || 'T')[0])}</div>`;
       // Count badge is shown only when collapsed (CSS hides it on .expanded):
       // "Research (5)" collapsed, just "Research" expanded — per the 4c spec.
@@ -727,6 +753,8 @@ const TabManager = {
       `;
 
       // Phase 4c — clicking the header toggles expand/collapse. This
+      const stackIcon = el.querySelector('img.tab-favicon');
+      if (stackIcon) stackIcon.src = topTab.favicon;
       // supersedes the 4b click-to-switch: switching to a tab now happens by
       // clicking a member row inside the expanded stack (see below).
       el.addEventListener('click', () => this.toggleStackExpanded(stack.id));
@@ -1086,7 +1114,7 @@ const TabManager = {
 
     const items = [
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => { tab.pinned = !tab.pinned; this.persistTabs(); } },
-      { label: 'Duplicate', action: () => this.createTab(tab.url) },
+      { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, window.VexTabPolicy?.serialize(tab) || tab) },
       { label: 'Page volume…', action: async () => {
         const v = typeof vexPromptModal === 'function' ? await vexPromptModal('Page volume (0–100%)', '100') : prompt('Volume 0-100', '100');
         const n = parseInt(v, 10);
@@ -1147,6 +1175,7 @@ const TabManager = {
   },
 
   rebuildAllTabs() {
+    this._notifyTabsChanged();
     // Clear all tab elements
     document.getElementById('tabs-list').innerHTML = '';
     document.querySelectorAll('.tab-group-tabs').forEach(el => el.innerHTML = '');
@@ -1167,8 +1196,10 @@ const TabManager = {
         el.dataset.tabId = tab.id;
         el.title = tab.title;
         el.innerHTML = tab.favicon
-          ? `<img src="${tab.favicon}" alt="">`
-          : `<div class="pinned-placeholder">${(tab.title || 'T')[0]}</div>`;
+          ? '<img alt="">'
+          : '<div class="pinned-placeholder"></div>';
+        if (tab.favicon) el.querySelector('img').src = tab.favicon;
+        else el.querySelector('.pinned-placeholder').textContent = (tab.title || 'T')[0];
         el.addEventListener('click', () => this.switchTab(tab.id));
         el.addEventListener('contextmenu', (e) => { e.preventDefault(); this.showContextMenu(e, tab); });
         pinnedContainer.appendChild(el);
@@ -1271,7 +1302,62 @@ const TabManager = {
   },
 
   async persistTabs() {
-    await VexStorage.saveTabs(this.tabs);
+    if (this._applyingSync) return;
+    // Coalesce all mutations in a bulk restore into one final snapshot.
+    if (!this._pendingPersist) {
+      this._pendingPersist = Promise.resolve().then(() => {
+        this._pendingPersist = null;
+        return VexStorage.saveTabs(this.tabs);
+      });
+      this._pendingPersist.catch(error => window.showToast?.('Tabs could not be saved: ' + error.message));
+    }
+    return this._pendingPersist;
+  },
+
+  applySyncedState(records, groups, stacks) {
+    window.VexDataContracts?.tabs(records);
+    const active = this.activeTabId;
+    const existing = new Map(this.tabs.map(tab => [tab.id, tab]));
+    const next = [], used = new Set();
+    for (const saved of records) {
+      if (!window.VexTabPolicy.canRestore(saved)) continue;
+      let id = saved.id || this._newId();
+      if (existing.has(id) && !window.VexTabPolicy.canPersist(existing.get(id))) id = this._newId();
+      if (used.has(id)) continue; used.add(id);
+      const current = existing.get(id);
+      if (current && (current.url !== saved.url || (current.partition || 'persist:main') !== (saved.partition || 'persist:main'))) {
+        WebviewManager.destroyWebview(current.id);
+        current._lazy = true;
+        current.sleeping = false;
+      }
+      const tab = current || { id, _lazy: !saved.sleeping, loading: false, unread: false };
+      const sleeping = current ? !!current.sleeping : !!saved.sleeping;
+      Object.assign(tab, window.VexTabPolicy.serialize(saved), { id });
+      tab.sleeping = sleeping;
+      next.push(tab);
+    }
+    for (const current of this.tabs) if (!used.has(current.id)) {
+      if (!window.VexTabPolicy.canPersist(current)) next.push(current);
+      else WebviewManager.destroyWebview(current.id);
+    }
+    this._applyingSync = true;
+    try {
+      this.tabs = next;
+      if (Array.isArray(groups)) this.groups = groups.map(group => ({ ...group }));
+      if (Array.isArray(stacks)) this.stacks = stacks.map(stack => ({ ...stack }));
+      if (!this.tabs.length) this.createLazyTab(START_URL, null, 'New Tab');
+      this.rebuildAllTabs();
+      this.switchTab(this.tabs.some(tab => tab.id === active) ? active : this.tabs[0].id);
+    } finally { this._applyingSync = false; }
+  },
+
+  _notifyTabsChanged() {
+    if (this._changeQueued) return;
+    this._changeQueued = true;
+    queueMicrotask(() => {
+      this._changeQueued = false;
+      window.dispatchEvent(new CustomEvent('vex-tabs-changed'));
+    });
   },
 
   getActiveTab() {
@@ -1579,7 +1665,8 @@ const TabManager = {
     }
     const last = list.shift();
     saveRecentlyClosed(list);
-    this.createTab(last.url, true, last.groupId);
+    if (window.VexTabPolicy && !window.VexTabPolicy.canRestore(last)) return;
+    this.createTab(last.url, true, this.groups.some(group => group.id === last.groupId) ? last.groupId : null, last);
   },
 
   // === Mute/Unmute ===

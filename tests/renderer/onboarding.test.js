@@ -197,11 +197,12 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
 });
 
 describe('Language + daily-wisdom steps', () => {
-  it('are steps, in order, right after theme', () => {
+  it('are steps, in order, after theme and job setup', () => {
     const keys = Onboarding.STEPS().map(s => s.key);
     const themeIdx = keys.indexOf('theme');
-    expect(keys[themeIdx + 1]).toBe('language');
-    expect(keys[themeIdx + 2]).toBe('wisdom');
+    expect(keys[themeIdx + 1]).toBe('job');
+    expect(keys[themeIdx + 2]).toBe('language');
+    expect(keys[themeIdx + 3]).toBe('wisdom');
   });
 
   it('_isStepDone reflects saved language / wisdom choices', () => {

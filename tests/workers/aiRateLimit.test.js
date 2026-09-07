@@ -5,7 +5,14 @@
 // drain credits. These tests pin the limiter and the 429 short-circuit.
 
 import { describe, it, expect, vi } from 'vitest';
-import worker, { aiRateLimited } from '../../workers/vex-ai-worker/worker.js';
+import { aiHandler, aiRateLimited } from '../../workers/vex-ai-worker/worker.js';
+
+const worker = { fetch(req, env) {
+  const name = req.headers.get('CF-Connecting-IP') || 'test';
+  const token = 'test-token-with-at-least-24-characters';
+  req.headers.set('Authorization', 'Bearer ' + token);
+  return aiHandler.fetch(req, { ...env, VEX_CLIENT_TOKENS: JSON.stringify({ [name]: token }) });
+} };
 
 function makeKV() {
   const raw = new Map();
@@ -25,10 +32,17 @@ function makeKV() {
 }
 
 describe('aiRateLimited', () => {
-  it('fails OPEN when the KV namespace is not bound (worker keeps serving)', async () => {
+  it('fails closed on malformed counters instead of treating them as zero', async () => {
+    for (const value of ['NaN', '-1', '1oops', '9007199254740992']) {
+      const put = vi.fn();
+      expect(await aiRateLimited({ VEX_AI_KV: { get: async () => value, put } }, 'client')).toBe(true);
+      expect(put).not.toHaveBeenCalled();
+    }
+  });
+  it('fails closed when quota storage is not bound', async () => {
     const env = {}; // no VEX_AI_KV
     for (let i = 0; i < 100; i++) {
-      expect(await aiRateLimited(env, '1.1.1.1')).toBe(false);
+      expect(await aiRateLimited(env, '1.1.1.1')).toBe(true);
     }
   });
 

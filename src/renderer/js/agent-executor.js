@@ -1,14 +1,20 @@
 // === Vex Agent Action Executor ===
 
 const AgentExecutor = {
-  async executeTool(toolName, params) {
-    const wv = WebviewManager.getActiveWebview();
+  async executeTool(toolName, params, context = {}) {
+    const wv = context.webview || WebviewManager.getActiveWebview();
+    if (context.scheduled && !['navigate', 'go_back', 'go_forward', 'reload', 'scroll', 'extract_elements', 'extract_text', 'screenshot', 'wait', 'search_in_page', 'finish'].includes(toolName)) {
+      return { ok: false, error: 'This tool requires an interactive run: ' + toolName };
+    }
+    if (context.scheduled && (!context.webview || context.webview.isConnected === false)) return { ok: false, error: 'Scheduled tab was closed' };
+    if (wv && window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(wv)) return { ok: false, error: 'Private tabs are excluded from agent access' };
     const needsWebview = !['new_tab', 'list_tabs', 'switch_tab', 'finish', 'ask_user'].includes(toolName);
     if (needsWebview && !wv) return { ok: false, error: 'No active webview' };
 
     try {
       switch (toolName) {
         case 'navigate':
+          if (!/^https?:$/.test(new URL(params.url).protocol)) return { ok: false, error: 'Only web URLs are allowed' };
           if (typeof wv.loadURL === 'function') wv.loadURL(params.url);
           else wv.src = params.url;
           await this._waitForLoad(wv);
@@ -79,7 +85,7 @@ const AgentExecutor = {
 
         case 'scroll':
           const dir = params.direction || 'down';
-          const amt = params.amount || 500;
+          const amt = Number.isFinite(Number(params.amount)) ? Math.max(0, Math.min(Number(params.amount), 10000)) : 500;
           await wv.executeJavaScript(
             dir === 'top' ? 'window.scrollTo({top:0})' :
             dir === 'bottom' ? 'window.scrollTo({top:document.body.scrollHeight})' :
@@ -106,7 +112,7 @@ const AgentExecutor = {
           } catch { return { ok: true, result: { hasScreenshot: false, note: 'Screenshot failed' } }; }
 
         case 'list_tabs':
-          const tabs = TabManager.tabs.map(t => ({ id: t.id, title: t.title, url: t.url, active: t.id === TabManager.activeTabId }));
+          const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canPersist(t)).map(t => ({ id: t.id, title: t.title, url: t.url, active: t.id === TabManager.activeTabId }));
           return { ok: true, result: tabs };
 
         case 'switch_tab':
@@ -116,7 +122,17 @@ const AgentExecutor = {
         case 'wait':
           if (params.selector) {
             await wv.executeJavaScript(`
-              new Promise(r => { const c = () => document.querySelector(${JSON.stringify(params.selector)}) ? r(true) : setTimeout(c, 200); c(); setTimeout(() => r(false), 8000); })
+              new Promise(r => {
+                let poll;
+                const finish = value => { clearTimeout(poll); clearTimeout(deadline); r(value); };
+                const deadline = setTimeout(() => finish(false), 8000);
+                const check = () => {
+                  try { if (document.querySelector(${JSON.stringify(params.selector)})) return finish(true); }
+                  catch { return finish(false); }
+                  poll = setTimeout(check, 200);
+                };
+                check();
+              })
             `);
           } else {
             await new Promise(r => setTimeout(r, Math.min(params.ms || 1000, 10000)));

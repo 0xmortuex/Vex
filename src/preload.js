@@ -1,4 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
+function subscribe(channel, callback) {
+  const listener = (_event, ...args) => callback(...args);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
 
 // === open-url buffering (cold-start link race fix) ===
 // On a COLD start (Vex not already running) the main process sends the clicked
@@ -14,9 +19,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 let _openUrlCb = null;
 const _openUrlBuffer = [];
 ipcRenderer.on('open-url', (_, url) => {
-  console.log('[Vex URL] preload: received open-url IPC ->', url);
   if (_openUrlCb) {
-    try { _openUrlCb(url); } catch (err) { console.error('[Vex URL] preload: onOpenUrl cb threw:', err && err.stack || err); }
+    try { _openUrlCb(url); } catch { console.error('[Vex URL] URL handler failed'); }
   } else {
     console.log('[Vex URL] preload: no handler yet — buffering URL');
     _openUrlBuffer.push(url);
@@ -39,6 +43,16 @@ contextBridge.exposeInMainWorld('vex', {
   // Storage
   saveData: (key, data) => ipcRenderer.invoke('storage-save', key, data),
   loadData: (key) => ipcRenderer.invoke('storage-load', key),
+  clearBrowsingData: () => ipcRenderer.invoke('browsing:clear-data'),
+  addHistory: (entry) => ipcRenderer.invoke('storage:history-add', entry),
+  flushStorage: () => ipcRenderer.invoke('storage:flush'),
+  cloudRequest: body => ipcRenderer.invoke('cloud:request', body),
+  saveCloudToken: token => ipcRenderer.invoke('cloud:token-save', token),
+  onFlushRequested: cb => {
+    const listener = () => Promise.resolve(cb()).then(() => ipcRenderer.send('storage:flushed')).catch(() => ipcRenderer.send('storage:flush-failed'));
+    ipcRenderer.on('storage:flush-request', listener);
+    return () => ipcRenderer.removeListener('storage:flush-request', listener);
+  },
 
   // Smart Searchbar — Google Suggest web predictions, proxied through main to
   // dodge CORS (Google Suggest sends no Access-Control-Allow-Origin). Returns
@@ -54,50 +68,50 @@ contextBridge.exposeInMainWorld('vex', {
   setAdBlockerState: (enabled) => ipcRenderer.invoke('adblocker-set-state', enabled),
 
   // Events from main
-  onCommandBar: (callback) => ipcRenderer.on('toggle-command-bar', callback),
-  onZoomIn: (callback) => ipcRenderer.on('zoom-in', callback),
-  onZoomOut: (callback) => ipcRenderer.on('zoom-out', callback),
-  onZoomReset: (callback) => ipcRenderer.on('zoom-reset', callback),
-  onFindInPage: (callback) => ipcRenderer.on('find-in-page', callback),
-  onNewTab: (callback) => ipcRenderer.on('new-tab', callback),
-  onCloseTab: (callback) => ipcRenderer.on('close-tab', callback),
-  onReloadTab: (callback) => ipcRenderer.on('reload-tab', callback),
+  onCommandBar: (callback) => subscribe('toggle-command-bar', callback),
+  onZoomIn: (callback) => subscribe('zoom-in', callback),
+  onZoomOut: (callback) => subscribe('zoom-out', callback),
+  onZoomReset: (callback) => subscribe('zoom-reset', callback),
+  onFindInPage: (callback) => subscribe('find-in-page', callback),
+  onNewTab: (callback) => subscribe('new-tab', callback),
+  onCloseTab: (callback) => subscribe('close-tab', callback),
+  onReloadTab: (callback) => subscribe('reload-tab', callback),
   // Core browser shortcuts forwarded from a focused page's <webview> guest
   // (they don't reach the host document otherwise).
-  onFocusAddressBar: (callback) => ipcRenderer.on('focus-address-bar', callback),
-  onNextTab: (callback) => ipcRenderer.on('next-tab', callback),
-  onPrevTab: (callback) => ipcRenderer.on('prev-tab', callback),
-  onJumpToTab: (callback) => ipcRenderer.on('jump-to-tab', (_e, n) => callback(n)),
-  onBookmarkCurrent: (callback) => ipcRenderer.on('bookmark-current', callback),
-  onHardReloadTab: (callback) => ipcRenderer.on('hard-reload-tab', callback),
+  onFocusAddressBar: (callback) => subscribe('focus-address-bar', callback),
+  onNextTab: (callback) => subscribe('next-tab', callback),
+  onPrevTab: (callback) => subscribe('prev-tab', callback),
+  onJumpToTab: (callback) => subscribe('jump-to-tab', callback),
+  onBookmarkCurrent: (callback) => subscribe('bookmark-current', callback),
+  onHardReloadTab: (callback) => subscribe('hard-reload-tab', callback),
   hardReloadWebview: (webContentsId) => ipcRenderer.invoke('webview:hard-reload', webContentsId),
-  onNavigateBack: (callback) => ipcRenderer.on('navigate-back', callback),
-  onNavigateForward: (callback) => ipcRenderer.on('navigate-forward', callback),
+  onNavigateBack: (callback) => subscribe('navigate-back', callback),
+  onNavigateForward: (callback) => subscribe('navigate-forward', callback),
 
   // Split & PiP
-  onToggleSplit: (callback) => ipcRenderer.on('toggle-split', callback),
-  onTogglePip: (callback) => ipcRenderer.on('toggle-pip', callback),
+  onToggleSplit: (callback) => subscribe('toggle-split', callback),
+  onTogglePip: (callback) => subscribe('toggle-pip', callback),
   openPipWindow: (url) => ipcRenderer.invoke('open-pip-window', url),
   closePipWindow: () => ipcRenderer.invoke('close-pip-window'),
   isPipOpen: () => ipcRenderer.invoke('is-pip-open'),
 
   // Downloads (with progress tracking)
-  onTabCreateFromExternal: (cb) => ipcRenderer.on('tab:create-from-external', (_e, d) => cb(d)),
+  onTabCreateFromExternal: (cb) => subscribe('tab:create-from-external', cb),
 
   // Peek overlay (shift+click a link → floating preview)
-  onPeekOpen: (cb) => ipcRenderer.on('peek:open', (_e, d) => cb(d)),
+  onPeekOpen: (cb) => subscribe('peek:open', cb),
 
   // OAuth/login popup backdrop — the auth popup is a REAL (opener-connected)
   // child window dressed like Peek; main dims Vex behind it via these events,
   // and a backdrop click dismisses the frameless popup.
-  onOAuthPopupOpen: (cb) => ipcRenderer.on('oauth-popup:open', () => cb()),
-  onOAuthPopupClose: (cb) => ipcRenderer.on('oauth-popup:close', () => cb()),
+  onOAuthPopupOpen: (cb) => subscribe('oauth-popup:open', cb),
+  onOAuthPopupClose: (cb) => subscribe('oauth-popup:close', cb),
   dismissOAuthPopup: () => ipcRenderer.send('oauth-popup:dismiss'),
 
   // Generic main → renderer toast (e.g. Discord pop-out pin feedback).
-  onToast: (cb) => ipcRenderer.on('vex:toast', (_e, msg) => cb(msg)),
+  onToast: (cb) => subscribe('vex:toast', cb),
   // Fires once when a Discord stream pop-out window opens (discoverability hint).
-  onDiscordPopoutOpen: (cb) => ipcRenderer.on('vex:discord-popout-open', () => cb()),
+  onDiscordPopoutOpen: (cb) => subscribe('vex:discord-popout-open', cb),
 
   // RSS feeds (fetched in main to dodge CORS)
   rssFetch: (url) => ipcRenderer.invoke('rss:fetch', url),
@@ -125,9 +139,9 @@ contextBridge.exposeInMainWorld('vex', {
   // path points at the build's extension-chrome.zip or its repo/dist folder.
   installVencordLocal: (path) => ipcRenderer.invoke('discord:install-vencord-local', path),
   // Auto-configure sweep progress: { phase:'testing'|'done', label, i, total, ok, via, preset }.
-  onDiscordBypassProgress: (cb) => ipcRenderer.on('discord:bypass-progress', (_e, d) => cb(d)),
+  onDiscordBypassProgress: (cb) => subscribe('discord:bypass-progress', cb),
   // Screen-share source picker (Discord Go Live / Share Screen).
-  onScreenPickerOpen: (cb) => ipcRenderer.on('screen-picker:open', (_e, d) => cb(d)),
+  onScreenPickerOpen: (cb) => subscribe('screen-picker:open', cb),
   chooseScreenSource: (id, sourceId, opts) => ipcRenderer.invoke('screen-picker:choose', Object.assign({ id, sourceId }, opts || {})),
   // Roblox panel block-bypass (shares Discord's ByeDPI).
   setRobloxBypass: (on) => ipcRenderer.invoke('roblox:set-bypass', on),
@@ -163,40 +177,40 @@ contextBridge.exposeInMainWorld('vex', {
   totpDelete: (id) => ipcRenderer.invoke('totp:delete', id),
 
   // Permission prompts (geolocation, mic, camera, notifications, ...)
-  onPermissionRequest:  (cb) => ipcRenderer.on('permission:request', (_e, d) => cb(d)),
+  onPermissionRequest:  (cb) => subscribe('permission:request', cb),
   permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),
   permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
   permissionsList:      () => ipcRenderer.invoke('permissions:list'),
   permissionsRevoke:    (key) => ipcRenderer.invoke('permissions:revoke', key),
   permissionsClearAll:  () => ipcRenderer.invoke('permissions:clear-all'),
 
-  onDownloadStarted:  (cb) => ipcRenderer.on('download-started',  (_e, d) => cb(d)),
-  onDownloadProgress: (cb) => ipcRenderer.on('download-progress', (_e, d) => cb(d)),
-  onDownloadComplete: (cb) => ipcRenderer.on('download-complete', (_e, d) => cb(d)),
+  onDownloadStarted:  (cb) => subscribe('download-started', cb),
+  onDownloadProgress: (cb) => subscribe('download-progress', cb),
+  onDownloadComplete: (cb) => subscribe('download-complete', cb),
   downloadsOpenFile:     (p) => ipcRenderer.invoke('downloads:open-file', p),
   downloadsShowInFolder: (p) => ipcRenderer.invoke('downloads:show-in-folder', p),
   downloadsOpenFolder:   ()  => ipcRenderer.invoke('downloads:open-folder'),
 
   // Notes & Sessions shortcuts
-  onToggleNotes: (callback) => ipcRenderer.on('toggle-notes', callback),
-  onToggleSessions: (callback) => ipcRenderer.on('toggle-sessions', callback),
+  onToggleNotes: (callback) => subscribe('toggle-notes', callback),
+  onToggleSessions: (callback) => subscribe('toggle-sessions', callback),
 
   // Phase 4: History, Memory, Sleep, Restore
-  onReopenLastClosed: (callback) => ipcRenderer.on('reopen-last-closed', callback),
-  onToggleHistory: (callback) => ipcRenderer.on('toggle-history', callback),
-  onToggleHistoryAi: (callback) => ipcRenderer.on('toggle-history-ai', callback),
-  onToggleMemory: (callback) => ipcRenderer.on('toggle-memory', callback),
-  onSleepCurrentTab: (callback) => ipcRenderer.on('sleep-current-tab', callback),
-  onSaveSessionBeforeQuit: (callback) => ipcRenderer.on('save-session-before-quit', callback),
+  onReopenLastClosed: (callback) => subscribe('reopen-last-closed', callback),
+  onToggleHistory: (callback) => subscribe('toggle-history', callback),
+  onToggleHistoryAi: (callback) => subscribe('toggle-history-ai', callback),
+  onToggleMemory: (callback) => subscribe('toggle-memory', callback),
+  onSleepCurrentTab: (callback) => subscribe('sleep-current-tab', callback),
+  onSaveSessionBeforeQuit: (callback) => subscribe('save-session-before-quit', callback),
 
   // Phase 5
-  onToggleReadingMode: (callback) => ipcRenderer.on('toggle-reading-mode', callback),
-  onTakeScreenshot: (callback) => ipcRenderer.on('take-screenshot', callback),
+  onToggleReadingMode: (callback) => subscribe('toggle-reading-mode', callback),
+  onTakeScreenshot: (callback) => subscribe('take-screenshot', callback),
 
   // Phase 6: fullscreen, private, mute
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
-  onFullscreenChanged: (callback) => ipcRenderer.on('fullscreen-changed', (_, state) => callback(state)),
+  onFullscreenChanged: (callback) => subscribe('fullscreen-changed', callback),
   openPrivateWindow: () => ipcRenderer.invoke('open-private-window'),
   // New Identity: a throwaway isolated session (random consistent Chrome UA).
   createIdentity: () => ipcRenderer.invoke('identity:create'),
@@ -206,16 +220,16 @@ contextBridge.exposeInMainWorld('vex', {
   // Progress while Vex downloads + bootstraps its own Tor (no Tor Browser needed).
   // cb({ phase:'download'|'bootstrap', value, detail }). Returns an unsubscribe fn.
   onTorProgress: (cb) => { const h = (_e, p) => { try { cb(p); } catch {} }; ipcRenderer.on('tor:progress', h); return () => { try { ipcRenderer.removeListener('tor:progress', h); } catch {} }; },
-  onToggleMuteTab: (callback) => ipcRenderer.on('toggle-mute-tab', callback),
+  onToggleMuteTab: (callback) => subscribe('toggle-mute-tab', callback),
 
   // Tabs sidebar toggle
-  onToggleTabsSidebar: (callback) => ipcRenderer.on('toggle-tabs-sidebar', callback),
+  onToggleTabsSidebar: (callback) => subscribe('toggle-tabs-sidebar', callback),
 
   // Phase 8: Schedules
-  onToggleSchedules: (callback) => ipcRenderer.on('toggle-schedules', callback),
+  onToggleSchedules: (callback) => subscribe('toggle-schedules', callback),
 
   // Phase 7A: AI
-  onToggleAiPanel: (callback) => ipcRenderer.on('toggle-ai-panel', callback),
+  onToggleAiPanel: (callback) => subscribe('toggle-ai-panel', callback),
 
   // Phase 9: Updates
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
@@ -234,11 +248,11 @@ contextBridge.exposeInMainWorld('vex', {
   getCustomThemeImage: () => ipcRenderer.invoke('theme:get-custom-image'),
   setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, i) => cb(i)),
-  onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', cb),
-  onUpdateDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, p) => cb(p)),
-  onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_, i) => cb(i)),
-  onUpdateError: (cb) => ipcRenderer.on('update-error', (_, e) => cb(e)),
+  onUpdateAvailable: (cb) => subscribe('update-available', cb),
+  onUpdateNotAvailable: (cb) => subscribe('update-not-available', cb),
+  onUpdateDownloadProgress: (cb) => subscribe('update-download-progress', cb),
+  onUpdateDownloaded: (cb) => subscribe('update-downloaded', cb),
+  onUpdateError: (cb) => subscribe('update-error', cb),
 
   // Default browser. Attaches the renderer's handler and immediately flushes any
   // URLs that arrived (and were buffered) before this point — see the early
@@ -248,7 +262,7 @@ contextBridge.exposeInMainWorld('vex', {
     _openUrlCb = cb;
     while (_openUrlBuffer.length) {
       const url = _openUrlBuffer.shift();
-      try { cb(url); } catch (err) { console.error('[Vex URL] preload: onOpenUrl cb threw:', err && err.stack || err); }
+      try { cb(url); } catch { console.error('[Vex URL] URL handler failed'); }
     }
   },
   setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
@@ -289,7 +303,7 @@ contextBridge.exposeInMainWorld('vex', {
 
 contextBridge.exposeInMainWorld('vexDevTools', {
   // Renderer notifies main to toggle DevTools for a specific webContents
-  onToggleRequest: (cb) => ipcRenderer.on('devtools:toggle-request', () => cb()),
+  onToggleRequest: (cb) => subscribe('devtools:toggle-request', cb),
   // Renderer calls this to toggle DevTools on a specific tab (by webContentsId)
   toggleWebview: (webContentsId) => ipcRenderer.invoke('devtools:toggle-webview', webContentsId),
   // Open DevTools (detached) for a target webContents. Pass the URL as the
@@ -298,14 +312,14 @@ contextBridge.exposeInMainWorld('vexDevTools', {
   // failure case for Inspect Element on a freshly-attached <webview>).
   openForWebContents: (webContentsId, fallbackUrl) => ipcRenderer.invoke('devtools:open-for-webcontents', webContentsId, fallbackUrl),
   // Legacy callback support (kept for compatibility, but not used)
-  onToggle: (cb) => ipcRenderer.on('devtools:toggle', () => cb()),
+  onToggle: (cb) => subscribe('devtools:toggle', cb),
 });
 
 contextBridge.exposeInMainWorld('vexHid', {
   // WebHID device chooser. Main fires 'hid:select-request' when a site calls
   // navigator.hid.requestDevice(); the renderer shows the picker and replies
   // with the chosen deviceId (or '' to cancel) via 'hid:select-respond'.
-  onSelectRequest: (cb) => ipcRenderer.on('hid:select-request', (_e, d) => cb(d)),
+  onSelectRequest: (cb) => subscribe('hid:select-request', cb),
   rendererReady:   () => ipcRenderer.send('hid:renderer-ready'),
   respond:         (payload) => ipcRenderer.invoke('hid:select-respond', payload),
 });

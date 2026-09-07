@@ -26,7 +26,7 @@ function makeAutofill(readsFn) {
 }
 
 async function run(A, iterations = 32) {   // must exceed tryFill's poll-loop length
-  const loginWv = { isConnected: true };
+  const loginWv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/login' };
   const p = A.tryFill(loginWv, 'https://accounts.spotify.com/login');
   for (let k = 0; k < iterations; k++) await vi.advanceTimersByTimeAsync(3100);
   await p;
@@ -78,7 +78,7 @@ describe('EmailCodeAutofill._readInbox body fallback', () => {
   // A gmail webview stub: the rows script yields no code; the body script (only
   // reached in the hidden reader) yields a body carrying the code.
   const makeWv = (id) => ({
-    id,
+    id, getURL: () => 'https://mail.google.com/mail/u/0/#inbox',
     executeJavaScript: async (js) => {
       if (js.includes('Back to Inbox')) return 'Hi — your Spotify verification code is 246810. It expires soon.';
       return JSON.stringify({ loaded: true, rows: [{ t: 'Weekly newsletter — top stories', u: true }] });
@@ -106,7 +106,7 @@ describe('EmailCodeAutofill._restoreAutoWoken', () => {
   const fresh = () => Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill);
   function fakeTabs(activeId, tabs) {
     const slept = [];
-    global.window = { Tabs: { activeTabId: activeId, tabs, sleepTab: (id) => slept.push(id) } };
+    global.window = { TabManager: { activeTabId: activeId, tabs, sleepTab: (id) => slept.push(id) } };
     return slept;
   }
 

@@ -10,6 +10,13 @@
 // lands a few seconds after you request it. Runs AFTER the authenticator (TOTP)
 // autofill, so app-based 2FA still wins.
 const EmailCodeAutofill = {
+  _matchesProvider(provider, value) {
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && provider.host.test(url.href) &&
+        ({ gmail: ['mail.google.com'], outlook: ['outlook.live.com', 'outlook.office.com', 'outlook.office365.com'], proton: ['mail.proton.me'], yahoo: ['mail.yahoo.com'], icloud: ['www.icloud.com'] }[provider.id] || []).includes(url.hostname);
+    } catch { return false; }
+  },
   // Pull a verification code out of an email's visible text.
   _extractCode(text) {
     const s = String(text || '');
@@ -51,16 +58,17 @@ const EmailCodeAutofill = {
   // hibernator doesn't re-sleep it mid-poll. We never foreground it; _readInbox
   // reads textContent, which is populated even while hidden.
   _findMailWebview() {
+    if (globalThis.window?.VexTabPolicy?.isPrivateWindow) return null;
     const wvs = Array.from(document.querySelectorAll('webview'));
     for (const p of this._PROVIDERS) {
-      const live = wvs.find(w => p.host.test(w.getAttribute('src') || ''));
+      const live = wvs.find(w => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canReadWebview(w)) && this._matchesProvider(p, w.getURL?.() || w.getAttribute('src') || ''));
       if (live) return { wv: live, provider: p };
     }
     try {
-      const T = (typeof window !== 'undefined') && window.Tabs;
+      const T = (typeof window !== 'undefined') && window.TabManager;
       if (T && Array.isArray(T.tabs)) {
         for (const p of this._PROVIDERS) {
-          const tab = T.tabs.find(t => p.host.test(t.url || '') || p.host.test(t.originalUrl || ''));
+          const tab = T.tabs.find(t => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canPersist(t)) && this._matchesProvider(p, t.url || t.originalUrl || ''));
           if (!tab) continue;
           // If this tab was asleep/lazy, WE are waking it just to read a code —
           // remember that so we can put it back to sleep afterwards (see
@@ -102,6 +110,7 @@ const EmailCodeAutofill = {
   // been idle for a few minutes and no autofill is running. It's re-created in
   // milliseconds the next time a code is needed.
   _ensureHiddenGmail() {
+    if (globalThis.window?.VexTabPolicy?.isPrivateWindow) return null;
     this._readerLastUse = Date.now();
     this._armReaderCleanup();
     let wv = document.getElementById('vex-gmail-reader');
@@ -152,12 +161,17 @@ const EmailCodeAutofill = {
   // also puts the code in the row's subject/snippet, so the row text is enough.
   async _readInbox(mailWv, provider) {
     provider = provider || this._PROVIDERS[0];
+    const mailUrl = mailWv.getURL?.() || '';
+    const generation = mailWv._navigationGeneration;
+    const empty = { loaded: false, code: null, unread: false, strong: false };
+    if (!this._matchesProvider(provider, mailUrl) || (globalThis.window?.VexTabPolicy && !globalThis.window?.VexTabPolicy.canReadWebview(mailWv))) return empty;
     // Each row: t = collapsed text, u = unread (per the provider's isUnread test —
     // Gmail marks unread rows with the 'zE' class). Unread + verification wording
     // tells us a just-arrived code apart from an old, already-consumed one. If a
     // provider's unread test is unreliable it just yields false, and only the
     // fast "a newer code arrived" path is used (still correct).
     const js = `(function(){try{
+      if(location.href!==${JSON.stringify(mailUrl)})return JSON.stringify({loaded:false,rows:[]});
       var rows=Array.prototype.slice.call(document.querySelectorAll(${JSON.stringify(provider.rowSel)}));
       var out=[];
       for(var i=0;i<rows.length&&i<12;i++){var el=rows[i];out.push({t:(el.textContent||'').replace(/\\s+/g,' ').trim(), u:(function(){try{return !!(${provider.isUnread || 'false'});}catch(e){return false;}})()});}
@@ -165,6 +179,7 @@ const EmailCodeAutofill = {
     }catch(e){return JSON.stringify({loaded:false, rows:[]});}})()`;
     let data;
     try { data = JSON.parse(await mailWv.executeJavaScript(js)); } catch { return { loaded: false, code: null, unread: false, strong: false }; }
+    if (mailWv.getURL?.() !== mailUrl || mailWv._navigationGeneration !== generation) return empty;
     let code = null, unread = false, strong = false;
     for (const r of (data.rows || [])) {
       const c = this._extractCode(r.t);
@@ -195,13 +210,16 @@ const EmailCodeAutofill = {
   // user's foreground mail out from under them.
   async _refreshInbox(mailWv, provider) {
     try {
+      const url = mailWv.getURL?.() || '';
+      if (!this._matchesProvider(provider, url) || (globalThis.window?.VexTabPolicy && !globalThis.window?.VexTabPolicy.canReadWebview(mailWv))) return;
       const soft = `(function(){try{
+        if(location.href!==${JSON.stringify(url)})return 0;
         var b=document.querySelector('[aria-label="Refresh"],[data-tooltip="Refresh"],div.T-I.nu,button[aria-label*="Refresh"],button[title*="Refresh"]');
         if(b){b.click();return 1;} return 0;
       }catch(e){return 0;}})()`;
       let clicked = 0;
       try { clicked = await mailWv.executeJavaScript(soft); } catch {}
-      if (!clicked && (this._isHiddenReader(mailWv) || this._autoWoken)) {
+      if (!clicked && mailWv.getURL?.() === url && (this._isHiddenReader(mailWv) || this._autoWoken)) {
         try { mailWv.reload(); } catch {}
       }
     } catch {}
@@ -211,7 +229,10 @@ const EmailCodeAutofill = {
   // read its body text, then return to the inbox. Best-effort; returns a code or
   // null. Only ever called on the hidden reader (see _readInbox).
   async _readNewestUnreadBody(gmailWv) {
+    const generation = gmailWv._navigationGeneration;
+    if (!this._isHiddenReader(gmailWv) || !this._matchesProvider(this._PROVIDERS[0], gmailWv.getURL?.())) return null;
     const js = `(async function(){try{
+      if(location.origin!=='https://mail.google.com')return '';
       var re=/verification|verify|one[-\\s]?time|security code|login code|sign[-\\s]?in code|passcode|confirm(?:ation)? code|your (?:\\w+ )?code|code is|is your (?:\\w+ )?code/i;
       var rows=Array.prototype.slice.call(document.querySelectorAll('tr.zA.zE'));
       var row=null;
@@ -227,6 +248,7 @@ const EmailCodeAutofill = {
     }catch(e){return '';}})()`;
     let text = '';
     try { text = await gmailWv.executeJavaScript(js); } catch { return null; }
+    if (gmailWv._navigationGeneration !== generation || !this._matchesProvider(this._PROVIDERS[0], gmailWv.getURL?.())) return null;
     return this._extractCode(text);
   },
 
@@ -258,12 +280,13 @@ const EmailCodeAutofill = {
     try { return await loginWv.executeJavaScript(js); } catch { return false; }
   },
 
-  _injectCode(loginWv, code) {
+  _injectCode(loginWv, code, url = loginWv.getURL?.()) {
     const js = `(function(){try{
+      if(location.href!==${JSON.stringify(url)})return false;
       var CODE=${JSON.stringify(code)}; var D=CODE.split('');
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      function fire(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
-      function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}
+      function fire(el,val){try{if(location.href!==${JSON.stringify(url)}||!vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
+      function vis(el){var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&s.visibility!=='hidden'&&s.display!=='none'&&r.width>0&&r.height>0&&(!el.form||new URL(el.form.action,location.href).origin===location.origin);}
       function meta(el){return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}
       function isCode(el){var t=(el.type||'').toLowerCase();if(t==='password')return false;if(!(t===''||t==='text'||t==='tel'||t==='number'))return false;if(!vis(el))return false;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='one-time-code')return true;return /otp|2fa|one.?time|verification.?code|security.?code|passcode|confirm.?code|email.?code|enter.?code/.test(meta(el));}
       var all=Array.prototype.slice.call(document.querySelectorAll('input'));
@@ -303,8 +326,13 @@ const EmailCodeAutofill = {
   // first code to arrive is the one we want. Comparing values (not timestamps)
   // works even when both codes fall in the same Gmail minute.
   async tryFill(loginWv, url) {
+    if (this._running) return;
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
+      if (globalThis.window?.VexTabPolicy && !globalThis.window?.VexTabPolicy.canReadWebview(loginWv)) return;
+      const generation = loginWv._navigationGeneration;
+      const current = () => loginWv.isConnected !== false && loginWv.getURL?.() === url && loginWv._navigationGeneration === generation;
+      if (!current()) return;
       if (this._running) return;                                 // one poll at a time
       this._running = true;
       this._lastInboxRefresh = 0;                                // refresh throttle, per attempt
@@ -312,7 +340,7 @@ const EmailCodeAutofill = {
       let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
       let filled = false, sawMail = false, sawLoaded = false;
       for (let i = 0; i < 30; i++) {   // ~90s of polling, refreshing the inbox as it goes
-        if (loginWv.isConnected === false) break;
+        if (!current()) break;
         const hasField = await this._hasEmptyCodeField(loginWv);
         if (hasField) { sawField = true; plausible = true; }
         else if (!plausible) { plausible = await this._looksLikeCodePage(loginWv); }
@@ -323,6 +351,7 @@ const EmailCodeAutofill = {
           if (found && found.wv) {
             sawMail = true;
             const { loaded, code, unread, strong } = await this._readInbox(found.wv, found.provider);
+            if (!current()) break;
             if (loaded) {
               sawLoaded = true;
               if (!baselineSet) {
@@ -331,9 +360,9 @@ const EmailCodeAutofill = {
               } else if (code && code !== baseline) {
                 // A DIFFERENT (newer) code arrived after we started — this is the
                 // one THIS attempt triggered. Fill it (the fast, reliable path).
-                const ok = await this._injectCode(loginWv, code);
+                const ok = await this._injectCode(loginWv, code, url);
                 this._log(url, ok, 'new-code'); filled = true;
-                if (ok) { this._toast(); this._maybeAutoSubmit(loginWv); break; }
+                if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
               } else if (code && code === baseline && baselineStrong) {
                 // The code was already in the inbox when the page opened (so it
                 // became the baseline) — e.g. the mail synced a beat late, or the
@@ -349,9 +378,9 @@ const EmailCodeAutofill = {
                 const readyUnread = baselineUnread && unread && unreadStable >= 5;
                 const readyStrong = unreadStable >= 10;
                 if (readyUnread || readyStrong) {
-                  const ok = await this._injectCode(loginWv, code);
+                  const ok = await this._injectCode(loginWv, code, url);
                   this._log(url, ok, readyUnread ? 'unread-baseline' : 'strong-baseline'); filled = true;
-                  if (ok) { this._toast(); this._maybeAutoSubmit(loginWv); break; }
+                  if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
                 }
               }
               // Keep the inbox syncing so a freshly-sent code appears without the
@@ -396,7 +425,7 @@ const EmailCodeAutofill = {
     const id = this._autoWoken; this._autoWoken = null;
     if (!id) return;
     try {
-      const T = (typeof window !== 'undefined') && window.Tabs;
+      const T = (typeof window !== 'undefined') && window.TabManager;
       if (!T || !Array.isArray(T.tabs)) return;
       const tab = T.tabs.find(t => t.id === id);
       if (!tab || tab.id === T.activeTabId) return; // gone, or the user is looking at it now
@@ -431,20 +460,23 @@ const EmailCodeAutofill = {
   // is more annoying than a manual click. Prefers an explicit submit button near
   // the code field; falls back to pressing Enter in the focused field. Given a
   // short beat so the framework registers the filled value first.
-  _maybeAutoSubmit(loginWv) {
+  _maybeAutoSubmit(loginWv, url, generation) {
     try {
       if (localStorage.getItem('vex.emailCodeAutoSubmit') !== '1') return;
     } catch { return; }
     const js = `(function(){try{
+      if(location.href!==${JSON.stringify(url)})return false;
+      var field=document.activeElement;
+      if(!field||field.tagName!=='INPUT'||!field.value||!field.form||new URL(field.form.action,location.href).origin!==location.origin)return false;
       function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}
       var re=/verify|confirm|continue|submit|next|log ?in|sign ?in|done/i;
-      var btns=Array.prototype.slice.call(document.querySelectorAll('button,[type="submit"],[role="button"]'));
-      for(var i=0;i<btns.length;i++){var b=btns[i];if(!vis(b)||b.disabled)continue;var tx=((b.innerText||b.value||b.getAttribute('aria-label')||'')).trim();if(re.test(tx)){b.click();return true;}}
+      var btns=Array.prototype.slice.call(field.form.querySelectorAll('button,[type="submit"]'));
+      for(var i=0;i<btns.length;i++){var b=btns[i];if(!vis(b)||b.disabled||(b.formAction&&new URL(b.formAction,location.href).origin!==location.origin))continue;var tx=((b.innerText||b.value||b.getAttribute('aria-label')||'')).trim();if(re.test(tx)){b.click();return true;}}
       var a=document.activeElement; if(a&&a.form){try{a.form.requestSubmit?a.form.requestSubmit():a.form.submit();return true;}catch(e){}}
       if(a){a.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true}));a.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',keyCode:13,which:13,bubbles:true}));return true;}
       return false;
     }catch(e){return false;}})()`;
-    setTimeout(() => { try { loginWv.executeJavaScript(js).catch(() => {}); } catch {} }, 350);
+    setTimeout(() => { try { if(loginWv.getURL?.()!==url||loginWv._navigationGeneration!==generation)return;loginWv.executeJavaScript(js).catch(() => {}); } catch {} }, 350);
   },
 };
 

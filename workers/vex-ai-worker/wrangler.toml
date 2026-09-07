@@ -2,15 +2,19 @@ name = "vex-ai"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
-# Rate-limit store. The worker proxies a paid model with the project's
-# OpenRouter key, so per-IP throttling is required to stop credit drain.
-#
-# Provision once, then paste the printed id below:
+# Legacy KV binding. Current quota writes use VEX_STATE durable storage.
+# For a new account, remove this unused legacy block or provision your own ID:
 #   wrangler kv namespace create VEX_AI_KV
 #
-# Until the id is filled in, `wrangler deploy` will fail on the placeholder.
-# If you need to deploy before provisioning, delete this block — the worker
-# fails open (no limit) when the binding is absent.
+# VEX_STATE below is mandatory: missing durable quotas return HTTP 503.
 kv_namespaces = [
   { binding = "VEX_AI_KV", id = "a3f1642d5b874cadad63fc97e6bdd3a6" }
 ]
+
+[[durable_objects.bindings]]
+name = "VEX_STATE"
+class_name = "VexAIState"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["VexAIState"]

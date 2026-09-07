@@ -16,6 +16,8 @@ const PersistentStorage = {
   _readyPromise: null,
   _queue: new Map(),
   _timer: null,
+  _versions: new Map(),
+  _failures: 0,
 
   init() {
     if (this._readyPromise) return this._readyPromise;
@@ -37,6 +39,7 @@ const PersistentStorage = {
           // File storage is authoritative — hydrate localStorage from it.
           // Values are always stored as raw strings to preserve exact round-trip.
           for (const [k, v] of Object.entries(fileData)) {
+            if (k === '__vexPreferenceStore' || this._queue.has(k)) continue;
             try {
               const str = typeof v === 'string' ? v : JSON.stringify(v);
               if (localStorage.getItem(k) !== str) {
@@ -44,12 +47,12 @@ const PersistentStorage = {
               }
             } catch {}
           }
-          // Also back-fill any vex.* keys only present in localStorage (e.g. first-run
-          // writes that happened before init() completed).
-          for (let i = 0; i < localStorage.length; i++) {
+          // Remove stale Chromium copies of deleted preferences. New writes
+          // made during hydration are already queued and must be preserved.
+          for (let i = localStorage.length - 1; i >= 0; i--) {
             const k = localStorage.key(i);
             if (!k || !(k.startsWith('vex.') || k === 'vex-theme' || k.startsWith('vex_'))) continue;
-            if (!(k in fileData)) this._enqueue('set', k, localStorage.getItem(k));
+            if (!Object.hasOwn(fileData, k) && !this._queue.has(k)) _origRemoveItem.call(localStorage, k);
           }
         }
 
@@ -64,58 +67,127 @@ const PersistentStorage = {
   },
 
   _enqueue(op, key, value) {
-    this._queue.set(key, { op, value });
+    const version = (this._versions.get(key) || 0) + 1;
+    this._versions.set(key, version);
+    this._queue.set(key, { op, value, version });
     if (this._timer) return;
-    this._timer = setTimeout(() => this._flush(), 300);
+    this._timer = setTimeout(() => this._flush().catch(() => {}), 300);
   },
 
   async _flush() {
+    if (this._timer) clearTimeout(this._timer);
     this._timer = null;
     if (!window.vex || !window.vex.persistSet) return;
     const batch = Array.from(this._queue.entries());
     this._queue.clear();
-    for (const [key, { op, value }] of batch) {
+    // Keep batches in invocation order even if an earlier IPC is slow.
+    const previous = this._flushPending || Promise.resolve();
+    this._flushPending = previous.catch(() => {}).then(async () => {
+    let failure = null;
+    for (const [key, { op, value, version }] of batch) {
       try {
         if (op === 'set') {
           // Store as raw string — exact byte-for-byte round-trip through the file.
-          await window.vex.persistSet(key, typeof value === 'string' ? value : String(value));
+          if (await window.vex.persistSet(key, typeof value === 'string' ? value : String(value)) === false) throw new Error('Save was not acknowledged');
         } else {
-          await window.vex.persistDelete(key);
+          if (await window.vex.persistDelete(key) === false) throw new Error('Delete was not acknowledged');
         }
-      } catch (e) { console.error('[PersistentStorage] flush err', key, e); }
+      } catch (e) {
+        failure = e;
+        if (this._versions.get(key) === version) this._queue.set(key, { op, value, version });
+      }
     }
+    if (failure) {
+      window.dispatchEvent(new CustomEvent('vex-storage-status', { detail: { source: 'preferences', ok: false, message: 'Changes could not be saved. Retry before closing.' } }));
+      if (++this._failures <= 3 && !this._timer) this._timer = setTimeout(() => this._flush().catch(() => {}), this._failures * 1000);
+      throw failure;
+    }
+    this._failures = 0;
+    window.dispatchEvent(new CustomEvent('vex-storage-status', { detail: { source: 'preferences', ok: true } }));
+    });
+    return this._flushPending;
   }
 };
 
 // Shim localStorage.setItem / removeItem so every existing call site is mirrored
 // to the persistent file. Reads stay synchronous against the hydrated localStorage.
-const _origSetItem = localStorage.setItem;
-const _origRemoveItem = localStorage.removeItem;
-localStorage.setItem = function (key, value) {
+// Storage instances have a named-property setter: assigning setItem on the
+// instance stores a STRING under that key instead of replacing the method.
+// Patch the prototype and only mirror calls made on localStorage.
+const _storageMethods = typeof Storage !== 'undefined' && localStorage instanceof Storage
+  ? Storage.prototype : localStorage;
+const _storageOriginalsKey = Symbol.for('vex.storage.originals');
+const _storageOriginals = _storageMethods[_storageOriginalsKey] || {
+  setItem: _storageMethods.setItem, removeItem: _storageMethods.removeItem, clear: _storageMethods.clear
+};
+if (!_storageMethods[_storageOriginalsKey]) {
+  Object.defineProperty(_storageMethods, _storageOriginalsKey, { value: _storageOriginals });
+}
+const _origSetItem = _storageOriginals.setItem;
+const _origRemoveItem = _storageOriginals.removeItem;
+_storageMethods.setItem = function (key, value) {
   _origSetItem.call(this, key, value);
-  if (typeof key === 'string' && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'))) {
-    PersistentStorage._enqueue('set', key, value);
+  key = String(key);
+  if (this === localStorage && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'))) {
+    PersistentStorage._enqueue('set', key, this.getItem(key));
   }
 };
-localStorage.removeItem = function (key) {
+_storageMethods.removeItem = function (key) {
   _origRemoveItem.call(this, key);
-  if (typeof key === 'string' && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'))) {
+  key = String(key);
+  if (this === localStorage && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'))) {
     PersistentStorage._enqueue('delete', key, null);
+  }
+};
+_storageMethods.clear = function () {
+  const keys = this === localStorage ? Object.keys(this) : [];
+  _storageOriginals.clear.call(this);
+  for (const key of keys) {
+    if (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_')) {
+      PersistentStorage._enqueue('delete', key, null);
+    }
   }
 };
 
 window.PersistentStorage = PersistentStorage;
+window.vex?.onFlushRequested?.(async () => {
+  if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.saveCurrentState();
+  if (typeof TabManager !== 'undefined') await TabManager.persistTabs();
+  await PersistentStorage._flush();
+  await VexStorage.retryFailed();
+  await window.vex.flushStorage?.();
+});
 
 const VexStorage = {
+  _failed: new Map(),
+  _versions: new Map(),
   async save(key, data) {
-    return await window.vex.saveData(key, data);
+    const version = (this._versions.get(key) || 0) + 1;
+    this._versions.set(key, version);
+    try {
+      const result = await window.vex.saveData(key, data);
+      if (result === false) throw new Error('Save was not acknowledged');
+      if (this._versions.get(key) === version) {
+        this._failed.delete(key);
+        window.dispatchEvent(new CustomEvent('vex-storage-status', { detail: { source: key, ok: true } }));
+      }
+      return result;
+    } catch (error) {
+      if (this._versions.get(key) === version) {
+        this._failed.set(key, structuredClone(data));
+        window.dispatchEvent(new CustomEvent('vex-storage-status', { detail: { source: key, ok: false, message: 'Could not save ' + key } }));
+      }
+      throw error;
+    }
   },
 
+  async retryFailed() { for (const [key, value] of [...this._failed]) await this.save(key, value); },
   async load(key) {
     return await window.vex.loadData(key);
   },
 
   async saveTabs(tabs) {
+    if (window.VexTabPolicy) return this.save('tabs', window.VexTabPolicy.snapshot(tabs));
     const serialized = tabs
       // Ephemeral tabs (Tor 🧅, off-the-record) live in an in-memory partition
       // that's wiped on close — NEVER persist them. Restoring one would resurrect
@@ -125,6 +197,7 @@ const VexStorage = {
       .filter(t => !(t.partition && !String(t.partition).startsWith('persist:')))
       .map(t => ({
       id: t.id,
+      partition: t.partition || null,
       url: t.url,
       title: t.title,
       // Persist the favicon so lazily-restored tabs show their icon before
@@ -180,6 +253,15 @@ const VexStorage = {
   },
 
   async addHistory(entry) {
+    if (window.vex.addHistory) return window.vex.addHistory(entry);
+    // Serialize read-modify-write operations: simultaneous tab loads must not
+    // both read the same history and overwrite one another's new entry.
+    const next = (this._historyWrite || Promise.resolve()).then(() => this._addHistory(entry));
+    this._historyWrite = next.catch(() => {});
+    return next;
+  },
+
+  async _addHistory(entry) {
     const history = await this.loadHistory();
     history.unshift({
       url: entry.url,

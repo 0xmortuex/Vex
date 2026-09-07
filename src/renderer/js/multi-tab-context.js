@@ -2,6 +2,7 @@
 
 const MultiTabContext = {
   async extractContextFromTabs(tabs, opts = {}) {
+    tabs = tabs.filter(tab => !window.VexTabPolicy || window.VexTabPolicy.canPersist(tab));
     const maxPerTab = opts.maxCharsPerTab || 8000;
     const totalBudget = 60000;
     const perTabBudget = Math.min(maxPerTab, Math.floor(totalBudget / Math.max(tabs.length, 1)));

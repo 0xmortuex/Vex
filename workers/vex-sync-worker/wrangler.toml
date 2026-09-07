@@ -2,12 +2,21 @@ name = "vex-sync"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
-# Two KV namespaces back end-to-end-encrypted sync + email-code auth.
-# Provision each once, then paste the printed ids below:
+# Legacy namespaces are read during migration to VEX_STATE durable storage.
+# Existing deployments must retain their own original IDs. New deployments may
+# remove this block, or provision their own namespaces:
 #   wrangler kv namespace create VEX_SYNC_KV
 #   wrangler kv namespace create VEX_AUTH_KV
-# See SELF_HOSTING.md. (Optional email delivery: wrangler secret put RESEND_API_KEY)
+# Production email delivery requires RESEND_API_KEY; see SELF_HOSTING.md.
 kv_namespaces = [
   { binding = "VEX_SYNC_KV", id = "40c0bad652014244a39befef24c28b32" },
   { binding = "VEX_AUTH_KV", id = "2ad5d370a6ad477ab1e95285f5fc671d" }
 ]
+
+[[durable_objects.bindings]]
+name = "VEX_STATE"
+class_name = "VexSyncState"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["VexSyncState"]

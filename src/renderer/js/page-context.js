@@ -3,8 +3,11 @@
 const PageContext = {
   async extractPageContext(webview) {
     if (!webview) return null;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return null;
     try {
-      return await webview.executeJavaScript(`
+      const before = webview.getURL?.();
+      const generation = webview._navigationGeneration;
+      const result = await webview.executeJavaScript(`
         (() => {
           const clone = document.body.cloneNode(true);
           clone.querySelectorAll('script, style, noscript, iframe, svg').forEach(el => el.remove());
@@ -31,6 +34,9 @@ const PageContext = {
           };
         })()
       `);
+      if (before && (result?.url !== before || webview.getURL?.() !== before)) return null;
+      if (generation !== webview._navigationGeneration) return null;
+      return result;
     } catch (err) {
       console.error('Page context extraction failed:', err);
       return { url: '', title: '', text: '', description: '', headings: [], language: 'unknown', wordCount: 0 };
@@ -39,8 +45,11 @@ const PageContext = {
 
   async extractSelectedText(webview) {
     if (!webview) return null;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return null;
     try {
-      return await webview.executeJavaScript('window.getSelection().toString()') || null;
+      const before = webview.getURL?.(), generation = webview._navigationGeneration;
+      const text = await webview.executeJavaScript('window.getSelection().toString()');
+      return before === webview.getURL?.() && generation === webview._navigationGeneration ? text || null : null;
     } catch { return null; }
   }
 };

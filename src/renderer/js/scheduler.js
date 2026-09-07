@@ -13,17 +13,24 @@ const Scheduler = {
   HISTORY_KEY: 'vex.scheduleHistory',
   _interval: null,
   _running: new Set(),
+  _controllers: new Map(),
+  _startup: null,
 
   start() {
+    if (window.VexTabPolicy?.isPrivateWindow) return;
     if (this._interval) return;
     this._interval = setInterval(() => this._checkDueTasks(), 60000);
-    setTimeout(() => this._checkDueTasks(), 5000); // Check shortly after startup
+    this._startup = setTimeout(() => { this._startup = null; this._checkDueTasks(); }, 5000);
     console.log('[Scheduler] Started');
   },
 
   stop() {
     if (this._interval) { clearInterval(this._interval); this._interval = null; }
+    clearTimeout(this._startup); this._startup = null;
+    for (const controller of this._controllers.values()) controller.abort(new Error('Scheduler stopped'));
   },
+
+  cancelTask(id) { this._controllers.get(id)?.abort(new Error('Task cancelled')); },
 
   getAllTasks() {
     try { return JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]'); } catch { return []; }
@@ -141,9 +148,14 @@ const Scheduler = {
   },
 
   async runTask(task, manual = false) {
+    if (window.VexTabPolicy?.isPrivateWindow) throw new Error('Scheduled tasks are disabled in private windows');
     if (this._running.has(task.id)) return;
-    if (this._running.size >= 3) { window.showToast?.('Max 3 tasks running simultaneously'); return; }
+    if (this._running.size >= 1) { window.showToast?.('Another scheduled task is running'); return; }
     this._running.add(task.id);
+    const controller = new AbortController();
+    this._controllers.set(task.id, controller);
+    const timeout = setTimeout(() => controller.abort(new Error('Scheduled task exceeded ten minutes')), 10 * 60 * 1000);
+    let taskWebview, onClosed;
 
     const run = {
       id: 'run_' + Date.now(),
@@ -160,15 +172,19 @@ const Scheduler = {
     try {
       window.showToast?.((manual ? 'Running' : 'Scheduled') + ': ' + task.name);
 
-      // Open starting URL if specified
-      if (task.startingUrl) {
-        TabManager.createTab(task.startingUrl, true);
-        await new Promise(r => setTimeout(r, 3000)); // Wait for page load
-      }
+      // A run owns one background tab for its entire lifetime.
+      const startingUrl = task.startingUrl || 'about:blank';
+      if (startingUrl !== 'about:blank' && !/^https?:$/.test(new URL(startingUrl).protocol)) throw new Error('Scheduled tasks require a web URL');
+      const taskTab = TabManager.createTab(startingUrl, false);
+      taskWebview = WebviewManager.webviews.get(taskTab.id);
+      if (!taskWebview) throw new Error('Could not create scheduled tab');
+      onClosed = () => controller.abort(new Error('Scheduled tab was closed'));
+      taskWebview.addEventListener('vex-disposed', onClosed, { once: true });
+      await window.VexLifecycle.ready(taskWebview, controller.signal);
 
       // Run agent headless
-      if (typeof AgentLoop?.startHeadless === 'function') {
-        const result = await AgentLoop.startHeadless(task.prompt, 'auto', { maxIterations: task.maxIterations || 15 });
+      if (typeof AgentLoop !== 'undefined' && typeof AgentLoop.startHeadless === 'function') {
+        const result = await window.VexLifecycle.run(() => AgentLoop.startHeadless(task.prompt, 'auto', { maxIterations: task.maxIterations || 15, webview: taskWebview, signal: controller.signal }), { signal: controller.signal, timeout: 10 * 60 * 1000 });
         run.success = true;
         run.summary = result.summary || 'Task completed';
       } else {
@@ -184,6 +200,11 @@ const Scheduler = {
       if (task.notifyOnFail) {
         this._notify('Task failed: ' + task.name, err.message);
       }
+    } finally {
+      clearTimeout(timeout);
+      if (onClosed) taskWebview.removeEventListener('vex-disposed', onClosed);
+      this._controllers.delete(task.id);
+      this._running.delete(task.id);
     }
 
     run.finishedAt = new Date().toISOString();

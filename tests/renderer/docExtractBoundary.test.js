@@ -1,0 +1,28 @@
+// @vitest-environment jsdom
+import { afterEach, expect, it, vi } from 'vitest';
+import { DocExtract } from '../../src/renderer/js/doc-extract.js';
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); delete window.VexTabPolicy; });
+function source() {
+  let url = 'https://docs.google.com/document/d/example/edit';
+  const wv = { capturePage: vi.fn(), getURL: () => url, getAttribute: () => 'persist:work', _navigationGeneration: 1 };
+  vi.stubGlobal('WebviewManager', { getActiveWebview: () => wv });
+  vi.stubGlobal('TabManager', { getActiveTab: () => ({ url }) });
+  return { wv, navigate: () => { url = 'https://other.test'; wv._navigationGeneration++; } };
+}
+it('extracts Google documents using the source account partition', async () => {
+  source();
+  const load = vi.spyOn(DocExtract, '_viaHiddenWebview').mockResolvedValue('Document text');
+  const show = vi.spyOn(DocExtract, '_showResult').mockImplementation(() => {});
+  await DocExtract.run();
+  expect(load).toHaveBeenCalledWith('https://docs.google.com/document/d/example/mobilebasic', 'persist:work');
+  expect(show).toHaveBeenCalledWith('Document text', 'Google Doc (real text)');
+});
+it('discards a document result after the source navigates', async () => {
+  const { navigate } = source();
+  vi.spyOn(DocExtract, '_viaHiddenWebview').mockImplementation(async () => { navigate(); return 'Previous document'; });
+  const show = vi.spyOn(DocExtract, '_showResult').mockImplementation(() => {});
+  const ocr = vi.spyOn(DocExtract, '_ocr').mockResolvedValue();
+  await DocExtract.run();
+  expect(show).not.toHaveBeenCalled();
+  expect(ocr).not.toHaveBeenCalled();
+});

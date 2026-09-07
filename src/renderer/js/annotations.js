@@ -16,9 +16,16 @@ const Annotations = {
 
   init() {
     try { const s = JSON.parse(localStorage.getItem(this.KEY) || '{}'); if (s && typeof s === 'object') this.store = s; } catch { this.store = {}; }
+    this._baseline = window.CollectionStore.snapshotMap(this.store);
     this._badge();
   },
-  save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.store)); } catch {} this._badge(); },
+  // Delta-merged per page so a second window's highlights are not erased by our
+  // in-memory snapshot (see collection-store.js).
+  save() {
+    this.store = window.CollectionStore.saveMap(this.KEY, this._baseline, this.store);
+    this._baseline = window.CollectionStore.snapshotMap(this.store);
+    this._badge();
+  },
 
   _key(url) { try { const u = new URL(url); return (u.origin + u.pathname).replace(/\/$/, ''); } catch { return url || ''; } },
   forUrl(url) { return this.store[this._key(url)] || []; },
@@ -26,10 +33,12 @@ const Annotations = {
 
   // --- Apply all stored highlights for a page (called on dom-ready) ---
   applyTo(webview, url) {
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
     const list = this.forUrl(url);
     if (!list.length) return;
     const data = list.map(h => ({ id: h.id, text: h.text, color: this.COLORS[h.color] || this.COLORS.yellow, note: h.note || '' }));
     const js = `(function(){try{
+      if(location.href!==${JSON.stringify(url)})return;
       var hs=${JSON.stringify(data)};
       function wrap(node,start,len,h){
         var rng=document.createRange();rng.setStart(node,start);rng.setEnd(node,start+len);
@@ -64,9 +73,13 @@ const Annotations = {
     const wv = WebviewManager.getActiveWebview();
     const t = TabManager.getActiveTab();
     if (!wv || !t || !t.url) { window.showToast?.('Open a page first'); return; }
+    const url = wv.getURL?.() || t.url;
+    const generation = wv._navigationGeneration;
+    const persist = !window.VexTabPolicy || window.VexTabPolicy.canReadWebview(wv);
     const id = 'hl' + Date.now().toString(36) + Math.floor(performance.now() % 1000);
     const hex = this.COLORS[color];
     const js = `(function(){try{
+      if(location.href!==${JSON.stringify(url)})return '';
       var s=getSelection();if(!s||s.isCollapsed||!s.rangeCount)return '';
       var rng=s.getRangeAt(0);var text=s.toString();if(!text.trim())return '';
       var m=document.createElement('mark');m.className='vexhl';m.setAttribute('data-vexhl',${JSON.stringify(id)});
@@ -76,8 +89,10 @@ const Annotations = {
     }catch(e){return ''}})();`;
     let text = '';
     try { text = await wv.executeJavaScript(js); } catch {}
+    if (wv._navigationGeneration !== generation || (wv.getURL && wv.getURL() !== url)) return;
     if (!text) { window.showToast?.('Select some text first'); return; }
-    const k = this._key(t.url);
+    if (!persist) { window.showToast?.('Highlighted for this private page only'); return; }
+    const k = this._key(url);
     if (!this.store[k]) this.store[k] = [];
     this.store[k].push({ id, text, color, note: '', at: Date.now(), title: t.title || t.url });
     this.save();
@@ -90,7 +105,7 @@ const Annotations = {
     const wv = WebviewManager.getActiveWebview();
     const t = TabManager.getActiveTab();
     if (wv && t && t.url === url) {
-      try { await wv.executeJavaScript(`(function(){var m=document.querySelector('mark.vexhl[data-vexhl=${JSON.stringify(id)}]');if(m){var p=m.parentNode;while(m.firstChild)p.insertBefore(m.firstChild,m);p.removeChild(m);p.normalize&&p.normalize();}})();`); } catch {}
+      try { await wv.executeJavaScript(`(function(){if(location.href!==${JSON.stringify(url)})return;var id=${JSON.stringify(id)};var m=Array.from(document.querySelectorAll('mark.vexhl')).find(el=>el.getAttribute('data-vexhl')===id);if(m){var p=m.parentNode;while(m.firstChild)p.insertBefore(m.firstChild,m);p.removeChild(m);p.normalize&&p.normalize();}})();`); } catch {}
     }
   },
 
@@ -136,7 +151,7 @@ const Annotations = {
       let host = k; try { host = new URL(list[0].url || k).hostname.replace(/^www\./, ''); } catch { try { host = new URL(k).hostname.replace(/^www\./, ''); } catch {} }
       const h = document.createElement('div');
       h.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 6px 4px;cursor:pointer';
-      h.innerHTML = `<img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:15px;height:15px;border-radius:3px" onerror="this.style.visibility='hidden'"><div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div><span style="font-size:10.5px;color:var(--text-muted)">${list.length}</span>`;
+      h.innerHTML = `<img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:15px;height:15px;border-radius:3px" data-image-fallback="hide"><div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div><span style="font-size:10.5px;color:var(--text-muted)">${list.length}</span>`;
       h.addEventListener('click', () => { SidebarManager.hideActivePanel?.(); TabManager.createTab(k, true); });
       body.appendChild(h);
       list.forEach(a => {

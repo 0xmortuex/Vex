@@ -9,6 +9,7 @@ dist/
 .idea/
 
 # Local scratch / throwaway harnesses — never part of a release
+scratchpad/
 tmp_*.js
 dist-build.log
 test-output/
@@ -20,6 +21,11 @@ Vex.bat
 Vex.vbs
 launch-vex.vbs
 create-shortcut.ps1
+# Vendored third-party runtimes (~50MB) copied out of node_modules by
+# `npm run build:vendor`, which prestart/prepack/predist already run. Build
+# output, not source - the app boots without it and packaging regenerates it.
+src/renderer/vendor/runtime/
+
 # Icon build intermediates (regenerated from assets/icon.svg by `npm run build-icons`)
 assets/icon-source.png
 assets/icons/

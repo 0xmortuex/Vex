@@ -10,6 +10,16 @@
 const PasswordVault = {
   NEVER_KEY: 'vex.pwNever',
 
+  async _copyPassword(password) {
+    await navigator.clipboard.writeText(password);
+    window.showToast?.('Password copied — clears in 30s if unchanged');
+    setTimeout(async () => {
+      try {
+        if (await navigator.clipboard.readText() === password) await navigator.clipboard.writeText('');
+      } catch { /* Clipboard permission can expire after the user leaves Vex. */ }
+    }, 30000);
+  },
+
   _never() { try { return JSON.parse(localStorage.getItem(this.NEVER_KEY) || '[]'); } catch { return []; } },
   _addNever(host) { const n = this._never(); if (!n.includes(host)) { n.push(host); try { localStorage.setItem(this.NEVER_KEY, JSON.stringify(n)); } catch {} } },
 
@@ -29,14 +39,18 @@ const PasswordVault = {
 
   attach(webview) {
     webview.addEventListener('ipc-message', async (e) => {
+      if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+      let actualHost;
+      try { const current = new URL(webview.getURL()); if (current.protocol !== 'https:') return; actualHost = current.hostname; } catch { return; }
       // Passwordless: remember the email the user typed on a login page.
       if (e.channel === 'vex-login-email') {
         const d = (e.args && e.args[0]) || {};
-        this._rememberEmail(d.host, d.email);
+        if (d.host === actualHost) this._rememberEmail(actualHost, d.email);
         return;
       }
       if (e.channel !== 'vex-cred-submit') return;
       const data = (e.args && e.args[0]) || {};
+      if (data.host !== actualHost) return;
       if (!data.host || !data.username || !data.password) return;
       if (this._never().includes(data.host)) return;
       try {
@@ -77,13 +91,23 @@ const PasswordVault = {
   },
 
   async autofill(webview, url) {
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    const generation = webview._navigationGeneration;
     let host = '';
     try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { return; }
     if (!host || !/^https:/i.test(url)) return;
     let creds = [];
     try { creds = await window.vex.vaultGet(host); } catch { return; }
-    if (!creds || !creds.length) { this._autofillEmailOnly(webview, host); return; }
-    const c = creds[0];
+    if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
+    if (!creds || !creds.length) { this._autofillEmailOnly(webview, host, url); return; }
+    let c = creds[0];
+    if (creds.length > 1) {
+      if (!window.vexPrompt) return;
+      const selected = await window.vexPrompt({ title: 'Choose a saved account', message: creds.map((entry, i) => `${i + 1}. ${entry.username || '(no username)'}`).join('\n'), label: 'Account number', value: '' });
+      const index = Number(selected) - 1;
+      if (selected === null || !Number.isInteger(index) || index < 0 || index >= creds.length) return;
+      c = creds[index];
+    }
     try { window.AutofillLog?.record('password', url, true, c.username); } catch {}
     // Fills on load AND on focus (click-to-fill): clicking an empty email or
     // password field re-fills the saved login, which also covers multi-step
@@ -92,10 +116,11 @@ const PasswordVault = {
     // native value setter so React/Vue controlled inputs actually register the
     // change (plain el.value is ignored by their synthetic event system).
     const js = `(function(){try{
+      if(location.origin!==${JSON.stringify(new URL(url).origin)})return;
       var U=${JSON.stringify(c.username)},P=${JSON.stringify(c.password)};
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      var fire=function(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
-      function visible(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}}
+      var fire=function(el,val){try{if(!visible(el)||el.disabled||el.readOnly)return;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+      function visible(el){try{var r=el.getBoundingClientRect();var s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
       // Search / combobox / chat inputs are NOT login fields. This is what caused
       // the bug: the email got typed into Discord's "Find or start a conversation",
@@ -108,7 +133,7 @@ const PasswordVault = {
       // Only fill the username when this is really a login: a password field is
       // present, OR the field itself carries a strong login signal (covers
       // email-first 2-step logins). Never fill a lone search box.
-      function fill(force){var pw=document.querySelector('input[type=password]');var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value))fire(user,U);if(pw&&(force||!pw.value))fire(pw,P);}
+      function fill(force){if(location.href!==${JSON.stringify(url)})return;var pw=Array.from(document.querySelectorAll('input[type=password]')).find(visible);var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value))fire(user,U);if(pw&&(force||!pw.value))fire(pw,P);}
       fill(false);
       if(!window.__vexPwFocusWired){window.__vexPwFocusWired=true;
         document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT'||el.value)return;var t=(el.type||'').toLowerCase();if(t==='password'||(looksLikeUser(el)&&(loginSignal(el)||document.querySelector('input[type=password]')))){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
@@ -120,14 +145,17 @@ const PasswordVault = {
   // No saved credential for this host, but we remembered the email used here
   // (passwordless login). Pre-fill ONLY a genuine login email/username field —
   // never a password, never a search box — on load and on click-to-fill.
-  _autofillEmailOnly(webview, host) {
+  _autofillEmailOnly(webview, host, url) {
+    if (!url) { try { url = webview.getURL(); } catch { return; } }
+    if (!url || new URL(url).hostname !== host) return;
     const email = this._rememberedEmail(host);
     if (!email) return;
     const js = `(function(){try{
+      if(location.href!==${JSON.stringify(url)})return;
       var U=${JSON.stringify(email)};
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      var fire=function(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
-      function visible(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}}
+      var fire=function(el,val){try{if(location.href!==${JSON.stringify(url)}||!visible(el)||el.disabled||el.readOnly)return;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+      function visible(el){try{var r=el.getBoundingClientRect();var s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
       function isSearchy(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;if(el.getAttribute('aria-autocomplete'))return true;return /search|find|filter|query|recipient|channel|message|mention|invite|\\brole\\b|emoji|gif|jump to/.test(meta(el));}
       function loginSignal(el){var t=(el.type||'').toLowerCase();if(t==='email')return true;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='username'||ac==='email')return true;return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|phone number|account name/.test(meta(el));}
@@ -156,7 +184,7 @@ const PasswordVault = {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)';
       row.innerHTML = `
-        <img src="https://${encodeURIComponent(entry.host)}/favicon.ico" style="width:18px;height:18px;border-radius:4px" onerror="this.style.visibility='hidden'">
+        <img src="https://${encodeURIComponent(entry.host)}/favicon.ico" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">
         <div style="flex:1;min-width:0">
           <div style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(entry.host)}</div>
           <div style="font-size:11.5px;color:var(--text-muted)">${esc(entry.username)}</div>
@@ -167,7 +195,7 @@ const PasswordVault = {
         try {
           const full = await window.vex.vaultGet(entry.host);
           const m = (full || []).find(x => x.username === entry.username);
-          if (m) { await navigator.clipboard.writeText(m.password); window.showToast?.('Password copied — clipboard clears in 30s'); setTimeout(() => navigator.clipboard.writeText('').catch(() => {}), 30000); }
+          if (m) await this._copyPassword(m.password);
         } catch {}
       });
       row.querySelector('[data-del]').addEventListener('click', async () => {

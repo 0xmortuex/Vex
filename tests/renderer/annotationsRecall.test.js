@@ -7,6 +7,8 @@
 // methods (applyTo/highlight/renderPanel) are exercised by the app at runtime.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+// annotations.js resolves window.CollectionStore, which index.html loads first.
+import '../../src/renderer/js/collection-store.js';
 
 const { Annotations } = require('../../src/renderer/js/annotations.js');
 const { Recall } = require('../../src/renderer/js/recall.js');
@@ -70,7 +72,7 @@ describe('Recall', () => {
     Recall.setEnabled(true);
     globalThis.isStartPage = () => false;
     globalThis.window.vex = { recallIndex: vi.fn() };
-    const wv = { executeJavaScript: async () => 'too short' };
+    const wv = { getURL: () => 'https://ex.com/a', executeJavaScript: async () => 'too short' };
     await Recall.indexPage(wv, 'https://ex.com/a', 'T');
     expect(globalThis.window.vex.recallIndex).not.toHaveBeenCalled();
   });
@@ -79,7 +81,7 @@ describe('Recall', () => {
     Recall.setEnabled(true);
     globalThis.isStartPage = () => false;
     globalThis.window.vex = { recallIndex: vi.fn(async () => ({ ok: true })) };
-    const wv = { executeJavaScript: async () => 'word '.repeat(100) };
+    const wv = { getURL: () => 'https://ex.com/a', executeJavaScript: async () => 'word '.repeat(100) };
     await Recall.indexPage(wv, 'https://ex.com/a', 'Title');
     expect(globalThis.window.vex.recallIndex).toHaveBeenCalledOnce();
     const arg = globalThis.window.vex.recallIndex.mock.calls[0][0];

@@ -1,6 +1,11 @@
 // === Vex App — Main Entry Point ===
 
 (async function () {
+  document.getElementById('save-ai-worker-token')?.addEventListener('click', async () => {
+    const input = document.getElementById('setting-ai-worker-token');
+    try { await window.vex.saveCloudToken(input.value.trim()); input.value = ''; window.showToast?.('AI access token saved'); }
+    catch (e) { window.showToast?.(e.message, 'error'); }
+  });
   // Hydrate localStorage from persistent file store BEFORE anything else reads it.
   // This makes every existing localStorage.getItem('vex.*') call survive reinstalls.
   if (window.PersistentStorage) {
@@ -8,6 +13,15 @@
   }
 
   // Apply tab layout preference to <body> ASAP so CSS selectors hit before paint.
+  const passkeyHosts = document.getElementById('setting-passkey-hosts');
+  if (passkeyHosts) {
+    try { passkeyHosts.value = JSON.parse(localStorage.getItem('vex.passkeySuppressedHosts') || '[]').join(', '); } catch {}
+    passkeyHosts.addEventListener('change', () => {
+      const hosts = passkeyHosts.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (hosts.some(s => !/^[a-z0-9.-]+$/.test(s))) { window.showToast?.('Enter hostnames without URLs or paths'); return; }
+      localStorage.setItem('vex.passkeySuppressedHosts', JSON.stringify([...new Set(hosts)]));
+    });
+  }
   try {
     const layout = JSON.parse(localStorage.getItem('vex.tabLayout') || '"horizontal"');
     document.body.dataset.tabLayout = (layout === 'vertical') ? 'vertical' : 'horizontal';
@@ -359,9 +373,16 @@
 
   // Clear data button
   document.getElementById('setting-clear-data')?.addEventListener('click', async () => {
-    if (await vexConfirm({ title: 'Clear browsing data', message: 'Clear all browsing data? This cannot be undone.', okLabel: 'Clear data', danger: true })) {
-      localStorage.clear();
-      showToast('Browsing data cleared. Restart for full effect.');
+    if (await vexConfirm({ title: 'Clear browsing data', message: 'Clear site cookies/cache, history, Recall, saved sessions, snapshots and tab archives? Sync will be signed out. Bookmarks, passwords and settings stay. This cannot be undone.', okLabel: 'Clear data', danger: true })) {
+      try {
+        if (typeof SyncEngine !== 'undefined') await SyncEngine.signOut();
+        for (const key of ['vex.history','vex.sessions','vex.archivedTabs','vex.workspaceSnapshots','vex.downloads','vex.autofillLog']) localStorage.removeItem(key);
+        if (typeof HistoryPanel !== 'undefined') HistoryPanel.entries = [];
+        if (typeof SessionManager !== 'undefined') SessionManager.sessions = [];
+        await PersistentStorage._flush();
+        await window.vex.clearBrowsingData();
+        showToast('Browsing data cleared');
+      } catch (error) { showToast('Could not clear browsing data: ' + error.message); }
     }
   });
 
@@ -458,7 +479,7 @@
         if (results) results.innerHTML = '';
         let list = [];
         try {
-          const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
+          const r = await (window.VexNet?.fetch || fetch)(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
           const d = await r.json();
           list = (d && d.results) || [];
         } catch { if (statusEl) statusEl.textContent = 'Lookup failed — check your connection.'; return; }
@@ -880,7 +901,7 @@
     // joins that tab's group automatically.
     const opener = TabManager.getActiveTab();
     const inheritGroup = (opener && opener.groupId) || null;
-    try { TabManager.createTab(data.url, !data.background, inheritGroup); }
+    try { TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition }); }
     catch (err) { console.error('[Tabs] createTab failed:', err.message); }
   });
 

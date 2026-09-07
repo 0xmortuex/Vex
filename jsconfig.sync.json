@@ -1,0 +1,5 @@
+{
+  "extends": "./jsconfig.contracts.json",
+  "compilerOptions": { "strict": false },
+  "files": ["types/sync-globals.d.ts", "src/renderer/js/sync-records.js"]
+}

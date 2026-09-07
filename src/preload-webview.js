@@ -324,21 +324,45 @@ function runInMainWorld(src) {
       if (!error) return;
       try { error({ code: code, message: message, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 }); } catch (_) {}
     }
+    // These are the only remote calls this preload makes, and they run for any
+    // page that asks for geolocation. Unbounded, a slow or hostile endpoint
+    // hangs the position callback forever and an endless body grows guest
+    // memory, so both a deadline and a size ceiling are enforced here.
+    var IP_LOOKUP_TIMEOUT_MS = 5000;
+    var IP_LOOKUP_MAX_BYTES = 64 * 1024;
+    async function _boundedJson(url, headers) {
+      var controller = new AbortController();
+      var deadline = setTimeout(function () { controller.abort(); }, IP_LOOKUP_TIMEOUT_MS);
+      try {
+        var response = await fetch(url, { headers: headers || {}, signal: controller.signal, cache: 'no-store' });
+        if (!response.ok) return null;
+        var declared = parseInt(response.headers.get('content-length') || '', 10);
+        if (Number.isFinite(declared) && declared > IP_LOOKUP_MAX_BYTES) return null;
+        // Content-Length is advisory, so cap what we actually read as well.
+        var reader = response.body && response.body.getReader ? response.body.getReader() : null;
+        if (!reader) return null;
+        var chunks = [], total = 0;
+        for (;;) {
+          var step = await reader.read();
+          if (step.done) break;
+          total += step.value.length;
+          if (total > IP_LOOKUP_MAX_BYTES) { try { await reader.cancel(); } catch (_) {} return null; }
+          chunks.push(step.value);
+        }
+        var buffer = new Uint8Array(total), offset = 0;
+        for (var i = 0; i < chunks.length; i++) { buffer.set(chunks[i], offset); offset += chunks[i].length; }
+        return JSON.parse(new TextDecoder().decode(buffer));
+      } catch (_) {
+        return null;
+      } finally {
+        clearTimeout(deadline);
+      }
+    }
     async function fetchIPLocation() {
-      try {
-        var r = await fetch('https://ipapi.co/json/', { headers: { 'Accept': 'application/json' } });
-        if (r.ok) {
-          var d = await r.json();
-          if (d && d.latitude && d.longitude) return _pos(parseFloat(d.latitude), parseFloat(d.longitude), 50000);
-        }
-      } catch (_) {}
-      try {
-        var r2 = await fetch('https://ipwho.is/');
-        if (r2.ok) {
-          var d2 = await r2.json();
-          if (d2 && d2.success && d2.latitude && d2.longitude) return _pos(parseFloat(d2.latitude), parseFloat(d2.longitude), 50000);
-        }
-      } catch (_) {}
+      var d = await _boundedJson('https://ipapi.co/json/', { 'Accept': 'application/json' });
+      if (d && d.latitude && d.longitude) return _pos(parseFloat(d.latitude), parseFloat(d.longitude), 50000);
+      var d2 = await _boundedJson('https://ipwho.is/');
+      if (d2 && d2.success && d2.latitude && d2.longitude) return _pos(parseFloat(d2.latitude), parseFloat(d2.longitude), 50000);
       return null;
     }
     async function resolve(success, error) {

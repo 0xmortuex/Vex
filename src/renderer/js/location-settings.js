@@ -145,7 +145,7 @@ const LocationSettings = (() => {
     container.querySelector('#btn-use-ip-once')?.addEventListener('click', async () => {
       _toast('Looking up your IP location\u2026', 'info', 2500);
       try {
-        const r = await fetch('https://ipapi.co/json/');
+        const r = await (window.VexNet?.fetch || fetch)('https://ipapi.co/json/');
         const d = await r.json();
         if (d && d.latitude && d.longitude) {
           container.querySelector('#loc-lat').value = d.latitude;

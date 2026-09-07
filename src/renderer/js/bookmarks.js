@@ -10,9 +10,16 @@ const Bookmarks = {
 
   init() {
     try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); this.items = Array.isArray(a) ? a : []; } catch { this.items = []; }
+    this._baseline = this.items.slice();
     this._injectStar();
   },
-  save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.items)); } catch {} this._syncStar(); },
+  // Write only what THIS window changed, so a second window's bookmarks are
+  // not erased by our stale in-memory snapshot (see collection-store.js).
+  save() {
+    this.items = window.CollectionStore.save(this.KEY, this._baseline, this.items);
+    this._baseline = this.items.slice();
+    this._syncStar();
+  },
 
   has(url) { return this.items.some(b => b.url === url); },
 
@@ -69,9 +76,22 @@ const Bookmarks = {
       <div id="bm-list" style="padding:0 10px 20px;overflow-y:auto;max-height:calc(100vh - 160px)"></div>`;
     const list = container.querySelector('#bm-list');
     const paint = (q) => {
+      list._virtualDispose?.();
       q = (q || '').toLowerCase();
       list.innerHTML = '';
       const items = this.items.filter(b => !q || (b.title + ' ' + b.url + ' ' + b.folder).toLowerCase().includes(q));
+      if (items.length > 150 && window.VexVirtualList) {
+        window.VexVirtualList.mount(list, items, item => {
+          const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px';
+          const link = document.createElement('button'); link.style.cssText = 'flex:1;min-width:0;text-align:left;background:none;color:var(--text);border:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+          link.textContent = (item.folder || 'Unsorted') + ' · ' + (item.title || item.url); link.title = item.url;
+          link.addEventListener('click', () => { SidebarManager.hideActivePanel?.(); TabManager.createTab(item.url, true); });
+          const remove = document.createElement('button'); remove.textContent = '×'; remove.setAttribute('aria-label', 'Delete bookmark');
+          remove.addEventListener('click', () => { this.items = this.items.filter(b => b.id !== item.id); this.save(); paint(q); });
+          row.append(link, remove); return row;
+        });
+        return;
+      }
       if (!items.length) { list.innerHTML = window.VexUI ? VexUI.emptyState('bookmark', 'No bookmarks yet', 'Hit the ☆ in the URL bar to save a page') : '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:30px 10px">No bookmarks yet — hit the ☆ in the URL bar.</div>'; return; }
       const folders = {};
       items.forEach(b => { const f = b.folder || 'Unsorted'; (folders[f] = folders[f] || []).push(b); });
@@ -87,7 +107,7 @@ const Bookmarks = {
           row.addEventListener('mouseleave', () => row.style.background = '');
           let hostTxt = b.url; try { hostTxt = new URL(b.url).hostname.replace(/^www\./, ''); } catch {}
           row.innerHTML = `
-            <img src="https://${encodeURIComponent(hostTxt)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" onerror="this.style.visibility='hidden'">
+            <img src="https://${encodeURIComponent(hostTxt)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
             <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.title)}</div><div style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(hostTxt)}</div></div>
             <button data-del style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px">✕</button>`;
           row.addEventListener('click', (e) => { if (e.target.closest('[data-del]')) return; SidebarManager.hideActivePanel?.(); TabManager.createTab(b.url, true); });
@@ -102,4 +122,15 @@ const Bookmarks = {
 };
 
 if (typeof window !== 'undefined') window.Bookmarks = Bookmarks;
+if (typeof window !== 'undefined') window.addEventListener('vex-sync-data-applied', () => {
+  const saved = JSON.parse(localStorage.getItem(Bookmarks.KEY) || '[]');
+  Bookmarks.items = Array.isArray(saved) ? saved : [];
+  Bookmarks._baseline = Bookmarks.items.slice();
+  Bookmarks._syncStar();
+  const list = document.getElementById('bm-list');
+  if (list) {
+    list._virtualDispose?.();
+    Bookmarks.renderPanel(list.parentElement);
+  }
+});
 if (typeof module !== 'undefined' && module.exports) module.exports = { Bookmarks };

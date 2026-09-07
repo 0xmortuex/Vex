@@ -11,14 +11,18 @@ const WorkspaceSnapshots = {
   MAX: 25,
   INTERVAL_MS: 10 * 60 * 1000, // auto-snapshot cadence
   _timer: null,
+  _startup: null,
 
   init() {
+    if (window.VexTabPolicy?.isPrivateWindow) return;
     if (this._timer) return;
     // First capture a minute after launch (once tabs have restored), then on a
     // steady cadence. Auto-snapshots that match the previous one are skipped.
-    setTimeout(() => this.snapshot(true), 60 * 1000);
+    this._startup = setTimeout(() => { this._startup = null; this.snapshot(true); }, 60 * 1000);
     this._timer = setInterval(() => this.snapshot(true), this.INTERVAL_MS);
   },
+
+  dispose() { clearTimeout(this._startup); clearInterval(this._timer); this._startup = this._timer = null; },
 
   _all() { try { return JSON.parse(localStorage.getItem(this.KEY) || '{}'); } catch { return {}; } },
   _save(o) { try { localStorage.setItem(this.KEY, JSON.stringify(o)); } catch {} },
@@ -29,9 +33,9 @@ const WorkspaceSnapshots = {
 
   _currentTabs() {
     if (typeof TabManager === 'undefined') return [];
-    return (TabManager.tabs || [])
+    return window.VexTabPolicy.snapshot(TabManager.tabs || [])
       .filter(t => t.url && !/^about:/i.test(t.url) && !(typeof isStartPage === 'function' && isStartPage(t.url)))
-      .map(t => ({ url: t.url, title: t.title || t.url, pinned: !!t.pinned }));
+      .map(t => ({ ...t, title: t.title || t.url }));
   },
 
   snapshot(auto) {
@@ -40,7 +44,7 @@ const WorkspaceSnapshots = {
     const all = this._all();
     const wsId = this._wsId();
     const list = all[wsId] || [];
-    const sig = tabs.map(t => t.url).join('|');
+    const sig = JSON.stringify(tabs);
     if (auto && list[0] && list[0].sig === sig) return; // unchanged → skip dupe
     list.unshift({ ts: Date.now(), sig, tabs });
     all[wsId] = list.slice(0, this.MAX);
@@ -61,10 +65,17 @@ const WorkspaceSnapshots = {
     const snap = list.find(s => s.ts === ts);
     if (!snap || typeof TabManager === 'undefined') return;
     let first = null;
-    snap.tabs.forEach((t) => {
-      try { const id = TabManager.createTab(t.url, false); if (first == null) first = id; } catch {}
+    (Array.isArray(snap.tabs) ? snap.tabs : []).forEach((t) => {
+      if (!window.VexTabPolicy.canRestore(t)) return;
+      try {
+        const tab = TabManager.createTab(t.url, false, null, { partition: t.partition });
+        tab.pinned = !!t.pinned;
+        if (first == null) first = tab.id;
+      } catch {}
     });
     if (first != null) { try { TabManager.switchTab(first); } catch {} }
+    TabManager.rebuildAllTabs?.();
+    TabManager.persistTabs?.();
     window.showToast?.(`Restored ${snap.tabs.length} tab${snap.tabs.length > 1 ? 's' : ''}`);
     this._close();
   },
@@ -106,7 +117,7 @@ const WorkspaceSnapshots = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
       <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--border)">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🕰️ Time-Travel · ${this._wsName()}</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🕰️ Time-Travel · ${window.escapeHtml(this._wsName())}</span>
         <button id="wsnap-now" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">Snapshot now</button>
         <button id="wsnap-close" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button>
       </div>
