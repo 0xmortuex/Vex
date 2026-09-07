@@ -346,3 +346,50 @@ describe('EmailCodeAutofill keeps watching a sign-in that has no code field yet'
     expect(logs).toEqual([]);
   });
 });
+
+describe('EmailCodeAutofill polls per page, not once for the whole app', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  // _running was a single global boolean. That was tolerable while a non-code
+  // page gave up after ~15s, but once the poll was extended to ~3 minutes on
+  // anything that looks like a sign-in, one login page could hold the lock for
+  // minutes and the page actually asking for a code was dropped on entry -
+  // silently, because a drop logged nothing.
+  it('lets a second sign-in page poll while the first is still waiting', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    A._looksLikeAuthFlow = async () => true;
+    A._looksLikeCodePage = async () => false;
+    const busy = { isConnected: true, getURL: () => 'https://discord.com/login' };
+    A._hasEmptyCodeField = async (wv) => wv !== busy;      // only the second page has a code box
+    A.tryFill(busy, 'https://discord.com/login');           // holds a poll for minutes
+    const spotify = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' };
+    const p = A.tryFill(spotify, 'https://accounts.spotify.com/en/login/otp');
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toContain('654321');
+  });
+
+  it('records a miss instead of vanishing when too many polls are already running', async () => {
+    const { A, logs } = makeAutofill(scriptedReader([loaded('111111', true, true)]));
+    A._active = new Set([{}, {}, {}]);                      // at the cap
+    await A.tryFill({ isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' }, 'https://accounts.spotify.com/en/login/otp');
+    expect(logs).toEqual([{ ok: false, reason: 'busy' }]);
+  });
+
+  it('will not start two polls for the same page', async () => {
+    const { A } = makeAutofill(scriptedReader([loaded(null, false, false)]));
+    A._looksLikeAuthFlow = async () => true;
+    A._hasEmptyCodeField = async () => false;
+    const wv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login' };
+    A.tryFill(wv, 'https://accounts.spotify.com/en/login');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(A._active.size).toBe(1);
+    A.tryFill(wv, 'https://accounts.spotify.com/en/login');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(A._active.size).toBe(1);
+  });
+});

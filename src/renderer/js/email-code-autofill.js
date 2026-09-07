@@ -366,8 +366,26 @@ const EmailCodeAutofill = {
   // fill once a DIFFERENT code shows up. If the inbox has no code at baseline, the
   // first code to arrive is the one we want. Comparing values (not timestamps)
   // works even when both codes fall in the same Gmail minute.
+  // One poll PER PAGE, not one for the whole app. This was a single global
+  // boolean, which was tolerable while a non-code page gave up after ~15s. Once
+  // the poll was extended to ~3 minutes on anything that looks like a sign-in
+  // (so Spotify's in-place code step is not missed), that global lock meant a
+  // Discord or Roblox login page could hold it for minutes and the attempt on
+  // the page actually asking for a code was dropped on entry - silently, because
+  // a drop logged nothing at all. That is the regression this replaces.
+  //
+  // Concurrency is still bounded, and the inbox-refresh throttle below is still
+  // global, so several polls cannot hammer the mailbox.
+  _active: new Set(),
+  MAX_POLLS: 3,
+
+  // _running stays as a plain flag meaning "some poll is in flight", because the
+  // hidden-reader cleanup uses it to avoid tearing the reader down mid-poll.
+  _enter(webview) { this._active.add(webview); this._running = true; },
+  _exit(webview) { this._active.delete(webview); this._running = this._active.size > 0; },
   async tryFill(loginWv, url) {
-    if (this._running) return;
+    if (!loginWv || this._active.has(loginWv)) return;
+    if (this._active.size >= this.MAX_POLLS) { this._log(url, false, 'busy'); return; }
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
       // Never poll the mailbox itself. Opening Gmail fires this like any other
@@ -394,8 +412,8 @@ const EmailCodeAutofill = {
         try { return new URL(loginWv.getURL?.() || '').origin === origin; } catch { return false; }
       };
       if (!current()) return;
-      if (this._running) return;                                 // one poll at a time
-      this._running = true;
+      if (this._active.has(loginWv)) return;                     // one poll per page
+      this._enter(loginWv);
       this._lastInboxRefresh = 0;                                // refresh throttle, per attempt
       let sawField = false, plausible = false;
       let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
@@ -480,9 +498,9 @@ const EmailCodeAutofill = {
         this._log(url, false, reason);
         this._maybeMissToast(reason, sawField);
       }
-      this._running = false;
+      this._exit(loginWv);
       this._restoreAutoWoken();
-    } catch (e) { this._running = false; this._restoreAutoWoken(); }
+    } catch (e) { this._exit(loginWv); this._restoreAutoWoken(); }
   },
 
   // If this poll woke a sleeping Gmail just to read a code, put it back to sleep
