@@ -28,7 +28,7 @@
     "predist:win": "npm run build:vendor",
     "prepublish": "npm run build:vendor",
     "check:types": "tsc -p jsconfig.contracts.json && tsc -p jsconfig.sync.json",
-    "lint": "eslint src/main scripts/build-icons.js scripts/bundle-browser-libs.js src/diagnostics.js src/renderer/js/network.js src/renderer/js/data-contracts.js src/renderer/js/sync-records.js src/renderer/js/lifecycle.js scripts/verify-source.js src/renderer/js/collection-store.js src/renderer/js/i18n.js"
+    "lint": "eslint src/main src/main.js scripts/build-icons.js scripts/bundle-browser-libs.js src/diagnostics.js src/renderer/js/network.js src/renderer/js/data-contracts.js src/renderer/js/sync-records.js src/renderer/js/lifecycle.js scripts/verify-source.js src/renderer/js/collection-store.js src/renderer/js/i18n.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

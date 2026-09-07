@@ -13,4 +13,14 @@ export default [{
     { property: 'outerHTML', message: 'Avoid untrusted HTML parsing in shared services.' },
     { property: 'insertAdjacentHTML', message: 'Avoid untrusted HTML parsing in shared services.' }
   ] }
+}, {
+  // src/main.js is not yet clean enough for the full set (unused bindings and
+  // unreturned promises still need a dedicated pass), but it MUST be checked for
+  // undefined identifiers: splitting main.js into services left a call to
+  // _autofillPopup whose binding was never destructured, and the ReferenceError
+  // only surfaced when a user opened an OAuth sign-in popup - as a modal crash
+  // dialog in the shipped build, with nothing in CI to catch it.
+  files: ['src/main.js'],
+  languageOptions: { ecmaVersion: 2023, sourceType: 'commonjs', globals: { ...globals.node, ...globals.browser } },
+  rules: { ...js.configs.recommended.rules, 'no-control-regex': 'off', 'no-empty': ['error', { allowEmptyCatch: true }], 'no-unused-vars': 'off' }
 }];

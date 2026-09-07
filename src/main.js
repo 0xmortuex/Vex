@@ -733,7 +733,7 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
   }
 });
 
-const { _WEBAUTHN_DISABLE_JS, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain });
+const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain });
 
 // === TOTP authenticator — 2FA codes (Discord/Roblox/GitHub/etc.) generated
 // locally per RFC 6238. Secrets are encrypted at rest with safeStorage
@@ -1830,7 +1830,13 @@ app.on('web-contents-created', (_event, contents) => {
     // pop-out: it's a video window, never a login form, and there's no reason to
     // run field-scanning JS inside it while it's setting up a WebRTC stream.
     if (!pendingDiscordPopout) {
-      try { win.webContents.on('did-finish-load', () => _autofillPopup(win.webContents)); } catch {}
+      // The try/catch must be INSIDE the callback: wrapping only the .on() call
+      // leaves a throw here to escape through the emitter as an uncaught main
+      // process exception, which Electron shows as a modal error dialog over the
+      // user's sign-in popup.
+      try { win.webContents.on('did-finish-load', () => {
+        try { _autofillPopup(win.webContents); } catch (err) { console.error('[popup-autofill] failed:', err && err.message); }
+      }); } catch {}
       // Sign-in popups (Google/Microsoft OAuth) also trigger the OS passkey /
       // "Windows Security" dialog. Popups don't get site-tweaks (no guest
       // preload), so disable WebAuthn get() here too, on each load. Runs before
