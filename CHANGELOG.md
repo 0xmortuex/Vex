@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.31.28 (2026-09-07) — 2FA and email-code autofill
+
+### Fixed
+- **Authenticator codes now fill on Roblox.** Roblox labels its box simply "Enter 6-digit Code", which Vex did not recognise as a two-factor field, so nothing happened at all on the 2-Step Verification screen. A plain "code" box is now recognised when the page around it is clearly a two-factor screen, so promo and coupon boxes are still left alone.
+- **Authenticator entries added by typing a secret now work.** Codes added by hand carry no service name, and services whose name has a suffix (for example "Roblox Corporation") were not recognised either. Vex now matches on the entry name, its label, or both.
+- **Emailed sign-in codes now fill on Spotify.** Asking a site to email you a code moves the page to its code step, and Vex treated that as leaving the page and gave up — right at the moment the code box appeared. It now keeps watching for as long as you stay on the same site.
+
 ## v2.31.27 (2026-09-07) — Sign-in and autofill fixes
 
 ### Fixed
