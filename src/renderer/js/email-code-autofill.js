@@ -407,9 +407,14 @@ const EmailCodeAutofill = {
       // matters: leaving the site stops the poll, changing step does not.
       let origin = '';
       try { origin = new URL(url).origin; } catch { return; }
+      // getURL() throws on a guest that is not fully attached yet, and tryFill is
+      // called from dom-ready - precisely that moment. Treating a throw as "the
+      // page left the site" aborted the poll instantly and silently, because
+      // nothing has been seen yet so nothing is logged. _webviewUrl falls back to
+      // the src attribute, so a not-ready guest reads as "still here" instead.
       const current = () => {
         if (loginWv.isConnected === false) return false;
-        try { return new URL(loginWv.getURL?.() || '').origin === origin; } catch { return false; }
+        try { return new URL(this._webviewUrl(loginWv) || url).origin === origin; } catch { return false; }
       };
       if (!current()) return;
       if (this._active.has(loginWv)) return;                     // one poll per page

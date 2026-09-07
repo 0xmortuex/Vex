@@ -393,3 +393,43 @@ describe('EmailCodeAutofill polls per page, not once for the whole app', () => {
     expect(A._active.size).toBe(1);
   });
 });
+
+describe('EmailCodeAutofill survives a guest that is not ready yet', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  // tryFill runs from dom-ready, which is exactly when getURL() can still throw
+  // ("The WebView must be attached to the DOM..."). current() treated that throw
+  // as "the page left the site" and returned before the poll ever started - and
+  // because nothing had been seen yet, nothing was logged either. Silent death.
+  it('starts the poll even if getURL throws at first', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded(null, false, false),
+      loaded('864209', true, true),
+    ]));
+    let ready = false;
+    const wv = {
+      isConnected: true,
+      getURL: () => { if (!ready) throw new Error('The WebView must be attached to the DOM and the dom-ready event emitted before this method can be called.'); return 'https://accounts.spotify.com/en/login/otp'; },
+      getAttribute: () => null,
+    };
+    const p = A.tryFill(wv, 'https://accounts.spotify.com/en/login/otp');
+    await vi.advanceTimersByTimeAsync(3100);
+    ready = true;
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toContain('864209');
+  });
+
+  it('still stops once the page really has left the site', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded(null, false, false),
+      loaded('864209', true, true),
+    ]));
+    const wv = { isConnected: true, getURL: () => 'https://evil.test/elsewhere', getAttribute: () => null };
+    const p = A.tryFill(wv, 'https://accounts.spotify.com/en/login/otp');
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toEqual([]);
+  });
+});
