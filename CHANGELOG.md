@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.31.30 (2026-09-07) — Emailed sign-in codes on Spotify
+
+### Fixed
+- **Emailed sign-in codes now fill on Spotify.** The previous release fixed two reasons this failed but not the one that mattered here: Vex began watching while the page still asked only for your email address, decided within about fifteen seconds that it was not a code page, and stopped — before the code box existed. Spotify then swaps in the code step without loading a new page, so nothing looked again. Vex now keeps watching for as long as the page still looks like a sign-in, and for long enough that the email has time to arrive. Ordinary pages are still dropped just as quickly as before.
+
 ## v2.31.29 (2026-09-07) — Autofill and sign-in prompt fixes
 
 ### Fixed
