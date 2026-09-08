@@ -8,6 +8,52 @@
 //     wasn't currently open — the reload was already firing, just invisible.
 //   - If no webview exists yet (panel never opened), showPanel will create
 //     one and load the URL, which is functionally a "first refresh".
+// Resolve a panel's LIVE <webview>.
+//
+// panelWebviews[panelName] is a cached node reference, and it goes stale: after
+// a service switch, a re-mount or a hide/show the panel's real element can be a
+// different node, and loadURL()/reload() on the detached one is a SILENT no-op
+// (every call site wraps it in an empty catch) - the button simply does nothing.
+// makeRefreshAction and the panel nav bar already preferred the DOM node for
+// exactly this reason; the override paths ("Switch to ...", "Change link",
+// "Reset to default") did not, so those stayed broken whenever the cache went
+// stale. Re-syncs the cache so the next caller starts from the right node.
+function resolvePanelWebview(manager, panelName) {
+  let wv = manager && manager.panelWebviews && manager.panelWebviews[panelName];
+  try {
+    const panelEl = typeof document !== 'undefined' && document.getElementById('panel-' + panelName);
+    const domWv = panelEl && typeof panelEl.querySelector === 'function' && panelEl.querySelector('webview');
+    if (domWv && domWv !== wv) {
+      wv = domWv;
+      if (manager && manager.panelWebviews) manager.panelWebviews[panelName] = domWv;
+    }
+  } catch { /* no DOM (tests) - fall back to the cached ref */ }
+  return wv || null;
+}
+
+// Navigate a panel to `url`, loudly. loadURL() rejects/throws when the guest
+// isn't attached yet; fall back to the src attribute so the panel still moves
+// instead of silently staying put.
+function navigatePanelWebview(wv, url) {
+  if (!wv || !url) return false;
+  try {
+    if (typeof wv.loadURL === 'function') {
+      Promise.resolve(wv.loadURL(url)).catch((err) => {
+        console.warn('[Sidebar] loadURL failed -', err && err.message, '- falling back to src');
+        try { wv.setAttribute('src', url); } catch { /* element is gone */ }
+      });
+    } else if (typeof wv.setAttribute === 'function') {
+      wv.setAttribute('src', url);
+    } else {
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Sidebar] navigate failed -', err && err.message);
+    try { wv.setAttribute('src', url); return true; } catch { return false; }
+  }
+}
+
 function makeRefreshAction(manager, panelName) {
   return () => {
     // Resolve the panel's webview. Prefer the LIVE <webview> in the panel's DOM
@@ -666,9 +712,8 @@ const SidebarManager = {
     // If we just hid the button for the panel that's currently open, close the
     // panel too — otherwise its content stays on screen and "Hide" looks broken.
     if (patch.hidden && this.activePanel === panel) this.hideActivePanel();
-    if (patch.url && this.panelWebviews[panel]) {
-      const wv = this.panelWebviews[panel];
-      try { if (typeof wv.loadURL === 'function') wv.loadURL(patch.url); else wv.src = patch.url; } catch (err) {}
+    if (patch.url) {
+      navigatePanelWebview(resolvePanelWebview(this, panel), patch.url);
     }
     this.renderSidebarManager();
     window.showToast?.('Updated');
@@ -683,8 +728,9 @@ const SidebarManager = {
       btn.style.display = '';
     }
     if (this.panelConfigs[panel] && (panel in this._origUrls)) this.panelConfigs[panel].url = this._origUrls[panel];
-    const wv = this.panelWebviews[panel];
-    if (wv && this._origUrls[panel]) { try { wv.loadURL?.(this._origUrls[panel]); } catch (err) {} }
+    if (this._origUrls[panel]) {
+      navigatePanelWebview(resolvePanelWebview(this, panel), this._origUrls[panel]);
+    }
     this.applySidebarOrder();
     this.renderSidebarManager();
     window.showToast?.('Reset to default');
@@ -1193,5 +1239,5 @@ const SidebarManager = {
 // Renderer-safe export: Node (vitest) gets makeRefreshAction + SidebarManager;
 // the <script>-tag path on the renderer leaves the existing globals alone.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { makeRefreshAction, SidebarManager };
+  module.exports = { makeRefreshAction, resolvePanelWebview, navigatePanelWebview, SidebarManager };
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.34 (2026-09-08) - Sidebar panel service switching
+
+### Fixed
+- **"Switch to Netflix / Prime Video / Disney+ / Roku" works again in the sidebar panel.** The switch, "Change link" and "Reset to default" all drove a remembered reference to the panel's page, and that reference goes out of date whenever the panel is rebuilt - after which they quietly did nothing at all. The panel said "Updated" and stayed exactly where it was. They now always drive the panel that is actually on screen, and a navigation that fails is written to the log instead of being discarded.
+
+### Notes
+- Confirmed against the running app: with the remembered reference deliberately made stale, "Switch to Netflix" left the panel sitting on Prime Video before the fix and moves it to Netflix after it.
+
 ## v2.31.33 (2026-09-07) — Find in page
 
 ### Fixed
