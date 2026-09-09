@@ -21,7 +21,7 @@ const LayoutEditor = {
   // unit (#nav-buttons) so #top-bar-left has no fixed element in its middle,
   // which keeps cross-zone reconstruction clean.
   GROUPS: [
-    { container: 'top-bar-left',  items: ['vex-logo', 'workspace-switcher', 'sync-indicator', 'btn-toggle-tabs-left', 'nav-buttons', 'btn-onboarding'] },
+    { container: 'top-bar-left',  items: ['vex-logo', 'workspace-switcher', 'sync-indicator', 'btn-toggle-tabs-left', 'nav-buttons', 'btn-onboarding', 'btn-restart-app'] },
     { container: 'top-bar',       items: ['url-bar-wrapper'] },
     { container: 'url-bar',       items: ['btn-copy-url', 'btn-ai-summarize'] },
     { container: 'top-bar-right', items: ['btn-tor', 'btn-notes-top', 'btn-extensions', 'btn-toggle-ai', 'btn-split', 'btn-command'] },
@@ -35,7 +35,7 @@ const LayoutEditor = {
   REGIONS: ['top-bar-left', 'url-bar-wrapper', 'top-bar-right'],
   LABELS: {
     'vex-logo': 'Vex logo', 'workspace-switcher': 'Workspace switcher', 'sync-indicator': 'Sync indicator',
-    'btn-toggle-tabs-left': 'Sidebar toggle', 'nav-buttons': 'Back / Forward / Reload', 'btn-onboarding': 'Setup wizard',
+    'btn-toggle-tabs-left': 'Sidebar toggle', 'nav-buttons': 'Back / Forward / Reload', 'btn-onboarding': 'Setup wizard', 'btn-restart-app': 'Restart Vex',
     'url-bar-wrapper': 'Address bar', 'btn-copy-url': 'Copy URL', 'btn-ai-summarize': 'Summarize',
     'btn-tor': 'Tor', 'btn-notes-top': 'Notes', 'btn-extensions': 'Extensions',
     'btn-toggle-ai': 'AI panel', 'btn-split': 'Split screen', 'btn-command': 'Command bar',

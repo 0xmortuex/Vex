@@ -1,6 +1,16 @@
 # Changelog
 
-## v2.31.34 (2026-09-08) - Sidebar panel service switching
+## v2.31.35 (2026-09-09) — Right-click menus that stay put
+
+### Fixed
+- **Right-click menu items work again over Discord, Netflix and the other panels.** Opening a panel means the page inside it takes keyboard focus back whenever it feels like it, and Vex read that as you leaving for another app, so it quietly closed the menu you were still reading. The click then landed on empty space and nothing happened at all. This is what was behind Refresh, "Switch to ..." and "Install my Vencord build" appearing to do nothing. The menu now stays until you pick something, click away, or press Escape; leaving for a genuinely different app still closes it.
+
+- **A Restart button sits next to the setup wizard.** Restarting used to mean closing and reopening Vex by hand, which several fixes ask you to do. It asks first, since a restart closes every tab.
+
+### Notes
+- The menu fault was reproduced in the running app and then confirmed end to end: with the panel page holding focus, picking "Install my Vencord build" from the menu now actually installs, which it did not before.
+
+## v2.31.34 (2026-09-08) — Sidebar panel service switching
 
 ### Fixed
 - **"Switch to Netflix / Prime Video / Disney+ / Roku" works again in the sidebar panel.** The switch, "Change link" and "Reset to default" all drove a remembered reference to the panel's page, and that reference goes out of date whenever the panel is rebuilt - after which they quietly did nothing at all. The panel said "Updated" and stayed exactly where it was. They now always drive the panel that is actually on screen, and a navigation that fails is written to the log instead of being discarded.

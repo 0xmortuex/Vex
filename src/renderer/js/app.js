@@ -229,6 +229,18 @@
   document.getElementById('btn-forward').addEventListener('click', () => WebviewManager.goForward());
   document.getElementById('btn-reload').addEventListener('click', () => WebviewManager.reload());
   document.getElementById('btn-onboarding')?.addEventListener('click', () => { if (typeof Onboarding !== 'undefined') Onboarding.relaunch(); });
+  // Restart Vex from the toolbar. Confirm first: a restart closes every tab, and
+  // this button sits next to one that only opens a wizard, so a mis-click is easy.
+  document.getElementById('btn-restart-app')?.addEventListener('click', async () => {
+    const ok = await window.vexConfirm({
+      title: 'Restart Vex?',
+      message: 'Vex will close and reopen. Your tabs are restored on the way back.',
+      okLabel: 'Restart',
+    });
+    if (!ok) return;
+    try { await window.vex.restartApp(); }
+    catch (err) { window.showToast?.('Could not restart: ' + ((err && err.message) || 'unknown'), 'error'); }
+  });
   document.getElementById('btn-command').addEventListener('click', () => CommandBar.toggle());
   document.getElementById('btn-tor')?.addEventListener('click', () => { if (typeof TorSession !== 'undefined') TorSession.open(); });
   // Notes quick-access in the top toolbar (beside Tor), in addition to the

@@ -1824,7 +1824,28 @@ const TabManager = {
         console.log('[Vex menu] ignoring early window-blur (guest focus churn)');
         return;
       }
-      close('window-blur');
+      // Focus moving INTO one of our own <webview> guests blurs the host window
+      // exactly like switching to another app does, and the panel guests do that
+      // on their own schedule (Discord refocuses its composer, Netflix its
+      // player). The 400ms grace above only covered the churn right after the
+      // menu opens; a guest that grabbed focus a second later still closed the
+      // menu out from under the pointer, so the click landed on nothing. That is
+      // the "right-click Refresh / Switch to ... / Install my Vencord build does
+      // nothing" report - the action never ran because the menu was already gone.
+      // When a guest holds focus the window is still the foreground window, so
+      // this blur is not a real app switch: keep the menu.
+      // Decide on a later tick: when focus moves host -> guest the blur fires
+      // BEFORE document.activeElement has been updated to the <webview>, so
+      // reading it synchronously here still sees the old host element and would
+      // close the menu anyway.
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (active && active.tagName === 'WEBVIEW') {
+          console.log('[Vex menu] ignoring window-blur — focus went to a guest webview');
+          return;
+        }
+        close('window-blur');
+      }, 120);
     };
     function close(reason) {
       // Diagnostic: surfaces WHY a context menu was dismissed. The
