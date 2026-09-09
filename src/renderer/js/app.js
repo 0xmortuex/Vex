@@ -1271,27 +1271,30 @@
   // === DevTools toggle (F12 / Ctrl+Shift+I) — main process fires this when
   // the shortcut is pressed anywhere, including inside a focused webview. ===
   window.vexDevTools?.onToggleRequest?.(() => {
-    const active = TabManager.getActiveTab?.();
-    if (!active) {
-      // No active tab — show toast instead of silently failing
-      showToast('No active tab — open DevTools via Ctrl+Shift+F12 for main window');
+    // resolveDevToolsTarget prefers an open sidebar panel over the active tab:
+    // the panel covers the content area, so it is what you are looking at.
+    const target = (typeof resolveDevToolsTarget === 'function')
+      ? resolveDevToolsTarget(
+          typeof SidebarManager !== 'undefined' ? SidebarManager : null,
+          TabManager,
+          WebviewManager.webviews)
+      : null;
+
+    if (!target) {
+      showToast('Nothing to inspect — open a tab or a panel first');
       return;
     }
-    const wv = WebviewManager.webviews.get(active.id);
-    if (!wv) {
-      showToast('Failed to find webview');
-      return;
-    }
-    // Get the webContentsId and send toggle request to main process
+
+    const wv = target.webview;
     const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
-    if (id != null) {
-      window.vexDevTools?.toggleWebview?.(id).catch(err => {
-        console.error('[DevTools] toggle failed:', err);
-        showToast('Failed to toggle DevTools');
-      });
-    } else {
+    if (id == null) {
       showToast('Cannot access webContents ID');
+      return;
     }
+    window.vexDevTools?.toggleWebview?.(id).catch(err => {
+      console.error('[DevTools] toggle failed:', err);
+      showToast('Failed to toggle DevTools');
+    });
   });
 
   // === Phase 6: Fullscreen ===

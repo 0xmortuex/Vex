@@ -31,6 +31,35 @@ function resolvePanelWebview(manager, panelName) {
   return wv || null;
 }
 
+// Which page should F12 / Ctrl+Shift+I open DevTools for.
+//
+// An open sidebar panel covers the content area, so the panel - not the active
+// tab - is what you are looking at. The handler used to resolve the active TAB
+// only, and panels are not tabs: over the Discord or Spotify panel F12 opened
+// DevTools for whatever hidden tab happened to be active, or reported "No
+// active tab" and did nothing visible. Falls back to the active tab when no
+// panel is open, or when the open panel is a built-in view with no page of its
+// own (Settings, History, Downloads...).
+function resolveDevToolsTarget(sidebar, tabs, webviews) {
+  try {
+    const panel = sidebar && sidebar.activePanel;
+    if (panel) {
+      const wv = resolvePanelWebview(sidebar, panel);
+      if (wv) return { webview: wv, source: 'panel', name: panel };
+    }
+  } catch { /* fall through to the active tab */ }
+
+  try {
+    const active = tabs && typeof tabs.getActiveTab === 'function' && tabs.getActiveTab();
+    if (active && webviews && typeof webviews.get === 'function') {
+      const wv = webviews.get(active.id);
+      if (wv) return { webview: wv, source: 'tab', name: active.id };
+    }
+  } catch { /* nothing to open */ }
+
+  return null;
+}
+
 // Navigate a panel to `url`, loudly. loadURL() rejects/throws when the guest
 // isn't attached yet; fall back to the src attribute so the panel still moves
 // instead of silently staying put.
@@ -1239,5 +1268,5 @@ const SidebarManager = {
 // Renderer-safe export: Node (vitest) gets makeRefreshAction + SidebarManager;
 // the <script>-tag path on the renderer leaves the existing globals alone.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { makeRefreshAction, resolvePanelWebview, navigatePanelWebview, SidebarManager };
+  module.exports = { makeRefreshAction, resolvePanelWebview, navigatePanelWebview, resolveDevToolsTarget, SidebarManager };
 }

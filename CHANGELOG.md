@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.36 (2026-09-09) — F12 follows the panel you are looking at
+
+### Fixed
+- **F12 and Ctrl+Shift+I now open DevTools for an open sidebar panel.** A panel covers the content area, so it is what you are looking at - but the shortcut only ever looked for the active tab, and a panel is not a tab. Over Discord, Spotify or WhatsApp it opened DevTools for whichever hidden tab happened to be active, or found nothing at all and stayed silent. It now inspects the panel when one is open and falls back to the tab otherwise.
+
+### Notes
+- The panel-before-tab choice is covered by tests. The key itself could not be exercised automatically - neither injected keys nor synthetic OS keys reach the shortcut handler - so if F12 still does nothing, the key is not reaching Vex at all and the cause is elsewhere.
+
 ## v2.31.35 (2026-09-09) — Right-click menus that stay put
 
 ### Fixed
