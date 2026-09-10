@@ -507,14 +507,40 @@ function wireDisplayMediaOnSession(ses) {
         if (!sources || !sources.length) return callback();
         const id = 'scr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
         if (requestingContents.isDestroyed() || requestingFrame.url !== requestingUrl) return callback();
-        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl });
+        // The picker UI lives in the Vex window that owns this request. When the
+        // request comes from a DIFFERENT window - a Discord pop-out, which floats
+        // always-on-top by default - the picker opens behind it, so "Share Your
+        // Screen" looks completely dead while every other call button works.
+        // Measured: the picker event fired and the host window stayed unfocused.
+        // Raise the host, and drop the pop-out's always-on-top for as long as the
+        // pick is open so it cannot cover the picker; restore it afterwards.
+        let restoreRequester = null;
+        try {
+          const requesterWin = requestingContents.getOwnerBrowserWindow?.();
+          if (requesterWin && !requesterWin.isDestroyed() && requesterWin !== requestingHost.win) {
+            if (requesterWin.isAlwaysOnTop()) {
+              requesterWin.setAlwaysOnTop(false);
+              restoreRequester = () => {
+                try { if (!requesterWin.isDestroyed()) requesterWin.setAlwaysOnTop(true, 'floating'); } catch {}
+              };
+            }
+            if (!requestingHost.win.isDestroyed()) { requestingHost.win.show(); requestingHost.win.focus(); }
+          }
+        } catch { /* best effort: a picker behind a window still beats no picker */ }
+
+        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl, restoreRequester });
         const payload = { id, sources: sources.map((s) => ({
           id: s.id, name: s.name, isScreen: /screen/i.test(s.id),
           thumbnail: (s.thumbnail && !s.thumbnail.isEmpty()) ? s.thumbnail.toDataURL() : '',
           icon: (s.appIcon && !s.appIcon.isEmpty()) ? s.appIcon.toDataURL() : '',
         })) };
         try { if (!requestingHost.win.isDestroyed()) requestingHost.win.webContents.send('screen-picker:open', payload); } catch {}
-        setTimeout(() => { if (_pendingScreenPicks.has(id)) { _pendingScreenPicks.delete(id); try { callback(); } catch {} } }, 90000);
+        setTimeout(() => {
+          if (!_pendingScreenPicks.has(id)) return;
+          _pendingScreenPicks.delete(id);
+          try { restoreRequester?.(); } catch {}
+          try { callback(); } catch {}
+        }, 90000);
       })
       .catch(() => { try { callback(); } catch {} });
   });
@@ -528,6 +554,7 @@ ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height
   if (!p) return { ok: false };
   if (p.host !== secureSessions.owner(_e.sender)) return { ok: false, error: 'Request belongs to another window' };
   _pendingScreenPicks.delete(id);
+  try { p.restoreRequester?.(); } catch {}
   try { if (p.frame.detached || p.frame.url !== p.url) { p.callback(); return { ok: false, error: 'Requesting page changed' }; } } catch { try { p.callback(); } catch {} return { ok: false }; }
   if (!sourceId) { _lastShareQuality = null; try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);

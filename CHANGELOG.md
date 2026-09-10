@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.37 (2026-09-10) — Share Your Screen from a pop-out call
+
+### Fixed
+- **"Share Your Screen" works in a popped-out Discord call.** Every other button in the pop-out worked, but this one appeared to do nothing. It was doing something: the picker for choosing a screen or window opens in the main Vex window, and a pop-out call floats above everything by default, so the picker opened behind it where you could never see it. The picker now comes to the front, and the pop-out stops floating for as long as you are choosing.
+
+### Notes
+- Reproduced in the running app: the picker did open, listed every screen and window, and the window holding it stayed behind the call.
+
 ## v2.31.36 (2026-09-09) — F12 follows the panel you are looking at
 
 ### Fixed
