@@ -53,6 +53,13 @@ body[data-gui-family="browser"]:not([data-gui-colors="theme"]) {
   --border: var(--b-border); --primary: var(--b-accent); --primary-hover: var(--b-accent); --accent: var(--b-accent);
 }
 body[data-gui-family="browser"] { color: var(--b-text); }
+/* The look owns the type in both colour modes. The themes force their UI font
+   onto body and every control with !important (Oxford's serif, Outfit for the
+   rest), which put a serif in XP's address bar; this outranks them - (0,1,1)
+   by source order for body, (0,1,2) for controls - while their (0,2,0)
+   monospace restore for mono-labelled controls still wins. */
+body[data-gui-family="browser"],
+body[data-gui-family="browser"] :is(button, input, textarea, select) { font-family: var(--b-font) !important; }
 
 /* ---- 4. Surfaces ------------------------------------------------------- */
 /* Tab strip */

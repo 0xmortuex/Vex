@@ -151,6 +151,8 @@ const WebviewManager = {
         if (typeof isStartPage === 'function' && isStartPage(webview.getURL())) {
           const gs = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
           webview.executeJavaScript(`document.documentElement.setAttribute('data-gui-style', ${JSON.stringify(gs)})`).catch(() => {});
+          // A browser look in its own colours hands the page its palette.
+          window.VexGuiStyle?.paintStartPage(webview).catch(err => console.error('[gui-style] start page palette failed:', err));
         }
       } catch {}
     });

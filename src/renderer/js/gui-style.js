@@ -256,6 +256,7 @@
     // anything else fails main's IPC schema.
     try { await window.vex?.setGuiStyle?.(def.startPage || 'classic'); } catch {}
     try { window.Onboarding?._reloadStartPages?.(); } catch {}
+    paintStartPages();
     try { window.dispatchEvent(new CustomEvent('vex:gui-style', { detail: { style } })); } catch {}
   }
 
@@ -271,7 +272,60 @@
     if (!COLOR_MODES.includes(mode)) throw new Error(`Unknown GUI colour mode: ${mode}`);
     document.body.dataset.guiColors = mode;
     try { localStorage.setItem(COLORS_KEY, mode); } catch {}
+    paintStartPages();
     window.dispatchEvent(new CustomEvent('vex:gui-colors', { detail: { mode } }));
+  }
+
+  // The New Tab page is its own document, coloured by the colour theme. With a
+  // browser look in its own colours that put a dark Matrix page under a light
+  // Chrome frame, so there the page is handed the look's palette instead: the
+  // look's resolved --b-* values, written over the page's --vex-* tokens.
+  // Cards are the page colour nudged toward the text colour, so they read on
+  // light and dark looks alike. Empty string = let the colour theme through.
+  function startPagePaletteCss() {
+    if (!isBrowserLook() || currentColors() !== 'look') return '';
+    const cs = getComputedStyle(document.body);
+    const b = (n) => {
+      const v = cs.getPropertyValue(n).trim();
+      if (!v) throw new Error(`Browser look ${document.body.dataset.guiStyle} defines no ${n}`);
+      return v;
+    };
+    const page = b('--b-page'), text = b('--b-text'), dim = b('--b-text-dim');
+    const accent = b('--b-accent'), border = b('--b-border');
+    const card = (pct) => `color-mix(in srgb, ${page} ${pct}%, ${text})`;
+    return `html[data-look-palette] {
+      --vex-bg-base: ${page}; --vex-glass-strong: ${card(92)}; --vex-glass-medium: ${card(95)}; --vex-glass-light: ${card(97)};
+      --vex-glass-input: ${b('--b-url-bg')};
+      --vex-border-subtle: ${border}; --vex-border-medium: ${border}; --vex-border-strong: ${border};
+      --vex-border-accent: ${accent}; --vex-border-accent-strong: ${accent};
+      --vex-accent: ${accent}; --vex-accent-dim: color-mix(in srgb, ${accent} 18%, transparent); --vex-accent-glow: transparent;
+      --vex-text-primary: ${text}; --vex-text-secondary: ${dim}; --vex-text-muted: ${dim};
+      --vex-blur-medium: none; --vex-blur-light: none;
+    }
+    /* The Custom Image theme's darkened photo (an inline style) would sit under
+       the look's dark text on light looks - the look's page is plain. */
+    html[data-look-palette] body { background-image: none !important; }`;
+  }
+
+  // Apply (or clear) that palette in one start-page webview.
+  function paintStartPage(webview) {
+    const css = startPagePaletteCss();
+    const js = css
+      ? `(() => { let s = document.getElementById('vex-look-palette');
+          if (!s) { s = document.createElement('style'); s.id = 'vex-look-palette'; document.head.appendChild(s); }
+          s.textContent = ${JSON.stringify(css)}; document.documentElement.setAttribute('data-look-palette', ''); })()`
+      : `(() => { document.getElementById('vex-look-palette')?.remove(); document.documentElement.removeAttribute('data-look-palette'); })()`;
+    return webview.executeJavaScript(js);
+  }
+
+  // Repaint every open start page (after a look or colour-mode change).
+  function paintStartPages() {
+    if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews || typeof isStartPage !== 'function') return;
+    for (const wv of WebviewManager.webviews.values()) {
+      let url = '';
+      try { url = wv.getURL(); } catch { continue; } // not attached yet: dom-ready paints it
+      if (isStartPage(url)) paintStartPage(wv).catch(err => console.error('[gui-style] start page palette failed:', err));
+    }
   }
 
   // Picking a colour theme while a browser look shows its own colours would
@@ -303,6 +357,7 @@
     isBrowserLook,
     setColors: applyColors,
     getColors: currentColors,
+    paintStartPage,
     render: () => { const b = document.getElementById('gui-shortcuts-bar'); if (b) renderBar(b); },
     // The stock shortcut set — the onboarding setup-style step builds its
     // pick-and-choose list from this so the two never drift apart.

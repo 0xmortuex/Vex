@@ -21,7 +21,7 @@ describe('VexGuiStyle colour mode', () => {
   beforeEach(() => {
     localStorage.clear();
     document.body.innerHTML = '<div id="top-bar"></div><div id="top-tab-bar"><div class="tab-bar-trailing"></div></div><div id="top-bar-right"></div>';
-    for (const a of ['data-gui-style', 'data-gui-family', 'data-gui-colors']) document.body.removeAttribute(a);
+    for (const a of ['data-gui-style', 'data-gui-family', 'data-gui-colors', 'style']) document.body.removeAttribute(a);
     window.showToast = vi.fn();
   });
 
@@ -67,6 +67,54 @@ describe('VexGuiStyle colour mode', () => {
     await G.set('classic');
     pickTheme(true);
     expect(G.getColors()).toBe('look');
+  });
+
+  describe('New Tab page palette', () => {
+    // jsdom loads no stylesheets, so give body the look's resolved tokens inline.
+    const setLookTokens = () => {
+      const t = { '--b-page': '#ffffff', '--b-text': '#1f1f1f', '--b-text-dim': '#5f6368', '--b-accent': '#1a73e8', '--b-border': '#dadce0', '--b-url-bg': '#f1f3f4' };
+      for (const [k, v] of Object.entries(t)) document.body.style.setProperty(k, v);
+    };
+    const fakeWebview = () => ({ executeJavaScript: vi.fn(async () => {}) });
+
+    it('hands the page the look\'s palette in its own colours', async () => {
+      const G = await loadGuiStyle();
+      await G.set('chrome');
+      setLookTokens();
+      const wv = fakeWebview();
+      await G.paintStartPage(wv);
+      const js = wv.executeJavaScript.mock.calls[0][0];
+      expect(js).toContain('vex-look-palette');
+      expect(js).toContain('--vex-bg-base: #ffffff');
+      expect(js).toContain('--vex-accent: #1a73e8');
+      expect(js).toContain("setAttribute('data-look-palette'");
+    });
+
+    it('clears it in theme colours, so the colour theme shows through', async () => {
+      const G = await loadGuiStyle();
+      await G.set('chrome');
+      setLookTokens();
+      G.setColors('theme');
+      const wv = fakeWebview();
+      await G.paintStartPage(wv);
+      const js = wv.executeJavaScript.mock.calls[0][0];
+      expect(js).toContain("removeAttribute('data-look-palette')");
+      expect(js).not.toContain('--vex-bg-base');
+    });
+
+    it('clears it under Classic', async () => {
+      const G = await loadGuiStyle();
+      await G.set('classic');
+      const wv = fakeWebview();
+      await G.paintStartPage(wv);
+      expect(wv.executeJavaScript.mock.calls[0][0]).toContain("removeAttribute('data-look-palette')");
+    });
+
+    it('fails loudly if a look is missing a colour', async () => {
+      const G = await loadGuiStyle();
+      await G.set('chrome');
+      expect(() => G.paintStartPage(fakeWebview())).toThrow(/defines no --b-page/);
+    });
   });
 
   it('rejects an unknown colour mode instead of guessing', async () => {

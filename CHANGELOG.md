@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.41 (2026-09-11) — The New Tab page matches the browser look
+
+### Fixed
+- **The New Tab page now matches the browser look.** With a look in its own colours, the New Tab page kept your colour theme, so Chrome's light frame sat on top of a dark green Matrix page. The page is a separate document and was never told about the look. It now takes the look's colours: white under Chrome, dark grey under Chrome dark, and so on for all seven. With "Match my colour theme" it follows the theme as before.
+- **The looks keep their own fonts.** Colour themes force their font onto every button and field, which put Oxford's serif in XP's address bar instead of Tahoma. Each look now uses its own font whatever the theme.
+
+### Notes
+- With a look in its own colours, the Custom Image theme's photo is left off the New Tab page, because the look's dark text would sit on the darkened photo. It comes back with "Match my colour theme".
+
 ## v2.31.40 (2026-09-11) — Seven browser looks, in any colour theme
 
 ### Added
