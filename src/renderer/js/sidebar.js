@@ -400,8 +400,8 @@ const SidebarManager = {
       p.style.display = 'none';
     });
 
-    // Hide webviews
-    document.getElementById('webviews-container').style.display = 'none';
+    // Hide webviews — unless the panel docks beside the page (browser looks).
+    document.getElementById('webviews-container').style.display = this._docksBesidePage(panelName) ? 'block' : 'none';
 
     // Show panels container
     document.getElementById('panels-container').style.pointerEvents = 'auto';
@@ -573,6 +573,22 @@ const SidebarManager = {
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.panel === panelName);
     });
+    this._announcePanel(panelName);
+  },
+
+  // The browser looks (css/gui-browser.css) give panels the sidebar their
+  // browser has — docked beside the page rather than covering it. Settings is
+  // a whole page of its own, so it still takes the full area.
+  _docksBesidePage(panelName) {
+    return document.body.dataset.guiFamily === 'browser' && panelName !== 'settings';
+  },
+
+  // body[data-sidebar-panel] drives the docked layout's open state; the event
+  // lets js/look-sidebar.js keep its header and toolbar button in step.
+  _announcePanel(panelName) {
+    if (panelName) document.body.dataset.sidebarPanel = panelName;
+    else document.body.removeAttribute('data-sidebar-panel');
+    document.dispatchEvent(new CustomEvent('vex:panel-changed', { detail: { panel: panelName } }));
   },
 
   hideActivePanel() {
@@ -598,6 +614,7 @@ const SidebarManager = {
     if (TabManager.activeTabId) {
       WebviewManager.showWebview(TabManager.activeTabId);
     }
+    this._announcePanel(null);
   },
 
   openPanel(name) {

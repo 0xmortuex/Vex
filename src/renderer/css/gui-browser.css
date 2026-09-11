@@ -15,7 +15,8 @@
    modes are just two sets of values for the same rules.
 
    Sections: (1) layout; (2) Vex-only chrome hidden; (3) token bridge (look
-   mode only); (4) surfaces; (5) the look's own palettes; (6) theme mode. */
+   mode only); (4) surfaces; (5) the look's own palettes; (6) theme mode;
+   (7) sidebars. */
 
 /* ---- 1. Layout: tabs on top, toolbar, bookmarks bar, page -------------- */
 body[data-gui-family="browser"] { display: flex; flex-direction: column; background: var(--b-frame); font-family: var(--b-font); }
@@ -26,9 +27,11 @@ body[data-gui-family="browser"] #main-layout       { order: 4; flex: 1 1 auto; h
 body[data-gui-family="browser"] > *:not(#top-tab-bar):not(#top-bar):not(#gui-shortcuts-bar):not(#main-layout) { order: 10; }
 
 /* ---- 2. Vex-only chrome a mainstream browser does not have -------------- */
-body[data-gui-family="browser"] :is(#icon-sidebar, #vex-logo, #workspace-btn, #sync-indicator,
+body[data-gui-family="browser"] :is(#vex-logo, #workspace-btn, #sync-indicator,
   #btn-toggle-tabs-left, #btn-onboarding, #btn-restart-app, #btn-tor, #btn-notes-top,
   #btn-toggle-ai, #btn-split, #btn-copy-url, #btn-ai-summarize) { display: none !important; }
+/* The icon rail stays only where that browser has one (Firefox, Netscape). */
+body[data-gui-family="browser"]:not([data-sb-launcher="rail"]) #icon-sidebar { display: none !important; }
 /* Only the workspace BUTTON goes: its list lives inside the switcher, and the
    menu's "Switch Workspace" opens it there, so the switcher stays as an empty
    anchor spanning the toolbar's height - out of the flow, so it takes no
@@ -40,9 +43,13 @@ body[data-gui-family="browser"] #workspace-switcher { position: absolute; left: 
    and the --b-* values are derived from them - bridging back would make each
    variable depend on the other and invalidate both. */
 body[data-gui-family="browser"]:not([data-gui-colors="theme"]) {
-  --vex-bg-base: var(--b-toolbar); --vex-bg-elevated: var(--b-menu); --vex-bg-deep: var(--b-frame-solid);
-  --vex-glass-strong: var(--b-toolbar); --vex-glass-medium: var(--b-frame-solid); --vex-glass-light: var(--b-toolbar);
-  --vex-glass-tab-active: var(--b-tab-active); --vex-glass-tab-inactive: var(--b-frame-solid); --vex-glass-input: var(--b-url-bg);
+  /* Vex's "deep" surfaces (a panel's list column, inactive chips) are a shade
+     of the toolbar, not the frame: XP's and 98's frame is the blue title band,
+     which turned the Notes list blue with its dark text on it. */
+  --b-surface-deep: color-mix(in srgb, var(--b-toolbar) 94%, var(--b-text));
+  --vex-bg-base: var(--b-toolbar); --vex-bg-elevated: var(--b-menu); --vex-bg-deep: var(--b-surface-deep);
+  --vex-glass-strong: var(--b-toolbar); --vex-glass-medium: var(--b-surface-deep); --vex-glass-light: var(--b-toolbar);
+  --vex-glass-tab-active: var(--b-tab-active); --vex-glass-tab-inactive: var(--b-surface-deep); --vex-glass-input: var(--b-url-bg);
   --vex-text-primary: var(--b-text); --vex-text-secondary: var(--b-text-dim); --vex-text-muted: var(--b-text-dim); --vex-text-accent: var(--b-accent);
   --vex-border-subtle: var(--b-border); --vex-border-medium: var(--b-border); --vex-border-strong: var(--b-border);
   --vex-border-accent: var(--b-accent); --vex-border-accent-strong: var(--b-accent);
@@ -51,6 +58,9 @@ body[data-gui-family="browser"]:not([data-gui-colors="theme"]) {
   --vex-hover-fill: var(--b-btn-hover); --vex-shadow-color: rgba(0, 0, 0, 0.18);
   --bg: var(--b-page); --surface: var(--b-menu); --text: var(--b-text); --text-muted: var(--b-text-dim);
   --border: var(--b-border); --primary: var(--b-accent); --primary-hover: var(--b-accent); --accent: var(--b-accent);
+  --bg-2: var(--b-surface-deep); --sidebar: var(--b-surface-deep); --tab-active: var(--b-tab-active); --tab-hover: var(--b-btn-hover);
+  /* Left to the theme on purpose: the status colours (success/danger/warning),
+     which mean the same in every look. */
 }
 body[data-gui-family="browser"] { color: var(--b-text); }
 /* The look owns the type in both colour modes. The themes force their UI font
@@ -60,6 +70,10 @@ body[data-gui-family="browser"] { color: var(--b-text); }
    monospace restore for mono-labelled controls still wins. */
 body[data-gui-family="browser"],
 body[data-gui-family="browser"] :is(button, input, textarea, select) { font-family: var(--b-font) !important; }
+/* Headings too: Oxford lifts h1-h3 to its serif up to (0,2,1)
+   (`:root .panel-header h2`); the :is() argument carries (0,1,1) so this sits
+   at (0,2,3). */
+html body[data-gui-family="browser"] :is(h1, h2, h3, .panel-header h2, .settings-content h2) { font-family: var(--b-font) !important; }
 
 /* ---- 4. Surfaces ------------------------------------------------------- */
 /* Tab strip */
@@ -115,11 +129,11 @@ body[data-gui-family="browser"] #top-bar {
   background: var(--b-toolbar); backdrop-filter: none; -webkit-backdrop-filter: none;
   border: none; border-radius: 0; border-bottom: 1px solid var(--b-toolbar-border); box-shadow: none;
 }
-body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button) {
+body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar) {
   width: var(--b-btn-size); height: var(--b-btn-size); border-radius: var(--b-btn-radius);
   color: var(--b-icon); background: transparent; border: 1px solid transparent; box-shadow: none;
 }
-body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button):hover {
+body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar):hover {
   background: var(--b-btn-hover); color: var(--b-text); border-color: var(--b-btn-hover-border, transparent);
 }
 body[data-gui-family="browser"] .nav-btn:disabled { color: var(--b-icon-disabled); background: transparent; }
@@ -338,7 +352,7 @@ body[data-gui-style="win98"] {
   --b-close-bg: #c0c0c0; --b-close-hover: #c0c0c0; --b-close-hover-fg: #000000;
 }
 body[data-gui-style="win98"] .top-tab,
-body[data-gui-style="win98"] :is(.nav-btn, #top-bar-right > button):hover,
+body[data-gui-style="win98"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar):hover,
 body[data-gui-style="win98"] #gui-shortcuts-bar .gsc:hover,
 body[data-gui-style="win98"] #window-controls .win-btn {
   box-shadow: inset -1px -1px var(--b-bevel-lo), inset 1px 1px var(--b-bevel-hi), inset -2px -2px var(--b-bevel-lo2), inset 2px 2px var(--b-bevel-hi2);
@@ -425,3 +439,110 @@ body[data-gui-style="win98"][data-gui-colors="theme"] {
   --b-caption-bg: var(--b-98-face); --b-caption-hover: var(--b-98-face); --b-caption-fg: var(--vex-text-primary);
   --b-close-bg: var(--b-98-face); --b-close-hover: var(--b-98-face); --b-close-hover-fg: var(--vex-text-primary);
 }
+
+/* ---- 7. Sidebars: each look gets its own browser's (js/look-sidebar.js) --
+   The panel (Discord, Spotify, notes...) docks BESIDE the page instead of
+   covering it; sidebar.js leaves the page showing and stamps
+   body[data-sidebar-panel] while one is open. Which side, and whether it is
+   reached from a toolbar button (Chrome, Safari, IE) or an icon rail (Firefox,
+   Netscape), comes from body[data-sb-side] / body[data-sb-launcher]. */
+#look-sb-head, #look-sb-resize, #btn-look-sidebar { display: none; }
+#look-sb-shield { position: fixed; inset: 0; z-index: 2147483000; cursor: col-resize; }
+
+body[data-gui-family="browser"] #content-area { display: flex; }
+body[data-gui-family="browser"] #webviews-container { flex: 1 1 auto; min-width: 0; width: auto; }
+body[data-gui-family="browser"] #panels-container { display: none; }
+body[data-gui-family="browser"][data-sidebar-panel] #panels-container {
+  display: flex; flex-direction: column; position: relative; flex: none; order: -1;
+  width: var(--look-sb-w, 420px); height: 100%; pointer-events: auto;
+  background: var(--b-menu); border-right: 1px solid var(--b-toolbar-border);
+}
+body[data-gui-family="browser"][data-sb-side="right"][data-sidebar-panel] #panels-container {
+  order: 1; border-right: none; border-left: 1px solid var(--b-toolbar-border);
+}
+body[data-gui-family="browser"] #panels-container .panel { position: relative; flex: 1 1 auto; min-height: 0; width: auto; height: auto; }
+/* Settings is a whole page of its own: it still covers the page area. */
+body[data-gui-family="browser"][data-sidebar-panel="settings"] #panels-container { position: absolute; inset: 0; width: auto; border: none; }
+body[data-gui-family="browser"][data-sidebar-panel="settings"] #look-sb-resize { display: none; }
+
+/* Header: a panel picker for toolbar-launched sidebars (Chrome's side-panel
+   dropdown), a plain title where the rail already picks the panel; a close
+   button either way. */
+body[data-gui-family="browser"] #look-sb-head {
+  display: flex; align-items: center; gap: 6px; flex: none; height: 36px; padding: 0 6px 0 10px;
+  background: var(--b-toolbar); color: var(--b-text); border-bottom: 1px solid var(--b-toolbar-border);
+  font: 600 13px var(--b-font);
+}
+body[data-gui-family="browser"] #look-sb-picker { display: none; }
+body[data-gui-family="browser"][data-sb-launcher="toolbar"] #look-sb-picker {
+  display: block; min-width: 0; max-width: 100%; padding: 3px 4px; cursor: pointer;
+  background: transparent; color: var(--b-text); border: 1px solid transparent; border-radius: var(--b-btn-radius);
+  font: inherit;
+}
+body[data-gui-family="browser"][data-sb-launcher="toolbar"] #look-sb-picker:hover { background: var(--b-btn-hover); }
+body[data-gui-family="browser"] #look-sb-picker option { background: var(--b-menu); color: var(--b-text); }
+body[data-gui-family="browser"][data-sb-launcher="toolbar"] #look-sb-title { display: none; }
+body[data-gui-family="browser"] #look-sb-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-gui-family="browser"] #look-sb-close {
+  display: grid; place-items: center; flex: none; margin-left: auto; width: 24px; height: 24px; padding: 0;
+  background: transparent; color: var(--b-icon); border: none; border-radius: var(--b-close-radius, 50%); cursor: pointer;
+}
+body[data-gui-family="browser"] #look-sb-close:hover { background: var(--b-btn-hover); color: var(--b-text); }
+body[data-gui-family="browser"] #look-sb-resize { display: block; position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; cursor: col-resize; z-index: 6; }
+body[data-gui-family="browser"][data-sb-side="right"] #look-sb-resize { right: auto; left: -3px; }
+
+/* Toolbar button (Chrome, Safari, IE). The panel edge in its icon sits on the
+   side the sidebar opens. */
+body[data-gui-family="browser"][data-sb-launcher="toolbar"] #btn-look-sidebar { display: grid; place-items: center; padding: 0; }
+body[data-gui-family="browser"][data-sb-side="left"] #btn-look-sidebar .sb-edge { transform: translateX(-6px); }
+body[data-gui-family="browser"] #btn-look-sidebar.active { background: var(--b-btn-hover); color: var(--b-accent); }
+
+/* Icon rail (Firefox, Netscape): a flat strip on the toolbar colour, small
+   icons, no Vex card or accent bar. */
+body[data-gui-family="browser"][data-sb-launcher="rail"] #icon-sidebar {
+  width: var(--b-rail-w, 44px); min-width: var(--b-rail-w, 44px); margin: 0; padding: 6px 0; gap: 2px;
+  background: var(--b-toolbar); backdrop-filter: none; -webkit-backdrop-filter: none;
+  border: none; border-right: 1px solid var(--b-toolbar-border); border-radius: 0;
+}
+body[data-gui-family="browser"][data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) {
+  width: var(--b-rail-btn, 32px); height: var(--b-rail-btn, 32px); background: transparent; color: var(--b-icon);
+  border: 1px solid transparent; border-radius: var(--b-btn-radius); box-shadow: none; transform: none;
+}
+body[data-gui-family="browser"][data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon):hover {
+  background: var(--b-btn-hover); color: var(--b-text); border-color: transparent; transform: none;
+}
+body[data-gui-family="browser"][data-sb-launcher="rail"] #icon-sidebar .sidebar-icon.active {
+  background: var(--b-rail-active, var(--b-btn-hover)); color: var(--b-accent); border-color: transparent;
+}
+body[data-gui-family="browser"][data-sb-launcher="rail"] #icon-sidebar .sidebar-icon.active::before { display: none; }
+body[data-gui-family="browser"][data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) svg { width: 16px; height: 16px; }
+body[data-gui-family="browser"][data-sb-launcher="rail"] #tools-bar { gap: 2px; }
+body[data-gui-family="browser"][data-sb-launcher="rail"] .sidebar-separator { width: 24px; background: var(--b-toolbar-border); }
+
+/* Firefox: the selected tool sits in a soft accent-tinted square. */
+body:is([data-gui-style="firefox"], [data-gui-style="firefox-dark"]) { --b-rail-active: color-mix(in srgb, var(--b-accent) 16%, transparent); }
+
+/* Safari: the sidebar is a shade of the window frame, set off from the page. */
+body[data-gui-style="safari"][data-sidebar-panel] #panels-container { background: var(--b-frame-solid); }
+
+/* Netscape on 98: raised grey buttons that press in when chosen, and the
+   sidebar wears a small title bar with a caption-box close. */
+body[data-gui-style="win98"] { --b-rail-w: 40px; }
+body[data-gui-style="win98"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon):hover {
+  box-shadow: inset -1px -1px var(--b-bevel-lo), inset 1px 1px var(--b-bevel-hi), inset -2px -2px var(--b-bevel-lo2), inset 2px 2px var(--b-bevel-hi2);
+  background: var(--b-toolbar);
+}
+body[data-gui-style="win98"] #icon-sidebar .sidebar-icon.active {
+  box-shadow: inset 1px 1px var(--b-bevel-lo), inset -1px -1px var(--b-bevel-hi), inset 2px 2px var(--b-bevel-lo2), inset -2px -2px var(--b-bevel-hi2);
+  background: var(--b-toolbar); color: var(--b-text);
+}
+body[data-gui-style="win98"] #look-sb-head {
+  height: 20px; margin: 2px 2px 0; padding: 0 2px 0 5px; border: none;
+  background: var(--b-frame); color: var(--b-strip-fg); font: 700 11px var(--b-font);
+}
+body[data-gui-style="win98"] #look-sb-close {
+  width: 16px; height: 14px; border-radius: 0; background: var(--b-caption-bg); color: var(--b-caption-fg);
+  box-shadow: inset -1px -1px var(--b-bevel-lo), inset 1px 1px var(--b-bevel-hi), inset -2px -2px var(--b-bevel-lo2), inset 2px 2px var(--b-bevel-hi2);
+}
+body[data-gui-style="win98"] #look-sb-close svg { width: 8px; height: 8px; }
+body[data-gui-style="win98"][data-sidebar-panel] #panels-container { background: var(--b-toolbar); }

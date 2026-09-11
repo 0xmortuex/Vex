@@ -4,6 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>New Tab — Vex</title>
+  <script>
+    // A browser look in its own colours hands this page its palette (Vex's
+    // gui-style.js injects it on dom-ready and keeps a copy here). Apply the
+    // copy before first paint, or every new tab flashes the colour theme first.
+    (function () {
+      try {
+        var css = localStorage.getItem('vex.lookPalette');
+        if (!css) return;
+        var s = document.createElement('style');
+        s.id = 'vex-look-palette';
+        s.textContent = css;
+        document.head.appendChild(s);
+        document.documentElement.setAttribute('data-look-palette', '');
+      } catch (e) { console.error('[start] look palette:', e); }
+    })();
+  </script>
   <style>
     /* Accessibility baseline (mirrors css/a11y.css — this page is a separate
        document, so the chrome's stylesheets don't reach it). */

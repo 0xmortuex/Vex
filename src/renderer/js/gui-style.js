@@ -19,16 +19,22 @@
   //           Firefox) or 'toolbar' (Safari, whose tabs sit under the toolbar).
   //   startPage  the value the home page understands; it only knows its own
   //           looks, so the browser family asks it for 'classic'.
+  //   sidebar  how that browser's own sidebar works (js/look-sidebar.js):
+  //           side - which side of the page the panel docks on;
+  //           launcher - 'toolbar' (a toolbar button + a panel picker in the
+  //           panel's header: Chrome's side panel, Safari, IE's Explorer bar)
+  //           or 'rail' (an icon strip always on screen: Firefox's sidebar,
+  //           Netscape's).
   const STYLES = {
     classic:        { layout: 'vex' },
     glass:          { layout: 'top', controls: 'tabs', startPage: 'glass' },
-    chrome:         { layout: 'top', family: 'browser', controls: 'tabs' },
-    'chrome-dark':  { layout: 'top', family: 'browser', controls: 'tabs' },
-    firefox:        { layout: 'top', family: 'browser', controls: 'tabs' },
-    'firefox-dark': { layout: 'top', family: 'browser', controls: 'tabs' },
-    safari:         { layout: 'top', family: 'browser', controls: 'toolbar' },
-    xp:             { layout: 'top', family: 'browser', controls: 'tabs' },
-    win98:          { layout: 'top', family: 'browser', controls: 'tabs' },
+    chrome:         { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'right', launcher: 'toolbar' } },
+    'chrome-dark':  { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'right', launcher: 'toolbar' } },
+    firefox:        { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
+    'firefox-dark': { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
+    safari:         { layout: 'top', family: 'browser', controls: 'toolbar', sidebar: { side: 'left', launcher: 'toolbar' } },
+    xp:             { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'toolbar' } },
+    win98:          { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
   };
   const isTopLayout = () => (STYLES[document.body.dataset.guiStyle] || {}).layout === 'top';
   const isBrowserLook = () => (STYLES[document.body.dataset.guiStyle] || {}).family === 'browser';
@@ -241,11 +247,20 @@
       document.body.dataset.guiStyle = style;
       if (def.family) document.body.dataset.guiFamily = def.family;
       else document.body.removeAttribute('data-gui-family');
+      if (def.sidebar) {
+        document.body.dataset.sbSide = def.sidebar.side;
+        document.body.dataset.sbLauncher = def.sidebar.launcher;
+      } else {
+        document.body.removeAttribute('data-sb-side');
+        document.body.removeAttribute('data-sb-launcher');
+      }
       try { window.HorizontalTabs?.render?.(); } catch {}
       moveWindowControls(def.controls === 'tabs');
     } else {
       document.body.removeAttribute('data-gui-style');
       document.body.removeAttribute('data-gui-family');
+      document.body.removeAttribute('data-sb-side');
+      document.body.removeAttribute('data-sb-launcher');
       try { if (_prevTabLayout) { document.body.dataset.tabLayout = _prevTabLayout; _prevTabLayout = null; } } catch {}
       moveWindowControls(false);
     }
@@ -307,14 +322,18 @@
     html[data-look-palette] body { background-image: none !important; }`;
   }
 
-  // Apply (or clear) that palette in one start-page webview.
+  // Apply (or clear) that palette in one start-page webview, and keep a copy in
+  // the page's own storage (its session is not ours) so the next New Tab can
+  // apply it before first paint instead of flashing the colour theme.
   function paintStartPage(webview) {
     const css = startPagePaletteCss();
     const js = css
       ? `(() => { let s = document.getElementById('vex-look-palette');
           if (!s) { s = document.createElement('style'); s.id = 'vex-look-palette'; document.head.appendChild(s); }
-          s.textContent = ${JSON.stringify(css)}; document.documentElement.setAttribute('data-look-palette', ''); })()`
-      : `(() => { document.getElementById('vex-look-palette')?.remove(); document.documentElement.removeAttribute('data-look-palette'); })()`;
+          s.textContent = ${JSON.stringify(css)}; document.documentElement.setAttribute('data-look-palette', '');
+          localStorage.setItem('vex.lookPalette', ${JSON.stringify(css)}); })()`
+      : `(() => { document.getElementById('vex-look-palette')?.remove(); document.documentElement.removeAttribute('data-look-palette');
+          localStorage.removeItem('vex.lookPalette'); })()`;
     return webview.executeJavaScript(js);
   }
 

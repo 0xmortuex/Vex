@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.31.42 (2026-09-11) — Each browser look gets its own sidebar
+
+### Added
+- **The sidebar is back in the browser looks, shaped like that browser's own.** Your panels (Discord, Spotify, WhatsApp, Notes and the rest) now open beside the page instead of covering it, the way a real browser's sidebar does:
+  - **Chrome:** a side-panel button on the toolbar opens the panel on the right, with a dropdown at the top to switch panels.
+  - **Firefox:** the slim icon strip stays down the left, with the panel opening beside it.
+  - **Safari:** a sidebar button at the far left of the toolbar opens it on the left.
+  - **Internet Explorer on XP:** the Explorer bar on the left, opened from the toolbar.
+  - **Netscape on 98:** a strip of grey buttons that press in when chosen, and a sidebar with its own small title bar and close box.
+- **Drag the sidebar's inner edge to make it wider or narrower.** Vex remembers the width. Settings still opens over the whole page, because it doesn't fit in a sidebar.
+
+### Fixed
+- **Panels no longer pick up the wrong colours in XP and 98.** Parts of a panel, like the Notes list, took the blue of the XP or 98 title bar, and a few surfaces still took your colour theme's colours. They now match the look.
+- **A new tab no longer flashes your colour theme first.** The New Tab page now applies the look's colours before it draws anything.
+
 ## v2.31.41 (2026-09-11) — The New Tab page matches the browser look
 
 ### Fixed
