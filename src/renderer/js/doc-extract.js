@@ -17,6 +17,58 @@
 // but works on anything visible.
 //
 // Result is copied to the clipboard and shown in a panel you can select/edit.
+
+// --- Google Sheets ------------------------------------------------------------
+// /htmlview is only a SHELL: title bar, sheet-tab bar and two scroll arrows. The
+// grid is loaded afterwards by script, one page per sheet, from
+// /htmlview/sheet?gid=N. Reading the shell's innerText therefore returned the
+// title, the tab name and "> <" - 52 characters and no cells at all - and since
+// that cleared the "more than 20 characters" bar it was accepted as the answer,
+// so the CSV fallback never even ran. Measured on Google's public sample sheet:
+// the shell holds 0 occurrences of any cell value; the sheet page holds them all.
+//
+// Both helpers are self-contained on purpose: they are injected into the hidden
+// webview with Function#toString(), and unit-tested directly.
+
+// Every sheet listed in the /htmlview shell, as { name, url }. The shell embeds
+// them as JS object literals, so the strings are JS-escaped (\/ and \x3d).
+function parseSheetList(html) {
+  const unescape = (s) => s
+    .replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\(.)/g, '$1');
+  const re = /\{name:\s*"((?:[^"\\]|\\.)*)",\s*pageUrl:\s*"((?:[^"\\]|\\.)*)"/g;
+  const out = [];
+  const seen = new Set();
+  let m;
+  while ((m = re.exec(html || ''))) {
+    const url = unescape(m[2]);
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push({ name: unescape(m[1]), url });
+  }
+  return out;
+}
+
+// A rendered sheet grid (<table class="waffle">) as tab-separated text. Skips
+// the column-letter header, the row-number <th> that starts every row, and the
+// all-empty spacer rows Google interleaves; trims trailing empty cells.
+function tableToText(table) {
+  if (!table) return '';
+  const lines = [];
+  const bodies = table.tBodies && table.tBodies.length ? Array.from(table.tBodies) : [table];
+  for (const body of bodies) {
+    for (const row of Array.from(body.rows || [])) {
+      const cells = Array.from(row.cells || [])
+        .filter((c) => c.tagName === 'TD')
+        .map((c) => (c.textContent || '').replace(/\s+/g, ' ').trim());
+      while (cells.length && !cells[cells.length - 1]) cells.pop();
+      if (cells.length) lines.push(cells.join('\t'));
+    }
+  }
+  return lines.join('\n');
+}
+
 const DocExtract = {
   _ocrLib: null,
 
@@ -36,7 +88,9 @@ const DocExtract = {
       if (viewUrl) {
         window.showToast?.(`Getting the real text from this ${g.label}…`);
         try {
-          const text = await this._viaHiddenWebview(viewUrl, partition);
+          const text = g.type === 'spreadsheets'
+            ? await this._viaHiddenWebview(viewUrl, partition, { reader: this._sheetReader(viewUrl), timeoutMs: 30000 })
+            : await this._viaHiddenWebview(viewUrl, partition);
           if (!current()) return;
           if (text) { this._showResult(text, `Google ${g.label} (real text)`); return; }
         } catch (_) { /* fall through */ }
@@ -81,7 +135,7 @@ const DocExtract = {
 
   // Load the plain-HTML render in a hidden off-screen webview on the user's
   // logged-in session, then read its rendered text. Resolves '' if blocked.
-  _viaHiddenWebview(viewUrl, partition = 'persist:main') {
+  _viaHiddenWebview(viewUrl, partition = 'persist:main', { reader = null, timeoutMs = 15000 } = {}) {
     return new Promise((resolve) => {
       let wv;
       try {
@@ -102,13 +156,16 @@ const DocExtract = {
           // Small settle for any client-side hydration on the plain page.
           await new Promise(r => setTimeout(r, 300));
           if (done || wv.getURL?.() !== viewUrl) { finish(''); return; }
-          const text = await wv.executeJavaScript(
+          const text = await wv.executeJavaScript(reader ||
             `(function(){try{if(location.href!==${JSON.stringify(viewUrl)})return '';var b=document.body;return b?(b.innerText||b.textContent||'').slice(0,2000000):'';}catch(e){return '';}})()`
           );
           const clean = (text || '').replace(/\n{3,}/g, '\n\n').trim();
           const head = clean.slice(0, 600);
+          // A custom reader returns '' when it finds nothing real, so any text it
+          // gives back is genuine; the page-text reader needs the length bar.
+          const enough = reader ? clean.length > 0 : clean.length > 20;
           // Reject sign-in / permission interstitials.
-          if (clean.length > 20 && !/\b(you need (permission|access)|request access|sign in to continue|couldn'?t preview)\b/i.test(head)) {
+          if (enough &&!/\b(you need (permission|access)|request access|sign in to continue|couldn'?t preview)\b/i.test(head)) {
             finish(clean);
           } else {
             finish('');
@@ -118,8 +175,52 @@ const DocExtract = {
 
       wv.addEventListener('did-finish-load', read);
       wv.addEventListener('did-fail-load', (e) => { if (e && e.isMainFrame === false) return; finish(''); });
-      const timer = setTimeout(() => finish(''), 15000);
+      const timer = setTimeout(() => finish(''), timeoutMs);
     });
+  },
+
+  // In-page script for a Sheets /htmlview shell: fetch every sheet's grid page
+  // and turn each into tab-separated text. Returns '' if no grid was found (a
+  // private sheet's sign-in page, say), which lets the caller fall back.
+  _sheetReader(viewUrl) {
+    const bounded = window.VexNet?.createBoundedFetch
+      ? `(${window.VexNet.createBoundedFetch.toString()})(fetch.bind(window))`
+      : `((u, o) => fetch(u, o))`;
+    return `(async function () {
+      try {
+        if (location.href !== ${JSON.stringify(viewUrl)}) return '';
+        const parseSheetList = ${parseSheetList.toString()};
+        const tableToText = ${tableToText.toString()};
+        const request = ${bounded};
+        // Google pages enforce Trusted Types, so DOMParser.parseFromString() with
+        // a plain string THROWS ("This document requires 'TrustedHTML'
+        // assignment") - which silently emptied this whole reader in the real
+        // app while it passed in a test DOM that has no Trusted Types. Parse
+        // through our own policy. A pass-through is safe here: a DOMParser
+        // document is inert, so nothing in the fetched HTML ever runs.
+        let policy = null;
+        try {
+          if (typeof trustedTypes !== 'undefined' && trustedTypes.createPolicy) {
+            policy = trustedTypes.createPolicy('vex-doc-extract', { createHTML: (s) => s });
+          }
+        } catch (e) { policy = null; }
+        const parse = (html) => new DOMParser().parseFromString(policy ? policy.createHTML(html) : html, 'text/html');
+        let sheets = parseSheetList(document.documentElement.innerHTML);
+        if (!sheets.length) {
+          sheets = [{ name: '', url: location.href.replace(/\\/htmlview.*$/, '/htmlview/sheet?headers=false&gid=0') }];
+        }
+        const parts = [];
+        for (const sheet of sheets) {
+          const url = sheet.url.replace('headers=true', 'headers=false');
+          const r = await request(url, { credentials: 'include', maxBytes: 8000000, timeoutMs: 12000 });
+          if (!r.ok) continue;
+          const doc = parse(await r.text());
+          const text = tableToText(doc.querySelector('table.waffle'));
+          if (text) parts.push(sheets.length > 1 ? '## ' + sheet.name + '\\n' + text : text);
+        }
+        return parts.join('\\n\\n');
+      } catch (e) { return ''; }
+    })()`;
   },
 
   // Ordered in-page export endpoints (secondary).
@@ -245,4 +346,4 @@ const DocExtract = {
 };
 
 if (typeof window !== 'undefined') window.DocExtract = DocExtract;
-if (typeof module !== 'undefined' && module.exports) module.exports = { DocExtract };
+if (typeof module !== 'undefined' && module.exports) module.exports = { DocExtract, parseSheetList, tableToText };

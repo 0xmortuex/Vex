@@ -28,4 +28,30 @@ function guestOwnsFind(url) {
   }
 }
 
-module.exports = { guestOwnsFind, OWNS_FIND };
+// Ctrl+F reached Vex's chrome instead of the page - the case main.js cannot
+// pass through, because the keystroke never went to the guest at all. It
+// happens whenever Vex's own UI has focus, e.g. straight after clicking a tab:
+// on a Google Sheet that opened Vex's find bar, which reported 0/0 for a name
+// sitting in plain view on row 15. If the active page owns find, hand it the
+// keystroke instead. Returns true when it did.
+//
+// Loaded by the renderer as a classic script as well as required by main, so it
+// stays free of require() and guards its export.
+function handFindToPage(webview) {
+  if (!webview) return false;
+  let url;
+  try { url = (typeof webview.getURL === 'function' && webview.getURL()) || ''; } catch { url = ''; }
+  if (!guestOwnsFind(url) || typeof webview.sendInputEvent !== 'function') return false;
+  try {
+    if (typeof webview.focus === 'function') webview.focus();
+    webview.sendInputEvent({ type: 'keyDown', keyCode: 'F', modifiers: ['control'] });
+    webview.sendInputEvent({ type: 'keyUp', keyCode: 'F', modifiers: ['control'] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { guestOwnsFind, handFindToPage, OWNS_FIND };
+}

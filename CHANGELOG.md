@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.38 (2026-09-11) — Google Sheets: copy text and Ctrl+F
+
+### Fixed
+- **Copying text from a Google Sheet gets the actual cells.** It used to return the sheet's title, its tab name and the two scroll arrows, and nothing else, because the page it read is only a frame and the grid is fetched separately. It now reads every sheet in the file, one row per line with the cells separated by tabs, so it pastes cleanly into another spreadsheet. The text of linked cells is included.
+- **Ctrl+F on a Google Sheet or Doc opens Google's own search.** Pressing it right after switching tabs opened the Vex find bar instead, and that bar can never find anything in Sheets or Docs because they draw their text as a picture rather than as text on the page, so a name in plain view on row 15 came back as 0 of 0. The key now always goes to the document.
+
+### Notes
+- Both were confirmed in the running app on a real Google Sheet: the copy returned all 31 rows, and Ctrl+F opened the sheet's own find box.
+
 ## v2.31.37 (2026-09-10) — Share Your Screen from a pop-out call
 
 ### Fixed

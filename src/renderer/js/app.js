@@ -296,7 +296,15 @@
   const findInput = document.getElementById('find-input');
   const findCount = document.getElementById('find-count');
 
+  // Google Docs / Sheets / Slides paint their text on a canvas Chromium's find
+  // cannot read, and ship their own find. main.js already lets Ctrl+F through
+  // when the page has focus; this covers Vex's chrome having focus (just after
+  // clicking a tab, say), where the key lands here instead. find-policy.js.
+  const handFindToActivePage = () =>
+    typeof handFindToPage === 'function' && handFindToPage(WebviewManager.getActiveWebview());
+
   function toggleFindBar() {
+    if (findBar.style.display === 'none' && handFindToActivePage()) return;
     if (findBar.style.display === 'none') {
       findBar.style.display = 'flex';
       findInput.focus();
@@ -970,7 +978,7 @@
     ShortcutsRegistry.register('next-tab',       () => cycleTab(1));
     ShortcutsRegistry.register('prev-tab',       () => cycleTab(-1));
     ShortcutsRegistry.register('bookmark',       bookmarkCurrent);
-    ShortcutsRegistry.register('find-in-page',   () => { const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
+    ShortcutsRegistry.register('find-in-page',   () => { if (handFindToActivePage()) return; const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
   }
 
   // === Phase 16: Tab auto-grouping ===
