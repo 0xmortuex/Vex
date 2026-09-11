@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.31.44 (2026-09-12) — 318 tools, 420 jobs
+
+### Added
+- **The Toolbox has 318 tools, up from 15.** The new ones are 79 unit converters, maths and science tools, 68 text, writing and generator tools, 86 money, business, date and health tools, and 70 developer, data, web, security and design tools. They all work inside Vex, with nothing sent anywhere. Each has worked examples that are checked automatically, so a wrong formula fails the build.
+- **Search and categories in the Toolbox.** Type "loan", "bmi" or "json" to find a tool, or filter by category. Your job's tools come first.
+- **420 jobs, up from 65,** across 24 categories. These include trades, hospitality, transport, retail, real estate, public service, agriculture, sports and personal ones like parent or retiree. Each job comes with the tools it really uses. Existing jobs keep their names and themes, but ten of them are now listed under the new categories, so Mechanical Engineer is under Engineering and Accountant is under Finance.
+
+### Changed
+- **Your own tools now live in the Toolbox.** The links you added used to sit on the sidebar as a separate row of icons. They now appear in the Toolbox under "Your links", and the sidebar keeps one Toolbox button. To put them back on the sidebar, tick "Show my links on the sidebar instead of here" in the Toolbox.
+- **Choosing tools for a job works with hundreds of tools.** The job setup shows the tools you have switched on, with a search box to add more, instead of one long list of every tool.
+
+### Fixed
+- **Sleep in the Memory panel works.** The row redrew before the tab had actually gone to sleep, so it looked like nothing happened, and a tab set to stay awake ignored the button. Sleep now always works when you click it, and the row updates once the tab is asleep. "Sleep inactive tabs" likewise waits before updating.
+- **The sleep moon is visible on every theme.** It was a thin outline drawn at about 44% strength, and disappeared on most themes. It is now a solid moon in the theme's main text colour at full strength; only the tab's title and icon fade. Every GUI style, colour mode and theme was checked, 560 combinations, and each is at least 3:1 contrast. The vertical tab list now shows the moon too.
+- **Address-bar suggestions line up with the address bar.** In the browser looks the address bar runs the full width, but the suggestions were still centred in a 600px box, off to one side of what you were typing. They now match the bar edge to edge.
+
 ## v2.31.43 (2026-09-11) — Maximize sidebar apps, real memory numbers
 
 ### Added

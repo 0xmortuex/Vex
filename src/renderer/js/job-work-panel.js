@@ -26,7 +26,7 @@ const WorkPanel = {
     }
 
     const enabled = (() => { try { const a = JSON.parse(localStorage.getItem('vex.jobTools') || 'null'); return Array.isArray(a) ? a : job.tools.slice(); } catch { return job.tools.slice(); } })();
-    const tools = (window.Toolbox ? Toolbox.TOOLS.filter(t => enabled.includes(t.id)) : []);
+    const tools = (window.Toolbox ? Toolbox.all().filter(t => enabled.includes(t.id)) : []);
     const themeMeta = (typeof ThemeManager !== 'undefined' && ThemeManager.getThemeMeta) ? ThemeManager.getThemeMeta(job.theme) : { label: job.theme, accent: '#6366f1' };
 
     const toolCard = (t) => `<button class="wp-tool" data-id="${esc(t.id)}" title="${esc(t.desc)}" style="text-align:left;padding:11px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:'Outfit',sans-serif">

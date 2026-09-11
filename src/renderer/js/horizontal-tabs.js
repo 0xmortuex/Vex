@@ -154,7 +154,7 @@ const HorizontalTabs = (() => {
                 : tab.muted              ? '<span class="audio-indicator" title="Muted">\ud83d\udd07</span>'
                 : '';
     const sleep = tab.sleeping
-      ? '<span class="sleep-indicator" title="Sleeping"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>'
+      ? '<span class="sleep-indicator" title="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>'
       : '';
 
     const priv = (tab.partition && !String(tab.partition).startsWith('persist:'))

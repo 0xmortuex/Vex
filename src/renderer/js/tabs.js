@@ -571,6 +571,7 @@ const TabManager = {
       <div class="tab-info">
         <div class="tab-title">${this._escapeHtml(tab.title)}</div>
       </div>
+      ${tab.sleeping ? '<span class="sleep-indicator" title="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>' : ''}
       ${tab.audible && !tab.muted ? '<span class="tab-audio" title="Playing audio — click to mute">&#128266;</span>' : ''}
       ${tab.muted ? '<span class="tab-audio muted" title="Muted — click to unmute">&#128264;</span>' : ''}
       ${tab.unread ? '<div class="tab-unread"></div>' : ''}
@@ -1574,13 +1575,17 @@ const TabManager = {
     document.body.appendChild(ov);
   },
 
+  // Resolves once every sleep has finished, so callers can redraw afterwards
+  // (sleepTab first reads the scroll position and the tab's memory).
   sleepAllInactive() {
+    const jobs = [];
     this.tabs.forEach(t => {
       // Skip the active tab, already-sleeping/lazy tabs, and tabs playing audio.
       if (t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted)) {
-        this.sleepTab(t.id);
+        jobs.push(this.sleepTab(t.id));
       }
     });
+    return Promise.all(jobs);
   },
 
   wakeAllTabs() {

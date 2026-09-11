@@ -160,6 +160,10 @@ body[data-gui-family="browser"] #url-bar:focus-within {
    second ring inside it. */
 body[data-gui-family="browser"] #url-input:focus-visible { outline: none !important; }
 body[data-gui-family="browser"] #url-input { color: var(--b-text); font: var(--b-url-font); }
+/* Suggestions line up with the field you type in. Vex centres a 600px list
+   under its centred 600px field; here the field runs the toolbar's width, so a
+   centred list sat off to one side of the text being typed. */
+body[data-gui-family="browser"] #searchbar-suggestions { left: 4px; right: 4px; width: auto; max-width: none; transform: none; }
 body[data-gui-family="browser"] #url-input::placeholder { color: var(--b-text-dim); }
 body[data-gui-family="browser"] #url-icon,
 body[data-gui-family="browser"] #url-bar .nav-btn { color: var(--b-text-dim); }

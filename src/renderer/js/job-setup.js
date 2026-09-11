@@ -19,7 +19,7 @@ const JobSetup = {
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#jsx-close').addEventListener('click', () => m.remove());
-    this._sel = null; this._tools = null;
+    this._sel = null; this._tools = null; this._toolQuery = '';
     this._renderPick(m);
   },
 
@@ -41,7 +41,7 @@ const JobSetup = {
     search.addEventListener('input', () => this._renderPick(m, search.value.trim().toLowerCase()));
     // keep focus + caret at end after re-render
     search.focus(); search.setSelectionRange(search.value.length, search.value.length);
-    body.querySelectorAll('.jsx-job').forEach(b => b.addEventListener('click', () => { this._sel = b.dataset.id; this._renderConfig(m); }));
+    body.querySelectorAll('.jsx-job').forEach(b => b.addEventListener('click', () => { this._sel = b.dataset.id; this._toolQuery = ''; this._renderConfig(m); }));
   },
 
   // View 2 — theme preview + tool toggles for the chosen job.
@@ -52,7 +52,7 @@ const JobSetup = {
     // Initialize the working tool set once per selected job; keep it across the
     // re-renders that toggling triggers.
     if (!this._tools || this._toolsForJob !== job.id) { this._tools = new Set(job.tools); this._toolsForJob = job.id; }
-    const allTools = (window.Toolbox && Toolbox.TOOLS) || [];
+    const allTools = window.Toolbox ? Toolbox.all() : [];
     const themeMeta = (typeof ThemeManager !== 'undefined' && ThemeManager.getThemeMeta) ? ThemeManager.getThemeMeta(job.theme) : { label: job.theme, accent: '#6366f1' };
     body.innerHTML = `
       <button id="jsx-back" style="background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;padding:0;margin-bottom:10px;font-family:'Outfit',sans-serif">← All jobs</button>
@@ -61,27 +61,43 @@ const JobSetup = {
         <span style="width:16px;height:16px;border-radius:5px;background:${this._esc(themeMeta.accent || '#6366f1')};display:inline-block;border:1px solid var(--border)"></span>
         Theme: <b>${this._esc(themeMeta.label || job.theme)}</b>
       </div>
-      <div style="font-size:12px;color:var(--text-muted);margin:12px 0 6px">Tools — recommended for ${this._esc(job.name)} are on. Toggle any you want:</div>
+      <div style="font-size:12px;color:var(--text-muted);margin:12px 0 6px">Tools — recommended for ${this._esc(job.name)} are on. Click one to turn it off, or search below to add more:</div>
       <div id="jsx-tools" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      <input id="jsx-tool-search" placeholder="Add tools — search ${allTools.length} tools…" value="${this._esc(this._toolQuery || '')}" style="width:100%;box-sizing:border-box;margin-top:10px;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:12.5px;font-family:'Outfit',sans-serif">
+      <div id="jsx-tool-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"></div>
       <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
         <span style="flex:1;font-size:11px;color:var(--text-muted)">Applies the theme + adds a 🧰 Toolbox button and quick tools by the Tor button.</span>
         <button id="jsx-apply" style="padding:10px 20px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Apply</button>
       </div>`;
-    const grid = body.querySelector('#jsx-tools');
-    allTools.forEach(t => {
+    const toolCard = (t) => {
       const on = this._tools.has(t.id);
       const rec = job.tools.includes(t.id);
       const el = document.createElement('button');
       el.className = 'jsx-tool';
       el.dataset.id = t.id;
       el.style.cssText = `text-align:left;padding:9px 11px;border-radius:9px;cursor:pointer;font-family:'Outfit',sans-serif;border:1px solid ${on ? 'var(--primary,var(--accent))' : 'var(--border)'};background:${on ? 'color-mix(in srgb, var(--primary,var(--accent)) 12%, var(--bg))' : 'var(--bg)'}`;
-      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span>${on ? '✓' : '+'}</span><span style="font-size:12.5px;font-weight:600;color:var(--text)">${t.icon} ${this._esc(t.name)}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${this._esc(t.desc)}${rec ? ' · recommended' : ''}</div>`;
+      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span>${on ? '✓' : '+'}</span><span style="font-size:12.5px;font-weight:600;color:var(--text)">${this._esc(t.icon)} ${this._esc(t.name)}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${this._esc(t.desc)}${rec ? ' · recommended' : ''}</div>`;
       el.addEventListener('click', () => {
         if (this._tools.has(t.id)) this._tools.delete(t.id); else this._tools.add(t.id);
         this._renderConfig(m); // simplest: re-render to reflect state (keeps _tools)
       });
-      grid.appendChild(el);
-    });
+      return el;
+    };
+    // Hundreds of tools: show the ones switched on, and let search add more.
+    body.querySelector('#jsx-tools').append(...allTools.filter(t => this._tools.has(t.id)).map(toolCard));
+    const search = body.querySelector('#jsx-tool-search');
+    const results = body.querySelector('#jsx-tool-results');
+    const paintResults = () => {
+      this._toolQuery = search.value.trim();
+      results.replaceChildren();
+      if (!this._toolQuery) return;
+      const hits = allTools.filter(t => !this._tools.has(t.id) && Toolbox._matches(t, this._toolQuery)).slice(0, 24);
+      if (!hits.length) { results.textContent = 'No tools match.'; results.style.color = 'var(--text-muted)'; return; }
+      results.append(...hits.map(toolCard));
+    };
+    search.addEventListener('input', paintResults);
+    paintResults();
+    if (this._toolQuery) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
     body.querySelector('#jsx-back').addEventListener('click', () => this._renderPick(m));
     body.querySelector('#jsx-apply').addEventListener('click', () => {
       JobProfiles.apply(job.id, [...this._tools]);

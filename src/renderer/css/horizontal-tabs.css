@@ -181,13 +181,17 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 
 /* Sleeping state — faded tab + grayscale favicon + moon indicator (inline SVG
    rendered by horizontal-tabs.js when tab.sleeping) */
-.top-tab.sleeping { opacity: 0.55; }
-.top-tab.sleeping .tab-favicon { filter: grayscale(0.7); }
-.top-tab .sleep-indicator {
+/* Only the title and favicon fade. The whole tab used to fade to 55% with the
+   moon at 80% of that — a thin 10px outline at ~44% strength that vanished on
+   most themes. The moon is solid, full strength, in the theme's main text
+   colour, which every theme keeps readable on its tabs. */
+:is(.top-tab, .tab-item).sleeping :is(.tab-title, .tab-favicon, .tab-favicon-placeholder) { opacity: 0.55; }
+:is(.top-tab, .tab-item).sleeping .tab-favicon { filter: grayscale(0.7); }
+:is(.top-tab, .tab-item) .sleep-indicator {
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  opacity: 0.8;
   margin-left: 4px;
+  color: var(--vex-text-primary, var(--text));
 }
 
 /* Group membership — 3 px colored strip along top */

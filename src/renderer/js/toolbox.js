@@ -224,40 +224,257 @@ const Toolbox = {
     { id: 'markdown', name: 'Markdown Preview', icon: '📄', family: 'write', desc: 'Live Markdown → formatted preview' },
   ],
 
-  get(id) { return this.TOOLS.find(t => t.id === id); },
+  // Every tool: the hand-built ones above plus the declarative packs
+  // (js/toolbox-packs.js, js/toolbox-pack-*.js).
+  all() {
+    const packs = (typeof ToolboxPacks !== 'undefined') ? ToolboxPacks.specs : [];
+    return this.TOOLS.concat(packs);
+  },
 
-  // Which tools the user has enabled (job-profiles sets this). Empty = show all.
+  get(id) { return this.all().find(t => t.id === id); },
+
+  // Which tools the user's job enabled (job-profiles sets this), or null.
   enabledIds() {
     try { const a = JSON.parse(localStorage.getItem('vex.jobTools') || 'null'); return Array.isArray(a) ? a : null; } catch { return null; }
   },
 
-  // Launcher grid of enabled tools.
+  // The user's own links (js/tools.js) live in the Toolbox unless they chose
+  // to keep them on the sidebar rail.
+  linksInRail() {
+    try { return localStorage.getItem('vex.toolsInRail') === 'on'; } catch { return false; }
+  },
+  setLinksInRail(on) {
+    try { localStorage.setItem('vex.toolsInRail', on ? 'on' : 'off'); } catch {}
+    if (typeof VexTools !== 'undefined') VexTools.renderToolsBar();
+  },
+
+  // Family label for a tool (hand-built tools use the same family ids).
+  _familyLabel(fam) {
+    const F = (typeof ToolboxPacks !== 'undefined') ? ToolboxPacks.FAMILIES : {};
+    return (F[fam] && F[fam].label) || fam;
+  },
+
+  // Search: every word must appear in the name, description, keywords or
+  // family.
+  _matches(t, q) {
+    if (!q) return true;
+    const hay = [t.name, t.desc, t.family, this._familyLabel(t.family), ...(t.keywords || [])].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w));
+  },
+
+  // Launcher: search, family filter, your job's tools first, your links, then
+  // everything by family.
   open() {
-    const enabled = this.enabledIds();
-    const tools = enabled ? this.TOOLS.filter(t => enabled.includes(t.id)) : this.TOOLS;
     document.getElementById('vex-toolbox')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-toolbox';
-    m.style.cssText = 'position:fixed;inset:0;z-index:100053;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
-    m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:82vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);padding:18px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🧰 Toolbox</span><button id="tb-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        ${tools.map(t => `<button class="tb-tool" data-id="${t.id}" style="text-align:left;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:'Outfit',sans-serif">
-          <div style="font-size:16px">${t.icon}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:4px">${t.name}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${t.desc}</div>
-        </button>`).join('')}
+    m.style.cssText = 'position:fixed;inset:0;z-index:100053;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
+    m.innerHTML = `<div style="width:820px;max-width:95vw;height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
+      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px">
+        <span style="font-size:15px;font-weight:700;color:var(--text)">🧰 Toolbox</span>
+        <span id="tb-count" style="font-size:11.5px;color:var(--text-muted);flex:1"></span>
+        <button id="tb-close" aria-label="Close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button>
       </div>
+      <div style="padding:0 18px 8px"><input id="tb-search" placeholder="Search tools — try “loan”, “json”, “bmi”, “convert”…" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-family:inherit"></div>
+      <div id="tb-fams" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 10px"></div>
+      <div id="tb-list" style="overflow:auto;padding:0 18px 18px;flex:1"></div>
     </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#tb-close').addEventListener('click', () => m.remove());
-    m.querySelectorAll('.tb-tool').forEach(b => b.addEventListener('click', () => { m.remove(); this.openTool(b.dataset.id); }));
+    const close = () => m.remove();
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#tb-close').addEventListener('click', close);
+    m.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    const state = { q: '', fam: 'all' };
+    const search = m.querySelector('#tb-search');
+    search.addEventListener('input', () => { state.q = search.value.trim(); this._paintList(m, state); });
+    this._paintFamilies(m, state);
+    this._paintList(m, state);
+    search.focus();
+  },
+
+  _paintFamilies(m, state) {
+    const bar = m.querySelector('#tb-fams');
+    const tools = this.all();
+    const fams = [...new Set(tools.map(t => t.family))].sort((a, b) => this._familyLabel(a).localeCompare(this._familyLabel(b)));
+    const chips = [['all', `All (${tools.length})`]];
+    if (this.enabledIds()) chips.push(['job', 'For your job']);
+    if (!this.linksInRail()) chips.push(['links', 'Your links']);
+    for (const f of fams) chips.push([f, `${this._familyLabel(f)} (${tools.filter(t => t.family === f).length})`]);
+    bar.innerHTML = '';
+    for (const [id, label] of chips) {
+      const b = document.createElement('button');
+      b.textContent = label;
+      const on = state.fam === id;
+      b.style.cssText = `padding:5px 10px;border-radius:999px;cursor:pointer;font-size:11.5px;font-family:inherit;border:1px solid ${on ? 'var(--primary,var(--accent))' : 'var(--border)'};background:${on ? 'color-mix(in srgb, var(--primary,var(--accent)) 16%, var(--bg))' : 'var(--bg)'};color:var(--text)`;
+      b.addEventListener('click', () => { state.fam = id; this._paintFamilies(m, state); this._paintList(m, state); });
+      bar.appendChild(b);
+    }
+  },
+
+  _card(label, icon, desc, onClick) {
+    const b = document.createElement('button');
+    b.className = 'tb-tool';
+    b.style.cssText = "text-align:left;padding:11px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:'Outfit',sans-serif;min-width:0";
+    const i = document.createElement('div'); i.style.cssText = 'font-size:15px;color:var(--text)'; i.textContent = icon;
+    const n = document.createElement('div'); n.style.cssText = 'font-size:12.5px;font-weight:600;color:var(--text);margin-top:4px'; n.textContent = label;
+    const d = document.createElement('div'); d.style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.35'; d.textContent = desc;
+    b.append(i, n, d);
+    b.addEventListener('click', onClick);
+    return b;
+  },
+
+  _section(list, title, cards) {
+    if (!cards.length) return;
+    const h = document.createElement('div');
+    h.style.cssText = 'margin:14px 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);font-weight:700';
+    h.textContent = title;
+    const g = document.createElement('div');
+    g.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px';
+    g.append(...cards);
+    list.append(h, g);
+  },
+
+  _paintList(m, state) {
+    const list = m.querySelector('#tb-list');
+    list.innerHTML = '';
+    const toolCard = (t) => this._card(t.name, t.icon, t.desc, () => { m.remove(); this.openTool(t.id); });
+    const all = this.all().filter(t => this._matches(t, state.q));
+    const enabled = this.enabledIds() || [];
+    let shown = 0;
+
+    // Your links (the user's own tools, js/tools.js) — unless kept on the rail.
+    const links = () => {
+      if (this.linksInRail() || typeof VexTools === 'undefined') return;
+      const mine = VexTools.tools.filter(t => this._matches({ name: t.name, desc: t.desc || t.url, family: 'links' }, state.q));
+      const cards = mine.map(t => {
+        const c = this._card(t.name, t.icon || '🔗', t.desc || t.url, () => { m.remove(); VexTools.openTool(t); });
+        c.title = t.url + '  (right-click to edit or remove)';
+        c.addEventListener('contextmenu', (e) => { e.preventDefault(); VexTools.showContextMenu(e, t); });
+        return c;
+      });
+      if (!state.q) cards.push(this._card('Add a link', '+', 'Any site you use as a tool — it opens in a tab', () => { m.remove(); VexTools.showEditModal(); }));
+      this._section(list, 'Your links', cards);
+      shown += mine.length;
+      const opt = document.createElement('label');
+      opt.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--text-muted);cursor:pointer';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.addEventListener('change', () => { this.setLinksInRail(cb.checked); window.showToast?.('Your links are on the sidebar now'); m.remove(); });
+      opt.append(cb, document.createTextNode('Show my links on the sidebar instead of here'));
+      list.appendChild(opt);
+    };
+
+    if (state.fam === 'links') { links(); }
+    else if (state.fam === 'job') {
+      const jobTools = all.filter(t => enabled.includes(t.id));
+      this._section(list, 'For your job', jobTools.map(toolCard));
+      shown = jobTools.length;
+    } else if (state.fam !== 'all') {
+      const famTools = all.filter(t => t.family === state.fam);
+      this._section(list, this._familyLabel(state.fam), famTools.map(toolCard));
+      shown = famTools.length;
+    } else if (state.q) {
+      links();
+      this._section(list, 'Tools', all.map(toolCard));
+      shown += all.length;
+    } else {
+      const jobTools = all.filter(t => enabled.includes(t.id));
+      this._section(list, 'For your job', jobTools.map(toolCard));
+      links();
+      const fams = [...new Set(all.map(t => t.family))].sort((a, b) => this._familyLabel(a).localeCompare(this._familyLabel(b)));
+      for (const f of fams) this._section(list, this._familyLabel(f), all.filter(t => t.family === f).map(toolCard));
+      shown = all.length;
+    }
+    m.querySelector('#tb-count').textContent = state.q ? `${shown} match${shown === 1 ? '' : 'es'}` : `${this.all().length} tools`;
+    if (!list.children.length) {
+      const none = document.createElement('div');
+      none.style.cssText = 'padding:30px 0;text-align:center;color:var(--text-muted);font-size:13px';
+      none.textContent = 'No tools match that.';
+      list.appendChild(none);
+    }
   },
 
   openTool(id) {
     const fn = this['_' + id];
-    if (typeof fn === 'function') fn.call(this);
+    if (typeof fn === 'function') { fn.call(this); return; }
+    const spec = (typeof ToolboxPacks !== 'undefined') && ToolboxPacks.specs.find(s => s.id === id);
+    if (!spec) throw new Error(`Toolbox has no tool "${id}"`);
+    this._runSpec(spec);
+  },
+
+  // The shared screen for declarative tools: a field per input, the result
+  // recomputed on every change, and Copy.
+  _runSpec(spec) {
+    const { body } = this._modal(`${spec.icon} ${spec.name}`, '');
+    const desc = document.createElement('div');
+    desc.style.cssText = 'font-size:12px;color:var(--text-muted);margin-bottom:10px';
+    desc.textContent = spec.desc;
+    body.appendChild(desc);
+    const inputs = {};
+    const box = 'width:100%;box-sizing:border-box;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;font-family:inherit';
+    for (const f of spec.fields) {
+      const wrap = document.createElement('label');
+      wrap.style.cssText = 'display:block;margin-bottom:9px';
+      const lab = document.createElement('div');
+      lab.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px';
+      lab.textContent = f.label;
+      let el;
+      if (f.type === 'textarea') {
+        el = document.createElement('textarea');
+        el.style.cssText = box + ";min-height:90px;resize:vertical;font-family:'JetBrains Mono',monospace";
+        el.spellcheck = false;
+      } else if (f.type === 'select') {
+        el = document.createElement('select');
+        el.style.cssText = box;
+        for (const [val, text] of f.options) { const o = document.createElement('option'); o.value = val; o.textContent = text; el.appendChild(o); }
+      } else {
+        el = document.createElement('input');
+        el.type = f.type || 'text';
+        if (f.type === 'checkbox') el.style.cssText = 'width:16px;height:16px'; else el.style.cssText = box;
+        for (const k of ['min', 'max', 'step']) if (f[k] !== undefined) el[k] = f[k];
+      }
+      if (f.placeholder) el.placeholder = f.placeholder;
+      if (f.type === 'checkbox') el.checked = !!f.value;
+      else if (f.value !== undefined) el.value = f.value;
+      inputs[f.id] = el;
+      if (f.type === 'checkbox') { wrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:9px;cursor:pointer'; wrap.append(el, lab); lab.style.marginBottom = '0'; }
+      else wrap.append(lab, el);
+      body.appendChild(wrap);
+    }
+    const out = document.createElement('div');
+    out.style.cssText = "margin-top:6px;padding:10px 12px;border-radius:8px;background:var(--bg);border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text);white-space:pre-wrap;word-break:break-word;min-height:20px";
+    body.appendChild(out);
+    let lastText = '';
+    const run = () => {
+      const raw = {};
+      for (const f of spec.fields) raw[f.id] = f.type === 'checkbox' ? inputs[f.id].checked : inputs[f.id].value;
+      out.replaceChildren();
+      try {
+        const res = spec.run(ToolboxPacks.coerce(spec, raw));
+        lastText = ToolboxPacks.asText(res);
+        out.style.color = 'var(--text)';
+        if (Array.isArray(res)) {
+          const t = document.createElement('table');
+          t.style.cssText = 'border-collapse:collapse';
+          for (const [k, v] of res) {
+            const tr = document.createElement('tr');
+            const a = document.createElement('td'); a.style.cssText = 'padding:3px 12px 3px 0;color:var(--text-muted);vertical-align:top;white-space:nowrap'; a.textContent = k;
+            const b = document.createElement('td'); b.style.cssText = 'padding:3px 0'; b.textContent = v;
+            tr.append(a, b); t.appendChild(tr);
+          }
+          out.appendChild(t);
+        } else out.textContent = lastText;
+      } catch (e) {
+        lastText = '';
+        out.style.color = 'var(--danger,#ef4444)';
+        out.textContent = (e && e.message) || String(e);
+      }
+    };
+    Object.values(inputs).forEach(el => { el.addEventListener('input', run); el.addEventListener('change', run); });
+    body.appendChild(this._copyBtn(() => lastText));
+    run();
+    const first = spec.fields.length && inputs[spec.fields[0].id];
+    if (first) setTimeout(() => { try { first.focus(); } catch {} }, 30);
   },
 
   // Shared tool modal shell. Returns { body, close }.

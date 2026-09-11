@@ -24,11 +24,14 @@ const MemoryPanel = {
       </div>
     `;
 
-    document.getElementById('memory-sleep-all')?.addEventListener('click', () => {
+    document.getElementById('memory-sleep-all')?.addEventListener('click', async (e) => {
       // Reuse TabManager's audible-aware path so we never silence a tab that's
-      // playing audio.
-      TabManager.sleepAllInactive();
-      this.refresh();
+      // playing audio. Redraw only once the sleeps have finished — refreshing
+      // straight away showed every tab still awake.
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try { await TabManager.sleepAllInactive(); } finally { btn.disabled = false; }
+      await this.refresh();
       window.showToast?.('Inactive tabs put to sleep');
     });
 
@@ -143,7 +146,14 @@ const MemoryPanel = {
 
     list.querySelectorAll('.memory-item').forEach(el => {
       const tabId = el.dataset.id;
-      el.querySelector('.mem-sleep')?.addEventListener('click', () => { TabManager.sleepTab(tabId); this.refresh(); });
+      // A click on Sleep is a direct request: force it past keep-awake (as Tab
+      // Health does), and redraw once it has actually slept.
+      el.querySelector('.mem-sleep')?.addEventListener('click', async (e) => {
+        e.currentTarget.disabled = true;
+        e.currentTarget.textContent = '…';
+        await TabManager.sleepTab(tabId, true);
+        await this.refresh();
+      });
       el.querySelector('.mem-wake')?.addEventListener('click', () => { TabManager.wakeTab(tabId); this.refresh(); });
       el.querySelector('.mem-reload')?.addEventListener('click', () => {
         const wv = WebviewManager.webviews.get(tabId);

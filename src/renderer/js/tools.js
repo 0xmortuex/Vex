@@ -53,6 +53,21 @@ const VexTools = {
     if (!container) return;
     container.innerHTML = '';
 
+    // By default your links live in the Toolbox with every other tool, and the
+    // rail keeps one button that opens it. "Show my links on the sidebar" (in
+    // the Toolbox) puts them back here, one button each.
+    const inRail = typeof Toolbox !== 'undefined' ? Toolbox.linksInRail() : true;
+    if (!inRail) {
+      const tb = document.createElement('button');
+      tb.className = 'tool-icon';
+      tb.title = 'Toolbox — your tools and links';
+      tb.setAttribute('aria-label', tb.title);
+      tb.innerHTML = '<span class="tool-emoji">🧰</span>';
+      tb.addEventListener('click', () => Toolbox.open());
+      container.appendChild(tb);
+      return;
+    }
+
     this.tools.forEach((tool, i) => {
       const btn = document.createElement('button');
       btn.className = 'tool-icon';
