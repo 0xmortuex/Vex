@@ -3336,7 +3336,14 @@ ipcMain.handle('devtools:toggle-webview', async (_e, webContentsId) => {
     if (wc.isDevToolsOpened()) {
       wc.closeDevTools();
     } else {
-      wc.openDevTools({ mode: 'bottom' });
+      // Detached, never docked. Every target here is a <webview> guest, and a
+      // guest has no window of its own to dock DevTools into: mode 'bottom'
+      // fired devtools-opened yet produced no window at all. And because this
+      // handler toggles, the next F12 closed that invisible one - so F12 only
+      // ever flipped between invisible-open and closed. Measured by listing
+      // real top-level windows: 'bottom' left just "Vex"; 'detach' (what the
+      // right-click Open DevTools already uses) added "Developer Tools - <url>".
+      wc.openDevTools({ mode: 'detach' });
     }
     return { ok: true };
   } catch (err) {

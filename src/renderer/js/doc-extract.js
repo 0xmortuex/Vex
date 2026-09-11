@@ -53,15 +53,59 @@ function parseSheetList(html) {
 // A rendered sheet grid (<table class="waffle">) as tab-separated text. Skips
 // the column-letter header, the row-number <th> that starts every row, and the
 // all-empty spacer rows Google interleaves; trims trailing empty cells.
-function tableToText(table) {
+//
+// Linked cells keep their link, written "text (url)". Reading textContent alone
+// dropped every link, so a registry whose whole point is its links to other
+// sheets came out as a list of titles you could no longer open. `baseUrl` is the
+// sheet page the table came from, used to turn in-file tab links (#gid=N) into
+// something that opens outside the page.
+function tableToText(table, baseUrl) {
   if (!table) return '';
+
+  // Where a link really goes. Google wraps outside links in its redirect
+  // (google.com/url?q=<target>&sa=D...), which is noise in a copy; unwrap it.
+  const linkTarget = (href) => {
+    const raw = (href || '').trim();
+    if (!raw) return '';
+    const gid = /^#gid=(\d+)/.exec(raw);
+    if (gid) {
+      const id = /\/spreadsheets\/d\/([^/?#]+)/.exec(baseUrl || '');
+      return id ? 'https://docs.google.com/spreadsheets/d/' + id[1] + '/edit#gid=' + gid[1] : raw;
+    }
+    try {
+      const u = new URL(raw);
+      if (/(^|\.)google\.[a-z.]+$/i.test(u.hostname) && u.pathname === '/url') {
+        const q = u.searchParams.get('q') || u.searchParams.get('url');
+        if (q) return q;
+      }
+    } catch (e) { /* relative or malformed - keep it as written */ }
+    return raw;
+  };
+
+  const cellText = (node) => {
+    let out = '';
+    for (const child of Array.from(node.childNodes || [])) {
+      if (child.nodeType === 3) { out += child.nodeValue; continue; }
+      if (child.nodeType !== 1) continue;
+      if (child.tagName === 'BR') { out += ' '; continue; }
+      if (child.tagName === 'A' && child.getAttribute('href')) {
+        const text = (child.textContent || '').replace(/\s+/g, ' ').trim();
+        const url = linkTarget(child.getAttribute('href'));
+        out += (!url || url === text) ? text : (text ? text + ' (' + url + ')' : url);
+        continue;
+      }
+      out += cellText(child);
+    }
+    return out;
+  };
+
   const lines = [];
   const bodies = table.tBodies && table.tBodies.length ? Array.from(table.tBodies) : [table];
   for (const body of bodies) {
     for (const row of Array.from(body.rows || [])) {
       const cells = Array.from(row.cells || [])
         .filter((c) => c.tagName === 'TD')
-        .map((c) => (c.textContent || '').replace(/\s+/g, ' ').trim());
+        .map((c) => cellText(c).replace(/\s+/g, ' ').trim());
       while (cells.length && !cells[cells.length - 1]) cells.pop();
       if (cells.length) lines.push(cells.join('\t'));
     }
@@ -215,7 +259,7 @@ const DocExtract = {
           const r = await request(url, { credentials: 'include', maxBytes: 8000000, timeoutMs: 12000 });
           if (!r.ok) continue;
           const doc = parse(await r.text());
-          const text = tableToText(doc.querySelector('table.waffle'));
+          const text = tableToText(doc.querySelector('table.waffle'), url);
           if (text) parts.push(sheets.length > 1 ? '## ' + sheet.name + '\\n' + text : text);
         }
         return parts.join('\\n\\n');

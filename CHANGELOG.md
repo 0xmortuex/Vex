@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.39 (2026-09-11) — F12 opens DevTools you can see, and Sheets links are copied
+
+### Fixed
+- **F12 and Ctrl+Shift+I open DevTools again.** They were opening it, just invisibly. They asked for DevTools docked to the bottom of the page, and a page inside Vex has no window of its own to dock into, so DevTools opened with nowhere to appear. Pressing the key again then closed that invisible copy, so the key seemed to do nothing at all. DevTools now opens in its own window, the way right-click Open DevTools already did.
+- **Copying text from a Google Sheet keeps the links.** A cell that links somewhere is now copied as "text (link)". Before, only the words were kept, so a list of links to other sheets came out as titles you could no longer open. Google's tracking redirect is removed so you get the real address, and a link to another tab in the same file becomes one you can open on its own.
+
+### Notes
+- The DevTools fault was confirmed by listing the real windows on screen: before, pressing F12 left only the Vex window; now a DevTools window appears, and pressing it again closes it.
+
 ## v2.31.38 (2026-09-11) — Google Sheets: copy text and Ctrl+F
 
 ### Fixed

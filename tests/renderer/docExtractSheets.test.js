@@ -72,9 +72,36 @@ describe('tableToText', () => {
         expect(tableToText(grid([['1', 'a', '', 'c'], ['2', 'd', '', '']]))).toBe('a\t\tc\nd');
     });
 
-    it('keeps the text of hyperlinked cells', () => {
-        const text = tableToText(grid([['1', '<a href="https://x.test">Special Operations Command</a>', '', '']]));
-        expect(text).toBe('Special Operations Command');
+    // A registry is mostly links to other sheets; copying only the link text
+    // left a list of titles nobody could open.
+    it('keeps a linked cell\'s link as "text (url)"', () => {
+        const text = tableToText(grid([['1', '<a href="https://docs.google.com/spreadsheets/d/SOC/edit">Special Operations Command</a>', '', '']]));
+        expect(text).toBe('Special Operations Command (https://docs.google.com/spreadsheets/d/SOC/edit)');
+    });
+
+    it('unwraps Google\'s redirect so the real destination is copied', () => {
+        const wrapped = 'https://www.google.com/url?q=https://docs.google.com/spreadsheets/d/MP/edit%23gid%3D0&amp;sa=D&amp;source=editors&amp;ust=1&amp;usg=AOv';
+        const text = tableToText(grid([['1', `<a href="${wrapped}">Military Police</a>`, '', '']]));
+        expect(text).toBe('Military Police (https://docs.google.com/spreadsheets/d/MP/edit#gid=0)');
+    });
+
+    it('turns a link to another tab of the same file into one that opens', () => {
+        const base = 'https://docs.google.com/spreadsheets/d/FILE/htmlview/sheet?headers=false&gid=0';
+        const text = tableToText(grid([['1', '<a href="#gid=987">75th Rangers</a>', '', '']]), base);
+        expect(text).toBe('75th Rangers (https://docs.google.com/spreadsheets/d/FILE/edit#gid=987)');
+    });
+
+    it('does not repeat a link whose text already is the address', () => {
+        expect(tableToText(grid([['1', '<a href="https://x.test/a">https://x.test/a</a>', '', '']]))).toBe('https://x.test/a');
+    });
+
+    it('keeps every link when one cell holds several', () => {
+        const text = tableToText(grid([['1', 'See <a href="https://a.test/">A</a> and <a href="https://b.test/">B</a>', '', '']]));
+        expect(text).toBe('See A (https://a.test/) and B (https://b.test/)');
+    });
+
+    it('leaves plain cells exactly as before', () => {
+        expect(tableToText(grid([['1', 'Ham4err', '4320333072', 'PERM']]))).toBe('Ham4err\t4320333072\tPERM');
     });
 
     it('collapses whitespace inside a cell so a cell stays one field', () => {
