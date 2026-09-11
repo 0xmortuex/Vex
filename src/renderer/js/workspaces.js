@@ -138,12 +138,19 @@ const WorkspaceManager = {
   },
 
   applyThemeColor() {
+    // The theme owns the accent colour. Writing the workspace colour over
+    // --primary repainted every accent in the app with it - buttons, progress
+    // bars, and the focus ring round the address bar - so a red workspace on a
+    // green theme drew a red box inside the green address bar. The workspace
+    // colour now lives on its own token, used only by the switcher that shows
+    // which workspace you are in. removeProperty also heals a --primary that an
+    // earlier version left inline on the root.
+    const root = document.documentElement.style;
+    root.removeProperty('--primary');
+    root.removeProperty('--primary-hover');
     const ws = this.getActive();
-    if (ws?.color) {
-      document.documentElement.style.setProperty('--primary', ws.color);
-      // Compute hover color (slightly darker)
-      document.documentElement.style.setProperty('--primary-hover', ws.color + 'dd');
-    }
+    if (ws?.color) root.setProperty('--workspace-color', ws.color);
+    else root.removeProperty('--workspace-color');
   },
 
   addWorkspace(name, color) {

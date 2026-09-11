@@ -5,6 +5,8 @@
 ### Fixed
 - **F12 and Ctrl+Shift+I open DevTools again.** They were opening it, just invisibly. They asked for DevTools docked to the bottom of the page, and a page inside Vex has no window of its own to dock into, so DevTools opened with nowhere to appear. Pressing the key again then closed that invisible copy, so the key seemed to do nothing at all. DevTools now opens in its own window, the way right-click Open DevTools already did.
 - **Copying text from a Google Sheet keeps the links.** A cell that links somewhere is now copied as "text (link)". Before, only the words were kept, so a list of links to other sheets came out as titles you could no longer open. Google's tracking redirect is removed so you get the real address, and a link to another tab in the same file becomes one you can open on its own.
+- **Workspace colours no longer fight your theme.** A workspace used to repaint every accent in Vex in its own colour — buttons, progress bars, and the outline round the address bar — so a red workspace on a green theme drew a red box inside a green address bar. Your theme now owns the colours everywhere, and the workspace colour marks the workspace switcher instead, so you can still tell at a glance which workspace you are in.
+- **The Restart button has its own icon.** It was a circular arrow, easy to mistake for Reload a few buttons away. It is now a power symbol.
 
 ### Notes
 - The DevTools fault was confirmed by listing the real windows on screen: before, pressing F12 left only the Vex window; now a DevTools window appears, and pressing it again closes it.

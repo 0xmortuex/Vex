@@ -6,7 +6,9 @@
 #workspace-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 4px 10px;
-  border: 1px solid var(--vex-border-accent);
+  /* The workspace's own colour marks WHICH workspace you are in, here and only
+     here; everything else follows the theme (see applyThemeColor). */
+  border: 1px solid var(--workspace-color, var(--vex-border-accent));
   background: var(--vex-accent-dim);
   color: var(--vex-accent);
   border-radius: var(--vex-radius-sm); cursor: pointer;
