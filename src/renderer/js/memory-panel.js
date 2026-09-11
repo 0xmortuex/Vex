@@ -81,38 +81,35 @@ const MemoryPanel = {
       return { tab, wv, materialized, wcId };
     });
 
-    // Ask main for REAL per-process memory (falls back to estimates if the IPC
-    // isn't available, e.g. an older preload).
-    let mem = null;
-    const ids = entries.filter(e => e.wcId != null).map(e => e.wcId);
-    try { if (window.vex?.tabMemory) mem = await window.vex.tabMemory(ids); } catch { /* ignore */ }
-    const haveReal = !!(mem && mem.byId);
+    // Real per-process memory from main. No estimates: a number shown here is
+    // a measurement, or the row says why there isn't one.
+    let mem;
+    try {
+      mem = await window.vex.tabMemory(entries.filter(e => e.wcId != null).map(e => e.wcId));
+    } catch (err) {
+      console.error('[memory] could not read tab memory:', err);
+      if (totalEl) { totalEl.textContent = "Couldn't read memory"; totalEl.className = 'memory-total red'; }
+      return;
+    }
+    const shareCount = MemoryPanel.shareCounts(mem.byId);
 
     const tabData = entries.map(e => {
-      const real = haveReal && e.wcId != null ? mem.byId[e.wcId] : null;
-      // Real working-set in MB; sleeping/lazy ≈ 0. Estimate only if IPC missing.
-      let memMB;
-      if (real) memMB = Math.round(real.memKB / 1024);
-      else if (!e.materialized) memMB = 0;
-      else memMB = e.tab.id === TabManager.activeTabId ? 150 : 80; // fallback estimate
+      const real = e.wcId != null ? mem.byId[e.wcId] || null : null;
+      const d = MemoryPanel.describe(e.tab, real, real ? shareCount[real.pid] : 0);
       return {
         id: e.tab.id,
         title: e.tab.title,
         url: e.tab.url,
-        sleeping: e.tab.sleeping || false,
-        lazy: e.tab._lazy || false,
         active: e.tab.id === TabManager.activeTabId,
-        shared: !!(real && real.shared),
-        estimate: !haveReal && e.materialized,
-        memMB
+        sleeping: d.sleeping,
+        memMB: d.mb,
+        label: d.label,
       };
     });
 
     const asleep = entries.filter(e => e.tab.sleeping || e.tab._lazy).length;
     // True browser footprint (all processes incl. main/GPU), not the per-tab sum.
-    const totalMB = haveReal && mem.totalKB
-      ? Math.round(mem.totalKB / 1024)
-      : tabData.reduce((sum, t) => sum + t.memMB, 0);
+    const totalMB = Math.round(mem.totalKB / 1024);
 
     if (totalEl) {
       const fmt = totalMB < 1024 ? totalMB + ' MB' : (totalMB / 1024).toFixed(1) + ' GB';
@@ -120,13 +117,13 @@ const MemoryPanel = {
       totalEl.className = 'memory-total ' + (totalMB < 500 ? 'green' : totalMB < 1000 ? 'amber' : 'red');
     }
 
-    // Sort by memory descending
-    tabData.sort((a, b) => b.memMB - a.memMB);
+    // Sort by memory descending; a tab still starting (no number yet) goes last.
+    tabData.sort((a, b) => (b.memMB ?? -1) - (a.memMB ?? -1));
 
     list.innerHTML = tabData.map(t => {
-      const sizeClass = t.memMB < 100 ? 'green' : t.memMB < 300 ? 'amber' : 'red';
-      const sleeping = t.sleeping || t.lazy;
-      const sizeLabel = sleeping ? 'asleep' : `${t.memMB} MB${t.estimate ? '*' : ''}${t.shared ? ' ·shared' : ''}`;
+      const sizeClass = t.memMB == null ? '' : t.memMB < 100 ? 'green' : t.memMB < 300 ? 'amber' : 'red';
+      const sleeping = t.sleeping;
+      const sizeLabel = this._esc(t.label);
       return `
         <div class="memory-item${sleeping ? ' memory-sleeping' : ''}" data-id="${t.id}">
           <div class="memory-item-info">
@@ -156,5 +153,31 @@ const MemoryPanel = {
     });
   },
 
+  // How many of the measured tabs each process backs (same-site tabs share a
+  // renderer, so one process's memory is shown on each of them).
+  shareCounts(byId) {
+    const n = {};
+    for (const e of Object.values(byId || {})) n[e.pid] = (n[e.pid] || 0) + 1;
+    return n;
+  },
+
+  // What a tab's memory row says — actual numbers only. `real` is main's
+  // measurement of the tab's process ({ memKB, pid }) or null; `shareCount` is
+  // how many open tabs that process backs. A sleeping tab has no process, so it
+  // really uses 0 MB; what it used just before it slept is shown beside that.
+  describe(tab, real, shareCount) {
+    if (tab.sleeping) {
+      const was = tab.memBeforeSleep;
+      const wasText = was ? ` (was ${was.mb} MB${was.shared ? ', shared' : ''})` : '';
+      return { mb: 0, sleeping: true, label: `0 MB · asleep${wasText}` };
+    }
+    if (tab._lazy) return { mb: 0, sleeping: true, label: '0 MB · not loaded yet' };
+    if (!real) return { mb: null, sleeping: false, label: 'starting…' };
+    const mb = Math.round(real.memKB / 1024);
+    return { mb, sleeping: false, label: shareCount > 1 ? `${mb} MB · shared by ${shareCount} tabs` : `${mb} MB` };
+  },
+
   _esc(s) { return window.escapeHtml(s); }
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { MemoryPanel };

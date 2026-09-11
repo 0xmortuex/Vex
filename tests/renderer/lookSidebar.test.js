@@ -114,6 +114,39 @@ describe('look sidebar', () => {
     expect(btn.parentElement.firstElementChild).toBe(btn);
   });
 
+  it('maximize fills the page area, restores, and ends when the sidebar closes', async () => {
+    setupDom('chrome', 'right', 'toolbar');
+    await load();
+    SidebarManager.showPanel('notes');
+    const max = document.getElementById('look-sb-max');
+    max.click();
+    expect(document.body.hasAttribute('data-sidebar-max')).toBe(true);
+    expect(max.title).toBe('Restore to sidebar');
+    max.click();
+    expect(document.body.hasAttribute('data-sidebar-max')).toBe(false);
+    max.click();
+    SidebarManager.hideActivePanel();
+    expect(document.body.hasAttribute('data-sidebar-max')).toBe(false);
+    expect(max.title).toBe('Maximize');
+  });
+
+  it('a web panel\'s back/forward/reload move into the header, and back into the panel on switching away', async () => {
+    setupDom('firefox', 'left', 'rail');
+    const panels = document.getElementById('panels-container');
+    panels.insertAdjacentHTML('beforeend', '<div class="panel" id="panel-whatsapp"><div class="panel-navbar" data-panel="whatsapp"></div></div><div class="panel" id="panel-notes"></div>');
+    await load();
+    SidebarManager.showPanel('whatsapp');
+    const nav = document.querySelector('.panel-navbar[data-panel="whatsapp"]');
+    expect(nav.parentElement.id).toBe('look-sb-nav');
+    SidebarManager.showPanel('notes');
+    expect(nav.parentElement.id).toBe('panel-whatsapp');
+    // Leaving the looks while it is open sends it home too.
+    SidebarManager.showPanel('whatsapp');
+    delete document.body.dataset.guiFamily;
+    window.dispatchEvent(new CustomEvent('vex:gui-style'));
+    expect(nav.parentElement.id).toBe('panel-whatsapp');
+  });
+
   it('refuses to open when every panel is hidden, saying why', async () => {
     setupDom('chrome', 'right', 'toolbar');
     document.querySelectorAll('.sidebar-icon').forEach(b => { b.style.display = 'none'; });

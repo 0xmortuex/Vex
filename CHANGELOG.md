@@ -1,5 +1,25 @@
 # Changelog
 
+## v2.31.43 (2026-09-11) — Maximize sidebar apps, real memory numbers
+
+### Added
+- **Maximize a sidebar app.** In the browser looks, the sidebar now has a maximize button next to close. Discord, Roblox, Claude, Prime Video and every other panel can fill the whole page area, and the same button puts them back in the sidebar.
+- **Get a look's original colours back from the theme picker.** Under a browser look, the first card in the theme picker is now "<look> — original colours", shown in that look's own palette. Picking a theme switches the look to that theme's colours, and this card switches it back.
+
+### Fixed
+- **Back, forward and reload no longer cover a site's own buttons.** On web panels these three buttons floated over the page's top-left corner, where sites keep their own controls. They sat on top of Claude's sidebar toggle, and covered Roblox's menu. In the browser looks they now sit in the sidebar's header; in Classic they get a strip of their own above the page.
+- **The Memory panel shows real numbers only.** When it couldn't read a tab's memory, it showed a made-up 80 or 150 MB, sometimes without marking it as a guess. Every figure is now a real measurement, or the row says the tab is still starting.
+- **Sleeping tabs show numbers too.** A sleeping tab now reads "0 MB · asleep (was 219 MB)": a sleeping tab really uses nothing, and Vex notes what it used just before it slept. Tabs restored but never opened read "0 MB · not loaded yet".
+- **Tab Health's total no longer counts memory twice.** It added up each tab separately, so a process shared by several tabs of the same site was counted once per tab. It now shows Vex's true total, the same figure as the Memory panel.
+- **Unread badges no longer hide their icon.** In the Firefox, Netscape and Glass sidebars a "99+" badge covered most of the icon. It now sits on the button's corner.
+- **Opening the Privacy panel no longer squeezes the toolbar** in the browser looks, where its buttons overlapped the bookmarks bar.
+- **Web panels in the browser looks no longer come out blank.** A web panel's page could end up zero pixels tall once its buttons moved into the header.
+- **Netscape's small sidebar close and maximize boxes are easier to hit.**
+
+### Notes
+- Every button in all nine GUI styles was checked automatically for overlaps, badges covering icons, tiny targets, unnamed icons and clipping, including inside every panel in six of the looks. Nothing was left after these fixes.
+- The "was" figure is not kept after a restart. A tab that slept before this update, or before the last restart, shows "0 MB · asleep" without it.
+
 ## v2.31.42 (2026-09-11) — Each browser look gets its own sidebar
 
 ### Added

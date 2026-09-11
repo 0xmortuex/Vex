@@ -1036,43 +1036,36 @@ const SidebarManager = {
     if (document.getElementById('panel-nav-styles')) return;
     const st = document.createElement('style');
     st.id = 'panel-nav-styles';
+    // The bar is a strip of its own above the page. It used to float over the
+    // page's top-left corner, where sites keep their own buttons — it sat on
+    // Claude's sidebar toggle and hid Roblox's logo menu.
     st.textContent = `
-      .panel-navbar { position:absolute; top:7px; left:7px; z-index:30; display:flex; gap:4px;
-        opacity:0.5; transition:opacity .15s; }
-      .panel-navbar:hover { opacity:1; }
+      .panel-navbar { position:absolute; top:0; left:0; right:0; z-index:30; height:34px; box-sizing:border-box;
+        display:flex; align-items:center; gap:4px; padding:0 7px;
+        background:var(--vex-glass-strong, #1b1b24); border-bottom:1px solid var(--vex-border-subtle, rgba(255,255,255,0.12)); }
+      .panel:has(> .panel-navbar) > webview { position:absolute; top:34px; left:0; right:0; bottom:0;
+        width:100% !important; height:auto !important; }
       .panel-navbar .pnav-btn { width:26px; height:24px; border-radius:7px;
         border:1px solid var(--vex-border-subtle, rgba(255,255,255,0.16));
-        background:var(--vex-glass-strong, rgba(20,20,28,0.72));
-        color:var(--vex-text-primary, #e9e9ee); cursor:pointer; font-size:15px; line-height:1;
-        display:grid; place-items:center; padding:0;
-        -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+        background:transparent; color:var(--vex-text-primary, #e9e9ee); cursor:pointer; font-size:15px; line-height:1;
+        display:grid; place-items:center; padding:0; }
       .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-accent, #6366f1); color:#fff; }
       .panel-navbar .pnav-btn:disabled { opacity:0.3; cursor:default; }
-      /* Sites that draw their own logo/header in the top-left corner (Roblox) swallow
-         the translucent resting state: the bar is there and clickable, but it reads as
-         page chrome and looks like there is no back button at all. Those panels get a
-         solid, always-visible pill instead of the 50%-opacity glass one. */
-      .panel-navbar.pnav-strong { opacity:1; }
-      .panel-navbar.pnav-strong .pnav-btn { background:var(--vex-bg-elevated, #252220);
-        border-color:var(--vex-border-strong, rgba(255,255,255,0.28));
-        box-shadow:0 2px 10px rgba(0,0,0,0.45); }
     `;
     document.head.appendChild(st);
   },
 
-  // Panels whose site fills the top-left corner the nav bar floats over, so the
-  // default translucent pill disappears into the page (see .pnav-strong above).
-  SOLID_NAV_PANELS: ['roblox'],
-
   _addPanelNav(panelEl, wv, panelName) {
-    if (!panelEl || !wv || panelEl.querySelector(':scope > .panel-navbar')) return;
+    // Look it up by panel name: in the browser looks js/look-sidebar.js moves
+    // the bar into the sidebar header, out of the panel.
+    if (!panelEl || !wv || document.querySelector(`.panel-navbar[data-panel="${panelName}"]`)) return;
     this._injectPanelNavStyles();
-    // Float the controls OVER the panel (absolute) — never resize the webview, or
-    // it collapses (the panel's display is toggled inline by showPanel).
+    // The panel anchors the bar (top) and the webview (below it); the panel's
+    // display is toggled inline by showPanel, so neither is sized by flow.
     try { panelEl.style.position = 'relative'; } catch {}
     const nav = document.createElement('div');
     nav.className = 'panel-navbar';
-    if (this.SOLID_NAV_PANELS.includes(panelName)) nav.classList.add('pnav-strong');
+    nav.dataset.panel = panelName;
     nav.innerHTML = '<button class="pnav-btn pnav-back" title="Back">‹</button>'
       + '<button class="pnav-btn pnav-fwd" title="Forward">›</button>'
       + '<button class="pnav-btn pnav-reload" title="Reload">⟳</button>';
@@ -1158,7 +1151,8 @@ const SidebarManager = {
                   if (old) { try { old.remove(); } catch {} }
                   delete this.panelWebviews['discord'];
                   const panelEl = document.getElementById('panel-discord');
-                  if (panelEl) { try { panelEl.querySelector('.panel-navbar')?.remove(); } catch {} }
+                  // By panel name: in the browser looks the bar sits in the sidebar header.
+                  if (panelEl) { try { document.querySelectorAll('.panel-navbar[data-panel="discord"]').forEach(n => n.remove()); } catch {} }
                   if (this.activePanel === 'discord') this.activePanel = null;
                 } catch {}
                 this.showPanel('discord');

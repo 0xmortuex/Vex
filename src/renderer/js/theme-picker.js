@@ -57,6 +57,11 @@ const ThemePicker = {
     const byId = {}; ThemeManager.THEMES.forEach(t => byId[t.id] = t);
     const favThemes = favIds.map(id => byId[id]).filter(Boolean);
     container.innerHTML = '';
+    // Under a browser look its own colours are a choice too, and the first one:
+    // picking a theme switches the look to that theme's colours, and this card
+    // is the way back. While it is in force no theme card is ticked.
+    const look = this._lookCard();
+    const lookColours = !!look && window.VexGuiStyle.getColors() === 'look';
 
     const section = (title, themes) => {
       if (!themes.length) return;
@@ -66,11 +71,61 @@ const ThemePicker = {
       container.appendChild(h);
       const grid = document.createElement('div');
       grid.className = 'vtp-grid';
-      themes.forEach(t => grid.appendChild(this._makeCard(t, current)));
+      themes.forEach(t => grid.appendChild(this._makeCard(t, lookColours ? null : current)));
       container.appendChild(grid);
     };
+    if (look) {
+      const h = document.createElement('div');
+      h.className = 'vtp-section-title';
+      h.textContent = 'This look';
+      const grid = document.createElement('div');
+      grid.className = 'vtp-grid';
+      grid.appendChild(look);
+      container.append(h, grid);
+    }
     section('★ Favorites', favThemes);
-    section(favThemes.length ? 'All themes' : '', ThemeManager.THEMES);
+    section(favThemes.length || look ? 'All themes' : '', ThemeManager.THEMES);
+  },
+
+  // The "<look> original colours" card, or null outside the browser looks.
+  _lookCard() {
+    const G = window.VexGuiStyle;
+    if (!G || !G.isBrowserLook()) return null;
+    const style = G.get();
+    const name = document.querySelector(`#setting-gui-style option[value="${style}"]`)?.textContent || style;
+    const card = document.createElement('button');
+    card.className = 'vtp-card' + (G.getColors() === 'look' ? ' active' : '');
+    card.dataset.theme = 'look-own';
+    card.innerHTML = `
+      <div class="vtp-thumb">${this._livePreview({ id: 'look-own' }, this._lookColors())}</div>
+      <div class="vtp-label">
+        <span class="vtp-label-text"></span>
+        <span class="vtp-check" aria-hidden="true">&#10003;</span>
+      </div>`;
+    card.querySelector('.vtp-label-text').textContent = `${name} — original colours`;
+    card.addEventListener('click', () => {
+      G.setColors('look');
+      window.showToast?.(`${name}: original colours`, 'info', 1500);
+      setTimeout(() => this.close(), 180);
+    });
+    return card;
+  },
+
+  // The look's own palette, read by switching body to look colours for the
+  // length of one synchronous style read (no frame is drawn in between).
+  _lookColors() {
+    const body = document.body;
+    const prev = body.dataset.guiColors;
+    body.dataset.guiColors = 'look';
+    const cs = getComputedStyle(body);
+    const g = (n) => {
+      const v = cs.getPropertyValue(n).trim();
+      if (!v) throw new Error(`Browser look defines no ${n}`);
+      return v;
+    };
+    const c = { bg: g('--b-page'), side: g('--b-frame-solid'), surf: g('--b-toolbar'), txt: g('--b-text'), acc: g('--b-accent'), bd: g('--b-border') };
+    if (prev === undefined) delete body.dataset.guiColors; else body.dataset.guiColors = prev;
+    return c;
   },
 
   _makeCard(t, current) {
@@ -133,8 +188,8 @@ const ThemePicker = {
     return c;
   },
 
-  _livePreview(t) {
-    const m = this._themeColors(t.id);
+  _livePreview(t, colors) {
+    const m = colors || this._themeColors(t.id);
     const bd = m.bd;                   // divider/border color
     const sp = (s) => s;               // tiny helper (readability)
     const bar = `flex:none;display:flex;align-items:center;background:${m.surf};border-bottom:1px solid ${bd}`;

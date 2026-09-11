@@ -19,7 +19,9 @@
   const MIN_PAGE = 320;          // the page keeps at least this much room
 
   const SIDEBAR_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path class="sb-edge" d="M15 4v16"/></svg>';
-  const CLOSE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  const MAX_ICON = '<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
+  const RESTORE_ICON = '<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="3.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 3.5V1.5h7v7h-2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+  const CLOSE_ICON ='<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 
   const inLook = () => document.body.dataset.guiFamily === 'browser';
   const side = () => document.body.dataset.sbSide || 'left';
@@ -53,9 +55,12 @@
     head.id = 'look-sb-head';
     head.innerHTML = `<select id="look-sb-picker" aria-label="Sidebar panel"></select>
       <span id="look-sb-title"></span>
+      <span id="look-sb-nav"></span>
+      <button id="look-sb-max" title="Maximize" aria-label="Maximize">${MAX_ICON}</button>
       <button id="look-sb-close" title="Close sidebar" aria-label="Close sidebar">${CLOSE_ICON}</button>`;
     container.prepend(head);
     head.querySelector('#look-sb-picker').addEventListener('change', (e) => SidebarManager.showPanel(e.target.value));
+    head.querySelector('#look-sb-max').addEventListener('click', () => setMaximized(!document.body.hasAttribute('data-sidebar-max')));
     head.querySelector('#look-sb-close').addEventListener('click', () => SidebarManager.hideActivePanel());
 
     const grip = document.createElement('div');
@@ -79,6 +84,36 @@
     picker.value = panel;
     const cur = choices.find(c => c.panel === panel);
     title.textContent = cur ? cur.label : panel;
+  }
+
+  // ---- Maximize: the open panel takes the whole page area (Discord, Prime,
+  // Roblox… are whole apps), and the same button puts it back in the sidebar.
+  // Closing the sidebar ends it.
+  function setMaximized(on) {
+    if (on) document.body.dataset.sidebarMax = '';
+    else document.body.removeAttribute('data-sidebar-max');
+    const btn = document.getElementById('look-sb-max');
+    if (!btn) return;
+    btn.innerHTML = on ? RESTORE_ICON : MAX_ICON;
+    btn.title = on ? 'Restore to sidebar' : 'Maximize';
+    btn.setAttribute('aria-label', btn.title);
+  }
+
+  // ---- A web panel's back / forward / reload bar (sidebar.js _addPanelNav)
+  // moves into the header here, instead of taking a strip of the narrow panel.
+  // Outside the looks, or for another panel, it goes back into its panel.
+  function adoptNav(panel) {
+    const slot = document.getElementById('look-sb-nav');
+    if (!slot) return;
+    for (const nav of [...slot.children]) {
+      if (inLook() && nav.dataset.panel === panel) continue;
+      const home = document.getElementById('panel-' + nav.dataset.panel);
+      if (home) home.prepend(nav);
+      else nav.remove();   // its panel was removed (an unpinned site)
+    }
+    if (!inLook() || !panel) return;
+    const nav = document.getElementById('panel-' + panel)?.querySelector(':scope > .panel-navbar');
+    if (nav) slot.appendChild(nav);
   }
 
   // ---- Resize: drag the panel's inner edge. Pages are separate processes and
@@ -144,7 +179,9 @@
     if (btn && inLook()) placeButton(btn);
     const panel = typeof SidebarManager !== 'undefined' ? SidebarManager.activePanel : null;
     if (btn) btn.classList.toggle('active', !!panel);
+    if (!panel || !inLook()) setMaximized(false);
     refreshHeader(panel);
+    adoptNav(panel);
   }
 
   function init() {

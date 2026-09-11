@@ -48,22 +48,30 @@ const TabHealth = {
 
   async _paint(m) {
     const body = m.querySelector('#th-body'); if (!body) return;
-    // Per-tab live memory, mapped webContents-id → tab.
-    let memByWc = {};
+    // Per-tab live memory, mapped webContents-id → tab. Measured numbers only,
+    // worded the same as the Memory panel (MemoryPanel.describe).
+    const wcOf = (tab) => { const wv = WebviewManager.webviews.get(tab.id); if (!wv) return null; try { return wv.getWebContentsId(); } catch { return null; } };
+    let mem;
     try {
-      const live = TabManager.tabs.map(t => WebviewManager.webviews.get(t.id)).filter(Boolean);
-      const ids = live.map(w => { try { return w.getWebContentsId(); } catch { return null; } }).filter(Boolean);
-      if (ids.length && window.vex && window.vex.tabMemory) memByWc = (await window.vex.tabMemory(ids)).byId || {};
-    } catch {}
+      mem = await window.vex.tabMemory(TabManager.tabs.map(wcOf).filter(id => id != null));
+    } catch (err) {
+      console.error('[tab-health] could not read tab memory:', err);
+      m.querySelector('#th-total').textContent = TabManager.tabs.length + " tabs · couldn't read memory";
+      mem = { totalKB: 0, byId: {} };
+    }
+    const shareCount = MemoryPanel.shareCounts(mem.byId);
     const memFor = (tab) => {
-      try { const wv = WebviewManager.webviews.get(tab.id); if (!wv) return null; const wc = wv.getWebContentsId(); const e = memByWc[wc]; return e ? Math.round(e.memKB / 1024) : null; } catch { return null; }
+      const wc = wcOf(tab);
+      const real = wc != null ? mem.byId[wc] || null : null;
+      return MemoryPanel.describe(tab, real, real ? shareCount[real.pid] : 0).label;
     };
 
     const groups = {}; this._order.forEach(k => groups[k] = []);
     TabManager.tabs.forEach(t => groups[this._state(t)].push(t));
 
-    let totalMB = 0; Object.values(memByWc).forEach(e => { totalMB += (e.memKB || 0); }); totalMB = Math.round(totalMB / 1024);
-    m.querySelector('#th-total').textContent = TabManager.tabs.length + ' tabs · ~' + totalMB + ' MB';
+    // The whole browser's footprint (every process once), not a per-tab sum
+    // that counts a shared process again for each tab on it.
+    if (mem.totalKB) m.querySelector('#th-total').textContent = TabManager.tabs.length + ' tabs · Vex is using ' + Math.round(mem.totalKB / 1024) + ' MB';
 
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
     let html = '';
@@ -76,7 +84,7 @@ const TabHealth = {
         const kept = TabManager._isKeptAwake && TabManager._isKeptAwake(t);
         html += `<div data-tabid="${esc(t.id)}" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;border:1px solid var(--border);margin-bottom:5px;background:var(--bg)">
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" data-act="go">${esc((t.title || t.url || 'Tab')).slice(0, 60)}</span>
-          ${mb != null ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0">${mb} MB</span>` : ''}
+          <span style="font-size:11px;color:var(--text-muted);flex-shrink:0">${esc(mb)}</span>
           <button data-act="keep" title="${kept ? 'Kept awake — click to change' : 'Prevent from sleeping'}" style="${this._btn(kept)}">☕</button>
           ${key === 'active'
             ? '<span style="width:28px;flex-shrink:0;text-align:center;color:var(--text-muted);font-size:10px">now</span>'

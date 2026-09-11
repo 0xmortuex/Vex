@@ -20,9 +20,11 @@
 
 /* ---- 1. Layout: tabs on top, toolbar, bookmarks bar, page -------------- */
 body[data-gui-family="browser"] { display: flex; flex-direction: column; background: var(--b-frame); font-family: var(--b-font); }
-body[data-gui-family="browser"] #top-tab-bar       { order: 1; }
-body[data-gui-family="browser"] #top-bar           { order: 2; }
-body[data-gui-family="browser"] #gui-shortcuts-bar { order: 3; }
+/* The three chrome rows never shrink: a tall panel (Privacy) otherwise
+   squeezed the toolbar until its buttons overlapped the bookmarks bar. */
+body[data-gui-family="browser"] #top-tab-bar       { order: 1; flex: none; }
+body[data-gui-family="browser"] #top-bar           { order: 2; flex: none; }
+body[data-gui-family="browser"] #gui-shortcuts-bar { order: 3; flex: none; }
 body[data-gui-family="browser"] #main-layout       { order: 4; flex: 1 1 auto; height: auto !important; min-height: 0; margin: 0; padding: 0; }
 body[data-gui-family="browser"] > *:not(#top-tab-bar):not(#top-bar):not(#gui-shortcuts-bar):not(#main-layout) { order: 10; }
 
@@ -461,6 +463,9 @@ body[data-gui-family="browser"][data-sb-side="right"][data-sidebar-panel] #panel
   order: 1; border-right: none; border-left: 1px solid var(--b-toolbar-border);
 }
 body[data-gui-family="browser"] #panels-container .panel { position: relative; flex: 1 1 auto; min-height: 0; width: auto; height: auto; }
+/* A web panel's page fills its panel outright: its inline height:100% has no
+   definite height to resolve against in a flexed panel and came out 0px tall. */
+body[data-gui-family="browser"] #panels-container .panel > webview { position: absolute; inset: 0; width: 100% !important; height: auto !important; }
 /* Settings is a whole page of its own: it still covers the page area. */
 body[data-gui-family="browser"][data-sidebar-panel="settings"] #panels-container { position: absolute; inset: 0; width: auto; border: none; }
 body[data-gui-family="browser"][data-sidebar-panel="settings"] #look-sb-resize { display: none; }
@@ -483,11 +488,30 @@ body[data-gui-family="browser"][data-sb-launcher="toolbar"] #look-sb-picker:hove
 body[data-gui-family="browser"] #look-sb-picker option { background: var(--b-menu); color: var(--b-text); }
 body[data-gui-family="browser"][data-sb-launcher="toolbar"] #look-sb-title { display: none; }
 body[data-gui-family="browser"] #look-sb-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-body[data-gui-family="browser"] #look-sb-close {
-  display: grid; place-items: center; flex: none; margin-left: auto; width: 24px; height: 24px; padding: 0;
+body[data-gui-family="browser"] :is(#look-sb-max, #look-sb-close) {
+  display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0;
   background: transparent; color: var(--b-icon); border: none; border-radius: var(--b-close-radius, 50%); cursor: pointer;
 }
-body[data-gui-family="browser"] #look-sb-close:hover { background: var(--b-btn-hover); color: var(--b-text); }
+body[data-gui-family="browser"] #look-sb-max { margin-left: auto; }
+body[data-gui-family="browser"] :is(#look-sb-max, #look-sb-close):hover { background: var(--b-btn-hover); color: var(--b-text); }
+/* Settings already fills the page area: nothing to maximize. */
+body[data-gui-family="browser"][data-sidebar-panel="settings"] #look-sb-max { display: none; }
+
+/* A web panel's back / forward / reload (sidebar.js) sit in the header here
+   rather than taking a strip of the panel - or floating over the site's own
+   top-left buttons, where they used to cover Claude's sidebar toggle. */
+body[data-gui-family="browser"] #look-sb-nav { display: flex; flex: none; }
+body[data-gui-family="browser"] #look-sb-nav > .panel-navbar {
+  position: static; height: auto; padding: 0; gap: 2px; background: transparent; border: none;
+}
+body[data-gui-family="browser"] #look-sb-nav .pnav-btn {
+  width: 26px; height: 24px; border: none; border-radius: var(--b-btn-radius); background: transparent; color: var(--b-icon);
+}
+body[data-gui-family="browser"] #look-sb-nav .pnav-btn:hover:not(:disabled) { background: var(--b-btn-hover); color: var(--b-text); }
+
+/* Maximized: the panel takes the whole page area, like Settings. */
+body[data-gui-family="browser"][data-sidebar-max][data-sidebar-panel] #panels-container { position: absolute; inset: 0; width: auto; border: none; }
+body[data-gui-family="browser"][data-sidebar-max] #look-sb-resize { display: none; }
 body[data-gui-family="browser"] #look-sb-resize { display: block; position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; cursor: col-resize; z-index: 6; }
 body[data-gui-family="browser"][data-sb-side="right"] #look-sb-resize { right: auto; left: -3px; }
 
@@ -517,6 +541,12 @@ body[data-gui-family="browser"][data-sb-launcher="rail"] #icon-sidebar .sidebar-
 body[data-gui-family="browser"][data-sb-launcher="rail"] #icon-sidebar .sidebar-icon.active::before { display: none; }
 body[data-gui-family="browser"][data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) svg { width: 16px; height: 16px; }
 body[data-gui-family="browser"][data-sb-launcher="rail"] #tools-bar { gap: 2px; }
+/* Unread / download badges were sized for Vex's 42px buttons: on these 32px
+   ones a "99+" covered the whole icon. Here they hang off the corner. */
+body[data-gui-family="browser"][data-sb-launcher="rail"] #icon-sidebar .sidebar-icon :is(.panel-badge, .icon-badge) {
+  top: -3px; right: -5px; min-width: 13px; height: 13px; padding: 0 3px;
+  font-size: 8.5px; line-height: 13px; border-radius: 7px;
+}
 body[data-gui-family="browser"][data-sb-launcher="rail"] .sidebar-separator { width: 24px; background: var(--b-toolbar-border); }
 
 /* Firefox: the selected tool sits in a soft accent-tinted square. */
@@ -540,9 +570,15 @@ body[data-gui-style="win98"] #look-sb-head {
   height: 20px; margin: 2px 2px 0; padding: 0 2px 0 5px; border: none;
   background: var(--b-frame); color: var(--b-strip-fg); font: 700 11px var(--b-font);
 }
-body[data-gui-style="win98"] #look-sb-close {
+body[data-gui-style="win98"] :is(#look-sb-max, #look-sb-close) {
   width: 16px; height: 14px; border-radius: 0; background: var(--b-caption-bg); color: var(--b-caption-fg);
   box-shadow: inset -1px -1px var(--b-bevel-lo), inset 1px 1px var(--b-bevel-hi), inset -2px -2px var(--b-bevel-lo2), inset 2px 2px var(--b-bevel-hi2);
 }
-body[data-gui-style="win98"] #look-sb-close svg { width: 8px; height: 8px; }
+body[data-gui-style="win98"] :is(#look-sb-max, #look-sb-close) svg { width: 8px; height: 8px; }
+/* 98's caption boxes are a real 16x14 - too small to hit reliably; a clear
+   margin around each takes the clicks too. */
+body[data-gui-style="win98"] :is(#look-sb-max, #look-sb-close) { position: relative; }
+body[data-gui-style="win98"] :is(#look-sb-max, #look-sb-close)::after { content: ''; position: absolute; inset: -4px -2px; }
+body[data-gui-style="win98"] #look-sb-nav .pnav-btn { width: 20px; height: 16px; color: var(--b-strip-fg); }
+body[data-gui-style="win98"] #look-sb-nav .pnav-btn:hover:not(:disabled) { background: var(--b-strip-hover); color: var(--b-strip-fg); }
 body[data-gui-style="win98"][data-sidebar-panel] #panels-container { background: var(--b-toolbar); }

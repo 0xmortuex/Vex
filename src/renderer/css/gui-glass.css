@@ -85,6 +85,9 @@ body[data-gui-style="glass"] #icon-sidebar {
 }
 body[data-gui-style="glass"] .sidebar-icon { width: 38px !important; height: 38px !important; border-radius: 10px !important; }
 body[data-gui-style="glass"] .sidebar-icon svg { width: 22px !important; height: 22px !important; }
+/* The bigger glyph left no room for an unread badge, which covered a third of
+   it; the badge sits on the button's corner instead. */
+body[data-gui-style="glass"] .sidebar-icon :is(.panel-badge, .icon-badge) { top: -4px; right: -4px; }
 /* When the sidebar toggle (Ctrl+B) closes the rail, the 46px rule above must
    not win — this loads after app.css, so re-collapse with higher specificity. */
 body[data-gui-style="glass"].tabs-hidden #icon-sidebar {

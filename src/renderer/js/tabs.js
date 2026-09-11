@@ -1392,6 +1392,24 @@ const TabManager = {
     } catch {}
   },
 
+  // Record a live tab's memory (its process, in MB) as tab.memBeforeSleep.
+  // Every live tab is measured so `shared` is known (same-site tabs share one
+  // process).
+  async _measureBeforeSleep(tab) {
+    let mine = null;
+    const ids = [];
+    for (const [tid, w] of WebviewManager.webviews) {
+      let wc = null;
+      try { wc = w.getWebContentsId(); } catch { continue; } // not attached yet
+      ids.push(wc);
+      if (tid === tab.id) mine = wc;
+    }
+    if (mine == null) return;
+    const r = await window.vex.tabMemory(ids);
+    const e = r.byId[mine];
+    if (e) tab.memBeforeSleep = { mb: Math.round(e.memKB / 1024), shared: !!e.shared };
+  },
+
   async sleepTab(id, force) {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab || tab.sleeping || tab.id === this.activeTabId) return;
@@ -1404,6 +1422,13 @@ const TabManager = {
     // throws (page already gone, cross-origin top frame, etc.) fall back to 0.
     const wv = WebviewManager.webviews.get(id);
     if (wv) {
+      // Measure what the tab uses before its process goes, so the Memory panel
+      // can show what sleeping saved. Runs alongside the scroll read, under the
+      // same time limit; a failed measurement never stops the sleep.
+      const measured = Promise.race([
+        this._measureBeforeSleep(tab).catch(err => console.error('[tabs] memory before sleep:', err)),
+        new Promise((r) => setTimeout(r, 600)),
+      ]);
       try {
         // Race the scroll read against a short timeout — a busy/hung guest can
         // leave executeJavaScript pending forever, which used to hang the whole
@@ -1416,6 +1441,7 @@ const TabManager = {
           tab.scrollPosition = { x: pos.x, y: pos.y };
         }
       } catch { /* ignore */ }
+      await measured;
       try { wv.remove(); } catch {}
       WebviewManager.webviews.delete(id);
     }
