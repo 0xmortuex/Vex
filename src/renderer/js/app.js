@@ -587,9 +587,32 @@
   if (guiSel) {
     guiSel.value = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
     guiSel.addEventListener('change', (e) => {
-      const v = e.target.value === 'glass' ? 'glass' : 'classic';
+      // VexGuiStyle validates the name itself; squashing it to glass/classic
+      // here would silently throw away every other style.
+      const v = e.target.value;
       try { window.VexGuiStyle?.set(v); } catch {}
-      showToast('GUI Style: ' + v, 'info');
+      showToast('GUI Style: ' + (e.target.selectedOptions[0]?.textContent || v), 'info');
+    });
+  }
+
+  // Browser-look colours (the look's own vs the colour theme's). The row only
+  // shows while a browser look is active; both selects follow changes made
+  // elsewhere (picking a theme switches the colours, the setup wizard sets the
+  // style).
+  const colorsSel = document.getElementById('setting-gui-colors');
+  const colorsRow = document.getElementById('setting-gui-colors-row');
+  if (colorsSel && colorsRow && window.VexGuiStyle) {
+    const sync = () => {
+      colorsRow.style.display = VexGuiStyle.isBrowserLook() ? '' : 'none';
+      colorsSel.value = VexGuiStyle.getColors();
+      if (guiSel) guiSel.value = VexGuiStyle.get();
+    };
+    sync();
+    window.addEventListener('vex:gui-style', sync);
+    window.addEventListener('vex:gui-colors', sync);
+    colorsSel.addEventListener('change', (e) => {
+      VexGuiStyle.setColors(e.target.value);
+      showToast('Colours: ' + (e.target.selectedOptions[0]?.textContent || e.target.value), 'info');
     });
   }
 

@@ -1,0 +1,420 @@
+/* === "Browser" GUI styles — Vex dressed as a mainstream browser ============
+   A family of whole-window looks that deliberately resemble nothing of Vex:
+   Chrome, Firefox and Safari in light and dark, and two retro takes (Internet
+   Explorer on Windows XP, Netscape-era Windows 98). Picked like Glass, via
+   js/gui-style.js, which sets body[data-gui-style] to the variant,
+   body[data-gui-family="browser"] for everything they share, and
+   body[data-gui-colors] to "look" or "theme".
+
+   A look supplies SHAPES and TYPE; its COLOURS are one of two sets:
+     look  - the look's own palette (Chrome grey, XP Luna blue, 98 grey...)
+     theme - derived from the active colour theme, so every one of Vex's themes
+             recolours every look, the way Chrome's themes recolour Chrome.
+   Every colour a surface uses - including those inside shape rules such as
+   XP's caption buttons and 98's bevel edges - is a --b-* variable, so the two
+   modes are just two sets of values for the same rules.
+
+   Sections: (1) layout; (2) Vex-only chrome hidden; (3) token bridge (look
+   mode only); (4) surfaces; (5) the look's own palettes; (6) theme mode. */
+
+/* ---- 1. Layout: tabs on top, toolbar, bookmarks bar, page -------------- */
+body[data-gui-family="browser"] { display: flex; flex-direction: column; background: var(--b-frame); font-family: var(--b-font); }
+body[data-gui-family="browser"] #top-tab-bar       { order: 1; }
+body[data-gui-family="browser"] #top-bar           { order: 2; }
+body[data-gui-family="browser"] #gui-shortcuts-bar { order: 3; }
+body[data-gui-family="browser"] #main-layout       { order: 4; flex: 1 1 auto; height: auto !important; min-height: 0; margin: 0; padding: 0; }
+body[data-gui-family="browser"] > *:not(#top-tab-bar):not(#top-bar):not(#gui-shortcuts-bar):not(#main-layout) { order: 10; }
+
+/* ---- 2. Vex-only chrome a mainstream browser does not have -------------- */
+body[data-gui-family="browser"] :is(#icon-sidebar, #vex-logo, #workspace-btn, #sync-indicator,
+  #btn-toggle-tabs-left, #btn-onboarding, #btn-restart-app, #btn-tor, #btn-notes-top,
+  #btn-toggle-ai, #btn-split, #btn-copy-url, #btn-ai-summarize) { display: none !important; }
+/* Only the workspace BUTTON goes: its list lives inside the switcher, and the
+   menu's "Switch Workspace" opens it there, so the switcher stays as an empty
+   anchor spanning the toolbar's height - out of the flow, so it takes no
+   space - and the list drops from under the toolbar. */
+body[data-gui-family="browser"] #workspace-switcher { position: absolute; left: 0; top: 0; bottom: 0; width: 0; }
+
+/* ---- 3. Token bridge: in look mode, menus/dialogs/panels follow the look -
+   Only in look mode. In theme mode the --vex-* tokens already ARE the theme,
+   and the --b-* values are derived from them - bridging back would make each
+   variable depend on the other and invalidate both. */
+body[data-gui-family="browser"]:not([data-gui-colors="theme"]) {
+  --vex-bg-base: var(--b-toolbar); --vex-bg-elevated: var(--b-menu); --vex-bg-deep: var(--b-frame-solid);
+  --vex-glass-strong: var(--b-toolbar); --vex-glass-medium: var(--b-frame-solid); --vex-glass-light: var(--b-toolbar);
+  --vex-glass-tab-active: var(--b-tab-active); --vex-glass-tab-inactive: var(--b-frame-solid); --vex-glass-input: var(--b-url-bg);
+  --vex-text-primary: var(--b-text); --vex-text-secondary: var(--b-text-dim); --vex-text-muted: var(--b-text-dim); --vex-text-accent: var(--b-accent);
+  --vex-border-subtle: var(--b-border); --vex-border-medium: var(--b-border); --vex-border-strong: var(--b-border);
+  --vex-border-accent: var(--b-accent); --vex-border-accent-strong: var(--b-accent);
+  --vex-accent: var(--b-accent); --vex-accent-dim: var(--b-accent-ring); --vex-accent-glow: transparent;
+  --vex-blur-light: none; --vex-blur-medium: none; --vex-blur-strong: none;
+  --vex-hover-fill: var(--b-btn-hover); --vex-shadow-color: rgba(0, 0, 0, 0.18);
+  --bg: var(--b-page); --surface: var(--b-menu); --text: var(--b-text); --text-muted: var(--b-text-dim);
+  --border: var(--b-border); --primary: var(--b-accent); --primary-hover: var(--b-accent); --accent: var(--b-accent);
+}
+body[data-gui-family="browser"] { color: var(--b-text); }
+
+/* ---- 4. Surfaces ------------------------------------------------------- */
+/* Tab strip */
+body[data-gui-family="browser"] .top-tab-bar {
+  display: flex !important; background: var(--b-frame); backdrop-filter: none; -webkit-backdrop-filter: none;
+  border: none; min-height: var(--b-tabbar-h); padding: var(--b-tabbar-pad);
+}
+/* The list hugs its tabs so the new-tab button sits right after the last one,
+   as in every mainstream browser; the leftover strip moves into the trailing
+   area, which must stay a window-drag region or the window could no longer be
+   dragged by its tab strip. Window controls are pushed to the far right. */
+body[data-gui-family="browser"] .top-tabs-list { flex: var(--b-tablist-flex, 0 1 auto); gap: var(--b-tab-gap); align-items: var(--b-tab-align, flex-end); }
+body[data-gui-family="browser"] .tab-bar-trailing { flex: 1 1 auto; align-self: stretch; -webkit-app-region: drag; color: var(--b-strip-fg, var(--b-icon)); }
+body[data-gui-family="browser"] .tab-bar-trailing > * { -webkit-app-region: no-drag; }
+body[data-gui-family="browser"] .tab-bar-trailing #window-controls { margin-left: auto; }
+body[data-gui-family="browser"] .top-tab {
+  flex: var(--b-tab-flex, 0 1 240px); max-width: var(--b-tab-max, 240px); height: var(--b-tab-h);
+  background: var(--b-tab); border: var(--b-tab-border-w, 0) solid var(--b-tab-border, transparent); border-bottom: none;
+  border-radius: var(--b-tab-radius); box-shadow: var(--b-tab-rest-shadow, none);
+  color: var(--b-tab-text); font: var(--b-tab-font); padding: 0 10px; margin: 0;
+}
+body[data-gui-family="browser"] .top-tab:hover { background: var(--b-tab-hover); color: var(--b-text); border-color: var(--b-tab-border, transparent); }
+body[data-gui-family="browser"] .top-tab.active {
+  background: var(--b-tab-active); color: var(--b-text); border-color: var(--b-tab-active-border, transparent); margin-bottom: 0;
+  box-shadow: var(--b-tab-shadow, none);
+}
+body[data-gui-family="browser"] .top-tab.active .tab-title { font-weight: var(--b-tab-active-weight, 400); }
+/* Vex fades a sleeping tab to 55%, which over a gradient strip (XP, 98) let the
+   strip bleed through and tinted the tab. Keep the tab solid and let the greyed
+   favicon and the moon say it is asleep. */
+body[data-gui-family="browser"] .top-tab.sleeping { opacity: 1; }
+body[data-gui-family="browser"] .top-tab.sleeping .tab-title { opacity: 0.75; }
+body[data-gui-family="browser"] .top-tab .tab-close { color: var(--b-text-dim); border-radius: var(--b-close-radius, 50%); }
+body[data-gui-family="browser"] .top-tab .tab-close:hover { background: var(--b-btn-hover); color: var(--b-text); }
+/* Separators between resting tabs, hidden next to the active or hovered one. */
+body[data-gui-family="browser"] .top-tab::after {
+  content: ''; position: absolute; right: 0; top: 28%; height: 44%; width: 1px;
+  background: var(--b-tab-sep, transparent); pointer-events: none;
+}
+body[data-gui-family="browser"] .top-tab.active::after,
+body[data-gui-family="browser"] .top-tab:hover::after,
+body[data-gui-family="browser"] .top-tab:has(+ .top-tab.active)::after,
+body[data-gui-family="browser"] .top-tab:has(+ .top-tab:hover)::after { background: transparent; }
+body[data-gui-family="browser"] .new-tab-btn {
+  color: var(--b-strip-fg, var(--b-icon)); background: transparent; border: none;
+  border-radius: var(--b-newtab-radius, 50%); width: 28px; height: 28px;
+}
+body[data-gui-family="browser"] .new-tab-btn:hover { background: var(--b-strip-hover, var(--b-btn-hover)); }
+
+/* Toolbar */
+body[data-gui-family="browser"] #top-bar {
+  height: var(--b-toolbar-h); margin: 0; padding: 0 6px; gap: 4px;
+  background: var(--b-toolbar); backdrop-filter: none; -webkit-backdrop-filter: none;
+  border: none; border-radius: 0; border-bottom: 1px solid var(--b-toolbar-border); box-shadow: none;
+}
+body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button) {
+  width: var(--b-btn-size); height: var(--b-btn-size); border-radius: var(--b-btn-radius);
+  color: var(--b-icon); background: transparent; border: 1px solid transparent; box-shadow: none;
+}
+body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button):hover {
+  background: var(--b-btn-hover); color: var(--b-text); border-color: var(--b-btn-hover-border, transparent);
+}
+body[data-gui-family="browser"] .nav-btn:disabled { color: var(--b-icon-disabled); background: transparent; }
+/* The command button stands in for the browser's own menu. */
+body[data-gui-family="browser"] #btn-command svg { display: none; }
+body[data-gui-family="browser"] #btn-command::before { content: var(--b-menu-glyph, '\22EE'); font: 18px/1 var(--b-font); }
+
+/* Address field — Vex centres a 600px field; a classic browser runs it the
+   width of the toolbar. */
+body[data-gui-family="browser"] #url-bar-wrapper { flex: 1 1 auto; justify-content: stretch; padding: 0 4px; margin: 0; }
+body[data-gui-family="browser"] #url-bar {
+  width: 100%; max-width: none;
+  height: var(--b-url-h); background: var(--b-url-bg); border: 1px solid var(--b-url-border);
+  border-radius: var(--b-url-radius); backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: var(--b-url-shadow, none); padding: 0 10px;
+}
+body[data-gui-family="browser"] #url-bar:focus-within {
+  background: var(--b-url-bg-focus); border-color: var(--b-url-focus-border);
+  box-shadow: var(--b-url-shadow, 0 0 0 0 transparent), 0 0 0 var(--b-ring-w, 2px) var(--b-accent-ring);
+}
+/* The field already shows focus; the global keyboard-focus outline would draw a
+   second ring inside it. */
+body[data-gui-family="browser"] #url-input:focus-visible { outline: none !important; }
+body[data-gui-family="browser"] #url-input { color: var(--b-text); font: var(--b-url-font); }
+body[data-gui-family="browser"] #url-input::placeholder { color: var(--b-text-dim); }
+body[data-gui-family="browser"] #url-icon,
+body[data-gui-family="browser"] #url-bar .nav-btn { color: var(--b-text-dim); }
+
+/* Bookmarks bar */
+body[data-gui-family="browser"] #gui-shortcuts-bar {
+  display: flex; align-items: center; gap: 2px; height: var(--b-bookmarks-h); padding: 0 8px;
+  background: var(--b-toolbar); border: none; border-bottom: 1px solid var(--b-toolbar-border);
+  overflow-x: auto; overflow-y: hidden;
+}
+body[data-gui-family="browser"] #gui-shortcuts-bar::-webkit-scrollbar { height: 0; }
+body[data-gui-family="browser"] #gui-shortcuts-bar .gsc {
+  min-height: 0; height: 26px; padding: 0 8px; gap: 6px; background: transparent; border: none;
+  border-radius: var(--b-btn-radius); color: var(--b-text); font: var(--b-bookmark-font); box-shadow: none;
+}
+body[data-gui-family="browser"] #gui-shortcuts-bar .gsc:hover { background: var(--b-btn-hover); }
+body[data-gui-family="browser"] #gui-shortcuts-bar .gsc .ic { width: 16px; height: 16px; border-radius: 3px; }
+
+/* Page area: edge to edge under the toolbar, no rounded card */
+body[data-gui-family="browser"] #content-area { border-radius: 0; margin: 0; border: none; box-shadow: none; background: var(--b-page); }
+
+/* Window controls, on whichever row gui-style.js moved them to. Modern looks
+   use flat Windows caption buttons; XP and 98 set --b-caption-* for theirs. */
+body[data-gui-family="browser"] #window-controls { display: flex; align-self: var(--b-controls-align, stretch); margin-left: 4px; gap: var(--b-caption-gap, 0); padding: var(--b-caption-pad, 0); }
+body[data-gui-family="browser"] #window-controls .win-btn {
+  width: var(--b-caption-w, 46px); height: var(--b-caption-h, auto); align-self: var(--b-caption-align, stretch);
+  border: var(--b-caption-border-w, 0) solid var(--b-caption-border, transparent); border-radius: var(--b-caption-radius, 0);
+  background: var(--b-caption-bg, transparent); color: var(--b-caption-fg, var(--b-strip-fg, var(--b-text))); padding: 0;
+}
+body[data-gui-family="browser"] #window-controls .win-btn:hover { background: var(--b-caption-hover, var(--b-strip-hover, var(--b-btn-hover))); }
+body[data-gui-family="browser"] #window-controls .win-btn-close { background: var(--b-close-bg, var(--b-caption-bg, transparent)); }
+body[data-gui-family="browser"] #window-controls .win-btn-close:hover { background: var(--b-close-hover, #c42b1c); color: var(--b-close-hover-fg, #ffffff); }
+
+/* ---- 5. The look's own colours (and each look's shapes and type) -------- */
+
+/* Chrome — Google Chrome, light. Grey-blue frame, the active tab and the
+   toolbar are one white surface, a pill-shaped omnibox, round icon buttons. */
+body[data-gui-style="chrome"] {
+  --b-font: "Segoe UI", system-ui, sans-serif;
+  --b-tab-radius: 8px 8px 0 0; --b-tab-h: 34px; --b-tab-gap: 0px; --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-tabbar-h: 42px; --b-tabbar-pad: 8px 0 0 8px; --b-toolbar-h: 40px;
+  --b-btn-size: 32px; --b-btn-radius: 50%; --b-url-radius: 999px; --b-url-h: 32px; --b-ring-w: 2px;
+  --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-menu-glyph: '\22EE';
+
+  --b-frame: #dfe3e7; --b-frame-solid: #dfe3e7; --b-tab: transparent; --b-tab-hover: rgba(255,255,255,0.55); --b-tab-active: #ffffff;
+  --b-tab-text: #45474a; --b-tab-sep: #aeb2b8;
+  --b-toolbar: #ffffff; --b-toolbar-border: #dadce0; --b-btn-hover: rgba(60,64,67,0.10);
+  --b-icon: #474747; --b-icon-disabled: #b9bbbe;
+  --b-url-bg: #f1f3f4; --b-url-bg-focus: #ffffff; --b-url-border: transparent; --b-url-focus-border: transparent;
+  --b-accent: #1a73e8; --b-accent-ring: #1a73e8;
+  --b-text: #1f1f1f; --b-text-dim: #5f6368; --b-border: #dadce0; --b-menu: #ffffff; --b-page: #ffffff;
+}
+
+/* Chrome dark — the same shapes on Chrome's dark palette. */
+body[data-gui-style="chrome-dark"] {
+  --b-font: "Segoe UI", system-ui, sans-serif;
+  --b-tab-radius: 8px 8px 0 0; --b-tab-h: 34px; --b-tab-gap: 0px; --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-tabbar-h: 42px; --b-tabbar-pad: 8px 0 0 8px; --b-toolbar-h: 40px;
+  --b-btn-size: 32px; --b-btn-radius: 50%; --b-url-radius: 999px; --b-url-h: 32px; --b-ring-w: 2px;
+  --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-menu-glyph: '\22EE';
+
+  --b-frame: #1f2023; --b-frame-solid: #1f2023; --b-tab: transparent; --b-tab-hover: rgba(255,255,255,0.07); --b-tab-active: #35363a;
+  --b-tab-text: #c4c7c5; --b-tab-sep: #4a4c50;
+  --b-toolbar: #35363a; --b-toolbar-border: #202124; --b-btn-hover: rgba(255,255,255,0.10);
+  --b-icon: #e3e3e3; --b-icon-disabled: #6c6d70;
+  --b-url-bg: #202124; --b-url-bg-focus: #202124; --b-url-border: transparent; --b-url-focus-border: transparent;
+  --b-accent: #8ab4f8; --b-accent-ring: #8ab4f8;
+  --b-text: #e8eaed; --b-text-dim: #9aa0a6; --b-border: #3c4043; --b-menu: #292a2d; --b-page: #202124;
+}
+
+/* Firefox — Proton, light. Tabs float as rounded cards above one grey
+   surface, the address field is a flatter rounded box, focus is Firefox blue. */
+body[data-gui-style="firefox"] {
+  --b-font: "Segoe UI", system-ui, sans-serif;
+  --b-tab-radius: 6px; --b-tab-h: 34px; --b-tab-gap: 4px; --b-tab-align: center;
+  --b-tab-shadow: 0 0 4px rgba(0,0,0,0.25); --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-tabbar-h: 44px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
+  --b-btn-size: 32px; --b-btn-radius: 4px; --b-url-radius: 4px; --b-url-h: 32px; --b-ring-w: 1px;
+  --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-newtab-radius: 4px; --b-close-radius: 4px; --b-menu-glyph: '\2630';
+
+  --b-frame: #f0f0f4; --b-frame-solid: #f0f0f4; --b-tab: transparent; --b-tab-hover: rgba(21,20,26,0.07); --b-tab-active: #ffffff;
+  --b-tab-text: #15141a;
+  --b-toolbar: #f9f9fb; --b-toolbar-border: #e0e0e6; --b-btn-hover: rgba(21,20,26,0.10);
+  --b-icon: #15141a; --b-icon-disabled: #a9a9b3;
+  --b-url-bg: #f0f0f4; --b-url-bg-focus: #ffffff; --b-url-border: transparent; --b-url-focus-border: #0061e0;
+  --b-accent: #0061e0; --b-accent-ring: #0061e0;
+  --b-text: #15141a; --b-text-dim: #5b5b66; --b-border: #cfcfd8; --b-menu: #ffffff; --b-page: #ffffff;
+}
+
+/* Firefox dark — Proton's dark palette with its cyan focus ring. */
+body[data-gui-style="firefox-dark"] {
+  --b-font: "Segoe UI", system-ui, sans-serif;
+  --b-tab-radius: 6px; --b-tab-h: 34px; --b-tab-gap: 4px; --b-tab-align: center;
+  --b-tab-shadow: 0 0 4px rgba(0,0,0,0.5); --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-tabbar-h: 44px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
+  --b-btn-size: 32px; --b-btn-radius: 4px; --b-url-radius: 4px; --b-url-h: 32px; --b-ring-w: 1px;
+  --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-newtab-radius: 4px; --b-close-radius: 4px; --b-menu-glyph: '\2630';
+
+  --b-frame: #1c1b22; --b-frame-solid: #1c1b22; --b-tab: transparent; --b-tab-hover: rgba(251,251,254,0.08); --b-tab-active: #42414d;
+  --b-tab-text: #fbfbfe;
+  --b-toolbar: #2b2a33; --b-toolbar-border: #0c0c0d; --b-btn-hover: rgba(251,251,254,0.10);
+  --b-icon: #fbfbfe; --b-icon-disabled: #6f6e78;
+  --b-url-bg: #1c1b22; --b-url-bg-focus: #42414d; --b-url-border: transparent; --b-url-focus-border: #00ddff;
+  --b-accent: #00ddff; --b-accent-ring: #00ddff;
+  --b-text: #fbfbfe; --b-text-dim: #bfbfc9; --b-border: #52525e; --b-menu: #2b2a33; --b-page: #1c1b22;
+}
+
+/* Safari — macOS Safari. The toolbar comes FIRST with the address field
+   centred in it, and the tabs sit underneath as equal, flat segments. The
+   window controls stay on the toolbar row (gui-style.js). */
+body[data-gui-style="safari"] {
+  --b-font: "Segoe UI", system-ui, sans-serif;
+  --b-tab-radius: 0; --b-tab-h: 28px; --b-tab-gap: 0px; --b-tab-align: stretch;
+  --b-tab-flex: 1 1 0; --b-tab-max: none; --b-tablist-flex: 1 1 auto;
+  --b-tab-font: 12px "Segoe UI", system-ui, sans-serif; --b-tab-active-weight: 600;
+  --b-tabbar-h: 28px; --b-tabbar-pad: 0; --b-toolbar-h: 46px;
+  --b-btn-size: 30px; --b-btn-radius: 6px; --b-url-radius: 8px; --b-url-h: 30px; --b-ring-w: 3px;
+  --b-url-font: 13px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 28px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
+  --b-close-radius: 4px; --b-menu-glyph: '\2026';
+
+  --b-frame: #e4e4e6; --b-frame-solid: #e4e4e6; --b-tab: #e4e4e6; --b-tab-hover: #dcdcde; --b-tab-active: #f6f6f7;
+  --b-tab-text: #3c3c43; --b-tab-sep: #c8c8cc;
+  --b-toolbar: #f6f6f7; --b-toolbar-border: #d4d4d8; --b-btn-hover: rgba(0,0,0,0.07);
+  --b-icon: #515154; --b-icon-disabled: #bdbdc2;
+  --b-url-bg: #e6e6e9; --b-url-bg-focus: #ffffff; --b-url-border: transparent; --b-url-focus-border: #0071e3;
+  --b-accent: #0071e3; --b-accent-ring: rgba(0,113,227,0.35);
+  --b-text: #1d1d1f; --b-text-dim: #6e6e73; --b-border: #d4d4d8; --b-menu: #ffffff; --b-page: #ffffff;
+}
+body[data-gui-style="safari"] #top-bar     { order: 1; }
+body[data-gui-style="safari"] #top-tab-bar { order: 2; border-bottom: 1px solid var(--b-toolbar-border); }
+body[data-gui-style="safari"] :is(#top-bar-left, #top-bar-right) { flex: 1 1 0; }
+body[data-gui-style="safari"] #top-bar-right { justify-content: flex-end; }
+body[data-gui-style="safari"] #url-bar-wrapper { flex: 0 1 620px; }
+body[data-gui-style="safari"] .top-tab { justify-content: center; }
+body[data-gui-style="safari"] .top-tab.active { box-shadow: inset 0 -1px 0 var(--b-toolbar-border); }
+
+/* Internet Explorer on Windows XP — the Luna blue title band carries the tabs,
+   a beige toolbar underneath, a square white address box with XP's blue-grey
+   border, Tahoma, and the unmistakable blue caption buttons with a red close. */
+body[data-gui-style="xp"] {
+  --b-font: Tahoma, Verdana, sans-serif;
+  --b-tab-radius: 5px 5px 0 0; --b-tab-h: 26px; --b-tab-gap: 2px; --b-tab-border-w: 1px;
+  --b-tab-font: 11px Tahoma, Verdana, sans-serif; --b-tab-active-weight: 700;
+  --b-tabbar-h: 32px; --b-tabbar-pad: 6px 0 0 6px; --b-toolbar-h: 36px;
+  --b-btn-size: 28px; --b-btn-radius: 3px; --b-url-radius: 0; --b-url-h: 22px; --b-ring-w: 0px;
+  --b-url-font: 12px Tahoma, Verdana, sans-serif; --b-bookmarks-h: 26px; --b-bookmark-font: 11px Tahoma, Verdana, sans-serif;
+  --b-newtab-radius: 3px; --b-close-radius: 3px; --b-menu-glyph: '\2630';
+  --b-caption-w: 22px; --b-caption-h: 22px; --b-caption-align: auto; --b-caption-radius: 3px; --b-caption-border-w: 1px;
+  --b-caption-gap: 2px; --b-caption-pad: 3px 4px 0 0; --b-controls-align: flex-start;
+
+  --b-frame: linear-gradient(#0a5ce8 0%, #3a8cf3 6%, #1f6ee8 14%, #0b5cdc 90%, #063ea8 100%); --b-frame-solid: #0b5cdc;
+  --b-strip-fg: #ffffff; --b-strip-hover: rgba(255,255,255,0.18);
+  --b-tab: linear-gradient(#f4f6fb, #d3dcef); --b-tab-hover: linear-gradient(#ffffff, #e2e9f7); --b-tab-active: #ece9d8;
+  --b-tab-text: #1b1b1b; --b-tab-border: #7f9db9; --b-tab-active-border: #aca899;
+  --b-toolbar: #ece9d8; --b-toolbar-border: #aca899; --b-btn-hover: linear-gradient(#ffffff, #e3e0d0); --b-btn-hover-border: #aca899;
+  --b-icon: #1b1b1b; --b-icon-disabled: #a7a390;
+  --b-url-bg: #ffffff; --b-url-bg-focus: #ffffff; --b-url-border: #7f9db9; --b-url-focus-border: #316ac5;
+  --b-accent: #316ac5; --b-accent-ring: transparent;
+  --b-text: #000000; --b-text-dim: #555555; --b-border: #aca899; --b-menu: #ffffff; --b-page: #ffffff;
+  --b-caption-bg: linear-gradient(#5b9df7, #2463e0); --b-caption-hover: linear-gradient(#7fb3fb, #3b7cf0);
+  --b-caption-border: #ffffff; --b-caption-fg: #ffffff;
+  --b-close-bg: linear-gradient(#e88368, #c5341d); --b-close-hover: linear-gradient(#f4a18a, #d8452c);
+}
+
+/* Netscape-era Windows 98 — flat grey everything, the navy-to-blue title
+   gradient, hard 3D bevels, square corners, and the small grey caption boxes. */
+body[data-gui-style="win98"] {
+  --b-font: "Microsoft Sans Serif", "MS Sans Serif", Tahoma, sans-serif;
+  --b-tab-radius: 0; --b-tab-h: 24px; --b-tab-gap: 2px;
+  --b-tab-font: 11px "Microsoft Sans Serif", Tahoma, sans-serif; --b-tab-active-weight: 700;
+  --b-tabbar-h: 30px; --b-tabbar-pad: 5px 0 0 4px; --b-toolbar-h: 34px;
+  --b-btn-size: 26px; --b-btn-radius: 0; --b-url-radius: 0; --b-url-h: 22px; --b-ring-w: 0px;
+  --b-url-font: 11px "Microsoft Sans Serif", Tahoma, sans-serif; --b-bookmarks-h: 26px; --b-bookmark-font: 11px "Microsoft Sans Serif", Tahoma, sans-serif;
+  --b-newtab-radius: 0; --b-close-radius: 0; --b-menu-glyph: '\2630';
+  --b-caption-w: 18px; --b-caption-h: 16px; --b-caption-align: auto; --b-caption-gap: 2px; --b-caption-pad: 5px 4px 0 0; --b-controls-align: flex-start;
+
+  --b-frame: linear-gradient(90deg, #000080, #1084d0); --b-frame-solid: #000080;
+  --b-strip-fg: #ffffff; --b-strip-hover: rgba(255,255,255,0.18);
+  --b-tab: #c0c0c0; --b-tab-hover: #c0c0c0; --b-tab-active: #c0c0c0; --b-tab-text: #000000;
+  --b-toolbar: #c0c0c0; --b-toolbar-border: #808080; --b-btn-hover: #c0c0c0;
+  --b-icon: #000000; --b-icon-disabled: #808080;
+  --b-url-bg: #ffffff; --b-url-bg-focus: #ffffff; --b-url-border: transparent; --b-url-focus-border: transparent;
+  --b-accent: #000080; --b-accent-ring: transparent;
+  --b-text: #000000; --b-text-dim: #404040; --b-border: #808080; --b-menu: #c0c0c0; --b-page: #ffffff;
+  /* The bevel: light top-left edges, dark bottom-right edges. */
+  --b-bevel-hi: #ffffff; --b-bevel-hi2: #dfdfdf; --b-bevel-lo: #0a0a0a; --b-bevel-lo2: #808080;
+  --b-caption-bg: #c0c0c0; --b-caption-hover: #c0c0c0; --b-caption-fg: #000000;
+  --b-close-bg: #c0c0c0; --b-close-hover: #c0c0c0; --b-close-hover-fg: #000000;
+}
+body[data-gui-style="win98"] .top-tab,
+body[data-gui-style="win98"] :is(.nav-btn, #top-bar-right > button):hover,
+body[data-gui-style="win98"] #gui-shortcuts-bar .gsc:hover,
+body[data-gui-style="win98"] #window-controls .win-btn {
+  box-shadow: inset -1px -1px var(--b-bevel-lo), inset 1px 1px var(--b-bevel-hi), inset -2px -2px var(--b-bevel-lo2), inset 2px 2px var(--b-bevel-hi2);
+}
+body[data-gui-style="win98"] .top-tab.active {
+  box-shadow: inset -1px 0 var(--b-bevel-lo), inset 1px 1px var(--b-bevel-hi), inset -2px 0 var(--b-bevel-lo2), inset 2px 2px var(--b-bevel-hi2);
+}
+body[data-gui-style="win98"] #url-bar,
+body[data-gui-style="win98"] #url-bar:focus-within {
+  box-shadow: inset 1px 1px var(--b-bevel-lo2), inset -1px -1px var(--b-bevel-hi), inset 2px 2px var(--b-bevel-lo), inset -2px -2px var(--b-bevel-hi2);
+  border-color: transparent;
+}
+body[data-gui-style="win98"] #window-controls .win-btn svg { width: 9px; height: 9px; }
+
+/* ---- 6. Theme mode: every colour derived from the active colour theme ---
+   The shapes and type above stay; only the palette changes. Surfaces map onto
+   the theme's own layers (deep -> frame, elevated -> toolbar and active tab,
+   base -> field and page) and its text and accent. Hover washes are mixes of
+   the theme's text colour, so they read correctly on light and dark themes
+   alike. Declared after section 5 at higher specificity, so they win. */
+body[data-gui-family="browser"][data-gui-colors="theme"] {
+  --b-frame: var(--vex-bg-deep, var(--vex-bg-base)); --b-frame-solid: var(--vex-bg-deep, var(--vex-bg-base));
+  --b-strip-fg: var(--vex-text-secondary); --b-strip-hover: color-mix(in srgb, var(--vex-text-primary) 12%, transparent);
+  --b-tab: transparent; --b-tab-hover: color-mix(in srgb, var(--vex-text-primary) 9%, transparent);
+  --b-tab-active: var(--vex-bg-elevated); --b-tab-text: var(--vex-text-secondary); --b-tab-sep: var(--vex-border-medium);
+  --b-tab-border: transparent; --b-tab-active-border: transparent;
+  --b-toolbar: var(--vex-bg-elevated); --b-toolbar-border: var(--vex-border-subtle);
+  --b-btn-hover: color-mix(in srgb, var(--vex-text-primary) 12%, transparent); --b-btn-hover-border: transparent;
+  --b-icon: var(--vex-text-secondary); --b-icon-disabled: var(--vex-text-muted);
+  --b-url-bg: var(--vex-bg-base); --b-url-bg-focus: var(--vex-bg-base);
+  --b-url-border: transparent; --b-url-focus-border: var(--vex-accent);
+  --b-accent: var(--vex-accent); --b-accent-ring: var(--vex-accent);
+  --b-text: var(--vex-text-primary); --b-text-dim: var(--vex-text-muted);
+  --b-border: var(--vex-border-medium); --b-menu: var(--vex-bg-elevated); --b-page: var(--vex-bg-base);
+}
+/* Safari's tabs are the frame colour, the selected one the toolbar colour. */
+body[data-gui-style="safari"][data-gui-colors="theme"] {
+  --b-tab: var(--vex-bg-deep, var(--vex-bg-base));
+  --b-tab-hover: color-mix(in srgb, var(--vex-bg-deep, var(--vex-bg-base)) 88%, var(--vex-text-primary));
+  --b-accent-ring: color-mix(in srgb, var(--vex-accent) 35%, transparent);
+}
+/* XP: the title band is the theme accent with its lightness capped (oklch
+   L <= 0.55) so white still reads on it - a dark accent stays exactly itself, a
+   bright one is darkened but keeps its full colour, the way Luna was vivid; tabs and fields take the theme's surfaces with its
+   strong border; the caption buttons are accent gradients. Close stays red -
+   it means close in every theme. */
+body[data-gui-style="xp"][data-gui-colors="theme"] {
+  --b-xp-band: oklch(from var(--vex-accent) min(l, 0.55) c h);
+  --b-frame: linear-gradient(var(--b-xp-band) 0%, color-mix(in srgb, var(--b-xp-band) 75%, #ffffff) 6%,
+    color-mix(in srgb, var(--b-xp-band) 92%, #ffffff) 14%, var(--b-xp-band) 90%,
+    color-mix(in srgb, var(--b-xp-band) 70%, #000000) 100%);
+  --b-frame-solid: var(--b-xp-band);
+  --b-strip-fg: #ffffff; --b-strip-hover: rgba(255,255,255,0.18);
+  --b-tab: var(--vex-bg-base);
+  --b-tab-hover: color-mix(in srgb, var(--vex-bg-base) 88%, var(--vex-text-primary));
+  --b-tab-text: var(--vex-text-primary);
+  --b-tab-border: var(--vex-border-strong); --b-tab-active-border: var(--vex-border-medium);
+  --b-btn-hover-border: var(--vex-border-medium);
+  --b-url-border: var(--vex-border-strong); --b-accent-ring: transparent;
+  --b-caption-bg: linear-gradient(color-mix(in srgb, var(--b-xp-band) 70%, #ffffff), var(--b-xp-band));
+  --b-caption-hover: linear-gradient(color-mix(in srgb, var(--b-xp-band) 55%, #ffffff), color-mix(in srgb, var(--b-xp-band) 85%, #ffffff));
+  --b-caption-border: color-mix(in srgb, var(--b-xp-band) 35%, #ffffff); --b-caption-fg: #ffffff;
+}
+/* 98: every control shares one face - the theme's raised surface nudged
+   toward its text colour, the way 98's grey sat between white and black. That
+   leaves room on both sides for the bevel: its light edges are mixes of the
+   face with white and its dark edges mixes with black, so the 3D edge shows on
+   a white theme and a black one alike. The address field stays the theme's
+   base colour, sunk into the face. The title band runs from the accent capped
+   dark (like 98's navy) to the accent capped a little lighter, both still dark
+   enough for its white glyphs. */
+body[data-gui-style="win98"][data-gui-colors="theme"] {
+  --b-98-face: color-mix(in srgb, var(--vex-bg-elevated) 86%, var(--vex-text-primary));
+  --b-frame: linear-gradient(90deg, oklch(from var(--vex-accent) min(l, 0.4) c h), oklch(from var(--vex-accent) min(l, 0.58) c h));
+  --b-frame-solid: oklch(from var(--vex-accent) min(l, 0.4) c h);
+  --b-strip-fg: #ffffff; --b-strip-hover: rgba(255,255,255,0.18);
+  --b-tab: var(--b-98-face); --b-tab-hover: var(--b-98-face); --b-tab-active: var(--b-98-face); --b-tab-text: var(--vex-text-primary);
+  --b-toolbar: var(--b-98-face); --b-btn-hover: var(--b-98-face); --b-menu: var(--b-98-face);
+  --b-icon: var(--vex-text-primary);
+  --b-bevel-hi: color-mix(in srgb, var(--b-98-face) 30%, #ffffff);
+  --b-bevel-hi2: color-mix(in srgb, var(--b-98-face) 65%, #ffffff);
+  --b-bevel-lo: color-mix(in srgb, var(--b-98-face) 25%, #000000);
+  --b-bevel-lo2: color-mix(in srgb, var(--b-98-face) 60%, #000000);
+  --b-caption-bg: var(--b-98-face); --b-caption-hover: var(--b-98-face); --b-caption-fg: var(--vex-text-primary);
+  --b-close-bg: var(--b-98-face); --b-close-hover: var(--b-98-face); --b-close-hover-fg: var(--vex-text-primary);
+}

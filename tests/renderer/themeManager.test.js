@@ -141,7 +141,17 @@ describe('ThemeManager', () => {
     TM.applyTheme('ocean');
     expect(handler).toHaveBeenCalled();
     const evt = handler.mock.calls[0][0];
-    expect(evt.detail).toEqual({ theme: 'ocean' });
+    expect(evt.detail).toEqual({ theme: 'ocean', userChoice: true });
+    document.removeEventListener('theme-changed', handler);
+  });
+
+  it('theme-changed marks the startup restore (persist:false) as not a user choice', async () => {
+    const TM = await loadThemeManager();
+    await TM.init();
+    const handler = vi.fn();
+    document.addEventListener('theme-changed', handler);
+    TM.applyTheme('ocean', { persist: false });
+    expect(handler.mock.calls[0][0].detail).toEqual({ theme: 'ocean', userChoice: false });
     document.removeEventListener('theme-changed', handler);
   });
 

@@ -1,13 +1,44 @@
-// === Vex GUI Style switcher ("Classic" vs "Glass") =====================
+// === Vex GUI Style switcher (Classic, Glass, and the browser looks) =====
 // A whole-UI look toggle. Classic = the current Vex (default, untouched).
 // Glass = frosted-glass skin + the new layout (tabs ON TOP, with a Chrome-style
 // shortcuts/speed-dial bar where the tabs used to be). All the visual work is in
 // css/gui-glass.css under body[data-gui-style="glass"]; this module just toggles
 // the attribute, forces the horizontal tab strip in Glass, and builds the
-// shortcuts bar. Persisted in localStorage 'vex.guiStyle'.
+// shortcuts bar. Persisted in localStorage 'vex.guiStyle'. The browser looks
+// (Chrome, Firefox, Safari, XP, 98) live in css/gui-browser.css.
 (function () {
   const KEY = 'vex.guiStyle';
   let _prevTabLayout = null;
+
+  // Every GUI style and how it lays the window out.
+  //   layout  'vex' - Vex's own layout (sidebar rail, vertical tabs possible).
+  //           'top' - tabs on top, toolbar, then the bookmarks/shortcuts bar.
+  //   family  'browser' - the mainstream-browser looks in css/gui-browser.css,
+  //           which share one base and differ only in their variant block.
+  //   controls  which row holds minimise/maximise/close: 'tabs' (Chrome,
+  //           Firefox) or 'toolbar' (Safari, whose tabs sit under the toolbar).
+  //   startPage  the value the home page understands; it only knows its own
+  //           looks, so the browser family asks it for 'classic'.
+  const STYLES = {
+    classic:        { layout: 'vex' },
+    glass:          { layout: 'top', controls: 'tabs', startPage: 'glass' },
+    chrome:         { layout: 'top', family: 'browser', controls: 'tabs' },
+    'chrome-dark':  { layout: 'top', family: 'browser', controls: 'tabs' },
+    firefox:        { layout: 'top', family: 'browser', controls: 'tabs' },
+    'firefox-dark': { layout: 'top', family: 'browser', controls: 'tabs' },
+    safari:         { layout: 'top', family: 'browser', controls: 'toolbar' },
+    xp:             { layout: 'top', family: 'browser', controls: 'tabs' },
+    win98:          { layout: 'top', family: 'browser', controls: 'tabs' },
+  };
+  const isTopLayout = () => (STYLES[document.body.dataset.guiStyle] || {}).layout === 'top';
+  const isBrowserLook = () => (STYLES[document.body.dataset.guiStyle] || {}).family === 'browser';
+
+  // Where a browser look takes its colours from (body[data-gui-colors]):
+  //   look  - its own palette (Chrome grey, XP blue...), the default
+  //   theme - the active colour theme, so every theme recolours every look
+  // Kept separately from the style, so switching looks keeps the choice.
+  const COLORS_KEY = 'vex.guiColors';
+  const COLOR_MODES = ['look', 'theme'];
 
   const DEFAULT_SHORTCUTS = [
     { name: 'Google', url: 'https://www.google.com' },
@@ -199,38 +230,68 @@
   }
 
   async function apply(style) {
-    style = (style === 'glass') ? 'glass' : 'classic';
-    if (style === 'glass') {
+    if (!STYLES[style]) style = 'classic';
+    const def = STYLES[style];
+    if (def.layout === 'top') {
       try {
         const cur = document.body.dataset.tabLayout || 'horizontal';
         if (cur !== 'horizontal') { _prevTabLayout = cur; document.body.dataset.tabLayout = 'horizontal'; }
       } catch {}
       buildBar();
-      document.body.dataset.guiStyle = 'glass';
+      document.body.dataset.guiStyle = style;
+      if (def.family) document.body.dataset.guiFamily = def.family;
+      else document.body.removeAttribute('data-gui-family');
       try { window.HorizontalTabs?.render?.(); } catch {}
-      moveWindowControls(true);
+      moveWindowControls(def.controls === 'tabs');
     } else {
       document.body.removeAttribute('data-gui-style');
+      document.body.removeAttribute('data-gui-family');
       try { if (_prevTabLayout) { document.body.dataset.tabLayout = _prevTabLayout; _prevTabLayout = null; } } catch {}
       moveWindowControls(false);
     }
     try { localStorage.setItem(KEY, style); } catch {}
     // Persist for the start page (served by main.js, separate origin) — and AWAIT
     // the write before reloading open home tabs, otherwise they re-serve before
-    // the file lands and stay on the old style.
-    try { await window.vex?.setGuiStyle?.(style); } catch {}
+    // the file lands and stay on the old style. Only send a value it accepts:
+    // anything else fails main's IPC schema.
+    try { await window.vex?.setGuiStyle?.(def.startPage || 'classic'); } catch {}
     try { window.Onboarding?._reloadStartPages?.(); } catch {}
     try { window.dispatchEvent(new CustomEvent('vex:gui-style', { detail: { style } })); } catch {}
   }
 
-  function current() { try { return localStorage.getItem(KEY) || 'classic'; } catch { return 'classic'; } }
+  function current() {
+    try { const s = localStorage.getItem(KEY); return STYLES[s] ? s : 'classic'; } catch { return 'classic'; }
+  }
 
-  function init() { apply(current()); }
+  function currentColors() {
+    try { const c = localStorage.getItem(COLORS_KEY); return COLOR_MODES.includes(c) ? c : 'look'; } catch { return 'look'; }
+  }
+
+  function applyColors(mode) {
+    if (!COLOR_MODES.includes(mode)) throw new Error(`Unknown GUI colour mode: ${mode}`);
+    document.body.dataset.guiColors = mode;
+    try { localStorage.setItem(COLORS_KEY, mode); } catch {}
+    window.dispatchEvent(new CustomEvent('vex:gui-colors', { detail: { mode } }));
+  }
+
+  // Picking a colour theme while a browser look shows its own colours would
+  // otherwise appear to do nothing, so the look switches to follow the theme.
+  // Only real picks count — the startup restore is not a choice.
+  document.addEventListener('theme-changed', (e) => {
+    if (!e.detail?.userChoice || !isBrowserLook() || currentColors() === 'theme') return;
+    applyColors('theme');
+    window.showToast?.('The browser look now uses your theme colours — Settings › GUI Style switches back', 'info', 4000);
+  });
+
+  function init() {
+    document.body.dataset.guiColors = currentColors();
+    apply(current());
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
   window.addEventListener('storage', (e) => {
-    if (e.key === 'vex.shortcuts' && document.body.dataset.guiStyle === 'glass') {
+    if (e.key === 'vex.shortcuts' && isTopLayout()) {
       const b = document.getElementById('gui-shortcuts-bar'); if (b) renderBar(b);
     }
   });
@@ -238,6 +299,10 @@
   window.VexGuiStyle = {
     set: apply,
     get: current,
+    styles: () => Object.keys(STYLES),
+    isBrowserLook,
+    setColors: applyColors,
+    getColors: currentColors,
     render: () => { const b = document.getElementById('gui-shortcuts-bar'); if (b) renderBar(b); },
     // The stock shortcut set — the onboarding setup-style step builds its
     // pick-and-choose list from this so the two never drift apart.

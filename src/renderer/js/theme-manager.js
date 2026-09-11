@@ -159,7 +159,9 @@ const ThemeManager = {
       }
     } catch {}
 
-    document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: themeName } }));
+    // userChoice: someone picked this theme, as opposed to the startup restore
+    // (the only persist:false caller) — gui-style.js follows only real picks.
+    document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: themeName, userChoice: opts.persist !== false } }));
   },
 
   // Store a user-uploaded image (data URL) for the Custom Image theme and push

@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.40 (2026-09-11) — Seven browser looks, in any colour theme
+
+### Added
+- **Seven new looks in Settings › GUI Style.** Vex can now look like another browser entirely: Chrome, Chrome dark, Firefox, Firefox dark, Safari, Internet Explorer on Windows XP, and Netscape on Windows 98. Each one moves the tabs, address bar and buttons to where that browser has them, and uses its shapes and fonts, down to XP's blue caption buttons and 98's raised grey edges. Your tabs, bookmarks and everything else stay as they are.
+- **Every colour theme works with every look.** A look can keep its own colours or take them from your colour theme, so all 35 themes recolour all seven looks. Picking a theme while a look is on switches it to match, and a new "Browser look colours" setting under GUI Style switches it back. On XP and 98 the title bar takes your theme's accent colour, kept dark enough for its white writing to read.
+
+### Notes
+- To keep them looking like the real browsers, the looks hide Vex's side rail and a few toolbar buttons (workspaces, AI, notes, split view, Tor). All of them are still in the menu button at the right of the toolbar, or Ctrl+K. "Switch Workspace" there opens the workspace list under the toolbar.
+- Every look was checked against every theme (245 pairs) for text, icon and address-bar contrast in the running app, and screenshotted under six very different themes. The one soft spot is Windows 98 on Solarized, which is low-contrast by design and is just as soft in Vex's normal look.
+
 ## v2.31.39 (2026-09-11) — F12 opens DevTools you can see, and Sheets links are copied
 
 ### Fixed

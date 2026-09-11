@@ -45,6 +45,8 @@
   <link rel="stylesheet" href="css/settings-redesign.css">
   <link rel="stylesheet" href="css/peek.css">
   <link rel="stylesheet" href="css/extras.css">
+  <!-- After every feature sheet so the browser looks win; a11y.css stays last. -->
+  <link rel="stylesheet" href="css/gui-browser.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -506,9 +508,25 @@
                 <select id="setting-gui-style" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
                   <option value="classic">Classic (your themes)</option>
                   <option value="glass">Glass (frosted · tabs on top · shortcuts bar)</option>
+                  <optgroup label="Browser looks">
+                    <option value="chrome">Chrome</option>
+                    <option value="chrome-dark">Chrome — dark</option>
+                    <option value="firefox">Firefox</option>
+                    <option value="firefox-dark">Firefox — dark</option>
+                    <option value="safari">Safari</option>
+                    <option value="xp">Internet Explorer · Windows XP</option>
+                    <option value="win98">Netscape · Windows 98</option>
+                  </optgroup>
                 </select>
               </div>
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Glass moves tabs above the address bar, adds a shortcuts bar, and applies a frosted look. Your color themes still apply in Classic.</div>
+              <div class="setting-toggle-row" id="setting-gui-colors-row" style="display:none">
+                <span>Browser look colours</span>
+                <select id="setting-gui-colors" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="look">The look's own colours</option>
+                  <option value="theme">Match my colour theme</option>
+                </select>
+              </div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Glass moves tabs above the address bar, adds a shortcuts bar, and applies a frosted look. Your color themes still apply in Classic. A browser look keeps its own colours or matches your colour theme — picking a theme switches it to match.</div>
             </div>
 
             <!-- Tab layout -->
