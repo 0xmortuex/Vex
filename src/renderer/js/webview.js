@@ -29,9 +29,17 @@ const WebviewManager = {
     const webview = document.createElement('webview');
     const lifecycle = window.VexLifecycle ? new window.VexLifecycle() : null;
     webview._lifecycle = lifecycle;
+    // Register every listener below through the lifecycle so destroyWebview can
+    // take them off again. Left attached, each handler closure captures
+    // `webview`, and those closures keep the element alive for the life of the
+    // window: closing a tab freed nothing, so a long session accumulated one
+    // detached webview and ~28 listeners per closed tab.
+    const onWebview = lifecycle
+      ? (event, handler, options) => lifecycle.listen(webview, event, handler, options)
+      : (event, handler, options) => webview.addEventListener(event, handler, options);
     let crashCount = 0, lastCrash = 0, cancelRecovery = null;
     webview._navigationGeneration = 0;
-    webview.addEventListener('did-start-navigation', event => { if (event.isMainFrame !== false) webview._navigationGeneration++; });
+    onWebview('did-start-navigation', event => { if (event.isMainFrame !== false) webview._navigationGeneration++; });
     webview.setAttribute('src', tab.url);
     webview.setAttribute('partition', tab.partition || 'persist:main');
     webview.setAttribute('allowpopups', '');
@@ -44,17 +52,17 @@ const WebviewManager = {
     webview.dataset.tabId = tab.id;
 
     // Events
-    webview.addEventListener('did-start-loading', () => {
+    onWebview('did-start-loading', () => {
       TabManager.updateTab(tab.id, { loading: true });
       container.classList.add('wv-loading');
     });
 
-    webview.addEventListener('did-stop-loading', () => {
+    onWebview('did-stop-loading', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
     });
 
-    webview.addEventListener('did-finish-load', () => {
+    onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
 
@@ -111,7 +119,7 @@ const WebviewManager = {
       }, 2500);
     });
 
-    webview.addEventListener('page-title-updated', (e) => {
+    onWebview('page-title-updated', (e) => {
       TabManager.updateTab(tab.id, { title: e.title });
       // The visit is recorded the moment the page starts loading, when its
       // title is still "Loading…" or the bare URL. Without this every history
@@ -120,7 +128,7 @@ const WebviewManager = {
       if (current && current.url && typeof HistoryPanel !== 'undefined') HistoryPanel.updateTitle(current.url, e.title);
     });
 
-    webview.addEventListener('dom-ready', () => {
+    onWebview('dom-ready', () => {
       // Per-site Boosts (zapped elements / custom CSS / custom JS)
       try {
         const t = TabManager.tabs.find(x => x.id === tab.id);
@@ -141,7 +149,7 @@ const WebviewManager = {
     // SPA route changes (History pushState) don't fire dom-ready — but a login
     // flow's "enter the code" screen often appears that way. Re-run the code
     // autofills on in-page navigation so they still trigger.
-    webview.addEventListener('did-navigate-in-page', () => {
+    onWebview('did-navigate-in-page', () => {
       try {
         const u = webview.getURL();
         if (typeof TotpAutofill !== 'undefined' && u) TotpAutofill.autofill(webview, u);
@@ -151,7 +159,7 @@ const WebviewManager = {
 
     // Start page loads via file:// (bypassing main's HTML bake), so inject the
     // current GUI Style so the home page matches Classic/Glass.
-    webview.addEventListener('dom-ready', () => {
+    onWebview('dom-ready', () => {
       try {
         if (typeof isStartPage === 'function' && isStartPage(webview.getURL())) {
           const gs = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
@@ -165,7 +173,7 @@ const WebviewManager = {
     // Keyboard link hints (press `f`): tell the guest whether the feature is on.
     // Default ON; toggle via the `vex.linkHints` setting. Injected each load so a
     // setting change applies on next navigation without restart.
-    webview.addEventListener('dom-ready', () => {
+    onWebview('dom-ready', () => {
       try {
         const on = localStorage.getItem('vex.linkHints') !== 'off';
         webview.executeJavaScript(`window.__vexLinkHintsEnabled = ${on};`).catch(() => {});
@@ -177,7 +185,7 @@ const WebviewManager = {
     // from the host console); the frozen-decode signature additionally gets
     // one toast per session — it's the actionable one (codec/GPU decode bug,
     // like TikTok's HEVC freeze) and a page can't spam it.
-    webview.addEventListener('ipc-message', (e) => {
+    onWebview('ipc-message', (e) => {
       // PiP video-detection from the guest preload (sent via sendToHost because a
       // guest window.postMessage can't cross to the host). Re-emit as a host
       // window message so PiPManager (app.js) handles it unchanged. Gate on the
@@ -226,13 +234,13 @@ const WebviewManager = {
     if (typeof SelectionAIBar !== 'undefined') SelectionAIBar.attach(webview);
     // Apply the saved master-volume level to this page's media (and keep it
     // enforced as media loads). Re-checked per navigation; no-op at 100%.
-    webview.addEventListener('dom-ready', () => {
+    onWebview('dom-ready', () => {
       if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(webview);
     });
     // Now Playing mini-bar (which tab is making noise)
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     // Right-click an image → reverse-search it with Google Lens
-    webview.addEventListener('context-menu', (e) => {
+    onWebview('context-menu', (e) => {
       const p = e.params || {};
       if (p.mediaType !== 'image' || !p.srcURL || !/^https?:/i.test(p.srcURL)) return;
       document.querySelectorAll('.vex-img-menu').forEach(m => m.remove());
@@ -262,7 +270,7 @@ const WebviewManager = {
       if (window.Tabs?._attachMenuDismissal) TabManager._attachMenuDismissal(menu);
     });
 
-    webview.addEventListener('did-navigate', (e) => {
+    onWebview('did-navigate', (e) => {
       const url = e.url;
       // Focus-mode site blocker bounces distracting hosts back.
       if (typeof FocusMode !== 'undefined' && FocusMode.guard(webview, url)) return;
@@ -301,7 +309,7 @@ const WebviewManager = {
       }
     });
 
-    webview.addEventListener('did-navigate-in-page', (e) => {
+    onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
         TabManager.updateTab(tab.id, { url: e.url });
       }
@@ -311,7 +319,7 @@ const WebviewManager = {
     // leaving it blank. Self-heal: reload the tab's real URL so the page comes
     // back on its own — no manual refresh needed. tab.url is preserved above;
     // hibernated tabs also stash the URL in dataset.hibernatedUrl.
-    webview.addEventListener('render-process-gone', () => {
+    onWebview('render-process-gone', () => {
       try {
         cancelRecovery?.();
         if (Date.now() - lastCrash > 120000) crashCount = 0;
@@ -331,29 +339,29 @@ const WebviewManager = {
       } catch {}
     });
 
-    webview.addEventListener('new-window', (e) => {
+    onWebview('new-window', (e) => {
       e.preventDefault();
       TabManager.createTab(e.url, true, null, { partition: tab.partition });
     });
 
     // Audio indicator
-    webview.addEventListener('media-started-playing', () => {
+    onWebview('media-started-playing', () => {
       const t = TabManager.tabs.find(t => t.id === tab.id);
       if (t) { t.audible = true; TabManager.renderTabUpdate(t); }
     });
-    webview.addEventListener('media-paused', () => {
+    onWebview('media-paused', () => {
       const t = TabManager.tabs.find(t => t.id === tab.id);
       if (t) { t.audible = false; TabManager.renderTabUpdate(t); }
     });
 
-    webview.addEventListener('page-favicon-updated', (e) => {
+    onWebview('page-favicon-updated', (e) => {
       if (e.favicons && e.favicons.length > 0) {
         TabManager.updateTab(tab.id, { favicon: e.favicons[0] });
       }
     });
 
     // Listen for VEX_CMD messages from start page and other webview content
-    webview.addEventListener('console-message', (e) => {
+    onWebview('console-message', (e) => {
       if (e.message && e.message.startsWith('VEX_CMD:')) {
         // SECURITY: VEX_CMD is a privileged control channel (navigate the tab,
         // open chrome panels). console-message fires for EVERY guest page, so
@@ -394,7 +402,7 @@ const WebviewManager = {
     // right-click reported clientX/clientY identical to params.x/y). So
     // showContextMenu consumes params.x/y directly — no coordinate
     // translation, no webviewRect offset.
-    webview.addEventListener('context-menu', (e) => {
+    onWebview('context-menu', (e) => {
       this.showContextMenu(e, webview);
     });
 

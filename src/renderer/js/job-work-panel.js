@@ -46,6 +46,14 @@ const WorkPanel = {
           <button id="wp-change" style="padding:6px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11.5px;font-family:'Outfit',sans-serif">Change</button>
         </div>
 
+        <button id="wp-ai" title="Chat with Vex AI about your work" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;padding:11px 12px;background:var(--bg);border:1px solid var(--primary,var(--accent));border-radius:10px;cursor:pointer;font-family:'Outfit',sans-serif;margin-bottom:14px">
+          <span style="display:inline-flex;color:var(--primary,var(--accent));flex:none">${VexIcons.svg('sparkles', { size: 18 })}</span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:12.5px;font-weight:600;color:var(--text)">Ask Vex AI</span>
+            <span id="wp-ai-where" style="display:block;font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Checking where AI runs…</span>
+          </span>
+        </button>
+
         <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin:0 2px 8px">Your tools</div>
         <div id="wp-tools" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">${tools.map(toolCard).join('') || '<div style="grid-column:1/-1;font-size:12px;color:var(--text-muted);padding:6px 2px">No tools enabled — add some below.</div>'}</div>
         <button id="wp-manage" style="width:100%;padding:9px;background:none;border:1px dashed var(--border);border-radius:9px;color:var(--text-muted);cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;margin-bottom:16px">＋ Manage tools</button>
@@ -58,6 +66,7 @@ const WorkPanel = {
       </div>`;
 
     container.querySelectorAll('.wp-tool').forEach(b => b.addEventListener('click', () => { try { window.Toolbox && Toolbox.openTool(b.dataset.id); } catch {} }));
+    this._wireAI(container, job);
     container.querySelector('#wp-change')?.addEventListener('click', () => { try { window.JobSetup && JobSetup.open(); } catch {} });
     container.querySelector('#wp-manage')?.addEventListener('click', () => { try { window.JobSetup && JobSetup.open(); } catch {} });
     container.querySelectorAll('.wp-act').forEach(b => b.addEventListener('click', () => {
@@ -67,6 +76,57 @@ const WorkPanel = {
         else if (a === 'note') { window.StickyNotes && StickyNotes.open(); }
       } catch {}
     }));
+  },
+
+  // Open the AI chat from the Work panel.
+  //
+  // AIPanel is a top-level `const`, not a property of window, so it has to be
+  // reached by bare identifier — `window.AIPanel?.open()` is undefined and
+  // would make this button do nothing at all, silently.
+  _wireAI(container, job) {
+    const btn = container.querySelector('#wp-ai');
+    if (!btn) return;
+    const where = container.querySelector('#wp-ai-where');
+    if (where) {
+      where.textContent = this._aiWhere();
+      // `available` is null until the first ping, and reporting that as "not
+      // running" would state a guess as fact. Ask, then say what came back.
+      const r = window.AIRouter;
+      if (r && typeof r.refreshOllamaStatus === 'function' && r.getOllamaStatus
+          && r.getOllamaStatus().available === null) {
+        Promise.resolve(r.refreshOllamaStatus())
+          .then(() => { if (where.isConnected) where.textContent = this._aiWhere(); })
+          .catch((err) => { if (where.isConnected) where.textContent = 'Could not check for a local model: ' + ((err && err.message) || 'unknown error'); });
+      }
+    }
+    btn.addEventListener('click', () => {
+      const panel = (typeof AIPanel !== 'undefined' && AIPanel) || null;
+      if (!panel || typeof panel.open !== 'function') {
+        window.showToast?.('The AI panel is not available', 'error');
+        return;
+      }
+      panel.open();
+      // Give the model the job as context, so the first answer is about their
+      // work rather than a blank prompt.
+      if (job && job.name && typeof panel.sendMessage === 'function') {
+        panel.sendMessage('chat', { message: `I work as a ${job.name}. Help me with my current page.` });
+      }
+    });
+  },
+
+  // Say honestly where a message would go: the local model when Ollama is up
+  // and preferred, otherwise the cloud worker, otherwise nothing configured.
+  _aiWhere() {
+    try {
+      const r = window.AIRouter;
+      if (!r || typeof r.getOllamaStatus !== 'function') return 'Chat about your work';
+      const s = r.getOllamaStatus();
+      if (s.available === null) return 'Checking for a local model…';
+      if (s.available && !s.forceCloud) return `Local — ${s.model || 'Ollama'}, private to this machine`;
+      if (s.available) return 'Local model ready, but Vex is set to use the cloud';
+      if (s.online) return 'Cloud — no local model is running';
+      return 'Offline, and no local model is running';
+    } catch { return 'Chat about your work'; }
   },
 
   // Re-render if the panel is currently open (e.g. after the job changes).

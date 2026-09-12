@@ -30,6 +30,19 @@ function publishedOnWindow() {
   return published;
 }
 
+// A comment that talks ABOUT the mistake is not the mistake. Blank out line
+// comments and block comments before scanning, or documenting the trap trips
+// the check that guards against it.
+function stripComments(src) {
+  const NL = String.fromCharCode(10);
+  // Replace comment bodies with spaces so line numbers and columns still line
+  // up with the original file when an offender is reported.
+  const blank = (m) => m.split(NL).map(seg => ' '.repeat(seg.length)).join(NL);
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .replace(/(^|[^:"'`\\])\/\/.*$/gm, (m, p) => p + ' '.repeat(m.length - p.length));
+}
+
 // Names declared as a bare top-level const.
 function lexicalGlobals() {
   const declared = new Set();
@@ -49,7 +62,7 @@ describe('reaching a module through window.*', () => {
     const offenders = [];
     for (const file of fs.readdirSync(dir)) {
       if (!file.endsWith('.js')) continue;
-      const src = fs.readFileSync(path.join(dir, file), 'utf8');
+      const src = stripComments(fs.readFileSync(path.join(dir, file), 'utf8'));
       src.split(/\r?\n/).forEach((line, i) => {
         for (const m of line.matchAll(/window\.([A-Z][A-Za-z0-9_]*)\s*(?:\?\.|\.[a-z])/g)) {
           const name = m[1];
@@ -67,6 +80,20 @@ describe('reaching a module through window.*', () => {
     // Walks every source file, so it is I/O-bound and slower than the 5s
     // default once the whole suite runs in parallel.
   }, 30000);
+
+  // Stripping comments is what lets a file document this trap without tripping
+  // the check. It must not also blind the check to the real thing — a scanner
+  // that quietly stops detecting is worse than no scanner.
+  it('still flags real code, and ignores only comments', () => {
+    const scan = (src) => stripComments(src).split(/\r?\n/)
+      .filter(l => /window\.[A-Z][A-Za-z0-9_]*\s*(?:\?\.|\.[a-z])/.test(l)).length;
+
+    expect(scan("window.AIPanel?.open();")).toBe(1);            // bare offence
+    expect(scan("  foo(); window.AIPanel.open();")).toBe(1);    // mid-line
+    expect(scan("// window.AIPanel?.open() is undefined")).toBe(0);
+    expect(scan("  /* window.AIPanel.open() */")).toBe(0);
+    expect(scan("const u = 'https://x.example/';\nwindow.AIPanel.open();")).toBe(1);
+  });
 
   it('the two modules this caught are reached without window', () => {
     const notes = fs.readFileSync(path.join(dir, 'notes-panel.js'), 'utf8');

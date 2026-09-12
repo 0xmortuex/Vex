@@ -284,7 +284,15 @@ const Toolbox = {
     const own = tool && typeof tool.icon === 'string' ? tool.icon : '';
     if (icons && icons.has(own)) return icons.svg(own, { size: px });
     if (own && own.length <= 7 && !/\p{Extended_Pictographic}/u.test(own)) {
-      return window.escapeHtml ? window.escapeHtml(own) : own;
+      // 137 of the 318 tools are marked with a typographic sign (".*", "{ }",
+      // "Aa") rather than a drawing. Returned bare, they took whatever
+      // font-size and baseline the surrounding container had, so a grid mixing
+      // them with the 181 SVG tools looked like two different designs. Give
+      // them the same box an icon occupies: same size, centred, currentColor.
+      const txt = window.escapeHtml ? window.escapeHtml(own) : own;
+      const chars = [...own].length;
+      const fs = Math.max(8, Math.round(px * (chars > 3 ? 0.46 : chars > 2 ? 0.6 : chars > 1 ? 0.72 : 0.86)));
+      return `<span class="tb-glyph" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:${px}px;height:${px}px;flex:none;font-size:${fs}px;line-height:1;font-weight:700;letter-spacing:-.02em;color:currentColor;overflow:hidden">${txt}</span>`;
     }
     const F = (typeof ToolboxPacks !== 'undefined') ? ToolboxPacks.FAMILIES : {};
     const fam = F[tool && tool.family];
