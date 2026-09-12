@@ -204,3 +204,61 @@ describe('recommended tools are drawn-icon only', () => {
     expect(Toolbox.rendersDrawnIcon({ icon: '', family: 'dev' })).toBe(true);
   });
 });
+
+// The top bar draws the Toolbox button and the Vex AI button, and nothing else.
+// It used to also draw up to three individual tool buttons out there, which is
+// what looked wrong: they sat beside the Toolbox icon rendering a typographic
+// mark rather than a drawn icon. Every tool belongs inside the Toolbox.
+describe('the job buttons in the top bar', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="top-bar-right"><button id="btn-command"></button></div>';
+    localStorage.clear();
+    window.Toolbox = Toolbox;
+  });
+
+  const draw = (jobId) => {
+    if (jobId) localStorage.setItem('vex.job', jobId);
+    JobProfiles.renderButtons();
+    return [...document.querySelectorAll('#top-bar-right .vex-job-btn')];
+  };
+
+  it('draws exactly two buttons: the Toolbox and Vex AI', () => {
+    const job = JobProfiles.list().find(j => j.tools.length >= 6);
+    localStorage.setItem('vex.jobTools', JSON.stringify(job.tools));
+    const btns = draw(job.id);
+    expect(btns.map(b => b.title)).toEqual(['Toolbox — your job tools', 'Ask Vex AI']);
+  });
+
+  it('puts Vex AI immediately after the Toolbox button', () => {
+    const job = JobProfiles.list()[0];
+    const btns = draw(job.id);
+    expect(btns[1].title).toBe('Ask Vex AI');
+    expect(btns[0].nextElementSibling).toBe(btns[1]);
+  });
+
+  it('draws no per-tool buttons, whatever the job has enabled', () => {
+    const job = JobProfiles.list().find(j => j.tools.length >= 6);
+    localStorage.setItem('vex.jobTools', JSON.stringify(job.tools));
+    const titles = draw(job.id).map(b => b.title);
+    const toolNames = job.tools.map(id => (Toolbox.get(id) || {}).name).filter(Boolean);
+    for (const name of toolNames) expect(titles, name).not.toContain(name);
+  });
+
+  it('gives both buttons a drawn icon, never a typographic mark', () => {
+    const btns = draw(JobProfiles.list()[0].id);
+    for (const b of btns) {
+      expect(b.querySelector('svg'), b.title).toBeTruthy();
+      expect(b.textContent.trim(), b.title).toBe('');
+    }
+  });
+
+  it('draws nothing at all when no job is set', () => {
+    expect(draw(null)).toEqual([]);
+  });
+
+  it('is idempotent — redrawing does not stack duplicates', () => {
+    const id = JobProfiles.list()[0].id;
+    draw(id); draw(id); const btns = draw(id);
+    expect(btns.length).toBe(2);
+  });
+});

@@ -492,13 +492,17 @@ const JobProfiles = {
     try { if (window.WorkPanel) WorkPanel.refresh(); } catch {}
   },
 
-  // Draw the Toolbox button + up to 3 quick tool buttons next to the Tor
-  // button. Idempotent — removes previously-drawn job buttons first.
+  // Draw the Toolbox button and the Vex AI button next to it. Idempotent —
+  // removes previously-drawn job buttons first.
+  //
+  // It used to also draw up to three individual tool buttons out here. Those
+  // are gone: every tool belongs inside the Toolbox, not loose in the top bar,
+  // where they sat next to the Toolbox icon looking nothing like it (137 of the
+  // 318 tools are marked with a typographic sign rather than a drawn icon).
   renderButtons() {
     const bar = document.getElementById('top-bar-right');
     if (!bar) return;
     bar.querySelectorAll('.vex-job-btn').forEach(b => b.remove());
-    const enabled = (() => { try { const a = JSON.parse(localStorage.getItem('vex.jobTools') || 'null'); return Array.isArray(a) ? a : null; } catch { return null; } })();
     if (!this.current()) return; // no profile → no job buttons
     const anchor = document.getElementById('btn-command') || null;
     const mk = (title, icon, onClick) => {
@@ -512,12 +516,18 @@ const JobProfiles = {
       return b;
     };
     mk('Toolbox — your job tools', VexIcons.svg('toolbox', { size: 15 }), () => { try { window.Toolbox && Toolbox.open(); } catch {} });
-    const quick = (enabled || []).slice(0, 3);
-    for (const id of quick) {
-      const t = window.Toolbox && Toolbox.get(id);
-      if (!t) continue;
-      mk(t.name, Toolbox.iconMarkup(t, 15), () => { try { Toolbox.openTool(id); } catch {} });
-    }
+
+    // Vex AI, right beside the Toolbox. AIPanel is a top-level const, not a
+    // property of window, so it is reached by bare identifier — going through
+    // window would make this button silently do nothing.
+    mk('Ask Vex AI', VexIcons.svg('sparkles', { size: 15 }), () => {
+      const panel = (typeof AIPanel !== 'undefined' && AIPanel) || null;
+      if (!panel || typeof panel.toggle !== 'function') {
+        window.showToast?.('The AI panel is not available', 'error');
+        return;
+      }
+      panel.toggle();
+    });
   },
 
   // Called at boot to restore the job's toolbar buttons (theme is restored by
