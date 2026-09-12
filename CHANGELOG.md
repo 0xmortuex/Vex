@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.31.62 (2026-09-13) — Vex AI: thinking, and answers that know what Vex is
+
+### Notes
+- **See what the model was thinking.** Reasoning models (qwen3, deepseek-r1 and the like) work through a problem before answering. Vex was throwing that away — and worse, it was breaking the reply parser, which then had to scrape the answer back out of the raw text. The reasoning now appears as a "Thought for N words" dropdown above each answer, folded away until you want it, and it stays with the conversation.
+- **The Thinking circle spins again.** It was frozen, not slow. Vex collapses animations when Windows is set to reduce motion — sensible for sliding and spinning, but it also froze the one thing whose whole job is to show that something is happening. The spinner now pulses instead of rotating: still obvious, still no motion.
+- **Ask what Vex can do and get a real answer.** The AI only ever had the text off the page in front of it, so on a new tab it answered by reading the new tab and described the shortcut bar as though that were the browser. Questions about Vex now come with Vex's own list of its 137 features, and the model is told to say it is unsure rather than guess.
+
 ## v2.31.61 (2026-09-12) — Vex AI, rebuilt
 
 ### Notes
