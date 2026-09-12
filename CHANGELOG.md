@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.67 (2026-09-13) — A reference beside every tool
+
+### Notes
+- **Every tool now explains itself.** All 303 pack tools open with a written reference panel — roughly 30 000 words across 887 sections and over a thousand table rows. Not a restatement of the tool's name: the HTTP status codes people confuse, the chmod bits and what they mean on a directory, why a US gallon is a fifth smaller than an imperial one, when a fraction terminates, what a wet-bulb temperature of 35 °C means, why banker's rounding exists. Previously only BMI had one.
+- **The reference says where a method breaks down.** The Luhn check proves a typo was not made and nothing else. A user-agent string has lied since the 1990s. BAC calculators must never decide whether you drive. CRC-32 catches accidents and is trivially forged. The tool gives you the number; the panel tells you what it is worth.
+- **BMI goes from three fields to six.** Waist, age and the Asian threshold set join weight and height, and the answer now includes your band's range, the healthy weight range for your height, how far you are from it, BMI Prime, the Ponderal index, body surface area, waist-to-height ratio and an age-appropriate note. Two of its own worked examples were wrong and are corrected.
+- **The Work panel is rebuilt.** It was twenty-seven inline styles and a cramped grid of icon-and-name tiles that told you nothing about what a tool did. Now the job identifies itself, "Ask Vex AI" is one prominent action that says honestly where your message would go, and your tools are a readable list with their descriptions.
+- **Fixed:** an answer from Vex AI that mentioned several features could offer no shortcuts at all. The chip list was capped before checking whether a feature could actually be opened, so entries you work by hand crowded out the ones you cannot.
+- Discover now covers the reference panel, the two tool sizes, favourites, developer mode and the developer dashboard.
+
 ## v2.31.66 (2026-09-13) — Favourites, a way back, and a developer mode
 
 ### Notes
