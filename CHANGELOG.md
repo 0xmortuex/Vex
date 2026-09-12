@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.58 (2026-09-12) — Job tools: only the ones with real icons
+
+### Notes
+- **The tools without a proper icon are gone from your job.** 137 of the 318 tools are marked with a typographic sign (".*", "{ }", "Aa") rather than a drawn icon, and mixing the two kinds is what made the Work panel look inconsistent. A job now only recommends tools that draw a real icon, and a profile set up before this change has the others dropped from it once, automatically. Nothing is deleted — all 318 are still in the Toolbox, and a tool you add yourself from the picker's search stays put.
+- Across the 420 job profiles this removes 28% of the recommended tool slots. No job is left with nothing, but 33 end up with only one or two — the technical jobs most of all, because dev tools are overwhelmingly the typographic-marked ones. Frontend Developer goes from 11 to 1.
+
 ## v2.31.57 (2026-09-12) — Work tools, and a leak that grew all day
 
 ### Notes
