@@ -518,6 +518,10 @@ const JobProfiles = {
       }
       panel.toggle();
     });
+
+    // The developer dashboard button sits beside the Toolbox one. This redraw
+    // just re-created that button, so let it retake its place.
+    try { window.VexDevMode && VexDevMode.apply(); } catch { /* optional */ }
   },
 
   // v2.31.58 shortened saved tool lists to only the tools with a drawn icon,

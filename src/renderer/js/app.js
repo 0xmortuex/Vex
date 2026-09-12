@@ -997,6 +997,7 @@
     // defaults (they're labelled "system" in the editor).
     ShortcutsRegistry.register('command-bar',    () => CommandBar?.open?.() ?? CommandBar?.toggle?.());
     ShortcutsRegistry.register('ask-ai-bar',     () => AskAIBar?.toggle?.());
+    try { window.VexDevMode && VexDevMode.init(); } catch (e) { /* dashboard is optional */ }
     ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
     // Full screen implies open: switching mode on a closed panel would do
     // nothing visible and look broken.

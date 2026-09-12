@@ -1,0 +1,103 @@
+/* === Developer dashboard ==================================================
+ *
+ * A mode, not a theme: it adds surfaces rather than changing how anything
+ * looks, so it sits on top of every Vex theme and takes its colours from the
+ * same tokens.
+ */
+
+.dd-overlay {
+  position: fixed; inset: 0; z-index: 100056;
+  background: color-mix(in srgb, var(--vex-bg-deep, #000) 55%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--vex-font-base, 'Outfit', sans-serif);
+  padding: 24px;
+}
+
+.dd-shell {
+  width: 680px; max-width: 100%; max-height: 88vh;
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 24px 60px var(--vex-shadow-color, rgba(0, 0, 0, 0.5));
+  overflow: hidden;
+}
+
+.dd-head {
+  display: flex; align-items: center; gap: 9px; flex: none;
+  padding: 13px 12px 13px 16px; border-bottom: 1px solid var(--border);
+}
+.dd-head-icon { display: inline-flex; color: var(--primary); flex: none; }
+.dd-head-title { font-size: 14px; font-weight: 700; color: var(--text); flex: none; }
+.dd-head-sub {
+  flex: 1; min-width: 0; font-size: 11.5px; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dd-icon-btn {
+  width: 26px; height: 26px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--text-muted);
+  border-radius: var(--radius-sm, 7px); cursor: pointer;
+}
+.dd-icon-btn:hover { background: var(--vex-hover-fill, var(--tab-hover)); color: var(--text); }
+
+.dd-body { overflow-y: auto; padding: 16px; }
+.dd-h {
+  margin: 20px 0 9px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
+}
+.dd-h:first-child { margin-top: 0; }
+
+/* At-a-glance numbers. */
+.dd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; }
+.dd-stat {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 12px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.dd-stat-v { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.dd-stat-k { font-size: 10.5px; color: var(--text-muted); }
+
+.dd-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dd-action {
+  display: flex; align-items: flex-start; gap: 9px; text-align: left;
+  padding: 10px 12px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px;
+  cursor: pointer; font-family: inherit; color: var(--text);
+}
+.dd-action:hover { border-color: var(--primary); }
+.dd-action-icon { display: inline-flex; color: var(--primary); flex: none; padding-top: 1px; }
+.dd-action-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dd-action-label { font-size: 12.5px; font-weight: 600; }
+.dd-action-what { font-size: 10.5px; color: var(--text-muted); line-height: 1.45; }
+
+/* Destructive actions look destructive before they are clicked. */
+.dd-action.dd-danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.dd-action.dd-danger .dd-action-icon { color: var(--danger); }
+.dd-action.dd-danger:hover { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
+
+.dd-table { width: 100%; border-collapse: collapse; }
+.dd-table th, .dd-table td {
+  text-align: left; padding: 5px 0; border-bottom: 1px solid var(--border);
+  font-weight: 400; font-size: 11.5px;
+}
+.dd-table th { color: var(--text); font-family: var(--vex-font-mono, monospace); word-break: break-all; padding-right: 12px; }
+.dd-table td { color: var(--text-muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 620px) {
+  .dd-overlay { padding: 0; }
+  .dd-shell { height: 100%; max-height: 100vh; border-radius: 0; border: none; }
+  .dd-actions { grid-template-columns: 1fr; }
+}
+
+/* ---------- the same dashboard, in the sidebar --------------------------- */
+
+.dd-panel { padding: 0 16px 16px; overflow-y: auto; max-height: calc(100vh - 120px); }
+.dd-panel .dd-stats { grid-template-columns: 1fr 1fr; }
+.dd-actions-narrow { grid-template-columns: 1fr; }
+.dd-actions-narrow .dd-action-what { display: none; }
+.dd-open-full {
+  width: 100%; margin-top: 12px; padding: 9px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  background: none; border: 1px dashed var(--border); border-radius: 9px;
+  color: var(--text-muted); cursor: pointer; font-family: inherit; font-size: 12px;
+}
+.dd-open-full:hover { border-style: solid; border-color: var(--primary); color: var(--primary); }

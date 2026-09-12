@@ -179,6 +179,16 @@ const CommandBar = {
     { id: 'export-data', label: 'Export All Data', hint: 'Download all Vex data as JSON', icon: 'save', action: () => { document.getElementById('setting-export')?.click(); } },
     // Phase 7A: AI commands
     { id: 'tabs-toggle', label: 'Toggle Tabs Sidebar', hint: 'Show/hide tabs panel', shortcut: 'Ctrl+B', icon: 'sidebar', action: () => window.toggleTabsSidebar?.() },
+    { id: 'dev-mode', label: 'Developer mode', hint: 'Show the developer dashboard and its shortcuts', icon: 'terminal', action: () => {
+      if (typeof VexDevMode === 'undefined') { window.showToast?.('Developer mode is not available in this build', 'error'); return; }
+      if (!VexDevMode.toggle()) { window.showToast?.('Could not save that preference', 'error'); return; }
+      window.showToast?.(VexDevMode.isOn() ? 'Developer mode on' : 'Developer mode off');
+    } },
+    { id: 'dev-dashboard', label: 'Developer dashboard', hint: 'Diagnostics and the quick actions for working on Vex', icon: 'terminal', action: () => {
+      if (typeof VexDevMode === 'undefined') { window.showToast?.('Developer mode is not available in this build', 'error'); return; }
+      if (!VexDevMode.isOn()) VexDevMode.set(true);
+      VexDevMode.openDashboard();
+    } },
     { id: 'ai', label: 'Vex AI', hint: 'Open AI assistant panel', shortcut: 'Ctrl+Shift+A', icon: 'sparkles', isPrimary: true, action: () => AIPanel.toggle() },
     { id: 'summarize-ai', label: 'Summarize Page', hint: 'AI summary of current page', icon: 'sparkles', action: () => { AIPanel.open(); AIPanel.sendMessage('summarize'); } },
     { id: 'translate-ai', label: 'AI Translate', hint: 'Translate page content with AI', icon: 'sparkles', action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { targetLanguage: 'English' }); } },
