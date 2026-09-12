@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.66 (2026-09-13) — Favourites, a way back, and a developer mode
+
+### Notes
+- **Opening a tool no longer loses your place.** A tool opened from the Toolbox now has a back button that puts the launcher back exactly as you left it — same search, same filter, same scroll position. Before, closing a tool dropped you at the browser and finding the next one meant starting over.
+- **Star the tools you use.** A star on every card, and a Favourites section at the top whenever you open the Toolbox.
+- **A developer mode.** Turn it on from Ctrl+K and a dashboard appears — beside the Toolbox button and in the sidebar. It shows what Chromium is running, how many tabs and webviews are live, what is in storage and which values are largest, plus quick actions: reload the interface, open DevTools, copy diagnostics for a bug report, clear AI conversations, reset tool preferences, open five test tabs, replay the setup wizard, and reset Vex.
+- It is a mode rather than a theme, so it works under every look. Reset Vex asks you to type the word first, and leaves anything that is not Vex's own data alone.
+
 ## v2.31.65 (2026-09-13) — Every tool on the workbench
 
 ### Notes
