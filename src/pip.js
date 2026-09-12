@@ -7,6 +7,14 @@ let pipWindow = null;
 // remembers it even after the window is destroyed.
 let alwaysOnTop = true;
 let saveTimer = null;
+// Called whenever the window is really gone, with why. The renderer undoes
+// what it did when the pop-out opened (it muted the source tab), so missing a
+// teardown path would leave a tab silently muted with nothing to blame.
+let closedCallback = null;
+let closeReason = 'closed';
+function onPipClosed(cb) { closedCallback = typeof cb === 'function' ? cb : null; }
+// The next teardown is a "back to tab" rather than a plain close.
+function setCloseReason(reason) { closeReason = reason || 'closed'; }
 
 // Remembered geometry + pin preference, same convention as the Discord
 // pop-out's popout-state.json.
@@ -141,7 +149,17 @@ function createPipWindow(url) {
   });
 
   pipWindow.on('close', persist);
-  pipWindow.on('closed', () => { clearTimeout(saveTimer); saveTimer = null; pipWindow = null; });
+  pipWindow.on('closed', () => {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    pipWindow = null;
+    const reason = closeReason;
+    closeReason = 'closed';
+    if (closedCallback) {
+      try { closedCallback(reason); }
+      catch (e) { console.error('[Vex PiP] closed callback failed:', e.message); }
+    }
+  });
 
   return pipWindow;
 }
@@ -169,4 +187,4 @@ function isPipOpen() {
   return !!(pipWindow && !pipWindow.isDestroyed());
 }
 
-module.exports = { createPipWindow, closePipWindow, togglePipPin, isPipOpen };
+module.exports = { createPipWindow, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason };

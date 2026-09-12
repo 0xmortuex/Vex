@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.31.48 (2026-09-12) — Picture-in-Picture, audited
+
+### Fixed
+- **You heard the video twice.** When a page refuses native Picture-in-Picture, Vex falls back to a pop-out window — which loads the same page again, so there were two players running side by side, drifting out of sync. The tab the video came from is now muted **and paused** while the pop-out is up, and given its sound back when the pop-out closes. A tab you had already muted yourself stays muted.
+- **“Back to tab” did not go back to the tab.** It only brought the Vex window forward, leaving you on whatever tab you had wandered to since. It now switches to the tab the video came from, and says so if you have closed that tab in the meantime.
+- **The PiP button on the video itself did nothing on pages that block Picture-in-Picture.** It logged to the console and gave up, while the toolbar button and `Ctrl+Shift+P` opened the pop-out. Same feature, two entry points, one of them silently dead — it now falls back the same way.
+- **That button never appeared at all on some pages.** If the video had no element to anchor to, the button was built and then dropped on the floor. It is also no longer possible to stack duplicate hover handlers on a container holding several videos.
+- **“Back to tab” on a sleeping or discarded tab** had nothing to return to, because the tab was only remembered when its page was live.
+
+### Notes
+- Picture-in-Picture moved out of `app.js` into its own module so it can be tested: the pop-out’s control bar lives in a closed shadow root, so nothing outside that window can click it, and the only way to check what its buttons do is to exercise the code directly. 13 new tests.
+- The audit also confirmed what already worked: video detection and the toolbar button, the pop-out’s control bar surviving a page that rewrites the DOM, Escape and Ctrl+W closing it, the crash and unresponsive guards, remembered size and position, the pin toggle, refusal of `file:`/`javascript:` URLs, and the window never being left behind when Vex closes.
+
 ## v2.31.47 (2026-09-12) — Discover: every feature, introduced
 
 ### Added

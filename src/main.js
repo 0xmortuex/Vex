@@ -93,7 +93,7 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
 const _torLauncher = require('./tor-launcher');
-const { createPipWindow, closePipWindow, togglePipPin, isPipOpen } = require('./pip');
+const { createPipWindow, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
@@ -3623,9 +3623,18 @@ ipcMain.handle('is-pip-open', () => isPipOpen());
 // Control-bar actions from the PiP window's own preload (src/preload-pip.js).
 // The PiP window runs with contextIsolation and no contextBridge exposure,
 // so only that preload can reach these — not the page loaded inside it.
+// The renderer undoes what it did when the pop-out opened (it mutes the source
+// tab so you don't hear the same video twice), and for "back to tab" it also
+// switches to that tab — main only ever had the URL, so it cannot.
+onPipClosed((reason) => {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pip:closed', reason);
+  } catch (e) { console.error('[Vex PiP] could not tell the window PiP closed:', e.message); }
+});
 ipcMain.on('pip:close', () => closePipWindow());
 ipcMain.on('pip:toggle-pin', () => togglePipPin());
 ipcMain.on('pip:back-to-tab', () => {
+  setCloseReason('back-to-tab');
   closePipWindow();
   try {
     if (mainWindow && !mainWindow.isDestroyed()) {

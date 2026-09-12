@@ -81,63 +81,8 @@
   // Workspace switcher button
   document.getElementById('workspace-btn')?.addEventListener('click', () => WorkspaceManager.toggleDropdown());
 
-  // PiP Manager (renderer side)
-  window.PiPManager = {
-    videoDetected: false,
-
-    init() {
-      // Listen for video detection messages from webviews
-      window.addEventListener('message', (e) => {
-        if (e.data && e.data.type === 'vex-video-detected') {
-          this.videoDetected = e.data.hasVideo;
-          const pipBtn = document.getElementById('pip-btn');
-          if (pipBtn) {
-            pipBtn.style.display = e.data.hasVideo ? 'flex' : 'none';
-          }
-        }
-        if (e.data && e.data.type === 'vex-pip-fallback') {
-          // The guest couldn't do native PiP — open the pop-out window instead.
-          const tab = TabManager.getActiveTab();
-          if (!tab || !window.vex?.openPipWindow) return;
-          Promise.resolve(window.vex.openPipWindow(tab.url)).then(ok => {
-            // main rejects non-http(s) URLs (safePipUrl) and returns false on a
-            // creation failure; say so instead of silently doing nothing.
-            if (!ok) window.showToast?.('Picture-in-Picture is not available for this page', 'error');
-          });
-        }
-      });
-
-      // PiP button click
-      const pipBtn = document.getElementById('pip-btn');
-      if (pipBtn) {
-        pipBtn.addEventListener('click', () => this.toggle());
-      }
-    },
-
-    async toggle() {
-      // If the pop-out PiP window is up, this press closes it. The button and
-      // Ctrl+Shift+P are advertised as a toggle but previously had no way of
-      // turning PiP back off at all.
-      if (window.vex?.isPipOpen && await window.vex.isPipOpen()) {
-        await window.vex.closePipWindow();
-        return;
-      }
-
-      const wv = WebviewManager.getActiveWebview();
-      if (!wv || typeof wv.send !== 'function') {
-        window.showToast?.('No page to put in Picture-in-Picture', 'error');
-        return;
-      }
-      // Ask the guest to toggle native PiP over the webview IPC channel
-      // (wv.contentWindow.postMessage doesn't reach the guest across processes).
-      // If the guest can't, it answers 'vex-pip-fallback' and the handler above
-      // opens the pop-out. There is deliberately no timer here: the old one
-      // checked document.pictureInPictureElement on the HOST document, which is
-      // always null because native PiP happens in the GUEST document — so the
-      // pop-out opened on EVERY press, even when native PiP had just succeeded.
-      wv.send('vex-request-pip');
-    }
-  };
+  // PiP lives in js/pip-manager.js (loaded before this file) so its pop-out
+  // behaviour can be tested — the control bar is in a closed shadow root.
   window.PiPManager.init();
 
   // === URL Bar ===

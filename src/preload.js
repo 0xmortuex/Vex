@@ -94,6 +94,10 @@ contextBridge.exposeInMainWorld('vex', {
   openPipWindow: (url) => ipcRenderer.invoke('open-pip-window', url),
   closePipWindow: () => ipcRenderer.invoke('close-pip-window'),
   isPipOpen: () => ipcRenderer.invoke('is-pip-open'),
+  // Fires when the pop-out goes away, with 'closed' or 'back-to-tab'. The
+  // renderer owns the source tab (main only ever gets a URL), so it is the
+  // only side that can un-mute it and switch back to it.
+  onPipClosed: (callback) => subscribe('pip:closed', callback),
 
   // Downloads (with progress tracking)
   onTabCreateFromExternal: (cb) => subscribe('tab:create-from-external', cb),

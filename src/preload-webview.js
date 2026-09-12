@@ -120,16 +120,25 @@ function runInMainWorld(src) {
 
       const btn = document.createElement('button');
       btn.textContent = '\u29C9 PiP';
+      btn.setAttribute('data-vex-pip', '1');
+      btn.setAttribute('aria-label', 'Picture-in-Picture');
       btn.style.cssText = 'position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.7);color:white;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:12px;z-index:999999;opacity:0;transition:opacity 0.2s;pointer-events:auto;font-family:sans-serif';
 
       const wrapper = video.parentElement;
       if (wrapper && getComputedStyle(wrapper).position === 'static') {
         wrapper.style.position = 'relative';
       }
-      if (wrapper) {
-        wrapper.appendChild(btn);
-        wrapper.addEventListener('mouseenter', () => btn.style.opacity = '1');
-        wrapper.addEventListener('mouseleave', () => btn.style.opacity = '0');
+      if (!wrapper) return;   // nothing to anchor to; don't build an orphan
+      wrapper.appendChild(btn);
+      // One pair of listeners per wrapper, however many videos it holds.
+      if (!wrapper._vexPipHover) {
+        wrapper._vexPipHover = true;
+        wrapper.addEventListener('mouseenter', () => {
+          wrapper.querySelectorAll('button[data-vex-pip]').forEach(b => { b.style.opacity = '1'; });
+        });
+        wrapper.addEventListener('mouseleave', () => {
+          wrapper.querySelectorAll('button[data-vex-pip]').forEach(b => { b.style.opacity = '0'; });
+        });
       }
 
       btn.addEventListener('click', async (e) => {
@@ -138,11 +147,16 @@ function runInMainWorld(src) {
         try {
           if (document.pictureInPictureElement) {
             await document.exitPictureInPicture();
-          } else if (document.pictureInPictureEnabled) {
-            await video.requestPictureInPicture();
+            return;
           }
+          if (!document.pictureInPictureEnabled) throw new Error('this page does not allow Picture-in-Picture');
+          await video.requestPictureInPicture();
         } catch (err) {
-          console.error('PiP failed:', err);
+          // Ask the host for the pop-out window, exactly as the toolbar button
+          // does — otherwise this button is a no-op on every page that blocks
+          // native PiP.
+          console.warn('[Vex PiP] native PiP refused, falling back:', err && err.message);
+          try { ipcRenderer.sendToHost('vex-pip-fallback'); } catch { /* host gone */ }
         }
       });
     });
