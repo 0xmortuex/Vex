@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.61 (2026-09-12) — Vex AI, rebuilt
+
+### Notes
+- **Two modes.** The panel you know on the right, and a new full-screen mode that takes the window and centres the conversation in a readable column. The button is in the panel header, or Ctrl+Shift+F, and Vex remembers which you prefer.
+- **It closes when you click away.** Clicking elsewhere, pressing Escape, or clicking into the page now dismisses it. Before this it only closed from its own ✕, so it sat there until you went back and shut it.
+- **The panel is mostly conversation now.** Six rows of controls used to sit between the header and the first message — persona, prompts, tabs, agent mode, quick actions — leaving the chat whatever height was left. They are one row in the composer, and the starters only appear on an empty chat.
+- **It matches your theme.** Every colour comes from the same theme tokens as the rest of Vex, so it follows whichever look you are using instead of carrying its own.
+- **25 personas, up from 5.** Summarizer, Devil's Advocate, Shopping, Security, Tutor, Translator, Data, Brainstorm, Reply, Fine Print, Debug, Query, Kitchen, Newsroom, Plain Language, Numbers, Travel, Paper, Product and Tab Wrangler — each written to change the answer, not just the label.
+- **More to work with:** new chat, recent chats, export a conversation to a file, copy any message, retry an answer, and edit a question to ask it again.
+
 ## v2.31.60 (2026-09-12) — Your job's tools are back
 
 ### Notes
