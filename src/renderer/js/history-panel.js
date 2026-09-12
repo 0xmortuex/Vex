@@ -13,11 +13,13 @@ const HistoryPanel = {
 
   init() {
     const panel = document.getElementById('panel-history');
-    if (!panel || panel.dataset.rendered) return;
+    if (!panel) return;
+    // Re-read and re-draw on every open. The panel used to build itself once
+    // and never look at storage again, so anything visited while it was closed
+    // stayed invisible until the next restart.
+    this._hydrate();
+    if (panel.dataset.rendered) { this.renderList(); return; }
     panel.dataset.rendered = 'true';
-
-    const saved = localStorage.getItem(this.STORAGE_KEY);
-    if (saved) { try { this.entries = JSON.parse(saved); } catch {} }
 
     panel.innerHTML = `
       <div class="history-container">
@@ -105,35 +107,172 @@ const HistoryPanel = {
     this.renderList();
   },
 
+  // The saved list is the source of truth. `entries` used to be filled only
+  // when the panel was first opened, so a page visited before that wrote a
+  // one-item array over everything saved before it — the whole history, lost
+  // on the first visit of every session. Hydrating before any write (and at
+  // load, at the bottom of this file) is what stops that.
+  _hydrate() {
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]'); } catch { saved = []; }
+    const list = Array.isArray(saved) ? saved.map(e => this._normalize(e)).filter(Boolean) : [];
+    // Newest first, whatever order the writer — or a sync merge — left behind.
+    list.sort((a, b) => this._when(b) - this._when(a));
+    this.entries = list;
+    this._hydrated = true;
+    return this.entries;
+  },
+
+  // Entries reach this list from two writers with different shapes (ISO
+  // `visitedAt` here, epoch `time` in the file store) and from sync, so every
+  // read is normalised to one shape.
+  _normalize(e) {
+    if (!e || typeof e.url !== 'string' || !/^https?:\/\//i.test(e.url)) return null;
+    const when = e.visitedAt || (Number.isFinite(e.time) ? new Date(e.time).toISOString() : null);
+    return {
+      id: e.id || 'h_' + (Date.parse(when || '') || Date.now()) + '_' + Math.random().toString(36).slice(2, 7),
+      url: e.url,
+      title: typeof e.title === 'string' && e.title ? e.title : e.url,
+      favicon: this._safeFavicon(e.favicon),
+      visitedAt: when || new Date().toISOString(),
+      summary: e.summary, tags: e.tags, contentType: e.contentType, indexed: !!e.indexed,
+    };
+  },
+
+  // A favicon goes straight into an <img src>, and stored or synced data is not
+  // trusted — only real http(s) images get through.
+  _safeFavicon(value) {
+    return typeof value === 'string' && /^https?:\/\//i.test(value) ? value : '';
+  },
+
+  // When a visit happened, whichever writer recorded it.
+  _when(e) {
+    const d = new Date(e.visitedAt || e.time || 0);
+    return Number.isNaN(d.getTime()) ? new Date(0) : d;
+  },
+
+  // The one list every history surface should read.
+  list() {
+    if (!this._hydrated) this._hydrate();
+    return this.entries;
+  },
+
   save() {
     if (this.entries.length > this.MAX_ENTRIES) this.entries.length = this.MAX_ENTRIES;
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.entries));
   },
 
+  // The title is unknown when a visit is recorded: "Loading…" and the bare URL
+  // are placeholders that updateTitle() replaces once the page says its name.
+  _isPlaceholder(title, url) {
+    return !title || title === url || /^loading[.…\s]*$/i.test(String(title).trim());
+  },
+
   addEntry(url, title, favicon) {
-    if (!url || url.startsWith('file://') || url.startsWith('about:') || url.startsWith('vex://')) return;
-    if (this.entries.length > 0 && this.entries[0].url === url) return;
+    if (!url || !/^https?:\/\//i.test(url)) return;   // file://, about:, vex://, data:
+    // Always read what is saved first. The stored list can arrive AFTER this
+    // module loads — PersistentStorage restores localStorage from its own file
+    // during start-up — so writing a cached copy would drop the history that
+    // was restored a moment later.
+    this._hydrate();
+
+    // Going back to a page you saw today moves its row up and refreshes the
+    // time rather than stacking another identical row, the way Chrome does.
+    const dayAgo = Date.now() - 86400000;
+    const at = this.entries.findIndex(e => e.url === url && this._when(e).getTime() > dayAgo);
+    const existing = at >= 0 ? this.entries.splice(at, 1)[0] : null;
 
     this.entries.unshift({
-      id: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-      url, title: title || url, favicon: favicon || '',
+      id: existing?.id || 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      url,
+      title: this._isPlaceholder(title, url) ? (existing?.title || url) : title,
+      favicon: this._safeFavicon(favicon) || existing?.favicon || '',
       visitedAt: new Date().toISOString(),
-      indexed: false
+      summary: existing?.summary, tags: existing?.tags, indexed: existing?.indexed || false,
     });
     this.save();
+    this._refreshIfOpen();
+  },
+
+  // The real title arrives after the visit is recorded (page-title-updated in
+  // js/webview.js); without this every entry keeps its placeholder.
+  updateTitle(url, title) {
+    if (!url || this._isPlaceholder(title, url)) return;
+    this._hydrate();
+    const entry = this.entries.find(e => e.url === url);
+    if (!entry || entry.title === title) return;
+    entry.title = title;
+    this.save();
+    this._refreshIfOpen();
+  },
+
+  // Redraw only while the panel is on screen — visits happen constantly.
+  _refreshIfOpen() {
+    const panel = document.getElementById('panel-history');
+    if (!panel || !panel.dataset.rendered || panel.style.display === 'none') return;
+    clearTimeout(this._refreshTimer);
+    this._refreshTimer = setTimeout(() => this.renderList(), 250);
   },
 
   deleteEntry(id) {
+    this._hydrate();
     this.entries = this.entries.filter(e => e.id !== id);
     this.save();
     this.renderList();
+  },
+
+  // One day's heading, used both to group rows and to clear that group.
+  _dayLabel(d) {
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  },
+
+  // Clearing everything was the only way to remove anything in bulk. These two
+  // are what people actually reach for: one site, or one day.
+  deleteSite(host) {
+    this._hydrate();
+    const before = this.entries.length;
+    this.entries = this.entries.filter(e => { try { return new URL(e.url).hostname !== host; } catch { return true; } });
+    this.save();
+    this.renderList();
+    window.showToast?.(`Removed ${before - this.entries.length} from ${host}`);
+  },
+
+  deleteDay(label) {
+    this._hydrate();
+    const before = this.entries.length;
+    this.entries = this.entries.filter(e => this._dayLabel(this._when(e)) !== label);
+    this.save();
+    this.renderList();
+    window.showToast?.(`Cleared ${before - this.entries.length} from ${label}`);
+  },
+
+  _rowMenu(event, url) {
+    let host = '';
+    try { host = new URL(url).hostname; } catch { return; }
+    document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu';
+    menu.style.left = event.clientX + 'px';
+    menu.style.top = event.clientY + 'px';
+    const item = document.createElement('div');
+    item.className = 'tab-context-item danger';
+    item.textContent = `Delete every visit to ${host}`;
+    item.addEventListener('click', () => { menu.remove(); this.deleteSite(host); });
+    menu.appendChild(item);
+    document.body.appendChild(menu);
+    // Same dismissal as the tab menus, so a click into a page closes it too.
+    if (typeof TabManager !== 'undefined' && TabManager._attachMenuDismissal) TabManager._attachMenuDismissal(menu);
+    else setTimeout(() => {
+      const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } };
+      document.addEventListener('click', close);
+    }, 0);
   },
 
   getTimeFiltered() {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return this.entries.filter(e => {
-      const d = new Date(e.visitedAt);
+      const d = this._when(e);
       if (this.activeFilter === 'today') return d >= startOfToday;
       if (this.activeFilter === 'yesterday') {
         const y = new Date(startOfToday); y.setDate(y.getDate() - 1);
@@ -181,11 +320,18 @@ const HistoryPanel = {
         const row = document.createElement('div'); row.className = 'history-item'; row.tabIndex = 0; row.setAttribute('role', 'link');
         const text = document.createElement('div'); text.className = 'history-item-info';
         const title = document.createElement('div'); title.className = 'history-item-title'; title.textContent = entry.title || entry.url;
-        const detail = document.createElement('div'); detail.className = 'history-item-url'; detail.textContent = new Date(entry.visitedAt || entry.time).toLocaleString() + ' · ' + entry.url;
+        const detail = document.createElement('div'); detail.className = 'history-item-url'; detail.textContent = this._when(entry).toLocaleString() + ' · ' + entry.url;
         text.append(title, detail);
+        // Same furniture as the grouped rows: a long history shouldn't suddenly
+        // lose its icons.
+        const icon = document.createElement('img');
+        icon.loading = 'lazy'; icon.alt = ''; icon.dataset.imageFallback = 'hide';
+        let favicon = this._safeFavicon(entry.favicon);
+        if (!favicon) { try { favicon = new URL(entry.url).origin + '/favicon.ico'; } catch {} }
+        icon.src = favicon;
         const remove = document.createElement('button'); remove.textContent = '×'; remove.setAttribute('aria-label', 'Delete history entry');
         remove.addEventListener('click', event => { event.stopPropagation(); this.deleteEntry(entry.id); });
-        row.append(text, remove);
+        row.append(icon, text, remove);
         row.addEventListener('click', () => { SidebarManager.hideActivePanel(); TabManager.createTab(entry.url, true); });
         row.addEventListener('keydown', event => { if (event.target === row && event.key === 'Enter') row.click(); });
         return row;
@@ -201,17 +347,17 @@ const HistoryPanel = {
 
     const groups = {};
     filtered.forEach(e => {
-      const d = new Date(e.visitedAt);
-      const key = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const d = this._when(e);
+      const key = this._dayLabel(d);
       (groups[key] ||= []).push(e);
     });
 
     list.innerHTML = Object.entries(groups).map(([date, items]) => `
       <div class="history-date-group">
-        <div class="history-date-label">${date}</div>
+        <div class="history-date-label">${date}<button class="history-day-clear" data-day="${this._esc(date)}" title="Remove every entry from this day">Clear day</button></div>
         ${items.slice(0, 100).map(e => {
-          const time = new Date(e.visitedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          let favicon = e.favicon;
+          const time = this._when(e).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          let favicon = this._safeFavicon(e.favicon);
           if (!favicon) { try { favicon = new URL(e.url).origin + '/favicon.ico'; } catch {} } // first-party, no Google leak
           return `
             <div class="history-item" data-id="${this._esc(e.id)}" data-url="${this._esc(e.url)}" tabindex="0" role="link">
@@ -230,7 +376,12 @@ const HistoryPanel = {
       </div>
     `).join('');
 
+    list.querySelectorAll('.history-day-clear').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); this.deleteDay(btn.dataset.day); });
+    });
+
     list.querySelectorAll('.history-item').forEach(el => {
+      el.addEventListener('contextmenu', (e) => { e.preventDefault(); this._rowMenu(e, el.dataset.url); });
       el.addEventListener('click', (e) => {
         if (e.target.closest('.history-item-delete')) {
           this.deleteEntry(el.dataset.id);
@@ -373,9 +524,13 @@ const HistoryPanel = {
 };
 
 window.HistoryPanel = HistoryPanel;
+// Load the saved history as soon as this module does: pages get recorded long
+// before the panel is ever opened, and a write from an empty list wipes it.
+try { HistoryPanel._hydrate(); } catch (err) { console.error('[history] could not load saved history:', err); }
 window.addEventListener('vex-sync-data-applied', () => {
-  const saved = JSON.parse(localStorage.getItem(HistoryPanel.STORAGE_KEY) || '[]');
-  HistoryPanel.entries = Array.isArray(saved) ? saved : [];
+  HistoryPanel._hydrate();
   HistoryPanel.lastAISearch = null;
   HistoryPanel.renderList();
 });
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { HistoryPanel };

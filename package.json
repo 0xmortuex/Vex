@@ -21,6 +21,7 @@
     "dist:win": "npm run build-icons && rimraf dist && electron-builder --win",
     "publish": "npm run build-icons && rimraf dist && electron-builder --publish always",
     "check:source": "node scripts/verify-source.js",
+    "check:ui": "node scripts/check-ui.js",
     "build:vendor": "node scripts/bundle-browser-libs.js",
     "prestart": "npm run build:vendor",
     "prepack": "npm run build:vendor",

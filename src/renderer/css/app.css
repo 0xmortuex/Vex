@@ -158,6 +158,9 @@ body {
 
 #url-input {
   flex: 1;
+  /* Fill the bar: the input was ~15px tall inside a 32px bar, so half of what
+     looks like the address field was dead to clicks. */
+  align-self: stretch;
   border: none;
   background: none;
   outline: none;

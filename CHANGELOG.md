@@ -1,5 +1,30 @@
 # Changelog
 
+## v2.31.45 (2026-09-12) — History that keeps your history
+
+### Fixed
+- **Your browsing history was being erased.** The History panel only loaded your saved history when you first opened the panel, so the first page you visited in a session overwrote everything before it. I proved it: three saved entries, one page visited, one entry left. Your history now survives, and so do the history suggestions in the address bar, which read the same list.
+- **History entries said "Loading..." instead of the page's name.** A visit is recorded the moment a page starts loading, and the title was never corrected once the page said what it was.
+- **Going back to a page no longer adds another identical row.** It moves that page to the top with a fresh time, the way Chrome does.
+- **The History panel updates while it is open** and when you reopen it. It used to draw itself once and never look again, so anything visited meanwhile stayed invisible until a restart.
+- **One history, not two.** The Ctrl+K quick view read a separate, smaller copy that could disagree with the panel.
+- **The whole address bar is clickable.** The text field was 13–15px tall inside a 32px bar, so clicking above or below the text did nothing.
+- **Icons that could not be seen.** The "+" on the shortcuts bar was near-white on white in the browser looks; shortcut letter chips put white letters on a colour that could be as weak as 2.8:1; the chosen sidebar icon vanished on light accents in Glass and the rail looks; and Glass's "Vex" wordmark and workspace button sat at 1.5:1 on the Oxford theme.
+- **Chrome extensions: eleven faults.** Extensions loaded into only 3 of 11 sessions, so sidebar panels and container tabs had none at all. A failed install left a folder that retried on every start and could not be removed. Re-installing stacked duplicate copies. Localised extensions listed as `__MSG_extName__`. Errors said "check the console" instead of the reason. There was no way to disable an extension, and no way to open an extension's popup.
+
+### Added
+- **Every Toolbox tool in Ctrl+K.** Type "bmi", "subnet" or "loan" and open the tool itself.
+- **Delete history by site or by day.** Right-click a row for "Delete every visit to …", or use "Clear day" on a date heading. Clearing everything used to be the only option.
+- **Glass gets the docked sidebar too**, beside the page rather than covering it, keeping its rail.
+- **The New Tab page wears the browser look**, not just its colours: Chrome's search pill and tiles, Firefox's cards, Safari's soft grid, XP's Tahoma and square edges, 98's raised bevels.
+- **Enable or disable an extension**, and open its popup from the toolbar or the manager. The manager now shows icons and whether each extension actually loaded.
+- **`npm run check:ui`** — a self-check that drives the real app and measures every GUI style and theme for overlapping controls, badges covering icons, targets too small to hit, unnamed icon buttons, clipping and contrast.
+- **A sleeping tab keeps its "was 219 MB" figure across restarts.**
+
+### Notes
+- The UI self-check went from 156 findings to 48. All seven browser looks are now clean in their own colours. Of what remains, 32 are on the Solarized theme, whose palette is deliberately low-contrast — Classic shows the same on it.
+- What extensions can and cannot do here, measured rather than assumed: Electron gives Vex no request blocking, so uBlock Origin loads and runs but **cannot block ads** (Vex's built-in blocker still does). Context menus, keyboard shortcuts, badges, `storage.sync` and `tabs.create` are missing, and extensions can never load in Private or Tor tabs — the manager now says so instead of leaving you guessing.
+
 ## v2.31.44 (2026-09-12) — 318 tools, 420 jobs
 
 ### Added

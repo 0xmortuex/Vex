@@ -1,4 +1,4 @@
-// === Browser-look sidebars ================================================
+// === Docked sidebars (browser looks + Glass) ==============================
 // In the browser looks (css/gui-browser.css) Vex's panels (Discord, Spotify,
 // notes, …) live in the sidebar that look's real browser has, docked beside
 // the page instead of covering it (SidebarManager._docksBesidePage):
@@ -23,7 +23,9 @@
   const RESTORE_ICON = '<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="3.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 3.5V1.5h7v7h-2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
   const CLOSE_ICON ='<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 
-  const inLook = () => document.body.dataset.guiFamily === 'browser';
+  // Every style that has a sidebar (the browser looks and Glass) docks its
+  // panels; gui-style.js stamps body[data-sb-side] for those.
+  const docked = () => !!document.body.dataset.sbSide;
   const side = () => document.body.dataset.sbSide || 'left';
 
   // The panels on offer: the rail's buttons the user has not hidden, in the
@@ -106,12 +108,12 @@
     const slot = document.getElementById('look-sb-nav');
     if (!slot) return;
     for (const nav of [...slot.children]) {
-      if (inLook() && nav.dataset.panel === panel) continue;
+      if (docked() && nav.dataset.panel === panel) continue;
       const home = document.getElementById('panel-' + nav.dataset.panel);
       if (home) home.prepend(nav);
       else nav.remove();   // its panel was removed (an unpinned site)
     }
-    if (!inLook() || !panel) return;
+    if (!docked() || !panel) return;
     const nav = document.getElementById('panel-' + panel)?.querySelector(':scope > .panel-navbar');
     if (nav) slot.appendChild(nav);
   }
@@ -176,10 +178,10 @@
 
   function sync() {
     const btn = document.getElementById('btn-look-sidebar');
-    if (btn && inLook()) placeButton(btn);
+    if (btn && docked()) placeButton(btn);
     const panel = typeof SidebarManager !== 'undefined' ? SidebarManager.activePanel : null;
     if (btn) btn.classList.toggle('active', !!panel);
-    if (!panel || !inLook()) setMaximized(false);
+    if (!panel || !docked()) setMaximized(false);
     refreshHeader(panel);
     adoptNav(panel);
   }
@@ -193,7 +195,7 @@
 
     document.addEventListener('vex:panel-changed', (e) => {
       const panel = e.detail && e.detail.panel;
-      if (panel && inLook()) { try { localStorage.setItem(LAST_KEY, panel); } catch {} }
+      if (panel && docked()) { try { localStorage.setItem(LAST_KEY, panel); } catch {} }
       sync();
     });
     // Switching into or out of a look with a panel open: re-show it so it

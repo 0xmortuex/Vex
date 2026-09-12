@@ -4,6 +4,7 @@ const optional = check => value => value == null || check(value);
 const boolean = value => typeof value === 'boolean';
 const object = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const integer = value => Number.isSafeInteger(value) && value > 0;
+const coordinate = value => Number.isInteger(value) && value >= 0 && value <= 20000;
 const web = value => data.url(value, true);
 const oneOf = values => value => values.includes(value);
 const shape = fields => value => object(value) && Object.entries(fields).every(([key, check]) => check(value[key]));
@@ -11,6 +12,8 @@ const schemas = new Map();
 function define(names, checks) { for (const name of names.split(' ')) schemas.set(name, checks); }
 define('window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen open-private-window identity:create tor:create check-for-updates widevine:status widevine:retry download-update install-update get-app-version updates:list app:restart app:focus fx:rates theme:get-custom-image set-as-default-browser is-default-browser sidebar-config:get extensions:list extensions:install-folder extensions:install-zip extensions:open-folder discord:install-vencord sync-load-key sync-load-meta sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
 define('web-suggest qr:make qr:generate recall:search permissions:revoke updates:notes totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
+define('extensions:set-enabled', [string(160), boolean]);
+define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate) })]);
 define('rss:fetch open-pip-window open-external', [web]);
 define('adblocker-set-state discord:set-bypass roblox:set-bypass', [boolean]);
 define('gui-style:set', [oneOf(['classic','glass'])]);

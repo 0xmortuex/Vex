@@ -1243,9 +1243,42 @@ const { wireDownloadsOnSession } = require('./main/downloads').createDownloadSer
 const extensionsDir = path.join(userDataPath, 'extensions');
 if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true });
 
-// Chrome extensions load into these sessions. persist:discord is included so the
-// Vencord browser extension (and others) apply inside the Discord panel.
-const EXT_PARTITIONS = ['persist:main', 'persist:discord'];
+// Chrome extensions load into these sessions. Every PERSISTENT partition Vex
+// can put a page in is listed: regular tabs (persist:main), the sidebar panels,
+// and the container tabs — an extension the user installed should apply
+// everywhere they browse, not only in normal tabs. persist:discord matters
+// separately so the Vencord browser extension applies inside the Discord panel.
+// Partitions created later (a new container, a panel repointed at runtime) are
+// picked up by _coverNewSession. In-memory sessions — Off-the-Record tabs, Tor,
+// burner identities — are deliberately absent: Electron refuses to load an
+// extension into a temporary session.
+const EXT_PARTITIONS = [
+  'persist:main', 'persist:discord', 'persist:whatsapp', 'persist:claude',
+  'persist:spotify', 'persist:netflix', 'persist:roblox',
+  'persist:container-work', 'persist:container-personal', 'persist:container-shopping'
+];
+const extHelpers = require('./main/extensions');
+
+// folder -> why its last load attempt failed, surfaced by extensions:list so a
+// broken extension explains itself in the manager instead of looking installed.
+const _extLoadErrors = new Map();
+// Sessions covered on demand by _coverNewSession (beyond EXT_PARTITIONS).
+const _extraExtSessions = new Set();
+let _extStateError = null;
+
+// A corrupt enabled/disabled file must not silently re-enable everything the
+// user turned off, so the reason is logged AND reported to the manager.
+function _readDisabledFolders() {
+  try {
+    const disabled = extHelpers.readDisabled(extensionsDir);
+    _extStateError = null;
+    return disabled;
+  } catch (err) {
+    _extStateError = `Enabled/disabled state is unreadable (${err.message}) — every extension is being treated as enabled.`;
+    console.error('[Extensions]', _extStateError);
+    return new Set();
+  }
+}
 
 function _copyDirRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
@@ -1265,10 +1298,22 @@ function _extEntries() {
       const extPath = path.join(extensionsDir, e.name);
       const manifestPath = path.join(extPath, 'manifest.json');
       if (!fs.existsSync(manifestPath)) return null;
+      let manifest;
       try {
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-        return { folder: e.name, path: extPath, manifest };
-      } catch { return null; }
+        manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      } catch (err) {
+        // Keep it listed WITH the reason. Dropping it here used to make a
+        // corrupt extension vanish from the manager, leaving the user no way
+        // to uninstall the folder that was still failing on every boot.
+        return { folder: e.name, path: extPath, manifest: null, messages: Object.create(null),
+          error: `manifest.json is not valid JSON: ${err.message}` };
+      }
+      // A broken _locales catalogue must not hide the extension either: record
+      // the reason and fall back to the raw manifest strings.
+      let messages = Object.create(null), localeError = null;
+      try { messages = extHelpers.readMessages(extPath, manifest.default_locale); }
+      catch (err) { localeError = `_locales unreadable: ${err.message}`; }
+      return { folder: e.name, path: extPath, manifest, messages, error: localeError };
     })
     .filter(Boolean);
 }
@@ -1314,42 +1359,158 @@ function _dedupeVencordFolders() {
   } catch (e) { _vlog(`dedupe error: ${e.message}`); }
 }
 
+// Loads an extension into every session it must apply to. Returns the loaded
+// Extension AND every per-session failure, so callers can report the real
+// reason instead of a generic "it didn't load".
 async function _loadExtensionEverywhere(extPath) {
   const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))];
   let loaded = null;
+  const errors = [];
   for (const ses of sessions) {
     try {
       const ext = await ses.loadExtension(extPath, { allowFileAccess: true });
       if (!loaded) loaded = ext;
     } catch (err) {
-      console.error(`[Extensions] load failed (${ses === session.defaultSession ? 'default' : 'partition'}):`, err.message);
+      errors.push(err.message);
     }
   }
-  return loaded;
+  // One line per extension rather than one per session: the same manifest error
+  // repeats for every partition we load into, so a single broken extension
+  // would otherwise print a dozen identical lines on every boot.
+  if (errors.length) {
+    const unique = [...new Set(errors)];
+    console.error(`[Extensions] ${path.basename(extPath)}: failed in ${errors.length}/${sessions.length} sessions — ${unique.join(' | ')}`);
+  }
+  return { extension: loaded, errors };
+}
+
+// Unload one installed folder from every session that could be holding it.
+function _unloadFromAllSessions(extPath) {
+  const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p)), ..._extraExtSessions];
+  for (const ses of sessions) {
+    try {
+      for (const ext of ses.getAllExtensions()) {
+        if (path.resolve(ext.path) === path.resolve(extPath)) ses.removeExtension(ext.id);
+      }
+    } catch (err) {
+      console.error('[Extensions] unload failed:', err.message);
+    }
+  }
+}
+
+// Re-installing an extension must REPLACE the old copy, not stack a second one:
+// two copies both load and both run their own background context, and the older
+// one can win. Matched on the (localized) extension name, which is the only
+// stable identity available — Electron derives the extension id from the
+// install path, so the same extension in two folders has two different ids.
+function _removeSupersededCopies(keepPath, name) {
+  if (!name) return;
+  for (const entry of _extEntries()) {
+    if (path.resolve(entry.path) === path.resolve(keepPath)) continue;
+    if (!entry.manifest) continue;
+    if (extHelpers.localize(entry.manifest.name, entry.messages) !== name) continue;
+    _unloadFromAllSessions(entry.path);
+    try { fs.rmSync(entry.path, { recursive: true, force: true }); console.log(`[Extensions] Replaced older copy: ${entry.folder}`); }
+    catch (err) { console.error(`[Extensions] could not remove superseded ${entry.folder}:`, err.message); }
+  }
+}
+
+// Load a freshly-placed install folder. If it can't load, the folder is REMOVED:
+// leaving it behind made it retry-and-fail on every boot and show up in the
+// manager as a nameless "v—" entry the user couldn't explain.
+async function _activateInstalledFolder(destFolder) {
+  const { extension, errors } = await _loadExtensionEverywhere(destFolder);
+  if (!extension) {
+    try { fs.rmSync(destFolder, { recursive: true, force: true }); }
+    catch (err) { console.error('[Extensions] could not clean up the failed install:', err.message); }
+    return { ok: false, error: errors[0] || 'the extension did not load' };
+  }
+  _extLoadErrors.delete(path.basename(destFolder));
+  _removeSupersededCopies(destFolder, extension.name);
+  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version };
+}
+
+// Extensions must also reach partitions created AFTER startup — a container
+// tab, or a panel pointed at a new partition. Electron refuses extensions in
+// temporary (in-memory) sessions, so OTR/Tor/burner tabs are skipped up front
+// rather than failing once per extension.
+const _coveredSessions = new WeakSet();
+async function _coverNewSession(ses) {
+  if (!ses || _coveredSessions.has(ses)) return;
+  _coveredSessions.add(ses);
+  if (typeof ses.isPersistent === 'function' && !ses.isPersistent()) return;
+  const disabled = _readDisabledFolders();
+  for (const entry of _extEntries()) {
+    // An extension that already failed to load everywhere fails here too, once
+    // per new partition. The manager already reports why, so don't retry it.
+    if (!entry.manifest || disabled.has(entry.folder) || _extLoadErrors.has(entry.folder)) continue;
+    try {
+      if (ses.getAllExtensions().some(x => path.resolve(x.path) === path.resolve(entry.path))) continue;
+      await ses.loadExtension(entry.path, { allowFileAccess: true });
+      _extraExtSessions.add(ses);
+    } catch (err) {
+      console.error(`[Extensions] could not load ${entry.folder} into a new session:`, err.message);
+    }
+  }
 }
 
 async function loadAllExtensionsOnStartup() {
   // Collapse any duplicate Vencord builds to the newest BEFORE loading, so a
   // stale build left behind by a locked-file delete can't shadow the new one.
   _dedupeVencordFolders();
+  const disabled = _readDisabledFolders();
   for (const entry of _extEntries()) {
+    if (entry.error && !entry.manifest) { _extLoadErrors.set(entry.folder, entry.error); continue; }
+    if (disabled.has(entry.folder)) continue;
     try {
-      const ext = await _loadExtensionEverywhere(entry.path);
-      if (ext) console.log(`[Extensions] Loaded: ${ext.name} v${ext.manifest.version}`);
+      const { extension, errors } = await _loadExtensionEverywhere(entry.path);
+      if (extension) {
+        _extLoadErrors.delete(entry.folder);
+        console.log(`[Extensions] Loaded: ${extension.name} v${extension.manifest.version}`);
+      } else {
+        _extLoadErrors.set(entry.folder, errors[0] || 'the extension did not load');
+      }
     } catch (err) {
+      _extLoadErrors.set(entry.folder, err.message);
       console.error(`[Extensions] Failed to load ${entry.folder}:`, err.message);
     }
   }
 }
 
 ipcMain.handle('extensions:list', () => {
-  return _extEntries().map(e => ({
-    folder: e.folder,
-    name: e.manifest.name || e.folder,
-    version: e.manifest.version || '—',
-    description: e.manifest.description || '',
-    path: e.path
-  }));
+  const disabled = _readDisabledFolders();
+  // "Loaded" is read from the live session rather than inferred from the folder,
+  // so the manager can't show a failed extension as if it were running.
+  const loadedByPath = new Map();
+  try {
+    for (const ext of session.defaultSession.getAllExtensions()) loadedByPath.set(path.resolve(ext.path), ext);
+  } catch (err) {
+    console.error('[Extensions] could not read the loaded extensions:', err.message);
+  }
+  return _extEntries().map(e => {
+    const live = loadedByPath.get(path.resolve(e.path)) || null;
+    const manifest = e.manifest || {};
+    const icon = e.manifest ? extHelpers.pickIcon(manifest) : null;
+    const pages = e.manifest ? extHelpers.pickPages(manifest) : { popup: null, options: null };
+    return {
+      folder: e.folder,
+      name: extHelpers.localize(manifest.name, e.messages) || e.folder,
+      version: manifest.version || '—',
+      description: extHelpers.localize(manifest.description, e.messages) || '',
+      path: e.path,
+      id: live ? live.id : null,
+      enabled: !disabled.has(e.folder),
+      loaded: !!live,
+      hasPopup: !!pages.popup,
+      hasOptions: !!pages.options,
+      optionsUrl: (live && pages.options)
+        ? `chrome-extension://${live.id}/${String(pages.options).replace(/^\/+/, '')}`
+        : null,
+      iconPath: icon ? path.join(e.path, icon) : null,
+      error: e.error || _extLoadErrors.get(e.folder) || null,
+      stateError: _extStateError
+    };
+  });
 });
 
 ipcMain.handle('extensions:install-folder', async () => {
@@ -1365,13 +1526,13 @@ ipcMain.handle('extensions:install-folder', async () => {
 
   try {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-    const slug = String(manifest.name || 'extension').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+    // Slug from the LOCALIZED name so a localized extension doesn't install
+    // into a folder literally named after its "__MSG_extName__" placeholder.
+    const messages = extHelpers.readMessages(sourceFolder, manifest.default_locale);
+    const slug = extHelpers.slugFromName(extHelpers.localize(manifest.name, messages));
     const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
     _copyDirRecursive(sourceFolder, destFolder);
-    const ext = await _loadExtensionEverywhere(destFolder);
-    return ext
-      ? { ok: true, id: ext.id, name: ext.name, version: ext.manifest.version }
-      : { ok: false, error: 'Loaded files but extension didn\'t attach' };
+    return await _activateInstalledFolder(destFolder);
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -1407,6 +1568,10 @@ ipcMain.handle('extensions:install-zip', async () => {
       }
     }
     const zip = new AdmZip(zipBuffer);
+    // Diagnose a Windows-separator archive BEFORE the validator rejects it, so
+    // the user gets an actionable message rather than "Unsafe archive path".
+    const separatorProblem = extHelpers.archiveProblem(zip.getEntries().map(e => e.entryName));
+    if (separatorProblem) return { ok: false, error: separatorProblem };
     const entries = require('./main/archive-security').validateZip(zip);
 
     // Find manifest.json — prefer the root, but fall back to the shallowest
@@ -1426,7 +1591,19 @@ ipcMain.handle('extensions:install-zip', async () => {
     if (!manifestEntry) return { ok: false, error: 'No manifest.json found anywhere in the archive' };
 
     const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
-    const slug = String(manifest.name || 'extension').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+    // The archive's own _locales resolve the name before it becomes a folder
+    // slug, so a localized extension never installs as "-msg-extname-".
+    const localeEntry = manifest.default_locale
+      ? entries.find(e => e.entryName === `${rootPath}_locales/${manifest.default_locale}/messages.json`)
+      : null;
+    let zipMessages = Object.create(null);
+    if (localeEntry) {
+      const parsed = JSON.parse(localeEntry.getData().toString('utf-8'));
+      for (const [key, value] of Object.entries(parsed)) {
+        if (value && typeof value.message === 'string') zipMessages[key] = value.message;
+      }
+    }
+    const slug = extHelpers.slugFromName(extHelpers.localize(manifest.name, zipMessages));
     const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
     if (!fs.existsSync(destFolder)) fs.mkdirSync(destFolder, { recursive: true });
 
@@ -1461,10 +1638,7 @@ ipcMain.handle('extensions:install-zip', async () => {
       return { ok: false, error: 'Failed to place manifest.json at destination root' };
     }
 
-    const ext = await _loadExtensionEverywhere(destFolder);
-    return ext
-      ? { ok: true, id: ext.id, name: ext.name, version: ext.manifest.version }
-      : { ok: false, error: 'Extracted but extension didn\'t load (check console for details)' };
+    return await _activateInstalledFolder(destFolder);
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -1519,8 +1693,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: 'manifest not at root after extract' };
   }
-  const ext = await _loadExtensionEverywhere(destFolder);
-  return ext ? { ok: true, name: ext.name, version: ext.manifest.version } : { ok: false, error: 'extension did not load' };
+  return await _activateInstalledFolder(destFolder);
 }
 
 // Remove any previously-installed extension whose folder slug starts with prefix
@@ -1639,15 +1812,13 @@ ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
   }
   if (!fs.existsSync(extPath)) return { ok: false, error: 'Not found' };
   try {
-    const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))];
-    for (const ses of sessions) {
-      try {
-        for (const ext of ses.getAllExtensions()) {
-          if (path.resolve(ext.path) === path.resolve(extPath)) ses.removeExtension(ext.id);
-        }
-      } catch {}
-    }
+    _unloadFromAllSessions(extPath);
     fs.rmSync(extPath, { recursive: true, force: true });
+    // Drop any leftover state so re-installing the same extension later doesn't
+    // come back disabled, or inherit the old copy's failure message.
+    _extLoadErrors.delete(folderName);
+    const disabled = _readDisabledFolders();
+    if (disabled.delete(folderName)) extHelpers.writeDisabled(extensionsDir, disabled);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -1656,8 +1827,108 @@ ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
 
 ipcMain.handle('extensions:open-folder', () => { shell.openPath(extensionsDir); return { ok: true }; });
 
+// Turn an installed extension off without uninstalling it. Disabling unloads it
+// from every session immediately; the choice is persisted so it stays off after
+// a restart (Electron reloads extensions from scratch on every boot).
+ipcMain.handle('extensions:set-enabled', async (_e, folderName, enabled) => {
+  let extPath;
+  try {
+    extPath = safeJoin(extensionsDir, safeName(folderName));
+  } catch (err) {
+    console.warn('[Extensions] set-enabled rejected unsafe folderName:', folderName, err.message);
+    return { ok: false, error: 'Invalid folder name' };
+  }
+  if (!fs.existsSync(extPath)) return { ok: false, error: 'Not found' };
+  try {
+    const disabled = _readDisabledFolders();
+    if (enabled) {
+      disabled.delete(folderName);
+      extHelpers.writeDisabled(extensionsDir, disabled);
+      const { extension, errors } = await _loadExtensionEverywhere(extPath);
+      if (!extension) {
+        const error = errors[0] || 'the extension did not load';
+        _extLoadErrors.set(folderName, error);
+        return { ok: false, error };
+      }
+      _extLoadErrors.delete(folderName);
+      return { ok: true, enabled: true };
+    }
+    disabled.add(folderName);
+    extHelpers.writeDisabled(extensionsDir, disabled);
+    _unloadFromAllSessions(extPath);
+    return { ok: true, enabled: false };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Host an extension's toolbar popup. Electron has no built-in action UI, so the
+// popup is rendered in a frameless window on the SAME session the extension is
+// loaded into (persist:main) and sized to its content the way Chrome does —
+// a fixed window clips every popup that isn't exactly the size we guessed.
+let _extPopupWindow = null;
+ipcMain.handle('extensions:open-popup', async (_e, request) => {
+  try {
+    const folderName = request && request.folder;
+    let extPath;
+    try {
+      extPath = safeJoin(extensionsDir, safeName(folderName));
+    } catch (err) {
+      console.warn('[Extensions] open-popup rejected unsafe folderName:', folderName, err.message);
+      return { ok: false, error: 'Invalid folder name' };
+    }
+    const entry = _extEntries().find(e => path.resolve(e.path) === path.resolve(extPath));
+    if (!entry || !entry.manifest) return { ok: false, error: 'Not found' };
+    const pages = extHelpers.pickPages(entry.manifest);
+    if (!pages.popup) return { ok: false, error: 'This extension has no toolbar popup' };
+
+    const ses = secureSessions.fromPartition('persist:main');
+    const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(extPath));
+    if (!live) return { ok: false, error: 'That extension is not loaded — enable it first' };
+
+    if (_extPopupWindow && !_extPopupWindow.isDestroyed()) _extPopupWindow.destroy();
+    const win = new BrowserWindow({
+      width: 360, height: 480, show: false, frame: false, resizable: false,
+      minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true,
+      parent: (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined,
+      webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false }
+    });
+    _extPopupWindow = win;
+    win.on('blur', () => { if (!win.isDestroyed()) win.close(); });
+    win.on('closed', () => { if (_extPopupWindow === win) _extPopupWindow = null; });
+
+    await win.loadURL(`chrome-extension://${live.id}/${String(pages.popup).replace(/^\/+/, '')}`);
+    const size = await win.webContents.executeJavaScript(
+      '({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight) })'
+    ).catch(err => { console.error('[Extensions] popup measure failed:', err.message); return null; });
+    if (size && Number.isFinite(size.w) && Number.isFinite(size.h)) {
+      // Chrome caps an action popup at 800x600; below ~160x100 it's unusable.
+      win.setContentSize(Math.min(800, Math.max(160, size.w)), Math.min(600, Math.max(100, size.h)));
+    }
+    if (Number.isInteger(request.x) && Number.isInteger(request.y)) {
+      const [width] = win.getSize();
+      win.setPosition(Math.max(0, request.x - Math.round(width / 2)), Math.max(0, request.y));
+    }
+    win.show();
+    win.focus();
+    return { ok: true, id: live.id };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// A partition created after startup (a container tab, a panel repointed at a
+// new partition) would otherwise run with no extensions at all.
+app.on('web-contents-created', (_event, contents) => {
+  if (contents.getType() !== 'webview') return;
+  _coverNewSession(contents.session)
+    .catch(err => console.error('[Extensions] new-session coverage failed:', err.message));
+});
+
 // Load installed extensions once the app is ready
-app.whenReady().then(() => { loadAllExtensionsOnStartup().catch(() => {}); });
+app.whenReady().then(() => {
+  loadAllExtensionsOnStartup().catch(err => console.error('[Extensions] startup load failed:', err.message));
+});
 
 // === External protocol forwarding ===
 // Custom-scheme URLs (roblox://, mailto:, discord://, etc.) aren't handled by
@@ -1919,6 +2190,23 @@ app.on('web-contents-created', (_event, contents) => {
         _peekChromeByWc.set(chromeView.webContents.id, win);
         const pushUrl = () => { try { chromeView.webContents.send('popup-chrome:url', win.webContents.getURL()); } catch {} };
         chromeView.webContents.on('did-finish-load', pushUrl);
+        // The bar wears the user's colours. Main can't know the theme, so read
+        // the resolved tokens off the main window (which follows the theme AND
+        // the GUI style) and hand them over; the bar was hard-coded dark before.
+        const pushPalette = async () => {
+          if (!mainWindow || mainWindow.isDestroyed()) return;
+          try {
+            const palette = await mainWindow.webContents.executeJavaScript(`(() => {
+              const cs = getComputedStyle(document.body);
+              const g = (n, fb) => (cs.getPropertyValue(n) || '').trim() || fb;
+              return { surface: g('--surface', '#151921'), bg: g('--bg', '#0a0c10'), bg2: g('--bg-2', '#0f1218'),
+                border: g('--border', '#1f2530'), text: g('--text', '#e5e9f0'), textMuted: g('--text-muted', '#6b7482'),
+                primary: g('--primary', '#6366f1'), danger: g('--danger', '#ef4444') };
+            })()`);
+            if (!chromeView.webContents.isDestroyed()) chromeView.webContents.send('popup-chrome:palette', palette);
+          } catch (err) { console.error('[peek-popup] palette push failed:', err.message); }
+        };
+        chromeView.webContents.on('did-finish-load', pushPalette);
         win.webContents.on('did-navigate', pushUrl);
         win.webContents.on('did-navigate-in-page', pushUrl);
       } catch (err) { console.error('[peek-popup] chrome bar setup failed:', err.message); }

@@ -292,6 +292,8 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsInstallZip:     () => ipcRenderer.invoke('extensions:install-zip'),
   extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
   extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
+  extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),
+  extensionsOpenPopup:      (request) => ipcRenderer.invoke('extensions:open-popup', request),
 
   // Phase 13: Vex Sync — encryption key + session metadata
   syncSaveKey: (hex) => ipcRenderer.invoke('sync-save-key', hex),

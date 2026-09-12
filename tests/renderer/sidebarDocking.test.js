@@ -20,7 +20,7 @@ beforeEach(() => {
       </div>
       <div id="webviews-container"></div>
     </div>`;
-  for (const a of ['data-gui-family', 'data-sidebar-panel']) document.body.removeAttribute(a);
+  for (const a of ['data-sb-side', 'data-sidebar-panel']) document.body.removeAttribute(a);
   SidebarManager.activePanel = null;
   globalThis.NotesPanel = { init: vi.fn() };
   globalThis.TabManager = { activeTabId: null };
@@ -35,14 +35,14 @@ describe('panel docking', () => {
     expect(pageShown()).toBe('none');
   });
 
-  it('browser look: a panel docks beside the page, which stays showing', () => {
-    document.body.dataset.guiFamily = 'browser';
+  it('docked style: a panel docks beside the page, which stays showing', () => {
+    document.body.dataset.sbSide = 'left';
     SidebarManager.showPanel('notes');
     expect(pageShown()).toBe('block');
   });
 
-  it('browser look: Settings still takes the whole area', () => {
-    document.body.dataset.guiFamily = 'browser';
+  it('docked style: Settings still takes the whole area', () => {
+    document.body.dataset.sbSide = 'left';
     SidebarManager.showPanel('settings');
     expect(pageShown()).toBe('none');
   });

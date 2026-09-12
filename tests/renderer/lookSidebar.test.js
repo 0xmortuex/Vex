@@ -142,7 +142,7 @@ describe('look sidebar', () => {
     expect(nav.parentElement.id).toBe('panel-whatsapp');
     // Leaving the looks while it is open sends it home too.
     SidebarManager.showPanel('whatsapp');
-    delete document.body.dataset.guiFamily;
+    delete document.body.dataset.sbSide;
     window.dispatchEvent(new CustomEvent('vex:gui-style'));
     expect(nav.parentElement.id).toBe('panel-whatsapp');
   });

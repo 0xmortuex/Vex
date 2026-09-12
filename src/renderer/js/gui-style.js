@@ -27,7 +27,7 @@
   //           Netscape's).
   const STYLES = {
     classic:        { layout: 'vex' },
-    glass:          { layout: 'top', controls: 'tabs', startPage: 'glass' },
+    glass:          { layout: 'top', controls: 'tabs', startPage: 'glass', sidebar: { side: 'left', launcher: 'rail' } },
     chrome:         { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'right', launcher: 'toolbar' } },
     'chrome-dark':  { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'right', launcher: 'toolbar' } },
     firefox:        { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
@@ -76,7 +76,9 @@
     let h = 0, host = url;
     try { host = new URL(url).hostname.replace(/^www\./, ''); } catch {}
     for (let i = 0; i < host.length; i++) h = (h * 31 + host.charCodeAt(i)) >>> 0;
-    return `hsl(${h % 360}, 55%, 45%)`;
+    // Dark enough that the white letter on top always reads: at 45% a green or
+    // yellow hue left the letter at 2.8:1.
+    return `hsl(${h % 360}, 55%, 34%)`;
   }
   function labelFor(s) {
     if (s.name) return s.name;
@@ -327,13 +329,22 @@
   // apply it before first paint instead of flashing the colour theme.
   function paintStartPage(webview) {
     const css = startPagePaletteCss();
-    const js = css
-      ? `(() => { let s = document.getElementById('vex-look-palette');
-          if (!s) { s = document.createElement('style'); s.id = 'vex-look-palette'; document.head.appendChild(s); }
-          s.textContent = ${JSON.stringify(css)}; document.documentElement.setAttribute('data-look-palette', '');
-          localStorage.setItem('vex.lookPalette', ${JSON.stringify(css)}); })()`
-      : `(() => { document.getElementById('vex-look-palette')?.remove(); document.documentElement.removeAttribute('data-look-palette');
-          localStorage.removeItem('vex.lookPalette'); })()`;
+    // The look's NAME goes over in both colour modes: the page's shapes (tiles,
+    // corners, type) belong to the look even when its colours come from the
+    // theme. start.html styles html[data-look="chrome"] and friends.
+    const look = isBrowserLook() ? document.body.dataset.guiStyle : '';
+    const js = `(() => {
+      const look = ${JSON.stringify(look)};
+      if (look) { document.documentElement.setAttribute('data-look', look); localStorage.setItem('vex.lookName', look); }
+      else { document.documentElement.removeAttribute('data-look'); localStorage.removeItem('vex.lookName'); }
+      ${css
+        ? `let s = document.getElementById('vex-look-palette');
+           if (!s) { s = document.createElement('style'); s.id = 'vex-look-palette'; document.head.appendChild(s); }
+           s.textContent = ${JSON.stringify(css)}; document.documentElement.setAttribute('data-look-palette', '');
+           localStorage.setItem('vex.lookPalette', ${JSON.stringify(css)});`
+        : `document.getElementById('vex-look-palette')?.remove(); document.documentElement.removeAttribute('data-look-palette');
+           localStorage.removeItem('vex.lookPalette');`}
+    })()`;
     return webview.executeJavaScript(js);
   }
 

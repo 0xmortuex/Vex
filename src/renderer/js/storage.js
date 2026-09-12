@@ -158,6 +158,14 @@ window.vex?.onFlushRequested?.(async () => {
   await window.vex.flushStorage?.();
 });
 
+// Mirrors VexTabPolicy.sleepMemory for the fallback serializer below, which
+// only runs when the policy module is missing.
+const sleepMemory = tab => {
+  const m = tab && tab.memBeforeSleep;
+  return m && typeof m === 'object' && Number.isFinite(m.mb) && m.mb >= 0 && typeof m.shared === 'boolean'
+    ? { mb: m.mb, shared: m.shared } : null;
+};
+
 const VexStorage = {
   _failed: new Map(),
   _versions: new Map(),
@@ -213,7 +221,9 @@ const VexStorage = {
       originalUrl: t.originalUrl || null,
       scrollPosition: t.scrollPosition || null,
       // "Prevent from sleeping" expiry (ms epoch; large value = until reverted).
-      keepAwakeUntil: t.keepAwakeUntil || 0
+      keepAwakeUntil: t.keepAwakeUntil || 0,
+      // Only a sleeping tab's figure means anything: an awake tab's is stale.
+      memBeforeSleep: t.sleeping ? sleepMemory(t) : null
     }));
     return this.save('tabs', serialized);
   },

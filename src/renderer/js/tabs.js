@@ -185,7 +185,10 @@ const TabManager = {
             sleeping: true,
             originalUrl: isStartPage(t.url) ? tabUrl : (t.originalUrl || t.url),
             scrollPosition: t.scrollPosition || null,
-            keepAwakeUntil: t.keepAwakeUntil || 0
+            keepAwakeUntil: t.keepAwakeUntil || 0,
+            // Keeps the Memory panel's "(was 219 MB)" across the restart; a
+            // malformed saved figure is dropped rather than shown.
+            memBeforeSleep: window.VexTabPolicy?.sleepMemory(t) || null
           });
         } else {
           // Lazy restore: rebuild the tab record WITHOUT a webview. It

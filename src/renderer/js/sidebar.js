@@ -576,11 +576,12 @@ const SidebarManager = {
     this._announcePanel(panelName);
   },
 
-  // The browser looks (css/gui-browser.css) give panels the sidebar their
-  // browser has — docked beside the page rather than covering it. Settings is
-  // a whole page of its own, so it still takes the full area.
+  // The browser looks and Glass (css/gui-browser.css section 7) dock a panel
+  // beside the page rather than covering it — gui-style.js stamps
+  // body[data-sb-side] for every style that has a sidebar. Settings is a whole
+  // page of its own, so it still takes the full area.
   _docksBesidePage(panelName) {
-    return document.body.dataset.guiFamily === 'browser' && panelName !== 'settings';
+    return !!document.body.dataset.sbSide && panelName !== 'settings';
   },
 
   // body[data-sidebar-panel] drives the docked layout's open state; the event

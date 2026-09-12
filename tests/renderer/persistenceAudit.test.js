@@ -220,3 +220,44 @@ describe('structured storage', () => {
     expect(saved[1].partition).toBe('persist:container-work');
   });
 });
+
+// A sleeping tab has no process, so the Memory panel shows 0 MB plus what it
+// used just before it slept. That figure has to survive a restart to stay there.
+describe('pre-sleep memory figure', () => {
+  it('saves a sleeping tab figure and leaves an awake tab without one', async () => {
+    window.vex.saveData = vi.fn(async () => true);
+    const { VexStorage: storage } = await import('../../src/renderer/js/storage.js');
+    await storage.saveTabs([
+      { id: 'a', url: 'https://asleep.test', sleeping: true, memBeforeSleep: { mb: 219, shared: false } },
+      { id: 'b', url: 'https://awake.test', memBeforeSleep: { mb: 400, shared: true } },
+    ]);
+    const saved = window.vex.saveData.mock.calls[0][1];
+    expect(saved[0].memBeforeSleep).toEqual({ mb: 219, shared: false });
+    expect(saved[1].memBeforeSleep).toBeNull();
+  });
+
+  it('restores the figure and shows it on the sleeping tab row', async () => {
+    VexStorage.loadTabs.mockResolvedValue([
+      { id: 'old', url: 'https://asleep.test', sleeping: true, memBeforeSleep: { mb: 219, shared: false } },
+    ]);
+    await TM.init();
+    const tab = TM.tabs.find(t => t.url === 'https://asleep.test');
+    expect(tab.memBeforeSleep).toEqual({ mb: 219, shared: false });
+    const { MemoryPanel } = await import('../../src/renderer/js/memory-panel.js');
+    expect(MemoryPanel.describe(tab, null, 0).label).toBe('0 MB · asleep (was 219 MB)');
+  });
+
+  it('drops a malformed saved figure instead of showing it', async () => {
+    const bad = [{ mb: 'lots', shared: false }, { mb: -5, shared: true }, { mb: Infinity, shared: false },
+      { mb: 219 }, { mb: 219, shared: 'yes' }, 219, null, [219]];
+    VexStorage.loadTabs.mockResolvedValue(bad.map((memBeforeSleep, i) => (
+      { id: `bad${i}`, url: `https://bad${i}.test`, sleeping: true, memBeforeSleep })));
+    const { MemoryPanel } = await import('../../src/renderer/js/memory-panel.js');
+    await TM.init();
+    bad.forEach((_, i) => {
+      const tab = TM.tabs.find(t => t.url === `https://bad${i}.test`);
+      expect(tab.memBeforeSleep).toBeNull();
+      expect(MemoryPanel.describe(tab, null, 0).label).toBe('0 MB · asleep');
+    });
+  });
+});

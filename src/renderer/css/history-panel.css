@@ -182,3 +182,15 @@
 .ai-search-empty .empty-title { font-size: 14px; font-weight: 600; color: var(--vex-text-primary); margin-bottom: 4px; }
 .ai-search-empty .empty-subtitle { font-size: 12px; }
 .ai-search-error .error-detail { font-size: 11px; margin-top: 6px; color: var(--vex-danger); }
+
+/* "Clear day" on a date heading — quiet until the group is hovered, so the
+   heading still reads as a heading. */
+.history-date-label { display: flex; align-items: center; gap: 8px; }
+.history-day-clear {
+  margin-left: auto; padding: 2px 8px;
+  background: transparent; color: var(--vex-text-muted, var(--text-muted));
+  border: 1px solid var(--vex-border-subtle, var(--border)); border-radius: 999px;
+  font-family: inherit; font-size: 10.5px; cursor: pointer; opacity: 0; transition: opacity .12s;
+}
+.history-date-group:hover .history-day-clear, .history-day-clear:focus-visible { opacity: 1; }
+.history-day-clear:hover { color: var(--vex-danger, var(--danger, #ef4444)); border-color: currentColor; }

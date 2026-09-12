@@ -305,6 +305,7 @@ const CommandBar = {
 
       // Jump to an already-open tab whose title/URL matches.
       this.results.push(...this._tabResults(q));
+      this.results.push(...this._toolResults(q));
 
       // Search action
       this.results.push({
@@ -356,6 +357,34 @@ const CommandBar = {
       if (ok) score = 30;
     }
     return score;
+  },
+
+  // Toolbox tools as results. The catalogue is hundreds of tools, so typing
+  // "bmi" or "subnet" here opens the tool itself instead of hunting for it in
+  // the Toolbox window.
+  _toolResults(q) {
+    if (!q || typeof Toolbox === 'undefined') return [];
+    const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
+    const scored = [];
+    for (const t of Toolbox.all()) {
+      const name = t.name.toLowerCase();
+      let score = 0;
+      if (name.startsWith(q)) score = 92;
+      else if (name.split(/\s+/).some(w => w.startsWith(q))) score = 80;
+      else if (Toolbox._matches(t, q)) score = 55;   // description, keywords, family
+      if (!score) continue;
+      scored.push({ score, r: {
+        id: 'tool:' + t.id,
+        icon: esc(t.icon),
+        label: esc(t.name),
+        hint: '🧰 Toolbox · ' + esc(Toolbox._familyLabel(t.family)),
+        action: () => {
+          try { Toolbox.openTool(t.id); }
+          catch (err) { window.showToast?.(err.message, 'error'); }
+        },
+      } });
+    }
+    return scored.sort((a, b) => b.score - a.score).slice(0, 6).map(e => e.r);
   },
 
   // Open tabs matching the query, as "switch to tab" results. Titles/URLs are
@@ -513,12 +542,15 @@ const CommandBar = {
 
   async showHistory() {
     this.close();
-    const history = await VexStorage.loadHistory();
-    // For now, show last 10 in a new search
-    const input = document.getElementById('command-input');
+    // One list. The History panel and the address-bar suggestions read
+    // HistoryPanel's store; this used to read the separate file-backed copy,
+    // which has a different shape and a smaller cap, so the two disagreed.
+    const history = (typeof HistoryPanel !== 'undefined' && HistoryPanel.list().length)
+      ? HistoryPanel.list()
+      : await VexStorage.loadHistory();
     this.open();
     this.results = history.slice(0, 15).map(h => ({
-      id: 'hist-' + h.time,
+      id: 'hist-' + (h.id || h.visitedAt || h.time),
       label: h.title || h.url,
       hint: h.url,
       icon: '🕐',
@@ -541,3 +573,5 @@ const CommandBar = {
     this.renderResults();
   }
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { CommandBar };

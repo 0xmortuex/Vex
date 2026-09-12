@@ -188,7 +188,7 @@ body[data-gui-style="glass"] #gui-shortcuts-bar::-webkit-scrollbar { height: 0; 
 #gui-shortcuts-bar .gsc {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 6px 12px; border-radius: 10px; cursor: pointer;
-  font-size: 12.5px; color: #eef0ff; flex-shrink: 0;
+  font-size: 12.5px; color: var(--vex-text-primary); flex-shrink: 0;
   background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.12);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
 }
@@ -202,7 +202,7 @@ body[data-gui-style="glass"] #gui-shortcuts-bar::-webkit-scrollbar { height: 0; 
 #gui-shortcuts-bar .gsc .ic img { width: 18px; height: 18px; border-radius: 5px; display: block; object-fit: contain; }
 /* "Add shortcut" button at the end of the bar */
 #gui-shortcuts-bar .gsc-add { margin-left: auto; opacity: 0.85; }
-#gui-shortcuts-bar .gsc-add .ic { background: rgba(255,255,255,0.14); color: #eef0ff; font-size: 14px; }
+#gui-shortcuts-bar .gsc-add .ic { background: rgba(255,255,255,0.14); color: var(--vex-text-primary); font-size: 14px; }
 
 /* ---- 5. Cards / panels inside content pick up a subtle glass too ---- */
 body[data-gui-style="glass"] #ai-panel,
@@ -211,4 +211,40 @@ body[data-gui-style="glass"] #content-area > .home-screen {
   background: rgba(255,255,255,0.04) !important;
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
+}
+
+/* ---- Docked sidebar --------------------------------------------------
+   Glass docks panels beside the page like the browser looks do; the rules
+   live in css/gui-browser.css section 7 and read these --b-* values. */
+body[data-gui-style="glass"] {
+  --b-menu: color-mix(in srgb, var(--vex-bg-base, #0b0d18) 82%, transparent);
+  --b-toolbar: rgba(255, 255, 255, 0.06);
+  --b-toolbar-border: rgba(255, 255, 255, 0.12);
+  --b-text: var(--vex-text-primary);
+  --b-icon: var(--vex-text-secondary);
+  --b-btn-hover: rgba(255, 255, 255, 0.16);
+  --b-btn-radius: 8px;
+  --b-close-radius: 8px;
+  --b-font: 'Outfit', system-ui, sans-serif;
+  --b-rail-active: color-mix(in srgb, var(--vex-accent) 22%, transparent);
+}
+body[data-gui-style="glass"][data-sidebar-panel] #panels-container {
+  -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* The chosen rail icon was a near-white glyph on a fill of the theme's accent,
+   so on a light accent (sakura, matrix) it sat at 1.1:1 — invisible. Frosted
+   white over the dark glass reads against every accent. */
+body[data-gui-style="glass"] .sidebar-icon.active {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  color: #eef0ff !important;
+}
+
+/* The wordmark and the workspace button paint themselves in the theme's accent.
+   On Glass's dark frosted bar a dark accent lands on dark — Oxford's navy read
+   1.5:1. Lift the accent toward the glass ink: still the theme's colour, but
+   legible on every theme. */
+body[data-gui-style="glass"] :is(#vex-logo, #workspace-btn) {
+  color: color-mix(in srgb, var(--vex-accent) 45%, #eef0ff) !important;
 }

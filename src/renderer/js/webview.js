@@ -113,6 +113,11 @@ const WebviewManager = {
 
     webview.addEventListener('page-title-updated', (e) => {
       TabManager.updateTab(tab.id, { title: e.title });
+      // The visit is recorded the moment the page starts loading, when its
+      // title is still "Loading…" or the bare URL. Without this every history
+      // entry keeps that placeholder.
+      const current = TabManager.tabs.find(x => x.id === tab.id);
+      if (current && current.url && typeof HistoryPanel !== 'undefined') HistoryPanel.updateTitle(current.url, e.title);
     });
 
     webview.addEventListener('dom-ready', () => {

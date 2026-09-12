@@ -68,6 +68,10 @@ const ExtensionsMenu = {
     this._menu = menu;
     btn.classList.add('active');
 
+    // Real Chrome extensions go ABOVE the built-in tools, the way a browser
+    // toolbar lists them. Fetched async so the menu still opens instantly.
+    this._loadExtensionRows(menu, btn);
+
     // Dismiss on outside click / Esc (deferred so the opening click doesn't close it).
     // A click INSIDE the page's <webview> never reaches the host document, so
     // also close on window blur (focus moving into the guest fires it) — else
@@ -89,6 +93,77 @@ const ExtensionsMenu = {
     if (this._onKey) document.removeEventListener('keydown', this._onKey, true);
     if (this._onBlur) window.removeEventListener('blur', this._onBlur);
     this._onDoc = this._onKey = this._onBlur = null;
+  },
+
+  // Manifest icons are read straight off disk from the install folder.
+  // encodeURI (not encodeURIComponent) keeps the drive letter and separators.
+  _fileUrl(p) {
+    if (typeof p !== 'string' || !p) return null;
+    return encodeURI('file:///' + p.replace(/\\/g, '/').replace(/^\/+/, ''));
+  },
+
+  _rowSubtitle(ext) {
+    if (ext.hasPopup) return 'Open popup';
+    if (ext.hasOptions) return 'Open options page';
+    return 'No popup or options page';
+  },
+
+  // Only extensions that are switched on AND actually loaded can do anything,
+  // so a failed or disabled one is left out of the toolbar rather than offering
+  // a click that can't work. The manager explains why it isn't here.
+  async _loadExtensionRows(menu, btn) {
+    let list = [];
+    try { list = await window.vex.extensionsList(); }
+    catch (err) { console.warn('[ExtensionsMenu] could not list extensions', err); return; }
+    if (this._menu !== menu) return;                 // menu closed while loading
+    const usable = list.filter(e => e.enabled && e.loaded);
+    if (!usable.length) return;
+
+    const frag = document.createDocumentFragment();
+    usable.forEach(ext => {
+      const row = document.createElement('button');
+      row.className = 'ext-menu-item';
+      row.innerHTML = '<span class="ext-menu-ico"></span><span class="ext-menu-text"><span class="ext-menu-label"></span><span class="ext-menu-sub"></span></span>';
+      const ico = row.querySelector('.ext-menu-ico');
+      const iconUrl = this._fileUrl(ext.iconPath);
+      if (iconUrl) {
+        const img = document.createElement('img');
+        img.src = iconUrl; img.width = 16; img.height = 16; img.alt = '';
+        ico.appendChild(img);
+      } else {
+        ico.textContent = '🧩';
+      }
+      row.querySelector('.ext-menu-label').textContent = ext.name;
+      row.querySelector('.ext-menu-sub').textContent = this._rowSubtitle(ext);
+      row.addEventListener('click', () => { this.close(); this._runExtension(ext, btn); });
+      frag.appendChild(row);
+    });
+    const sep = document.createElement('div');
+    sep.className = 'ext-menu-sep';
+    frag.appendChild(sep);
+    menu.insertBefore(frag, menu.firstChild);
+  },
+
+  async _runExtension(ext, btn) {
+    try {
+      if (ext.hasPopup) {
+        const rect = btn.getBoundingClientRect();
+        const res = await window.vex.extensionsOpenPopup({
+          folder: ext.folder,
+          x: Math.max(0, Math.round(window.screenX + rect.left)),
+          y: Math.max(0, Math.round(window.screenY + rect.bottom))
+        });
+        if (!res || !res.ok) window.showToast?.('Could not open popup: ' + ((res && res.error) || 'unknown'));
+        return;
+      }
+      if (ext.optionsUrl) {
+        if (typeof TabManager !== 'undefined') TabManager.createTab(ext.optionsUrl, true);
+        return;
+      }
+      window.showToast?.(ext.name + ' has no popup or options page');
+    } catch (err) {
+      window.showToast?.('Could not open extension: ' + err.message);
+    }
   },
 
   _run(it) {
