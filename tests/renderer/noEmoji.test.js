@@ -75,7 +75,9 @@ describe('no emoji in the UI', () => {
       if (hits.length > budget) offenders.push(...hits);
     }
     expect(offenders, `use VexIcons.svg(name) instead:\n${offenders.join('\n')}`).toEqual([]);
-  });
+    // Walks every source file, so it is I/O-bound and slower than the 5s
+    // default once the whole suite runs in parallel.
+  }, 30000);
 
   it('knows what an emoji is, so the check above can actually fail', () => {
     expect(PICTO.test('Save \u{1F4BE}')).toBe(true);

@@ -131,7 +131,9 @@ describe('the swept UI', () => {
     expect(asked.size).toBeGreaterThan(50);
     const missing = [...asked].filter(([name]) => !VexIcons.has(name));
     expect(missing.map(([n, f]) => `${n} (${f})`)).toEqual([]);
-  });
+    // Walks every source file, so it is I/O-bound and slower than the 5s
+    // default once the whole suite runs in parallel.
+  }, 30000);
 
   it('gives every command bar entry an icon that resolves', () => {
     const src = read('js/command.js');
@@ -161,7 +163,9 @@ describe('the swept UI', () => {
       });
     }
     expect(offenders).toEqual([]);
-  });
+    // Walks every source file, so it is I/O-bound and slower than the 5s
+    // default once the whole suite runs in parallel.
+  }, 30000);
 
   it('loads the icon set before anything that draws with it', () => {
     for (const page of ['index.html', 'start.html']) {

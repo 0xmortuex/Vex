@@ -44,7 +44,12 @@ const PersonaSwitch = {
       window.showToast?.('This tab now uses ' + (p ? p.name : 'that persona'));
       m.remove();
     }));
-    m.querySelector('#ps-manage')?.addEventListener('click', () => { m.remove(); try { const c = (window.CommandBar && CommandBar.commands || []).find(x => x.id === 'personas'); if (c) c.action(); } catch {} });
+    m.querySelector('#ps-manage')?.addEventListener('click', () => { m.remove(); try {
+      const bar = (typeof CommandBar !== 'undefined' && CommandBar) || null;
+      const c = (bar && bar.commands || []).find(x => x.id === 'personas');
+      if (c) c.action();
+      else window.showToast?.('Could not open persona settings', 'error');
+    } catch (err) { window.showToast?.('Could not open persona settings: ' + (err && err.message), 'error'); } });
     document.addEventListener('keydown', function esc2(e) { if (e.key === 'Escape') { document.removeEventListener('keydown', esc2); m.remove(); } });
   },
 };

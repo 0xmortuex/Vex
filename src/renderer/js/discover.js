@@ -163,7 +163,7 @@ const VexDiscover = {
     const keys = VexFeatures.keysOf(f);
     const off = VexFeatures.offState(f);
     const cmd = VexFeatures.command(f);
-    const canOpen = !!cmd || !!f.setting;
+    const canOpen = !!cmd || !!f.setting || !!f.panel;
     const canShow = !!f.sel || !!f.panel || !!cmd;
     return `
       <div class="vexd-item${off ? ' off' : ''}" data-id="${this._esc(f.id)}">
@@ -250,6 +250,11 @@ const VexDiscover = {
       this.close();
       if (typeof CommandBar !== 'undefined' && typeof CommandBar._execute === 'function') CommandBar._execute(cmd);
       else cmd.action();
+      return;
+    }
+    if (f.panel) {
+      this.close();
+      SidebarManager.openPanel(f.panel);
       return;
     }
     if (f.setting && f.setting.section) {

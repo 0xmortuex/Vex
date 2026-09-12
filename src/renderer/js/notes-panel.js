@@ -590,10 +590,16 @@ const NotesPanel = {
   openStickySection() {
     const panel = document.getElementById('panel-notes');
     if (!panel) return false;
-    try { window.SidebarManager?.showPanel?.('notes'); } catch {}
+    // Bare identifier, not window.*: see above.
+    const sidebar = (typeof SidebarManager !== 'undefined' && SidebarManager)
+      || (typeof window !== 'undefined' && window.SidebarManager) || null;
+    if (!sidebar || typeof sidebar.showPanel !== 'function') return false;
+    sidebar.showPanel('notes');
     this.init();
     this.setSection('sticky');
-    return true;
+    // Only claim success if the panel is really on screen, so the caller's
+    // fallback still runs when it is not.
+    return getComputedStyle(panel).display !== 'none';
   },
 
   _syncSectionTabs() {

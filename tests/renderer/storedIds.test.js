@@ -56,5 +56,7 @@ describe('no module builds an id from the clock alone', () => {
       });
     }
     expect(offenders, 'these ids collide within a millisecond:\n' + offenders.join('\n')).toEqual([]);
-  });
+    // Walks every source file, so it is I/O-bound and slower than the 5s
+    // default once the whole suite runs in parallel.
+  }, 30000);
 });

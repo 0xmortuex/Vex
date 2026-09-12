@@ -409,9 +409,28 @@ describe('panel wiring', () => {
   });
 
   it('openStickySection switches the panel to page notes', () => {
+    window.SidebarManager = { showPanel: vi.fn() };
     NotesPanel.init();
     expect(NotesPanel.openStickySection()).toBe(true);
+    expect(window.SidebarManager.showPanel).toHaveBeenCalledWith('notes');
     expect(NotesPanel.section).toBe('sticky');
+    delete window.SidebarManager;
+  });
+
+  // The caller falls back to its own modal when this returns false, so saying
+  // "opened" while the panel is nowhere on screen is the bug this guards.
+  it('openStickySection reports failure when the sidebar cannot show the panel', () => {
+    delete window.SidebarManager;
+    NotesPanel.init();
+    expect(NotesPanel.openStickySection()).toBe(false);
+  });
+
+  it('openStickySection reports failure when the panel stays hidden', () => {
+    window.SidebarManager = { showPanel: vi.fn() };
+    document.getElementById('panel-notes').style.display = 'none';
+    NotesPanel.init();
+    expect(NotesPanel.openStickySection()).toBe(false);
+    delete window.SidebarManager;
   });
 
   it('toggling a preview checkbox rewrites the markdown and persists it', () => {

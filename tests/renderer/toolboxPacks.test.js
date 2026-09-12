@@ -54,5 +54,8 @@ describe('Toolbox catalogue', () => {
       const text = body.textContent;
       expect(text, spec.id).not.toMatch(/\bNaN\b|\bundefined\b|\[object Object\]|Invalid Date/);
     }
-  });
+    // Every tool in the catalogue is rendered for real, so this one test does
+    // more DOM work than the default 5s budget allows once the suite runs the
+    // files in parallel. Slow, not hanging.
+  }, 60000);
 });
