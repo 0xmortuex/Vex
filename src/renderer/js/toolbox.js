@@ -210,7 +210,7 @@ const Toolbox = {
     { id: 'regex', name: 'Regex Tester', icon: '.*', family: 'dev', desc: 'Test a regular expression against sample text' },
     { id: 'json', name: 'JSON Formatter', icon: '{ }', family: 'dev', desc: 'Pretty-print, validate, and minify JSON' },
     { id: 'csv', name: 'CSV Viewer', icon: '▦', family: 'dev', desc: 'View CSV as a table and convert to JSON' },
-    { id: 'base64', name: 'Base64', icon: '⧉', family: 'dev', desc: 'Encode and decode Base64' },
+    { id: 'base64', name: 'Base64', icon: 'braces', family: 'dev', desc: 'Standard, URL, IMAP or custom alphabets — to and from text, hex or bytes', keywords: ['b64','encode','decode','base64url','jwt','mime','atob','btoa'] },
     { id: 'hash', name: 'Hash', icon: '#', family: 'dev', desc: 'SHA-1 / SHA-256 / SHA-512 of any text' },
     { id: 'timestamp', name: 'Timestamp', icon: 'clock', family: 'dev', desc: 'Convert Unix time ⇄ human date' },
     { id: 'cron', name: 'Cron', icon: 'timer', family: 'dev', desc: 'Explain a cron expression and its next runs' },
@@ -571,17 +571,76 @@ const Toolbox = {
     body.querySelectorAll('input,textarea').forEach(el => el.addEventListener('input', run));
   },
 
+  // ---- JSON ---------------------------------------------------------------
   _json() {
-    const { body } = this._modal('{ } JSON Formatter', `${this._ta('js-in', 'paste JSON')}
-      <div style="display:flex;gap:6px;margin-top:8px"><button id="js-pretty" style="padding:7px 12px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Pretty</button><button id="js-min" style="padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Minify</button></div>
-      ${this._out('js-out')}`);
-    const inEl = body.querySelector('#js-in'), out = body.querySelector('#js-out');
-    const go = (min) => { try { const o = JSON.parse(inEl.value); out.style.color = 'var(--text)'; out.textContent = JSON.stringify(o, null, min ? 0 : 2); } catch (e) { out.style.color = 'var(--danger,#ef4444)'; out.textContent = 'Invalid JSON: ' + e.message; } };
-    body.querySelector('#js-pretty').addEventListener('click', () => go(false));
-    body.querySelector('#js-min').addEventListener('click', () => go(true));
-    body.appendChild(this._copyBtn(() => out.textContent));
+    return window.ToolboxWorkbench.open({
+      id: 'json',
+      details: [
+            {
+                  "title": "What it checks",
+                  "text": "Strict JSON: double quotes only, no trailing commas, no comments. A syntax error is reported with the line and column so you can go straight to it."
+            },
+            {
+                  "title": "Sort keys",
+                  "text": "Ordering keys alphabetically at every level makes two documents comparable in a diff. It changes the text, never the meaning."
+            },
+            {
+                  "title": "Try one",
+                  "examples": true,
+                  "rows": [
+                        [
+                              "{\"b\":2,\"a\":{\"d\":4,\"c\":[3,1,2]}}",
+                              "Nested, unsorted."
+                        ],
+                        [
+                              "{\"a\":1,,}",
+                              "Broken, to see the error."
+                        ]
+                  ]
+            }
+      ],
+      title: 'JSON',
+      icon: 'braces',
+      blurb: 'Format, minify, sort keys or validate — with the line and column of a syntax error.',
+      placeholder: '{"paste":"json here"}',
+      runLabel: 'Format',
+      sample: '{"b":2,"a":{"d":4,"c":[3,1,2]}}',
+      options: [
+        { id: 'mode', label: 'Operation', type: 'select', default: 'pretty',
+          options: [['pretty', 'Format'], ['minify', 'Minify'], ['validate', 'Validate only']] },
+        { id: 'indent', label: 'Indent', type: 'select', default: '2',
+          options: [['2', '2 spaces'], ['4', '4 spaces'], ['\t', 'Tabs']], when: (s) => s.mode === 'pretty' },
+        { id: 'sort', label: 'Sort keys', type: 'toggle', default: false, when: (s) => s.mode !== 'validate' },
+      ],
+      run({ input, opt }) {
+        let data;
+        try { data = JSON.parse(input); }
+        catch (err) {
+          // Turn "position 42" into something you can actually navigate to.
+          const at = /position (\d+)/.exec(err.message);
+          if (at) {
+            const pos = Number(at[1]);
+            const before = input.slice(0, pos);
+            const line = before.split('\n').length;
+            const col = pos - before.lastIndexOf('\n');
+            throw new Error(`${err.message.replace(/ in JSON.*$/, '')} — line ${line}, column ${col}`);
+          }
+          throw new Error(err.message);
+        }
+        const sorter = (k, v) => {
+          if (!opt.sort || v === null || typeof v !== 'object' || Array.isArray(v)) return v;
+          return Object.fromEntries(Object.keys(v).sort().map(key => [key, v[key]]));
+        };
+        const count = (o) => (o && typeof o === 'object') ? Object.keys(o).length : 0;
+        if (opt.mode === 'validate') {
+          return { output: 'Valid JSON.', note: `${Array.isArray(data) ? `array of ${data.length}` : `object with ${count(data)} keys`}` };
+        }
+        const indent = opt.mode === 'minify' ? 0 : (opt.indent === '\t' ? '\t' : Number(opt.indent));
+        const out = JSON.stringify(data, sorter, indent);
+        return { output: out, note: `${input.length.toLocaleString()} -> ${out.length.toLocaleString()} characters` };
+      },
+    });
   },
-
   _csv() {
     const { body } = this._modal('▦ CSV Viewer', `${this._ta('cv-in', 'a,b,c\\n1,2,3')}${this._out('cv-out')}`);
     const inEl = body.querySelector('#cv-in'), out = body.querySelector('#cv-out');
@@ -600,41 +659,374 @@ const Toolbox = {
     inEl.addEventListener('input', run); run();
   },
 
+  // Base64, properly.
+  //
+  // The old version did one thing: standard Base64 of a UTF-8 string, encode or
+  // decode, and "Not valid Base64" when anything else arrived. Real Base64 in
+  // the wild is not one format — a JWT is Base64URL and unpadded, a mail header
+  // is MIME with wrapped lines, an IMAP mailbox name uses a modified alphabet
+  // with a different 62nd and 63rd character, and plenty of encoders simply
+  // leave the padding off. Decoding those should work, not fail.
   _base64() {
-    const { body } = this._modal('⧉ Base64', `${this._ta('b6-in', 'text or base64')}
-      <div style="display:flex;gap:6px;margin-top:8px"><button id="b6-enc" style="padding:7px 12px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Encode</button><button id="b6-dec" style="padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Decode</button></div>${this._out('b6-out')}`);
-    const inEl = body.querySelector('#b6-in'), out = body.querySelector('#b6-out');
-    body.querySelector('#b6-enc').addEventListener('click', () => { out.style.color = 'var(--text)'; out.textContent = ToolboxLib.b64enc(inEl.value); });
-    body.querySelector('#b6-dec').addEventListener('click', () => { const d = ToolboxLib.b64dec(inEl.value); out.style.color = d === null ? 'var(--danger,#ef4444)' : 'var(--text)'; out.textContent = d === null ? 'Not valid Base64' : d; });
-    body.appendChild(this._copyBtn(() => out.textContent));
-  },
+    const ALPHABETS = {
+      standard: { name: 'Standard (RFC 4648)', c62: '+', c63: '/' },
+      url: { name: 'Base64URL (RFC 4648 §5)', c62: '-', c63: '_' },
+      imap: { name: 'IMAP mailbox (RFC 3501)', c62: '+', c63: ',' },
+      custom: { name: 'Custom 62nd/63rd', c62: '+', c63: '/' },
+    };
 
+    const bytesToB64 = (bytes) => {
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    };
+    const b64ToBytes = (b64) => {
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    };
+    const hexOf = (bytes) => [...bytes].map(b => b.toString(16).padStart(2, '0')).join(' ');
+
+    const decodeText = (bytes, charset) => {
+      if (charset === 'hex') return hexOf(bytes);
+      if (charset === 'bytes') return [...bytes].join(' ');
+      if (charset === 'latin1') return [...bytes].map(b => String.fromCharCode(b)).join('');
+      // `fatal` so mis-decoded bytes are reported rather than silently turned
+      // into replacement characters that look like a successful decode.
+      return new TextDecoder(charset || 'utf-8', { fatal: true }).decode(bytes);
+    };
+
+    const encodeText = (text, charset) => {
+      if (charset === 'hex') {
+        const clean = text.replace(/0x/gi, '').replace(/[^0-9a-f]/gi, '');
+        if (clean.length % 2) throw new Error('Hex input has an odd number of digits.');
+        const out = new Uint8Array(clean.length / 2);
+        for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
+        return out;
+      }
+      if (charset === 'bytes') {
+        const nums = text.split(/[\s,]+/).filter(Boolean).map(Number);
+        if (nums.some(n => !Number.isInteger(n) || n < 0 || n > 255)) throw new Error('Byte values must be whole numbers from 0 to 255.');
+        return new Uint8Array(nums);
+      }
+      if (charset === 'latin1') {
+        const out = new Uint8Array(text.length);
+        for (let i = 0; i < text.length; i++) {
+          const c = text.charCodeAt(i);
+          if (c > 255) throw new Error(`"${text[i]}" cannot be written in Latin-1. Use UTF-8.`);
+          out[i] = c;
+        }
+        return out;
+      }
+      return new TextEncoder().encode(text);
+    };
+
+    return window.ToolboxWorkbench.open({
+      id: 'base64',
+      details: [
+            {
+                  "title": "What the alphabets differ on",
+                  "rows": [
+                        [
+                              "Standard  + /",
+                              "RFC 4648 §4. The everyday one. Padded with = to a multiple of four."
+                        ],
+                        [
+                              "Base64URL  - _",
+                              "RFC 4648 §5. Safe inside a URL or filename. JWTs use it, unpadded."
+                        ],
+                        [
+                              "IMAP  + ,",
+                              "RFC 3501 modified Base64 for mailbox names, where / is a path separator."
+                        ],
+                        [
+                              "Custom",
+                              "Anything else: set the 62nd and 63rd characters yourself."
+                        ]
+                  ]
+            },
+            {
+                  "title": "Try one",
+                  "examples": true,
+                  "rows": [
+                        [
+                              "aG93IGFyZSB5b3UgYnJv",
+                              "Standard, padded."
+                        ],
+                        [
+                              "eyJhbGciOiJIUzI1NiJ9",
+                              "A JWT header — unpadded."
+                        ],
+                        [
+                              "SGVsbG8tX3dvcmxk",
+                              "Base64URL, using - and _."
+                        ]
+                  ]
+            },
+            {
+                  "title": "Padding",
+                  "text": "The = signs only exist to round the length up to a multiple of four. Vex puts them back when they are missing, which is why unpadded input decodes here and fails in most tools."
+            },
+            {
+                  "title": "Size",
+                  "text": "Base64 is 4 characters for every 3 bytes — about 33% larger than the data it carries. MIME wraps at 76 columns; a URL never should."
+            }
+      ],
+      title: 'Base64',
+      icon: 'braces',
+      blurb: 'Standard, Base64URL, IMAP or a custom alphabet — padded or not — to and from text, hex or raw bytes.',
+      inputLabel: 'Input',
+      outputLabel: 'Output',
+      placeholder: 'Paste Base64 to decode, or text to encode…',
+      sample: 'aG93IGFyZSB5b3UgYnJv',
+      runLabel: 'Convert',
+      options: [
+        { id: 'mode', label: 'Operation', type: 'select', default: 'decode',
+          options: [['decode', 'Decode'], ['encode', 'Encode']] },
+        { id: 'variant', label: 'Alphabet', type: 'select', default: 'auto',
+          options: [['auto', 'Detect automatically'], ...Object.entries(ALPHABETS).map(([k, v]) => [k, v.name])],
+          hint: 'Detection reads the 62nd/63rd characters actually present.' },
+        { id: 'c62', label: '62nd character', type: 'text', default: '+', when: (s) => s.variant === 'custom' },
+        { id: 'c63', label: '63rd character', type: 'text', default: '/', when: (s) => s.variant === 'custom' },
+        { id: 'charset', label: 'Text encoding', type: 'select', default: 'utf-8',
+          options: [['utf-8', 'UTF-8'], ['latin1', 'Latin-1 / binary'], ['utf-16le', 'UTF-16 LE'], ['hex', 'Hex bytes'], ['bytes', 'Decimal bytes']] },
+        { id: 'pad', label: 'Add = padding', type: 'toggle', default: true, when: (s) => s.mode === 'encode' },
+        { id: 'wrap', label: 'Wrap at 76 columns (MIME)', type: 'toggle', default: false, when: (s) => s.mode === 'encode' },
+        { id: 'lenient', label: 'Ignore stray characters', type: 'toggle', default: true, when: (s) => s.mode === 'decode',
+          hint: 'Whitespace, quotes and newlines from a copy/paste.' },
+      ],
+
+      // Decoding then swapping should offer to encode it back, not decode the
+      // plain text it just produced.
+      swap: (_input, output, opt) => ({ input: output, opt: { mode: opt.mode === 'decode' ? 'encode' : 'decode' } }),
+
+      run({ input, opt }) {
+        const alpha = opt.variant === 'custom'
+          ? { c62: (opt.c62 || '+')[0], c63: (opt.c63 || '/')[0] }
+          : ALPHABETS[opt.variant] || null;
+
+        if (opt.mode === 'encode') {
+          const bytes = encodeText(input, opt.charset);
+          let b64 = bytesToB64(bytes);
+          const a = alpha || ALPHABETS.standard;
+          if (a.c62 !== '+') b64 = b64.split('+').join(a.c62);
+          if (a.c63 !== '/') b64 = b64.split('/').join(a.c63);
+          if (!opt.pad) b64 = b64.replace(/=+$/, '');
+          if (opt.wrap) b64 = b64.replace(/.{76}/g, '$&\n');
+          const variantName = (alpha && alpha.name) || 'Standard (RFC 4648)';
+          return { output: b64, note: `${bytes.length.toLocaleString()} bytes in · ${b64.length.toLocaleString()} characters out · ${variantName}` };
+        }
+
+        // ---- decode ----
+        let s = input;
+        if (opt.lenient) s = s.replace(/[\s"'`,]+/g, '');
+        if (!s) throw new Error('Nothing to decode once the stray characters were removed.');
+
+        let used = alpha;
+        if (opt.variant === 'auto') {
+          // Pick by what is actually in the string, rather than assuming.
+          if (/[-_]/.test(s) && !/[+/]/.test(s)) used = ALPHABETS.url;
+          else if (/,/.test(s) && !/\//.test(s)) used = ALPHABETS.imap;
+          else used = ALPHABETS.standard;
+        }
+        let norm = s;
+        if (used.c62 !== '+') norm = norm.split(used.c62).join('+');
+        if (used.c63 !== '/') norm = norm.split(used.c63).join('/');
+
+        const bad = norm.replace(/=+$/, '').match(/[^A-Za-z0-9+/]/);
+        if (bad) {
+          throw new Error(`"${bad[0]}" is not part of the ${used.name || 'selected'} alphabet. `
+            + (opt.lenient ? 'Try a different alphabet.' : 'Turn on "Ignore stray characters" if this was pasted.'));
+        }
+
+        // Unpadded is extremely common (JWTs, URLs). Put the padding back.
+        const padded = norm + '='.repeat((4 - (norm.replace(/=+$/, '').length % 4)) % 4);
+        let bytes;
+        try { bytes = b64ToBytes(padded); }
+        catch { throw new Error('That is not valid Base64 — the length is wrong even after padding.'); }
+
+        let text;
+        try { text = decodeText(bytes, opt.charset); }
+        catch {
+          throw new Error(`Decoded ${bytes.length} bytes, but they are not valid ${String(opt.charset).toUpperCase()} text. `
+            + 'Try "Hex bytes" to see what they actually are.');
+        }
+        const wasPadded = /=+$/.test(s);
+        return {
+          output: text,
+          note: `${bytes.length.toLocaleString()} bytes · ${used.name || 'custom alphabet'}${wasPadded ? '' : ' · padding was missing and has been restored'}`,
+        };
+      },
+    });
+  },
+  // ---- Hash ---------------------------------------------------------------
   _hash() {
-    const { body } = this._modal('# Hash', `${this._ta('h-in', 'text to hash')}
-      <div style="display:flex;gap:6px;margin-top:8px">${['SHA-1', 'SHA-256', 'SHA-512'].map(a => `<button class="h-alg" data-a="${a}" style="padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">${a}</button>`).join('')}</div>${this._out('h-out')}`);
-    const inEl = body.querySelector('#h-in'), out = body.querySelector('#h-out');
-    body.querySelectorAll('.h-alg').forEach(b => b.addEventListener('click', async () => {
-      try {
-        const buf = await crypto.subtle.digest(b.dataset.a, new TextEncoder().encode(inEl.value));
-        out.style.color = 'var(--text)';
-        out.textContent = b.dataset.a + ': ' + [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
-      } catch (e) { out.style.color = 'var(--danger,#ef4444)'; out.textContent = 'Hash failed: ' + e.message; }
-    }));
-    body.appendChild(this._copyBtn(() => out.textContent.replace(/^[^:]+:\s*/, '')));
-  },
+    const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+    return window.ToolboxWorkbench.open({
+      id: 'hash',
+      details: [
+            {
+                  "title": "Choosing one",
+                  "rows": [
+                        [
+                              "SHA-256",
+                              "The default for almost everything. 64 hex characters."
+                        ],
+                        [
+                              "SHA-512",
+                              "Longer digest, faster than SHA-256 on 64-bit machines."
+                        ],
+                        [
+                              "SHA-384",
+                              "SHA-512 truncated. Used by some TLS suites."
+                        ],
+                        [
+                              "SHA-1",
+                              "Collisions are practical since 2017. Legacy checks only."
+                        ]
+                  ]
+            },
+            {
+                  "title": "HMAC",
+                  "text": "A plain hash proves the data has not changed. HMAC proves it came from someone holding the key — use it for signing webhooks and API requests, never a bare hash."
+            },
+            {
+                  "title": "Not for passwords",
+                  "text": "These are built to be fast, which is exactly wrong for storing a password. Use bcrypt, scrypt or Argon2 for that."
+            }
+      ],
+      title: 'Hash',
+      icon: 'fingerprint',
+      blurb: 'SHA-1 through SHA-512, plain or HMAC, as hex, Base64 or Base64URL.',
+      placeholder: 'Text to hash…',
+      runLabel: 'Hash',
+      sample: 'how are you bro',
+      options: [
+        { id: 'alg', label: 'Algorithm', type: 'select', default: 'SHA-256',
+          options: [['SHA-256', 'SHA-256'], ['SHA-1', 'SHA-1 (broken — legacy only)'], ['SHA-384', 'SHA-384'], ['SHA-512', 'SHA-512']] },
+        { id: 'hmac', label: 'HMAC (keyed)', type: 'toggle', default: false },
+        { id: 'key', label: 'Key', type: 'text', default: '', placeholder: 'shared secret', when: (s) => s.hmac },
+        { id: 'enc', label: 'Output as', type: 'select', default: 'hex',
+          options: [['hex', 'Hex'], ['base64', 'Base64'], ['base64url', 'Base64URL']] },
+        { id: 'upper', label: 'Upper case hex', type: 'toggle', default: false, when: (s) => s.enc === 'hex' },
+        { id: 'input', label: 'Read input as', type: 'select', default: 'text',
+          options: [['text', 'Text (UTF-8)'], ['hex', 'Hex bytes']] },
+      ],
+      run({ input, opt }) {
+        let bytes;
+        if (opt.input === 'hex') {
+          const clean = input.replace(/0x/gi, '').replace(/[^0-9a-f]/gi, '');
+          if (clean.length % 2) throw new Error('Hex input has an odd number of digits.');
+          bytes = new Uint8Array(clean.length / 2);
+          for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(clean.substr(i * 2, 2), 16);
+        } else bytes = new TextEncoder().encode(input);
 
+        // crypto.subtle is async; the workbench wants a value, so the promise is
+        // resolved into the pane when it settles.
+        const finish = (buf) => {
+          let s = opt.enc === 'hex' ? hex(buf) : b64(buf);
+          if (opt.enc === 'base64url') s = s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+          if (opt.enc === 'hex' && opt.upper) s = s.toUpperCase();
+          return s;
+        };
+        const p = opt.hmac
+          ? (async () => {
+            if (!opt.key) throw new Error('HMAC needs a key.');
+            const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(opt.key), { name: 'HMAC', hash: opt.alg }, false, ['sign']);
+            return crypto.subtle.sign('HMAC', k, bytes);
+          })()
+          : crypto.subtle.digest(opt.alg, bytes);
+
+        const out = document.getElementById('wb-out');
+        const note = document.getElementById('wb-note');
+        p.then(buf => {
+          out.textContent = finish(buf);
+          out.classList.remove('wb-error');
+          note.textContent = `${bytes.length.toLocaleString()} bytes in · ${opt.hmac ? 'HMAC-' : ''}${opt.alg}`;
+        }).catch(err => {
+          out.textContent = (err && err.message) || 'Could not hash that.';
+          out.classList.add('wb-error');
+        });
+        return { output: 'Hashing…', note: '' };
+      },
+    });
+  },
+  // ---- Timestamp ----------------------------------------------------------
   _timestamp() {
-    const now = Math.floor(Date.now() / 1000);
-    const { body } = this._modal(this._title('clock', 'Timestamp'), `
-      <label style="font-size:11px;color:var(--text-muted)">Unix timestamp → date</label>${this._inp('ts-in', String(now), String(now))}${this._out('ts-out')}
-      <label style="font-size:11px;color:var(--text-muted);display:block;margin-top:12px">Date → Unix timestamp</label>${this._inp('ts-din', '2026-08-31 14:00')}${this._out('ts-dout')}`);
-    const tin = body.querySelector('#ts-in'), tout = body.querySelector('#ts-out');
-    const din = body.querySelector('#ts-din'), dout = body.querySelector('#ts-dout');
-    const r1 = () => { const d = ToolboxLib.tsToDate(tin.value); tout.textContent = d ? d.toString() + '\n' + d.toISOString() : '—'; };
-    const r2 = () => { const t = ToolboxLib.dateToTs(din.value); dout.textContent = t == null ? '—' : String(t); };
-    tin.addEventListener('input', r1); din.addEventListener('input', r2); r1();
+    return window.ToolboxWorkbench.open({
+      id: 'timestamp',
+      details: [
+            {
+                  "title": "Seconds or milliseconds",
+                  "text": "Unix time in seconds is 10 digits until the year 2286; in milliseconds it is 13. Vex guesses by magnitude unless you say which."
+            },
+            {
+                  "title": "Try one",
+                  "examples": true,
+                  "rows": [
+                        [
+                              "1760000000",
+                              "Unix seconds."
+                        ],
+                        [
+                              "2026-03-10T13:00:00Z",
+                              "ISO 8601, UTC."
+                        ]
+                  ]
+            },
+            {
+                  "title": "Leave it empty",
+                  "text": "An empty input gives you the current time in every format at once."
+            }
+      ],
+      title: 'Timestamp',
+      icon: 'clock',
+      blurb: 'Unix seconds or milliseconds to a real date and back, in your zone or UTC.',
+      placeholder: 'Leave empty for now, or paste 1760000000 / an ISO date…',
+      runLabel: 'Convert',
+      options: [
+        { id: 'zone', label: 'Show in', type: 'select', default: 'local', options: [['local', 'This computer’s zone'], ['utc', 'UTC']] },
+        { id: 'unit', label: 'Assume numbers are', type: 'select', default: 'auto',
+          options: [['auto', 'Detect by magnitude'], ['s', 'Seconds'], ['ms', 'Milliseconds']] },
+      ],
+      run({ input, opt }) {
+        const raw = input.trim();
+        let d;
+        if (!raw) d = new Date();
+        else if (/^-?\d+$/.test(raw)) {
+          const n = Number(raw);
+          const ms = opt.unit === 'ms' ? n : opt.unit === 's' ? n * 1000 : (Math.abs(n) < 1e11 ? n * 1000 : n);
+          d = new Date(ms);
+        } else {
+          d = new Date(raw);
+        }
+        if (isNaN(d.getTime())) throw new Error('That is not a timestamp or a date this can read.');
+        const utc = opt.zone === 'utc';
+        const pad = (n, w = 2) => String(n).padStart(w, '0');
+        const Y = utc ? d.getUTCFullYear() : d.getFullYear();
+        const Mo = pad((utc ? d.getUTCMonth() : d.getMonth()) + 1);
+        const D = pad(utc ? d.getUTCDate() : d.getDate());
+        const h = pad(utc ? d.getUTCHours() : d.getHours());
+        const mi = pad(utc ? d.getUTCMinutes() : d.getMinutes());
+        const se = pad(utc ? d.getUTCSeconds() : d.getSeconds());
+        const diff = Math.round((d.getTime() - Date.now()) / 1000);
+        const ago = Math.abs(diff) < 60 ? `${Math.abs(diff)}s` : Math.abs(diff) < 3600 ? `${Math.round(Math.abs(diff) / 60)}m`
+          : Math.abs(diff) < 86400 ? `${Math.round(Math.abs(diff) / 3600)}h` : `${Math.round(Math.abs(diff) / 86400)}d`;
+        return {
+          output: [
+            `unix (s)    ${Math.floor(d.getTime() / 1000)}`,
+            `unix (ms)   ${d.getTime()}`,
+            `ISO 8601    ${d.toISOString()}`,
+            `${utc ? 'UTC        ' : 'local      '} ${Y}-${Mo}-${D} ${h}:${mi}:${se}`,
+            `readable    ${utc ? d.toUTCString() : d.toString()}`,
+          ].join('\n'),
+          note: diff === 0 ? 'right now' : diff < 0 ? `${ago} ago` : `in ${ago}`,
+        };
+      },
+    });
   },
-
   _cron() {
     const { body } = this._modal(this._title('timer', 'Cron'), `${this._inp('cr-in', '*/15 9-17 * * 1-5', '*/15 9-17 * * 1-5')}${this._out('cr-out')}`);
     const inEl = body.querySelector('#cr-in'), out = body.querySelector('#cr-out');
@@ -657,13 +1049,59 @@ const Toolbox = {
     body.appendChild(this._copyBtn(() => out.textContent));
   },
 
+  // ---- Word count ---------------------------------------------------------
   _wordcount() {
-    const { body } = this._modal('¶ Word Count', `${this._ta('wc-in', 'paste or type text')}${this._out('wc-out')}`);
-    const inEl = body.querySelector('#wc-in'), out = body.querySelector('#wc-out');
-    const run = () => { const s = ToolboxLib.wordStats(inEl.value); out.textContent = `Words: ${s.words}\nCharacters: ${s.chars} (${s.charsNoSpace} without spaces)\nSentences: ${s.sentences}   Paragraphs: ${s.paragraphs}   Lines: ${s.lines}\nReading time: ${s.readingMin < 1 ? '<1' : Math.round(s.readingMin)} min`; };
-    inEl.addEventListener('input', run); run();
+    return window.ToolboxWorkbench.open({
+      id: 'wordcount',
+      details: [
+            {
+                  "title": "Reading speed",
+                  "text": "The average adult reads prose at around 238 words per minute. Technical material is slower; skimming is much faster."
+            },
+            {
+                  "title": "What counts as a word",
+                  "text": "Anything separated by whitespace. Hyphenated compounds count once, which is how most word counters behave."
+            }
+      ],
+      title: 'Word count',
+      icon: 'list',
+      blurb: 'Words, characters, sentences, paragraphs, reading time and the most frequent words.',
+      placeholder: 'Paste your text…',
+      runLabel: 'Count',
+      options: [
+        { id: 'wpm', label: 'Reading speed', type: 'select', default: '238',
+          options: [['150', 'Slow — 150 wpm'], ['238', 'Average — 238 wpm'], ['300', 'Fast — 300 wpm']] },
+        { id: 'top', label: 'Show most frequent words', type: 'toggle', default: true },
+      ],
+      run({ input, opt }) {
+        const words = input.trim() ? input.trim().split(/\s+/) : [];
+        const sentences = input.split(/[.!?]+(?:\s|$)/).filter(s => s.trim()).length;
+        const paras = input.split(/\n\s*\n/).filter(s => s.trim()).length;
+        const mins = words.length / Number(opt.wpm || 238);
+        const lines = [
+          `words           ${words.length.toLocaleString()}`,
+          `characters      ${input.length.toLocaleString()}`,
+          `without spaces  ${input.replace(/\s/g, '').length.toLocaleString()}`,
+          `sentences       ${sentences.toLocaleString()}`,
+          `paragraphs      ${paras.toLocaleString()}`,
+          `lines           ${input.split('\n').length.toLocaleString()}`,
+          `reading time    ${mins < 1 ? 'under a minute' : Math.round(mins) + ' min'}`,
+        ];
+        if (opt.top && words.length) {
+          const stop = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'of', 'to', 'in', 'is', 'it', 'that', 'for', 'on', 'with', 'as', 'was', 'are', 'be', 'this', 'at', 'by']);
+          const freq = new Map();
+          for (const w of words) {
+            const k = w.toLowerCase().replace(/[^a-z0-9']/g, '');
+            if (!k || stop.has(k)) continue;
+            freq.set(k, (freq.get(k) || 0) + 1);
+          }
+          const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+          if (top.length) lines.push('', 'most frequent', ...top.map(([w, n]) => `  ${String(n).padStart(4)}  ${w}`));
+        }
+        return { output: lines.join('\n'), note: `${words.length.toLocaleString()} words` };
+      },
+    });
   },
-
   _color() {
     const { body } = this._modal(this._title('palette', 'Color &amp; Contrast'), `
       <div style="display:flex;gap:10px;align-items:center"><input type="color" id="cl-1" value="#6366f1" style="width:48px;height:36px;border:none;background:none;cursor:pointer"><div id="cl-1out" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text)"></div></div>
@@ -679,30 +1117,244 @@ const Toolbox = {
     };
     c1.addEventListener('input', run); c2.addEventListener('input', run); run();
   },
+  // ---- JWT ----------------------------------------------------------------
   _jwt() {
-    const { body } = this._modal(this._title('key', 'JWT Decoder'), this._ta('jw-in', 'paste a JWT (eyJ...)') + this._out('jw-out'));
-    const inEl = body.querySelector('#jw-in'), out = body.querySelector('#jw-out');
-    const run = () => {
-      const d = ToolboxLib.jwtDecode(inEl.value);
-      if (!d) { out.style.color = 'var(--danger,#ef4444)'; out.textContent = inEl.value.trim() ? 'Not a valid JWT' : ''; return; }
-      out.style.color = 'var(--text)';
-      out.textContent = 'HEADER\n' + JSON.stringify(d.header, null, 2) + '\n\nPAYLOAD\n' + JSON.stringify(d.payload, null, 2) + (d.payload && d.payload.exp ? '\n\nExpires: ' + new Date(d.payload.exp * 1000).toLocaleString() : '');
+    const seg = (s) => {
+      const norm = s.replace(/-/g, '+').replace(/_/g, '/');
+      return decodeURIComponent(escape(atob(norm + '='.repeat((4 - norm.length % 4) % 4))));
     };
-    inEl.addEventListener('input', run);
+    return window.ToolboxWorkbench.open({
+      id: 'jwt',
+      details: [
+            {
+                  "title": "The three parts",
+                  "rows": [
+                        [
+                              "header",
+                              "Which algorithm signed it, and sometimes a key id."
+                        ],
+                        [
+                              "payload",
+                              "The claims. Readable by anyone — a JWT is signed, not encrypted."
+                        ],
+                        [
+                              "signature",
+                              "Proves the first two were not altered. Needs the key to check."
+                        ]
+                  ]
+            },
+            {
+                  "title": "Decoding is not verifying",
+                  "text": "This shows you what a token says. It cannot tell you whether it is genuine — that needs the signing key. Never trust a claim on the strength of having decoded it."
+            },
+            {
+                  "title": "Common claims",
+                  "rows": [
+                        [
+                              "exp",
+                              "Expires at (unix seconds). Past means the token is dead."
+                        ],
+                        [
+                              "iat",
+                              "Issued at."
+                        ],
+                        [
+                              "nbf",
+                              "Not valid before."
+                        ],
+                        [
+                              "sub",
+                              "Subject — usually the user id."
+                        ],
+                        [
+                              "aud",
+                              "Audience — who the token is for."
+                        ]
+                  ]
+            }
+      ],
+      title: 'JWT',
+      icon: 'key',
+      blurb: 'Decode header and payload, with expiry and issued-at read as real dates. Never verifies — decoding is not validation.',
+      placeholder: 'eyJhbGciOi…',
+      runLabel: 'Decode',
+      options: [
+        { id: 'part', label: 'Show', type: 'select', default: 'both', options: [['both', 'Header and payload'], ['header', 'Header only'], ['payload', 'Payload only']] },
+        { id: 'dates', label: 'Read timestamps as dates', type: 'toggle', default: true },
+      ],
+      run({ input, opt }) {
+        const parts = input.trim().split('.');
+        if (parts.length < 2) throw new Error('A JWT has at least two dot-separated parts. This has ' + parts.length + '.');
+        let header, payload;
+        try { header = JSON.parse(seg(parts[0])); } catch { throw new Error('The header is not valid Base64URL JSON.'); }
+        try { payload = JSON.parse(seg(parts[1])); } catch { throw new Error('The payload is not valid Base64URL JSON.'); }
+
+        const lines = [];
+        if (opt.part !== 'payload') lines.push('── header ──', JSON.stringify(header, null, 2));
+        if (opt.part !== 'header') {
+          if (lines.length) lines.push('');
+          lines.push('── payload ──', JSON.stringify(payload, null, 2));
+        }
+        if (opt.dates) {
+          const stamps = [['exp', 'expires'], ['iat', 'issued'], ['nbf', 'not before']]
+            .filter(([k]) => typeof payload[k] === 'number')
+            .map(([k, label]) => `${label.padEnd(11)} ${new Date(payload[k] * 1000).toLocaleString()}`);
+          if (stamps.length) lines.push('', '── times ──', ...stamps);
+        }
+        const exp = typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+        const state = exp ? (exp < Date.now() ? 'EXPIRED' : 'valid until ' + new Date(exp).toLocaleString()) : 'no expiry claim';
+        return { output: lines.join('\n'), note: `alg ${header.alg || '?'} · ${state} · signature NOT checked` };
+      },
+    });
   },
   _urlencode() {
-    const { body } = this._modal('% URL Encode', this._ta('ue-in', 'text or an encoded URL') + `<div style="display:flex;gap:6px;margin-top:8px"><button id="ue-enc" style="padding:7px 12px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Encode</button><button id="ue-dec" style="padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Decode</button></div>` + this._out('ue-out'));
-    const inEl = body.querySelector('#ue-in'), out = body.querySelector('#ue-out');
-    body.querySelector('#ue-enc').addEventListener('click', () => { try { out.style.color = 'var(--text)'; out.textContent = encodeURIComponent(inEl.value); } catch (e) { out.textContent = 'Error'; } });
-    body.querySelector('#ue-dec').addEventListener('click', () => { try { out.style.color = 'var(--text)'; out.textContent = decodeURIComponent(inEl.value); } catch (e) { out.style.color = 'var(--danger,#ef4444)'; out.textContent = 'Malformed URL encoding'; } });
-    body.appendChild(this._copyBtn(() => out.textContent));
+    return window.ToolboxWorkbench.open({
+      id: 'urlencode',
+      details: [
+            {
+                  "title": "Component or whole URI",
+                  "rows": [
+                        [
+                              "Component",
+                              "Encodes / ? & = # — for one value you are putting INTO a URL."
+                        ],
+                        [
+                              "Whole URI",
+                              "Leaves the structural characters alone so the URL still works."
+                        ]
+                  ]
+            },
+            {
+                  "title": "Spaces",
+                  "text": "A space is %20 in a path and may be + in a query string, because form encoding predates the URL standard. Use the + toggle when you are handling form data."
+            },
+            {
+                  "title": "Try one",
+                  "examples": true,
+                  "rows": [
+                        [
+                              "https://example.com/search?q=how are you&lang=en",
+                              "Spaces in a query."
+                        ],
+                        [
+                              "caf%C3%A9%20%2B%20cr%C3%A8me",
+                              "Percent-encoded UTF-8, to decode."
+                        ]
+                  ]
+            }
+      ],
+      title: 'URL encode',
+      icon: 'link',
+      blurb: 'Percent-encoding for a whole URL or a single component, with +-for-space and a query breakdown.',
+      placeholder: 'Text or URL…',
+      runLabel: 'Convert',
+      sample: 'https://example.com/search?q=how are you&lang=en',
+      options: [
+        { id: 'mode', label: 'Operation', type: 'select', default: 'encode', options: [['encode', 'Encode'], ['decode', 'Decode'], ['parse', 'Break a URL apart']] },
+        { id: 'scope', label: 'Scope', type: 'select', default: 'component',
+          options: [['component', 'Component (encodes / ? & =)'], ['uri', 'Whole URI (keeps them)']], when: (s) => s.mode !== 'parse' },
+        { id: 'plus', label: 'Use + for spaces (form style)', type: 'toggle', default: false, when: (s) => s.mode !== 'parse' },
+      ],
+      swap: (_i, out, opt) => ({ input: out, opt: { mode: opt.mode === 'encode' ? 'decode' : 'encode' } }),
+      run({ input, opt }) {
+        if (opt.mode === 'parse') {
+          let u;
+          try { u = new URL(input.trim()); } catch { throw new Error('That is not a complete URL (it needs a scheme, like https://).'); }
+          const lines = [
+            `scheme    ${u.protocol.replace(':', '')}`,
+            `host      ${u.hostname}`,
+            u.port ? `port      ${u.port}` : null,
+            `path      ${u.pathname}`,
+            u.hash ? `fragment  ${u.hash.slice(1)}` : null,
+          ].filter(Boolean);
+          const params = [...u.searchParams.entries()];
+          if (params.length) {
+            lines.push('', `query (${params.length})`);
+            for (const [k, v] of params) lines.push(`  ${k} = ${v}`);
+          }
+          return { output: lines.join('\n'), note: `${u.hostname} · ${params.length} query parameter${params.length === 1 ? '' : 's'}` };
+        }
+        if (opt.mode === 'encode') {
+          let s = opt.scope === 'uri' ? encodeURI(input) : encodeURIComponent(input);
+          if (opt.plus) s = s.replace(/%20/g, '+');
+          return { output: s, note: `${input.length} in · ${s.length} out` };
+        }
+        let s = opt.plus ? input.replace(/\+/g, '%20') : input;
+        try { return { output: opt.scope === 'uri' ? decodeURI(s) : decodeURIComponent(s) }; }
+        catch { throw new Error('That contains a broken percent-escape (a % not followed by two hex digits).'); }
+      },
+    });
   },
+  // ---- Case ---------------------------------------------------------------
   _caseconvert() {
-    const modes = [['upper','UPPER'],['lower','lower'],['title','Title'],['sentence','Sentence'],['camel','camelCase'],['snake','snake_case'],['kebab','kebab-case'],['constant','CONSTANT']];
-    const { body } = this._modal('Aa Case Convert', this._ta('cc-in', 'type or paste text') + `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">` + modes.map(m => `<button class="cc-m" data-m="${m[0]}" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11.5px;font-family:'Outfit',sans-serif">${m[1]}</button>`).join('') + `</div>` + this._out('cc-out'));
-    const inEl = body.querySelector('#cc-in'), out = body.querySelector('#cc-out');
-    body.querySelectorAll('.cc-m').forEach(b => b.addEventListener('click', () => { out.textContent = ToolboxLib.caseConvert(inEl.value, b.dataset.m); }));
-    body.appendChild(this._copyBtn(() => out.textContent));
+    const words = (s) => s.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[\s_\-.]+/).filter(Boolean);
+    const CASES = {
+      lower: (s) => s.toLowerCase(),
+      upper: (s) => s.toUpperCase(),
+      title: (s) => words(s).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(' '),
+      sentence: (s) => { const t = s.toLowerCase(); return t.replace(/(^\s*\w|[.!?]\s+\w)/g, c => c.toUpperCase()); },
+      camel: (s) => words(s).map((w, i) => i ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase()).join(''),
+      pascal: (s) => words(s).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(''),
+      snake: (s) => words(s).map(w => w.toLowerCase()).join('_'),
+      constant: (s) => words(s).map(w => w.toUpperCase()).join('_'),
+      kebab: (s) => words(s).map(w => w.toLowerCase()).join('-'),
+      dot: (s) => words(s).map(w => w.toLowerCase()).join('.'),
+      path: (s) => words(s).map(w => w.toLowerCase()).join('/'),
+      alternating: (s) => [...s].map((c, i) => i % 2 ? c.toUpperCase() : c.toLowerCase()).join(''),
+      inverted: (s) => [...s].map(c => c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()).join(''),
+    };
+    return window.ToolboxWorkbench.open({
+      id: 'caseconvert',
+      details: [
+            {
+                  "title": "Where each is used",
+                  "rows": [
+                        [
+                              "camelCase",
+                              "JavaScript variables, JSON keys."
+                        ],
+                        [
+                              "PascalCase",
+                              "Class and component names."
+                        ],
+                        [
+                              "snake_case",
+                              "Python, SQL columns, Rust."
+                        ],
+                        [
+                              "CONSTANT_CASE",
+                              "Environment variables, constants."
+                        ],
+                        [
+                              "kebab-case",
+                              "URLs, CSS classes, file names."
+                        ]
+                  ]
+            },
+            {
+                  "title": "How words are found",
+                  "text": "Splitting happens at spaces, underscores, hyphens, dots and at a lower-to-upper boundary — so \"parseHTTPResponse\" and \"parse_http_response\" give the same words."
+            }
+      ],
+      title: 'Change case',
+      icon: 'type',
+      blurb: 'camelCase, snake_case, kebab-case, CONSTANT_CASE, Title Case and more — one at a time or all at once.',
+      placeholder: 'some text to convert',
+      runLabel: 'Convert',
+      sample: 'the quick brown fox',
+      options: [
+        { id: 'target', label: 'Convert to', type: 'select', default: 'all',
+          options: [['all', 'Show every case'], ...Object.keys(CASES).map(k => [k, k])] },
+      ],
+      run({ input, opt }) {
+        if (opt.target !== 'all') return { output: CASES[opt.target](input) };
+        const width = Math.max(...Object.keys(CASES).map(k => k.length));
+        return {
+          output: Object.entries(CASES).map(([k, fn]) => `${k.padEnd(width)}  ${fn(input)}`).join('\n'),
+          note: `${Object.keys(CASES).length} forms`,
+        };
+      },
+    });
   },
   _passgen() {
     const { body } = this._modal(this._title('lock', 'Password Generator'), `

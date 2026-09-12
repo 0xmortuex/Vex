@@ -49,6 +49,7 @@
   <!-- After every feature sheet so the browser looks win; a11y.css stays last. -->
   <link rel="stylesheet" href="css/gui-browser.css">
   <link rel="stylesheet" href="css/discover.css">
+  <link rel="stylesheet" href="css/toolbox-workbench.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -1121,6 +1122,8 @@
   <script src="js/calc.js"></script>
   <script src="js/send-to-phone.js"></script>
   <script src="js/auto-reload.js"></script>
+  <!-- The shared shell every workbench tool is built on; must load first. -->
+  <script src="js/toolbox-workbench.js"></script>
   <script src="js/toolbox.js"></script>
   <script src="js/toolbox-packs.js"></script>
   <script src="js/toolbox-pack-text.js"></script>
