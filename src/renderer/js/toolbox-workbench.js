@@ -97,6 +97,7 @@ const ToolboxWorkbench = (() => {
     m.innerHTML = `
       <div class="wb-shell" role="dialog" aria-label="${esc(spec.title)}">
         <div class="wb-head">
+          ${spec.onBack ? `<button class="wb-icon-btn" id="wb-back" title="Back to the Toolbox" aria-label="Back to the Toolbox">${icon('arrow-left', 15)}</button>` : ''}
           <span class="wb-head-icon">${icon(spec.icon || 'toolbox', 16)}</span>
           <span class="wb-head-title">${esc(spec.title)}</span>
           <span class="wb-head-blurb">${esc(spec.blurb || '')}</span>
@@ -157,6 +158,8 @@ const ToolboxWorkbench = (() => {
     const close = () => m.remove();
     m.addEventListener('mousedown', (e) => { if (e.target === m) close(); });
     $('#wb-close').addEventListener('click', close);
+    // Back to the launcher, at the search, filter and scroll it was left at.
+    $('#wb-back')?.addEventListener('click', () => { close(); try { spec.onBack(); } catch (err) { window.showToast?.('Could not reopen the Toolbox: ' + ((err && err.message) || ''), 'error'); } });
     m.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
 
     const persist = () => saveState(spec.id, {

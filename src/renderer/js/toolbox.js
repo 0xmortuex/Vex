@@ -316,7 +316,54 @@ const Toolbox = {
 
   // Launcher: search, family filter, your job's tools first, your links, then
   // everything by family.
-  open() {
+  // === Favourites and getting back ========================================
+  //
+  // Opening a tool used to destroy the launcher, so closing the tool left you
+  // at the browser — and finding the next tool meant reopening the Toolbox,
+  // re-typing the search and scrolling back down. The launcher's state is now
+  // remembered and restored, and a tool opened from it carries a way back.
+  FAVOURITES_KEY: 'vex.toolFavourites',
+
+  favourites() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(this.FAVOURITES_KEY) || '[]');
+      return Array.isArray(raw) ? raw.filter(x => typeof x === 'string') : [];
+    } catch { return []; }
+  },
+
+  isFavourite(id) { return this.favourites().includes(id); },
+
+  // Returns false when the change could not be stored, so a caller can say so
+  // rather than show a filled star that will not survive a restart.
+  toggleFavourite(id) {
+    const list = this.favourites();
+    const at = list.indexOf(id);
+    if (at >= 0) list.splice(at, 1); else list.unshift(id);
+    try { localStorage.setItem(this.FAVOURITES_KEY, JSON.stringify(list.slice(0, 60))); }
+    catch { return false; }
+    return true;
+  },
+
+  // Where the launcher was when a tool was opened from it.
+  _launcherState: null,
+
+  _rememberLauncher(m, state) {
+    const list = m.querySelector('#tb-list');
+    this._launcherState = { q: state.q, fam: state.fam, scroll: list ? list.scrollTop : 0 };
+  },
+
+  // Reopen the launcher exactly where it was left.
+  backToLauncher() {
+    const saved = this._launcherState;
+    document.getElementById('vex-workbench')?.remove();
+    document.getElementById('vex-tbtool')?.remove();
+    this.open(saved || undefined);
+    this._launcherState = null;
+  },
+
+  // `restore` puts the launcher back exactly where it was left: same search,
+  // same family filter, same scroll position. Passed by backToLauncher().
+  open(restore) {
     document.getElementById('vex-toolbox')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-toolbox';
@@ -336,11 +383,19 @@ const Toolbox = {
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelector('#tb-close').addEventListener('click', close);
     m.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-    const state = { q: '', fam: 'all' };
+    const state = { q: (restore && restore.q) || '', fam: (restore && restore.fam) || 'all' };
     const search = m.querySelector('#tb-search');
+    if (state.q) search.value = state.q;
     search.addEventListener('input', () => { state.q = search.value.trim(); this._paintList(m, state); });
+    // Kept on the element so toggling a star can repaint without re-deriving it.
+    m.__tbState = state;
     this._paintFamilies(m, state);
     this._paintList(m, state);
+    // Put the scroll back, now there is a list to scroll.
+    if (restore && restore.scroll) {
+      const list = m.querySelector('#tb-list');
+      if (list) list.scrollTop = restore.scroll;
+    }
     search.focus();
   },
 
@@ -365,18 +420,44 @@ const Toolbox = {
 
   // `iconHtml` is markup (an <svg> from VexIcons, or escaped typographic text),
   // not a plain glyph — build it with iconMarkup() rather than passing a string.
-  _card(label, iconHtml, desc, onClick) {
+  _card(label, iconHtml, desc, onClick, favId) {
     const b = document.createElement('button');
     b.className = 'tb-tool';
-    b.style.cssText = "text-align:left;padding:11px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:'Outfit',sans-serif;min-width:0";
+    b.style.cssText = "position:relative;text-align:left;padding:11px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:'Outfit',sans-serif;min-width:0";
     const i = document.createElement('div'); i.style.cssText = 'font-size:15px;line-height:1;height:18px;color:var(--text)'; i.innerHTML = iconHtml;
-    const n = document.createElement('div'); n.style.cssText = 'font-size:12.5px;font-weight:600;color:var(--text);margin-top:4px'; n.textContent = label;
+    const n = document.createElement('div'); n.style.cssText = 'font-size:12.5px;font-weight:600;color:var(--text);margin-top:4px;padding-right:18px'; n.textContent = label;
     const d = document.createElement('div'); d.style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.35'; d.textContent = desc;
     b.append(i, n, d);
     b.addEventListener('click', onClick);
+
+    // A star, for the tools you actually use. It sits inside the card button,
+    // so its click has to be stopped from also opening the tool.
+    if (favId) {
+      const star = document.createElement('span');
+      star.className = 'tb-fav';
+      star.setAttribute('role', 'button');
+      star.setAttribute('tabindex', '0');
+      const paint = () => {
+        const on = this.isFavourite(favId);
+        star.title = on ? 'Remove from favourites' : 'Add to favourites';
+        star.style.cssText = 'position:absolute;top:8px;right:8px;display:inline-flex;line-height:0;color:' + (on ? 'var(--primary)' : 'var(--text-muted)') + ';opacity:' + (on ? '1' : '0.45');
+        star.innerHTML = this._svg('star', 13);
+      };
+      paint();
+      const toggle = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!this.toggleFavourite(favId)) { window.showToast?.('Could not save that favourite', 'error'); return; }
+        paint();
+        const m = document.getElementById('vex-toolbox');
+        if (m && m.__tbState) { this._paintFamilies(m, m.__tbState); this._paintList(m, m.__tbState); }
+      };
+      star.addEventListener('click', toggle);
+      star.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') toggle(e); });
+      b.appendChild(star);
+    }
     return b;
   },
-
   _section(list, title, cards) {
     if (!cards.length) return;
     const h = document.createElement('div');
@@ -391,7 +472,11 @@ const Toolbox = {
   _paintList(m, state) {
     const list = m.querySelector('#tb-list');
     list.innerHTML = '';
-    const toolCard = (t) => this._card(t.name, this.iconMarkup(t), t.desc, () => { m.remove(); this.openTool(t.id); });
+    const toolCard = (t) => this._card(t.name, this.iconMarkup(t), t.desc, () => {
+      this._rememberLauncher(m, state);
+      m.remove();
+      this.openTool(t.id);
+    }, t.id);
     const all = this.all().filter(t => this._matches(t, state.q));
     const enabled = this.enabledIds() || [];
     let shown = 0;
@@ -418,6 +503,16 @@ const Toolbox = {
       list.appendChild(opt);
     };
 
+    // Starred tools come first, in every view except an explicit family
+    // filter, because putting them anywhere else defeats the star.
+    const favs = () => {
+      const ids = this.favourites();
+      if (!ids.length) return 0;
+      const picked = ids.map(id => all.find(t => t.id === id)).filter(Boolean);
+      if (!picked.length) return 0;
+      this._section(list, 'Favourites', picked.map(toolCard));
+      return picked.length;
+    };
     if (state.fam === 'links') { links(); }
     else if (state.fam === 'job') {
       const jobTools = all.filter(t => enabled.includes(t.id));
@@ -429,9 +524,11 @@ const Toolbox = {
       shown = famTools.length;
     } else if (state.q) {
       links();
+      favs();
       this._section(list, 'Tools', all.map(toolCard));
       shown += all.length;
     } else {
+      shown += favs();
       const jobTools = all.filter(t => enabled.includes(t.id));
       this._section(list, 'For your job', jobTools.map(toolCard));
       links();
@@ -539,6 +636,7 @@ const Toolbox = {
       runLabel: 'Run',
       options,
       details,
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       run: ({ input, opt }) => {
         const raw = {};
         for (const f of fields) {
@@ -593,6 +691,7 @@ const Toolbox = {
   // ---- Regex --------------------------------------------------------------
   _regex() {
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'regex',
       title: 'Regex tester',
       icon: 'search',
@@ -661,6 +760,7 @@ const Toolbox = {
   },
   _json() {
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'json',
       details: [
             {
@@ -748,6 +848,7 @@ const Toolbox = {
       return rows;
     };
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'csv',
       title: 'CSV',
       icon: 'database',
@@ -851,6 +952,7 @@ const Toolbox = {
     };
 
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'base64',
       details: [
             {
@@ -993,6 +1095,7 @@ const Toolbox = {
     const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
     const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'hash',
       details: [
             {
@@ -1084,6 +1187,7 @@ const Toolbox = {
   // ---- Timestamp ----------------------------------------------------------
   _timestamp() {
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'timestamp',
       details: [
             {
@@ -1186,6 +1290,7 @@ const Toolbox = {
     };
 
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'cron',
       title: 'Cron',
       icon: 'clock',
@@ -1260,6 +1365,7 @@ const Toolbox = {
   },
   _uuid() {
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'uuid',
       title: 'UUID',
       icon: 'fingerprint',
@@ -1325,6 +1431,7 @@ const Toolbox = {
   },
   _wordcount() {
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'wordcount',
       details: [
             {
@@ -1425,6 +1532,7 @@ const Toolbox = {
     const hex2 = (n) => Math.round(n).toString(16).padStart(2, '0');
 
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'color',
       title: 'Colour',
       icon: 'palette',
@@ -1504,6 +1612,7 @@ const Toolbox = {
       return decodeURIComponent(escape(atob(norm + '='.repeat((4 - norm.length % 4) % 4))));
     };
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'jwt',
       details: [
             {
@@ -1589,6 +1698,7 @@ const Toolbox = {
   },
   _urlencode() {
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'urlencode',
       details: [
             {
@@ -1684,6 +1794,7 @@ const Toolbox = {
       inverted: (s) => [...s].map(c => c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()).join(''),
     };
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'caseconvert',
       details: [
             {
@@ -1739,6 +1850,7 @@ const Toolbox = {
   // ---- Password -----------------------------------------------------------
   _passgen() {
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'passgen',
       title: 'Password',
       icon: 'key',
@@ -1807,6 +1919,7 @@ const Toolbox = {
   // ---- Markdown -----------------------------------------------------------
   _markdown() {
     return window.ToolboxWorkbench.open({
+      onBack: this._launcherState ? () => this.backToLauncher() : null,
       id: 'markdown',
       title: 'Markdown',
       icon: 'file',
