@@ -114,17 +114,36 @@ describe('AIPanel conversation persistence', () => {
     expect(stored.t1[stored.t1.length - 1].content).toBe('m199');
   });
 
-  it('drops conversations for tabs that no longer exist', () => {
+  // Chats used to be deleted the moment their tab closed, which made "Recent
+  // chats" tell the user their own conversation was unreachable. They are kept
+  // now; what must never be written is a chat from a private tab, and that is
+  // decided when the conversation is created rather than when it is saved,
+  // because by then the tab may be gone.
+  it('keeps a conversation whose tab has been closed', () => {
     localStorage.clear();
     globalThis.window.TabManager = { tabs: [{ id: 'alive' }] };
     globalThis.TabManager = globalThis.window.TabManager;
+    AIPanel._convPrivate = {};
     AIPanel._conversations = {
       alive: [{ role: 'user', content: 'still here' }],
-      closed: [{ role: 'user', content: 'gone' }],
+      closed: [{ role: 'user', content: 'also still here' }],
     };
     AIPanel._persistConversations();
     const stored = JSON.parse(localStorage.getItem(AIPanel.CONV_KEY));
-    expect(Object.keys(stored)).toEqual(['alive']);
+    expect(Object.keys(stored).sort()).toEqual(['alive', 'closed']);
+    delete globalThis.TabManager;
+    delete globalThis.window.TabManager;
+  });
+
+  it('never writes a private tab chat, tab open or closed', () => {
+    localStorage.clear();
+    globalThis.window.TabManager = { tabs: [{ id: 'secret' }] };
+    globalThis.TabManager = globalThis.window.TabManager;
+    AIPanel._conversations = { secret: [{ role: 'user', content: 'off the record' }] };
+    AIPanel._convPrivate = { secret: true };
+    AIPanel._persistConversations();
+    expect(localStorage.getItem(AIPanel.CONV_KEY)).not.toContain('off the record');
+    AIPanel._convPrivate = {};
     delete globalThis.TabManager;
     delete globalThis.window.TabManager;
   });

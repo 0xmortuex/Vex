@@ -44,8 +44,15 @@ const PasswordVault = {
   // appeared on them.
   _host(value) { return String(value || '').toLowerCase().replace(/^www\./, ''); },
 
+  // Registered through the webview's lifecycle so destroyWebview can take it
+  // off again. A handler left on the element captures `webview` in its closure,
+  // and that keeps the whole element alive for the life of the window — one
+  // leaked webview per closed tab.
   attach(webview) {
-    webview.addEventListener('ipc-message', async (e) => {
+    const on = (webview && webview._lifecycle)
+      ? (ev, fn) => webview._lifecycle.listen(webview, ev, fn)
+      : (ev, fn) => webview.addEventListener(ev, fn);
+    on('ipc-message', async (e) => {
       if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
       let actualHost;
       try { const current = new URL(webview.getURL()); if (current.protocol !== 'https:') return; actualHost = this._host(current.hostname); } catch { return; }

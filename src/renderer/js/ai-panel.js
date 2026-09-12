@@ -6,6 +6,12 @@ const AI_WORKER_URL = (typeof window !== 'undefined' && window.VexConfig) ? wind
 
 const AIPanel = {
   _conversations: {},
+  // Which conversations came from a private tab (never persisted), and which
+  // conversation the panel is currently showing when it is not the active
+  // tab's own. Closing a tab no longer deletes its chat, so Recent chats can
+  // reopen one whose tab is long gone.
+  _convPrivate: {},
+  _viewingId: null,
   _sending: false,
   _agentMode: 'ask',
 
@@ -218,11 +224,49 @@ const AIPanel = {
     dd.hidden = false;
   },
 
+  // The search box, created once, above the list.
+  _mountPersonaSearch() {
+    const dd = document.getElementById('persona-dropdown');
+    if (!dd || dd.querySelector('#persona-search')) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'persona-search-wrap';
+    const input = document.createElement('input');
+    input.id = 'persona-search';
+    input.type = 'search';
+    input.placeholder = 'Filter personas…';
+    input.autocomplete = 'off';
+    input.addEventListener('input', () => {
+      this._personaFilter = input.value;
+      this._renderPersonaDropdown();
+      // Re-rendering the list does not touch this input, so focus is kept.
+      input.focus();
+    });
+    // Escape clears the filter before the dropdown-closing handler sees it.
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && input.value) {
+        e.stopPropagation();
+        input.value = '';
+        this._personaFilter = '';
+        this._renderPersonaDropdown();
+        input.focus();
+      }
+    });
+    wrap.appendChild(input);
+    dd.insertBefore(wrap, dd.firstChild);
+  },
+
+  // Filter, so 25 personas is a search rather than a scroll.
+  _personaFilter: '',
+
   _renderPersonaDropdown() {
     if (typeof PersonasManager === 'undefined') return;
     const list = document.getElementById('persona-list');
     if (!list) return;
-    const all = PersonasManager.getAll();
+    this._mountPersonaSearch();
+    const q = String(this._personaFilter || '').trim().toLowerCase();
+    const all = PersonasManager.getAll().filter(p => !q
+      || String(p.name || '').toLowerCase().includes(q)
+      || String(p.description || '').toLowerCase().includes(q));
     const active = this.getActivePersona();
     list.innerHTML = all.map(p => `
       <div class="persona-item ${p.id === active?.id ? 'active' : ''}" data-persona-id="${this._esc(p.id)}">
@@ -234,6 +278,7 @@ const AIPanel = {
         ${p.isBuiltIn ? '<span class="persona-item-builtin">built-in</span>' : ''}
       </div>
     `).join('');
+    if (!all.length) list.innerHTML = '<div class="persona-item-desc" style="padding:10px">No persona matches that.</div>';
     list.querySelectorAll('.persona-item').forEach(el => {
       el.addEventListener('click', () => {
         const id = el.dataset.personaId;
@@ -403,11 +448,34 @@ const AIPanel = {
       if (td && !td.hidden) { td.hidden = true; return; }
       this.close();
     };
-    this._onWinBlur = () => { if (this.isOpen()) this.close(); };
+    // Window blur fires for two different things: clicking into a page (the
+    // click happens in a <webview> and never reaches this document) and
+    // switching to another application. Only the first should dismiss the
+    // panel — closing on alt-tab loses your place for no reason.
+    //
+    // They are told apart by where focus went: into a webview, or out of the
+    // window entirely. The check is deferred a tick because activeElement is
+    // not updated until after blur.
+    this._onWinBlur = () => {
+      if (!this.isOpen()) return;
+      setTimeout(() => {
+        if (!this.isOpen()) return;
+        const el = document.activeElement;
+        const intoPage = !!el && el.tagName === 'WEBVIEW';
+        const leftTheApp = typeof document.hasFocus === 'function' && !document.hasFocus();
+        if (intoPage || !leftTheApp) this.close();
+      }, 0);
+    };
+    // A page click that focuses the guest directly, without a window blur.
+    this._onFocusIn = (e) => {
+      if (!this.isOpen()) return;
+      if (e.target && e.target.tagName === 'WEBVIEW') this.close();
+    };
     setTimeout(() => {
       document.addEventListener('mousedown', this._onDocDown, true);
       document.addEventListener('keydown', this._onEsc, true);
       window.addEventListener('blur', this._onWinBlur);
+      document.addEventListener('focusin', this._onFocusIn, true);
     }, 0);
   },
 
@@ -415,7 +483,8 @@ const AIPanel = {
     if (this._onDocDown) document.removeEventListener('mousedown', this._onDocDown, true);
     if (this._onEsc) document.removeEventListener('keydown', this._onEsc, true);
     if (this._onWinBlur) window.removeEventListener('blur', this._onWinBlur);
-    this._onDocDown = this._onEsc = this._onWinBlur = null;
+    if (this._onFocusIn) document.removeEventListener('focusin', this._onFocusIn, true);
+    this._onDocDown = this._onEsc = this._onWinBlur = this._onFocusIn = null;
   },
 
   // Starters belong to an empty conversation; once there is a thread they are
@@ -431,12 +500,48 @@ const AIPanel = {
   // === Chats ==============================================================
 
   newChat() {
+    this._viewingId = null;
+    this._syncViewingBanner();
     const id = this._getTabId();
     if (id != null) { this._conversations[id] = []; this._persistConversations(); }
     this._renderMessages();
     this._syncStarters();
     this._renderPersonaQuickPrompts();
     document.getElementById('ai-input')?.focus();
+  },
+
+  // Say plainly when the panel is showing a past chat rather than this tab's,
+  // with a way back. Without this the header would claim to be "talking about"
+  // the current page while showing someone else's conversation.
+  _syncViewingBanner() {
+    const panel = document.getElementById('ai-panel');
+    if (!panel) return;
+    let bar = document.getElementById('ai-viewing');
+    if (!this._viewingId) { if (bar) bar.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'ai-viewing';
+      bar.className = 'ai-viewing';
+      const label = document.createElement('span');
+      label.className = 'ai-viewing-label';
+      const back = document.createElement('button');
+      back.className = 'btn-link';
+      back.textContent = 'Back to this tab';
+      back.addEventListener('click', () => {
+        this._viewingId = null;
+        this._syncViewingBanner();
+        this._renderMessages();
+        this._syncStarters();
+      });
+      bar.appendChild(label);
+      bar.appendChild(back);
+      const body = panel.querySelector('.ai-body');
+      if (body) panel.insertBefore(bar, body); else panel.appendChild(bar);
+    }
+    const tab = (typeof TabManager !== 'undefined' && TabManager.tabs)
+      ? TabManager.tabs.find(t => String(t.id) === String(this._viewingId)) : null;
+    bar.querySelector('.ai-viewing-label').textContent =
+      tab ? `Earlier chat — ${tab.title || tab.url || 'another tab'}` : 'Earlier chat — from a tab you have since closed';
   },
 
   toggleHistory(force) {
@@ -475,14 +580,13 @@ const AIPanel = {
       b.querySelector('.t').textContent = (r.first && r.first.content.slice(0, 70)) || titleOf(r.tabId);
       b.querySelector('.m').textContent = `${r.msgs.length} message${r.msgs.length === 1 ? '' : 's'} · ${titleOf(r.tabId)}`;
       b.addEventListener('click', () => {
-        // Switching to the tab is what actually changes the conversation,
-        // because a chat belongs to its tab.
-        const t = (typeof TabManager !== 'undefined' ? TabManager.tabs : []).find(x => String(x.id) === String(r.tabId));
-        if (t && typeof TabManager !== 'undefined') TabManager.switchTab(t.id);
-        else window.showToast?.('That tab is closed, so its chat cannot be reopened');
+        // Open the chat here rather than hunting for its tab. Chats outlive
+        // tabs now, so "that tab is closed" is no longer a dead end.
+        this._viewingId = String(r.tabId) === String(this._getTabId()) ? null : r.tabId;
         this.toggleHistory(false);
         this._renderMessages();
         this._syncStarters();
+        this._syncViewingBanner();
       });
       list.appendChild(b);
     }
@@ -557,6 +661,8 @@ const AIPanel = {
   close() {
     document.getElementById('ai-panel')?.classList.remove('open');
     this.toggleHistory(false);
+    this._viewingId = null;
+    this._syncViewingBanner();
     this._unbindDismiss();
     this._syncBackdrop();
   },
@@ -571,9 +677,19 @@ const AIPanel = {
   _getTabId() { return TabManager.activeTabId; },
 
   _getConv(tabId) {
-    const id = tabId || this._getTabId();
+    // When a past chat is open from Recent chats, that is the conversation —
+    // otherwise it is the active tab's.
+    const id = tabId || this._viewingId || this._getTabId();
     if (!id) return [];
-    if (!this._conversations[id]) this._conversations[id] = [];
+    if (!this._conversations[id]) {
+      this._conversations[id] = [];
+      // Decide privacy now: once the tab closes there is nothing left to ask.
+      try {
+        const tab = (typeof TabManager !== 'undefined' && TabManager.tabs)
+          ? TabManager.tabs.find(t => String(t.id) === String(id)) : null;
+        if (tab && window.VexTabPolicy && !window.VexTabPolicy.canPersist(tab)) this._convPrivate[id] = true;
+      } catch {}
+    }
     return this._conversations[id];
   },
 
@@ -604,16 +720,14 @@ const AIPanel = {
 
   _persistConversations() {
     try {
-      // Private/incognito tabs are excluded the same way tab restore excludes
-      // them — a chat about a private page must not survive on disk.
-      const liveIds = (typeof TabManager !== 'undefined' && Array.isArray(TabManager.tabs))
-        ? new Set(TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canPersist(t)).map(t => t.id))
-        : null;
       const out = {};
       let kept = 0;
-      const ids = Object.keys(this._conversations).reverse(); // newest tabs first
+      const ids = Object.keys(this._conversations).reverse(); // newest first
       for (const id of ids) {
-        if (liveIds && !liveIds.has(id)) continue;            // tab was closed
+        // A chat about a private page must never reach disk. Privacy is
+        // recorded when the conversation is created, because by the time it is
+        // saved the tab may be gone and there is nothing left to ask.
+        if (this._convPrivate[id]) continue;
         const msgs = this._conversations[id];
         if (!Array.isArray(msgs) || !msgs.length) continue;
         if (++kept > this.MAX_CONV_TABS) break;
@@ -753,7 +867,11 @@ const AIPanel = {
         const vexMsg = this._vexKnowledge(opts.message);
         if (vexMsg) conversationHistory = [vexMsg, ...conversationHistory.slice(-9)];
       }
+      // Only chat streams: the other actions render structured output that
+      // means nothing until it is complete.
+      const onToken = (feature === 'chat') ? this._liveRenderer(loadingEl) : null;
       const aiResult = await AIRouter.callAI(feature, {
+        onToken,
         message: opts.message,
         pageContext,
         selectedText: opts.selectedText,
@@ -1020,6 +1138,154 @@ const AIPanel = {
     this._syncStarters();
   },
 
+  // === Live answers ========================================================
+  //
+  // The local backend streams NDJSON, so the answer can be shown as it is
+  // written instead of appearing all at once after a long wait. This turns the
+  // "Thinking" bubble into the answer in place.
+  //
+  // Two things make it more than a cosmetic change:
+  //   - a reasoning model's <think> block arrives FIRST, so the thinking panel
+  //     fills in live and the user can see it is working, not stuck;
+  //   - the model usually answers in JSON ({"reply": "..."}), which is
+  //     unreadable mid-stream, so partial text is un-wrapped before display.
+
+  // Pull something human-readable out of a half-finished response.
+  _streamPreview(raw) {
+    const split = this._extractThinking(String(raw || ''));
+    let body = split.text.replace(/^```(?:json)?\s*/i, '');
+    // '{"reply": "half a sent' -> 'half a sent'
+    const inReply = body.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    if (inReply) body = this._unescapeJsonString(inReply[1]);
+    else if (/^\s*\{/.test(body)) body = '';   // JSON started but no reply yet
+    return { thinking: split.thinking, body: body.trim() };
+  },
+
+  // Turn the loading bubble into a live one and return the token handler.
+  _liveRenderer(loadingEl) {
+    if (!loadingEl) return null;
+    const container = document.getElementById('ai-messages');
+    let started = false;
+    let thinkEl = null;
+    let bodyEl = null;
+    // A timer, not requestAnimationFrame: rAF is throttled when the window is
+    // not actively rendering, so the live view silently never updated — the
+    // answer arrived all at once at the end, which is the thing this exists to
+    // avoid. ~50ms is below the eye's threshold for "appearing as typed".
+    let timer = 0;
+    let pending = null;
+
+    const paint = () => {
+      timer = 0;
+      const { thinking, body } = pending || {};
+      if (thinking) {
+        if (!thinkEl) {
+          thinkEl = this._thinkingBlock(thinking);
+          // Open while it is the only thing happening, so the wait is legible.
+          if (thinkEl) { thinkEl.open = true; loadingEl.insertBefore(thinkEl, loadingEl.firstChild); }
+        } else {
+          const b = thinkEl.querySelector('.ai-thinking-body');
+          if (b) b.textContent = thinking;
+          const label = thinkEl.querySelector('.ai-thinking-label');
+          const words = thinking.trim().split(/\s+/).filter(Boolean).length;
+          if (label) label.textContent = `Thinking… ${words} word${words === 1 ? '' : 's'}`;
+        }
+      }
+      if (body) {
+        if (!bodyEl) {
+          bodyEl = document.createElement('div');
+          bodyEl.className = 'ai-msg-content';
+          loadingEl.appendChild(bodyEl);
+        }
+        // Plain text while streaming: markdown is rendered once at the end,
+        // because half a fence or half a link renders as garbage.
+        bodyEl.textContent = body;
+      }
+      const nearBottom = container && (container.scrollHeight - container.scrollTop - container.clientHeight < 120);
+      if (container && nearBottom) container.scrollTop = container.scrollHeight;
+    };
+
+    return (_piece, full) => {
+      if (!started) {
+        started = true;
+        // Drop the "Thinking <spinner>" placeholder text, keep the bubble.
+        loadingEl.textContent = '';
+        loadingEl.classList.remove('loading');
+        loadingEl.classList.add('streaming');
+      }
+      pending = this._streamPreview(full);
+      if (!timer) timer = setTimeout(paint, 50);
+    };
+  },
+
+  // When the answer names a Vex feature, offer the way in.
+  //
+  // The model is given the catalogue, so it describes real features by their
+  // real names — and the catalogue also knows how to open each one. Reading
+  // "Vex has Recall" and then having to go find Recall is a pointless step.
+  //
+  // Only exact feature names are matched, longest first, so "Tabs" inside "Tab
+  // stacks" does not produce a second, wrong chip.
+  MAX_FEATURE_CHIPS: 4,
+
+  _featureChips(answerText) {
+    const F = (typeof VexFeatures !== 'undefined' && VexFeatures) || window.VexFeatures;
+    if (!F || !Array.isArray(F.ITEMS) || !answerText) return null;
+    const hay = String(answerText).toLowerCase();
+
+    const hits = [];
+    const taken = [];
+    const byLength = F.ITEMS.slice().sort((a, b) => (b.name || '').length - (a.name || '').length);
+    for (const f of byLength) {
+      const name = String(f.name || '');
+      if (name.length < 4) continue;
+      const at = hay.indexOf(name.toLowerCase());
+      if (at === -1) continue;
+      // Skip a name sitting inside one already matched.
+      if (taken.some(([s, e]) => at >= s && at < e)) continue;
+      taken.push([at, at + name.length]);
+      hits.push({ f, at });
+      if (hits.length >= this.MAX_FEATURE_CHIPS * 2) break;
+    }
+    if (!hits.length) return null;
+
+    // In the order they appear in the answer.
+    hits.sort((a, b) => a.at - b.at);
+
+    const row = document.createElement('div');
+    row.className = 'ai-feature-chips';
+    let added = 0;
+    for (const { f } of hits) {
+      if (added >= this.MAX_FEATURE_CHIPS) break;
+      // Only offer it if it can actually be opened — a chip that does nothing
+      // is worse than no chip.
+      const cmd = (typeof F.command === 'function') ? F.command(f) : null;
+      const canOpen = !!cmd || !!f.setting || !!f.panel;
+      if (!canOpen) continue;
+
+      const b = document.createElement('button');
+      b.className = 'ai-feature-chip';
+      b.type = 'button';
+      const icon = (typeof F.iconOf === 'function' && window.VexIcons) ? F.iconOf(f) : null;
+      b.innerHTML = (icon && VexIcons.has(icon)) ? VexIcons.svg(icon, { size: 12 }) : '';
+      b.appendChild(document.createTextNode('Open ' + f.name));
+      b.title = f.what || ('Open ' + f.name);
+      b.addEventListener('click', () => {
+        try {
+          if (window.VexDiscover && typeof VexDiscover.openFeature === 'function') {
+            VexDiscover.openFeature(f.id);
+          } else if (cmd) { cmd.action(); }
+          else { window.showToast?.('Could not open ' + f.name, 'error'); }
+        } catch (err) {
+          window.showToast?.('Could not open ' + f.name + ': ' + ((err && err.message) || 'unknown error'), 'error');
+        }
+      });
+      row.appendChild(b);
+      added++;
+    }
+    return added ? row : null;
+  },
+
   // What Vex itself can do.
   //
   // Asked "what features does Vex have?", the model only ever had the text
@@ -1143,6 +1409,9 @@ const AIPanel = {
     contentEl.innerHTML = html;
     el.appendChild(contentEl);
     el.appendChild(this._makeCopyBtn(contentEl));
+
+    const chips = this._featureChips(parsed.reply || parsed.summary || parsed.explanation || '');
+    if (chips) el.appendChild(chips);
 
     // Follow-up buttons (outside content, not copyable)
     if (parsed.suggestedFollowUps?.length) {
@@ -1349,7 +1618,37 @@ const AIPanel = {
 
   // Free-text AI output → sanitized markdown HTML. Falls back to the plain
   // escape path if vex-markdown.js failed to load (never raw HTML).
-  _md(s) { return window.VexMarkdown ? VexMarkdown.render(s || '') : this._esc(s).replace(/\n/g, '<br>'); }
+  // Vex's own interface has no emoji — everything is a drawn icon. A model does
+  // not know that and will happily open with a smiley, which looks out of place
+  // next to an interface that deliberately has none.
+  //
+  // This is the model's own text, so it is a preference rather than a rule, and
+  // it is stripping only: nothing is reworded. Copy still yields what the model
+  // actually said, because the message content is left untouched.
+  STRIP_EMOJI_KEY: 'vex.aiStripEmoji',
+
+  _stripEmojiEnabled() {
+    try {
+      const v = localStorage.getItem(this.STRIP_EMOJI_KEY);
+      return v === null ? true : v === '1';   // on unless turned off
+    } catch { return true; }
+  },
+
+  _deEmoji(text) {
+    if (!text || !this._stripEmojiEnabled()) return text;
+    return String(text)
+      // Keep ©®™, which are ordinary in prose; drop pictographs, skin tones,
+      // flags, the variation selector and ZWJ joiners that glue them together.
+      .replace(/(?![\u00A9\u00AE\u2122])\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}\u{1F1E6}-\u{1F1FF}]|\uFE0F|\u200D|\u20E3/gu, '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/[ \t]+([.,!?;:])/g, '$1')
+      .replace(/^[ \t]+$/gm, '');
+  },
+
+  // Every assistant answer renders through here, so this is the one place the
+  // emoji preference has to be applied.
+  _md(s) { return this._mdRaw(this._deEmoji(s)); },
+  _mdRaw(s) { return window.VexMarkdown ? VexMarkdown.render(s || '') : this._esc(s).replace(/\n/g, '<br>'); },
 };
 
 // Renderer loads this as a plain <script> (AIPanel stays a script-scope global).

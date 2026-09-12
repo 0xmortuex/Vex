@@ -47,7 +47,8 @@ webview:focus-visible {
    * opacity pulse takes its place. Fading is not a vestibular trigger. */
   .ai-spinner,
   .ws-spinner,
-  .agent-spinner {
+  .agent-spinner,
+  .ai-msg.streaming .ai-msg-content::after {
     animation-name: vex-a11y-working !important;
     animation-duration: 1.4s !important;
     animation-iteration-count: infinite !important;

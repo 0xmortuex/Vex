@@ -40,17 +40,23 @@ const MARKUP = `
     <button id="ai-send-agent"></button>
     <button id="ai-export"></button>
     <button id="ai-clear"></button>
-    <div class="persona-dropdown" id="persona-dropdown" hidden></div>
+    <div class="persona-dropdown" id="persona-dropdown" hidden><div class="persona-list" id="persona-list"></div></div>
     <div id="tab-selector-dropdown" hidden></div>
   </div>`;
 
 beforeEach(() => {
   document.body.innerHTML = MARKUP;
   localStorage.clear();
+  // The panel escapes everything it renders through this.
+  window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   AIPanel._shellReady = false;
   AIPanel._conversations = {};
   AIPanel._unbindDismiss();
-  global.window.TabManager = { activeTabId: 'tab-1', tabs: [{ id: 'tab-1', title: 'A page' }], switchTab: vi.fn() };
+  global.window.TabManager = {
+    activeTabId: 'tab-1', tabs: [{ id: 'tab-1', title: 'A page' }],
+    switchTab: vi.fn(), getActiveTab: () => ({ id: 'tab-1', title: 'A page' }),
+  };
   globalThis.TabManager = global.window.TabManager;
   AIPanel._initShell();
 });
@@ -109,11 +115,28 @@ describe('dismissal', () => {
     expect(AIPanel.isOpen()).toBe(true);
   });
 
-  // A page click never reaches this document; window blur is the signal.
-  it('closes when focus leaves for a page', async () => {
+  // A click inside a page happens in a <webview> and never reaches this
+  // document — focus moving into the guest is the signal that it happened.
+  it('closes when you click into the page', async () => {
     await openPanel();
-    window.dispatchEvent(new Event('blur'));
+    const wv = document.createElement('webview');
+    document.body.appendChild(wv);
+    wv.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
     expect(AIPanel.isOpen()).toBe(false);
+  });
+
+  // Switching applications should not cost you your place in the conversation.
+  // This is the case that used to close it: blur fires either way, so the
+  // handler has to look at WHERE focus went.
+  it('stays open when the whole app loses focus', async () => {
+    await openPanel();
+    const had = document.hasFocus;
+    document.hasFocus = () => false;          // the app is in the background
+    try {
+      window.dispatchEvent(new Event('blur'));
+      await new Promise(r => setTimeout(r, 0));
+      expect(AIPanel.isOpen()).toBe(true);
+    } finally { document.hasFocus = had; }
   });
 
   it('closes on Escape', async () => {
@@ -306,5 +329,143 @@ describe('the reasoning survives being stored', () => {
     AIPanel._conversations = {};
     AIPanel._loadConversations();
     expect(AIPanel._conversations.t1[0].thinking.length).toBeLessThanOrEqual(AIPanel.MAX_THINKING_CHARS);
+  });
+});
+
+// Streaming. The local backend sends NDJSON fragments, so a partial answer is
+// usually half-written JSON — unreadable unless it is unwrapped first.
+describe('a streamed answer while it is still arriving', () => {
+  it('unwraps a half-finished JSON reply into readable text', () => {
+    const p = AIPanel._streamPreview('{"reply": "Sea ice forms when');
+    expect(p.body).toBe('Sea ice forms when');
+  });
+
+  it('shows nothing rather than a naked brace before the reply starts', () => {
+    expect(AIPanel._streamPreview('{"repl').body).toBe('');
+    expect(AIPanel._streamPreview('{').body).toBe('');
+  });
+
+  it('separates reasoning that arrives before the answer', () => {
+    const p = AIPanel._streamPreview('<think>working on it');
+    expect(p.thinking).toBe('working on it');
+    expect(p.body).toBe('');
+  });
+
+  it('carries both once the answer has started', () => {
+    const p = AIPanel._streamPreview('<think>done</think>{"reply": "here it is');
+    expect(p.thinking).toBe('done');
+    expect(p.body).toBe('here it is');
+  });
+
+  it('passes plain prose straight through', () => {
+    expect(AIPanel._streamPreview('just talking').body).toBe('just talking');
+  });
+
+  it('decodes escapes rather than showing them raw', () => {
+    expect(AIPanel._streamPreview('{"reply": "line one\nline two').body).toContain('\n');
+  });
+});
+
+describe('ways into the features an answer mentions', () => {
+  it('offers a chip for a feature the answer names', () => {
+    // A setting or panel target opens without CommandBar, which this
+    // environment does not load.
+    const name = VexFeatures.ITEMS.find(f => (f.name || '').length > 8 && (f.setting || f.panel)).name;
+    const row = AIPanel._featureChips(`You can use ${name} for that.`);
+    expect(row).toBeTruthy();
+    expect(row.textContent).toContain(name);
+  });
+
+  it('offers nothing when no feature is named', () => {
+    expect(AIPanel._featureChips('the weather is nice today')).toBe(null);
+  });
+
+  it('never offers more than a handful', () => {
+    const all = VexFeatures.ITEMS.map(f => f.name).join(' and ');
+    const row = AIPanel._featureChips(all);
+    expect(row.querySelectorAll('.ai-feature-chip').length).toBeLessThanOrEqual(AIPanel.MAX_FEATURE_CHIPS);
+  });
+});
+
+describe('emoji in the model\'s own words', () => {
+  it('strips them by default, to match an interface that has none', () => {
+    expect(AIPanel._deEmoji('Hey there! \u{1F60A} all good')).toBe('Hey there! all good');
+  });
+
+  it('leaves ordinary prose symbols alone', () => {
+    expect(AIPanel._deEmoji('Acme \u00a9 2026 \u2122')).toBe('Acme \u00a9 2026 \u2122');
+  });
+
+  it('can be turned back on, because they are the model\'s words', () => {
+    localStorage.setItem(AIPanel.STRIP_EMOJI_KEY, '0');
+    expect(AIPanel._deEmoji('Hi \u{1F60A}')).toBe('Hi \u{1F60A}');
+  });
+});
+
+describe('personas can be filtered', () => {
+  it('narrows the list to what was typed', () => {
+    global.window.PersonasManager = globalThis.PersonasManager = {
+      getAll: () => [{ id: 'a', name: 'Security Vex', description: 'phishing' }, { id: 'b', name: 'Kitchen Vex', description: 'recipes' }],
+      getById: (id) => ({ id, name: id }),
+      setActiveForTab: vi.fn(),
+      getActiveForTab: () => null,
+    };
+    AIPanel._personaFilter = 'kitchen';
+    AIPanel._renderPersonaDropdown();
+    const items = document.querySelectorAll('#persona-list .persona-item');
+    expect(items.length).toBe(1);
+    expect(items[0].textContent).toContain('Kitchen');
+    AIPanel._personaFilter = '';
+  });
+
+  it('says so when nothing matches, instead of showing a blank list', () => {
+    AIPanel._personaFilter = 'zzzznotapersona';
+    AIPanel._renderPersonaDropdown();
+    expect(document.getElementById('persona-list').textContent).toContain('No persona matches');
+    AIPanel._personaFilter = '';
+  });
+});
+
+// Chats used to be deleted the moment their tab closed, so "Recent chats" had
+// to tell the user their own conversation was unreachable.
+describe('chats outlive their tabs', () => {
+  beforeEach(() => { AIPanel._convPrivate = {}; AIPanel._viewingId = null; });
+
+  it('keeps a conversation after its tab is gone', () => {
+    AIPanel._conversations = { closed: [{ role: 'user', content: 'still here' }] };
+    globalThis.TabManager = { activeTabId: 'other', tabs: [{ id: 'other' }] };
+    global.window.TabManager = globalThis.TabManager;
+    AIPanel._persistConversations();
+
+    AIPanel._conversations = {};
+    AIPanel._loadConversations();
+    expect(AIPanel._conversations.closed[0].content).toBe('still here');
+  });
+
+  it('still refuses to write a private tab\'s chat to disk', () => {
+    AIPanel._conversations = { secret: [{ role: 'user', content: 'private' }] };
+    AIPanel._convPrivate = { secret: true };
+    AIPanel._persistConversations();
+    expect(localStorage.getItem(AIPanel.CONV_KEY)).not.toContain('private');
+  });
+
+  it('shows the chat you picked, not the active tab\'s', () => {
+    AIPanel._conversations = { 'tab-1': [{ role: 'user', content: 'current' }], old: [{ role: 'user', content: 'earlier' }] };
+    AIPanel._viewingId = 'old';
+    expect(AIPanel._getConv()[0].content).toBe('earlier');
+    AIPanel._viewingId = null;
+    expect(AIPanel._getConv()[0].content).toBe('current');
+  });
+
+  it('says which chat is on screen, with a way back', () => {
+    AIPanel._conversations = { old: [{ role: 'user', content: 'earlier' }] };
+    AIPanel._viewingId = 'old';
+    AIPanel._syncViewingBanner();
+    const bar = document.getElementById('ai-viewing');
+    expect(bar).toBeTruthy();
+    expect(bar.textContent).toContain('closed');
+    bar.querySelector('button').click();
+    expect(AIPanel._viewingId).toBe(null);
+    expect(document.getElementById('ai-viewing')).toBe(null);
   });
 });

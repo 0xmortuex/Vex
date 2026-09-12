@@ -117,6 +117,13 @@
 .ai-history-item .m { font-size: 11px; color: var(--text-muted); }
 .ai-history-empty { padding: 10px 14px 14px; font-size: 12px; color: var(--text-muted); }
 
+.ai-viewing {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  padding: 7px 14px; font-size: 11.5px; color: var(--text-muted);
+  background: var(--vex-accent-glow); border-bottom: 1px solid var(--border);
+}
+.ai-viewing-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---------- conversation ------------------------------------------------- */
 
 .ai-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
@@ -184,6 +191,16 @@
   font-style: italic; color: var(--text-muted);
 }
 
+/* A streamed answer: the loading bubble becomes the answer in place, with a
+   cursor so it reads as still being written. */
+.ai-msg.streaming { position: relative; }
+.ai-msg.streaming .ai-msg-content::after {
+  content: ''; display: inline-block; vertical-align: text-bottom;
+  width: 2px; height: 1.05em; margin-left: 2px;
+  background: var(--primary); animation: vex-caret 1s steps(2, start) infinite;
+}
+@keyframes vex-caret { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
 /* ---------- the model's thinking ----------------------------------------- */
 
 /* Folded away by default. A reasoning model's chain of thought is longer than
@@ -238,6 +255,16 @@
 .ai-msg:hover .ai-copy-btn { opacity: 0.6; }
 .ai-copy-btn:hover { opacity: 1 !important; background: var(--bg); }
 .ai-copy-btn.copied { color: var(--success, #22c55e); opacity: 1; }
+
+/* Ways into the features an answer mentions. */
+.ai-feature-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ai-feature-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--vex-accent-glow); border: 1px solid var(--primary); color: var(--primary);
+  padding: 4px 10px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
+  font-family: inherit; white-space: nowrap;
+}
+.ai-feature-chip:hover { background: var(--primary); color: #fff; }
 
 .ai-msg .follow-ups { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; user-select: none; }
 .ai-msg .follow-up-btn {
@@ -358,6 +385,14 @@
   z-index: 30; padding: 6px;
 }
 .persona-dropdown[hidden], #tab-selector-dropdown[hidden] { display: none; }
+
+.persona-search-wrap { padding: 2px 2px 6px; position: sticky; top: -6px; background: var(--bg-2); z-index: 1; }
+#persona-search {
+  width: 100%; box-sizing: border-box;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 6px 9px; font-family: inherit; font-size: 12px; outline: none;
+}
+#persona-search:focus { border-color: var(--primary); }
 
 .persona-item {
   display: flex; align-items: flex-start; gap: 9px; width: 100%;

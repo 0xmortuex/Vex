@@ -12,8 +12,15 @@ const MouseGestures = {
   enabled() { try { return localStorage.getItem(this.KEY) !== 'off'; } catch { return true; } },
   setEnabled(on) { try { localStorage.setItem(this.KEY, on ? 'on' : 'off'); } catch {} },
 
+  // Registered through the webview's lifecycle so destroyWebview can take it
+  // off again. A handler left on the element captures `webview` in its closure,
+  // and that keeps the whole element alive for the life of the window — one
+  // leaked webview per closed tab.
   attach(webview) {
-    webview.addEventListener('ipc-message', (e) => {
+    const on = (webview && webview._lifecycle)
+      ? (ev, fn) => webview._lifecycle.listen(webview, ev, fn)
+      : (ev, fn) => webview.addEventListener(ev, fn);
+    on('ipc-message', (e) => {
       if (e.channel !== 'vex-gesture') return;
       if (!this.enabled()) return;
       const dir = (e.args && e.args[0]) || '';

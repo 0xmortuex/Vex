@@ -68,6 +68,97 @@ const Ollama = (() => {
     }
   }
 
+  // Stream a generation, token by token.
+  //
+  // Ollama streams NDJSON when `stream: true`: one JSON object per line, each
+  // carrying the next fragment. Without this the whole answer lands at once,
+  // which on a local model means a long stare at a spinner — and there is no way
+  // to show a reasoning model's thinking as it happens.
+  //
+  // `onToken(fragment, full)` is called per fragment. The accumulated text is
+  // returned, so a caller that ignores onToken gets exactly what the
+  // non-streaming call would have produced.
+  async function _stream(path, body, options, pick) {
+    const { onToken, signal } = options;
+    const ctl = new AbortController();
+    const onOuterAbort = () => ctl.abort((signal && signal.reason) || new Error('Cancelled'));
+    if (signal) {
+      if (signal.aborted) ctl.abort(signal.reason || new Error('Cancelled'));
+      else signal.addEventListener('abort', onOuterAbort, { once: true });
+    }
+    // A stalled stream must still end. The deadline is refreshed by traffic, so
+    // a slow-but-alive model is not cut off mid-answer.
+    let timer = null;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => ctl.abort(new Error('timeout')), GEN_TIMEOUT_MS);
+    };
+    arm();
+
+    let r;
+    try {
+      r = await (window.VexNet?.fetch || fetch)(`${baseUrl}${path}`, {
+        stream: true, timeoutMs: GEN_TIMEOUT_MS, maxBytes: 16 * 1024 * 1024, signal: ctl.signal,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, stream: true }),
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', onOuterAbort);
+      if (ctl.signal.aborted && !(signal && signal.aborted)) {
+        throw new Error(`Ollama did not answer within ${Math.round(GEN_TIMEOUT_MS / 1000)}s (model "${body.model}" may still be loading).`);
+      }
+      throw err;
+    }
+    if (!r.ok) { clearTimeout(timer); throw new Error(await _errorText(r, body.model)); }
+    // No readable body (a shim that buffers, or a proxy that does): fall back to
+    // reading it whole rather than failing.
+    if (!r.body || typeof r.body.getReader !== 'function') {
+      clearTimeout(timer);
+      const text = await r.text();
+      let full = '';
+      for (const line of text.split('\n')) {
+        if (!line.trim()) continue;
+        try { full += pick(JSON.parse(line)) || ''; } catch {}
+      }
+      if (full && onToken) onToken(full, full);
+      return full;
+    }
+
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let full = '';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        arm();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let event;
+          try { event = JSON.parse(line); } catch { continue; }
+          if (event.error) throw new Error(event.error);
+          const piece = pick(event);
+          if (piece) {
+            full += piece;
+            if (onToken) { try { onToken(piece, full); } catch {} }
+          }
+        }
+      }
+    } finally {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', onOuterAbort);
+      await reader.cancel().catch(() => {});
+      try { reader.releaseLock(); } catch {}
+    }
+    return full;
+  }
+
   async function generate(model, prompt, options = {}) {
     const { systemPrompt, temperature = 0.5, maxTokens = 2000, format = null } = options;
     const body = {
@@ -77,6 +168,7 @@ const Ollama = (() => {
     if (systemPrompt) body.system = systemPrompt;
     if (format === 'json') body.format = 'json';
 
+    if (options.onToken) return await _stream('/api/generate', body, options, (e) => e.response);
     const r = await _post('/api/generate', body, options.signal);
     if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();
@@ -90,6 +182,7 @@ const Ollama = (() => {
       options: { temperature, num_predict: maxTokens }
     };
     if (format === 'json') body.format = 'json';
+    if (options.onToken) return await _stream('/api/chat', body, options, (e) => e.message && e.message.content);
     const r = await _post('/api/chat', body, options.signal);
     if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();

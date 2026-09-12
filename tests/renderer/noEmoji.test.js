@@ -50,6 +50,10 @@ const ALLOWED = {
   'renderer/js/update-notifier.js': 2,
   // ...and the toast that announces the same update.
   'renderer/js/app.js': 1,
+  // The AI panel strips emoji out of the model's replies, because a model does
+  // not know Vex has none. The regex that removes them has to name the ranges
+  // it removes — two lines, both inside _deEmoji.
+  'renderer/js/ai-panel.js': 2,
 };
 
 function walk(dir, out = []) {

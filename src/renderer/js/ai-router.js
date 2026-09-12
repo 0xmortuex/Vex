@@ -273,7 +273,7 @@ const AIRouter = (() => {
       const turns = hist.filter(m => m.role !== 'system').slice(-10);
       for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
       msgs.push({ role: 'user', content: userMessage });
-      const text = await Ollama.chat(localModel, msgs, { temperature, maxTokens: 2000, format: 'json' });
+      const text = await Ollama.chat(localModel, msgs, { temperature, maxTokens: 2000, format: 'json', onToken: request.onToken });
       return { result: text, backend: 'local', model: localModel };
     }
 
@@ -281,7 +281,9 @@ const AIRouter = (() => {
       systemPrompt,
       temperature,
       maxTokens: 2000,
-      format: expectsJson ? 'json' : null
+      format: expectsJson ? 'json' : null,
+      // Only the local backend streams; the cloud worker answers in one piece.
+      onToken: request.onToken,
     });
     return { result: text, backend: 'local', model: localModel };
   }
