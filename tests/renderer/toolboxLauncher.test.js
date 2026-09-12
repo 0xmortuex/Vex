@@ -12,6 +12,12 @@ const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
 globalThis.VexIcons = VexIcons;
 const { ToolboxPacks } = require('../../src/renderer/js/toolbox-packs.js');
 globalThis.ToolboxPacks = ToolboxPacks;
+// Tools open on the shared workbench, so it has to be loaded here too.
+const { ToolboxWorkbench } = require('../../src/renderer/js/toolbox-workbench.js');
+globalThis.ToolboxWorkbench = ToolboxWorkbench; global.window.ToolboxWorkbench = ToolboxWorkbench;
+global.window.VexIcons = VexIcons;
+global.window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const { Toolbox } = require('../../src/renderer/js/toolbox.js');
 globalThis.Toolbox = Toolbox;
 const VexTools = require('../../src/renderer/js/tools.js');
@@ -56,16 +62,33 @@ describe('Toolbox search', () => {
 });
 
 describe('the shared tool screen', () => {
-  it('shows the result live and the tool\'s own error for bad input', () => {
+  // Tools open on the shared workbench now: the field you type into is the
+  // input pane, and the result appears as you type.
+  it('shows the result live', () => {
     Toolbox.openTool('test-double');
-    const input = document.querySelector('#vex-tbtool input');
-    expect(document.getElementById('tbt-body').textContent).toContain('8');
+    const input = document.getElementById('wb-in');
     input.value = '21';
-    input.dispatchEvent(new Event('input'));
-    expect(document.getElementById('tbt-body').textContent).toContain('42');
-    input.value = '';
-    input.dispatchEvent(new Event('input'));
-    expect(document.getElementById('tbt-body').textContent).toContain('Enter a number');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('wb-run').click();
+    expect(document.getElementById('wb-out').textContent).toContain('42');
+  });
+
+  it('shows the tool\'s own error for bad input', () => {
+    Toolbox.openTool('test-double');
+    const input = document.getElementById('wb-in');
+    input.value = 'not a number';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('wb-run').click();
+    expect(document.getElementById('wb-out').textContent).toContain('Enter a number');
+    expect(document.getElementById('wb-out').classList.contains('wb-error')).toBe(true);
+  });
+
+  // An empty input is not an error — the placeholder already says what to
+  // type, and greeting someone with a red message as the tool opens is noise.
+  it('stays quiet on an empty input rather than opening on an error', () => {
+    Toolbox.openTool('test-double');
+    expect(document.getElementById('wb-out').textContent).toBe('');
+    expect(document.getElementById('wb-out').classList.contains('wb-error')).toBe(false);
   });
 
   it('refuses an unknown tool', () => {

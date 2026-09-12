@@ -458,78 +458,116 @@ const Toolbox = {
 
   // The shared screen for declarative tools: a field per input, the result
   // recomputed on every change, and Copy.
-  _runSpec(spec) {
-    const { body } = this._modal(this._modalTitle(spec), '');
-    const desc = document.createElement('div');
-    desc.style.cssText = 'font-size:12px;color:var(--text-muted);margin-bottom:10px';
-    desc.textContent = spec.desc;
-    body.appendChild(desc);
-    const inputs = {};
-    const box = 'width:100%;box-sizing:border-box;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;font-family:inherit';
-    for (const f of spec.fields) {
-      const wrap = document.createElement('label');
-      wrap.style.cssText = 'display:block;margin-bottom:9px';
-      const lab = document.createElement('div');
-      lab.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px';
-      lab.textContent = f.label;
-      let el;
-      if (f.type === 'textarea') {
-        el = document.createElement('textarea');
-        el.style.cssText = box + ";min-height:90px;resize:vertical;font-family:'JetBrains Mono',monospace";
-        el.spellcheck = false;
-      } else if (f.type === 'select') {
-        el = document.createElement('select');
-        el.style.cssText = box;
-        for (const [val, text] of f.options) { const o = document.createElement('option'); o.value = val; o.textContent = text; el.appendChild(o); }
-      } else {
-        el = document.createElement('input');
-        el.type = f.type || 'text';
-        if (f.type === 'checkbox') el.style.cssText = 'width:16px;height:16px'; else el.style.cssText = box;
-        for (const k of ['min', 'max', 'step']) if (f[k] !== undefined) el[k] = f[k];
-      }
-      if (f.placeholder) el.placeholder = f.placeholder;
-      if (f.type === 'checkbox') el.checked = !!f.value;
-      else if (f.value !== undefined) el.value = f.value;
-      inputs[f.id] = el;
-      if (f.type === 'checkbox') { wrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:9px;cursor:pointer'; wrap.append(el, lab); lab.style.marginBottom = '0'; }
-      else wrap.append(lab, el);
-      body.appendChild(wrap);
-    }
-    const out = document.createElement('div');
-    out.style.cssText = "margin-top:6px;padding:10px 12px;border-radius:8px;background:var(--bg);border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text);white-space:pre-wrap;word-break:break-word;min-height:20px";
-    body.appendChild(out);
-    let lastText = '';
-    const run = () => {
-      const raw = {};
-      for (const f of spec.fields) raw[f.id] = f.type === 'checkbox' ? inputs[f.id].checked : inputs[f.id].value;
-      out.replaceChildren();
-      try {
-        const res = spec.run(ToolboxPacks.coerce(spec, raw));
-        lastText = ToolboxPacks.asText(res);
-        out.style.color = 'var(--text)';
-        if (Array.isArray(res)) {
-          const t = document.createElement('table');
-          t.style.cssText = 'border-collapse:collapse';
-          for (const [k, v] of res) {
-            const tr = document.createElement('tr');
-            const a = document.createElement('td'); a.style.cssText = 'padding:3px 12px 3px 0;color:var(--text-muted);vertical-align:top;white-space:nowrap'; a.textContent = k;
-            const b = document.createElement('td'); b.style.cssText = 'padding:3px 0'; b.textContent = v;
-            tr.append(a, b); t.appendChild(tr);
-          }
-          out.appendChild(t);
-        } else out.textContent = lastText;
-      } catch (e) {
-        lastText = '';
-        out.style.color = 'var(--danger,#ef4444)';
-        out.textContent = (e && e.message) || String(e);
-      }
-    };
-    Object.values(inputs).forEach(el => { el.addEventListener('input', run); el.addEventListener('change', run); });
-    body.appendChild(this._copyBtn(() => lastText));
-    run();
-    const first = spec.fields.length && inputs[spec.fields[0].id];
-    if (first) setTimeout(() => { try { first.focus(); } catch {} }, 30);
+  // Every declarative pack tool, on the workbench.
+  //
+  // A pack tool is a list of typed fields and a pure run(). That maps onto the
+  // workbench directly: the field you actually type into becomes the input
+  // pane, every other field becomes a setting in the column, and the result
+  // goes to the output pane. So all ~300 of them gain what the hand-built ones
+  // got — live re-running, remembered options, copy, swap, two sizes and a
+  // reference panel — without each one being rewritten.
+  //
+  // The reference is built from what the spec already carries: its description,
+  // its family, its search terms, and its worked examples. An example that only
+  // sets the main field is clickable, because loading it is the fastest way to
+  // see what the tool wants.
+  _specPrimaryField(spec) {
+    const fields = spec.fields || [];
+    return fields.find(f => f.type === 'textarea')
+      || fields.find(f => !f.type || f.type === 'text')
+      || fields[0]
+      || null;
   },
+
+  _specToWorkbench(spec) {
+    const fields = spec.fields || [];
+    const primary = this._specPrimaryField(spec);
+    const rest = fields.filter(f => f !== primary);
+
+    const options = rest.map(f => {
+      if (f.type === 'checkbox') return { id: f.id, label: f.label, type: 'toggle', default: !!f.value };
+      if (f.type === 'select') {
+        return { id: f.id, label: f.label, type: 'select', default: f.value != null ? String(f.value) : String((f.options[0] || [''])[0]), options: f.options };
+      }
+      return {
+        id: f.id, label: f.label, type: 'text',
+        default: f.value != null ? String(f.value) : '',
+        placeholder: f.placeholder || (f.type === 'number' ? 'a number' : ''),
+        hint: f.type === 'number' && (f.min !== undefined || f.max !== undefined)
+          ? `between ${f.min !== undefined ? f.min : '−∞'} and ${f.max !== undefined ? f.max : '∞'}` : undefined,
+      };
+    });
+
+    const details = [];
+    if (spec.desc) details.push({ title: 'What this does', text: spec.desc });
+    const fam = ToolboxPacks.FAMILIES[spec.family];
+    if (fam) details.push({ title: 'Family', text: fam.label });
+    // An example is only offered as a one-click load when the main field is all
+    // it sets — otherwise clicking it would silently ignore half the example.
+    const simple = (spec.examples || []).filter(e => primary && e.in && Object.keys(e.in).length === 1 && e.in[primary.id] !== undefined);
+    if (simple.length) {
+      details.push({
+        title: 'Try one', examples: true,
+        rows: simple.slice(0, 4).map(e => [String(e.in[primary.id]), 'Example input']),
+      });
+    }
+    const complex = (spec.examples || []).filter(e => !simple.includes(e) && e.in);
+    if (complex.length) {
+      details.push({
+        title: 'Worked examples',
+        rows: complex.slice(0, 4).map(e => [
+          Object.entries(e.in).map(([k, v]) => `${k}=${v}`).join(', '),
+          typeof e.out === 'string' ? e.out.slice(0, 90) : (Array.isArray(e.out) ? e.out.map(r => r.join(': ')).join(' · ').slice(0, 90) : 'see result'),
+        ]),
+      });
+    }
+    // keywords is an array in most specs and a plain string in a few, so
+    // accept either rather than throwing on the ones that differ.
+    const kw = Array.isArray(spec.keywords) ? spec.keywords
+      : (typeof spec.keywords === 'string' && spec.keywords ? spec.keywords.split(/[,s]+/).filter(Boolean) : []);
+    if (kw.length) details.push({ title: 'Also known as', text: kw.join(', ') });
+
+    return {
+      id: 'pack-' + spec.id,
+      title: spec.name,
+      icon: (spec.icon && window.VexIcons && VexIcons.has(spec.icon)) ? spec.icon : (fam ? fam.icon : 'toolbox'),
+      blurb: spec.desc || '',
+      inputLabel: primary ? primary.label : 'Input',
+      outputLabel: 'Result',
+      placeholder: (primary && primary.placeholder) || '',
+      sample: simple.length ? String(simple[0].in[primary.id]) : undefined,
+      runLabel: 'Run',
+      options,
+      details,
+      run: ({ input, opt }) => {
+        const raw = {};
+        for (const f of fields) {
+          raw[f.id] = (f === primary) ? input
+            : (f.type === 'checkbox' ? !!opt[f.id] : (opt[f.id] != null ? opt[f.id] : (f.value != null ? f.value : '')));
+        }
+        const res = spec.run(ToolboxPacks.coerce(spec, raw));
+        if (Array.isArray(res)) {
+          // Rows render as an aligned two-column block, which stays readable
+          // when copied out as text.
+          const width = Math.max(0, ...res.map(([k]) => String(k).length));
+          return {
+            output: res.map(([k, v]) => `${String(k).padEnd(width)}   ${v}`).join('\n'),
+            note: `${res.length} value${res.length === 1 ? '' : 's'}`,
+          };
+        }
+        return { output: ToolboxPacks.asText(res) };
+      },
+    };
+  },
+
+  _runSpec(spec) {
+    // A tool with no inputs at all (a generator) still needs somewhere to put
+    // its result, so it goes through the same shell with an empty input.
+    if (!window.ToolboxWorkbench) throw new Error('The tool shell did not load.');
+    return window.ToolboxWorkbench.open(this._specToWorkbench(spec));
+  },
+
+
 
   // Shared tool modal shell. Returns { body, close }.
   _modal(title, bodyHtml) {

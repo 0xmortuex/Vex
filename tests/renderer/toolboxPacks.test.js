@@ -10,6 +10,13 @@ import { describe, it, expect, beforeAll } from 'vitest';
 
 const { ToolboxPacks } = require('../../src/renderer/js/toolbox-packs.js');
 globalThis.ToolboxPacks = ToolboxPacks;
+// Pack tools open on the shared workbench now, so it has to be present.
+const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = VexIcons; global.window.VexIcons = VexIcons;
+const { ToolboxWorkbench } = require('../../src/renderer/js/toolbox-workbench.js');
+globalThis.ToolboxWorkbench = ToolboxWorkbench; global.window.ToolboxWorkbench = ToolboxWorkbench;
+global.window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const { Toolbox } = require('../../src/renderer/js/toolbox.js');
 
 const PACK_FILES = ['toolbox-pack-text.js', 'toolbox-pack-units-math-science.js', 'toolbox-pack-money-date-health.js', 'toolbox-pack-dev-data-web.js'];
@@ -49,9 +56,17 @@ describe('Toolbox catalogue', () => {
     for (const spec of ToolboxPacks.specs) {
       document.body.innerHTML = '';
       expect(() => Toolbox.openTool(spec.id), spec.id).not.toThrow();
-      const body = document.getElementById('tbt-body');
-      expect(body, spec.id).toBeTruthy();
-      const text = body.textContent;
+      const shell = document.getElementById('vex-workbench');
+      expect(shell, spec.id).toBeTruthy();
+      // The result pane has to be real — an empty shell would pass a "did it
+      // open" check while being useless.
+      const out = document.getElementById('wb-out');
+      expect(out, spec.id).toBeTruthy();
+      // What the tool PRODUCES must never be NaN or undefined. The reference
+      // panel is deliberately excluded: math-two-points documents a vertical
+      // line, whose slope genuinely is "undefined", and banning the word from
+      // a tool's own documentation would be the wrong lesson to teach.
+      const text = out.textContent + ' ' + (document.getElementById('wb-note')?.textContent || '');
       expect(text, spec.id).not.toMatch(/\bNaN\b|\bundefined\b|\[object Object\]|Invalid Date/);
     }
     // Every tool in the catalogue is rendered for real, so this one test does
