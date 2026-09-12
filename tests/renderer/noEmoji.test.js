@@ -27,11 +27,16 @@ const PICTO = /\p{Extended_Pictographic}/u;
 // comments ("group↔stack") and render as text on every platform.
 const TYPOGRAPHIC = /[\u2190-\u21FF\u2200-\u22FF]/u;
 
-// &#128512; and &#x1F600; both reach the screen as an emoji.
+// An emoji reaches the screen the same way however it is spelled in source:
+// as the character, as an HTML entity (&#128451;), or as a JavaScript escape
+// (\\u{1F419}). The last of those hid sixteen of them — the whole
+// right-click menu — from an earlier scan that only decoded the first two.
 function decodeEntities(line) {
   return line
     .replace(/&#x([0-9a-fA-F]{1,6});/g, (m, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch { return m; } })
-    .replace(/&#(\d{1,7});/g, (m, d) => { try { return String.fromCodePoint(Number(d)); } catch { return m; } });
+    .replace(/&#(\d{1,7});/g, (m, d) => { try { return String.fromCodePoint(Number(d)); } catch { return m; } })
+    .replace(/\\u\{([0-9a-fA-F]{1,6})\}/g, (m, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch { return m; } })
+    .replace(/\\u([0-9a-fA-F]{4})/g, (m, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch { return m; } });
 }
 
 const ALLOWED = {
@@ -43,6 +48,8 @@ const ALLOWED = {
   'renderer/js/skills.js': 1,
   // The update card's party popper: the one emoji the product keeps.
   'renderer/js/update-notifier.js': 2,
+  // ...and the toast that announces the same update.
+  'renderer/js/app.js': 1,
 };
 
 function walk(dir, out = []) {
@@ -76,5 +83,9 @@ describe('no emoji in the UI', () => {
     expect(PICTO.test('group\u2194stack'.replace(TYPOGRAPHIC, ''))).toBe(false);
     expect(PICTO.test(decodeEntities('&#128451;&#65039; Organize'))).toBe(true);
     expect(PICTO.test(decodeEntities('&#9662; arrow'))).toBe(false);
+    // The spelling that got past the first scan.
+    expect(PICTO.test(decodeEntities('\\u{1F419} Open Profile'))).toBe(true);
+    expect(PICTO.test(decodeEntities('\\u2728 Explain'))).toBe(true);
+    expect(PICTO.test(decodeEntities('\\u00A0 nbsp'))).toBe(false);
   });
 });

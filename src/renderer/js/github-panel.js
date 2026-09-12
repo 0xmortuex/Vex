@@ -57,7 +57,7 @@ const GitHubPanel = {
             <img class="gh-avatar" id="gh-panel-avatar" src="" alt="" style="display:none">
             <div class="gh-profile-info">
               <h3 id="gh-panel-name">Loading...</h3>
-              <div class="gh-username" id="gh-panel-username">@${this.username}</div>
+              <div class="gh-username" id="gh-panel-username">@${this._escapeHtml(this.username)}</div>
               <div class="gh-bio" id="gh-panel-bio"></div>
               <div class="gh-stats-row" id="gh-panel-stats"></div>
             </div>
@@ -78,7 +78,7 @@ const GitHubPanel = {
           <div class="panel-section-title">Contribution Graph</div>
           <div class="panel-placeholder" id="gh-contrib-placeholder">
             <p>Visit your GitHub profile to see contributions</p>
-            <button class="panel-btn" id="gh-open-profile">\u{1F419} Open Profile</button>
+            <button class="panel-btn" id="gh-open-profile">Open Profile</button>
           </div>
         </div>
       </div>
@@ -176,9 +176,9 @@ const GitHubPanel = {
           <div class="panel-list-item-title">${this._escapeHtml(repo.name)}</div>
           ${repo.description ? `<div class="panel-list-item-desc">${this._escapeHtml(repo.description)}</div>` : ''}
           <div class="panel-list-item-meta">
-            ${repo.language ? `<span><span class="lang-dot" style="background:${langColor}"></span> ${repo.language}</span>` : ''}
-            ${repo.stargazers_count > 0 ? `<span>\u{2B50} ${repo.stargazers_count}</span>` : ''}
-            ${repo.forks_count > 0 ? `<span>\u{1F374} ${repo.forks_count}</span>` : ''}
+            ${repo.language ? `<span><span class="lang-dot" style="background:${langColor}"></span> ${this._escapeHtml(repo.language)}</span>` : ''}
+            ${repo.stargazers_count > 0 ? `<span>${VexIcons.svg('star', { size: 11 })} ${repo.stargazers_count}</span>` : ''}
+            ${repo.forks_count > 0 ? `<span>${VexIcons.svg('git', { size: 11 })} ${repo.forks_count}</span>` : ''}
             <span>${updated}</span>
           </div>
         </div>

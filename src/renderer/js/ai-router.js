@@ -374,7 +374,7 @@ const AIRouter = (() => {
 Only include relevance > 0.5. Max 10 matches.`,
 
     groupTabs: `You cluster browser tabs into groups. Given tabs (id, title, url, summary), return ONLY this JSON:
-{"groups": [{"name": "Short name", "color": "indigo|cyan|green|amber|red|violet|rose|teal", "emoji": "\ud83d\udcf1", "tabIds": ["id1", "id2"], "pattern": "what makes a tab fit", "confidence": 0.9}], "ungrouped": ["id"], "reasoning": "one sentence"}
+{"groups": [{"name": "Short name", "color": "indigo|cyan|green|amber|red|violet|rose|teal", "tabIds": ["id1", "id2"], "pattern": "what makes a tab fit", "confidence": 0.9}], "ungrouped": ["id"], "reasoning": "one sentence"}
 2-6 groups, 2+ tabs per group, confidence > 0.6.`
   };
 

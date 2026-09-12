@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.31.52 (2026-09-12) — A website's name can't reach into Vex
+
+### Fixed
+- **A website could put its own markup inside Vex's window, just by choosing its title.** Press <kbd>Ctrl</kbd>+<kbd>K</kbd> and look at your history — or search your open tabs — and each page's title was placed into Vex's own interface as markup rather than as text. A site titled `<img src=x onerror=…>` got that element created inside the browser's own window, which is the part that can reach your tabs, your settings and your saved passwords. Vex's content-security rules stopped the script itself from running, so this was one layer short of the worst case, but the injection was real: a crafted title could still make the browser fetch from the site's server the moment you opened your history. Titles are now placed as text, in one place, so no future result can reintroduce it.
+- **Sixteen emoji were still hiding in the source** — the whole right-click menu, and the GitHub panel — written as escape codes rather than as characters, which is why the earlier sweep walked past them. The check that guards against this now decodes them too. The GitHub panel's stars and forks kept their meaning as drawn icons rather than losing it.
+- **The AI was still being asked to invent an emoji for every tab group**, months after the groups stopped showing one. It was generated, paid for in tokens, and thrown away.
+
+### Notes
+- The password vault now has tests of its own — it had none, and it is the most sensitive thing Vex stores. They pin the parts that matter: passwords never travel on the channels meant for metadata, a vault that cannot be encrypted refuses to save rather than falling back to plaintext, a corrupt vault says so instead of looking empty, and a look-alike hostname gets nothing.
+- Also checked and found sound: the permission gate on every internal channel (an unknown one is refused outright), and Recall's search snippets, which escape page text correctly.
+
 ## v2.31.51 (2026-09-12) — Websites can no longer read your clipboard
 
 ### Fixed

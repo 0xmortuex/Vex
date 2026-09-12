@@ -840,18 +840,18 @@ const WebviewManager = {
       { label: 'Reload', action: () => webview.reload() },
       { sep: true },
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
-      { label: '\u{1F4DD} Copy as Markdown link', action: () => { try { const t = TabManager.getActiveTab(); const u = webview.getURL(); const title = (t && t.title) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
+      { label: 'Copy as Markdown link', action: () => { try { const t = TabManager.getActiveTab(); const u = webview.getURL(); const title = (t && t.title) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
       { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL(), true, null, { partition: webview.getAttribute?.("partition") }) },
-      { label: '\u{1FA9F} Open as App', action: () => { try { window.vex.openAsApp(webview.getURL(), (TabManager.getActiveTab() || {}).title); } catch {} } },
+      { label: 'Open as App', action: () => { try { window.vex.openAsApp(webview.getURL(), (TabManager.getActiveTab() || {}).title); } catch {} } },
       { label: '⧉ Duplicate Tab', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true, null, { partition: t.partition }); } catch {} } },
-      { label: '\u{1F4F1} Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
+      { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
       { label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? '⟳ Auto-refresh: on…' : '⟳ Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } },
       { sep: true },
       // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
       // "Reset this site" clears this host's saved zoom and dark-mode override.
-      { label: this._shouldForceDark(curUrl) ? '\u{1F319} Dark mode: on for this site' : '\u{1F319} Dark mode for this site',
+      { label: this._shouldForceDark(curUrl) ? 'Dark mode: on for this site' : 'Dark mode for this site',
         action: () => this.toggleForceDarkForSite(webview) },
-      { label: '\u{1F3AF} Zap element (hide it forever)', action: () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } catch {} } },
+      { label: 'Zap element (hide it forever)', action: () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } catch {} } },
       { label: 'Reset this site’s settings', action: () => this.resetSite(webview) }
     ];
 
@@ -892,22 +892,22 @@ const WebviewManager = {
         const sel = e.params.selectionText;
         items.push({ sep: true });
         items.push({
-          label: `\u2728 Explain "${sel.substring(0, 25)}${sel.length > 25 ? '...' : ''}"`,
+          label: `Explain "${sel.substring(0, 25)}${sel.length > 25 ? '...' : ''}"`,
           action: () => { AIPanel.open(); AIPanel.sendMessage('explain', { selectedText: sel }); }
         });
         items.push({
-          label: '\u{1F4DD} Summarize selection',
+          label: 'Summarize selection',
           // Route via chat (free-form reply) \u2014 the 'summarize' feature renders
           // only a structured {summary} card and comes back blank for a snippet.
           action: () => { AIPanel.open(); AIPanel.sendMessage('chat', { message: `Summarize the following text clearly and concisely:\n\n"""${sel}"""` }); }
         });
         items.push({
-          label: '\u{1F310} Translate selection',
+          label: 'Translate selection',
           action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: 'English' }); }
         });
       }
       items.push({
-        label: '\u{1F50A} Read aloud',
+        label: 'Read aloud',
         action: () => { try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(e.params.selectionText)); } catch {} }
       });
     }
@@ -923,16 +923,16 @@ const WebviewManager = {
         action: () => navigator.clipboard.writeText(e.params.linkURL)
       });
       items.push({
-        label: '\u{1F4F1} Send Link to Phone',
+        label: 'Send Link to Phone',
         action: () => { try { if (window.SendToPhone) SendToPhone.open(e.params.linkURL); } catch {} }
       });
       items.push({
-        label: '\u{1F4DD} Copy Link as Markdown',
+        label: 'Copy Link as Markdown',
         action: () => { try { const txt = (e.params.linkText || e.params.selectionText || e.params.linkURL || '').replace(/[\[\]]/g, '').trim() || e.params.linkURL; navigator.clipboard.writeText(`[${txt}](${e.params.linkURL})`); window.showToast?.('Copied as Markdown'); } catch {} }
       });
       if (typeof ReadLater !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
         items.push({
-          label: '\u{1F4DA} Read Later',
+          label: 'Read Later',
           action: () => { try { ReadLater.add(e.params.linkURL); window.showToast?.('Saved to Library'); } catch {} }
         });
       }

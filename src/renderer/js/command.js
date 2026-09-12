@@ -377,8 +377,8 @@ const CommandBar = {
       scored.push({ score, r: {
         id: 'tool:' + t.id,
         icon: Toolbox.iconMarkup(t),
-        label: esc(t.name),
-        hint: 'Toolbox · ' + esc(Toolbox._familyLabel(t.family)),
+        label: t.name,
+        hint: 'Toolbox · ' + Toolbox._familyLabel(t.family),
         action: () => {
           try { Toolbox.openTool(t.id); }
           catch (err) { window.showToast?.(err.message, 'error'); }
@@ -411,8 +411,8 @@ const CommandBar = {
         scored.push({ score, r: {
           id: 'tab:' + t.id,
           icon,
-          label: esc(t.title || host || t.url || 'Tab'),
-          hint: 'Switch to tab · ' + esc(host || t.url || ''),
+          label: t.title || host || t.url || 'Tab',
+          hint: 'Switch to tab · ' + (host || t.url || ''),
           action: () => { try { TabManager.switchTab(t.id); } catch {} },
         } });
       }
@@ -510,11 +510,14 @@ const CommandBar = {
       el.innerHTML = `
         <div class="command-result-icon${item.isPrimary ? ' primary' : ''}">${this._iconMarkup(item.icon)}</div>
         <div class="command-result-info">
-          <div class="command-result-title">${item.label}</div>
-          ${item.hint ? `<div class="command-result-hint">${item.hint}</div>` : ''}
+          <div class="command-result-title"></div>
+          ${item.hint ? '<div class="command-result-hint"></div>' : ''}
         </div>
-        ${item.shortcut ? `<div class="command-result-shortcut">${item.shortcut}</div>` : ''}
+        ${item.shortcut ? '<div class="command-result-shortcut"></div>' : ''}
       `;
+      el.querySelector('.command-result-title').textContent = item.label == null ? '' : String(item.label);
+      if (item.hint) el.querySelector('.command-result-hint').textContent = String(item.hint);
+      if (item.shortcut) el.querySelector('.command-result-shortcut').textContent = String(item.shortcut);
 
       el.addEventListener('click', () => {
         this._execute(item);

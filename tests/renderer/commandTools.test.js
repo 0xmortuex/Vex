@@ -66,3 +66,55 @@ describe('CommandBar tool results', () => {
     expect(window.showToast).toHaveBeenCalledWith('Toolbox has no tool "gone"', 'error');
   });
 });
+
+// A page's own <title> reaches the command bar twice: in tab results and in the
+// Ctrl+K history view. It used to be interpolated into innerHTML, so a site
+// could put markup into Vex's OWN privileged window just by naming itself
+// `<img src=x onerror=...>`. Proved in the real browser: the <img> was created
+// in the chrome; only the renderer's CSP (no inline scripts) stopped it running.
+// Text is now set as text, so no result producer can reintroduce this.
+describe('a page title cannot inject markup into the chrome', () => {
+  const hostile = '<img src=x onerror="window.__pwned=1">';
+
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="command-bar"><div id="command-results"></div></div>';
+    CommandBar.results = [];
+    CommandBar.selectedIndex = 0;
+    globalThis.VexIcons = require('../../src/renderer/js/vex-icons.js').VexIcons;
+  });
+
+  const render = (item) => {
+    CommandBar.results = [Object.assign({ id: 'x', icon: 'clock', action() {} }, item)];
+    CommandBar.renderResults();
+    return document.querySelector('.command-result');
+  };
+
+  it('renders a hostile title as text, not as an element', () => {
+    const el = render({ label: hostile });
+    expect(el.querySelector('img'), 'the title became a real element').toBeNull();
+    expect(el.querySelector('.command-result-title').textContent).toBe(hostile);
+  });
+
+  it('does the same for the hint and the shortcut', () => {
+    const el = render({ label: 'ok', hint: hostile, shortcut: hostile });
+    expect(el.querySelectorAll('img')).toHaveLength(0);
+    expect(el.querySelector('.command-result-hint').textContent).toBe(hostile);
+    expect(el.querySelector('.command-result-shortcut').textContent).toBe(hostile);
+  });
+
+  it('shows a title with an ampersand as typed, not double-escaped', () => {
+    // The producers used to pre-escape; if both escaped you would read "&amp;".
+    const el = render({ label: 'Tips & Tricks' });
+    expect(el.querySelector('.command-result-title').textContent).toBe('Tips & Tricks');
+  });
+
+  it('still renders the icon as markup — that part is ours', () => {
+    const el = render({ label: 'ok', icon: 'clock' });
+    expect(el.querySelector('.command-result-icon svg')).toBeTruthy();
+  });
+
+  it('survives a result with no label at all', () => {
+    const el = render({ label: undefined });
+    expect(el.querySelector('.command-result-title').textContent).toBe('');
+  });
+});
