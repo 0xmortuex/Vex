@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.55 (2026-09-12) — The parts that were never checked
+
+### Notes
+No change to how Vex behaves. This release closes the last gaps in the audit — the areas previously written off as needing a login, a backend, or a censored network.
+
+- **The AI features were driven against a real backend.** A server speaking Ollama's protocol was stood up so chat, summarising, tab grouping, AI memory and Restyle all ran their genuine paths. They handle a well-behaved answer, an answer in the wrong format, a reply cut off half way, and a backend that returns an error — the last of which shows the problem and offers to retry, rather than an empty bubble.
+- **The installed app was checked, not just the source.** The build users actually download was assembled and driven: every feature added this month is present in it, Discover lists all 137 features, all 318 tools load, protected video playback is ready, there is no emoji anywhere in it, and a hostile page title still cannot reach the interface.
+- **The Roblox and Discord bypass now has tests**, including the case that broke it: Discord's auto-configure restarting the shared connection helper while Roblox was using it. Verified live as well — it starts, connects, and switches off cleanly.
+- **Keeping one Vencord build** — the rule behind "installing my build does nothing", where a disabled folder with a newer date beat the working one — is now covered too.
+
 ## v2.31.54 (2026-09-12) — Nothing left unaudited
 
 ### Notes

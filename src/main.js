@@ -1350,32 +1350,12 @@ function _vlog(msg) {
 // nothing (exactly the "still the old plugin" report). Called at startup BEFORE
 // loadExtension (files aren't locked yet, so a delete that failed mid-session
 // succeeds here) and right after an install. Best-effort.
+// Keeping exactly one loadable Vencord build — see ./main/vencord-folders.js
+// for the ordering rule and why a manifest-less folder must go first.
 function _dedupeVencordFolders() {
-  try {
-    const all = fs.readdirSync(extensionsDir, { withFileTypes: true })
-      .filter(e => e.isDirectory() && e.name.startsWith('vencord-'))
-      .map(e => ({ name: e.name, path: path.join(extensionsDir, e.name) }));
-    // A vencord- folder WITHOUT a manifest.json can't load (stale/disabled/corrupt)
-    // — drop it outright so it can never be "kept" over a real build and shadow it.
-    // (This is what broke Vencord once: a disabled folder had a newer mtime and the
-    // old keep-newest logic kept it while deleting the working build.)
-    const valid = [];
-    for (const v of all) {
-      if (fs.existsSync(path.join(v.path, 'manifest.json'))) { valid.push(v); continue; }
-      try { fs.rmSync(v.path, { recursive: true, force: true }); _vlog(`dedupe: removed manifest-less ${v.name}`); }
-      catch (e) { _vlog(`dedupe: could NOT remove manifest-less ${v.name} (${e.message})`); }
-    }
-    if (valid.length <= 1) return;
-    // Keep the newest VALID build; remove the rest.
-    valid.sort((a, b) => {
-      try { return fs.statSync(b.path).mtimeMs - fs.statSync(a.path).mtimeMs; } catch { return 0; }
-    });
-    _vlog(`dedupe: ${valid.length} valid vencord folders; keeping ${valid[0].name}`);
-    for (let i = 1; i < valid.length; i++) {
-      try { fs.rmSync(valid[i].path, { recursive: true, force: true }); _vlog(`dedupe: removed ${valid[i].name}`); }
-      catch (e) { _vlog(`dedupe: could NOT remove ${valid[i].name} (${e.message})`); }
-    }
-  } catch (e) { _vlog(`dedupe error: ${e.message}`); }
+  return require('./main/vencord-folders').dedupeVencordFolders({
+    fs, path, dir: extensionsDir, log: _vlog,
+  });
 }
 
 // Loads an extension into every session it must apply to. Returns the loaded
@@ -2836,30 +2816,19 @@ function createWindow() {
     try { secureSessions.fromPartition('persist:roblox').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
     catch (e) { console.warn('[DPI-bypass] roblox setProxy failed:', e && e.message); }
   };
-  // Roblox and Discord share ONE ByeDPI process. Every _byedpi.start() replaces
-  // it on a fresh port and every stop() ends it, but only the caller's own
-  // session was ever re-pointed — so running Discord's auto sweep while the
-  // Roblox bypass was on left persist:roblox aimed at a dead port, and Roblox
-  // lost connectivity with nothing to say why. These two wrappers keep Roblox
-  // pointed at whatever is actually listening.
-  let _robloxOnByedpi = false;
-  async function _byedpiStart(ud, buf, preset, custom) {
-    const port = await _byedpi.start(ud, buf, preset, custom);
-    if (_robloxOnByedpi) _setRobloxProxy('socks5://127.0.0.1:' + port);
-    return port;
-  }
-  function _byedpiStop() {
-    _byedpi.stop();
-    if (!_robloxOnByedpi) return;
-    // Leaving the dead port set would fail every Roblox request in silence.
-    _setRobloxProxy(null);
-    _robloxOnByedpi = false;
-    try {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('vex:toast', 'Roblox bypass is off — the shared bypass it was using has stopped');
-      }
-    } catch (e) { console.warn('[DPI-bypass] could not report the Roblox bypass stopping:', e && e.message); }
-  }
+  // Roblox and Discord share ONE ByeDPI process; ./main/byedpi-share.js keeps
+  // whoever is not calling pointed at the port that actually exists.
+  const _share = require('./main/byedpi-share').createByedpiShare({
+    byedpi: _byedpi,
+    setRobloxProxy: _setRobloxProxy,
+    notify: (message) => {
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', message);
+      } catch (e) { console.warn('[DPI-bypass] could not report the Roblox bypass stopping:', e && e.message); }
+    },
+  });
+  const _byedpiStart = (ud, buf, preset, custom) => _share.start(ud, buf, preset, custom);
+  const _byedpiStop = () => _share.stop();
 
   function _testRoblox(url) {
     return new Promise((resolve) => {
@@ -2878,17 +2847,16 @@ function createWindow() {
     return await _testRoblox('https://www.roblox.com/home');
   }
   async function _applyRobloxBypass(on) {
-    if (!on) { _robloxOnByedpi = false; _setRobloxProxy(null); return { ok: true, off: true }; }
+    if (!on) { _share.attachRoblox(false); _setRobloxProxy(null); return { ok: true, off: true }; }
     try {
       // Reuse a ByeDPI that's already up (e.g. Discord bypass) — never restart it.
-      if (_byedpi.isRunning && _byedpi.isRunning()) {
-        _robloxOnByedpi = true;
-        _setRobloxProxy('socks5://127.0.0.1:' + _byedpi.getPort());
-        return { ok: true, reused: true, port: _byedpi.getPort() };
+      const reused = _share.reuseExisting();
+      if (reused != null) {
+        return { ok: true, reused: true, port: reused };
       }
       // Otherwise start the known-good preset and route Roblox through it.
       const ud = app.getPath('userData');
-      _robloxOnByedpi = true;
+      _share.attachRoblox(true);
       const port = await _byedpiStart(ud, _downloadBuffer, 0);
       _setRobloxProxy('socks5://127.0.0.1:' + port);
       if (await _testRobloxRobust()) return { ok: true, port, preset: 0 };
@@ -2900,10 +2868,10 @@ function createWindow() {
           if (await _testRobloxRobust()) return { ok: true, port: p, preset: i };
         } catch {}
       }
-      _robloxOnByedpi = false;
+      _share.attachRoblox(false);
       _byedpi.stop(); _setRobloxProxy(null);
       return { ok: false, error: 'no mode got through' };
-    } catch (e) { _robloxOnByedpi = false; _setRobloxProxy(null); return { ok: false, error: (e && e.message) || 'failed' }; }
+    } catch (e) { _share.attachRoblox(false); _setRobloxProxy(null); return { ok: false, error: (e && e.message) || 'failed' }; }
   }
 
   // mode: 'off' | 'light' | 'strong'. opts: { preset?: number (>=0 forces it,
