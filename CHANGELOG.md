@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.54 (2026-09-12) — Nothing left unaudited
+
+### Notes
+No user-visible change in this one: it is the last of the auditing, and everything it checked turned out to be sound.
+
+- **Your data really does come back.** Ten kinds of saved thing — bookmarks, read-later, notes, skills, your own tools, automations, AI memory, start-page shortcuts, history and watched pages — were written in a running browser, the browser was killed outright, and every one of them was still there on restart. Unit tests stand in for the storage layer, so only a real restart proves this; it is the check that caught history being erased a few releases ago.
+- **The two remaining parts of the engine room now have tests.** The piece that decides which window owns which page — the gate every internal request is checked against — and the one that talks to the updater. Between them they pin that a page cannot be given more privileges than it should have, that one window cannot act on another's tabs, that only Vex's own interface counts as the interface, and that update progress is reported honestly.
+
 ## v2.31.53 (2026-09-12) — Deleting one thing no longer deletes two
 
 ### Fixed
