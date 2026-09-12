@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.63 (2026-09-13) — Vex AI writes as it thinks
+
+### Notes
+- **Answers appear as they are written.** A local model is slow, and Vex used to hold the whole reply back until it was finished — a long stare at a spinner. The text now arrives as it is generated, with the reasoning filling in first, so you can see it working instead of wondering whether it is stuck.
+- **Anything the AI mentions, you can open.** When an answer names a Vex feature, a button to open it appears underneath. No hunting for the thing you were just told about.
+- **Your chats no longer vanish with the tab.** Closing a tab used to delete its conversation — Recent chats would tell you your own chat could not be reopened. Chats are kept now and open in place, with a note saying which one you are looking at and a way back. Chats from private tabs are still never written to disk.
+- **Filter the personas.** With 25 of them the list was a scroll; now it is a search.
+- **Switching apps no longer closes the panel.** Clicking into a page still dismisses it, which is the point — but alt-tabbing away and back used to lose your place.
+- **No emoji in replies.** Vex's interface is drawn icons throughout; a model does not know that and will open with a smiley. They are stripped from replies by default. It only strips — nothing is reworded, and copy still gives you exactly what the model said.
+
 ## v2.31.62 (2026-09-13) — Vex AI: thinking, and answers that know what Vex is
 
 ### Notes
