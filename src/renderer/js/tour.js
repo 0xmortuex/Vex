@@ -5,7 +5,16 @@
 // arrow keys, Esc). Auto-offered on first run (see app.js) and re-runnable any
 // time from the command bar (Ctrl+K → "Tour"). Steps whose target isn't present
 // or visible are skipped, so it adapts to layout/feature differences.
-// Public API: VexTour.start() / .end(). Persists 'vex.tourSeen'.
+// Public API:
+//   VexTour.start()                 the built-in walkthrough (marks it seen)
+//   VexTour.run(steps, opts)        any step list — Discover drives this to
+//                                   tour one category, or spotlight a single
+//                                   control ("Show me"). opts.markSeen only
+//                                   when it really was the whole tour.
+//   VexTour.end()
+//
+// A step whose `sel` matches nothing (or something invisible) is dropped
+// before the run starts, so "Step 2 of 5" always counts steps you can see.
 
 const VexTour = {
   idx: 0,
@@ -14,8 +23,10 @@ const VexTour = {
   _onResize: null,
   _onKey: null,
 
+  _running: null,
+
   steps: [
-    { title: 'Welcome to Vex ✦', text: 'A fast, private browser with vertical tabs, workspaces, and a built-in AI agent. Here’s a 60-second tour of everything.' },
+    { title: 'Welcome to Vex', text: 'A fast, private browser with vertical tabs, workspaces, and a built-in AI agent. Here’s a 60-second tour of everything.' },
     { sel: '#url-input', title: 'Address bar', html: 'Type to search or go to a site. <kbd>Ctrl</kbd>+<kbd>L</kbd> focuses it; the icon on the left shows site info and security.' },
     { sel: '#nav-buttons', title: 'Back, forward & reload', html: 'Move through history. <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> and <kbd>Ctrl</kbd>+<kbd>R</kbd> work too (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> hard-reloads).' },
     { sel: '#tabs-list', title: 'Vertical tabs', html: 'Your tabs live down the side. Drag to reorder, right-click to rename, group, or close — and idle tabs can sleep to save memory.' },
@@ -64,8 +75,28 @@ const VexTour = {
     this._onResize = () => this._render();
   },
 
-  start() {
+  // Is this step's target on screen? A control hidden by the layout editor,
+  // a panel switched off, or a look that doesn't draw it, all land here.
+  _visible(step) {
+    if (!step || !step.sel) return true;           // a card with no target still shows
+    const el = document.querySelector(step.sel);
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 2 && r.height > 2;
+  },
+
+  start() { this.run(this.steps, { markSeen: true }); },
+
+
+  // Run an arbitrary list of steps. Returns the number actually shown, so a
+  // caller can say "nothing to show" instead of opening an empty tour.
+  run(steps, opts) {
+    const list = (Array.isArray(steps) ? steps : []).filter(step => this._visible(step));
+    if (!list.length) return 0;
     this._build();
+    this._running = list;
+    this._markSeen = !(opts && opts.markSeen === false) && !!(opts && opts.markSeen);
+    this._onDone = (opts && opts.onDone) || null;
     this.idx = 0;
     this.active = true;
     this._els.overlay.hidden = false;
@@ -78,6 +109,12 @@ const VexTour = {
     };
     window.addEventListener('keydown', this._onKey, true);
     this._render();
+    return list.length;
+  },
+
+  // One control, one card — the "Show me" behind every Discover entry.
+  spotlight(sel, card) {
+    return this.run([Object.assign({ sel }, card || {})], { markSeen: false });
   },
 
   end() {
@@ -85,20 +122,28 @@ const VexTour = {
     if (this._els) this._els.overlay.hidden = true;
     window.removeEventListener('resize', this._onResize);
     if (this._onKey) window.removeEventListener('keydown', this._onKey, true);
-    try { localStorage.setItem('vex.tourSeen', '1'); } catch (e) {}
+    // Only the full walkthrough counts as "seen" — spotlighting one button
+    // from Discover must not stop the real tour being offered later.
+    if (this._markSeen) {
+      try { localStorage.setItem('vex.tourSeen', '1'); } catch (err) { console.warn('[tour] could not record the tour as seen:', err && err.message); }
+    }
+    this._running = null;
+    const done = this._onDone; this._onDone = null;
+    if (done) { try { done(); } catch (err) { console.warn('[tour] after-tour callback failed:', err && err.message); } }
   },
 
-  next() { if (this.idx >= this.steps.length - 1) { this.end(); return; } this.idx++; this._render(); },
+  next() { const n = (this._running || this.steps).length; if (this.idx >= n - 1) { this.end(); return; } this.idx++; this._render(); },
   back() { if (this.idx > 0) { this.idx--; this._render(); } },
 
   _render() {
-    const s = this.steps[this.idx];
+    const steps = this._running || this.steps;
+    const s = steps[this.idx];
     const E = this._els;
-    E.step.textContent = `Step ${this.idx + 1} of ${this.steps.length}`;
+    E.step.textContent = steps.length === 1 ? '' : `Step ${this.idx + 1} of ${steps.length}`;
     E.title.textContent = s.title;
     E.text.innerHTML = s.html || s.text || '';
     E.back.style.visibility = this.idx === 0 ? 'hidden' : 'visible';
-    E.next.textContent = this.idx === this.steps.length - 1 ? 'Done' : 'Next';
+    E.next.textContent = this.idx === steps.length - 1 ? 'Done' : 'Next';
 
     let rect = null;
     if (s.sel) {

@@ -13,7 +13,8 @@ const CommandBar = {
 
   commands: [
     { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: 'plus', action: () => TabManager.createTab(START_URL, true) },
-    { id: 'tour', label: 'Guide / Tour', hint: 'Take the interactive walkthrough of Vex', icon: 'compass', action: () => { if (typeof VexTour !== 'undefined') VexTour.start(); } },
+    { id: 'discover', label: 'Discover — everything Vex can do', hint: 'Every feature, by category, with "show me" on the real button', icon: 'compass', isPrimary: true, action: () => { if (typeof VexDiscover !== 'undefined') VexDiscover.open(); } },
+    { id: 'tour', label: 'Guide / Tour', hint: 'The interactive walkthrough of the main controls', icon: 'compass', action: () => { if (typeof VexTour !== 'undefined') VexTour.start(); } },
     { id: 'setup', label: 'Run Setup Wizard', hint: 'Set up your tools again — theme, name, weather, GitHub, AI', icon: 'wand', action: () => { if (typeof Onboarding !== 'undefined') Onboarding.start(); } },
     { id: 'peek', label: 'Peek Current Page', hint: 'Preview the active page in a floating overlay (Shift+click links to peek them)', icon: 'eye', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof VexPeek !== 'undefined') VexPeek.open(t.url); } },
     { id: 'zap', label: 'Zap Element', hint: 'Click any element on this page to hide it forever on this site', icon: 'zap', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } },

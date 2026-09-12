@@ -198,12 +198,22 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
 });
 
 describe('Language + daily-wisdom steps', () => {
+  // Order, not adjacency: steps get added between these over time (the look
+  // and performance steps landed here), and that is not a regression.
   it('are steps, in order, after theme and job setup', () => {
     const keys = Onboarding.STEPS().map(s => s.key);
-    const themeIdx = keys.indexOf('theme');
-    expect(keys[themeIdx + 1]).toBe('job');
-    expect(keys[themeIdx + 2]).toBe('language');
-    expect(keys[themeIdx + 3]).toBe('wisdom');
+    const at = (k) => { const i = keys.indexOf(k); expect(i, k + ' is a step').toBeGreaterThan(-1); return i; };
+    expect(at('theme')).toBeLessThan(at('job'));
+    expect(at('job')).toBeLessThan(at('language'));
+    expect(at('language')).toBeLessThan(at('wisdom'));
+  });
+
+  it('offers the look and the critical settings before the optional details', () => {
+    const keys = Onboarding.STEPS().map(s => s.key);
+    expect(keys).toContain('look');
+    expect(keys).toContain('performance');
+    expect(keys.indexOf('look')).toBeLessThan(keys.indexOf('github'));
+    expect(keys.indexOf('performance')).toBeLessThan(keys.indexOf('github'));
   });
 
   it('_isStepDone reflects saved language / wisdom choices', () => {

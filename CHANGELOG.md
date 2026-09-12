@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.31.47 (2026-09-12) — Discover: every feature, introduced
+
+### Added
+- **Discover — everything Vex can do** (`Ctrl+K` → “Discover”). Until now the only complete list of what this browser does lived in the README on GitHub, which is no use to anyone actually using it. Discover is that list, in the app: **137 features in 12 categories**, searchable. Each one says in a sentence what it is *for*, and has two buttons — **Show me**, which spotlights the real control on your screen, and **Open**, which just runs it. Pick a category and “Tour this category” walks its features in turn.
+- **A feature you switched off is still listed**, marked off, with **Turn on & show me** — a feature you cannot see is one you cannot discover, which was the whole problem.
+- **The setup wizard offers every look**, not just Glass and Classic: Chrome, Chrome dark, Firefox, Firefox dark, Safari, Internet Explorer on XP and Netscape on 98, each applied instantly so the window behind the wizard is the preview. Choosing Classic also asks where you want your tabs.
+- **A “Speed, memory & privacy” step** in the wizard. These settings decide how the browser actually behaves — whether tabs sleep is the difference between 800 MB and 4 GB — and every one of them used to be a silent default. Pick **Balanced**, **Save memory**, **Maximum privacy** or **Leave it all off**, each stating plainly what it does, or open the list and set all seven yourself. Everything is written through the same controls Settings uses, so the two can never disagree.
+
+### Fixed
+- **The weather step could not find your city.** It asked for the **five** best matches **in Turkish**, whatever language you had chosen. Manchester has about a hundred matches and Springfield the same, so the right one usually wasn’t among the five — and searching an English name against Turkish results often matched nothing at all. Now you choose your **country** first, then search a **city, district or postcode**, and pick the exact place from a list that shows its full hierarchy (*Ataşehir · Istanbul · Türkiye*), with postcodes where the place has them.
+- **The weather step used to guess.** If you typed something and never picked a match, it quietly saved whichever place the geocoder ranked first — which is how you end up with the forecast for a town you have never been to. It no longer guesses.
+- **The setup wizard accepted empty and invalid answers in silence.** Your name, GitHub username, AI worker URL, sync worker URL and weather all took a blank — or nonsense — and moved on as if you had set them, so people finished setup believing they had configured things they hadn’t. Every field is now checked: it tells you what is wrong (*“this is empty”*, *“that is not a GitHub username”*, *“use https://”*) and you either fix it or press **Skip** deliberately. Skip is always there and always works.
+- **Discover’s catalogue cannot drift.** Where a feature already has a Ctrl+K command, the catalogue names the command instead of copying its label, and the tests fail if it stops existing — along with any entry pointing at a button, panel or setting that isn’t in the app.
+
+### Notes
+- The guide button now opens Discover; the original linear walkthrough is still there as “Guide / Tour”, and spotlighting one button from Discover no longer marks the whole tour as seen.
+- 55 new tests (2,716 total).
+
 ## v2.31.46 (2026-09-12) — Real icons, and a very long bug hunt
 
 ### Changed

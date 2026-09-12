@@ -46,7 +46,7 @@ const Onboarding = {
     setTimeout(() => this.start(), 900);
   },
 
-  start() { this._returnFocus = document.activeElement; this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._session = {}; this._wantTour = false; this._render(); },
+  start() { this._returnFocus = document.activeElement; this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._session = {}; this._wantTour = false; this._perf = null; this._weatherCountry = null; this._weatherHits = null; this._render(); },
 
   // Re-open the wizard on demand (the top-bar setup button). Shows ALL steps,
   // each pre-filled with whatever's already saved and tagged "✓ already set" so
@@ -74,6 +74,8 @@ const Onboarding = {
       case 'theme':          return this._has('vex.theme');
       case 'job':            return this._has('vex.job');
       case 'name':           return this._has('vex.userName');
+      case 'look':           return this._flag('vex.guiStyleChosen');
+      case 'performance':    return this._flag('vex.perfConfigured');
       case 'weather':        return this._has('vex.weatherLoc');
       case 'github':         return this._has('vex.githubUsername');
       case 'search':         return this._has('vex.searchEngine');
@@ -118,11 +120,13 @@ const Onboarding = {
       { key: 'welcome',        title: 'Welcome to Vex',                sub: 'Let’s set up the bits that make Vex feel like yours. Skip anything you don’t want — you can re-open this wizard anytime from the ✦ button by the reload button.' },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' },
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' },
+      { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, or a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape. Your theme colours can be kept on top of any of them.' },
+      { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' },
       { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' },
       { key: 'language',       title: 'Language · Dil',           sub: 'Sets the start page language — greeting, labels, and the daily verse. (Full interface translation is on the roadmap.)' },
       { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' },
       { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Leave blank for none.' },
-      { key: 'weather',        title: 'Weather location',         sub: 'Type a city OR a district (e.g. “Ataşehir”), then pick the right match for accurate weather.' },
+      { key: 'weather',        title: 'Weather location',         sub: 'Choose your country, then search for a city, district or postcode and pick it from the list.' },
       { key: 'github',         title: 'GitHub username',          sub: 'Optional — shows your repo/follower stats + activity on the start page.' },
       { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' },
       { key: 'defaultbrowser', title: 'Make Vex your default',    sub: 'So links from Discord, email, and other apps open in Vex.' },
@@ -131,7 +135,7 @@ const Onboarding = {
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' },
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' },
       { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' },
-      { key: 'done',           title: 'All set',                     sub: 'You’re ready. Everything here lives in Settings if you want to change it later.' },
+      { key: 'done',           title: 'All set',                     sub: 'You’re ready. Everything here lives in Settings if you want to change it later — and Discover (Ctrl+K → “Discover”) introduces every feature Vex has, one at a time.' },
     ].map(step => ({ ...step, title: window.VexI18n?.t(step.key, step.title) || step.title, sub: window.VexI18n?.t(step.key + '.sub', step.sub) || step.sub }));
   },
 
@@ -482,38 +486,21 @@ const Onboarding = {
     } else if (key === 'theme') {
       const themes = (typeof ThemeManager !== 'undefined' ? ThemeManager.THEMES : []);
       const cur = (typeof ThemeManager !== 'undefined' ? ThemeManager.currentTheme : '');
-      // The "Look" chooser is synced with the live Glass/Classic setting
-      // (VexGuiStyle) so it isn't buried in the Custom setup card — it's a
-      // first-class choice on every path, and reflects whatever the setup-style
-      // step already applied.
-      let curGui = 'classic';
-      try { curGui = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic'; } catch {}
-      const look = (id, label, desc) => `
-        <button data-gui="${id}" style="text-align:left;padding:12px 14px;border-radius:11px;border:2px solid ${id === curGui ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;display:flex;flex-direction:column;gap:3px">
-          <span style="font-size:13px;font-weight:700">${this._esc(label)}</span>
-          <span style="font-size:11.5px;color:var(--text-muted);line-height:1.4">${this._esc(desc)}</span>
-        </button>`;
       body.innerHTML = `
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${themes.map(t =>
           `<button data-theme="${t.id}" style="padding:14px 6px;border-radius:11px;border:2px solid ${t.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:11.5px;display:flex;flex-direction:column;align-items:center;gap:7px">
             <span style="width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:linear-gradient(135deg,var(--primary),var(--surface))"></span>${this._esc(t.label)}</button>`).join('')}</div>
-        <div style="margin-top:16px;font-size:12px;font-weight:700;color:var(--text)">Look</div>
-        <div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">The overall Vex chrome — switch anytime in Settings → Appearance.</div>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
-          ${look('glass', 'Glass', 'Frosted UI, tabs on top, a shortcut bar.')}
-          ${look('classic', 'Classic', 'Solid UI, tabs down the sidebar.')}
-        </div>`;
+`;
       body.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', () => {
         const id = b.dataset.theme;
         try { ThemeManager.applyTheme(id); } catch {}
         body.querySelectorAll('[data-theme]').forEach(x => x.style.borderColor = 'var(--border)');
         b.style.borderColor = 'var(--primary)';
       }));
-      body.querySelectorAll('[data-gui]').forEach(b => b.addEventListener('click', () => {
-        const g = b.dataset.gui;
-        try { window.VexGuiStyle?.set(g); } catch {}
-        body.querySelectorAll('[data-gui]').forEach(x => x.style.borderColor = x.dataset.gui === g ? 'var(--primary)' : 'var(--border)');
-      }));
+    } else if (key === 'look') {
+      this._renderLook(body);
+    } else if (key === 'performance') {
+      this._renderPerformance(body);
     } else if (key === 'job') {
       const cur = (window.JobProfiles && JobProfiles.current());
       const curName = cur ? ((JobProfiles.get(cur) || {}).name || cur) : null;
@@ -566,17 +553,7 @@ const Onboarding = {
       if (v == null) { try { v = localStorage.getItem('vex.userName') || ''; } catch { v = ''; } }
       body.innerHTML = input('ob-name', 'e.g. Alex', v);
     } else if (key === 'weather') {
-      this._pendingLoc = null;
-      body.innerHTML = `
-        <div style="display:flex;gap:8px">
-          <div style="flex:1">${input('ob-city', 'e.g. Ataşehir or Istanbul', this._session.weatherText || '')}</div>
-          <button id="ob-city-search" style="padding:0 16px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Search</button>
-        </div>
-        <div id="ob-city-results" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
-        <div id="ob-city-status" style="font-size:12px;color:var(--text-muted);margin-top:8px;min-height:16px"></div>`;
-      const run = () => this._searchCity(body.querySelector('#ob-city')?.value.trim(), body);
-      body.querySelector('#ob-city-search')?.addEventListener('click', run);
-      body.querySelector('#ob-city')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+      this._renderWeather(body);
     } else if (key === 'github') {
       let v = this._session.github;
       if (v == null) { try { v = localStorage.getItem('vex.githubUsername') || ''; } catch { v = ''; } }
@@ -730,33 +707,403 @@ const Onboarding = {
   // Geocode the typed text and show up to 5 matches (district · province · country)
   // so the user picks the exact place — districts like "Ataşehir" resolve reliably
   // instead of silently snapping to whatever the single top hit happens to be.
+  // === "Pick a look" — every GUI style, not just Glass vs Classic ==========
+  //
+  // The browser looks were reachable only from Settings → Appearance, so most
+  // people never learned they existed. Each card applies its look immediately,
+  // which makes the window behind the wizard the preview.
+  LOOKS() {
+    return [
+      { id: 'classic', name: 'Vex Classic', desc: 'Vex’s own shape: tabs down the side, your theme’s colours everywhere.' },
+      { id: 'glass', name: 'Glass', desc: 'Frosted and translucent, tabs on top, a speed-dial shortcuts bar.' },
+      { id: 'chrome', name: 'Chrome', desc: 'Rounded tab shapes, the omnibox pill, a side panel on the right.', borrowed: true },
+      { id: 'chrome-dark', name: 'Chrome — dark', desc: 'The same, in Chrome’s dark grey.', borrowed: true },
+      { id: 'firefox', name: 'Firefox', desc: 'Floating tabs, a wide URL bar, the icon rail on the left.', borrowed: true },
+      { id: 'firefox-dark', name: 'Firefox — dark', desc: 'The same, in Firefox’s dark palette.', borrowed: true },
+      { id: 'safari', name: 'Safari', desc: 'Quiet and grey, controls in the toolbar, a sidebar on the left.', borrowed: true },
+      { id: 'xp', name: 'Internet Explorer · XP', desc: 'Luna blue, Tahoma, square edges. Yes, really.', borrowed: true },
+      { id: 'win98', name: 'Netscape · Windows 98', desc: 'Raised grey bevels and a title bar from 1998.', borrowed: true },
+    ];
+  },
+
+  _renderLook(body) {
+    const looks = this.LOOKS();
+    let cur = 'classic';
+    try { cur = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic'; } catch { cur = 'classic'; }
+    let colors = 'look';
+    try { colors = (window.VexGuiStyle && VexGuiStyle.getColors && VexGuiStyle.getColors()) || 'look'; } catch { colors = 'look'; }
+    let tabs = 'horizontal';
+    try { tabs = JSON.parse(localStorage.getItem('vex.tabLayout') || '"horizontal"'); } catch { tabs = 'horizontal'; }
+
+    const card = (l) => '<button data-look="' + l.id + '" style="text-align:left;padding:11px 13px;border-radius:11px;border:2px solid '
+      + (l.id === cur ? 'var(--primary)' : 'var(--border)')
+      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;display:flex;flex-direction:column;gap:3px">'
+      + '<span style="font-size:12.5px;font-weight:700">' + this._esc(l.name) + '</span>'
+      + '<span style="font-size:11px;color:var(--text-muted);line-height:1.4">' + this._esc(l.desc) + '</span></button>';
+
+    const isBorrowed = (id) => !!(looks.find((l) => l.id === id) || {}).borrowed;
+
+    body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
+      + looks.filter((l) => !l.borrowed).map(card).join('') + '</div>'
+      + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Wear another browser</div>'
+      + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Vex, shaped like a browser you already know. Every Vex feature still works the same.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
+      + looks.filter((l) => l.borrowed).map(card).join('') + '</div>'
+      + '<div id="ob-look-tabs" style="margin-top:15px;display:' + (cur === 'classic' ? 'block' : 'none') + '">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--text)">Where your tabs go</div>'
+      + '<div style="display:flex;gap:9px;margin-top:7px">'
+      + '<button data-tabs="vertical" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+      + (tabs === 'vertical' ? 'var(--primary)' : 'var(--border)')
+      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Down the side</button>'
+      + '<button data-tabs="horizontal" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+      + (tabs === 'horizontal' ? 'var(--primary)' : 'var(--border)')
+      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Along the top</button>'
+      + '</div></div>'
+      + '<div id="ob-look-colors" style="margin-top:15px;display:' + (isBorrowed(cur) ? 'block' : 'none') + '">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--text)">Colours for that look</div>'
+      + '<div style="display:flex;gap:9px;margin-top:7px">'
+      + '<button data-colors="look" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+      + (colors === 'look' ? 'var(--primary)' : 'var(--border)')
+      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Its own colours</button>'
+      + '<button data-colors="theme" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+      + (colors === 'theme' ? 'var(--primary)' : 'var(--border)')
+      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">My Vex theme’s colours</button>'
+      + '</div></div>';
+
+    const repaint = (sel, key, value) => body.querySelectorAll(sel).forEach((x) => {
+      x.style.borderColor = x.dataset[key] === value ? 'var(--primary)' : 'var(--border)';
+    });
+
+    body.querySelectorAll('[data-look]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.look;
+      try { window.VexGuiStyle?.set(id); }
+      catch (err) { window.showToast?.('Could not apply that look: ' + (err && err.message), 'error'); return; }
+      cur = id;
+      try { localStorage.setItem('vex.guiStyleChosen', '1'); }
+      catch (err) { console.warn('[setup] could not record the look choice:', err && err.message); }
+      repaint('[data-look]', 'look', id);
+      const colorRow = body.querySelector('#ob-look-colors');
+      if (colorRow) colorRow.style.display = isBorrowed(id) ? 'block' : 'none';
+      const tabRow = body.querySelector('#ob-look-tabs');
+      if (tabRow) tabRow.style.display = id === 'classic' ? 'block' : 'none';
+    }));
+
+    body.querySelectorAll('[data-tabs]').forEach((b) => b.addEventListener('click', () => {
+      const mode = b.dataset.tabs;
+      const sel = document.getElementById('setting-tab-layout');
+      if (sel) { sel.value = mode; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+      else {
+        try { localStorage.setItem('vex.tabLayout', JSON.stringify(mode)); } catch (err) { console.warn('[setup] could not save the tab layout:', err && err.message); }
+        document.body.dataset.tabLayout = mode;
+      }
+      tabs = mode;
+      repaint('[data-tabs]', 'tabs', mode);
+    }));
+
+    body.querySelectorAll('[data-colors]').forEach((b) => b.addEventListener('click', () => {
+      const mode = b.dataset.colors;
+      try { window.VexGuiStyle?.setColors(mode); }
+      catch (err) { window.showToast?.('Could not change those colours: ' + (err && err.message), 'error'); return; }
+      repaint('[data-colors]', 'colors', mode);
+    }));
+  },
+
+  // === "Speed, memory & privacy" — the settings that actually matter =======
+  //
+  // These decide how the browser behaves, and every one of them used to be a
+  // silent default most people never found: whether tabs sleep is the
+  // difference between 800 MB and 4 GB, and blocking is off until you ask.
+  //
+  // Each preset states plainly what it does. Nothing is written through a
+  // private copy of the settings — every value goes through the same control
+  // or API that Settings uses, so the two can never disagree.
+  PERF_PRESETS() {
+    return [
+      {
+        id: 'balanced', name: 'Balanced', tag: 'recommended',
+        desc: 'Tabs sleep after 30 minutes, ads and trackers blocked, pages loaded over HTTPS only.',
+        values: { memorySaver: false, autosleep: true, minutes: 30, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+      },
+      {
+        id: 'memory', name: 'Save memory',
+        desc: 'Tabs sleep after 10 minutes and are discarded when the window is minimized. For a machine with 8 GB, or for forty open tabs.',
+        values: { memorySaver: true, autosleep: true, minutes: 10, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+      },
+      {
+        id: 'privacy', name: 'Maximum privacy',
+        desc: 'Everything above, plus fingerprint randomization and encrypted DNS. A few sites misbehave under it — you can switch it back off.',
+        values: { memorySaver: false, autosleep: true, minutes: 30, adblock: true, farble: true, doh: 'auto', httpsOnly: true },
+      },
+      {
+        id: 'nothing', name: 'Leave it all off',
+        desc: 'No sleeping, no blocking, no extras. Vex behaves like a plain browser and uses the memory that implies.',
+        values: { memorySaver: false, autosleep: false, minutes: 30, adblock: false, farble: false, doh: 'off', httpsOnly: false },
+      },
+    ];
+  },
+
+  // The individual settings, behind "Set them myself".
+  PERF_FIELDS() {
+    return [
+      { key: 'autosleep', label: 'Sleep tabs I stop using', help: 'The single biggest thing you can do about memory.' },
+      { key: 'minutes', label: 'Sleep after', help: '', select: [[5, '5 minutes'], [10, '10 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [120, '2 hours']] },
+      { key: 'memorySaver', label: 'Memory Saver', help: 'Sleeps sooner, discards tabs when minimized, frees background caches.' },
+      { key: 'adblock', label: 'Block ads and trackers', help: 'Full filter lists — blocks the request, and hides what it left behind.' },
+      { key: 'httpsOnly', label: 'HTTPS-only', help: 'Refuse to load a page over an unencrypted connection.' },
+      { key: 'farble', label: 'Fingerprint protection', help: 'Randomize canvas, WebGL and audio. Breaks a small number of sites.' },
+      { key: 'doh', label: 'Encrypted DNS', help: 'Hide which sites you visit from your network.', select: [['off', 'Off'], ['auto', 'On — safe'], ['strict', 'On — strict']] },
+    ];
+  },
+
+  // What these settings are set to right now.
+  _perfCurrent() {
+    const v = { memorySaver: false, autosleep: true, minutes: 30, adblock: true, farble: false, doh: 'off', httpsOnly: false };
+    const box = (id) => document.getElementById(id);
+    if (box('setting-memory-saver')) v.memorySaver = box('setting-memory-saver').checked;
+    if (box('setting-autosleep')) v.autosleep = box('setting-autosleep').checked;
+    if (box('setting-autosleep-minutes')) v.minutes = parseInt(box('setting-autosleep-minutes').value, 10) || 30;
+    if (box('setting-adblocker')) v.adblock = box('setting-adblocker').checked;
+    if (typeof PrivacyPack !== 'undefined' && PrivacyPack.cfg) {
+      v.farble = !!PrivacyPack.cfg.farble;
+      v.httpsOnly = !!PrivacyPack.cfg.httpsOnly;
+      v.doh = PrivacyPack.cfg.doh || 'off';
+    }
+    return v;
+  },
+
+  // Apply through the real controls, so whatever Settings does on change
+  // (persist, tell main, restart a service) happens here too.
+  async _perfApply(v) {
+    const set = (id, value) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') { if (el.checked === value) return; el.checked = value; }
+      else { if (String(el.value) === String(value)) return; el.value = String(value); }
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('setting-memory-saver', !!v.memorySaver);
+    set('setting-autosleep', !!v.autosleep);
+    set('setting-autosleep-minutes', v.minutes);
+    set('setting-adblocker', !!v.adblock);
+    if (typeof PrivacyPack !== 'undefined' && PrivacyPack.setCfg) {
+      await PrivacyPack.setCfg({ farble: !!v.farble, httpsOnly: !!v.httpsOnly, doh: v.doh || 'off' });
+    }
+    try { localStorage.setItem('vex.perfConfigured', '1'); }
+    catch (err) { console.warn('[setup] could not record the performance choice:', err && err.message); }
+  },
+
+  _renderPerformance(body) {
+    if (!this._perf) this._perf = Object.assign({ preset: null, open: false }, this._perfCurrent());
+    const presets = this.PERF_PRESETS();
+
+    const draw = () => {
+      const p = this._perf;
+      const chip = (x) => x.tag
+        ? '<span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--primary);background:color-mix(in srgb,var(--primary) 15%,transparent);padding:2px 7px;border-radius:999px">' + this._esc(x.tag) + '</span>'
+        : '';
+      const card = (x) => '<button data-preset="' + x.id + '" style="text-align:left;padding:12px 14px;border-radius:11px;border:2px solid '
+        + (p.preset === x.id ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;display:flex;flex-direction:column;gap:3px">'
+        + '<span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px">' + this._esc(x.name) + chip(x) + '</span>'
+        + '<span style="font-size:11.5px;color:var(--text-muted);line-height:1.45">' + this._esc(x.desc) + '</span></button>';
+
+      const control = (f) => {
+        if (f.select) {
+          const opts = f.select.map((pair) => '<option value="' + this._esc(pair[0]) + '"'
+            + (String(p[f.key]) === String(pair[0]) ? ' selected' : '') + '>' + this._esc(pair[1]) + '</option>').join('');
+          return '<select data-field="' + f.key + '" aria-label="' + this._esc(f.label)
+            + '" style="flex:none;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:8px;font-family:inherit;font-size:12px">' + opts + '</select>';
+        }
+        return '<input type="checkbox" data-field="' + f.key + '"' + (p[f.key] ? ' checked' : '')
+          + ' aria-label="' + this._esc(f.label) + '" style="flex:none;width:17px;height:17px;margin-top:1px;accent-color:var(--primary)">';
+      };
+
+      const row = (f) => '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--border)">'
+        + '<div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text)">' + this._esc(f.label) + '</div>'
+        + (f.help ? '<div style="font-size:11px;color:var(--text-muted);line-height:1.4;margin-top:2px">' + this._esc(f.help) + '</div>' : '')
+        + '</div>' + control(f) + '</div>';
+
+      body.innerHTML = '<div style="display:flex;flex-direction:column;gap:9px">' + presets.map(card).join('') + '</div>'
+        + '<button id="ob-perf-toggle" aria-expanded="' + (p.open ? 'true' : 'false')
+        + '" style="margin-top:12px;background:none;border:none;color:var(--text-muted);font-family:inherit;font-size:12.5px;cursor:pointer;padding:0">'
+        + (p.open ? 'Hide the individual settings' : 'Set them myself') + '</button>'
+        + '<div id="ob-perf-fields" style="display:' + (p.open ? 'block' : 'none') + ';margin-top:10px">'
+        + this.PERF_FIELDS().map(row).join('') + '</div>';
+
+      body.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => {
+        const preset = presets.find((x) => x.id === b.dataset.preset);
+        this._perf = Object.assign({ preset: preset.id, open: this._perf.open }, preset.values);
+        draw();
+      }));
+      body.querySelector('#ob-perf-toggle').addEventListener('click', () => {
+        this._perf.open = !this._perf.open;
+        draw();
+      });
+      body.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('change', () => {
+        const key = el.dataset.field;
+        const raw = el.type === 'checkbox' ? el.checked : el.value;
+        this._perf[key] = key === 'minutes' ? parseInt(raw, 10) : raw;
+        this._perf.preset = null;   // it is custom now; no preset is "the" one
+        draw();
+      }));
+    };
+    draw();
+  },
+
+  // === Weather location ====================================================
+  //
+  // The old step was a free-text box that asked Open-Meteo for 5 results in
+  // TURKISH, whatever language you had chosen — so an English city name often
+  // matched nothing, or matched the wrong place, and a district shared its name
+  // with three others with no way to tell them apart. Then, if you never picked
+  // one, it silently resolved the top hit behind your back.
+  //
+  // Now: choose a country, search a city, district or postcode, and pick the
+  // exact place from a list that shows its full hierarchy. Nothing is guessed.
+  _COUNTRY_CODES: ('AD AE AF AG AL AM AO AR AT AU AZ BA BB BD BE BF BG BH BI BJ BN BO BR BS BT BW BY BZ '
+    + 'CA CD CF CG CH CI CL CM CN CO CR CU CV CY CZ DE DJ DK DM DO DZ EC EE EG ER ES ET FI FJ FM FR GA GB '
+    + 'GD GE GH GM GN GQ GR GT GW GY HN HR HT HU ID IE IL IN IQ IR IS IT JM JO JP KE KG KH KI KM KN KP KR '
+    + 'KW KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MG MH MK ML MM MN MR MT MU MV MW MX MY MZ NA NE '
+    + 'NG NI NL NO NP NR NZ OM PA PE PG PH PK PL PT PW PY QA RO RS RU RW SA SB SC SD SE SG SI SK SL SM SN '
+    + 'SO SR SS ST SV SY SZ TD TG TH TJ TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VN VU WS XK YE '
+    + 'ZA ZM ZW').split(' '),
+
+  // Country name in the user's own language, falling back to the code.
+  _countryName(code) {
+    try {
+      const lang = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+      const dn = new Intl.DisplayNames([lang], { type: 'region' });
+      return dn.of(code) || code;
+    } catch { return code; }
+  },
+
+  // A sensible default country: the one the browser's locale implies.
+  _guessCountry() {
+    try {
+      const loc = (typeof navigator !== 'undefined' && navigator.language) || '';
+      const m = /[-_]([A-Za-z]{2})$/.exec(loc);
+      if (m) { const c = m[1].toUpperCase(); if (this._COUNTRY_CODES.includes(c)) return c; }
+    } catch { /* fall through to no country */ }
+    return '';
+  },
+
+  _countryOptions(selected) {
+    const list = this._COUNTRY_CODES
+      .map((code) => ({ code, name: this._countryName(code) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return '<option value="">Any country</option>'
+      + list.map((c) => '<option value="' + c.code + '"' + (c.code === selected ? ' selected' : '') + '>'
+        + this._esc(c.name) + '</option>').join('');
+  },
+
+  _renderWeather(body) {
+    this._pendingLoc = null;
+    if (this._weatherCountry == null) this._weatherCountry = this._guessCountry();
+
+    body.innerHTML = '<label for="ob-country" style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px">Country</label>'
+      + '<select id="ob-country" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13.5px;font-family:\'Outfit\',sans-serif;margin-bottom:12px">'
+      + this._countryOptions(this._weatherCountry) + '</select>'
+      + '<label for="ob-city" style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px">City, district or postcode</label>'
+      + '<div style="display:flex;gap:8px">'
+      + '<div style="flex:1">' + this._input('ob-city', 'e.g. Ataşehir · Manchester · 34750', this._session.weatherText || '') + '</div>'
+      + '<button id="ob-city-search" style="padding:0 16px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Search</button>'
+      + '</div>'
+      + '<div id="ob-city-results-wrap" style="display:none;margin-top:10px">'
+      + '<label for="ob-city-results" style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px">Pick the exact place</label>'
+      + '<select id="ob-city-results" size="6" style="width:100%;box-sizing:border-box;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:12.5px;font-family:\'Outfit\',sans-serif"></select>'
+      + '</div>'
+      + '<div id="ob-city-status" style="font-size:12px;color:var(--text-muted);margin-top:8px;min-height:16px"></div>';
+
+    const country = body.querySelector('#ob-country');
+    country.addEventListener('change', () => {
+      this._weatherCountry = country.value;
+      const typed = (body.querySelector('#ob-city') || {}).value;
+      if (typed && typed.trim()) this._searchCity(typed.trim(), body);
+    });
+
+    const run = () => this._searchCity((body.querySelector('#ob-city') || {}).value.trim(), body);
+    body.querySelector('#ob-city-search').addEventListener('click', run);
+    body.querySelector('#ob-city').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); run(); }
+    });
+  },
+
+  // How a place is written out: the most specific part first, then everything
+  // above it, so two districts of the same name are told apart at a glance.
+  _placeLabel(hit) {
+    const parts = [hit.name, hit.admin3, hit.admin2, hit.admin1, hit.country].filter(Boolean);
+    const seen = new Set();
+    const unique = parts.filter((p) => { const k = String(p).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    let label = unique.join(' · ');
+    const codes = Array.isArray(hit.postcodes) ? hit.postcodes.slice(0, 2) : [];
+    if (codes.length) label += '  [' + codes.join(', ') + ']';
+    return label;
+  },
+
+  // The short name stored for the start page.
+  _placeShort(hit) {
+    const bits = [hit.name];
+    if (hit.admin1 && hit.admin1 !== hit.name) bits.push(hit.admin1);
+    if (hit.country_code) bits.push(hit.country_code);
+    return bits.join(', ');
+  },
+
   async _searchCity(q, body) {
-    const results = body.querySelector('#ob-city-results');
+    const wrap = body.querySelector('#ob-city-results-wrap');
+    const select = body.querySelector('#ob-city-results');
     const status = body.querySelector('#ob-city-status');
     this._pendingLoc = null;
-    if (!q) { if (status) status.textContent = 'Type a city or district first.'; return; }
+    if (wrap) wrap.style.display = 'none';
+    if (select) select.innerHTML = '';
+    if (!q) { if (status) status.textContent = 'Type a city, district or postcode first.'; return; }
     if (status) status.textContent = 'Searching…';
-    if (results) results.innerHTML = '';
+
+    // Search in the language the user actually picked, not always Turkish —
+    // that alone was why so many city names "weren't recognized".
+    let lang = 'en';
+    try { lang = (this._pendingLang || localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { lang = 'en'; }
+
     let list = [];
     try {
-      const r = await (window.VexNet?.fetch || fetch)(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
+      const url = 'https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(q)
+        + '&count=100&language=' + encodeURIComponent(lang) + '&format=json';
+      const r = await (window.VexNet?.fetch || fetch)(url);
       const d = await r.json();
       list = (d && d.results) || [];
-    } catch { if (status) status.textContent = 'Lookup failed — check your connection and try again.'; return; }
-    if (!list.length) { if (status) status.textContent = 'No matches — try the nearest town or a different spelling.'; return; }
-    if (status) status.textContent = 'Pick the right one:';
-    results.innerHTML = list.map((hit, i) => {
-      const parts = [hit.name, hit.admin1, hit.country].filter(Boolean);
-      const label = parts.join(' · ');
-      return `<button data-i="${i}" style="text-align:left;padding:10px 12px;background:var(--bg);border:2px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;font-family:inherit;font-size:13px">${this._esc(label)}</button>`;
-    }).join('');
-    results.querySelectorAll('[data-i]').forEach(btn => btn.addEventListener('click', () => {
-      const hit = list[+btn.dataset.i];
-      this._pendingLoc = { lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? ', ' + hit.admin1 : '') + (hit.country_code ? ', ' + hit.country_code : '') };
-      results.querySelectorAll('[data-i]').forEach(x => x.style.borderColor = 'var(--border)');
-      btn.style.borderColor = 'var(--primary)';
-      if (status) status.textContent = '✓ ' + this._pendingLoc.city + ' — Save & continue to confirm.';
-    }));
+    } catch (err) {
+      if (status) status.textContent = 'Lookup failed (' + ((err && err.message) || 'no connection') + ') — try again.';
+      return;
+    }
+
+    const country = this._weatherCountry;
+    let hits = country ? list.filter((h) => h.country_code === country) : list;
+    if (country && !hits.length && list.length) {
+      if (status) status.textContent = 'No match for “' + q + '” in ' + this._countryName(country)
+        + '. There are ' + list.length + ' elsewhere — set Country to “Any country” to see them.';
+      return;
+    }
+    if (!hits.length) {
+      if (status) status.textContent = 'No match for “' + q + '” — try the nearest town, another spelling, or the postcode.';
+      return;
+    }
+
+    hits = hits.slice(0, 60);
+    this._weatherHits = hits;
+    select.innerHTML = hits.map((h, i) => '<option value="' + i + '">' + this._esc(this._placeLabel(h)) + '</option>').join('');
+    wrap.style.display = 'block';
+    status.textContent = hits.length === 1
+      ? 'One match — select it to confirm.'
+      : hits.length + ' matches. Pick the right one.';
+
+    const choose = () => {
+      const hit = this._weatherHits[parseInt(select.value, 10)];
+      if (!hit) return;
+      this._pendingLoc = { lat: hit.latitude, lon: hit.longitude, city: this._placeShort(hit) };
+      status.textContent = 'Using ' + this._placeLabel(hit) + ' — Save & continue to confirm.';
+      status.style.color = 'var(--text)';
+    };
+    select.addEventListener('change', choose);
+    if (hits.length === 1) { select.selectedIndex = 0; choose(); }
   },
 
   // On-device (WebGPU) model download UI for the on-device AI step.
@@ -798,8 +1145,93 @@ const Onboarding = {
     });
   },
 
+  // === Validation ==========================================================
+  //
+  // "Save & continue" used to accept an empty box, or a URL that was never
+  // going to work, and say nothing — so people finished setup believing they
+  // had configured things they hadn't. Now a step either has a usable answer
+  // or you press Skip, deliberately. Skip is always available and always
+  // works; this only refuses to pretend that nothing is something.
+  //
+  // Returns null when the step is good, or { field, message } to show.
+  _validate(key, overlay) {
+    const val = (sel) => (overlay.querySelector(sel)?.value || '').trim();
+    const empty = (field, what) => ({ field, message: 'This is empty — ' + what + ', or press Skip to leave it out.' });
+
+    if (key === 'name') {
+      const v = val('#ob-name');
+      if (!v) return empty('#ob-name', 'type the name you want on your start page');
+      if (v.length > 40) return { field: '#ob-name', message: 'That is longer than 40 characters — use something shorter.' };
+      return null;
+    }
+
+    if (key === 'github') {
+      const v = val('#ob-gh');
+      if (!v) return empty('#ob-gh', 'type your GitHub username');
+      // GitHub's own rule: letters, digits and single hyphens, max 39.
+      if (!/^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i.test(v)) {
+        return { field: '#ob-gh', message: 'That is not a GitHub username — letters, numbers and single hyphens only (no @, no spaces, no full URL).' };
+      }
+      return null;
+    }
+
+    if (key === 'aicloud' || key === 'sync') {
+      const sel = key === 'aicloud' ? '#ob-ai-url' : '#ob-sync-url';
+      const what = key === 'aicloud' ? 'paste your AI Worker URL' : 'paste your Sync Worker URL';
+      const v = val(sel);
+      if (!v) return empty(sel, what);
+      let u;
+      try { u = new URL(v); } catch { return { field: sel, message: 'That is not a web address — it should look like https://your-worker.workers.dev' }; }
+      if (u.protocol !== 'https:' && u.hostname !== 'localhost' && u.hostname !== '127.0.0.1') {
+        return { field: sel, message: 'Use https:// — an unencrypted worker would send your requests in the clear.' };
+      }
+      return null;
+    }
+
+    if (key === 'weather') {
+      if (this._pendingLoc) return null;
+      const typed = val('#ob-city');
+      if (!typed) return empty('#ob-city', 'search for your city, district or postcode');
+      return { field: '#ob-city', message: 'Pick one of the matches below so the forecast is for the right place — or press Skip.' };
+    }
+
+    return null;
+  },
+
+  // Show the problem where it happened: red border, message under the field,
+  // focus back in the box. Cleared as soon as they type.
+  _showError(overlay, problem) {
+    overlay.querySelector('#ob-error')?.remove();
+    const field = problem.field ? overlay.querySelector(problem.field) : null;
+    const note = document.createElement('div');
+    note.id = 'ob-error';
+    note.setAttribute('role', 'alert');
+    note.style.cssText = 'display:flex;align-items:flex-start;gap:7px;margin-top:9px;font-size:12.5px;line-height:1.45;color:var(--danger,#ef4444)';
+    note.innerHTML = (window.VexIcons ? VexIcons.svg('warning', { size: 14 }) : '') + '<span></span>';
+    note.querySelector('span').textContent = problem.message;
+
+    if (field) {
+      field.style.borderColor = 'var(--danger,#ef4444)';
+      field.setAttribute('aria-invalid', 'true');
+      (field.parentElement || overlay.querySelector('#ob-body')).appendChild(note);
+      const clear = () => {
+        field.style.borderColor = 'var(--border)';
+        field.removeAttribute('aria-invalid');
+        overlay.querySelector('#ob-error')?.remove();
+        field.removeEventListener('input', clear);
+      };
+      field.addEventListener('input', clear);
+      field.focus();
+      field.select?.();
+    } else {
+      overlay.querySelector('#ob-body').appendChild(note);
+    }
+  },
+
   async _commitAndNext(key, overlay) {
     this._stash(key, overlay);   // so Back onto this step re-shows exactly what was typed
+    const problem = this._validate(key, overlay);
+    if (problem) { this._showError(overlay, problem); return; }
     if (key === 'setupstyle') {
       const sel = this._session.setup;
       if (sel && sel.profile === 'code') {
@@ -846,21 +1278,11 @@ const Onboarding = {
       const v = overlay.querySelector('#ob-sync-url')?.value.trim() || '';
       try { v ? localStorage.setItem('vex.syncWorkerUrl', v) : localStorage.removeItem('vex.syncWorkerUrl'); } catch {}
     } else if (key === 'weather') {
-      if (this._pendingLoc) {
-        this._setStart('vex.weatherLoc', JSON.stringify(this._pendingLoc));
-      } else {
-        // They typed but never picked — try to auto-resolve the top hit so the
-        // step isn't lost, but only if there's text.
-        const city = overlay.querySelector('#ob-city')?.value.trim() || '';
-        if (city) {
-          try {
-            const r = await (window.VexNet?.fetch || fetch)(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=tr`);
-            const d = await r.json();
-            const hit = d && d.results && d.results[0];
-            if (hit) this._setStart('vex.weatherLoc', JSON.stringify({ lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? ', ' + hit.admin1 : '') + (hit.country_code ? ', ' + hit.country_code : '') }));
-          } catch {}
-        }
-      }
+      // Validation guarantees a picked place by the time we get here: no more
+      // quietly resolving whatever the geocoder ranked first.
+      this._setStart('vex.weatherLoc', JSON.stringify(this._pendingLoc));
+    } else if (key === 'performance') {
+      await this._perfApply(this._perf || this._perfCurrent());
     }
     this.step++;
     this._render();

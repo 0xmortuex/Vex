@@ -136,8 +136,9 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 ### ☁️ Sync
 - **Vex Sync** — end‑to‑end encrypted (AES‑GCM‑256) sync of tabs, bookmarks, history and settings across devices, via your own self‑hosted Cloudflare Worker. A hex recovery code is your key.
 
-### 🚀 Onboarding
-- **First‑run wizard** — pick a **setup profile** (*The Mortuex Setup* / *Minimal* / *Custom* / paste a shared code), theme, language (EN/TR), daily wisdom, name, weather, GitHub, search engine, default‑browser, and each AI/Sync/password option.
+### 🚀 Onboarding & discovery
+- **Discover** (`Ctrl+K` → *Discover*) — **every feature in this list, inside the browser**, in 12 categories with a search box. Each one says what it is for, and has **Show me** (spotlights the real button on your screen) and **Open** (runs it). A feature you switched off is still listed, with *Turn on & show me*. Whole categories can be toured in turn.
+- **First‑run wizard** — a **setup profile** (*The Mortuex Setup* / *Minimal* / *Custom* / paste a shared code), theme, **look** (Classic · Glass · Chrome · Firefox · Safari · IE on XP · Netscape on 98, with tab placement), **speed, memory & privacy** (a preset, or all nine settings individually), job profile, language (EN/TR), daily wisdom, name, weather (country → city/district/postcode picker), GitHub, search engine, default‑browser, and each AI/Sync/password option. Every field is validated: an empty or malformed answer is refused with the reason, so nothing is silently skipped.
 - **Interactive tour**, **"What's New"** update log, **auto‑updater**.
 
 ---
