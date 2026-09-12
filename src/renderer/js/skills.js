@@ -166,7 +166,7 @@ const VexSkills = {
         return;
       }
       if (sk) { sk.name = name; sk.prompt = prompt; sk.icon = current; delete sk.emoji; }
-      else this.skills.push({ id: 'sk_' + Date.now(), name, prompt, icon: current });
+      else this.skills.push({ id: vexId('sk_'), name, prompt, icon: current });
       const saved = this.save();
       m.remove();
       this.renderPanel(container);

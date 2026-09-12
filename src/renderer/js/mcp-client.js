@@ -24,7 +24,7 @@ const McpClient = (() => {
   function addServer(name, url, auth) {
     url = (url || '').trim(); name = (name || '').trim();
     if (!/^https?:\/\//i.test(url)) { window.showToast?.('Enter a valid http(s) MCP URL'); return null; }
-    const s = { id: 'mcp' + Date.now().toString(36), name: name || url, url, auth: (auth || '').trim() };
+    const s = { id: vexId('mcp'), name: name || url, url, auth: (auth || '').trim() };
     servers.push(s); save();
     return s;
   }

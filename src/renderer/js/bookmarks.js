@@ -33,7 +33,7 @@ const Bookmarks = {
       // null here, silently skipping the folder question) — use the in-app
       // prompt. Cancel still bookmarks, just into Unsorted.
       const folder = await vexPrompt({ title: 'Bookmark this page', label: 'Folder (blank = Unsorted)', okLabel: 'Bookmark' }) || '';
-      this.items.unshift({ id: 'bm' + Date.now(), url, title: title || url, folder: folder.trim(), at: Date.now() });
+      this.items.unshift({ id: vexId('bm'), url, title: title || url, folder: folder.trim(), at: Date.now() });
       window.showToast?.('Bookmarked');
     }
     this.save();

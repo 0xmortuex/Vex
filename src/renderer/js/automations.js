@@ -105,7 +105,7 @@ const Automations = {
       const av = (m.querySelector('#au-actval').value || '').trim();
       if (!tv || !av) { window.showToast?.('Fill in the trigger and action'); return; }
       const list = this._load();
-      list.push({ id: 'a' + Date.now(), name: name || (trig.value === 'time' ? 'At ' + tv : 'On ' + tv), enabled: true, trigger: { type: trig.value, value: tv }, action: { type: act.value, value: av } });
+      list.push({ id: vexId('a'), name: name || (trig.value === 'time' ? 'At ' + tv : 'On ' + tv), enabled: true, trigger: { type: trig.value, value: tv }, action: { type: act.value, value: av } });
       this._save(list); this.open();
     });
     m.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { const list = this._load(); list.splice(parseInt(b.dataset.del, 10), 1); this._save(list); this.open(); }));

@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.53 (2026-09-12) — Deleting one thing no longer deletes two
+
+### Fixed
+- **Deleting a bookmark could delete a second one with it.** Every saved list — bookmarks, read-later, sessions, workspaces, automations, command chains, your own tools, AI memory, watched pages, skills, MCP servers, pinned sites — gave each entry an identity built from the clock alone. Two things saved in the same millisecond ended up sharing one, and since deleting works by matching that identity, removing either removed both. Nothing warned you; the second item simply stopped existing. All thirteen now get an identity that cannot collide, and a test refuses to let a new list do it the old way.
+
+### Notes
+- Six panels that had never been driven — bookmarks, library, feeds, highlights, authenticator and the queue — were exercised with real data in a running browser: all render, all survive being closed and reopened, and none of them turn a hostile title into markup. The feed reader was checked with a deliberately malicious RSS item title and showed it as plain text.
+
 ## v2.31.52 (2026-09-12) — A website's name can't reach into Vex
 
 ### Fixed

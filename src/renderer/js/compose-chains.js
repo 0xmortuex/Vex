@@ -158,7 +158,7 @@ const CommandChains = {
     add.querySelector('#chain-add').addEventListener('click', () => {
       const name = add.querySelector('#chain-name').value.trim();
       if (!name || picked.length < 2) { window.showToast?.('Name it and pick at least 2 steps', 'warn'); return; }
-      this.chains.push({ id: 'ch' + Date.now(), name, steps: picked.slice() });
+      this.chains.push({ id: vexId('ch'), name, steps: picked.slice() });
       const saved = this.save();
       this.renderPanel(container);
       window.showToast?.(saved

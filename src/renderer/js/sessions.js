@@ -24,7 +24,7 @@ const SessionManager = {
   saveCurrentSession(name) {
     const tabs = window.VexTabPolicy.snapshot(TabManager.tabs);
     const session = {
-      id: 'sess_' + Date.now(),
+      id: vexId('sess_'),
       name: name || 'Session ' + new Date().toLocaleString(),
       createdAt: new Date().toISOString(),
       tabs,

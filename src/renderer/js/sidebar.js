@@ -220,7 +220,7 @@ const SidebarManager = {
     let host = t.url; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch {}
     const list = this._sitePanels();
     if (list.some(p => p.url === t.url)) { window.showToast?.('Already pinned'); return; }
-    const p = { id: 'site_' + Date.now(), name: host, url: t.url };
+    const p = { id: vexId('site_'), name: host, url: t.url };
     list.push(p);
     this._saveSitePanels(list);
     this._mountSitePanel(p);

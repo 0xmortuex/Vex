@@ -27,7 +27,7 @@ const ReadLater = {
   add(url, title) {
     if (!url) return;
     if (this.items.some(i => i.url === url && !i.read)) { window.showToast?.('Already in Read Later'); return; }
-    this.items.unshift({ id: 'rl' + Date.now(), url, title: title || url, at: Date.now(), read: false });
+    this.items.unshift({ id: vexId('rl'), url, title: title || url, at: Date.now(), read: false });
     this.save();
     window.showToast?.('Saved for later (' + this.unread() + ' unread)');
   },
@@ -172,7 +172,7 @@ const ClipToNotes = {
       let notes = []; try { notes = JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch {}
       let note = notes.find(n => n.title === 'Clippings');
       if (!note) {
-        note = { id: 'note_' + Date.now(), title: 'Clippings', content: '', pinned: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        note = { id: vexId('note_'), title: 'Clippings', content: '', pinned: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
         notes.unshift(note);
       }
       note.content = body + (note.content || '');

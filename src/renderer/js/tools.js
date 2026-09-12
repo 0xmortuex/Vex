@@ -120,7 +120,7 @@ const VexTools = {
   },
 
   addTool(name, url, desc) {
-    const tool = { id: 'tool_' + Date.now(), name, url, desc: desc || '', svg: '' };
+    const tool = { id: vexId('tool_'), name, url, desc: desc || '', svg: '' };
     // Auto-generate a favicon-based display
     try { const domain = new URL(url).hostname; tool.faviconUrl = `https://${domain}/favicon.ico`; } catch {}
     this.tools.push(tool);

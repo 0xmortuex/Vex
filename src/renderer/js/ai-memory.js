@@ -21,7 +21,7 @@ const AIMemory = {
     text = (text || '').trim();
     if (!text) return false;
     if (this.data.facts.some(f => f.text.toLowerCase() === text.toLowerCase())) { window.showToast?.('Already remembered'); return false; }
-    this.data.facts.unshift({ id: 'm' + Date.now().toString(36), text: text.slice(0, 400), at: Date.now() });
+    this.data.facts.unshift({ id: vexId('m'), text: text.slice(0, 400), at: Date.now() });
     if (this.data.facts.length > 100) this.data.facts.length = 100;
     this.save();
     window.showToast?.('Vex will remember that');

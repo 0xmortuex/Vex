@@ -184,7 +184,7 @@ const WorkspaceManager = {
 
   addWorkspace(name, color) {
     const ws = {
-      id: 'ws_' + Date.now(),
+      id: vexId('ws_'),
       name,
       color: color || '#6366f1',
       tabs: [],

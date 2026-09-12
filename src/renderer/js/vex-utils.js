@@ -52,12 +52,23 @@
     },
   };
 
+  // An id for a stored item. Time alone is not enough: two things created in
+  // the same millisecond got the same id, and every list here deletes by id —
+  // so removing one bookmark silently removed the other as well.
+  let idCounter = 0;
+  function vexId(prefix) {
+    idCounter = (idCounter + 1) % 1e6;
+    return String(prefix || 'id') + Date.now().toString(36)
+      + idCounter.toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
   if (typeof window !== 'undefined') {
     window.escapeHtml = escapeHtml;
     window.VexUI = VexUI;
+    window.vexId = vexId;
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { escapeHtml, VexUI };
+    module.exports = { escapeHtml, VexUI, vexId };
   }
 })();

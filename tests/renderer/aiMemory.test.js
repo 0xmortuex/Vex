@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+require('../../src/renderer/js/vex-utils.js');  // installs window.vexId, as index.html does
 const { AIMemory } = require('../../src/renderer/js/ai-memory.js');
 
 beforeEach(() => {

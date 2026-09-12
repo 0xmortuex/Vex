@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+require('../../src/renderer/js/vex-utils.js');  // installs window.vexId, as index.html does
 const { McpClient } = require('../../src/renderer/js/mcp-client.js');
 
 beforeEach(() => {

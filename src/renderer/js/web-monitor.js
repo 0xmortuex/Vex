@@ -36,7 +36,7 @@ const PageMonitor = {
   async add(url, title, intervalMin) {
     if (!url || !/^https?:/i.test(url)) { window.showToast?.('Open a website first'); return; }
     if (this.watches.some(w => w.url === url)) { window.showToast?.('Already watching this page'); return; }
-    const w = { id: 'w' + Date.now().toString(36), url, title: title || url, intervalMin: intervalMin || 30, lastHash: null, lastChecked: 0, changed: false, baseline: false };
+    const w = { id: vexId('w'), url, title: title || url, intervalMin: intervalMin || 30, lastHash: null, lastChecked: 0, changed: false, baseline: false };
     this.watches.unshift(w);
     this.save();
     window.showToast?.('Watching — you\'ll be alerted when it changes');
