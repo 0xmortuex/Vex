@@ -25,7 +25,7 @@ const WorkPanel = {
       return;
     }
 
-    const enabled = this._enabledTools(job);
+    const enabled = (() => { try { const a = JSON.parse(localStorage.getItem('vex.jobTools') || 'null'); return Array.isArray(a) ? a : job.tools.slice(); } catch { return job.tools.slice(); } })();
     const tools = (window.Toolbox ? Toolbox.all().filter(t => enabled.includes(t.id)) : []);
     const themeMeta = (typeof ThemeManager !== 'undefined' && ThemeManager.getThemeMeta) ? ThemeManager.getThemeMeta(job.theme) : { label: job.theme, accent: '#6366f1' };
 
@@ -76,43 +76,6 @@ const WorkPanel = {
         else if (a === 'note') { window.StickyNotes && StickyNotes.open(); }
       } catch {}
     }));
-  },
-
-  // Which tools this panel shows.
-  //
-  // New profiles get the job's recommended set, which now excludes tools that
-  // render as a typographic sign instead of a drawn icon. A profile saved
-  // before that change still lists them, so they are dropped ONCE, here.
-  //
-  // Only once: after the migration the saved list is left alone, because a tool
-  // the user deliberately added through the picker's search must keep showing
-  // up. Silently refusing to render something they asked for is the same dead
-  // -button failure this panel's AI button was written to avoid.
-  MIGRATION_KEY: 'vex.jobToolsIconMigrated',
-
-  _enabledTools(job) {
-    const recommended = () => (window.JobProfiles && JobProfiles.recommendedTools)
-      ? JobProfiles.recommendedTools(job)
-      : (job.tools || []).slice();
-
-    let saved = null;
-    try { const a = JSON.parse(localStorage.getItem('vex.jobTools') || 'null'); if (Array.isArray(a)) saved = a; } catch { saved = null; }
-    if (!saved) return recommended();
-
-    let migrated = false;
-    try { migrated = localStorage.getItem(this.MIGRATION_KEY) === '1'; } catch {}
-    if (migrated) return saved;
-
-    let kept = saved;
-    if (window.Toolbox && typeof Toolbox.rendersDrawnIcon === 'function') {
-      const byId = new Map(Toolbox.all().map(t => [t.id, t]));
-      kept = saved.filter(id => { const t = byId.get(id); return t ? Toolbox.rendersDrawnIcon(t) : true; });
-    }
-    try {
-      localStorage.setItem('vex.jobTools', JSON.stringify(kept));
-      localStorage.setItem(this.MIGRATION_KEY, '1');
-    } catch {}
-    return kept;
   },
 
   // Open the AI chat from the Work panel.

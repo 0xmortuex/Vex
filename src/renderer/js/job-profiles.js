@@ -456,16 +456,6 @@ const JobProfiles = {
   ],
 
   list() { return this.JOBS; },
-
-  // A job's recommended tools, minus any that render as a typographic sign
-  // rather than a drawn icon. The JOBS table above is left intact so nothing is
-  // lost — this is the filter every default goes through.
-  recommendedTools(job) {
-    const ids = (job && Array.isArray(job.tools)) ? job.tools : [];
-    if (typeof Toolbox === 'undefined' || typeof Toolbox.rendersDrawnIcon !== 'function') return ids.slice();
-    const byId = new Map(Toolbox.all().map(t => [t.id, t]));
-    return ids.filter(id => { const t = byId.get(id); return t ? Toolbox.rendersDrawnIcon(t) : false; });
-  },
   get(id) { return this.JOBS.find(j => j.id === id) || null; },
   current() { try { return localStorage.getItem('vex.job') || null; } catch { return null; } },
 
@@ -473,7 +463,7 @@ const JobProfiles = {
   apply(jobId, enabledToolIds) {
     const job = this.get(jobId);
     if (!job) return;
-    const tools = Array.isArray(enabledToolIds) ? enabledToolIds : this.recommendedTools(job);
+    const tools = Array.isArray(enabledToolIds) ? enabledToolIds : job.tools.slice();
     try { localStorage.setItem('vex.job', jobId); } catch {}
     try { localStorage.setItem('vex.jobTools', JSON.stringify(tools)); } catch {}
     try {
@@ -530,9 +520,37 @@ const JobProfiles = {
     });
   },
 
+  // v2.31.58 shortened saved tool lists to only the tools with a drawn icon,
+  // and that was reverted. Reverting the code does not give anyone their tools
+  // back, so put them back here: merged with whatever is saved now, so a tool
+  // added since is not lost either.
+  //
+  // The flag is only cleared once the restored list is actually written, so a
+  // failed write means this runs again next start rather than silently giving
+  // up on someone's tools.
+  restorePrunedTools() {
+    let flagged = false;
+    try { flagged = localStorage.getItem('vex.jobToolsIconMigrated') === '1'; } catch { return false; }
+    if (!flagged) return false;
+
+    const job = this.get(this.current());
+    if (job) {
+      let saved = [];
+      try { const a = JSON.parse(localStorage.getItem('vex.jobTools') || 'null'); if (Array.isArray(a)) saved = a; } catch { saved = []; }
+      const merged = [...new Set([...saved, ...job.tools])];
+      try { localStorage.setItem('vex.jobTools', JSON.stringify(merged)); }
+      catch { return false; } // keep the flag: try again next start
+    }
+    try { localStorage.removeItem('vex.jobToolsIconMigrated'); } catch { return false; }
+    return true;
+  },
+
   // Called at boot to restore the job's toolbar buttons (theme is restored by
   // ThemeManager itself).
-  boot() { try { if (this.current()) this.renderButtons(); } catch {} },
+  boot() {
+    try { this.restorePrunedTools(); } catch {}
+    try { if (this.current()) this.renderButtons(); } catch {}
+  },
 };
 
 if (typeof window !== 'undefined') window.JobProfiles = JobProfiles;

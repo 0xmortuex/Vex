@@ -300,25 +300,6 @@ const Toolbox = {
     return icons ? icons.svg('toolbox', { size: px }) : '';
   },
 
-  // Does this tool render as a DRAWN icon, or as a typographic sign?
-  //
-  // iconMarkup falls back to the tool's own mark (".*", "{ }", "Aa") when it is
-  // not a VexIcons name, and 137 of the 318 tools are marked that way. A job's
-  // tool grid mixing the two kinds is what made the Work panel look like two
-  // different designs, so job recommendations use only the drawn ones. The
-  // typographic tools are untouched and still in the full Toolbox.
-  rendersDrawnIcon(tool) {
-    const icons = (typeof VexIcons !== 'undefined') ? VexIcons : null;
-    const own = tool && typeof tool.icon === 'string' ? tool.icon : '';
-    // Without the icon set there is no way to tell a VexIcons name ("star")
-    // from a typographic mark, and guessing wrong here silently empties a job's
-    // tool list. Not knowing means not removing.
-    if (!icons) return true;
-    if (icons.has(own)) return true;
-    if (own && own.length <= 7 && !/\p{Extended_Pictographic}/u.test(own)) return false;
-    return true;
-  },
-
   // Family label for a tool (hand-built tools use the same family ids).
   _familyLabel(fam) {
     const F = (typeof ToolboxPacks !== 'undefined') ? ToolboxPacks.FAMILIES : {};

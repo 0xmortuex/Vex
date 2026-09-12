@@ -51,7 +51,7 @@ const JobSetup = {
     if (!job) return this._renderPick(m);
     // Initialize the working tool set once per selected job; keep it across the
     // re-renders that toggling triggers.
-    if (!this._tools || this._toolsForJob !== job.id) { this._tools = new Set(JobProfiles.recommendedTools(job)); this._toolsForJob = job.id; }
+    if (!this._tools || this._toolsForJob !== job.id) { this._tools = new Set(job.tools); this._toolsForJob = job.id; }
     const allTools = window.Toolbox ? Toolbox.all() : [];
     const themeMeta = (typeof ThemeManager !== 'undefined' && ThemeManager.getThemeMeta) ? ThemeManager.getThemeMeta(job.theme) : { label: job.theme, accent: '#6366f1' };
     body.innerHTML = `
@@ -69,10 +69,9 @@ const JobSetup = {
         <span style="flex:1;font-size:11px;color:var(--text-muted)">Applies the theme + adds a Toolbox button and quick tools by the Tor button.</span>
         <button id="jsx-apply" style="padding:10px 20px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Apply</button>
       </div>`;
-    const recIds = new Set(JobProfiles.recommendedTools(job));
     const toolCard = (t) => {
       const on = this._tools.has(t.id);
-      const rec = recIds.has(t.id);
+      const rec = job.tools.includes(t.id);
       const el = document.createElement('button');
       el.className = 'jsx-tool';
       el.dataset.id = t.id;

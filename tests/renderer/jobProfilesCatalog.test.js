@@ -7,8 +7,8 @@
 
 import { describe, it, expect } from 'vitest';
 
-// The icon set must be present: rendersDrawnIcon cannot tell a VexIcons name
-// from a typographic mark without it, and deliberately declines to filter.
+// renderButtons draws its icons with VexIcons, so the top-bar tests below need
+// the icon set present.
 const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
 globalThis.VexIcons = VexIcons;
 const { ToolboxPacks } = require('../../src/renderer/js/toolbox-packs.js');
@@ -157,54 +157,6 @@ describe('Job Profiles catalogue', () => {
   });
 });
 
-// A job's recommended tools only include ones that draw a real icon. 137 of the
-// 318 tools are marked with a typographic sign instead (".*", "{ }", "Aa"), and
-// a grid mixing the two kinds is what made the Work panel look inconsistent.
-// The JOBS table itself is deliberately left intact — this is a read-time
-// filter, so nothing is lost and it can be changed in one place.
-describe('recommended tools are drawn-icon only', () => {
-  it('drops every typographic-icon tool from every job', () => {
-    const byId = new Map(Toolbox.all().map(t => [t.id, t]));
-    const offenders = [];
-    for (const job of JobProfiles.list()) {
-      for (const id of JobProfiles.recommendedTools(job)) {
-        const t = byId.get(id);
-        if (t && !Toolbox.rendersDrawnIcon(t)) offenders.push(`${job.id}: ${id} (${t.icon})`);
-      }
-    }
-    expect(offenders, offenders.slice(0, 10).join('\n')).toEqual([]);
-  }, 30000);
-
-  it('declines to filter at all when the icon set is missing, rather than emptying lists', () => {
-    const saved = globalThis.VexIcons;
-    try {
-      delete globalThis.VexIcons;
-      const job = JobProfiles.list()[0];
-      expect(JobProfiles.recommendedTools(job)).toEqual(job.tools);
-    } finally { globalThis.VexIcons = saved; }
-  });
-
-  it('leaves no job without any tools at all', () => {
-    const empty = JobProfiles.list().filter(j => JobProfiles.recommendedTools(j).length === 0).map(j => j.id);
-    expect(empty, empty.join(', ')).toEqual([]);
-  }, 30000);
-
-  it('keeps the recommendation a subset of what the job actually listed', () => {
-    for (const job of JobProfiles.list().slice(0, 60)) {
-      const rec = JobProfiles.recommendedTools(job);
-      expect(rec.every(id => job.tools.includes(id)), job.id).toBe(true);
-    }
-  });
-
-  it('still recognises a drawn icon, so the filter is not just emptying lists', () => {
-    expect(Toolbox.rendersDrawnIcon({ icon: 'star' })).toBe(true);
-    expect(Toolbox.rendersDrawnIcon({ icon: '.*' })).toBe(false);
-    expect(Toolbox.rendersDrawnIcon({ icon: '{ }' })).toBe(false);
-    // No icon at all falls through to the family drawing, which is a real icon.
-    expect(Toolbox.rendersDrawnIcon({ icon: '', family: 'dev' })).toBe(true);
-  });
-});
-
 // The top bar draws the Toolbox button and the Vex AI button, and nothing else.
 // It used to also draw up to three individual tool buttons out there, which is
 // what looked wrong: they sat beside the Toolbox icon rendering a typographic
@@ -260,5 +212,66 @@ describe('the job buttons in the top bar', () => {
     const id = JobProfiles.list()[0].id;
     draw(id); draw(id); const btns = draw(id);
     expect(btns.length).toBe(2);
+  });
+});
+
+// v2.31.58 shortened saved tool lists to only the tools with a drawn icon.
+// That was reverted, but reverting code does not restore data — anyone who ran
+// that version still has the shortened list until this puts it back.
+describe('restoring tool lists shortened by v2.31.58', () => {
+  const JOB = JobProfiles.list().find(j => j.tools.length >= 6);
+
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('vex.job', JOB.id);
+  });
+
+  it('puts back the tools that version removed', () => {
+    localStorage.setItem('vex.jobTools', JSON.stringify([JOB.tools[0]]));
+    localStorage.setItem('vex.jobToolsIconMigrated', '1');
+
+    expect(JobProfiles.restorePrunedTools()).toBe(true);
+    const after = JSON.parse(localStorage.getItem('vex.jobTools'));
+    for (const id of JOB.tools) expect(after, id).toContain(id);
+  });
+
+  it('keeps a tool added since, rather than overwriting the saved list', () => {
+    localStorage.setItem('vex.jobTools', JSON.stringify([JOB.tools[0], 'added-later']));
+    localStorage.setItem('vex.jobToolsIconMigrated', '1');
+
+    JobProfiles.restorePrunedTools();
+    expect(JSON.parse(localStorage.getItem('vex.jobTools'))).toContain('added-later');
+  });
+
+  it('does not duplicate tools that are already there', () => {
+    localStorage.setItem('vex.jobTools', JSON.stringify(JOB.tools));
+    localStorage.setItem('vex.jobToolsIconMigrated', '1');
+
+    JobProfiles.restorePrunedTools();
+    const after = JSON.parse(localStorage.getItem('vex.jobTools'));
+    expect(after.length).toBe(new Set(after).size);
+  });
+
+  it('runs once and then leaves the saved list alone', () => {
+    localStorage.setItem('vex.jobTools', JSON.stringify([JOB.tools[0]]));
+    localStorage.setItem('vex.jobToolsIconMigrated', '1');
+    JobProfiles.restorePrunedTools();
+
+    localStorage.setItem('vex.jobTools', JSON.stringify(['just-mine']));
+    expect(JobProfiles.restorePrunedTools()).toBe(false);
+    expect(JSON.parse(localStorage.getItem('vex.jobTools'))).toEqual(['just-mine']);
+  });
+
+  it('does nothing for someone who never ran that version', () => {
+    localStorage.setItem('vex.jobTools', JSON.stringify(['just-mine']));
+    expect(JobProfiles.restorePrunedTools()).toBe(false);
+    expect(JSON.parse(localStorage.getItem('vex.jobTools'))).toEqual(['just-mine']);
+  });
+
+  it('clears the flag even when no job is set, so it cannot fire later', () => {
+    localStorage.removeItem('vex.job');
+    localStorage.setItem('vex.jobToolsIconMigrated', '1');
+    expect(JobProfiles.restorePrunedTools()).toBe(true);
+    expect(localStorage.getItem('vex.jobToolsIconMigrated')).toBe(null);
   });
 });
