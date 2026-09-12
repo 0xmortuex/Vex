@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.59 (2026-09-12) — Everything in the Toolbox, and Vex AI beside it
+
+### Notes
+- **The loose tool buttons in the top bar are gone.** Setting a job put up to three individual tool buttons next to the Toolbox icon, and those rendered a typographic mark (".*", "{ }", "Aa") instead of a drawn icon — so they sat there looking nothing like the button beside them. Every tool now lives inside the Toolbox, which is one click away in the same place.
+- **A Vex AI button, right next to the Toolbox button.** Opens the AI chat. If the panel ever cannot open it says so instead of doing nothing.
+
 ## v2.31.58 (2026-09-12) — Job tools: only the ones with real icons
 
 ### Notes
