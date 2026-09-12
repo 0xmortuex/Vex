@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.65 (2026-09-13) — Every tool on the workbench
+
+### Notes
+- **All 340 tools now open on the same workbench.** Settings column, live results as you type, remembered options, copy, swap, and the two sizes — compact, or full screen with a reference panel beside it. Previously eight tools had this and the other three hundred opened in a stack of labelled boxes.
+- **The reference panel is built for every tool** from what it already knows: what it does, its family, its other names, and worked examples you can click to load.
+- **The last seven hand-built tools are rebuilt.** Regex shows every match with its position and each capture group by name or number, and can replace or split. CSV parses properly — quoted commas, doubled quotes and newlines inside cells all survive — and converts to a table, JSON, Markdown or clean CSV. UUID does v4 and time-ordered v7, and reads one apart. Password reports real entropy and crack times. Colour does WCAG contrast with AA/AAA grades and a matching palette. Cron explains every field and lists the next real firing times. Markdown renders, strips to plain prose, or shows the heading outline.
+- **22 new tools.** Punycode/IDN with a warning when a domain mixes scripts the way a lookalike does; a float inspector that shows why 0.1 + 0.2 is not 0.3; a subnet calculator; CRC-32; Shannon entropy; XOR and Vigenère; a User-Agent reader; px/rem/em conversion; a cubic-bezier evaluator; layered box-shadows; media query ranges; umask; .gitignore starters; Open Graph tags; JSON to YAML or TOML; HTTP status codes; line deduplication; slugs; placeholder text; a character inspector that names invisible characters; and a version-range explainer.
+- Errors are shown rather than swallowed, and an empty input no longer greets you with the tool's own error message.
+
 ## v2.31.64 (2026-09-13) — Tools worth opening
 
 ### Notes
