@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.60 (2026-09-12) — Your job's tools are back
+
+### Notes
+- **Every tool your job recommends is available again.** v2.31.58 shortened those lists to only the tools with a drawn icon, which cut some jobs down hard — Frontend Developer went from 11 tools to 1. That was the wrong fix for the wrong place: the tools that looked out of place were the loose buttons in the top bar, and those are gone as of the previous release. The lists are restored.
+- **If you were on v2.31.58, your tools come back on their own.** Anything that version removed is put back the next time Vex starts, merged with whatever you have now, so a tool you added since is kept too.
+
 ## v2.31.59 (2026-09-12) — Everything in the Toolbox, and Vex AI beside it
 
 ### Notes
