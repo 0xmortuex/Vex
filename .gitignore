@@ -40,3 +40,6 @@ assets/cia-seal.png
 # param. Lives in <userData>/sidebar-config.json; copy sidebar-config.example.json
 # to set it up. The bare name matches the file at any depth (incl. repo root).
 sidebar-config.json
+
+# Generated at publish time from the CHANGELOG entry for the version being released.
+build/release-notes.md

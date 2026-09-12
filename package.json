@@ -19,7 +19,7 @@
     "build-icons": "node scripts/build-icons.js",
     "dist": "npm run build-icons && rimraf dist && electron-builder",
     "dist:win": "npm run build-icons && rimraf dist && electron-builder --win",
-    "publish": "npm run build-icons && rimraf dist && electron-builder --publish always",
+    "publish": "npm run build-icons && node scripts/write-release-notes.js && rimraf dist && electron-builder --publish always",
     "check:source": "node scripts/verify-source.js",
     "check:ui": "node scripts/check-ui.js",
     "build:vendor": "node scripts/bundle-browser-libs.js",
@@ -138,6 +138,9 @@
         "repo": "Vex",
         "releaseType": "release"
       }
-    ]
+    ],
+    "releaseInfo": {
+      "releaseNotesFile": "build/release-notes.md"
+    }
   }
 }
