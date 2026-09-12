@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.31.49 (2026-09-12) — The start page, audited
+
+### Fixed
+- **A shortcut could run code on your start page.** Shortcut names went into the page as markup rather than as text, so a shortcut called `<img src=x onerror=…>` executed its script. That matters because shortcut names are not only your own typing: they travel in the **shared setup codes** Vex invites you to send to other people, and in **Vex Sync** between your devices. Your own "My Tools" entries had the same hole, and so did **GitHub commit messages** — those come straight off the API, and anyone who lands a commit in a repo you push to can write one. All of them are escaped now, and a test fails the build if a new one appears.
+- **"Recent GitHub Activity" had never worked, on any version.** A variable was declared twice, so the code threw before it ever reached GitHub — into a `catch` that had been written to say nothing at all. The panel just stayed empty for everyone who set a username. It works now, and it says so when it cannot load instead of sitting there silent.
+- **The "Change location" button on the weather card had exactly the same fault as the setup wizard** — five matches, always in Turkish. Manchester and Springfield have about a hundred matches each, so the one you wanted usually was not among them. It now has the same country → city/district/postcode picker, showing each place in full (*Manchester · England · United Kingdom*), and a real message when a place exists but not in the country you chose.
+
+### Notes
+- The two location pickers were separate copies of the same code carrying the same bugs. They are one module now, so they cannot drift apart again.
+- Every one of Vex's command-bar entries — about 190 of them, the way into nearly every feature — was invoked in a running browser as part of this sweep. None of them failed.
+- 35 new tests, 2,764 in total.
+
 ## v2.31.48 (2026-09-12) — Picture-in-Picture, audited
 
 ### Fixed

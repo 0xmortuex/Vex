@@ -960,41 +960,14 @@ const Onboarding = {
   //
   // Now: choose a country, search a city, district or postcode, and pick the
   // exact place from a list that shows its full hierarchy. Nothing is guessed.
-  _COUNTRY_CODES: ('AD AE AF AG AL AM AO AR AT AU AZ BA BB BD BE BF BG BH BI BJ BN BO BR BS BT BW BY BZ '
-    + 'CA CD CF CG CH CI CL CM CN CO CR CU CV CY CZ DE DJ DK DM DO DZ EC EE EG ER ES ET FI FJ FM FR GA GB '
-    + 'GD GE GH GM GN GQ GR GT GW GY HN HR HT HU ID IE IL IN IQ IR IS IT JM JO JP KE KG KH KI KM KN KP KR '
-    + 'KW KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MG MH MK ML MM MN MR MT MU MV MW MX MY MZ NA NE '
-    + 'NG NI NL NO NP NR NZ OM PA PE PG PH PK PL PT PW PY QA RO RS RU RW SA SB SC SD SE SG SI SK SL SM SN '
-    + 'SO SR SS ST SV SY SZ TD TG TH TJ TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VN VU WS XK YE '
-    + 'ZA ZM ZW').split(' '),
-
-  // Country name in the user's own language, falling back to the code.
-  _countryName(code) {
-    try {
-      const lang = (typeof navigator !== 'undefined' && navigator.language) || 'en';
-      const dn = new Intl.DisplayNames([lang], { type: 'region' });
-      return dn.of(code) || code;
-    } catch { return code; }
-  },
-
-  // A sensible default country: the one the browser's locale implies.
-  _guessCountry() {
-    try {
-      const loc = (typeof navigator !== 'undefined' && navigator.language) || '';
-      const m = /[-_]([A-Za-z]{2})$/.exec(loc);
-      if (m) { const c = m[1].toUpperCase(); if (this._COUNTRY_CODES.includes(c)) return c; }
-    } catch { /* fall through to no country */ }
-    return '';
-  },
-
-  _countryOptions(selected) {
-    const list = this._COUNTRY_CODES
-      .map((code) => ({ code, name: this._countryName(code) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return '<option value="">Any country</option>'
-      + list.map((c) => '<option value="' + c.code + '"' + (c.code === selected ? ' selected' : '') + '>'
-        + this._esc(c.name) + '</option>').join('');
-  },
+  // Place search lives in js/geo-search.js — the start page has its own
+  // "Change location" button and had a second, identical copy of this with the
+  // same faults. One module, both callers.
+  _countryName(code) { return VexGeo.countryName(code); },
+  _guessCountry() { return VexGeo.guessCountry(); },
+  _countryOptions(selected) { return VexGeo.optionsHtml(selected); },
+  _placeLabel(hit) { return VexGeo.label(hit); },
+  _placeShort(hit) { return VexGeo.short(hit); },
 
   _renderWeather(body) {
     this._pendingLoc = null;
@@ -1049,60 +1022,55 @@ const Onboarding = {
   },
 
   async _searchCity(q, body) {
-    const wrap = body.querySelector('#ob-city-results-wrap');
-    const select = body.querySelector('#ob-city-results');
-    const status = body.querySelector('#ob-city-status');
+    const wrap = body.querySelector("#ob-city-results-wrap");
+    const select = body.querySelector("#ob-city-results");
+    const status = body.querySelector("#ob-city-status");
     this._pendingLoc = null;
-    if (wrap) wrap.style.display = 'none';
-    if (select) select.innerHTML = '';
-    if (!q) { if (status) status.textContent = 'Type a city, district or postcode first.'; return; }
-    if (status) status.textContent = 'Searching…';
+    if (wrap) wrap.style.display = "none";
+    if (select) select.innerHTML = "";
+    if (!q) { if (status) status.textContent = "Type a city, district or postcode first."; return; }
+    if (status) status.textContent = "Searching…";
 
-    // Search in the language the user actually picked, not always Turkish —
-    // that alone was why so many city names "weren't recognized".
-    let lang = 'en';
-    try { lang = (this._pendingLang || localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { lang = 'en'; }
-
-    let list = [];
-    try {
-      const url = 'https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(q)
-        + '&count=100&language=' + encodeURIComponent(lang) + '&format=json';
-      const r = await (window.VexNet?.fetch || fetch)(url);
-      const d = await r.json();
-      list = (d && d.results) || [];
-    } catch (err) {
-      if (status) status.textContent = 'Lookup failed (' + ((err && err.message) || 'no connection') + ') — try again.';
-      return;
-    }
+    // In the language the user picked, not always Turkish — that alone was why
+    // so many city names "were not recognized".
+    let lang = "en";
+    try { lang = (this._pendingLang || localStorage.getItem("vex.lang") || "en").slice(0, 2); } catch { lang = "en"; }
 
     const country = this._weatherCountry;
-    let hits = country ? list.filter((h) => h.country_code === country) : list;
-    if (country && !hits.length && list.length) {
-      if (status) status.textContent = 'No match for “' + q + '” in ' + this._countryName(country)
-        + '. There are ' + list.length + ' elsewhere — set Country to “Any country” to see them.';
-      return;
-    }
-    if (!hits.length) {
-      if (status) status.textContent = 'No match for “' + q + '” — try the nearest town, another spelling, or the postcode.';
+    let found;
+    try {
+      found = await VexGeo.search(q, { country, lang });
+    } catch (err) {
+      if (status) status.textContent = "Lookup failed (" + ((err && err.message) || "no connection") + ") — try again.";
       return;
     }
 
-    hits = hits.slice(0, 60);
+    if (!found.hits.length && found.elsewhere) {
+      if (status) status.textContent = "No match for “" + q + "” in " + VexGeo.countryName(country)
+        + ". There are " + found.elsewhere + " elsewhere — set Country to “Any country” to see them.";
+      return;
+    }
+    if (!found.hits.length) {
+      if (status) status.textContent = "No match for “" + q + "” — try the nearest town, another spelling, or the postcode.";
+      return;
+    }
+
+    const hits = found.hits.slice(0, 60);
     this._weatherHits = hits;
-    select.innerHTML = hits.map((h, i) => '<option value="' + i + '">' + this._esc(this._placeLabel(h)) + '</option>').join('');
-    wrap.style.display = 'block';
+    select.innerHTML = hits.map((h, i) => "<option value=\"" + i + "\">" + this._esc(VexGeo.label(h)) + "</option>").join("");
+    wrap.style.display = "block";
     status.textContent = hits.length === 1
-      ? 'One match — select it to confirm.'
-      : hits.length + ' matches. Pick the right one.';
+      ? "One match — select it to confirm."
+      : hits.length + " matches. Pick the right one.";
 
     const choose = () => {
       const hit = this._weatherHits[parseInt(select.value, 10)];
       if (!hit) return;
-      this._pendingLoc = { lat: hit.latitude, lon: hit.longitude, city: this._placeShort(hit) };
-      status.textContent = 'Using ' + this._placeLabel(hit) + ' — Save & continue to confirm.';
-      status.style.color = 'var(--text)';
+      this._pendingLoc = VexGeo.toLocation(hit);
+      status.textContent = "Using " + VexGeo.label(hit) + " — Save & continue to confirm.";
+      status.style.color = "var(--text)";
     };
-    select.addEventListener('change', choose);
+    select.addEventListener("change", choose);
     if (hits.length === 1) { select.selectedIndex = 0; choose(); }
   },
 

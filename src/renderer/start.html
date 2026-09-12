@@ -543,6 +543,14 @@
       border-radius: 9px; color: var(--vex-text-primary); font-size: 14px; outline: none;
       font-family: 'Space Grotesk', sans-serif;
     }
+    .loc-modal-card select {
+      width: 100%; box-sizing: border-box; margin-bottom: 8px;
+      padding: 10px 12px; border-radius: 9px;
+      background: var(--vex-bg-base, var(--bg));
+      border: 1px solid var(--vex-border-subtle, var(--border));
+      color: var(--vex-text-primary, var(--text));
+      font: inherit; font-size: 13px;
+    }
     .loc-status { font-size: 11.5px; color: var(--vex-text-muted); min-height: 16px; margin-top: 8px; }
     .loc-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
     .loc-actions button {
@@ -1274,6 +1282,7 @@
   </style>
   <link rel="stylesheet" href="css/fonts.css">
   <script src="js/vex-icons.js"></script>
+  <script src="js/geo-search.js"></script>
 </head>
 <body>
   <button class="theme-toggle-btn" id="theme-toggle-btn" title="Change theme">
@@ -1360,9 +1369,13 @@
   <div class="loc-modal" id="loc-modal">
     <div class="loc-modal-card">
       <h3>Set your location</h3>
-      <p>Type a city or district (e.g. “Ataşehir”), search, then pick the right match. Stored only on this device.</p>
-      <input type="text" id="loc-input" placeholder="e.g. Ataşehir or Istanbul" autocomplete="off" spellcheck="false">
-      <div class="loc-results" id="loc-results" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+      <p>Pick your country, then search for a city, district or postcode and choose the exact place. Stored only on this device.</p>
+      <select id="loc-country" aria-label="Country"></select>
+      <input type="text" id="loc-input" placeholder="e.g. Ataşehir · Manchester · 34750" autocomplete="off" spellcheck="false">
+      <div class="loc-results" id="loc-results" style="display:none;margin-top:10px">
+        <label for="loc-pick" style="display:block;font-size:11.5px;color:var(--vex-text-muted);margin-bottom:5px">Pick the exact place</label>
+        <select id="loc-pick" size="6" style="width:100%"></select>
+      </div>
       <div class="loc-status" id="loc-status"></div>
       <div class="loc-actions">
         <button class="ghost" id="loc-cancel">Cancel</button>
@@ -1448,6 +1461,17 @@
     updateClock();
     setInterval(updateClock, 1000);
 
+    // Text that came from a person or a server, on its way into innerHTML.
+    // The start page renders three kinds of untrusted string: shortcut names
+    // (which arrive from SHARED setup codes and from Vex Sync, not just from
+    // you), your own tool entries, and GitHub commit messages straight off the
+    // API — anyone who lands a commit in a repo you push can write one.
+    function escHtml(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function escAttr(v) { return escHtml(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
     // Customizable shortcuts with localStorage persistence
     const SHORTCUTS_KEY = 'vex.shortcuts';
     const defaultShortcuts = [
@@ -1524,7 +1548,7 @@
         return '<span class="sc-svg" style="display:inline-flex;color:' + (ic.color || 'var(--vex-text-primary)') + '">' + ic.svg + '</span>';
       }
       const fav = getFavicon(s.url);
-      return fav ? '<img src="' + fav + '" alt="">' : '<span style="display:inline-flex">' + VexIcons.svg('link', { size: 22 }) + '</span>';
+      return fav ? '<img src="' + escAttr(fav) + '" alt="">' : '<span style="display:inline-flex">' + VexIcons.svg('link', { size: 22 }) + '</span>';
     }
 
     let shortcuts = loadShortcuts();
@@ -1539,7 +1563,7 @@
         card.dataset.index = i;
         card.innerHTML = `
           <div class="shortcut-icon">${renderIcon(s)}</div>
-          <div class="shortcut-label">${s.name}</div>
+          <div class="shortcut-label">${escHtml(s.name)}</div>
         `;
         card.addEventListener('click', (e) => {
           if (e.target.closest('.shortcut-edit-btn')) return;
@@ -1673,9 +1697,9 @@
       modal.innerHTML = `<div style="width:360px;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-lg);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)">
         <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:var(--vex-text-primary)">${existing ? 'Edit' : 'Add'} Shortcut</h3>
         <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--vex-text-muted);margin-bottom:6px;font-weight:500">Name</label>
-        <input type="text" id="sc-name" value="${existing ? existing.name : ''}" placeholder="Shortcut name..." style="width:100%;padding:10px 12px;background:var(--vex-glass-input);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);color:var(--vex-text-primary);font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:Outfit,sans-serif">
+        <input type="text" id="sc-name" value="${existing ? escAttr(existing.name) : ''}" placeholder="Shortcut name..." style="width:100%;padding:10px 12px;background:var(--vex-glass-input);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);color:var(--vex-text-primary);font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:Outfit,sans-serif">
         <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--vex-text-muted);margin-bottom:6px;font-weight:500">URL</label>
-        <input type="text" id="sc-url" value="${existing ? existing.url : ''}" placeholder="https://..." style="width:100%;padding:10px 12px;background:var(--vex-glass-input);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);color:var(--vex-text-primary);font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:'JetBrains Mono',monospace">
+        <input type="text" id="sc-url" value="${existing ? escAttr(existing.url) : ''}" placeholder="https://..." style="width:100%;padding:10px 12px;background:var(--vex-glass-input);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);color:var(--vex-text-primary);font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box;font-family:'JetBrains Mono',monospace">
         <div id="sc-preview" style="text-align:center;margin-bottom:14px"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button id="sc-cancel" style="padding:8px 18px;background:var(--vex-glass-input);color:var(--vex-text-primary);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-md);cursor:pointer;font-family:Outfit,sans-serif;font-size:13px">Cancel</button>
@@ -1688,7 +1712,7 @@
       const preview = modal.querySelector('#sc-preview');
       function updatePreview() {
         const fav = getFavicon(urlInput.value);
-        preview.innerHTML = fav ? '<img src="'+fav+'" width="32" height="32" style="border-radius:6px">' : '';
+        preview.innerHTML = fav ? '<img src="' + escAttr(fav) + '" width="32" height="32" style="border-radius:6px">' : '';
       }
       urlInput.addEventListener('input', updatePreview);
       updatePreview();
@@ -1950,42 +1974,93 @@
       const input = document.getElementById('loc-input');
       const status = document.getElementById('loc-status');
       const results = document.getElementById('loc-results');
-      const open = () => { modal.classList.add('show'); status.textContent = ''; input.value = ''; if (results) results.innerHTML = ''; setTimeout(() => input.focus(), 30); };
+      const pickList = document.getElementById('loc-pick');
+      const country = document.getElementById('loc-country');
+      let hits = [];
+
+      // Default to the country the locale implies, remembering the last choice.
+      let chosenCountry = '';
+      try { chosenCountry = localStorage.getItem('vex.weatherCountry') || VexGeo.guessCountry(); }
+      catch { chosenCountry = VexGeo.guessCountry(); }
+      country.innerHTML = VexGeo.optionsHtml(chosenCountry);
+
+      const open = () => {
+        modal.classList.add('show');
+        status.textContent = '';
+        input.value = '';
+        hits = [];
+        results.style.display = 'none';
+        pickList.innerHTML = '';
+        setTimeout(() => input.focus(), 30);
+      };
       const close = () => modal.classList.remove('show');
       document.getElementById('weather-loc-btn')?.addEventListener('click', open);
       document.getElementById('loc-cancel')?.addEventListener('click', close);
       modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
       const pick = (hit) => {
-        const loc = { lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? ', ' + hit.admin1 : '') + (hit.country_code ? ', ' + hit.country_code : '') };
-        localStorage.setItem('vex.weatherLoc', JSON.stringify(loc));
+        try { localStorage.setItem('vex.weatherLoc', JSON.stringify(VexGeo.toLocation(hit))); }
+        catch (err) { status.textContent = 'Could not save that location: ' + (err && err.message); return; }
+        try { localStorage.setItem('vex.weatherCountry', country.value || ''); } catch { /* not important */ }
         close();
         syncLocBtn();
         loadWeather();
       };
-      // Search up to 5 matches and let the user pick the exact one — so districts
-      // (e.g. "Ataşehir") resolve correctly instead of snapping to a stray top hit.
+
+      // Search in the page's own language and across enough matches to contain
+      // the right one: asking for 5 results in Turkish meant the Manchester or
+      // Springfield you meant usually wasn't among them.
       const search = async () => {
         const q = input.value.trim();
-        if (!q) { status.textContent = 'Type a city or district.'; return; }
+        results.style.display = 'none';
+        pickList.innerHTML = '';
+        hits = [];
+        if (!q) { status.textContent = 'Type a city, district or postcode.'; return; }
         status.textContent = 'Searching…';
-        if (results) results.innerHTML = '';
-        let list = [];
+
+        let lang = 'en';
+        try { lang = (localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { lang = 'en'; }
+
+        let found;
         try {
-          const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
-          const d = await r.json();
-          list = (d && d.results) || [];
-        } catch { status.textContent = 'Lookup failed — check your connection.'; return; }
-        if (!list.length) { status.textContent = 'No matches. Try the nearest town or a different spelling.'; return; }
-        if (list.length === 1) { pick(list[0]); return; }
-        status.textContent = 'Pick the right one:';
-        results.innerHTML = list.map((hit, i) => {
-          const label = [hit.name, hit.admin1, hit.country].filter(Boolean).join(' · ');
-          return `<button data-i="${i}" style="text-align:left;padding:9px 11px;background:var(--vex-bg-base,var(--bg));border:1px solid var(--vex-border-subtle,var(--border));border-radius:8px;color:var(--vex-text-primary,var(--text));cursor:pointer;font:inherit;font-size:12.5px">${label.replace(/</g, '&lt;')}</button>`;
+          found = await VexGeo.search(q, { country: country.value || '', lang });
+        } catch (err) {
+          status.textContent = 'Lookup failed (' + ((err && err.message) || 'no connection') + ') — try again.';
+          return;
+        }
+
+        if (!found.hits.length && found.elsewhere) {
+          status.textContent = 'No match in ' + VexGeo.countryName(country.value)
+            + '. There are ' + found.elsewhere + ' elsewhere — set Country to “Any country” to see them.';
+          return;
+        }
+        if (!found.hits.length) {
+          status.textContent = 'No match for “' + q + '” — try the nearest town, another spelling, or the postcode.';
+          return;
+        }
+
+        hits = found.hits.slice(0, 60);
+        pickList.innerHTML = hits.map((h, i) => {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          opt.textContent = VexGeo.label(h);
+          return opt.outerHTML;
         }).join('');
-        results.querySelectorAll('[data-i]').forEach(btn => btn.addEventListener('click', () => pick(list[+btn.dataset.i])));
+        results.style.display = 'block';
+        status.textContent = hits.length === 1 ? 'One match — select it.' : hits.length + ' matches. Pick the right one.';
+        if (hits.length === 1) { pickList.selectedIndex = 0; pick(hits[0]); }
       };
+
+      pickList.addEventListener('change', () => {
+        const hit = hits[parseInt(pickList.value, 10)];
+        if (hit) pick(hit);
+      });
+      country.addEventListener('change', () => { if (input.value.trim()) search(); });
       document.getElementById('loc-save')?.addEventListener('click', search);
-      input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); if (e.key === 'Escape') close(); });
+      input?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') search();
+        if (e.key === 'Escape') close();
+      });
     })();
 
     // --- Daily wisdom: Qur'an / Bible / Tanakh / secular quotes / off ---
@@ -2230,9 +2305,9 @@
       const card = document.createElement('div');
       card.className = 'tool-card';
       card.innerHTML = `
-        <div class="tool-card-icon">${t.icon}</div>
-        <div class="tool-card-name">${t.name}</div>
-        <div class="tool-card-desc">${t.desc}</div>
+        <div class="tool-card-icon">${escHtml(t.icon)}</div>
+        <div class="tool-card-name">${escHtml(t.name)}</div>
+        <div class="tool-card-desc">${escHtml(t.desc)}</div>
       `;
       card.addEventListener('click', () => {
         if (window.parent !== window) {
@@ -2262,7 +2337,6 @@
         }
 
         list.innerHTML = '';
-        const ghUser = getGithubUser();
         pushEvents.forEach(ev => {
           const repo = ev.repo.name.replace(ghUser + '/', '');
           const commit = ev.payload.commits?.[ev.payload.commits.length - 1];
@@ -2272,14 +2346,23 @@
           const item = document.createElement('div');
           item.className = 'gh-activity-item';
           item.innerHTML = `
-            <span class="gh-activity-repo">${repo}</span>
-            <span class="gh-activity-msg">${msg}</span>
-            <span class="gh-activity-time">${time}</span>
+            <span class="gh-activity-repo">${escHtml(repo)}</span>
+            <span class="gh-activity-msg">${escHtml(msg)}</span>
+            <span class="gh-activity-time">${escHtml(time)}</span>
           `;
           list.appendChild(item);
         });
-      } catch {
-        // silently fail
+      } catch (err) {
+        console.warn('[start] GitHub activity could not be loaded:', err && err.message);
+        const list = document.getElementById('gh-activity-list');
+        if (list) {
+          list.textContent = '';
+          const row = document.createElement('div');
+          row.className = 'gh-activity-item';
+          row.style.cssText = 'justify-content:center;color:var(--vex-text-muted)';
+          row.textContent = 'Could not load recent activity';
+          list.appendChild(row);
+        }
       }
     }
 
