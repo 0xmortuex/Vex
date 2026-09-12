@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.31.51 (2026-09-12) — Websites can no longer read your clipboard
+
+### Fixed
+- **Any website could read whatever you last copied — silently.** Vex granted the clipboard-read permission automatically, so a page could call `navigator.clipboard.readText()` with no prompt, no button press, and no sign anything had happened. Proved against a real page in a running browser: it read the clipboard back word for word. This matters more in Vex than in most browsers, because Vex has a password vault with a Copy button and an authenticator that copies one-time codes — so "whatever you last copied" is regularly a password or a login code. A page now has to ask, exactly as it does in Chrome, and the request says in plain words what it wants: *"wants to read what you last copied"*. Writing to the clipboard is unchanged — that is an ordinary copy button and gives nothing away.
+
+### Notes
+Three sweeps behind this release. Two of them found nothing, which is worth saying out loud:
+
+- **All 318 Toolbox tools** were opened in a running browser. Every one rendered a working screen — no crashes, no "NaN" or "undefined" in the output, nothing overflowing its box.
+- **All 35 Settings categories**: every chip leads somewhere real, every section belongs to a category, and all 34 switches and dropdowns were toggled through every value without a single error.
+- **The main process** was the one that turned something up. `permissions.js`, `session-security.js`, `updates.js` and `vault.js` had never had tests of their own; the permission policy now has one, pinning what Vex hands over without asking.
+
 ## v2.31.50 (2026-09-12) — Float the video, not the website
 
 ### Added

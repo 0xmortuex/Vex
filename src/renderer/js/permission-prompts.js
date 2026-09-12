@@ -17,6 +17,7 @@ const PermissionPrompts = (() => {
     music:   _svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'),
     film:    _svg('<rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>'),
     screen:  _svg('<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
+    clipboard: _svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>'),
     shield:  _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>')
   };
   const LABELS = {
@@ -28,7 +29,8 @@ const PermissionPrompts = (() => {
     'midi':           { icon: ICONS.music,  label: 'MIDI devices' },
     'midiSysex':      { icon: ICONS.music,  label: 'MIDI devices (SysEx)' },
     'mediaKeySystem': { icon: ICONS.film,   label: 'play protected content (DRM)' },
-    'display-capture':{ icon: ICONS.screen, label: 'capture your screen' }
+    'display-capture':{ icon: ICONS.screen, label: 'capture your screen' },
+    'clipboard-read': { icon: ICONS.clipboard, label: 'read what you last copied' }
   };
 
   function _esc(s) { return window.escapeHtml(s); }

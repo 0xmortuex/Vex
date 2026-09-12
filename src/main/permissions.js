@@ -83,7 +83,15 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // Spotify, Netflix, etc.) is auto-allowed like a normal browser — prompting
     // for it silently broke playback in the Spotify panel because the prompt
     // never surfaced/resolved there, so play and other actions did nothing.
-    const AUTO_ALLOW = new Set(['fullscreen', 'pointerLock', 'clipboard-read', 'clipboard-sanitized-write', 'mediaKeySystem']);
+    // 'clipboard-read' is deliberately NOT here. It used to be, which let any
+    // page call navigator.clipboard.readText() and receive whatever you last
+    // copied, with no prompt and no user gesture — proved against a real page.
+    // Vex copies passwords out of its own vault and one-time codes out of its
+    // authenticator, so that is precisely the wrong thing to hand over in
+    // silence. Chrome prompts for it; so does Vex now (see NEEDS_PROMPT).
+    // Writing stays automatic: a page writing to the clipboard is an ordinary
+    // "copy" button and gives nothing away.
+    const AUTO_ALLOW = new Set(['fullscreen', 'pointerLock', 'clipboard-sanitized-write', 'mediaKeySystem']);
     if (AUTO_ALLOW.has(permission)) return callback(true);
 
     // Dedicated Discord panel session: auto-grant mic/camera/output-device so
@@ -92,7 +100,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // Discord unable to see any input/output device.
     if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return callback(true);
 
-    const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture']);
+    const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture', 'clipboard-read']);
     if (!NEEDS_PROMPT.has(permission)) {
       // Unknown permission — deny by default, but log so we can add it later
       console.log(`[Permissions] DENIED (unlisted): ${permission}`);
