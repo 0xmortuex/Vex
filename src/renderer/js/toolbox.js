@@ -595,8 +595,15 @@ const Toolbox = {
       };
     });
 
-    const details = [];
-    if (spec.desc) details.push({ title: 'What this does', text: spec.desc });
+    // A spec may carry its own reference sections; they come first, because a
+    // tool that has bothered to explain itself knows better than this adapter.
+    const details = Array.isArray(spec.details) ? spec.details.slice() : [];
+    // js/toolbox-reference.js carries the written reference for pack tools,
+    // keyed by id, so a pack file stays about the work it does. A spec that
+    // declares its own sections keeps them; the reference is added after.
+    const written = (window.VexToolReference && window.VexToolReference[spec.id]) || null;
+    if (Array.isArray(written)) details.push(...written);
+    if (spec.desc && !details.length) details.push({ title: 'What this does', text: spec.desc });
     const fam = ToolboxPacks.FAMILIES[spec.family];
     if (fam) details.push({ title: 'Family', text: fam.label });
     // An example is only offered as a one-click load when the main field is all

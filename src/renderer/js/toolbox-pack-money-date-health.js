@@ -1713,24 +1713,103 @@
     // ----------------------------------------------------------- Health
     {
       id: 'health-bmi', name: 'BMI', family: 'health',
-      desc: 'Body mass index with the WHO adult category and the healthy weight range for your height. A rough screening number, not medical advice.',
-      keywords: 'bmi body mass index weight height obese overweight',
+      desc: 'Body mass index with the WHO category, where you sit inside it, the healthy weight range for your height, and the measures that work better than BMI.',
+      keywords: 'bmi body mass index weight height obese overweight waist prime ponderal bsa',
       fields: [
         { id: 'units', label: 'Units', type: 'select', value: 'metric', options: UNITS },
         { id: 'weight', label: 'Weight (kg or lb)', type: 'number', value: 70, min: 0 },
         { id: 'height', label: 'Height (cm or inches)', type: 'number', value: 175, min: 0 },
+        { id: 'waist', label: 'Waist (optional, cm or inches)', type: 'number', value: '', min: 0 },
+        { id: 'age', label: 'Age (optional)', type: 'number', value: '', min: 0, max: 120 },
+        { id: 'ethnicity', label: 'Category thresholds', type: 'select', value: 'who',
+          options: [['who', 'WHO general'], ['asian', 'Asian (lower thresholds)']] },
       ],
       run(v) {
         const kg = kgOf(need(v.weight, 'your weight', { gt: 0, max: 1500 }), v.units);
-        const m = cmOf(need(v.height, 'your height', { gt: 0, max: 300 }), v.units) / 100;
-        const bmi = round(kg / (m * m), 1); // categorise the value shown
-        const cat = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Healthy weight' : bmi < 30 ? 'Overweight' : bmi < 35 ? 'Obese (class I)' : bmi < 40 ? 'Obese (class II)' : 'Obese (class III)';
-        const unit = v.units === 'imperial' ? 'lb' : 'kg', conv = x => (v.units === 'imperial' ? x / LB : x);
-        return [['BMI', fmt(bmi, 1)], ['Category', cat], ['Healthy range for your height', `${fmt(conv(18.5 * m * m), 1)}–${fmt(conv(24.9 * m * m), 1)} ${unit}`]];
+        const cm = cmOf(need(v.height, 'your height', { gt: 0, max: 300 }), v.units);
+        const m = cm / 100;
+        const bmi = round(kg / (m * m), 1);
+        const imperial = v.units === 'imperial';
+        const unit = imperial ? 'lb' : 'kg';
+        const lenUnit = imperial ? 'in' : 'cm';
+        const conv = x => (imperial ? x / LB : x);
+        const convLen = x => (imperial ? x / 2.54 : x);
+
+        // WHO thresholds, and the lower set used across much of Asia where the
+        // same BMI carries higher metabolic risk.
+        const asian = v.ethnicity === 'asian';
+        const BANDS = asian
+          ? [[0, 18.5, 'Underweight'], [18.5, 23, 'Healthy weight'], [23, 27.5, 'Overweight'], [27.5, 32.5, 'Obese (class I)'], [32.5, 37.5, 'Obese (class II)'], [37.5, Infinity, 'Obese (class III)']]
+          : [[0, 18.5, 'Underweight'], [18.5, 25, 'Healthy weight'], [25, 30, 'Overweight'], [30, 35, 'Obese (class I)'], [35, 40, 'Obese (class II)'], [40, Infinity, 'Obese (class III)']];
+        const band = BANDS.find(([lo, hi]) => bmi >= lo && bmi < hi) || BANDS[BANDS.length - 1];
+        const healthyLo = BANDS[1][0], healthyHi = BANDS[1][1];
+
+        const rows = [
+          ['BMI', fmt(bmi, 1)],
+          ['Category', band[2]],
+          ['This band', band[1] === Infinity ? `${fmt(band[0], 1)} and above` : `${fmt(band[0], 1)} – ${fmt(band[1] - 0.1, 1)}`],
+          ['Healthy weight for your height', `${fmt(conv(healthyLo * m * m), 1)}–${fmt(conv((healthyHi - 0.1) * m * m), 1)} ${unit}`],
+        ];
+
+        // How far from the nearest healthy edge, which is the number people
+        // actually want when they are outside the band.
+        if (bmi < healthyLo) {
+          rows.push(['To reach healthy', `gain ${fmt(conv(healthyLo * m * m - kg), 1)} ${unit}`]);
+        } else if (bmi >= healthyHi) {
+          rows.push(['To reach healthy', `lose ${fmt(conv(kg - (healthyHi - 0.1) * m * m), 1)} ${unit}`]);
+        }
+
+        rows.push(['BMI Prime', fmt(bmi / healthyHi, 2) + (bmi / healthyHi > 1 ? ' (above the healthy ceiling)' : ' (at or below the ceiling)')]);
+        rows.push(['Ponderal index', fmt(kg / (m * m * m), 1) + ' kg/m³ — scales better at very tall or short heights']);
+        // Du Bois, the formula most drug dosing uses.
+        rows.push(['Body surface area', fmt(0.007184 * Math.pow(cm, 0.725) * Math.pow(kg, 0.425), 2) + ' m² (Du Bois)']);
+
+        const waistRaw = Number(v.waist);
+        if (Number.isFinite(waistRaw) && waistRaw > 0) {
+          const waistCm = cmOf(waistRaw, v.units);
+          const whtr = waistCm / cm;
+          const whtrNote = whtr < 0.4 ? 'below the healthy range' : whtr < 0.5 ? 'healthy' : whtr < 0.6 ? 'increased risk' : 'high risk';
+          rows.push(['Waist', `${fmt(convLen(waistCm), 1)} ${lenUnit}`]);
+          rows.push(['Waist-to-height', `${fmt(whtr, 2)} — ${whtrNote}`]);
+          rows.push(['Keep waist under', `${fmt(convLen(cm * 0.5), 1)} ${lenUnit} (half your height)`]);
+        }
+
+        const age = Number(v.age);
+        if (Number.isFinite(age) && age > 0 && age < 20) {
+          rows.push(['Note', 'Under 20, adult BMI categories do not apply — children and teenagers are read against age-and-sex percentile charts instead.']);
+        } else if (Number.isFinite(age) && age >= 65) {
+          rows.push(['Note', 'Over 65, a slightly higher BMI is associated with better outcomes; being underweight carries more risk than being mildly overweight.']);
+        }
+        return rows;
       },
+      details: [
+        { title: 'What BMI is', text: 'Weight divided by height squared. Devised in the 1830s to describe populations, not individuals — it is a screening number, and it cannot tell muscle from fat.' },
+        { title: 'The categories', rows: [
+          ['under 18.5', 'Underweight'],
+          ['18.5 – 24.9', 'Healthy weight'],
+          ['25 – 29.9', 'Overweight'],
+          ['30 – 34.9', 'Obese, class I'],
+          ['35 – 39.9', 'Obese, class II'],
+          ['40 and over', 'Obese, class III'],
+        ] },
+        { title: 'Where it misleads', rows: [
+          ['Muscle', 'A trained athlete routinely reads "obese" on BMI alone.'],
+          ['Age', 'Muscle is lost with age, so the same BMI hides more fat at 70 than at 30.'],
+          ['Ancestry', 'Risk rises at lower BMI across much of Asia — hence the second threshold set.'],
+          ['Pregnancy', 'BMI does not apply.'],
+          ['Children', 'Under 20 uses percentile charts, not these bands.'],
+        ] },
+        { title: 'Waist beats BMI', text: 'Waist-to-height ratio predicts metabolic risk better than BMI, because it measures where the weight sits. The rule is simple: keep your waist under half your height.' },
+        { title: 'Not medical advice', text: 'A number from a formula. It cannot diagnose anything, and it is no substitute for asking a doctor.' },
+      ],
       examples: [
-        { in: { units: 'metric', weight: 70, height: 175 }, out: [['BMI', '22.9'], ['Category', 'Healthy weight'], ['Healthy range for your height', '56.7–76.3 kg']] },
-        { in: { units: 'imperial', weight: 180, height: 70 }, out: [['BMI', '25.8'], ['Category', 'Overweight'], ['Healthy range for your height', '128.9–173.5 lb']] },
+        { in: { units: 'metric', weight: 70, height: 175, waist: '', age: '', ethnicity: 'who' }, match: /BMI: 22\.9[\s\S]*Healthy weight/ },
+        { in: { units: 'imperial', weight: 180, height: 70, waist: '', age: '', ethnicity: 'who' }, match: /Overweight/ },
+        { in: { units: 'metric', weight: 70, height: 175, waist: 80, age: '', ethnicity: 'who' }, match: /Waist-to-height: 0\.46/ },
+        // 24.5 is healthy on the WHO scale and overweight on the Asian one —
+        // which is the whole reason the second threshold set exists.
+        { in: { units: 'metric', weight: 75, height: 175, waist: '', age: '', ethnicity: 'asian' }, match: /Overweight/ },
+        { in: { units: 'metric', weight: 75, height: 175, waist: '', age: '', ethnicity: 'who' }, match: /Healthy weight/ },
       ],
     },
     {

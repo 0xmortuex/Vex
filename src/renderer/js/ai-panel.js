@@ -1235,7 +1235,15 @@ const AIPanel = {
 
     const hits = [];
     const taken = [];
-    const byLength = F.ITEMS.slice().sort((a, b) => (b.name || '').length - (a.name || '').length);
+    // Only features that can actually be opened are candidates. A manual-only
+    // entry ("you do this with the mouse") can never become a chip, and
+    // counting it toward the cap below used to crowd out the ones that can —
+    // an answer naming several features then offered none at all.
+    const openable = F.ITEMS.filter(f => {
+      const cmd = (typeof F.command === 'function') ? F.command(f) : null;
+      return !!cmd || !!f.setting || !!f.panel;
+    });
+    const byLength = openable.sort((a, b) => (b.name || '').length - (a.name || '').length);
     for (const f of byLength) {
       const name = String(f.name || '');
       if (name.length < 4) continue;
@@ -1257,12 +1265,7 @@ const AIPanel = {
     let added = 0;
     for (const { f } of hits) {
       if (added >= this.MAX_FEATURE_CHIPS) break;
-      // Only offer it if it can actually be opened — a chip that does nothing
-      // is worse than no chip.
       const cmd = (typeof F.command === 'function') ? F.command(f) : null;
-      const canOpen = !!cmd || !!f.setting || !!f.panel;
-      if (!canOpen) continue;
-
       const b = document.createElement('button');
       b.className = 'ai-feature-chip';
       b.type = 'button';

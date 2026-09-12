@@ -1,0 +1,137 @@
+/* === Work panel ===========================================================
+ *
+ * Was twenty-seven inline styles in a template string: a cramped two-column
+ * grid of icon-and-name tiles, a dashed "manage" button and two plain rows of
+ * text. Everything competed for the same weight, so nothing read as primary.
+ *
+ * Now: the job identifies itself at the top, the AI is the one prominent
+ * action, tools are a scannable list with room for what each one does, and the
+ * secondary actions sit quietly at the bottom. Built on the theme tokens, so it
+ * follows whichever look is active.
+ */
+
+#panel-work { display: flex; flex-direction: column; min-height: 0; }
+
+.wp-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 0 14px 16px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+/* ---------- who you are -------------------------------------------------- */
+
+.wp-identity {
+  display: flex; align-items: center; gap: 11px;
+  padding: 12px 13px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+}
+.wp-swatch {
+  width: 34px; height: 34px; flex: none; border-radius: 9px;
+  border: 1px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.wp-identity-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wp-job {
+  font-size: 14px; font-weight: 650; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wp-meta {
+  font-size: 11px; color: var(--text-muted);
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+}
+.wp-tag {
+  font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-muted); border: 1px solid var(--border);
+  border-radius: 5px; padding: 1px 5px; flex: none;
+}
+.wp-change {
+  flex: none; padding: 6px 11px; font-size: 11.5px; font-family: inherit;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+}
+.wp-change:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ---------- the one prominent action ------------------------------------- */
+
+.wp-ai {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 12px 13px; text-align: left; cursor: pointer; font-family: inherit;
+  background: var(--vex-accent-glow); color: var(--text);
+  border: 1px solid var(--primary); border-radius: 12px;
+  transition: background 0.15s ease;
+}
+.wp-ai:hover { background: color-mix(in srgb, var(--primary) 18%, var(--surface)); }
+.wp-ai-icon { display: inline-flex; color: var(--primary); flex: none; }
+.wp-ai-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wp-ai-title { font-size: 13px; font-weight: 650; }
+.wp-ai-where {
+  font-size: 11px; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ---------- sections ----------------------------------------------------- */
+
+.wp-section { display: flex; flex-direction: column; gap: 8px; }
+.wp-section-head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.wp-section-count { font-weight: 400; letter-spacing: 0; text-transform: none; opacity: 0.8; }
+.wp-section-action {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: 11px; color: var(--primary);
+  letter-spacing: 0; text-transform: none; padding: 0;
+}
+.wp-section-action:hover { text-decoration: underline; }
+
+/* A list, not a cramped grid: each tool gets room to say what it is for. */
+.wp-tools { display: flex; flex-direction: column; gap: 4px; }
+.wp-tool {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 11px; text-align: left; cursor: pointer; font-family: inherit;
+  background: transparent; color: var(--text);
+  border: 1px solid transparent; border-radius: 9px;
+}
+.wp-tool:hover { background: var(--surface); border-color: var(--border); }
+.wp-tool-icon {
+  width: 26px; height: 26px; flex: none; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+}
+.wp-tool-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.wp-tool-name { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-tool-desc {
+  font-size: 10.5px; color: var(--text-muted); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.wp-empty {
+  font-size: 12px; color: var(--text-muted); line-height: 1.55;
+  padding: 10px 11px; border: 1px dashed var(--border); border-radius: 9px;
+}
+
+/* ---------- quiet secondary actions -------------------------------------- */
+
+.wp-actions { display: flex; flex-direction: column; gap: 4px; }
+.wp-act {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 9px 11px; text-align: left; cursor: pointer; font-family: inherit;
+  background: transparent; color: var(--text-muted);
+  border: 1px solid transparent; border-radius: 9px; font-size: 12.5px;
+}
+.wp-act:hover { background: var(--surface); border-color: var(--border); color: var(--text); }
+.wp-act-icon { display: inline-flex; flex: none; }
+
+/* ---------- not set up yet ----------------------------------------------- */
+
+.wp-setup { padding: 26px 18px; text-align: center; color: var(--text); }
+.wp-setup-icon { color: var(--primary); margin-bottom: 10px; }
+.wp-setup-title { font-size: 14.5px; font-weight: 700; margin-bottom: 6px; }
+.wp-setup-body { font-size: 12.5px; color: var(--text-muted); line-height: 1.6; margin-bottom: 18px; }
+.wp-setup-btn {
+  padding: 11px 20px; font-size: 13px; font-weight: 600; font-family: inherit;
+  background: var(--primary); color: #fff; border: none; border-radius: 10px; cursor: pointer;
+}
+.wp-setup-btn:hover { background: var(--primary-hover, var(--primary)); }

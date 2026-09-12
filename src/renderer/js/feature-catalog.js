@@ -204,6 +204,12 @@ const VexFeatures = {
       what: 'Bundle several commands into one — reading mode then read aloud — and put the first three on a shortcut.' },
     { id: 'toolbox', cat: 'work', cmd: 'toolbox',
       what: 'Over three hundred small tools that run locally: converters, regex, JSON, hashes, colour, loans, dates.' },
+    { id: 'toolbox-reference', cat: 'work', name: 'The reference beside every tool', manual: true,
+      what: 'Each tool opens with a written reference panel — the categories, the traps, the lookup table you would otherwise go and search for. Not just the answer, but what it means.' },
+    { id: 'toolbox-full', cat: 'work', name: 'Tools at two sizes', manual: true,
+      what: 'Every tool opens as a compact panel or, with one click, as a full-screen workspace with the reference open beside it. Vex remembers which you prefer.' },
+    { id: 'toolbox-favourites', cat: 'work', name: 'Favourite tools', manual: true,
+      what: 'Star the tools you keep coming back to and they sit at the top of the Toolbox, ahead of the other three hundred.' },
     { id: 'jobsetup', cat: 'work', cmd: 'jobsetup',
       what: 'Pick your profession and Vex sets a fitting theme and puts the tools that job actually uses within reach.' },
     { id: 'resmon', cat: 'work', cmd: 'resmon',
@@ -304,6 +310,10 @@ const VexFeatures = {
       what: 'The same page at phone, tablet and desktop width, side by side.' },
     { id: 'devtools', cat: 'dev', name: 'DevTools', keys: 'F12', manual: true,
       what: 'The full Chromium developer tools, on the page you are looking at.' },
+    { id: 'dev-mode', cat: 'dev', cmd: 'dev-mode',
+      what: 'Two ways to use any theme: user mode is the browser, developer mode adds a dashboard button beside the Toolbox and a panel in the sidebar.' },
+    { id: 'dev-dashboard', cat: 'dev', cmd: 'dev-dashboard',
+      what: 'Live counts of tabs, storage and what Vex has loaded, with the quick actions you want while working on it — reload the interface, open the profile folder, reset Vex.' },
 
     // --- Sync & data ------------------------------------------------------
     { id: 'sync', cat: 'data', name: 'Vex Sync', setting: { section: 'sync-panel-content' },
