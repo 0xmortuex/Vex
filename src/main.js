@@ -93,7 +93,7 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
 const _torLauncher = require('./tor-launcher');
-const { createPipWindow, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason } = require('./pip');
+const { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
@@ -3595,7 +3595,7 @@ ipcMain.handle('browsing:clear-data', async () => {
   await preferences.clearKeys(['vex.history','vex.sessions','vex.archivedTabs','vex.workspaceSnapshots','vex.downloads','vex.autofillLog']);
   return true;
 });
-ipcMain.handle('open-pip-window', (event, url) => {
+ipcMain.handle('open-pip-window', async (event, url, media) => {
   // Security audit M-4: a renderer-XSS could pop a frameless always-on-top
   // window pointing at file:///, chrome://, javascript:, data: html, etc.
   // safePipUrl restricts to http(s) only and throws on anything else; we
@@ -3609,15 +3609,24 @@ ipcMain.handle('open-pip-window', (event, url) => {
     return false;
   }
   try {
+    if (media && typeof media === 'object' && typeof media.src === 'string' && /^https?:\/\//i.test(media.src)) {
+      try {
+        createPipPlayer(media);
+        return { ok: true, mode: 'video' };
+      } catch (err) {
+        // A player that won't start is not a reason to give up on PiP.
+        console.warn('[Vex PiP] video-only player refused, using the page:', err.message);
+      }
+    }
     createPipWindow(safe);
-    return true;
+    return { ok: true, mode: 'page' };
   } catch (e) {
     console.error('PiP window error:', e);
     return false;
   }
 });
 
-ipcMain.handle('close-pip-window', () => { closePipWindow(); return true; });
+ipcMain.handle('close-pip-window', async () => { await closePipRemembering('closed'); return true; });
 ipcMain.handle('is-pip-open', () => isPipOpen());
 
 // Control-bar actions from the PiP window's own preload (src/preload-pip.js).
@@ -3626,16 +3635,27 @@ ipcMain.handle('is-pip-open', () => isPipOpen());
 // The renderer undoes what it did when the pop-out opened (it mutes the source
 // tab so you don't hear the same video twice), and for "back to tab" it also
 // switches to that tab — main only ever had the URL, so it cannot.
-onPipClosed((reason) => {
+onPipClosed((reason, at) => {
   try {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pip:closed', reason);
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pip:closed', reason, at);
   } catch (e) { console.error('[Vex PiP] could not tell the window PiP closed:', e.message); }
 });
-ipcMain.on('pip:close', () => closePipWindow());
-ipcMain.on('pip:toggle-pin', () => togglePipPin());
-ipcMain.on('pip:back-to-tab', () => {
-  setCloseReason('back-to-tab');
+// Ask the floating player where it got to before tearing it down — after the
+// window is gone there is nothing left to ask.
+async function closePipRemembering(reason) {
+  let at;
+  try { at = await pipPlaybackPosition(); } catch (err) {
+    console.warn('[Vex PiP] could not read the playback position:', err && err.message);
+    at = null;
+  }
+  if (reason) setCloseReason(reason);
+  setPipPosition(at);
   closePipWindow();
+}
+ipcMain.on('pip:close', () => { closePipRemembering('closed'); });
+ipcMain.on('pip:toggle-pin', () => togglePipPin());
+ipcMain.on('pip:back-to-tab', async () => {
+  await closePipRemembering('back-to-tab');
   try {
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();

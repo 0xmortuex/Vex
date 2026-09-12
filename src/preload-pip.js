@@ -50,6 +50,14 @@ const BAR_CSS = `
 
 let pinned = true;
 
+// The bar shows what is playing, when the player knows.
+let pageTitle = '';
+let currentTitleEl = null;
+function paintTitle() {
+  if (currentTitleEl) currentTitleEl.textContent = pageTitle || 'Vex Picture-in-Picture';
+}
+
+
 function build() {
   if (!document.body || document.getElementById(HOST_ID)) return;
 
@@ -75,7 +83,8 @@ function build() {
 
   const title = document.createElement('span');
   title.className = 'title';
-  title.textContent = 'Vex Picture-in-Picture';
+  currentTitleEl = title;
+  title.textContent = pageTitle || 'Vex Picture-in-Picture';
 
   const ICON = (inner) => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
     + ' stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
@@ -116,6 +125,37 @@ function paintPin() {
   currentPinBtn.title = pinned ? 'Keep on top (Ctrl+Shift+P)' : 'Not on top (Ctrl+Shift+P)';
 }
 ipcRenderer.on('pip:pin-state', (_e, on) => { pinned = !!on; paintPin(); });
+
+// === The floating player ==================================================
+// When the window is showing pip-player.html rather than a whole site, main
+// hands over the video the tab was playing: its source, where it had got to,
+// and whether it was paused. The page itself has no script (its CSP forbids
+// one), so everything is done from here.
+ipcRenderer.on('pip:media', (_e, media) => {
+  const video = document.getElementById('vex-pip-video');
+  if (!video || !media || !media.src) return;
+  const fail = (why) => {
+    const box = document.getElementById('msg');
+    const detail = document.getElementById('msg-detail');
+    if (detail && why) detail.textContent = why;
+    if (box) box.classList.add('show');
+    video.style.display = 'none';
+  };
+  video.addEventListener('error', () => {
+    // Most often a CDN that wants the page's own cookies or referer.
+    fail('The site would not serve this video to a separate window. Close this and use the tab.');
+  }, { once: true });
+  video.addEventListener('loadedmetadata', () => {
+    if (Number.isFinite(media.currentTime) && media.currentTime > 0) {
+      try { video.currentTime = media.currentTime; } catch { /* unseekable stream */ }
+    }
+    if (media.paused) { try { video.pause(); } catch { /* fine */ } }
+  }, { once: true });
+  if (media.poster) video.poster = media.poster;
+  video.src = media.src;
+  pageTitle = media.title || '';
+  paintTitle();
+});
 
 function ensure() {
   try { build(); } catch (e) { console.error('[Vex PiP] control bar failed:', e.message); }

@@ -91,7 +91,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Split & PiP
   onToggleSplit: (callback) => subscribe('toggle-split', callback),
   onTogglePip: (callback) => subscribe('toggle-pip', callback),
-  openPipWindow: (url) => ipcRenderer.invoke('open-pip-window', url),
+  openPipWindow: (url, media) => ipcRenderer.invoke('open-pip-window', url, media),
   closePipWindow: () => ipcRenderer.invoke('close-pip-window'),
   isPipOpen: () => ipcRenderer.invoke('is-pip-open'),
   // Fires when the pop-out goes away, with 'closed' or 'back-to-tab'. The

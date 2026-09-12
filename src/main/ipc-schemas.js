@@ -16,7 +16,20 @@ define('extensions:set-enabled', [string(160), boolean]);
 define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])]);
 define('downloads:retry', [web]);
 define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate) })]);
-define('rss:fetch open-pip-window open-external', [web]);
+define('rss:fetch open-external', [web]);
+// The second argument describes the video to float, and comes from the page,
+// so every field is checked rather than trusted.
+const finite = value => typeof value === 'number' && Number.isFinite(value);
+define('open-pip-window', [web, optional(shape({
+  src: web,
+  currentTime: optional(finite),
+  paused: optional(boolean),
+  muted: optional(boolean),
+  poster: optional(value => value === '' || data.url(value, true)),
+  width: optional(finite),
+  height: optional(finite),
+  title: optional(string(200)),
+}))]);
 define('adblocker-set-state discord:set-bypass roblox:set-bypass', [boolean]);
 define('gui-style:set', [oneOf(['classic','glass'])]);
 define('cloud:token-save', [string(4096)]);

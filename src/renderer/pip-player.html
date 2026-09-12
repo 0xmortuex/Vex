@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; media-src https: http: blob:; img-src https: http: data:; style-src 'unsafe-inline'; script-src 'none'">
+<title>Picture-in-Picture</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+    font: 13px/1.5 system-ui, "Segoe UI", sans-serif;
+    color: #eaeaf0;
+  }
+  /* The control bar the preload draws is 32px tall and overlays the top. */
+  video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    object-fit: contain;
+    outline: none;
+  }
+  #msg {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 40px 24px 24px;
+    text-align: center;
+  }
+  #msg.show { display: flex; }
+  #msg p { margin: 0; max-width: 320px; color: #b9b9c6; }
+  #msg b { color: #fff; font-size: 14px; }
+</style>
+</head>
+<body>
+  <!-- The preload (src/preload-pip.js) fills this in over IPC: the page that
+       owns the video hands over its source and position, so the floating
+       window shows the video ALONE rather than reloading the whole site. -->
+  <video id="vex-pip-video" autoplay controls playsinline></video>
+  <div id="msg">
+    <b>This video can't be floated on its own</b>
+    <p id="msg-detail">The site streams it in pieces that only work inside its own page.</p>
+  </div>
+</body>
+</html>

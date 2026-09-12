@@ -1,6 +1,7 @@
 const { BrowserWindow, screen, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 let pipWindow = null;
 // User's pin preference, persisted. Kept out of the window so a re-open
@@ -15,6 +16,10 @@ let closeReason = 'closed';
 function onPipClosed(cb) { closedCallback = typeof cb === 'function' ? cb : null; }
 // The next teardown is a "back to tab" rather than a plain close.
 function setCloseReason(reason) { closeReason = reason || 'closed'; }
+// Where the floating player had got to, read before the window is destroyed
+// and handed on with the teardown so the tab can resume from there.
+let closePosition = null;
+function setPipPosition(at) { closePosition = Number.isFinite(at) && at > 0 ? at : null; }
 
 // Remembered geometry + pin preference, same convention as the Discord
 // pop-out's popout-state.json.
@@ -154,14 +159,51 @@ function createPipWindow(url) {
     saveTimer = null;
     pipWindow = null;
     const reason = closeReason;
+    const at = closePosition;
     closeReason = 'closed';
+    closePosition = null;
     if (closedCallback) {
-      try { closedCallback(reason); }
+      try { closedCallback(reason, at); }
       catch (e) { console.error('[Vex PiP] closed callback failed:', e.message); }
     }
   });
 
   return pipWindow;
+}
+
+// Float just the video.
+//
+// The old fallback reloaded the entire page in a 480x300 window: a second copy
+// of the site, its own player, its own ads, and the tab still playing behind
+// it. This loads a bare player page instead and hands it the video's source
+// and position, so you get the video and nothing else.
+//
+// Only a direct http(s) media URL can be floated this way. A site using Media
+// Source Extensions (YouTube, Netflix) has a blob: source that is meaningless
+// outside the page that built it, so the caller keeps the whole-page fallback
+// for those.
+function createPipPlayer(media) {
+  if (!media || typeof media.src !== 'string' || !/^https?:\/\//i.test(media.src)) {
+    throw new Error('PiP player needs a direct http(s) media URL');
+  }
+  const playerPath = path.join(__dirname, 'renderer', 'pip-player.html');
+  const win = createPipWindow(pathToFileURL(playerPath).toString());
+  const hand = () => {
+    try { win.webContents.send('pip:media', media); }
+    catch (e) { console.error('[Vex PiP] could not hand the video to the player:', e.message); }
+  };
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', hand);
+  else hand();
+  return win;
+}
+
+// Where the floating player had got to, so the tab can pick up from there.
+// Asked for just before the window goes away.
+function pipPlaybackPosition() {
+  if (!pipWindow || pipWindow.isDestroyed()) return Promise.resolve(null);
+  return pipWindow.webContents
+    .executeJavaScript('(() => { const v = document.getElementById("vex-pip-video"); return v && v.currentTime > 0 ? v.currentTime : null; })()')
+    .catch(() => null);
 }
 
 function closePipWindow() {
@@ -187,4 +229,4 @@ function isPipOpen() {
   return !!(pipWindow && !pipWindow.isDestroyed());
 }
 
-module.exports = { createPipWindow, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason };
+module.exports = { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition };

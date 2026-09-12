@@ -124,14 +124,22 @@ describe('what is off is still shown', () => {
 });
 
 describe('the Discover screen', () => {
-  it('opens with categories, a count, and the first category selected', () => {
-    VexDiscover.open();
+  it('opens on a named category, with every category listed', () => {
+    VexDiscover.open(VexFeatures.CATS[0].id);
     expect(document.getElementById('vex-discover')).toBeTruthy();
-    expect(document.querySelectorAll('#vexd-cats .vexd-cat')).toHaveLength(VexFeatures.CATS.length);
+    // Every category, plus the "New to you" row while anything is unused.
+    expect(document.querySelectorAll('#vexd-cats .vexd-cat').length)
+      .toBeGreaterThanOrEqual(VexFeatures.CATS.length);
     expect(document.querySelectorAll('#vexd-list .vexd-item'))
       .toHaveLength(VexFeatures.byCat(VexFeatures.CATS[0].id).length);
     expect(document.getElementById('vexd-count').textContent)
       .toBe(`${VexFeatures.ITEMS.length} features`);
+  });
+
+  it('opens on "New to you" when there is something you have not tried', () => {
+    localStorage.clear();
+    VexDiscover.open();
+    expect(document.querySelector('.vexd-cat.on').dataset.cat).toBe(VexDiscover.NEW_TO_YOU);
   });
 
   it('switches category when you pick one', () => {
@@ -306,5 +314,72 @@ describe('the catalogue points at controls that exist in index.html', () => {
     expect(cat).toBeGreaterThan(-1);
     expect(icons).toBeLessThan(cat);
     expect(cat).toBeLessThan(disc);
+  });
+});
+
+describe('"New to you" — what you have never used', () => {
+  it('counts everything with no record of use', () => {
+    localStorage.clear();
+    expect(VexFeatures.unused()).toHaveLength(VexFeatures.ITEMS.length);
+  });
+
+  it('reads the command bar\'s own usage record', () => {
+    localStorage.setItem('vex.commandUsage', JSON.stringify({ split: { n: 3, at: Date.now() } }));
+    expect(VexFeatures.used(VexFeatures.get('split'))).toBe(true);
+    expect(VexFeatures.used(VexFeatures.get('peek'))).toBe(false);
+    expect(VexFeatures.unused().map(f => f.id)).not.toContain('split');
+  });
+
+  it('a recorded id with no uses does not count as used', () => {
+    localStorage.setItem('vex.commandUsage', JSON.stringify({ split: { n: 0, at: 0 } }));
+    expect(VexFeatures.used(VexFeatures.get('split'))).toBe(false);
+  });
+
+  it('also reads the sidebar\'s per-panel record', () => {
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ notes: Date.now() }));
+    expect(VexFeatures.used(VexFeatures.get('notes'))).toBe(true);
+  });
+
+  it('survives a corrupt usage store instead of throwing', () => {
+    localStorage.setItem('vex.commandUsage', 'not json');
+    localStorage.setItem('vex.panelUsage', '{{{');
+    expect(() => VexFeatures.unused()).not.toThrow();
+    expect(VexFeatures.used(VexFeatures.get('split'))).toBe(false);
+  });
+
+  it('leads the category list, and lists only unused features', () => {
+    localStorage.clear();
+    localStorage.setItem('vex.commandUsage', JSON.stringify({
+      split: { n: 1, at: Date.now() }, peek: { n: 1, at: Date.now() },
+    }));
+    VexDiscover.open();
+    const first = document.querySelector('#vexd-cats .vexd-cat');
+    expect(first.dataset.cat).toBe(VexDiscover.NEW_TO_YOU);
+    expect(first.classList.contains('fresh')).toBe(true);
+
+    first.click();
+    const shown = [...document.querySelectorAll('.vexd-item')].map(e => e.dataset.id);
+    expect(shown).not.toContain('split');
+    expect(shown).not.toContain('peek');
+    expect(shown.length).toBe(VexFeatures.ITEMS.length - 2);
+  });
+
+  it('is not offered once you have used everything', () => {
+    const all = {};
+    for (const f of VexFeatures.ITEMS) if (f.cmd) all[f.cmd] = { n: 1, at: Date.now() };
+    const panels = {};
+    for (const f of VexFeatures.ITEMS) if (f.panel) panels[f.panel] = Date.now();
+    localStorage.setItem('vex.commandUsage', JSON.stringify(all));
+    localStorage.setItem('vex.panelUsage', JSON.stringify(panels));
+    // Features with neither a command nor a panel can never be recorded, so
+    // the row only disappears when those are the only ones left.
+    const stillUnused = VexFeatures.unused();
+    expect(stillUnused.every(f => !f.cmd && !f.panel)).toBe(true);
+  });
+
+  it('is honest that the record is capped, not a certainty', () => {
+    localStorage.clear();
+    VexDiscover.open(VexDiscover.NEW_TO_YOU);
+    expect(document.querySelector('.vexd-cathead-blurb').textContent).toMatch(/last 60 commands/i);
   });
 });

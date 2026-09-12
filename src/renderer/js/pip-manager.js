@@ -38,14 +38,20 @@ const PiPManager = {
         }
       }
       if (e.data && e.data.type === 'vex-pip-fallback') {
-        // The guest couldn't do native PiP — open the pop-out window instead.
+        // The guest couldn't do native PiP. It sends what it knows about the
+        // video; main floats the video alone when the source is a direct file,
+        // and falls back to the whole page when it is an MSE/blob stream.
         const tab = TabManager.getActiveTab();
         if (!tab || !window.vex?.openPipWindow) return;
-        Promise.resolve(window.vex.openPipWindow(tab.url)).then(ok => {
+        const media = e.data.media || null;
+        Promise.resolve(window.vex.openPipWindow(tab.url, media)).then(result => {
           // main rejects non-http(s) URLs (safePipUrl) and returns false on a
           // creation failure; say so instead of silently doing nothing.
-          if (!ok) { window.showToast?.('Picture-in-Picture is not available for this page', 'error'); return; }
+          if (!result || result.ok === false) { window.showToast?.('Picture-in-Picture is not available for this page', 'error'); return; }
           this._silenceSource(tab.id);
+          if (result.mode === 'page') {
+            window.showToast?.('This site streams its video in pieces, so the whole page is floating instead');
+          }
         }).catch(err => {
           window.showToast?.('Picture-in-Picture failed: ' + ((err && err.message) || 'unknown'), 'error');
         });
@@ -57,9 +63,9 @@ const PiPManager = {
     // tab" actually go back to the tab the video came from — the button says
     // so, and it used only to focus the window, leaving you on whatever tab
     // you happened to be on.
-    window.vex?.onPipClosed?.((reason) => {
+    window.vex?.onPipClosed?.((reason, at) => {
       const source = this._source;
-      this._restoreSource();
+      this._restoreSource(at);
       if (reason === 'back-to-tab' && source && typeof TabManager !== 'undefined') {
         const tab = TabManager.tabs.find(t => t.id === source.tabId);
         if (tab) TabManager.switchTab(tab.id);
@@ -94,12 +100,19 @@ const PiPManager = {
     } catch (err) { console.warn('[PiP] could not reach the source tab:', err && err.message); }
   },
 
-  _restoreSource() {
+  // `at` is where the floating player got to. Without it you would come back
+  // to the tab paused at the moment you popped it out, having watched five
+  // minutes in the little window.
+  _restoreSource(at) {
     const source = this._source;
     this._source = null;
     if (!source) return;
     const wv = WebviewManager.webviews.get(source.tabId);
     if (!wv) return;                       // the tab was closed meanwhile
+    if (Number.isFinite(at) && at > 0) {
+      try { wv.send('vex-pip-resume', at); }
+      catch (err) { console.warn('[PiP] could not move the page video to where the pop-out got to:', err && err.message); }
+    }
     if (source.wasMuted) return;           // it was muted before PiP; leave it
     try { wv.setAudioMuted(false); } catch (err) { console.warn('[PiP] could not un-mute the source tab:', err && err.message); }
   },

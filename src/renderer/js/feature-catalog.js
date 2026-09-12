@@ -406,6 +406,33 @@ const VexFeatures = {
     return null;
   },
 
+  // Has this feature ever been used? Read from the two records the app
+  // already keeps: the command bar's own usage counts and the sidebar's
+  // per-panel timestamps.
+  //
+  // "Never" is a floor, not a certainty: the command bar keeps only the 60
+  // most recent ids, so something used once a year ago may have been evicted.
+  // Discover says "no record of you using these", not "you never have".
+  used(item) {
+    if (!item) return false;
+    if (item.cmd) {
+      try {
+        const u = JSON.parse(localStorage.getItem('vex.commandUsage') || '{}') || {};
+        if (u[item.cmd] && u[item.cmd].n > 0) return true;
+      } catch { /* unreadable store: fall through to the panel record */ }
+    }
+    if (item.panel) {
+      try {
+        const p = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {};
+        if (p[item.panel]) return true;
+      } catch { /* unreadable store */ }
+    }
+    return false;
+  },
+
+  // Everything with no record of use, in catalogue order.
+  unused() { return this.ITEMS.filter(f => !this.used(f)); },
+
   // Search across name, description, category and shortcut.
   search(query) {
     const q = String(query || '').trim().toLowerCase();

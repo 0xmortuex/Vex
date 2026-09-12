@@ -99,6 +99,18 @@
   cursor: pointer;
 }
 .vexd-cat:hover { background: var(--vex-hover-fill, rgba(127, 127, 127, 0.1)); }
+/* "New to you" leads the list — it is the answer to "what am I missing?",
+   which is the question this screen exists for. */
+.vexd-cat.fresh {
+  color: var(--vex-accent, var(--primary));
+  font-weight: 600;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--vex-border, var(--border));
+  border-radius: 9px 9px 0 0;
+  padding-bottom: 10px;
+}
+.vexd-cat.fresh.on { border-bottom-color: var(--vex-accent, var(--primary)); }
+
 .vexd-cat.on {
   background: color-mix(in srgb, var(--vex-accent, var(--primary)) 14%, transparent);
   border-color: var(--vex-accent, var(--primary));

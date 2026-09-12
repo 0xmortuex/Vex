@@ -51,7 +51,7 @@ beforeEach(() => {
   };
   window.showToast = vi.fn();
   window.vex = {
-    openPipWindow: vi.fn(() => Promise.resolve(true)),
+    openPipWindow: vi.fn(() => Promise.resolve({ ok: true, mode: 'video' })),
     closePipWindow: vi.fn(() => Promise.resolve(true)),
     isPipOpen: vi.fn(() => Promise.resolve(false)),
     onPipClosed: (cb) => { pipClosedHandler = cb; },
@@ -63,7 +63,8 @@ beforeEach(() => {
 });
 
 // The guest says "I can't do native PiP" by posting this.
-const fallback = () => window.dispatchEvent(new MessageEvent('message', { data: { type: 'vex-pip-fallback' } }));
+const fallback = (media) => window.dispatchEvent(new MessageEvent('message', { data: { type: 'vex-pip-fallback', media: media || null } }));
+const MP4 = { src: 'https://cdn.example.com/clip.mp4', currentTime: 42, paused: false };
 const detected = (hasVideo) => window.dispatchEvent(new MessageEvent('message', { data: { type: 'vex-video-detected', hasVideo } }));
 const flush = () => new Promise(r => setTimeout(r, 0));
 
@@ -84,7 +85,7 @@ describe('the pop-out does not leave you hearing the video twice', () => {
     fallback();
     await flush();
 
-    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://example.com/watch');
+    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://example.com/watch', null);
     expect(webview.muted).toBe(true);
     expect(webview.paused).toBe(true);
     expect(PiPManager._source).toEqual({ tabId: 'tab-1', wasMuted: false });
@@ -111,7 +112,7 @@ describe('the pop-out does not leave you hearing the video twice', () => {
   });
 
   it('does not touch the tab when the pop-out was refused', async () => {
-    window.vex.openPipWindow.mockResolvedValueOnce(false);
+    window.vex.openPipWindow.mockResolvedValueOnce({ ok: false });
     fallback();
     await flush();
 
@@ -188,5 +189,51 @@ describe('the toggle', () => {
     WebviewManager.getActiveWebview = () => null;
     await PiPManager.toggle();
     expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/No page/i), 'error');
+  });
+});
+
+describe('floating the video instead of the whole site', () => {
+  it('hands the video description to main when the guest supplies one', async () => {
+    fallback(MP4);
+    await flush();
+    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://example.com/watch', MP4);
+  });
+
+  it('says so when the site forced the whole-page fallback', async () => {
+    window.vex.openPipWindow.mockResolvedValueOnce({ ok: true, mode: 'page' });
+    fallback(null);
+    await flush();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/streams its video in pieces/i));
+  });
+
+  it('says nothing extra when the video itself is floating', async () => {
+    fallback(MP4);
+    await flush();
+    expect(window.showToast).not.toHaveBeenCalled();
+  });
+
+  // Otherwise you watch five minutes in the little window, close it, and the
+  // tab is still sitting where you left it.
+  it('moves the page video to where the floating player got to', async () => {
+    fallback(MP4);
+    await flush();
+    pipClosedHandler('back-to-tab', 137.5);
+    expect(webview.sent).toContain('vex-pip-resume');
+  });
+
+  it('leaves the page alone when there is no position to restore', async () => {
+    fallback(MP4);
+    await flush();
+    webview.sent = [];
+    pipClosedHandler('closed', null);
+    expect(webview.sent).toEqual([]);
+  });
+
+  it('ignores a nonsense position rather than seeking to it', async () => {
+    fallback(MP4);
+    await flush();
+    webview.sent = [];
+    pipClosedHandler('closed', -5);
+    expect(webview.sent).toEqual([]);
   });
 });

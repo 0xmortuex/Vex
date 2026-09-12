@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.31.50 (2026-09-12) — Float the video, not the website
+
+### Added
+- **Picture-in-Picture floats the video itself.** When a site refuses native PiP, Vex used to reload the *entire site* in the little window — a second copy of the page, its own player, its own ads, while the tab carried on playing behind it. It now opens a bare player holding just the video, at the moment you were up to. Sites that stream in pieces (YouTube, Netflix) still can't be floated that way — their video only exists inside their own page — so those keep the whole-page fallback and Vex now tells you that is what happened, instead of leaving you to wonder.
+- **Close the floating player and the tab picks up where the player got to.** Watch five minutes in the little window and the tab no longer sits where you left it.
+- **"New to you" in Discover.** The first thing Discover now shows is everything you have no record of ever using, counted, with "Show me these" to walk through them. Vex remembers your last 60 commands, so it says that plainly rather than claiming you have never touched something.
+- **The interface speaks Turkish, not just the setup wizard.** Choosing Turkish used to translate the wizard and the start page and leave every other label in English. The toolbar, the sidebar panels, the common buttons and the main Settings headings now follow — about 90 labels in a normal window. Tooltips keep their shortcut (*Geri (Alt+Left)*). It is not the whole interface yet, and anything without a translation stays in English rather than being guessed at.
+
+### Notes
+- Translation matches the English text rather than requiring every element to be tagged, which is the only way to cover UI built across dozens of files. It is therefore confined to the parts of the window Vex draws itself — never page content, never a tab title, never anything you typed.
+- Two hunts came back empty this release, which is worth recording: **every one of the ~190 command-bar entries** was invoked in a running browser and none failed, and a scan for the "declared twice, dies silently" bug that had killed the GitHub activity widget found no other instance.
+
 ## v2.31.49 (2026-09-12) — The start page, audited
 
 ### Fixed

@@ -26,7 +26,10 @@ const VexDiscover = {
   open(catId) {
     this.close();
     if (typeof VexFeatures === 'undefined') throw new Error('The feature catalogue is not loaded');
-    this._cat = catId || VexFeatures.CATS[0].id;
+    // Open on what you have not tried, when there is anything — that is the
+    // question this screen exists to answer. Once you have used everything
+    // recordable, fall back to the first real category.
+    this._cat = catId || (VexFeatures.unused().length ? this.NEW_TO_YOU : VexFeatures.CATS[0].id);
     this._query = '';
 
     const m = document.createElement('div');
@@ -70,9 +73,15 @@ const VexDiscover = {
 
   _esc(s) { return window.escapeHtml(String(s == null ? '' : s)); },
 
+  // The pseudo-category listing everything you have no record of using. It
+  // sits first because it is the answer to "what am I missing?", which is the
+  // question this screen exists for.
+  NEW_TO_YOU: 'new-to-you',
+
   // What's on screen right now: a search hit list, or one category.
   _visible() {
     if (this._query) return VexFeatures.search(this._query);
+    if (this._cat === this.NEW_TO_YOU) return VexFeatures.unused();
     return VexFeatures.byCat(this._cat);
   },
 
@@ -85,15 +94,18 @@ const VexDiscover = {
   _paintCats() {
     const nav = this._el.querySelector('#vexd-cats');
     const searching = !!this._query;
-    nav.innerHTML = VexFeatures.CATS.map(c => {
-      const n = VexFeatures.byCat(c.id).length;
-      const on = !searching && c.id === this._cat;
-      return `<button class="vexd-cat${on ? ' on' : ''}" data-cat="${this._esc(c.id)}" aria-current="${on ? 'true' : 'false'}">
-        <span class="vexd-cat-ic">${VexIcons.svg(c.icon, { size: 15 })}</span>
-        <span class="vexd-cat-name">${this._esc(c.name)}</span>
+    const row = (id, icon, name, n, extra) => {
+      const on = !searching && id === this._cat;
+      return `<button class="vexd-cat${on ? ' on' : ''}${extra || ''}" data-cat="${this._esc(id)}" aria-current="${on ? 'true' : 'false'}">
+        <span class="vexd-cat-ic">${VexIcons.svg(icon, { size: 15 })}</span>
+        <span class="vexd-cat-name">${this._esc(name)}</span>
         <span class="vexd-cat-n">${n}</span>
       </button>`;
-    }).join('');
+    };
+    const unused = VexFeatures.unused().length;
+    nav.innerHTML =
+      (unused ? row(this.NEW_TO_YOU, 'sparkles', 'New to you', unused, ' fresh') : '')
+      + VexFeatures.CATS.map(c => row(c.id, c.icon, c.name, VexFeatures.byCat(c.id).length)).join('');
     nav.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => {
       this._cat = b.dataset.cat;
       this._query = '';
@@ -113,6 +125,20 @@ const VexDiscover = {
 
     if (!items.length) {
       list.innerHTML = `<div class="vexd-empty">Nothing matches “${this._esc(this._query)}”.</div>`;
+      return;
+    }
+
+    if (!this._query && this._cat === this.NEW_TO_YOU) {
+      list.innerHTML = `<div class="vexd-cathead">
+          <div class="vexd-cathead-name">New to you</div>
+          <div class="vexd-cathead-blurb">${items.length} feature${items.length === 1 ? '' : 's'} you have no record of using.
+            Vex remembers your last 60 commands, so something you used once long ago can turn up here.</div>
+          <button class="vexd-tourcat" id="vexd-tourcat">${VexIcons.svg('compass', { size: 13 })} Show me these</button>
+        </div>` + items.map(f => this._row(f)).join('');
+      list.querySelector('#vexd-tourcat')?.addEventListener('click', () => this.tourCategory(this.NEW_TO_YOU));
+      list.querySelectorAll('[data-show]').forEach(b => b.addEventListener('click', () => this.showMe(b.dataset.show)));
+      list.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => this.openFeature(b.dataset.open)));
+      list.querySelectorAll('[data-enable]').forEach(b => b.addEventListener('click', () => this.turnOn(b.dataset.enable)));
       return;
     }
 
@@ -199,9 +225,12 @@ const VexDiscover = {
 
   // Walk every feature in a category that has something to point at.
   tourCategory(catId) {
-    const items = VexFeatures.byCat(catId);
+    const isNew = catId === this.NEW_TO_YOU;
+    const items = isNew ? VexFeatures.unused() : VexFeatures.byCat(catId);
     const cat = VexFeatures.CATS.find(c => c.id === catId);
-    const steps = [{ title: cat ? cat.name : 'Vex', html: this._esc(cat ? cat.blurb : '') }];
+    const steps = [isNew
+      ? { title: 'New to you', html: 'Things Vex can do that you have not tried yet.' }
+      : { title: cat ? cat.name : 'Vex', html: this._esc(cat ? cat.blurb : '') }];
     for (const f of items) {
       const target = this._targetFor(f);
       steps.push(Object.assign({ sel: target || undefined }, this._card(f)));

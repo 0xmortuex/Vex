@@ -156,7 +156,7 @@ function runInMainWorld(src) {
           // does — otherwise this button is a no-op on every page that blocks
           // native PiP.
           console.warn('[Vex PiP] native PiP refused, falling back:', err && err.message);
-          try { ipcRenderer.sendToHost('vex-pip-fallback'); } catch { /* host gone */ }
+          try { ipcRenderer.sendToHost('vex-pip-fallback', describeVideo(video)); } catch { /* host gone */ }
         }
       });
     });
@@ -210,6 +210,36 @@ function runInMainWorld(src) {
     } catch {}
   }, true);
 
+  // Describe the video the host should float. Returns null when there is no
+  // usable direct source — a blob:/MSE stream cannot be played anywhere but
+  // the page that built it.
+  function describeVideo(video) {
+    if (!video) return null;
+    const src = video.currentSrc || video.src || '';
+    if (!/^https?:/i.test(src)) return null;
+    return {
+      src,
+      currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+      paused: !!video.paused,
+      muted: !!video.muted,
+      poster: /^https?:/i.test(video.poster || '') ? video.poster : '',
+      width: video.videoWidth || 0,
+      height: video.videoHeight || 0,
+      title: (document.title || '').slice(0, 120),
+    };
+  }
+
+  // The host asks for this when the floating player closes, so the tab can
+  // pick up where the pop-out left off instead of where you left the tab.
+  ipcRenderer.on('vex-pip-resume', (_e, at) => {
+    try {
+      const videos = document.querySelectorAll('video');
+      const video = Array.from(videos).find(v => /^https?:/i.test(v.currentSrc || v.src || '')) || videos[0];
+      if (!video) return;
+      if (Number.isFinite(at) && at > 0 && Math.abs(video.currentTime - at) > 1.5) video.currentTime = at;
+    } catch (err) { console.warn('[Vex PiP] could not resume the page video:', err && err.message); }
+  });
+
   ipcRenderer.on('vex-request-pip', () => {
     // Toggle, not just enter: a second press of the toolbar button or
     // Ctrl+Shift+P leaves PiP instead of re-requesting it.
@@ -220,9 +250,11 @@ function runInMainWorld(src) {
     const videos = document.querySelectorAll('video');
     const video = Array.from(videos).find(v => !v.paused) || videos[0];
     if (video && document.pictureInPictureEnabled) {
-      video.requestPictureInPicture().catch(() => { try { ipcRenderer.sendToHost('vex-pip-fallback'); } catch {} });
+      video.requestPictureInPicture().catch(() => {
+        try { ipcRenderer.sendToHost('vex-pip-fallback', describeVideo(video)); } catch { /* host gone */ }
+      });
     } else {
-      try { ipcRenderer.sendToHost('vex-pip-fallback'); } catch {}
+      try { ipcRenderer.sendToHost('vex-pip-fallback', describeVideo(video)); } catch { /* host gone */ }
     }
   });
 })();

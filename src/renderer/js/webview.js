@@ -195,9 +195,16 @@ const WebviewManager = {
       }
       if (e.channel === 'vex-video-detected' || e.channel === 'vex-pip-fallback') {
         try {
-          if (typeof WebviewManager !== 'undefined' && WebviewManager.getActiveWebview && WebviewManager.getActiveWebview() !== webview && e.channel === 'vex-video-detected') return;
-          window.postMessage(Object.assign({ type: e.channel }, (e.args && e.args[0]) || {}), '*');
-        } catch {}
+          const payload = (e.args && e.args[0]) || null;
+          if (e.channel === 'vex-pip-fallback') {
+            // The payload here describes ONE video, so it travels whole rather
+            // than being spread across the message.
+            window.postMessage({ type: e.channel, media: payload }, '*');
+            return;
+          }
+          if (typeof WebviewManager !== 'undefined' && WebviewManager.getActiveWebview && WebviewManager.getActiveWebview() !== webview) return;
+          window.postMessage(Object.assign({ type: e.channel }, payload || {}), '*');
+        } catch (err) { console.warn('[webview] could not relay ' + e.channel + ':', err && err.message); }
         return;
       }
       if (e.channel !== 'vex-media-error' && e.channel !== 'vex-media-frozen') return;
