@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.64 (2026-09-13) — Tools worth opening
+
+### Notes
+- **Tools now have two sizes.** The panel you get by default, and a full-screen mode that fills the window — and is not just bigger: a reference column appears alongside, explaining the formats, the rules, and worked examples you can click straight into the input. Each tool remembers which size you prefer.
+- **A proper settings column, on every rebuilt tool.** Options, a Run button, live auto-update as you type, and Remember input — so a tool is something you configure, not one box and a guess.
+- **Base64 does what Base64 actually needs to do.** It handled exactly one case before: standard, padded, UTF-8. It now decodes Base64URL (`-` and `_`), IMAP mailbox names, a custom alphabet you choose, and unpadded input — which is what a JWT gives you, and what used to come back as "Not valid Base64". It puts the missing padding back, copes with quotes and newlines from a paste, and reads or writes text, hex or raw bytes. When it cannot decode something it names the character that stopped it.
+- **Seven more rebuilt the same way:** Hash (SHA-1 to SHA-512, HMAC, hex/Base64/Base64URL), URL encode (component or whole URI, form-style spaces, and breaking a URL into its parts), JSON (format, minify, sort keys, with the line and column of a syntax error), JWT (header, payload and real dates — and it says plainly that it does not verify the signature), Timestamp, Change case (13 forms at once) and Word count.
+- Errors are shown, never swallowed: a tool that quietly produces nothing looks identical to a broken one.
+
 ## v2.31.63 (2026-09-13) — Vex AI writes as it thinks
 
 ### Notes
