@@ -998,6 +998,9 @@
     ShortcutsRegistry.register('command-bar',    () => CommandBar?.open?.() ?? CommandBar?.toggle?.());
     ShortcutsRegistry.register('ask-ai-bar',     () => AskAIBar?.toggle?.());
     ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
+    // Full screen implies open: switching mode on a closed panel would do
+    // nothing visible and look broken.
+    ShortcutsRegistry.register('ai-focus-mode',  () => { if (!AIPanel.isOpen()) AIPanel.open(); AIPanel.toggleMode(); });
     ShortcutsRegistry.register('history-ai',     () => HistoryPanel?.openInAIMode?.());
     ShortcutsRegistry.register('history-panel',  () => SidebarManager?.togglePanel('history'));
     ShortcutsRegistry.register('memory-panel',   () => SidebarManager?.togglePanel('memory'));

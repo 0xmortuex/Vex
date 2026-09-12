@@ -11,6 +11,7 @@ const AIPanel = {
 
   init() {
     this._loadConversations();
+    this._initShell();
     document.getElementById('ai-close')?.addEventListener('click', () => this.close());
     document.getElementById('ai-send')?.addEventListener('click', () => this._sendChat());
     document.getElementById('ai-clear')?.addEventListener('click', () => this._clearChat());
@@ -170,7 +171,11 @@ const AIPanel = {
   },
 
   open() {
+    this._initShell();
     document.getElementById('ai-panel')?.classList.add('open');
+    this._bindDismiss();
+    this._syncBackdrop();
+    this._syncStarters();
     this._renderMessages();
     this._updateTabIndicator();
     this.updatePersonaSwitcher();
@@ -288,7 +293,273 @@ const AIPanel = {
     } catch {}
   },
 
-  close() { document.getElementById('ai-panel')?.classList.remove('open'); },
+  // === Shell: modes, dismissal, chats =====================================
+  //
+  // Docked is the column on the right. Focus mode (#ai-panel.expanded) takes
+  // the window and centres the conversation, for when the chat IS the task
+  // rather than a note in the margin. The choice is remembered.
+
+  MODE_KEY: 'vex.aiMode',
+  _shellReady: false,
+
+  _icon(name, size) {
+    return (window.VexIcons && VexIcons.has(name)) ? VexIcons.svg(name, { size: size || 15 }) : '';
+  },
+
+  _initShell() {
+    if (this._shellReady) return;
+    this._shellReady = true;
+
+    // Header and composer icons, drawn from the icon set so they follow the theme.
+    const paint = (id, icon, size) => { const el = document.getElementById(id); if (el && !el.innerHTML.trim()) el.innerHTML = this._icon(icon, size); };
+    paint('ai-new-chat', 'plus', 16);
+    paint('ai-history-btn', 'history', 15);
+    paint('ai-expand', 'maximize', 15);
+    paint('ai-close', 'x', 16);
+    paint('ai-send', 'arrow-right', 17);
+    paint('ai-send-agent', 'robot', 16);
+
+    // The dimmer behind focus mode. Clicking it closes, like clicking away
+    // from the docked panel.
+    if (!document.getElementById('ai-backdrop')) {
+      const b = document.createElement('div');
+      b.id = 'ai-backdrop';
+      b.addEventListener('mousedown', () => this.close());
+      document.body.appendChild(b);
+    }
+
+    document.getElementById('ai-expand')?.addEventListener('click', () => this.toggleMode());
+    document.getElementById('ai-new-chat')?.addEventListener('click', () => this.newChat());
+    document.getElementById('ai-history-btn')?.addEventListener('click', () => this.toggleHistory());
+    document.getElementById('ai-history-close')?.addEventListener('click', () => this.toggleHistory(false));
+    document.getElementById('ai-export')?.addEventListener('click', () => this.exportChat());
+
+    // Grow the composer with what is typed, up to the CSS max-height.
+    const input = document.getElementById('ai-input');
+    if (input) {
+      const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 240) + 'px'; };
+      input.addEventListener('input', grow);
+      this._growInput = grow;
+    }
+
+    this.setMode(this._savedMode(), { silent: true });
+  },
+
+  _savedMode() {
+    try { return localStorage.getItem(this.MODE_KEY) === 'expanded' ? 'expanded' : 'docked'; } catch { return 'docked'; }
+  },
+
+  // 'docked' | 'expanded'
+  setMode(mode, opts) {
+    const panel = document.getElementById('ai-panel');
+    if (!panel) return;
+    const expanded = mode === 'expanded';
+    panel.classList.toggle('expanded', expanded);
+    const btn = document.getElementById('ai-expand');
+    if (btn) {
+      btn.classList.toggle('active', expanded);
+      btn.title = expanded ? 'Exit full screen (Ctrl+Shift+F)' : 'Full screen (Ctrl+Shift+F)';
+      btn.setAttribute('aria-label', btn.title);
+      btn.innerHTML = this._icon(expanded ? 'compress' : 'maximize', 15);
+    }
+    if (!(opts && opts.silent)) {
+      try { localStorage.setItem(this.MODE_KEY, expanded ? 'expanded' : 'docked'); } catch {}
+    }
+    this._syncBackdrop();
+  },
+
+  toggleMode() {
+    this.setMode(document.getElementById('ai-panel')?.classList.contains('expanded') ? 'docked' : 'expanded');
+    setTimeout(() => document.getElementById('ai-input')?.focus(), 60);
+  },
+
+  _syncBackdrop() {
+    const panel = document.getElementById('ai-panel');
+    const b = document.getElementById('ai-backdrop');
+    if (!panel || !b) return;
+    b.classList.toggle('show', panel.classList.contains('open') && panel.classList.contains('expanded'));
+  },
+
+  // Close when the user clicks away or presses Escape.
+  //
+  // A click inside a page happens in a <webview>, which never reaches this
+  // document — so window blur is watched too, exactly as the other popups in
+  // Vex do it. Without that, clicking the page left the panel stuck open.
+  _bindDismiss() {
+    if (this._onDocDown) return;
+    const panel = document.getElementById('ai-panel');
+    this._onDocDown = (e) => {
+      if (!this.isOpen()) return;
+      if (panel && panel.contains(e.target)) return;
+      // The buttons that open it must stay a toggle, not close-then-reopen.
+      if (e.target?.closest?.('#btn-toggle-ai, .vex-job-btn, #ai-backdrop')) return;
+      this.close();
+    };
+    this._onEsc = (e) => {
+      if (e.key !== 'Escape' || !this.isOpen()) return;
+      const dd = document.getElementById('persona-dropdown');
+      const td = document.getElementById('tab-selector-dropdown');
+      if (dd && !dd.hidden) { dd.hidden = true; return; }
+      if (td && !td.hidden) { td.hidden = true; return; }
+      this.close();
+    };
+    this._onWinBlur = () => { if (this.isOpen()) this.close(); };
+    setTimeout(() => {
+      document.addEventListener('mousedown', this._onDocDown, true);
+      document.addEventListener('keydown', this._onEsc, true);
+      window.addEventListener('blur', this._onWinBlur);
+    }, 0);
+  },
+
+  _unbindDismiss() {
+    if (this._onDocDown) document.removeEventListener('mousedown', this._onDocDown, true);
+    if (this._onEsc) document.removeEventListener('keydown', this._onEsc, true);
+    if (this._onWinBlur) window.removeEventListener('blur', this._onWinBlur);
+    this._onDocDown = this._onEsc = this._onWinBlur = null;
+  },
+
+  // Starters belong to an empty conversation; once there is a thread they are
+  // clutter sitting between the user and the composer.
+  _syncStarters() {
+    const empty = this._getConv().length === 0;
+    const qa = document.getElementById('ai-quick-actions');
+    if (qa) qa.hidden = !empty;
+    const pr = document.getElementById('persona-prompts-row');
+    if (pr && !empty) pr.style.display = 'none';
+  },
+
+  // === Chats ==============================================================
+
+  newChat() {
+    const id = this._getTabId();
+    if (id != null) { this._conversations[id] = []; this._persistConversations(); }
+    this._renderMessages();
+    this._syncStarters();
+    this._renderPersonaQuickPrompts();
+    document.getElementById('ai-input')?.focus();
+  },
+
+  toggleHistory(force) {
+    const el = document.getElementById('ai-history');
+    if (!el) return;
+    const show = typeof force === 'boolean' ? force : el.hidden;
+    el.hidden = !show;
+    document.getElementById('ai-history-btn')?.classList.toggle('active', show);
+    if (show) this._renderHistory();
+  },
+
+  // Conversations are stored per tab, so "recent chats" is every tab that has
+  // one — including tabs that have since been closed.
+  _renderHistory() {
+    const list = document.getElementById('ai-history-list');
+    if (!list) return;
+    const current = String(this._getTabId());
+    const titleOf = (tabId) => {
+      const t = (typeof TabManager !== 'undefined' ? TabManager.tabs : []).find(x => String(x.id) === String(tabId));
+      return t ? (t.title || t.url || 'Untitled') : 'Closed tab';
+    };
+    const rows = Object.entries(this._conversations || {})
+      .filter(([, msgs]) => Array.isArray(msgs) && msgs.length)
+      .map(([tabId, msgs]) => ({ tabId, msgs, first: msgs.find(m => m.role === 'user') }))
+      .reverse();
+
+    if (!rows.length) {
+      list.innerHTML = '<div class="ai-history-empty">No conversations yet.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    for (const r of rows) {
+      const b = document.createElement('button');
+      b.className = 'ai-history-item' + (String(r.tabId) === current ? ' current' : '');
+      b.innerHTML = `<span class="t"></span><span class="m"></span>`;
+      b.querySelector('.t').textContent = (r.first && r.first.content.slice(0, 70)) || titleOf(r.tabId);
+      b.querySelector('.m').textContent = `${r.msgs.length} message${r.msgs.length === 1 ? '' : 's'} · ${titleOf(r.tabId)}`;
+      b.addEventListener('click', () => {
+        // Switching to the tab is what actually changes the conversation,
+        // because a chat belongs to its tab.
+        const t = (typeof TabManager !== 'undefined' ? TabManager.tabs : []).find(x => String(x.id) === String(r.tabId));
+        if (t && typeof TabManager !== 'undefined') TabManager.switchTab(t.id);
+        else window.showToast?.('That tab is closed, so its chat cannot be reopened');
+        this.toggleHistory(false);
+        this._renderMessages();
+        this._syncStarters();
+      });
+      list.appendChild(b);
+    }
+  },
+
+  exportChat() {
+    const conv = this._getConv();
+    if (!conv.length) { window.showToast?.('Nothing to export yet'); return; }
+    const when = new Date();
+    const lines = [`# Vex AI — ${when.toLocaleString()}`, ''];
+    for (const m of conv) lines.push(`**${m.role === 'user' ? 'You' : 'Vex AI'}:** ${m.content}`, '');
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `vex-ai-${when.toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  },
+
+  // Copy / retry, per message.
+  _msgActions(m, index, contentEl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-msg-actions';
+
+    const act = (icon, title, fn) => {
+      const b = document.createElement('button');
+      b.className = 'ai-msg-act';
+      b.title = title;
+      b.setAttribute('aria-label', title);
+      b.innerHTML = this._icon(icon, 13);
+      b.addEventListener('click', (e) => { e.stopPropagation(); fn(b); });
+      wrap.appendChild(b);
+      return b;
+    };
+
+    act('copy', 'Copy', async (b) => {
+      try {
+        await navigator.clipboard.writeText(m.content);
+        b.classList.add('done');
+        b.innerHTML = this._icon('check', 13);
+        setTimeout(() => { b.classList.remove('done'); b.innerHTML = this._icon('copy', 13); }, 1400);
+      } catch (err) {
+        window.showToast?.('Could not copy: ' + ((err && err.message) || 'clipboard unavailable'), 'error');
+      }
+    });
+
+    if (m.role === 'assistant') {
+      act('refresh', 'Try this answer again', () => {
+        const conv = this._getConv();
+        // The prompt that produced this answer is the user turn before it.
+        let ask = null;
+        for (let i = index - 1; i >= 0; i--) if (conv[i].role === 'user') { ask = conv[i].content; break; }
+        if (!ask) { window.showToast?.('Nothing to retry — no question above this answer'); return; }
+        conv.splice(index, 1);
+        this._persistConversations();
+        this._renderMessages();
+        this.sendMessage('chat', { message: ask });
+      });
+    } else {
+      act('edit', 'Edit and ask again', () => {
+        const input = document.getElementById('ai-input');
+        if (!input) return;
+        input.value = m.content;
+        input.focus();
+        if (this._growInput) this._growInput();
+      });
+    }
+    return wrap;
+  },
+
+  close() {
+    document.getElementById('ai-panel')?.classList.remove('open');
+    this.toggleHistory(false);
+    this._unbindDismiss();
+    this._syncBackdrop();
+  },
 
   toggle() {
     const p = document.getElementById('ai-panel');
@@ -679,12 +950,13 @@ const AIPanel = {
     const conv = this._getConv();
 
     if (conv.length === 0) {
-      container.innerHTML = '<div class="ai-empty">Ask anything about the current page, or use the quick actions above.</div>';
+      container.innerHTML = '<div class="ai-empty">Ask anything about the current page, or pick a starter below.</div>';
+      this._syncStarters();
       return;
     }
 
     container.innerHTML = '';
-    conv.forEach(m => {
+    conv.forEach((m, i) => {
       const el = document.createElement('div');
       el.className = `ai-msg ${m.role}`;
       const contentEl = document.createElement('div');
@@ -693,10 +965,12 @@ const AIPanel = {
         ? this._md(m.content)
         : this._esc(m.content).replace(/\n/g, '<br>');
       el.appendChild(contentEl);
-      if (m.role === 'assistant') el.appendChild(this._makeCopyBtn(contentEl));
+      // Copy on every message; retry on an answer, edit-and-resend on a question.
+      el.appendChild(this._msgActions(m, i, contentEl));
       container.appendChild(el);
     });
     container.scrollTop = container.scrollHeight;
+    this._syncStarters();
   },
 
   _renderResponse(action, parsed, backendInfo) {

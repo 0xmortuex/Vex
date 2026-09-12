@@ -1,32 +1,22 @@
 /* === Phase 15: AI Personas === */
 
-/* Persona switcher pill at top of AI panel */
-.persona-selector {
-  position: relative;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-2);
-}
-.active-persona {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 20px; padding: 6px 14px;
-  width: 100%; cursor: pointer; color: var(--text); font-size: 13px;
-  transition: all 0.15s; font-family: 'Outfit', sans-serif;
-}
-.active-persona:hover { border-color: var(--primary); }
-.persona-icon { font-size: 18px; flex-shrink: 0; line-height: 1; }
-.persona-name { flex: 1; text-align: left; font-weight: 500; }
-.selector-arrow { color: var(--text-muted); font-size: 10px; }
+/* The persona switcher used to be a full-width bar pinned under the AI panel
+   header. It is now a pill in the composer row, styled in ai-panel.css with the
+   other pills — so the layout rules that assumed the old position are gone.
+   Leaving them here did real damage: this file loads after ai-panel.css, so the
+   dropdown kept `top: 100%` and opened downward, off the bottom of the panel. */
+.persona-name { text-align: left; font-weight: 500; }
 
+/* Opens UPWARD: the switcher sits in the composer at the bottom of the panel,
+   so a dropdown anchored to its top edge would fall off the window. */
 .persona-dropdown {
   position: absolute;
-  top: 100%; left: 12px; right: 12px;
-  margin-top: 4px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 6px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  max-height: 400px; overflow-y: auto;
+  bottom: calc(100% + 6px); left: 0;
+  min-width: 240px; max-width: min(340px, 86vw);
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 6px;
+  box-shadow: 0 16px 40px var(--vex-shadow-color, rgba(0,0,0,0.4));
+  max-height: 340px; overflow-y: auto;
   z-index: 100;
 }
 .persona-list { display: flex; flex-direction: column; gap: 2px; }

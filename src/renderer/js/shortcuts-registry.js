@@ -9,6 +9,7 @@ const ShortcutsRegistry = (() => {
     'command-bar':    { default: 'Ctrl+K',       label: 'Command Bar (URLs, commands, search)', category: 'Navigation' },
     'ask-ai-bar':     { default: 'Ctrl+J',       label: 'Ask Vex AI (quick prompt)',  category: 'AI' },
     'ai-panel':       { default: 'Ctrl+Shift+A', label: 'Toggle AI Panel',            category: 'AI' },
+    'ai-focus-mode':  { default: 'Ctrl+Shift+F', label: 'Vex AI full screen',         category: 'AI' },
     'history-ai':     { default: 'Ctrl+Shift+H', label: 'Open History in AI Search',  category: 'AI' },
 
     // Tabs

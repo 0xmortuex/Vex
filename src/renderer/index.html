@@ -916,77 +916,121 @@
   </div>
 
   <!-- AI Panel (slides in from right) -->
+  <!-- Vex AI.
+       Two modes, same markup: docked (a column on the right, as before) and
+       focus (#ai-panel.expanded — the whole window, conversation centred).
+       Every id the panel's JS binds to is kept; what changed is the structure
+       around them. The six stacked control strips that used to sit between the
+       header and the first message are now one row inside the composer, so the
+       conversation gets the height instead. -->
   <div id="ai-panel">
     <div class="ai-header">
       <div class="ai-title">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        Vex AI
+        <span>Vex AI</span>
       </div>
       <div class="ai-tab-indicator">
-        <span style="color:var(--text-muted)">Talking about:</span>
+        <span class="ai-context-label">Talking about:</span>
         <span class="ai-current-tab-title" id="ai-current-tab">New Tab</span>
       </div>
-      <button class="ai-close" id="ai-close">&times;</button>
+      <div class="ai-header-actions">
+        <button class="ai-icon-btn" id="ai-new-chat" title="New chat" aria-label="New chat"></button>
+        <button class="ai-icon-btn" id="ai-history-btn" title="Recent chats" aria-label="Recent chats"></button>
+        <button class="ai-icon-btn" id="ai-expand" title="Full screen (Ctrl+Shift+F)" aria-label="Full screen"></button>
+        <button class="ai-icon-btn ai-close" id="ai-close" title="Close (Esc)" aria-label="Close"></button>
+      </div>
     </div>
-    <!-- Phase 15: Persona selector -->
-    <div class="persona-selector">
-      <button class="active-persona" id="active-persona-btn" title="Switch persona (@name in chat works too)">
-        <span class="persona-icon" id="active-persona-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:middle"><path d="M12 3.5 13.7 9l5.5 1.7-5.5 1.7L12 18l-1.7-5.6L4.8 10.7 10.3 9z"/><path d="M18.5 3.5v3M17 5h3"/></svg></span>
-        <span class="persona-name" id="active-persona-name">Vex</span>
-        <span class="selector-arrow">&#9662;</span>
-      </button>
-      <div class="persona-dropdown" id="persona-dropdown" hidden>
-        <div class="persona-list" id="persona-list"></div>
-        <div class="persona-footer">
-          <button class="btn-link" id="manage-personas-btn">Manage personas &rarr;</button>
+
+    <!-- Recent conversations, folded away until asked for. -->
+    <div class="ai-history" id="ai-history" hidden>
+      <div class="ai-history-head">Recent chats <button class="btn-link" id="ai-history-close">Done</button></div>
+      <div class="ai-history-list" id="ai-history-list"></div>
+    </div>
+
+    <!-- The conversation. In focus mode .ai-thread centres itself in the window
+         and the messages get a readable column width instead of the full span. -->
+    <div class="ai-body">
+      <div class="ai-thread">
+        <div class="ai-messages" id="ai-messages">
+          <div class="ai-empty">Ask anything about the current page, or use the quick actions above.</div>
         </div>
       </div>
     </div>
-    <!-- Phase 15: Persona-specific quick prompts (populated by JS) -->
-    <div class="persona-prompts-row" id="persona-prompts-row" style="display:none"></div>
-    <div class="ai-tab-selector">
-      <button class="tab-selector-toggle" id="tab-selector-toggle">
-        <span class="selector-label">Tabs:</span>
-        <span class="selector-count" id="selector-count">Current tab</span>
-        <span class="selector-arrow">&#9662;</span>
-      </button>
-      <div id="tab-selector-dropdown" hidden>
-        <div class="selector-modes">
-          <button class="selector-mode active" data-mode="current">Current tab</button>
-          <button class="selector-mode" data-mode="all">All tabs</button>
-          <button class="selector-mode" data-mode="group">This group</button>
-          <button class="selector-mode" data-mode="custom">Pick tabs...</button>
+
+    <div class="ai-composer">
+      <div class="ai-composer-inner">
+        <!-- Starters. Shown only while the conversation is empty, the way an
+             empty chat offers somewhere to begin. -->
+        <div class="ai-quick-actions" id="ai-quick-actions">
+          <button class="ai-quick-btn" data-action="summarize">Summarize</button>
+          <button class="ai-quick-btn" data-action="compare">Compare tabs</button>
+          <button class="ai-quick-btn" data-action="translate">Translate</button>
+          <button class="ai-quick-btn" data-action="ask">Ask</button>
+          <button class="ai-quick-btn" data-action="group-tabs">Organize tabs</button>
         </div>
-        <div id="selector-tab-list" hidden></div>
-        <div id="selector-summary">1 tab included</div>
+
+        <div class="persona-prompts-row" id="persona-prompts-row" style="display:none"></div>
+
+        <div class="ai-input-wrapper">
+          <textarea id="ai-input" placeholder="Ask anything about this page…" rows="1"></textarea>
+          <div class="ai-input-actions">
+            <button id="ai-send-agent" class="ai-icon-btn" title="Run as agent (take actions on the page)" aria-label="Run as agent"></button>
+            <button id="ai-send" title="Send  (Enter)" aria-label="Send"></button>
+          </div>
+        </div>
+
+        <!-- One row of controls, in the composer where they are used, rather
+             than four strips pushing the conversation down the panel. -->
+        <div class="ai-controls">
+          <div class="persona-selector">
+            <button class="active-persona ai-pill" id="active-persona-btn" title="Switch persona (@name in chat works too)">
+              <span class="persona-icon" id="active-persona-icon"></span>
+              <span class="persona-name" id="active-persona-name">Vex</span>
+              <span class="selector-arrow">&#9662;</span>
+            </button>
+            <div class="persona-dropdown" id="persona-dropdown" hidden>
+              <div class="persona-list" id="persona-list"></div>
+              <div class="persona-footer">
+                <button class="btn-link" id="manage-personas-btn">Manage personas &rarr;</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ai-tab-selector">
+            <button class="tab-selector-toggle ai-pill" id="tab-selector-toggle">
+              <span class="selector-label">Tabs:</span>
+              <span class="selector-count" id="selector-count">Current tab</span>
+              <span class="selector-arrow">&#9662;</span>
+            </button>
+            <div id="tab-selector-dropdown" hidden>
+              <div class="selector-modes">
+                <button class="selector-mode active" data-mode="current">Current tab</button>
+                <button class="selector-mode" data-mode="all">All tabs</button>
+                <button class="selector-mode" data-mode="group">This group</button>
+                <button class="selector-mode" data-mode="custom">Pick tabs…</button>
+              </div>
+              <div id="selector-tab-list" hidden></div>
+              <div id="selector-summary">1 tab included</div>
+            </div>
+          </div>
+
+          <div class="agent-mode-selector">
+            <button class="mode-btn active" data-mode="ask" title="Ask before each action">Ask</button>
+            <button class="mode-btn" data-mode="plan" title="Show full plan, then execute">Plan</button>
+            <button class="mode-btn" data-mode="auto" title="Execute automatically">Auto</button>
+          </div>
+
+          <span class="ai-controls-spacer"></span>
+
+          <button class="ai-pill ai-pill-quiet" id="ai-export" title="Save this conversation to a file">Export</button>
+          <button class="ai-pill ai-pill-quiet ai-clear" id="ai-clear" title="Clear this conversation">Clear</button>
+        </div>
+
+        <div class="ai-footer">
+          <button id="ai-stop-agent" title="Stop agent">Stop</button>
+          <span class="ai-backend" id="ai-backend">Vex AI</span>
+        </div>
       </div>
-    </div>
-    <div class="agent-mode-selector">
-      <button class="mode-btn active" data-mode="ask" title="Ask before each action">Ask</button>
-      <button class="mode-btn" data-mode="plan" title="Show full plan, then execute">Plan</button>
-      <button class="mode-btn" data-mode="auto" title="Execute automatically">Auto</button>
-    </div>
-    <div class="ai-quick-actions">
-      <button class="ai-quick-btn" data-action="summarize">Summarize</button>
-      <button class="ai-quick-btn" data-action="compare">Compare tabs</button>
-      <button class="ai-quick-btn" data-action="translate">Translate</button>
-      <button class="ai-quick-btn" data-action="ask">Ask</button>
-      <button class="ai-quick-btn" data-action="group-tabs"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:middle"><rect x="3" y="7.5" width="18" height="13" rx="2.5"/><path d="M7 7.5V6a2 2 0 0 1 2-2h3l1.5 2"/></svg> Organize tabs</button>
-    </div>
-    <div class="ai-messages" id="ai-messages">
-      <div class="ai-empty">Ask anything about the current page, or use the quick actions above.</div>
-    </div>
-    <div class="ai-input-wrapper">
-      <textarea id="ai-input" placeholder="Ask anything about this page..." rows="2"></textarea>
-      <button id="ai-send" title="Send message">&rarr;</button>
-      <button id="ai-send-agent" title="Run as agent (take actions on page)">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><circle cx="8" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1" fill="currentColor" stroke="none"/></svg>
-      </button>
-    </div>
-    <div class="ai-footer">
-      <button id="ai-stop-agent" title="Stop agent">Stop</button>
-      <span>Powered by Claude Sonnet</span>
-      <button class="ai-clear" id="ai-clear">Clear chat</button>
     </div>
   </div>
 
