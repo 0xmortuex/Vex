@@ -26,9 +26,8 @@ webview:focus-visible {
 }
 
 /* Vestibular safety: collapse all animation/transition to imperceptible
- * durations. Spinners render as static glyphs; state changes still apply
- * (duration is near-zero, not `none`, so transitionend/animationend and
- * animation-fill-mode keep working). */
+ * durations. State changes still apply (duration is near-zero, not `none`, so
+ * transitionend/animationend and animation-fill-mode keep working). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -38,4 +37,25 @@ webview:focus-visible {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* …except a progress indicator, which has to keep indicating.
+   *
+   * The rule above froze the AI panel's "Thinking" spinner after a single
+   * 0.01ms rotation, so the only sign that anything was happening was a
+   * motionless circle. What reduced-motion is protecting against is MOTION —
+   * spinning, sliding, parallax — so the rotation stays suppressed and an
+   * opacity pulse takes its place. Fading is not a vestibular trigger. */
+  .ai-spinner,
+  .ws-spinner,
+  .agent-spinner {
+    animation-name: vex-a11y-working !important;
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+    animation-timing-function: ease-in-out !important;
+  }
+}
+
+@keyframes vex-a11y-working {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }

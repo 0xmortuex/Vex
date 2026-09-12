@@ -121,6 +121,19 @@ describe('the fire-once claim', () => {
 });
 
 describe('catch-up for runs missed while Vex was closed', () => {
+  // These cases place "now" at a fixed hour of the current day, but createTask
+  // stamps nextRun from the real clock — so between midnight and 09:00 the two
+  // disagreed and the catch-up assertions failed purely because of the time of
+  // day this suite happened to run.
+  //
+  // Only Date is faked: the queue drains through real setTimeout, and faking
+  // the timers too would stop it ever settling.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-10T13:00:00'));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
   const dailyTask = (overrides = {}) => Scheduler.createTask({
     name: 'Daily', schedule: { type: 'daily', time: '09:00' },
     action: { type: 'reminder', message: 'hi' }, ...overrides,

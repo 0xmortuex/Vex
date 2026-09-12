@@ -11,6 +11,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
 globalThis.VexIcons = VexIcons; global.window.VexIcons = VexIcons;
+// The panel answers questions about Vex from this catalogue, so it has to be
+// present or those tests pass for the wrong reason (a null result).
+const { VexFeatures } = require('../../src/renderer/js/feature-catalog.js');
+globalThis.VexFeatures = VexFeatures; global.window.VexFeatures = VexFeatures;
 const { AIPanel } = require('../../src/renderer/js/ai-panel.js');
 
 // Only the parts of the panel the shell touches.
@@ -196,5 +200,111 @@ describe('built-in personas', () => {
       expect(p.temperature, p.id).toBeLessThanOrEqual(1);
       expect(p.quickPrompts.length, p.id).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+// Reasoning models put their working in a <think> block before the answer.
+// Left in place it broke JSON.parse, so the parser fell through to a regex that
+// scraped "reply" out of the raw text and discarded the reasoning entirely.
+describe('reasoning models', () => {
+  const J = (o) => JSON.stringify(o);
+
+  it('separates the thinking from the answer', () => {
+    const p = AIPanel._parseResponse('<think>weighing it up</think>' + J({ reply: 'the answer' }));
+    expect(p.reply).toBe('the answer');
+    expect(p.thinking).toBe('weighing it up');
+  });
+
+  it('handles the other tag spellings models use', () => {
+    for (const tag of ['think', 'thinking', 'reasoning']) {
+      const p = AIPanel._parseResponse(`<${tag}>inner</${tag}>` + J({ reply: 'a' }));
+      expect(p.thinking, tag).toBe('inner');
+    }
+  });
+
+  it('joins several blocks rather than keeping only the last', () => {
+    const p = AIPanel._parseResponse('<think>one</think>mid<think>two</think>' + J({ reply: 'a' }));
+    expect(p.thinking).toContain('one');
+    expect(p.thinking).toContain('two');
+  });
+
+  // Generation stopped mid-thought: there is reasoning but no answer yet.
+  it('treats an unterminated block as thinking with no answer', () => {
+    const p = AIPanel._parseResponse('<think>still going');
+    expect(p.thinkingOnly).toBe(true);
+    expect(p.reply).toBe('');
+    expect(p.thinking).toBe('still going');
+  });
+
+  it('never leaves the tag in the answer', () => {
+    const p = AIPanel._parseResponse('<think>x</think>plain prose answer');
+    expect(p.reply).not.toMatch(/think/i);
+    expect(p.reply).toBe('plain prose answer');
+  });
+
+  it('leaves a response with no thinking exactly as it was', () => {
+    const p = AIPanel._parseResponse(J({ reply: 'hi', citations: [] }));
+    expect(p.reply).toBe('hi');
+    expect(p.thinking).toBeUndefined();
+  });
+
+  it('still recovers a truncated reply, and keeps the reasoning with it', () => {
+    const p = AIPanel._parseResponse('<think>r</think>{"reply": "half a sen');
+    expect(p.truncated).toBe(true);
+    expect(p.reply).toBe('half a sen');
+    expect(p.thinking).toBe('r');
+  });
+});
+
+describe('what Vex knows about itself', () => {
+  it('hands over the feature catalogue when asked about Vex', () => {
+    const m = AIPanel._vexKnowledge('What features does Vex have?');
+    expect(m).toBeTruthy();
+    expect(m.role).toBe('system');
+    expect(m.content).toContain('Vex is the browser');
+  });
+
+  it('answers for "this browser" too', () => {
+    expect(AIPanel._vexKnowledge('what can this browser do?')).toBeTruthy();
+  });
+
+  it('stays out of the way for an ordinary page question', () => {
+    // Guard against passing for the wrong reason: with no catalogue loaded
+    // every call returns null and this would look green regardless.
+    expect(AIPanel._vexKnowledge('what can Vex do?')).toBeTruthy();
+    expect(AIPanel._vexKnowledge('summarise this article')).toBe(null);
+    expect(AIPanel._vexKnowledge('what is convexity?')).toBe(null);
+  });
+
+  it('is capped, so it cannot crowd out a small local model', () => {
+    const m = AIPanel._vexKnowledge('tell me everything about Vex');
+    expect(m.content.length).toBeLessThanOrEqual(AIPanel.VEX_KNOWLEDGE_LIMIT);
+  });
+
+  it('tells the model not to invent features', () => {
+    expect(AIPanel._vexKnowledge('vex features').content).toContain('not sure rather than guessing');
+  });
+});
+
+describe('the reasoning survives being stored', () => {
+  it('keeps thinking with its turn through save and reload', () => {
+    globalThis.TabManager = { activeTabId: 't1', tabs: [{ id: 't1' }] };
+    global.window.TabManager = globalThis.TabManager;
+    AIPanel._conversations = { t1: [{ role: 'assistant', content: 'a', thinking: 'because' }] };
+    AIPanel._persistConversations();
+
+    AIPanel._conversations = {};
+    AIPanel._loadConversations();
+    expect(AIPanel._conversations.t1[0].thinking).toBe('because');
+  });
+
+  it('caps a very long chain of thought rather than filling the store', () => {
+    globalThis.TabManager = { activeTabId: 't1', tabs: [{ id: 't1' }] };
+    global.window.TabManager = globalThis.TabManager;
+    AIPanel._conversations = { t1: [{ role: 'assistant', content: 'a', thinking: 'x'.repeat(50000) }] };
+    AIPanel._persistConversations();
+    AIPanel._conversations = {};
+    AIPanel._loadConversations();
+    expect(AIPanel._conversations.t1[0].thinking.length).toBeLessThanOrEqual(AIPanel.MAX_THINKING_CHARS);
   });
 });

@@ -583,6 +583,7 @@ const AIPanel = {
   // so closed tabs can't grow the store forever.
   CONV_KEY: 'vex.aiConversations',
   MAX_CONV_MESSAGES: 40,
+  MAX_THINKING_CHARS: 4000,
   MAX_CONV_TABS: 20,
 
   _loadConversations() {
@@ -593,6 +594,9 @@ const AIPanel = {
         if (!Array.isArray(msgs)) continue;
         this._conversations[tabId] = msgs
           .filter(m => m && typeof m.content === 'string' && (m.role === 'user' || m.role === 'assistant'))
+          .map(m => (typeof m.thinking === 'string' && m.thinking)
+            ? { role: m.role, content: m.content, thinking: m.thinking.slice(0, this.MAX_THINKING_CHARS) }
+            : { role: m.role, content: m.content })
           .slice(-this.MAX_CONV_MESSAGES);
       }
     } catch {}
@@ -613,7 +617,13 @@ const AIPanel = {
         const msgs = this._conversations[id];
         if (!Array.isArray(msgs) || !msgs.length) continue;
         if (++kept > this.MAX_CONV_TABS) break;
-        out[id] = msgs.slice(-this.MAX_CONV_MESSAGES).map(m => ({ role: m.role, content: m.content }));
+        // Reasoning travels with its turn, capped: a long chain of thought is
+        // far bigger than the answer and this store is a localStorage budget.
+        out[id] = msgs.slice(-this.MAX_CONV_MESSAGES).map(m => (
+          m.thinking
+            ? { role: m.role, content: m.content, thinking: String(m.thinking).slice(0, this.MAX_THINKING_CHARS) }
+            : { role: m.role, content: m.content }
+        ));
       }
       localStorage.setItem(this.CONV_KEY, JSON.stringify(out));
     } catch {}
@@ -638,24 +648,51 @@ const AIPanel = {
   //   '{"reply": "half     truncated mid-generation: the closing quote never
   //   a sentence'          arrives, so the strict regex missed it and the raw
   //                        JSON text was shown to the user.
+  // Reasoning models (qwen3, deepseek-r1 and others) put their working in a
+  // <think> block before the answer. Left in place it breaks JSON.parse, so the
+  // parser fell through to a regex that scrapes "reply" out of the raw text —
+  // fragile, and it threw the reasoning away. Pull it out first and hand it
+  // back, so the panel can show it.
+  _extractThinking(input) {
+    let str = String(input);
+    let thinking = '';
+    const keep = (inner) => { thinking += (thinking ? '\n\n' : '') + String(inner).trim(); return ''; };
+    str = str.replace(/<think>([\s\S]*?)<\/think>/gi, (_m, inner) => keep(inner));
+    str = str.replace(/<thinking>([\s\S]*?)<\/thinking>/gi, (_m, inner) => keep(inner));
+    str = str.replace(/<reasoning>([\s\S]*?)<\/reasoning>/gi, (_m, inner) => keep(inner));
+    // An unterminated block means generation stopped mid-thought: everything
+    // after the opening tag is reasoning, and no answer arrived.
+    const open = str.match(/<(?:think|thinking|reasoning)>([\s\S]*)$/i);
+    if (open) {
+      keep(open[1]);
+      str = str.slice(0, open.index);
+    }
+    return { text: str.trim(), thinking: thinking.trim() };
+  },
+
   _parseResponse(raw) {
     if (!raw) return { reply: '' };
     let str = String(raw).trim();
+    const split = this._extractThinking(str);
+    str = split.text;
+    const withThinking = (obj) => { if (split.thinking) obj.thinking = split.thinking; return obj; };
+    // A model that spent its whole budget thinking leaves no answer behind.
+    if (!str) return withThinking({ reply: '', thinkingOnly: true });
     // Strip ```json ... ``` fences
     str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
     try {
       const parsed = JSON.parse(str);
       // Only a plain object carries the fields the renderers read. A scalar or
       // an array is just the model's answer in JSON clothing.
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-      return { reply: typeof parsed === 'string' ? parsed : str };
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return withThinking(parsed);
+      return withThinking({ reply: typeof parsed === 'string' ? parsed : str });
     } catch {
       // Malformed/truncated JSON — recover the reply field if it started.
       const closed = str.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-      if (closed) return { reply: this._unescapeJsonString(closed[1]) };
-      const open = str.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)$/);
-      if (open) return { reply: this._unescapeJsonString(open[1]), truncated: true };
-      return { reply: str };
+      if (closed) return withThinking({ reply: this._unescapeJsonString(closed[1]) });
+      const openReply = str.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)$/);
+      if (openReply) return withThinking({ reply: this._unescapeJsonString(openReply[1]), truncated: true });
+      return withThinking({ reply: str });
     }
   },
 
@@ -711,6 +748,11 @@ const AIPanel = {
         const memMsg = AIMemory.historyMessage();
         if (memMsg) conversationHistory = [memMsg, ...conversationHistory.slice(-9)];
       }
+      // Questions about Vex get Vex's own feature list, not the open page.
+      if (feature === 'chat') {
+        const vexMsg = this._vexKnowledge(opts.message);
+        if (vexMsg) conversationHistory = [vexMsg, ...conversationHistory.slice(-9)];
+      }
       const aiResult = await AIRouter.callAI(feature, {
         message: opts.message,
         pageContext,
@@ -738,7 +780,7 @@ const AIPanel = {
 
       // Store assistant reply for chat history
       if (action === 'chat') {
-        conv.push({ role: 'assistant', content: parsed.reply, action });
+        conv.push({ role: 'assistant', content: parsed.reply, action, thinking: parsed.thinking || undefined });
         this._persistConversations();
       }
 
@@ -959,6 +1001,11 @@ const AIPanel = {
     conv.forEach((m, i) => {
       const el = document.createElement('div');
       el.className = `ai-msg ${m.role}`;
+      // Reasoning is kept with the turn, so reopening a chat still shows it.
+      if (m.role === 'assistant' && m.thinking) {
+        const think = this._thinkingBlock(m.thinking);
+        if (think) el.appendChild(think);
+      }
       const contentEl = document.createElement('div');
       contentEl.className = 'ai-msg-content';
       contentEl.innerHTML = m.role === 'assistant'
@@ -973,6 +1020,84 @@ const AIPanel = {
     this._syncStarters();
   },
 
+  // What Vex itself can do.
+  //
+  // Asked "what features does Vex have?", the model only ever had the text
+  // scraped off whatever page was open — so on a new tab it answered by reading
+  // the new tab, and listed the shortcut bar as though that were the browser.
+  // Vex ships a catalogue of its own 137 features; this hands the relevant part
+  // of it over as grounding, so the answer describes the browser instead of the
+  // wallpaper.
+  VEX_KNOWLEDGE_LIMIT: 5000,
+
+  _asksAboutVex(question) {
+    const q = String(question || '');
+    if (!q) return false;
+    return /\bvex\b/i.test(q) || /\b(this|the|your) browser\b/i.test(q);
+  },
+
+  _vexKnowledge(question) {
+    const F = (typeof VexFeatures !== 'undefined' && VexFeatures) || window.VexFeatures;
+    if (!F || !Array.isArray(F.ITEMS) || !F.ITEMS.length) return null;
+    if (!this._asksAboutVex(question)) return null;
+
+    const lines = ['Vex is the browser this conversation is happening inside. Its actual feature set:'];
+
+    // Anything matching the question gets its full description — that is the
+    // part the user is asking about.
+    let matched = [];
+    try { matched = (typeof F.search === 'function' ? F.search(question) : []) || []; } catch { matched = []; }
+    if (matched.length) {
+      lines.push('', 'Most relevant:');
+      for (const f of matched.slice(0, 8)) lines.push(`- ${f.name}: ${f.what}`);
+    }
+
+    // Plus the shape of the whole thing, by category, so the model can answer
+    // "what else" without being handed all 137 descriptions.
+    lines.push('', 'Everything else, by area:');
+    const cats = Array.isArray(F.CATS) ? F.CATS : [];
+    const seen = new Set(matched.map(f => f.id));
+    for (const c of cats) {
+      const names = F.ITEMS.filter(f => f.cat === c.id && !seen.has(f.id)).map(f => f.name);
+      if (!names.length) continue;
+      lines.push(`- ${c.name} — ${names.join(', ')}`);
+    }
+
+    lines.push('', 'Describe only what is listed here. If something is not in this list, say you are not sure rather than guessing from the page.');
+    const text = lines.join('\n');
+    return { role: 'system', content: text.slice(0, this.VEX_KNOWLEDGE_LIMIT) };
+  },
+
+  // The model's working, folded away. Collapsed by default: it is context for
+  // when an answer looks wrong, not the answer itself.
+  _thinkingBlock(text) {
+    if (!text) return null;
+    const wrap = document.createElement('details');
+    wrap.className = 'ai-thinking';
+
+    const sum = document.createElement('summary');
+    sum.className = 'ai-thinking-summary';
+    const icon = (window.VexIcons && VexIcons.has('brain')) ? VexIcons.svg('brain', { size: 13 }) : '';
+    sum.innerHTML = `<span class="ai-thinking-ico">${icon}</span><span class="ai-thinking-label"></span><span class="ai-thinking-chev">${(window.VexIcons && VexIcons.has('arrow-right')) ? VexIcons.svg('arrow-right', { size: 12 }) : ''}</span>`;
+    const words = String(text).trim().split(/\s+/).filter(Boolean).length;
+    sum.querySelector('.ai-thinking-label').textContent = `Thought for ${words} word${words === 1 ? '' : 's'}`;
+    wrap.appendChild(sum);
+
+    const body = document.createElement('div');
+    body.className = 'ai-thinking-body';
+    // Reasoning is model output, so it is inserted as TEXT. Rendering it as
+    // markdown would let a page that steered the model inject markup here.
+    body.textContent = String(text);
+    wrap.appendChild(body);
+
+    // Remember whether the user likes it open.
+    try { wrap.open = localStorage.getItem('vex.aiThinkingOpen') === '1'; } catch {}
+    wrap.addEventListener('toggle', () => {
+      try { localStorage.setItem('vex.aiThinkingOpen', wrap.open ? '1' : '0'); } catch {}
+    });
+    return wrap;
+  },
+
   _renderResponse(action, parsed, backendInfo) {
     const container = document.getElementById('ai-messages');
     if (!container) return;
@@ -980,6 +1105,9 @@ const AIPanel = {
 
     const el = document.createElement('div');
     el.className = 'ai-msg assistant';
+
+    const think = this._thinkingBlock(parsed.thinking);
+    if (think) el.appendChild(think);
 
     const contentEl = document.createElement('div');
     contentEl.className = 'ai-msg-content';
