@@ -50,22 +50,22 @@ const PrivacyPack = {
       </div>
       <p class="setting-info muted" style="margin:6px 0 12px;font-size:11px">“Strict” is hardest but can break some public Wi-Fi sign-in pages. Applies immediately, browser-wide.</p>
 
-      <button id="priv-report" style="padding:8px 16px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">🛡 Privacy Report</button>`;
+      <button id="priv-report" style="padding:8px 16px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Privacy Report</button>`;
 
     container.querySelector('#priv-farble').addEventListener('change', (e) => {
       this.setCfg({ farble: e.target.checked });
-      window.showToast?.(e.target.checked ? '🛡 Fingerprint protection on (new pages)' : 'Fingerprint protection off');
+      window.showToast?.(e.target.checked ? 'Fingerprint protection on (new pages)' : 'Fingerprint protection off');
     });
     container.querySelector('#priv-https-only').addEventListener('change', (e) => {
       this.setCfg({ httpsOnly: e.target.checked });
-      window.showToast?.(e.target.checked ? '🔒 HTTPS-Only mode on' : 'HTTPS-Only mode off');
+      window.showToast?.(e.target.checked ? 'HTTPS-Only mode on' : 'HTTPS-Only mode off');
     });
     const dohSel = container.querySelector('#priv-doh');
     const provSel = container.querySelector('#priv-doh-provider');
     dohSel.addEventListener('change', (e) => {
       provSel.disabled = e.target.value === 'off';
       this.setCfg({ doh: e.target.value });
-      window.showToast?.(e.target.value === 'off' ? 'DNS-over-HTTPS off' : '🔒 DNS-over-HTTPS ' + (e.target.value === 'strict' ? '(strict)' : '(opportunistic)'));
+      window.showToast?.(e.target.value === 'off' ? 'DNS-over-HTTPS off' : 'DNS-over-HTTPS ' + (e.target.value === 'strict' ? '(strict)' : '(opportunistic)'));
     });
     provSel.addEventListener('change', (e) => { this.setCfg({ dohProvider: e.target.value }); window.showToast?.('DoH provider: ' + e.target.value); });
     container.querySelector('#priv-report').addEventListener('click', () => this.showReport());
@@ -88,13 +88,13 @@ const PrivacyPack = {
     const dohLabel = this.cfg.doh === 'off' ? 'Off' : (this.cfg.doh === 'strict' ? 'Strict — ' + this.cfg.dohProvider : 'On — ' + this.cfg.dohProvider);
     m.innerHTML = `<div style="width:440px;max-width:94vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
         <div style="padding:18px 20px 12px">
-          <div style="font-size:17px;font-weight:700;color:var(--text)">🛡 Privacy Report</div>
+          <div style="font-size:17px;font-weight:700;color:var(--text)">Privacy Report</div>
           <div style="display:flex;gap:18px;margin-top:14px">
             <div style="flex:1;background:var(--bg);border-radius:11px;padding:12px"><div style="font-size:26px;font-weight:800;color:var(--primary);font-family:'JetBrains Mono',monospace">${stats.total}</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">trackers &amp; ads blocked<br>this session</div></div>
             <div style="flex:1;background:var(--bg);border-radius:11px;padding:12px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Fingerprint</div><div style="font-size:12px;color:${this.cfg.farble ? '#22c55e' : 'var(--text-muted)'}">${this.cfg.farble ? '● Protected' : '○ Off'}</div><div style="font-size:13px;font-weight:700;color:var(--text);margin:8px 0 4px">DNS</div><div style="font-size:12px;color:${this.cfg.doh !== 'off' ? '#22c55e' : 'var(--text-muted)'}">${this.cfg.doh !== 'off' ? '● ' : '○ '}${esc(dohLabel)}</div></div>
           </div>
         </div>
-        <div style="padding:4px 20px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700">🕸 Following you across sites</div>
+        <div style="padding:4px 20px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700">Following you across sites</div>
         <div style="padding:0 20px;max-height:30vh;overflow-y:auto">${crossRows}</div>
         <div style="padding:12px 20px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700">Top blocked domains</div>
         <div style="padding:0 20px;overflow-y:auto;flex:1">${rows}</div>

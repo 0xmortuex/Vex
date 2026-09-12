@@ -65,6 +65,31 @@ function startUrlWithTheme(base) {
   return `${clean}?theme=${encodeURIComponent(theme)}`;
 }
 
+// Tab-strip and menu icons. Inline SVG on currentColor so every badge follows
+// the active theme (and so no emoji ship in the UI — see the app-wide emoji
+// removal). Each helper returns a complete <span>/<svg> snippet ready to drop
+// into an innerHTML template.
+const TAB_ICONS = {
+  tor: '<span class="tab-private tor" title="Tor tab — routed through Tor" aria-label="Tor tab"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M8 2v12" stroke="currentColor" stroke-width="1.4"/></svg></span>',
+  private: '<span class="tab-private" title="Private (off-the-record) tab" aria-label="Private tab"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.2" y="7" width="9.6" height="6.4" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.6 7V5.2a2.4 2.4 0 0 1 4.8 0V7" stroke="currentColor" stroke-width="1.4"/></svg></span>',
+  audible: '<span class="tab-audio" title="Playing audio — click to mute" aria-label="Playing audio"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>',
+  muted: '<span class="tab-audio muted" title="Muted — click to unmute" aria-label="Muted"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.8 6.2l3.4 3.6M14.2 6.2l-3.4 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>',
+  sleeping: '<span class="sleep-indicator" title="Sleeping" aria-label="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>',
+};
+
+// Menu-row icons (16px, stroke-only, currentColor).
+const MENU_ICON = (paths) =>
+  `<svg class="ctx-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">${paths}</svg>`;
+const MENU_ICONS = {
+  rename: MENU_ICON('<path d="M10.5 2.5l3 3L6 13H3v-3z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'),
+  color: MENU_ICON('<circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 2.5v11" stroke="currentColor" stroke-width="1.3"/>'),
+  stack: MENU_ICON('<rect x="2.5" y="6.5" width="11" height="7" rx="1.3" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 4.5h7M6 2.5h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'),
+  close: MENU_ICON('<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'),
+  ungroup: MENU_ICON('<path d="M8 10.5V2.5M5 5.5L8 2.5l3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 12.5h11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'),
+  trash: MENU_ICON('<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.2a1 1 0 0 0 1 .8h3.6a1 1 0 0 0 1-.8l.7-8.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'),
+  keepAwake: MENU_ICON('<path d="M3 5.5h8v4.2A3.3 3.3 0 0 1 7.7 13H6.3A3.3 3.3 0 0 1 3 9.7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M11 6.8h1.3a1.9 1.9 0 0 1 0 3.8H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'),
+};
+
 // Recently closed tabs
 const RECENTLY_CLOSED_KEY = 'vex.recentlyClosed';
 const MAX_RECENTLY_CLOSED = 25;
@@ -201,7 +226,7 @@ const TabManager = {
             partition: t.partition || null,
             url: tabUrl,
             title: t.title || (isStartPage(t.url) ? 'New Tab' : (t.url || 'Tab')),
-            favicon: t.favicon || null,
+            favicon: this._persistableFavicon(t.favicon),
             loading: false,
             pinned: !!t.pinned,
             unread: false,
@@ -293,7 +318,7 @@ const TabManager = {
       id,
       url: resolvedUrl,
       title: isStartPage(target) ? 'New Tab' : (opts?.title || 'Loading...'),
-      favicon: opts?.favicon || null,
+      favicon: this._persistableFavicon(opts?.favicon),
       loading: true,
       pinned: !!opts?.pinned,
       scrollPosition: opts?.scrollPosition || null,
@@ -347,6 +372,15 @@ const TabManager = {
 
     // Show correct webview
     WebviewManager.showWebview(id);
+
+    // Split screen: in split mode every webview is display:none except the
+    // panes, so showWebview alone made a tab "active" in the strip while the
+    // view didn't change at all. Hand the tab to SplitScreen, which swaps it
+    // into the last pane (its handleTabClick was written for exactly this and
+    // had no caller).
+    if (typeof SplitScreen !== 'undefined' && SplitScreen.active) {
+      SplitScreen.handleTabClick(id);
+    }
 
     // Update URL bar
     this.updateUrlBar(tab);
@@ -439,10 +473,25 @@ const TabManager = {
     }
     this.tabs = [];
     this.activeTabId = null;
+    // Stacks and their transient expand state belong to the tab set we just
+    // dropped. Leaving them behind leaked a workspace's stacks into the next
+    // one: TabManager.stacks still listed "Reading" after switching to a
+    // workspace that has no stacked tabs at all. Groups are replaced wholesale
+    // by the caller (WorkspaceManager.switchTo), so they stay put.
+    this.stacks = [];
+    this._expandedStackIds.clear();
     // Clear tab list UI in one shot
     document.getElementById('tabs-list').innerHTML = '';
     document.querySelectorAll('.tab-group-tabs').forEach(el => el.innerHTML = '');
+    // The pinned row lives OUTSIDE #tabs-list (rebuildAllTabs inserts it as a
+    // sibling), so clearing the list left the previous tab set's pinned chips
+    // on screen — dead buttons pointing at destroyed tabs.
+    document.querySelector('.pinned-tabs-container')?.remove();
     this._bulkClosing = false;
+    // Tell the rest of the app the tab set is gone: the horizontal strip still
+    // showed the previous workspace's tabs until the next rebuild, and split
+    // screen kept panes pointing at the destroyed tabs.
+    this._notifyTabsChanged();
   },
 
   // Create a tab with lazy webview — webview only created when activated
@@ -474,14 +523,36 @@ const TabManager = {
     WebviewManager.createWebview(tab);
   },
 
+  // Favicons come straight off the page (page-favicon-updated). The saved-tab
+  // contract only accepts http(s)/data:image/file/vex URLs, and one tab holding
+  // anything else (blob:, chrome-error://, a bare path) makes saveTabs reject —
+  // which silently stopped ALL tab persistence, so the whole session was lost
+  // on the next launch. Screen the value here, the single point where a page
+  // gets to set it, and say so rather than keeping an unsavable icon.
+  PERSISTABLE_FAVICON: /^(https?:|data:image\/|file:|vex:)/i,
+  _persistableFavicon(value) {
+    if (value == null || value === '') return null;
+    const str = String(value);
+    if (this.PERSISTABLE_FAVICON.test(str) && str.length <= 1048576) return str;
+    console.warn('[Tabs] ignoring a favicon Vex cannot persist:', str.slice(0, 120));
+    return null;
+  },
+
   updateTab(id, data) {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
 
     if (data.title !== undefined) tab.title = data.title;
     if (data.url !== undefined) tab.url = data.url;
-    if (data.favicon !== undefined) tab.favicon = data.favicon;
+    if (data.favicon !== undefined) tab.favicon = this._persistableFavicon(data.favicon);
     if (data.loading !== undefined) tab.loading = data.loading;
+
+    // A page that never loads never fires page-title-updated, so the tab kept
+    // the "Loading..." placeholder forever once loading finished — an error
+    // tab permanently labelled "Loading…". Fall back to the host.
+    if (data.loading === false && (!tab.title || tab.title === 'Loading...')) {
+      tab.title = this._fallbackTitle(tab.url);
+    }
 
     // Mark unread if not active
     if (id !== this.activeTabId && data.title) {
@@ -495,6 +566,16 @@ const TabManager = {
     }
 
     this.persistTabs();
+  },
+
+  // A readable stand-in when a page gave us no title: its host, else its URL.
+  _fallbackTitle(url) {
+    if (isStartPage(url)) return 'New Tab';
+    try {
+      const u = new URL(url);
+      if (u.hostname) return u.hostname.replace(/^www\./, '');
+      return u.pathname.split('/').filter(Boolean).pop() || url;
+    } catch { return url || 'Tab'; }
   },
 
   updateUrlBar(tab) {
@@ -566,17 +647,12 @@ const TabManager = {
           ? '<img class="tab-favicon" alt="">'
           : '<div class="tab-favicon-placeholder"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/></svg></div>'
       }
-      ${(tab.partition && !String(tab.partition).startsWith('persist:'))
-        ? (String(tab.partition).startsWith('tor-')
-            ? '<span class="tab-private tor" title="Tor tab — routed through Tor">🧅</span>'
-            : '<span class="tab-private" title="Private (off-the-record) tab">🔒</span>')
-        : ''}
+      ${this._privateBadge(tab)}
       <div class="tab-info">
         <div class="tab-title">${this._escapeHtml(tab.title)}</div>
       </div>
-      ${tab.sleeping ? '<span class="sleep-indicator" title="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>' : ''}
-      ${tab.audible && !tab.muted ? '<span class="tab-audio" title="Playing audio — click to mute">&#128266;</span>' : ''}
-      ${tab.muted ? '<span class="tab-audio muted" title="Muted — click to unmute">&#128264;</span>' : ''}
+      ${tab.sleeping ? TAB_ICONS.sleeping : ''}
+      ${this._audioBadge(tab)}
       ${tab.unread ? '<div class="tab-unread"></div>' : ''}
       <button class="tab-close" title="Close tab">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -603,10 +679,55 @@ const TabManager = {
     return el;
   },
 
+  // Private/Tor badge for a tab, or '' when the tab uses a persistent session.
+  _privateBadge(tab) {
+    if (!tab.partition || String(tab.partition).startsWith('persist:')) return '';
+    return String(tab.partition).startsWith('tor-') ? TAB_ICONS.tor : TAB_ICONS.private;
+  },
+
+  // Speaker badge: playing, muted, or nothing.
+  _audioBadge(tab) {
+    if (tab.muted) return TAB_ICONS.muted;
+    if (tab.audible) return TAB_ICONS.audible;
+    return '';
+  },
+
   renderTabUpdate(tab) {
     this._notifyTabsChanged();
     const el = document.querySelector(`.tab-item[data-tab-id="${tab.id}"]`);
     if (!el) return;
+
+    // Sleep / keep-awake state also arrives through this path (webview.js fires
+    // renderTabUpdate on media + load events, sleepTab/wakeTab toggle the class
+    // themselves). Keeping them in sync here means the row never lies after a
+    // partial update — previously only title/favicon/unread were refreshed.
+    el.classList.toggle('sleeping', !!tab.sleeping);
+    el.classList.toggle('kept-awake', this._isKeptAwake(tab));
+
+    // Audio badge. media-started-playing / media-paused (webview.js) and
+    // toggleMuteTab both land here; without this the speaker icon only
+    // appeared after an unrelated full rebuild.
+    const wantAudio = this._audioBadge(tab);
+    const haveAudio = el.querySelector('.tab-audio');
+    if (!wantAudio) {
+      if (haveAudio) haveAudio.remove();
+    } else {
+      const holder = document.createElement('div');
+      holder.innerHTML = wantAudio;
+      const next = holder.firstElementChild;
+      if (haveAudio) haveAudio.replaceWith(next);
+      else el.querySelector('.tab-close')?.before(next);
+    }
+
+    // Sleep badge, same reasoning as the audio badge above.
+    const haveSleep = el.querySelector('.sleep-indicator');
+    if (tab.sleeping && !haveSleep) {
+      const holder = document.createElement('div');
+      holder.innerHTML = TAB_ICONS.sleeping;
+      el.querySelector('.tab-close')?.before(holder.firstElementChild);
+    } else if (!tab.sleeping && haveSleep) {
+      haveSleep.remove();
+    }
 
     const faviconArea = el.querySelector('.tab-loading, .tab-favicon, .tab-favicon-placeholder');
     if (faviconArea) {
@@ -680,6 +801,11 @@ const TabManager = {
           tabsInDom: body ? body.children.length : 0
         });
         VexStorage.saveGroups(this.groups);
+        // The horizontal strip renders a collapsed group's members away
+        // entirely, but it only learns about state changes through
+        // vex-tabs-changed. Without this, collapsing in the sidebar left the
+        // same group's tabs still showing on the top bar (and vice versa).
+        this._notifyTabsChanged();
       });
 
       el.querySelector('.tab-group-header').addEventListener('contextmenu', (e) => {
@@ -841,9 +967,9 @@ const TabManager = {
     menu.style.left = x + 'px';
     menu.style.top  = y + 'px';
     menu.innerHTML = `
-      <div class="tab-context-item" data-action="ungroup">📤 Ungroup (back to group)</div>
+      <div class="tab-context-item" data-action="ungroup">${MENU_ICONS.ungroup}Ungroup (back to group)</div>
       <div class="tab-context-sep"></div>
-      <div class="tab-context-item danger" data-action="close-tabs">✕ Close all ${count} tab${count === 1 ? '' : 's'}</div>
+      <div class="tab-context-item danger" data-action="close-tabs">${MENU_ICONS.close}Close all ${count} tab${count === 1 ? '' : 's'}</div>
     `;
     document.body.appendChild(menu);
     this._clampMenuToViewport(menu, x, y);
@@ -913,14 +1039,14 @@ const TabManager = {
     // sees the option exists and learns why it's unavailable.
     const canStack = count >= 2;
     menu.innerHTML = `
-      <div class="tab-context-item" data-action="rename">\u270f\ufe0f Rename group</div>
-      <div class="tab-context-item" data-action="change-color">\ud83c\udfa8 Change color</div>
-      <div class="tab-context-item${canStack ? '' : ' disabled'}" data-action="convert-to-stack" title="${canStack ? '' : 'A stack needs at least 2 tabs'}">\ud83d\udcda Convert to Stack</div>
+      <div class="tab-context-item" data-action="rename">${MENU_ICONS.rename}Rename group</div>
+      <div class="tab-context-item" data-action="change-color">${MENU_ICONS.color}Change color</div>
+      <div class="tab-context-item${canStack ? '' : ' disabled'}" data-action="convert-to-stack" title="${canStack ? '' : 'A stack needs at least 2 tabs'}">${MENU_ICONS.stack}Convert to Stack</div>
       <div class="tab-context-sep"></div>
-      <div class="tab-context-item" data-action="close-tabs">\u2715 Close ${count} tab${count === 1 ? '' : 's'}</div>
-      <div class="tab-context-item" data-action="ungroup">\ud83d\udce4 Ungroup (keep tabs)</div>
+      <div class="tab-context-item" data-action="close-tabs">${MENU_ICONS.close}Close ${count} tab${count === 1 ? '' : 's'}</div>
+      <div class="tab-context-item" data-action="ungroup">${MENU_ICONS.ungroup}Ungroup (keep tabs)</div>
       <div class="tab-context-sep"></div>
-      <div class="tab-context-item danger" data-action="delete">\ud83d\uddd1\ufe0f Delete group &amp; all tabs</div>
+      <div class="tab-context-item danger" data-action="delete">${MENU_ICONS.trash}Delete group &amp; all tabs</div>
     `;
     document.body.appendChild(menu);
     this._clampMenuToViewport(menu, x, y);
@@ -1117,15 +1243,27 @@ const TabManager = {
     );
 
     const items = [
-      { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => { tab.pinned = !tab.pinned; this.persistTabs(); } },
+      // Route through togglePinTab, which rebuilds the strip. Flipping
+      // tab.pinned inline (the old code) persisted the new state but left the
+      // UI untouched: the pinned-tabs row was never built and the horizontal
+      // strip never got .pinned, so "Pin Tab" looked like it did nothing until
+      // some unrelated rebuild happened to run.
+      { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => this.togglePinTab(tab.id) },
       { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, window.VexTabPolicy?.serialize(tab) || tab) },
       { label: 'Page volume…', action: async () => {
-        const v = typeof vexPromptModal === 'function' ? await vexPromptModal('Page volume (0–100%)', '100') : prompt('Volume 0-100', '100');
+        // Electron's renderer disables window.prompt() — it returns null with
+        // no error, so the old `: prompt(...)` fallback silently did nothing.
+        // Say so instead of pretending the menu item worked.
+        if (typeof vexPromptModal !== 'function') { window.showToast?.('The volume dialog is unavailable', 'error'); return; }
+        const v = await vexPromptModal('Page volume (0–100%)', '100');
         const n = parseInt(v, 10);
         if (isNaN(n)) return;
         const wv = WebviewManager.webviews.get(tab.id);
-        try { wv?.executeJavaScript(`document.querySelectorAll('video,audio').forEach(m=>m.volume=${Math.min(100, Math.max(0, n)) / 100})`); } catch {}
-        window.showToast?.('Volume ' + Math.min(100, Math.max(0, n)) + '%');
+        if (!wv) { window.showToast?.('This tab is not loaded — open it first', 'warn'); return; }
+        const vol = Math.min(100, Math.max(0, n));
+        wv.executeJavaScript(`document.querySelectorAll('video,audio').forEach(m=>m.volume=${vol / 100})`)
+          .then(() => window.showToast?.('Volume ' + vol + '%'))
+          .catch(err => window.showToast?.('Could not set the volume: ' + err.message, 'error'));
       } },
       { sep: true },
       ...moveTargets.map(g => ({
@@ -1145,7 +1283,7 @@ const TabManager = {
       { label: 'Mute All Others', action: () => this.muteAllOtherTabs(tab.id) },
       { sep: true },
       { label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id, true) },
-      { label: this._isKeptAwake(tab) ? '☕ Keep awake — change…' : '☕ Prevent from sleeping…', action: () => this._showKeepAwakeChooser(tab) },
+      { label: this._isKeptAwake(tab) ? 'Keep awake — change…' : 'Prevent from sleeping…', action: () => this._showKeepAwakeChooser(tab) },
       { sep: true },
       { label: 'Close', action: () => this.closeTab(tab.id), danger: true },
       { label: 'Close Others', action: () => this.closeOtherTabs(tab.id), danger: true },
@@ -1253,56 +1391,120 @@ const TabManager = {
     });
   },
 
+  // Move `draggedId` so it sits where `targetId` is, adopting the target's
+  // section (pinned state + group membership). The sidebar renders pinned,
+  // grouped and loose tabs into different containers, so without adoption a
+  // tab dropped inside a group would jump straight back out of it.
+  //
+  // Returns true when something moved. Shared by the vertical sidebar's
+  // drag-drop below; the horizontal strip has its own copy tuned for
+  // before/after placement (HorizontalTabs.reorderTab).
+  moveTabNextTo(draggedId, targetId) {
+    if (!draggedId || !targetId || draggedId === targetId) return false;
+    const dragged = this.tabs.find(t => t.id === draggedId);
+    const target = this.tabs.find(t => t.id === targetId);
+    if (!dragged || !target) return false;
+    // Joining a stack needs its own bookkeeping (topTabId, auto-disband), so
+    // stacked tabs are never drop targets here.
+    if (target.stackId) return false;
+    // Dragging a member OUT of a stack goes through removeTabFromStack so the
+    // top-tab fallback and auto-disband invariants hold.
+    if (dragged.stackId) this.removeTabFromStack(dragged.id);
+    dragged.pinned = !!target.pinned;
+    this._setTabGroup(dragged.id, target.groupId || null);
+
+    this.tabs.splice(this.tabs.indexOf(dragged), 1);
+    // Recompute the target index AFTER removing the dragged tab. With a
+    // pre-splice index the drop lands after the target when dragging down but
+    // before it when dragging up (direction-dependent off-by-one).
+    const targetIdx = this.tabs.indexOf(target);
+    this.tabs.splice(targetIdx < 0 ? this.tabs.length : targetIdx, 0, dragged);
+    return true;
+  },
+
+  // Drop a tab onto a group header → move it into that group (and out of any
+  // stack). Returns true when something moved. This was the standing TODO at
+  // the top of this file: right-click "Move to …" used to be the only way in.
+  moveTabToGroup(draggedId, groupId) {
+    const dragged = this.tabs.find(t => t.id === draggedId);
+    if (!dragged) return false;
+    if (groupId && !this.groups.some(g => g.id === groupId)) return false;
+    if (dragged.groupId === (groupId || null) && !dragged.stackId) return false;
+    if (dragged.stackId) this.removeTabFromStack(dragged.id);
+    dragged.pinned = false;
+    this._setTabGroup(dragged.id, groupId || null);
+    return true;
+  },
+
   setupDragDrop() {
     const tabsList = document.getElementById('tabs-list');
+    // Group bodies live in #tab-groups-container, a SEPARATE subtree from
+    // #tabs-list. Wiring only the list meant a grouped tab could never be
+    // dragged at all, and nothing could be dropped into a group — the whole
+    // "drag between groups" story was missing. Both containers now share one
+    // set of handlers.
+    const groupsContainer = document.getElementById('tab-groups-container');
+    const containers = [tabsList, groupsContainer].filter(Boolean);
 
-    tabsList.addEventListener('dragstart', (e) => {
-      const tabEl = e.target.closest('.tab-item');
-      if (!tabEl) return;
-      tabEl.classList.add('dragging');
-      e.dataTransfer.setData('text/plain', tabEl.dataset.tabId);
-    });
+    const clearMarkers = () => document.querySelectorAll('.drag-over, .group-drag-over')
+      .forEach(el => el.classList.remove('drag-over', 'group-drag-over'));
 
-    tabsList.addEventListener('dragend', (e) => {
-      const tabEl = e.target.closest('.tab-item');
-      if (tabEl) tabEl.classList.remove('dragging');
-      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-    });
+    for (const container of containers) {
+      container.addEventListener('dragstart', (e) => {
+        const tabEl = e.target.closest('.tab-item');
+        // Stack headers are .tab-item too but carry no data-tab-id; they are
+        // not reorderable, so refuse the drag rather than starting one that
+        // carries "undefined" as its payload.
+        if (!tabEl || !tabEl.dataset.tabId) return;
+        tabEl.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', tabEl.dataset.tabId);
+      });
 
-    tabsList.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      const tabEl = e.target.closest('.tab-item');
-      if (tabEl && !tabEl.classList.contains('dragging')) {
-        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-        tabEl.classList.add('drag-over');
-      }
-    });
+      container.addEventListener('dragend', (e) => {
+        const tabEl = e.target.closest('.tab-item');
+        if (tabEl) tabEl.classList.remove('dragging');
+        clearMarkers();
+      });
 
-    tabsList.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const draggedId = e.dataTransfer.getData('text/plain');
-      const targetEl = e.target.closest('.tab-item');
-      if (!targetEl) return;
+      container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const tabEl = e.target.closest('.tab-item');
+        const headerEl = e.target.closest('.tab-group-header');
+        clearMarkers();
+        if (tabEl && tabEl.dataset.tabId && !tabEl.classList.contains('dragging')) {
+          tabEl.classList.add('drag-over');
+        } else if (headerEl) {
+          headerEl.classList.add('group-drag-over');
+        }
+      });
 
-      const targetId = targetEl.dataset.tabId;
-      // Stack-header rows are also .tab-item but carry only dataset.stackId (no
-      // tabId). Without this guard targetIdx becomes -1 and splice(-1,0) drops
-      // the tab before the LAST tab instead of onto the target.
-      if (!targetId || draggedId === targetId) return;
+      container.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData('text/plain');
+        clearMarkers();
+        if (!draggedId) return;
 
-      const dragIdx = this.tabs.findIndex(t => t.id === draggedId);
-      if (dragIdx < 0) return;
-      const [dragged] = this.tabs.splice(dragIdx, 1);
-      // Recompute the target index AFTER removing the dragged tab. With a
-      // pre-splice index the drop lands after the target when dragging down but
-      // before it when dragging up (direction-dependent off-by-one).
-      const targetIdx = this.tabs.findIndex(t => t.id === targetId);
-      if (targetIdx < 0) { this.tabs.splice(dragIdx, 0, dragged); return; } // target vanished — put it back
-      this.tabs.splice(targetIdx, 0, dragged);
+        const headerEl = e.target.closest('.tab-group-header');
+        if (headerEl) {
+          const groupId = headerEl.parentElement?.dataset.groupId;
+          if (!this.moveTabToGroup(draggedId, groupId)) return;
+        } else {
+          const targetEl = e.target.closest('.tab-item');
+          // A drop on empty space inside #tabs-list means "out of any group".
+          if (!targetEl) {
+            if (container !== tabsList) return;
+            if (!this.moveTabToGroup(draggedId, null)) return;
+          } else if (!this.moveTabNextTo(draggedId, targetEl.dataset.tabId)) {
+            return;
+          }
+        }
 
-      this.rebuildAllTabs();
-      this.persistTabs();
-    });
+        this.rebuildAllTabs();
+        this.persistTabs();
+      });
+    }
   },
 
   async persistTabs() {
@@ -1313,7 +1515,13 @@ const TabManager = {
         this._pendingPersist = null;
         return VexStorage.saveTabs(this.tabs);
       });
-      this._pendingPersist.catch(error => window.showToast?.('Tabs could not be saved: ' + error.message));
+      // A failed save means the session on disk is now stale — say so loudly.
+      // The toast alone was easy to miss, and the console line is what turns a
+      // "my tabs vanished after restart" report into a diagnosable cause.
+      this._pendingPersist.catch(error => {
+        console.error('[Tabs] saving the tab session failed — the stored session is now out of date:', error);
+        window.showToast?.('Tabs could not be saved: ' + error.message, 'error');
+      });
     }
     return this._pendingPersist;
   },
@@ -1507,7 +1715,8 @@ const TabManager = {
     st.textContent = `
       .keepawake-ov{position:fixed;inset:0;z-index:2147483400;display:flex;align-items:center;justify-content:center;background:rgba(8,10,14,0.72);backdrop-filter:blur(4px);font-family:inherit;}
       .ka-card{width:330px;max-width:90vw;background:var(--surface,#1b1b24);border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:16px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,0.6);color:var(--text,#e9e9ee);}
-      .ka-title{font-size:14px;font-weight:700;margin-bottom:4px;}
+      .ka-title{font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+      .ka-title-icon{flex-shrink:0;}
       .ka-sub{font-size:12px;color:var(--text-muted,#9a9aa5);margin-bottom:12px;}
       .ka-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
       .ka-btn{border:1px solid var(--border,rgba(255,255,255,0.14));background:var(--bg,#0e0e16);color:var(--text,#e9e9ee);border-radius:9px;padding:9px;font-size:12.5px;cursor:pointer;font-family:inherit;}
@@ -1544,7 +1753,7 @@ const TabManager = {
     ov.className = 'keepawake-ov';
     const active = this._isKeptAwake(tab);
     ov.innerHTML = `<div class="ka-card">
-        <div class="ka-title">☕ Prevent "${this._escapeHtml((tab.title || 'tab').slice(0, 38))}" from sleeping</div>
+        <div class="ka-title"><svg class="ka-title-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5.5h8v4.2A3.3 3.3 0 0 1 7.7 13H6.3A3.3 3.3 0 0 1 3 9.7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M11 6.8h1.3a1.9 1.9 0 0 1 0 3.8H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Prevent "${this._escapeHtml((tab.title || 'tab').slice(0, 38))}" from sleeping</div>
         <div class="ka-sub">Keep this tab awake for:</div>
         <div class="ka-grid">
           <button class="ka-btn" data-ms="${1 * HOUR}">1 hour</button>
@@ -1566,10 +1775,13 @@ const TabManager = {
       if (v === 'never') { setKeep(Number.MAX_SAFE_INTEGER, 'Tab kept awake until you revert it'); close(); return; }
       if (v === 'custom') {
         close();
-        let val = null;
-        try { val = (typeof vexPromptModal === 'function') ? await vexPromptModal('Keep awake for how many hours?', '3') : prompt('Keep awake for how many hours?', '3'); } catch {}
-        const h = parseFloat(val);
+        // Native prompt() is disabled in Electron's renderer (returns null, no
+        // error), so the old fallback made "Custom…" a dead button. Report the
+        // missing dialog rather than swallowing it.
+        if (typeof vexPromptModal !== 'function') { window.showToast?.('The input dialog is unavailable', 'error'); return; }
+        const h = parseFloat(await vexPromptModal('Keep awake for how many hours?', '3'));
         if (h > 0) setKeep(Date.now() + h * HOUR, `Tab kept awake for ${h} hour${h === 1 ? '' : 's'}`);
+        else if (!Number.isNaN(h)) window.showToast?.('Enter a number of hours greater than 0', 'warn');
         return;
       }
       setKeep(Date.now() + parseInt(v, 10), `Tab kept awake for ${b.textContent}`);
@@ -1687,7 +1899,7 @@ const TabManager = {
       await this.sleepTab(t.id);
       slept++;
     }
-    if (slept) window.showToast?.(`💤 High memory — slept ${slept} idle tab${slept === 1 ? '' : 's'}`);
+    if (slept) window.showToast?.(`High memory — slept ${slept} idle tab${slept === 1 ? '' : 's'}`);
   },
 
   // === Recently Closed ===
@@ -1784,6 +1996,11 @@ const TabManager = {
   pinTab(id) {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
+    // Invariant 4 (docs/PHASE-4-TAB-STACKS-PLAN.md §2): a pinned tab is never a
+    // stack member. createStack/addTabToStack already refuse pinned tabs; pin
+    // has to enforce the same thing from the other side, or the tab would be
+    // drawn twice — once as a pinned chip and once inside its stack.
+    if (tab.stackId) this.removeTabFromStack(id);
     tab.pinned = true;
     this.rebuildAllTabs();
     this.persistTabs();

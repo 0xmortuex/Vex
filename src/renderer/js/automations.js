@@ -49,7 +49,7 @@ const Automations = {
       if (a.type === 'open' && a.value) TabManager.createTab(/^https?:/i.test(a.value) ? a.value : 'https://' + a.value, true);
       else if (a.type === 'panel' && a.value) SidebarManager.openPanel(a.value);
       else if (a.type === 'command' && a.value) { const c = (typeof CommandBar !== 'undefined' ? CommandBar.commands : []).find((x) => x.id === a.value); if (c && c.action) c.action(); }
-      window.showToast?.('⚙️ Automation: ' + (r.name || 'ran'));
+      window.showToast?.('Automation: ' + (r.name || 'ran'));
     } catch {}
   },
 
@@ -62,7 +62,7 @@ const Automations = {
     m.id = 'vex-automations';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:540px;max-width:95vw;max-height:86vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">⚙️ Automations</span><button id="au-close" style="${this._chip()}">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">Automations</span><button id="au-close" style="${this._chip()}">✕</button></div>
       <div style="padding:0 18px 8px;font-size:11.5px;color:var(--text-muted)">Run an action automatically when a page opens, or at a set time each day.</div>
       <div id="au-list" style="overflow-y:auto;padding:4px 16px">${rules.length ? rules.map((r, i) => `
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;background:var(--bg)">

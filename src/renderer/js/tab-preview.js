@@ -24,6 +24,9 @@ const TAB_LISTS = [
 const TabPreview = {
   _hoverTimer: null,
   _previewEl: null,
+  // The element the visible preview is anchored to, so it can be dismissed
+  // when a re-render takes that element out of the document.
+  _anchor: null,
 
   init() {
     this._previewEl = document.createElement('div');
@@ -37,6 +40,15 @@ const TabPreview = {
       if (!list) continue;
       this._wireList(list, itemSelector);
     }
+
+    // Every tab render replaces the .tab-item / .top-tab elements. mouseleave
+    // never fires for an element that was removed from the document, so a
+    // preview opened over a tab that then re-rendered (a title arriving, a tab
+    // closing, a workspace switch) stayed pinned on screen until the next
+    // hover. Drop it whenever its anchor is gone.
+    window.addEventListener('vex-tabs-changed', () => {
+      if (this._anchor && !this._anchor.isConnected) this._cancelHover();
+    });
   },
 
   _wireList(list, itemSelector) {
@@ -104,12 +116,17 @@ const TabPreview = {
       clearTimeout(this._hoverTimer);
       this._hoverTimer = null;
     }
+    this._anchor = null;
     this._previewEl?.classList.remove('visible');
   },
 
   _show(tabEl, tab, thumbnailUrl) {
     const preview = this._previewEl;
     if (!preview) return;
+    // The hover timer may outlive the element (a render between hover and
+    // fire). Anchoring to a detached node would position the popup at 0,0.
+    if (!tabEl.isConnected) return;
+    this._anchor = tabEl;
 
     const img = preview.querySelector('img');
     if (thumbnailUrl) {
@@ -144,6 +161,7 @@ const TabPreview = {
   // Test seam: lets jsdom unit tests assert the active timeout id without
   // racing real time.
   _getHoverTimerForTest() { return this._hoverTimer; },
+  _getAnchorForTest() { return this._anchor; },
 };
 
 // Renderer-safe export: Node (vitest) gets TabPreview; <script>-tag path

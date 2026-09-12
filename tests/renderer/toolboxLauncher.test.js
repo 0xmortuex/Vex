@@ -7,6 +7,9 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// index.html loads the icon set before every module that draws one.
+const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = VexIcons;
 const { ToolboxPacks } = require('../../src/renderer/js/toolbox-packs.js');
 globalThis.ToolboxPacks = ToolboxPacks;
 const { Toolbox } = require('../../src/renderer/js/toolbox.js');

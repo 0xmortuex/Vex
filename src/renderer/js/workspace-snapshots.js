@@ -103,7 +103,7 @@ const WorkspaceSnapshots = {
           <div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${titles}${more}</div>
         </div>
         <button data-restore="${s.ts}" style="padding:5px 11px;background:var(--primary);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:11.5px">Restore</button>
-        <button data-del="${s.ts}" title="Delete" style="padding:5px 8px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11.5px">✕</button>
+        <button data-del="${s.ts}" title="Delete" style="padding:5px 8px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11.5px"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>`;
     }).join('');
     body.querySelectorAll('[data-restore]').forEach(b => b.addEventListener('click', () => this.restore(parseInt(b.dataset.restore, 10))));
@@ -117,9 +117,9 @@ const WorkspaceSnapshots = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
       <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--border)">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🕰️ Time-Travel · ${window.escapeHtml(this._wsName())}</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><circle cx="8" cy="8" r="5.8" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.6V8l2.4 1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Time-Travel · ${window.escapeHtml(this._wsName())}</span>
         <button id="wsnap-now" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">Snapshot now</button>
-        <button id="wsnap-close" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button>
+        <button id="wsnap-close" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>
       <div id="vex-wsnap-body" style="overflow-y:auto;padding:4px 14px 14px"></div></div>`;
     document.body.appendChild(m);

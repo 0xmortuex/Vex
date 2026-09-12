@@ -47,7 +47,7 @@ const ShortcutsGuide = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:620px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 10px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">⌨️ Shortcuts &amp; Gestures</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Shortcuts &amp; Gestures</span>
         <input id="sg-filter" placeholder="Filter…" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:12.5px;font-family:'Outfit',sans-serif;width:150px">
         <button id="sg-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>
       </div>
@@ -74,9 +74,9 @@ const ShortcutsGuide = {
 
   _render(m, q) {
     const body = m.querySelector('#sg-body'); if (!body) return;
-    let html = this._section('⌨️ Keyboard', this.KEYS, q) +
-               this._section('🖱️ Mouse gestures (hold right button + drag)', this.GESTURES, q) +
-               this._section('📋 Right-click menu', this.MENU, q);
+    let html = this._section('Keyboard', this.KEYS, q) +
+               this._section('Mouse gestures (hold right button + drag)', this.GESTURES, q) +
+               this._section('Right-click menu', this.MENU, q);
     if (!html) html = '<div style="color:var(--text-muted);padding:16px 0">No matches.</div>';
     else html += '<div style="font-size:11px;color:var(--text-muted);margin-top:14px">Rebind keyboard shortcuts in Settings → Keyboard Shortcuts. Gestures toggle in Settings → Browsing extras.</div>';
     body.innerHTML = html;

@@ -206,3 +206,29 @@
 .chat-history-summary {
   font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-top: 2px;
 }
+
+/* Retry affordance on a failed request — the prompt stays in the transcript, so
+   one click re-sends it instead of making the user retype it. */
+.ai-msg.error .ai-retry-btn {
+  margin-top: 8px; display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; border: 1px solid var(--border); color: var(--text);
+  padding: 4px 10px; border-radius: 6px; font-size: 11.5px; cursor: pointer;
+  font-family: 'Outfit', sans-serif; transition: all 0.15s;
+}
+.ai-msg.error .ai-retry-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* Composer while a request is in flight */
+#ai-panel.ai-busy #ai-send,
+#ai-panel.ai-busy #ai-send-agent { opacity: 0.5; cursor: default; }
+
+/* Icons inside chat chrome inherit the surrounding text colour. */
+.ai-copy-btn .vex-icon,
+.ollama-hint .vex-icon,
+.history-search-header .vex-icon,
+.persona-item-icon .vex-icon,
+.persona-icon .vex-icon { vertical-align: -2px; }
+.ollama-hint { display: flex; align-items: center; gap: 6px; }
+.ollama-hint .hint-dismiss { display: inline-flex; align-items: center; }
+
+/* On-device answers get their own badge colour (they used to render as cloud) */
+.backend-tag.ondevice { color: var(--primary); }

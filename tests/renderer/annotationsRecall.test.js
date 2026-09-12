@@ -54,6 +54,8 @@ describe('Annotations store', () => {
 });
 
 describe('Recall', () => {
+  const page = (text, title) => ({ title: title || 'Extracted', text });
+
   it('defaults to enabled and round-trips the flag', () => {
     expect(Recall.enabled()).toBe(true);
     Recall.setEnabled(false);
@@ -64,28 +66,93 @@ describe('Recall', () => {
   it('skips indexing when disabled or when there is no bridge', async () => {
     Recall.setEnabled(false);
     globalThis.window.vex = { recallIndex: vi.fn() };
-    await Recall.indexPage({ executeJavaScript: async () => 'x'.repeat(500) }, 'https://ex.com', 'T');
+    await Recall.indexPage({ executeJavaScript: async () => page('x'.repeat(500)) }, 'https://ex.com', 'T');
     expect(globalThis.window.vex.recallIndex).not.toHaveBeenCalled();
   });
 
-  it('does not index thin pages (<200 chars of text)', async () => {
+  it('does not index a page too thin to be worth recalling', async () => {
     Recall.setEnabled(true);
     globalThis.isStartPage = () => false;
     globalThis.window.vex = { recallIndex: vi.fn() };
-    const wv = { getURL: () => 'https://ex.com/a', executeJavaScript: async () => 'too short' };
+    const wv = { getURL: () => 'https://ex.com/a', executeJavaScript: async () => page('too short') };
     await Recall.indexPage(wv, 'https://ex.com/a', 'T');
     expect(globalThis.window.vex.recallIndex).not.toHaveBeenCalled();
   });
 
-  it('indexes a substantial page through the bridge', async () => {
+  it('indexes a substantial page through the bridge, preferring the live title', async () => {
     Recall.setEnabled(true);
     globalThis.isStartPage = () => false;
     globalThis.window.vex = { recallIndex: vi.fn(async () => ({ ok: true })) };
-    const wv = { getURL: () => 'https://ex.com/a', executeJavaScript: async () => 'word '.repeat(100) };
-    await Recall.indexPage(wv, 'https://ex.com/a', 'Title');
+    const wv = { getURL: () => 'https://ex.com/a', executeJavaScript: async () => page('word '.repeat(100), 'Live title') };
+    await Recall.indexPage(wv, 'https://ex.com/a', 'Tab title');
     expect(globalThis.window.vex.recallIndex).toHaveBeenCalledOnce();
     const arg = globalThis.window.vex.recallIndex.mock.calls[0][0];
     expect(arg.url).toBe('https://ex.com/a');
-    expect(arg.title).toBe('Title');
+    expect(arg.title).toBe('Live title');
+    expect(arg.text.length).toBeGreaterThan(Recall.MIN_TEXT);
+  });
+
+  it('never indexes an ephemeral (private / Tor / identity) partition', async () => {
+    Recall.setEnabled(true);
+    globalThis.isStartPage = () => false;
+    globalThis.window.vex = { recallIndex: vi.fn() };
+    for (const partition of ['tor-abc123', 'vexid-abc123', 'persist:container-work']) {
+      const wv = {
+        getURL: () => 'https://ex.com/a',
+        getAttribute: (name) => (name === 'partition' ? partition : null),
+        executeJavaScript: async () => page('word '.repeat(100)),
+      };
+      await Recall.indexPage(wv, 'https://ex.com/a', 'T');
+    }
+    expect(globalThis.window.vex.recallIndex).not.toHaveBeenCalled();
+  });
+
+  it('never indexes non-http pages', async () => {
+    Recall.setEnabled(true);
+    globalThis.isStartPage = () => false;
+    globalThis.window.vex = { recallIndex: vi.fn() };
+    for (const url of ['file:///c:/secret.html', 'vex://start', 'about:blank', 'data:text/html,hi']) {
+      await Recall.indexPage({ getURL: () => url, executeJavaScript: async () => page('word '.repeat(100)) }, url, 'T');
+    }
+    expect(globalThis.window.vex.recallIndex).not.toHaveBeenCalled();
+  });
+
+  it('drops the result when the tab navigated away mid-extraction', async () => {
+    Recall.setEnabled(true);
+    globalThis.isStartPage = () => false;
+    globalThis.window.vex = { recallIndex: vi.fn() };
+    let current = 'https://ex.com/a';
+    const wv = {
+      getURL: () => current,
+      executeJavaScript: async () => { current = 'https://ex.com/b'; return page('word '.repeat(100)); },
+    };
+    await Recall.indexPage(wv, 'https://ex.com/a', 'T');
+    expect(globalThis.window.vex.recallIndex).not.toHaveBeenCalled();
+  });
+
+  it('honours the per-site exclusion list, subdomains included', async () => {
+    Recall.setEnabled(true);
+    globalThis.isStartPage = () => false;
+    Recall.setExcluded(['bank.example']);
+    expect(Recall.isExcluded('https://bank.example/accounts')).toBe(true);
+    expect(Recall.isExcluded('https://secure.bank.example/x')).toBe(true);
+    expect(Recall.isExcluded('https://notbank.example/x')).toBe(false);
+    globalThis.window.vex = { recallIndex: vi.fn(), recallForget: vi.fn(async () => ({ removed: 3 })) };
+    const wv = { getURL: () => 'https://bank.example/a', executeJavaScript: async () => page('word '.repeat(100)) };
+    await Recall.indexPage(wv, 'https://bank.example/a', 'T');
+    expect(globalThis.window.vex.recallIndex).not.toHaveBeenCalled();
+    // Excluding a host also purges what is already remembered about it.
+    Recall.unexcludeHost('bank.example');
+    expect(Recall.excluded()).toEqual([]);
+    expect(await Recall.excludeHost('www.Other.Example')).toBe(3);
+    expect(globalThis.window.vex.recallForget).toHaveBeenCalledWith({ host: 'other.example' });
+    expect(Recall.excluded()).toContain('other.example');
+  });
+
+  it('turns engine snippet pairs into escaped HTML with <mark>', () => {
+    globalThis.window.escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const html = Recall.snippetHtml([['a & ', false], ['<b>', true], [' z', false]]);
+    expect(html).toBe('a &amp; <mark>&lt;b&gt;</mark> z');
+    expect(Recall.snippetHtml([])).toBe('');
   });
 });

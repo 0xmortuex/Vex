@@ -27,6 +27,7 @@
   border-color: var(--vex-border-accent-strong);
 }
 .sched-new-btn {
+  display: inline-flex; align-items: center; gap: 5px;
   padding: 6px 14px;
   background: var(--vex-accent); color: var(--vex-bg-deep);
   border: 1px solid var(--vex-accent);
@@ -37,6 +38,15 @@
 .sched-new-btn:hover { background: transparent; color: var(--vex-accent); }
 
 .sched-content { flex: 1; overflow-y: auto; padding: 14px 20px; }
+
+.sched-icon { flex-shrink: 0; vertical-align: -2px; }
+
+/* Status marks — SVG on currentColor, no emoji anywhere in this panel. */
+.sched-status { display: inline-flex; align-items: center; flex-shrink: 0; }
+.sched-status.ok { color: var(--vex-success, #4ade80); }
+.sched-status.bad { color: var(--vex-danger-hover, #e06060); }
+.sched-status.warn { color: var(--vex-warning, #d9a441); }
+.sched-status.none { color: var(--vex-text-muted); }
 
 /* Task cards */
 .sched-card {
@@ -52,10 +62,12 @@
   background: var(--vex-accent-glow);
   border-color: var(--vex-border-accent);
 }
+.sched-card.paused { opacity: 0.62; }
+.sched-card.busy { border-color: var(--vex-border-accent-strong); }
 .sched-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.sched-card-name { font-size: 14px; font-weight: 500; color: var(--vex-text-primary); flex: 1; }
+.sched-card-name { font-size: 14px; font-weight: 500; color: var(--vex-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sched-card-toggle {
-  width: 32px; height: 18px; border-radius: 9px;
+  width: 32px; height: 18px; border-radius: 9px; flex-shrink: 0;
   background: var(--vex-glass-tab-inactive);
   border: 1px solid var(--vex-border-subtle);
   position: relative; cursor: pointer; transition: all 0.15s ease;
@@ -70,10 +82,11 @@
 }
 .sched-card-toggle.on::after { left: 16px; background: var(--vex-accent); }
 .sched-card-meta {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px; color: var(--vex-text-muted); margin-bottom: 6px;
 }
-.sched-card-meta span { margin-right: 12px; }
+.sched-card-meta .sched-next { display: inline-flex; align-items: center; gap: 4px; color: var(--vex-text-secondary); }
 .sched-card-prompt {
   font-size: 12px; color: var(--vex-text-secondary);
   background: var(--vex-glass-input);
@@ -82,22 +95,61 @@
   border-radius: 6px; margin-bottom: 8px; max-height: 40px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
-.sched-card-actions { display: flex; gap: 6px; }
+.sched-card-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .sched-card-actions button {
+  display: inline-flex; align-items: center; gap: 4px;
   padding: 4px 10px;
   border: 1px solid var(--vex-border-subtle);
   background: transparent;
   color: var(--vex-text-muted); border-radius: 4px; font-size: 11px; cursor: pointer;
   font-family: 'Outfit', sans-serif; transition: all 0.15s ease;
 }
-.sched-card-actions button:hover {
+.sched-card-actions button:hover:not(:disabled) {
   border-color: var(--vex-border-accent); color: var(--vex-accent);
 }
+.sched-card-actions button:disabled { opacity: 0.45; cursor: default; }
 .sched-card-actions button.danger:hover {
   border-color: color-mix(in srgb, var(--vex-danger) 40%, transparent); color: var(--vex-danger-hover);
 }
+.sched-card-stats {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--vex-text-muted);
+}
+.sched-card-expand .sched-icon { transition: transform 0.15s ease; }
+.sched-card-expand.open .sched-icon { transform: rotate(180deg); }
 
-/* History items */
+/* Per-task recent runs */
+.sched-card-runs {
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px solid var(--vex-border-subtle);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sched-run-row {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--vex-text-muted);
+}
+.sched-run-when { flex-shrink: 0; }
+.sched-run-dur { flex-shrink: 0; min-width: 46px; text-align: right; }
+.sched-run-detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vex-text-secondary); }
+
+/* History */
+.sched-hist-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+.sched-hist-bar select {
+  flex: 1; padding: 5px 8px; font-size: 11px;
+  background: var(--vex-glass-input);
+  border: 1px solid var(--vex-border-subtle);
+  border-radius: 4px; color: var(--vex-text-secondary);
+  font-family: 'Outfit', sans-serif; outline: none;
+}
+.sched-hist-bar button {
+  font-size: 11px; background: transparent;
+  border: 1px solid var(--vex-border-subtle);
+  color: var(--vex-text-muted); padding: 4px 10px; border-radius: 4px; cursor: pointer;
+  font-family: 'Outfit', sans-serif; transition: all 0.15s ease;
+}
+.sched-hist-bar button:hover { border-color: var(--vex-border-accent); color: var(--vex-accent); }
 .sched-hist-item {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px;
   background: var(--vex-glass-light);
@@ -109,7 +161,6 @@
   background: var(--vex-accent-glow);
   border-color: var(--vex-border-accent);
 }
-.sched-hist-icon { font-size: 14px; flex-shrink: 0; color: var(--vex-accent); }
 .sched-hist-info { flex: 1; min-width: 0; }
 .sched-hist-name {
   font-size: 13px; color: var(--vex-text-primary);
@@ -118,10 +169,17 @@
 .sched-hist-detail {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px; color: var(--vex-text-muted); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sched-hist-time {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px; color: var(--vex-text-muted); flex-shrink: 0;
+}
+.sched-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em;
+  border: 1px solid var(--vex-border-subtle); border-radius: 3px;
+  padding: 1px 4px; color: var(--vex-text-muted); margin-left: 6px;
 }
 
 /* Template cards */
@@ -131,13 +189,19 @@
   border-radius: var(--vex-radius-md);
   padding: 14px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s ease;
 }
-.sched-template:hover {
+.sched-template:hover, .sched-template:focus-visible {
   border-color: var(--vex-border-accent);
   background: var(--vex-accent-glow);
   transform: translateY(-1px);
+  outline: none;
 }
 .sched-template-name { font-size: 13px; font-weight: 500; color: var(--vex-text-primary); margin-bottom: 4px; }
 .sched-template-desc { font-size: 11px; color: var(--vex-text-muted); }
+.sched-template-meta {
+  display: flex; align-items: center; gap: 5px; margin-top: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--vex-text-secondary);
+}
 
 /* Empty state */
 .sched-empty { padding: 40px; text-align: center; color: var(--vex-text-muted); font-size: 13px; }
@@ -152,7 +216,7 @@
 }
 .sched-modal.visible { display: flex; }
 .sched-modal-content {
-  width: 460px; max-height: 80vh; overflow-y: auto;
+  width: 460px; max-width: calc(100vw - 32px); max-height: 84vh; overflow-y: auto;
   background: var(--vex-glass-strong);
   backdrop-filter: var(--vex-blur-heavy);
   -webkit-backdrop-filter: var(--vex-blur-heavy);
@@ -174,6 +238,7 @@
 .sched-modal-content input[type="text"],
 .sched-modal-content input[type="time"],
 .sched-modal-content input[type="date"],
+.sched-modal-content input[type="number"],
 .sched-modal-content select,
 .sched-modal-content textarea {
   width: 100%; padding: 9px 11px;
@@ -188,6 +253,43 @@
 .sched-modal-content input:focus,
 .sched-modal-content select:focus,
 .sched-modal-content textarea:focus { border-color: var(--vex-accent); }
+.sched-inline { display: flex; gap: 8px; }
+.sched-inline input[type="number"] { flex: 0 0 90px; }
+.sched-check {
+  display: flex !important; align-items: center; gap: 7px;
+  text-transform: none !important; letter-spacing: 0 !important;
+  font-family: 'Outfit', sans-serif !important; font-size: 12px !important;
+  color: var(--vex-text-secondary) !important; margin-top: 10px !important;
+}
+.sched-check input[type="checkbox"] { width: auto; accent-color: var(--vex-accent); }
+.sm-hint {
+  font-size: 11px; color: var(--vex-text-muted); margin-top: 5px; line-height: 1.5;
+}
+.sm-hint code {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  background: var(--vex-glass-input); border-radius: 3px; padding: 1px 4px;
+}
+.sm-warn {
+  margin-top: 12px; padding: 9px 11px; font-size: 12px; line-height: 1.5;
+  color: var(--vex-text-secondary);
+  border: 1px solid color-mix(in srgb, var(--vex-danger) 35%, transparent);
+  border-radius: var(--vex-radius-sm);
+  background: color-mix(in srgb, var(--vex-danger) 8%, transparent);
+}
+.sm-preview {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin-top: 18px; padding: 9px 11px;
+  border: 1px solid var(--vex-border-subtle);
+  border-radius: var(--vex-radius-sm);
+  background: var(--vex-glass-input);
+  font-size: 12px; color: var(--vex-text-secondary); line-height: 1.5;
+}
+.sm-preview:empty { display: none; }
+.sm-preview .sched-icon { margin-top: 2px; color: var(--vex-accent); }
+.sm-errors { margin-top: 10px; }
+.sm-errors div {
+  font-size: 12px; color: var(--vex-danger-hover); margin-top: 4px;
+}
 .sched-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 .sched-modal-actions button {
   padding: 9px 18px; border: 1px solid var(--vex-border-subtle);

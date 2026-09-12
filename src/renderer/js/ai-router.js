@@ -64,7 +64,10 @@ const AIRouter = (() => {
   }
 
   async function refreshOllamaStatus() {
-    ollamaAvailable = await Ollama.ping();
+    // A throw here used to reject init() (leaving the 30s re-check timer unset)
+    // and reject the Settings "Refresh" button with a raw error.
+    try { ollamaAvailable = (await Ollama.ping()) === true; }
+    catch { ollamaAvailable = false; }
     _dbg('[AIRouter] Ollama ping result:', ollamaAvailable);
     return ollamaAvailable;
   }
@@ -141,11 +144,20 @@ const AIRouter = (() => {
     return decision;
   }
 
+  // Features that run silently in the background: when they're set to local and
+  // Ollama isn't there, doing nothing is the right answer. Every OTHER feature is
+  // something the user just asked for, so it must fail loudly instead of
+  // resolving to null (callers then did `result.result` on null and showed
+  // "Cannot read properties of null" instead of a real explanation).
+  const BACKGROUND_FEATURES = ['historyIndex'];
+
   async function callAI(feature, request) {
     const primary = await resolveBackend(feature);
-    // 'skip' = a local-only feature with no local backend available. Return
-    // nothing quietly; the caller (e.g. history indexer) just does without.
-    if (primary === 'skip') { _dbg(`[AIRouter] skipping ${feature} — no local backend`); return null; }
+    if (primary === 'skip') {
+      _dbg(`[AIRouter] skipping ${feature} — no local backend`);
+      if (BACKGROUND_FEATURES.includes(feature)) return null;
+      throw new Error(`Local AI is selected for "${feature}" but Ollama isn't running. Start Ollama, or switch this feature to Auto/Cloud in Settings → AI.`);
+    }
     const fallback = primary === 'cloud' ? 'local' : 'cloud';
     _dbg(`[AIRouter] callAI(${feature}) → using backend: ${primary}`);
     try {
@@ -161,6 +173,12 @@ const AIRouter = (() => {
       const userWantsLocal = preferLocal || featurePref === 'local';
       if (primary === 'local' && userWantsLocal) {
         throw new Error(`Local AI failed: ${err.message}. (Not falling back to cloud because you selected local mode.)`);
+      }
+      // Same rule for on-device (WebGPU): the user switched it on to keep the
+      // conversation on their machine. Quietly re-sending the same prompt — and
+      // any page text with it — to the cloud worker would break that promise.
+      if (primary === 'ondevice') {
+        throw new Error(`On-device AI failed: ${err.message}. (Not falling back to the cloud because on-device AI is switched on — turn it off in Settings → AI to use the cloud.)`);
       }
 
       // Availability gates for fallback
@@ -205,9 +223,13 @@ const AIRouter = (() => {
 
     const msgs = [{ role: 'system', content: systemPrompt }];
     if (Array.isArray(request.conversationHistory)) {
-      for (const m of request.conversationHistory.slice(-8)) {
-        if (m && m.role && m.content) msgs.push({ role: m.role, content: m.content });
-      }
+      // The AI-memory facts ride at the FRONT of the history as a system
+      // message. A blind slice(-8) dropped it as soon as the chat got long, so
+      // "remember that I…" quietly stopped applying on the on-device backend.
+      const hist = request.conversationHistory.filter(m => m && m.role && m.content);
+      const system = hist.filter(m => m.role === 'system');
+      const turns = hist.filter(m => m.role !== 'system').slice(-8);
+      for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
     }
     msgs.push({ role: 'user', content: userMessage });
 
@@ -244,9 +266,12 @@ const AIRouter = (() => {
     // Multi-turn chat: pass history when available
     if (feature === 'chat' && Array.isArray(request.conversationHistory) && request.conversationHistory.length) {
       const msgs = [{ role: 'system', content: systemPrompt }];
-      for (const m of request.conversationHistory.slice(-10)) {
-        if (m && m.role && m.content) msgs.push({ role: m.role, content: m.content });
-      }
+      // Same rule as the on-device path: never let the trim drop the AI-memory
+      // system message that sits at the front of the history.
+      const hist = request.conversationHistory.filter(m => m && m.role && m.content);
+      const system = hist.filter(m => m.role === 'system');
+      const turns = hist.filter(m => m.role !== 'system').slice(-10);
+      for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
       msgs.push({ role: 'user', content: userMessage });
       const text = await Ollama.chat(localModel, msgs, { temperature, maxTokens: 2000, format: 'json' });
       return { result: text, backend: 'local', model: localModel };
@@ -262,6 +287,8 @@ const AIRouter = (() => {
   }
 
   // ---------- CLOUD (Cloudflare worker) ----------
+  const CLOUD_TIMEOUT_MS = 60000;
+
   async function callCloud(feature, request) {
     const actionMap = {
       chat: 'chat',
@@ -288,17 +315,42 @@ const AIRouter = (() => {
     if (!url) {
       throw new Error('Cloud AI is not configured. Add your AI Worker URL in Settings → AI (see SELF_HOSTING.md), or switch to local Ollama.');
     }
-    const r = await (window.VexConfig?.fetchAI || fetch)(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
+    // The normal path (VexConfig.fetchAI → main's cloud:request) is already
+    // bounded at 25s in main. The bare-fetch fallback had no bound at all, so a
+    // worker that accepts the connection and never answers left the panel
+    // spinning forever. Always carry an abort deadline.
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(new Error('Cloud AI request timed out')), CLOUD_TIMEOUT_MS);
+    let r;
+    try {
+      r = await (window.VexConfig?.fetchAI || fetch)(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: ctl.signal
+      });
+    } catch (err) {
+      if (ctl.signal.aborted) throw new Error(`Cloud AI did not answer within ${Math.round(CLOUD_TIMEOUT_MS / 1000)}s. Check your AI Worker URL in Settings → AI.`);
+      throw new Error(_cleanIpcError(err));
+    } finally {
+      clearTimeout(timer);
+    }
     if (!r.ok) {
       const err = await r.json().catch(() => ({ error: `Cloud returned ${r.status}` }));
       throw new Error(err.error || `Cloud returned ${r.status}`);
     }
     const data = await r.json();
     return { result: data.result, backend: 'cloud', model: 'claude-sonnet-4' };
+  }
+
+  // Errors thrown by main over ipcRenderer.invoke arrive wrapped as
+  //   Error invoking remote method 'cloud:request': Error: <the real message>
+  // Showing that verbatim in the chat ("Error: Error invoking remote method…")
+  // buries the one sentence the user needs. Unwrap to the innermost message.
+  function _cleanIpcError(err) {
+    const raw = (err && typeof err.message === 'string') ? err.message : String(err == null ? '' : err);
+    const m = raw.match(/Error invoking remote method '[^']*':\s*(?:[A-Za-z]*Error:\s*)?([\s\S]+)$/);
+    return (m ? m[1] : raw).trim() || 'Cloud request failed';
   }
 
   // ---------- Local prompts (smaller models need tighter guidance) ----------
@@ -367,7 +419,8 @@ Only include relevance > 0.5. Max 10 matches.`,
     getRoutingPrefs, setRoutingPrefs,
     getOllamaStatus, setPreferLocal, setForceCloud,
     setModel, getModel,
-    cloudWorkerUrl
+    cloudWorkerUrl,
+    _cleanIpcError
   };
 })();
 

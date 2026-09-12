@@ -12,7 +12,6 @@
     try { await PersistentStorage.init(); } catch (e) { console.error('PersistentStorage init:', e); }
   }
 
-  // Apply tab layout preference to <body> ASAP so CSS selectors hit before paint.
   const passkeyHosts = document.getElementById('setting-passkey-hosts');
   if (passkeyHosts) {
     try { passkeyHosts.value = JSON.parse(localStorage.getItem('vex.passkeySuppressedHosts') || '["*"]').join(', '); } catch {}
@@ -22,10 +21,17 @@
       localStorage.setItem('vex.passkeySuppressedHosts', JSON.stringify([...new Set(hosts)]));
     });
   }
-  try {
-    const layout = JSON.parse(localStorage.getItem('vex.tabLayout') || '"horizontal"');
-    document.body.dataset.tabLayout = (layout === 'vertical') ? 'vertical' : 'horizontal';
-  } catch { document.body.dataset.tabLayout = 'horizontal'; }
+
+  // The stored Tab Layout choice, resolved against the active GUI style
+  // (SettingsUI.resolveTabLayout owns that rule).
+  function readStoredTabLayout() {
+    let stored = 'horizontal';
+    try { stored = JSON.parse(localStorage.getItem('vex.tabLayout') || '"horizontal"'); } catch { stored = 'horizontal'; }
+    return SettingsUI.resolveTabLayout(stored, document.body.dataset.guiStyle);
+  }
+
+  // Apply the tab-layout preference to <body> so CSS selectors hit before paint.
+  document.body.dataset.tabLayout = readStoredTabLayout();
 
   // Theme — apply BEFORE any UI render so first paint matches the persisted
   // theme. The data-theme attr is applied synchronously inside applyTheme().
@@ -371,6 +377,10 @@
   try { settings.searchEngine = localStorage.getItem('vex.searchEngine') || settings.searchEngine || 'google'; } catch {}
   searchEngineSelect.value = settings.searchEngine || 'google';
   adBlockerToggle.checked = settings.adBlocker !== false;
+  // main starts every launch with the blocker ON, so the stored choice has to be
+  // pushed at boot — otherwise "Block ads and trackers" reads OFF while main is
+  // still blocking, and turning it off never survived a restart.
+  window.vex.setAdBlockerState(adBlockerToggle.checked);
 
   searchEngineSelect.addEventListener('change', () => {
     settings.searchEngine = searchEngineSelect.value;
@@ -409,17 +419,23 @@
   // Auto-save sessions toggle
   const autosaveToggle = document.getElementById('setting-autosave');
   if (autosaveToggle) {
+    // The timer used to start only when the toggle was clicked, so after a
+    // restart the switch read ON and nothing was ever auto-saved. Start it from
+    // the stored value at boot, and clear any previous one before re-arming.
+    const applyAutoSave = (on) => {
+      clearInterval(window._autoSaveInterval);
+      window._autoSaveInterval = on
+        ? setInterval(() => {
+          SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString());
+        }, 10 * 60 * 1000)
+        : null;
+    };
     autosaveToggle.checked = settings.autoSaveSessions || false;
+    applyAutoSave(autosaveToggle.checked);
     autosaveToggle.addEventListener('change', () => {
       settings.autoSaveSessions = autosaveToggle.checked;
       VexStorage.saveSettings(settings);
-      if (autosaveToggle.checked) {
-        window._autoSaveInterval = setInterval(() => {
-          SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString());
-        }, 10 * 60 * 1000);
-      } else {
-        clearInterval(window._autoSaveInterval);
-      }
+      applyAutoSave(autosaveToggle.checked);
     });
   }
 
@@ -533,17 +549,40 @@
     showToast('Data exported');
   });
 
-  // Reset to defaults
+  // Reset to defaults — SETTINGS ONLY.
+  // This used to delete every 'vex.*' key, which took bookmarks, notes, skills,
+  // boosts, the reading list and the saved-password "never ask" list with it,
+  // while leaving the real settings (settings.json) completely untouched: it
+  // destroyed data and reset nothing. The list below is every preference key a
+  // control in this panel writes; anything not on it is user content and stays.
+  const SETTINGS_PREF_KEYS = [
+    'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors',
+    'vex.theme', 'vex.customThemeImage', 'vex.lookName', 'vex.lookPalette',
+    'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
+    'vex.aiIndexingEnabled', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
+    'vex.gesturesEnabled', 'vex.consentBlock', 'vex.copyUnlock',
+    'vex.passkeySuppressedHosts', 'vex.a11y', 'vex.recall.enabled',
+    'vex.autoArchiveDays', 'vex.locationMode', 'vex.manualLocation',
+    'vex.userName', 'vex.githubUsername', 'vex.weatherLoc',
+    'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
+    'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
+    'vex.preferOnDeviceAI', 'vex.webllmModel',
+    'vex.panelOverrides', 'vex.sidebarOrder', 'vex.userShortcuts', 'vex.layout',
+  ];
   document.getElementById('setting-reset')?.addEventListener('click', async () => {
-    if (await vexConfirm({ title: 'Reset settings', message: 'Reset all Vex settings to defaults? This cannot be undone.', okLabel: 'Reset', danger: true })) {
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith('vex.')) keys.push(key);
-      }
-      keys.forEach(k => localStorage.removeItem(k));
+    if (!await vexConfirm({
+      title: 'Reset settings',
+      message: 'Put every Vex setting back to its default? Your bookmarks, notes, passwords, history, sessions and saved pages are kept. This cannot be undone.',
+      okLabel: 'Reset', danger: true,
+    })) return;
+    try {
+      SETTINGS_PREF_KEYS.forEach(k => localStorage.removeItem(k));
+      // The settings the panel actually reads live in settings.json, not
+      // localStorage — clearing the keys above alone reset nothing.
+      await VexStorage.saveSettings({ searchEngine: 'google', adBlocker: true, tabsVisible: true });
+      await PersistentStorage._flush();
       showToast('Settings reset. Restart Vex.');
-    }
+    } catch (error) { showToast('Could not reset settings: ' + error.message, 'error'); }
   });
 
   // === Phase 12: AI History Indexing settings ===
@@ -577,21 +616,30 @@
     if (!el) return;
     const s = HistoryIndexer?.getStats?.() || { total: 0, indexed: 0, queued: 0 };
     const pct = s.total > 0 ? Math.round(s.indexed / s.total * 100) : 0;
-    el.textContent = `📊 ${s.indexed} of ${s.total} indexed (${pct}%)${s.queued ? ` · ${s.queued} queued` : ''}`;
+    el.textContent = `${s.indexed} of ${s.total} indexed (${pct}%)${s.queued ? ` · ${s.queued} queued` : ''}`;
   }
   updateIndexingStats();
   setInterval(updateIndexingStats, 5000);
 
   // GUI Style picker (Classic vs Glass) — see js/gui-style.js
   const guiSel = document.getElementById('setting-gui-style');
-  if (guiSel) {
-    guiSel.value = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
+  if (guiSel && window.VexGuiStyle) {
+    guiSel.value = VexGuiStyle.get();
     guiSel.addEventListener('change', (e) => {
       // VexGuiStyle validates the name itself; squashing it to glass/classic
-      // here would silently throw away every other style.
+      // here would silently throw away every other style. set() is async — the
+      // old `try {} catch {}` swallowed a failed switch and still claimed the
+      // style had changed, so report the failure instead.
       const v = e.target.value;
-      try { window.VexGuiStyle?.set(v); } catch {}
-      showToast('GUI Style: ' + (e.target.selectedOptions[0]?.textContent || v), 'info');
+      const label = e.target.selectedOptions[0]?.textContent || v;
+      Promise.resolve(VexGuiStyle.set(v)).then(
+        () => showToast('GUI Style: ' + label, 'info'),
+        (err) => {
+          console.error('[Settings] GUI style switch failed:', err);
+          guiSel.value = VexGuiStyle.get();
+          showToast('Could not switch to ' + label + ': ' + err.message, 'error');
+        },
+      );
     });
   }
 
@@ -616,16 +664,33 @@
     });
   }
 
-  // Tab layout picker
+  // Tab layout picker. Glass and the browser looks lay the window out
+  // themselves (tabs on top), so while one of those is active the picker is
+  // locked to horizontal rather than letting the two settings fight: choosing
+  // "vertical" under Glass used to show the top tab strip and the vertical rail
+  // at the same time. Switching back to Classic restores the stored choice.
   const layoutSel = document.getElementById('setting-tab-layout');
+  const layoutNote = document.getElementById('setting-tab-layout-note');
   if (layoutSel) {
-    layoutSel.value = document.body.dataset.tabLayout || 'horizontal';
-    layoutSel.addEventListener('change', (e) => {
-      const v = e.target.value === 'vertical' ? 'vertical' : 'horizontal';
-      localStorage.setItem('vex.tabLayout', JSON.stringify(v));
+    const applyTabLayout = (v) => {
       document.body.dataset.tabLayout = v;
       if (v === 'horizontal') HorizontalTabs?.render?.();
       else TabManager?.rebuildAllTabs?.();
+    };
+    const syncTabLayout = () => {
+      const owned = !!document.body.dataset.guiStyle;
+      layoutSel.disabled = owned;
+      if (layoutNote) layoutNote.style.display = owned ? '' : 'none';
+      const want = readStoredTabLayout();
+      layoutSel.value = want;
+      if (document.body.dataset.tabLayout !== want) applyTabLayout(want);
+    };
+    syncTabLayout();
+    window.addEventListener('vex:gui-style', syncTabLayout);
+    layoutSel.addEventListener('change', (e) => {
+      const v = e.target.value === 'vertical' ? 'vertical' : 'horizontal';
+      localStorage.setItem('vex.tabLayout', JSON.stringify(v));
+      applyTabLayout(v);
       showToast('Tab layout: ' + v, 'info');
     });
   }
@@ -664,7 +729,7 @@
     if (!el || !window.TabGrouper) return;
     const n = Object.keys(TabGrouper.getPatterns()).length;
     const r = (TabGrouper.getRejectedPatterns?.() || []).length;
-    const patternsPart = n === 0 ? '\ud83d\udcca No patterns yet' : `\ud83d\udcca ${n} pattern${n === 1 ? '' : 's'} active`;
+    const patternsPart = n === 0 ? 'No patterns yet' : `${n} pattern${n === 1 ? '' : 's'} active`;
     const rejectedPart = r > 0 ? ` \u00b7 ${r} rejected` : '';
     el.textContent = patternsPart + rejectedPart;
   }
@@ -698,6 +763,15 @@
     });
   }
 
+  // Memory Saver layers a shorter sleep interval and a lower ceiling over the
+  // per-setting values. Declared here because the auto-sleep and memory-guard
+  // handlers below have to honour it: without this, changing "Sleep after" or
+  // the memory ceiling while Memory Saver was on silently switched Memory Saver
+  // back off in everything but the toggle.
+  const memorySaverOn = () => { try { return localStorage.getItem('vex.memorySaver') === '1'; } catch { return false; } };
+  const effectiveSleepMinutes = () => (memorySaverOn() ? 10 : (settings.autoSleepMinutes || 30));
+  const effectiveMemCeiling = () => (memorySaverOn() ? Math.min(settings.memCeilingMB || 1200, 900) : (settings.memCeilingMB ?? 1200));
+
   const autosleepToggle = document.getElementById('setting-autosleep');
   const autosleepMinutes = document.getElementById('setting-autosleep-minutes');
   const autosleepExcludePinned = document.getElementById('setting-autosleep-exclude-pinned');
@@ -712,7 +786,10 @@
       settings.autoSleepExcludePinned = autosleepExcludePinned?.checked !== false;
       VexStorage.saveSettings(settings);
       if (settings.autoSleepEnabled) {
-        TabManager.startAutoSleep(settings.autoSleepMinutes, settings.autoSleepExcludePinned);
+        TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned);
+        if (memorySaverOn() && settings.autoSleepMinutes !== 10) {
+          showToast('Saved — Memory Saver keeps tabs sleeping after 10 minutes until you turn it off', 'info');
+        }
       } else {
         TabManager.stopAutoSleep();
       }
@@ -723,7 +800,7 @@
 
     // Start auto-sleep if enabled
     if (settings.autoSleepEnabled) {
-      TabManager.startAutoSleep(settings.autoSleepMinutes || 30, settings.autoSleepExcludePinned !== false);
+      TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned !== false);
     }
   }
 
@@ -735,11 +812,14 @@
     const applyMemGuard = () => {
       settings.memCeilingMB = parseInt(memCeilingSel.value || '0', 10);
       VexStorage.saveSettings(settings);
-      TabManager.startMemoryGuard(settings.memCeilingMB);
+      TabManager.startMemoryGuard(effectiveMemCeiling());
+      if (memorySaverOn() && effectiveMemCeiling() !== settings.memCeilingMB) {
+        showToast('Saved — Memory Saver holds the ceiling at 900 MB until you turn it off', 'info');
+      }
     };
     memCeilingSel.addEventListener('change', applyMemGuard);
   }
-  TabManager.startMemoryGuard(settings.memCeilingMB ?? 1200);
+  TabManager.startMemoryGuard(effectiveMemCeiling());
 
   // === Memory Saver mode (opt-in) ===
   // One switch that layers aggressive memory behavior on top of the normal
@@ -748,18 +828,13 @@
   // applied by main at boot from the same persisted vex.memorySaver flag; the
   // toggle here applies the runtime parts immediately and notes a restart
   // finishes the rest.
-  const memorySaverOn = () => { try { return localStorage.getItem('vex.memorySaver') === '1'; } catch { return false; } };
+  // memorySaverOn/effectiveSleepMinutes/effectiveMemCeiling are declared with
+  // the auto-sleep settings above so both paths agree on the numbers.
   const applyMemorySaver = (on) => {
-    if (on) {
-      TabManager.startAutoSleep(10, settings.autoSleepExcludePinned !== false);
-      TabManager.startMemoryGuard(Math.min(settings.memCeilingMB || 1200, 900));
-      TabManager.startIdleDiscard(true);
-    } else {
-      TabManager.startIdleDiscard(false);
-      if (settings.autoSleepEnabled) TabManager.startAutoSleep(settings.autoSleepMinutes || 30, settings.autoSleepExcludePinned !== false);
-      else TabManager.stopAutoSleep();
-      TabManager.startMemoryGuard(settings.memCeilingMB ?? 1200);
-    }
+    TabManager.startIdleDiscard(on);
+    if (on || settings.autoSleepEnabled) TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned !== false);
+    else TabManager.stopAutoSleep();
+    TabManager.startMemoryGuard(effectiveMemCeiling());
   };
   // Reusable "restart to apply" affordance for any launch-only setting: a button
   // that appears when a restart is pending and relaunches Vex on click (the tab
@@ -788,7 +863,7 @@
       // caching, renderer cap) need a restart — but only if the state now differs
       // from what we actually booted with, so toggling back hides the button.
       setRestartNeeded(on !== memSaverBoot);
-      window.showToast?.(on ? '🧠 Memory Saver on' : 'Memory Saver off', 'info', 2500);
+      window.showToast?.(on ? 'Memory Saver on' : 'Memory Saver off', 'info', 2500);
     });
   }
 
@@ -895,7 +970,7 @@
   window.addEventListener('keydown', (e) => {
     if (!e.ctrlKey || !e.altKey || !['1', '2', '3'].includes(e.key)) return;
     const ch = typeof CommandChains !== 'undefined' && CommandChains.chains[parseInt(e.key, 10) - 1];
-    if (ch) { e.preventDefault(); CommandChains.run(ch); window.showToast?.('⛓ ' + ch.name); }
+    if (ch) { e.preventDefault(); CommandChains.run(ch); window.showToast?.('' + ch.name); }
   });
 
   // Settings toggles: mouse gestures + cookie-consent hiding
@@ -907,15 +982,24 @@
   const cToggle = document.getElementById('setting-consent');
   if (cToggle && typeof ConsentBlock !== 'undefined') {
     cToggle.checked = ConsentBlock.enabled();
-    cToggle.addEventListener('change', () => ConsentBlock.setEnabled(cToggle.checked));
+    cToggle.addEventListener('change', () => {
+      // setEnabled re-applies (or undoes) across every open page, so turning it
+      // off no longer leaves banners hidden until each tab is reloaded.
+      if (!ConsentBlock.setEnabled(cToggle.checked)) {
+        window.showToast?.('Changed for now, but the setting could not be saved — it resets when you restart Vex', 'error');
+      }
+    });
   }
   const cuToggle = document.getElementById('setting-copyunlock');
   if (cuToggle && typeof CopyUnlock !== 'undefined') {
     cuToggle.checked = CopyUnlock.enabled();
     cuToggle.addEventListener('change', () => {
-      CopyUnlock.setEnabled(cuToggle.checked);
-      // Apply to the page already open so the change is felt immediately.
-      if (cuToggle.checked) { const wv = WebviewManager.getActiveWebview(); if (wv) CopyUnlock.applyTo(wv, true); }
+      const saved = CopyUnlock.setEnabled(cuToggle.checked);
+      // Apply to (or partly undo on) the pages already open, so the change is
+      // felt immediately rather than only on the next load.
+      const stillUnlocked = CopyUnlock.reapplyAll();
+      if (!saved) window.showToast?.('Changed for now, but the setting could not be saved — it resets when you restart Vex', 'error');
+      else if (stillUnlocked) window.showToast?.(`Copy unlock off. ${stillUnlocked} page${stillUnlocked === 1 ? '' : 's'} already unlocked stay that way until you reload them.`);
     });
   }
 
@@ -928,7 +1012,7 @@
       items.forEach(item => {
         if (!item || !item.url) return;
         try { TabManager.createTab(item.url, false); } catch {}
-        window.showToast?.(`📲 Tab from ${item.fromDeviceName || 'another device'}: ${item.title || item.url}`);
+        window.showToast?.(`Tab from ${item.fromDeviceName || 'another device'}: ${item.title || item.url}`);
       });
     } catch {}
   };
@@ -1221,10 +1305,10 @@
       <h1>Welcome to Vex</h1>
       <p class="welcome-subtitle">A browser built just for you.</p>
       <div class="welcome-features">
-        <div class="welcome-feature"><span class="feature-icon">&#128450;</span><div><strong>Vertical tabs + workspaces</strong><br><span>Stay organized with Work, Dev, School, Personal modes</span></div></div>
-        <div class="welcome-feature"><span class="feature-icon">&#10024;</span><div><strong>Built-in AI agent</strong><br><span>Summarize pages, ask questions, automate tasks</span></div></div>
-        <div class="welcome-feature"><span class="feature-icon">&#9200;</span><div><strong>Scheduled tasks</strong><br><span>Daily briefings and weekly check-ins</span></div></div>
-        <div class="welcome-feature"><span class="feature-icon">&#9889;</span><div><strong>No bloat</strong><br><span>Only the features you actually use</span></div></div>
+        <div class="welcome-feature"><span class="feature-icon">${VexIcons.svg('tabs', { size: 20 })}</span><div><strong>Vertical tabs + workspaces</strong><br><span>Stay organized with Work, Dev, School, Personal modes</span></div></div>
+        <div class="welcome-feature"><span class="feature-icon">${VexIcons.svg('sparkles', { size: 20 })}</span><div><strong>Built-in AI agent</strong><br><span>Summarize pages, ask questions, automate tasks</span></div></div>
+        <div class="welcome-feature"><span class="feature-icon">${VexIcons.svg('clock', { size: 20 })}</span><div><strong>Scheduled tasks</strong><br><span>Daily briefings and weekly check-ins</span></div></div>
+        <div class="welcome-feature"><span class="feature-icon">${VexIcons.svg('zap', { size: 20 })}</span><div><strong>No bloat</strong><br><span>Only the features you actually use</span></div></div>
       </div>
       <div class="welcome-actions">
         <button class="btn-tour" id="welcome-tour">Take a tour</button>

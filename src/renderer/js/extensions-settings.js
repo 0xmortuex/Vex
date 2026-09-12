@@ -45,6 +45,13 @@ const ExtensionsSettings = (() => {
       .ext-open-btn:hover{border-color:var(--primary,#6366f1);}
       .ext-state-error{background:color-mix(in srgb, #ef4444 12%, transparent);border:1px solid #ef4444;
         border-radius:8px;padding:8px 10px;font-size:12px;color:#ef4444;margin-bottom:10px;}
+      .ext-suggest{border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:9px;padding:10px 12px;margin-bottom:8px;}
+      .ext-suggest-name{font-size:13px;font-weight:600;color:var(--text,#e9e9ee);display:flex;align-items:center;gap:8px;}
+      .ext-suggest-what{font-size:12px;color:var(--text-muted,#9a9aa5);margin-top:3px;line-height:1.45;}
+      .ext-suggest-works{font-size:11.5px;margin-top:5px;line-height:1.45;color:var(--text,#e9e9ee);}
+      .ext-suggest-caveat{font-size:11.5px;margin-top:3px;line-height:1.45;color:var(--text-muted,#9a9aa5);}
+      .ext-suggest-limited{color:#f59e0b;}
+      .ext-unsupported{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text-muted,#9a9aa5);line-height:1.6;}
     `;
     document.head.appendChild(st);
   }
@@ -71,8 +78,8 @@ const ExtensionsSettings = (() => {
         ${stateError ? `<div class="ext-state-error">${_esc(stateError)}</div>` : ''}
 
         <div class="extensions-actions">
-          <button class="btn-primary" id="btn-install-zip">📦 Install from .zip / .crx</button>
-          <button class="btn-secondary" id="btn-install-folder">📁 Install from folder</button>
+          <button class="btn-primary" id="btn-install-zip">${VexIcons.svg('box', { size: 14 })} Install from .zip / .crx</button>
+          <button class="btn-secondary" id="btn-install-folder">${VexIcons.svg('folder', { size: 14 })} Install from folder</button>
           <button class="btn-link" id="btn-open-ext-folder">Open extensions folder</button>
         </div>
 
@@ -94,14 +101,33 @@ const ExtensionsSettings = (() => {
                 <li>Click &quot;Install from folder&quot; &rarr; pick that folder</li>
               </ol>
               <p><strong>What works here:</strong> content scripts (page tweaks, themes, readers), <code>chrome.storage</code>, <code>chrome.tabs</code>, <code>chrome.scripting</code>, <code>chrome.alarms</code>, <code>chrome.i18n</code>, options pages and toolbar popups.</p>
-              <p><strong>What Electron can't do:</strong> request blocking (<code>declarativeNetRequest</code> and blocking <code>webRequest</code> are ignored, so ad blockers won't block &mdash; use Vex's own built-in blocker), context menus, <code>chrome.storage.sync</code>, notifications, cookies, downloads, keyboard commands, and toolbar badges.</p>
+              <p><strong>What Electron can't do:</strong></p>
+              <ul class="ext-unsupported">${VexExtensionCatalog.UNSUPPORTED.map(u => `<li>${_esc(u)}</li>`).join('')}</ul>
+            </div>
+          </details>
+        </div>
+
+        <div class="extensions-help">
+          <details${extensions.length === 0 ? ' open' : ''}>
+            <summary>Extensions worth installing</summary>
+            <div class="help-content">
+              <p class="setting-info muted" style="margin:0 0 8px">Each of these was checked against what Electron actually supports. Vex can't download from the Chrome Web Store, so "Get it" opens the publisher's own release page &mdash; download the <code>.zip</code> or <code>.crx</code>, then use <strong>Install from .zip / .crx</strong> above.</p>
+              ${VexExtensionCatalog.ENTRIES.map(x => `
+                <div class="ext-suggest">
+                  <div class="ext-suggest-name">${_esc(x.name)}
+                    <button class="ext-open-btn" data-open="${_esc(x.source)}" style="margin-left:auto">Get it</button>
+                  </div>
+                  <div class="ext-suggest-what">${_esc(x.what)}</div>
+                  <div class="ext-suggest-works${x.limited ? ' ext-suggest-limited' : ''}"><strong>In Vex:</strong> ${_esc(x.works)}</div>
+                  ${x.caveat ? `<div class="ext-suggest-caveat">${_esc(x.caveat)}</div>` : ''}
+                </div>`).join('')}
             </div>
           </details>
         </div>
 
         ${extensions.length === 0 ? `
           <div class="empty-state" style="padding:30px 10px">
-            <div class="empty-icon" style="font-size:32px">🧩</div>
+            <div class="empty-icon">${VexIcons.svg('puzzle', { size: 32 })}</div>
             <div class="empty-title">No extensions installed</div>
             <div class="empty-subtitle">Click an install button above to add one</div>
           </div>
@@ -114,7 +140,7 @@ const ExtensionsSettings = (() => {
               <div class="extension-card">
                 ${icon
                   ? `<img class="ext-icon" src="${_esc(icon)}" alt="">`
-                  : '<div class="ext-icon-fallback">🧩</div>'}
+                  : `<div class="ext-icon-fallback">${VexIcons.svg('puzzle', { size: 22 })}</div>`}
                 <div class="ext-info">
                   <div class="ext-name">${_esc(e.name)} <span class="ext-version">v${_esc(e.version)}</span><span class="ext-badge ${status.tone}">${_esc(status.label)}</span></div>
                   <div class="ext-desc">${_esc(e.description || 'No description')}</div>

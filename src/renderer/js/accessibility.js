@@ -10,7 +10,16 @@ const AccessibilityPack = {
   init() {
     try { const c = JSON.parse(localStorage.getItem(this.KEY) || 'null'); if (c) this.cfg = { ...this.cfg, ...c }; } catch {}
   },
-  save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.cfg)); } catch {} this.reapplyAll(); },
+
+  // Returns false when the preference could not be stored, so the caller can
+  // say so instead of claiming a save that did not happen. The page effects are
+  // applied either way — what is on screen must match what we just did.
+  save() {
+    let ok = true;
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.cfg)); } catch { ok = false; }
+    this.reapplyAll();
+    return ok;
+  },
 
   FONTS: {
     off: '',
@@ -33,9 +42,14 @@ const AccessibilityPack = {
     const cvdSvg = matrix
       ? `var s=document.getElementById('vex-cvd-svg')||document.createElementNS('http://www.w3.org/2000/svg','svg');s.id='vex-cvd-svg';s.setAttribute('style','position:fixed;width:0;height:0');s.innerHTML='<filter id="vex-cvd"><feColorMatrix type="matrix" values="${matrix}"/></filter>';document.body&&document.body.appendChild(s);document.documentElement.style.filter='url(#vex-cvd)';`
       : `document.documentElement.style.filter='';var x=document.getElementById('vex-cvd-svg');x&&x.remove();`;
+    // The ruler owns a mousemove listener on the guest document. Turning it off
+    // must remove THAT listener, not just the bar — otherwise every off→on cycle
+    // left another live handler (and the detached bar it closed over) behind, and
+    // the page paid for all of them on every mouse move. The teardown closure is
+    // parked on window.__vexRulerOff, which doubles as the "already on" guard.
     const rulerJs = this.cfg.ruler
-      ? `if(!window.__vexRuler){window.__vexRuler=1;var r=document.createElement('div');r.id='vex-ruler';r.style.cssText='position:fixed;left:0;right:0;height:38px;background:rgba(120,120,120,0.16);border-top:1px solid rgba(0,0,0,0.25);border-bottom:1px solid rgba(0,0,0,0.25);pointer-events:none;z-index:2147483600;transform:translateY(-50%);transition:top .03s linear';document.documentElement.appendChild(r);document.addEventListener('mousemove',function(e){r.style.top=e.clientY+'px'});}`
-      : `var rr=document.getElementById('vex-ruler');rr&&rr.remove();window.__vexRuler=0;`;
+      ? `if(!window.__vexRulerOff){var r=document.createElement('div');r.id='vex-ruler';r.style.cssText='position:fixed;left:0;right:0;height:38px;background:rgba(120,120,120,0.16);border-top:1px solid rgba(0,0,0,0.25);border-bottom:1px solid rgba(0,0,0,0.25);pointer-events:none;z-index:2147483600;transform:translateY(-50%);transition:top .03s linear';document.documentElement.appendChild(r);var mv=function(e){r.style.top=e.clientY+'px'};document.addEventListener('mousemove',mv);window.__vexRulerOff=function(){document.removeEventListener('mousemove',mv);r.remove();window.__vexRulerOff=null;};}`
+      : `if(window.__vexRulerOff){window.__vexRulerOff();}else{var rr=document.getElementById('vex-ruler');rr&&rr.remove();}`;
     const js = `(function(){try{
       var id='vex-a11y-style';var el=document.getElementById(id);
       if(!el){el=document.createElement('style');el.id=id;document.documentElement.appendChild(el);}
@@ -72,7 +86,7 @@ const AccessibilityPack = {
       });
       document.documentElement.setAttribute('data-vex-bionic','1');return 'on';
     }catch(e){return 'err'}})();`;
-    wv.executeJavaScript(js).then(r => window.showToast?.(r === 'on' ? '⚡ Bionic reading on' : r === 'off' ? 'Bionic off' : 'Bionic failed')).catch(() => {});
+    wv.executeJavaScript(js).then(r => window.showToast?.(r === 'on' ? 'Bionic reading on' : r === 'off' ? 'Bionic off' : 'Bionic failed')).catch(() => {});
   },
 
   // --- RSVP speed reader: flash the article one word at a time ---
@@ -90,18 +104,18 @@ const AccessibilityPack = {
     m.innerHTML = `
       <div id="rsvp-word" style="font:600 56px 'Outfit',sans-serif;color:#fff;min-height:70px;letter-spacing:-0.01em"></div>
       <div style="display:flex;align-items:center;gap:14px;color:#bbb;font:14px 'Outfit',sans-serif">
-        <button id="rsvp-play" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-family:inherit">⏸ Pause</button>
+        <button id="rsvp-play" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-family:inherit">Pause</button>
         <label>WPM <input id="rsvp-wpm" type="range" min="150" max="900" step="50" value="400" style="vertical-align:middle"></label>
         <span id="rsvp-wpmval">400</span>
         <span id="rsvp-prog"></span>
-        <button id="rsvp-close" style="background:#333;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-family:inherit">✕</button>
+        <button id="rsvp-close" aria-label="Close speed reader" title="Close" style="background:#333;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center">${window.VexIcons?.svg('x', { size: 14 }) || 'Close'}</button>
       </div>`;
     document.body.appendChild(m);
     let i = 0, playing = true, wpm = 400, timer = null;
     const wordEl = m.querySelector('#rsvp-word'), prog = m.querySelector('#rsvp-prog');
     const tick = () => {
       if (!playing) return;
-      if (i >= words.length) { playing = false; m.querySelector('#rsvp-play').textContent = '↺ Replay'; wordEl.textContent = '✓ Done'; return; }
+      if (i >= words.length) { playing = false; m.querySelector('#rsvp-play').textContent = 'Replay'; wordEl.textContent = 'Done'; return; }
       wordEl.textContent = words[i];
       prog.textContent = Math.round((i / words.length) * 100) + '%';
       i++;
@@ -110,7 +124,7 @@ const AccessibilityPack = {
     tick();
     m.querySelector('#rsvp-play').addEventListener('click', (e) => {
       if (i >= words.length) { i = 0; }
-      playing = !playing; e.target.textContent = playing ? '⏸ Pause' : '▶ Play';
+      playing = !playing; e.target.textContent = playing ? 'Pause' : 'Play';
       if (playing) tick(); else clearTimeout(timer);
     });
     m.querySelector('#rsvp-wpm').addEventListener('input', (e) => { wpm = parseInt(e.target.value, 10); m.querySelector('#rsvp-wpmval').textContent = wpm; });
@@ -141,9 +155,14 @@ const AccessibilityPack = {
       ${sel('a11y-cvd', 'Color-vision filter', [['off', 'Off'], ['protanopia', 'Protanopia (red-blind)'], ['deuteranopia', 'Deuteranopia (green-blind)'], ['tritanopia', 'Tritanopia (blue-blind)'], ['grayscale', 'Grayscale']], this.cfg.cvd)}
       <div class="setting-toggle-row" style="margin-top:10px"><span>Reading ruler (bar follows cursor)</span><label class="toggle"><input type="checkbox" id="a11y-ruler" ${this.cfg.ruler ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
       <p class="setting-info muted" style="margin-top:10px">On demand from the command bar: <strong>Bionic Reading</strong>, <strong>Speed Read</strong>, <strong>Translate Selection</strong>.</p>`;
-    container.querySelector('#a11y-font').addEventListener('change', (e) => { this.cfg.font = e.target.value; this.save(); });
-    container.querySelector('#a11y-cvd').addEventListener('change', (e) => { this.cfg.cvd = e.target.value; this.save(); });
-    container.querySelector('#a11y-ruler').addEventListener('change', (e) => { this.cfg.ruler = e.target.checked; this.save(); });
+    // A change that could not be written to disk must say so — it is applied to
+    // the open pages now, but it will not survive a restart.
+    const apply = () => {
+      if (!this.save()) window.showToast?.('Applied for now, but this preference could not be saved — it will reset when you restart Vex', 'error');
+    };
+    container.querySelector('#a11y-font').addEventListener('change', (e) => { this.cfg.font = e.target.value; apply(); });
+    container.querySelector('#a11y-cvd').addEventListener('change', (e) => { this.cfg.cvd = e.target.value; apply(); });
+    container.querySelector('#a11y-ruler').addEventListener('change', (e) => { this.cfg.ruler = e.target.checked; apply(); });
   },
 };
 

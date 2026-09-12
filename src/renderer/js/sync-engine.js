@@ -28,7 +28,10 @@ const SyncEngine = (() => {
     'vex.tabs', 'vex.sessions', 'vex.workspaces', 'vex.shortcuts', 'vex.tools',
     'vex.notes', 'vex.history', 'vex.theme', 'vex.settings', 'vex.schedules',
     'vex.agentMode', 'vex.aiIndexingEnabled', 'vex.customCommands', 'vex.zooms',
-    'vex.forceDarkSites', 'vex.autosleep',
+    // 'vex.forceDarkSites' is the retired global flag; per-site force-dark has
+    // lived in 'vex.forceDarkHosts' since the right-click menu replaced it, and
+    // was left out of this list, so the choice never reached another device.
+    'vex.forceDarkSites', 'vex.forceDarkHosts', 'vex.autosleep',
     'vex.autosleepMinutes', 'vex.autosleepExcludePinned', 'vex.groups',
     // Phase 14: AI routing prefs (but NOT localAIModel — each device has
     // its own installed Ollama models)
@@ -375,31 +378,58 @@ const SyncEngine = (() => {
 
   // ===== DEVICES =====
 
+  // Throws on failure. It used to swallow every error and return [], which the
+  // settings panel then drew as "No devices yet." — a server that was down, a
+  // revoked session and an account with genuinely no devices all looked the
+  // same, and the one case that needs the user's attention looked like success.
   async function listDevices() {
-    if (!state.enabled || !syncWorkerUrl()) return [];
+    if (!state.enabled) throw new Error('Sync is not signed in');
+    requireSyncUrl();
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/devices`, {
       headers: { 'Authorization': `Bearer ${state.sessionToken}` }
     });
-    if (!r.ok) return [];
-    const data = await r.json();
-    return data.devices || [];
+    if (r.status === 401) { await signOut(); throw new Error('This device is no longer enrolled — sign in again'); }
+    if (!r.ok) throw new Error('Could not load your devices (server returned ' + r.status + ')');
+    const data = await r.json().catch(() => null);
+    if (!data || !Array.isArray(data.devices)) throw new Error('Could not load your devices (unexpected response)');
+    return data.devices;
   }
 
+  // Throws on failure, so "Device removed" is never shown for a request the
+  // server refused.
   async function removeDevice(deviceId) {
-    if (!state.enabled || !syncWorkerUrl()) return;
-    await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/devices/${deviceId}`, {
+    if (!state.enabled) throw new Error('Sync is not signed in');
+    requireSyncUrl();
+    const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/devices/${deviceId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${state.sessionToken}` }
     });
+    if (!r.ok) throw new Error('Could not remove that device (server returned ' + r.status + ')');
+    return { ok: true };
   }
 
+  // DELETE /sync/all drops the blob AND the device registry, so afterwards the
+  // server's revision is back to 0 and this device is no longer enrolled.
+  // Leaving `revision` at its old value made every later push fail the
+  // baseRevision check with a 409 "Sync conflict" the user could not clear, and
+  // the next authenticated call 401'd into a silent sign-out while the panel
+  // still claimed to be signed in. So: reset the revision, drop the record
+  // document, and sign out here where we can say so.
   async function wipeAllCloudData() {
-    if (!state.enabled || !syncWorkerUrl()) return false;
-    const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/all`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${state.sessionToken}` }
-    });
-    return r.ok;
+    if (!state.enabled) return { ok: false, reason: 'Sync is not signed in' };
+    if (!syncWorkerUrl()) return { ok: false, reason: 'sync-not-configured' };
+    let r;
+    try {
+      r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/all`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${state.sessionToken}` }
+      });
+    } catch (err) { return { ok: false, reason: err.message || String(err) }; }
+    if (!r.ok) return { ok: false, reason: 'Server returned ' + r.status };
+    revision = 0;
+    recordDocument = null;
+    await signOut();
+    return { ok: true, signedOut: true };
   }
 
   // ===== PERSISTENCE =====

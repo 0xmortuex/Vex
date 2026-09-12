@@ -7,6 +7,7 @@
 // path to an <img src>.
 import { describe, it, expect } from 'vitest';
 
+require('../../src/renderer/js/vex-icons.js'); // installs window.VexIcons (loaded first in index.html)
 const { ExtensionsSettings } = require('../../src/renderer/js/extensions-settings.js');
 const { ExtensionsMenu } = require('../../src/renderer/js/extensions-menu.js');
 

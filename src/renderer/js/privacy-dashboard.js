@@ -13,14 +13,15 @@ const PrivacyDashboard = {
     el.innerHTML = `
       <div class="pd-panel">
         <div class="pd-head">
-          <h3>🛡️ Privacy</h3>
+          <h3><svg class="pd-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Privacy</h3>
           <button id="pd-reset" class="pd-reset" title="Reset the counters for this session">Reset</button>
         </div>
         <div id="pd-body" class="pd-body"><div class="pd-empty">Loading…</div></div>
       </div>`;
     this._injectStyles();
     el.querySelector('#pd-reset').addEventListener('click', async () => {
-      await window.vex.privacyTrackerReset().catch(() => {});
+      try { await window.vex.privacyTrackerReset(); }
+      catch (err) { console.error('[Privacy] counter reset failed:', err.message); window.showToast?.('Could not reset the counters', 'error'); return; }
       this._refresh();
     });
     await this._refresh();
@@ -28,26 +29,41 @@ const PrivacyDashboard = {
   },
 
   _startTicking() {
-    if (this._timer) clearInterval(this._timer);
-    // Light poll: only actually fetches while the panel is visible.
+    this.stop();
+    // Light poll: only actually fetches while the panel is visible. Once the
+    // panel is gone for good the interval stops itself instead of ticking (and
+    // holding a detached element) for the rest of the session.
     this._timer = setInterval(() => {
+      if (!this._el || !document.body.contains(this._el)) { this.stop(); return; }
       const panel = document.getElementById('panel-privacy');
-      if (!panel || panel.style.display === 'none' || !document.body.contains(this._el)) return;
+      if (!panel || panel.style.display === 'none' || panel.offsetParent === null) return;
       this._refresh();
     }, 2500);
+  },
+
+  stop() {
+    if (this._timer) { clearInterval(this._timer); this._timer = null; }
   },
 
   async _refresh() {
     const el = this._el; if (!el) return;
     const body = el.querySelector('#pd-body'); if (!body) return;
-    const stats = await window.vex.privacyTrackerStats().catch(() => null);
+    let stats = null;
+    try { stats = await window.vex.privacyTrackerStats(); }
+    catch (err) { console.error('[Privacy] tracker stats failed:', err.message); }
     if (!stats) { body.innerHTML = `<div class="pd-empty">Couldn't read blocking stats.</div>`; return; }
+    // These counters only move while the blocker is actually running, so the
+    // panel must report its real state instead of claiming blocking is always on.
+    let blocking = true;
+    try { blocking = (await window.vex.getAdBlockerState?.()) !== false; } catch { blocking = true; }
     const total = stats.total || 0;
     const cross = stats.crossSite || [];
     const top = stats.byHost || [];
 
+    const offNotice = blocking ? '' : `<div class="pd-off">Ad and tracker blocking is currently switched OFF, so nothing new is being counted. Turn it back on in Settings.</div>`;
+
     if (!total) {
-      body.innerHTML = `<div class="pd-empty">🌱 Nothing blocked yet this session.<br>As you browse, trackers and ads Vex blocks will show up here.</div>`;
+      body.innerHTML = offNotice + `<div class="pd-empty">Nothing blocked yet this session.<br>As you browse, trackers and ads Vex blocks will show up here.</div>`;
       return;
     }
 
@@ -66,7 +82,7 @@ const PrivacyDashboard = {
         `<div class="pd-cross-item"><span class="pd-host" title="${this._esc(c.host)}">${this._esc(c.host)}</span><span class="pd-cross-count">${c.siteCount} sites</span></div>`
       ).join('')}</div>` : '';
 
-    body.innerHTML = `
+    body.innerHTML = offNotice + `
       <div class="pd-hero">
         <div class="pd-hero-num">${total.toLocaleString()}</div>
         <div class="pd-hero-label">requests blocked this session</div>
@@ -75,7 +91,7 @@ const PrivacyDashboard = {
       ${crossHtml}
       <div class="pd-section-title">Top offenders</div>
       <div class="pd-list">${bars}</div>
-      <div class="pd-foot">Counts reset when Vex restarts. Blocking is always on.</div>`;
+      <div class="pd-foot">Counts reset when Vex restarts. Blocking is ${blocking ? 'on' : 'off'}.</div>`;
   },
 
   _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
@@ -87,7 +103,9 @@ const PrivacyDashboard = {
     s.textContent = `
       .pd-panel{display:flex;flex-direction:column;height:100%;font-family:'Outfit',sans-serif;color:var(--text)}
       .pd-head{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 8px;flex-shrink:0}
-      .pd-head h3{margin:0;font-size:15px;font-weight:600}
+      .pd-head h3{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:7px}
+      .pd-title-icon{width:16px;height:16px;display:block;color:var(--primary)}
+      .pd-off{background:color-mix(in srgb, var(--warning,#f59e0b) 14%, transparent);border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 38%, transparent);border-radius:10px;padding:9px 11px;font-size:11.5px;line-height:1.5;margin-bottom:12px}
       .pd-reset{background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:8px;padding:5px 11px;cursor:pointer;font:inherit;font-size:11.5px;transition:background .12s,color .12s,border-color .12s}
       .pd-reset:hover{background:rgba(127,127,127,.1);color:var(--text);border-color:var(--vex-border-medium,var(--border))}
       .pd-body{flex:1;overflow-y:auto;padding:6px 14px 16px}

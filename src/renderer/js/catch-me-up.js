@@ -33,7 +33,7 @@ const CatchMeUp = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:560px;max-width:94vw;max-height:82vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
       <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--border)">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">☕ Catch Me Up</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Catch Me Up</span>
         <button id="cmu-close" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button>
       </div>
       <div id="cmu-body" style="overflow-y:auto;padding:16px 18px;font-size:13px;color:var(--text);line-height:1.55">Gathering your feeds…</div></div>`;

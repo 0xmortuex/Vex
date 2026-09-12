@@ -20,10 +20,10 @@ const LinkedScroll = {
     const bar = document.createElement('div');
     bar.id = 'linkedscroll-bar';
     bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:100000;background:var(--surface,#222);color:var(--text,#eee);border:1px solid var(--border,#444);border-radius:20px;padding:6px 14px;box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:12px;font-family:"Outfit",sans-serif;display:flex;align-items:center;gap:10px';
-    bar.innerHTML = '🔗 Linked scrolling <button id="ls-off" style="background:var(--bg,#111);color:var(--text,#eee);border:1px solid var(--border,#444);border-radius:14px;padding:3px 10px;cursor:pointer;font-size:11px;font-family:inherit">Turn off</button>';
+    bar.innerHTML = 'Linked scrolling <button id="ls-off" style="background:var(--bg,#111);color:var(--text,#eee);border:1px solid var(--border,#444);border-radius:14px;padding:3px 10px;cursor:pointer;font-size:11px;font-family:inherit">Turn off</button>';
     document.body.appendChild(bar);
     bar.querySelector('#ls-off').addEventListener('click', () => { this.stop(); });
-    window.showToast?.('🔗 Linked scrolling on — scroll a pane, the others follow');
+    window.showToast?.('Linked scrolling on — scroll a pane, the others follow');
   },
 
   stop() {

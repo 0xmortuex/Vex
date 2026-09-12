@@ -34,7 +34,7 @@ const Bookmarks = {
       // prompt. Cancel still bookmarks, just into Unsorted.
       const folder = await vexPrompt({ title: 'Bookmark this page', label: 'Folder (blank = Unsorted)', okLabel: 'Bookmark' }) || '';
       this.items.unshift({ id: 'bm' + Date.now(), url, title: title || url, folder: folder.trim(), at: Date.now() });
-      window.showToast?.('★ Bookmarked');
+      window.showToast?.('Bookmarked');
     }
     this.save();
   },
@@ -54,8 +54,11 @@ const Bookmarks = {
       if (t && t.url) this.toggle(t.url, t.title);
     });
     anchor.parentElement.insertBefore(btn, anchor);
-    // Reflect starred state as the active tab changes.
-    setInterval(() => this._syncStar(), 1500);
+    // Reflect starred state as the active tab changes. The old code polled every
+    // 1.5s forever; react to the events that can change it instead, with a slow
+    // backstop for anything that changes the URL without firing one.
+    window.addEventListener('vex-tabs-changed', () => this._syncStar());
+    if (!this._starTimer) this._starTimer = setInterval(() => this._syncStar(), 5000);
   },
 
   _syncStar() {
@@ -92,13 +95,14 @@ const Bookmarks = {
         });
         return;
       }
-      if (!items.length) { list.innerHTML = window.VexUI ? VexUI.emptyState('bookmark', 'No bookmarks yet', 'Hit the ☆ in the URL bar to save a page') : '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:30px 10px">No bookmarks yet — hit the ☆ in the URL bar.</div>'; return; }
+      if (!items.length) { list.innerHTML = window.VexUI ? VexUI.emptyState('bookmark', 'No bookmarks yet', 'Use the bookmark button in the URL bar to save a page') : '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:30px 10px">No bookmarks yet — use the bookmark button in the URL bar.</div>'; return; }
       const folders = {};
       items.forEach(b => { const f = b.folder || 'Unsorted'; (folders[f] = folders[f] || []).push(b); });
       Object.keys(folders).sort().forEach(f => {
         const head = document.createElement('div');
-        head.style.cssText = 'font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;padding:12px 8px 4px';
-        head.textContent = '📁 ' + f;
+        head.style.cssText = 'font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;padding:12px 8px 4px;display:flex;align-items:center;gap:6px';
+        head.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="flex:none"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+        head.appendChild(document.createTextNode(f));
         list.appendChild(head);
         folders[f].forEach(b => {
           const row = document.createElement('div');
@@ -123,7 +127,11 @@ const Bookmarks = {
 
 if (typeof window !== 'undefined') window.Bookmarks = Bookmarks;
 if (typeof window !== 'undefined') window.addEventListener('vex-sync-data-applied', () => {
-  const saved = JSON.parse(localStorage.getItem(Bookmarks.KEY) || '[]');
+  // Corrupt storage here used to throw straight out of the sync listener and
+  // abort the rest of the post-sync refresh.
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem(Bookmarks.KEY) || '[]'); }
+  catch (err) { console.error('[Bookmarks] stored list was unreadable after sync:', err.message); }
   Bookmarks.items = Array.isArray(saved) ? saved : [];
   Bookmarks._baseline = Bookmarks.items.slice();
   Bookmarks._syncStar();

@@ -137,7 +137,7 @@ const ThemePicker = {
     // Live CSS preview — a mini Vex window rendered with the theme's own variables
     // (scoped via data-theme). No image files, so previews are always identical in
     // style and can never be stale/cached/mismatched between builds.
-    const upload = isCustom ? '<span class="vtp-thumb-upload">&#11014; Upload image</span>' : '';
+    const upload = isCustom ? '<span class="vtp-thumb-upload">' + VexIcons.svg('upload', { size: 13 }) + ' Upload image</span>' : '';
     card.innerHTML = `
       <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t)}${upload}
         <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</span>

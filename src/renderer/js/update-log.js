@@ -116,7 +116,16 @@
     };
     render(idx);
 
-    const close = () => { ov.remove(); _open = false; };
+    // Esc only unbound itself when Esc was the thing that closed the modal, so
+    // closing with "Got it", the GitHub link or a backdrop click left a live
+    // document-level listener behind — one more on every open, each holding the
+    // removed overlay and the whole release list alive.
+    const onEsc = (e) => { if (e.key === 'Escape') close(); };
+    const close = () => {
+      document.removeEventListener('keydown', onEsc);
+      ov.remove();
+      _open = false;
+    };
     ov.querySelector('.whatsnew-select')?.addEventListener('change', (e) => render(parseInt(e.target.value, 10) || 0));
     ov.querySelector('.whatsnew-btn').addEventListener('click', close);
     linkEl?.addEventListener('click', (e) => {
@@ -125,7 +134,7 @@
       close(); // the release opens in the browser — no reason to keep the modal up
     });
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-    document.addEventListener('keydown', function onEsc(e) { if (e.key === 'Escape') { document.removeEventListener('keydown', onEsc); close(); } });
+    document.addEventListener('keydown', onEsc);
     document.body.appendChild(ov);
   }
 

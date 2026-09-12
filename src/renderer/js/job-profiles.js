@@ -482,7 +482,7 @@ const JobProfiles = {
     try { if (window.WorkPanel) WorkPanel.refresh(); } catch {}
   },
 
-  // Draw the 🧰 Toolbox button + up to 3 quick tool buttons next to the Tor
+  // Draw the Toolbox button + up to 3 quick tool buttons next to the Tor
   // button. Idempotent — removes previously-drawn job buttons first.
   renderButtons() {
     const bar = document.getElementById('top-bar-right');
@@ -495,18 +495,18 @@ const JobProfiles = {
       const b = document.createElement('button');
       b.className = 'nav-btn vex-job-btn';
       b.title = title;
-      b.textContent = icon;
-      b.style.cssText = 'font-size:14px';
+      b.innerHTML = icon;
+      b.style.cssText = 'font-size:14px;display:inline-flex;align-items:center;justify-content:center';
       b.addEventListener('click', onClick);
       bar.insertBefore(b, anchor);
       return b;
     };
-    mk('Toolbox — your job tools', '🧰', () => { try { window.Toolbox && Toolbox.open(); } catch {} });
+    mk('Toolbox — your job tools', VexIcons.svg('toolbox', { size: 15 }), () => { try { window.Toolbox && Toolbox.open(); } catch {} });
     const quick = (enabled || []).slice(0, 3);
     for (const id of quick) {
       const t = window.Toolbox && Toolbox.get(id);
       if (!t) continue;
-      mk(t.name, t.icon, () => { try { Toolbox.openTool(id); } catch {} });
+      mk(t.name, Toolbox.iconMarkup(t, 15), () => { try { Toolbox.openTool(id); } catch {} });
     }
   },
 

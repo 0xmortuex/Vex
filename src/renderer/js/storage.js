@@ -197,7 +197,7 @@ const VexStorage = {
   async saveTabs(tabs) {
     if (window.VexTabPolicy) return this.save('tabs', window.VexTabPolicy.snapshot(tabs));
     const serialized = tabs
-      // Ephemeral tabs (Tor 🧅, off-the-record) live in an in-memory partition
+      // Ephemeral tabs (Tor , off-the-record) live in an in-memory partition
       // that's wiped on close — NEVER persist them. Restoring one would resurrect
       // the URL as a normal persist:main tab: it'd leak what you browsed
       // privately into your saved session AND reload it over your real

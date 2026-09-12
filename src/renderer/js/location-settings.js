@@ -20,22 +20,40 @@ const LocationSettings = (() => {
     try { const r = localStorage.getItem(key); return r === null ? fb : JSON.parse(r); }
     catch { return fb; }
   }
-  function _set(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch {} }
+  // Returns false when the write failed, so no caller claims a save that did
+  // not happen.
+  function _set(key, v) {
+    try { localStorage.setItem(key, JSON.stringify(v)); } catch { return false; }
+    return true;
+  }
+
+  // The saved coordinates, or null when none are usable. Vex answers a site's
+  // location request from exactly this — if it is null, manual mode has nothing
+  // to give and the request fails (it does NOT quietly fall back to an IP
+  // lookup, which would put the user's address on the network behind a setting
+  // that says nothing leaves your device).
+  function _coords() {
+    const m = _get('vex.manualLocation', null);
+    if (!m || typeof m !== 'object') return null;
+    const lat = Number(m.latitude), lng = Number(m.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { latitude: lat, longitude: lng, label: typeof m.label === 'string' ? m.label : '' };
+  }
   function _esc(s) { return window.escapeHtml(s); }
   function _toast(m, k, d) { if (typeof window.showToast === 'function') window.showToast(m, k, d); }
 
   function render(container) {
     if (!container) return;
-    const saved = _get('vex.manualLocation', null);
-    // If no mode has ever been saved, persist the default so main.js's
-    // geolocation:get handler reads the same value we show in the UI.
-    // Without this, users who never click a radio silently have no mode
-    // on disk, and check-permission / get behave like first-run forever.
-    let mode = _get('vex.locationMode', null);
-    if (!mode) {
-      mode = 'manual';
-      _set('vex.locationMode', mode);
-    }
+    const saved = _coords();
+    // Opening a settings panel is a read, not a change. This used to write the
+    // default mode to storage as a side effect of rendering, so merely looking
+    // at the panel recorded a decision the user never made — and that write
+    // then looked like an explicit choice to everything downstream. main.js
+    // applies the same 'manual' default when nothing is stored, so showing it
+    // here needs no write at all.
+    const mode = _get('vex.locationMode', null) || 'manual';
+    const needsCoords = mode === 'manual' && !saved;
 
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:10px">What Vex reports when a site asks for your location. Manual is the most accurate and private option \u2014 nothing leaves your device.</p>
@@ -59,6 +77,12 @@ const LocationSettings = (() => {
         }).join('')}
       </div>
 
+      <div class="location-unset-warning" id="location-unset-warning" role="alert"
+           style="display:${needsCoords ? 'flex' : 'none'};align-items:flex-start;gap:8px;margin:10px 0;padding:10px 12px;border:1px solid var(--danger,#e5484d);border-radius:9px;color:var(--danger,#e5484d);font-size:12px">
+        ${window.VexIcons?.svg('warning', { size: 14 }) || ''}
+        <span>Manual mode is selected but no coordinates are saved. Until you set one below, sites that ask for your location are told it is unavailable — Vex will not look it up from your IP address behind your back.</span>
+      </div>
+
       <div class="manual-location-form" id="manual-location-form" style="${mode === 'manual' ? '' : 'display:none'}">
         <h3>Your location</h3>
         <div class="form-row" style="display:flex;gap:10px">
@@ -76,8 +100,8 @@ const LocationSettings = (() => {
           <input type="text" id="loc-label" value="${_esc(saved?.label || '')}" placeholder="Home">
         </div>
         <div class="location-helpers">
-          <button class="btn-secondary" id="btn-get-coords">\ud83d\uddfa\ufe0f Look up my address</button>
-          <button class="btn-secondary" id="btn-use-ip-once">\ud83d\udce1 Use IP location once</button>
+          <button class="btn-secondary" id="btn-get-coords">${window.VexIcons?.svg('map', { size: 13 }) || ''} Look up my address</button>
+          <button class="btn-secondary" id="btn-use-ip-once">${window.VexIcons?.svg('wifi', { size: 13 }) || ''} Use IP location once</button>
         </div>
         <div class="preset-cities">
           <div class="preset-label">Quick presets</div>
@@ -96,16 +120,28 @@ const LocationSettings = (() => {
     _wire(container);
   }
 
+  // Show or hide the "manual mode, but no coordinates" alert. Called whenever
+  // either half of that condition can have changed, so the panel never claims a
+  // working manual location it does not have.
+  function _paintUnsetWarning(container, mode) {
+    const el = container.querySelector('#location-unset-warning');
+    if (!el) return;
+    const current = mode || _get('vex.locationMode', null) || 'manual';
+    el.style.display = (current === 'manual' && !_coords()) ? 'flex' : 'none';
+  }
+
   function _wire(container) {
     container.querySelectorAll('input[name="loc-mode"]').forEach(radio => {
       radio.addEventListener('change', () => {
-        _set('vex.locationMode', radio.value);
+        const stored = _set('vex.locationMode', radio.value);
         const form = container.querySelector('#manual-location-form');
         if (form) form.style.display = radio.value === 'manual' ? '' : 'none';
         container.querySelectorAll('.mode-option').forEach(el => {
           const r = el.querySelector('input[name="loc-mode"]');
           el.classList.toggle('active', !!(r && r.checked));
         });
+        _paintUnsetWarning(container, radio.value);
+        if (!stored) { _toast('Mode changed for now, but it could not be saved — it resets when you restart Vex', 'error'); return; }
         _toast(`Location mode: ${radio.value}`, 'info', 2000);
       });
     });
@@ -116,8 +152,12 @@ const LocationSettings = (() => {
       const label = container.querySelector('#loc-label').value.trim();
       if (isNaN(lat) || isNaN(lng)) { _toast('Please enter valid coordinates', 'warn'); return; }
       if (lat < -90 || lat > 90 || lng < -180 || lng > 180) { _toast('Coordinates out of range', 'warn'); return; }
-      _set('vex.manualLocation', { latitude: lat, longitude: lng, label });
+      // Confirm the value really landed before saying "saved" — and before the
+      // warning about having no location comes down.
+      const stored = _set('vex.manualLocation', { latitude: lat, longitude: lng, label }) && !!_coords();
+      if (!stored) { _toast('Your location could not be saved — sites will still be told it is unavailable', 'error'); return; }
       _toast('Location saved', 'success');
+      _paintUnsetWarning(container);
       const preview = container.querySelector('#location-preview');
       if (preview) {
         preview.style.display = '';

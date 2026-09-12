@@ -97,3 +97,30 @@
   background: var(--surface, #151921);
   border-top: 1px solid var(--border, #1f2530);
 }
+
+/* Failure state — shown in place of the guest when the previewed page can't
+   load. Themed like the rest of the frame; icon inherits currentColor. */
+#vex-peek .peek-error {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 20px;
+  box-sizing: border-box;
+  text-align: center;
+  background: var(--surface, #151921);
+  color: var(--text-muted, #6b7482);
+}
+#vex-peek .peek-error-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #e5e9f0);
+}
+#vex-peek .peek-error-detail {
+  font-size: 11.5px;
+  max-width: 42ch;
+  word-break: break-word;
+}
+#vex-peek .peek-error-retry { margin-top: 4px; }

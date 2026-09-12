@@ -94,12 +94,17 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
+/* The highlighted row is a WASH of the accent, and its title keeps the normal
+   text colour. Several themes define --vex-accent-dim as a solid near-accent
+   colour, so an accent-coloured title on it left the row a block of blue with
+   the name invisible. The inset bar keeps the selection obvious. */
 .command-result:hover,
 .command-result.selected {
-  background: var(--vex-accent-dim);
+  background: color-mix(in srgb, var(--vex-accent) 16%, var(--vex-bg-elevated, var(--surface)));
 }
+.command-result.selected { box-shadow: inset 3px 0 0 var(--vex-accent); }
 .command-result:hover .command-result-title,
-.command-result.selected .command-result-title { color: var(--vex-accent); }
+.command-result.selected .command-result-title { color: var(--vex-text-primary); }
 
 .command-result-icon {
   width: 32px;
@@ -115,7 +120,7 @@
 }
 
 .command-result-icon.primary {
-  background: var(--vex-accent-dim);
+  background: color-mix(in srgb, var(--vex-accent) 18%, var(--vex-bg-elevated, var(--surface)));
   color: var(--vex-accent);
 }
 

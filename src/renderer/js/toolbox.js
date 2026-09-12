@@ -212,16 +212,16 @@ const Toolbox = {
     { id: 'csv', name: 'CSV Viewer', icon: '▦', family: 'dev', desc: 'View CSV as a table and convert to JSON' },
     { id: 'base64', name: 'Base64', icon: '⧉', family: 'dev', desc: 'Encode and decode Base64' },
     { id: 'hash', name: 'Hash', icon: '#', family: 'dev', desc: 'SHA-1 / SHA-256 / SHA-512 of any text' },
-    { id: 'timestamp', name: 'Timestamp', icon: '🕐', family: 'dev', desc: 'Convert Unix time ⇄ human date' },
-    { id: 'cron', name: 'Cron', icon: '⏱', family: 'dev', desc: 'Explain a cron expression and its next runs' },
-    { id: 'uuid', name: 'UUID', icon: '🆔', family: 'dev', desc: 'Generate v4 UUIDs' },
+    { id: 'timestamp', name: 'Timestamp', icon: 'clock', family: 'dev', desc: 'Convert Unix time ⇄ human date' },
+    { id: 'cron', name: 'Cron', icon: 'timer', family: 'dev', desc: 'Explain a cron expression and its next runs' },
+    { id: 'uuid', name: 'UUID', icon: 'fingerprint', family: 'dev', desc: 'Generate v4 UUIDs' },
     { id: 'wordcount', name: 'Word Count', icon: '¶', family: 'write', desc: 'Words, characters, reading time' },
-    { id: 'color', name: 'Color & Contrast', icon: '🎨', family: 'design', desc: 'Pick colors, convert, check WCAG contrast' },
-    { id: 'jwt', name: 'JWT Decoder', icon: '🔑', family: 'dev', desc: 'Decode a JWT — header & payload (no signature check)' },
+    { id: 'color', name: 'Color & Contrast', icon: 'palette', family: 'design', desc: 'Pick colors, convert, check WCAG contrast' },
+    { id: 'jwt', name: 'JWT Decoder', icon: 'key', family: 'dev', desc: 'Decode a JWT — header & payload (no signature check)' },
     { id: 'urlencode', name: 'URL Encode', icon: '%', family: 'dev', desc: 'Encode / decode URL components' },
     { id: 'caseconvert', name: 'Case Convert', icon: 'Aa', family: 'write', desc: 'UPPER, lower, Title, camelCase, snake_case, kebab' },
-    { id: 'passgen', name: 'Password Gen', icon: '🔐', family: 'general', desc: 'Generate a strong random password' },
-    { id: 'markdown', name: 'Markdown Preview', icon: '📄', family: 'write', desc: 'Live Markdown → formatted preview' },
+    { id: 'passgen', name: 'Password Gen', icon: 'lock', family: 'general', desc: 'Generate a strong random password' },
+    { id: 'markdown', name: 'Markdown Preview', icon: 'file', family: 'write', desc: 'Live Markdown → formatted preview' },
   ],
 
   // Every tool: the hand-built ones above plus the declarative packs
@@ -248,6 +248,50 @@ const Toolbox = {
     if (typeof VexTools !== 'undefined') VexTools.renderToolsBar();
   },
 
+  // One icon from vex-icons.js as markup.
+  _svg(name, size) {
+    return (typeof VexIcons !== 'undefined') ? VexIcons.svg(name, { size: size || 16 }) : '';
+  },
+
+  // A modal heading: icon + text, laid out on one line.
+  _title(name, text) {
+    return `<span style="display:inline-flex;align-items:center;gap:7px">${this._svg(name, 16)}${text}</span>`;
+  },
+
+  _modalTitle(spec) {
+    const esc = window.escapeHtml ? window.escapeHtml(spec.name) : spec.name;
+    return `<span style="display:inline-flex;align-items:center;gap:7px">${this.iconMarkup(spec, 16)}${esc}</span>`;
+  },
+
+  // A user link's icon (js/tools.js). Whatever the user typed is theirs, so it
+  // is shown as escaped text; only the empty case gets one of our icons.
+  _linkIcon(icon) {
+    if (!icon) return this._svg('link');
+    return window.escapeHtml ? window.escapeHtml(icon) : String(icon);
+  },
+
+  // A tool's icon, as markup to drop into the UI.
+  //
+  // Three hundred tools do not get three hundred drawings. A tool shows:
+  //   1. its own icon when that is a VexIcons name (the hand-built tools),
+  //   2. its own icon when that is short typographic text — ".*", "{ }", "Aa",
+  //      "#", "%" — because those ARE the tool, and
+  //   3. otherwise its family's icon, so a whole family reads as one group.
+  // Typographic icons are escaped: several contain "<" ("<meta>", "<>→{}").
+  iconMarkup(tool, size) {
+    const px = size || 16;
+    const icons = (typeof VexIcons !== 'undefined') ? VexIcons : null;
+    const own = tool && typeof tool.icon === 'string' ? tool.icon : '';
+    if (icons && icons.has(own)) return icons.svg(own, { size: px });
+    if (own && own.length <= 7 && !/\p{Extended_Pictographic}/u.test(own)) {
+      return window.escapeHtml ? window.escapeHtml(own) : own;
+    }
+    const F = (typeof ToolboxPacks !== 'undefined') ? ToolboxPacks.FAMILIES : {};
+    const fam = F[tool && tool.family];
+    if (icons && fam && icons.has(fam.icon)) return icons.svg(fam.icon, { size: px });
+    return icons ? icons.svg('toolbox', { size: px }) : '';
+  },
+
   // Family label for a tool (hand-built tools use the same family ids).
   _familyLabel(fam) {
     const F = (typeof ToolboxPacks !== 'undefined') ? ToolboxPacks.FAMILIES : {};
@@ -271,7 +315,7 @@ const Toolbox = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100053;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
     m.innerHTML = `<div style="width:820px;max-width:95vw;height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px">
-        <span style="font-size:15px;font-weight:700;color:var(--text)">🧰 Toolbox</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);display:inline-flex;align-items:center;gap:7px">${this._svg('toolbox', 17)}Toolbox</span>
         <span id="tb-count" style="font-size:11.5px;color:var(--text-muted);flex:1"></span>
         <button id="tb-close" aria-label="Close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button>
       </div>
@@ -311,11 +355,13 @@ const Toolbox = {
     }
   },
 
-  _card(label, icon, desc, onClick) {
+  // `iconHtml` is markup (an <svg> from VexIcons, or escaped typographic text),
+  // not a plain glyph — build it with iconMarkup() rather than passing a string.
+  _card(label, iconHtml, desc, onClick) {
     const b = document.createElement('button');
     b.className = 'tb-tool';
     b.style.cssText = "text-align:left;padding:11px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:'Outfit',sans-serif;min-width:0";
-    const i = document.createElement('div'); i.style.cssText = 'font-size:15px;color:var(--text)'; i.textContent = icon;
+    const i = document.createElement('div'); i.style.cssText = 'font-size:15px;line-height:1;height:18px;color:var(--text)'; i.innerHTML = iconHtml;
     const n = document.createElement('div'); n.style.cssText = 'font-size:12.5px;font-weight:600;color:var(--text);margin-top:4px'; n.textContent = label;
     const d = document.createElement('div'); d.style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.35'; d.textContent = desc;
     b.append(i, n, d);
@@ -337,7 +383,7 @@ const Toolbox = {
   _paintList(m, state) {
     const list = m.querySelector('#tb-list');
     list.innerHTML = '';
-    const toolCard = (t) => this._card(t.name, t.icon, t.desc, () => { m.remove(); this.openTool(t.id); });
+    const toolCard = (t) => this._card(t.name, this.iconMarkup(t), t.desc, () => { m.remove(); this.openTool(t.id); });
     const all = this.all().filter(t => this._matches(t, state.q));
     const enabled = this.enabledIds() || [];
     let shown = 0;
@@ -347,12 +393,12 @@ const Toolbox = {
       if (this.linksInRail() || typeof VexTools === 'undefined') return;
       const mine = VexTools.tools.filter(t => this._matches({ name: t.name, desc: t.desc || t.url, family: 'links' }, state.q));
       const cards = mine.map(t => {
-        const c = this._card(t.name, t.icon || '🔗', t.desc || t.url, () => { m.remove(); VexTools.openTool(t); });
+        const c = this._card(t.name, this._linkIcon(t.icon), t.desc || t.url, () => { m.remove(); VexTools.openTool(t); });
         c.title = t.url + '  (right-click to edit or remove)';
         c.addEventListener('contextmenu', (e) => { e.preventDefault(); VexTools.showContextMenu(e, t); });
         return c;
       });
-      if (!state.q) cards.push(this._card('Add a link', '+', 'Any site you use as a tool — it opens in a tab', () => { m.remove(); VexTools.showEditModal(); }));
+      if (!state.q) cards.push(this._card('Add a link', this._svg('plus'), 'Any site you use as a tool — it opens in a tab', () => { m.remove(); VexTools.showEditModal(); }));
       this._section(list, 'Your links', cards);
       shown += mine.length;
       const opt = document.createElement('label');
@@ -405,7 +451,7 @@ const Toolbox = {
   // The shared screen for declarative tools: a field per input, the result
   // recomputed on every change, and Copy.
   _runSpec(spec) {
-    const { body } = this._modal(`${spec.icon} ${spec.name}`, '');
+    const { body } = this._modal(this._modalTitle(spec), '');
     const desc = document.createElement('div');
     desc.style.cssText = 'font-size:12px;color:var(--text-muted);margin-bottom:10px';
     desc.textContent = spec.desc;
@@ -571,7 +617,7 @@ const Toolbox = {
 
   _timestamp() {
     const now = Math.floor(Date.now() / 1000);
-    const { body } = this._modal('🕐 Timestamp', `
+    const { body } = this._modal(this._title('clock', 'Timestamp'), `
       <label style="font-size:11px;color:var(--text-muted)">Unix timestamp → date</label>${this._inp('ts-in', String(now), String(now))}${this._out('ts-out')}
       <label style="font-size:11px;color:var(--text-muted);display:block;margin-top:12px">Date → Unix timestamp</label>${this._inp('ts-din', '2026-08-31 14:00')}${this._out('ts-dout')}`);
     const tin = body.querySelector('#ts-in'), tout = body.querySelector('#ts-out');
@@ -582,7 +628,7 @@ const Toolbox = {
   },
 
   _cron() {
-    const { body } = this._modal('⏱ Cron', `${this._inp('cr-in', '*/15 9-17 * * 1-5', '*/15 9-17 * * 1-5')}${this._out('cr-out')}`);
+    const { body } = this._modal(this._title('timer', 'Cron'), `${this._inp('cr-in', '*/15 9-17 * * 1-5', '*/15 9-17 * * 1-5')}${this._out('cr-out')}`);
     const inEl = body.querySelector('#cr-in'), out = body.querySelector('#cr-out');
     const run = () => {
       const desc = ToolboxLib.cronDescribe(inEl.value);
@@ -596,7 +642,7 @@ const Toolbox = {
 
   _uuid() {
     const gen = () => Array.from({ length: 5 }, () => ToolboxLib.uuidv4()).join('\n');
-    const { body } = this._modal('🆔 UUID v4', `${this._out('uu-out')}<div style="margin-top:8px"><button id="uu-gen" style="padding:7px 14px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Generate 5 more</button></div>`);
+    const { body } = this._modal(this._title('fingerprint', 'UUID v4'), `${this._out('uu-out')}<div style="margin-top:8px"><button id="uu-gen" style="padding:7px 14px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Generate 5 more</button></div>`);
     const out = body.querySelector('#uu-out');
     const refresh = () => { out.textContent = gen(); };
     body.querySelector('#uu-gen').addEventListener('click', refresh); refresh();
@@ -611,7 +657,7 @@ const Toolbox = {
   },
 
   _color() {
-    const { body } = this._modal('🎨 Color & Contrast', `
+    const { body } = this._modal(this._title('palette', 'Color &amp; Contrast'), `
       <div style="display:flex;gap:10px;align-items:center"><input type="color" id="cl-1" value="#6366f1" style="width:48px;height:36px;border:none;background:none;cursor:pointer"><div id="cl-1out" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text)"></div></div>
       <div style="display:flex;gap:10px;align-items:center;margin-top:10px"><span style="font-size:11px;color:var(--text-muted)">vs background</span><input type="color" id="cl-2" value="#ffffff" style="width:48px;height:36px;border:none;background:none;cursor:pointer"></div>
       ${this._out('cl-out')}`);
@@ -626,7 +672,7 @@ const Toolbox = {
     c1.addEventListener('input', run); c2.addEventListener('input', run); run();
   },
   _jwt() {
-    const { body } = this._modal('🔑 JWT Decoder', this._ta('jw-in', 'paste a JWT (eyJ...)') + this._out('jw-out'));
+    const { body } = this._modal(this._title('key', 'JWT Decoder'), this._ta('jw-in', 'paste a JWT (eyJ...)') + this._out('jw-out'));
     const inEl = body.querySelector('#jw-in'), out = body.querySelector('#jw-out');
     const run = () => {
       const d = ToolboxLib.jwtDecode(inEl.value);
@@ -651,7 +697,7 @@ const Toolbox = {
     body.appendChild(this._copyBtn(() => out.textContent));
   },
   _passgen() {
-    const { body } = this._modal('🔐 Password Generator', `
+    const { body } = this._modal(this._title('lock', 'Password Generator'), `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><label style="font-size:12px;color:var(--text-muted)">Length</label><input id="pg-len" type="range" min="6" max="48" value="16" style="flex:1"><span id="pg-lenv" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);width:24px;text-align:right">16</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--text);margin-bottom:12px">
         <label style="cursor:pointer"><input type="checkbox" id="pg-upper" checked> A-Z</label>
@@ -667,7 +713,7 @@ const Toolbox = {
     body.appendChild(this._copyBtn(() => out.textContent));
   },
   _markdown() {
-    const { body } = this._modal('📄 Markdown Preview', this._ta('md-in', '# Hello\n\n**bold**, *italic*, `code`, [link](https://example.com)\n\n- one\n- two') + `<div id="md-out" style="margin-top:10px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;line-height:1.6;overflow:auto;max-height:42vh"></div>`);
+    const { body } = this._modal(this._title('file', 'Markdown Preview'), this._ta('md-in', '# Hello\n\n**bold**, *italic*, `code`, [link](https://example.com)\n\n- one\n- two') + `<div id="md-out" style="margin-top:10px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;line-height:1.6;overflow:auto;max-height:42vh"></div>`);
     const inEl = body.querySelector('#md-in'), out = body.querySelector('#md-out');
     const run = () => { out.innerHTML = ToolboxLib.mdToHtml(inEl.value); };
     inEl.addEventListener('input', run); run();

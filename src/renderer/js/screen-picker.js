@@ -82,8 +82,19 @@
       return opts;
     };
 
+    // Same trap as the What's New modal: the Esc listener used to unbind only
+    // when Esc was pressed, so every share started by clicking a source (or
+    // Cancel) left a document-level listener behind for the life of the window.
+    // choose() is the single exit, so tear down there.
+    const onEsc = (e) => { if (e.key === 'Escape') choose(null); };
     let done = false;
-    const choose = (sourceId) => { if (done) return; done = true; try { window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); } catch {} ov.remove(); };
+    const choose = (sourceId) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener('keydown', onEsc);
+      try { window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); } catch {}
+      ov.remove();
+    };
 
     const grid = card.querySelector('.scrpick-grid');
     ordered.forEach((s) => {
@@ -99,7 +110,7 @@
 
     card.querySelector('.scrpick-cancel').addEventListener('click', () => choose(null));
     ov.addEventListener('click', (e) => { if (e.target === ov) choose(null); });
-    document.addEventListener('keydown', function onEsc(e) { if (e.key === 'Escape') { document.removeEventListener('keydown', onEsc); choose(null); } });
+    document.addEventListener('keydown', onEsc);
 
     document.body.appendChild(ov);
   });

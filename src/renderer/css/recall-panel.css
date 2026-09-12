@@ -1,0 +1,172 @@
+/* === Recall panel — full-text search over pages you've read === */
+
+.recall-head { margin-bottom: 14px; }
+.recall-stat {
+  font-size: 11.5px;
+  color: var(--vex-text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.recall-tools { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+
+.recall-field { position: relative; display: flex; align-items: center; }
+.recall-field-icon {
+  position: absolute; left: 10px; display: flex;
+  width: 15px; height: 15px; color: var(--vex-text-muted); pointer-events: none;
+}
+.recall-field-icon svg { width: 100%; height: 100%; }
+.recall-field input {
+  width: 100%; box-sizing: border-box;
+  padding: 9px 32px 9px 32px;
+  background: var(--vex-glass-input, var(--bg));
+  border: 1px solid var(--vex-border-subtle, var(--border));
+  border-radius: var(--vex-radius-lg, 9px);
+  color: var(--vex-text-primary, var(--text));
+  font-size: 13px; font-family: 'Outfit', sans-serif;
+  outline: none; transition: border-color .15s ease;
+  appearance: none;
+}
+.recall-field input:focus { border-color: var(--vex-accent, var(--primary)); }
+.recall-field input::placeholder { color: var(--vex-text-muted); }
+.recall-field input::-webkit-search-cancel-button { display: none; }
+
+.recall-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0;
+  background: none; border: none; border-radius: 6px;
+  color: var(--vex-text-muted); cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.recall-icon-btn svg { width: 14px; height: 14px; }
+.recall-icon-btn:hover { background: var(--vex-hover-fill); color: var(--vex-text-primary); }
+.recall-icon-btn:focus-visible { outline: 2px solid var(--vex-accent); outline-offset: 1px; }
+.recall-field .recall-icon-btn { position: absolute; right: 6px; }
+
+.recall-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.recall-filters select {
+  flex: 1 1 30%; min-width: 92px; max-width: 100%;
+  padding: 5px 7px;
+  background: var(--vex-glass-light, var(--bg));
+  border: 1px solid var(--vex-border-subtle, var(--border));
+  border-radius: 7px;
+  color: var(--vex-text-secondary, var(--text));
+  font-size: 11.5px; font-family: 'Outfit', sans-serif;
+  cursor: pointer; outline: none;
+  text-overflow: ellipsis;
+}
+.recall-filters select:focus-visible { border-color: var(--vex-accent); }
+
+.recall-smart {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--vex-text-muted);
+  cursor: pointer; user-select: none;
+}
+.recall-smart input { accent-color: var(--vex-accent, var(--primary)); margin: 0; }
+.recall-smart-icon { display: inline-flex; width: 13px; height: 13px; flex: none; color: var(--vex-accent); }
+.recall-smart-icon svg { width: 100%; height: 100%; }
+.recall-dim { opacity: .72; }
+
+.recall-hint { font-size: 10.5px; color: var(--vex-text-muted); line-height: 1.7; margin: 0; }
+.recall-hint code {
+  font-family: var(--vex-font-mono, monospace); font-size: 10px;
+  background: var(--vex-hover-fill); padding: 1px 4px; border-radius: 4px;
+}
+
+.recall-results { overflow-y: auto; max-height: calc(100vh - 290px); padding-bottom: 24px; }
+.recall-idle { font-size: 12px; color: var(--vex-text-muted); padding: 10px 2px; }
+
+.recall-hit {
+  padding: 8px; border-radius: 9px; cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .12s ease, border-color .12s ease;
+}
+.recall-hit:hover { background: var(--vex-hover-fill); }
+.recall-hit.is-active {
+  background: var(--vex-hover-fill);
+  border-color: var(--vex-border-accent, var(--vex-accent));
+}
+
+.recall-hit-top { display: flex; align-items: center; gap: 8px; }
+.recall-hit-icon { width: 15px; height: 15px; border-radius: 3px; flex: none; }
+.recall-hit-title {
+  flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600;
+  color: var(--vex-text-primary, var(--text));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.recall-hit-when { font-size: 10.5px; color: var(--vex-text-muted); flex: none; }
+
+.recall-hit-snippet {
+  font-size: 11.5px; color: var(--vex-text-secondary, var(--text-muted));
+  margin: 3px 0 0 23px; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.recall-hit-snippet mark {
+  background: var(--vex-accent-dim, rgba(45, 212, 191, .22));
+  color: var(--vex-text-primary, var(--text));
+  border-radius: 3px; padding: 0 1px; font-weight: 600;
+}
+
+.recall-hit-foot {
+  display: flex; align-items: center; gap: 8px;
+  margin: 3px 0 0 23px; min-height: 22px;
+}
+.recall-hit-host {
+  font-size: 10.5px; color: var(--vex-text-accent, var(--primary));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.recall-hit-visits { font-size: 10px; color: var(--vex-text-muted); flex: none; }
+.recall-hit-acts { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
+.recall-hit:hover .recall-hit-acts,
+.recall-hit.is-active .recall-hit-acts,
+.recall-hit-acts:focus-within { opacity: 1; }
+
+.recall-count { font-size: 10.5px; color: var(--vex-text-muted); padding: 10px 8px 4px; }
+.recall-more {
+  display: block; width: 100%; margin: 4px 0 0;
+  padding: 7px 10px;
+  background: var(--vex-glass-light, var(--bg));
+  border: 1px solid var(--vex-border-subtle, var(--border));
+  border-radius: 8px;
+  color: var(--vex-text-secondary, var(--text));
+  font-size: 12px; font-family: 'Outfit', sans-serif; cursor: pointer;
+}
+.recall-more:hover { border-color: var(--vex-border-accent); color: var(--vex-text-primary); }
+
+/* --- settings section --- */
+.recall-settings-stat { margin-top: 10px; line-height: 1.5; }
+.recall-settings-excluded { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.recall-excluded-title {
+  flex-basis: 100%; font-size: 11px; color: var(--vex-text-muted);
+  font-family: var(--vex-font-mono, monospace); text-transform: uppercase; letter-spacing: .06em;
+}
+.recall-chip {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px 4px 3px 9px;
+  background: var(--vex-glass-light, var(--bg));
+  border: 1px solid var(--vex-border-subtle, var(--border));
+  border-radius: 20px;
+  font-size: 11.5px; color: var(--vex-text-secondary, var(--text));
+}
+.recall-chip button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; padding: 0;
+  background: none; border: none; border-radius: 50%;
+  color: var(--vex-text-muted); cursor: pointer;
+}
+.recall-chip button svg { width: 11px; height: 11px; }
+.recall-chip button:hover { background: var(--vex-hover-fill); color: var(--vex-danger); }
+
+.recall-settings-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.recall-danger {
+  padding: 8px 16px;
+  background: var(--vex-danger, var(--danger)); color: #fff;
+  border: none; border-radius: var(--vex-radius-md, var(--radius));
+  cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 13px;
+}
+.recall-danger:hover { background: var(--vex-danger-hover, var(--danger)); }
+.recall-settings-actions button[disabled] { opacity: .55; cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  .recall-hit, .recall-icon-btn, .recall-hit-acts, .recall-field input { transition: none; }
+}

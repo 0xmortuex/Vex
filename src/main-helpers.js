@@ -168,7 +168,8 @@ function roundCoord(n) {
 
 // Sanitises a raw geolocation:get response into the minimal renderer-facing
 // shape. Returns one of (and ONLY one of):
-//   { mode: 'denied' }                              — denied / off / malformed
+//   { mode: 'denied' }                              — denied / off / malformed,
+//                                                     and manual with no coords
 //   { mode: 'manual', latitude: N, longitude: N }   — coarse coords (1 dp)
 //   { mode: 'ip' }                                  — caller does IP fallback
 // No other fields are ever returned. Extra fields on `rawPref` (ISP, ASN,
@@ -179,7 +180,10 @@ function coarsenLocation(rawPref) {
   if (rawPref.mode === 'manual') {
     const lat = roundCoord(rawPref.latitude);
     const lng = roundCoord(rawPref.longitude);
-    if (lat == null || lng == null) return { mode: 'ip' };
+    // Manual mode with no usable coordinates means Vex has no location to give.
+    // It used to answer 'ip', which sent the guest page to a third-party geo-IP
+    // service under a setting that promises nothing leaves the device. Deny.
+    if (lat == null || lng == null) return { mode: 'denied' };
     return { mode: 'manual', latitude: lat, longitude: lng };
   }
   if (rawPref.mode === 'ip') return { mode: 'ip' };

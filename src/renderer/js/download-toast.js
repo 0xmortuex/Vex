@@ -18,20 +18,29 @@ const DownloadToast = {
     return c;
   },
 
+  // Inline SVG, drawn in currentColor so it follows the theme.
+  FILE_ICON: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+
   show({ filename, path, size }) {
     const container = this._container();
     const toast = document.createElement('div');
     toast.className = 'download-toast';
+    // Open / Show need a real path. Rendering them for a download whose path
+    // never arrived gave two buttons that silently did nothing.
+    const fileActions = path
+      ? '<button data-action="open" type="button">Open</button><button data-action="folder" type="button">Show</button>'
+      : '';
     toast.innerHTML = `
-      <div class="download-toast-icon">📄</div>
+      <div class="download-toast-icon">${this.FILE_ICON}</div>
       <div class="download-toast-info">
         <div class="download-toast-filename"></div>
         <div class="download-toast-size"></div>
       </div>
       <div class="download-toast-actions">
-        <button data-action="open" type="button">Open</button>
-        <button data-action="folder" type="button">Show</button>
-        <button class="download-toast-close" data-action="dismiss" type="button" aria-label="Dismiss">×</button>
+        ${fileActions}
+        <button class="download-toast-close" data-action="dismiss" type="button" aria-label="Dismiss">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
     `;
     toast.querySelector('.download-toast-filename').textContent = filename || 'Download';
@@ -54,10 +63,12 @@ const DownloadToast = {
       if (!btn) return;
       const action = btn.dataset.action;
       if (action === 'open') {
-        if (path) window.vex?.downloadsOpenFile?.(path);
+        Promise.resolve(window.vex?.downloadsOpenFile?.(path)).then((result) => {
+          if (result && !result.ok) window.showToast?.(result.error || 'Could not open that file', 'error');
+        });
         dismiss();
       } else if (action === 'folder') {
-        if (path) window.vex?.downloadsShowInFolder?.(path);
+        window.vex?.downloadsShowInFolder?.(path);
       } else if (action === 'dismiss') {
         dismiss();
       }

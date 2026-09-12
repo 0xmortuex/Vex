@@ -9,24 +9,24 @@ const ExtensionsMenu = {
   _onKey: null,
 
   ITEMS: [
-    { icon: '🔓', label: 'Unlock Copy & Right-Click', sub: 'Bypass sites that block copy/selection', cmd: 'copyunlock' },
-    { icon: '📄', label: 'Copy Text from Doc', sub: 'Google Docs & copy-locked pages (export / OCR)', cmd: 'doctext' },
-    { icon: '📖', label: 'Reading Mode', sub: 'Strip clutter, focus on the article', cmd: 'read' },
-    { icon: '📰', label: 'Read Free', sub: 'Get past metered & subscriber paywalls', cmd: 'readfree' },
-    { icon: '🎬', label: 'Download Media', sub: 'Save video/audio playing on this page', cmd: 'media' },
-    { icon: '🌙', label: 'Dark mode for this site', sub: 'Force-darken just this site',
+    { icon: 'unlock', label: 'Unlock Copy & Right-Click', sub: 'Bypass sites that block copy/selection', cmd: 'copyunlock' },
+    { icon: 'file', label: 'Copy Text from Doc', sub: 'Google Docs & copy-locked pages (export / OCR)', cmd: 'doctext' },
+    { icon: 'book-open', label: 'Reading Mode', sub: 'Strip clutter, focus on the article', cmd: 'read' },
+    { icon: 'newspaper', label: 'Read Free', sub: 'Get past metered & subscriber paywalls', cmd: 'readfree' },
+    { icon: 'video', label: 'Download Media', sub: 'Save video/audio playing on this page', cmd: 'media' },
+    { icon: 'moon', label: 'Dark mode for this site', sub: 'Force-darken just this site',
       fn: () => { const wv = (typeof WebviewManager !== 'undefined') && WebviewManager.getActiveWebview(); if (wv) WebviewManager.toggleForceDarkForSite(wv); else window.showToast?.('Open a page first'); } },
-    { icon: '🌐', label: 'Translate Page', sub: 'Translate via Google Translate', cmd: 'translate' },
-    { icon: '🔊', label: 'Read Aloud', sub: 'Speak the article (run again to stop)', cmd: 'readaloud' },
-    { icon: '🎚️', label: 'Master Volume', sub: 'One slider for media volume across all tabs',
+    { icon: 'globe', label: 'Translate Page', sub: 'Translate via Google Translate', cmd: 'translate' },
+    { icon: 'volume', label: 'Read Aloud', sub: 'Speak the article (run again to stop)', cmd: 'readaloud' },
+    { icon: 'sliders', label: 'Master Volume', sub: 'One slider for media volume across all tabs',
       fn: () => { if (typeof MasterVolume !== 'undefined') MasterVolume.show(); else window.showToast?.('Unavailable'); } },
-    { icon: '🎯', label: 'Zap Element', sub: 'Click to hide any element forever', cmd: 'zap' },
-    { icon: '🎨', label: 'Boost This Site', sub: 'Custom CSS / JS for this site', cmd: 'boost' },
-    { icon: '📷', label: 'Screenshot', sub: 'Capture + annotate this page', cmd: 'screenshot' },
-    { icon: '📱', label: 'Responsive Preview', sub: 'Phone / tablet / desktop widths', cmd: 'responsive' },
-    { icon: '🛡️', label: 'Privacy Report', sub: 'Trackers blocked + protections', cmd: 'privacy' },
+    { icon: 'target', label: 'Zap Element', sub: 'Click to hide any element forever', cmd: 'zap' },
+    { icon: 'palette', label: 'Boost This Site', sub: 'Custom CSS / JS for this site', cmd: 'boost' },
+    { icon: 'camera', label: 'Screenshot', sub: 'Capture + annotate this page', cmd: 'screenshot' },
+    { icon: 'phone', label: 'Responsive Preview', sub: 'Phone / tablet / desktop widths', cmd: 'responsive' },
+    { icon: 'shield', label: 'Privacy Report', sub: 'Trackers blocked + protections', cmd: 'privacy' },
     { sep: true },
-    { icon: '🧩', label: 'Manage Chrome extensions…', sub: 'Install .crx / .zip / unpacked',
+    { icon: 'puzzle', label: 'Manage Chrome extensions…', sub: 'Install .crx / .zip / unpacked',
       fn: () => { try { (SidebarManager.openPanel || SidebarManager.showPanel).call(SidebarManager, 'settings'); } catch (_) {} } },
   ],
 
@@ -50,7 +50,7 @@ const ExtensionsMenu = {
       const row = document.createElement('button');
       row.className = 'ext-menu-item';
       row.innerHTML = '<span class="ext-menu-ico"></span><span class="ext-menu-text"><span class="ext-menu-label"></span><span class="ext-menu-sub"></span></span>';
-      row.querySelector('.ext-menu-ico').textContent = it.icon;
+      row.querySelector('.ext-menu-ico').innerHTML = VexIcons.svg(it.icon, { size: 16 });
       row.querySelector('.ext-menu-label').textContent = it.label;
       row.querySelector('.ext-menu-sub').textContent = it.sub || '';
       row.addEventListener('click', () => { this.close(); this._run(it); });
@@ -131,7 +131,7 @@ const ExtensionsMenu = {
         img.src = iconUrl; img.width = 16; img.height = 16; img.alt = '';
         ico.appendChild(img);
       } else {
-        ico.textContent = '🧩';
+        ico.innerHTML = VexIcons.svg('puzzle', { size: 16 });
       }
       row.querySelector('.ext-menu-label').textContent = ext.name;
       row.querySelector('.ext-menu-sub').textContent = this._rowSubtitle(ext);
@@ -190,7 +190,7 @@ const ExtensionsMenu = {
       .ext-menu-item{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border:none;border-radius:8px;
         background:transparent;color:var(--text,#e9e9ee);cursor:pointer;text-align:left;font-family:inherit;}
       .ext-menu-item:hover{background:color-mix(in srgb, var(--primary,#6366f1) 16%, transparent);}
-      .ext-menu-ico{font-size:16px;width:22px;text-align:center;flex-shrink:0;line-height:1;}
+      .ext-menu-ico{width:22px;flex-shrink:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;}
       .ext-menu-text{display:flex;flex-direction:column;line-height:1.25;min-width:0;}
       .ext-menu-label{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .ext-menu-sub{font-size:11px;color:var(--text-muted,#9a9aa5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

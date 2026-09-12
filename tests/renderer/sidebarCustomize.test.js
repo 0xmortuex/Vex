@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 require('../../src/renderer/js/vex-utils.js'); // installs window.escapeHtml (loaded first in index.html)
+require('../../src/renderer/js/vex-icons.js'); // installs window.VexIcons (loaded first in index.html)
 const { SidebarManager } = require('../../src/renderer/js/sidebar.js');
 
 function setupDom() {

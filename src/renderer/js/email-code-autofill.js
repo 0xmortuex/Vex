@@ -568,7 +568,7 @@ const EmailCodeAutofill = {
   },
 
   _log(url, ok, reason) { try { window.AutofillLog?.record('emailcode', url, ok, reason); } catch {} },
-  _toast() { try { window.showToast?.('📧 Filled the code from your email'); } catch {} },
+  _toast() { try { window.showToast?.('Filled the code from your email'); } catch {} },
 
   // Turn a silent miss into an actionable hint — only when a real empty code
   // field was on the page, only for the fixable mail-availability reasons, and
@@ -582,8 +582,8 @@ const EmailCodeAutofill = {
       if (now - (this._lastMissToast || 0) < 120000) return;
       this._lastMissToast = now;
       const msg = reason === 'no-mail'
-        ? "📧 Couldn't read a code — open your email, or turn on background code reading (Ctrl+K → Logins & Codes)."
-        : "📧 Your email is still loading. If codes don't fill, keep it awake or enable background reading (Ctrl+K → Logins & Codes).";
+        ? "Couldn't read a code — open your email, or turn on background code reading (Ctrl+K → Logins & Codes)."
+        : "Your email is still loading. If codes don't fill, keep it awake or enable background reading (Ctrl+K → Logins & Codes).";
       window.showToast?.(msg, 'info', 6500);
     } catch {}
   },

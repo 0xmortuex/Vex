@@ -5,6 +5,18 @@ const PersonasSettings = (() => {
   function toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
   function escapeHtml(s) { return window.escapeHtml(s); }
 
+  // Persona icons are VexIcons names. Anything else (an emoji a user typed in an
+  // older build, or an imported file) is escaped and shown as text — never fed
+  // to innerHTML raw.
+  const ICON_CHOICES = ['sparkles', 'robot', 'brain', 'flask', 'code', 'marker', 'target', 'book',
+    'compass', 'graduation', 'briefcase', 'wand', 'search', 'chart-line', 'heart', 'leaf', 'palette', 'terminal'];
+
+  function iconMarkup(icon, size) {
+    const raw = icon || 'sparkles';
+    if (window.VexIcons && VexIcons.has(raw)) return VexIcons.svg(raw, { size: size || 18 });
+    return escapeHtml(raw);
+  }
+
   function renderPanel(container) {
     if (!container) container = document.getElementById('personas-panel-content');
     if (!container) return;
@@ -12,7 +24,7 @@ const PersonasSettings = (() => {
     container.innerHTML = `
       <div class="personas-panel">
         <div class="panel-header">
-          <h2 style="font-size:18px;margin:0 0 6px 0">\ud83c\udfad AI Personas</h2>
+          <h2 style="font-size:18px;margin:0 0 6px 0">AI Personas</h2>
           <p class="panel-desc">Create specialized AI assistants with custom instructions. Type <code>@name</code> in chat to switch instantly.</p>
         </div>
         <div class="panel-actions">
@@ -34,7 +46,7 @@ const PersonasSettings = (() => {
     return `
       <div class="persona-card ${persona.isBuiltIn ? 'builtin' : ''}" data-persona-id="${escapeHtml(persona.id)}">
         <div class="persona-card-header">
-          <span class="persona-card-icon">${escapeHtml(persona.icon)}</span>
+          <span class="persona-card-icon">${iconMarkup(persona.icon, 18)}</span>
           <div class="persona-card-info">
             <div class="persona-card-name">${escapeHtml(persona.name)}</div>
             <div class="persona-card-desc">${escapeHtml(persona.description || '')}</div>
@@ -43,7 +55,7 @@ const PersonasSettings = (() => {
         </div>
         <div class="persona-card-prompt">${escapeHtml(preview)}</div>
         <div class="persona-card-meta">
-          <span class="meta-item">\ud83c\udf21\ufe0f ${persona.temperature}</span>
+          <span class="meta-item">${window.VexIcons ? VexIcons.svg('thermometer', { size: 12 }) : ''} ${escapeHtml(String(persona.temperature))}</span>
           <span class="meta-item">${(persona.quickPrompts || []).length} prompts</span>
         </div>
         <div class="persona-card-actions">
@@ -61,14 +73,17 @@ const PersonasSettings = (() => {
 
     document.getElementById('btn-export-personas')?.addEventListener('click', () => {
       const data = PersonasManager.exportPersonas();
+      if (!data.personas.length) { toast('There are no custom personas to export', 'warn'); return; }
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `vex-personas-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-      toast('Personas exported', 'success');
+      // Revoking in the same tick can cancel the download before it starts.
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
+      toast(`Exported ${data.personas.length} persona${data.personas.length === 1 ? '' : 's'}`, 'success');
     });
 
     document.getElementById('btn-import-persona')?.addEventListener('click', () => {
@@ -79,6 +94,9 @@ const PersonasSettings = (() => {
         const file = e.target.files[0];
         if (!file) return;
         try {
+          // A persona file is a few KB of JSON; refuse anything that is clearly
+          // not one rather than parsing megabytes.
+          if (file.size > 2 * 1024 * 1024) throw new Error('that file is too large to be a persona export');
           const text = await file.text();
           const data = JSON.parse(text);
           const count = PersonasManager.importPersonas(data);
@@ -110,7 +128,8 @@ const PersonasSettings = (() => {
       });
       card.querySelector('[data-action="activate"]')?.addEventListener('click', () => {
         const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
-        PersonasManager.setActiveForTab(tab?.id, personaId);
+        PersonasManager.setDefault(personaId);
+        if (tab?.id != null) PersonasManager.clearTab(tab.id);
         if (typeof AIPanel !== 'undefined' && typeof AIPanel.updatePersonaSwitcher === 'function') {
           AIPanel.updatePersonaSwitcher();
         }
@@ -122,7 +141,7 @@ const PersonasSettings = (() => {
   function showPersonaEditor(existing) {
     const isEdit = !!existing;
     const p = existing || {
-      name: '', description: '', icon: '\ud83e\udd16', systemPrompt: '',
+      name: '', description: '', icon: 'robot', systemPrompt: '',
       temperature: 0.7, preferredBackend: 'auto',
       tabContextDefault: 'current', responseFormat: 'prose',
       suggestedFollowUps: true, quickPrompts: []
@@ -136,9 +155,15 @@ const PersonasSettings = (() => {
         ${existing && existing.isBuiltIn ? '<p class="panel-desc" style="color:var(--text-muted);font-size:12px;margin:-4px 0 14px">Built-ins can\'t be edited directly. Saving will create an editable custom copy.</p>' : ''}
 
         <div class="form-row">
-          <div class="form-field" style="flex:0 0 80px">
+          <div class="form-field" style="flex:0 0 140px">
             <label>Icon</label>
-            <input type="text" id="pe-icon" value="${escapeHtml(p.icon)}" maxlength="4" style="text-align:center;font-size:22px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span id="pe-icon-preview" style="display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:8px;color:var(--text)">${iconMarkup(p.icon, 18)}</span>
+              <select id="pe-icon" style="flex:1">${
+  (ICON_CHOICES.includes(p.icon) ? ICON_CHOICES : [p.icon, ...ICON_CHOICES])
+    .map(n => `<option value="${escapeHtml(n)}" ${n === p.icon ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')
+}</select>
+            </div>
           </div>
           <div class="form-field" style="flex:1">
             <label>Name</label>
@@ -177,33 +202,44 @@ const PersonasSettings = (() => {
     `;
     document.body.appendChild(overlay);
 
-    document.getElementById('pe-temperature').addEventListener('input', (e) => {
-      document.getElementById('pe-temp-value').textContent = e.target.value;
+    // Scope every lookup to this overlay: opening a second editor used to wire
+    // the first one's fields (duplicate ids in the document).
+    const $ = (sel) => overlay.querySelector(sel);
+    $('#pe-temperature').addEventListener('input', (e) => {
+      $('#pe-temp-value').textContent = e.target.value;
     });
-    document.getElementById('pe-cancel').addEventListener('click', () => overlay.remove());
-    document.getElementById('pe-save').addEventListener('click', () => {
+    $('#pe-icon').addEventListener('change', (e) => {
+      $('#pe-icon-preview').innerHTML = iconMarkup(e.target.value, 18);
+    });
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    $('#pe-cancel').addEventListener('click', close);
+    $('#pe-save').addEventListener('click', () => {
       const data = {
-        name: document.getElementById('pe-name').value.trim(),
-        description: document.getElementById('pe-description').value.trim(),
-        icon: document.getElementById('pe-icon').value.trim() || '\ud83e\udd16',
-        systemPrompt: document.getElementById('pe-prompt').value.trim(),
-        temperature: parseFloat(document.getElementById('pe-temperature').value),
-        quickPrompts: document.getElementById('pe-prompts').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 5)
+        name: $('#pe-name').value.trim(),
+        description: $('#pe-description').value.trim(),
+        icon: $('#pe-icon').value.trim() || 'robot',
+        systemPrompt: $('#pe-prompt').value.trim(),
+        temperature: parseFloat($('#pe-temperature').value),
+        quickPrompts: $('#pe-prompts').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 5)
       };
       if (!data.name) { toast('Name required', 'warn'); return; }
       if (!data.systemPrompt) { toast('System prompt required', 'warn'); return; }
 
       if (isEdit && !existing.isBuiltIn) {
-        PersonasManager.update(existing.id, data);
+        if (!PersonasManager.update(existing.id, data)) { toast('That persona no longer exists', 'error'); return; }
         toast('Persona updated', 'success');
       } else {
         const created = PersonasManager.create(data);
         toast(`Persona "${created.name}" created`, 'success');
       }
-      overlay.remove();
+      close();
       renderPanel(document.getElementById('personas-panel-content'));
       if (typeof AIPanel !== 'undefined' && typeof AIPanel.updatePersonaSwitcher === 'function') {
         AIPanel.updatePersonaSwitcher();
+        AIPanel._renderPersonaQuickPrompts?.();
       }
     });
   }

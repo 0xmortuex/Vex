@@ -57,6 +57,11 @@ const WorkspaceManager = {
     const tabs = window.VexTabPolicy.snapshot(TabManager.tabs);
     ws.tabs = tabs;
     ws.groups = TabManager.groups.map(g => ({ ...g }));
+    // Stacks are per-workspace state exactly like groups. Without this, a
+    // workspace round-trip destroyed every stack (members came back with
+    // stackId null) while the orphaned stack objects leaked into whichever
+    // workspace you switched to.
+    ws.stacks = (TabManager.stacks || []).map(s => ({ ...s }));
     ws.activeTabIndex = tabs.findIndex(t => t.id === TabManager.activeTabId);
     this.save();
   },
@@ -87,12 +92,19 @@ const WorkspaceManager = {
       // 5. Update theme immediately
       this.applyThemeColor();
 
-      // 6. Restore groups
+      // 6. Restore groups + stacks. renderGroups() is deliberately NOT called
+      //    here: it hides any group with zero tabs, and at this point no tabs
+      //    exist yet, so every restored group would be dropped from the DOM and
+      //    its tabs would render loose. The single rebuildAllTabs() in step 8
+      //    renders groups, the pinned row and stacks in the right order.
       {
         TabManager.groups = (ws.groups || []).map(g => ({ ...g }));
         await VexStorage.saveGroups(TabManager.groups);
       }
-      TabManager.renderGroups();
+      {
+        TabManager.stacks = (ws.stacks || []).map(s => ({ ...s }));
+        if (typeof VexStorage.saveStacks === 'function') await VexStorage.saveStacks(TabManager.stacks);
+      }
 
       // 7. Recreate tabs LAZILY (no webviews yet — instant)
       const savedTabs = Array.isArray(ws.tabs) ? ws.tabs : [];
@@ -100,15 +112,32 @@ const WorkspaceManager = {
       const tabsToRestore = savedTabs.filter(t => window.VexTabPolicy.canRestore(t));
       if (!tabsToRestore.length) tabsToRestore.push({ url: START_URL, title: 'New Tab' });
       let selectedId = null;
+      const savedToNewId = new Map();
       for (const t of tabsToRestore) {
         const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
         tab.keepAwakeUntil = t.keepAwakeUntil || 0;
-        tab.favicon = t.favicon || null;
-        TabManager.renderTabUpdate(tab);
+        tab.favicon = TabManager._persistableFavicon(t.favicon);
+        // createLazyTab always starts a tab unstacked; re-apply the saved
+        // membership so a workspace's stacks survive the round-trip.
+        if (t.stackId && TabManager.stacks.some(s => s.id === t.stackId)) {
+          TabManager._setTabStack(tab.id, t.stackId);
+        }
+        if (t.id) savedToNewId.set(t.id, tab.id);
         if (t === selectedTab) selectedId = tab.id;
       }
 
-      // 8. Activate the correct tab (this materializes only ONE webview)
+      // Stack tops refer to the ids the workspace was saved with; tabs get
+      // fresh ids on restore. Repoint each top, and drop any stack that no
+      // longer has members (same prune TabManager.init does on launch).
+      for (const stack of TabManager.stacks) {
+        stack.topTabId = savedToNewId.get(stack.topTabId) ||
+          TabManager.tabs.find(t => t.stackId === stack.id)?.id || null;
+      }
+      TabManager.stacks = TabManager.stacks.filter(s => TabManager.tabs.some(t => t.stackId === s.id));
+
+      // 8. One ordered render pass, then activate the correct tab (this
+      //    materializes only ONE webview).
+      TabManager.rebuildAllTabs();
       TabManager.switchTab(selectedId || TabManager.tabs[0].id);
 
       await TabManager.persistTabs();
@@ -295,7 +324,12 @@ const WorkspaceManager = {
       });
     }
 
-    modal.addEventListener('click', (e) => { if (e.target === modal) this.hideModal(); });
+    // #workspace-modal is a persistent element — wiring the backdrop click on
+    // every open stacked one listener per open.
+    if (!modal.dataset.backdropWired) {
+      modal.dataset.backdropWired = '1';
+      modal.addEventListener('click', (e) => { if (e.target === modal) this.hideModal(); });
+    }
     modal.querySelector('#ws-modal-name').addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.hideModal();
       if (e.key === 'Enter') modal.querySelector('#ws-modal-save').click();

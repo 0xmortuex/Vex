@@ -34,7 +34,7 @@ describe('CommandBar tool results', () => {
     expect(hits.map(h => h.id)).toContain('tool:health-bmi');
     const bmi = hits.find(h => h.id === 'tool:health-bmi');
     expect(bmi.label).toBe('BMI calculator');
-    expect(bmi.hint).toBe('🧰 Toolbox · Health');
+    expect(bmi.hint).toBe('Toolbox · Health');
   });
 
   it('opens the tool when chosen', () => {

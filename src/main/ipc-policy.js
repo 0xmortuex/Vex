@@ -55,7 +55,9 @@ function installIpcPolicy(ipcMain, security) {
       if (channel === 'persist-set') { host.persist[args[0]] = args[1]; return true; }
       if (channel === 'persist-delete') { delete host.persist[args[0]]; return true; }
       if (channel === 'sync-load-key' || channel === 'sync-load-meta') return null;
-      if (channel === 'recall:search') return [];
+      // A private window neither reads nor writes the recall index.
+      if (channel === 'recall:search') return { total: 0, hits: [], terms: [], took: 0, private: true };
+      if (channel === 'recall:stats') return { pages: 0, bytes: 0, oldest: 0, newest: 0, hosts: [], private: true };
       if (channel === 'gui-style:set') return true;
       if (PRIVATE_DISABLED.test(channel)) throw new Error('This operation is unavailable in a private window');
     }

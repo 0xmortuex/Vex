@@ -16,7 +16,8 @@ const TrackerReceipts = {
 
   async sample() {
     let stats = null;
-    try { stats = window.vex && window.vex.privacyTrackerStats ? await window.vex.privacyTrackerStats() : null; } catch {}
+    try { stats = window.vex && window.vex.privacyTrackerStats ? await window.vex.privacyTrackerStats() : null; }
+    catch (err) { console.warn('[TrackerReceipts] could not sample blocking stats:', err.message); }
     if (!stats) return;
     const cur = stats.total || 0;
     const byHost = stats.byHost || [];
@@ -46,6 +47,7 @@ const TrackerReceipts = {
   },
 
   start() { if (this._timer) return; this.sample(); this._timer = setInterval(() => this.sample(), 10 * 60 * 1000); },
+  stop() { if (this._timer) { clearInterval(this._timer); this._timer = null; } },
 
   _lastDays(n) {
     const out = []; const now = new Date();
@@ -81,7 +83,7 @@ const TrackerReceipts = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     let body;
     if (!weekTotal) {
-      body = `<div style="padding:30px 20px;text-align:center;color:var(--text-muted)">🌱 Your first receipt is still building.<br>Keep browsing — over the next few days this fills with your tracker‑blocking trend.</div>`;
+      body = `<div style="padding:30px 20px;text-align:center;color:var(--text-muted)">Your first receipt is still building.<br>Keep browsing — over the next few days this fills with your tracker‑blocking trend.</div>`;
     } else {
       const chart = days.map((d, i) => {
         const h = Math.round((daily[i] / maxDay) * 60);
@@ -105,11 +107,15 @@ const TrackerReceipts = {
         <div style="font-size:11.5px;color:var(--text-muted);margin-top:8px">${esc(this._summary(weekTotal, topTrackers, topCross))}</div>`;
     }
     m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:85vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 8px"><span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🧾 Tracker Receipts</span><button id="tr-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 8px"><span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Tracker Receipts</span><button id="tr-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button></div>
       <div style="overflow-y:auto;padding:4px 20px 20px;color:var(--text)">${body}</div></div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#tr-close').addEventListener('click', () => m.remove());
+    // Escape closes it, like every other Vex overlay.
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#tr-close').addEventListener('click', close);
   },
 
   _summary(total, trackers, cross) {

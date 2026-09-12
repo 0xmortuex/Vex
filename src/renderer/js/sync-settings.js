@@ -34,7 +34,7 @@ const SyncSettings = (() => {
     container.innerHTML = `
       <div class="sync-section">
         <div class="sync-header">
-          <div class="sync-icon-big">&#9729;&#65039;</div>
+          <div class="sync-icon-big">${VexIcons.svg('cloud', { size: 40 })}</div>
           <div>
             <div class="sync-title">Vex Sync</div>
             <div class="sync-subtitle">Sync your tabs, notes, and settings across devices</div>
@@ -85,7 +85,7 @@ const SyncSettings = (() => {
           </div>
 
           <div class="sync-security-note">
-            &#128274; All data is encrypted on your device before upload. We never see your content.
+            ${VexIcons.svg('lock', { size: 13 })} All data is encrypted on your device before upload. We never see your content.
           </div>
         </div>
       </div>
@@ -160,11 +160,11 @@ const SyncSettings = (() => {
     overlay.className = 'sync-modal-overlay';
     overlay.innerHTML = `
       <div class="sync-modal-card">
-        <h2 style="margin-top:0; color: var(--primary);">&#9888;&#65039; Save Your Recovery Code</h2>
+        <h2 style="margin-top:0; color: var(--primary);">${VexIcons.svg('warning', { size: 17 })} Save Your Recovery Code</h2>
         <p>This code is required to sync on another device or if you ever lose access. <strong>Vex cannot recover this for you.</strong></p>
         <div class="recovery-code-display">${escapeHtml(code)}</div>
         <div style="display:flex; gap:8px; justify-content:flex-end;">
-          <button class="btn-primary" id="copy-recovery">&#128203; Copy</button>
+          <button class="btn-primary" id="copy-recovery">${VexIcons.svg('copy', { size: 13 })} Copy</button>
           <button class="btn-secondary" id="close-recovery">I've saved it</button>
         </div>
       </div>
@@ -179,16 +179,35 @@ const SyncSettings = (() => {
 
   async function renderSignedIn(container) {
     const state = SyncEngine.getState();
-    let devices = [];
-    try { devices = await SyncEngine.listDevices(); } catch {}
+    // A device list we could not load is NOT an empty device list. Keep the
+    // failure as a distinct state so the panel can say so and offer a retry,
+    // instead of drawing "Devices (0) / No devices yet." over a server outage,
+    // a revoked session, or an unreachable worker.
+    let devices = null, devicesError = null;
+    try { devices = await SyncEngine.listDevices(); }
+    catch (err) { devicesError = (err && err.message) ? err.message : 'Could not load your devices'; }
 
     const lastPush = getRelativeTime(state.lastPushAt);
     const lastPull = getRelativeTime(state.lastPullAt);
+    const deviceBody = devicesError
+      ? `<div class="sync-devices-error" role="alert" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--danger,#e5484d);font-size:12px">
+           <span>${escapeHtml(devicesError)}</span>
+           <button class="btn-secondary" id="btn-retry-devices">Retry</button>
+         </div>`
+      : (devices.map(d => `
+              <div class="device-item ${d.deviceId === state.deviceId ? 'current' : ''}">
+                <div class="device-info">
+                  <div class="device-name">${VexIcons.svg('monitor', { size: 14 })} ${escapeHtml(d.deviceName)} ${d.deviceId === state.deviceId ? '<span class="this-device">(This device)</span>' : ''}</div>
+                  <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}</div>
+                </div>
+                ${d.deviceId !== state.deviceId ? `<button class="btn-danger-sm" data-device-id="${escapeHtml(d.deviceId)}">Remove</button>` : ''}
+              </div>
+            `).join('') || '<div style="color:var(--text-muted);font-size:12px">No devices yet.</div>');
 
     container.innerHTML = `
       <div class="sync-section">
         <div class="sync-header signed-in">
-          <div class="sync-icon-big">&#10003;</div>
+          <div class="sync-icon-big">${VexIcons.svg('check', { size: 22 })}</div>
           <div>
             <div class="sync-title">Signed in as ${escapeHtml(state.email)}</div>
             <div class="sync-subtitle">Last sync: pushed ${lastPush} &middot; pulled ${lastPull}</div>
@@ -197,18 +216,8 @@ const SyncSettings = (() => {
         </div>
 
         <div class="sync-subsection">
-          <h3>Devices (${devices.length})</h3>
-          <div class="device-list">
-            ${devices.map(d => `
-              <div class="device-item ${d.deviceId === state.deviceId ? 'current' : ''}">
-                <div class="device-info">
-                  <div class="device-name">&#128187; ${escapeHtml(d.deviceName)} ${d.deviceId === state.deviceId ? '<span class="this-device">(This device)</span>' : ''}</div>
-                  <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}</div>
-                </div>
-                ${d.deviceId !== state.deviceId ? `<button class="btn-danger-sm" data-device-id="${escapeHtml(d.deviceId)}">Remove</button>` : ''}
-              </div>
-            `).join('') || '<div style="color:var(--text-muted);font-size:12px">No devices yet.</div>'}
-          </div>
+          <h3>Devices ${devicesError ? '(unavailable)' : `(${devices.length})`}</h3>
+          <div class="device-list">${deviceBody}</div>
         </div>
 
         <div class="sync-subsection">
@@ -246,10 +255,23 @@ const SyncSettings = (() => {
       btn.disabled = true; btn.textContent = 'Syncing...';
       const pushR = await SyncEngine.pushNow();
       const pullR = await SyncEngine.pullNow();
-      btn.textContent = (pushR.ok && pullR.ok) ? 'Done \u2713' : 'Failed';
+      const ok = pushR.ok && pullR.ok;
+      btn.textContent = ok ? 'Done \u2713' : 'Failed';
+      // "Failed" on its own tells the user nothing they can act on \u2014 name which
+      // half failed and why.
+      if (!ok) {
+        const why = [!pushR.ok ? `upload: ${pushR.reason}` : '', !pullR.ok ? `download: ${pullR.reason}` : '']
+          .filter(Boolean).join(' \u00b7 ');
+        toast('Sync failed \u2014 ' + why, 'error');
+      }
       setTimeout(async () => {
         await renderSyncPanel(document.getElementById('sync-panel-content'));
       }, 1500);
+    });
+
+    // The device list failed to load; let the user ask again without leaving.
+    document.getElementById('btn-retry-devices')?.addEventListener('click', async () => {
+      await renderSyncPanel(document.getElementById('sync-panel-content'));
     });
 
     document.getElementById('btn-show-recovery')?.addEventListener('click', async () => {
@@ -266,16 +288,26 @@ const SyncSettings = (() => {
     });
 
     document.getElementById('btn-wipe-cloud')?.addEventListener('click', async () => {
-      if (!await vexConfirm({ title: 'Wipe cloud data', message: 'Wipe ALL cloud data? This cannot be undone. Local data on each device is safe.', okLabel: 'Wipe everything', danger: true })) return;
-      const ok = await SyncEngine.wipeAllCloudData();
-      toast(ok ? 'Cloud data wiped' : 'Wipe failed', ok ? 'success' : 'error');
+      // Wiping also clears the server's device registry, which un-enrols every
+      // device including this one. Say so up front instead of letting the user
+      // discover it later as a silent sign-out.
+      if (!await vexConfirm({
+        title: 'Wipe cloud data',
+        message: 'Wipe ALL cloud data? This cannot be undone. Local data on each device is safe, but every device is signed out of sync and you will need to sign in again.',
+        okLabel: 'Wipe everything', danger: true,
+      })) return;
+      const res = await SyncEngine.wipeAllCloudData();
+      await renderSyncPanel(document.getElementById('sync-panel-content'));
+      if (res && res.ok) toast('Cloud data wiped — this device is signed out of sync', 'success');
+      else toast('Wipe failed — ' + ((res && res.reason) || 'unknown error'), 'error');
     });
 
     container.querySelectorAll('[data-device-id]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.deviceId;
         if (!await vexConfirm({ title: 'Remove device', message: 'Remove this device from sync?', okLabel: 'Remove', danger: true })) return;
-        await SyncEngine.removeDevice(id);
+        try { await SyncEngine.removeDevice(id); }
+        catch (err) { toast((err && err.message) || 'Could not remove that device', 'error'); return; }
         await renderSyncPanel(document.getElementById('sync-panel-content'));
         toast('Device removed', 'success');
       });

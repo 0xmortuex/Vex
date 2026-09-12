@@ -422,7 +422,7 @@
   const PACK = [
     // ======================= Unit converters =================================
     converter({
-      id: 'unit-length', name: 'Length converter', icon: '📏', desc: 'Convert between metric, imperial, nautical and astronomical lengths.',
+      id: 'unit-length', name: 'Length converter', desc: 'Convert between metric, imperial, nautical and astronomical lengths.',
       keywords: ['distance', 'meter', 'metre', 'mile', 'km', 'feet', 'inch', 'yard'],
       units: [['nm', 'Nanometres', 1e-9, 'nm'], ['um', 'Micrometres', 1e-6, 'µm'], ['mm', 'Millimetres', 1e-3, 'mm'], ['cm', 'Centimetres', 1e-2, 'cm'],
         ['m', 'Metres', 1, 'm'], ['km', 'Kilometres', 1000, 'km'], ['in', 'Inches', IN, 'in'], ['ft', 'Feet', FT, 'ft'], ['yd', 'Yards', YD, 'yd'],
@@ -432,7 +432,7 @@
         { in: { value: 3, from: 'ft', to: 'yd' }, out: '3 ft = 1 yd' }],
     }),
     converter({
-      id: 'unit-area', name: 'Area converter', icon: '⬛', desc: 'Convert square metres, hectares, acres, square feet and more.',
+      id: 'unit-area', name: 'Area converter', desc: 'Convert square metres, hectares, acres, square feet and more.',
       keywords: ['acre', 'hectare', 'square', 'sq ft', 'm2'],
       units: [['mm2', 'Square millimetres', 1e-6, 'mm²'], ['cm2', 'Square centimetres', 1e-4, 'cm²'], ['m2', 'Square metres', 1, 'm²'], ['ha', 'Hectares', 1e4, 'ha'],
         ['km2', 'Square kilometres', 1e6, 'km²'], ['in2', 'Square inches', IN * IN, 'in²'], ['ft2', 'Square feet', FT * FT, 'ft²'], ['yd2', 'Square yards', YD * YD, 'yd²'],
@@ -442,7 +442,7 @@
         { in: { value: 1, from: 'ha', to: 'm2' }, out: '1 ha = 10000 m²' }],
     }),
     converter({
-      id: 'unit-volume', name: 'Volume converter', icon: '🧪', desc: 'Convert litres, cubic metres, US and imperial gallons, pints and fluid ounces.',
+      id: 'unit-volume', name: 'Volume converter', desc: 'Convert litres, cubic metres, US and imperial gallons, pints and fluid ounces.',
       keywords: ['liter', 'litre', 'gallon', 'pint', 'quart', 'fluid ounce', 'cubic'],
       units: [['ml', 'Millilitres', 1e-6, 'mL'], ['l', 'Litres', 1e-3, 'L'], ['m3', 'Cubic metres', 1, 'm³'], ['cm3', 'Cubic centimetres', 1e-6, 'cm³'],
         ['in3', 'Cubic inches', IN ** 3, 'in³'], ['ft3', 'Cubic feet', FT ** 3, 'ft³'], ['gal', 'US gallons', GAL, 'US gal'], ['qt', 'US quarts', GAL / 4, 'US qt'],
@@ -453,7 +453,7 @@
         { in: { value: 1, from: 'ft3', to: 'l' }, out: '1 ft³ = 28.31684659 L' }],
     }),
     converter({
-      id: 'unit-mass', name: 'Weight & mass converter', icon: '⚖', desc: 'Convert kilograms, pounds, ounces, stone, tonnes and more.',
+      id: 'unit-mass', name: 'Weight & mass converter', desc: 'Convert kilograms, pounds, ounces, stone, tonnes and more.',
       keywords: ['weight', 'kg', 'lb', 'pound', 'ounce', 'stone', 'ton', 'gram'],
       units: [['mg', 'Milligrams', 1e-6, 'mg'], ['g', 'Grams', 1e-3, 'g'], ['kg', 'Kilograms', 1, 'kg'], ['t', 'Tonnes (metric)', 1000, 't'],
         ['oz', 'Ounces', LB / 16, 'oz'], ['lb', 'Pounds', LB, 'lb'], ['st', 'Stone', LB * 14, 'st'], ['ton', 'US short tons', LB * 2000, 'short ton'],
@@ -463,7 +463,7 @@
         { in: { value: 1, from: 'kg', to: 'lb' }, out: '1 kg = 2.204622622 lb' }],
     }),
     {
-      id: 'unit-temperature', name: 'Temperature converter', icon: '🌡', family: 'convert', desc: 'Convert between Celsius, Fahrenheit, Kelvin and Rankine.',
+      id: 'unit-temperature', name: 'Temperature converter', family: 'convert', desc: 'Convert between Celsius, Fahrenheit, Kelvin and Rankine.',
       keywords: ['celsius', 'fahrenheit', 'kelvin', 'degrees'],
       fields: [
         { id: 'value', label: 'Value', type: 'number', value: 100 },
@@ -482,7 +482,7 @@
         { in: { value: 0, from: 'K', to: 'C' }, out: '0 K = -273.15 °C' }, { in: { value: 98.6, from: 'F', to: 'C' }, out: '98.6 °F = 37 °C' }],
     },
     converter({
-      id: 'unit-speed', name: 'Speed converter', icon: '🏎', desc: 'Convert km/h, mph, m/s, knots and feet per second.',
+      id: 'unit-speed', name: 'Speed converter', desc: 'Convert km/h, mph, m/s, knots and feet per second.',
       keywords: ['velocity', 'kmh', 'mph', 'knot'],
       units: [['ms', 'Metres per second', 1, 'm/s'], ['kmh', 'Kilometres per hour', 1 / 3.6, 'km/h'], ['mph', 'Miles per hour', MI / 3600, 'mph'],
         ['kn', 'Knots', NMI / 3600, 'kn'], ['fts', 'Feet per second', FT, 'ft/s']],
@@ -491,7 +491,7 @@
         { in: { value: 1, from: 'kn', to: 'kmh' }, out: '1 kn = 1.852 km/h' }],
     }),
     converter({
-      id: 'unit-time', name: 'Time duration converter', icon: '⏱', desc: 'Convert seconds, minutes, hours, days, weeks and average months/years.',
+      id: 'unit-time', name: 'Time duration converter', desc: 'Convert seconds, minutes, hours, days, weeks and average months/years.',
       keywords: ['duration', 'seconds', 'minutes', 'hours', 'days'],
       units: [['ns', 'Nanoseconds', 1e-9, 'ns'], ['us', 'Microseconds', 1e-6, 'µs'], ['ms', 'Milliseconds', 1e-3, 'ms'], ['s', 'Seconds', 1, 's'],
         ['min', 'Minutes', 60, 'min'], ['h', 'Hours', 3600, 'h'], ['d', 'Days', 86400, 'days'], ['wk', 'Weeks', 604800, 'weeks'],
@@ -502,7 +502,7 @@
         { in: { value: 90, from: 'min', to: 'h' }, out: '90 min = 1.5 h' }],
     }),
     converter({
-      id: 'unit-data', name: 'Data size converter', icon: '💾', desc: 'Convert bits, bytes, decimal kB/MB/GB/TB and binary KiB/MiB/GiB/TiB.',
+      id: 'unit-data', name: 'Data size converter', desc: 'Convert bits, bytes, decimal kB/MB/GB/TB and binary KiB/MiB/GiB/TiB.',
       keywords: ['bytes', 'megabyte', 'gigabyte', 'kibibyte', 'mebibyte', 'storage', 'bits'],
       units: [['bit', 'Bits', 1 / 8, 'bit'], ['B', 'Bytes', 1, 'B'], ['kbit', 'Kilobits', 125, 'kbit'], ['Mbit', 'Megabits', 125e3, 'Mbit'], ['Gbit', 'Gigabits', 125e6, 'Gbit'],
         ['kB', 'Kilobytes (1000 B)', 1e3, 'kB'], ['MB', 'Megabytes (1000² B)', 1e6, 'MB'], ['GB', 'Gigabytes (1000³ B)', 1e9, 'GB'], ['TB', 'Terabytes (1000⁴ B)', 1e12, 'TB'],
@@ -513,7 +513,7 @@
         { in: { value: 1, from: 'TB', to: 'GiB' }, out: '1 TB = 931.3225746 GiB' }],
     }),
     converter({
-      id: 'unit-pressure', name: 'Pressure converter', icon: '🎈', desc: 'Convert pascals, bar, atmospheres, psi, mmHg, inHg and torr.',
+      id: 'unit-pressure', name: 'Pressure converter', desc: 'Convert pascals, bar, atmospheres, psi, mmHg, inHg and torr.',
       keywords: ['psi', 'bar', 'atm', 'pascal', 'tire', 'tyre', 'mmhg'],
       units: [['pa', 'Pascals', 1, 'Pa'], ['hpa', 'Hectopascals', 100, 'hPa'], ['kpa', 'Kilopascals', 1000, 'kPa'], ['mpa', 'Megapascals', 1e6, 'MPa'],
         ['bar', 'Bar', 1e5, 'bar'], ['mbar', 'Millibar', 100, 'mbar'], ['atm', 'Standard atmospheres', 101325, 'atm'], ['psi', 'Pounds per square inch', LBF / (IN * IN), 'psi'],
@@ -523,7 +523,7 @@
         { in: { value: 1, from: 'bar', to: 'kpa' }, out: '1 bar = 100 kPa' }],
     }),
     converter({
-      id: 'unit-energy', name: 'Energy converter', icon: '🔋', desc: 'Convert joules, calories, kWh, BTU, electronvolts and more.',
+      id: 'unit-energy', name: 'Energy converter', desc: 'Convert joules, calories, kWh, BTU, electronvolts and more.',
       keywords: ['joule', 'calorie', 'kcal', 'kwh', 'btu', 'ev', 'therm'],
       units: [['j', 'Joules', 1, 'J'], ['kj', 'Kilojoules', 1000, 'kJ'], ['mj', 'Megajoules', 1e6, 'MJ'], ['cal', 'Calories (thermochemical)', CAL, 'cal'],
         ['kcal', 'Kilocalories (food Calories)', CAL * 1000, 'kcal'], ['wh', 'Watt-hours', 3600, 'Wh'], ['kwh', 'Kilowatt-hours', 3.6e6, 'kWh'],
@@ -534,7 +534,7 @@
         { in: { value: 1, from: 'btu', to: 'j' }, out: '1 BTU = 1055.055853 J' }],
     }),
     converter({
-      id: 'unit-power', name: 'Power converter', icon: '⚡', desc: 'Convert watts, kilowatts, horsepower (mechanical and metric) and BTU/h.',
+      id: 'unit-power', name: 'Power converter', desc: 'Convert watts, kilowatts, horsepower (mechanical and metric) and BTU/h.',
       keywords: ['watt', 'horsepower', 'hp', 'kw', 'btu/h'],
       units: [['w', 'Watts', 1, 'W'], ['kw', 'Kilowatts', 1000, 'kW'], ['mw', 'Megawatts', 1e6, 'MW'], ['hp', 'Horsepower (mechanical)', 550 * FT * LBF, 'hp'],
         ['ps', 'Metric horsepower (PS)', 75 * G0, 'PS'], ['btuh', 'BTU per hour', BTU / 3600, 'BTU/h'], ['kcalh', 'Kilocalories per hour', CAL * 1000 / 3600, 'kcal/h'],
@@ -543,7 +543,7 @@
       examples: [{ in: { value: 1, from: 'hp', to: 'w' }, out: '1 hp = 745.6998716 W' }, { in: { value: 1, from: 'ps', to: 'w' }, out: '1 PS = 735.49875 W' }],
     }),
     converter({
-      id: 'unit-force', name: 'Force converter', icon: '💪', desc: 'Convert newtons, kilonewtons, pound-force, kilogram-force and dynes.',
+      id: 'unit-force', name: 'Force converter', desc: 'Convert newtons, kilonewtons, pound-force, kilogram-force and dynes.',
       keywords: ['newton', 'lbf', 'kgf', 'dyne'],
       units: [['n', 'Newtons', 1, 'N'], ['kn', 'Kilonewtons', 1000, 'kN'], ['lbf', 'Pound-force', LBF, 'lbf'], ['kgf', 'Kilogram-force', G0, 'kgf'],
         ['ozf', 'Ounce-force', LBF / 16, 'ozf'], ['kip', 'Kips (1000 lbf)', LBF * 1000, 'kip'], ['pdl', 'Poundals', LB * FT, 'pdl'], ['dyn', 'Dynes', 1e-5, 'dyn']],
@@ -551,7 +551,7 @@
       examples: [{ in: { value: 1, from: 'lbf', to: 'n' }, out: '1 lbf = 4.448221615 N' }, { in: { value: 1, from: 'kgf', to: 'n' }, out: '1 kgf = 9.80665 N' }],
     }),
     converter({
-      id: 'unit-angle', name: 'Angle converter', icon: '📐', desc: 'Convert degrees, radians, gradians, turns, arcminutes and arcseconds.',
+      id: 'unit-angle', name: 'Angle converter', desc: 'Convert degrees, radians, gradians, turns, arcminutes and arcseconds.',
       keywords: ['degree', 'radian', 'gradian', 'arcminute'],
       units: [['deg', 'Degrees', Math.PI / 180, '°'], ['rad', 'Radians', 1, 'rad'], ['mrad', 'Milliradians', 1e-3, 'mrad'], ['grad', 'Gradians', Math.PI / 200, 'grad'],
         ['turn', 'Turns', 2 * Math.PI, 'turn'], ['arcmin', 'Arcminutes', Math.PI / 10800, '′'], ['arcsec', 'Arcseconds', Math.PI / 648000, '″']],
@@ -560,7 +560,7 @@
         { in: { value: 100, from: 'grad', to: 'deg' }, out: '100 grad = 90 °' }],
     }),
     {
-      id: 'unit-fuel-economy', name: 'Fuel economy converter', icon: '⛽', family: 'convert', desc: 'Convert mpg (US or UK), litres per 100 km and km per litre.',
+      id: 'unit-fuel-economy', name: 'Fuel economy converter', family: 'convert', desc: 'Convert mpg (US or UK), litres per 100 km and km per litre.',
       keywords: ['mpg', 'l/100km', 'consumption', 'mileage'],
       fields: [
         { id: 'value', label: 'Value', type: 'number', value: 30 },
@@ -577,7 +577,7 @@
         { in: { value: 5, from: 'l100', to: 'kml' }, out: '5 L/100 km = 20 km/L' }, { in: { value: 1, from: 'mpgus', to: 'kml' }, out: '1 mpg (US) = 0.4251437074 km/L' }],
     },
     {
-      id: 'unit-cooking', name: 'Cooking measurement converter', icon: '🥄', family: 'convert',
+      id: 'unit-cooking', name: 'Cooking measurement converter', family: 'convert',
       desc: 'Convert cups, spoons, millilitres and grams for common ingredients (weights are typical values, so approximate).',
       keywords: ['recipe', 'cup', 'tablespoon', 'teaspoon', 'baking', 'grams', 'flour', 'sugar'],
       fields: [
@@ -601,7 +601,7 @@
         { in: { value: 100, from: 'g', to: 'cup', ing: 'sugar' }, out: '100 g granulated sugar ≈ 0.5 cup' }],
     },
     {
-      id: 'unit-shoe-size', name: 'Shoe size converter', icon: '👟', family: 'convert',
+      id: 'unit-shoe-size', name: 'Shoe size converter', family: 'convert',
       desc: 'Approximate adult shoe sizes across EU, UK and US (men and women). Brands vary — always try shoes on.',
       keywords: ['shoe', 'size', 'eu', 'uk', 'us', 'footwear'],
       fields: [
@@ -623,7 +623,7 @@
         { in: { size: 7.5, sys: 'usw' }, out: [['EU', '38'], ['UK', '5'], ['US men', '6'], ['US women', '7.5'], ['Note', 'Approximate — sizing differs between brands.']] }],
     },
     {
-      id: 'unit-number-base', name: 'Number base converter', icon: '🔢', family: 'convert',
+      id: 'unit-number-base', name: 'Number base converter', family: 'convert',
       desc: 'Convert whole numbers of any size between bases 2–36 (binary, octal, decimal, hex…).',
       keywords: ['binary', 'hex', 'hexadecimal', 'octal', 'decimal', 'radix', 'base36'],
       fields: [
@@ -642,7 +642,7 @@
         { in: { num: '-0b1010', from: 2, to: 3 }, out: [['Base 3', '-101'], ['Binary', '-1010'], ['Octal', '-12'], ['Decimal', '-10'], ['Hexadecimal', '-A']] }],
     },
     converter({
-      id: 'unit-density', name: 'Density converter', icon: '🧊', desc: 'Convert kg/m³, g/cm³, kg/L, lb/ft³, lb/in³ and lb per US gallon.',
+      id: 'unit-density', name: 'Density converter', desc: 'Convert kg/m³, g/cm³, kg/L, lb/ft³, lb/in³ and lb per US gallon.',
       keywords: ['density', 'specific gravity', 'kg/m3', 'g/cm3'],
       units: [['kgm3', 'Kilograms per cubic metre', 1, 'kg/m³'], ['gcm3', 'Grams per cubic centimetre (= g/mL)', 1000, 'g/cm³'], ['kgl', 'Kilograms per litre', 1000, 'kg/L'],
         ['gl', 'Grams per litre', 1, 'g/L'], ['lbft3', 'Pounds per cubic foot', LB / FT ** 3, 'lb/ft³'], ['lbin3', 'Pounds per cubic inch', LB / IN ** 3, 'lb/in³'],
@@ -651,7 +651,7 @@
       examples: [{ in: { value: 1, from: 'gcm3', to: 'kgm3' }, out: '1 g/cm³ = 1000 kg/m³' }, { in: { value: 1, from: 'gcm3', to: 'lbft3' }, out: '1 g/cm³ = 62.42796058 lb/ft³' }],
     }),
     converter({
-      id: 'unit-frequency', name: 'Frequency converter', icon: '〰', desc: 'Convert hertz, kHz, MHz, GHz, revolutions per minute and radians per second.',
+      id: 'unit-frequency', name: 'Frequency converter', desc: 'Convert hertz, kHz, MHz, GHz, revolutions per minute and radians per second.',
       keywords: ['hertz', 'rpm', 'hz', 'angular velocity'],
       units: [['hz', 'Hertz', 1, 'Hz'], ['khz', 'Kilohertz', 1e3, 'kHz'], ['mhz', 'Megahertz', 1e6, 'MHz'], ['ghz', 'Gigahertz', 1e9, 'GHz'], ['thz', 'Terahertz', 1e12, 'THz'],
         ['rpm', 'Revolutions per minute', 1 / 60, 'rpm'], ['rads', 'Radians per second', 1 / (2 * Math.PI), 'rad/s']],
@@ -659,7 +659,7 @@
       examples: [{ in: { value: 60, from: 'rpm', to: 'hz' }, out: '60 rpm = 1 Hz' }, { in: { value: 1, from: 'hz', to: 'rads' }, out: '1 Hz = 6.283185307 rad/s' }],
     }),
     converter({
-      id: 'unit-torque', name: 'Torque converter', icon: '🔧', desc: 'Convert newton-metres, pound-feet, pound-inches and kilogram-force metres.',
+      id: 'unit-torque', name: 'Torque converter', desc: 'Convert newton-metres, pound-feet, pound-inches and kilogram-force metres.',
       keywords: ['torque', 'nm', 'ft-lb', 'lb-ft', 'wrench'],
       units: [['nm', 'Newton-metres', 1, 'N·m'], ['ncm', 'Newton-centimetres', 0.01, 'N·cm'], ['knm', 'Kilonewton-metres', 1000, 'kN·m'], ['lbft', 'Pound-force feet', LBF * FT, 'lbf·ft'],
         ['lbin', 'Pound-force inches', LBF * IN, 'lbf·in'], ['ozin', 'Ounce-force inches', LBF / 16 * IN, 'ozf·in'], ['kgfm', 'Kilogram-force metres', G0, 'kgf·m'], ['kgfcm', 'Kilogram-force centimetres', G0 / 100, 'kgf·cm']],
@@ -667,14 +667,14 @@
       examples: [{ in: { value: 1, from: 'lbft', to: 'nm' }, out: '1 lbf·ft = 1.355817948 N·m' }, { in: { value: 12, from: 'lbin', to: 'lbft' }, out: '12 lbf·in = 1 lbf·ft' }],
     }),
     converter({
-      id: 'unit-illuminance', name: 'Illuminance converter', icon: '💡', desc: 'Convert lux, foot-candles and phots.',
+      id: 'unit-illuminance', name: 'Illuminance converter', desc: 'Convert lux, foot-candles and phots.',
       keywords: ['lux', 'foot-candle', 'light', 'brightness'],
       units: [['lx', 'Lux', 1, 'lx'], ['fc', 'Foot-candles', 1 / (FT * FT), 'fc'], ['ph', 'Phots', 1e4, 'ph'], ['nx', 'Nox', 1e-3, 'nx']],
       from: 'fc', to: 'lx',
       examples: [{ in: { value: 1, from: 'fc', to: 'lx' }, out: '1 fc = 10.76391042 lx' }, { in: { value: 1, from: 'ph', to: 'lx' }, out: '1 ph = 10000 lx' }],
     }),
     converter({
-      id: 'unit-acceleration', name: 'Acceleration converter', icon: '🚀', desc: 'Convert m/s², standard gravity (g), ft/s², gal and km/h per second.',
+      id: 'unit-acceleration', name: 'Acceleration converter', desc: 'Convert m/s², standard gravity (g), ft/s², gal and km/h per second.',
       keywords: ['g-force', 'acceleration', 'gravity'],
       units: [['ms2', 'Metres per second squared', 1, 'm/s²'], ['g', 'Standard gravity (g)', G0, 'g'], ['fts2', 'Feet per second squared', FT, 'ft/s²'],
         ['gal', 'Gal (cm/s²)', 0.01, 'Gal'], ['kmhs', 'km/h per second', 1 / 3.6, 'km/h/s'], ['mphs', 'mph per second', MI / 3600, 'mph/s']],
@@ -682,7 +682,7 @@
       examples: [{ in: { value: 1, from: 'g', to: 'ms2' }, out: '1 g = 9.80665 m/s²' }, { in: { value: 1, from: 'g', to: 'fts2' }, out: '1 g = 32.17404856 ft/s²' }],
     }),
     converter({
-      id: 'unit-flow-rate', name: 'Flow rate converter', icon: '🚰', desc: 'Convert litres per minute, cubic metres per hour, gallons per minute and CFM.',
+      id: 'unit-flow-rate', name: 'Flow rate converter', desc: 'Convert litres per minute, cubic metres per hour, gallons per minute and CFM.',
       keywords: ['flow', 'gpm', 'cfm', 'l/min', 'pump'],
       units: [['m3s', 'Cubic metres per second', 1, 'm³/s'], ['m3h', 'Cubic metres per hour', 1 / 3600, 'm³/h'], ['ls', 'Litres per second', 1e-3, 'L/s'],
         ['lmin', 'Litres per minute', 1e-3 / 60, 'L/min'], ['lh', 'Litres per hour', 1e-3 / 3600, 'L/h'], ['gpm', 'US gallons per minute', GAL / 60, 'US gpm'],
@@ -751,7 +751,7 @@
         { in: { x: '0.125' }, out: [['Fraction', '1/8'], ['Mixed number', '1/8'], ['Decimal', '0.125'], ['Percent', '12.5%']] }],
     },
     {
-      id: 'math-fraction-calc', name: 'Fraction calculator', icon: '➗', family: 'math', desc: 'Add, subtract, multiply or divide fractions and mixed numbers exactly.',
+      id: 'math-fraction-calc', name: 'Fraction calculator', family: 'math', desc: 'Add, subtract, multiply or divide fractions and mixed numbers exactly.',
       keywords: ['fraction', 'add fractions', 'common denominator'],
       fields: [
         { id: 'a', label: 'First fraction', type: 'text', value: '1/2' },
@@ -770,7 +770,7 @@
         { in: { a: '1/4', op: '-', b: '2/3' }, out: [['Fraction', '-5/12'], ['Mixed number', '-5/12'], ['Decimal', '-0.41(6)'], ['Percent', '-41.(6)%']] }],
     },
     {
-      id: 'math-gcd-lcm', name: 'GCD & LCM', icon: '🔗', family: 'math', desc: 'Greatest common divisor and least common multiple of any whole numbers.',
+      id: 'math-gcd-lcm', name: 'GCD & LCM', family: 'math', desc: 'Greatest common divisor and least common multiple of any whole numbers.',
       keywords: ['gcd', 'hcf', 'gcf', 'lcm', 'common factor', 'common multiple'],
       fields: [{ id: 'nums', label: 'Whole numbers', type: 'textarea', value: '12, 18, 24' }],
       run(v) {
@@ -784,7 +784,7 @@
       examples: [{ in: { nums: '12, 18, 24' }, out: [['GCD', '6'], ['LCM', '72']] }, { in: { nums: '17 5' }, out: [['GCD', '1'], ['LCM', '85']] }],
     },
     {
-      id: 'math-prime-factors', name: 'Prime check & factorization', icon: '🔍', family: 'math', desc: 'Is it prime? Prime factorization and number of divisors (up to 9 quadrillion).',
+      id: 'math-prime-factors', name: 'Prime check & factorization', family: 'math', desc: 'Is it prime? Prime factorization and number of divisors (up to 9 quadrillion).',
       keywords: ['prime', 'factor', 'factorization', 'divisors', 'composite'],
       fields: [{ id: 'n', label: 'Whole number', type: 'number', value: 360 }],
       run(v) {
@@ -813,7 +813,7 @@
       examples: [{ in: { n: 20 }, out: [['20!', '2432902008176640000'], ['Digits', '19']] }, { in: { n: 0 }, out: [['0!', '1'], ['Digits', '1']] }],
     },
     {
-      id: 'math-combinations', name: 'Combinations & permutations', icon: '🃏', family: 'math', desc: 'nCr, nPr, and both with repetition — exact results.',
+      id: 'math-combinations', name: 'Combinations & permutations', family: 'math', desc: 'nCr, nPr, and both with repetition — exact results.',
       keywords: ['ncr', 'npr', 'choose', 'binomial', 'arrangements', 'combinatorics'],
       fields: [
         { id: 'n', label: 'n (items to choose from)', type: 'number', value: 52 },
@@ -871,7 +871,7 @@
       examples: [{ in: { a1: 2, b1: 3, c1: 8, a2: 1, b2: -1, c2: -1 }, out: [['x', '1'], ['y', '2']] }],
     },
     {
-      id: 'math-statistics', name: 'Statistics', icon: '📊', family: 'math', desc: 'Mean, median, mode, range, variance and standard deviation of a list of numbers.',
+      id: 'math-statistics', name: 'Statistics', family: 'math', desc: 'Mean, median, mode, range, variance and standard deviation of a list of numbers.',
       keywords: ['mean', 'average', 'median', 'mode', 'standard deviation', 'variance', 'stdev'],
       fields: [{ id: 'nums', label: 'Numbers', type: 'textarea', value: '2, 4, 4, 4, 5, 5, 7, 9' }],
       run(v) {
@@ -896,7 +896,7 @@
         ['Variance (population)', '4'], ['Standard deviation (population)', '2'], ['Variance (sample)', '4.571428571'], ['Standard deviation (sample)', '2.138089935']] }],
     },
     {
-      id: 'math-weighted-average', name: 'Weighted average', icon: '⚖', family: 'math', desc: 'Average of values with different weights — one "value, weight" pair per line.',
+      id: 'math-weighted-average', name: 'Weighted average', family: 'math', desc: 'Average of values with different weights — one "value, weight" pair per line.',
       keywords: ['weighted mean', 'weights', 'grade average'],
       fields: [{ id: 'pairs', label: 'Value, weight (one pair per line)', type: 'textarea', value: '80, 2\n90, 3' }],
       run(v) {
@@ -999,7 +999,7 @@
       examples: [{ in: { x: 2, n: 2 }, out: 'Square root of 2 = 1.414213562' }, { in: { x: -27, n: 3 }, out: 'Cube root of -27 = -3' }, { in: { x: 32, n: 5 }, out: '5th root of 32 = 2' }],
     },
     {
-      id: 'math-pythagoras', name: 'Pythagorean theorem', icon: '📐', family: 'math', desc: 'Right triangle: enter any two of the legs a, b and hypotenuse c to get the third.',
+      id: 'math-pythagoras', name: 'Pythagorean theorem', family: 'math', desc: 'Right triangle: enter any two of the legs a, b and hypotenuse c to get the third.',
       keywords: ['pythagoras', 'hypotenuse', 'right triangle'],
       fields: [
         { id: 'a', label: 'Leg a', type: 'number', value: 3 }, { id: 'b', label: 'Leg b', type: 'number', value: 4 },
@@ -1057,7 +1057,7 @@
         { in: { known: 'a', x: Math.PI }, out: [['Radius', '1'], ['Diameter', '2'], ['Circumference', '6.283185307'], ['Area', '3.141592654']] }],
     },
     {
-      id: 'math-solid', name: 'Sphere, cylinder & cone', icon: '🧊', family: 'math', desc: 'Volume and surface area of a sphere, cylinder or cone.',
+      id: 'math-solid', name: 'Sphere, cylinder & cone', family: 'math', desc: 'Volume and surface area of a sphere, cylinder or cone.',
       keywords: ['volume', 'surface area', 'sphere', 'cylinder', 'cone', '3d'],
       fields: [
         { id: 'shape', label: 'Shape', type: 'select', value: 'cylinder', options: [['sphere', 'Sphere'], ['cylinder', 'Cylinder'], ['cone', 'Cone']] },
@@ -1104,7 +1104,7 @@
         { in: { n: 4, s: 2 }, out: [['Area', '4'], ['Perimeter', '8'], ['Interior angle', '90°'], ['Exterior angle', '90°'], ['Apothem (inradius)', '1'], ['Circumradius', '1.414213562']] }],
     },
     {
-      id: 'math-two-points', name: 'Distance, slope & line', icon: '📈', family: 'math', desc: 'Distance, midpoint, slope and line equation through two points.',
+      id: 'math-two-points', name: 'Distance, slope & line', family: 'math', desc: 'Distance, midpoint, slope and line equation through two points.',
       keywords: ['distance formula', 'slope', 'midpoint', 'line equation', 'gradient'],
       fields: [
         { id: 'x1', label: 'x₁', type: 'number', value: 1 }, { id: 'y1', label: 'y₁', type: 'number', value: 2 },
@@ -1147,7 +1147,7 @@
         { in: { m: '0.5 1\n1 3' }, out: [['Size', '2×2'], ['Determinant', '1/2 = 0.5'], ['Invertible', 'Yes']] }],
     },
     {
-      id: 'math-fibonacci', name: 'Fibonacci number', icon: '🐚', family: 'math', desc: 'The exact nth Fibonacci number (F(0) = 0, F(1) = 1), up to n = 10000.',
+      id: 'math-fibonacci', name: 'Fibonacci number', family: 'math', desc: 'The exact nth Fibonacci number (F(0) = 0, F(1) = 1), up to n = 10000.',
       keywords: ['fibonacci', 'sequence', 'golden ratio'],
       fields: [{ id: 'n', label: 'n', type: 'number', value: 10, min: 0 }],
       run(v) {
@@ -1201,7 +1201,7 @@
         { in: { x: Math.PI, unit: 'rad' }, out: [['sin', '0'], ['cos', '-1'], ['tan', '0'], ['In degrees', '180°']] }],
     },
     {
-      id: 'math-speed-distance-time', name: 'Speed, distance & time', icon: '🏁', family: 'math', desc: 'Enter any two of distance, time and average speed to get the third (use matching units).',
+      id: 'math-speed-distance-time', name: 'Speed, distance & time', family: 'math', desc: 'Enter any two of distance, time and average speed to get the third (use matching units).',
       keywords: ['average speed', 'travel time', 'distance', 'pace'],
       fields: [
         { id: 'd', label: 'Distance (e.g. km)', type: 'number', value: 120 },
@@ -1252,7 +1252,7 @@
         { in: { V: 230, I: '', R: '', P: 1000 }, out: [['Voltage', '230 V'], ['Current', '4.347826087 A'], ['Resistance', '52.9 Ω'], ['Power', '1000 W']] }],
     },
     {
-      id: 'sci-resistor-colors', name: 'Resistor colour code', icon: '🎨', family: 'science', desc: 'Decode 3, 4, 5 or 6-band resistor colours into resistance, tolerance and range.',
+      id: 'sci-resistor-colors', name: 'Resistor colour code', family: 'science', desc: 'Decode 3, 4, 5 or 6-band resistor colours into resistance, tolerance and range.',
       keywords: ['resistor', 'color code', 'colour code', 'bands', 'electronics'],
       fields: [{ id: 'bands', label: 'Band colours, in order', type: 'text', value: 'yellow violet red gold', placeholder: 'e.g. brown black red gold' }],
       run(v) {
@@ -1299,7 +1299,7 @@
         { in: { list: '1000 1000 1000' }, out: [['Series total', '3 kΩ'], ['Parallel total', '333.3333333 Ω']] }],
     },
     {
-      id: 'sci-energy-cost', name: 'Electricity cost', icon: '🔌', family: 'science', desc: 'Energy used and running cost of an appliance from its wattage and hours of use.',
+      id: 'sci-energy-cost', name: 'Electricity cost', family: 'science', desc: 'Energy used and running cost of an appliance from its wattage and hours of use.',
       keywords: ['kwh', 'electricity bill', 'power consumption', 'appliance', 'watts'],
       fields: [
         { id: 'w', label: 'Power (watts)', type: 'number', value: 100 },
@@ -1316,7 +1316,7 @@
       examples: [{ in: { w: 100, h: 5, days: 30, price: 0.15 }, out: [['Energy used', '15 kWh'], ['Cost', '2.25'], ['Cost per day', '0.075']] }],
     },
     {
-      id: 'sci-kinetic-energy', name: 'Kinetic energy', icon: '💨', family: 'science', desc: 'Kinetic energy (½mv²) and momentum of a moving mass.',
+      id: 'sci-kinetic-energy', name: 'Kinetic energy', family: 'science', desc: 'Kinetic energy (½mv²) and momentum of a moving mass.',
       keywords: ['kinetic', 'momentum', 'energy', 'velocity'],
       fields: [{ id: 'm', label: 'Mass (kg)', type: 'number', value: 2 }, { id: 'v', label: 'Speed (m/s)', type: 'number', value: 3 }],
       run(v) {
@@ -1326,7 +1326,7 @@
       examples: [{ in: { m: 2, v: 3 }, out: [['Kinetic energy', '9 J'], ['Momentum', '6 kg·m/s']] }, { in: { m: 1000, v: 27.8 }, out: [['Kinetic energy', '386420 J'], ['Momentum', '27800 kg·m/s']] }],
     },
     {
-      id: 'sci-potential-energy', name: 'Gravitational potential energy', icon: '⛰', family: 'science', desc: 'Potential energy (mgh) of a mass raised to a height.',
+      id: 'sci-potential-energy', name: 'Gravitational potential energy', family: 'science', desc: 'Potential energy (mgh) of a mass raised to a height.',
       keywords: ['potential energy', 'mgh', 'height', 'gravity'],
       fields: [
         { id: 'm', label: 'Mass (kg)', type: 'number', value: 10 }, { id: 'h', label: 'Height (m)', type: 'number', value: 10 },
@@ -1339,7 +1339,7 @@
       examples: [{ in: { m: 10, h: 10, g: 9.80665 }, out: 'Potential energy = 980.665 J' }, { in: { m: 2, h: 5, g: 10 }, out: 'Potential energy = 100 J' }],
     },
     {
-      id: 'sci-force', name: 'Force, mass & acceleration', icon: '➡', family: 'science', desc: "Newton's second law F = m·a — enter any two to get the third.",
+      id: 'sci-force', name: 'Force, mass & acceleration', family: 'science', desc: "Newton's second law F = m·a — enter any two to get the third.",
       keywords: ['newton', 'f=ma', 'force', 'acceleration', 'mass'],
       fields: [
         { id: 'F', label: 'Force (N)', type: 'number', value: '' }, { id: 'm', label: 'Mass (kg)', type: 'number', value: 10 },
@@ -1359,7 +1359,7 @@
       examples: [{ in: { F: '', m: 10, a: 2 }, out: [['Force', '20 N'], ['Mass', '10 kg'], ['Acceleration', '2 m/s²']] }, { in: { F: 50, m: '', a: 5 }, out: [['Force', '50 N'], ['Mass', '10 kg'], ['Acceleration', '5 m/s²']] }],
     },
     {
-      id: 'sci-density', name: 'Density, mass & volume', icon: '🪨', family: 'science', desc: 'Density = mass ÷ volume — enter any two to get the third (use matching units, e.g. g and cm³).',
+      id: 'sci-density', name: 'Density, mass & volume', family: 'science', desc: 'Density = mass ÷ volume — enter any two to get the third (use matching units, e.g. g and cm³).',
       keywords: ['density', 'mass', 'volume', 'buoyancy'],
       fields: [
         { id: 'rho', label: 'Density', type: 'number', value: '' }, { id: 'm', label: 'Mass', type: 'number', value: 500 },
@@ -1376,7 +1376,7 @@
       examples: [{ in: { rho: '', m: 500, vol: 250 }, out: [['Density', '2'], ['Mass', '500'], ['Volume', '250']] }, { in: { rho: 19.3, m: '', vol: 10 }, out: [['Density', '19.3'], ['Mass', '193'], ['Volume', '10']] }],
     },
     {
-      id: 'sci-ideal-gas', name: 'Ideal gas law', icon: '🎈', family: 'science', desc: 'PV = nRT — enter three of pressure, volume, amount and temperature to get the fourth.',
+      id: 'sci-ideal-gas', name: 'Ideal gas law', family: 'science', desc: 'PV = nRT — enter three of pressure, volume, amount and temperature to get the fourth.',
       keywords: ['pv=nrt', 'gas law', 'pressure', 'moles', 'kelvin'],
       fields: [
         { id: 'P', label: 'Pressure (kPa)', type: 'number', value: 101.325 }, { id: 'V', label: 'Volume (L)', type: 'number', value: '' },
@@ -1398,7 +1398,7 @@
         { in: { P: '', V: 10, n: 2, T: 300 }, out: [['Pressure', '498.8677571 kPa'], ['Volume', '10 L'], ['Amount', '2 mol'], ['Temperature', '300 K (26.85 °C)']] }],
     },
     {
-      id: 'sci-molar-mass', name: 'Molar mass', icon: '⚗', family: 'science', desc: 'Molar mass and mass composition of a chemical formula, e.g. H2O, Ca(OH)2, CuSO4·5H2O.',
+      id: 'sci-molar-mass', name: 'Molar mass', family: 'science', desc: 'Molar mass and mass composition of a chemical formula, e.g. H2O, Ca(OH)2, CuSO4·5H2O.',
       keywords: ['molar mass', 'molecular weight', 'formula mass', 'chemistry', 'periodic table', 'g/mol'],
       fields: [{ id: 'f', label: 'Chemical formula', type: 'text', value: 'H2O', placeholder: 'e.g. C6H12O6, K4[Fe(CN)6], CuSO4·5H2O' }],
       run(v) {
@@ -1414,7 +1414,7 @@
         { in: { f: 'CuSO4·5H2O' }, match: /^Molar mass: 249\.677 g\/mol\n/ }],
     },
     {
-      id: 'sci-moles', name: 'Grams ⇄ moles', icon: '🧮', family: 'science', desc: 'Convert a mass of a substance to moles and number of particles (or back) from its formula.',
+      id: 'sci-moles', name: 'Grams ⇄ moles', family: 'science', desc: 'Convert a mass of a substance to moles and number of particles (or back) from its formula.',
       keywords: ['moles', 'mol', 'avogadro', 'grams to moles', 'stoichiometry'],
       fields: [
         { id: 'f', label: 'Chemical formula', type: 'text', value: 'H2O' },
@@ -1432,7 +1432,7 @@
         { in: { f: 'CO2', mode: 'mol', x: 0.5 }, out: [['Molar mass', '44.009 g/mol'], ['Mass', '22.0045 g'], ['Amount', '0.5 mol'], ['Particles', '3.01107038e23']] }],
     },
     {
-      id: 'sci-dilution', name: 'Dilution (C₁V₁ = C₂V₂)', icon: '💧', family: 'science', desc: 'Enter three of the starting and final concentration and volume to get the fourth.',
+      id: 'sci-dilution', name: 'Dilution (C₁V₁ = C₂V₂)', family: 'science', desc: 'Enter three of the starting and final concentration and volume to get the fourth.',
       keywords: ['dilution', 'concentration', 'c1v1', 'molarity', 'stock solution'],
       fields: [
         { id: 'c1', label: 'Starting concentration C₁', type: 'number', value: 2 }, { id: 'v1', label: 'Starting volume V₁', type: 'number', value: '' },
@@ -1450,7 +1450,7 @@
       examples: [{ in: { c1: 2, v1: '', c2: 0.5, v2: 100 }, out: [['C₁', '2'], ['V₁', '25'], ['C₂', '0.5'], ['V₂', '100'], ['Solvent to add', '75']] }],
     },
     {
-      id: 'sci-ph', name: 'pH calculator', icon: '🧫', family: 'science', desc: 'Convert between pH, pOH, [H⁺] and [OH⁻] (water at 25 °C).',
+      id: 'sci-ph', name: 'pH calculator', family: 'science', desc: 'Convert between pH, pOH, [H⁺] and [OH⁻] (water at 25 °C).',
       keywords: ['ph', 'poh', 'acid', 'base', 'hydrogen ion', 'concentration'],
       fields: [
         { id: 'mode', label: 'I know', type: 'select', value: 'ph', options: [['ph', 'pH'], ['h', '[H⁺] (mol/L)'], ['poh', 'pOH'], ['oh', '[OH⁻] (mol/L)']] },
@@ -1468,7 +1468,7 @@
         { in: { mode: 'h', x: 0.001 }, out: [['pH', '3'], ['pOH', '11'], ['[H⁺]', '0.001 mol/L'], ['[OH⁻]', '1e-11 mol/L'], ['Solution', 'Acidic']] }],
     },
     {
-      id: 'sci-half-life', name: 'Half-life decay', icon: '☢', family: 'science', desc: 'How much of a radioactive (or any exponentially decaying) quantity remains after a time.',
+      id: 'sci-half-life', name: 'Half-life decay', family: 'science', desc: 'How much of a radioactive (or any exponentially decaying) quantity remains after a time.',
       keywords: ['half-life', 'radioactive', 'decay', 'carbon dating', 'exponential decay'],
       fields: [
         { id: 'n0', label: 'Starting amount', type: 'number', value: 100 },
@@ -1484,7 +1484,7 @@
       examples: [{ in: { n0: 100, half: 5730, t: 11460 }, out: [['Remaining', '25'], ['Decayed', '75'], ['Fraction remaining', '25%'], ['Half-lives elapsed', '2'], ['Decay constant λ', '0.0001209680943 per time unit']] }],
     },
     {
-      id: 'sci-wave-photon', name: 'Wavelength, frequency & photon energy', icon: '🌈', family: 'science', desc: 'Convert between wavelength, frequency and photon energy of light (in vacuum).',
+      id: 'sci-wave-photon', name: 'Wavelength, frequency & photon energy', family: 'science', desc: 'Convert between wavelength, frequency and photon energy of light (in vacuum).',
       keywords: ['wavelength', 'frequency', 'photon', 'electromagnetic', 'spectrum', 'ev', 'light'],
       fields: [
         { id: 'x', label: 'Value', type: 'number', value: 500 },
@@ -1505,7 +1505,7 @@
         { in: { x: 2.4, unit: 'ghz' }, out: [['Wavelength', '124913524.2 nm'], ['Frequency', '2400000000 Hz'], ['Photon energy', '1.590256836e-24 J'], ['Photon energy (eV)', '0.000009925602473 eV'], ['Band (approximate)', 'Microwave']] }],
     },
     {
-      id: 'sci-speed-of-sound', name: 'Speed of sound', icon: '🔊', family: 'science', desc: 'Approximate speed of sound in dry air at a given temperature.',
+      id: 'sci-speed-of-sound', name: 'Speed of sound', family: 'science', desc: 'Approximate speed of sound in dry air at a given temperature.',
       keywords: ['sound', 'acoustics', 'mach', 'air'],
       fields: [{ id: 't', label: 'Air temperature (°C)', type: 'number', value: 20 }],
       run(v) {
@@ -1517,7 +1517,7 @@
         { in: { t: 20 }, out: [['Speed', '343.2 m/s'], ['', '1236 km/h'], ['', '767.7 mph'], ['', '1126 ft/s']] }],
     },
     {
-      id: 'sci-planet-weight', name: 'Weight on other planets', icon: '🪐', family: 'science', desc: 'What a scale would read on the Moon, Mars and the other planets.',
+      id: 'sci-planet-weight', name: 'Weight on other planets', family: 'science', desc: 'What a scale would read on the Moon, Mars and the other planets.',
       keywords: ['planet', 'gravity', 'moon', 'mars', 'jupiter', 'space'],
       fields: [{ id: 'w', label: 'Weight on Earth (kg or lb)', type: 'number', value: 70 }],
       run(v) {
@@ -1528,7 +1528,7 @@
         ['Mars', '37.83 (3.71 m/s²)'], ['Jupiter', '252.8 (24.79 m/s²)'], ['Saturn', '106.5 (10.44 m/s²)'], ['Uranus', '90.45 (8.87 m/s²)'], ['Neptune', '113.7 (11.15 m/s²)'], ['Pluto', '6.322 (0.62 m/s²)']] }],
     },
     {
-      id: 'sci-dew-point', name: 'Dew point', icon: '💧', family: 'science', desc: 'Dew point from air temperature and relative humidity (Magnus formula).',
+      id: 'sci-dew-point', name: 'Dew point', family: 'science', desc: 'Dew point from air temperature and relative humidity (Magnus formula).',
       keywords: ['dew point', 'humidity', 'condensation', 'weather'],
       fields: [
         { id: 't', label: 'Air temperature', type: 'number', value: 25 },
@@ -1548,7 +1548,7 @@
       examples: [{ in: { t: 25, unit: 'C', rh: 60 }, out: [['Dew point', '16.69 °C'], ['', '62.05 °F']] }, { in: { t: 20, unit: 'C', rh: 100 }, out: [['Dew point', '20 °C'], ['', '68 °F']] }],
     },
     {
-      id: 'sci-heat-index', name: 'Heat index', icon: '🥵', family: 'science', desc: '"Feels like" temperature from heat and humidity (US National Weather Service formula).',
+      id: 'sci-heat-index', name: 'Heat index', family: 'science', desc: '"Feels like" temperature from heat and humidity (US National Weather Service formula).',
       keywords: ['heat index', 'feels like', 'humidity', 'weather', 'apparent temperature'],
       fields: [
         { id: 't', label: 'Air temperature', type: 'number', value: 90 },
@@ -1574,7 +1574,7 @@
         { in: { t: 70, unit: 'F', rh: 50 }, out: [['Heat index', '69.05 °F'], ['', '20.58 °C']] }],
     },
     {
-      id: 'sci-wind-chill', name: 'Wind chill', icon: '🥶', family: 'science', desc: '"Feels like" temperature from cold and wind (NWS / Environment Canada formula).',
+      id: 'sci-wind-chill', name: 'Wind chill', family: 'science', desc: '"Feels like" temperature from cold and wind (NWS / Environment Canada formula).',
       keywords: ['wind chill', 'feels like', 'cold', 'weather'],
       fields: [
         { id: 't', label: 'Air temperature', type: 'number', value: 0 },
@@ -1608,7 +1608,7 @@
         { in: { k: 'g' }, out: [['Constant', 'Newtonian constant of gravitation (G)'], ['Value', '6.67430e-11'], ['Unit', 'm³/(kg·s²)'], ['Status', 'Measured — CODATA 2018 recommended value']] }],
     },
     {
-      id: 'sci-projectile', name: 'Projectile motion', icon: '🎯', family: 'science', desc: 'Range, flight time, peak height and impact speed of a launched object (no air resistance).',
+      id: 'sci-projectile', name: 'Projectile motion', family: 'science', desc: 'Range, flight time, peak height and impact speed of a launched object (no air resistance).',
       keywords: ['projectile', 'trajectory', 'ballistics', 'range', 'launch angle'],
       fields: [
         { id: 'v', label: 'Launch speed (m/s)', type: 'number', value: 10 },
@@ -1628,7 +1628,7 @@
         { in: { v: 20, a: 90, h: 0, g: 10 }, out: [['Time of flight', '4 s'], ['Horizontal range', '0 m'], ['Maximum height', '20 m'], ['Impact speed', '20 m/s']] }],
     },
     {
-      id: 'sci-lens', name: 'Thin lens equation', icon: '🔎', family: 'science', desc: '1/f = 1/dₒ + 1/dᵢ — enter any two of focal length, object and image distance.',
+      id: 'sci-lens', name: 'Thin lens equation', family: 'science', desc: '1/f = 1/dₒ + 1/dᵢ — enter any two of focal length, object and image distance.',
       keywords: ['lens', 'optics', 'focal length', 'magnification', 'mirror'],
       fields: [
         { id: 'f', label: 'Focal length f (negative for a diverging lens)', type: 'number', value: 10 },
@@ -1653,7 +1653,7 @@
         { in: { f: 10, do: 5, di: '' }, out: [['Focal length', '10'], ['Object distance', '5'], ['Image distance', '-10'], ['Magnification', '2'], ['Image', 'Virtual, upright, enlarged']] }],
     },
     {
-      id: 'sci-decibel-sum', name: 'Adding decibels', icon: '🔉', family: 'science', desc: 'Combined sound level of several sources (decibels add logarithmically).',
+      id: 'sci-decibel-sum', name: 'Adding decibels', family: 'science', desc: 'Combined sound level of several sources (decibels add logarithmically).',
       keywords: ['decibel', 'db', 'sound level', 'noise', 'acoustics'],
       fields: [{ id: 'list', label: 'Levels (dB)', type: 'textarea', value: '90, 90' }],
       run(v) {
@@ -1665,7 +1665,7 @@
         { in: { list: '60 60 60 60 60 60 60 60 60 60' }, out: [['Combined level', '70 dB'], ['Above the loudest source by', '10 dB']] }],
     },
     {
-      id: 'sci-gravitation', name: 'Gravitational force', icon: '🌍', family: 'science', desc: "Newton's law of gravitation: attraction between two masses.",
+      id: 'sci-gravitation', name: 'Gravitational force', family: 'science', desc: "Newton's law of gravitation: attraction between two masses.",
       keywords: ['gravity', 'newton', 'gravitation', 'attraction', 'orbit'],
       fields: [
         { id: 'm1', label: 'Mass 1 (kg)', type: 'number', value: 5.972e24 }, { id: 'm2', label: 'Mass 2 (kg)', type: 'number', value: 7.348e22 },
@@ -1678,7 +1678,7 @@
       examples: [{ in: { m1: 1, m2: 1, r: 1 }, out: 'Force = 6.6743e-11 N' }, { in: { m1: 1000, m2: 1000, r: 10 }, out: 'Force = 6.6743e-7 N' }],
     },
     {
-      id: 'sci-escape-velocity', name: 'Escape & orbital velocity', icon: '🛰', family: 'science', desc: 'Escape velocity and circular orbital speed at a distance from a body’s centre.',
+      id: 'sci-escape-velocity', name: 'Escape & orbital velocity', family: 'science', desc: 'Escape velocity and circular orbital speed at a distance from a body’s centre.',
       keywords: ['escape velocity', 'orbital speed', 'orbit', 'rocket', 'space'],
       fields: [
         { id: 'M', label: 'Mass of the body (kg)', type: 'number', value: 5.9722e24 },

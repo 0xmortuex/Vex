@@ -77,16 +77,20 @@ function build() {
   title.className = 'title';
   title.textContent = 'Vex Picture-in-Picture';
 
+  const ICON = (inner) => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  // `label` is plain text, or markup from ICON().
   const mkBtn = (label, tip, cls) => {
     const b = document.createElement('button');
-    b.textContent = label;
+    if (label.startsWith('<svg')) b.innerHTML = label; else b.textContent = label;
+    b.setAttribute('aria-label', tip);
     b.title = tip;
     if (cls) b.className = cls;
     return b;
   };
 
-  const backBtn = mkBtn('↩', 'Back to tab (returns you to Vex and closes this window)');
-  const pinBtn = mkBtn('\u{1F4CC}', 'Keep on top (Ctrl+Shift+P)', 'pinned');
+  const backBtn = mkBtn(ICON('<path d="M4.5 10.5h10a5 5 0 0 1 0 10H9"/><path d="m8.5 6-4 4.5 4 4.5"/>'), 'Back to tab (returns you to Vex and closes this window)');
+  const pinBtn = mkBtn(ICON('<path d="M9 4h6l-1 6 3.5 3H6.5L10 10z"/><path d="M12 13v7"/>'), 'Keep on top (Ctrl+Shift+P)', 'pinned');
   const closeBtn = mkBtn('✕', 'Close (Esc)', 'close');
 
   backBtn.addEventListener('click', () => ipcRenderer.send('pip:back-to-tab'));

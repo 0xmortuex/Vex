@@ -370,7 +370,7 @@ const DocExtract = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:720px;max-width:94vw;height:78vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
         <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)">
-          <strong style="font-size:15px;color:var(--text)">📄 Extracted text</strong>
+          <strong style="font-size:15px;color:var(--text)">Extracted text</strong>
           <span style="font-size:11.5px;color:var(--text-muted)">${source} · ${text.length.toLocaleString()} chars · copied to clipboard</span>
           <span style="flex:1"></span>
           <button id="de-copy" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Copy again</button>
@@ -384,8 +384,8 @@ const DocExtract = {
     const close = () => m.remove();
     m.querySelector('#de-close').addEventListener('click', close);
     m.addEventListener('mousedown', (e) => { if (e.target === m) close(); });
-    m.querySelector('#de-copy').addEventListener('click', () => { ta.select(); try { navigator.clipboard.writeText(text); } catch {} window.showToast?.('📋 Copied'); });
-    window.showToast?.(`📋 Copied ${text.length.toLocaleString()} chars (${source})`);
+    m.querySelector('#de-copy').addEventListener('click', () => { ta.select(); try { navigator.clipboard.writeText(text); } catch {} window.showToast?.('Copied'); });
+    window.showToast?.(`Copied ${text.length.toLocaleString()} chars (${source})`);
   },
 };
 

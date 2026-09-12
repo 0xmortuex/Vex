@@ -28,10 +28,20 @@ describe('Toolbox catalogue', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('every tool belongs to a known family and has a name, icon and description', () => {
+  it('every tool belongs to a known family and has a name and description', () => {
     for (const t of Toolbox.all()) {
       expect(ToolboxPacks.FAMILIES[t.family], t.id).toBeTruthy();
-      expect(t.name && t.icon && t.desc, t.id).toBeTruthy();
+      expect(t.name && t.desc, t.id).toBeTruthy();
+    }
+  });
+
+  // `icon` is optional and falls back to the family's — but when a tool does
+  // carry one it must be short typographic text, never an emoji.
+  it('a tool that sets its own icon uses short typographic text', () => {
+    for (const t of Toolbox.all()) {
+      if (t.icon === undefined) continue;
+      expect(typeof t.icon === 'string' && t.icon.length > 0, t.id).toBe(true);
+      expect(/\p{Extended_Pictographic}/u.test(t.icon), t.id).toBe(false);
     }
   });
 

@@ -24,7 +24,7 @@ const FocusFlows = {
       m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
       m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
         <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 10px">
-          <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🎯 Focus Flows</span>
+          <span style="font-size:15px;font-weight:700;color:var(--text);flex:1;display:inline-flex;align-items:center;gap:7px">${VexIcons.svg('target', { size: 16 })}Focus Flows</span>
           <button id="ff-close" style="${this._chip()}">✕</button>
         </div>
         <div id="ff-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
@@ -45,7 +45,7 @@ const FocusFlows = {
 
     if (flows.length) {
       html += flows.map((f, i) => `<div data-i="${i}" style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;background:var(--bg)">
-        <span style="font-size:16px">${this._esc(f.emoji || '🎯')}</span>
+        <span style="font-size:16px;line-height:0">${f.emoji ? this._esc(f.emoji) : VexIcons.svg('target', { size: 17 })}</span>
         <span style="flex:1;min-width:0">
           <span style="display:block;font-weight:600">${this._esc(f.name || 'Flow')}</span>
           <span style="display:block;font-size:11px;color:var(--text-muted)">${(f.openTabs || []).length} tab(s)${f.persona ? ' · persona' : ''}${f.dimUI ? ' · dim' : ''}${(f.blockSites || []).length ? ' · blocks ' + (f.blockSites || []).length : ''}</span>
@@ -61,14 +61,14 @@ const FocusFlows = {
     // Editor
     const ed = editing || {};
     const personaOpts = ['<option value="">No persona change</option>'].concat(
-      personas.map(p => `<option value="${this._esc(p.id)}"${ed.persona === p.id ? ' selected' : ''}>${this._esc(p.emoji || p.icon || '🎭')} ${this._esc(p.name || 'Persona')}</option>`)
+      personas.map(p => `<option value="${this._esc(p.id)}"${ed.persona === p.id ? ' selected' : ''}>${this._esc(p.name || 'Persona')}</option>`)
     ).join('');
     const ta = "width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:monospace;resize:vertical;outline:none";
     const inp = "box-sizing:border-box;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:'Outfit',sans-serif;outline:none";
     html += `<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
       <div style="font-weight:700;margin-bottom:8px">${ed.id ? 'Edit flow' : 'New flow'}</div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input id="ff-emoji" maxlength="2" placeholder="🎯" value="${this._esc(ed.emoji || '')}" style="${inp};width:52px;text-align:center">
+        <input id="ff-emoji" maxlength="2" placeholder="—" title="Optional badge — one or two characters" value="${this._esc(ed.emoji || '')}" style="${inp};width:52px;text-align:center">
         <input id="ff-name" placeholder="Flow name (e.g. Writing)" value="${this._esc(ed.name || '')}" style="${inp};flex:1">
       </div>
       <label style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:3px">Tabs to open (one URL per line)</label>
@@ -103,7 +103,7 @@ const FocusFlows = {
       const flow = {
         id: (ed && ed.id) || ('flow-' + Date.now().toString(36)),
         name,
-        emoji: (body.querySelector('#ff-emoji').value || '').trim() || '🎯',
+        emoji: (body.querySelector('#ff-emoji').value || '').trim(),
         openTabs: (body.querySelector('#ff-tabs').value || '').split('\n').map(s => s.trim()).filter(Boolean).map(u => /^https?:\/\//i.test(u) ? u : ('https://' + u)),
         persona: body.querySelector('#ff-persona').value || null,
         dimUI: body.querySelector('#ff-dim').checked,
@@ -158,7 +158,7 @@ const FocusFlows = {
             const h = this._host(url);
             if (h && isBlocked(h)) {
               try { if (wv.canGoBack()) wv.goBack(); else wv.loadURL(typeof START_URL !== 'undefined' ? START_URL : 'about:blank'); } catch {}
-              window.showToast?.('🚫 ' + h + ' is blocked during "' + flow.name + '"');
+              window.showToast?.(h + ' is blocked during "' + flow.name + '"');
             }
           } catch {}
         }, 1500);
@@ -167,7 +167,7 @@ const FocusFlows = {
 
       this._active = { flow, styleEl, pollTimer };
       this._showEndBar(flow);
-      window.showToast?.('🎯 ' + flow.name + (did.length ? ' — ' + did.join(', ') : ''));
+      window.showToast?.(flow.name + (did.length ? ' — ' + did.join(', ') : ''));
     } catch (e) { try { window.showToast?.('Could not start the flow'); } catch {} }
   },
 
@@ -188,7 +188,7 @@ const FocusFlows = {
       const bar = document.createElement('div');
       bar.id = 'focus-flow-endbar';
       bar.style.cssText = "position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:100001;display:flex;align-items:center;gap:12px;background:var(--surface,#222);color:var(--text,#eee);border:1px solid var(--border,#444);border-radius:11px;padding:8px 14px;box-shadow:0 8px 30px rgba(0,0,0,.4);font-family:'Outfit',sans-serif;font-size:12.5px";
-      bar.innerHTML = `<span>${this._esc(flow.emoji || '🎯')} <b>${this._esc(flow.name)}</b> flow active</span><button id="ff-endbtn" style="${this._chip()}">End flow</button>`;
+      bar.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px">${flow.emoji ? this._esc(flow.emoji) : VexIcons.svg('target', { size: 15 })}<b>${this._esc(flow.name)}</b> flow active</span><button id="ff-endbtn" style="${this._chip()}">End flow</button>`;
       document.body.appendChild(bar);
       bar.querySelector('#ff-endbtn').addEventListener('click', () => this.end());
     } catch {}

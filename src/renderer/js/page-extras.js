@@ -22,7 +22,7 @@ const ReadAloud = {
     u.onerror = () => { this.speaking = false; };
     this.speaking = true;
     speechSynthesis.speak(u);
-    window.showToast?.('🔊 Reading aloud — run again to stop');
+    window.showToast?.('Reading aloud — run again to stop');
   },
 
   stop() {
@@ -33,13 +33,47 @@ const ReadAloud = {
 };
 
 // ---- Cookie-banner auto-dismiss ----
-// Hides the major consent-platform containers and unlocks page scroll. CSS-only
-// (no auto-clicking), so it can't accidentally accept anything — it simply
-// removes the wall. Toggle in Settings → Privacy; default ON.
+// Hides the major consent-platform containers and unlocks page scroll, and
+// clicks the CMP's own "reject all" control where it can find one, so the
+// choice is recorded and the banner stays gone next visit. It never accepts
+// anything — only reject/decline/necessary-only controls, and only inside a
+// known consent container. Toggle in Settings → Privacy; default ON.
 const ConsentBlock = {
   KEY: 'vex.consentBlock',
   enabled() { try { return localStorage.getItem(this.KEY) !== 'off'; } catch { return true; } },
-  setEnabled(on) { try { localStorage.setItem(this.KEY, on ? 'on' : 'off'); } catch {} },
+
+  // Turning the feature off has to take effect on the pages that are already
+  // open: the hide rule is injected into every guest, so simply not injecting
+  // it any more left every open tab with its banners still hidden until the
+  // next reload. Returns false when the preference could not be stored.
+  setEnabled(on) {
+    let saved = true;
+    try { localStorage.setItem(this.KEY, on ? 'on' : 'off'); } catch { saved = false; }
+    this.reapplyAll();
+    return saved;
+  },
+
+  // Re-run (or undo) the injection across every live guest.
+  reapplyAll() {
+    if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) return 0;
+    let n = 0;
+    WebviewManager.webviews.forEach((wv) => {
+      try { if (this.enabled()) this.applyTo(wv); else this.removeFrom(wv); n++; } catch {}
+    });
+    return n;
+  },
+
+  // Undo the CSS half. Anything already auto-rejected stays rejected — that was
+  // a real click on the site's own button and is not ours to take back.
+  removeFrom(webview) {
+    // Stop the watcher FIRST, then blank the rules — see the note in the
+    // injected script about the clear waking the watcher that repaints it.
+    const js = "(function(){try{"
+      + "if(window.__vexConsentOff){window.__vexConsentOff();return;}"
+      + "var e=document.getElementById('vex-consent-style');if(e)e.textContent='';"
+      + "}catch(e){}})();";
+    try { webview.executeJavaScript(js).catch(() => {}); } catch {}
+  },
 
   SELECTORS: [
     '#onetrust-consent-sdk', '#onetrust-banner-sdk', '.onetrust-pc-dark-filter',
@@ -97,10 +131,23 @@ const ConsentBlock = {
       var id='vex-consent-style';
       function ensure(){var el=document.getElementById(id);if(!el){el=document.createElement('style');el.id=id;document.documentElement.appendChild(el);}return el;}
       function paint(){var has=!!document.querySelector(sel);if(has)tryReject();ensure().textContent=${JSON.stringify(hideCss)}+(has?${JSON.stringify(unlockCss)}:'');return has;}
+      // The watcher and the teardown hang off window.__vexConsentOff. Without a
+      // way to stop the watcher, clearing the stylesheet when the feature is
+      // switched off is itself a DOM mutation that wakes the watcher, which
+      // immediately paints the rules back — the "off" switch undid itself.
+      if(window.__vexConsentOff)window.__vexConsentOff(true);
+      var mo=null,timer=null;
+      window.__vexConsentOff=function(keepStyle){
+        try{if(mo)mo.disconnect();}catch(e){}
+        try{if(timer)clearTimeout(timer);}catch(e){}
+        mo=null;timer=null;
+        if(!keepStyle){var el=document.getElementById(id);if(el)el.textContent='';}
+        if(!keepStyle)window.__vexConsentOff=null;
+      };
       if(!paint() && typeof MutationObserver==='function'){
-        var n=0;var mo=new MutationObserver(function(){if((paint()&&clicked)||++n>40)mo.disconnect();});
+        var n=0;mo=new MutationObserver(function(){if((paint()&&clicked)||++n>40){try{mo.disconnect();}catch(e){}mo=null;}});
         try{mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
-        setTimeout(function(){try{mo.disconnect();}catch(e){}},10000);
+        timer=setTimeout(function(){try{if(mo)mo.disconnect();}catch(e){}mo=null;},10000);
       }
     }catch(e){}})();`;
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}
@@ -126,7 +173,40 @@ const ConsentBlock = {
 const CopyUnlock = {
   KEY: 'vex.copyUnlock',
   enabled() { try { return localStorage.getItem(this.KEY) === 'on'; } catch { return false; } },
-  setEnabled(on) { try { localStorage.setItem(this.KEY, on ? 'on' : 'off'); } catch {} },
+
+  // Returns false when the preference could not be stored. Turning it ON takes
+  // effect on every open page at once; turning it OFF removes the CSS half
+  // everywhere, and says plainly that the event handlers already installed in
+  // those pages only go away on reload — see removeFrom().
+  setEnabled(on) {
+    let saved = true;
+    try { localStorage.setItem(this.KEY, on ? 'on' : 'off'); } catch { saved = false; }
+    return saved;
+  },
+
+  // Undo what can be undone in a page that is already unlocked. The capture
+  // listeners and the cleared inline handlers cannot be restored — the honest
+  // answer is a reload, which reapplyAll() reports rather than hiding.
+  removeFrom(webview) {
+    const js = "(function(){try{var e=document.getElementById('vex-copy-unlock-style');if(e)e.remove();}catch(e){}})();";
+    try { webview.executeJavaScript(js).catch(() => {}); } catch {}
+  },
+
+  // Apply or partially undo across every live guest. Returns how many pages are
+  // still carrying listeners that only a reload clears.
+  reapplyAll() {
+    if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) return 0;
+    const on = this.enabled();
+    let stillUnlocked = 0;
+    WebviewManager.webviews.forEach((wv) => {
+      try {
+        if (on) { this.applyTo(wv); return; }
+        this.removeFrom(wv);
+        stillUnlocked++;
+      } catch {}
+    });
+    return on ? 0 : stillUnlocked;
+  },
 
   _script() {
     return `(function(){try{
@@ -168,7 +248,7 @@ const CopyUnlock = {
     const wv = (typeof WebviewManager !== 'undefined') ? WebviewManager.getActiveWebview() : null;
     if (!wv) { window.showToast?.('Open a page first'); return; }
     this.applyTo(wv, true);
-    window.showToast?.('🔓 Copy & right-click unlocked on this page');
+    window.showToast?.('Copy & right-click unlocked on this page');
   },
 };
 

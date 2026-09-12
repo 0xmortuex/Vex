@@ -56,10 +56,15 @@ describe('coarsenLocation — happy paths', () => {
     expect(coarsenLocation({ mode: 'off' })).toEqual({ mode: 'denied' });
   });
 
-  it('manual mode without coords → falls back to {mode: "ip"}', () => {
-    expect(coarsenLocation({ mode: 'manual' })).toEqual({ mode: 'ip' });
-    expect(coarsenLocation({ mode: 'manual', latitude: NaN, longitude: 12.3 })).toEqual({ mode: 'ip' });
-    expect(coarsenLocation({ mode: 'manual', latitude: 'oops' })).toEqual({ mode: 'ip' });
+  // Manual mode says, in the settings panel's own words, that nothing leaves
+  // your device. Answering 'ip' for a manual setup with no coordinates sent the
+  // guest page off to a third-party geo-IP endpoint — the exact thing the mode
+  // promises not to do, and invisibly. There is no location to give, so deny.
+  it('manual mode without coords → {mode: "denied"}, never an IP lookup', () => {
+    expect(coarsenLocation({ mode: 'manual' })).toEqual({ mode: 'denied' });
+    expect(coarsenLocation({ mode: 'manual', latitude: NaN, longitude: 12.3 })).toEqual({ mode: 'denied' });
+    expect(coarsenLocation({ mode: 'manual', latitude: 'oops' })).toEqual({ mode: 'denied' });
+    expect(coarsenLocation({ mode: 'manual', latitude: 40.7 })).toEqual({ mode: 'denied' });
   });
 });
 

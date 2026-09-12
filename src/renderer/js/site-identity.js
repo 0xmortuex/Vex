@@ -89,7 +89,7 @@ const SiteIdentity = {
 
     m.innerHTML = `<div style="width:600px;max-width:95vw;max-height:86vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 8px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🕵️ Browser identity · <span style="color:var(--primary,var(--accent))">${esc(host)}</span></span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Browser identity · <span style="color:var(--primary,var(--accent))">${esc(host)}</span></span>
         <button id="si-copy" style="${this._chip()}">Copy</button>
         <button id="si-close" style="${this._chip()}">✕</button>
       </div>

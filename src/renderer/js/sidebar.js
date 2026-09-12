@@ -224,7 +224,7 @@ const SidebarManager = {
     list.push(p);
     this._saveSitePanels(list);
     this._mountSitePanel(p);
-    window.showToast?.('📌 Pinned ' + host + ' to the sidebar (right-click its icon to unpin)');
+    window.showToast?.('Pinned ' + host + ' to the sidebar (right-click its icon to unpin)');
   },
 
   _mountSitePanel(p) {
@@ -855,7 +855,7 @@ const SidebarManager = {
         '<button data-act="down"   title="Move down"   style="' + btnCss + '">▼</button>' +
         '<button data-act="rename" title="Rename"      style="' + btnCss + '">✎</button>' +
         '<button data-act="icon"   title="Change icon" style="' + btnCss + '">★</button>' +
-        (isUrl ? '<button data-act="link" title="Change link" style="' + btnCss + '">🔗</button>' : '') +
+        (isUrl ? '<button data-act="link" title="Change link" style="' + btnCss + '">' + VexIcons.svg('link', { size: 13 }) + '</button>' : '') +
         '<button data-act="toggle" title="' + (hidden ? 'Show' : 'Hide') + '" style="' + btnCss + '">' + (hidden ? '+' : '−') + '</button>' +
         (panel.startsWith('site_') ? '' : '<button data-act="reset" title="Reset to default" style="' + btnCss + '">↺</button>');
       row.querySelectorAll('button[data-act]').forEach(b => {
@@ -931,7 +931,7 @@ const SidebarManager = {
     const ov = document.createElement('div');
     ov.className = 'discord-blocked-ov';
     ov.innerHTML = `<div class="dbo-card">
-        <div class="dbo-ico">🛡️</div>
+        <div class="dbo-ico">${VexIcons.svg('shield', { size: 26 })}</div>
         <div class="dbo-title">Discord looks blocked</div>
         <div class="dbo-msg">Turn on the bypass to try to get through.</div>
         <div class="dbo-row">
@@ -989,7 +989,7 @@ const SidebarManager = {
     const ov = document.createElement('div');
     ov.className = 'discord-blocked-ov';
     ov.innerHTML = `<div class="dbo-card">
-        <div class="dbo-ico">😕</div>
+        <div class="dbo-ico">${VexIcons.svg('warning', { size: 26 })}</div>
         <div class="dbo-title">Couldn't get through</div>
         <div class="dbo-msg">None of the built-in methods beat your network. For tough ISPs, run <b>Zapret</b> and turn bypass off — Discord works through it.</div>
         <div class="dbo-row">
@@ -1016,7 +1016,7 @@ const SidebarManager = {
     st.textContent = `
       .discord-blocked-ov{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(10,12,16,0.82);backdrop-filter:blur(3px);}
       .dbo-card{width:360px;max-width:88%;padding:22px;border-radius:16px;text-align:center;background:var(--surface,#1b1b24);border:1px solid var(--border,rgba(255,255,255,0.1));box-shadow:0 20px 60px rgba(0,0,0,0.55);font-family:inherit;}
-      .dbo-ico{font-size:30px;margin-bottom:8px;}
+      .dbo-ico{margin-bottom:8px;line-height:0;color:var(--text);}
       .dbo-spin{width:30px;height:30px;margin:0 auto 12px;border:3px solid var(--border,rgba(255,255,255,0.18));border-top-color:var(--primary,#6366f1);border-radius:50%;animation:dboSpin .8s linear infinite;}
       @keyframes dboSpin{to{transform:rotate(360deg)}}
       .dbo-title{font-size:16px;font-weight:700;color:var(--text,#e9e9ee);margin-bottom:8px;}
@@ -1110,15 +1110,15 @@ const SidebarManager = {
       items.push({ label: 'Change link…', action: () => this.changePanelLink(panelName) });
       items.push({ separator: true });
       if (panelName === 'netflix') {
-        // Streaming switcher: Netflix ↔ Prime Video ↔ Disney+ (shared persist:netflix jar).
-        items.push({ label: '🎬 Switch to Netflix', action: () => this.switchPanelService(panelName, 'netflix') });
-        items.push({ label: '📺 Switch to Prime Video', action: () => this.switchPanelService(panelName, 'prime') });
-        items.push({ label: '✨ Switch to Disney+', action: () => this.switchPanelService(panelName, 'disney') });
-        items.push({ label: '📡 Switch to Roku Channel', action: () => this.switchPanelService(panelName, 'roku') });
+        // Streaming switcher: Netflix Prime Video Disney+ (shared persist:netflix jar).
+        items.push({ label: 'Switch to Netflix', action: () => this.switchPanelService(panelName, 'netflix') });
+        items.push({ label: 'Switch to Prime Video', action: () => this.switchPanelService(panelName, 'prime') });
+        items.push({ label: 'Switch to Disney+', action: () => this.switchPanelService(panelName, 'disney') });
+        items.push({ label: 'Switch to Roku Channel', action: () => this.switchPanelService(panelName, 'roku') });
       } else if (panelName === 'discord') {
         // One-click Vencord (plugins/themes) install into the Discord panel.
         items.push({
-          label: '🧩 Install / Update Vencord',
+          label: 'Install / Update Vencord',
           action: async () => {
             window.showToast?.('Downloading Vencord…');
             try {
@@ -1136,7 +1136,7 @@ const SidebarManager = {
         // Install YOUR local Vencord build (custom userplugins that aren't in the
         // official devbuild). Point Vex at the extension-chrome.zip from `pnpm buildWeb`.
         items.push({
-          label: '🧩 Install my Vencord build (custom plugins)',
+          label: 'Install my Vencord build (custom plugins)',
           action: async () => {
             window.showToast?.('Installing your Vencord build…');
             try {
@@ -1172,10 +1172,10 @@ const SidebarManager = {
         // Block bypass: a single "auto-configure" action that sweeps every method
         // and an off switch (for people running Zapret).
         const bypassOn = ((localStorage.getItem('vex.discordBypassMode') || 'light') !== 'off');
-        items.push({ label: '🔧 Auto-configure bypass', action: () => this._enableBypassAuto() });
+        items.push({ label: 'Auto-configure bypass', action: () => this._enableBypassAuto() });
         if (bypassOn) {
           items.push({
-            label: '🛡️ Turn bypass off (use Zapret)',
+            label: 'Turn bypass off (use Zapret)',
             action: async () => {
               try { localStorage.setItem('vex.discordBypassMode', 'off'); } catch {}
               try { await window.vex?.setDiscordBypassMode?.('off', {}); } catch {}
@@ -1188,7 +1188,7 @@ const SidebarManager = {
         // Roblox is blocked by the same ISP/DPI as Discord — share the bypass.
         const robloxOn = (localStorage.getItem('vex.robloxBypass') === 'on');
         items.push({
-          label: robloxOn ? '🛡️ Block bypass: On' : '🛡️ Block bypass: Off',
+          label: robloxOn ? 'Block bypass: On' : 'Block bypass: Off',
           action: async () => {
             const on = !robloxOn;
             try { localStorage.setItem('vex.robloxBypass', on ? 'on' : 'off'); } catch {}

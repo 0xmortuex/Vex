@@ -516,6 +516,9 @@
       border-radius: 999px;
       padding: 2px 9px;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
     .loc-btn:hover { border-color: var(--vex-accent); }
     .loc-modal {
@@ -1270,6 +1273,7 @@
     }
   </style>
   <link rel="stylesheet" href="css/fonts.css">
+  <script src="js/vex-icons.js"></script>
 </head>
 <body>
   <button class="theme-toggle-btn" id="theme-toggle-btn" title="Change theme">
@@ -1318,7 +1322,7 @@
 
   <div class="weather-section">
     <div class="weather-card">
-      <h4>Weather <button class="loc-btn" id="weather-loc-btn" title="Set your location">📍 Set location</button></h4>
+      <h4>Weather <button class="loc-btn" id="weather-loc-btn" title="Set your location"></button></h4>
       <div class="weather-temp" id="weather-temp">--°</div>
       <div class="weather-desc" id="weather-desc">Loading...</div>
     </div>
@@ -1520,7 +1524,7 @@
         return '<span class="sc-svg" style="display:inline-flex;color:' + (ic.color || 'var(--vex-text-primary)') + '">' + ic.svg + '</span>';
       }
       const fav = getFavicon(s.url);
-      return fav ? '<img src="' + fav + '" alt="">' : '<span style="font-size:20px">🔗</span>';
+      return fav ? '<img src="' + fav + '" alt="">' : '<span style="display:inline-flex">' + VexIcons.svg('link', { size: 22 }) + '</span>';
     }
 
     let shortcuts = loadShortcuts();
@@ -1638,7 +1642,7 @@
       const fav = getFavicon(s.url);
       const cell = (id, inner, color, selected) =>
         '<button class="ip-cell" data-icon="' + id + '" style="display:grid;place-items:center;width:54px;height:54px;border-radius:12px;border:1px solid ' + (selected ? 'var(--vex-accent)' : 'var(--vex-border-medium)') + ';background:' + (selected ? 'var(--vex-accent-dim)' : 'var(--vex-glass-input)') + ';color:' + (color || 'var(--vex-text-primary)') + ';cursor:pointer">' + inner + '</button>';
-      let cells = cell('__favicon', fav ? '<img src="' + fav + '" width="24" height="24" style="border-radius:5px">' : '🔗', null, !s.icon);
+      let cells = cell('__favicon', fav ? '<img src="' + fav + '" width="24" height="24" style="border-radius:5px">' : VexIcons.svg('link', { size: 24 }), null, !s.icon);
       Object.keys(ICON_LIBRARY).forEach(id => { const ic = ICON_LIBRARY[id]; cells += cell(id, ic.svg, ic.color, s.icon === id); });
       modal.innerHTML = '<div style="width:392px;max-width:92vw;background:var(--vex-glass-strong);border:1px solid var(--vex-border-medium);border-radius:var(--vex-radius-lg);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.5);backdrop-filter:var(--vex-blur-medium);-webkit-backdrop-filter:var(--vex-blur-medium)">'
         + '<h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:var(--vex-text-primary)">Choose an icon</h3>'
@@ -1728,7 +1732,7 @@
         brave:      { name: 'Brave',      q: 'https://search.brave.com/search?q=%s',           glyph: 'B', color: '#fb542b' },
         startpage:  { name: 'Startpage',  q: 'https://www.startpage.com/sp/search?query=%s',   glyph: 'S', color: '#6b4fbb' },
         ecosia:     { name: 'Ecosia',     q: 'https://www.ecosia.org/search?q=%s',             glyph: 'E', color: '#2e8b57' },
-        youtube:    { name: 'YouTube',    q: 'https://www.youtube.com/results?search_query=%s', glyph: '▶', color: '#ff0000' },
+        youtube:    { name: 'YouTube',    q: 'https://www.youtube.com/results?search_query=%s', glyph: 'Y', color: '#ff0000' },
       };
       function getEngineId() { try { return ENGINES[localStorage.getItem('vex.searchEngine')] ? localStorage.getItem('vex.searchEngine') : 'google'; } catch { return 'google'; } }
       let engineId = getEngineId();
@@ -1881,7 +1885,7 @@
       // Keep the button ALWAYS available so the location can be changed anytime —
       // it used to vanish once a location was saved, trapping a wrong
       // detected/saved city with no way to fix it. Just relabel it.
-      btn.textContent = getSavedLoc() ? '📍 Change' : '📍 Set location';
+      btn.innerHTML = VexIcons.svg('pin', { size: 13 }) + '<span>' + (getSavedLoc() ? 'Change' : 'Set location') + '</span>';
     }
     // Approximate location from IP. Tries multiple free providers in order and
     // validates the coordinates, so one provider failing/rate-limiting doesn't
@@ -1933,10 +1937,11 @@
         // actionable message instead of a dead "Unable to load weather".
         let shown = false;
         try { const c = JSON.parse(localStorage.getItem('vex.weatherCache') || 'null'); if (c && c.temp != null) { tempEl.textContent = `${c.temp}°C`; descEl.textContent = (c.desc || '') + ' · offline'; shown = true; } } catch {}
-        if (!shown) { tempEl.textContent = '--°'; descEl.textContent = getSavedLoc() ? 'Weather unavailable — retrying' : 'Set your location 📍'; }
+        if (!shown) { tempEl.textContent = '--°'; descEl.textContent = getSavedLoc() ? 'Weather unavailable — retrying' : 'Set your location'; }
       }
       syncLocBtn();
     }
+    syncLocBtn();
     loadWeather();
 
     // --- Set-location modal (city → geocode via open-meteo) ---

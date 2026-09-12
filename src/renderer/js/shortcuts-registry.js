@@ -74,8 +74,11 @@ const ShortcutsRegistry = (() => {
     try { const raw = localStorage.getItem('vex.userShortcuts'); return raw ? JSON.parse(raw) : {}; }
     catch { return {}; }
   }
+  // Returns false when the bindings could not be written. Callers must pass that
+  // on rather than reporting a rebind that will not survive a restart.
   function _save() {
-    try { localStorage.setItem('vex.userShortcuts', JSON.stringify(userShortcuts)); } catch {}
+    try { localStorage.setItem('vex.userShortcuts', JSON.stringify(userShortcuts)); } catch { return false; }
+    return true;
   }
 
   function init() {
@@ -113,15 +116,16 @@ const ShortcutsRegistry = (() => {
       }
     }
     userShortcuts[id] = combo;
-    _save();
-    return true;
+    // `true` still means "bound and saved"; { saved: false } means the binding
+    // is live for this session only, which the editor tells the user about.
+    return _save() ? true : { saved: false };
   }
 
   function resetShortcut(id) {
     delete userShortcuts[id];
-    _save();
+    return _save();
   }
-  function resetAll() { userShortcuts = {}; _save(); }
+  function resetAll() { userShortcuts = {}; return _save(); }
 
   function register(id, handler) {
     if (!DEFAULT_SHORTCUTS[id]) {

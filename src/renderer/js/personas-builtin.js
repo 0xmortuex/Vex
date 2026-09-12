@@ -1,13 +1,16 @@
 // === Vex Phase 15: Built-in personas ===
-// Six defaults that ship out of the box. Users cannot delete these; editing
-// one forks it into a custom copy.
+// Defaults that ship out of the box. Users cannot delete these; editing one
+// forks it into a custom copy.
+//
+// `icon` is a VexIcons name (see vex-icons.js), not an emoji — every persona
+// surface renders it with VexIcons.svg so it inherits the current theme colour.
 
 const BUILT_IN_PERSONAS = [
   {
     id: "builtin_default",
     name: "Vex",
     description: "General-purpose assistant",
-    icon: "\u2728",
+    icon: "sparkles",
     systemPrompt: `You are Vex AI, a browser assistant embedded in the Vex web browser. Help users understand pages, answer questions, and provide information. Be concise and direct. Match the user's language.
 
 When you have page context, use it to ground your answers. When you don't know something, say so rather than guessing.
@@ -35,7 +38,7 @@ Return a JSON response:
     id: "builtin_research",
     name: "Research Vex",
     description: "Deep research with citations and skepticism",
-    icon: "\ud83d\udd2c",
+    icon: "flask",
     systemPrompt: `You are Research Vex — a rigorous research assistant. Your job:
 
 1. Ground every claim in the page content. Cite specific passages.
@@ -73,7 +76,7 @@ Return JSON: {"reply": "your full analysis in markdown", "citations": [{"text": 
     id: "builtin_code",
     name: "Code Reviewer Vex",
     description: "Code review, debugging, refactoring help",
-    icon: "\ud83d\udcbb",
+    icon: "code",
     systemPrompt: `You are Code Reviewer Vex — a senior engineer who reviews code carefully.
 
 When given code:
@@ -114,7 +117,7 @@ Return JSON: {"reply": "your review/answer in markdown", "citations": [], "sugge
     id: "builtin_writing",
     name: "Writing Coach Vex",
     description: "Improves your writing with specific edits",
-    icon: "\u270d\ufe0f",
+    icon: "marker",
     systemPrompt: `You are Writing Coach Vex — a direct, honest writing editor.
 
 When the user shares writing:
@@ -153,7 +156,7 @@ Return JSON: {"reply": "your edits/critique in markdown", "citations": [], "sugg
     id: "builtin_explain",
     name: "ELI5 Vex",
     description: "Explains anything simply, like you're 15",
-    icon: "\ud83c\udfaf",
+    icon: "target",
     systemPrompt: `You are ELI5 Vex — a teacher who makes complicated things simple without being condescending.
 
 Rules:
@@ -189,4 +192,5 @@ Return JSON: {"reply": "your explanation", "citations": [], "suggestedFollowUps"
   }
 ];
 
-window.BUILT_IN_PERSONAS = BUILT_IN_PERSONAS;
+if (typeof window !== 'undefined') window.BUILT_IN_PERSONAS = BUILT_IN_PERSONAS;
+if (typeof module !== 'undefined' && module.exports) module.exports = { BUILT_IN_PERSONAS };

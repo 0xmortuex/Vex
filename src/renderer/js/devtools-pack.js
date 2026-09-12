@@ -94,7 +94,7 @@ const JsonApiViewer = {
     const body = m.querySelector('#api-body').value;
     const statusEl = m.querySelector('#api-status');
     const out = m.querySelector('#api-response');
-    statusEl.textContent = '⏳ Sending…';
+    statusEl.textContent = 'Sending…';
     out.innerHTML = '';
     const res = await window.vex.apiRequest({ url, method, headers, body }).catch(() => null);
     if (!res || !res.ok) { statusEl.innerHTML = `<span style="color:#fca5a5">✕ ${this.esc((res && res.error) || 'Request failed')}</span>`; return; }
@@ -139,7 +139,7 @@ const ResponsivePreview = {
     }).join('');
     m.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)">
-        <strong style="font-size:14px;color:var(--text)">📱 Responsive Preview</strong>
+        <strong style="font-size:14px;color:var(--text)">Responsive Preview</strong>
         <span style="flex:1;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this.esc(url)}</span>
         <button id="rp-reload" style="padding:7px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px">Reload all</button>
         <button id="rp-close" style="padding:7px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:600">Close</button>

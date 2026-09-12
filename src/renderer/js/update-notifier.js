@@ -5,7 +5,10 @@ const UpdateNotifier = {
     window.vex.onUpdateAvailable?.((info) => this._showAvailable(info));
     window.vex.onUpdateDownloadProgress?.((p) => this._updateProgress(p));
     window.vex.onUpdateDownloaded?.((info) => this._showReady(info));
-    window.vex.onUpdateError?.((err) => console.log('[Update] Error:', err.message));
+    // An update that fails has to say so. This used to log to a console nobody
+    // has open while the progress bar sat at 0% forever, so a broken download
+    // was indistinguishable from a slow one.
+    window.vex.onUpdateError?.((err) => this._showError(err));
     // A few seconds after launch, quietly ask the update server whether a newer
     // build exists and, if so, show a download prompt. This uses the lightweight
     // HTTPS version check (not electron-updater), so it can never crash the app.
@@ -41,6 +44,12 @@ const UpdateNotifier = {
     const close = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); };
     document.getElementById('update-get-btn')?.addEventListener('click', () => {
       const url = info.downloadUrl || info.url;
+      // Without this, a release with no asset URL opened an "undefined" tab and
+      // the toast still announced a download that was never going to happen.
+      if (!/^https:\/\//i.test(String(url || ''))) {
+        window.showToast?.('This release has no download link yet — get it from the Vex releases page', 'error', 6000);
+        return;
+      }
       try {
         if (typeof TabManager !== 'undefined' && TabManager.createTab) TabManager.createTab(url, true);
         else window.open(url, '_blank');
@@ -86,8 +95,32 @@ const UpdateNotifier = {
   _updateProgress(p) {
     const fill = document.getElementById('upd-fill');
     const text = document.getElementById('upd-text');
-    if (fill) fill.style.width = p.percent + '%';
-    if (text) text.textContent = p.percent + '%';
+    // electron-updater reports fractional percentages (12.3456), which rendered
+    // verbatim as "12.3456%".
+    const pct = Math.max(0, Math.min(100, Math.round(Number(p && p.percent) || 0)));
+    if (fill) fill.style.width = pct + '%';
+    if (text) text.textContent = pct + '%';
+  },
+
+  // Replace whatever the notification is showing with the failure, and leave a
+  // way to retry. Called for any electron-updater error, including one that
+  // arrives mid-download.
+  _showError(err) {
+    const message = (err && err.message) || 'Update failed';
+    console.warn('[Update] Error:', message);
+    const el = document.getElementById('update-notification');
+    if (!el) { window.showToast?.('Update failed — ' + message, 'error', 6000); return; }
+    const body = el.querySelector('.update-notif-body');
+    const actions = el.querySelector('.update-notif-actions');
+    if (body) body.innerHTML = `<div class="update-notif-title">Update failed</div><div class="update-notif-sub">${this._esc(message)}</div>`;
+    if (actions) {
+      actions.innerHTML = '<button class="update-btn-dl" id="upd-retry">Try again</button><button class="update-btn-later" id="upd-err-close">Close</button>';
+      document.getElementById('upd-retry')?.addEventListener('click', () => { el.remove(); this.checkManually(); });
+      document.getElementById('upd-err-close')?.addEventListener('click', () => {
+        el.classList.remove('show');
+        setTimeout(() => el.remove(), 300);
+      });
+    }
   },
 
   _showReady(info) {
@@ -108,9 +141,14 @@ const UpdateNotifier = {
     const result = await window.vex.checkForUpdates?.();
     if (result?.ok && result.hasUpdate) this._showDownloadPrompt(result);
     else if (result?.ok) window.showToast?.('You\'re running the latest version');
-    else window.showToast?.('Couldn\'t check for updates: ' + (result?.error || 'network error'));
+    else window.showToast?.('Couldn\'t check for updates: ' + (result?.error || 'network error'), 'error', 5000);
     return result;
   },
 
   _esc(s) { return window.escapeHtml(s); }
 };
+
+// Exported the same way every other renderer module is, so the update flow can
+// be exercised from tests instead of only existing as a script-scoped const.
+if (typeof window !== 'undefined') window.UpdateNotifier = UpdateNotifier;
+if (typeof module !== 'undefined' && module.exports) module.exports = { UpdateNotifier };

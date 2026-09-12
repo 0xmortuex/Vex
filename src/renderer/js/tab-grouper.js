@@ -147,7 +147,7 @@ const TabGrouper = (() => {
     banner.id = 'group-suggestion-banner';
     banner.className = 'group-suggestion-banner';
     banner.innerHTML = `
-      <div class="banner-icon">\ud83d\uddc2\ufe0f</div>
+      <div class="banner-icon"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><rect x="1.8" y="4.5" width="12.4" height="9" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M1.8 6.6h5L8.1 4.5h6.1" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
       <div class="banner-content">
         <div class="banner-title">You have ${count} ungrouped tabs</div>
         <div class="banner-subtitle">Let Vex AI organize them into groups?</div>
@@ -331,7 +331,7 @@ const TabGrouper = (() => {
     overlay.innerHTML = `
       <div class="sync-modal-card group-preview-modal">
         <div class="preview-header">
-          <h2 style="margin:0">\ud83d\uddc2\ufe0f Proposed Tab Groups</h2>
+          <h2 style="margin:0"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><rect x="1.8" y="4.5" width="12.4" height="9" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M1.8 6.6h5L8.1 4.5h6.1" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg> Proposed Tab Groups</h2>
           ${proposal.reasoning ? `<p class="preview-reasoning">${_esc(proposal.reasoning)}</p>` : ''}
         </div>
         <div class="preview-groups" id="preview-groups">
@@ -376,7 +376,7 @@ const TabGrouper = (() => {
     return `
       <details class="group-preview" data-group-idx="${idx}" open>
         <summary>
-          <span class="group-preview-emoji">${_esc(group.emoji || '\ud83d\udcc1')}</span>
+          <span class="group-preview-emoji"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.8 12.6V4.2a.8.8 0 0 1 .8-.8h3.4l1.4 1.7h6a.8.8 0 0 1 .8.8v6.7a.8.8 0 0 1-.8.8H2.6a.8.8 0 0 1-.8-.8z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
           <input class="group-preview-name" type="text" value="${_esc(group.name)}" data-field="name">
           <span class="group-preview-color color-${_esc(color)}"></span>
           <span class="group-preview-count">${tabs.length} tabs</span>
@@ -484,7 +484,7 @@ const TabGrouper = (() => {
 
     let created = 0;
     for (const g of groupsToApply) {
-      const displayName = `${g.emoji ? g.emoji + ' ' : ''}${g.name}`.trim();
+      const displayName = String(g.name || '').trim();
       // Prefer a theme palette ref (matches + re-themes); fall back to the fixed
       // hex when TabManager/the theme palette isn't available.
       const color = (typeof TabManager !== 'undefined' && typeof TabManager._aiGroupColorRef === 'function')

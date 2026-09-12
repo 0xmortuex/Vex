@@ -18,15 +18,15 @@ const BurnerIdentity = {
     const chip = "padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12.5px;font-family:'Outfit',sans-serif";
     const prim = "padding:9px 16px;background:var(--primary,var(--accent,#d4a574));color:#111;border:1px solid transparent;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif";
     m.innerHTML = `<div style="width:440px;max-width:94vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,0.5);color:var(--text)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:15px;font-weight:700;flex:1">🔥 Burner identity</span><button id="bi-close" style="${chip}">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:15px;font-weight:700;flex:1">Burner identity</span><button id="bi-close" style="${chip}">✕</button></div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:14px">Opens a disposable-email site in a fresh <b>off-the-record</b> container (cookies vanish when you close it) — so you can sign up for something without it tying back to you.</div>
       <div style="font-size:12px;margin-bottom:6px">Disposable email service:</div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
         ${this.MAIL.map((s, i) => `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer"><input type="radio" name="bi-mail" value="${i}" ${i === 0 ? 'checked' : ''}> ${window.escapeHtml ? window.escapeHtml(s.name) : s.name}</label>`).join('')}
       </div>
-      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:16px;cursor:pointer"><input type="checkbox" id="bi-tor"> 🧅 Route it through Tor too (slower, maximum anonymity)</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:16px;cursor:pointer"><input type="checkbox" id="bi-tor"> Route it through Tor too (slower, maximum anonymity)</label>
       <div id="bi-msg" style="font-size:11.5px;color:var(--text-muted);min-height:16px;margin-bottom:10px"></div>
-      <div style="display:flex;justify-content:flex-end;gap:8px"><button id="bi-close2" style="${chip}">Cancel</button><button id="bi-go" style="${prim}">🔥 Start burner</button></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px"><button id="bi-close2" style="${chip}">Cancel</button><button id="bi-go" style="${prim}">Start burner</button></div>
     </div>`;
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
@@ -46,7 +46,7 @@ const BurnerIdentity = {
           if (!r || !r.ok) { msg('Tor unavailable — starting without it.'); }
         }
         TabManager.createTab(svc.url, true, null, { partition: part });
-        window.showToast?.('🔥 Burner session opened' + (useTor ? ' over Tor' : '') + ' — grab a disposable address');
+        window.showToast?.('Burner session opened' + (useTor ? ' over Tor' : '') + ' — grab a disposable address');
         close();
       } catch (e) { msg('Failed: ' + (e && e.message)); }
     });

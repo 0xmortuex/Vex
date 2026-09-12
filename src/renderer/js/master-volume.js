@@ -147,14 +147,14 @@ const MasterVolume = {
     const el = document.createElement('div');
     el.className = 'mastervol-pop';
     el.innerHTML = `
-      <div class="mastervol-head">🎚️ Master Volume <span class="mastervol-pct">${pct}%</span></div>
+      <div class="mastervol-head"><span class="mastervol-title">${VexIcons.svg('sliders', { size: 15 })}Master Volume</span> <span class="mastervol-pct">${pct}%</span></div>
       <div class="mastervol-row">
-        <button class="mastervol-mute" title="Mute / unmute">${pct === 0 ? '🔇' : '🔊'}</button>
+        <button class="mastervol-mute" title="Mute / unmute">${VexIcons.svg(pct === 0 ? 'mute' : 'volume', { size: 18 })}</button>
         <input class="mastervol-slider" type="range" min="0" max="500" step="5" value="${pct}">
       </div>
       <div class="mastervol-ticks"><span>0</span><span>100</span><span>250</span><span>500%</span></div>
       <div class="mastervol-sub">Applies to every tab &amp; panel · above 100% boosts louder than the source</div>
-      <div class="mastervol-drm" hidden>🔒 This site's audio is DRM‑protected (Netflix / Disney+ / Prime), so it can't be boosted past 100% here — that's a streaming restriction, not a Vex limit. To make those louder, use a Windows system booster like <b>Equalizer APO</b> (free).</div>`;
+      <div class="mastervol-drm" hidden>${VexIcons.svg('lock', { size: 12 })} This site's audio is DRM‑protected (Netflix / Disney+ / Prime), so it can't be boosted past 100% here — that's a streaming restriction, not a Vex limit. To make those louder, use a Windows system booster like <b>Equalizer APO</b> (free).</div>`;
     document.body.appendChild(el);
     this._el = el;
 
@@ -168,7 +168,7 @@ const MasterVolume = {
       p = Math.max(0, Math.min(500, Math.round(p)));
       slider.value = p; pctEl.textContent = p + '%';
       pctEl.style.color = p > 100 ? 'var(--warning, #e8b84a)' : 'var(--primary, #6366f1)';
-      mute.textContent = p === 0 ? '🔇' : '🔊';
+      mute.innerHTML = VexIcons.svg(p === 0 ? 'mute' : 'volume', { size: 18 });
       // On DRM streaming sites, explain why boost above 100% won't take effect.
       if (drmNote) drmNote.hidden = !(p > 100 && isDrm);
       if (p > 0) lastNonZero = p;
@@ -212,7 +212,8 @@ const MasterVolume = {
       .mastervol-head{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;color:var(--text,#e9e9ee);margin-bottom:12px;}
       .mastervol-pct{font-variant-numeric:tabular-nums;font-weight:700;}
       .mastervol-row{display:flex;align-items:center;gap:10px;}
-      .mastervol-mute{flex:0 0 auto;border:none;background:transparent;font-size:18px;cursor:pointer;line-height:1;padding:2px;border-radius:6px;}
+      .mastervol-mute{flex:0 0 auto;border:none;background:transparent;color:inherit;cursor:pointer;line-height:0;padding:2px;border-radius:6px;}
+      .mastervol-title{display:inline-flex;align-items:center;gap:7px;}
       .mastervol-slider{flex:1;accent-color:var(--primary,#6366f1);height:4px;cursor:pointer;}
       .mastervol-ticks{display:flex;justify-content:space-between;font-size:9.5px;color:var(--text-muted,#9a9aa5);margin-top:4px;padding:0 28px 0 32px;}
       .mastervol-sub{margin-top:10px;font-size:11px;color:var(--text-muted,#9a9aa5);line-height:1.4;}

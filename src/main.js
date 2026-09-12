@@ -664,62 +664,81 @@ ipcMain.handle('site:clear-data', async (_e, opts) => {
 });
 
 // === Full-text recall ("memex") — index the text of pages you read, search it
-// later. Stored as a capped JSON log in userData; local only, never uploaded. ===
+// later. Stored as a capped JSON log in userData; local only, never uploaded.
+// Ranking, tokenizing and snippeting live in ./main/recall-index.js. ===
+const { RecallIndex } = require('./main/recall-index');
 const RECALL_FILE = () => path.join(app.getPath('userData'), 'recall.json');
-const RECALL_MAX = 2000;
-let _recallCache = null;
-function recallLoad() {
-  if (_recallCache) return _recallCache;
+// Writes are coalesced: the old code re-serialised and re-wrote the entire log
+// (plus a .bak copy) on every single page visit, so a full index meant tens of
+// megabytes of disk churn per page loaded, growing with the index.
+const RECALL_WRITE_DELAY = 1500;
+let _recall = null;
+let _recallDirty = false;
+let _recallTimer = null;
+function recallStore() {
+  if (_recall) return _recall;
+  let records = [];
   try {
     const fsx = require('fs');
-    _recallCache = fsx.existsSync(RECALL_FILE()) ? JSON.parse(fsx.readFileSync(RECALL_FILE(), 'utf8')) : [];
-    if (!Array.isArray(_recallCache)) _recallCache = [];
-  } catch { _recallCache = []; }
-  return _recallCache;
+    if (fsx.existsSync(RECALL_FILE())) records = JSON.parse(fsx.readFileSync(RECALL_FILE(), 'utf8'));
+    if (!Array.isArray(records)) records = [];
+  } catch { records = []; }
+  _recall = new RecallIndex(records);
+  return _recall;
 }
 let recallWrites = Promise.resolve();
-function recallPersist(erase = false) {
-  const bytes = JSON.stringify(_recallCache || []);
+function recallFlush(erase = false) {
+  if (_recallTimer) { clearTimeout(_recallTimer); _recallTimer = null; }
+  if (!_recallDirty && !erase) return recallWrites;
+  _recallDirty = false;
+  const bytes = JSON.stringify(_recall ? _recall.toJSON() : []);
   recallWrites = recallWrites.catch(() => {}).then(async () => {
     await atomicWrite(RECALL_FILE(), bytes, { backup: !erase });
     if (erase) await fs.promises.rm(RECALL_FILE() + '.bak', { force: true });
   });
   return recallWrites;
 }
-ipcMain.handle('recall:index', async (_e, entry) => {
+function recallTouch() {
+  _recallDirty = true;
+  if (_recallTimer) return recallWrites;
+  _recallTimer = setTimeout(() => { _recallTimer = null; recallFlush(); }, RECALL_WRITE_DELAY);
+  if (typeof _recallTimer.unref === 'function') _recallTimer.unref();
+  return recallWrites;
+}
+ipcMain.handle('recall:index', (_e, entry) => {
   try {
     const { url, title, text } = entry || {};
-    if (!url || !/^https?:/i.test(url) || !text || text.length < 120) return { ok: false };
-    const arr = recallLoad();
-    const i = arr.findIndex(e => e.url === url);
-    const rec = { url, title: String(title || '').slice(0, 300), text: String(text).slice(0, 6000), at: Date.now() };
-    if (i >= 0) arr[i] = rec; else arr.unshift(rec);
-    if (arr.length > RECALL_MAX) arr.length = RECALL_MAX;
-    await recallPersist();
-    return { ok: true };
+    if (!url || !/^https?:/i.test(url) || !text || text.length < 80) return { ok: false, reason: 'thin' };
+    const store = recallStore();
+    const rec = store.put({ url, title, text });
+    if (!rec) return { ok: false, reason: 'rejected' };
+    recallTouch();
+    return { ok: true, pages: store.size };
   } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('recall:search', (_e, query) => {
+ipcMain.handle('recall:search', (_e, query, options) => {
   try {
-    const q = String(query || '').toLowerCase().trim();
-    if (!q) return [];
-    const terms = q.split(/\s+/).filter(Boolean);
-    const arr = recallLoad();
-    const scored = [];
-    for (const e of arr) {
-      const hay = (e.title + ' ' + e.text).toLowerCase();
-      let score = 0;
-      for (const t of terms) { const n = hay.split(t).length - 1; if (!n) { score = 0; break; } score += n; }
-      if (score > 0) {
-        const idx = e.text.toLowerCase().indexOf(terms[0]);
-        const snippet = idx >= 0 ? e.text.slice(Math.max(0, idx - 60), idx + 120) : e.text.slice(0, 160);
-        scored.push({ url: e.url, title: e.title, at: e.at, score, snippet });
-      }
-    }
-    return scored.sort((a, b) => b.score - a.score).slice(0, 40);
-  } catch { return []; }
+    const opts = options && typeof options === 'object' ? options : {};
+    return recallStore().search(String(query || ''), {
+      limit: opts.limit, offset: opts.offset, sort: opts.sort,
+      since: opts.since, until: opts.until, site: opts.site,
+    });
+  } catch { return { total: 0, hits: [], terms: [], took: 0 }; }
 });
-ipcMain.handle('recall:clear', async () => { _recallCache = []; await recallPersist(true); return { ok: true }; });
+ipcMain.handle('recall:stats', () => {
+  try { return recallStore().stats(); }
+  catch { return { pages: 0, bytes: 0, oldest: 0, newest: 0, hosts: [] }; }
+});
+ipcMain.handle('recall:forget', async (_e, target) => {
+  try {
+    const { url, host } = target || {};
+    if (!url && !host) return { ok: false, removed: 0 };
+    const removed = recallStore().forget({ url, host });
+    if (removed) await recallTouch();
+    return { ok: true, removed };
+  } catch (err) { return { ok: false, removed: 0, error: err.message }; }
+});
+ipcMain.handle('recall:clear', async () => { recallStore().clear(); await recallFlush(true); return { ok: true }; });
 
 // === Translate arbitrary text/word (free Google endpoint, via main to dodge CORS) ===
 ipcMain.handle('translate:text', async (_e, { text, tl } = {}) => {
@@ -1237,7 +1256,7 @@ ipcMain.handle('media:download', (_e, wcId, url) => {
 // Chrome-style collision handling: setting an explicit save path bypasses
 // Electron's automatic "file (1).ext" dedup, so a second download of the same
 // name would silently OVERWRITE the first on disk. Find a free name instead.
-const { wireDownloadsOnSession } = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent });
+const { wireDownloadsOnSession } = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain });
 
 // === Phase 18: Chrome extension loader ===
 const extensionsDir = path.join(userDataPath, 'extensions');
@@ -1995,7 +2014,7 @@ app.on('web-contents-created', (_event, contents) => {
     _httpsOnlyFailed.add(bare);
     const httpUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
     try { contents.loadURL(httpUrl); } catch {}
-    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', '⚠ ' + bare + ' has no HTTPS — loaded over an unencrypted connection'); } catch {}
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', bare + ' has no HTTPS — loaded over an unencrypted connection'); } catch {}
   });
   // A clean main-frame load means there's no pending upgrade left to fall back
   // for on this tab — clearing avoids a stale entry ever downgrading a later nav.
@@ -2522,8 +2541,13 @@ ipcMain.handle('geolocation:get', () => {
     if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
       return { mode: 'manual', latitude: lat, longitude: lng };
     }
-    // No coords saved yet — fall through to IP so first-run isn't broken.
-    return { mode: 'ip' };
+    // Manual mode with nothing saved used to fall through to an IP lookup so
+    // "first-run isn't broken". That quietly did the one thing the chosen
+    // setting promises not to do — it put the user on a third-party geo-IP
+    // endpoint from the guest page, under a mode whose own description says
+    // nothing leaves your device. Report that there is no location instead;
+    // Settings → Location shows a warning and the one-click ways to set one.
+    return { mode: 'off' };
   }
   return { mode: 'ip' };
 });
@@ -2812,6 +2836,31 @@ function createWindow() {
     try { secureSessions.fromPartition('persist:roblox').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
     catch (e) { console.warn('[DPI-bypass] roblox setProxy failed:', e && e.message); }
   };
+  // Roblox and Discord share ONE ByeDPI process. Every _byedpi.start() replaces
+  // it on a fresh port and every stop() ends it, but only the caller's own
+  // session was ever re-pointed — so running Discord's auto sweep while the
+  // Roblox bypass was on left persist:roblox aimed at a dead port, and Roblox
+  // lost connectivity with nothing to say why. These two wrappers keep Roblox
+  // pointed at whatever is actually listening.
+  let _robloxOnByedpi = false;
+  async function _byedpiStart(ud, buf, preset, custom) {
+    const port = await _byedpi.start(ud, buf, preset, custom);
+    if (_robloxOnByedpi) _setRobloxProxy('socks5://127.0.0.1:' + port);
+    return port;
+  }
+  function _byedpiStop() {
+    _byedpi.stop();
+    if (!_robloxOnByedpi) return;
+    // Leaving the dead port set would fail every Roblox request in silence.
+    _setRobloxProxy(null);
+    _robloxOnByedpi = false;
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('vex:toast', 'Roblox bypass is off — the shared bypass it was using has stopped');
+      }
+    } catch (e) { console.warn('[DPI-bypass] could not report the Roblox bypass stopping:', e && e.message); }
+  }
+
   function _testRoblox(url) {
     return new Promise((resolve) => {
       let done = false; const fin = (v) => { if (!done) { done = true; resolve(v); } };
@@ -2829,29 +2878,32 @@ function createWindow() {
     return await _testRoblox('https://www.roblox.com/home');
   }
   async function _applyRobloxBypass(on) {
-    if (!on) { _setRobloxProxy(null); return { ok: true, off: true }; }
+    if (!on) { _robloxOnByedpi = false; _setRobloxProxy(null); return { ok: true, off: true }; }
     try {
       // Reuse a ByeDPI that's already up (e.g. Discord bypass) — never restart it.
       if (_byedpi.isRunning && _byedpi.isRunning()) {
+        _robloxOnByedpi = true;
         _setRobloxProxy('socks5://127.0.0.1:' + _byedpi.getPort());
         return { ok: true, reused: true, port: _byedpi.getPort() };
       }
       // Otherwise start the known-good preset and route Roblox through it.
       const ud = app.getPath('userData');
-      const port = await _byedpi.start(ud, _downloadBuffer, 0);
+      _robloxOnByedpi = true;
+      const port = await _byedpiStart(ud, _downloadBuffer, 0);
       _setRobloxProxy('socks5://127.0.0.1:' + port);
       if (await _testRobloxRobust()) return { ok: true, port, preset: 0 };
       // Preset 0 didn't pass — sweep the rest (safe: no other consumer yet).
       for (let i = 1; i < _byedpi.PRESETS.length; i++) {
         try {
-          const p = await _byedpi.start(ud, _downloadBuffer, i);
+          const p = await _byedpiStart(ud, _downloadBuffer, i);
           _setRobloxProxy('socks5://127.0.0.1:' + p);
           if (await _testRobloxRobust()) return { ok: true, port: p, preset: i };
         } catch {}
       }
+      _robloxOnByedpi = false;
       _byedpi.stop(); _setRobloxProxy(null);
       return { ok: false, error: 'no mode got through' };
-    } catch (e) { _setRobloxProxy(null); return { ok: false, error: (e && e.message) || 'failed' }; }
+    } catch (e) { _robloxOnByedpi = false; _setRobloxProxy(null); return { ok: false, error: (e && e.message) || 'failed' }; }
   }
 
   // mode: 'off' | 'light' | 'strong'. opts: { preset?: number (>=0 forces it,
@@ -2876,7 +2928,7 @@ function createWindow() {
           send({ phase: 'testing', label: 'mode ' + (i + 1), i: i + 1, total });
           const flags = (_byedpi.PRESETS[i] || []).join(' ');
           try {
-            const port = await _byedpi.start(ud, _downloadBuffer, i);
+            const port = await _byedpiStart(ud, _downloadBuffer, i);
             _setDiscordProxy('socks5://127.0.0.1:' + port);
             const ok = await _testDiscordRobust();
             swlog(`mode ${i + 1} [${flags}]: listening=yes test=${ok ? 'PASS' : 'fail'}`);
@@ -2886,13 +2938,13 @@ function createWindow() {
         // 2) built-in light as a last resort
         send({ phase: 'testing', label: 'built-in', i: total, total });
         try {
-          _byedpi.stop();
+          _byedpiStop();
           _setDiscordProxy(_dpiBypassPort ? ('https=127.0.0.1:' + _dpiBypassPort + ';http=127.0.0.1:' + _dpiBypassPort) : null);
           const ok = await _testDiscordRobust();
           swlog(`built-in light: test=${ok ? 'PASS' : 'fail'}`);
           if (ok) { send({ phase: 'done', ok: true, via: 'light' }); return { ok: true, mode: 'auto', via: 'light' }; }
         } catch {}
-        _byedpi.stop(); _setDiscordProxy(null);
+        _byedpiStop(); _setDiscordProxy(null);
         swlog('--- no mode got through ---');
         send({ phase: 'done', ok: false });
         return { ok: false, mode: 'auto', error: 'no mode got through' };
@@ -2901,20 +2953,20 @@ function createWindow() {
         const ud = app.getPath('userData');
         // Custom flags: run exactly what the user pasted.
         if (opts.custom && String(opts.custom).trim()) {
-          const port = await _byedpi.start(ud, _downloadBuffer, 0, opts.custom);
+          const port = await _byedpiStart(ud, _downloadBuffer, 0, opts.custom);
           _setDiscordProxy('socks5://127.0.0.1:' + port);
           return { ok: true, mode: 'strong', custom: true, port };
         }
         // Forced preset: run just that one.
         if (typeof opts.preset === 'number' && opts.preset >= 0) {
-          const port = await _byedpi.start(ud, _downloadBuffer, opts.preset);
+          const port = await _byedpiStart(ud, _downloadBuffer, opts.preset);
           _setDiscordProxy('socks5://127.0.0.1:' + port);
           return { ok: true, mode: 'strong', preset: opts.preset, port };
         }
         // Auto-tune: try presets in order, keep the first that actually reaches Discord.
         for (let i = 0; i < _byedpi.PRESETS.length; i++) {
           try {
-            const port = await _byedpi.start(ud, _downloadBuffer, i);
+            const port = await _byedpiStart(ud, _downloadBuffer, i);
             _setDiscordProxy('socks5://127.0.0.1:' + port);
             if (await _testDiscordRobust()) {
               console.log('[DPI-bypass] ByeDPI auto-tune: preset ' + i + ' works');
@@ -2922,10 +2974,10 @@ function createWindow() {
             }
           } catch (e) { console.warn('[DPI-bypass] preset ' + i + ' failed:', e && e.message); }
         }
-        _byedpi.stop(); _setDiscordProxy(null);
+        _byedpiStop(); _setDiscordProxy(null);
         return { ok: false, mode: 'strong', error: 'no preset got through (your ISP may need Zapret)' };
       }
-      _byedpi.stop();
+      _byedpiStop();
       if (mode === 'light') {
         _setDiscordProxy(_dpiBypassPort ? ('https=127.0.0.1:' + _dpiBypassPort + ';http=127.0.0.1:' + _dpiBypassPort) : null);
         return { ok: true, mode: 'light' };
@@ -3532,14 +3584,14 @@ ipcMain.handle('storage:history-add', async (_event, entry) => {
   await dataStore.update('history', value => [{ id: require('crypto').randomUUID(), url: entry.url, title: String(entry.title || '').slice(0, 1000), time: Date.now() }, ...(Array.isArray(value) ? value : [])].slice(0, 500));
   return true;
 });
-ipcMain.handle('storage:flush', async () => { await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallWrites; await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushPermissions(); return true; });
+ipcMain.handle('storage:flush', async () => { await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushPermissions(); return true; });
 ipcMain.handle('browsing:clear-data', async () => {
   await dataStore.flush(); await preferences.flush();
   for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) { await ses.clearStorageData(); await ses.clearCache(); }
   await dataStore.clear('history', []);
   await dataStore.clear('sync-records', null);
-  _recallCache = [];
-  await recallPersist(true);
+  recallStore().clear();
+  await recallFlush(true);
   await preferences.clearKeys(['vex.history','vex.sessions','vex.archivedTabs','vex.workspaceSnapshots','vex.downloads','vex.autofillLog']);
   return true;
 });

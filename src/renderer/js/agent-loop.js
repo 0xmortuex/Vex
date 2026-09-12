@@ -126,6 +126,7 @@ const AgentLoop = {
   _mode: 'ask',
   _history: [],
   _maxIter: 15,
+  _planApproved: false,
 
   _parseAgentResponse(raw) {
     if (raw) console.log('[Agent] Raw AI response:', String(raw).trim().substring(0, 500));
@@ -139,11 +140,13 @@ const AgentLoop = {
     this._running = true;
     this._mode = mode || 'ask';
     this._history = [];
+    this._planApproved = false;
     toolCallHistory.reset();
     document.getElementById('ai-send-agent')?.classList.add('running');
 
     this._renderStep('agent-start', 'Agent started: ' + goal, 'info');
 
+    let exhausted = false;
     try {
       let iteration = 0;
       let lastResult = null;
@@ -185,9 +188,19 @@ const AgentLoop = {
           this._renderStep('error', 'Error: ' + (err.message || 'Request failed'), 'error');
           break;
         }
+        if (!data || data.result == null) {
+          document.querySelector('.agent-step-thinking')?.remove();
+          this._renderStep('error', 'The AI backend returned nothing. Check Settings → AI.', 'error');
+          break;
+        }
 
         // Remove thinking indicator
         document.querySelector('.agent-step-thinking')?.remove();
+
+        // Stop is only checked at the top of the loop, so a Stop pressed while
+        // the model was thinking still let this iteration run its tool — the
+        // agent took one more action AFTER the user said stop. Re-check here.
+        if (!this._running) { this._renderStep('stopped', 'Stopped by you.', 'warn'); break; }
 
         const decision = this._parseAgentResponse(data.result);
 
@@ -222,6 +235,9 @@ const AgentLoop = {
           this._renderStep('denied', 'Action denied by user', 'error');
           break;
         }
+        // Approval can sit open for a long time; the user may have pressed Stop
+        // in the meantime.
+        if (!this._running) { this._renderStep('stopped', 'Stopped by you.', 'warn'); break; }
 
         // Phase 18: Loop prevention — intercept before executing
         if (toolCallHistory.isStuckInLoop(decision.tool, decision.parameters || {})) {
@@ -266,9 +282,13 @@ const AgentLoop = {
 
         // Brief pause between actions
         await new Promise(r => setTimeout(r, 300));
+        // Only a loop that ran out of iterations is "exhausted". Breaking out on
+        // finish/stop/error at step 15 used to print "Max iterations reached"
+        // plus a failure summary directly under "Task complete".
+        if (iteration >= this._maxIter) exhausted = true;
       }
 
-      if (iteration >= this._maxIter) {
+      if (exhausted && this._running) {
         this._renderStep('error', 'Max iterations reached', 'error');
         this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
       }
@@ -294,16 +314,45 @@ const AgentLoop = {
     const isSafe = SAFE_TOOLS.includes(decision.tool);
 
     if (this._mode === 'auto') {
-      return intent !== 'risky' || vexConfirm({ title: 'Risky agent action', message: decision.tool + '\n\n' + (decision.thought || ''), okLabel: 'Proceed', danger: true });
+      if (intent !== 'risky') return true;
+      return await this._confirmRisky(decision);
     }
     if (this._mode === 'ask') {
       if (isSafe) return true;
       return this._confirmAction(decision);
     }
-    return true; // plan mode — already approved
+    // Plan mode: "show the plan, then execute". It used to return true for
+    // EVERY action — so picking Plan silently removed all approval, making it
+    // less safe than Auto. Now the first non-safe action is shown and approved
+    // once for the run, and anything the model flags risky still asks.
+    if (this._mode === 'plan') {
+      if (isSafe) return true;
+      if (!this._planApproved) {
+        const ok = await this._confirmAction(decision, 'Approve this plan (the agent then continues on its own)');
+        if (!ok) return false;
+        this._planApproved = true;
+        return true;
+      }
+      if (intent === 'risky') return await this._confirmRisky(decision);
+      return true;
+    }
+    return this._confirmAction(decision);
   },
 
-  _confirmAction(decision) {
+  async _confirmRisky(decision) {
+    if (typeof vexConfirm !== 'function') {
+      // No modal available — refuse rather than silently taking a risky action.
+      this._renderStep('denied', 'Risky action blocked: the confirmation dialog is unavailable.', 'error');
+      return false;
+    }
+    return await vexConfirm({
+      title: 'Risky agent action',
+      message: decision.tool + '\n\n' + (decision.thought || ''),
+      okLabel: 'Proceed', danger: true
+    });
+  },
+
+  _confirmAction(decision, heading) {
     return new Promise(resolve => {
       const container = document.getElementById('ai-messages');
       if (!container) { resolve(false); return; }
@@ -312,8 +361,9 @@ const AgentLoop = {
       el.className = 'ai-msg assistant';
       el.innerHTML = `
         <div class="agent-card">
-          <div class="agent-thought">${AIPanel._esc(decision.thought || '')}</div>
-          <div class="agent-tool-call"><strong>${decision.tool}</strong> <code>${AIPanel._esc(JSON.stringify(decision.parameters || {}))}</code></div>
+          ${heading ? `<div class="agent-plan-heading">${this._esc(heading)}</div>` : ''}
+          <div class="agent-thought">${this._esc(decision.thought || '')}</div>
+          <div class="agent-tool-call"><strong>${this._esc(decision.tool)}</strong> <code>${this._esc(JSON.stringify(decision.parameters || {}))}</code></div>
           <div class="agent-btns">
             <button class="agent-approve">Approve</button>
             <button class="agent-deny">Deny</button>
@@ -341,11 +391,16 @@ const AgentLoop = {
     el.className = 'ai-msg assistant agent-step-error';
     el.innerHTML = `
       <div style="color:var(--danger);font-weight:600;margin-bottom:6px">Agent Error</div>
-      <div style="font-size:12px">${AIPanel._esc(error)}</div>
-      ${rawResponse ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:var(--text-muted)">Show raw AI response</summary><pre style="font-size:10px;white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:4px;margin-top:6px;max-height:200px;overflow:auto">${AIPanel._esc(String(rawResponse))}</pre></details>` : ''}
+      <div style="font-size:12px">${this._esc(error)}</div>
+      ${rawResponse ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:var(--text-muted)">Show raw AI response</summary><pre style="font-size:10px;white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:4px;margin-top:6px;max-height:200px;overflow:auto">${this._esc(String(rawResponse))}</pre></details>` : ''}
     `;
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
+  },
+
+  _esc(s) {
+    if (typeof AIPanel !== 'undefined' && AIPanel._esc) return AIPanel._esc(s);
+    return window.escapeHtml ? window.escapeHtml(s || '') : String(s || '');
   },
 
   _renderStep(type, text, style) {
@@ -355,7 +410,7 @@ const AgentLoop = {
     if (type === 'thinking') {
       const el = document.createElement('div');
       el.className = 'ai-msg assistant loading agent-step-thinking';
-      el.innerHTML = AIPanel._esc(text) + ' <span class="ai-spinner"></span>';
+      el.innerHTML = this._esc(text) + ' <span class="ai-spinner"></span>';
       container.appendChild(el);
       container.scrollTop = container.scrollHeight;
       return;
@@ -363,8 +418,13 @@ const AgentLoop = {
 
     const el = document.createElement('div');
     el.className = 'ai-msg assistant agent-step-' + style;
-    const prefix = style === 'success' ? '\u2713 ' : style === 'error' ? '\u2717 ' : style === 'action' ? '\u2192 ' : '';
-    el.innerHTML = '<div class="agent-step">' + prefix + AIPanel._esc(text).replace(/\n/g, '<br>') + '</div>';
+    const icon = window.VexIcons
+      ? (style === 'success' ? VexIcons.svg('check', { size: 13 })
+        : style === 'error' ? VexIcons.svg('x', { size: 13 })
+          : style === 'warn' ? VexIcons.svg('warning', { size: 13 })
+            : style === 'action' ? VexIcons.svg('arrow-right', { size: 13 }) : '')
+      : '';
+    el.innerHTML = '<div class="agent-step">' + (icon ? icon + ' ' : '') + this._esc(text).replace(/\n/g, '<br>') + '</div>';
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
   },

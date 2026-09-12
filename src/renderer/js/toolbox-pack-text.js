@@ -428,7 +428,7 @@
       ],
     },
     {
-      id: 'slugify', name: 'Slugify', icon: '🔗', family: 'text',
+      id: 'slugify', name: 'Slugify', family: 'text',
       desc: 'Turn a title into a URL-friendly slug',
       keywords: ['url', 'permalink', 'seo', 'kebab'],
       fields: [line('text', 'Title', '', 'My First Blog Post!'), pick('sep', 'Separator', [['-', 'Hyphen -'], ['_', 'Underscore _']]), check('lower', 'Lowercase', true)],
@@ -489,7 +489,7 @@
       ],
     },
     {
-      id: 'word-frequency', name: 'Word Frequency', icon: '📊', family: 'text',
+      id: 'word-frequency', name: 'Word Frequency', family: 'text',
       desc: 'The most used words in a text',
       keywords: ['keywords', 'density', 'top words', 'count'],
       fields: [area(), num('top', 'Show the top', 10, 1, 1000), check('skipCommon', 'Skip common words (the, and, of…)')],
@@ -592,7 +592,7 @@
       examples: [{ in: { text: 'Hello, World!' }, out: 'Uryyb, Jbeyq!' }, { in: { text: 'Uryyb' }, out: 'Hello' }],
     },
     {
-      id: 'caesar-cipher', name: 'Caesar Cipher', icon: '🏛', family: 'text',
+      id: 'caesar-cipher', name: 'Caesar Cipher', family: 'text',
       desc: 'Shift letters along the alphabet, or try every shift to crack one',
       keywords: ['cipher', 'shift', 'encrypt', 'decrypt', 'brute force'],
       fields: [area(), num('shift', 'Shift', 3, -1000, 1000), pick('mode', 'Mode', [['encode', 'Encode'], ['decode', 'Decode'], ['all', 'Try all 25 shifts']])],
@@ -640,7 +640,7 @@
       ],
     },
     {
-      id: 'nato-phonetic', name: 'NATO Phonetic Spelling', icon: '📻', family: 'text',
+      id: 'nato-phonetic', name: 'NATO Phonetic Spelling', family: 'text',
       desc: 'Spell text out as Alfa, Bravo, Charlie…',
       keywords: ['spelling alphabet', 'radio', 'icao', 'alpha bravo'],
       fields: [line('text', 'Text', '', 'Confirmation code')],
@@ -698,7 +698,7 @@
       examples: [{ in: { text: 'Crème Brûlée, Straße, Łódź, Ærø' }, out: 'Creme Brulee, Strasse, Lodz, AEro' }],
     },
     {
-      id: 'text-wrap', name: 'Wrap Text', icon: '↩', family: 'text',
+      id: 'text-wrap', name: 'Wrap Text', family: 'text',
       desc: 'Hard-wrap lines at a set width, breaking between words',
       keywords: ['columns', 'line length', 'fold'],
       fields: [area(), num('width', 'Maximum line length', 80, 1, 1000), check('breakLong', 'Split words longer than the width')],
@@ -792,7 +792,7 @@
       examples: [{ in: { text: 'Mail ann@example.com or BOB@Mail.co.uk, not me@x. Also ann@example.com.' }, out: 'ann@example.com\nBOB@Mail.co.uk' }],
     },
     {
-      id: 'extract-urls', name: 'Extract URLs', icon: '🔗', family: 'text',
+      id: 'extract-urls', name: 'Extract URLs', family: 'text',
       desc: 'Pull every web link (http, https, www.) out of a block of text',
       keywords: ['links', 'find urls', 'scrape'],
       fields: [area(), check('unique', 'Remove duplicates', true)],
@@ -920,7 +920,7 @@
       ],
     },
     {
-      id: 'emoji-remove', name: 'Remove Emoji', icon: '🚫', family: 'text',
+      id: 'emoji-remove', name: 'Remove Emoji', family: 'text',
       desc: 'Strip emoji and pictographs from text',
       keywords: ['emoticons', 'clean', 'plain text'],
       fields: [area(), check('tidy', 'Tidy the spaces left behind', true)],
@@ -956,7 +956,7 @@
       ],
     },
     {
-      id: 'text-truncate', name: 'Truncate Text', icon: '✂', family: 'text',
+      id: 'text-truncate', name: 'Truncate Text', family: 'text',
       desc: 'Shorten text to a maximum length, with an ellipsis',
       keywords: ['shorten', 'limit', 'ellipsis', 'character limit'],
       fields: [area(), num('max', 'Maximum length (including the ellipsis)', 100, 1, 100000), line('ellipsis', 'Ellipsis', '…'), check('word', 'Cut at a word boundary', true)],
@@ -1035,7 +1035,7 @@
       ],
     },
     {
-      id: 'text-repeat', name: 'Repeat Text', icon: '🔁', family: 'text',
+      id: 'text-repeat', name: 'Repeat Text', family: 'text',
       desc: 'Repeat text a number of times with a separator (\\n = new line)',
       keywords: ['duplicate', 'multiply', 'copy'],
       fields: [area(), num('count', 'Times', 3, 1, 10000), line('sep', 'Separator', ' ')],
@@ -1118,7 +1118,7 @@
       ],
     },
     {
-      id: 'pig-latin', name: 'Pig Latin', icon: '🐷', family: 'text',
+      id: 'pig-latin', name: 'Pig Latin', family: 'text',
       desc: 'Translate English into Pig Latin (ellohay orldway)',
       keywords: ['fun', 'language game', 'secret'],
       fields: [area()],
@@ -1159,7 +1159,7 @@
       ],
     },
     {
-      id: 'anagram-check', name: 'Anagram Check', icon: '🔀', family: 'text',
+      id: 'anagram-check', name: 'Anagram Check', family: 'text',
       desc: 'Are two words or phrases made of exactly the same letters?',
       keywords: ['word play', 'letters', 'scrabble'],
       fields: [line('a', 'First', '', 'Listen'), line('b', 'Second', '', 'Silent')],
@@ -1181,7 +1181,7 @@
 
     // ================= writing =================
     {
-      id: 'readability', name: 'Readability Score', icon: '📖', family: 'write',
+      id: 'readability', name: 'Readability Score', family: 'write',
       desc: 'Flesch reading ease and school grade level of a text',
       keywords: ['flesch', 'kincaid', 'grade level', 'plain english'],
       fields: [area('text', 'Text', 'Paste a paragraph or more')],
@@ -1206,7 +1206,7 @@
       }],
     },
     {
-      id: 'speech-time', name: 'Speaking Time', icon: '🎤', family: 'write',
+      id: 'speech-time', name: 'Speaking Time', family: 'write',
       desc: 'How long a speech or script takes to say out loud (and to read silently)',
       keywords: ['presentation', 'talk', 'script', 'reading time', 'wpm'],
       fields: [area('text', 'Script'), pick('pace', 'Speaking pace', [['130', 'Slow — 130 words/min'], ['150', 'Average — 150 words/min'], ['180', 'Fast — 180 words/min']], '150')],
@@ -1241,7 +1241,7 @@
       }],
     },
     {
-      id: 'filler-words', name: 'Filler Word Finder', icon: '🧹', family: 'write',
+      id: 'filler-words', name: 'Filler Word Finder', family: 'write',
       desc: 'Spot words that weaken writing: very, really, just, actually…',
       keywords: ['weasel words', 'editing', 'concise', 'style'],
       fields: [area()],
@@ -1322,7 +1322,7 @@
       ],
     },
     {
-      id: 'hashtags', name: 'Hashtag Generator', icon: '#\uFE0F\u20E3', family: 'write',
+      id: 'hashtags', name: 'Hashtag Generator', family: 'write',
       desc: 'Turn a caption into hashtags — one per keyword, or one #CamelCase tag',
       keywords: ['social media', 'instagram', 'tags', 'twitter'],
       fields: [area('text', 'Caption or keywords'), pick('mode', 'Make', [['words', 'A tag for each keyword'], ['phrase', 'One #CamelCase tag']]), num('max', 'Maximum tags', 10, 1, 30)],
@@ -1364,7 +1364,7 @@
       ],
     },
     {
-      id: 'random-number', name: 'Random Number', icon: '🎲', family: 'generate',
+      id: 'random-number', name: 'Random Number', family: 'generate',
       desc: 'Random numbers in a range — whole or with decimals, repeats allowed or not',
       keywords: ['rng', 'random integer', 'lottery', 'pick a number'],
       fields: [num('min', 'From', 1, -1e15, 1e15, 'any'), num('max', 'To', 100, -1e15, 1e15, 'any'), num('count', 'How many', 1, 1, 1000), num('decimals', 'Decimal places', 0, 0, 10), check('unique', 'No repeats')],
@@ -1431,7 +1431,7 @@
       ],
     },
     {
-      id: 'coin-flip', name: 'Coin Flip', icon: '🪙', family: 'generate',
+      id: 'coin-flip', name: 'Coin Flip', family: 'generate',
       desc: 'Flip a fair coin once or many times',
       keywords: ['heads or tails', 'toss', 'decide', 'random'],
       fields: [num('count', 'Flips', 1, 1, 10000)],
@@ -1449,7 +1449,7 @@
       ],
     },
     {
-      id: 'random-pick', name: 'Random Picker', icon: '🎯', family: 'generate',
+      id: 'random-pick', name: 'Random Picker', family: 'generate',
       desc: 'Pick one or more random items from a list — raffles, giveaways, who goes first',
       keywords: ['raffle', 'draw', 'winner', 'choose', 'decide'],
       fields: [area('items', 'Items (one per line, or comma separated)'), num('count', 'How many to pick', 1, 1, 1000), check('unique', 'Never pick the same item twice', true)],
@@ -1468,7 +1468,7 @@
       ],
     },
     {
-      id: 'lines-shuffle', name: 'Shuffle Lines', icon: '🔀', family: 'generate',
+      id: 'lines-shuffle', name: 'Shuffle Lines', family: 'generate',
       desc: 'Put lines in a random order',
       keywords: ['randomize', 'random order', 'mix'],
       fields: [area('text', 'Lines')],
@@ -1476,7 +1476,7 @@
       examples: [{ in: { text: 'a\nb\n\nc' }, match: /^[abc]\n[abc]\n[abc]$/ }],
     },
     {
-      id: 'team-split', name: 'Team Splitter', icon: '👥', family: 'generate',
+      id: 'team-split', name: 'Team Splitter', family: 'generate',
       desc: 'Split a list of names into random, evenly sized teams',
       keywords: ['groups', 'random teams', 'classroom', 'pairs'],
       fields: [area('items', 'Names (one per line, or comma separated)'), num('teams', 'Number of teams', 2, 2, 100), check('shuffle', 'Shuffle first', true)],
@@ -1495,7 +1495,7 @@
       ],
     },
     {
-      id: 'random-string', name: 'Random String', icon: '🔤', family: 'generate',
+      id: 'random-string', name: 'Random String', family: 'generate',
       desc: 'Random strings from the characters you choose — IDs, codes, test data',
       keywords: ['token', 'random code', 'random letters', 'nonce'],
       fields: [
@@ -1518,7 +1518,7 @@
       ],
     },
     {
-      id: 'username-gen', name: 'Username Ideas', icon: '🙂', family: 'generate',
+      id: 'username-gen', name: 'Username Ideas', family: 'generate',
       desc: 'Username variations built from your name, with an optional number or word',
       keywords: ['handle', 'screen name', 'gamertag', 'nickname'],
       fields: [line('name', 'Your name', '', 'Jane Doe'), line('extra', 'Number or word to add (optional)', '', '42')],
@@ -1608,7 +1608,7 @@
       ],
     },
     {
-      id: 'password-strength', name: 'Password Strength', icon: '🛡', family: 'general',
+      id: 'password-strength', name: 'Password Strength', family: 'general',
       desc: 'Estimate how hard a password is to guess (entropy bits) — nothing leaves this page',
       keywords: ['entropy', 'password checker', 'crack time', 'security'],
       fields: [line('password', 'Password', '', 'Type a password to test')],

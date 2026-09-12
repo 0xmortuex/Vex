@@ -62,7 +62,7 @@ const VexTools = {
       tb.className = 'tool-icon';
       tb.title = 'Toolbox — your tools and links';
       tb.setAttribute('aria-label', tb.title);
-      tb.innerHTML = '<span class="tool-emoji">🧰</span>';
+      tb.innerHTML = VexIcons.svg('toolbox', { size: 18 });
       tb.addEventListener('click', () => Toolbox.open());
       container.appendChild(tb);
       return;
@@ -75,7 +75,7 @@ const VexTools = {
       btn.dataset.index = i;
       btn.draggable = true;
       btn.title = `${tool.name} — ${tool.desc}`;
-      btn.innerHTML = tool.svg || `<span class="tool-emoji">${tool.icon || '🔧'}</span>`;
+      btn.innerHTML = tool.svg || `<span class="tool-emoji">${tool.icon || ''}</span>`;
 
       btn.addEventListener('click', () => this.openTool(tool));
       btn.addEventListener('contextmenu', (e) => { e.preventDefault(); this.showContextMenu(e, tool); });

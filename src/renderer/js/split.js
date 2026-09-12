@@ -29,6 +29,29 @@ const SplitScreen = {
 
     const picker = document.getElementById('split-picker');
     if (picker) picker.addEventListener('click', (e) => { if (e.target === picker) this._cancelPicker(); });
+
+    // Any change to the tab set can invalidate a pane: closing a tab that was
+    // in a pane, a workspace switch (bulk close), a sync apply. Before this the
+    // pane id just went stale — the split stayed "2 panes" with one live
+    // webview and a dead half-screen that nothing could repair.
+    window.addEventListener('vex-tabs-changed', () => this.pruneClosedPanes());
+  },
+
+  // Drop panes whose tab no longer exists. Below 2 live panes a split is
+  // meaningless, so we leave split mode entirely. Returns true if anything
+  // changed. Safe to call at any time; a no-op when split is off.
+  pruneClosedPanes() {
+    if (!this.active) return false;
+    const live = this.panes.filter(id => TabManager.tabs.some(t => t.id === id));
+    if (live.length === this.panes.length) return false;
+    this.panes = live;
+    if (live.length < 2) {
+      this.deactivate();
+      window.showToast?.('Split screen closed — a pane\'s tab was closed', 'info');
+    } else {
+      this.applySplit();
+    }
+    return true;
   },
 
   // Split button = plain on/off (2-way). Multi-pane is via setLayout(3|4).
@@ -94,6 +117,10 @@ const SplitScreen = {
       wv.style.gridColumn = ''; wv.style.gridRow = '';
     });
     document.querySelectorAll('.split-url-bar').forEach(bar => bar.classList.remove('visible'));
+    // applySplit hides the divider inline for 3/4-way layouts; clear that so a
+    // later 2-way split gets it back even if CSS ordering changes.
+    const divider = document.getElementById('split-divider');
+    if (divider) divider.style.display = '';
     const focus = this.panes[0];
     this.panes = [];
     if (focus) TabManager.switchTab(focus);
@@ -101,7 +128,20 @@ const SplitScreen = {
   },
 
   applySplit() {
-    if (this.panes.length < 2) return;
+    // Never lay out a pane whose tab is gone — that produced a live-looking
+    // grid cell with nothing in it. Filter here (not via pruneClosedPanes) so
+    // the two can't call each other in a loop.
+    this.panes = this.panes.filter(id => TabManager.tabs.some(t => t.id === id));
+    // Fewer than 2 panes is not a split. Returning quietly left the container
+    // still wearing .split-mode.split-2 with nothing marked .split-pane — every
+    // webview hidden, a completely blank window. That is what a workspace
+    // switch during split screen produced: closeAllTabs killed both pane tabs,
+    // then switchTab handed the new workspace's only tab to handleTabClick,
+    // which landed here with one pane. Leave split mode instead of pretending.
+    if (this.panes.length < 2) {
+      if (this.active) this.deactivate();
+      return;
+    }
     SidebarManager.hideActivePanel();
     const n = this.panes.length;
 
@@ -147,16 +187,18 @@ const SplitScreen = {
   },
 
   // A split pane needs a real webview. Wake a sleeping tab / materialize a lazy
-  // one (both create the webview synchronously). Returns the element.
+  // one (both create the webview synchronously). Returns the element, or null
+  // when the tab is genuinely gone — callers prune those. Errors from wake /
+  // materialize are NOT swallowed: a webview that fails to come up is a real
+  // fault and must be visible, not a silently blank pane.
   _ensureWebview(tabId) {
-    try {
-      const tab = TabManager.tabs.find(t => t.id === tabId);
-      if (tab && !WebviewManager.webviews.has(tabId)) {
-        if (tab.sleeping) TabManager.wakeTab(tabId);
-        else if (tab._lazy) TabManager._materializeTab(tab);
-      }
-      return WebviewManager.webviews.get(tabId) || null;
-    } catch { return null; }
+    const tab = TabManager.tabs.find(t => t.id === tabId);
+    if (!tab) return null;
+    if (!WebviewManager.webviews.has(tabId)) {
+      if (tab.sleeping) TabManager.wakeTab(tabId);
+      else if (tab._lazy) TabManager._materializeTab(tab);
+    }
+    return WebviewManager.webviews.get(tabId) || null;
   },
 
   // Mini URL bars: only the 2-way left/right ones exist in the DOM; hide them for
@@ -215,12 +257,22 @@ const SplitScreen = {
 
   closePicker() { document.getElementById('split-picker')?.classList.remove('visible'); },
 
-  // Clicking a sidebar tab while split → swap it into the last pane.
+  // Clicking a sidebar/strip tab while split → swap it into the last pane.
+  // Called from TabManager.switchTab; without it the tab went "active" while
+  // its webview stayed display:none behind the panes.
   handleTabClick(tabId) {
     if (!this.active) return false;
     if (this.panes.includes(tabId)) return true; // already shown
+    if (!TabManager.tabs.some(t => t.id === tabId)) return false;
     this.panes[this.panes.length - 1] = tabId;
     this.applySplit();
     return true;
   }
 };
+
+// Renderer-safe export (for tests/renderer/splitPanePruning.test.js). The
+// renderer loads this file via a <script> tag where `module` is undefined, so
+// the guard leaves the global SplitScreen surface unchanged.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { SplitScreen };
+}

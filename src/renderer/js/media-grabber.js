@@ -11,6 +11,7 @@ const MediaGrabber = {
   _el: null,
   _onKey: null,
   _onDoc: null,
+  _onBlur: null,
 
   async run() {
     const wv = (typeof WebviewManager !== 'undefined') && WebviewManager.getActiveWebview();
@@ -18,7 +19,8 @@ const MediaGrabber = {
     try { if (wv && wv.getWebContentsId) wcId = wv.getWebContentsId(); } catch {}
     if (wcId == null) { window.showToast?.('Open a page first'); return; }
     let items = [];
-    try { if (window.vex?.mediaList) items = await window.vex.mediaList(wcId); } catch {}
+    try { if (window.vex?.mediaList) items = await window.vex.mediaList(wcId); }
+    catch (err) { console.error('[MediaGrabber] could not list media:', err.message); window.showToast?.('Could not read the media on this page', 'error'); return; }
     this._open(wcId, items || []);
   },
 
@@ -31,7 +33,15 @@ const MediaGrabber = {
   },
   _host(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } },
   _size(kb) { if (!kb) return ''; return kb < 1024 ? kb + ' KB' : (kb / 1024).toFixed(1) + ' MB'; },
-  _ico(k) { return k === 'audio' ? '🎵' : (k === 'hls' || k === 'dash') ? '📺' : '🎬'; },
+  // Inline SVG, currentColor so they follow the theme (no emoji in Vex UI).
+  ICONS: {
+    audio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+    stream: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8M12 18v4"/></svg>',
+    video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m23 7-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
+    download: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>'
+  },
+  _ico(k) { return k === 'audio' ? this.ICONS.audio : (k === 'hls' || k === 'dash') ? this.ICONS.stream : this.ICONS.video; },
 
   _open(wcId, items) {
     this.close();
@@ -45,7 +55,7 @@ const MediaGrabber = {
       const meta = [stream ? it.kind.toUpperCase() + ' stream' : (it.mime || it.kind), size].filter(Boolean).join(' · ');
       const actions = stream
         ? `<button class="mediagrab-btn" data-copy="${i}">Copy link</button><button class="mediagrab-btn" data-open="${i}">Open</button>`
-        : `<button class="mediagrab-btn primary" data-dl="${i}">⬇ Download</button><button class="mediagrab-btn" data-copy="${i}">Copy</button>`;
+        : `<button class="mediagrab-btn primary" data-dl="${i}">${this.ICONS.download}<span>Download</span></button><button class="mediagrab-btn" data-copy="${i}">Copy</button>`;
       return `<div class="mediagrab-row">
         <span class="mediagrab-ico">${this._ico(it.kind)}</span>
         <span class="mediagrab-info"><b>${this._esc(this._fname(it.url))}</b><small>${this._esc(this._host(it.url))} · ${this._esc(meta)}</small></span>
@@ -54,7 +64,7 @@ const MediaGrabber = {
     }).join('') : `<div class="mediagrab-empty">No media detected yet.<br><small>Start playing the video/audio, then reopen. DRM video (YouTube, Netflix) can't be captured.</small></div>`;
 
     el.innerHTML = `
-      <div class="mediagrab-head">🎬 Media on this page <button class="mediagrab-refresh" title="Refresh">⟳</button></div>
+      <div class="mediagrab-head"><span>Media on this page</span> <button class="mediagrab-refresh" title="Refresh" aria-label="Refresh">${this.ICONS.refresh}</button></div>
       <div class="mediagrab-list">${rows}</div>
       ${items.some(i => i.kind === 'hls' || i.kind === 'dash') ? '<div class="mediagrab-hint">HLS/DASH streams: paste the link into VLC or yt-dlp to save.</div>' : ''}`;
     document.body.appendChild(el);
@@ -63,16 +73,26 @@ const MediaGrabber = {
     el.querySelector('.mediagrab-refresh').addEventListener('click', () => { this.close(); this.run(); });
     el.querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', async () => {
       const it = items[+b.dataset.dl];
-      try { await window.vex.mediaDownload(wcId, it.url); window.showToast?.('Downloading ' + this._fname(it.url)); } catch { window.showToast?.('Download failed'); }
+      try {
+        const result = await window.vex.mediaDownload(wcId, it.url);
+        if (result && result.ok === false) throw new Error(result.error || 'the tab could not start the download');
+        window.showToast?.('Downloading ' + this._fname(it.url));
+      } catch (err) {
+        console.error('[MediaGrabber] download failed:', err.message);
+        window.showToast?.('Download failed: ' + err.message, 'error');
+      }
       this.close();
     }));
     el.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
       const it = items[+b.dataset.copy];
-      try { navigator.clipboard.writeText(it.url); window.showToast?.('Link copied'); } catch {}
+      navigator.clipboard.writeText(it.url)
+        .then(() => window.showToast?.('Link copied'))
+        .catch((err) => { console.error('[MediaGrabber] clipboard write failed:', err.message); window.showToast?.('Could not copy that link', 'error'); });
     }));
     el.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
       const it = items[+b.dataset.open];
-      try { TabManager.createTab(it.url, true); } catch {}
+      try { TabManager.createTab(it.url, true); }
+      catch (err) { console.error('[MediaGrabber] could not open stream:', err.message); window.showToast?.('Could not open that stream', 'error'); }
       this.close();
     }));
 
@@ -117,7 +137,11 @@ const MediaGrabber = {
       .mediagrab-list{max-height:340px;overflow:auto;}
       .mediagrab-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;}
       .mediagrab-row:hover{background:color-mix(in srgb,var(--primary,#6366f1) 10%,transparent);}
-      .mediagrab-ico{font-size:17px;width:22px;text-align:center;flex-shrink:0;}
+      .mediagrab-ico{width:22px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted,#9a9aa5);}
+      .mediagrab-ico svg{width:16px;height:16px;display:block;}
+      .mediagrab-refresh svg{display:block;}
+      .mediagrab-btn{display:inline-flex;align-items:center;gap:5px;}
+      .mediagrab-btn svg{display:block;}
       .mediagrab-info{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;}
       .mediagrab-info b{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text,#e9e9ee);}
       .mediagrab-info small{font-size:10.5px;color:var(--text-muted,#9a9aa5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

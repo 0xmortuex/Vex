@@ -29,7 +29,7 @@ const ReadLater = {
     if (this.items.some(i => i.url === url && !i.read)) { window.showToast?.('Already in Read Later'); return; }
     this.items.unshift({ id: 'rl' + Date.now(), url, title: title || url, at: Date.now(), read: false });
     this.save();
-    window.showToast?.('📚 Saved for later (' + this.unread() + ' unread)');
+    window.showToast?.('Saved for later (' + this.unread() + ' unread)');
   },
 
   open(item) {
@@ -76,7 +76,7 @@ const ReadLater = {
 
     const unread = this.items.filter(i => !i.read);
     const read = this.items.filter(i => i.read).slice(0, 20);
-    section('📚 Read later' + (unread.length ? ' (' + unread.length + ')' : ''));
+    section('Read later' + (unread.length ? ' (' + unread.length + ')' : ''));
     if (!unread.length) body.insertAdjacentHTML('beforeend', window.VexUI ? VexUI.emptyState('inbox', 'Nothing saved yet', 'Ctrl+K → "Read Later" on any page') : '<div style="font-size:12px;color:var(--text-muted);padding:4px 8px">Empty — Ctrl+K → "Read Later" on any page.</div>');
     unread.forEach(it => row(it, { open: (x) => { this.open(x); }, remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
     if (read.length) {
@@ -86,9 +86,13 @@ const ReadLater = {
 
     const arch = TabArchiver.list();
     if (arch.length) {
-      section('🗃 Auto-archived tabs');
+      section('Auto-archived tabs');
       arch.slice(0, 40).forEach(it => row(it, {
-        open: (x) => { if (window.VexTabPolicy && !window.VexTabPolicy.canRestore(x)) return; SidebarManager.hideActivePanel?.(); TabManager.createTab(x.url, true, null, x); TabArchiver.remove(x); },
+        open: (x) => {
+          // Silently doing nothing looked like a broken row; say why.
+          if (window.VexTabPolicy && !window.VexTabPolicy.canRestore(x)) { window.showToast?.('That tab was archived from a private session and cannot be restored here', 'error'); return; }
+          SidebarManager.hideActivePanel?.(); TabManager.createTab(x.url, true, null, x); TabArchiver.remove(x);
+        },
         remove: (x) => { TabArchiver.remove(x); this.renderPanel(container); }
       }));
     }
@@ -139,7 +143,7 @@ const TabArchiver = {
       try { TabManager.closeTab(t.id); } catch {}
     });
     this._save(arch, baseline);
-    window.showToast?.('🗃 Archived ' + stale.length + ' inactive tab' + (stale.length === 1 ? '' : 's') + ' (Library panel)');
+    window.showToast?.('Archived ' + stale.length + ' inactive tab' + (stale.length === 1 ? '' : 's') + ' (Library panel)');
   },
 
   renderSettings(container) {
@@ -179,8 +183,8 @@ const ClipToNotes = {
         NotesPanel.notes = notes;
         try { NotesPanel.renderList?.(); } catch {}
       }
-      window.showToast?.(sel ? '✂️ Selection clipped to Notes' : '✂️ Link clipped to Notes');
-    } catch (e) { window.showToast?.('Clip failed'); }
+      window.showToast?.(sel ? 'Selection clipped to Notes' : 'Link clipped to Notes');
+    } catch (e) { console.error('[ClipToNotes] clip failed:', e.message); window.showToast?.('Clip failed: ' + e.message, 'error'); }
   },
 };
 

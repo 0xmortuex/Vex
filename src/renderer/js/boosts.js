@@ -15,34 +15,74 @@ const VexBoosts = {
   init() {
     try { this.boosts = JSON.parse(localStorage.getItem(this.KEY) || '{}') || {}; } catch { this.boosts = {}; }
   },
-  save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.boosts)); } catch {} },
+  // Returns false when the write failed, so no caller can announce a save that
+  // did not happen.
+  save() {
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.boosts)); } catch { return false; }
+    return true;
+  },
 
   _host(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } },
   forHost(host) { return this.boosts[host] || null; },
 
   // Inject this site's boost into a webview. Idempotent per navigation —
   // the style tag is replaced, not duplicated.
+  //
+  // A host with NO boost is not a no-op: it must actively clear any CSS this
+  // webview is still carrying from a boost that has since been edited down or
+  // deleted. Returning early here is what made turning a Boost off look broken
+  // — the zapped elements stayed hidden on every page already open.
   applyTo(webview, url) {
     const host = this._host(url);
     if (!host) return;
     const b = this.boosts[host];
-    if (!b) return;
+    if (!b) { this._writeCss(webview, ''); return; }
     const cssParts = [];
     if (Array.isArray(b.zaps) && b.zaps.length) {
       cssParts.push(b.zaps.map(sel => `${sel}{display:none!important;visibility:hidden!important}`).join('\n'));
     }
     if (b.css) cssParts.push(b.css);
-    const css = cssParts.join('\n');
-    const js = `(function(){try{
-      var id='vex-boost-style';
-      var el=document.getElementById(id);
-      if(!el){el=document.createElement('style');el.id=id;document.documentElement.appendChild(el);}
-      el.textContent=${JSON.stringify(css)};
-    }catch(e){}})();`;
-    try { webview.executeJavaScript(js).catch(() => {}); } catch {}
+    this._writeCss(webview, cssParts.join('\n'));
     if (b.js) {
       try { webview.executeJavaScript(`(function(){try{${b.js}\n}catch(e){console.warn('[VexBoost]',e)}})();`).catch(() => {}); } catch {}
     }
+  },
+
+  // Set (or clear) this webview's boost stylesheet. Empty css leaves an empty
+  // style tag rather than removing it — cheaper, and it keeps the tag's position
+  // in the cascade stable across re-applies.
+  _writeCss(webview, css) {
+    const js = `(function(){try{
+      var id='vex-boost-style';
+      var el=document.getElementById(id);
+      if(!el){if(!${JSON.stringify(!!css)})return;el=document.createElement('style');el.id=id;document.documentElement.appendChild(el);}
+      el.textContent=${JSON.stringify(css)};
+    }catch(e){}})();`;
+    try { webview.executeJavaScript(js).catch(() => {}); } catch {}
+  },
+
+  // Re-apply this host's boost (or clear it) across every open tab showing that
+  // host, so turning a boost off takes effect where the user can see it rather
+  // than only on the next reload. Returns the number of tabs updated.
+  refreshHost(host) {
+    if (!host || typeof WebviewManager === 'undefined' || typeof TabManager === 'undefined') return 0;
+    let n = 0;
+    for (const tab of (TabManager.tabs || [])) {
+      if (this._host(tab.url) !== host) continue;
+      const wv = WebviewManager.webviews?.get(tab.id);
+      if (!wv) continue;
+      try { this.applyTo(wv, tab.url); n++; } catch {}
+    }
+    return n;
+  },
+
+  // Custom JS has already run in the page; CSS we can take back, JS we cannot.
+  // Say which, instead of a flat "done".
+  _offMessage(hadJs, tabs) {
+    const where = tabs ? ` on ${tabs} open tab${tabs === 1 ? '' : 's'}` : '';
+    return hadJs
+      ? `Boost off — styling removed${where}. Custom JS already ran; reload the page to undo it.`
+      : `Boost off — styling removed${where}.`;
   },
 
   _activeWv() { return typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null; },
@@ -97,9 +137,11 @@ const VexBoosts = {
     const b = this.boosts[host] || (this.boosts[host] = { zaps: [], css: '', js: '' });
     if (!Array.isArray(b.zaps)) b.zaps = [];
     if (!b.zaps.includes(sel)) b.zaps.push(sel);
-    this.save();
+    const saved = this.save();
     this.applyTo(wv, 'https://' + host + '/');
-    window.showToast?.('Zapped — hidden on ' + host);
+    window.showToast?.(saved
+      ? 'Zapped — hidden on ' + host
+      : 'Hidden for now, but the zap could not be saved — it will come back when you restart Vex', saved ? undefined : 'error');
   },
 
   // --- Boost editor: per-site custom CSS / JS ---
@@ -128,22 +170,34 @@ const VexBoosts = {
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#bm-cancel').addEventListener('click', () => m.remove());
-    m.querySelector('#bm-clear-zaps').addEventListener('click', () => {
+    m.querySelector('#bm-clear-zaps').addEventListener('click', async () => {
+      const n = (b.zaps || []).length;
+      if (!await window.vexConfirm({
+        title: 'Un-zap all',
+        message: `Bring back ${n} hidden element${n === 1 ? '' : 's'} on ${host}? This cannot be undone.`,
+        okLabel: 'Un-zap all', danger: true,
+      })) return;
       b.zaps = [];
-      this.boosts[host] = b; this.save();
-      window.showToast?.('Zaps cleared — reload the page');
+      if (!b.css && !b.js) delete this.boosts[host]; else this.boosts[host] = b;
+      const saved = this.save();
+      const tabs = this.refreshHost(host);
       m.remove();
+      window.showToast?.(saved
+        ? `Zaps cleared${tabs ? ` — ${tabs} open tab${tabs === 1 ? '' : 's'} updated` : ''}`
+        : 'Zaps cleared for now, but the change could not be saved — they return when you restart Vex', saved ? undefined : 'error');
     });
     m.querySelector('#bm-save').addEventListener('click', () => {
+      const hadJs = !!b.js;
       b.css = m.querySelector('#bm-css').value;
       b.js = m.querySelector('#bm-js').value;
-      if (!b.css && !b.js && !(b.zaps || []).length) delete this.boosts[host];
+      const emptied = !b.css && !b.js && !(b.zaps || []).length;
+      if (emptied) delete this.boosts[host];
       else this.boosts[host] = b;
-      this.save();
-      const wv = this._activeWv();
-      if (wv) this.applyTo(wv, 'https://' + host + '/');
-      window.showToast?.('Boost saved');
+      const saved = this.save();
+      const tabs = this.refreshHost(host) || (() => { const wv = this._activeWv(); if (wv) this.applyTo(wv, 'https://' + host + '/'); return 0; })();
       m.remove();
+      if (!saved) { window.showToast?.('Applied for now, but the boost could not be saved — it resets when you restart Vex', 'error'); return; }
+      window.showToast?.(emptied ? this._offMessage(hadJs, tabs) : 'Boost saved');
     });
   },
 
@@ -171,10 +225,22 @@ const VexBoosts = {
           <div style="font-size:11.5px;color:var(--text-muted)">${esc(bits.join(' · ') || 'empty')}</div>
         </div>
         <button data-edit style="padding:5px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Edit</button>
-        <button data-del style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>`;
+        <button data-del aria-label="Delete boost for ${esc(host)}" title="Delete this boost" style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center">${window.VexIcons?.svg('trash', { size: 13 }) || 'Delete'}</button>`;
       row.querySelector('[data-edit]').addEventListener('click', () => this.openEditor(host));
-      row.querySelector('[data-del]').addEventListener('click', () => {
-        delete this.boosts[host]; this.save(); this.renderPanel(container);
+      row.querySelector('[data-del]').addEventListener('click', async () => {
+        if (!await window.vexConfirm({
+          title: 'Delete boost',
+          message: `Delete everything Vex remembers for ${host} — ${bits.join(', ') || 'this entry'}? This cannot be undone.`,
+          okLabel: 'Delete', danger: true,
+        })) return;
+        const hadJs = !!b.js;
+        delete this.boosts[host];
+        const saved = this.save();
+        const tabs = this.refreshHost(host);
+        this.renderPanel(container);
+        window.showToast?.(saved
+          ? this._offMessage(hadJs, tabs)
+          : 'Removed for now, but the change could not be saved — the boost returns when you restart Vex', saved ? undefined : 'error');
       });
       container.appendChild(row);
     });

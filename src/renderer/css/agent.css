@@ -75,3 +75,11 @@
   font-family: 'Outfit', sans-serif;
 }
 #ai-stop-agent.visible { display: inline-block; }
+
+/* Plan mode: the one-time "approve this plan" heading on the first action card */
+.agent-plan-heading {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--primary); margin-bottom: 6px;
+}
+.agent-step-warn .agent-step { border-left-color: var(--warning, #f59e0b); }
+.agent-step .vex-icon { vertical-align: -2px; }

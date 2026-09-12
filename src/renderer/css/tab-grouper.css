@@ -59,7 +59,7 @@
   list-style: none; user-select: none;
 }
 .group-preview summary::-webkit-details-marker { display: none; }
-.group-preview-emoji { font-size: 18px; line-height: 1; }
+.group-preview-emoji { display: inline-flex; align-items: center; line-height: 1; color: var(--text-muted); flex-shrink: 0; }
 .group-preview-name {
   flex: 1; background: transparent;
   border: 1px solid transparent; color: var(--text);

@@ -260,7 +260,7 @@
   const PACK = [
     // ------------------------------------------------------------ Money
     {
-      id: 'fin-loan', name: 'Loan & mortgage payment', icon: '🏠', family: 'finance',
+      id: 'fin-loan', name: 'Loan & mortgage payment', family: 'finance',
       desc: 'Monthly payment, total paid and total interest for a fixed-rate loan.',
       keywords: 'mortgage amortized installment emi car loan repayment',
       fields: [
@@ -280,7 +280,7 @@
       ],
     },
     {
-      id: 'fin-amortization', name: 'Amortization schedule', icon: '📉', family: 'finance',
+      id: 'fin-amortization', name: 'Amortization schedule', family: 'finance',
       desc: 'The first months of a loan: how each payment splits into interest and principal.',
       keywords: 'mortgage loan schedule table principal interest balance',
       fields: [
@@ -313,7 +313,7 @@
       ],
     },
     {
-      id: 'fin-compound', name: 'Compound interest', icon: '📈', family: 'finance',
+      id: 'fin-compound', name: 'Compound interest', family: 'finance',
       desc: 'Grow a starting amount with compound interest and optional monthly deposits (made at the end of each month).',
       keywords: 'savings investment growth future value deposits contributions',
       fields: [
@@ -341,7 +341,7 @@
       ],
     },
     {
-      id: 'fin-simple-interest', name: 'Simple interest', icon: '➕', family: 'finance',
+      id: 'fin-simple-interest', name: 'Simple interest', family: 'finance',
       desc: 'Interest that is not compounded: principal × rate × time.',
       keywords: 'flat interest',
       fields: [
@@ -359,7 +359,7 @@
       examples: [{ in: { principal: 1000, rate: 5, years: 3 }, out: [['Interest', '150.00'], ['Total', '1,150.00']] }],
     },
     {
-      id: 'fin-savings-goal', name: 'Savings goal', icon: '🎯', family: 'finance',
+      id: 'fin-savings-goal', name: 'Savings goal', family: 'finance',
       desc: 'How much to save each month to reach a goal by a deadline, with interest compounded monthly.',
       keywords: 'save target monthly deposit needed',
       fields: [
@@ -385,7 +385,7 @@
       ],
     },
     {
-      id: 'fin-retirement', name: 'Retirement savings', icon: '🏖', family: 'finance',
+      id: 'fin-retirement', name: 'Retirement savings', family: 'finance',
       desc: 'Project a retirement balance from monthly contributions, and the income it supports under the 4% rule. Not adjusted for inflation.',
       keywords: 'pension 401k ira annuity future value nest egg 4% rule',
       fields: [
@@ -417,7 +417,7 @@
       ],
     },
     {
-      id: 'fin-present-value', name: 'Present value', icon: '⏪', family: 'finance',
+      id: 'fin-present-value', name: 'Present value', family: 'finance',
       desc: 'What a future amount is worth today at a given discount rate.',
       keywords: 'pv discount time value of money',
       fields: [
@@ -440,7 +440,7 @@
       ],
     },
     {
-      id: 'fin-npv', name: 'Net present value (NPV)', icon: '🧮', family: 'finance',
+      id: 'fin-npv', name: 'Net present value (NPV)', family: 'finance',
       desc: 'NPV of a series of cash flows. The first flow is today (usually the negative investment); each next one is one period later.',
       keywords: 'npv discounted cash flow dcf investment appraisal',
       fields: [
@@ -460,7 +460,7 @@
       ],
     },
     {
-      id: 'fin-irr', name: 'Internal rate of return (IRR)', icon: '🔁', family: 'finance',
+      id: 'fin-irr', name: 'Internal rate of return (IRR)', family: 'finance',
       desc: 'The rate per period that makes the NPV of your cash flows zero. First flow is today.',
       keywords: 'irr yield return investment cash flows',
       fields: [{ id: 'flows', label: 'Cash flows (one per line, or comma-separated)', type: 'textarea', value: '-1000\n300\n400\n500' }],
@@ -484,7 +484,7 @@
       ],
     },
     {
-      id: 'fin-roi', name: 'Return on investment (ROI)', icon: '💹', family: 'finance',
+      id: 'fin-roi', name: 'Return on investment (ROI)', family: 'finance',
       desc: 'Gain, ROI and (given the years held) the annualized return.',
       keywords: 'roi return profit gain annualized',
       fields: [
@@ -506,7 +506,7 @@
       ],
     },
     {
-      id: 'fin-cagr', name: 'CAGR (compound annual growth)', icon: '📊', family: 'finance',
+      id: 'fin-cagr', name: 'CAGR (compound annual growth)', family: 'finance',
       desc: 'The steady yearly growth rate that takes a start value to an end value.',
       keywords: 'cagr growth rate annual compound',
       fields: [
@@ -523,7 +523,7 @@
       examples: [{ in: { start: 100, end: 200, years: 5 }, out: [['CAGR', '14.87%'], ['Total growth', '100.00%']] }],
     },
     {
-      id: 'fin-inflation', name: 'Inflation adjuster', icon: '🎈', family: 'finance',
+      id: 'fin-inflation', name: 'Inflation adjuster', family: 'finance',
       desc: 'What something costs after years of inflation at a rate you choose, and how much buying power money loses. No live data.',
       keywords: 'inflation purchasing power real value cpi',
       fields: [
@@ -541,7 +541,7 @@
       examples: [{ in: { amount: 100, rate: 3, years: 10 }, out: [['Same things cost after 10 years', '134.39'], ['Buying power of 100.00 then', '74.41'], ['Cumulative inflation', '34.39%']] }],
     },
     {
-      id: 'fin-tip', name: 'Tip & bill split', icon: '🍽', family: 'finance',
+      id: 'fin-tip', name: 'Tip & bill split', family: 'finance',
       desc: 'Tip, total and each person\'s share — optionally rounded up to a whole amount per person.',
       keywords: 'gratuity restaurant split bill share',
       fields: [
@@ -567,7 +567,7 @@
       ],
     },
     {
-      id: 'fin-sales-tax', name: 'Sales tax / VAT', icon: '🧾', family: 'finance',
+      id: 'fin-sales-tax', name: 'Sales tax / VAT', family: 'finance',
       desc: 'Add tax to a net price, or take it out of a price that already includes it.',
       keywords: 'vat gst tax inclusive exclusive net gross',
       fields: [
@@ -588,7 +588,7 @@
       ],
     },
     {
-      id: 'fin-discount', name: 'Discount & sale price', icon: '🏷', family: 'finance',
+      id: 'fin-discount', name: 'Discount & sale price', family: 'finance',
       desc: 'Sale price after a discount, with an optional second discount taken off the reduced price.',
       keywords: 'sale percent off coupon stacked',
       fields: [
@@ -611,7 +611,7 @@
       ],
     },
     {
-      id: 'fin-markup-margin', name: 'Markup vs margin', icon: '⚖', family: 'finance',
+      id: 'fin-markup-margin', name: 'Markup vs margin', family: 'finance',
       desc: 'Profit, markup (profit ÷ cost) and margin (profit ÷ price) from a cost and a price, markup or margin.',
       keywords: 'markup margin gross profit pricing cost price',
       fields: [
@@ -638,7 +638,7 @@
       ],
     },
     {
-      id: 'fin-break-even', name: 'Break-even point', icon: '⚖', family: 'finance',
+      id: 'fin-break-even', name: 'Break-even point', family: 'finance',
       desc: 'How many units you must sell to cover fixed costs.',
       keywords: 'breakeven contribution margin units fixed variable cost',
       fields: [
@@ -660,7 +660,7 @@
       ],
     },
     {
-      id: 'fin-card-payoff', name: 'Credit card payoff', icon: '💳', family: 'finance',
+      id: 'fin-card-payoff', name: 'Credit card payoff', family: 'finance',
       desc: 'How long a fixed monthly payment takes to clear a card balance, and the interest paid on the way.',
       keywords: 'credit card debt payoff apr months interest',
       fields: [
@@ -687,7 +687,7 @@
       ],
     },
     {
-      id: 'fin-debt-payoff', name: 'Debt snowball / avalanche', icon: '❄', family: 'finance',
+      id: 'fin-debt-payoff', name: 'Debt snowball / avalanche', family: 'finance',
       desc: 'Order to pay off several debts and when each is cleared. Snowball: smallest balance first; avalanche: highest APR first. Freed-up payments roll into the next debt.',
       keywords: 'debt snowball avalanche payoff plan order loans cards',
       fields: [
@@ -729,7 +729,7 @@
       ],
     },
     {
-      id: 'fin-salary', name: 'Salary ⇄ hourly', icon: '💼', family: 'finance',
+      id: 'fin-salary', name: 'Salary ⇄ hourly', family: 'finance',
       desc: 'Convert pay between hourly, weekly, monthly and yearly for your hours and weeks worked.',
       keywords: 'salary wage hourly annual income pay conversion',
       fields: [
@@ -751,7 +751,7 @@
       ],
     },
     {
-      id: 'fin-pay-rise', name: 'Pay rise', icon: '⬆', family: 'finance',
+      id: 'fin-pay-rise', name: 'Pay rise', family: 'finance',
       desc: 'The percentage of a raise between two salaries, or the new salary after a percentage raise.',
       keywords: 'raise salary increase percent',
       fields: [
@@ -770,7 +770,7 @@
       ],
     },
     {
-      id: 'fin-currency-format', name: 'Currency formatter', icon: '💱', family: 'finance',
+      id: 'fin-currency-format', name: 'Currency formatter', family: 'finance',
       desc: 'Write an amount the way different countries do (1,234.56 · 1.234,56 · 12,34,567). Formatting only — no exchange rates.',
       keywords: 'money format thousands separator decimal comma locale',
       fields: [
@@ -802,7 +802,7 @@
       ],
     },
     {
-      id: 'fin-budget', name: '50/30/20 budget', icon: '🥧', family: 'finance',
+      id: 'fin-budget', name: '50/30/20 budget', family: 'finance',
       desc: 'Split take-home pay into needs (50%), wants (30%) and savings or debt repayment (20%).',
       keywords: 'budget split needs wants savings rule',
       fields: [{ id: 'income', label: 'Monthly take-home pay', type: 'number', value: 4000, min: 0 }],
@@ -813,7 +813,7 @@
       examples: [{ in: { income: 4000 }, out: [['Needs (50%)', '2,000.00'], ['Wants (30%)', '1,200.00'], ['Savings & debt (20%)', '800.00']] }],
     },
     {
-      id: 'fin-rule-72', name: 'Rule of 72', icon: '✖', family: 'finance',
+      id: 'fin-rule-72', name: 'Rule of 72', family: 'finance',
       desc: 'Roughly how many years money takes to double at a yearly rate, next to the exact answer.',
       keywords: 'doubling time rule of 70 72',
       fields: [{ id: 'rate', label: 'Growth rate (% per year)', type: 'number', value: 6, step: 0.1 }],
@@ -827,7 +827,7 @@
       ],
     },
     {
-      id: 'fin-depreciation', name: 'Depreciation schedule', icon: '📉', family: 'finance',
+      id: 'fin-depreciation', name: 'Depreciation schedule', family: 'finance',
       desc: 'Yearly depreciation and book value: straight-line, double- or 150%-declining balance (never below salvage, like Excel DDB) or sum-of-years\' digits.',
       keywords: 'depreciation straight line declining balance ddb syd asset book value',
       fields: [
@@ -861,7 +861,7 @@
       ],
     },
     {
-      id: 'fin-invoice', name: 'Invoice total', icon: '🧾', family: 'finance',
+      id: 'fin-invoice', name: 'Invoice total', family: 'finance',
       desc: 'Total an invoice from "qty x price" lines, with an optional discount, tax and (untaxed) shipping.',
       keywords: 'invoice quote line items subtotal tax total bill',
       fields: [
@@ -899,7 +899,7 @@
       ],
     },
     {
-      id: 'fin-unit-price', name: 'Unit price comparison', icon: '🛒', family: 'finance',
+      id: 'fin-unit-price', name: 'Unit price comparison', family: 'finance',
       desc: 'Which pack size is the better deal: compares price per unit (per 100 g, per litre…).',
       keywords: 'unit price compare grocery best value per kg per litre',
       fields: [
@@ -924,7 +924,7 @@
       examples: [{ in: { items: 'Small, 2.49, 500\nLarge, 4.29, 1000', per: 100 }, out: [['Small', '0.4980 per 100 (2.49 for 500)'], ['Large', '0.4290 per 100 (4.29 for 1,000)'], ['Best value', 'Large — 13.86% cheaper per unit than Small']] }],
     },
     {
-      id: 'fin-fuel-cost', name: 'Trip fuel cost', icon: '⛽', family: 'finance',
+      id: 'fin-fuel-cost', name: 'Trip fuel cost', family: 'finance',
       desc: 'Fuel used and cost for a drive, optionally round trip and split between passengers.',
       keywords: 'gas petrol fuel trip mpg litres cost road',
       fields: [
@@ -952,7 +952,7 @@
       ],
     },
     {
-      id: 'fin-electricity', name: 'Electricity cost', icon: '🔌', family: 'finance',
+      id: 'fin-electricity', name: 'Electricity cost', family: 'finance',
       desc: 'Energy use (kWh) and running cost of an appliance from its wattage and hours of use.',
       keywords: 'kwh power watt appliance energy bill running cost',
       fields: [
@@ -972,7 +972,7 @@
       examples: [{ in: { watts: 100, hours: 5, days: 30, price: 0.15 }, out: [['Energy', '15.00 kWh'], ['Cost', '2.25'], ['Cost per day', '0.08'], ['Cost per year (365 days)', '27.38']] }],
     },
     {
-      id: 'fin-rent-vs-buy', name: 'Rent vs buy', icon: '🏘', family: 'finance',
+      id: 'fin-rent-vs-buy', name: 'Rent vs buy', family: 'finance',
       desc: 'Simplified comparison of renting versus buying over a number of years. Ignores closing costs and tax effects; buying cost counts the growth your down payment could have earned.',
       keywords: 'rent buy house home mortgage compare',
       fields: [
@@ -1018,7 +1018,7 @@
     },
     // --------------------------------------------------------- Business
     {
-      id: 'biz-profit-margin', name: 'Profit margins', icon: '💰', family: 'business',
+      id: 'biz-profit-margin', name: 'Profit margins', family: 'business',
       desc: 'Gross and net profit and margins from revenue, cost of goods and operating expenses.',
       keywords: 'gross margin net margin profit revenue cogs opex',
       fields: [
@@ -1035,7 +1035,7 @@
       examples: [{ in: { revenue: 100000, cogs: 60000, opex: 25000 }, out: [['Gross profit', '40,000.00'], ['Gross margin', '40.00%'], ['Net profit (before tax)', '15,000.00'], ['Net margin', '15.00%']] }],
     },
     {
-      id: 'biz-cac', name: 'Customer acquisition cost', icon: '🧲', family: 'business',
+      id: 'biz-cac', name: 'Customer acquisition cost', family: 'business',
       desc: 'CAC: sales and marketing spend divided by the customers it won.',
       keywords: 'cac marketing cost per customer acquisition',
       fields: [
@@ -1051,7 +1051,7 @@
       examples: [{ in: { marketing: 5000, sales: 3000, customers: 40 }, out: [['CAC', '200.00'], ['Total spend', '8,000.00']] }],
     },
     {
-      id: 'biz-ltv', name: 'Customer lifetime value', icon: '♾', family: 'business',
+      id: 'biz-ltv', name: 'Customer lifetime value', family: 'business',
       desc: 'LTV from monthly revenue per customer, gross margin and churn — and the LTV:CAC ratio if you know CAC.',
       keywords: 'ltv clv lifetime value churn arpu cac ratio saas',
       fields: [
@@ -1075,7 +1075,7 @@
       ],
     },
     {
-      id: 'biz-churn', name: 'Churn rate', icon: '🚪', family: 'business',
+      id: 'biz-churn', name: 'Churn rate', family: 'business',
       desc: 'Customer churn and retention for a period, and what that churn adds up to over a year.',
       keywords: 'churn retention attrition customers lost subscription',
       fields: [
@@ -1103,7 +1103,7 @@
       ],
     },
     {
-      id: 'biz-conversion', name: 'Conversion rate', icon: '🎯', family: 'business',
+      id: 'biz-conversion', name: 'Conversion rate', family: 'business',
       desc: 'Conversion rate from visitors and conversions, plus revenue per visitor if you add a value.',
       keywords: 'conversion rate cvr visitors signups sales funnel',
       fields: [
@@ -1127,7 +1127,7 @@
       ],
     },
     {
-      id: 'biz-ab-test', name: 'A/B test significance', icon: '🆎', family: 'business',
+      id: 'biz-ab-test', name: 'A/B test significance', family: 'business',
       desc: 'Is variant B really different from A? Two-proportion z-test with a two-sided p-value.',
       keywords: 'ab split test significance p-value z-test conversion experiment',
       fields: [
@@ -1157,7 +1157,7 @@
       ],
     },
     {
-      id: 'biz-nps', name: 'Net Promoter Score', icon: '📣', family: 'business',
+      id: 'biz-nps', name: 'Net Promoter Score', family: 'business',
       desc: 'NPS from how many people answered 9–10 (promoters), 7–8 (passives) and 0–6 (detractors).',
       keywords: 'nps net promoter score survey customer satisfaction',
       fields: [
@@ -1179,7 +1179,7 @@
       ],
     },
     {
-      id: 'biz-meeting-cost', name: 'Meeting cost', icon: '⏰', family: 'business',
+      id: 'biz-meeting-cost', name: 'Meeting cost', family: 'business',
       desc: 'What a meeting costs in paid time: people × hourly rate × length, and per year if it repeats.',
       keywords: 'meeting cost time salary people hourly',
       fields: [
@@ -1201,7 +1201,7 @@
       examples: [{ in: { people: 8, rate: 50, minutes: 90, perYear: 52 }, out: [['Cost of one meeting', '600.00'], ['Cost per minute', '6.67'], ['Person-hours', '12.0'], ['Per year (52×)', '31,200.00']] }],
     },
     {
-      id: 'biz-deadline', name: 'Project deadline (workdays)', icon: '📆', family: 'business',
+      id: 'biz-deadline', name: 'Project deadline (workdays)', family: 'business',
       desc: 'The date that is a number of working days after a start date, skipping weekends and the holidays you list.',
       keywords: 'deadline working days business days due date sla add workdays',
       fields: [
@@ -1228,7 +1228,7 @@
       ],
     },
     {
-      id: 'biz-okr-score', name: 'OKR score', icon: '🏁', family: 'business',
+      id: 'biz-okr-score', name: 'OKR score', family: 'business',
       desc: 'Average key-result scores (0–1, a percentage, or progress like 35/50; each capped at 1.0) and the usual green/yellow/red rating.',
       keywords: 'okr key results objectives score grade average',
       fields: [{ id: 'krs', label: 'Key results — one per line, e.g. "Signups: 0.7", "NPS 60%", "Deals 35/50"', type: 'textarea', value: 'Signups: 0.7\nChurn: 50%\nLaunch: 1' }],
@@ -1251,7 +1251,7 @@
       ],
     },
     {
-      id: 'biz-subject-line', name: 'Email subject line check', icon: '✉', family: 'business',
+      id: 'biz-subject-line', name: 'Email subject line check', family: 'business',
       desc: 'Length of an email subject against typical inbox cut-offs (≈40 characters on phones, ≈60 on desktop), with shouting and spam-word flags.',
       keywords: 'email subject line length newsletter marketing spam preview',
       fields: [{ id: 'subject', label: 'Subject line', type: 'text', value: 'Your March invoice is ready to view' }],
@@ -1274,7 +1274,7 @@
       ],
     },
     {
-      id: 'biz-speaking-time', name: 'Speech & presentation time', icon: '🎤', family: 'business',
+      id: 'biz-speaking-time', name: 'Speech & presentation time', family: 'business',
       desc: 'How long a script takes to say out loud (and to read silently), from pasted text or a word count.',
       keywords: 'speech talk presentation speaking time words per minute wpm script',
       fields: [
@@ -1294,7 +1294,7 @@
       ],
     },
     {
-      id: 'biz-payback', name: 'Payback period', icon: '↩', family: 'business',
+      id: 'biz-payback', name: 'Payback period', family: 'business',
       desc: 'How long an investment takes to earn back its cost from a steady monthly net cash flow.',
       keywords: 'payback period investment break even months',
       fields: [
@@ -1309,7 +1309,7 @@
       examples: [{ in: { cost: 12000, monthly: 1500 }, out: [['Payback period', '8.0 months'], ['In years', '0.67']] }],
     },
     {
-      id: 'biz-inventory-turnover', name: 'Inventory turnover', icon: '📦', family: 'business',
+      id: 'biz-inventory-turnover', name: 'Inventory turnover', family: 'business',
       desc: 'How many times stock sells through in a year, and the average days it sits on the shelf.',
       keywords: 'inventory turnover stock days dio cogs',
       fields: [
@@ -1326,7 +1326,7 @@
       examples: [{ in: { cogs: 500000, begin: 80000, end: 120000 }, out: [['Average inventory', '100,000.00'], ['Turnover', '5.00 times a year'], ['Days of inventory', '73.0']] }],
     },
     {
-      id: 'biz-ad-metrics', name: 'Ad metrics (CPM, CTR, CPC)', icon: '📢', family: 'business',
+      id: 'biz-ad-metrics', name: 'Ad metrics (CPM, CTR, CPC)', family: 'business',
       desc: 'Cost per thousand impressions, click-through rate, cost per click and, with conversions, cost per acquisition.',
       keywords: 'cpm ctr cpc cpa advertising ads campaign',
       fields: [
@@ -1350,7 +1350,7 @@
     },
     // ------------------------------------------------------ Date & Time
     {
-      id: 'date-days-between', name: 'Days between dates', icon: '↔', family: 'date',
+      id: 'date-days-between', name: 'Days between dates', family: 'date',
       desc: 'Number of days, weeks, and years/months/days between two dates.',
       keywords: 'date difference duration how many days interval',
       fields: [
@@ -1373,7 +1373,7 @@
       ],
     },
     {
-      id: 'date-add', name: 'Add to a date', icon: '➕', family: 'date',
+      id: 'date-add', name: 'Add to a date', family: 'date',
       desc: 'Add or subtract days, weeks, months or years. A day past the end of the new month becomes its last day (31 Jan + 1 month = 28/29 Feb).',
       keywords: 'date add subtract plus minus days weeks months years later ago',
       fields: [
@@ -1401,7 +1401,7 @@
       ],
     },
     {
-      id: 'date-business-days', name: 'Business days between', icon: '🏢', family: 'date',
+      id: 'date-business-days', name: 'Business days between', family: 'date',
       desc: 'Weekdays (Mon–Fri) from one date to another, counting both ends, minus any holidays you list.',
       keywords: 'working days weekdays business days count exclude weekends holidays',
       fields: [
@@ -1432,7 +1432,7 @@
       ],
     },
     {
-      id: 'date-age', name: 'Age calculator', icon: '🎂', family: 'date',
+      id: 'date-age', name: 'Age calculator', family: 'date',
       desc: 'Exact age in years, months and days on a given date, plus the next birthday. A 29 February birthday counts on 1 March in other years.',
       keywords: 'age birthday born how old years months days',
       fields: [
@@ -1457,7 +1457,7 @@
       ],
     },
     {
-      id: 'date-weekday', name: 'Day of the week', icon: '🗓', family: 'date',
+      id: 'date-weekday', name: 'Day of the week', family: 'date',
       desc: 'Which weekday any date falls on.',
       keywords: 'weekday day of week what day monday',
       fields: [{ id: 'date', label: 'Date', type: 'date', value: TODAY }],
@@ -1488,7 +1488,7 @@
       ],
     },
     {
-      id: 'date-day-of-year', name: 'Day of the year', icon: '📅', family: 'date',
+      id: 'date-day-of-year', name: 'Day of the year', family: 'date',
       desc: 'Day number within the year (1–366), days left, and the quarter.',
       keywords: 'day of year ordinal date julian quarter days left remaining',
       fields: [{ id: 'date', label: 'Date', type: 'date', value: TODAY }],
@@ -1504,7 +1504,7 @@
       ],
     },
     {
-      id: 'date-countdown', name: 'Countdown to a date', icon: '⏳', family: 'date',
+      id: 'date-countdown', name: 'Countdown to a date', family: 'date',
       desc: 'Days (and weeks) from one date until another — or how long ago it was.',
       keywords: 'countdown days until how long until event since ago',
       fields: [
@@ -1524,7 +1524,7 @@
       ],
     },
     {
-      id: 'date-utc-offset', name: 'Time zone offset converter', icon: '🌍', family: 'date',
+      id: 'date-utc-offset', name: 'Time zone offset converter', family: 'date',
       desc: 'Convert a date and time between two UTC offsets (e.g. -05:00 to +09:00). Uses the offsets you give — no daylight-saving database.',
       keywords: 'timezone time zone utc gmt offset convert meeting',
       fields: [
@@ -1548,7 +1548,7 @@
       ],
     },
     {
-      id: 'date-duration-sum', name: 'Add up durations', icon: '⏱', family: 'date',
+      id: 'date-duration-sum', name: 'Add up durations', family: 'date',
       desc: 'Total a list of h:mm (or h:mm:ss) durations; start a line with - to subtract it.',
       keywords: 'duration add hours minutes sum total time h:mm',
       fields: [{ id: 'items', label: 'Durations, one per line (h:mm or h:mm:ss)', type: 'textarea', value: '1:30\n2:45\n-0:15' }],
@@ -1571,7 +1571,7 @@
       ],
     },
     {
-      id: 'date-time-diff', name: 'Time between two clock times', icon: '🕘', family: 'date',
+      id: 'date-time-diff', name: 'Time between two clock times', family: 'date',
       desc: 'Hours worked between clock-in and clock-out, minus a break. An end time earlier than the start means it ended the next day.',
       keywords: 'time difference clock in out shift hours worked overnight',
       fields: [
@@ -1594,7 +1594,7 @@
       ],
     },
     {
-      id: 'date-timesheet', name: 'Timesheet hours', icon: '🗒', family: 'date',
+      id: 'date-timesheet', name: 'Timesheet hours', family: 'date',
       desc: 'Total hours from clock-in/clock-out lines like "Mon 09:00-17:30 30" (break minutes optional); overnight shifts are handled.',
       keywords: 'timesheet hours worked shifts clock in out weekly total pay',
       fields: [
@@ -1624,7 +1624,7 @@
       ],
     },
     {
-      id: 'date-leap-year', name: 'Leap year check', icon: '🐸', family: 'date',
+      id: 'date-leap-year', name: 'Leap year check', family: 'date',
       desc: 'Whether a year is a leap year in the Gregorian calendar, and why.',
       keywords: 'leap year february 29 366 days',
       fields: [{ id: 'year', label: 'Year', type: 'number', value: Number(TODAY.slice(0, 4)), min: 1 }],
@@ -1643,7 +1643,7 @@
       ],
     },
     {
-      id: 'date-month-calendar', name: 'Month calendar', icon: '📆', family: 'date',
+      id: 'date-month-calendar', name: 'Month calendar', family: 'date',
       desc: 'A plain-text calendar for any month, with weeks starting Monday or Sunday.',
       keywords: 'calendar month print text grid',
       fields: [
@@ -1668,7 +1668,7 @@
       ],
     },
     {
-      id: 'date-easter', name: 'Easter date', icon: '🥚', family: 'date',
+      id: 'date-easter', name: 'Easter date', family: 'date',
       desc: 'Western (Gregorian) and Orthodox Easter for a year, with the feasts that follow from it.',
       keywords: 'easter computus good friday pentecost ash wednesday orthodox',
       fields: [{ id: 'year', label: 'Year', type: 'number', value: Number(TODAY.slice(0, 4)), min: 1583, max: 4099 }],
@@ -1693,7 +1693,7 @@
       ],
     },
     {
-      id: 'date-julian-day', name: 'Julian day number', icon: '🔭', family: 'date',
+      id: 'date-julian-day', name: 'Julian day number', family: 'date',
       desc: 'Julian Day Number, Julian Date and Modified Julian Date for a UTC date and time (proleptic Gregorian calendar).',
       keywords: 'julian day jd jdn mjd astronomy',
       fields: [
@@ -1712,7 +1712,7 @@
     },
     // ----------------------------------------------------------- Health
     {
-      id: 'health-bmi', name: 'BMI', icon: '⚖', family: 'health',
+      id: 'health-bmi', name: 'BMI', family: 'health',
       desc: 'Body mass index with the WHO adult category and the healthy weight range for your height. A rough screening number, not medical advice.',
       keywords: 'bmi body mass index weight height obese overweight',
       fields: [
@@ -1734,7 +1734,7 @@
       ],
     },
     {
-      id: 'health-bmr', name: 'BMR (Mifflin-St Jeor)', icon: '🔥', family: 'health',
+      id: 'health-bmr', name: 'BMR (Mifflin-St Jeor)', family: 'health',
       desc: 'Estimated calories your body burns at rest, by the Mifflin-St Jeor equation. An estimate, not medical advice.',
       keywords: 'bmr basal metabolic rate calories resting mifflin',
       fields: [
@@ -1751,7 +1751,7 @@
       ],
     },
     {
-      id: 'health-tdee', name: 'Daily calorie needs (TDEE)', icon: '🍎', family: 'health',
+      id: 'health-tdee', name: 'Daily calorie needs (TDEE)', family: 'health',
       desc: 'Estimated total daily energy use: Mifflin-St Jeor BMR × an activity factor, with simple targets to lose or gain. An estimate, not medical advice.',
       keywords: 'tdee calories maintenance diet cut bulk activity',
       fields: [
@@ -1769,7 +1769,7 @@
       examples: [{ in: { sex: 'male', age: 30, units: 'metric', weight: 70, height: 175, activity: '1.55' }, out: [['BMR', '1,649 kcal/day'], ['Maintenance (TDEE)', '2,556 kcal/day'], ['Lose about 0.5 kg / 1 lb a week', '2,056 kcal/day'], ['Gain slowly', '2,856 kcal/day']] }],
     },
     {
-      id: 'health-water', name: 'Daily water intake', icon: '💧', family: 'health',
+      id: 'health-water', name: 'Daily water intake', family: 'health',
       desc: 'Rough daily fluid guideline: 35 ml per kg of body weight plus 350 ml per 30 minutes of exercise. An estimate, not medical advice — needs vary with climate and health.',
       keywords: 'water hydration drink fluid intake litres cups',
       fields: [
@@ -1786,7 +1786,7 @@
       examples: [{ in: { units: 'metric', weight: 70, exercise: 30 }, out: [['Daily water (estimate)', '2.80 L'], ['In US cups (8 fl oz)', '11.8'], ['In US fl oz', '94.7']] }],
     },
     {
-      id: 'health-ideal-weight', name: 'Ideal body weight', icon: '🧍', family: 'health',
+      id: 'health-ideal-weight', name: 'Ideal body weight', family: 'health',
       desc: 'Ideal weight by the Devine, Robinson, Miller and Hamwi formulas (designed for adults over 5 ft). Estimates, not medical advice.',
       keywords: 'ideal body weight ibw devine robinson miller hamwi',
       fields: [
@@ -1811,7 +1811,7 @@
       ],
     },
     {
-      id: 'health-body-fat', name: 'Body fat % (US Navy)', icon: '📏', family: 'health',
+      id: 'health-body-fat', name: 'Body fat % (US Navy)', family: 'health',
       desc: 'Body fat estimate from tape measurements using the US Navy formula. An estimate, not medical advice.',
       keywords: 'body fat percentage navy method waist neck hip',
       fields: [
@@ -1849,7 +1849,7 @@
       ],
     },
     {
-      id: 'health-hr-zones', name: 'Heart-rate zones', icon: '💓', family: 'health',
+      id: 'health-hr-zones', name: 'Heart-rate zones', family: 'health',
       desc: 'Five training zones from max heart rate (220 − age); with a resting heart rate it uses the Karvonen (heart-rate reserve) method. Estimates, not medical advice.',
       keywords: 'heart rate zones training karvonen max hr bpm cardio',
       fields: [
@@ -1872,7 +1872,7 @@
       ],
     },
     {
-      id: 'health-run-pace', name: 'Running pace', icon: '🏃', family: 'health',
+      id: 'health-run-pace', name: 'Running pace', family: 'health',
       desc: 'Pace per km and per mile, and speed, from a distance and finish time.',
       keywords: 'pace running speed min per km mile race time jogging',
       fields: [
@@ -1914,7 +1914,7 @@
       ],
     },
     {
-      id: 'health-race-predictor', name: 'Race time predictor', icon: '🏅', family: 'health',
+      id: 'health-race-predictor', name: 'Race time predictor', family: 'health',
       desc: 'Predict a race time at another distance from a recent result, with Riegel\'s formula T2 = T1 × (D2/D1)^1.06. An estimate — training for the distance matters.',
       keywords: 'race predictor riegel marathon half 5k 10k finish time',
       fields: [
@@ -1937,7 +1937,7 @@
       ],
     },
     {
-      id: 'health-calories-met', name: 'Calories burned (MET)', icon: '🚴', family: 'health',
+      id: 'health-calories-met', name: 'Calories burned (MET)', family: 'health',
       desc: 'Calories burned by an activity: MET × body weight (kg) × hours, with MET values from the Compendium of Physical Activities. An estimate.',
       keywords: 'calories burned exercise met activity workout kcal',
       fields: [
@@ -1959,7 +1959,7 @@
       ],
     },
     {
-      id: 'health-macros', name: 'Macro split', icon: '🥗', family: 'health',
+      id: 'health-macros', name: 'Macro split', family: 'health',
       desc: 'Grams of protein, carbs and fat for a calorie target and percentage split (4 / 4 / 9 kcal per gram).',
       keywords: 'macros protein carbs fat grams diet calories split',
       fields: [
@@ -1980,7 +1980,7 @@
       ],
     },
     {
-      id: 'health-due-date', name: 'Pregnancy due date', icon: '🤰', family: 'health',
+      id: 'health-due-date', name: 'Pregnancy due date', family: 'health',
       desc: 'Estimated due date from the first day of the last period (Naegele\'s rule: + 280 days, adjusted for cycle length) and how far along on a given date. An estimate — your clinician\'s dating (e.g. by ultrasound) takes priority.',
       keywords: 'pregnancy due date naegele lmp gestational age weeks trimester',
       fields: [
@@ -2007,7 +2007,7 @@
       ],
     },
     {
-      id: 'health-ovulation', name: 'Ovulation & fertile window', icon: '🌸', family: 'health',
+      id: 'health-ovulation', name: 'Ovulation & fertile window', family: 'health',
       desc: 'Estimated ovulation (14 days before the next period), fertile window and next period from your cycle. An estimate only — not a method of contraception.',
       keywords: 'ovulation fertile window fertility period cycle',
       fields: [
@@ -2023,7 +2023,7 @@
       examples: [{ in: { lmp: '2024-01-01', cycle: 28 }, out: [['Estimated ovulation', '2024-01-15 (Monday)'], ['Fertile window (estimate)', '2024-01-10 to 2024-01-16'], ['Next period expected', '2024-01-29 (Monday)'], ['Following ovulation', '2024-02-12']] }],
     },
     {
-      id: 'health-sleep-cycles', name: 'Sleep cycle times', icon: '😴', family: 'health',
+      id: 'health-sleep-cycles', name: 'Sleep cycle times', family: 'health',
       desc: 'Bedtimes for a wake-up time (or wake times for a bedtime) in whole 90-minute sleep cycles. A rule of thumb — real cycles vary.',
       keywords: 'sleep cycle bedtime wake up alarm 90 minutes rem',
       fields: [
@@ -2043,7 +2043,7 @@
       ],
     },
     {
-      id: 'health-caffeine', name: 'Caffeine remaining', icon: '☕', family: 'health',
+      id: 'health-caffeine', name: 'Caffeine remaining', family: 'health',
       desc: 'Caffeine still in your system after some hours, using a half-life (about 5 h for most adults, but it varies widely). An estimate.',
       keywords: 'caffeine half life coffee sleep mg',
       fields: [
@@ -2068,7 +2068,7 @@
       ],
     },
     {
-      id: 'health-bac', name: 'Blood alcohol estimate', icon: '🍺', family: 'health',
+      id: 'health-bac', name: 'Blood alcohol estimate', family: 'health',
       desc: 'Rough blood alcohol estimate by the Widmark formula. A crude estimate only — never use it to decide whether you can drive.',
       keywords: 'bac blood alcohol widmark drinks promille',
       fields: [
@@ -2094,7 +2094,7 @@
       ],
     },
     {
-      id: 'health-one-rep-max', name: 'One-rep max', icon: '🏋', family: 'health',
+      id: 'health-one-rep-max', name: 'One-rep max', family: 'health',
       desc: 'Estimate the most you could lift once from a set of reps (Epley and Brzycki formulas; most accurate under about 10 reps).',
       keywords: '1rm one rep max strength lifting epley brzycki',
       fields: [
@@ -2114,7 +2114,7 @@
     },
     // --------------------------------------------------------- Everyday
     {
-      id: 'everyday-gpa', name: 'GPA calculator', icon: '🎓', family: 'general',
+      id: 'everyday-gpa', name: 'GPA calculator', family: 'general',
       desc: 'Credit-weighted GPA on the 4.0 scale from letter grades (A = 4.0, A- = 3.7, B+ = 3.3 … F = 0) or grade points.',
       keywords: 'gpa grade point average college school credits letter grades',
       fields: [{ id: 'courses', label: 'One course per line: [name] grade credits — e.g. "Math A- 4"', type: 'textarea', value: 'Math, A, 3\nHistory, B+, 4\nArt, C, 3' }],
@@ -2138,7 +2138,7 @@
       ],
     },
     {
-      id: 'everyday-final-grade', name: 'Grade needed on the final', icon: '📝', family: 'general',
+      id: 'everyday-final-grade', name: 'Grade needed on the final', family: 'general',
       desc: 'The final-exam score you need to reach a target course grade.',
       keywords: 'final exam grade needed target score weight course',
       fields: [
@@ -2163,7 +2163,7 @@
       ],
     },
     {
-      id: 'everyday-grade-percent', name: 'Test score to grade', icon: '💯', family: 'general',
+      id: 'everyday-grade-percent', name: 'Test score to grade', family: 'general',
       desc: 'Percentage and US letter grade (A+ at 97, A at 93, A- at 90 … F below 60) from points earned.',
       keywords: 'test score percent letter grade points marks',
       fields: [
@@ -2183,7 +2183,7 @@
       ],
     },
     {
-      id: 'everyday-recipe-scale', name: 'Recipe scaler', icon: '🍳', family: 'general',
+      id: 'everyday-recipe-scale', name: 'Recipe scaler', family: 'general',
       desc: 'Scale ingredient amounts to a new number of servings. Understands 1 1/2, 3/4, ½, 1.5 and ranges like 2-3.',
       keywords: 'recipe scale servings ingredients cooking baking multiply halve double',
       fields: [
@@ -2209,7 +2209,7 @@
       ],
     },
     {
-      id: 'everyday-paint', name: 'Paint for a room', icon: '🖌', family: 'general',
+      id: 'everyday-paint', name: 'Paint for a room', family: 'general',
       desc: 'Wall area and paint needed for a rectangular room, minus doors (≈1.9 m² / 20 ft² each) and windows (≈1.5 m² / 15 ft² each).',
       keywords: 'paint room walls litres gallons coverage decorating',
       fields: [
@@ -2240,7 +2240,7 @@
       ],
     },
     {
-      id: 'everyday-flooring', name: 'Flooring & tiles', icon: '🧱', family: 'general',
+      id: 'everyday-flooring', name: 'Flooring & tiles', family: 'general',
       desc: 'Floor area with a waste allowance, and how many tiles or boxes to buy.',
       keywords: 'flooring tiles laminate carpet area waste boxes square metres feet',
       fields: [
@@ -2271,7 +2271,7 @@
       ],
     },
     {
-      id: 'everyday-split-expenses', name: 'Split shared expenses', icon: '🤝', family: 'general',
+      id: 'everyday-split-expenses', name: 'Split shared expenses', family: 'general',
       desc: 'Who owes whom after a trip or dinner: list what each person paid and get the fewest simple payments to settle up evenly.',
       keywords: 'split expenses settle up owe group trip splitwise share costs',
       fields: [{ id: 'paid', label: 'One per line: name amount paid (0 if nothing; repeat a name to add more)', type: 'textarea', value: 'Ann 100\nBen 50\nCal 30\nDee 20' }],

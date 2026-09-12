@@ -16,7 +16,16 @@ const WebLLM = (() => {
     { id: 'Llama-3.2-3B-Instruct-q4f16_1-MLC', name: 'Llama 3.2 3B', size: '~1.8 GB', note: 'Best quality (needs a real GPU)' },
     { id: 'Phi-3.5-mini-instruct-q4f16_1-MLC', name: 'Phi 3.5 mini', size: '~2.2 GB', note: 'Strong reasoning' },
   ];
-  const LIB_URL = new URL('../vendor/runtime/webllm.mjs', document.currentScript.src).href;
+  // document.currentScript is null when this file is evaluated any way other
+  // than a classic inline <script> (a dynamic import, a test harness). Reading
+  // .src off null threw at load time and took the whole module with it.
+  const LIB_URL = (() => {
+    try {
+      const base = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src)
+        || (typeof location !== 'undefined' ? location.href : '');
+      return base ? new URL('../vendor/runtime/webllm.mjs', base).href : '';
+    } catch { return ''; }
+  })();
   const MODEL_KEY = 'vex.webllmModel';
   const PREF_KEY = 'vex.preferOnDeviceAI';
 
@@ -39,7 +48,8 @@ const WebLLM = (() => {
 
   async function ensureLib() {
     if (_lib) return _lib;
-    // Dynamic import of the ESM build from CDN — only reached when the user
+    if (!LIB_URL) throw new Error('The on-device AI runtime could not be located in this build.');
+    // Dynamic import of the bundled ESM build — only reached when the user
     // explicitly downloads a model.
     _lib = await import(/* @vite-ignore */ LIB_URL);
     return _lib;
@@ -49,6 +59,8 @@ const WebLLM = (() => {
   // onProgress hook ({ progress: 0..1, text }).
   async function load(modelId) {
     if (!isSupported()) throw new Error('WebGPU is not available on this device/build.');
+    // Two concurrent loads fight over the same engine and leave _loading stuck.
+    if (_loading) throw new Error('A model is already loading.');
     modelId = modelId || chosenModel();
     if (_engine && _loadedId === modelId) return _loadedId;
     _loading = true;
@@ -119,7 +131,7 @@ const WebLLM = (() => {
         <div style="height:8px;background:var(--bg);border-radius:5px;overflow:hidden;border:1px solid var(--border)"><div id="wl-bar" style="height:100%;width:0%;background:var(--primary);transition:width .2s"></div></div>
         <div id="wl-ptext" style="font-size:11px;color:var(--text-muted);margin-top:5px;font-family:'JetBrains Mono',monospace"></div>
       </div>
-      <div id="wl-status" style="font-size:12.5px;color:${isLoaded() ? '#22c55e' : 'var(--text-muted)'};margin-bottom:8px">${isLoaded() ? '✓ ' + loadedModel() + ' loaded' : 'No model loaded.'}</div>
+      <div id="wl-status" style="font-size:12.5px;color:${isLoaded() ? '#22c55e' : 'var(--text-muted)'};margin-bottom:8px">${isLoaded() ? loadedModel() + ' loaded' : 'No model loaded.'}</div>
       <div class="setting-toggle-row"><span>Use on-device AI for chat</span><label class="toggle"><input type="checkbox" id="wl-prefer" ${preferred() ? 'checked' : ''} ${isLoaded() ? '' : 'disabled'}><span class="toggle-slider"></span></label></div>
       <p class="setting-info muted" style="margin-top:6px;font-size:11px">When on, AI chat runs locally on your GPU. Summaries, agent &amp; multi-tab still use cloud (small local models can't do those reliably). Falls back to cloud/Ollama automatically if anything fails or times out.</p>`;
 
@@ -137,17 +149,17 @@ const WebLLM = (() => {
     container.querySelector('#wl-load').addEventListener('click', async () => {
       if (isLoading()) return;
       const id = container.querySelector('#wl-model').value;
-      status.textContent = '⏳ Preparing… first run downloads the model (this can take a few minutes).';
+      status.textContent = 'Preparing… first run downloads the model (this can take a few minutes).';
       status.style.color = 'var(--text-muted)';
       try {
         await load(id);
-        status.textContent = '✓ ' + loadedModel() + ' loaded — ready';
+        status.textContent = loadedModel() + ' loaded — ready';
         status.style.color = '#22c55e';
         preferToggle.disabled = false;
         container.querySelector('#wl-unload').style.display = 'inline-block';
-        window.showToast?.('🧠 On-device model ready');
+        window.showToast?.('On-device model ready');
       } catch (err) {
-        status.textContent = '✕ ' + (err.message || 'Load failed');
+        status.textContent = (err.message || 'Load failed');
         status.style.color = '#fca5a5';
         window.showToast?.('On-device load failed: ' + (err.message || 'error'));
       } finally { prog.style.display = 'none'; }
@@ -157,7 +169,7 @@ const WebLLM = (() => {
       window.showToast?.('On-device model unloaded');
       renderSettings(container);
     });
-    preferToggle.addEventListener('change', (e) => { setPreferred(e.target.checked && isLoaded()); window.showToast?.(e.target.checked ? '🧠 Using on-device AI' : 'On-device AI off'); });
+    preferToggle.addEventListener('change', (e) => { setPreferred(e.target.checked && isLoaded()); window.showToast?.(e.target.checked ? 'Using on-device AI' : 'On-device AI off'); });
   }
 
   return { MODELS, models, isSupported, isLoaded, isLoading, loadedModel, chosenModel, setChosenModel, preferred, setPreferred, onProgress, load, unload, chat, init, renderSettings };

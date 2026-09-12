@@ -20,12 +20,12 @@ const ContainerRouting = {
       ? 'This is an isolated container — routing only affects its tabs.'
       : 'Heads-up: this is your main session, so this routes <b>all</b> normal tabs. For an isolated one, use “New Tor container” below.';
     m.innerHTML = `<div style="width:480px;max-width:94vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,0.5);color:var(--text)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:15px;font-weight:700;flex:1">🧅 Route through Tor / Proxy</span><button id="rt-close" style="${chip}">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:15px;font-weight:700;flex:1;display:inline-flex;align-items:center;gap:7px">${VexIcons.svg('onion', { size: 16 })}Route through Tor / Proxy</span><button id="rt-close" style="${chip}">✕</button></div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:4px">Session: <code>${window.escapeHtml ? window.escapeHtml(part) : part}</code></div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:14px">${scopeNote}</div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="rt-opt" data-mode="direct" style="${chip};text-align:left">🌐 Direct — no proxy ${cur.mode === 'direct' ? '· <b>current</b>' : ''}</button>
-        <button class="rt-opt" data-mode="tor" style="${chip};text-align:left">🧅 Tor — route this session through Tor ${cur.mode === 'tor' ? '· <b>current</b>' : ''}</button>
+        <button class="rt-opt" data-mode="direct" style="${chip};text-align:left;display:flex;align-items:center;gap:7px">${VexIcons.svg('globe', { size: 14 })}Direct — no proxy ${cur.mode === 'direct' ? '· <b>current</b>' : ''}</button>
+        <button class="rt-opt" data-mode="tor" style="${chip};text-align:left;display:flex;align-items:center;gap:7px">${VexIcons.svg('onion', { size: 14 })}Tor — route this session through Tor ${cur.mode === 'tor' ? '· <b>current</b>' : ''}</button>
         <div style="display:flex;gap:8px">
           <input id="rt-proxy" placeholder="socks5://127.0.0.1:1080 or http://host:port" value="${cur.mode === 'proxy' ? (window.escapeHtml ? window.escapeHtml(cur.custom || '') : (cur.custom || '')) : ''}" style="flex:1;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:monospace">
           <button id="rt-proxy-go" style="${chip}">Use proxy</button>
@@ -34,7 +34,7 @@ const ContainerRouting = {
       <div id="rt-msg" style="font-size:11.5px;color:var(--text-muted);min-height:16px;margin:12px 0"></div>
       <div style="border-top:1px solid var(--border);margin-top:6px;padding-top:12px;display:flex;align-items:center;gap:8px">
         <span style="flex:1;font-size:12px;color:var(--text-muted)">Or start fresh:</span>
-        <button id="rt-new-tor" style="${prim}">➕ New Tor container</button>
+        <button id="rt-new-tor" style="${prim};display:inline-flex;align-items:center;gap:6px">${VexIcons.svg('plus', { size: 14 })}New Tor container</button>
       </div>
     </div>`;
     document.body.appendChild(m);
@@ -50,7 +50,7 @@ const ContainerRouting = {
         // Reload the active tab so the new route takes effect immediately.
         try { const wv = WebviewManager.getActiveWebview(); if (wv) wv.reload(); } catch {}
         msg('✓ ' + (mode === 'tor' ? 'Now routing through Tor.' : mode === 'proxy' ? 'Now using your proxy.' : 'Back to direct.'), true);
-        window.showToast?.(mode === 'tor' ? '🧅 Session routed through Tor' : mode === 'proxy' ? 'Proxy applied' : 'Direct connection restored');
+        window.showToast?.(mode === 'tor' ? 'Session routed through Tor' : mode === 'proxy' ? 'Proxy applied' : 'Direct connection restored');
       } catch (e) { msg('Error: ' + e.message, false); }
     };
     m.querySelectorAll('.rt-opt').forEach(b => b.addEventListener('click', () => apply(b.dataset.mode)));
@@ -63,7 +63,7 @@ const ContainerRouting = {
         if (!r || !r.ok) { msg('Failed to start Tor: ' + ((r && r.error) || ''), false); return; }
         TabManager.createTab('https://check.torproject.org/', true, null, { partition: p });
         m.remove();
-        window.showToast?.('🧅 Opened a Tor-routed container');
+        window.showToast?.('Opened a Tor-routed container');
       } catch (e) { msg('Error: ' + e.message, false); }
     });
   },

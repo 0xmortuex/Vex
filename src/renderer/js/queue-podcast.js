@@ -22,7 +22,7 @@ const QueuePodcast = {
     if (!('speechSynthesis' in window)) { window.showToast?.('Text-to-speech isn\'t available'); return; }
     this._idx = 0; this._paused = false;
     this._buildBar();
-    window.showToast?.('🎧 Playing ' + this._items.length + ' saved article' + (this._items.length === 1 ? '' : 's'));
+    window.showToast?.('Playing ' + this._items.length + ' saved article' + (this._items.length === 1 ? '' : 's'));
     this._playCurrent();
   },
 
@@ -61,7 +61,7 @@ const QueuePodcast = {
   },
 
   async _playCurrent() {
-    if (this._idx >= this._items.length) { window.showToast?.('🎧 Playlist finished'); this.stop(); return; }
+    if (this._idx >= this._items.length) { window.showToast?.('Playlist finished'); this.stop(); return; }
     const item = this._items[this._idx];
     this._renderBar();
     const intro = 'Next article: ' + (item.title || 'Untitled') + '. ';
@@ -133,12 +133,12 @@ const QueuePodcast = {
     const bar = document.createElement('div');
     bar.id = 'vex-podcast-bar';
     bar.style.cssText = "position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:100000;display:flex;align-items:center;gap:12px;max-width:92vw;background:var(--surface,#1b1b24);color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:12px;padding:9px 14px;box-shadow:0 8px 30px rgba(0,0,0,.4);font-family:'Outfit',sans-serif";
-    bar.innerHTML = `<span style="font-size:15px">🎧</span>
+    bar.innerHTML = `<span style="line-height:0">${VexIcons.svg('headphones', { size: 16 })}</span>
       <span id="qp-title" style="max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px"></span>
       <span id="qp-prog" style="font-size:11px;color:var(--text-muted,#9a9aa5)"></span>
-      <button id="qp-pause" style="${this._btn()}">⏸</button>
-      <button id="qp-skip" title="Skip" style="${this._btn()}">⏭</button>
-      <button id="qp-stop" title="Stop" style="${this._btn()}">⏹</button>`;
+      <button id="qp-pause" title="Pause" style="${this._btn()}">${VexIcons.svg('pause', { size: 14 })}</button>
+      <button id="qp-skip" title="Skip" style="${this._btn()}">${VexIcons.svg('skip', { size: 14 })}</button>
+      <button id="qp-stop" title="Stop" style="${this._btn()}">${VexIcons.svg('stop', { size: 14 })}</button>`;
     document.body.appendChild(bar);
     this._bar = bar;
     bar.querySelector('#qp-pause').addEventListener('click', () => this.togglePause());
@@ -146,14 +146,15 @@ const QueuePodcast = {
     bar.querySelector('#qp-stop').addEventListener('click', () => this.stop());
     this._renderBar();
   },
-  _btn() { return "width:30px;height:28px;border-radius:7px;cursor:pointer;font-size:13px;border:1px solid var(--border,rgba(255,255,255,0.16));background:var(--bg,#0e0e16);color:var(--text,#e9e9ee);font-family:'Outfit',sans-serif"; },
+  _btn() { return "width:30px;height:28px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border,rgba(255,255,255,0.16));background:var(--bg,#0e0e16);color:var(--text,#e9e9ee);font-family:'Outfit',sans-serif"; },
   _renderBar() {
     if (!this._bar) return;
     const item = this._items[this._idx];
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
     const t = this._bar.querySelector('#qp-title'); if (t) t.textContent = item ? (item.title || item.url) : '';
     const p = this._bar.querySelector('#qp-prog'); if (p) p.textContent = (this._idx + 1) + '/' + this._items.length;
-    const pb = this._bar.querySelector('#qp-pause'); if (pb) pb.textContent = this._paused ? '▶' : '⏸';
+    const pb = this._bar.querySelector('#qp-pause');
+    if (pb) { pb.innerHTML = VexIcons.svg(this._paused ? 'play' : 'pause', { size: 14 }); pb.title = this._paused ? 'Resume' : 'Pause'; }
   },
 };
 

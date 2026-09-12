@@ -89,6 +89,14 @@ const VexPeek = {
     wv.setAttribute('webpreferences', 'contextIsolation=yes');
     wv.addEventListener('did-navigate', (e) => { if (e.url) { this._url = e.url; E.url.textContent = e.url; E.url.title = e.url; } });
     wv.addEventListener('did-navigate-in-page', (e) => { if (e.url) { this._url = e.url; E.url.textContent = e.url; } });
+    // A peek that fails to load used to show an empty white frame with no hint
+    // of why. Say what went wrong, and offer the two things worth doing next.
+    wv.addEventListener('did-fail-load', (e) => {
+      if (e.isMainFrame === false) return;           // sub-resource, not the page
+      if (e.errorCode === -3) return;                // ERR_ABORTED — user navigated away
+      this._showError(`${e.errorDescription || 'Load failed'} (${e.errorCode})`);
+    });
+    wv.addEventListener('crashed', () => this._showError('The preview process stopped responding'));
     E.body.appendChild(wv);
     E.wv = wv;
 
@@ -100,6 +108,28 @@ const VexPeek = {
       else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.promote(); }
     };
     window.addEventListener('keydown', this._onKey, true);
+  },
+
+  // Replace the frame's contents with a readable failure state. Keeps the bar
+  // (and therefore Open-as-tab / Copy link / Close) usable.
+  _showError(message) {
+    const E = this._els;
+    if (!E) return;
+    E.body.innerHTML = '';
+    E.wv = null;
+    const box = document.createElement('div');
+    box.className = 'peek-error';
+    box.innerHTML = `
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M12 7.5v5M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <div class="peek-error-title">This page could not be previewed</div>
+      <div class="peek-error-detail"></div>
+      <button class="peek-btn peek-error-retry" type="button">Try again</button>`;
+    box.querySelector('.peek-error-detail').textContent = message;
+    box.querySelector('.peek-error-retry').addEventListener('click', () => this.open(this._url, this._partition));
+    E.body.appendChild(box);
   },
 
   close() {

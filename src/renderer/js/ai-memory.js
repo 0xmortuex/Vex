@@ -24,7 +24,7 @@ const AIMemory = {
     this.data.facts.unshift({ id: 'm' + Date.now().toString(36), text: text.slice(0, 400), at: Date.now() });
     if (this.data.facts.length > 100) this.data.facts.length = 100;
     this.save();
-    window.showToast?.('🧠 Vex will remember that');
+    window.showToast?.('Vex will remember that');
     return true;
   },
   remove(id) { this.data.facts = this.data.facts.filter(f => f.id !== id); this.save(); },
@@ -39,7 +39,13 @@ const AIMemory = {
   },
 
   async promptAdd() {
-    const v = typeof vexPromptModal === 'function' ? await vexPromptModal('Tell Vex something to remember', '') : prompt('Remember:');
+    // Electron's renderer disables native prompt() — it always returned null, so
+    // the old fallback silently did nothing. Say so instead.
+    if (typeof vexPromptModal !== 'function') {
+      window.showToast?.('The prompt dialog is unavailable', 'error');
+      return;
+    }
+    const v = await vexPromptModal('Tell Vex something to remember', '');
     if (v && v.trim()) this.add(v.trim());
   },
 
@@ -61,7 +67,7 @@ const AIMemory = {
       this.data.facts.forEach(f => {
         const r = document.createElement('div');
         r.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px';
-        r.innerHTML = `<span style="flex:1;font-size:12.5px;color:var(--text)">${esc(f.text)}</span><button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:13px">✕</button>`;
+        r.innerHTML = `<span style="flex:1;font-size:12.5px;color:var(--text)">${esc(f.text)}</span><button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:13px" title="Forget this" aria-label="Forget this">${window.VexIcons ? VexIcons.svg('x', { size: 13 }) : 'x'}</button>`;
         r.querySelector('[data-x]').addEventListener('click', () => { this.remove(f.id); renderList(); });
         listEl.appendChild(r);
       });

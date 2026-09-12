@@ -155,26 +155,18 @@ describe('Scheduler.calculateNextRun', () => {
       expect(r.getDate()).toBe(1);
     });
 
-    // Document current Date-overflow behavior on dayOfMonth=31 in a short
-    // month. This is what the gap report flagged. Test locks in the
-    // observed value so future "fixes" surface explicitly. Pinned as todo
-    // separately for the user-intent question.
-    it('dayOfMonth=31 in February overflows into next month (Date semantics)', () => {
-      // FIXED_NOW Feb 15. dayOfMonth=31 → setDate(31) on Feb overflows by
-      // (31 - 28) = 3 days, landing on March 3 of the same year (2026).
-      // March 3 > Feb 15 so the "if past" branch does NOT roll forward.
+    // Resolved: dayOfMonth is CLAMPED to the length of the month, never
+    // overflowed. The old engine used setDate(31) on February, which silently
+    // slid the run to March 3 — a "monthly on the 31st" task that fired on the
+    // 3rd. Clamping means February fires on the 28th (29th in a leap year).
+    it('dayOfMonth=31 in February clamps to the last day of February', () => {
+      // FIXED_NOW Feb 15 2026 (28-day February). Feb 28 is still ahead.
       const t = { frequency: 'monthly', time: '09:00', dayOfMonth: 31 };
       const r = Scheduler.calculateNextRun(t);
-      expect(r.getMonth()).toBe(2); // March (overflow target)
-      expect(r.getDate()).toBe(3);
+      expect(r.getMonth()).toBe(1); // February
+      expect(r.getDate()).toBe(28);
       expect(r.getFullYear()).toBe(2026);
     });
-
-    it.todo(
-      'monthly dayOfMonth=31 in a short month: confirm expected user-intent behavior. ' +
-      'Current code overflows to e.g. March 3 — user may expect "skip months that lack day 31" ' +
-      'or "use last day of month". Decision pending; see scheduler.js:105-110.'
-    );
   });
 
   describe('frequency: "custom" / cron', () => {

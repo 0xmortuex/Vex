@@ -46,7 +46,7 @@ const MouseGestures = {
     }[dir];
     if (!act) return;
     const label = act();
-    window.showToast?.('🖱 ' + label);
+    window.showToast?.(label);
   },
 };
 

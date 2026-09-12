@@ -175,7 +175,7 @@ const McpClient = (() => {
     const toolOpts = tools.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
     m.innerHTML = `<div style="width:680px;max-width:95vw;height:78vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
         <div style="display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border)">
-          <strong style="font-size:15px;color:var(--text)">🔌 ${esc(server.name)}</strong>
+          <strong style="font-size:15px;color:var(--text)">${VexIcons.svg('plug', { size: 15 })} ${esc(server.name)}</strong>
           <span style="flex:1;font-size:11px;color:var(--text-muted)">${tools.length} tools${sess.info ? ' · ' + esc(sess.info.name || '') : ''}</span>
           <button id="mcp-close" style="padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">✕</button>
         </div>

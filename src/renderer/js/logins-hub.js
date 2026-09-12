@@ -11,7 +11,7 @@ const LoginsHub = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:600px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🔐 Logins &amp; Codes</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1;display:inline-flex;align-items:center;gap:7px">${VexIcons.svg('lock', { size: 16 })}Logins &amp; Codes</span>
         <button id="lh-refresh" style="${this._chip()}">↻</button>
         <button id="lh-close" style="${this._chip()}">✕</button>
       </div>
@@ -71,7 +71,9 @@ const LoginsHub = {
     } else {
       steps.push(['fail', 'No email source — open Gmail/Outlook/Proton, or enable background reading above']);
     }
-    out.innerHTML = steps.map(([s, t]) => `<div>${s === 'ok' ? '✅' : s === 'warn' ? '🟡' : '❌'} ${esc(t)}</div>`).join('');
+    const mark = { ok: 'check', warn: 'warning', fail: 'x' };
+    const tone = { ok: '#4caf50', warn: '#e8a13a', fail: '#e5556a' };
+    out.innerHTML = steps.map(([s, t]) => `<div style="display:flex;align-items:center;gap:6px"><span style="color:${tone[s] || 'inherit'};line-height:0">${VexIcons.svg(mark[s] || 'info', { size: 14 })}</span>${esc(t)}</div>`).join('');
   },
 
   async _paint(m) {
@@ -86,13 +88,13 @@ const LoginsHub = {
     // --- Email codes ---
     const g = this._mailStatus();
     const dot = { ok: '#4caf50', warn: '#e8a13a', off: '#e5556a' }[g.level];
-    let html = `<div style="margin:8px 0 4px;font-weight:700">📧 Email-code autofill <span style="font-size:11px;color:var(--text-muted);font-weight:400">· fills verification codes from your open Gmail</span></div>
+    let html = `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('mail', { size: 14 })}Email-code autofill <span style="font-size:11px;color:var(--text-muted);font-weight:400">· fills verification codes from your open Gmail</span></div>
       <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
         <span style="width:9px;height:9px;border-radius:50%;background:${dot};flex-shrink:0"></span>
         <span style="flex:1">${esc(g.text)}</span>
         ${g.level === 'off'
           ? `<button id="lh-open-gmail" style="${this._chip()}">Open Gmail</button>`
-          : (g.level === 'warn' ? `<button id="lh-keep-gmail" style="${this._chip()}">☕ Keep awake</button>` : '')}
+          : (g.level === 'warn' ? `<button id="lh-keep-gmail" style="${this._chip()}">Keep awake</button>` : '')}
       </div>
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-bottom:4px;cursor:pointer">
         <input type="checkbox" id="lh-hidden-reader" ${this._hiddenReaderOn() ? 'checked' : ''} style="cursor:pointer">
@@ -103,14 +105,14 @@ const LoginsHub = {
         Submit automatically after filling a code <span style="color:var(--text-muted)">· off by default</span>
       </label>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <button id="lh-test-autofill" style="${this._chip()}">🧪 Test autofill</button>
+        <button id="lh-test-autofill" style="${this._chip()}">Test autofill</button>
         <span style="font-size:11px;color:var(--text-muted)">Checks it can reach and read your email.</span>
       </div>
       <div id="lh-test-out" style="font-size:12px;color:var(--text);margin-bottom:8px"></div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('emailcode')} attempts logged. Works with Gmail, Outlook, Proton, Yahoo &amp; iCloud.</div>`;
 
     // --- Passwords ---
-    html += `<div style="margin:8px 0 4px;font-weight:700">🔑 Saved passwords <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${passwords.length} · fills auto on matching sites</span></div>`;
+    html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('key', { size: 14 })}Saved passwords <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${passwords.length} · fills auto on matching sites</span></div>`;
     if (passwords.length) {
       html += '<div style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-bottom:6px">' +
         passwords.slice(0, 60).map(p => `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border)">
@@ -118,10 +120,10 @@ const LoginsHub = {
           <span style="color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%">${esc(p.username || '')}</span>
         </div>`).join('') + '</div>';
     } else html += `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">None yet — Vex offers to save when you log in.</div>`;
-    html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('password')} · <a id="lh-manage-pw" style="color:var(--primary,var(--accent));cursor:pointer">Manage in Settings</a> · <a id="lh-pw-health" style="color:var(--primary,var(--accent));cursor:pointer">🛡️ Check health</a></div>`;
+    html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('password')} · <a id="lh-manage-pw" style="color:var(--primary,var(--accent));cursor:pointer">Manage in Settings</a> · <a id="lh-pw-health" style="color:var(--primary,var(--accent));cursor:pointer">Check health</a></div>`;
 
     // --- Authenticator (2FA) ---
-    html += `<div style="margin:8px 0 4px;font-weight:700">🔢 Authenticator (2FA) <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${totp.length} · fills the 6-digit code on matching sites</span></div>`;
+    html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('hash', { size: 14 })}Authenticator (2FA) <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${totp.length} · fills the 6-digit code on matching sites</span></div>`;
     if (totp.length) {
       html += '<div style="max-height:130px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-bottom:6px">' +
         totp.slice(0, 60).map(a => `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border)">
@@ -134,7 +136,7 @@ const LoginsHub = {
     // --- Recent activity ---
     const recent = (window.AutofillLog && window.AutofillLog.all().slice(0, 8)) || [];
     if (recent.length) {
-      const icon = { password: '🔑', totp: '🔢', emailcode: '📧' };
+      const icon = { password: 'key', totp: 'hash', emailcode: 'mail' };
       // Plain-language explanation for the logged miss reasons, so a failure
       // says WHY (and what to do) instead of just "failed".
       const why = {
@@ -146,9 +148,9 @@ const LoginsHub = {
         'no-code-arrived': 'no code arrived',
         'no-new-code': 'no new code',
       };
-      html += `<div style="margin:8px 0 4px;font-weight:700">📊 Recent autofill activity</div>` +
+      html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('chart-bar', { size: 14 })}Recent autofill activity</div>` +
         recent.map(e => `<div style="display:flex;gap:8px;padding:4px 2px;font-size:12px">
-          <span>${icon[e.kind] || '•'}</span>
+          <span style="line-height:0;color:var(--text-muted)">${VexIcons.svg(icon[e.kind] || 'info', { size: 13 })}</span>
           <span style="flex:1;color:var(--text)">${esc(e.host)}</span>
           <span style="color:${e.ok ? '#4caf50' : '#e5556a'}">${e.ok ? 'filled' : ('failed' + (e.detail ? ' · ' + esc(why[e.detail] || e.detail) : ''))}</span>
           <span style="color:var(--text-muted)">${this._ago(e.t)}</span>

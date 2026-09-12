@@ -115,7 +115,7 @@ const Onboarding = {
 
   STEPS() {
     return [
-      { key: 'welcome',        title: 'Welcome to Vex 👋',        sub: 'Let’s set up the bits that make Vex feel like yours. Skip anything you don’t want — you can re-open this wizard anytime from the ✦ button by the reload button.' },
+      { key: 'welcome',        title: 'Welcome to Vex',                sub: 'Let’s set up the bits that make Vex feel like yours. Skip anything you don’t want — you can re-open this wizard anytime from the ✦ button by the reload button.' },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' },
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' },
       { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' },
@@ -131,7 +131,7 @@ const Onboarding = {
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' },
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' },
       { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' },
-      { key: 'done',           title: 'All set ✨',               sub: 'You’re ready. Everything here lives in Settings if you want to change it later.' },
+      { key: 'done',           title: 'All set',                     sub: 'You’re ready. Everything here lives in Settings if you want to change it later.' },
     ].map(step => ({ ...step, title: window.VexI18n?.t(step.key, step.title) || step.title, sub: window.VexI18n?.t(step.key + '.sub', step.sub) || step.sub }));
   },
 
@@ -392,7 +392,7 @@ const Onboarding = {
           ${this._input('ob-setup-code-input', 'VEXSETUP1.…', sel.code)}
           <div id="ob-setup-code-status" style="font-size:12px;color:var(--text-muted);min-height:16px"></div>
         </div>
-        <button id="ob-setup-export" style="align-self:flex-start;background:none;border:none;color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;padding:2px 0;text-decoration:underline;text-underline-offset:3px">📤 Copy my current setup as a shareable code</button>
+        <button id="ob-setup-export" style="align-self:flex-start;background:none;border:none;color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;padding:2px 0;text-decoration:underline;text-underline-offset:3px">Copy my current setup as a shareable code</button>
       </div>`;
     const updateCount = () => {
       const el = body.querySelector('#ob-setup-count');
@@ -427,7 +427,7 @@ const Onboarding = {
       const code = this._encodeSetupCode();
       try { await navigator.clipboard.writeText(code); } catch {}
       e.target.textContent = '✓ Copied — send it to anyone; they paste it under “Use a shared setup”.';
-      window.showToast?.('📤 Setup code copied to clipboard');
+      window.showToast?.('Setup code copied to clipboard');
     });
   },
 
@@ -699,7 +699,7 @@ const Onboarding = {
       // opt-in button instead of a second stacked welcome overlay.
       body.innerHTML = `
         <button id="ob-take-tour" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">
-          <span style="font-size:18px">🧭</span>
+          <span style="display:inline-flex">${VexIcons.svg('compass', { size: 19 })}</span>
           <span style="display:flex;flex-direction:column;gap:2px">
             <span style="font-size:13.5px;font-weight:600">Take a quick tour</span>
             <span style="font-size:11.5px;color:var(--text-muted)">A 60-second walkthrough of tabs, the sidebar, AI, and more — right after you finish.</span>
@@ -790,7 +790,7 @@ const Onboarding = {
         await WebLLM.load(id);
         WebLLM.setPreferred(true);
         dl.textContent = '✓ Ready';
-        window.showToast?.('🧠 On-device model ready');
+        window.showToast?.('On-device model ready');
       } catch (e) {
         dl.disabled = false; dl.textContent = 'Download now';
         window.showToast?.('Download failed: ' + (e.message || 'error'));

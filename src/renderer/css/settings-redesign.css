@@ -76,6 +76,10 @@
   transition: all .14s ease;
   white-space: nowrap;
 }
+.set-nav-chip .set-cat-icon {
+  flex: 0 0 auto;
+  color: var(--chip-color, var(--primary));
+}
 .set-nav-chip:hover {
   color: var(--chip-color, var(--primary));
   border-color: var(--chip-color, var(--primary));
@@ -132,6 +136,9 @@
   border-radius: 10px;
   font-size: 16px;
   flex: 0 0 auto;
+  /* The mark is an inline SVG stroked with currentColor, so the category colour
+     is set here rather than baked into the markup. */
+  color: var(--cat-color, var(--primary));
   background: color-mix(in srgb, var(--cat-color, var(--primary)) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--cat-color, var(--primary)) 35%, transparent);
 }

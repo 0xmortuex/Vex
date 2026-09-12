@@ -26,8 +26,8 @@ const HistoryPanel = {
         <div class="history-header">
           <h2>History</h2>
           <div class="search-mode-toggle">
-            <button class="search-mode active" data-mode="keyword">&#128269; Keyword</button>
-            <button class="search-mode" data-mode="ai">&#10024; AI Search</button>
+            <button class="search-mode active" data-mode="keyword">${VexIcons.svg('search', { size: 13 })} Keyword</button>
+            <button class="search-mode" data-mode="ai">${VexIcons.svg('sparkles', { size: 13 })} AI Search</button>
           </div>
           <div class="history-search history-search-wrapper">
             <input type="text" id="history-search-input" placeholder="Search history...">
@@ -432,7 +432,7 @@ const HistoryPanel = {
     } catch (err) {
       list.innerHTML = `
         <div class="ai-search-error">
-          <div>&#9888;&#65039; Search failed</div>
+          <div>${VexIcons.svg('warning', { size: 15 })} Search failed</div>
           <div class="error-detail">${this._esc(err.message || String(err))}</div>
         </div>
       `;
@@ -446,7 +446,7 @@ const HistoryPanel = {
     if (!parsed || !Array.isArray(parsed.matches) || parsed.matches.length === 0) {
       list.innerHTML = `
         <div class="ai-search-empty">
-          <div class="empty-icon">&#128269;</div>
+          <div class="empty-icon">${VexIcons.svg('search', { size: 28 })}</div>
           <div class="empty-title">No matches found</div>
           <div class="empty-subtitle">${this._esc(parsed?.interpretation || 'Try rephrasing or broadening your query')}</div>
         </div>
@@ -456,7 +456,7 @@ const HistoryPanel = {
 
     let html = '';
     if (parsed.interpretation) {
-      html += `<div class="ai-interpretation">&#10024; ${this._esc(parsed.interpretation)}</div>`;
+      html += `<div class="ai-interpretation">${VexIcons.svg('sparkles', { size: 12 })} ${this._esc(parsed.interpretation)}</div>`;
     }
     html += '<div class="ai-search-results">';
     for (const match of parsed.matches) {

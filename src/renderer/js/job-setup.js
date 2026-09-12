@@ -13,7 +13,7 @@ const JobSetup = {
     m.id = 'vex-jobsetup';
     m.style.cssText = 'position:fixed;inset:0;z-index:100061;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
     m.innerHTML = `<div style="width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
-      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px"><span style="font-size:16px;font-weight:800;color:var(--text);flex:1">🧑‍💼 A Vex built for your work</span><button id="jsx-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px"><span style="font-size:16px;font-weight:800;color:var(--text);flex:1">A Vex built for your work</span><button id="jsx-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button></div>
       <div id="jsx-body" style="padding:6px 20px 20px;overflow:auto;flex:1"></div>
     </div>`;
     document.body.appendChild(m);
@@ -66,7 +66,7 @@ const JobSetup = {
       <input id="jsx-tool-search" placeholder="Add tools — search ${allTools.length} tools…" value="${this._esc(this._toolQuery || '')}" style="width:100%;box-sizing:border-box;margin-top:10px;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:12.5px;font-family:'Outfit',sans-serif">
       <div id="jsx-tool-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"></div>
       <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
-        <span style="flex:1;font-size:11px;color:var(--text-muted)">Applies the theme + adds a 🧰 Toolbox button and quick tools by the Tor button.</span>
+        <span style="flex:1;font-size:11px;color:var(--text-muted)">Applies the theme + adds a Toolbox button and quick tools by the Tor button.</span>
         <button id="jsx-apply" style="padding:10px 20px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Apply</button>
       </div>`;
     const toolCard = (t) => {
@@ -76,7 +76,7 @@ const JobSetup = {
       el.className = 'jsx-tool';
       el.dataset.id = t.id;
       el.style.cssText = `text-align:left;padding:9px 11px;border-radius:9px;cursor:pointer;font-family:'Outfit',sans-serif;border:1px solid ${on ? 'var(--primary,var(--accent))' : 'var(--border)'};background:${on ? 'color-mix(in srgb, var(--primary,var(--accent)) 12%, var(--bg))' : 'var(--bg)'}`;
-      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span>${on ? '✓' : '+'}</span><span style="font-size:12.5px;font-weight:600;color:var(--text)">${this._esc(t.icon)} ${this._esc(t.name)}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${this._esc(t.desc)}${rec ? ' · recommended' : ''}</div>`;
+      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span>${on ? '✓' : '+'}</span><span style="font-size:12.5px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:5px">${Toolbox.iconMarkup(t, 14)} ${this._esc(t.name)}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${this._esc(t.desc)}${rec ? ' · recommended' : ''}</div>`;
       el.addEventListener('click', () => {
         if (this._tools.has(t.id)) this._tools.delete(t.id); else this._tools.add(t.id);
         this._renderConfig(m); // simplest: re-render to reflect state (keeps _tools)

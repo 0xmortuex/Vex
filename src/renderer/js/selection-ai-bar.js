@@ -80,14 +80,15 @@ const SelectionAIBar = {
     this._injectStyle();
     const el = document.createElement('div');
     el.id = 'vex-selection-ai';
+    const ico = (n) => (window.VexIcons ? VexIcons.svg(n, { size: 14 }) : '');
     el.innerHTML = `
-      <button data-act="explain">✨ Explain</button>
-      <button data-act="summarize">📝 Summarize</button>
-      <button data-act="translate">🌐 Translate</button>
+      <button type="button" data-act="explain">${ico('bulb')}<span>Explain</span></button>
+      <button type="button" data-act="summarize">${ico('note')}<span>Summarize</span></button>
+      <button type="button" data-act="translate">${ico('globe')}<span>Translate</span></button>
       <span class="vex-sel-div" data-edit></span>
-      <button data-act="rewrite" data-edit>✍️ Rewrite</button>
-      <button data-act="fix" data-edit>✓ Fix</button>
-      <button data-act="shorten" data-edit>✂️ Shorten</button>`;
+      <button type="button" data-act="rewrite" data-edit>${ico('marker')}<span>Rewrite</span></button>
+      <button type="button" data-act="fix" data-edit>${ico('check')}<span>Fix</span></button>
+      <button type="button" data-act="shorten" data-edit>${ico('scissors')}<span>Shorten</span></button>`;
     // Don't let clicks on the bar count as an "outside" dismiss.
     el.addEventListener('mousedown', (e) => e.stopPropagation(), true);
     el.querySelectorAll('button').forEach(b =>
@@ -165,21 +166,37 @@ const SelectionAIBar = {
     this._setBusy(true);
     try {
       const res = await AIRouter.callAI('chat', { message: this._EDIT_PROMPTS[act] + '"""' + text + '"""' });
-      let out = (res && (res.result || res.text || res.message)) || '';
-      out = String(out).trim()
-        .replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '')
-        .replace(/^["'""]+|["'""]+$/g, '')
-        .trim();
-      if (!out) { window.showToast?.('AI returned nothing', 'error'); return; }
-      try { wv?.send('vex-replace-selection', { text: out }); } catch {}
+      const out = this._extractText(res);
+      if (!out) { window.showToast?.('The AI returned nothing to write back', 'error'); return; }
+      if (!wv || typeof wv.send !== 'function') { window.showToast?.('That page is no longer available', 'error'); return; }
+      // A failed send must not be reported as a successful edit.
+      wv.send('vex-replace-selection', { text: out });
       window.showToast?.(act === 'fix' ? 'Fixed' : act === 'shorten' ? 'Shortened' : 'Rewritten');
     } catch (err) {
       console.error('[SelectionAIBar] edit failed:', err);
-      window.showToast?.('AI edit failed', 'error');
+      window.showToast?.('AI edit failed: ' + (err?.message || 'unknown error'), 'error');
     } finally {
       this._busy = false;
       this.hide();
     }
+  },
+
+  // The local (Ollama) chat prompt asks for {"reply": "..."} and the on-device
+  // path can wrap its answer the same way, so the raw `result` was being typed
+  // STRAIGHT INTO the user's text field as JSON. Unwrap it, then strip fences
+  // and surrounding quotes.
+  _extractText(res) {
+    let out = (res && (res.result ?? res.text ?? res.message)) || '';
+    out = String(out).trim();
+    if (!out) return '';
+    if (typeof AIPanel !== 'undefined' && typeof AIPanel._parseResponse === 'function') {
+      const parsed = AIPanel._parseResponse(out);
+      if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim()) out = parsed.reply;
+    }
+    return String(out).trim()
+      .replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '')
+      .replace(/^["'“”]+|["'“”]+$/g, '')
+      .trim();
   },
 
   _setBusy(on) {

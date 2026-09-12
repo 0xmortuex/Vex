@@ -33,17 +33,17 @@ const ReadFree = {
     const el = document.createElement('div');
     el.className = 'readfree-pop';
     el.innerHTML = `
-      <div class="readfree-head">📰 Read free <span class="readfree-host"></span></div>
+      <div class="readfree-head">Read free <span class="readfree-host"></span></div>
       <button class="readfree-act" data-act="reset">
-        <span class="readfree-ico">🔄</span>
+        <span class="readfree-ico">${VexIcons.svg('refresh', { size: 17 })}</span>
         <span class="readfree-txt"><b>Reset paywall &amp; reload</b><small>Clear this site's cookies &amp; storage — resets metered "N free articles" walls</small></span>
       </button>
       <button class="readfree-act" data-act="archive">
-        <span class="readfree-ico">🗄️</span>
+        <span class="readfree-ico">${VexIcons.svg('archive', { size: 17 })}</span>
         <span class="readfree-txt"><b>Open free copy (archive.today)</b><small>Best for hard, subscriber-only paywalls</small></span>
       </button>
       <button class="readfree-act" data-act="reader">
-        <span class="readfree-ico">📖</span>
+        <span class="readfree-ico">${VexIcons.svg('book-open', { size: 17 })}</span>
         <span class="readfree-txt"><b>Reading mode</b><small>Strip overlays when the article is already loaded</small></span>
       </button>`;
     el.querySelector('.readfree-host').textContent = '· ' + host;
@@ -96,7 +96,7 @@ const ReadFree = {
       const wv = WebviewManager.getActiveWebview();
       if (wv) (wv.reloadIgnoringCache ? wv.reloadIgnoringCache() : wv.reload());
     } catch {}
-    window.showToast?.(ok ? '🔄 Paywall reset — reloading' : 'Reloaded (clear may have partially failed)');
+    window.showToast?.(ok ? 'Paywall reset — reloading' : 'Reloaded (clear may have partially failed)');
   },
 
   close() {

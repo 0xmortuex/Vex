@@ -11,8 +11,20 @@ const LeakCanary = {
     this._emails = {};
     try {
       const list = await window.vex.vaultList();
-      (list || []).forEach((c) => { const u = (c.username || '').toLowerCase(); if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u)) this._emails[u] = (c.host || '').replace(/^www\./, ''); });
-    } catch {}
+      (list || []).forEach((c) => {
+        const u = (c.username || '').toLowerCase();
+        const host = (c.host || '').replace(/^www\./, '');
+        // A credential with no host has no "somewhere else" to compare against,
+        // so it would make EVERY site look like a leak. Skip it.
+        if (host && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u)) this._emails[u] = host;
+      });
+    } catch (err) {
+      // Leave the cache unbuilt so the next page retries, instead of caching an
+      // empty list and quietly never warning again this session.
+      this._emails = null;
+      console.warn('[LeakCanary] could not read the vault:', err);
+      return {};
+    }
     return this._emails;
   },
   refresh() { this._emails = null; },
@@ -43,9 +55,15 @@ const LeakCanary = {
       for (const email of (found || [])) {
         if (saved[email] !== undefined && saved[email] !== host) {
           const k = host + '|' + email;
-          if (this._warned(k)) return;
+          // `return` here meant one already-warned address stopped the scan, so
+          // a second, unseen address leaking on the same page was never
+          // reported. Skip this one and keep looking.
+          if (this._warned(k)) continue;
           this._mark(k);
-          window.showToast?.('⚠️ ' + host + ' already has your email (' + this._mask(email) + ') pre-filled — you saved it for ' + (saved[email] || 'another site') + '. Possibly a tracker.', 7000);
+          // showToast is (message, type, duration). The 7000 used to sit in the
+          // `type` slot, so this warning got a bogus CSS class and the default
+          // 3s instead of the 7s a privacy warning was meant to hold for.
+          window.showToast?.(host + ' already has your email (' + this._mask(email) + ') pre-filled — you saved it for ' + (saved[email] || 'another site') + '. Possibly a tracker.', 'warn', 7000);
           return;
         }
       }

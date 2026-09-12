@@ -27,7 +27,7 @@ const ScreenshotTool = {
       <div class="screenshot-preview">
         <img src="${dataUrl}" alt="Screenshot">
         <div class="screenshot-actions">
-          <button class="ss-annotate">✏️ Annotate</button>
+          <button class="ss-annotate">Annotate</button>
           <button class="ss-save">Save</button>
           <button class="ss-copy">Copy</button>
           <button class="ss-close">Close</button>
@@ -78,12 +78,12 @@ const ScreenshotTool = {
     wrap.style.cssText = 'position:fixed;inset:0;z-index:99000;background:rgba(0,0,0,0.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px';
     wrap.innerHTML = `
       <div style="display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px">
-        <button data-tool="pen" class="an-tool" style="font-family:'Outfit',sans-serif">✏️ Pen</button>
+        <button data-tool="pen" class="an-tool" style="font-family:'Outfit',sans-serif">Pen</button>
         <button data-tool="rect" class="an-tool" style="font-family:'Outfit',sans-serif">▭ Box</button>
         <button data-tool="arrow" class="an-tool" style="font-family:'Outfit',sans-serif">➜ Arrow</button>
         <input type="color" id="an-color" value="#ef4444" style="width:30px;height:30px;border:none;background:none;cursor:pointer">
         <span style="width:1px;height:20px;background:var(--border)"></span>
-        <button id="an-undo" style="font-family:'Outfit',sans-serif">↩ Undo</button>
+        <button id="an-undo" style="font-family:'Outfit',sans-serif">Undo</button>
         <button id="an-save" style="font-family:'Outfit',sans-serif;background:var(--primary);color:#fff;border:none;border-radius:7px;padding:6px 14px;cursor:pointer">Save</button>
         <button id="an-copy" style="font-family:'Outfit',sans-serif">Copy</button>
         <button id="an-close" style="font-family:'Outfit',sans-serif">✕</button>

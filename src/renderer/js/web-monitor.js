@@ -39,7 +39,7 @@ const PageMonitor = {
     const w = { id: 'w' + Date.now().toString(36), url, title: title || url, intervalMin: intervalMin || 30, lastHash: null, lastChecked: 0, changed: false, baseline: false };
     this.watches.unshift(w);
     this.save();
-    window.showToast?.('👁 Watching — you\'ll be alerted when it changes');
+    window.showToast?.('Watching — you\'ll be alerted when it changes');
     await this._check(w, true); // establish baseline now
   },
 
@@ -60,7 +60,7 @@ const PageMonitor = {
       w.lastHash = hash; w.changed = true; w.changedAt = Date.now();
       this.save();
       if (!silent) {
-        window.showToast?.('🔔 Page changed: ' + (w.title || w.url));
+        window.showToast?.('Page changed: ' + (w.title || w.url));
         try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification('Vex — page changed', { body: w.title || w.url }); } catch {}
       }
     } else { this.save(); }
@@ -94,7 +94,7 @@ const PageMonitor = {
       </div>`;
     }).join('') : '<div style="color:var(--text-muted);font-size:12.5px;padding:14px 8px">Not watching any pages. Ctrl+K → “Watch This Page”.</div>';
     m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
-        <div style="padding:16px 18px 10px;display:flex;align-items:center;gap:10px"><strong style="font-size:16px;color:var(--text)">👁 Watched pages</strong><span style="flex:1"></span><button id="wt-close" style="padding:7px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Done</button></div>
+        <div style="padding:16px 18px 10px;display:flex;align-items:center;gap:10px"><strong style="font-size:16px;color:var(--text)">Watched pages</strong><span style="flex:1"></span><button id="wt-close" style="padding:7px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Done</button></div>
         <div style="overflow-y:auto;padding:0 18px 16px">${rows}</div>
       </div>`;
     document.body.appendChild(m);
@@ -115,7 +115,7 @@ const LinkRot = {
   saveToWayback(url) {
     if (!url || !/^https?:/i.test(url)) { window.showToast?.('No page to archive'); return; }
     TabManager.createTab('https://web.archive.org/save/' + url, true);
-    window.showToast?.('📦 Saving a snapshot to the Wayback Machine…');
+    window.showToast?.('Saving a snapshot to the Wayback Machine…');
   },
   viewArchived(url) {
     if (!url || !/^https?:/i.test(url)) { window.showToast?.('No URL to look up'); return; }

@@ -69,12 +69,19 @@ const AskAIBar = (() => {
     if (!input) return;
     const text = input.value.trim();
     if (!text) return;
-    close();
 
-    if (typeof AIPanel === 'undefined') {
+    // Check BEFORE closing: closing clears the bar, so bailing out afterwards
+    // threw the user's question away.
+    if (typeof AIPanel === 'undefined' || typeof AIPanel.open !== 'function') {
       if (typeof window.showToast === 'function') window.showToast('AI panel not available', 'error');
       return;
     }
+    if (AIPanel._sending) {
+      if (typeof window.showToast === 'function') window.showToast('Vex is still answering — one moment', 'info');
+      return;
+    }
+
+    close();
     AIPanel.open();
 
     // Feed the question into the AI panel's input and trigger its send path,
@@ -82,7 +89,10 @@ const AskAIBar = (() => {
     // persona routing) still kicks in.
     setTimeout(() => {
       const aiInput = document.getElementById('ai-input');
-      if (!aiInput) return;
+      if (!aiInput) {
+        if (typeof window.showToast === 'function') window.showToast('The AI panel is not available', 'error');
+        return;
+      }
       aiInput.value = text;
       if (typeof AIPanel._sendChat === 'function') {
         AIPanel._sendChat();

@@ -1201,7 +1201,7 @@
       ],
     },
     {
-      id: 'dev-url-parse', name: 'URL Parser', icon: '🔗', family: 'dev',
+      id: 'dev-url-parse', name: 'URL Parser', family: 'dev',
       desc: 'Split a URL into protocol, host, port, path, query parameters and fragment', keywords: 'url parse link components',
       fields: [{ id: 'url', label: 'URL', type: 'text', value: 'https://example.com:8080/path/page.html?x=1&y=two#top' }],
       run: (v) => {
@@ -1896,7 +1896,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
       ],
     },
     {
-      id: 'data-csv-sort', name: 'CSV Sort', icon: '↕▦', family: 'data',
+      id: 'data-csv-sort', name: 'CSV Sort', family: 'data',
       desc: 'Sort CSV rows by a column — numerically when the column is all numbers', keywords: 'csv sort order column',
       fields: [
         { id: 'csv', label: 'CSV', type: 'textarea', value: 'name,score\nAnn,9\nBo,10\nCy,2' },
@@ -2197,7 +2197,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
       ],
     },
     {
-      id: 'web-robots', name: 'robots.txt Builder', icon: '🤖', family: 'web',
+      id: 'web-robots', name: 'robots.txt Builder', family: 'web',
       desc: 'Write a robots.txt with Disallow/Allow rules, crawl delay and sitemap', keywords: 'robots txt seo crawler sitemap',
       fields: [
         { id: 'agent', label: 'User-agent', type: 'text', value: '*' },
@@ -2248,7 +2248,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
       ],
     },
     {
-      id: 'web-strip-tracking', name: 'Tracking Parameter Remover', icon: '✂?', family: 'web',
+      id: 'web-strip-tracking', name: 'Tracking Parameter Remover', family: 'web',
       desc: 'Strip utm_*, fbclid, gclid and other tracking parameters from URLs (one per line)', keywords: 'clean url tracking utm fbclid gclid privacy',
       fields: [{ id: 'urls', label: 'URLs', type: 'textarea', value: 'https://shop.example/item?id=42&utm_source=x&fbclid=abc#reviews' }],
       run: (v) => need(v.urls, 'one or more URLs').split(/\r?\n/).map((line, i) => {
@@ -2300,7 +2300,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
       ],
     },
     {
-      id: 'web-phone-e164', name: 'Phone → E.164', icon: '☎', family: 'web',
+      id: 'web-phone-e164', name: 'Phone → E.164', family: 'web',
       desc: 'Normalise a phone number to international E.164 format (+15551234567)', keywords: 'phone number e164 international format tel',
       fields: [
         { id: 'cc', label: 'Country calling code (e.g. 1, 44, 49)', type: 'text', value: '44' },
@@ -2377,7 +2377,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
       ],
     },
     {
-      id: 'web-cookie', name: 'Cookie Parser', icon: '🍪', family: 'web',
+      id: 'web-cookie', name: 'Cookie Parser', family: 'web',
       desc: 'Read a Cookie header (name=value pairs) or a Set-Cookie header with its attributes', keywords: 'cookie set-cookie samesite httponly parse',
       fields: [
         { id: 'mode', label: 'Header type', type: 'select', options: [['cookie', 'Cookie (request)'], ['set', 'Set-Cookie (response)']] },
@@ -2539,7 +2539,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
       ],
     },
     {
-      id: 'sec-totp', name: 'TOTP Code', icon: '⏲#', family: 'security',
+      id: 'sec-totp', name: 'TOTP Code', family: 'security',
       desc: 'Current 2FA code from a Base32 secret (RFC 6238), or the code at a given Unix time', keywords: 'totp 2fa otp authenticator mfa one-time password',
       fields: [
         { id: 'secret', label: 'Base32 secret', type: 'text', value: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ' },
@@ -2624,7 +2624,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
       ],
     },
     {
-      id: 'sec-luhn', name: 'Luhn / Card Number Check', icon: '💳', family: 'security',
+      id: 'sec-luhn', name: 'Luhn / Card Number Check', family: 'security',
       desc: 'Validate a card or IMEI number with the Luhn checksum and guess the card network', keywords: 'luhn credit card validate imei mod10',
       fields: [{ id: 'num', label: 'Number', type: 'text', value: '4111 1111 1111 1111' }],
       run: (v) => {
@@ -2723,7 +2723,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
 
   const DESIGN = [
     {
-      id: 'design-color-formats', name: 'Color Format Converter', icon: '🎨⇄', family: 'design',
+      id: 'design-color-formats', name: 'Color Format Converter', family: 'design',
       desc: 'Convert a colour between HEX, RGB, HSL, HSV and CMYK', keywords: 'color colour hex rgb hsl hsv cmyk convert',
       fields: [{ id: 'color', label: 'Colour (#hex, rgb(), hsl())', type: 'text', value: '#ff5733' }],
       run: (v) => {
@@ -2966,7 +2966,7 @@ application/vnd.microsoft.portable-executable exe dll|application/x-msi msi|appl
       ],
     },
     {
-      id: 'design-print-size', name: 'Image Print Size (DPI)', icon: '🖨', family: 'design',
+      id: 'design-print-size', name: 'Image Print Size (DPI)', family: 'design',
       desc: 'How large an image prints at a given DPI, in inches and centimetres', keywords: 'dpi ppi print size resolution megapixels',
       fields: [
         { id: 'w', label: 'Width (px)', type: 'number', value: 3000, min: 1 },

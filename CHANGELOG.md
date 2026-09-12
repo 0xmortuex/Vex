@@ -1,5 +1,90 @@
 # Changelog
 
+## v2.31.46 (2026-09-12) — Real icons, and a very long bug hunt
+
+### Changed
+- **No more emoji anywhere in Vex.** Every emoji in the interface is now a drawn icon that takes its colour from the theme you are using, so icons finally match the browser looks instead of ignoring them. That covers Ctrl+K, Settings, the sidebar, tab badges, notes, history, sync, personas, skills, the toolbox, toasts and the first-run screen. The only emoji left are the ones you asked to keep: the party popper on the update card, and whatever you type on your own toolbar buttons. A check now runs with the tests, so they cannot creep back.
+- **AI Skills pick a real icon.** The emoji box in the skill editor is now a small icon picker. Skills you already saved keep working — their emoji is swapped for the matching icon.
+- **A persona chosen for one tab stays in that tab.** It used to also become the default for every tab that had not chosen one. "Use" in Settings still sets the default.
+
+### Added
+- **Extensions worth installing, inside the extensions manager.** Five suggestions, each with what it does, what actually happens under Vex, and a link to the publisher's own download page. The two Vex can only partly run are marked. The "what Vex can't do" list is generated from the same place, so it cannot drift out of date.
+- **Sticky notes live in the Notes panel now.** A "Page notes" section lists every page you have left a note on: open the page, edit the note in place, show the card again, or turn a sticky into a real note that keeps a link back to where it came from. New buttons in the panel header make a sticky, clip the page, or start a note without hunting through menus.
+- **Notes got a proper editor.** A formatting toolbar (bold, italic, heading, list, checklist, code, link, with Ctrl+B/I/E), a live preview whose checkboxes you can actually tick, tags with a filter, pinning, sorting, search across title, body, tags and source, a word and reading-time count, copy as Markdown, export, and duplicate.
+- **Recall searches properly.** Whole words with stemming, so "throttled" finds "throttling"; phrases in quotes; "-word" to exclude; and `site:`, `after:` and `before:` filters. Results are ranked by relevance and recency with the matching words highlighted, and you can copy a result, forget one page, or never index a site again. A stat line says how many pages are indexed and how much space they take. Searching 3,000 pages takes about two milliseconds.
+- **Scheduled tasks can do seven things, not one.** Run an AI task, open a set of pages, reload tabs matching an address, sleep background tabs, save a session snapshot, clear browsing data, or just remind you. Schedules can be every N minutes or hours, daily, on chosen weekdays, monthly (including the last day), once at a date and time, or a full cron expression — with a live preview of the next three runs, plain-English descriptions ("Every weekday at 08:30 — next: Mon at 08:30"), per-task run history with durations, run now, pause, duplicate, and a choice of catching up or skipping a run that was missed while Vex was closed.
+- **Downloads can be paused, resumed, cancelled and retried,** from the panel while they run.
+- **Your AI conversations are kept per tab** and survive a restart. They used to live only in memory.
+
+### Fixed
+
+#### Notes
+- **Notes you were typing could be lost.** Unsaved text was thrown away when you switched notes, closed the panel or quit — there was a one-second delay and nothing that flushed it.
+- **Typing in a note's title wiped your search.** The list reset to everything while the search box still showed what you had typed.
+- **Clipping a page while a note was open sent your typing into a note that no longer existed.**
+- A note missing a title or body left the list blank. Preview and Edit could swap places. Deleting had no confirmation. Dates could read "Invalid Date". Exporting a note could cancel its own download.
+- **The notes list was unusable in the docked sidebar** — a fixed-width list left about 180px for the editor.
+- **Sticky notes: reopening a card threw away what you had typed,** and "Open" went to an address that did not exist for anything but a plain website.
+
+#### Recall
+- **Short pages were never remembered.** Anything under 200 characters of body text was skipped, so `example.com` could not be found at all.
+- **Almost two thirds of every page was thrown away** — the page was read to 16,000 characters and then stored at 6,000.
+- **Searching matched inside words:** "cat" found "Concatenation" and "Deep packet inspection". It also could not find "throttling" when you searched "throttled", ranked long pages above relevant ones, ignored how recent a page was, and showed snippets that did not contain what you searched for.
+- **Every page you visited rewrote the whole index to disk,** twice, growing with the index.
+
+#### Scheduled tasks
+- **Every run leaked a background tab,** and the leaked tabs came back on restart, so the leak compounded.
+- **Tasks due in the same minute were dropped.** Three daily tasks at the same time meant one ran.
+- **A one-off task for a time that had already passed saved happily and never ran** — there was no date field at all.
+- **Monthly tasks on the 31st fell a month behind** every February. A brand-new daily task fired immediately.
+- **Cron never really worked:** no ranges, no names, and a yearly expression returned nothing.
+
+#### Tabs, workspaces and split screen
+- **"Pin Tab" in the right-click menu did nothing you could see.**
+- **Switching workspaces lost every stack,** left the previous workspace's pinned tabs on screen as dead buttons, and rendered restored groups empty.
+- **With split screen on, switching workspaces gave you a completely blank window,** and clicking a tab changed nothing.
+- **Closing a tab that was in a split pane left a dead half-screen** nothing could repair.
+- **One bad favicon silently stopped Vex saving your tabs at all** — visiting an unreachable site was enough.
+- **The speaker and sleep badges never updated** in the vertical sidebar until something else forced a redraw. A page that failed to load stayed titled "Loading…" forever. A tab preview could stick on screen permanently. A Peek that failed showed a blank white frame.
+
+#### AI
+- **Asking "how do I find the average of a list in python?" ran a history search** and sent up to 200 of your history entries to the AI. Any message containing "find", "remember" or "recall" did this.
+- **Choosing Local AI without Ollama running produced "Cannot read properties of null".**
+- **AI Restyle never worked at all** — it read a field the AI never returns.
+- **Rewrite/Fix/Shorten pasted raw JSON into your page** on the local backend.
+- **The agent could still act after you pressed Stop,** and "Show full plan, then execute" never showed a plan and approved everything.
+- **Remembered facts quietly stopped being applied** once a conversation got long, and an on-device answer that failed was silently re-sent to the cloud.
+- Conversations are now kept per tab across restarts.
+
+#### Settings, downloads and privacy
+- **A finished download could say "0 B".** Any server that does not announce a file size left the panel copying that zero over the bytes it actually received.
+- **Downloads had no pause, resume or cancel** while a transfer was running, and a paused transfer still claimed to be downloading. A failed or cancelled download can now be retried.
+- **Open and Show in folder appeared on downloads that had no file,** and did nothing when clicked.
+- **A full download list evicted transfers that were still running.**
+- **Choosing a vertical tab layout under Glass or a browser look put the top tab strip and the vertical rail on screen at once** — those layouts arrange the window themselves, and now say so instead of fighting your choice.
+- **"Personalization" had no chip in the Settings navigation** — searching for it landed you in Personas, because its name contains that word.
+- **The privacy dashboard claimed blocking was on even when it was not,** and kept polling for the rest of the session after you closed it.
+
+#### Elsewhere
+- **Reading mode ran a page's own `<title>` as markup.** A page titled with a `<script>` tag put a live tag into the reading view. Exiting reading mode from a background tab threw away the page you were actually looking at.
+- **Turning a Boost off never removed it** from pages that were already open, and "reset this site" resurrected the boost you had just deleted the next time you edited one.
+- **Turning off cookie-banner blocking undid itself** — clearing its rules woke its own watcher, which painted them straight back.
+- **Emptying the focus blocklist turned blocking off for good,** while focus mode still promised to block. There is now a Restore defaults button and a line that says plainly when the list is empty.
+- **The password leak warning stopped at the first address it had already warned about,** hiding every other leak on the page, and warned on *every* site if a saved login had no address.
+- **Per-site dark mode never synced** — it was still listed under a setting name retired long ago.
+- **What's New and the screen picker leaked a keyboard listener every time they opened.** So did the reading ruler.
+- **A failed update download left the bar stuck at 0%** with nothing said; a release with no file opened an empty tab behind a "downloading" message.
+- **Recording a keyboard shortcut kept listening after you closed the panel** — the next shortcut you pressed was swallowed and quietly reassigned.
+- **Sync said "no devices" when it could not reach the server,** which looked identical to having none. Wiping sync data left the local copy in a state that failed every later sync and quietly signed you out.
+- **Location set to "manual" with no coordinates silently fell back to asking a third-party service for your location by IP** — under a mode whose own description says nothing leaves your device. It now refuses the request and says why.
+- **Reordering the sidebar left the Settings list showing the old order.**
+- **The Roblox and Discord bypasses share one connection helper.** Running Discord's auto-configure while the Roblox bypass was on left Roblox pointing at a helper that no longer existed, so Roblox stopped connecting with nothing said. Roblox now follows the shared helper, and says so if it stops.
+
+### Notes
+- This release is the result of seven parallel audits of the whole browser — settings, extensions, notes, recall, scheduled tasks, tabs and workspaces, the AI features, downloads, privacy, sync and the odds and ends. Every bug listed was reproduced in the running app before it was fixed.
+- The test suite went from 2,489 to 2,661 tests.
+- One thing found and deliberately left alone: after a hard crash (not a normal quit), the tab list and the workspace list can disagree about which workspace is active, because they are saved in two different places. Fixing it properly means unifying the two, which is a bigger change than this release should carry.
+
 ## v2.31.45 (2026-09-12) — History that keeps your history
 
 ### Fixed

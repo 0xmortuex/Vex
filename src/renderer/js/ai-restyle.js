@@ -25,24 +25,40 @@ const AIRestyle = {
   },
   _hasAi(host) { try { const b = VexBoosts.boosts[host]; return !!(b && b.css && b.css.includes(this.START)); } catch { return false; } },
 
+  // Throws on failure: swallowing it here meant the user got "Restyled <host>"
+  // for a stylesheet that was never saved or applied.
   _setAi(host, aiCss) {
-    try {
-      const b = VexBoosts.boosts[host] || (VexBoosts.boosts[host] = { zaps: [], css: '', js: '' });
-      b.css = this._stripAi(b.css);
-      if (aiCss) b.css = (b.css ? b.css + '\n\n' : '') + this.START + '\n' + aiCss + '\n' + this.END;
-      if (!b.css && !b.js && !(b.zaps || []).length) delete VexBoosts.boosts[host];
-      VexBoosts.save();
-      const wv = this._wv();
-      if (wv) VexBoosts.applyTo(wv, 'https://' + host + '/');
-    } catch (e) { console.warn('[AIRestyle] apply failed:', e && e.message); }
+    const b = VexBoosts.boosts[host] || (VexBoosts.boosts[host] = { zaps: [], css: '', js: '' });
+    b.css = this._stripAi(b.css);
+    if (aiCss) b.css = (b.css ? b.css + '\n\n' : '') + this.START + '\n' + aiCss + '\n' + this.END;
+    if (!b.css && !b.js && !(b.zaps || []).length) delete VexBoosts.boosts[host];
+    VexBoosts.save();
+    const wv = this._wv();
+    if (wv) VexBoosts.applyTo(wv, 'https://' + host + '/');
   },
 
+  // AIRouter.callAI resolves to { result, backend, model } — `result` was the one
+  // field this never looked at, so EVERY restyle ended in "The AI did not return
+  // usable CSS" no matter what the model said. It also has to unwrap the local
+  // backend's JSON envelope ({"reply": "…css…"}), which is what Ollama returns
+  // because the local chat prompt asks for JSON.
   _cleanCss(reply) {
     let s = '';
     if (typeof reply === 'string') s = reply;
-    else if (reply && typeof reply === 'object') s = reply.content || reply.text || reply.message || reply.reply || '';
+    else if (reply && typeof reply === 'object') {
+      s = reply.result || reply.content || reply.text || reply.message || reply.reply || '';
+    }
     s = String(s || '').trim();
-    s = s.replace(/^```(?:css)?\s*/i, '').replace(/\s*```\s*$/i, '');   // strip fences
+    s = s.replace(/^```(?:css)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    // A JSON envelope from a local model: pull the text back out.
+    if (s.startsWith('{')) {
+      try {
+        const o = JSON.parse(s);
+        if (o && typeof o === 'object' && typeof (o.reply ?? o.css ?? o.text) === 'string') {
+          s = String(o.reply ?? o.css ?? o.text).trim().replace(/^```(?:css)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+        }
+      } catch { /* not JSON — it's a plain stylesheet starting with a rule */ }
+    }
     return s.trim();
   },
 
@@ -58,14 +74,14 @@ const AIRestyle = {
     m.id = 'vex-airestyle';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.5);display:flex;align-items:flex-start;justify-content:center;padding-top:14vh';
     m.innerHTML = `<div style="width:480px;max-width:94vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,0.5);color:var(--text)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:15px;font-weight:700;flex:1">🎨 AI Restyle · ${esc(host)}</span><button id="ar-close" style="${chip}">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:15px;font-weight:700;flex:1">${window.VexIcons ? VexIcons.svg('palette', { size: 14 }) : ''} AI Restyle · ${esc(host)}</span><button id="ar-close" style="${chip}">${window.VexIcons ? VexIcons.svg('x', { size: 13 }) : ''}</button></div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:12px">AI writes CSS to restyle this site and saves it as a Boost. Pick a look or describe your own.</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${this.PRESETS.map((p, i) => `<button class="ar-preset" data-i="${i}" style="${chip}">${esc(p[0])}</button>`).join('')}</div>
       <textarea id="ar-text" rows="2" placeholder="…or describe the look you want (e.g. 'make it look like Notion')" style="width:100%;box-sizing:border-box;padding:9px 11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:'Outfit',sans-serif;resize:vertical"></textarea>
       <div id="ar-msg" style="font-size:11.5px;color:var(--text-muted);min-height:16px;margin:10px 0"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
         ${this._hasAi(host) ? `<button id="ar-revert" style="${chip}">Revert AI style</button>` : ''}
-        <button id="ar-apply" style="${prim}">✨ Restyle</button>
+        <button id="ar-apply" style="${prim}">Restyle</button>
       </div>
     </div>`;
     document.body.appendChild(m);
@@ -74,23 +90,38 @@ const AIRestyle = {
     const text = m.querySelector('#ar-text');
     m.querySelectorAll('.ar-preset').forEach(b => b.addEventListener('click', () => { text.value = this.PRESETS[+b.dataset.i][1]; }));
     const msg = (t, err) => { const e = m.querySelector('#ar-msg'); if (e) { e.textContent = t; e.style.color = err ? 'var(--danger,#e5556a)' : 'var(--text-muted)'; } };
-    m.querySelector('#ar-revert')?.addEventListener('click', () => { this._setAi(host, null); window.showToast?.('AI style removed from ' + host); m.remove(); });
-    m.querySelector('#ar-apply').addEventListener('click', async () => {
+    m.querySelector('#ar-revert')?.addEventListener('click', () => {
+      try { this._setAi(host, null); } catch (e) { msg('Could not remove the AI style: ' + (e && e.message || 'unknown'), true); return; }
+      window.showToast?.('AI style removed from ' + host);
+      m.remove();
+    });
+    const applyBtn = m.querySelector('#ar-apply');
+    applyBtn.addEventListener('click', async () => {
+      if (applyBtn.disabled) return;                       // no double requests
       const request = (text.value || '').trim();
       if (!request) { msg('Pick a look or type one.', true); return; }
       if (typeof AIRouter === 'undefined' || !AIRouter.callAI) { msg('AI backend not configured — set one in Settings → AI Backend.', true); return; }
+      applyBtn.disabled = true;
+      const label = applyBtn.textContent;
+      applyBtn.textContent = 'Writing…';
       msg('Asking the AI for a stylesheet…');
       const prompt = `You are a CSS expert. Write a CSS stylesheet that restyles the website "${host}" as follows: ${request}. Output ONLY raw CSS — no explanations, no markdown code fences. Use !important where needed to override the site's own styles. Scope rules to body and common containers; keep it robust and do not hide or break primary content, links, buttons or inputs.`;
-      let reply;
-      try { reply = await AIRouter.callAI('chat', { message: prompt }); }
-      catch (e) { msg('AI request failed: ' + (e && e.message || 'unknown'), true); return; }
-      const css = this._cleanCss(reply);
-      if (!css || css.length < 10) { msg('The AI did not return usable CSS — try rephrasing.', true); return; }
-      this._setAi(host, css);
-      window.showToast?.('🎨 Restyled ' + host + ' — reopen this to revert');
-      m.remove();
+      try {
+        const reply = await AIRouter.callAI('chat', { message: prompt });
+        const css = this._cleanCss(reply);
+        if (!css || css.length < 10) { msg('The AI did not return usable CSS — try rephrasing.', true); return; }
+        this._setAi(host, css);
+        window.showToast?.('Restyled ' + host + ' — reopen this to revert');
+        m.remove();
+      } catch (e) {
+        msg((e && e.message) || 'The restyle failed.', true);
+      } finally {
+        applyBtn.disabled = false;
+        applyBtn.textContent = label;
+      }
     });
   },
 };
 
 if (typeof window !== 'undefined') window.AIRestyle = AIRestyle;
+if (typeof module !== 'undefined' && module.exports) module.exports = { AIRestyle };

@@ -17,8 +17,15 @@ const AISettings = (() => {
 
     const cloudEl = document.getElementById('cloud-status');
     if (cloudEl) {
-      if (status.online) {
-        cloudEl.textContent = 'Online \u2713';
+      // "Online" used to mean nothing more than navigator.onLine, so a profile
+      // with no Worker URL still read "Online \u2713" right up until every request
+      // failed with "Cloud AI is not configured".
+      const configured = !!(AIRouter.cloudWorkerUrl && AIRouter.cloudWorkerUrl());
+      if (!configured) {
+        cloudEl.textContent = 'Not configured';
+        cloudEl.className = 'status-badge offline';
+      } else if (status.online) {
+        cloudEl.textContent = 'Ready';
         cloudEl.className = 'status-badge online';
       } else {
         cloudEl.textContent = 'Offline (no internet)';
@@ -75,7 +82,10 @@ const AISettings = (() => {
       { id: 'historyIndex', label: 'History indexing', desc: 'Background page summaries' },
       { id: 'historySearch', label: 'History search', desc: 'AI-powered history queries' },
       { id: 'agent', label: 'Agent mode', desc: 'Browser automation (cloud only)' },
-      { id: 'multiTab', label: 'Multi-tab AI', desc: 'Cross-tab reasoning' }
+      { id: 'multiTab', label: 'Multi-tab AI', desc: 'Cross-tab reasoning' },
+      // Was routable in the router but had no row here, so the only way to
+      // change it was editing localStorage by hand.
+      { id: 'groupTabs', label: 'Group tabs', desc: 'AI tab grouping suggestions' }
     ];
     const prefs = AIRouter.getRoutingPrefs();
     container.innerHTML = features.map(f => `
@@ -93,7 +103,36 @@ const AISettings = (() => {
     `).join('');
   }
 
+  // The AI-mode radios, the model select and the refresh/install buttons live in
+  // the static index.html markup, so they survive every re-render — wiring them
+  // on each Settings open stacked one more listener per open (N toasts per
+  // click, and concurrent "Checking…" runs that restored the wrong button
+  // label). Only the routing grid is rebuilt, so only it is re-wired.
+  let _staticWired = false;
+
   function wireHandlers() {
+    if (!_staticWired) { _staticWired = true; wireStaticHandlers(); }
+    wireRoutingGrid();
+  }
+
+  function wireRoutingGrid() {
+    document.querySelectorAll('#routing-grid select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const prefs = AIRouter.getRoutingPrefs();
+        prefs[sel.dataset.feature] = sel.value;
+        AIRouter.setRoutingPrefs(prefs);
+        // Choosing Local while Ollama is down makes that feature fail on every
+        // use. Say so here rather than at the moment the user needs it.
+        if (sel.value === 'local' && !AIRouter.isOllamaAvailable()) {
+          toast('Saved — but Ollama is not running, so this feature will fail until you start it', 'warn');
+        } else {
+          toast('Routing updated', 'success');
+        }
+      });
+    });
+  }
+
+  function wireStaticHandlers() {
     document.querySelectorAll('input[name="ai-mode"]').forEach(radio => {
       radio.addEventListener('change', () => {
         const v = radio.value;
@@ -131,18 +170,16 @@ const AISettings = (() => {
     document.getElementById('btn-refresh-ollama')?.addEventListener('click', (e) => refreshOllama(e.currentTarget));
     document.getElementById('btn-refresh-ollama-inline')?.addEventListener('click', (e) => refreshOllama(e.currentTarget));
     document.getElementById('btn-install-ollama')?.addEventListener('click', showOllamaInstallDialog);
-    document.querySelectorAll('#routing-grid select').forEach(sel => {
-      sel.addEventListener('change', () => {
-        const prefs = AIRouter.getRoutingPrefs();
-        prefs[sel.dataset.feature] = sel.value;
-        AIRouter.setRoutingPrefs(prefs);
-      });
-    });
   }
 
   function showOllamaInstallDialog() {
+    // Only ever one install dialog: pressing the button twice used to stack
+    // overlays that all carried the same element ids, so the second one's
+    // buttons wired the first and it could not be closed at all.
+    document.querySelectorAll('.sync-modal-overlay[data-ollama-install]').forEach(e => e.remove());
     const overlay = document.createElement('div');
     overlay.className = 'sync-modal-overlay';
+    overlay.dataset.ollamaInstall = '';
     overlay.innerHTML = `
       <div class="sync-modal-card" style="max-width:600px;max-height:80vh;overflow-y:auto">
         <h2 style="margin-top:0;color:var(--primary)">Install Ollama for Local AI</h2>
@@ -169,11 +206,18 @@ const AISettings = (() => {
       </div>
     `;
     document.body.appendChild(overlay);
-    document.getElementById('open-ollama-site').addEventListener('click', () => {
+    // Scope the lookups to this overlay and close on backdrop/Esc: binding by
+    // global id meant a second dialog's buttons wired the FIRST overlay, leaving
+    // the newer one with no way to close it.
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    overlay.querySelector('#open-ollama-site').addEventListener('click', () => {
       if (typeof TabManager !== 'undefined') TabManager.createTab('https://ollama.com/download', true);
-      overlay.remove();
+      close();
     });
-    document.getElementById('close-install-modal').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#close-install-modal').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', onKey);
   }
 
   return { renderAISettings, refreshStatus };

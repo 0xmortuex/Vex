@@ -16,7 +16,7 @@ const WorkPanel = {
       container.innerHTML = `
         <style>#panel-work .wp-tool{transition:transform .12s ease,border-color .12s ease,background .12s ease}#panel-work .wp-tool:hover{transform:translateY(-2px);border-color:var(--primary,var(--accent))}#panel-work .wp-tool:active{transform:translateY(0)}#panel-work .wp-act:hover{border-color:var(--primary,var(--accent))}#panel-work .wp-tool .wp-ic{font-size:16px}</style><div class="panel-header"><h2>Work</h2></div>
         <div style="padding:24px 18px;text-align:center;color:var(--text)">
-          <div style="font-size:34px;margin-bottom:8px">🧑‍💼</div>
+          <div style="margin-bottom:8px;color:var(--primary,var(--accent))">${VexIcons.svg('briefcase', { size: 34 })}</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">A Vex built for your work</div>
           <div style="font-size:12.5px;color:var(--text-muted);line-height:1.6;margin-bottom:16px">Pick your profession and Vex applies a fitting theme and the built-in tools you use daily — regex, JSON, color, word count, and more. You choose exactly which.</div>
           <button id="wp-setup" style="padding:11px 20px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Choose my job →</button>
@@ -30,7 +30,7 @@ const WorkPanel = {
     const themeMeta = (typeof ThemeManager !== 'undefined' && ThemeManager.getThemeMeta) ? ThemeManager.getThemeMeta(job.theme) : { label: job.theme, accent: '#6366f1' };
 
     const toolCard = (t) => `<button class="wp-tool" data-id="${esc(t.id)}" title="${esc(t.desc)}" style="text-align:left;padding:11px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-family:'Outfit',sans-serif">
-        <div style="font-size:15px">${esc(t.icon)}</div>
+        <div style="font-size:15px;line-height:1;height:18px">${Toolbox.iconMarkup(t, 16)}</div>
         <div style="font-size:12.5px;font-weight:600;color:var(--text);margin-top:4px">${esc(t.name)}</div>
       </button>`;
 
@@ -52,8 +52,8 @@ const WorkPanel = {
 
         <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin:0 2px 8px">Quick actions</div>
         <div style="display:flex;flex-direction:column;gap:6px">
-          <button class="wp-act" data-act="toolbox" style="text-align:left;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);cursor:pointer;font-size:12.5px;font-family:'Outfit',sans-serif">🧰  Open the full Toolbox</button>
-          <button class="wp-act" data-act="note" style="text-align:left;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);cursor:pointer;font-size:12.5px;font-family:'Outfit',sans-serif">📝  Sticky note for this page</button>
+          <button class="wp-act" data-act="toolbox" style="text-align:left;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);cursor:pointer;font-size:12.5px;font-family:'Outfit',sans-serif">Open the full Toolbox</button>
+          <button class="wp-act" data-act="note" style="text-align:left;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);cursor:pointer;font-size:12.5px;font-family:'Outfit',sans-serif">Sticky note for this page</button>
         </div>
       </div>`;
 

@@ -235,8 +235,8 @@ const WebviewManager = {
       menu.style.left = (r.left + (p.x || 0)) + 'px';
       menu.style.top = (r.top + (p.y || 0)) + 'px';
       const items = [
-        { label: '🔎 Zoom image', act: () => { if (typeof ImageZoom !== 'undefined') ImageZoom.open(p.srcURL); } },
-        { label: '🔍 Search image with Lens', act: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(p.srcURL), true) },
+        { label: 'Zoom image', act: () => { if (typeof ImageZoom !== 'undefined') ImageZoom.open(p.srcURL); } },
+        { label: 'Search image with Lens', act: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(p.srcURL), true) },
         { label: 'Copy image address', act: () => { navigator.clipboard?.writeText(p.srcURL); window.showToast?.('Image URL copied'); } },
         { label: 'Open image in new tab', act: () => TabManager.createTab(p.srcURL, true) },
       ];
@@ -853,8 +853,8 @@ const WebviewManager = {
     if (e.params.isEditable && typeof EmailCodeAutofill !== 'undefined') {
       items.push({ sep: true });
       items.push({
-        label: '\u{1F4E7} Fill code from email',
-        action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL()); window.showToast?.('📧 Looking for your code…'); } catch {} }
+        label: 'Fill code from email',
+        action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL()); window.showToast?.('Looking for your code…'); } catch {} }
       });
     }
 
@@ -876,7 +876,7 @@ const WebviewManager = {
       }
       if (typeof Annotations !== 'undefined') {
         items.push({
-          label: '🖍 Highlight',
+          label: 'Highlight',
           action: () => Annotations.highlight('yellow')
         });
       }
@@ -931,7 +931,7 @@ const WebviewManager = {
       }
       if (typeof LinkRot !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
         items.push({
-          label: '🕰 Open Archived Version',
+          label: 'Open Archived Version',
           action: () => LinkRot.viewArchived(e.params.linkURL)
         });
       }
@@ -1012,7 +1012,7 @@ const WebviewManager = {
         }
         // Activate on mousedown, not click: this menu is opened from a
         // <webview> guest right-click, so focus sits in the guest. The
-        // guest↔host focus churn fires a host-window 'blur' that runs the
+        // guesthost focus churn fires a host-window 'blur' that runs the
         // dismissal close() and removes the menu BETWEEN a left-click's
         // mousedown and mouseup — so the 'click' never materialises. Acting
         // on mousedown wins that race. button 0 only: ignore right/middle so

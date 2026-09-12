@@ -15,7 +15,7 @@ const SendToPhone = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100052;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:360px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);padding:20px;text-align:center">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1;text-align:left">📱 Send to phone</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1;text-align:left">Send to phone</span>
         <button id="sp-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>
       </div>
       <div id="sp-qr" style="width:280px;height:280px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:10px;color:#333;font-size:12px">Generating…</div>

@@ -150,7 +150,9 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Full-text recall (memex) + translate (both run in main)
   recallIndex: (entry) => ipcRenderer.invoke('recall:index', entry),
-  recallSearch: (q) => ipcRenderer.invoke('recall:search', q),
+  recallSearch: (q, options) => ipcRenderer.invoke('recall:search', q, options),
+  recallStats: () => ipcRenderer.invoke('recall:stats'),
+  recallForget: (target) => ipcRenderer.invoke('recall:forget', target),
   recallClear: () => ipcRenderer.invoke('recall:clear'),
   translateText: (text, tl) => ipcRenderer.invoke('translate:text', { text, tl }),
 
@@ -190,6 +192,10 @@ contextBridge.exposeInMainWorld('vex', {
   downloadsOpenFile:     (p) => ipcRenderer.invoke('downloads:open-file', p),
   downloadsShowInFolder: (p) => ipcRenderer.invoke('downloads:show-in-folder', p),
   downloadsOpenFolder:   ()  => ipcRenderer.invoke('downloads:open-folder'),
+  // Pause / resume / cancel a transfer that is still running, and re-request one
+  // that failed. `action` is 'pause' | 'resume' | 'cancel'.
+  downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
+  downloadsRetry:        (url) => ipcRenderer.invoke('downloads:retry', url),
 
   // Notes & Sessions shortcuts
   onToggleNotes: (callback) => subscribe('toggle-notes', callback),

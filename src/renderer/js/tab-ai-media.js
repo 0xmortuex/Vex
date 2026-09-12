@@ -15,7 +15,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
     m.id = 'vex-tabai-modal';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';
     m.innerHTML = `<div style="width:430px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">🗂 AI Tab Command</div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><rect x="1.8" y="4.5" width="12.4" height="9" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M1.8 6.6h5L8.1 4.5h6.1" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg> AI Tab Command</div>
       <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 12px">e.g. "close all YouTube tabs" · "group my shopping tabs" · "keep only this one". You confirm before anything closes.</p>
       <input id="tai-q" type="text" placeholder="What should I do with your tabs?" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;font-family:'Outfit',sans-serif">
       <div id="tai-out" style="font-size:12px;color:var(--text-muted);margin-top:10px"></div>
@@ -73,7 +73,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
           } catch (e) { console.warn('[TabAI] group failed:', e); }
         });
         toClose.forEach(id => { try { TabManager.closeTab(id); } catch {} });
-        window.showToast?.('🗂 Done — ' + bits.join(' · '));
+        window.showToast?.('Done — ' + bits.join(' · '));
         m.remove();
       };
     } catch (e) {
@@ -115,10 +115,10 @@ const NowPlaying = {
       const t = TabManager.tabs.find(x => x.id === tabId);
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 10px;box-shadow:0 8px 24px rgba(0,0,0,0.35);cursor:pointer';
-      row.innerHTML = `<span style="font-size:12px">🎵</span>
+      row.innerHTML = `<span style="display:inline-flex;color:var(--text-muted)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M6 12.2V3.4l7-1.4v8.8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="4.3" cy="12.3" r="1.9" stroke="currentColor" stroke-width="1.3"/><circle cx="11.3" cy="10.8" r="1.9" stroke="currentColor" stroke-width="1.3"/></svg></span>
         <span style="flex:1;min-width:0;font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((t && t.title) || title)}</span>
-        <button data-pp style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px">⏯</button>
-        <button data-mute style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px">🔇</button>`;
+        <button data-pp style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M2.5 3.5v9l5-4.5z" fill="currentColor"/><path d="M10 3.5v9M13 3.5v9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <button data-mute style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M2.5 6h2L7.5 3.5v9L4.5 10h-2z" fill="currentColor"/><path d="M10 6.2l3.5 3.6M13.5 6.2L10 9.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>`;
       row.addEventListener('click', (e) => { if (e.target.closest('button')) return; TabManager.switchTab(tabId); });
       row.querySelector('[data-pp]').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -144,9 +144,9 @@ const ResourceMonitor = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';
     m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:80vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">📊 Resource Monitor</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M2.5 13.5V9M6.2 13.5V4.5M9.8 13.5V7M13.5 13.5V2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Resource Monitor</span>
         <button id="rm-refresh" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Refresh</button>
-        <button id="rm-close" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>
+        <button id="rm-close" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>
       <div id="rm-body" style="font-size:12px;color:var(--text)">Loading…</div></div>`;
     document.body.appendChild(m);

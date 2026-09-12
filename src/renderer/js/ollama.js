@@ -36,6 +36,38 @@ const Ollama = (() => {
     } catch { return []; }
   }
 
+  const GEN_TIMEOUT_MS = 120000;
+
+  // `timeoutMs` is honoured only by VexNet's bounded fetch. When that shim is
+  // absent the option is silently ignored by plain fetch, and a model that
+  // stalls mid-generation hangs the caller forever. Carry a real AbortController
+  // deadline as well so the bound holds either way.
+  async function _post(path, body, signal, timeoutMs = GEN_TIMEOUT_MS) {
+    const ctl = new AbortController();
+    const onOuterAbort = () => ctl.abort(signal.reason || new Error('Cancelled'));
+    if (signal) {
+      if (signal.aborted) ctl.abort(signal.reason || new Error('Cancelled'));
+      else signal.addEventListener('abort', onOuterAbort, { once: true });
+    }
+    const timer = setTimeout(() => ctl.abort(new Error('timeout')), timeoutMs);
+    try {
+      return await (window.VexNet?.fetch || fetch)(`${baseUrl}${path}`, {
+        timeoutMs, signal: ctl.signal,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } catch (err) {
+      if (ctl.signal.aborted && !(signal && signal.aborted)) {
+        throw new Error(`Ollama did not answer within ${Math.round(timeoutMs / 1000)}s (model "${body.model}" may still be loading).`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', onOuterAbort);
+    }
+  }
+
   async function generate(model, prompt, options = {}) {
     const { systemPrompt, temperature = 0.5, maxTokens = 2000, format = null } = options;
     const body = {
@@ -45,13 +77,8 @@ const Ollama = (() => {
     if (systemPrompt) body.system = systemPrompt;
     if (format === 'json') body.format = 'json';
 
-    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/generate`, {
-      timeoutMs: 120000, signal: options.signal,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) throw new Error(`Ollama returned ${r.status}`);
+    const r = await _post('/api/generate', body, options.signal);
+    if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();
     return data.response || '';
   }
@@ -63,15 +90,19 @@ const Ollama = (() => {
       options: { temperature, num_predict: maxTokens }
     };
     if (format === 'json') body.format = 'json';
-    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/chat`, {
-      timeoutMs: 120000, signal: options.signal,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) throw new Error(`Ollama chat returned ${r.status}`);
+    const r = await _post('/api/chat', body, options.signal);
+    if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();
     return data.message?.content || '';
+  }
+
+  // Ollama answers 404 with {"error":"model \"x\" not found, try pulling it"}.
+  // "Ollama returned 404" told the user nothing actionable.
+  async function _errorText(r, model) {
+    let detail = '';
+    try { const j = await r.json(); detail = (j && j.error) ? String(j.error) : ''; } catch {}
+    if (r.status === 404 && !detail) detail = `model "${model}" is not installed — run: ollama pull ${model}`;
+    return detail ? `Ollama: ${detail}` : `Ollama returned ${r.status}`;
   }
 
   async function pullModel(modelName, onProgress, signal) {
@@ -114,4 +145,5 @@ const Ollama = (() => {
   return { setBaseUrl, getBaseUrl, ping, listModels, generate, chat, pullModel };
 })();
 
-window.Ollama = Ollama;
+if (typeof window !== 'undefined') window.Ollama = Ollama;
+if (typeof module !== 'undefined' && module.exports) module.exports = { Ollama };

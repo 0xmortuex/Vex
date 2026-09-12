@@ -19,7 +19,7 @@ const SetupGallery = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🎨 Setup Gallery</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Setup Gallery</span>
         <button id="sg-close" style="${this._chip()}">✕</button>
       </div>
       <div id="sg-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;

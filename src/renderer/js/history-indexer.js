@@ -7,8 +7,9 @@ const HistoryIndexer = (() => {
   // Cloud AI routing lives in ai-router.js (backed by VexConfig / Settings).
   const AI_WORKER_URL = (typeof window !== 'undefined' && window.VexConfig) ? window.VexConfig.aiWorkerUrl() : '';
   const INDEX_QUEUE = [];
+  const QUEUE_MAX = 100;
   let processing = false;
-  let enabled = true;
+  let dropped = 0;
 
   // Don't index these
   const SKIP_DOMAIN_FRAGMENTS = ['google.com/search', 'bing.com/search', 'duckduckgo.com', 'yandex.com/search'];
@@ -23,9 +24,8 @@ const HistoryIndexer = (() => {
   }
 
   function setEnabled(on) {
-    enabled = !!on;
-    if (!enabled) INDEX_QUEUE.length = 0;
-    try { localStorage.setItem('vex.aiIndexingEnabled', enabled ? 'true' : 'false'); } catch {}
+    if (!on) { INDEX_QUEUE.length = 0; dropped = 0; }
+    try { localStorage.setItem('vex.aiIndexingEnabled', on ? 'true' : 'false'); } catch {}
   }
 
   function shouldIndex(url) {
@@ -49,7 +49,7 @@ const HistoryIndexer = (() => {
 
     // Avoid duplicates
     if (INDEX_QUEUE.find(q => q.historyEntry.id === historyEntry.id)) return;
-    if (INDEX_QUEUE.length >= 100) return;
+    if (INDEX_QUEUE.length >= QUEUE_MAX) { dropped++; return; }
 
     INDEX_QUEUE.push({ historyEntry, webview, generation: webview._navigationGeneration });
     if (!processing) processQueue();
@@ -64,8 +64,11 @@ const HistoryIndexer = (() => {
       } catch (err) {
         console.warn('[HistoryIndexer] Failed to index', historyEntry.url, err);
       }
-      // Throttle — 1 indexing per 5 seconds to stay well under worker limits
-      await new Promise(r => setTimeout(r, 5000));
+      // Throttle — 1 indexing per 5 seconds to stay well under worker limits.
+      // Only *between* items: sleeping after the last one kept `processing`
+      // true for five more seconds, so the next page queued in that window
+      // never started a run of its own.
+      if (INDEX_QUEUE.length > 0) await new Promise(r => setTimeout(r, 5000));
     }
     processing = false;
   }
@@ -138,31 +141,36 @@ const HistoryIndexer = (() => {
 
   function reindexOpenTabs() {
     if (!window.HistoryPanel || !Array.isArray(HistoryPanel.entries)) return 0;
-    const unindexed = HistoryPanel.entries.filter(e => !e.indexed);
     if (typeof TabManager === 'undefined' || !Array.isArray(TabManager.tabs) || typeof WebviewManager === 'undefined') return 0;
+    const unindexed = HistoryPanel.entries.filter(e => !e.indexed);
+
+    // One pass over the open tabs, not one per unindexed entry: history can hold
+    // thousands of entries and getURL() is a synchronous IPC round-trip each time.
+    const byUrl = new Map();
+    for (const tab of TabManager.tabs) {
+      try {
+        const wv = WebviewManager.webviews.get(tab.id);
+        const url = wv && typeof wv.getURL === 'function' ? wv.getURL() : '';
+        if (url && !byUrl.has(url)) byUrl.set(url, wv);
+      } catch { /* a webview mid-teardown */ }
+    }
 
     let queued = 0;
     for (const entry of unindexed) {
-      const tab = TabManager.tabs.find(t => {
-        try {
-          const wv = WebviewManager.webviews.get(t.id);
-          return wv && typeof wv.getURL === 'function' && wv.getURL() === entry.url;
-        } catch { return false; }
-      });
-      if (tab && WebviewManager.webviews.has(tab.id)) {
-        queueForIndexing(entry, WebviewManager.webviews.get(tab.id));
-        queued++;
-      }
+      const wv = byUrl.get(entry.url);
+      if (!wv) continue;
+      queueForIndexing(entry, wv);
+      queued++;
     }
     console.log(`[HistoryIndexer] Queued ${queued}/${unindexed.length} open tabs for re-indexing`);
     return queued;
   }
 
   function getStats() {
-    if (!window.HistoryPanel || !Array.isArray(HistoryPanel.entries)) return { total: 0, indexed: 0, queued: 0 };
+    if (!window.HistoryPanel || !Array.isArray(HistoryPanel.entries)) return { total: 0, indexed: 0, queued: 0, dropped };
     const total = HistoryPanel.entries.length;
     const indexed = HistoryPanel.entries.filter(e => e.indexed).length;
-    return { total, indexed, queued: INDEX_QUEUE.length };
+    return { total, indexed, queued: INDEX_QUEUE.length, dropped };
   }
 
   return { queueForIndexing, reindexOpenTabs, isEnabled, setEnabled, getStats };

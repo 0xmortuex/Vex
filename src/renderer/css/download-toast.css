@@ -111,3 +111,8 @@
   align-items: center;
   justify-content: center;
 }
+
+/* The file glyph is now an inline SVG rather than an emoji, so it takes its
+   colour from the theme instead of a colour font. */
+.download-toast-icon svg { width: 22px; height: 22px; display: block; color: var(--vex-accent, var(--primary, currentColor)); }
+.download-toast-close svg { display: block; }

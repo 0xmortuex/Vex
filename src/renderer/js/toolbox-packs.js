@@ -7,7 +7,11 @@
 //
 // Spec:
 //   id        unique, kebab-case (checked against every other tool)
-//   name      short title             icon  an emoji or 1-3 characters
+//   name      short title
+//   icon      OPTIONAL. Either a VexIcons name (js/vex-icons.js) or short
+//             typographic text that IS the tool (".*", "{ }", "Aa", "%").
+//             Leave it out and the tool shows its family's icon — which is
+//             what most tools should do. Never an emoji.
 //   family    one of FAMILIES          desc  one line, what it does
 //   keywords  optional extra search words
 //   fields    inputs, in order: { id, label, type, value?, options?, placeholder?, min?, max?, step? }
@@ -24,22 +28,22 @@
 //             ones. tests/renderer/toolboxPacks.test.js runs every example.
 const ToolboxPacks = {
   FAMILIES: {
-    text:     { label: 'Text',          icon: '✎' },
-    write:    { label: 'Writing',       icon: '¶' },
-    dev:      { label: 'Developer',     icon: '</>' },
-    data:     { label: 'Data',          icon: '▦' },
-    web:      { label: 'Web & Network', icon: '🌐' },
-    security: { label: 'Security',      icon: '🔐' },
-    design:   { label: 'Design & Color',icon: '🎨' },
-    convert:  { label: 'Unit Converters',icon: '⇄' },
-    math:     { label: 'Math',          icon: '∑' },
-    science:  { label: 'Science',       icon: '⚗' },
-    finance:  { label: 'Money',         icon: '💰' },
-    business: { label: 'Business',      icon: '📈' },
-    date:     { label: 'Date & Time',   icon: '📅' },
-    health:   { label: 'Health',        icon: '❤' },
-    generate: { label: 'Generators',    icon: '🎲' },
-    general:  { label: 'Everyday',      icon: '★' },
+    text:     { label: 'Text',           icon: 'type' },
+    write:    { label: 'Writing',        icon: 'edit' },
+    dev:      { label: 'Developer',      icon: 'code' },
+    data:     { label: 'Data',           icon: 'database' },
+    web:      { label: 'Web & Network',  icon: 'globe' },
+    security: { label: 'Security',       icon: 'shield' },
+    design:   { label: 'Design & Color', icon: 'palette' },
+    convert:  { label: 'Unit Converters', icon: 'swap' },
+    math:     { label: 'Math',           icon: 'calculator' },
+    science:  { label: 'Science',        icon: 'flask' },
+    finance:  { label: 'Money',          icon: 'coins' },
+    business: { label: 'Business',       icon: 'chart-line' },
+    date:     { label: 'Date & Time',    icon: 'calendar' },
+    health:   { label: 'Health',         icon: 'heart' },
+    generate: { label: 'Generators',     icon: 'dice' },
+    general:  { label: 'Everyday',       icon: 'star' },
   },
 
   specs: [],
@@ -51,7 +55,7 @@ const ToolboxPacks = {
     for (const s of list) {
       const where = `Toolbox tool "${s && s.id}"`;
       if (!s || typeof s.id !== 'string' || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s.id)) throw new Error(`${where}: id must be kebab-case`);
-      if (!s.name || !s.desc || !s.icon) throw new Error(`${where}: needs name, icon and desc`);
+      if (!s.name || !s.desc) throw new Error(`${where}: needs a name and a desc`);
       if (!this.FAMILIES[s.family]) throw new Error(`${where}: unknown family "${s.family}"`);
       if (!Array.isArray(s.fields) || typeof s.run !== 'function') throw new Error(`${where}: needs fields[] and run()`);
       if (!Array.isArray(s.examples) || !s.examples.length) throw new Error(`${where}: needs at least one example`);

@@ -254,7 +254,8 @@ function runInMainWorld(src) {
   // are stripped by `coarsenLocation` before the response reaches this world.
   //
   // Returns one of (NO other shapes):
-  //   { mode: 'denied' }                           — denied OR off
+  //   { mode: 'denied' }                           — denied, off, or manual
+  //                                                 with no coordinates saved
   //   { mode: 'manual', latitude, longitude }      — coarse coords (1 dp)
   //   { mode: 'ip' }                               — caller does IP fallback
   //
@@ -269,7 +270,9 @@ function runInMainWorld(src) {
     if (rawPref.mode === 'manual') {
       const lat = (typeof rawPref.latitude  === 'number' && Number.isFinite(rawPref.latitude))  ? Math.round(rawPref.latitude  * 10) / 10 : null;
       const lng = (typeof rawPref.longitude === 'number' && Number.isFinite(rawPref.longitude)) ? Math.round(rawPref.longitude * 10) / 10 : null;
-      if (lat == null || lng == null) return { mode: 'ip' };
+      // Manual mode with no usable coordinates denies rather than falling back
+      // to an IP lookup — see the note on coarsenLocation in main-helpers.js.
+      if (lat == null || lng == null) return { mode: 'denied' };
       return { mode: 'manual', latitude: lat, longitude: lng };
     }
     if (rawPref.mode === 'ip') return { mode: 'ip' };

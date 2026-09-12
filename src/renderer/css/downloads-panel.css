@@ -117,3 +117,15 @@
 }
 .dl-btn:hover { border-color: var(--vex-border-accent); color: var(--vex-accent); }
 .download-item { display: flex; align-items: center; }
+
+/* Icon-only row buttons (pause / resume / cancel / retry / remove). The SVGs
+   inherit currentColor so they follow the theme the same way the labels do. */
+.dl-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; }
+.dl-btn svg { display: block; width: 12px; height: 12px; }
+.dl-btn[data-action="show-in-folder"] svg { width: 13px; height: 13px; }
+.dl-btn[data-action="cancel"]:hover,
+.dl-btn[data-action="remove"]:hover { border-color: var(--vex-border-accent); color: var(--danger, #e5556a); }
+
+/* A paused transfer should not look like one that is still moving. */
+.download-item.paused .download-progress-bar { opacity: 0.45; }
+.download-item.paused .download-meta { font-style: italic; }

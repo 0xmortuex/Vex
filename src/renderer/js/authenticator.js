@@ -13,13 +13,13 @@ const Authenticator = {
     el.innerHTML = `
       <div class="auth-panel">
         <div class="auth-head">
-          <h3>🔐 Authenticator</h3>
+          <h3>Authenticator</h3>
           <button id="auth-add-toggle" class="auth-add-btn">+ Add</button>
         </div>
         <div id="auth-add-form" class="auth-add-form" style="display:none">
           <p class="auth-hint">Scan a QR screenshot, or add manually: on the site's 2FA screen choose <b>“can't scan / enter a code manually”</b> and paste that setup key — or the whole <code>otpauth://</code> link.</p>
           <div id="auth-qr-drop" class="auth-qr-drop" title="Click to pick a QR image — or drag one here, or paste (Ctrl+V) a screenshot">
-            <span class="auth-qr-icon">📷</span>
+            <span class="auth-qr-icon">${VexIcons.svg('camera', { size: 19 })}</span>
             <span>Scan a QR code — <b>click</b>, drag an image here, or paste a screenshot</span>
           </div>
           <input id="auth-qr-file" type="file" accept="image/*" style="display:none">
@@ -150,7 +150,7 @@ const Authenticator = {
         </div>
         <div class="auth-ctrls">
           <svg class="auth-ring" width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" fill="none" stroke="var(--border)" stroke-width="2"/><circle data-ring cx="11" cy="11" r="9" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" transform="rotate(-90 11 11)" stroke-dasharray="56.55" stroke-dashoffset="0"/></svg>
-          <button class="auth-del" data-del title="Remove account">🗑</button>
+          <button class="auth-del" data-del title="Remove account" aria-label="Remove account">${VexIcons.svg('trash', { size: 14 })}</button>
         </div>
       </div>`;
     }).join('');

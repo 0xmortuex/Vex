@@ -48,7 +48,11 @@ const HorizontalTabs = (() => {
       label.addEventListener('click', () => {
         group.collapsed = !group.collapsed;
         if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups);
-        render();
+        // rebuildAllTabs repaints the vertical sidebar (which shows/hides the
+        // group body from the same flag) AND fires vex-tabs-changed, which
+        // repaints this strip. Rendering only here left the sidebar showing a
+        // group as expanded that the user had just collapsed.
+        TabManager.rebuildAllTabs();
       });
       label.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -129,7 +133,7 @@ const HorizontalTabs = (() => {
     if (tab.id === activeId) el.classList.add('active');
     if (tab.loading) el.classList.add('loading');
     if (tab.sleeping) el.classList.add('sleeping');
-    // "Prevent from sleeping" (☕) — mirror the vertical sidebar so the badge
+    // "Prevent from sleeping" — mirror the vertical sidebar so the badge
     // shows on the horizontal/Glass strip too, and survives a restart.
     if (window.Tabs && window.Tabs._isKeptAwake && window.Tabs._isKeptAwake(tab)) el.classList.add('kept-awake');
     // Private/ephemeral tabs (Tor, off-the-record) get a class for tinting +
@@ -150,8 +154,8 @@ const HorizontalTabs = (() => {
       // First-party /favicon.ico — no Google s2/favicons leak.
       try { favicon = new URL(tab.url || '').origin + '/favicon.ico'; } catch {}
     }
-    const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing">\ud83d\udd0a</span>'
-                : tab.muted              ? '<span class="audio-indicator" title="Muted">\ud83d\udd07</span>'
+    const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing audio" aria-label="Playing audio"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
+                : tab.muted              ? '<span class="audio-indicator muted" title="Muted" aria-label="Muted"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.8 6.2l3.4 3.6M14.2 6.2l-3.4 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
                 : '';
     const sleep = tab.sleeping
       ? '<span class="sleep-indicator" title="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>'
@@ -159,8 +163,8 @@ const HorizontalTabs = (() => {
 
     const priv = (tab.partition && !String(tab.partition).startsWith('persist:'))
       ? (String(tab.partition).startsWith('tor-')
-          ? '<span class="tab-private tor" title="Tor tab — routed through Tor">🧅</span>'
-          : '<span class="tab-private" title="Private (off-the-record) tab">🔒</span>')
+          ? '<span class="tab-private tor" title="Tor tab — routed through Tor" aria-label="Tor tab"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M8 2v12" stroke="currentColor" stroke-width="1.4"/></svg></span>'
+          : '<span class="tab-private" title="Private (off-the-record) tab" aria-label="Private tab"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.2" y="7" width="9.6" height="6.4" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.6 7V5.2a2.4 2.4 0 0 1 4.8 0V7" stroke="currentColor" stroke-width="1.4"/></svg></span>')
       : '';
 
     el.innerHTML = `
@@ -228,7 +232,9 @@ const HorizontalTabs = (() => {
     // so topTabId reassignment / auto-disband invariants hold.
     if (dragged.stackId) TabManager.removeTabFromStack?.(dragged.id);
     dragged.pinned = !!target.pinned;
-    dragged.groupId = target.groupId || null;
+    // Route through the helper so the group↔stack mutual-exclusion invariant
+    // is enforced in exactly one place (docs/PHASE-4-TAB-STACKS-PLAN.md §2).
+    TabManager._setTabGroup(dragged.id, target.groupId || null);
     tabs.splice(tabs.indexOf(dragged), 1);
     tabs.splice(tabs.indexOf(target) + (after ? 1 : 0), 0, dragged);
     TabManager.rebuildAllTabs(); // repaints the sidebar and (via patch) this bar

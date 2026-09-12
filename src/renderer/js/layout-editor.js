@@ -52,7 +52,15 @@ const LayoutEditor = {
   _editing: false,
 
   _load() { try { const o = JSON.parse(localStorage.getItem(this.KEY) || '{}'); return (o && typeof o === 'object') ? o : {}; } catch { return {}; } },
-  _save(o) { try { localStorage.setItem(this.KEY, JSON.stringify(o)); } catch {} },
+  // Returns false when the layout could not be written. A layout that only
+  // exists until the next launch must say so rather than look saved.
+  _save(o) {
+    try { localStorage.setItem(this.KEY, JSON.stringify(o)); } catch {
+      window.showToast?.('Layout changed for now, but it could not be saved — it resets when you restart Vex', 'error');
+      return false;
+    }
+    return true;
+  },
 
   _allToolbarIds() { return this.GROUPS.reduce((a, g) => a.concat(g.items), []); },
 
@@ -126,7 +134,7 @@ const LayoutEditor = {
     this._decorate();
     this._decorateRegions();
     this._buildBar();
-    try { window.showToast?.('🧩 Edit layout — drag to reorder, ✕ to hide'); } catch {}
+    try { window.showToast?.('Edit layout — drag to reorder, ✕ to hide'); } catch {}
   },
 
   exit() {
@@ -325,6 +333,16 @@ const LayoutEditor = {
         if (el.classList && el.classList.contains('sidebar-icon') && el.dataset.panel) panels.push(el.dataset.panel);
       }
       try { SidebarManager._saveOrder(panels); } catch {}
+      // Settings → Sidebar Buttons lists the same buttons with its own Move
+      // up/down controls. Writing the order without redrawing it left that list
+      // showing the pre-drag order, so the two disagreed until Settings was
+      // reopened — and a Move up there then acted on a stale position.
+      try { SidebarManager.renderSidebarManager(); } catch {}
+      // _saveOrder swallows a storage failure, so verify the write landed here
+      // rather than let the rail silently snap back on the next launch.
+      let persisted = false;
+      try { persisted = JSON.stringify(JSON.parse(localStorage.getItem('vex.sidebarOrder') || 'null')) === JSON.stringify(panels); } catch {}
+      if (!persisted) window.showToast?.('Sidebar order changed for now, but it could not be saved — it resets when you restart Vex', 'error');
     } else if (container.id === 'gui-shortcuts-bar') {
       // Rebuild the shortcuts array to match the new chip order (each chip
       // remembers its original index). Writing vex.shortcuts re-renders the bar,
@@ -436,7 +454,7 @@ const LayoutEditor = {
     const bar = document.createElement('div');
     bar.id = 'le-bar'; bar.className = 'le-ctl';
     bar.innerHTML =
-      '<span class="le-bar-title">🧩 Editing layout</span>' +
+      '<span class="le-bar-title">' + VexIcons.svg('grid', { size: 14 }) + ' Editing layout</span>' +
       '<div id="le-tray" class="le-tray"></div>' +
       '<div class="le-bar-actions">' +
         '<span class="le-tray-label" style="opacity:.7">Presets:</span>' +

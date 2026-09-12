@@ -12,7 +12,7 @@ const AgentCommand = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.5);display:flex;align-items:flex-start;justify-content:center;padding-top:14vh';
     m.innerHTML = `<div style="width:520px;max-width:94vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-size:15px">✨</span>
+        <span style="display:inline-flex;color:var(--primary,var(--accent))">${VexIcons.svg('sparkles', { size: 15 })}</span>
         <input id="ac-input" placeholder="Ask Vex to do something…" style="flex:1;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;font-size:13.5px;font-family:'Outfit',sans-serif" autofocus>
       </div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">e.g. "close all youtube tabs" · "sleep the other tabs" · "group my github tabs" · "split screen" · "keep this awake" · "mute everything"</div>
@@ -42,26 +42,26 @@ const AgentCommand = {
       return { desc: 'Open split screen' + (n ? ' (' + n + ' panes)' : ''), run: () => { try { n ? SplitScreen.activate(parseInt(n, 10)) : SplitScreen.activate(2); } catch { try { SplitScreen.toggle(); } catch {} } } };
     }
     // reload
-    if (/^(reload|refresh)( this| page| tab)?$/.test(s)) return { desc: 'Reload this page', run: () => { try { WebviewManager.getActiveWebview().reload(); } catch {} } };
+    if (/^(reload|refresh)( this| page| tab)?$/.test(s)) return { desc: 'Reload this page', run: () => { const wv = WebviewManager.getActiveWebview(); if (!wv) throw new Error('no active page'); wv.reload(); } };
     // new tab / open site
     if ((m = s.match(/^(?:open|go to|new tab(?: to)?)\s+(.+)$/))) {
       let u = m[1].trim();
       const url = /^https?:\/\//.test(u) ? u : (/\.\w{2,}($|\/)/.test(u) ? 'https://' + u : 'https://www.google.com/search?q=' + encodeURIComponent(u));
-      return { desc: 'Open ' + u, run: () => { try { TabManager.createTab(url, true); } catch {} } };
+      return { desc: 'Open ' + u, run: () => { TabManager.createTab(url, true); } };
     }
     // mute
-    if (/^mute (all|everything|every tab)/.test(s)) return { desc: 'Mute all tabs', run: () => { try { TabManager.tabs.forEach(t => { const wv = WebviewManager.webviews.get(t.id); if (wv && wv.setAudioMuted) { wv.setAudioMuted(true); t.muted = true; } }); window.showToast?.('Muted all tabs'); } catch {} } };
+    if (/^mute (all|everything|every tab)/.test(s)) return { desc: 'Mute all tabs', run: () => { TabManager.tabs.forEach(t => { const wv = WebviewManager.webviews.get(t.id); if (wv && wv.setAudioMuted) { wv.setAudioMuted(true); t.muted = true; } }); } };
     if ((m = s.match(/^mute (?:all )?(.+?) tabs?$/))) { const hits = this._matchTabs(m[1]); return { desc: 'Mute ' + hits.length + ' “' + m[1] + '” tab(s)', run: () => hits.forEach(t => { const wv = WebviewManager.webviews.get(t.id); if (wv && wv.setAudioMuted) { wv.setAudioMuted(true); t.muted = true; } }) }; }
     // sleep
-    if (/^sleep (the )?(other|others|rest|idle|inactive)/.test(s)) return { desc: 'Sleep the other tabs', run: () => { try { TabManager.sleepAllInactive(); window.showToast?.('Slept idle tabs'); } catch {} } };
-    if (/^sleep (all|everything)/.test(s)) return { desc: 'Sleep all background tabs', run: () => { try { TabManager.sleepAllInactive(); } catch {} } };
+    if (/^sleep (the )?(other|others|rest|idle|inactive)/.test(s)) return { desc: 'Sleep the other tabs', run: () => { TabManager.sleepAllInactive(); } };
+    if (/^sleep (all|everything)/.test(s)) return { desc: 'Sleep all background tabs', run: () => { TabManager.sleepAllInactive(); } };
     if ((m = s.match(/^sleep (?:all )?(.+?) tabs?$/))) { const hits = this._matchTabs(m[1]).filter(t => t.id !== TabManager.activeTabId); return { desc: 'Sleep ' + hits.length + ' “' + m[1] + '” tab(s)', run: () => hits.forEach(t => { try { TabManager.sleepTab(t.id, true); } catch {} }) }; }
     // keep awake
     if (/^(keep|never sleep).*(this|current)/.test(s) || /^keep this awake/.test(s)) return { desc: 'Keep this tab awake', run: () => { const t = TabManager.getActiveTab(); if (t) { t.keepAwakeUntil = Number.MAX_SAFE_INTEGER; try { if (t._lazy) TabManager._materializeTab(t); TabManager._refreshKeepAwakeIndicator(t); TabManager.persistTabs(); } catch {} window.showToast?.('This tab will never sleep'); } } };
     // group
     if ((m = s.match(/^group (?:my |the |all )?(.+?)(?: tabs?)?$/)) && !/screen|window/.test(s)) {
       const hits = this._matchTabs(m[1]).filter(t => t.id);
-      if (hits.length >= 2) return { desc: 'Group ' + hits.length + ' “' + m[1] + '” tab(s)', run: () => { try { const gid = 'g-' + Date.now(); TabManager.groups.push({ id: gid, name: m[1], color: '#d4a574', collapsed: false }); hits.forEach(t => { t.groupId = gid; }); if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups); TabManager.persistTabs(); TabManager.rebuildAllTabs(); } catch {} } };
+      if (hits.length >= 2) return { desc: 'Group ' + hits.length + ' “' + m[1] + '” tab(s)', run: () => { const gid = 'g-' + Date.now(); TabManager.groups.push({ id: gid, name: m[1], color: '#d4a574', collapsed: false }); hits.forEach(t => { t.groupId = gid; }); if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups); TabManager.persistTabs(); TabManager.rebuildAllTabs(); } };
     }
     // close
     if (/^close (all |every )?(other|others|the rest)/.test(s)) { const hits = TabManager.tabs.filter(t => t.id !== TabManager.activeTabId); return { destructive: true, desc: 'Close ' + hits.length + ' other tab(s)', run: () => hits.forEach(t => { try { TabManager.closeTab(t.id); } catch {} }) }; }
@@ -90,10 +90,20 @@ const AgentCommand = {
           <button id="ac-do" style="${prim}">Do it</button>
         </div></div>`;
       el.querySelector('#ac-cancel').addEventListener('click', () => m.remove());
-      el.querySelector('#ac-do').addEventListener('click', () => { try { plan.run(); } catch {} m.remove(); });
+      el.querySelector('#ac-do').addEventListener('click', () => {
+        try { plan.run(); window.showToast?.(plan.desc); }
+        catch (err) { window.showToast?.('That failed: ' + (err?.message || 'unknown error'), 'error'); }
+        m.remove();
+      });
     } else {
-      try { plan.run(); } catch {}
-      window.showToast?.('✨ ' + plan.desc);
+      // A throw here used to be swallowed and still reported as done — the user
+      // was told "Open split screen" for an action that never ran.
+      try {
+        plan.run();
+        window.showToast?.(plan.desc);
+      } catch (err) {
+        window.showToast?.("Couldn't " + plan.desc.charAt(0).toLowerCase() + plan.desc.slice(1) + ': ' + (err?.message || 'unknown error'), 'error');
+      }
       m.remove();
     }
   },

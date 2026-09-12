@@ -4,11 +4,11 @@
 // you've customized. "A browser built for you," per site. Ctrl+K → "Site Settings".
 const SiteProfiles = {
   _zooms() { try { return JSON.parse(localStorage.getItem('vex.zooms') || '{}') || {}; } catch { return {}; } },
-  _saveZooms(z) { try { localStorage.setItem('vex.zooms', JSON.stringify(z)); } catch {} },
+  _saveZooms(z) { try { localStorage.setItem('vex.zooms', JSON.stringify(z)); } catch { return false; } return true; },
   _darkHosts() { try { const a = JSON.parse(localStorage.getItem('vex.forceDarkHosts') || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); } },
   _boosts() { try { return JSON.parse(localStorage.getItem('vex.boosts') || '{}') || {}; } catch { return {}; } },
   _neverSleepHosts() { try { const a = JSON.parse(localStorage.getItem('vex.neverSleepHosts') || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); } },
-  _saveNeverSleep(set) { try { localStorage.setItem('vex.neverSleepHosts', JSON.stringify([...set])); } catch {} },
+  _saveNeverSleep(set) { try { localStorage.setItem('vex.neverSleepHosts', JSON.stringify([...set])); } catch { return false; } return true; },
 
   _activeHost() { try { const t = TabManager.getActiveTab(); return t && t.url ? new URL(t.url).hostname.replace(/^www\./, '') : ''; } catch { return ''; } },
   _activeWebview() { try { return WebviewManager.getActiveWebview ? WebviewManager.getActiveWebview() : WebviewManager.webviews.get(TabManager.activeTabId); } catch { return null; } },
@@ -21,7 +21,7 @@ const SiteProfiles = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🌐 Site Settings</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">${VexIcons.svg('globe', { size: 15 })} Site Settings</span>
         <button id="sp-close" style="${this._chip()}">✕</button>
       </div>
       <div id="sp-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
@@ -62,7 +62,7 @@ const SiteProfiles = {
         </div>
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:16px">
           <span style="flex:1">Custom CSS / JS ${boosts[host] ? '<span style="color:var(--primary,var(--accent))">· active</span>' : ''}</span>
-          <button id="sp-zap" style="${this._chip()}">⚡ Zap element</button>
+          <button id="sp-zap" style="${this._chip()}">${VexIcons.svg('wand', { size: 13 })} Zap element</button>
           <button id="sp-boost" style="${this._chip()}">Edit</button>
         </div>`;
     } else {
@@ -71,16 +71,19 @@ const SiteProfiles = {
       </div>`;
     }
 
-    // All customized sites
-    const allHosts = new Set([...Object.keys(zooms), ...dark, ...Object.keys(boosts)].filter(Boolean));
+    // All customized sites. never-sleep hosts belong here too: they were left
+    // out, so a site whose ONLY customization was "never sleep" never appeared
+    // and there was no way to undo it from this list.
+    const allHosts = new Set([...Object.keys(zooms), ...dark, ...Object.keys(boosts), ...never].filter(Boolean));
     html += `<div style="font-weight:700;margin:6px 0 8px">Customized sites <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${allHosts.size}</span></div>`;
     if (allHosts.size) {
       html += '<div style="border:1px solid var(--border);border-radius:9px;overflow:hidden">' +
         [...allHosts].sort().map(h => {
           const badges = [];
           if (zooms[h]) badges.push(Math.round(zooms[h] * 100) + '%');
-          if (dark.has(h)) badges.push('🌙');
-          if (boosts[h]) badges.push('⚡');
+          if (dark.has(h)) badges.push(VexIcons.svg('moon', { size: 12 }));
+          if (boosts[h]) badges.push(VexIcons.svg('zap', { size: 12 }));
+          if (never.has(h)) badges.push(VexIcons.svg('sleep', { size: 12 }));
           return `<div data-host="${esc(h)}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border)">
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" data-act="go">${esc(h)}</span>
             <span style="color:var(--text-muted);font-size:11px">${badges.join(' ')}</span>
@@ -100,7 +103,7 @@ const SiteProfiles = {
       const zooms = this._zooms();
       let f = reset ? 1 : Math.max(0.3, Math.min(3, (zooms[host] || 1) + delta));
       if (reset) delete zooms[host]; else zooms[host] = f;
-      this._saveZooms(zooms);
+      if (!this._saveZooms(zooms)) window.showToast?.('Zoom applied for now, but it could not be saved — it resets when you restart Vex', 'error');
       try { if (wv) wv.setZoomFactor(f); } catch {}
       const val = body.querySelector('#sp-zoom-val'); if (val) val.textContent = Math.round(f * 100) + '%';
     };
@@ -119,8 +122,12 @@ const SiteProfiles = {
         // Take effect now: bring the tab (and any others on this host) fully alive.
         try { (TabManager.tabs || []).forEach(t => { if (this._hostFromUrl(t.url) === host) { if (t.sleeping) TabManager.wakeTab(t.id); else if (t._lazy) TabManager._materializeTab(t); } }); } catch {}
       }
-      this._saveNeverSleep(set);
-      try { window.showToast?.(set.has(host) ? host + ' will stay awake' : host + ' can sleep again'); } catch {}
+      const saved = this._saveNeverSleep(set);
+      try {
+        window.showToast?.(saved
+          ? (set.has(host) ? host + ' will stay awake' : host + ' can sleep again')
+          : 'Applied for now, but the choice could not be saved — it resets when you restart Vex', saved ? undefined : 'error');
+      } catch {}
       this._paint(m);
     });
     body.querySelector('#sp-boost')?.addEventListener('click', () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } catch {} m.remove(); });
@@ -129,15 +136,62 @@ const SiteProfiles = {
     body.querySelectorAll('[data-host]').forEach(row => {
       const h = row.dataset.host;
       row.querySelector('[data-act="go"]')?.addEventListener('click', () => { try { TabManager.createTab('https://' + h, true); } catch {} m.remove(); });
-      row.querySelector('[data-act="reset"]')?.addEventListener('click', () => { this._resetSite(h); this._paint(m); });
+      row.querySelector('[data-act="reset"]')?.addEventListener('click', async () => {
+        // Reset throws away custom CSS/JS the user wrote, with no undo.
+        if (!await window.vexConfirm({
+          title: 'Reset site',
+          message: `Forget everything Vex remembers for ${h} — zoom, dark mode, sleep and any custom CSS/JS? This cannot be undone.`,
+          okLabel: 'Reset', danger: true,
+        })) return;
+        this._resetSite(h);
+        this._paint(m);
+      });
     });
   },
 
+  // Undo every per-site preference for `h`.
+  //
+  // Boosts must go through VexBoosts, not straight to localStorage: VexBoosts
+  // keeps the whole map in memory and rewrites it on its next save, so deleting
+  // the key underneath it looked like it worked and then silently resurrected
+  // the boost the next time any boost was edited. Going through VexBoosts also
+  // lets us pull the injected CSS out of the pages that are open right now.
   _resetSite(h) {
-    try { const z = this._zooms(); delete z[h]; this._saveZooms(z); } catch {}
-    try { const a = [...this._darkHosts()].filter(x => x !== h); localStorage.setItem('vex.forceDarkHosts', JSON.stringify(a)); } catch {}
-    try { const b = this._boosts(); delete b[h]; localStorage.setItem('vex.boosts', JSON.stringify(b)); } catch {}
-    try { window.showToast?.('Reset ' + h); } catch {}
+    const failed = [];
+    try { const z = this._zooms(); delete z[h]; if (!this._saveZooms(z)) failed.push('zoom'); } catch { failed.push('zoom'); }
+    try {
+      const a = [...this._darkHosts()].filter(x => x !== h);
+      localStorage.setItem('vex.forceDarkHosts', JSON.stringify(a));
+    } catch { failed.push('dark mode'); }
+    try {
+      const set = this._neverSleepHosts();
+      if (set.delete(h) && !this._saveNeverSleep(set)) failed.push('sleep');
+    } catch { failed.push('sleep'); }
+    try {
+      if (typeof VexBoosts !== 'undefined' && VexBoosts.boosts) {
+        if (Object.hasOwn(VexBoosts.boosts, h)) {
+          delete VexBoosts.boosts[h];
+          if (!VexBoosts.save()) failed.push('custom CSS/JS');
+          VexBoosts.refreshHost(h);
+        }
+      } else {
+        const b = this._boosts(); delete b[h]; localStorage.setItem('vex.boosts', JSON.stringify(b));
+      }
+    } catch { failed.push('custom CSS/JS'); }
+    // Zoom is applied per webview; take it back on the tabs showing this host.
+    try {
+      (TabManager.tabs || []).forEach(t => {
+        if (this._hostFromUrl(t.url) !== h) return;
+        const wv = WebviewManager.webviews?.get(t.id);
+        if (wv) wv.setZoomFactor(1);
+      });
+    } catch {}
+    try {
+      window.showToast?.(failed.length
+        ? `Reset ${h}, but these could not be saved and will come back: ${failed.join(', ')}`
+        : 'Reset ' + h, failed.length ? 'error' : undefined);
+    } catch {}
+    return !failed.length;
   },
 };
 

@@ -3,6 +3,18 @@
 // real state (active · kept awake · awake · hibernated · sleeping · not loaded)
 // with its live memory and one-click controls. Opens from Ctrl+K → "Tab Health".
 const TabHealth = {
+  // Injected once: sizes the inline-SVG icons that replaced this panel's
+  // emoji, and centres them inside the square action buttons.
+  _styles() {
+    if (document.getElementById('tabhealth-styles')) return;
+    const st = document.createElement('style');
+    st.id = 'tabhealth-styles';
+    st.textContent = '#vex-tabhealth button{display:inline-flex;align-items:center;justify-content:center;}' +
+      '#vex-tabhealth svg{flex-shrink:0;}' +
+      '#vex-tabhealth .th-ico{display:inline-flex;vertical-align:-2px;margin-right:6px;}';
+    document.head.appendChild(st);
+  },
+
   _state(tab) {
     if (tab.id === TabManager.activeTabId) return 'active';
     if (TabManager._isKeptAwake && TabManager._isKeptAwake(tab)) return 'kept';
@@ -15,27 +27,28 @@ const TabHealth = {
   },
 
   _meta: {
-    active:     { label: 'Active',      icon: '🟢', hint: 'the tab you\'re looking at' },
-    kept:       { label: 'Kept awake',  icon: '☕', hint: 'never sleeps — stays live in the background' },
-    awake:      { label: 'Awake',       icon: '●',  hint: 'loaded and in memory' },
-    hibernated: { label: 'Hibernated',  icon: '🧊', hint: 'blanked to save memory — reloads on click' },
-    sleeping:   { label: 'Sleeping',    icon: '💤', hint: 'unloaded — reloads on click' },
-    lazy:       { label: 'Not loaded',  icon: '○',  hint: 'restored but never opened yet' },
+    active:     { label: 'Active',      icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="4" fill="currentColor"/></svg>', hint: 'the tab you\'re looking at' },
+    kept:       { label: 'Kept awake',  icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5.5h8v4.2A3.3 3.3 0 0 1 7.7 13H6.3A3.3 3.3 0 0 1 3 9.7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M11 6.8h1.3a1.9 1.9 0 0 1 0 3.8H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>', hint: 'never sleeps — stays live in the background' },
+    awake:      { label: 'Awake',       icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="4" fill="currentColor"/></svg>',  hint: 'loaded and in memory' },
+    hibernated: { label: 'Hibernated',  icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v12M2.8 5l10.4 6M13.2 5L2.8 11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>', hint: 'blanked to save memory — reloads on click' },
+    sleeping:   { label: 'Sleeping',    icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M14 8.5A6 6 0 1 1 7.5 2a4.7 4.7 0 0 0 6.5 6.5z" fill="currentColor"/></svg>', hint: 'unloaded — reloads on click' },
+    lazy:       { label: 'Not loaded',  icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="4" stroke="currentColor" stroke-width="1.4"/></svg>',  hint: 'restored but never opened yet' },
   },
   _order: ['active', 'kept', 'awake', 'hibernated', 'sleeping', 'lazy'],
 
   async open() {
+    this._styles();
     document.getElementById('vex-tabhealth')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-tabhealth';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:82vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">🩺 Tab Health</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1"><span class="th-ico"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 2v3.5a3 3 0 0 0 6 0V2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M7 8.5v1.8a3.2 3.2 0 0 0 6.4 0V9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="13.4" cy="7.6" r="1.4" stroke="currentColor" stroke-width="1.3"/></svg></span>Tab Health</span>
         <span id="th-total" style="font-size:12px;color:var(--text-muted)"></span>
-        <button id="th-sleepothers" title="Sleep every idle background tab now" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">💤 Sleep idle</button>
-        <button id="th-refresh" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">↻</button>
-        <button id="th-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>
+        <button id="th-sleepothers" title="Sleep every idle background tab now" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M14 8.5A6 6 0 1 1 7.5 2a4.7 4.7 0 0 0 6.5 6.5z" fill="currentColor"/></svg><span style="margin-left:5px">Sleep idle</span></button>
+        <button id="th-refresh" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M13 2.5v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="th-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>
       <div id="th-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)">Loading…</div></div>`;
     document.body.appendChild(m);
@@ -78,19 +91,19 @@ const TabHealth = {
     for (const key of this._order) {
       const list = groups[key]; if (!list.length) continue;
       const meta = this._meta[key];
-      html += `<div style="margin:14px 0 6px;display:flex;align-items:baseline;gap:8px"><span style="font-weight:700;color:var(--text)">${meta.icon} ${meta.label}</span><span style="font-size:11px;color:var(--text-muted)">${list.length} · ${meta.hint}</span></div>`;
+      html += `<div style="margin:14px 0 6px;display:flex;align-items:baseline;gap:8px"><span style="font-weight:700;color:var(--text);display:inline-flex;align-items:center;gap:6px"><span class="th-ico" style="margin:0">${meta.icon}</span>${meta.label}</span><span style="font-size:11px;color:var(--text-muted)">${list.length} · ${meta.hint}</span></div>`;
       for (const t of list) {
         const mb = memFor(t);
         const kept = TabManager._isKeptAwake && TabManager._isKeptAwake(t);
         html += `<div data-tabid="${esc(t.id)}" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;border:1px solid var(--border);margin-bottom:5px;background:var(--bg)">
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" data-act="go">${esc((t.title || t.url || 'Tab')).slice(0, 60)}</span>
           <span style="font-size:11px;color:var(--text-muted);flex-shrink:0">${esc(mb)}</span>
-          <button data-act="keep" title="${kept ? 'Kept awake — click to change' : 'Prevent from sleeping'}" style="${this._btn(kept)}">☕</button>
+          <button data-act="keep" title="${kept ? 'Kept awake — click to change' : 'Prevent from sleeping'}" style="${this._btn(kept)}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5.5h8v4.2A3.3 3.3 0 0 1 7.7 13H6.3A3.3 3.3 0 0 1 3 9.7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M11 6.8h1.3a1.9 1.9 0 0 1 0 3.8H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
           ${key === 'active'
             ? '<span style="width:28px;flex-shrink:0;text-align:center;color:var(--text-muted);font-size:10px">now</span>'
             : (key === 'sleeping' || key === 'lazy'
-              ? `<button data-act="wake" title="Wake now" style="${this._btn(false)}">▲</button>`
-              : `<button data-act="sleep" title="Sleep now" style="${this._btn(false)}">💤</button>`)}
+              ? `<button data-act="wake" title="Wake now" style="${this._btn(false)}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 9.5L8 6l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`
+              : `<button data-act="sleep" title="Sleep now" style="${this._btn(false)}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M14 8.5A6 6 0 1 1 7.5 2a4.7 4.7 0 0 0 6.5 6.5z" fill="currentColor"/></svg></button>`)}
         </div>`;
       }
     }
@@ -100,7 +113,7 @@ const TabHealth = {
       row.querySelector('[data-act="go"]')?.addEventListener('click', () => { try { TabManager.switchTab(id); } catch {} m.remove(); });
       row.querySelector('[data-act="keep"]')?.addEventListener('click', () => { const t = TabManager.tabs.find(x => x.id === id); if (t) { try { TabManager._showKeepAwakeChooser(t); } catch {} } });
       row.querySelector('[data-act="wake"]')?.addEventListener('click', () => { try { const t = TabManager.tabs.find(x => x.id === id); if (t && t.sleeping) TabManager.wakeTab(id); else if (t && t._lazy) TabManager._materializeTab(t); } catch {} setTimeout(() => this._paint(m), 300); });
-      row.querySelector('[data-act="sleep"]')?.addEventListener('click', async (e) => { const btn = e.currentTarget; btn.disabled = true; btn.textContent = '…'; try { await TabManager.sleepTab(id, true); } catch {} this._paint(m); });
+      row.querySelector('[data-act="sleep"]')?.addEventListener('click', async (e) => { const btn = e.currentTarget; btn.disabled = true; btn.style.opacity = '0.5'; try { await TabManager.sleepTab(id, true); } finally { btn.disabled = false; btn.style.opacity = ''; } this._paint(m); });
     });
   },
 

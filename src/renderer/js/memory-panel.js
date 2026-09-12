@@ -116,7 +116,7 @@ const MemoryPanel = {
 
     if (totalEl) {
       const fmt = totalMB < 1024 ? totalMB + ' MB' : (totalMB / 1024).toFixed(1) + ' GB';
-      totalEl.textContent = asleep ? `${fmt} · ${asleep} asleep 💤` : fmt;
+      totalEl.textContent = asleep ? `${fmt} · ${asleep} asleep` : fmt;
       totalEl.className = 'memory-total ' + (totalMB < 500 ? 'green' : totalMB < 1000 ? 'amber' : 'red');
     }
 

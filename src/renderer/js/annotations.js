@@ -27,8 +27,21 @@ const Annotations = {
     this._badge();
   },
 
-  _key(url) { try { const u = new URL(url); return (u.origin + u.pathname).replace(/\/$/, ''); } catch { return url || ''; } },
-  forUrl(url) { return this.store[this._key(url)] || []; },
+  // The page key used to be origin+pathname only, which meant every
+  // youtube.com/watch?v=… (and every other query-driven page) shared ONE bucket:
+  // highlights made on one video were listed under, and re-applied to, all the
+  // others. The query string is part of the page's identity, so it belongs in
+  // the key.
+  _key(url) { try { const u = new URL(url); return (u.origin + u.pathname).replace(/\/$/, '') + (u.search || ''); } catch { return url || ''; } },
+  // Highlights saved before that fix live under the old key. Fall back to it so
+  // nothing the user made disappears; new highlights are written to _key.
+  _legacyKey(url) { try { const u = new URL(url); return (u.origin + u.pathname).replace(/\/$/, ''); } catch { return url || ''; } },
+  forUrl(url) {
+    const list = this.store[this._key(url)];
+    if (list && list.length) return list;
+    const legacy = this.store[this._legacyKey(url)];
+    return (legacy && legacy.length) ? legacy : [];
+  },
   count() { return Object.values(this.store).reduce((n, a) => n + (a ? a.length : 0), 0); },
 
   // --- Apply all stored highlights for a page (called on dom-ready) ---
@@ -44,7 +57,7 @@ const Annotations = {
         var rng=document.createRange();rng.setStart(node,start);rng.setEnd(node,start+len);
         var m=document.createElement('mark');m.className='vexhl';m.setAttribute('data-vexhl',h.id);
         m.style.cssText='background:'+h.color+';color:inherit;border-radius:2px;padding:0 1px;box-decoration-break:clone';
-        if(h.note){m.title='📝 '+h.note;m.style.cursor='help';m.style.boxShadow='inset 0 -2px 0 rgba(0,0,0,0.35)';}
+        if(h.note){m.title='Note: '+h.note;m.style.cursor='help';m.style.boxShadow='inset 0 -2px 0 rgba(0,0,0,0.35)';}
         try{m.appendChild(rng.extractContents());rng.insertNode(m);return true;}catch(e){return false;}
       }
       hs.forEach(function(h){
@@ -94,14 +107,26 @@ const Annotations = {
     if (!persist) { window.showToast?.('Highlighted for this private page only'); return; }
     const k = this._key(url);
     if (!this.store[k]) this.store[k] = [];
-    this.store[k].push({ id, text, color, note: '', at: Date.now(), title: t.title || t.url });
+    // Keep the real page URL alongside the key: the key is normalized (trailing
+    // slash dropped) and the panel should reopen exactly what was highlighted.
+    this.store[k].push({ id, text, color, note: '', at: Date.now(), title: t.title || t.url, url });
     this.save();
-    window.showToast?.('🖍 Highlighted (' + this.forUrl(t.url).length + ' on this page)');
+    window.showToast?.('Highlighted (' + this.forUrl(t.url).length + ' on this page)');
+  },
+
+  // Which stored bucket actually holds this highlight — the current key, or the
+  // pre-query-string one. Without this, deleting or annotating an old highlight
+  // looked like it worked and then reappeared on the next repaint.
+  _bucketFor(url, id) {
+    for (const key of [this._key(url), this._legacyKey(url)]) {
+      if (Array.isArray(this.store[key]) && this.store[key].some(h => h.id === id)) return key;
+    }
+    return null;
   },
 
   async remove(url, id) {
-    const k = this._key(url);
-    if (this.store[k]) { this.store[k] = this.store[k].filter(h => h.id !== id); if (!this.store[k].length) delete this.store[k]; this.save(); }
+    const k = this._bucketFor(url, id);
+    if (k && this.store[k]) { this.store[k] = this.store[k].filter(h => h.id !== id); if (!this.store[k].length) delete this.store[k]; this.save(); }
     const wv = WebviewManager.getActiveWebview();
     const t = TabManager.getActiveTab();
     if (wv && t && t.url === url) {
@@ -111,11 +136,14 @@ const Annotations = {
 
   async addNote(url, id) {
     const cur = (this.forUrl(url).find(h => h.id === id) || {}).note || '';
-    const v = typeof vexPromptModal === 'function' ? await vexPromptModal('Note for this highlight', cur) : prompt('Note', cur);
-    if (v === null) return;
-    const k = this._key(url);
-    const h = (this.store[k] || []).find(x => x.id === id);
-    if (h) { h.note = v.trim(); this.save(); this.reapply(url); window.showToast?.('Note saved'); }
+    // Native prompt() is disabled in Electron's renderer, so a missing
+    // vexPromptModal must be reported rather than silently doing nothing.
+    if (typeof vexPromptModal !== 'function') { window.showToast?.('The note dialog is unavailable', 'error'); return; }
+    const v = await vexPromptModal('Note for this highlight', cur);
+    if (v === null || v === undefined) return;
+    const k = this._bucketFor(url, id);
+    const h = k ? (this.store[k] || []).find(x => x.id === id) : null;
+    if (h) { h.note = String(v).trim(); this.save(); this.reapply(url); window.showToast?.('Note saved'); }
   },
 
   _badge() {
@@ -144,7 +172,10 @@ const Annotations = {
     const pages = Object.keys(this.store).filter(k => this.store[k] && this.store[k].length);
     if (!pages.length) { body.innerHTML = window.VexUI ? VexUI.emptyState('highlight', 'No highlights yet', 'Select text on a page, then Ctrl+K → Highlight') : '<div style="font-size:12px;color:var(--text-muted);padding:10px 8px">No highlights yet.</div>'; return; }
     // Most recently annotated page first.
-    pages.sort((a, b) => Math.max(...this.store[b].map(h => h.at || 0)) - Math.max(...this.store[a].map(h => h.at || 0)));
+    // reduce, not Math.max(...spread): a page with thousands of highlights blows
+    // the argument limit and throws mid-render.
+    const newest = (key) => this.store[key].reduce((max, h) => Math.max(max, h.at || 0), 0);
+    pages.sort((a, b) => newest(b) - newest(a));
     pages.forEach(k => {
       const list = this.store[k];
       const title = list[0].title || k;
@@ -160,9 +191,9 @@ const Annotations = {
         r.addEventListener('mouseenter', () => r.style.background = 'var(--surface)');
         r.addEventListener('mouseleave', () => r.style.background = '');
         r.innerHTML = `<span style="width:5px;border-radius:3px;background:${this.COLORS[a.color] || this.COLORS.yellow};flex:none"></span>
-          <div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(a.text)}</div>${a.note ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">📝 ${esc(a.note)}</div>` : ''}</div>
-          <button data-note title="Add/edit note" style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:12px">📝</button>
-          <button data-x title="Delete" style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:13px">✕</button>`;
+          <div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(a.text)}</div>${a.note ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;gap:5px;align-items:flex-start"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span>${esc(a.note)}</span></div>` : ''}</div>
+          <button data-note title="Add/edit note" style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+          <button data-x title="Delete" style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
         r.querySelector('[data-note]').addEventListener('click', (e) => { e.stopPropagation(); this.addNote(list[0].url || k, a.id).then(() => this.renderPanel(container)); });
         r.querySelector('[data-x]').addEventListener('click', (e) => { e.stopPropagation(); this.remove(list[0].url || k, a.id).then(() => this.renderPanel(container)); });
         body.appendChild(r);

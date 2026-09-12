@@ -36,12 +36,12 @@ const TorSession = {
         TabManager.createTab(this.SEARCH_URL, true, null, { partition: r.partition });
       } catch { ui.close(); window.showToast?.('Could not open Tor tab', 'error'); return; }
       setTimeout(() => ui.close(), 500);
-      window.showToast?.(`🧅 Tor tab via 127.0.0.1:${r.port} — checking connection…`);
+      window.showToast?.(`Tor tab via 127.0.0.1:${r.port} — checking connection…`);
       try {
         const v = await window.vex?.verifyTor?.(r.partition);
-        if (v && v.ok && v.isTor) window.showToast?.(`🧅 Connected to Tor · exit IP ${v.ip || '?'}`);
-        else if (v && v.ok && !v.isTor) window.showToast?.('⚠ That proxy works but it isn’t Tor.', 'error');
-        else window.showToast?.('⚠ Tor’s port is open but traffic didn’t go through yet — give it a moment.', 'error');
+        if (v && v.ok && v.isTor) window.showToast?.(`Connected to Tor · exit IP ${v.ip || '?'}`);
+        else if (v && v.ok && !v.isTor) window.showToast?.('That proxy works but it isn’t Tor.', 'error');
+        else window.showToast?.('Tor’s port is open but traffic didn’t go through yet — give it a moment.', 'error');
       } catch {}
       return;
     }
@@ -79,7 +79,7 @@ const TorSession = {
         <div id="${id}-stage" style="font-size:10.5px;color:var(--text-muted);margin-top:5px;min-height:13px"></div>
       </div>`;
     m.innerHTML = `<div style="width:420px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.55);padding:22px">
-        <div style="font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">🧅 Connecting to Tor</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">${VexIcons.svg('onion', { size: 17 })}Connecting to Tor</div>
         <div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:6px">Starting Tor in the background — no Tor Browser needed. This can take a few seconds the first time (it downloads Tor once).</div>
         ${bar('tor-dl', 'Downloading Tor')}
         ${bar('tor-bs', 'Connecting to the Tor network')}
@@ -126,7 +126,7 @@ const TorSession = {
     m.id = 'vex-tor-guide';
     m.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:460px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.55);padding:22px">
-      <div style="font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;margin-bottom:6px">🧅 Tor session</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;margin-bottom:6px">${VexIcons.svg('onion', { size: 17 })}Tor session</div>
       <div style="font-size:12.5px;color:var(--text-muted);line-height:1.55;margin-bottom:14px">
         ${reason}<br><br>
         This usually means the one-time Tor download couldn’t reach the network. Check your connection and click Retry. If you already run <b>Tor Browser</b> (port 9150) or the <b>tor</b> service (9050), Vex will use that instead.

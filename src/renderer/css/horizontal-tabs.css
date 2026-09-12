@@ -167,13 +167,15 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 .top-tab.pinned .tab-title,
 .top-tab.pinned .tab-close { display: none; }
 
-/* Audio / mute */
+/* Audio / mute — inline SVG on currentColor, so it follows the theme. */
 .top-tab .audio-indicator {
   width: 12px; height: 12px;
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   font-size: 11px;
 }
+.top-tab .audio-indicator svg { width: 12px; height: 12px; display: block; }
+.top-tab .audio-indicator.muted { opacity: 0.45; }
 
 /* Loading state — spin favicon */
 .top-tab.loading .tab-favicon { animation: tab-spin 1s linear infinite; }
