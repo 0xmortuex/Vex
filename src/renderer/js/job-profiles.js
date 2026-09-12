@@ -456,6 +456,16 @@ const JobProfiles = {
   ],
 
   list() { return this.JOBS; },
+
+  // A job's recommended tools, minus any that render as a typographic sign
+  // rather than a drawn icon. The JOBS table above is left intact so nothing is
+  // lost — this is the filter every default goes through.
+  recommendedTools(job) {
+    const ids = (job && Array.isArray(job.tools)) ? job.tools : [];
+    if (typeof Toolbox === 'undefined' || typeof Toolbox.rendersDrawnIcon !== 'function') return ids.slice();
+    const byId = new Map(Toolbox.all().map(t => [t.id, t]));
+    return ids.filter(id => { const t = byId.get(id); return t ? Toolbox.rendersDrawnIcon(t) : false; });
+  },
   get(id) { return this.JOBS.find(j => j.id === id) || null; },
   current() { try { return localStorage.getItem('vex.job') || null; } catch { return null; } },
 
@@ -463,7 +473,7 @@ const JobProfiles = {
   apply(jobId, enabledToolIds) {
     const job = this.get(jobId);
     if (!job) return;
-    const tools = Array.isArray(enabledToolIds) ? enabledToolIds : job.tools.slice();
+    const tools = Array.isArray(enabledToolIds) ? enabledToolIds : this.recommendedTools(job);
     try { localStorage.setItem('vex.job', jobId); } catch {}
     try { localStorage.setItem('vex.jobTools', JSON.stringify(tools)); } catch {}
     try {

@@ -7,6 +7,10 @@
 
 import { describe, it, expect } from 'vitest';
 
+// The icon set must be present: rendersDrawnIcon cannot tell a VexIcons name
+// from a typographic mark without it, and deliberately declines to filter.
+const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = VexIcons;
 const { ToolboxPacks } = require('../../src/renderer/js/toolbox-packs.js');
 globalThis.ToolboxPacks = ToolboxPacks;
 // Under jsdom a pack registers itself on window.ToolboxPacks when first
@@ -150,5 +154,53 @@ describe('Job Profiles catalogue', () => {
       expect(new Set(j.tools).size, `${j.id} has duplicate tools`).toBe(j.tools.length);
       for (const t of j.tools) expect(TOOL_IDS.has(t), `${j.id} lists unknown tool "${t}"`).toBe(true);
     }
+  });
+});
+
+// A job's recommended tools only include ones that draw a real icon. 137 of the
+// 318 tools are marked with a typographic sign instead (".*", "{ }", "Aa"), and
+// a grid mixing the two kinds is what made the Work panel look inconsistent.
+// The JOBS table itself is deliberately left intact — this is a read-time
+// filter, so nothing is lost and it can be changed in one place.
+describe('recommended tools are drawn-icon only', () => {
+  it('drops every typographic-icon tool from every job', () => {
+    const byId = new Map(Toolbox.all().map(t => [t.id, t]));
+    const offenders = [];
+    for (const job of JobProfiles.list()) {
+      for (const id of JobProfiles.recommendedTools(job)) {
+        const t = byId.get(id);
+        if (t && !Toolbox.rendersDrawnIcon(t)) offenders.push(`${job.id}: ${id} (${t.icon})`);
+      }
+    }
+    expect(offenders, offenders.slice(0, 10).join('\n')).toEqual([]);
+  }, 30000);
+
+  it('declines to filter at all when the icon set is missing, rather than emptying lists', () => {
+    const saved = globalThis.VexIcons;
+    try {
+      delete globalThis.VexIcons;
+      const job = JobProfiles.list()[0];
+      expect(JobProfiles.recommendedTools(job)).toEqual(job.tools);
+    } finally { globalThis.VexIcons = saved; }
+  });
+
+  it('leaves no job without any tools at all', () => {
+    const empty = JobProfiles.list().filter(j => JobProfiles.recommendedTools(j).length === 0).map(j => j.id);
+    expect(empty, empty.join(', ')).toEqual([]);
+  }, 30000);
+
+  it('keeps the recommendation a subset of what the job actually listed', () => {
+    for (const job of JobProfiles.list().slice(0, 60)) {
+      const rec = JobProfiles.recommendedTools(job);
+      expect(rec.every(id => job.tools.includes(id)), job.id).toBe(true);
+    }
+  });
+
+  it('still recognises a drawn icon, so the filter is not just emptying lists', () => {
+    expect(Toolbox.rendersDrawnIcon({ icon: 'star' })).toBe(true);
+    expect(Toolbox.rendersDrawnIcon({ icon: '.*' })).toBe(false);
+    expect(Toolbox.rendersDrawnIcon({ icon: '{ }' })).toBe(false);
+    // No icon at all falls through to the family drawing, which is a real icon.
+    expect(Toolbox.rendersDrawnIcon({ icon: '', family: 'dev' })).toBe(true);
   });
 });
