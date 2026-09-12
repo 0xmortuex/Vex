@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.31.56 (2026-09-12) — Buttons that pretended to work
+
+### Notes
+Three things in the interface looked fine and did nothing at all when clicked. None of them reported an error, which is why they survived this long.
+
+- **"All Sticky Notes" now opens.** The button meant to show every sticky note you have left on pages did nothing — not even the fallback list it was supposed to drop back to, because the code it called wrongly believed it had succeeded.
+- **"Manage personas" now opens.** Same cause, same silence. If it ever cannot open, it now says so instead of looking like a dead button.
+- **Discover can open Discord, Netflix and the authenticator.** All three are listed in Discover, but their Open button was missing because they are side panels rather than commands or settings.
+
+A new test scans the whole interface for the mistake behind the first two — code reaching for a module through `window` when that module was never put there — so a button can no longer fail this way in silence.
+
 ## v2.31.55 (2026-09-12) — The parts that were never checked
 
 ### Notes
