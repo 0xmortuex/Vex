@@ -590,26 +590,75 @@ const Toolbox = {
   _out(id) { return `<div id="${id}" style="margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-word"></div>`; },
   _copyBtn(getText) { const b = document.createElement('button'); b.textContent = 'Copy'; b.style.cssText = "margin-top:8px;padding:7px 14px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif"; b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(getText()); window.showToast?.('Copied'); } catch {} }); return b; },
 
+  // ---- Regex --------------------------------------------------------------
   _regex() {
-    const { body } = this._modal('.* Regex Tester', `
-      <label style="font-size:11px;color:var(--text-muted)">Pattern</label>${this._inp('rx-pat', '\\b\\w+@\\w+\\.\\w+\\b')}
-      <div style="display:flex;gap:6px;margin-top:6px"><input id="rx-flags" placeholder="flags (gim)" value="g" style="width:90px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px"></div>
-      <label style="font-size:11px;color:var(--text-muted);display:block;margin-top:10px">Test string</label>${this._ta('rx-test', 'paste text here')}
-      ${this._out('rx-out')}`);
-    const run = () => {
-      const out = body.querySelector('#rx-out');
-      try {
-        const re = new RegExp(body.querySelector('#rx-pat').value, body.querySelector('#rx-flags').value || undefined);
-        const txt = body.querySelector('#rx-test').value;
-        const ms = [...txt.matchAll(re.global ? re : new RegExp(re.source, re.flags + 'g'))];
-        out.style.color = 'var(--text)';
-        out.textContent = ms.length ? `${ms.length} match${ms.length === 1 ? '' : 'es'}:\n` + ms.slice(0, 50).map(m => '• ' + m[0] + (m.length > 1 ? '  [' + m.slice(1).join(', ') + ']' : '')).join('\n') : 'No matches.';
-      } catch (e) { out.style.color = 'var(--danger,#ef4444)'; out.textContent = 'Invalid regex: ' + e.message; }
-    };
-    body.querySelectorAll('input,textarea').forEach(el => el.addEventListener('input', run));
-  },
+    return window.ToolboxWorkbench.open({
+      id: 'regex',
+      title: 'Regex tester',
+      icon: 'search',
+      blurb: 'Test a pattern against text: every match, its position, and each capture group by name or number.',
+      inputLabel: 'Test text',
+      outputLabel: 'Matches',
+      placeholder: 'Paste the text to search…',
+      sample: 'Contact ada@example.com or grace@navy.mil before 2026-03-10.',
+      runLabel: 'Test',
+      options: [
+        { id: 'pattern', label: 'Pattern', type: 'text', default: '\\b[\\w.]+@[\\w.]+\\.\\w+\\b', placeholder: 'a regular expression' },
+        { id: 'flags', label: 'Flags', type: 'text', default: 'g', hint: 'g all · i ignore case · m ^$ per line · s . matches newline · u unicode' },
+        { id: 'view', label: 'Show', type: 'select', default: 'list',
+          options: [['list', 'Every match'], ['groups', 'Capture groups'], ['replace', 'Replace'], ['split', 'Split']] },
+        { id: 'replacement', label: 'Replace with', type: 'text', default: '', placeholder: '$1, $<name>, $&', when: (s) => s.view === 'replace' },
+      ],
+      details: [
+        { title: 'Flags', rows: [
+          ['g', 'Find all matches, not just the first.'],
+          ['i', 'Ignore case.'],
+          ['m', '^ and $ match at every line, not only the whole string.'],
+          ['s', 'A dot also matches a newline.'],
+          ['u', 'Treat the pattern as Unicode — needed for \\p{…}.'],
+        ] },
+        { title: 'In a replacement', rows: [
+          ['$&', 'The whole match.'],
+          ['$1 $2', 'Numbered capture groups.'],
+          ['$<name>', 'A named group, from (?<name>…).'],
+          ['$$', 'A literal dollar sign.'],
+        ] },
+        { title: 'Worth knowing', text: 'A pattern with a capture group inside a repeat — (a+)+ against a long non-matching string — can take exponential time. If a test seems to hang, that is usually why.' },
+      ],
+      run({ input, opt }) {
+        if (!opt.pattern) throw new Error('Enter a pattern to search for.');
+        let re;
+        try { re = new RegExp(opt.pattern, opt.flags || ''); }
+        catch (err) { throw new Error('That pattern is not valid: ' + err.message.replace(/^Invalid regular expression:?\s*/i, '')); }
 
-  // ---- JSON ---------------------------------------------------------------
+        if (opt.view === 'replace') {
+          const out = input.replace(re.global ? re : new RegExp(re.source, re.flags + 'g'), opt.replacement || '');
+          return { output: out, note: `${input.length} -> ${out.length} characters` };
+        }
+        if (opt.view === 'split') {
+          const parts = input.split(re);
+          return { output: parts.map((p, i) => `${String(i).padStart(3)}  ${p}`).join('\n'), note: `${parts.length} pieces` };
+        }
+
+        const all = [...input.matchAll(re.global ? re : new RegExp(re.source, re.flags + 'g'))];
+        if (!all.length) return { output: 'No matches.', note: '0 matches' };
+
+        if (opt.view === 'groups') {
+          const lines = [];
+          all.forEach((m, i) => {
+            lines.push(`match ${i + 1} at ${m.index}: ${m[0]}`);
+            for (let g = 1; g < m.length; g++) lines.push(`   $${g}  ${m[g] === undefined ? '(did not participate)' : m[g]}`);
+            for (const [k, v] of Object.entries(m.groups || {})) lines.push(`   $<${k}>  ${v === undefined ? '(did not participate)' : v}`);
+          });
+          return { output: lines.join('\n'), note: `${all.length} match${all.length === 1 ? '' : 'es'}` };
+        }
+        return {
+          output: all.map((m, i) => `${String(i + 1).padStart(3)}  @${String(m.index).padStart(5)}  ${m[0]}`).join('\n'),
+          note: `${all.length} match${all.length === 1 ? '' : 'es'}`,
+        };
+      },
+    });
+  },
   _json() {
     return window.ToolboxWorkbench.open({
       id: 'json',
@@ -679,32 +728,73 @@ const Toolbox = {
       },
     });
   },
+  // ---- CSV ----------------------------------------------------------------
   _csv() {
-    const { body } = this._modal('▦ CSV Viewer', `${this._ta('cv-in', 'a,b,c\\n1,2,3')}${this._out('cv-out')}`);
-    const inEl = body.querySelector('#cv-in'), out = body.querySelector('#cv-out');
-    const run = () => {
-      const rows = ToolboxLib.csvToRows(inEl.value);
-      if (!rows.length) { out.textContent = ''; return; }
-      const esc = (s) => window.escapeHtml ? window.escapeHtml(s) : s;
-      const head = rows[0], data = rows.slice(1);
-      out.innerHTML = `<div style="overflow:auto"><table style="border-collapse:collapse;font-size:11px">${'<tr>' + head.map(h => `<th style="border:1px solid var(--border);padding:4px 8px;background:var(--bg);text-align:left">${esc(h)}</th>`).join('') + '</tr>'}${data.slice(0, 100).map(r => '<tr>' + r.map(c => `<td style="border:1px solid var(--border);padding:4px 8px">${esc(c)}</td>`).join('') + '</tr>').join('')}</table></div>
-      <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">${data.length} row${data.length === 1 ? '' : 's'} · <a id="cv-json" style="color:var(--primary,var(--accent));cursor:pointer">Copy as JSON</a></div>`;
-      out.querySelector('#cv-json')?.addEventListener('click', async () => {
-        const objs = data.map(r => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ''])));
-        try { await navigator.clipboard.writeText(JSON.stringify(objs, null, 2)); window.showToast?.('Copied JSON'); } catch {}
-      });
+    // A correct CSV reader, not a split on commas: quoted fields may contain
+    // commas, newlines, and doubled quotes.
+    const parse = (text, delim) => {
+      const rows = []; let row = []; let cell = ''; let quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (quoted) {
+          if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else quoted = false; }
+          else cell += c;
+        } else if (c === '"') quoted = true;
+        else if (c === delim) { row.push(cell); cell = ''; }
+        else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+        else if (c !== '\r') cell += c;
+      }
+      if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+      return rows;
     };
-    inEl.addEventListener('input', run); run();
-  },
+    return window.ToolboxWorkbench.open({
+      id: 'csv',
+      title: 'CSV',
+      icon: 'database',
+      blurb: 'Read CSV properly — quoted commas, escaped quotes, newlines inside cells — to a table, JSON, or back again.',
+      placeholder: 'name,role\nAda,engineer\n"Grace, Rear Admiral",officer',
+      sample: 'name,role\nAda,engineer\n"Grace, Rear Admiral",officer',
+      runLabel: 'Convert',
+      options: [
+        { id: 'to', label: 'Convert to', type: 'select', default: 'table',
+          options: [['table', 'Aligned table'], ['json', 'JSON objects'], ['jsonArrays', 'JSON arrays'], ['markdown', 'Markdown table'], ['csv', 'Clean CSV']] },
+        { id: 'delim', label: 'Separator', type: 'select', default: ',',
+          options: [[',', 'Comma'], [';', 'Semicolon'], ['\t', 'Tab'], ['|', 'Pipe']] },
+        { id: 'header', label: 'First row is a header', type: 'toggle', default: true },
+      ],
+      details: [
+        { title: 'What trips naive parsers', rows: [
+          ['"a,b",c', 'A comma inside quotes is part of the field, not a separator.'],
+          ['"say ""hi"""', 'A doubled quote is one literal quote.'],
+          ['"line1\\nline2"', 'A newline inside quotes does not end the row.'],
+        ] },
+        { title: 'Separators', text: 'Comma is the default, but European exports often use a semicolon because the comma is a decimal point there. Tab-separated is what a spreadsheet gives you on copy.' },
+      ],
+      run({ input, opt }) {
+        const rows = parse(input, opt.delim === '\\t' ? '\t' : opt.delim);
+        if (!rows.length) throw new Error('No rows found.');
+        const head = opt.header ? rows[0] : rows[0].map((_, i) => 'column' + (i + 1));
+        const body = opt.header ? rows.slice(1) : rows;
+        const note = `${body.length} row${body.length === 1 ? '' : 's'} · ${head.length} column${head.length === 1 ? '' : 's'}`;
 
-  // Base64, properly.
-  //
-  // The old version did one thing: standard Base64 of a UTF-8 string, encode or
-  // decode, and "Not valid Base64" when anything else arrived. Real Base64 in
-  // the wild is not one format — a JWT is Base64URL and unpadded, a mail header
-  // is MIME with wrapped lines, an IMAP mailbox name uses a modified alphabet
-  // with a different 62nd and 63rd character, and plenty of encoders simply
-  // leave the padding off. Decoding those should work, not fail.
+        if (opt.to === 'jsonArrays') return { output: JSON.stringify(rows, null, 2), note };
+        if (opt.to === 'json') {
+          return { output: JSON.stringify(body.map(r => Object.fromEntries(head.map((h, i) => [h, r[i] ?? '']))), null, 2), note };
+        }
+        const widths = head.map((h, i) => Math.max(String(h).length, ...body.map(r => String(r[i] ?? '').length)));
+        if (opt.to === 'markdown') {
+          const line = (cells) => '| ' + cells.map((c, i) => String(c ?? '').padEnd(widths[i])).join(' | ') + ' |';
+          return { output: [line(head), '|' + widths.map(w => '-'.repeat(w + 2)).join('|') + '|', ...body.map(line)].join('\n'), note };
+        }
+        if (opt.to === 'csv') {
+          const q = (c) => /[",\n]/.test(String(c ?? '')) ? '"' + String(c).replace(/"/g, '""') + '"' : String(c ?? '');
+          return { output: [head, ...body].map(r => r.map(q).join(',')).join('\n'), note };
+        }
+        const line = (cells) => cells.map((c, i) => String(c ?? '').padEnd(widths[i])).join('   ');
+        return { output: [line(head), widths.map(w => '─'.repeat(w)).join('───'), ...body.map(line)].join('\n'), note };
+      },
+    });
+  },
   _base64() {
     const ALPHABETS = {
       standard: { name: 'Standard (RFC 4648)', c62: '+', c63: '/' },
@@ -1065,29 +1155,174 @@ const Toolbox = {
       },
     });
   },
+  // ---- Cron ---------------------------------------------------------------
   _cron() {
-    const { body } = this._modal(this._title('timer', 'Cron'), `${this._inp('cr-in', '*/15 9-17 * * 1-5', '*/15 9-17 * * 1-5')}${this._out('cr-out')}`);
-    const inEl = body.querySelector('#cr-in'), out = body.querySelector('#cr-out');
-    const run = () => {
-      const desc = ToolboxLib.cronDescribe(inEl.value);
-      if (!desc) { out.style.color = 'var(--danger,#ef4444)'; out.textContent = 'A cron expression has 5 fields: minute hour day month weekday'; return; }
-      const next = ToolboxLib.cronNext(inEl.value, 5);
-      out.style.color = 'var(--text)';
-      out.textContent = '“' + desc + '”\n\nNext runs:\n' + (next.length ? next.map(d => '• ' + d.toLocaleString()).join('\n') : '(none in the next year)');
+    const NAMES = ['minute', 'hour', 'day of month', 'month', 'day of week'];
+    const RANGES = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 6]];
+    const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+    const DOW = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+
+    const expand = (field, i) => {
+      const [lo, hi] = RANGES[i];
+      let f = field.toLowerCase();
+      if (i === 3) for (const [k, v] of Object.entries(MONTHS)) f = f.split(k).join(String(v));
+      if (i === 4) for (const [k, v] of Object.entries(DOW)) f = f.split(k).join(String(v));
+      const out = new Set();
+      for (const part of f.split(',')) {
+        const [range, stepRaw] = part.split('/');
+        const step = stepRaw ? parseInt(stepRaw, 10) : 1;
+        if (!Number.isFinite(step) || step < 1) throw new Error(`"${part}" has a bad step in the ${NAMES[i]} field.`);
+        let a = lo, b = hi;
+        if (range !== '*') {
+          const bits = range.split('-');
+          a = parseInt(bits[0], 10);
+          b = bits[1] !== undefined ? parseInt(bits[1], 10) : (stepRaw ? hi : a);
+          if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error(`"${range}" is not a number or range in the ${NAMES[i]} field.`);
+          if (a < lo || b > hi) throw new Error(`The ${NAMES[i]} field allows ${lo}–${hi}, but got ${range}.`);
+        }
+        for (let v = a; v <= b; v += step) out.add(v % (i === 4 ? 7 : Infinity));
+      }
+      return [...out].sort((x, y) => x - y);
     };
-    inEl.addEventListener('input', run); run();
-  },
 
+    return window.ToolboxWorkbench.open({
+      id: 'cron',
+      title: 'Cron',
+      icon: 'clock',
+      blurb: 'Read a cron expression in plain English, check every field, and list the next times it fires.',
+      inputLabel: 'Expression',
+      outputLabel: 'Meaning',
+      placeholder: '*/15 9-17 * * 1-5',
+      sample: '*/15 9-17 * * 1-5',
+      runLabel: 'Explain',
+      options: [
+        { id: 'count', label: 'Next runs to list', type: 'select', default: '5', options: [['0', 'None'], ['5', '5'], ['10', '10'], ['20', '20']] },
+      ],
+      details: [
+        { title: 'The five fields', rows: [
+          ['minute', '0–59'], ['hour', '0–23'], ['day of month', '1–31'],
+          ['month', '1–12 or jan–dec'], ['day of week', '0–6, 0 = Sunday, or sun–sat'],
+        ] },
+        { title: 'Syntax', rows: [
+          ['*', 'Every value.'],
+          ['5', 'Exactly 5.'],
+          ['1-5', 'A range.'],
+          ['*/15', 'Every 15th — 0, 15, 30, 45.'],
+          ['1,15', 'A list.'],
+        ] },
+        { title: 'The trap', text: 'When BOTH day-of-month and day-of-week are restricted, cron fires when EITHER matches — not both. "0 0 1 * 1" is the 1st of the month and every Monday.' },
+        { title: 'Try one', examples: true, rows: [
+          ['*/15 9-17 * * 1-5', 'Every 15 min, office hours, weekdays.'],
+          ['0 3 * * 0', 'Sundays at 03:00.'],
+          ['0 0 1 1 *', 'New Year.'],
+        ] },
+      ],
+      run({ input, opt }) {
+        const fields = input.trim().split(/\s+/);
+        if (fields.length !== 5) {
+          throw new Error(`A cron expression has 5 fields (${NAMES.join(', ')}). This has ${fields.length}.`);
+        }
+        const sets = fields.map(expand);
+        const list = (vals, i) => {
+          const [lo, hi] = RANGES[i];
+          if (vals.length === hi - lo + 1) return 'every ' + NAMES[i];
+          if (vals.length > 8) return `${vals.length} values`;
+          return vals.join(', ');
+        };
+        const lines = NAMES.map((n, i) => `${n.padEnd(13)} ${fields[i].padEnd(12)} ${list(sets[i], i)}`);
+
+        // Walk the clock forward to find real firing times, rather than
+        // describing the expression and hoping.
+        const n = parseInt(opt.count, 10) || 0;
+        if (n > 0) {
+          const dowRestricted = fields[4] !== '*';
+          const domRestricted = fields[2] !== '*';
+          const hits = [];
+          const d = new Date();
+          d.setSeconds(0, 0);
+          d.setMinutes(d.getMinutes() + 1);
+          for (let guard = 0; guard < 366 * 24 * 60 && hits.length < n; guard++) {
+            const okMin = sets[0].includes(d.getMinutes());
+            const okHour = sets[1].includes(d.getHours());
+            const okMonth = sets[3].includes(d.getMonth() + 1);
+            const okDom = sets[2].includes(d.getDate());
+            const okDow = sets[4].includes(d.getDay());
+            const okDay = (domRestricted && dowRestricted) ? (okDom || okDow) : (okDom && okDow);
+            if (okMin && okHour && okMonth && okDay) hits.push(new Date(d));
+            d.setMinutes(d.getMinutes() + 1);
+          }
+          lines.push('', hits.length ? 'next runs' : 'next runs: none within a year');
+          for (const h of hits) lines.push('  ' + h.toLocaleString());
+        }
+        return { output: lines.join('\n'), note: fields.join(' ') };
+      },
+    });
+  },
   _uuid() {
-    const gen = () => Array.from({ length: 5 }, () => ToolboxLib.uuidv4()).join('\n');
-    const { body } = this._modal(this._title('fingerprint', 'UUID v4'), `${this._out('uu-out')}<div style="margin-top:8px"><button id="uu-gen" style="padding:7px 14px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Generate 5 more</button></div>`);
-    const out = body.querySelector('#uu-out');
-    const refresh = () => { out.textContent = gen(); };
-    body.querySelector('#uu-gen').addEventListener('click', refresh); refresh();
-    body.appendChild(this._copyBtn(() => out.textContent));
+    return window.ToolboxWorkbench.open({
+      id: 'uuid',
+      title: 'UUID',
+      icon: 'fingerprint',
+      blurb: 'Generate v4 (random) or v7 (time-ordered) identifiers, or read one apart.',
+      inputLabel: 'How many, or a UUID to inspect',
+      outputLabel: 'Identifiers',
+      placeholder: '10',
+      sample: '10',
+      runLabel: 'Generate',
+      options: [
+        { id: 'version', label: 'Version', type: 'select', default: 'v4',
+          options: [['v4', 'v4 — random'], ['v7', 'v7 — time-ordered'], ['nil', 'Nil (all zeroes)'], ['inspect', 'Inspect one']] },
+        { id: 'case', label: 'Case', type: 'select', default: 'lower', options: [['lower', 'lower case'], ['upper', 'UPPER CASE']], when: (s) => s.version !== 'inspect' },
+        { id: 'braces', label: 'Wrap in braces', type: 'toggle', default: false, when: (s) => s.version !== 'inspect' },
+        { id: 'hyphens', label: 'Keep hyphens', type: 'toggle', default: true, when: (s) => s.version !== 'inspect' },
+      ],
+      details: [
+        { title: 'Which version', rows: [
+          ['v4', '122 random bits. The default. No ordering, no information leaked.'],
+          ['v7', 'A millisecond timestamp then randomness — sorts by creation time, which makes it far kinder to a database index.'],
+          ['nil', 'All zeroes. A placeholder meaning "no id".'],
+        ] },
+        { title: 'Collisions', text: 'A v4 UUID has 2^122 possibilities. You would need to generate about 2.7 × 10^18 of them before a 50% chance of any two matching.' },
+        { title: 'Try one', examples: true, rows: [['5', 'Five identifiers.'], ['1', 'Just one.']] },
+      ],
+      run({ input, opt }) {
+        const hex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
+        const fmt = (u) => {
+          let s = opt.case === 'upper' ? u.toUpperCase() : u;
+          if (!opt.hyphens) s = s.replace(/-/g, '');
+          return opt.braces ? `{${s}}` : s;
+        };
+        if (opt.version === 'inspect') {
+          const raw = input.trim().replace(/[{}]/g, '');
+          const clean = raw.replace(/-/g, '');
+          if (!/^[0-9a-f]{32}$/i.test(clean)) throw new Error('That is not a UUID — it should be 32 hex digits, usually with four hyphens.');
+          const ver = parseInt(clean[12], 16);
+          const variantBits = parseInt(clean[16], 16);
+          const variant = variantBits >= 8 && variantBits <= 11 ? 'RFC 4122' : variantBits >= 12 ? 'Microsoft/reserved' : 'NCS (legacy)';
+          const lines = [`version    ${ver}`, `variant    ${variant}`, `hex        ${clean}`];
+          if (ver === 7) {
+            const ms = parseInt(clean.slice(0, 12), 16);
+            lines.push(`timestamp  ${new Date(ms).toISOString()}`);
+          }
+          return { output: lines.join('\n'), note: `UUID v${ver}` };
+        }
+        const n = Math.max(1, Math.min(1000, parseInt(input.trim(), 10) || 1));
+        const make = () => {
+          if (opt.version === 'nil') return '00000000-0000-0000-0000-000000000000';
+          if (opt.version === 'v7') {
+            const ms = Date.now().toString(16).padStart(12, '0');
+            const r = hex(10);
+            const s = ms + '7' + r.slice(0, 3) + ((8 + Math.floor(Math.random() * 4)).toString(16)) + r.slice(3, 6) + r.slice(6, 18);
+            return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20, 32)}`;
+          }
+          if (crypto.randomUUID) return crypto.randomUUID();
+          const r = hex(16);
+          return `${r.slice(0, 8)}-${r.slice(8, 12)}-4${r.slice(13, 16)}-${(8 + Math.floor(Math.random() * 4)).toString(16)}${r.slice(17, 20)}-${r.slice(20, 32)}`;
+        };
+        return { output: Array.from({ length: n }, () => fmt(make())).join('\n'), note: `${n} × ${opt.version}` };
+      },
+    });
   },
-
-  // ---- Word count ---------------------------------------------------------
   _wordcount() {
     return window.ToolboxWorkbench.open({
       id: 'wordcount',
@@ -1140,22 +1375,129 @@ const Toolbox = {
       },
     });
   },
+  // ---- Colour -------------------------------------------------------------
   _color() {
-    const { body } = this._modal(this._title('palette', 'Color &amp; Contrast'), `
-      <div style="display:flex;gap:10px;align-items:center"><input type="color" id="cl-1" value="#6366f1" style="width:48px;height:36px;border:none;background:none;cursor:pointer"><div id="cl-1out" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text)"></div></div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:10px"><span style="font-size:11px;color:var(--text-muted)">vs background</span><input type="color" id="cl-2" value="#ffffff" style="width:48px;height:36px;border:none;background:none;cursor:pointer"></div>
-      ${this._out('cl-out')}`);
-    const c1 = body.querySelector('#cl-1'), c2 = body.querySelector('#cl-2'), o1 = body.querySelector('#cl-1out'), out = body.querySelector('#cl-out');
-    const run = () => {
-      const rgb = ToolboxLib.hexToRgb(c1.value), hsl = rgb && ToolboxLib.rgbToHsl(rgb.r, rgb.g, rgb.b);
-      o1.textContent = rgb ? `${c1.value}  ·  rgb(${rgb.r}, ${rgb.g}, ${rgb.b})  ·  hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)` : '';
-      const cr = ToolboxLib.contrast(c1.value, c2.value);
-      const rate = (r) => r >= 7 ? 'AAA' : r >= 4.5 ? 'AA' : r >= 3 ? 'AA Large' : 'Fail';
-      out.innerHTML = cr ? `Contrast ratio: <b>${cr}:1</b> — ${rate(cr)} <span style="color:var(--text-muted)">(AA needs 4.5, AAA 7)</span>` : '';
+    const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+    const parse = (s) => {
+      const t = String(s).trim().toLowerCase();
+      let m;
+      if ((m = t.match(/^#?([0-9a-f]{3})$/))) {
+        const [r, g, b] = [...m[1]].map(c => parseInt(c + c, 16));
+        return { r, g, b, a: 1 };
+      }
+      if ((m = t.match(/^#?([0-9a-f]{6})$/))) {
+        return { r: parseInt(m[1].slice(0, 2), 16), g: parseInt(m[1].slice(2, 4), 16), b: parseInt(m[1].slice(4, 6), 16), a: 1 };
+      }
+      if ((m = t.match(/^#?([0-9a-f]{8})$/))) {
+        return { r: parseInt(m[1].slice(0, 2), 16), g: parseInt(m[1].slice(2, 4), 16), b: parseInt(m[1].slice(4, 6), 16), a: parseInt(m[1].slice(6, 8), 16) / 255 };
+      }
+      if ((m = t.match(/^rgba?\(([^)]+)\)$/))) {
+        const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+        return { r: clamp(p[0], 0, 255), g: clamp(p[1], 0, 255), b: clamp(p[2], 0, 255), a: p[3] === undefined ? 1 : clamp(p[3], 0, 1) };
+      }
+      if ((m = t.match(/^hsla?\(([^)]+)\)$/))) {
+        const p = m[1].replace(/%/g, '').split(/[\s,/]+/).filter(Boolean).map(Number);
+        return { ...hslToRgb(p[0], p[1], p[2]), a: p[3] === undefined ? 1 : p[3] };
+      }
+      throw new Error('Enter a colour as #rgb, #rrggbb, #rrggbbaa, rgb(…) or hsl(…).');
     };
-    c1.addEventListener('input', run); c2.addEventListener('input', run); run();
+    const hslToRgb = (h, s, l) => {
+      h = ((h % 360) + 360) % 360; s /= 100; l /= 100;
+      const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m2 = l - c / 2;
+      const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+        : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+      return { r: Math.round((r + m2) * 255), g: Math.round((g + m2) * 255), b: Math.round((b + m2) * 255) };
+    };
+    const rgbToHsl = ({ r, g, b }) => {
+      const R = r / 255, G = g / 255, B = b / 255;
+      const mx = Math.max(R, G, B), mn = Math.min(R, G, B), d = mx - mn;
+      let h = 0;
+      if (d) h = mx === R ? 60 * (((G - B) / d) % 6) : mx === G ? 60 * ((B - R) / d + 2) : 60 * ((R - G) / d + 4);
+      const l = (mx + mn) / 2;
+      const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+      return { h: Math.round(((h % 360) + 360) % 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+    };
+    // Relative luminance per WCAG 2.1, which is what a contrast ratio is built on.
+    const lum = ({ r, g, b }) => {
+      const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const hex2 = (n) => Math.round(n).toString(16).padStart(2, '0');
+
+    return window.ToolboxWorkbench.open({
+      id: 'color',
+      title: 'Colour',
+      icon: 'palette',
+      blurb: 'Convert between hex, RGB, HSL — with WCAG contrast against black and white, and a matching palette.',
+      inputLabel: 'Colour',
+      outputLabel: 'Details',
+      placeholder: '#3b82f6, rgb(59 130 246) or hsl(217 91% 60%)',
+      sample: '#3b82f6',
+      runLabel: 'Convert',
+      options: [
+        { id: 'view', label: 'Show', type: 'select', default: 'all',
+          options: [['all', 'Everything'], ['formats', 'Formats only'], ['contrast', 'Contrast only'], ['palette', 'Palette']] },
+        { id: 'against', label: 'Contrast against', type: 'text', default: '#ffffff', when: (s) => s.view === 'contrast' || s.view === 'all' },
+      ],
+      details: [
+        { title: 'WCAG contrast', rows: [
+          ['4.5 : 1', 'Minimum for body text (AA).'],
+          ['3 : 1', 'Minimum for large text, 18pt or 14pt bold (AA).'],
+          ['7 : 1', 'Enhanced (AAA) for body text.'],
+        ] },
+        { title: 'Why HSL', text: 'Hue, saturation and lightness map onto how people describe colour, so a palette built by shifting lightness stays coherent in a way that nudging RGB does not.' },
+        { title: 'Try one', examples: true, rows: [
+          ['#3b82f6', 'A mid blue.'], ['hsl(217 91% 60%)', 'The same colour in HSL.'], ['rgb(15 23 42)', 'A near-black.'],
+        ] },
+      ],
+      run({ input, opt }) {
+        const c = parse(input);
+        const hsl = rgbToHsl(c);
+        const hex = '#' + hex2(c.r) + hex2(c.g) + hex2(c.b) + (c.a < 1 ? hex2(c.a * 255) : '');
+        const L = lum(c);
+        const ratio = (other) => {
+          const L2 = lum(other);
+          const [hi, lo] = L > L2 ? [L, L2] : [L2, L];
+          return (hi + 0.05) / (lo + 0.05);
+        };
+        const grade = (r) => r >= 7 ? 'AAA' : r >= 4.5 ? 'AA' : r >= 3 ? 'AA large text only' : 'fails';
+
+        const formats = [
+          `hex        ${hex}`,
+          `rgb        rgb(${c.r} ${c.g} ${c.b}${c.a < 1 ? ' / ' + c.a.toFixed(2) : ''})`,
+          `hsl        hsl(${hsl.h} ${hsl.s}% ${hsl.l}%${c.a < 1 ? ' / ' + c.a.toFixed(2) : ''})`,
+          `luminance  ${L.toFixed(4)}`,
+        ];
+        if (opt.view === 'formats') return { output: formats.join('\n'), note: hex };
+
+        const vsWhite = ratio({ r: 255, g: 255, b: 255 });
+        const vsBlack = ratio({ r: 0, g: 0, b: 0 });
+        let other = null;
+        try { other = parse(opt.against); } catch { other = null; }
+        const contrast = [
+          `vs white   ${vsWhite.toFixed(2)} : 1   ${grade(vsWhite)}`,
+          `vs black   ${vsBlack.toFixed(2)} : 1   ${grade(vsBlack)}`,
+          other ? `vs ${opt.against.trim().padEnd(8)} ${ratio(other).toFixed(2)} : 1   ${grade(ratio(other))}` : null,
+          `best on    ${vsWhite > vsBlack ? 'white' : 'black'}`,
+        ].filter(Boolean);
+        if (opt.view === 'contrast') return { output: contrast.join('\n'), note: `${Math.max(vsWhite, vsBlack).toFixed(2)}:1 at best` };
+
+        const shade = (dl) => {
+          const n = hslToRgb(hsl.h, hsl.s, clamp(hsl.l + dl, 0, 100));
+          return '#' + hex2(n.r) + hex2(n.g) + hex2(n.b);
+        };
+        const palette = [
+          `lighter    ${shade(30)}  ${shade(15)}`,
+          `base       ${hex}`,
+          `darker     ${shade(-15)}  ${shade(-30)}`,
+          `complement ${(() => { const n = hslToRgb(hsl.h + 180, hsl.s, hsl.l); return '#' + hex2(n.r) + hex2(n.g) + hex2(n.b); })()}`,
+          `triad      ${[120, 240].map(d => { const n = hslToRgb(hsl.h + d, hsl.s, hsl.l); return '#' + hex2(n.r) + hex2(n.g) + hex2(n.b); }).join('  ')}`,
+        ];
+        if (opt.view === 'palette') return { output: palette.join('\n'), note: hex };
+        return { output: [...formats, '', ...contrast, '', ...palette].join('\n'), note: `${hex} · best on ${vsWhite > vsBlack ? 'white' : 'black'}` };
+      },
+    });
   },
-  // ---- JWT ----------------------------------------------------------------
   _jwt() {
     const seg = (s) => {
       const norm = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -1394,27 +1736,134 @@ const Toolbox = {
       },
     });
   },
+  // ---- Password -----------------------------------------------------------
   _passgen() {
-    const { body } = this._modal(this._title('lock', 'Password Generator'), `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><label style="font-size:12px;color:var(--text-muted)">Length</label><input id="pg-len" type="range" min="6" max="48" value="16" style="flex:1"><span id="pg-lenv" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);width:24px;text-align:right">16</span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--text);margin-bottom:12px">
-        <label style="cursor:pointer"><input type="checkbox" id="pg-upper" checked> A-Z</label>
-        <label style="cursor:pointer"><input type="checkbox" id="pg-lower" checked> a-z</label>
-        <label style="cursor:pointer"><input type="checkbox" id="pg-digits" checked> 0-9</label>
-        <label style="cursor:pointer"><input type="checkbox" id="pg-symbols"> !@#$</label>
-      </div>` + this._out('pg-out') + `<div style="margin-top:8px"><button id="pg-gen" style="padding:8px 16px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">↻ Generate</button></div>`);
-    const out = body.querySelector('#pg-out'), len = body.querySelector('#pg-len'), lenv = body.querySelector('#pg-lenv');
-    const gen = () => { out.style.fontSize = '15px'; out.textContent = ToolboxLib.passGen(parseInt(len.value, 10), { upper: body.querySelector('#pg-upper').checked, lower: body.querySelector('#pg-lower').checked, digits: body.querySelector('#pg-digits').checked, symbols: body.querySelector('#pg-symbols').checked }); };
-    len.addEventListener('input', () => { lenv.textContent = len.value; gen(); });
-    body.querySelectorAll('#pg-upper,#pg-lower,#pg-digits,#pg-symbols').forEach(c => c.addEventListener('change', gen));
-    body.querySelector('#pg-gen').addEventListener('click', gen); gen();
-    body.appendChild(this._copyBtn(() => out.textContent));
+    return window.ToolboxWorkbench.open({
+      id: 'passgen',
+      title: 'Password',
+      icon: 'key',
+      blurb: 'Random passwords or passphrases, with the actual entropy and how long a real attacker would need.',
+      inputLabel: 'How many',
+      outputLabel: 'Passwords',
+      placeholder: '5',
+      sample: '5',
+      runLabel: 'Generate',
+      options: [
+        { id: 'kind', label: 'Style', type: 'select', default: 'random', options: [['random', 'Random characters'], ['passphrase', 'Words']] },
+        { id: 'len', label: 'Length', type: 'text', default: '20', when: (s) => s.kind === 'random' },
+        { id: 'words', label: 'Number of words', type: 'text', default: '7', when: (s) => s.kind === 'passphrase' },
+        { id: 'upper', label: 'Upper case', type: 'toggle', default: true, when: (s) => s.kind === 'random' },
+        { id: 'digits', label: 'Digits', type: 'toggle', default: true, when: (s) => s.kind === 'random' },
+        { id: 'symbols', label: 'Symbols', type: 'toggle', default: true, when: (s) => s.kind === 'random' },
+        { id: 'ambiguous', label: 'Avoid lookalikes (0/O, 1/l)', type: 'toggle', default: false, when: (s) => s.kind === 'random' },
+      ],
+      details: [
+        { title: 'What entropy means', text: 'Each bit doubles the work an attacker must do. Under 50 bits is weak, 70 is comfortable, 100+ is beyond reach for anything foreseeable.' },
+        { title: 'How strong a word is', text: 'This list holds about 900 words, so each one adds roughly 9.8 bits. Seven words is about 69 bits — the default for that reason. Fewer than six is weaker than it looks, which is why the estimate below is shown for every result.' },
+        { title: 'Guessing rates assumed', rows: [
+          ['Online service', 'about 1,000 guesses per second — rate limits apply.'],
+          ['Stolen database', '100 billion per second on rented hardware, if it was hashed badly.'],
+        ] },
+        { title: 'Words beat symbols', text: 'Seven random words from a large list beat a short mangled word: it is longer, far easier to type and remember, and the mangling patterns people use are already in every cracking dictionary.' },
+      ],
+      run({ input, opt }) {
+        const WORDS = ('able acid aged also area army away baby back ball band bank base bath bear beat been beer bell belt bend best bike bill bird blow blue boat body bomb bond bone book boom boot born boss both bowl bulk burn bush busy cafe cage cake call calm came camp card care case cash cast cave cell chat chef chip city clay clip club coal coat code coin cold come cook cool cope copy core corn cost crew crop crow cube cure curl cyan dark dash data date dawn days dead deal dean dear debt deck deep deer demo dent deny desk dial diet dime dirt dish disk dive dock does dole dome done door dose dove down drag draw drew drop drum dual duck dull duly dusk dust duty each earn ease east easy echo edge edit eggs else emit ends envy epic even ever evil exam exit eyes face fact fade fail fair fall fame farm fast fate fear feed feel feet fell felt file fill film find fine fire firm fish fist five flag flat flew flex flip flow flux foam fold folk font food foot fore fork form fort four free frog from fuel full fund gain game gate gave gear gene gift girl give glad glow goal goat goes gold golf gone good gown grab gray grew grid grim grip grow gulf hair half hall halt hand hang hard harm hash hate haul have hawk haze head heal heap hear heat heel held hell helm help herb herd here hero hide high hike hill hint hire hold hole holy home hood hoof hook hope horn hose host hour huge hunt hurt icon idea idle inch iron isle item jade jail jazz jean join joke jump june junk jury just keen keep kept kick kind king kiss kite knee knew knit knot know lace lack lady laid lake lamb lamp land lane last late lava lawn lazy lead leaf leak lean leap left lend lens less levy liar life lift like limb lime line link lion list live load loan lock loft logo lone long look loop lord lose loss lost loud love luck lump lung made mail main make male mall malt many maps mark mask mass mast mate math maze mead meal mean meat meet melt memo mend menu mere mesh mess mice mild mile milk mill mind mine mint miss mist mode mold mole monk mood moon more moss most moth move much mule mush must mute myth nail name nape navy near neat neck need neon nest news next nice nick nine node none noon norm nose note noun nova numb oath odds odor okay omit once only onto onus open oral orbit oval oven over pace pack page paid pain pair pale palm park part pass past path peak pear peel peer pens pest pick pier pile pill pine pink pipe pity plan play plea plot plug plum plus poem poet pole poll pond pony pool poor pope pork port pose post pour pray prep prey prim prop pull pulp pump pure push quit quiz race rack raft rage raid rail rain rake ramp rank rare rash rate rave read real reap rear reed reef reel rely rent rest rice rich ride ride ring riot rise risk rite road roam robe rock rode role roll roof room root rope rose ross rout ruby rude ruin rule rush rust sage said sail sake sale salt same sand sang sank save scan scar seal seam seat seed seek seem seen self sell semi send sent sett shed shim ship shoe shop shot show shut sick side sift sigh sign silk sill silo sing sink site size skin skip slab slam slap sled slid slim slip slot slow slug snap snow soap sock soda sofa soft soil sold sole solo some song soon sore sort soul soup sour span spin spit spot spur stab star stay stem step stew stir stop stow stub stun such suit sung sunk sure surf swam swan swap sway swim tack tail take tale talk tall tank tape task taxi team tear tech tell tend tent term test text than that thaw thee them then they thin this thus tide tidy tier tile till tilt time tiny tire toad toes toil told toll tomb tone took tool torn toss tour town trace tram trap tray tree trek trim trio trip trot true tube tuck tuna tune turf turn twin twig type ugly unit upon urge used user vain vale vane vary vase vast veil vein vent verb very vest veto vial vibe vice view vine visa void volt vote wade wage wait wake walk wall wand want ward ware warm warn wash wasp wave wavy weak wear weed week weep well went were west what when whim whip whom wide wife wild will wind wine wing wink wipe wire wise wish wolf wood wool word wore work worm worn wrap wren yard yarn yawn year yell yoga yolk your zero zest zinc zone zoom').split(' ');
+        const n = Math.max(1, Math.min(200, parseInt(input.trim(), 10) || 1));
+        const pick = (arr) => arr[crypto.getRandomValues(new Uint32Array(1))[0] % arr.length];
+
+        let make, bits;
+        if (opt.kind === 'passphrase') {
+          const w = Math.max(3, Math.min(20, parseInt(opt.words, 10) || 5));
+          make = () => Array.from({ length: w }, () => pick(WORDS)).join('-');
+          bits = w * Math.log2(WORDS.length);
+        } else {
+          let pool = 'abcdefghijklmnopqrstuvwxyz';
+          if (opt.upper) pool += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+          if (opt.digits) pool += '0123456789';
+          if (opt.symbols) pool += '!@#$%^&*()-_=+[]{};:,.?';
+          if (opt.ambiguous) pool = pool.replace(/[0O1lI|]/g, '');
+          const L = Math.max(4, Math.min(256, parseInt(opt.len, 10) || 20));
+          make = () => Array.from({ length: L }, () => pick([...pool])).join('');
+          bits = L * Math.log2(pool.length);
+        }
+
+        const guesses = Math.pow(2, bits - 1);
+        const human = (secs) => {
+          if (secs < 60) return Math.round(secs) + ' seconds';
+          if (secs < 3600) return Math.round(secs / 60) + ' minutes';
+          if (secs < 86400) return Math.round(secs / 3600) + ' hours';
+          if (secs < 3.15e7) return Math.round(secs / 86400) + ' days';
+          const yrs = secs / 3.15e7;
+          if (yrs < 1e6) return Math.round(yrs).toLocaleString() + ' years';
+          return yrs.toExponential(1) + ' years';
+        };
+        return {
+          output: Array.from({ length: n }, make).join('\n'),
+          note: `${Math.round(bits)} bits · offline crack ${human(guesses / 1e11)} · online ${human(guesses / 1e3)}`,
+        };
+      },
+    });
   },
+  // ---- Markdown -----------------------------------------------------------
   _markdown() {
-    const { body } = this._modal(this._title('file', 'Markdown Preview'), this._ta('md-in', '# Hello\n\n**bold**, *italic*, `code`, [link](https://example.com)\n\n- one\n- two') + `<div id="md-out" style="margin-top:10px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;line-height:1.6;overflow:auto;max-height:42vh"></div>`);
-    const inEl = body.querySelector('#md-in'), out = body.querySelector('#md-out');
-    const run = () => { out.innerHTML = ToolboxLib.mdToHtml(inEl.value); };
-    inEl.addEventListener('input', run); run();
+    return window.ToolboxWorkbench.open({
+      id: 'markdown',
+      title: 'Markdown',
+      icon: 'file',
+      blurb: 'Preview Markdown as rendered text, or strip it back to plain prose for somewhere that will not render it.',
+      placeholder: '# Title\n\nSome **bold** text and a [link](https://example.com).',
+      sample: '# Title\n\nSome **bold** text, a [link](https://example.com) and a list:\n\n- one\n- two',
+      runLabel: 'Render',
+      options: [
+        { id: 'to', label: 'Convert to', type: 'select', default: 'text',
+          options: [['text', 'Plain text'], ['html', 'HTML source'], ['outline', 'Heading outline']] },
+      ],
+      details: [
+        { title: 'Plain text', text: 'Strips the marks and keeps the words — for pasting into somewhere that shows Markdown raw, like a plain-text email or a form field.' },
+        { title: 'Outline', text: 'Lists just the headings with their levels, which is the quickest way to check a long document is structured the way you think.' },
+        { title: 'Common marks', rows: [
+          ['# H1 · ## H2', 'Headings, one to six hashes.'],
+          ['**bold** *italic*', 'Emphasis.'],
+          ['[text](url)', 'A link.'],
+          ['- item', 'A list. Use 1. for numbered.'],
+          ['`code`', 'Inline code; three backticks for a block.'],
+          ['> quote', 'A block quote.'],
+        ] },
+      ],
+      run({ input, opt }) {
+        if (opt.to === 'outline') {
+          const heads = input.split('\n').filter(l => /^#{1,6}\s/.test(l));
+          if (!heads.length) return { output: 'No headings found.', note: '0 headings' };
+          return {
+            output: heads.map(h => {
+              const level = h.match(/^#+/)[0].length;
+              return '  '.repeat(level - 1) + h.replace(/^#+\s*/, '');
+            }).join('\n'),
+            note: `${heads.length} heading${heads.length === 1 ? '' : 's'}`,
+          };
+        }
+        if (opt.to === 'html') {
+          const html = window.VexMarkdown ? VexMarkdown.render(input) : null;
+          if (!html) throw new Error('The Markdown renderer is not available.');
+          return { output: html, note: `${html.length} characters of HTML` };
+        }
+        // Marks removed, words kept, in an order that does not eat the content.
+        const text = input
+          .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, ''))
+          .replace(/^#{1,6}\s+/gm, '')
+          .replace(/^\s{0,3}>\s?/gm, '')
+          .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
+          .replace(/(\*\*|__)(.*?)\1/g, '$2')
+          .replace(/(\*|_)(.*?)\1/g, '$2')
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/^\s*[-*+]\s+/gm, '• ')
+          .replace(/^\s*(\d+)\.\s+/gm, '$1. ')
+          .replace(/^\s*[-*_]{3,}\s*$/gm, '───')
+          .trim();
+        return { output: text, note: `${text.split(/\s+/).filter(Boolean).length} words` };
+      },
+    });
   },
 };
 
