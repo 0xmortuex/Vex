@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.57 (2026-09-12) — Work tools, and a leak that grew all day
+
+### Notes
+- **Your job's tools all look the same now.** 137 of the 318 tools are marked with a typographic sign (".*", "{ }", "Aa") rather than a drawn icon, and those were being dropped into the page as plain text — so in the Work panel they came out at a different size and alignment from the rest. Every tool icon now sits in the same box, whichever kind it is.
+- **Ask Vex AI, from the Work panel.** A new button next to your tools opens the AI chat with your profession as context, so the first answer is about your work. It says where the AI will actually run — your local model by name when one is running, the cloud when it is not — and it says "checking" while it finds out rather than guessing.
+- **Closing a tab now actually frees it.** Every tab left its page element and around 28 event listeners behind for as long as the window stayed open. Opening and closing 40 tabs left 38 of them still in memory; the browser got heavier all day and only a restart cleared it. Most of that is now released the moment a tab closes.
+
+Some of the remaining growth is inside Electron's own webview implementation rather than Vex, so this reduces the problem substantially without ending it completely.
+
 ## v2.31.56 (2026-09-12) — Buttons that pretended to work
 
 ### Notes
