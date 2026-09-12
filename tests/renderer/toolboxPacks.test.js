@@ -19,7 +19,7 @@ global.window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g,
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const { Toolbox } = require('../../src/renderer/js/toolbox.js');
 
-const PACK_FILES = ['toolbox-pack-text.js', 'toolbox-pack-units-math-science.js', 'toolbox-pack-money-date-health.js', 'toolbox-pack-dev-data-web.js', 'toolbox-pack-encoding-net-css.js'];
+const PACK_FILES = ['toolbox-pack-text.js', 'toolbox-pack-units-math-science.js', 'toolbox-pack-money-date-health.js', 'toolbox-pack-dev-data-web.js', 'toolbox-pack-encoding-net-css.js', 'toolbox-pack-formats-text.js'];
 
 // With ToolboxPacks global (as in the app), each pack registers itself when
 // loaded — the same path index.html takes.
