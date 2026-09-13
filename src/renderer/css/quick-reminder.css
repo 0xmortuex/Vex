@@ -1,0 +1,77 @@
+/* === Quick reminder ========================================================
+ *
+ * A small two-field dialog: what you have to do, and when. Built on the theme
+ * tokens so it follows whichever look is active, and sized so it never becomes
+ * a form — the whole point is that it is faster than the Schedules panel.
+ */
+
+.qr-overlay {
+  position: fixed; inset: 0; z-index: 100060;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+
+.qr-dialog {
+  width: 440px; max-width: 100%; max-height: 90vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 16px 18px 14px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.qr-head { display: flex; align-items: center; gap: 9px; margin-bottom: 2px; }
+.qr-head-icon { display: inline-flex; color: var(--primary); flex: none; }
+.qr-title { flex: 1; font-size: 14.5px; font-weight: 700; }
+.qr-close {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; cursor: pointer;
+  background: var(--bg); color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.qr-close:hover { color: var(--text); border-color: var(--primary); }
+
+.qr-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-muted); margin-top: 6px;
+}
+
+.qr-text, .qr-when {
+  width: 100%; box-sizing: border-box;
+  padding: 9px 11px; font-family: inherit; font-size: 13px; line-height: 1.5;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 9px;
+  resize: vertical;
+}
+.qr-text:focus, .qr-when:focus { outline: none; border-color: var(--primary); }
+.qr-when { font-size: 13.5px; }
+
+.qr-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.qr-chip {
+  padding: 4px 9px; cursor: pointer; font-family: inherit; font-size: 11.5px;
+  background: var(--bg); color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.qr-chip:hover { color: var(--primary); border-color: var(--primary); }
+
+/* The line that proves Vex read the same thing the person meant. It holds its
+ * height whether or not it says anything, so the dialog does not jump as you
+ * type into the when box. */
+.qr-preview {
+  min-height: 17px; margin-top: 4px;
+  font-size: 12px; line-height: 1.4; color: var(--text-muted);
+}
+.qr-preview.qr-ok { color: var(--primary); }
+.qr-preview.qr-bad { color: var(--danger, #ef4444); }
+
+.qr-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.qr-btn {
+  padding: 8px 15px; cursor: pointer; font-family: inherit;
+  font-size: 12.5px; font-weight: 600;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 9px;
+}
+.qr-btn:hover { border-color: var(--primary); }
+.qr-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.qr-primary:hover { background: var(--primary-hover, var(--primary)); }

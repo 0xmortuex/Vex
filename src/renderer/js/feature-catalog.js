@@ -198,6 +198,8 @@ const VexFeatures = {
       what: 'Hides the browser chrome and blocks the sites you lose time to, for 25 or 50 minutes.' },
     { id: 'focusflows', cat: 'work', cmd: 'focusflows',
       what: 'A named work mode: one click opens a set of tabs, switches AI persona, dims the interface and blocks distractions.' },
+    { id: 'remind', cat: 'work', cmd: 'remind',
+      what: 'Paste what you have to do, type "in 2 hours" or "tomorrow 9am", and Vex tells you later. It reads the time back to you before it saves anything.' },
     { id: 'automations', cat: 'work', cmd: 'automations',
       what: 'When this, do that — when a page opens, or at a time each day, run a command or open something.' },
     { id: 'chains', cat: 'work', name: 'Command chains', setting: { section: 'chains-panel-content' }, keys: 'Ctrl+Alt+1 / 2 / 3',
