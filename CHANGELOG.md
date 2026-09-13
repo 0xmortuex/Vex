@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.31.76 (2026-09-13) — Two panels at once, panels open full size, readable suggestions
+
+### Notes
+- **Claude beside Discord — both usable at once.** Shift+click a sidebar icon, or right-click it and choose *Open beside Discord*, and the panel opens next to the one already open, half the area each. Vex remembers the pair: open either later and the other comes with it, until you click the second panel's icon again (or right-click → *Close beside*), which forgets it. Settings never shares.
+- **Panels open maximized in the browser looks.** Discord, Claude, Prime, Roblox are whole apps; in the Chrome, Safari, Firefox and Glass looks a panel now opens taking the whole page area. Press Restore in the panel header to put it back in the sidebar, and it stays that way until you press Maximize again.
+- **Fixed: the first search suggestion could not be read in the Chrome-style looks.** The row under the pointer — the first one, right below the address bar — was blue text on a blue bar, because those looks map both the row's fill and its text to the same accent colour. It is now a light tint with ordinary text, as in a real omnibox. (Nothing is pre-selected; it was the pointer resting there.)
+
 ## v2.31.75 (2026-09-13) — DevTools open again from everywhere
 
 ### Notes
