@@ -136,3 +136,52 @@ describe('Reset Vex is guarded', () => {
     expect(window.showToast).toHaveBeenCalledWith('nope', 'error');
   });
 });
+
+// The two refresh buttons do different things, and the difference is the
+// reason the second one exists: location.reload() re-runs the renderer only,
+// so an edit to main.js or preload.js appears to have done nothing.
+describe('Restart Vex', () => {
+  const restart = () => VexDevMode.actions().find(a => a.id === 'restart');
+
+  it('is a separate action from reloading the interface', () => {
+    const ids = VexDevMode.actions().map(a => a.id);
+    expect(ids).toContain('reload');
+    expect(ids).toContain('restart');
+  });
+
+  it('says which changes each one picks up', () => {
+    const reload = VexDevMode.actions().find(a => a.id === 'reload');
+    expect(reload.what).toMatch(/interface|renderer/i);
+    expect(restart().what).toMatch(/main process/i);
+  });
+
+  it('asks before relaunching', async () => {
+    let asked = '';
+    window.vexConfirm = async (msg) => { asked = msg; return false; };
+    window.vex = { restartApp: vi.fn() };
+    await VexDevMode._runAction(restart());
+    expect(asked).toMatch(/restart/i);
+    expect(window.vex.restartApp).not.toHaveBeenCalled();
+  });
+
+  it('relaunches when confirmed', async () => {
+    window.vexConfirm = async () => true;
+    window.vex = { restartApp: vi.fn(async () => ({ ok: true })) };
+    await VexDevMode._runAction(restart());
+    expect(window.vex.restartApp).toHaveBeenCalled();
+  });
+
+  it('reports a refused relaunch rather than looking like it worked', async () => {
+    window.vexConfirm = async () => true;
+    window.vex = { restartApp: async () => ({ ok: false, error: 'no window' }) };
+    await VexDevMode._runAction(restart());
+    expect(window.showToast).toHaveBeenCalledWith('no window', 'error');
+  });
+
+  it('says so when the bridge is missing entirely', async () => {
+    window.vexConfirm = async () => true;
+    window.vex = {};
+    await VexDevMode._runAction(restart());
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/not exposed/i), 'error');
+  });
+});

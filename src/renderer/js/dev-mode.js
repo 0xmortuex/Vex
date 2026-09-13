@@ -91,8 +91,29 @@ const VexDevMode = {
     return [
       {
         id: 'reload', label: 'Reload the interface', icon: 'refresh',
-        what: 'Restarts the renderer without restarting Vex. Tabs and settings survive.',
+        what: 'Restarts the renderer without restarting Vex. Picks up changes to the interface — js/, css/, index.html. Tabs and settings survive.',
         run: () => { location.reload(); return 'Reloading…'; },
+      },
+      {
+        // The renderer reload above cannot see main.js, preload.js or
+        // site-tweaks.js: those ran before the window existed and are not
+        // re-evaluated by location.reload(). Editing one and reloading looks
+        // like the edit did nothing, which is a confusing half-hour. This is
+        // the button for that case.
+        id: 'restart', label: 'Restart Vex', icon: 'zap',
+        what: 'Relaunches the whole app, so changes to the main process, the preload scripts and site tweaks take effect. Your open tabs are restored.',
+        confirm: 'Restart Vex now? Open tabs are restored afterwards.',
+        run: async () => {
+          if (!window.vex || typeof window.vex.restartApp !== 'function') {
+            throw new Error('Restart is not exposed in this build.');
+          }
+          const r = await window.vex.restartApp();
+          // The app normally exits before this resolves; reaching here with a
+          // failure means the relaunch was refused, and saying so beats a
+          // button that silently does nothing.
+          if (r && r.ok === false) throw new Error(r.error || 'The main process refused to restart.');
+          return 'Restarting…';
+        },
       },
       {
         id: 'devtools', label: 'Open DevTools', icon: 'terminal',
