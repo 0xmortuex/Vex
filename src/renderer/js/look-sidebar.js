@@ -26,6 +26,7 @@
   const MAX_ICON = '<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
   const RESTORE_ICON = '<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="3.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 3.5V1.5h7v7h-2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
   const CLOSE_ICON ='<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  const PLUS_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 
   // Every style that has a sidebar (the browser looks and Glass) docks its
   // panels; gui-style.js stamps body[data-sb-side] for those.
@@ -62,10 +63,14 @@
     head.innerHTML = `<select id="look-sb-picker" aria-label="Sidebar panel"></select>
       <span id="look-sb-title"></span>
       <span id="look-sb-nav"></span>
+      <button id="look-sb-beside" title="Close the second panel" hidden></button>
+      <button id="look-sb-add" title="Open another panel beside this one" aria-label="Open another panel beside this one">${PLUS_ICON}</button>
       <button id="look-sb-max" title="Maximize" aria-label="Maximize">${MAX_ICON}</button>
       <button id="look-sb-close" title="Close sidebar" aria-label="Close sidebar">${CLOSE_ICON}</button>`;
     container.prepend(head);
     head.querySelector('#look-sb-picker').addEventListener('change', (e) => SidebarManager.showPanel(e.target.value));
+    head.querySelector('#look-sb-add').addEventListener('click', (e) => openAddMenu(e.currentTarget));
+    head.querySelector('#look-sb-beside').addEventListener('click', () => SidebarManager.closeBeside());
     head.querySelector('#look-sb-max').addEventListener('click', () => {
       const on = !document.body.hasAttribute('data-sidebar-max');
       setMaximized(on);
@@ -96,7 +101,65 @@
     // With a second panel beside it (SidebarManager.openBeside): "Discord + Claude".
     const beside = typeof SidebarManager !== 'undefined' ? SidebarManager.sidePanel : null;
     const other = beside ? choices.find(c => c.panel === beside) : null;
-    title.textContent = (cur ? cur.label : panel) + (beside ? ' + ' + (other ? other.label : beside) : '');
+    const besideLabel = beside ? (other ? other.label : beside) : '';
+    title.textContent = (cur ? cur.label : panel) + (beside ? ' + ' + besideLabel : '');
+    const chip = document.getElementById('look-sb-beside');
+    const add = document.getElementById('look-sb-add');
+    if (chip) {
+      chip.hidden = !beside;
+      if (beside) {
+        chip.textContent = '+ ' + besideLabel;
+        chip.insertAdjacentHTML('beforeend', CLOSE_ICON);
+        chip.title = 'Close ' + besideLabel;
+        chip.setAttribute('aria-label', chip.title);
+      }
+    }
+    // Settings takes the whole area and never shares.
+    if (add) add.hidden = panel === 'settings';
+  }
+
+  // ---- A second panel beside this one (SidebarManager.openBeside). The
+  // toolbar looks (Chrome, Safari, IE) have no icon rail to Shift+click or
+  // right-click, so the header's + is their way in: it lists the other
+  // panels, and Swap sides once there are two.
+  function openAddMenu(anchor) {
+    document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
+    const S = SidebarManager;
+    const items = panelChoices()
+      .filter(c => c.panel !== S.activePanel && c.panel !== S.sidePanel && c.panel !== 'settings')
+      .map(c => ({ label: 'Open ' + c.label + ' beside', run: () => S.openBeside(c.panel) }));
+    if (S.sidePanel) items.push({ label: 'Swap sides', run: () => S.swapBeside() });
+    if (!items.length) items.push({ label: 'No other panel to open' });
+
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu look-sb-add-menu';
+    const close = () => {
+      menu.remove();
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onDown = (ev) => { if (!menu.contains(ev.target)) close(); };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    for (const it of items) {
+      const el = document.createElement('div');
+      el.className = 'tab-context-item' + (it.run ? '' : ' disabled');
+      el.textContent = it.label;
+      if (it.run) el.addEventListener('click', () => {
+        close();
+        try { it.run(); } catch (err) { window.showToast?.(err.message, 'error'); }
+      });
+      menu.appendChild(el);
+    }
+    const r = anchor.getBoundingClientRect();
+    menu.style.left = r.left + 'px';
+    menu.style.top = (r.bottom + 4) + 'px';
+    document.body.appendChild(menu);
+    if (typeof TabManager !== 'undefined' && TabManager._clampMenuToViewport) TabManager._clampMenuToViewport(menu, r.left, r.bottom + 4);
+    setTimeout(() => {
+      document.addEventListener('pointerdown', onDown, true);
+      document.addEventListener('keydown', onKey, true);
+    }, 0);
+    return menu;
   }
 
   // ---- Maximize: the open panel takes the whole page area (Discord, Prime,

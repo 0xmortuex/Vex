@@ -147,6 +147,51 @@ describe('look sidebar', () => {
     expect(document.body.hasAttribute('data-sidebar-max')).toBe(true);
   });
 
+  // The toolbar looks have no icon rail, so the header is the only way to
+  // put a second panel beside the open one.
+  it('the + lists the other panels to open beside, and Swap sides once there are two', async () => {
+    setupDom('chrome', 'right', 'toolbar');
+    SidebarManager.openBeside = vi.fn();
+    SidebarManager.swapBeside = vi.fn();
+    await load();
+    SidebarManager.showPanel('whatsapp');
+    const add = document.getElementById('look-sb-add');
+    expect(add.hidden).toBe(false);
+    add.click();
+    let items = [...document.querySelectorAll('.look-sb-add-menu .tab-context-item')].map(i => i.textContent);
+    expect(items).toEqual(['Open Notes beside', 'Open Authenticator beside']);
+    document.querySelector('.look-sb-add-menu .tab-context-item').click();
+    expect(SidebarManager.openBeside).toHaveBeenCalledWith('notes');
+    expect(document.querySelector('.look-sb-add-menu')).toBe(null);
+
+    SidebarManager.sidePanel = 'notes';
+    SidebarManager.showPanel('whatsapp');
+    add.click();
+    items = [...document.querySelectorAll('.look-sb-add-menu .tab-context-item')].map(i => i.textContent);
+    expect(items).toEqual(['Open Authenticator beside', 'Swap sides']);
+    document.querySelectorAll('.look-sb-add-menu .tab-context-item')[1].click();
+    expect(SidebarManager.swapBeside).toHaveBeenCalled();
+
+    SidebarManager.showPanel('settings');
+    expect(add.hidden).toBe(true);
+  });
+
+  it('the chip names the second panel and closes it', async () => {
+    setupDom('chrome', 'right', 'toolbar');
+    SidebarManager.closeBeside = vi.fn();
+    await load();
+    const chip = document.getElementById('look-sb-beside');
+    SidebarManager.showPanel('whatsapp');
+    expect(chip.hidden).toBe(true);
+    SidebarManager.sidePanel = 'notes';
+    SidebarManager.showPanel('whatsapp');
+    expect(chip.hidden).toBe(false);
+    expect(chip.textContent).toBe('+ Notes');
+    expect(chip.title).toBe('Close Notes');
+    chip.click();
+    expect(SidebarManager.closeBeside).toHaveBeenCalled();
+  });
+
   it('names both panels in the header when one sits beside the other', async () => {
     setupDom('firefox', 'left', 'rail');
     await load();

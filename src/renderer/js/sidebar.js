@@ -269,6 +269,7 @@ const SidebarManager = {
     this._saveSitePanels(this._sitePanels().filter(p => p.id !== id));
     document.querySelector('.sidebar-icon[data-panel="' + id + '"]')?.remove();
     if (this.activePanel === id) this.hideActivePanel();
+    else if (this.sidePanel === id) this.closeBeside();
     document.getElementById('panel-' + id)?.remove();
     delete this.panelConfigs[id];
     delete this.panelWebviews[id];
@@ -606,7 +607,9 @@ const SidebarManager = {
   // it away again. Settings is a whole page and never shares.
 
   _canSit(panelName) {
-    return !!panelName && panelName !== 'settings' && !!document.getElementById('panel-' + panelName);
+    // 'start' has a panel element too, but it is an empty div: the house
+    // button opens the New Tab page, not a panel.
+    return !!panelName && panelName !== 'settings' && panelName !== 'start' && !!document.getElementById('panel-' + panelName);
   },
 
   _pairs() {
@@ -643,8 +646,13 @@ const SidebarManager = {
       p.style.display = primary || beside ? 'block' : 'none';
     });
     if (container) {
-      if (side) container.dataset.split = side;
-      else delete container.dataset.split;
+      if (side) {
+        container.dataset.split = side;
+        container.style.setProperty('--sb-split', (this._splitRatio() * 100).toFixed(2) + '%');
+        this._ensureSplitGrip(container);
+      } else {
+        delete container.dataset.split;
+      }
     }
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
       const n = btn.dataset.panel;
@@ -677,6 +685,70 @@ const SidebarManager = {
     this.sidePanel = null;
     this._layoutPanels();
     this._announcePanel(this.activePanel);
+  },
+
+  swapBeside() {
+    if (!this.sidePanel) throw new Error('There is no second panel to swap with');
+    const a = this.activePanel, b = this.sidePanel;
+    this.activePanel = b;
+    this.sidePanel = a;
+    this._layoutPanels();
+    this._announcePanel(b);
+  },
+
+  // ---- The divider between the two panels: drag it to change the share
+  // (css: --sb-split on #panels-container), double-click to swap sides.
+  _splitRatio() {
+    const r = Number(localStorage.getItem('vex.panelSplitRatio'));
+    return Number.isFinite(r) && r >= 0.2 && r <= 0.8 ? r : 0.5;
+  },
+
+  setSplitRatio(ratio) {
+    if (!Number.isFinite(ratio)) throw new Error('Split ratio must be a number');
+    const v = Math.min(0.8, Math.max(0.2, ratio));
+    const container = document.getElementById('panels-container');
+    if (container) container.style.setProperty('--sb-split', (v * 100).toFixed(2) + '%');
+    try { localStorage.setItem('vex.panelSplitRatio', String(v)); } catch {}
+    return v;
+  },
+
+  _ensureSplitGrip(container) {
+    let grip = document.getElementById('sb-split-grip');
+    if (grip) return grip;
+    grip = document.createElement('div');
+    grip.id = 'sb-split-grip';
+    grip.title = 'Drag to resize — double-click to swap sides';
+    grip.addEventListener('pointerdown', (e) => this._startSplitDrag(e));
+    container.appendChild(grip);
+    return grip;
+  },
+
+  _startSplitDrag(e) {
+    e.preventDefault();
+    // A double-click swaps the sides. Counted from the pointer-downs: the
+    // drag shield below takes the second click's mouseup, so the browser's
+    // own dblclick never reaches the divider.
+    const now = Date.now();
+    if (now - (this._gripDownAt || 0) < 400) {
+      this._gripDownAt = 0;
+      this.swapBeside();
+      return;
+    }
+    this._gripDownAt = now;
+    const box = document.getElementById('panels-container').getBoundingClientRect();
+    // Pages are separate processes and swallow pointer moves, so a shield
+    // covers them for the length of the drag (as js/look-sidebar.js does).
+    const shield = document.createElement('div');
+    shield.id = 'sb-split-shield';
+    document.body.appendChild(shield);
+    const move = (ev) => this.setSplitRatio((ev.clientX - box.left) / box.width);
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      shield.remove();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
   },
 
   // Shift+click on an icon: beside the open panel rather than instead of it.
@@ -865,6 +937,7 @@ const SidebarManager = {
     // If we just hid the button for the panel that's currently open, close the
     // panel too — otherwise its content stays on screen and "Hide" looks broken.
     if (patch.hidden && this.activePanel === panel) this.hideActivePanel();
+    else if (patch.hidden && this.sidePanel === panel) this.closeBeside();
     if (patch.url) {
       navigatePanelWebview(resolvePanelWebview(this, panel), patch.url);
     }
@@ -945,6 +1018,11 @@ const SidebarManager = {
     const ov = loadPanelOverrides();
     const btns = this._topButtons();
     host.innerHTML = '';
+    const hint = document.createElement('p');
+    hint.className = 'sidebar-manager-hint';
+    hint.style.cssText = 'margin:0 0 8px;font-size:12px;line-height:1.5;color:var(--text-muted)';
+    hint.textContent = 'Two at once: Shift+click a button (or right-click it → Open beside) to open that panel beside the one already open. In the Chrome, Safari and IE looks use the + in the panel header. Drag the divider to resize; double-click it to swap sides.';
+    host.appendChild(hint);
     btns.forEach((btn) => {
       const panel = btn.dataset.panel;
       const o = ov[panel] || {};
@@ -1211,6 +1289,10 @@ const SidebarManager = {
     // is open; the panel already sitting beside it is offered its way out.
     if (panelName === this.sidePanel) {
       items.push({ label: 'Close beside ' + this.panelLabel(this.activePanel), action: () => this.closeBeside() });
+      items.push({ label: 'Swap sides', action: () => this.swapBeside() });
+      items.push({ separator: true });
+    } else if (panelName === this.activePanel && this.sidePanel) {
+      items.push({ label: 'Swap sides', action: () => this.swapBeside() });
       items.push({ separator: true });
     } else if (this.activePanel && this.activePanel !== panelName && this._canSit(panelName) && this._canSit(this.activePanel)) {
       items.push({ label: 'Open beside ' + this.panelLabel(this.activePanel), action: () => this.openBeside(panelName) });

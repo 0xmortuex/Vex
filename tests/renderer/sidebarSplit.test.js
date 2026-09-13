@@ -138,7 +138,107 @@ describe('the pair is remembered', () => {
   });
 });
 
+describe('the second panel never dangles', () => {
+  it('hiding its button in Settings takes it away too', () => {
+    SidebarManager.showPanel('notes');
+    SidebarManager.openBeside('downloads');
+    SidebarManager.setPanelOverride('downloads', { hidden: true });
+    expect(SidebarManager.sidePanel).toBe(null);
+    expect(shown()).toEqual(['panel-notes']);
+    expect(container().dataset.split).toBeUndefined();
+  });
+
+  it('unpinning a site that sits beside takes it away too', () => {
+    document.getElementById('icon-sidebar').insertAdjacentHTML('beforeend', '<button class="sidebar-icon" data-panel="site_x" title="X (pinned site)"></button>');
+    container().insertAdjacentHTML('beforeend', '<div class="panel" id="panel-site_x"></div>');
+    SidebarManager.panelConfigs.site_x = { url: 'https://x.example/' };
+    SidebarManager.showPanel('notes');
+    SidebarManager.openBeside('site_x');
+    SidebarManager.unpinSite('site_x');
+    expect(SidebarManager.sidePanel).toBe(null);
+    expect(shown()).toEqual(['panel-notes']);
+    expect(JSON.parse(localStorage.getItem('vex.panelPairs'))).toEqual({});
+  });
+});
+
+describe('swapping and resizing', () => {
+  it('Swap sides exchanges the two and tells the docked layout', () => {
+    const seen = [];
+    const onChange = (e) => seen.push([e.detail.panel, e.detail.beside]);
+    SidebarManager.showPanel('notes');
+    SidebarManager.openBeside('downloads');
+    document.addEventListener('vex:panel-changed', onChange);
+    SidebarManager.swapBeside();
+    document.removeEventListener('vex:panel-changed', onChange);
+    expect(SidebarManager.activePanel).toBe('downloads');
+    expect(SidebarManager.sidePanel).toBe('notes');
+    expect(document.getElementById('panel-downloads').classList.contains('sb-primary')).toBe(true);
+    expect(document.getElementById('panel-notes').classList.contains('sb-side')).toBe(true);
+    expect(document.body.dataset.sidebarPanel).toBe('downloads');
+    expect(seen).toEqual([['downloads', 'notes']]);
+    expect(() => { SidebarManager.closeBeside(); SidebarManager.swapBeside(); }).toThrow(/no second panel/);
+  });
+
+  it('the divider appears with the split, sets the share, and remembers it within limits', () => {
+    SidebarManager.showPanel('notes');
+    expect(document.getElementById('sb-split-grip')).toBe(null);
+    SidebarManager.openBeside('downloads');
+    const grip = document.getElementById('sb-split-grip');
+    expect(grip.parentElement).toBe(container());
+    expect(container().style.getPropertyValue('--sb-split')).toBe('50.00%');
+    expect(SidebarManager.setSplitRatio(0.3)).toBe(0.3);
+    expect(container().style.getPropertyValue('--sb-split')).toBe('30.00%');
+    expect(SidebarManager.setSplitRatio(0.95)).toBe(0.8);
+    expect(() => SidebarManager.setSplitRatio(NaN)).toThrow(/number/);
+    // The share comes back with the next split.
+    SidebarManager.hideActivePanel();
+    SidebarManager.showPanel('notes');
+    expect(container().style.getPropertyValue('--sb-split')).toBe('80.00%');
+  });
+
+  it('two quick presses on the divider swap the sides (the drag shield eats a real dblclick)', () => {
+    SidebarManager.showPanel('notes');
+    SidebarManager.openBeside('downloads');
+    const grip = document.getElementById('sb-split-grip');
+    const press = () => grip.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 300 }));
+    press();
+    // A single press starts a drag: the shield is up until the pointer is released.
+    expect(document.getElementById('sb-split-shield')).not.toBe(null);
+    window.dispatchEvent(new MouseEvent('pointerup'));
+    expect(document.getElementById('sb-split-shield')).toBe(null);
+    expect(SidebarManager.activePanel).toBe('notes');
+    press();
+    expect(SidebarManager.activePanel).toBe('downloads');
+    expect(SidebarManager.sidePanel).toBe('notes');
+    expect(document.getElementById('sb-split-shield')).toBe(null);
+  });
+
+  it('the icon menu offers Swap sides on both panels of a pair', () => {
+    globalThis.TabManager._clampMenuToViewport = vi.fn();
+    globalThis.TabManager._attachMenuDismissal = vi.fn();
+    const labels = (name) => {
+      SidebarManager.showContextMenu({ clientX: 0, clientY: 0 }, name);
+      const items = [...document.querySelectorAll('.tab-context-menu .tab-context-item')].map(i => i.textContent);
+      document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
+      return items;
+    };
+    SidebarManager.showPanel('notes');
+    expect(labels('notes')).not.toContain('Swap sides');
+    SidebarManager.openBeside('downloads');
+    expect(labels('notes')[0]).toBe('Swap sides');
+    expect(labels('downloads').slice(0, 2)).toEqual(['Close beside Notes', 'Swap sides']);
+  });
+});
+
 describe('what cannot share', () => {
+  it('never the Start button: its panel is an empty div', () => {
+    container().insertAdjacentHTML('beforeend', '<div class="panel" id="panel-start"></div>');
+    document.getElementById('icon-sidebar').insertAdjacentHTML('afterbegin', '<button class="sidebar-icon" data-panel="start" title="Start Page"></button>');
+    SidebarManager.showPanel('notes');
+    expect(() => SidebarManager.openBeside('start')).toThrow();
+    expect(SidebarManager._besideOnShift('start')).toBe(false);
+  });
+
   it('needs an open panel, a different one, and never Settings', () => {
     expect(() => SidebarManager.openBeside('downloads')).toThrow(/Open a panel first/);
     SidebarManager.showPanel('notes');

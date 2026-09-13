@@ -301,11 +301,23 @@ body {
    half the area each. Only where panels cover the page: the docked looks
    (body[data-sb-side]) lay this out as a grid in css/gui-browser.css, and
    these widths halved each grid cell there. */
-body:not([data-sb-side]) #panels-container[data-split] .panel.sb-primary { width: 50%; }
+body:not([data-sb-side]) #panels-container[data-split] .panel.sb-primary { width: var(--sb-split, 50%); }
 body:not([data-sb-side]) #panels-container[data-split] .panel.sb-side {
-  left: 50%; width: 50%; box-sizing: border-box;
+  left: var(--sb-split, 50%); width: calc(100% - var(--sb-split, 50%)); box-sizing: border-box;
   border-left: 1px solid var(--vex-border-medium);
 }
+/* Web panels get an inline position:relative (sidebar.js anchors their nav
+   strip and Discord prompts with it); in flow, the second one would land
+   BELOW the first. Both halves stay absolute. */
+body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .panel.sb-side) { position: absolute !important; top: 0; }
+/* The divider: drag to resize, double-click to swap (SidebarManager). */
+#sb-split-grip { display: none; }
+#panels-container[data-split] > #sb-split-grip {
+  display: block; position: absolute; top: 0; bottom: 0; left: calc(var(--sb-split, 50%) - 3px); width: 6px;
+  cursor: col-resize; z-index: 40;
+}
+#panels-container[data-split] > #sb-split-grip:hover { background: var(--vex-accent-dim); }
+#sb-split-shield { position: fixed; inset: 0; z-index: 2147483000; cursor: col-resize; }
 
 /* Settings Panel — fill the panel area, scroll internally */
 #panel-settings {

@@ -509,19 +509,29 @@ body[data-sb-launcher="toolbar"] #look-sb-picker:hover { background: var(--b-btn
 body[data-sb-side] #look-sb-picker option { background: var(--b-menu); color: var(--b-text); }
 body[data-sb-launcher="toolbar"] #look-sb-title { display: none; }
 body[data-sb-side] #look-sb-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-body[data-sb-side] :is(#look-sb-max, #look-sb-close) {
+body[data-sb-side] :is(#look-sb-max, #look-sb-close, #look-sb-add) {
   display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0;
   background: transparent; color: var(--b-icon); border: none; border-radius: var(--b-close-radius, 50%); cursor: pointer;
 }
-body[data-sb-side] #look-sb-max { margin-left: auto; }
-body[data-sb-side] :is(#look-sb-max, #look-sb-close):hover { background: var(--b-btn-hover); color: var(--b-text); }
+body[data-sb-side] :is(#look-sb-max, #look-sb-close, #look-sb-add):hover { background: var(--b-btn-hover); color: var(--b-text); }
+body[data-sb-side] #look-sb-add[hidden] { display: none; }
+/* A second panel beside this one (SidebarManager.openBeside): the + offers
+   the other panels; the chip names the one beside and takes it away. */
+body[data-sb-side] #look-sb-beside {
+  display: inline-flex; align-items: center; gap: 5px; flex: none; height: 22px; padding: 0 7px; max-width: 40%;
+  background: var(--b-btn-hover); color: var(--b-text); border: none; border-radius: var(--b-btn-radius); cursor: pointer;
+  font: 600 12px var(--b-font); white-space: nowrap; overflow: hidden;
+}
+body[data-sb-side] #look-sb-beside[hidden] { display: none; }
+body[data-sb-side] #look-sb-beside:hover { color: var(--b-accent); }
 /* Settings already fills the page area: nothing to maximize. */
 body[data-sb-side][data-sidebar-panel="settings"] #look-sb-max { display: none; }
 
 /* A web panel's back / forward / reload (sidebar.js) sit in the header here
    rather than taking a strip of the panel - or floating over the site's own
    top-left buttons, where they used to cover Claude's sidebar toggle. */
-body[data-sb-side] #look-sb-nav { display: flex; flex: none; }
+/* The nav slot pushes the right-hand controls (chip, +, maximize, close) over. */
+body[data-sb-side] #look-sb-nav { display: flex; flex: none; margin-right: auto; }
 body[data-sb-side] #look-sb-nav > .panel-navbar {
   position: static; height: auto; padding: 0; gap: 2px; background: transparent; border: none;
 }
@@ -537,9 +547,12 @@ body[data-sb-side][data-sidebar-max] #look-sb-resize { display: none; }
    header spans both, and they share the whole page area half each; a 420px
    sidebar split in two is no use, so this is always the full area. */
 body[data-sb-side][data-sidebar-panel] #panels-container[data-split] {
-  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto minmax(0, 1fr);
+  display: grid; grid-template-columns: var(--sb-split, 50%) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
   position: absolute; inset: 0; width: auto; border: none;
 }
+/* The divider (app.css) starts below the header here. */
+body[data-sb-side] #panels-container[data-split] > #sb-split-grip { top: 36px; }
+body[data-sb-side] #panels-container[data-split] > #sb-split-grip:hover { background: var(--b-btn-hover); }
 body[data-sb-side] #panels-container[data-split] #look-sb-head { grid-column: 1 / -1; }
 body[data-sb-side] #panels-container[data-split] .panel { min-width: 0; }
 body[data-sb-side] #panels-container[data-split] .panel.sb-primary { order: 1; }
