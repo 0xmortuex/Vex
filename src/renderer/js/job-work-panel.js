@@ -55,14 +55,27 @@ const WorkPanel = {
           <div class="wp-tools" id="wp-tools"></div>
         </section>
 
+        <section class="wp-section" id="wp-reminders-section" hidden>
+          <div class="wp-section-head">
+            For this job <span class="wp-section-count" id="wp-reminders-count"></span>
+            <button class="wp-section-action" id="wp-remind">Remind me</button>
+          </div>
+          <div class="wp-tools" id="wp-reminders"></div>
+        </section>
+
         <section class="wp-section">
           <div class="wp-section-head">Quick actions</div>
           <div class="wp-actions">
             <button class="wp-act" data-act="toolbox"><span class="wp-act-icon">${this._icon('toolbox', 15)}</span>Open the full Toolbox</button>
             <button class="wp-act" data-act="note"><span class="wp-act-icon">${this._icon('note', 15)}</span>Sticky note for this page</button>
+            <button class="wp-act" data-act="review"><span class="wp-act-icon">${this._icon('clipboard', 15)}</span>Weekly review</button>
           </div>
         </section>
       </div>`;
+
+    // Reminders set while this job was active. They live in the main process
+    // and carry the job id, so a personal reminder never shows up here.
+    this._renderJobReminders(container, jobId);
 
     const list = container.querySelector('#wp-tools');
     if (!tools.length) {
@@ -95,8 +108,37 @@ const WorkPanel = {
       try {
         if (a === 'toolbox') { window.Toolbox && Toolbox.open(); }
         else if (a === 'note') { window.StickyNotes && StickyNotes.open(); }
+        else if (a === 'review') { if (typeof VexReview === 'undefined') throw new Error('The weekly review is not available'); VexReview.open(); }
       } catch (err) { window.showToast?.('That did not open: ' + ((err && err.message) || ''), 'error'); }
     }));
+    container.querySelector('#wp-remind')?.addEventListener('click', () => {
+      if (typeof VexQuickReminder === 'undefined') { window.showToast?.('Reminders are not available in this build', 'error'); return; }
+      VexQuickReminder.open();
+    });
+  },
+
+  async _renderJobReminders(container, jobId) {
+    const sec = container.querySelector('#wp-reminders-section');
+    const list = container.querySelector('#wp-reminders');
+    const b = window.vex && window.vex.reminders;
+    if (!sec || !list || !b || typeof b.list !== 'function') return;
+    let mine = [];
+    try { mine = (await b.list()).filter(r => !r.firedAt && r.job === jobId && r.kind !== 'review').sort((x, y) => (x.at == null ? Infinity : x.at) - (y.at == null ? Infinity : y.at)); }
+    catch (err) { window.showToast?.('Could not read reminders: ' + ((err && err.message) || ''), 'error'); return; }
+    sec.hidden = !mine.length;
+    container.querySelector('#wp-reminders-count').textContent = mine.length ? String(mine.length) : '';
+    list.innerHTML = '';
+    for (const r of mine.slice(0, 6)) {
+      const row = document.createElement('button');
+      row.className = 'wp-tool';
+      row.innerHTML = `<span class="wp-tool-icon">${this._icon(r.kind === 'alarm' ? 'alarm' : 'bell', 14)}</span>
+        <span class="wp-tool-text"><span class="wp-tool-name"></span><span class="wp-tool-desc"></span></span>`;
+      row.querySelector('.wp-tool-name').textContent = r.message;
+      row.querySelector('.wp-tool-desc').textContent = r.site ? 'Next time you open ' + r.site
+        : (window.VexQuickReminder ? VexQuickReminder.describe(new Date(r.at)).split(' — ')[0] : new Date(r.at).toLocaleString());
+      row.addEventListener('click', () => { if (window.VexQuickReminder) VexQuickReminder.showCard(r.id); });
+      list.appendChild(row);
+    }
   },
 
   // Not set up yet — a clear way into the existing picker.

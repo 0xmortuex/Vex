@@ -268,9 +268,13 @@ contextBridge.exposeInMainWorld('vex', {
     delete: (id) => ipcRenderer.invoke('reminders:delete', id),
     visited: (host) => ipcRenderer.invoke('reminders:visited', host),
     ack: (id) => ipcRenderer.invoke('reminders:ack', id),
+    // Reminders that arrived through Vex Sync from another machine.
+    import: (items) => ipcRenderer.invoke('reminders:import', items),
     hold: (untilMs) => ipcRenderer.invoke('reminders:hold', untilMs),
     onFired: (cb) => subscribe('reminders:fired', cb),
     onClicked: (cb) => subscribe('reminders:clicked', cb),
+    // A Snooze button on the Windows toast was pressed (handled in main).
+    onSnoozed: (cb) => subscribe('reminders:snoozed', cb),
   },
   // Save a small text file where the user chooses (a calendar entry, an export).
   saveTextFile: (name, text, kind) => ipcRenderer.invoke('file:save-text', { name, text, kind }),

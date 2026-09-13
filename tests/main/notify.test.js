@@ -139,3 +139,30 @@ describe('ensureDevShortcut', () => {
     expect(r.removedStray).toBe(false);
   });
 });
+
+// Buttons on the toast. Electron cannot say which button was pressed, so each
+// launches a vex:// URL that main.js reads from argv.
+describe('toast buttons', () => {
+  it('builds toast XML with Snooze and Open actions that launch vex:// URLs', () => {
+    const { FakeNotification } = fakeNotificationClass();
+    const n = createNotifier({ Notification: FakeNotification, iconPath: 'C:\\x\\icon.ico' });
+    const xml = n.toastXml({ title: 'Reminder', body: 'Call <Dana> & co', tag: 'rabc', iconPath: 'C:\\x\\icon.ico' });
+    expect(xml).toContain('<action content="Snooze 9 min" activationType="protocol" arguments="vex://snooze/rabc"/>');
+    expect(xml).toContain('<action content="Open" activationType="protocol" arguments="vex://open/rabc"/>');
+    expect(xml).toContain('launch="vex://open/rabc"');
+    expect(xml).toContain('<text>Call &lt;Dana&gt; &amp; co</text>');
+    expect(xml).toContain('src="C:\\x\\icon.ico"');
+  });
+
+  it('only attaches the XML on Windows, for a safe tag, when asked', async () => {
+    const { FakeNotification, instances } = fakeNotificationClass();
+    const n = createNotifier({ Notification: FakeNotification });
+    await n.show({ title: 'a', tag: 'r1', actions: true });
+    await n.show({ title: 'b', tag: 'r1' });
+    await n.show({ title: 'c', tag: 'bad tag!', actions: true });
+    const onWindows = process.platform === 'win32';
+    expect(!!instances[0].opts.toastXml).toBe(onWindows);
+    expect(instances[1].opts.toastXml).toBeUndefined();
+    expect(instances[2].opts.toastXml).toBeUndefined();
+  });
+});

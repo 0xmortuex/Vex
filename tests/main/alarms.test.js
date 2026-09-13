@@ -90,4 +90,17 @@ describe('an alarm', () => {
     const { r } = await make();
     await expect(r.ack('nope')).rejects.toThrow(/no longer exists/);
   });
+
+  it('snooze acknowledges it and sets a copy nine minutes out, keeping kind, sound and page', async () => {
+    const { r, time, shown } = await make();
+    const a = await r.create({ message: 'Wake up', at: T0 + 2 * 60000, kind: 'alarm', sound: true, url: 'https://x.com/', job: 'dev' });
+    await time.advance(3 * 60000);
+    expect(shown).toHaveLength(1);
+    const copy = await r.snooze(a.id, 9 * 60000);
+    expect(copy).toMatchObject({ message: 'Wake up', kind: 'alarm', sound: true, url: 'https://x.com/', job: 'dev', urgent: true });
+    expect(copy.at).toBe(time.now() + 9 * 60000);
+    expect((await r.list()).find(x => x.id === a.id).ackedAt).toBe(time.now());
+    await time.advance(10 * 60000);
+    expect(shown).toHaveLength(2);
+  });
 });

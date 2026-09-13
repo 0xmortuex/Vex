@@ -50,6 +50,10 @@ const SyncEngine = (() => {
     'vex.userShortcuts',
     // Tab layout (horizontal vs vertical)
     'vex.tabLayout',
+    // Reminders and alarms. The main process owns them (reminders.json); the
+    // renderer mirrors the list here so it travels, and imports what arrives
+    // (js/quick-reminder.js). Only the machine that set one wakes Windows for it.
+    'vex.reminders',
     'vex-theme'
   ];
 

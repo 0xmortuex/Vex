@@ -18,7 +18,23 @@ const VexClock = {
   KEY_TIMERS: 'vex.clock.timers',
   KEY_CITIES: 'vex.clock.cities',
   KEY_STOPWATCH: 'vex.clock.stopwatch',
+  KEY_SOUND: 'vex.clock.sound',
   SNOOZE_MIN: 9,
+
+  // How an alarm sounds. `tone` picks a pattern, `volume` 0–1, `mode` is
+  // insistent (every second) or gentle (once, then every 30 s).
+  TONES: {
+    classic: { label: 'Classic', notes: [[988, 0, 0.09], [988, 0.14, 0.09], [988, 0.28, 0.09], [988, 0.42, 0.09]], every: 1000 },
+    chime:   { label: 'Chime', notes: [[659, 0, 0.35], [880, 0.3, 0.35], [1047, 0.6, 0.6]], every: 1600 },
+    pulse:   { label: 'Pulse', notes: [[440, 0, 0.25], [440, 0.5, 0.25]], every: 1000 },
+    soft:    { label: 'Soft', notes: [[523, 0, 0.5], [659, 0.55, 0.5]], every: 2200 },
+  },
+  soundPrefs() {
+    const d = { tone: 'classic', volume: 0.6, mode: 'insistent' };
+    try { const s = JSON.parse(localStorage.getItem(this.KEY_SOUND) || 'null'); if (s && typeof s === 'object') return { tone: this.TONES[s.tone] ? s.tone : d.tone, volume: Math.min(1, Math.max(0.05, Number(s.volume) || d.volume)), mode: s.mode === 'gentle' ? 'gentle' : 'insistent' }; } catch { /* defaults */ }
+    return d;
+  },
+  saveSoundPrefs(p) { try { localStorage.setItem(this.KEY_SOUND, JSON.stringify(p)); return true; } catch { return false; } },
 
   // City → IANA zone. Enough for the cities people actually name; anything
   // else can be typed as an IANA zone directly ("Asia/Tokyo").
@@ -93,26 +109,37 @@ const VexClock = {
   _ringTimer: null,
   _ringing: null,
 
-  _beep(ctx, at, freq, dur) {
+  _beep(ctx, at, freq, dur, volume) {
     const o = ctx.createOscillator(), g = ctx.createGain();
+    const peak = Math.max(0.01, Math.min(1, volume == null ? 0.4 : volume * 0.7));
     o.type = 'sine'; o.frequency.value = freq;
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.4, at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
     o.connect(g).connect(ctx.destination); o.start(at); o.stop(at + dur + 0.02);
+  },
+
+  // Play the chosen tone once — a preview, or one round of the ring.
+  playTone(name, volume) {
+    try { this._audio = this._audio || new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (err) { throw new Error('Could not play the sound: ' + ((err && err.message) || '')); }
+    const ctx = this._audio;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    const t = ctx.currentTime;
+    if (name === 'timer') { this._beep(ctx, t, 880, 0.12, volume); this._beep(ctx, t + 0.18, 880, 0.12, volume); this._beep(ctx, t + 0.36, 1175, 0.2, volume); return 1200; }
+    const tone = this.TONES[name] || this.TONES.classic;
+    for (const [f, off, dur] of tone.notes) this._beep(ctx, t + off, f, dur, volume);
+    return tone.every;
   },
 
   startSound(kind) {
     this.stopSound();
-    try { this._audio = this._audio || new (window.AudioContext || window.webkitAudioContext)(); }
-    catch (err) { window.showToast?.('Could not play the alarm sound: ' + ((err && err.message) || ''), 'error'); return false; }
-    const ctx = this._audio;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    const pattern = () => {
-      const t = ctx.currentTime;
-      if (kind === 'timer') { this._beep(ctx, t, 880, 0.12); this._beep(ctx, t + 0.18, 880, 0.12); this._beep(ctx, t + 0.36, 1175, 0.2); }
-      else { this._beep(ctx, t, 988, 0.09); this._beep(ctx, t + 0.14, 988, 0.09); this._beep(ctx, t + 0.28, 988, 0.09); this._beep(ctx, t + 0.42, 988, 0.09); }
-    };
-    pattern();
-    this._ringTimer = setInterval(pattern, kind === 'timer' ? 1200 : 1000);
+    const prefs = this.soundPrefs();
+    let every;
+    try { every = this.playTone(kind === 'timer' ? 'timer' : prefs.tone, prefs.volume); }
+    catch (err) { window.showToast?.((err && err.message) || 'Could not play the alarm sound', 'error'); return false; }
+    // Insistent repeats the pattern back to back; gentle rings once, then
+    // every thirty seconds until dismissed.
+    const gap = prefs.mode === 'gentle' && kind !== 'timer' ? 30000 : every;
+    this._ringTimer = setInterval(() => { try { this.playTone(kind === 'timer' ? 'timer' : prefs.tone, prefs.volume); } catch { /* already reported */ } }, gap);
     return true;
   },
 
@@ -349,7 +376,34 @@ const VexClock = {
         <div class="ck-days" id="ck-alarm-days">${days.map((d, i) => `<label class="ck-day"><input type="checkbox" value="${i}" ${i >= 1 && i <= 5 ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div>
         <div class="ck-row ck-row-end"><span class="ck-hint">Rings until dismissed, even if Vex was closed — Windows wakes it.</span><button class="qr-btn qr-primary" type="submit">Add alarm</button></div>
       </form>
-      <div class="ck-list" id="ck-alarm-list"></div>`;
+      <div class="ck-list" id="ck-alarm-list"></div>
+      <div class="ck-form ck-sound" id="ck-sound">
+        <div class="ck-sound-head">Sound</div>
+        <div class="ck-row">
+          <label class="ck-hint" for="ck-tone">Tone</label>
+          <select id="ck-tone" class="ck-input ck-select-short">${Object.entries(this.TONES).map(([k, t]) => `<option value="${k}">${t.label}</option>`).join('')}</select>
+          <label class="ck-hint" for="ck-volume">Volume</label>
+          <input type="range" id="ck-volume" min="0.05" max="1" step="0.05">
+          <button type="button" class="qr-btn ck-mini" id="ck-preview">Preview</button>
+        </div>
+        <div class="ck-row">
+          <label class="ck-check"><input type="radio" name="ck-mode" value="insistent"> Insistent — keeps ringing</label>
+          <label class="ck-check"><input type="radio" name="ck-mode" value="gentle"> Gentle — once, then every 30 s</label>
+        </div>
+      </div>`;
+    {
+      const prefs = this.soundPrefs();
+      const tone = body.querySelector('#ck-tone'), vol = body.querySelector('#ck-volume');
+      tone.value = prefs.tone; vol.value = prefs.volume;
+      body.querySelector(`input[name="ck-mode"][value="${prefs.mode}"]`).checked = true;
+      const save = () => {
+        const p = { tone: tone.value, volume: Number(vol.value), mode: body.querySelector('input[name="ck-mode"]:checked').value };
+        if (!this.saveSoundPrefs(p)) window.showToast?.('Could not save the sound choice — it resets on restart', 'error');
+      };
+      tone.addEventListener('change', save); vol.addEventListener('change', save);
+      body.querySelectorAll('input[name="ck-mode"]').forEach(r => r.addEventListener('change', save));
+      body.querySelector('#ck-preview').addEventListener('click', () => { try { this.playTone(tone.value, Number(vol.value)); } catch (err) { window.showToast?.((err && err.message) || 'Could not play the sound', 'error'); } });
+    }
     const list = body.querySelector('#ck-alarm-list');
     const paint = async () => {
       if (!b) { list.innerHTML = '<div class="ck-empty">Alarms are not available in this build.</div>'; return; }
@@ -380,7 +434,8 @@ const VexClock = {
       const now = new Date();
       const first = (() => { const d = new Date(now); d.setHours(hh, mm, 0, 0); const allowed = chosen.length ? chosen : [0, 1, 2, 3, 4, 5, 6]; if (d.getTime() <= now.getTime() + 60000 || !allowed.includes(d.getDay())) { do { d.setDate(d.getDate() + 1); } while (!allowed.includes(d.getDay())); } return d.getTime(); })();
       try {
-        const r = await b.create(label, first, { kind: 'alarm', sound: true, urgent: true, ...(chosen.length ? { repeat: chosen } : {}) });
+        const job = (typeof JobProfiles !== 'undefined' && JobProfiles.current) ? JobProfiles.current() : null;
+        const r = await b.create(label, first, { kind: 'alarm', sound: true, urgent: true, ...(chosen.length ? { repeat: chosen } : {}), ...(job ? { job } : {}) });
         window.showToast?.('Alarm set — ' + (window.VexQuickReminder ? VexQuickReminder.describe(new Date(r.at)) : new Date(r.at).toLocaleString()));
         if (!r.os || !r.os.scheduled) window.showToast?.('It will ring while Vex is running' + (r.os && r.os.error ? ' — Windows will not wake Vex for it: ' + r.os.error : ''), 'error');
         body.querySelector('#ck-alarm-label').value = '';

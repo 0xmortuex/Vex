@@ -27,6 +27,13 @@ if (process.platform !== 'win32') { console.log('verify-reminders: Windows only'
 
 const closed = process.argv.includes('--closed');
 const root = path.resolve(__dirname, '..');
+// --exe <path> drives an installed Vex.exe instead of the source tree: the
+// packaged app differs in exactly the ways that matter here — Vex.exe is the
+// Task Scheduler action, the icon lives inside the asar, and the Start Menu
+// shortcut is the toast identity.
+const exeArg = (() => { const i = process.argv.indexOf('--exe'); return i > -1 ? process.argv[i + 1] : null; })();
+const exe = exeArg || require(path.join(root, 'node_modules/electron'));
+const launchArgs = exeArg ? [] : ['.'];
 const CDP = 9571;
 const udd = path.join(os.tmpdir(), 'vex-verify-reminders-' + Date.now());
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -43,11 +50,11 @@ const step = (name, ok, detail) => { steps.push({ name, ok, detail }); console.l
 
 let child;
 (async () => {
-  child = spawn(require(path.join(root, 'node_modules/electron')), ['.', `--user-data-dir=${udd}`, `--remote-debugging-port=${CDP}`],
+  child = spawn(exe, [...launchArgs, `--user-data-dir=${udd}`, `--remote-debugging-port=${CDP}`],
     { cwd: root, env: { ...process.env, VEX_SKIP_VMP_VERIFY: '1' }, stdio: 'ignore' });
   let t = null;
   for (let i = 0; i < 60 && !t; i++) { await sleep(1000); try { t = (await get(`http://127.0.0.1:${CDP}/json/list`)).find(x => /renderer\/index\.html/.test((x.url || '').split('?')[0])); } catch {} }
-  step('Vex boots from source', !!t);
+  step(exeArg ? 'Vex boots from ' + exeArg : 'Vex boots from source', !!t);
 
   const ws = new WebSocket(t.webSocketDebuggerUrl);
   await new Promise(r => ws.addEventListener('open', r));

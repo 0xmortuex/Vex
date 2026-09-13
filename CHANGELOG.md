@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.31.73 (2026-09-13) — Sentences in Ctrl+K, snooze on the toast, a weekly review, reminders that follow you
+
+### Notes
+- **Plain sentences in the command bar.** Type "remind me to call Dana tomorrow 9am", "timer 25 min tea", "alarm 7am weekdays", "what time is it in Tokyo" or "stopwatch" into Ctrl+K and press Enter. No panel.
+- **Snooze from the notification.** A reminder's Windows toast now has Snooze 9 min and Open buttons. Each launches a vex:// link that Vex reads — it works even after the toast has sat in Action Center.
+- **A weekly review.** Every Friday at five a reminder opens one honest card: what fired, what got snoozed, what you saved and never read, which watched pages changed, which tools you used. Also under Ctrl+K → Weekly review and in the Work panel.
+- **Reminders follow you.** With Vex Sync on, a reminder set on one machine rings on the others while they are open. Only the machine that set it wakes Windows for it, and one that fired anywhere never fires twice. Nothing is deleted by a sync.
+- **Alarm tone and volume**, with a preview: four tones, a slider, and insistent or gentle (once, then every thirty seconds).
+- **Work, apart from the rest.** Reminders and alarms carry the job they were set under; Today marks them and the Work panel lists what is set for this job.
+- **The new tab's Recent list shows real visits.** It had been a placeholder since it was added.
+- `scripts/verify-reminders.js --exe <path>` drives an installed Vex.exe. Ran it against the installed 2.31.72 with Vex closed: Windows launched Vex.exe and the toast was delivered at 17:47:00.9 — the packaged path, confirmed.
+
 ## v2.31.72 (2026-09-13) — A Clock: alarms, timers, stopwatch, world clock
 
 ### Notes

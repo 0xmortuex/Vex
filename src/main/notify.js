@@ -38,10 +38,26 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
     try { return Notification.isSupported(); } catch { return false; }
   }
 
+  // Windows toasts can carry buttons. Electron does not report which button
+  // was pressed, so each one launches a vex:// URL instead: Windows starts (or
+  // signals) Vex with it, and main.js reads the action from argv. That works
+  // even after the toast has sat in Action Center for an hour.
+  const xmlEsc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  function toastXml({ title, body, tag, iconPath: img }) {
+    const image = img ? `<image placement="appLogoOverride" src="${xmlEsc(img)}"/>` : '';
+    return `<toast scenario="reminder" activationType="protocol" launch="vex://open/${xmlEsc(tag)}">
+  <visual><binding template="ToastGeneric">${image}<text>${xmlEsc(title)}</text><text>${xmlEsc(body)}</text></binding></visual>
+  <actions>
+    <action content="Snooze 9 min" activationType="protocol" arguments="vex://snooze/${xmlEsc(tag)}"/>
+    <action content="Open" activationType="protocol" arguments="vex://open/${xmlEsc(tag)}"/>
+  </actions>
+</toast>`;
+  }
+
   // Resolves when the OS has actually shown the toast. Rejects with the OS's
   // reason when it refused, and after a timeout when it said nothing at all —
   // both are failures the caller must be able to report.
-  function show({ title, body, silent = false, tag } = {}) {
+  function show({ title, body, silent = false, tag, actions = false } = {}) {
     const heading = String(title || '').trim();
     if (!heading) return Promise.reject(new Error('A notification needs a title'));
     if (!isSupported()) return Promise.reject(new Error('This system does not support desktop notifications'));
@@ -58,6 +74,11 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
       try {
         const opts = { title: heading, body: String(body || ''), silent: !!silent };
         if (icon) opts.icon = icon;
+        // Buttons need the raw toast XML, which replaces everything above on
+        // Windows; the tag is what the buttons carry back.
+        if (actions && tag && process.platform === 'win32' && /^[A-Za-z0-9_-]{1,64}$/.test(String(tag))) {
+          opts.toastXml = toastXml({ title: heading, body: String(body || ''), tag, iconPath });
+        }
         n = new Notification(opts);
       } catch (err) {
         return settle(reject, err);
@@ -74,7 +95,7 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
     });
   }
 
-  return { show, isSupported };
+  return { show, isSupported, toastXml };
 }
 
 // A Start Menu shortcut for the development binary.

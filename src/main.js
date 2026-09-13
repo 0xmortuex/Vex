@@ -434,6 +434,8 @@ if (!gotTheLock) {
     console.log('[Vex URL] second-instance fired.');
     console.log('[Vex URL]   commandLine:', JSON.stringify(commandLine));
     console.log('[Vex URL]   workingDirectory:', workingDirectory);
+    // A Snooze / Open button on a reminder's toast arrives as vex://…
+    if (commandLine.some(a => handleVexAction(a))) return;
     // Windows Task Scheduler launching Vex for a reminder while it is already
     // running lands here. The in-process timer normally fired it already; a
     // due-check is idempotent, and the window comes forward either way.
@@ -466,10 +468,14 @@ if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient('http', process.execPath, [path.resolve(process.argv[1])]);
     app.setAsDefaultProtocolClient('https', process.execPath, [path.resolve(process.argv[1])]);
+    // vex:// is what the buttons on a reminder's Windows toast launch (see
+    // handleVexAction); registering it is what makes them reach Vex.
+    app.setAsDefaultProtocolClient('vex', process.execPath, [path.resolve(process.argv[1])]);
   }
 } else {
   app.setAsDefaultProtocolClient('http');
   app.setAsDefaultProtocolClient('https');
+  app.setAsDefaultProtocolClient('vex');
 }
 
 // macOS open-url event
@@ -4196,6 +4202,29 @@ function focusMainWindow() {
   } catch (err) { console.error('[Reminders] could not focus the window:', err.message); }
 }
 
+// A button on a Windows toast reaches Vex as a vex:// URL in argv — on a cold
+// start, or through second-instance when Vex is already running. Returns true
+// when the argument was one of ours.
+//   vex://snooze/<id>   push the reminder back nine minutes
+//   vex://open/<id>     open it in the interface
+function handleVexAction(arg) {
+  const m = /^vex:\/\/(snooze|open)\/([A-Za-z0-9_-]{1,64})\/?$/.exec(String(arg || ''));
+  if (!m) return false;
+  const [, action, id] = m;
+  focusMainWindow();
+  const send = (channel, payload) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload); } catch {} };
+  if (!reminders) { console.error('[Reminders] toast action before reminders started:', arg); return true; }
+  if (action === 'snooze') {
+    reminders.snooze(id, 9 * 60 * 1000)
+      .then(copy => { console.log(`[Reminders] snoozed ${id} from the toast → ${copy.id}`); send('reminders:snoozed', { id, copy }); })
+      .catch(err => { console.error('[Reminders] snooze from toast failed:', err.message); send('reminders:snoozed', { id, error: err.message }); });
+  } else {
+    reminders.ack(id).catch(() => {});
+    send('reminders:clicked', { id });
+  }
+  return true;
+}
+
 const notifier = require('./main/notify').createNotifier({
   Notification, nativeImage,
   iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
@@ -4250,7 +4279,9 @@ function startReminders() {
       if (payload.delivered === 'failed') focusMainWindow();
     },
   });
-  reminders.init().catch(err => console.error('[Reminders] failed to start:', err.message));
+  reminders.init()
+    .then(() => { for (const a of process.argv) handleVexAction(a); })
+    .catch(err => console.error('[Reminders] failed to start:', err.message));
   if (process.argv.some(a => /^--reminder=/.test(a))) console.log('[Reminders] launched by the OS for a reminder');
 }
 
@@ -4275,6 +4306,11 @@ ipcMain.handle('reminders:delete', async (_e, id) => {
 ipcMain.handle('reminders:visited', async (_e, host) => {
   if (!reminders) throw new Error('Reminders have not started yet');
   return reminders.visited(host);
+});
+// Reminders carried in by Vex Sync from another machine.
+ipcMain.handle('reminders:import', async (_e, items) => {
+  if (!reminders) throw new Error('Reminders have not started yet');
+  return reminders.importList(items);
 });
 // An alarm's ringing was dismissed.
 ipcMain.handle('reminders:ack', async (_e, id) => {

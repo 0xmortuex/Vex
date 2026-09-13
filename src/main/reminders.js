@@ -21,7 +21,7 @@ const MAX_MESSAGE = 2000;
 const CHECK_MS = 60 * 1000;      // how often the safety-net check runs
 const MIN_LEAD_MS = 60 * 1000;   // reminders are set to the minute
 const REPEATS = ['daily', 'weekdays', 'weekly'];
-const KINDS = ['reminder', 'alarm', 'timer'];
+const KINDS = ['reminder', 'alarm', 'timer', 'review'];
 
 const pad = (n) => String(n).padStart(2, '0');
 const hhmm = (ms) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -116,6 +116,8 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
 
   async function registerOs(r) {
     if (!(osScheduler && osScheduler.supported) || r.at == null) return;
+    // Another machine set this one; it wakes for it, this one does not.
+    if (isForeign(r)) { r.os = { scheduled: false, error: null, kind: 'foreign' }; return; }
     try { await osScheduler.register(r.id, new Date(r.at)); r.os = { scheduled: true, error: null }; }
     catch (err) { r.os = { scheduled: false, error: err.message }; }
   }
@@ -137,7 +139,9 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
 
     const body = (late && wasDueAt != null ? `Due ${hhmm(wasDueAt)} — ` : '') + r.message;
     try {
-      await notifier.show({ title: r.urgent ? 'Reminder — urgent' : 'Reminder', body, tag: r.id });
+      // Reminders and alarms get Snooze / Open buttons on the toast itself;
+      // a timer or the weekly review has nothing to snooze.
+      await notifier.show({ title: r.kind === 'alarm' ? 'Alarm' : (r.urgent ? 'Reminder — urgent' : 'Reminder'), body, tag: r.id, actions: r.kind !== 'timer' && r.kind !== 'review' });
       r.delivered = 'toast';
       note(`[Reminders] fired ${r.id}${late ? ' (late)' : ''}${r.repeat ? ' (repeats ' + r.repeat + ')' : ''}`);
     } catch (err) {
@@ -159,6 +163,21 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
   // While a focus session runs, reminders wait — unless marked urgent — and
   // fire as a batch when it ends. The renderer sets and clears this.
   let holdUntil = 0;
+
+  // Which installation set a reminder. Vex Sync carries reminders between
+  // machines; every machine fires them while it is open, but only the one
+  // that set a reminder asks Windows to wake it — otherwise two machines
+  // would both come up for the same thing.
+  let installId = null;
+  async function loadInstallId() {
+    if (installId) return installId;
+    const meta = await store.read('reminders_meta');
+    if (meta && typeof meta.installId === 'string' && meta.installId) { installId = meta.installId; return installId; }
+    installId = 'i' + now().toString(36) + Math.random().toString(36).slice(2, 10);
+    await store.write('reminders_meta', { installId });
+    return installId;
+  }
+  const isForeign = (r) => !!(r.owner && installId && r.owner !== installId);
 
   async function fireDue() {
     await load();
@@ -183,6 +202,7 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
 
     async init() {
       await load();
+      await loadInstallId();
       // Prune what has been fired and is old enough that nobody will ask.
       const keep = items.filter(r => !r.firedAt || now() - r.firedAt < 7 * 24 * 3600 * 1000);
       if (keep.length !== items.length) { items = keep; await persist(); }
@@ -204,7 +224,7 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
     // `kind` is reminder (default), alarm or timer — the clock panel's items
     // are reminders with a sound and, for alarms, a set of days. `repeat` is
     // daily | weekdays | weekly, or an array of weekdays for an alarm.
-    async create({ message, at, url, repeat, site, urgent, kind, sound }) {
+    async create({ message, at, url, repeat, site, urgent, kind, sound, job }) {
       await load();
       const text = String(message || '').trim();
       if (!text) throw new Error('Write what you want to be reminded of.');
@@ -243,6 +263,8 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
         urgent: !!urgent,
         kind: kind || 'reminder',
         sound: !!sound,
+        job: job ? String(job).slice(0, 64) : null,
+        owner: installId,
         ackedAt: null,
         createdAt: now(),
         firedAt: null,
@@ -299,6 +321,61 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
       const hits = items.filter(r => !r.firedAt && r.site && (h === r.site || h.endsWith('.' + r.site)));
       for (const r of hits) await fireOne(r);
       return hits.length;
+    },
+
+    installId() { return installId; },
+
+    // Reminders that arrived through Vex Sync from another machine. New ones
+    // are added and fire here while Vex is open, but only their owner wakes
+    // Windows for them. Known ones only learn that they fired or were
+    // dismissed elsewhere, so the same reminder never fires on two machines.
+    // Nothing is ever deleted by an import. Returns what changed.
+    async importList(arrived) {
+      await load();
+      const incoming = Array.isArray(arrived) ? arrived.filter(x => x && typeof x.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(x.id) && typeof x.message === 'string') : [];
+      let added = 0, updated = 0;
+      for (const x of incoming) {
+        const mine = items.find(r => r.id === x.id);
+        if (!mine) {
+          if (x.kind === 'review') continue;                         // each machine has its own
+          if (x.firedAt || (x.at != null && x.at < now() - 7 * 24 * 3600000)) continue;
+          items.push({
+            id: x.id, message: String(x.message).slice(0, MAX_MESSAGE),
+            at: Number.isFinite(x.at) ? x.at : null, site: x.site ? siteKey(x.site) : null,
+            repeat: Array.isArray(x.repeat) ? x.repeat.filter(d => Number.isInteger(d) && d >= 0 && d <= 6) : (REPEATS.includes(x.repeat) ? x.repeat : null),
+            url: typeof x.url === 'string' && /^https?:\/\//.test(x.url) ? x.url : null,
+            urgent: !!x.urgent, kind: KINDS.includes(x.kind) ? x.kind : 'reminder', sound: !!x.sound,
+            job: x.job ? String(x.job).slice(0, 64) : null, owner: x.owner || 'unknown',
+            ackedAt: x.ackedAt || null, createdAt: x.createdAt || now(), firedAt: null, lastFiredAt: x.lastFiredAt || null,
+            delivered: null, error: null, os: { scheduled: false, error: null, kind: 'foreign' },
+          });
+          added++;
+        } else {
+          let changed = false;
+          if (x.firedAt && !mine.firedAt && !mine.repeat) { mine.firedAt = x.firedAt; mine.delivered = mine.delivered || 'elsewhere'; changed = true; }
+          if (x.ackedAt && !mine.ackedAt) { mine.ackedAt = x.ackedAt; changed = true; }
+          if (mine.repeat && Number.isFinite(x.at) && x.at > mine.at) { mine.at = x.at; changed = true; }   // the owner already moved it on
+          if (changed) updated++;
+        }
+      }
+      if (added || updated) { await persist(); arm(); }
+      note(`[Reminders] import: ${added} added, ${updated} updated of ${incoming.length}`);
+      return { added, updated };
+    },
+
+    // Push a fired reminder back by `ms`: it is acknowledged, and a copy with
+    // the same text, kind, sound, page and job is set for later. Used by the
+    // Snooze button on the Windows toast, which reaches Vex as vex://snooze/<id>.
+    async snooze(id, ms) {
+      await load();
+      const r = items.find(x => x.id === id);
+      if (!r) throw new Error('That reminder no longer exists.');
+      const delay = Math.max(MIN_LEAD_MS, Number(ms) || 0);
+      r.ackedAt = now();
+      await persist();
+      const copy = await this.create({ message: r.message, at: now() + delay, url: r.url || undefined, urgent: true, kind: r.kind === 'review' ? 'reminder' : r.kind, sound: !!r.sound, job: r.job || undefined });
+      note(`[Reminders] snoozed ${id} → ${copy.id} in ${Math.round(delay / 60000)} min`);
+      return copy;
     },
 
     // The person dismissed an alarm's ringing (or any fired item). Recorded so

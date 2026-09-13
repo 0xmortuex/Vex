@@ -307,15 +307,21 @@ const VexQuickReminder = {
     if (extra && extra.url) opts.url = String(extra.url);
     if (extra && extra.repeat) opts.repeat = String(extra.repeat);
     if (extra && extra.urgent) opts.urgent = true;
+    // Tagged with the job it was set under, so Today can show work apart.
+    try { const job = (typeof JobProfiles !== 'undefined' && JobProfiles.current) ? JobProfiles.current() : null; if (job) opts.job = String(job); } catch { /* no job set */ }
+    let made;
     if (when && typeof when === 'object' && !(when instanceof Date) && when.site) {
-      return this._bridge().create(text, null, { ...opts, site: String(when.site) });
+      made = await this._bridge().create(text, null, { ...opts, site: String(when.site) });
+    } else {
+      if (!(when instanceof Date) || Number.isNaN(when.getTime())) throw new Error('That is not a real time.');
+      made = await this._bridge().create(text, when.getTime(), opts);
     }
-    if (!(when instanceof Date) || Number.isNaN(when.getTime())) throw new Error('That is not a real time.');
-    return this._bridge().create(text, when.getTime(), opts);
+    this._mirror();
+    return made;
   },
 
   async list() { return this._bridge().list(); },
-  async remove(id) { return this._bridge().delete(id); },
+  async remove(id) { const r = await this._bridge().delete(id); this._mirror(); return r; },
 
   // Called once at startup. The main process shows the desktop toast itself;
   // this mirrors it inside Vex, and when the toast was refused the in-app copy
@@ -327,6 +333,7 @@ const VexQuickReminder = {
       if (!r) return;
       const prefix = r.late ? 'Reminder (was due ' + this._hhmm(r.at) + '): ' : 'Reminder: ';
       window.showToast?.(prefix + r.message);
+      this._mirror();
       if (r.delivered === 'failed') {
         window.showToast?.('The desktop notification did not show: ' + (r.error || 'unknown error'), 'error');
         // The toast was the only copy; open the reminder itself instead.
@@ -335,8 +342,49 @@ const VexQuickReminder = {
     });
     // Clicking the desktop toast opens the reminder in Vex.
     if (typeof b.onClicked === 'function') b.onClicked((p) => { if (p && p.id) this.showCard(p.id); });
+    // The Snooze button on the toast is handled in the main process; this is
+    // the in-app confirmation, or the reason it did not work.
+    if (typeof b.onSnoozed === 'function') b.onSnoozed((p) => {
+      if (!p) return;
+      if (p.error) { window.showToast?.('Could not snooze from the notification: ' + p.error, 'error'); return; }
+      const copy = p.copy || {};
+      window.showToast?.('Snoozed — ' + (copy.at ? this.describe(new Date(copy.at)) : '9 minutes'));
+      if (copy.site == null && copy.at) this._hostsChanged();
+    });
     this._watchSites(b);
+    // Vex Sync carries reminders between machines through a mirror of the
+    // list in localStorage ('vex.reminders'). Written here whenever something
+    // changes; read back when synced data lands, and handed to the main
+    // process, which adds what it has not seen.
+    this._mirror();
+    setInterval(() => this._mirror(), 5 * 60000);
+    window.addEventListener('vex-sync-data-applied', () => this._applySynced());
     return true;
+  },
+
+  MIRROR_KEY: 'vex.reminders',
+  async _mirror() {
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.list !== 'function') return false;
+    try {
+      const list = (await b.list()).map(r => ({ id: r.id, message: r.message, at: r.at, site: r.site, repeat: r.repeat, url: r.url, urgent: r.urgent, kind: r.kind, sound: r.sound, job: r.job, owner: r.owner, ackedAt: r.ackedAt, createdAt: r.createdAt, firedAt: r.firedAt, lastFiredAt: r.lastFiredAt }));
+      localStorage.setItem(this.MIRROR_KEY, JSON.stringify(list));
+      return true;
+    } catch (err) { console.error('[Reminders] could not mirror for sync:', err && err.message); return false; }
+  },
+  async _applySynced() {
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.import !== 'function') return null;
+    let items;
+    try { items = JSON.parse(localStorage.getItem(this.MIRROR_KEY) || '[]'); } catch { return null; }
+    if (!Array.isArray(items) || !items.length) return null;
+    try {
+      const r = await b.import(items);
+      if (r && (r.added || r.updated)) window.showToast?.(`Reminders synced — ${r.added} new, ${r.updated} updated`);
+      this._hostsChanged();
+      await this._mirror();
+      return r;
+    } catch (err) { window.showToast?.('Could not import synced reminders: ' + ((err && err.message) || ''), 'error'); return null; }
   },
 
   // "Next time I open github.com": watch the active tab's host and tell the

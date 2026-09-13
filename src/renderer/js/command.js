@@ -196,6 +196,10 @@ const CommandBar = {
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
     { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
     { id: 'clock', label: 'Clock', hint: 'Alarms, timers, stopwatch and a world clock', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('clock') },
+    { id: 'weekly-review', label: 'Weekly review', hint: 'What fired, what you saved and never read, what changed', icon: 'clipboard', action: () => {
+      if (typeof VexReview === 'undefined') { window.showToast?.('The weekly review is not available in this build', 'error'); return; }
+      VexReview.open();
+    } },
     { id: 'remind', label: 'Remind me', hint: 'Paste a task and be reminded later', icon: 'bell', isPrimary: true, action: () => {
       if (typeof VexQuickReminder === 'undefined') { window.showToast?.('Reminders are not available in this build', 'error'); return; }
       // Any text selected in the interface is almost certainly the task, so it
@@ -292,6 +296,13 @@ const CommandBar = {
     } else {
       // Mix: search + URL + commands
       this.results = [];
+
+      // Plain sentences: "remind me to call Dana tomorrow 9am", "timer 25 min",
+      // "alarm 7am weekdays", "what time is it in Tokyo" (js/quick-commands.js).
+      if (typeof VexQuickCommands !== 'undefined') {
+        try { this.results.push(...VexQuickCommands.results(query)); }
+        catch (err) { console.error('[Command] quick commands failed:', err); }
+      }
 
       // Inline calculator / converter — "12*7", "20cm to in", "10 usd to eur".
       const calc = (typeof VexCalc !== 'undefined') ? VexCalc.evaluate(q) : null;

@@ -1010,6 +1010,8 @@
         document.getElementById('timer-pill')?.addEventListener('click', () => { VexClock._tab = 'timers'; SidebarManager.openPanel('clock'); });
       }
     } catch (e) { console.error('[Clock] init failed:', e); }
+    // The weekly review: a Friday reminder that opens a card (js/weekly-review.js).
+    try { window.VexReview && VexReview.init(); } catch (e) { console.error('[Review] init failed:', e); }
     ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
     // Full screen implies open: switching mode on a closed panel would do
     // nothing visible and look broken.

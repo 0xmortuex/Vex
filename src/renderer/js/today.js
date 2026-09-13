@@ -32,19 +32,33 @@ const VexToday = {
     const now = Date.now();
     const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = startOfDay.getTime() + 24 * 3600 * 1000;
-    const snap = { at: now, reminders: [], tasks: [], changed: [], saved: [], errors: [] };
+    let job = null;
+    try { job = (typeof JobProfiles !== 'undefined' && JobProfiles.current) ? JobProfiles.current() : null; } catch { job = null; }
+    const snap = { at: now, job, reminders: [], tasks: [], changed: [], saved: [], recent: [], errors: [] };
 
     try {
       const b = window.vex && window.vex.reminders;
       if (b && typeof b.list === 'function') {
         const all = await b.list();
         snap.reminders = all
-          .filter(r => !r.firedAt && ((r.at != null && r.at < endOfDay) || r.site))
+          .filter(r => !r.firedAt && r.kind !== 'review' && ((r.at != null && r.at < endOfDay) || r.site))
           .sort((a, c) => (a.at == null ? Infinity : a.at) - (c.at == null ? Infinity : c.at))
           .slice(0, this.MAX_PER_KIND)
-          .map(r => ({ id: r.id, text: r.message, at: r.at, site: r.site || null, url: r.url || null, overdue: r.at != null && r.at < now, repeat: r.repeat || null }));
+          .map(r => ({ id: r.id, text: r.message, at: r.at, site: r.site || null, url: r.url || null, overdue: r.at != null && r.at < now, repeat: r.repeat || null, kind: r.kind || 'reminder', job: r.job || null, forWork: !!(job && r.job === job) }));
       }
     } catch (err) { snap.errors.push('reminders: ' + ((err && err.message) || 'unavailable')); }
+
+    // Pages visited most recently — the new tab page's Recent list, which was
+    // a placeholder nothing ever filled.
+    try {
+      if (typeof HistoryPanel !== 'undefined' && typeof HistoryPanel.list === 'function') {
+        const seen = new Set();
+        snap.recent = HistoryPanel.list()
+          .filter(e => e && e.url && /^https?:/i.test(e.url) && !seen.has(e.url) && seen.add(e.url))
+          .slice(0, 8)
+          .map(e => ({ url: e.url, text: e.title || e.url, at: e.timestamp || e.at || e.visitedAt || null, favicon: e.favicon || null }));
+      }
+    } catch (err) { snap.errors.push('recent pages: ' + ((err && err.message) || 'unavailable')); }
 
     try {
       if (typeof Scheduler !== 'undefined' && Scheduler.getAllTasks) {

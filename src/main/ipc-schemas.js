@@ -52,10 +52,14 @@ define('reminders:create', [shape({
   repeat: optional(value => ['daily', 'weekdays', 'weekly'].includes(value) || weekdayList(value)),
   site: optional(string(253)),
   urgent: optional(boolean),
-  kind: optional(oneOf(['reminder', 'alarm', 'timer'])),
+  kind: optional(oneOf(['reminder', 'alarm', 'timer', 'review'])),
   sound: optional(boolean),
+  // The job profile it was set under, so Today can separate work from the rest.
+  job: optional(string(64)),
 })]);
 define('reminders:ack', [value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)]);
+// Reminders that arrived through Vex Sync; the engine validates each field.
+define('reminders:import', [value => Array.isArray(value) && value.length <= 500 && value.every(object)]);
 define('reminders:list', []);
 define('reminders:delete', [value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)]);
 define('reminders:visited', [string(253)]);

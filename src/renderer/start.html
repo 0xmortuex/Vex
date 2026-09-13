@@ -1372,8 +1372,22 @@
         if (!snap) { sec.hidden = true; return; }
         var rows = [];
         (snap.reminders || []).forEach(function (r) {
-          rows.push(row('Reminder', r.site ? 'on ' + r.site : hhmm(r.at), r.text, r.url, r.overdue ? 'overdue' : ''));
+          var kind = r.forWork ? 'Work' : (r.kind === 'alarm' ? 'Alarm' : r.kind === 'timer' ? 'Timer' : 'Reminder');
+          rows.push(row(kind, r.site ? 'on ' + r.site : hhmm(r.at), r.text, r.url, r.overdue ? 'overdue' : ''));
         });
+        // The Recent section below Today: real visits, newest first.
+        var recentList = document.getElementById('recent-list');
+        if (recentList && snap.recent && snap.recent.length) {
+          recentList.innerHTML = '';
+          snap.recent.forEach(function (p) {
+            var a = document.createElement('a'); a.className = 'recent-item'; a.href = p.url;
+            a.addEventListener('click', function (e) { e.preventDefault(); location.href = p.url; });
+            if (p.favicon && /^(https?:|data:image)/.test(p.favicon)) { var img = document.createElement('img'); img.src = p.favicon; img.alt = ''; a.appendChild(img); }
+            var t = document.createElement('span'); t.className = 'recent-item-title'; t.textContent = p.text; a.appendChild(t);
+            var u = document.createElement('span'); u.className = 'recent-item-url'; u.textContent = p.url.replace(/^https?:\/\//, '').slice(0, 60); a.appendChild(u);
+            recentList.appendChild(a);
+          });
+        }
         (snap.tasks || []).forEach(function (t) { rows.push(row('Scheduled', hhmm(t.at), t.text + (t.action ? ' — ' + t.action : ''), null, '')); });
         (snap.changed || []).forEach(function (c) { rows.push(row('Changed', c.at ? hhmm(c.at) : '', c.text, c.url, '')); });
         (snap.saved || []).forEach(function (s) { rows.push(row('Saved', s.at ? hhmm(s.at) : '', s.text, s.url, '')); });
