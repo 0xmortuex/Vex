@@ -20,9 +20,30 @@
 const MAX_MESSAGE = 2000;
 const CHECK_MS = 60 * 1000;      // how often the safety-net check runs
 const MIN_LEAD_MS = 60 * 1000;   // reminders are set to the minute
+const REPEATS = ['daily', 'weekdays', 'weekly'];
 
 const pad = (n) => String(n).padStart(2, '0');
 const hhmm = (ms) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+// The next occurrence of a repeating reminder, from local wall-clock fields
+// so 09:00 stays 09:00 across a clock change. Always strictly after `after`.
+function nextRepeat(atMs, repeat, after) {
+  const d = new Date(atMs);
+  const step = () => {
+    d.setDate(d.getDate() + (repeat === 'weekly' ? 7 : 1));
+    if (repeat === 'weekdays') while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  };
+  step();
+  while (d.getTime() <= after) step();
+  return d.getTime();
+}
+
+// A host pattern for "next time I open …": the bare host, lower case, no www.
+function siteKey(s) {
+  let h = String(s || '').trim().toLowerCase();
+  try { if (/^[a-z][a-z0-9+.-]*:\/\//.test(h)) h = new URL(h).hostname; } catch { /* keep as typed */ }
+  return h.replace(/^www\./, '').replace(/\/.*$/, '');
+}
 
 function createReminders({ store, notifier, osScheduler, now = () => Date.now(), setTimeout: setT = setTimeout, clearTimeout: clearT = clearTimeout, onFired, log }) {
   if (!store || typeof store.update !== 'function') throw new Error('createReminders needs a JsonStore');
@@ -54,9 +75,10 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
   function arm() {
     if (stopped) return;
     if (timer) { clearT(timer); timer = null; }
-    const pending = (items || []).filter(r => !r.firedAt);
+    const pending = (items || []).filter(r => !r.firedAt && r.at != null);
     if (!pending.length) return;
-    const next = Math.min(...pending.map(r => r.at));
+    // Under a hold, aim at the end of the hold so the batch goes out on time.
+    const next = Math.max(Math.min(...pending.map(r => r.at)), holdUntil);
     const delay = Math.max(0, Math.min(CHECK_MS, next - now()));
     // The callback returns the check's promise. A real setTimeout ignores it;
     // an injected one (tests, a future scheduler) can await the whole chain —
@@ -68,36 +90,65 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
     }, delay);
   }
 
+  // Everything a toast or the interface might want to know about a firing.
+  const payloadOf = (r, late) => ({
+    id: r.id, message: r.message, at: r.at, late, delivered: r.delivered, error: r.error || null,
+    url: r.url || null, site: r.site || null, repeat: r.repeat || null, urgent: !!r.urgent,
+  });
+
+  async function registerOs(r) {
+    if (!(osScheduler && osScheduler.supported) || r.at == null) return;
+    try { await osScheduler.register(r.id, new Date(r.at)); r.os = { scheduled: true, error: null }; }
+    catch (err) { r.os = { scheduled: false, error: err.message }; }
+  }
+
   async function fireOne(r, { late = false } = {}) {
     // Mark first, write first. A crash after this point loses at most one
     // toast; a crash before it could show the same toast on every restart.
-    r.firedAt = now();
+    // A repeating reminder is not "fired" — it moves to its next occurrence.
+    const firedAt = now();
+    const wasDueAt = r.at;
+    if (r.repeat && r.at != null) {
+      r.lastFiredAt = firedAt;
+      r.at = nextRepeat(r.at, r.repeat, firedAt);
+    } else {
+      r.firedAt = firedAt;
+    }
     await persist();
 
-    const body = late ? `Due ${hhmm(r.at)} — ${r.message}` : r.message;
+    const body = (late && wasDueAt != null ? `Due ${hhmm(wasDueAt)} — ` : '') + r.message;
     try {
-      await notifier.show({ title: 'Reminder', body, tag: r.id });
+      await notifier.show({ title: r.urgent ? 'Reminder — urgent' : 'Reminder', body, tag: r.id });
       r.delivered = 'toast';
-      note(`[Reminders] fired ${r.id}${late ? ' (late)' : ''}`);
+      note(`[Reminders] fired ${r.id}${late ? ' (late)' : ''}${r.repeat ? ' (repeats ' + r.repeat + ')' : ''}`);
     } catch (err) {
       r.delivered = 'failed';
       r.error = err.message;
       note(`[Reminders] toast for ${r.id} failed: ${err.message}`);
     }
     await persist();
-    emit({ id: r.id, message: r.message, at: r.at, late, delivered: r.delivered, error: r.error || null });
+    emit(payloadOf({ ...r, at: wasDueAt }, late));
 
-    if (osScheduler && osScheduler.supported) {
+    if (osScheduler && osScheduler.supported && wasDueAt != null) {
       try { await osScheduler.unregister(r.id); }
       catch (err) { note(`[Reminders] could not remove the Windows task for ${r.id}: ${err.message}`); }
+      // The next occurrence needs its own wake-up task.
+      if (r.repeat) { await registerOs(r); await persist(); }
     }
   }
+
+  // While a focus session runs, reminders wait — unless marked urgent — and
+  // fire as a batch when it ends. The renderer sets and clears this.
+  let holdUntil = 0;
 
   async function fireDue() {
     await load();
     const t = now();
-    // Oldest first, so a backlog reads in order.
-    const due = items.filter(r => !r.firedAt && r.at <= t).sort((a, b) => a.at - b.at);
+    const held = t < holdUntil;
+    // Oldest first, so a backlog reads in order. Site reminders have no time.
+    const due = items
+      .filter(r => !r.firedAt && r.at != null && r.at <= t && (!held || r.urgent))
+      .sort((a, b) => a.at - b.at);
     for (const r of due) {
       // "Late" means missed by more than a check interval — Vex was closed or
       // asleep, and the person deserves to know when it was actually due.
@@ -126,21 +177,45 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
       return items.slice().sort((a, b) => a.at - b.at).map(r => ({ ...r }));
     },
 
-    async create({ message, at }) {
+    // A reminder is one of:
+    //   at a time      { message, at }              optionally repeat: daily | weekdays | weekly
+    //   at a site      { message, site }            fires next time a tab opens that host
+    // Either may carry `url` (the page it is about) and `urgent` (fires even
+    // during a focus session).
+    async create({ message, at, url, repeat, site, urgent }) {
       await load();
       const text = String(message || '').trim();
       if (!text) throw new Error('Write what you want to be reminded of.');
       if (text.length > MAX_MESSAGE) throw new Error(`That is longer than ${MAX_MESSAGE} characters.`);
-      const when = Number(at);
-      if (!Number.isFinite(when)) throw new Error('That is not a real time.');
-      if (when - now() < MIN_LEAD_MS) throw new Error('Reminders are set to the minute — choose at least a minute from now.');
+
+      const host = site ? siteKey(site) : '';
+      if (site && !host) throw new Error('Say which site — a host like github.com.');
+      let when = null;
+      if (!host) {
+        when = Number(at);
+        if (!Number.isFinite(when)) throw new Error('That is not a real time.');
+        if (when - now() < MIN_LEAD_MS) throw new Error('Reminders are set to the minute — choose at least a minute from now.');
+        when = Math.floor(when / 60000) * 60000;   // to the minute, matching the OS task
+      }
+      if (repeat != null && repeat !== '' && !REPEATS.includes(repeat)) throw new Error('Repeat must be daily, weekdays or weekly.');
+      if (repeat && host) throw new Error('A site reminder fires when you open the site; it cannot also repeat on a schedule.');
+      let link = '';
+      if (url) {
+        try { const u = new URL(String(url)); if (!/^https?:$/.test(u.protocol)) throw 0; link = u.href; }
+        catch { throw new Error('The page link must be an http or https address.'); }
+      }
 
       const r = {
         id: 'r' + now().toString(36) + Math.random().toString(36).slice(2, 8),
         message: text,
-        at: Math.floor(when / 60000) * 60000,   // to the minute, matching the OS task
+        at: when,
+        site: host || null,
+        repeat: repeat || null,
+        url: link || null,
+        urgent: !!urgent,
         createdAt: now(),
         firedAt: null,
+        lastFiredAt: null,
         delivered: null,
         error: null,
         os: { scheduled: false, error: null },
@@ -149,23 +224,21 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
       await persist();
       arm();
 
-      // The OS task is what makes the reminder survive Vex being closed. If it
-      // cannot be created the reminder still exists here — but the caller is
-      // told, in words, rather than finding out on the day.
-      if (osScheduler && osScheduler.supported) {
-        try {
-          await osScheduler.register(r.id, new Date(r.at));
-          r.os = { scheduled: true, error: null };
-        } catch (err) {
-          r.os = { scheduled: false, error: err.message };
-        }
+      // The OS task is what makes a timed reminder survive Vex being closed.
+      // If it cannot be created the reminder still exists here — but the
+      // caller is told, in words, rather than finding out on the day. A site
+      // reminder has no time, so there is nothing for Windows to wake Vex for.
+      if (host) {
+        r.os = { scheduled: false, error: null, kind: 'site' };
+      } else if (osScheduler && osScheduler.supported) {
+        await registerOs(r);
       } else {
         r.os = { scheduled: false, error: (osScheduler && !osScheduler.supported)
           ? 'Only Windows can wake Vex for a reminder; this one fires while Vex is running'
           : 'No system scheduler is configured' };
       }
       await persist();
-      note(`[Reminders] created ${r.id} for ${new Date(r.at).toISOString()} (os: ${r.os.scheduled ? 'yes' : r.os.error})`);
+      note(`[Reminders] created ${r.id} ${host ? 'for site ' + host : 'for ' + new Date(r.at).toISOString()}${r.repeat ? ' repeating ' + r.repeat : ''} (os: ${r.os.scheduled ? 'yes' : (r.os.error || r.os.kind || 'no')})`);
       return { ...r };
     },
 
@@ -177,7 +250,7 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
       await persist();
       arm();
       let osError = null;
-      if (osScheduler && osScheduler.supported && !r.firedAt) {
+      if (osScheduler && osScheduler.supported && !r.firedAt && r.at != null) {
         try { await osScheduler.unregister(r.id); }
         catch (err) { osError = err.message; note(`[Reminders] could not remove the Windows task for ${r.id}: ${err.message}`); }
       }
@@ -185,6 +258,26 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
     },
 
     fireDue,
+
+    // A tab opened `host`. Any pending site reminder for it (or a parent
+    // domain of it) fires now. Returns how many did.
+    async visited(host) {
+      await load();
+      const h = siteKey(host);
+      if (!h) return 0;
+      const hits = items.filter(r => !r.firedAt && r.site && (h === r.site || h.endsWith('.' + r.site)));
+      for (const r of hits) await fireOne(r);
+      return hits.length;
+    },
+
+    // Hold non-urgent reminders until `untilMs` (0 clears). Anything that fell
+    // due meanwhile fires as a batch when the hold ends.
+    hold(untilMs) {
+      holdUntil = Math.max(0, Number(untilMs) || 0);
+      arm();
+      if (!holdUntil) { inflight = fireDue().catch(err => note(`[Reminders] fireDue after hold failed: ${err.message}`)); }
+      return holdUntil;
+    },
 
     // Resolves once any due-check in progress — toast and store write — has
     // finished. Nothing to observe otherwise.
@@ -198,4 +291,4 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
   };
 }
 
-module.exports = { createReminders, MAX_MESSAGE, CHECK_MS, MIN_LEAD_MS };
+module.exports = { createReminders, nextRepeat, siteKey, REPEATS, MAX_MESSAGE, CHECK_MS, MIN_LEAD_MS };

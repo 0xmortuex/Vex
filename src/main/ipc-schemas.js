@@ -41,9 +41,22 @@ define('storage:history-add', [shape({ url: web, title: optional(string(4096)) }
 // Desktop notifications and reminders are sent by the main process (see
 // src/main/notify.js for why the renderer cannot). `at` is epoch milliseconds.
 define('notify:show', [shape({ title: string(200), body: optional(string(2000)) })]);
-define('reminders:create', [shape({ message: string(2000), at: integer })]);
+// A reminder is timed (`at`, optionally repeating) or site-triggered (`site`);
+// either may carry the page it is about and an urgent flag.
+define('reminders:create', [shape({
+  message: string(2000),
+  at: optional(integer),
+  url: optional(web),
+  repeat: optional(oneOf(['daily', 'weekdays', 'weekly'])),
+  site: optional(string(253)),
+  urgent: optional(boolean),
+})]);
 define('reminders:list', []);
 define('reminders:delete', [value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)]);
+define('reminders:visited', [string(253)]);
+define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(value) && value >= 0]);
+// Save a small text file where the user chooses — a calendar entry, an export.
+define('file:save-text', [shape({ name: string(200), text: string(1024 * 1024), kind: optional(string(40)) })]);
 define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
 define('devtools:open-for-webcontents', [integer, optional(web)]);

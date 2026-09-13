@@ -118,6 +118,12 @@ const ToolboxWorkbench = (() => {
               <span class="wb-toggle-label">Remember input</span>
             </label>
             <div class="wb-opts" id="wb-opts">${opts.map(o => optionControl(o, state[o.id])).join('')}</div>
+            <!-- What this tool last computed. Written when Run or Copy is
+                 pressed — deliberate moments, not every keystroke. -->
+            <div class="wb-history" id="wb-history" hidden>
+              <div class="wb-history-head">History <button class="wb-history-clear" id="wb-history-clear" title="Forget these">clear</button></div>
+              <div class="wb-history-list" id="wb-history-list"></div>
+            </div>
           </aside>
           <section class="wb-panes">
             <div class="wb-pane">
@@ -237,6 +243,56 @@ const ToolboxWorkbench = (() => {
 
     inEl.addEventListener('input', maybeRun);
     $('#wb-run').addEventListener('click', run);
+
+    // ---- history: the last ten things this tool computed -------------------
+    //
+    // Recorded on Run and on Copy — the moments a result was wanted — never on
+    // every keystroke. Stored under vex.tool.history.<id>, which "Reset tool
+    // preferences" in the developer dashboard clears with everything else.
+    const HISTORY_KEY = 'vex.tool.history.' + spec.id;
+    const HISTORY_MAX = 10;
+    const histBox = $('#wb-history'), histList = $('#wb-history-list');
+    const readHistory = () => { try { const a = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
+    const renderHistory = () => {
+      const items = readHistory();
+      histBox.hidden = !items.length;
+      histList.innerHTML = '';
+      for (const h of items) {
+        const b = document.createElement('button');
+        b.className = 'wb-history-item';
+        b.type = 'button';
+        b.title = 'Load this input again';
+        const when = new Date(h.at);
+        b.innerHTML = '<span class="wb-history-in"></span><span class="wb-history-when"></span>';
+        b.querySelector('.wb-history-in').textContent = String(h.input).replace(/\s+/g, ' ').slice(0, 60) || '(empty)';
+        b.querySelector('.wb-history-when').textContent = String(when.getHours()).padStart(2, '0') + ':' + String(when.getMinutes()).padStart(2, '0');
+        b.addEventListener('click', () => {
+          inEl.value = h.input;
+          if (h.opts && typeof h.opts === 'object') {
+            for (const [k, v] of Object.entries(h.opts)) {
+              state[k] = v;
+              const el = $('#wb-opt-' + k);
+              if (el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = String(v); }
+            }
+          }
+          run(); persist();
+        });
+        histList.appendChild(b);
+      }
+    };
+    const record = () => {
+      const input = inEl.value;
+      if (!input.trim() || !lastOutput) return;
+      const items = readHistory().filter(h => h.input !== input);
+      items.unshift({ input, opts: { ...state }, at: Date.now() });
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, HISTORY_MAX))); }
+      catch (err) { window.showToast?.('Could not save tool history: ' + ((err && err.message) || ''), 'error'); return; }
+      renderHistory();
+    };
+    $('#wb-run').addEventListener('click', record);
+    $('#wb-copy').addEventListener('click', record);
+    $('#wb-history-clear').addEventListener('click', () => { try { localStorage.removeItem(HISTORY_KEY); } catch {} renderHistory(); });
+    renderHistory();
     $('#wb-auto').addEventListener('change', () => { persist(); if ($('#wb-auto').checked) run(); });
     $('#wb-remember').addEventListener('change', persist);
 

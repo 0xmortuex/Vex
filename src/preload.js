@@ -260,12 +260,19 @@ contextBridge.exposeInMainWorld('vex', {
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {
-    create: (message, at) => ipcRenderer.invoke('reminders:create', { message, at }),
+    // `at` is epoch ms for a timed reminder; `extra` may carry url, repeat
+    // (daily | weekdays | weekly), site (fires next time that host opens)
+    // and urgent (fires even during a focus session).
+    create: (message, at, extra) => ipcRenderer.invoke('reminders:create', { message, ...(at != null ? { at } : {}), ...(extra || {}) }),
     list: () => ipcRenderer.invoke('reminders:list'),
     delete: (id) => ipcRenderer.invoke('reminders:delete', id),
+    visited: (host) => ipcRenderer.invoke('reminders:visited', host),
+    hold: (untilMs) => ipcRenderer.invoke('reminders:hold', untilMs),
     onFired: (cb) => subscribe('reminders:fired', cb),
     onClicked: (cb) => subscribe('reminders:clicked', cb),
   },
+  // Save a small text file where the user chooses (a calendar entry, an export).
+  saveTextFile: (name, text, kind) => ipcRenderer.invoke('file:save-text', { name, text, kind }),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),
   openAsApp: (url, title) => ipcRenderer.invoke('app:open-as-app', url, title),

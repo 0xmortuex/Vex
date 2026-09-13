@@ -179,7 +179,7 @@ describe('creating a reminder', () => {
   it('hands the text and the moment, in epoch milliseconds, to the main process', async () => {
     const when = at('tomorrow 9am');
     const r = await VexQuickReminder.create('Email the landlord about the boiler', when);
-    expect(bridge.create).toHaveBeenCalledWith('Email the landlord about the boiler', when.getTime());
+    expect(bridge.create).toHaveBeenCalledWith('Email the landlord about the boiler', when.getTime(), {});
     expect(r.os.scheduled).toBe(true);
     expect(created).toHaveLength(1);
   });
@@ -303,7 +303,7 @@ describe('the dialog', () => {
     document.getElementById('qr-when').value = 'tomorrow 9am';
     document.getElementById('qr-save').click();
     await tick(); await tick();
-    expect(bridge.create).toHaveBeenCalledWith('Pay the invoice', expect.any(Number));
+    expect(bridge.create).toHaveBeenCalledWith('Pay the invoice', expect.any(Number), {});
     expect(document.getElementById('vex-quick-reminder')).toBe(null);
     expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/^Reminder set — Tomorrow at 09:00/));
   });
@@ -374,7 +374,7 @@ describe('the reminder card', () => {
     await VexQuickReminder.showCard('r1');
     document.querySelector('[data-snooze="600000"]').click();
     await tick(); await tick();
-    expect(bridge.create).toHaveBeenLastCalledWith('Send the invoice to Dana', expect.any(Number));
+    expect(bridge.create).toHaveBeenLastCalledWith('Send the invoice to Dana', expect.any(Number), {});
     const [, atMs] = bridge.create.mock.calls.at(-1);
     expect(atMs - Date.now()).toBeGreaterThan(9 * 60000);
     expect(atMs - Date.now()).toBeLessThanOrEqual(10 * 60000);

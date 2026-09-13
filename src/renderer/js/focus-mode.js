@@ -66,6 +66,10 @@ const FocusMode = {
     this._timer = setInterval(() => {
       if (Date.now() >= this.until) { this.stop(); window.showToast?.('Focus session complete'); }
     }, 5000);
+    // Reminders wait until the session ends, unless marked urgent, and then
+    // arrive as a batch — a toast mid-session is exactly what focus is for
+    // avoiding. Held in the main process, which owns the reminders.
+    this._holdReminders(this.until);
   },
 
   stop() {
@@ -73,6 +77,13 @@ const FocusMode = {
     document.body.classList.remove('focus-mode');
     clearInterval(this._timer);
     this._timer = null;
+    this._holdReminders(0);
+  },
+
+  _holdReminders(untilMs) {
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.hold !== 'function') return;
+    Promise.resolve(b.hold(untilMs)).catch(err => window.showToast?.('Could not hold reminders during focus: ' + ((err && err.message) || ''), 'error'));
   },
 
   // Called from webview will-navigate/did-navigate wiring. Returns true if blocked.

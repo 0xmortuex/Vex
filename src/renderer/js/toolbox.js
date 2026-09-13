@@ -324,6 +324,21 @@ const Toolbox = {
   // remembered and restored, and a tool opened from it carries a way back.
   FAVOURITES_KEY: 'vex.toolFavourites',
 
+  // The last eight tools opened, newest first. Under vex.tool.* so the
+  // developer dashboard's "Reset tool preferences" clears it with the rest.
+  RECENT_KEY: 'vex.tool.recent',
+  RECENT_MAX: 8,
+  recent() {
+    try { const a = JSON.parse(localStorage.getItem(this.RECENT_KEY) || '[]'); return Array.isArray(a) ? a.filter(x => typeof x === 'string') : []; }
+    catch { return []; }
+  },
+  _noteRecent(id) {
+    if (!id) return false;
+    const next = [id, ...this.recent().filter(x => x !== id)].slice(0, this.RECENT_MAX);
+    try { localStorage.setItem(this.RECENT_KEY, JSON.stringify(next)); } catch { return false; }
+    return true;
+  },
+
   favourites() {
     try {
       const raw = JSON.parse(localStorage.getItem(this.FAVOURITES_KEY) || '[]');
@@ -513,6 +528,15 @@ const Toolbox = {
       this._section(list, 'Favourites', picked.map(toolCard));
       return picked.length;
     };
+    // The tools opened most recently, after favourites: the third leg beside
+    // stars and remembered inputs.
+    const recent = () => {
+      const ids = this.recent().filter(id => !this.isFavourite(id));
+      const picked = ids.map(id => all.find(t => t.id === id)).filter(Boolean);
+      if (!picked.length) return 0;
+      this._section(list, 'Recent', picked.map(toolCard));
+      return picked.length;
+    };
     if (state.fam === 'links') { links(); }
     else if (state.fam === 'job') {
       const jobTools = all.filter(t => enabled.includes(t.id));
@@ -529,6 +553,7 @@ const Toolbox = {
       shown += all.length;
     } else {
       shown += favs();
+      shown += recent();
       const jobTools = all.filter(t => enabled.includes(t.id));
       this._section(list, 'For your job', jobTools.map(toolCard));
       links();
@@ -546,6 +571,7 @@ const Toolbox = {
   },
 
   openTool(id) {
+    this._noteRecent(id);
     const fn = this['_' + id];
     if (typeof fn === 'function') { fn.call(this); return; }
     const spec = (typeof ToolboxPacks !== 'undefined') && ToolboxPacks.specs.find(s => s.id === id);

@@ -1001,6 +1001,8 @@
     // Mirrors main-process reminders in-app, and says so when the desktop
     // toast was refused (src/main/reminders.js).
     try { window.VexQuickReminder && VexQuickReminder.init(); } catch (e) { console.error('[Reminders] init failed:', e); }
+    // The Today snapshot the new tab page reads (js/today.js).
+    try { window.VexToday && VexToday.init(); } catch (e) { console.error('[Today] init failed:', e); }
     ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
     // Full screen implies open: switching mode on a closed panel would do
     // nothing visible and look broken.

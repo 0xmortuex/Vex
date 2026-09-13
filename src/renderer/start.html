@@ -1324,6 +1324,66 @@
     </div>
   </div>
 
+  <!-- Today: reminders due, tasks about to run, pages that changed, pages saved.
+       Read from the 'vex.today' snapshot the browser writes (js/today.js);
+       this page has no bridge of its own. Hidden until there is something. -->
+  <div class="today-section" id="today-section" hidden>
+    <h3>Today</h3>
+    <div class="recent-list" id="today-list"></div>
+  </div>
+  <style>
+    .today-section { margin-bottom: 40px; }
+    .today-section h3 { font-size: 13px; font-weight: 600; color: var(--vex-text-muted); margin-bottom: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .today-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--vex-glass-light); border: 1px solid var(--vex-border-subtle); border-radius: var(--vex-radius-md); color: var(--vex-text-secondary); text-decoration: none; }
+    .today-item[href]:hover { background: var(--vex-accent-glow); border-color: var(--vex-border-accent); color: var(--vex-text-primary); cursor: pointer; }
+    .today-kind { flex: none; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--vex-text-muted); width: 74px; }
+    .today-when { flex: none; font-size: 12px; color: var(--vex-accent, var(--vex-text-primary)); font-weight: 600; white-space: nowrap; min-width: 58px; }
+    .today-when.overdue { color: #e5484d; }
+    .today-text { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .today-error { font-size: 12px; color: #e5484d; padding: 6px 14px; }
+  </style>
+  <script>
+    (function () {
+      var KEY = 'vex.today';
+      var pad = function (n) { return String(n).padStart(2, '0'); };
+      var hhmm = function (ms) { var d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+      function row(kind, when, text, url, cls) {
+        var el = document.createElement(url ? 'a' : 'div');
+        el.className = 'today-item';
+        if (url) { el.href = url; el.addEventListener('click', function (e) { e.preventDefault(); location.href = url; }); }
+        var k = document.createElement('span'); k.className = 'today-kind'; k.textContent = kind;
+        var w = document.createElement('span'); w.className = 'today-when' + (cls ? ' ' + cls : ''); w.textContent = when;
+        var t = document.createElement('span'); t.className = 'today-text'; t.textContent = text;
+        el.appendChild(k); el.appendChild(w); el.appendChild(t);
+        return el;
+      }
+      function render() {
+        var sec = document.getElementById('today-section'), list = document.getElementById('today-list');
+        if (!sec || !list) return;
+        // The browser hands the snapshot in (window.__vexToday) because this
+        // page's storage is separate from the browser's; localStorage is only
+        // a fallback for the same-partition case.
+        var snap = window.__vexToday || null;
+        if (!snap) { try { snap = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { snap = null; } }
+        list.innerHTML = '';
+        if (!snap) { sec.hidden = true; return; }
+        var rows = [];
+        (snap.reminders || []).forEach(function (r) {
+          rows.push(row('Reminder', r.site ? 'on ' + r.site : hhmm(r.at), r.text, r.url, r.overdue ? 'overdue' : ''));
+        });
+        (snap.tasks || []).forEach(function (t) { rows.push(row('Scheduled', hhmm(t.at), t.text + (t.action ? ' — ' + t.action : ''), null, '')); });
+        (snap.changed || []).forEach(function (c) { rows.push(row('Changed', c.at ? hhmm(c.at) : '', c.text, c.url, '')); });
+        (snap.saved || []).forEach(function (s) { rows.push(row('Saved', s.at ? hhmm(s.at) : '', s.text, s.url, '')); });
+        (snap.errors || []).forEach(function (m) { var e = document.createElement('div'); e.className = 'today-error'; e.textContent = 'Could not read ' + m; rows.push(e); });
+        rows.forEach(function (r) { list.appendChild(r); });
+        sec.hidden = rows.length === 0;
+      }
+      render();
+      window.addEventListener('vex-today', render);
+      window.addEventListener('storage', function (e) { if (!e.key || e.key === KEY) render(); });
+    })();
+  </script>
+
   <div class="tools-section">
     <h3>My Tools</h3>
     <div class="tools-scroll" id="tools-scroll"></div>

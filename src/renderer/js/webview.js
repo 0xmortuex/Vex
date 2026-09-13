@@ -164,6 +164,10 @@ const WebviewManager = {
         if (typeof isStartPage === 'function' && isStartPage(webview.getURL())) {
           const gs = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
           webview.executeJavaScript(`document.documentElement.setAttribute('data-gui-style', ${JSON.stringify(gs)})`).catch(() => {});
+          // The Today block on the new tab page (js/today.js): the start page
+          // runs in its own session and cannot read this renderer's storage,
+          // so the snapshot is handed to it here, the same way the theme is.
+          try { if (window.VexToday) VexToday.push(webview); } catch (err) { console.error('[Today] push failed:', err); }
           // A browser look in its own colours hands the page its palette.
           window.VexGuiStyle?.paintStartPage(webview).catch(err => console.error('[gui-style] start page palette failed:', err));
         }
@@ -894,6 +898,37 @@ const WebviewManager = {
           label: 'Highlight',
           action: () => Annotations.highlight('yellow')
         });
+      }
+      // Quick capture: what you selected becomes a reminder, a note, or a
+      // question — without leaving the page or opening a panel first.
+      {
+        const sel = e.params.selectionText;
+        const pageUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
+        const pageTitle = (() => { try { return webview.getTitle(); } catch { return ''; } })();
+        items.push({ sep: true });
+        if (typeof VexQuickReminder !== 'undefined') {
+          items.push({
+            label: 'Remind me about this',
+            action: () => VexQuickReminder.open(sel, { url: pageUrl, title: pageTitle }),
+          });
+        }
+        if (typeof StickyNotes !== 'undefined') {
+          items.push({
+            label: 'Save as a note for this page',
+            action: () => {
+              const key = StickyNotes._norm(pageUrl);
+              const existing = (StickyNotes._load()[key] || {}).text || '';
+              const ok = StickyNotes.setText(key, existing ? existing + '\n\n' + sel : sel, { url: pageUrl, title: pageTitle });
+              window.showToast?.(ok ? 'Saved to this page’s note' : 'Could not save the note', ok ? undefined : 'error');
+            },
+          });
+        }
+        if (typeof AIPanel !== 'undefined') {
+          items.push({
+            label: 'Ask Vex AI about this',
+            action: () => { AIPanel.open(); AIPanel.sendMessage('chat', { message: `About this text from ${pageTitle || pageUrl}:\n\n"""${sel}"""\n\nWhat should I know?` }); },
+          });
+        }
       }
       // AI options for selected text
       if (typeof AIPanel !== 'undefined') {

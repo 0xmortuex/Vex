@@ -4271,6 +4271,31 @@ ipcMain.handle('reminders:delete', async (_e, id) => {
   if (!reminders) throw new Error('Reminders have not started yet');
   return reminders.delete(id);
 });
+// A tab opened a site: fire any "next time I open …" reminder for it.
+ipcMain.handle('reminders:visited', async (_e, host) => {
+  if (!reminders) throw new Error('Reminders have not started yet');
+  return reminders.visited(host);
+});
+// A focus session holds non-urgent reminders until it ends (0 clears).
+ipcMain.handle('reminders:hold', async (_e, untilMs) => {
+  if (!reminders) throw new Error('Reminders have not started yet');
+  return reminders.hold(untilMs);
+});
+
+// Save a small text file where the user chooses. Used for calendar entries;
+// the renderer is a file:// page and cannot offer a download of its own.
+ipcMain.handle('file:save-text', async (_e, { name, text, kind } = {}) => {
+  const filters = kind === 'ics'
+    ? [{ name: 'Calendar entry', extensions: ['ics'] }]
+    : [{ name: 'Text', extensions: ['txt'] }];
+  const safeName = String(name || 'vex.txt').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
+  const r = await dialog.showSaveDialog(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
+    title: 'Save', defaultPath: path.join(app.getPath('downloads'), safeName), filters,
+  });
+  if (r.canceled || !r.filePath) return { ok: false, cancelled: true };
+  await fs.promises.writeFile(r.filePath, String(text || ''), 'utf8');
+  return { ok: true, path: r.filePath };
+});
 
 // Generate a QR code (PNG data URL) for "Send to phone". Done in the main process
 // with the bundled `qrcode` package — full Node, works offline, no external

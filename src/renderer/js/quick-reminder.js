@@ -193,6 +193,62 @@ const VexQuickReminder = {
     return `${day} at ${hhmm} — ${this._relative(when.getTime() - at.getTime())} from now`;
   },
 
+  // "When?" can also be a place: "when I open github.com", "on github.com",
+  // "next time I open reddit.com". Returns { site } for those, otherwise
+  // { at: Date } from parseWhen — which throws its own reasons.
+  parseTrigger(text, now) {
+    const s = String(text || '').trim();
+    const m = s.match(/^(?:(?:next time|when) (?:i|you) (?:open|visit|go to|am on)|on|at site|when on)\s+(.+)$/i);
+    if (m) {
+      const host = m[1].trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+      if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host)) throw new Error(`"${m[1]}" does not look like a site — try something like github.com.`);
+      return { site: host };
+    }
+    return { at: this.parseWhen(s, now) };
+  },
+
+  describeTrigger(t, now) {
+    if (t && t.site) return `Next time you open ${t.site}`;
+    return this.describe(t.at, now);
+  },
+
+  // An iCalendar entry for a timed reminder — one VEVENT with an alarm at the
+  // moment itself. Times are written in UTC so any calendar reads them right.
+  ics(r) {
+    if (!r || r.at == null) throw new Error('Only a timed reminder can go in a calendar.');
+    const z = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+    const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+    const start = new Date(r.at), end = new Date(r.at + 15 * 60000);
+    const lines = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Vex//Reminder//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      'UID:' + r.id + '@vex',
+      'DTSTAMP:' + z(new Date()),
+      'DTSTART:' + z(start),
+      'DTEND:' + z(end),
+      'SUMMARY:' + esc(String(r.message).split('\n')[0].slice(0, 200)),
+      'DESCRIPTION:' + esc(r.message),
+    ];
+    if (r.url) lines.push('URL:' + r.url);
+    if (r.repeat === 'daily') lines.push('RRULE:FREQ=DAILY');
+    if (r.repeat === 'weekdays') lines.push('RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR');
+    if (r.repeat === 'weekly') lines.push('RRULE:FREQ=WEEKLY');
+    lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'TRIGGER:PT0M', 'DESCRIPTION:' + esc(r.message).slice(0, 200), 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR');
+    // RFC 5545 wants CRLF line endings and lines folded at 75 octets.
+    return lines.map(l => l.length <= 75 ? l : l.match(/.{1,74}/g).join('\r\n ')).join('\r\n') + '\r\n';
+  },
+
+  async saveToCalendar(r) {
+    const text = this.ics(r);
+    const b = window.vex;
+    if (!b || typeof b.saveTextFile !== 'function') throw new Error('Saving files is not available in this build.');
+    const name = 'reminder-' + String(r.message).split('\n')[0].replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40).toLowerCase() + '.ics';
+    const res = await b.saveTextFile(name, text, 'ics');
+    if (res && res.cancelled) return null;
+    if (!res || !res.ok) throw new Error((res && res.error) || 'The file was not saved.');
+    return res.path;
+  },
+
   _relative(ms) {
     const mins = Math.round(ms / 60000);
     if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'}`;
@@ -216,12 +272,22 @@ const VexQuickReminder = {
     return b;
   },
 
-  async create(message, when) {
+  // `when` is a Date, or { site } for "next time I open …". `extra` may carry
+  // url (the page it is about), repeat (daily | weekdays | weekly), urgent.
+  async create(message, when, extra) {
     const text = String(message || '').trim();
     if (!text) throw new Error('Write what you want to be reminded of.');
     if (text.length > this.MAX_MESSAGE) throw new Error(`That is longer than ${this.MAX_MESSAGE} characters — put the detail in a note and remind yourself to open it.`);
+    // Only what is set travels; the schema on the other side is strict.
+    const opts = {};
+    if (extra && extra.url) opts.url = String(extra.url);
+    if (extra && extra.repeat) opts.repeat = String(extra.repeat);
+    if (extra && extra.urgent) opts.urgent = true;
+    if (when && typeof when === 'object' && !(when instanceof Date) && when.site) {
+      return this._bridge().create(text, null, { ...opts, site: String(when.site) });
+    }
     if (!(when instanceof Date) || Number.isNaN(when.getTime())) throw new Error('That is not a real time.');
-    return this._bridge().create(text, when.getTime());
+    return this._bridge().create(text, when.getTime(), opts);
   },
 
   async list() { return this._bridge().list(); },
@@ -245,7 +311,52 @@ const VexQuickReminder = {
     });
     // Clicking the desktop toast opens the reminder in Vex.
     if (typeof b.onClicked === 'function') b.onClicked((p) => { if (p && p.id) this.showCard(p.id); });
+    this._watchSites(b);
     return true;
+  },
+
+  // "Next time I open github.com": watch the active tab's host and tell the
+  // main process when it changes. It only asks when a site reminder exists,
+  // so an idle Vex sends nothing.
+  _siteHosts: null,
+  _lastHost: '',
+  _watching: false,
+  _watchSites(b) {
+    b = b || (window.vex && window.vex.reminders);
+    if (!b || typeof b.visited !== 'function' || typeof b.list !== 'function') return;
+    if (this._watching) return;
+    this._watching = true;
+    const refreshHosts = async () => {
+      try { this._siteHosts = (await b.list()).filter(r => !r.firedAt && r.site).map(r => r.site); }
+      catch { this._siteHosts = null; }
+    };
+    refreshHosts();
+    setInterval(refreshHosts, 30000);
+    setInterval(() => {
+      if (!this._siteHosts || !this._siteHosts.length) return;
+      let host = '';
+      try {
+        const t = (typeof TabManager !== 'undefined' && TabManager.getActiveTab) ? TabManager.getActiveTab() : null;
+        if (t && /^https?:/i.test(t.url || '')) host = new URL(t.url).hostname.replace(/^www\./, '').toLowerCase();
+      } catch { host = ''; }
+      if (host === this._lastHost) return;
+      this._lastHost = host;
+      if (!host || !this._siteHosts.some(s => host === s || host.endsWith('.' + s))) return;
+      Promise.resolve(b.visited(host))
+        .then(n => { if (n) refreshHosts(); })
+        .catch(err => window.showToast?.('A site reminder could not fire: ' + ((err && err.message) || ''), 'error'));
+    }, 3000);
+  },
+
+  // Called after a reminder is created so a site reminder can fire within
+  // seconds rather than after the next 30 s refresh.
+  _hostsChanged() {
+    this._siteHosts = null;
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.list !== 'function') return;
+    // Creating a site reminder is a fine moment to make sure the watcher runs.
+    this._watchSites(b);
+    Promise.resolve(b.list()).then(l => { this._siteHosts = l.filter(r => !r.firedAt && r.site).map(r => r.site); }).catch(() => {});
   },
 
   // The reminder itself, opened from its toast: the full text, when it was
@@ -257,6 +368,7 @@ const VexQuickReminder = {
     if (!r) { window.showToast?.('That reminder is no longer stored.', 'error'); return null; }
 
     document.getElementById('vex-reminder-card')?.remove();
+    const esc = (s) => (window.escapeHtml ? window.escapeHtml(String(s == null ? '' : s)) : String(s == null ? '' : s));
     const icon = (n, sz) => (window.VexIcons && VexIcons.has(n)) ? VexIcons.svg(n, { size: sz || 15 }) : '';
     const wrap = document.createElement('div');
     wrap.id = 'vex-reminder-card';
@@ -270,16 +382,35 @@ const VexQuickReminder = {
         </div>
         <div class="qr-card-when" id="qr-card-when"></div>
         <div class="qr-card-text" id="qr-card-text"></div>
+        ${r.url ? `<a class="qr-card-link" id="qr-card-link" href="#" title="${esc(r.url)}">${icon('link', 12)} <span></span></a>` : ''}
         <div class="qr-actions qr-card-actions">
           <button class="qr-btn" data-snooze="600000">Snooze 10 min</button>
           <button class="qr-btn" data-snooze="3600000">Snooze 1 hour</button>
           <button class="qr-btn" data-snooze="tomorrow">Tomorrow 9am</button>
+          ${r.at != null ? `<button class="qr-btn" id="qr-card-ics" title="Save a calendar entry (.ics)">${icon('calendar', 12)} Calendar</button>` : ''}
+          ${r.url ? `<button class="qr-btn" id="qr-card-open">Open page</button>` : ''}
           <button class="qr-btn qr-primary" id="qr-card-done">Done</button>
         </div>
       </div>`;
     document.body.appendChild(wrap);
-    wrap.querySelector('#qr-card-when').textContent = (r.firedAt ? 'Was due ' : 'Due ') + this.describe(new Date(r.at)).split(' — ')[0].toLowerCase();
+    const dueLine = r.at != null
+      ? (r.firedAt || r.lastFiredAt ? 'Was due ' : 'Due ') + this.describe(new Date(r.at)).split(' — ')[0].toLowerCase() + (r.repeat ? ' · repeats ' + r.repeat : '')
+      : (r.site ? 'When you open ' + r.site : '');
+    wrap.querySelector('#qr-card-when').textContent = dueLine;
     wrap.querySelector('#qr-card-text').textContent = r.message;
+    if (r.url) {
+      const link = wrap.querySelector('#qr-card-link');
+      link.querySelector('span').textContent = r.url.replace(/^https?:\/\//, '').slice(0, 80);
+      const openPage = (e) => { e && e.preventDefault(); try { TabManager.createTab(r.url, true); } catch (err) { window.showToast?.('Could not open the page: ' + ((err && err.message) || ''), 'error'); return; } wrap.remove(); };
+      link.addEventListener('click', openPage);
+      wrap.querySelector('#qr-card-open').addEventListener('click', openPage);
+    }
+    wrap.querySelector('#qr-card-ics')?.addEventListener('click', async () => {
+      try {
+        const p = await this.saveToCalendar(r);
+        if (p) window.showToast?.('Calendar entry saved — ' + p);
+      } catch (err) { window.showToast?.((err && err.message) || 'Could not save the calendar entry', 'error'); }
+    });
 
     const close = () => wrap.remove();
     wrap.querySelector('#qr-card-close').addEventListener('click', close);
@@ -290,7 +421,7 @@ const VexQuickReminder = {
       const v = btn.dataset.snooze;
       const when = v === 'tomorrow' ? this.parseWhen('tomorrow 9am') : new Date(Date.now() + Number(v));
       try {
-        const made = await this.create(r.message, when);
+        const made = await this.create(r.message, when, { url: r.url || undefined, urgent: r.urgent || undefined });
         window.showToast?.('Snoozed — ' + this.describe(when));
         if (!made || !made.os || !made.os.scheduled) {
           window.showToast?.('It will fire while Vex is running' + (made && made.os && made.os.error ? ' — ' + made.os.error : ''), 'error');
@@ -310,8 +441,22 @@ const VexQuickReminder = {
   },
 
   // ------------------------------------------------------------------- the UI
-  open(prefill) {
+  // The page the reminder can be about: what the caller passed, else the
+  // active tab when it is an ordinary web page.
+  _pageContext(ctx) {
+    if (ctx && ctx.url && /^https?:/i.test(ctx.url)) return { url: ctx.url, title: ctx.title || '' };
+    try {
+      // TabManager is a top-level const, not a window property — reach it by
+      // bare identifier or it is silently never found.
+      const t = (typeof TabManager !== 'undefined' && TabManager.getActiveTab) ? TabManager.getActiveTab() : null;
+      if (t && /^https?:/i.test(t.url || '')) return { url: t.url, title: t.title || '' };
+    } catch { /* no tab */ }
+    return null;
+  },
+
+  open(prefill, ctx) {
     document.getElementById('vex-quick-reminder')?.remove();
+    const page = this._pageContext(ctx);
     const esc = (s) => (window.escapeHtml ? window.escapeHtml(String(s == null ? '' : s)) : String(s == null ? '' : s));
     const icon = (n, sz) => (window.VexIcons && VexIcons.has(n)) ? VexIcons.svg(n, { size: sz || 15 }) : '';
 
@@ -335,8 +480,21 @@ const VexQuickReminder = {
           <button class="qr-chip" data-when="tonight">tonight</button>
           <button class="qr-chip" data-when="tomorrow 9am">tomorrow 9am</button>
           <button class="qr-chip" data-when="monday 9am">monday 9am</button>
+          ${page ? `<button class="qr-chip" data-when="when I open ${esc(new URL(page.url).hostname.replace(/^www\./, ''))}">when I open this site</button>` : ''}
         </div>
         <div class="qr-preview" id="qr-preview" aria-live="polite"></div>
+        <div class="qr-row">
+          <label class="qr-select-label">Repeat
+            <select class="qr-select" id="qr-repeat">
+              <option value="">Once</option>
+              <option value="daily">Every day</option>
+              <option value="weekdays">Weekdays</option>
+              <option value="weekly">Every week</option>
+            </select>
+          </label>
+          <label class="qr-check"><input type="checkbox" id="qr-urgent"> Urgent — even during focus</label>
+        </div>
+        ${page ? `<label class="qr-check qr-page" title="${esc(page.url)}"><input type="checkbox" id="qr-page" ${ctx && ctx.url ? 'checked' : ''}> About this page: <span class="qr-page-title">${esc(page.title || page.url)}</span></label>` : ''}
         <div class="qr-actions">
           <button class="qr-btn" id="qr-cancel">Cancel</button>
           <button class="qr-btn qr-primary" id="qr-save">Remind me</button>
@@ -356,13 +514,16 @@ const VexQuickReminder = {
     const close = () => wrap.remove();
     let parsed = null;
 
+    const repeatEl = wrap.querySelector('#qr-repeat');
     const refresh = () => {
       const raw = whenEl.value.trim();
       if (!raw) { parsed = null; preview.textContent = ''; preview.className = 'qr-preview'; return; }
       try {
-        parsed = this.parseWhen(raw);
-        preview.textContent = this.describe(parsed);
+        parsed = this.parseTrigger(raw);
+        preview.textContent = this.describeTrigger(parsed) + (parsed.at && repeatEl.value ? ' · repeats ' + repeatEl.options[repeatEl.selectedIndex].text.toLowerCase() : '');
         preview.className = 'qr-preview qr-ok';
+        // A site reminder fires when you open the site; a repeat makes no sense.
+        repeatEl.disabled = !!parsed.site;
       } catch (err) {
         parsed = null;
         preview.textContent = (err && err.message) || 'Could not read that time.';
@@ -371,6 +532,7 @@ const VexQuickReminder = {
     };
 
     whenEl.addEventListener('input', refresh);
+    repeatEl.addEventListener('change', refresh);
     wrap.querySelectorAll('.qr-chip').forEach(c => c.addEventListener('click', () => {
       whenEl.value = c.dataset.when;
       refresh();
@@ -413,13 +575,20 @@ const VexQuickReminder = {
         if (!textEl.value.trim()) { textEl.focus(); throw new Error('Write what you want to be reminded of.'); }
         // Re-parse rather than trusting the preview: the clock has moved since
         // it was drawn, and "in 1 minute" typed two minutes ago is now past.
-        const when = this.parseWhen(whenEl.value);
+        const trig = this.parseTrigger(whenEl.value);
+        const extra = {
+          repeat: (!trig.site && repeatEl.value) || undefined,
+          urgent: wrap.querySelector('#qr-urgent').checked || undefined,
+          url: (page && wrap.querySelector('#qr-page') && wrap.querySelector('#qr-page').checked) ? page.url : undefined,
+        };
         saveBtn.disabled = true;
-        const r = await this.create(textEl.value, when);
-        window.showToast?.('Reminder set — ' + this.describe(when));
+        const r = await this.create(textEl.value, trig.site ? { site: trig.site } : trig.at, extra);
+        window.showToast?.('Reminder set — ' + this.describeTrigger(trig));
+        if (trig.site) this._hostsChanged();
         // The OS task is what wakes a closed Vex. If Windows refused it, say so
-        // now rather than let the person find out on the day.
-        if (!r || !r.os || !r.os.scheduled) {
+        // now rather than let the person find out on the day. A site reminder
+        // has no time, so there is nothing for Windows to wake Vex for.
+        if (!trig.site && (!r || !r.os || !r.os.scheduled)) {
           window.showToast?.('It will fire while Vex is running' + (r && r.os && r.os.error ? ' — Windows will not wake Vex for it: ' + r.os.error : ''), 'error');
         }
         close();

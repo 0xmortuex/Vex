@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.31.71 (2026-09-13) — Reminders that repeat, follow pages and sites; Today on the new tab
+
+### Notes
+- **Reminders can repeat** — every day, weekdays or every week, at the same time. Each occurrence gets its own Windows wake-up task, so "weekdays 9am" still arrives with Vex closed.
+- **Remind me about this page.** The dialog offers the page you are on; the reminder's notification opens it in Vex with an Open page button. "Come back to this" now brings you back.
+- **Next time I open this site.** Type "when I open github.com" instead of a time and the reminder fires the moment a tab lands there. A one-click chip offers the current site.
+- **Right-click any selection** — a Discord message, a paragraph, a task — for *Remind me about this*, *Save as a note for this page*, or *Ask Vex AI about this*. Works inside the sidebar panels too.
+- **Today, on the new tab page:** reminders due today, scheduled tasks about to run, watched pages that changed, and pages you saved recently, together.
+- **Focus holds your reminders.** During a focus session they wait and arrive as a batch when it ends, marked with the time they were due — unless you ticked Urgent.
+- **Every tool keeps its last ten results** (loaded back with one click) and the Toolbox shows the tools you opened most recently beside your favourites.
+- **Any timed reminder can be saved as a calendar entry** (.ics, repeat rule included) for Outlook or Google Calendar.
+- Verified live in a real window: a site reminder fired on navigation, the urgent reminder fired mid-focus while the normal one waited, and the new tab page rendered the day's reminder.
+
 ## v2.31.70 (2026-09-13) — Website notifications, a test button, snooze
 
 ### Notes
