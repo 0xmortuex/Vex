@@ -33,7 +33,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const get = (u) => new Promise((res, rej) => http.get(u, r => { let b = ''; r.on('data', d => b += d); r.on('end', () => { try { res(JSON.parse(b)); } catch (e) { rej(e); } }); }).on('error', rej));
 const ps = (cmd) => { try { return execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', cmd + '; exit 0'], { encoding: 'utf8', windowsHide: true }).trim(); } catch (e) { return 'PS-ERR ' + String(e.stderr || e.message).trim().split(/\r?\n/)[0]; } };
 const taskFor = (id) => ps(`try { $t = Get-ScheduledTask -TaskPath '\\Vex\\' -TaskName 'Vex Reminder ${id}' -ErrorAction Stop; ($t | Get-ScheduledTaskInfo).NextRunTime.ToString('s') } catch { 'absent' }`);
-const launchedVex = () => ps(`Get-CimInstance Win32_Process -Filter "Name='electron.exe' OR Name='Vex.exe'" | Where-Object { $_.CommandLine -like '*--reminder=*' -and $_.CommandLine -like '*${udd.replace(/\\/g, '\\\\').replace(/'/g, "''")}*' } | ForEach-Object { $_.ProcessId }`);
+// A -like pattern takes backslashes literally, so the profile path goes in as
+// is; only a single quote needs escaping in a single-quoted PowerShell string.
+const launchedVex = () => ps(`Get-CimInstance Win32_Process -Filter "Name='electron.exe' OR Name='Vex.exe'" | Where-Object { $_.CommandLine -like '*--reminder=*' -and $_.CommandLine -like '*${udd.replace(/'/g, "''")}*' } | ForEach-Object { $_.ProcessId }`);
 const store = () => { try { return JSON.parse(fs.readFileSync(path.join(udd, 'reminders.json'), 'utf8')).data; } catch { return null; } };
 
 const steps = [];
