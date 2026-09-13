@@ -68,7 +68,10 @@ define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(
 define('file:save-text', [shape({ name: string(200), text: string(1024 * 1024), kind: optional(string(40)) })]);
 define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
-define('devtools:open-for-webcontents', [integer, optional(web)]);
+// A freshly attached <webview> reports its id as -1; the handler then finds
+// the page by URL (and checks ownership itself), so any integer is allowed.
+define('devtools:open-for-webcontents', [value => Number.isInteger(value), optional(web)]);
+define('devtools:toggle-host', []);
 define('spellcheck:replace-misspelling', [integer, string(1024), optional(web)]);
 define('vex:set-bg-throttling', [integer, boolean]);
 define('app:tab-memory', [value => Array.isArray(value) && value.length <= 10000 && value.every(integer)]);

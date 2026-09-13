@@ -1218,9 +1218,11 @@ const SidebarManager = {
           const id  = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
           const url = typeof wv.getURL === 'function' ? wv.getURL() : null;
           if (window.vexDevTools?.openForWebContents) {
+            // A failure here used to go only to the console — to the person it
+            // looked like the button did nothing. Say what happened.
             window.vexDevTools.openForWebContents(id, url).then(r => {
-              if (!r?.ok) console.warn('[Sidebar] DevTools failed for ' + panelName + ':', r);
-            }).catch(err => console.error('[Sidebar] DevTools IPC failed:', err));
+              if (!r?.ok) window.showToast?.('Could not open DevTools for ' + panelName + ': ' + ((r && r.error) || 'unknown error'), 'error');
+            }).catch(err => window.showToast?.('Could not open DevTools for ' + panelName + ': ' + ((err && err.message) || 'IPC failed'), 'error'));
           } else if (typeof wv.openDevTools === 'function') {
             try { wv.openDevTools(); } catch (err) { console.error('[Sidebar] wv.openDevTools error:', err); }
           }

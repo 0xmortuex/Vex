@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.31.75 (2026-09-13) — DevTools open again from everywhere
+
+### Notes
+- **Fixed: the developer dashboard's Open DevTools said "not exposed in this build".** It called a bridge method that did not exist. It now opens the interface's own inspector, docked at the bottom, and closes it on a second press.
+- **Fixed: Open DevTools on a sidebar panel could silently do nothing.** A panel whose page had only just attached reports its id as -1; that was rejected before the code that finds the page by its address could run, and the only report was a line in the console. Both gates now let the address lookup happen (with the same ownership check), and if it still cannot open, a message says so.
+- The DevTools window is brought to the front when it opens.
+
 ## v2.31.74 (2026-09-13) — The setup wizard asks about the settings that matter
 
 ### Notes

@@ -117,11 +117,15 @@ const VexDevMode = {
       },
       {
         id: 'devtools', label: 'Open DevTools', icon: 'terminal',
-        what: 'The Chromium inspector for the interface itself, not the page.',
-        run: () => {
-          if (!window.vexDevTools || !window.vexDevTools.open) throw new Error('DevTools are not exposed in this build.');
-          window.vexDevTools.open();
-          return 'DevTools opened';
+        what: 'The Chromium inspector for the interface itself, not the page. Docked at the bottom; press again to close.',
+        run: async () => {
+          // vexDevTools.openHost is the host-window opener; the other methods
+          // on that bridge target a page in a tab. (A previous version called
+          // a method that did not exist and reported "not exposed".)
+          if (!window.vexDevTools || typeof window.vexDevTools.openHost !== 'function') throw new Error('DevTools are not exposed in this build.');
+          const r = await window.vexDevTools.openHost();
+          if (!r || !r.ok) throw new Error((r && r.error) || 'DevTools did not open');
+          return r.open ? 'DevTools opened' : 'DevTools closed';
         },
       },
       {

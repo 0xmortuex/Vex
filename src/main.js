@@ -3683,6 +3683,19 @@ ipcMain.handle('is-fullscreen', () => {
 });
 
 // DevTools toggle — renderer sends the webContentsId of the tab to toggle
+// DevTools for the interface itself — the main window's own document, not a
+// page in a tab. Docked at the bottom, the way F12 does it. What the developer
+// dashboard's button calls.
+ipcMain.handle('devtools:toggle-host', async (_e) => {
+  const wc = _e.sender;
+  if (!wc || wc.isDestroyed()) return { ok: false, error: 'The window is gone' };
+  try {
+    if (wc.isDevToolsOpened()) { wc.closeDevTools(); return { ok: true, open: false }; }
+    wc.openDevTools({ mode: 'bottom' });
+    return { ok: true, open: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('devtools:toggle-webview', async (_e, webContentsId) => {
   try {
     const wc = typeof webContentsId === 'number' ? webContents.fromId(webContentsId) : null;
@@ -3733,23 +3746,27 @@ ipcMain.handle('devtools:open-for-webcontents', async (_e, webContentsId, fallba
     console.error('[Vex DT]   fromId error:', err);
   }
   if (!wc && typeof fallbackUrl === 'string' && fallbackUrl) {
+    // The IPC policy only checks ownership when an id was given; a match by
+    // URL must belong to the window that asked, or another window's page
+    // could be inspected through it.
     const all = webContents.getAllWebContents();
-    wc = all.find(c => !c.isDestroyed() && c.getURL() === fallbackUrl) || null;
+    const mine = secureSessions.owner(_e.sender);
+    wc = all.find(c => !c.isDestroyed() && c.getURL() === fallbackUrl && mine && secureSessions.owner(c) === mine) || null;
     console.log('[Vex DT]   URL fallback over', all.length, 'webContents →', wc ? 'wc#' + wc.id : 'null');
   }
   if (!wc) {
     console.error('[Vex DT]   no target webContents found');
-    return { ok: false, error: 'webContents not found', requestedId: webContentsId };
+    return { ok: false, error: 'That page is not attached yet — give it a second and try again', requestedId: webContentsId };
   }
   try {
     if (wc.isDevToolsOpened()) {
       wc.closeDevTools();
       console.log('[Vex DT]   closed DevTools for wc#' + wc.id);
-    } else {
-      wc.openDevTools({ mode: 'detach' });
-      console.log('[Vex DT]   opened DevTools for wc#' + wc.id);
+      return { ok: true, id: wc.id, open: false };
     }
-    return { ok: true, id: wc.id };
+    wc.openDevTools({ mode: 'detach', activate: true });
+    console.log('[Vex DT]   opened DevTools for wc#' + wc.id);
+    return { ok: true, id: wc.id, open: true };
   } catch (err) {
     console.error('[Vex DT]   openDevTools error:', err);
     return { ok: false, error: err.message, id: wc.id };

@@ -185,3 +185,28 @@ describe('Restart Vex', () => {
     expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/not exposed/i), 'error');
   });
 });
+
+// The dashboard's DevTools button opens the interface's own inspector. It
+// once called a bridge method that did not exist and reported "not exposed".
+describe('Open DevTools', () => {
+  const devtools = () => VexDevMode.actions().find(a => a.id === 'devtools');
+
+  it('toggles the host window DevTools through the bridge and says which way', async () => {
+    window.vexDevTools = { openHost: vi.fn(async () => ({ ok: true, open: true })) };
+    await VexDevMode._runAction(devtools());
+    expect(window.vexDevTools.openHost).toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalledWith('DevTools opened');
+    window.vexDevTools.openHost = vi.fn(async () => ({ ok: true, open: false }));
+    await VexDevMode._runAction(devtools());
+    expect(window.showToast).toHaveBeenCalledWith('DevTools closed');
+  });
+
+  it('reports a refusal from main, and a missing bridge', async () => {
+    window.vexDevTools = { openHost: vi.fn(async () => ({ ok: false, error: 'The window is gone' })) };
+    await VexDevMode._runAction(devtools());
+    expect(window.showToast).toHaveBeenCalledWith('The window is gone', 'error');
+    window.vexDevTools = {};
+    await VexDevMode._runAction(devtools());
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/not exposed/i), 'error');
+  });
+});

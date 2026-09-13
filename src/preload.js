@@ -349,6 +349,9 @@ contextBridge.exposeInMainWorld('vexDevTools', {
   // all live webContents when getWebContentsId() returned -1 (the silent-
   // failure case for Inspect Element on a freshly-attached <webview>).
   openForWebContents: (webContentsId, fallbackUrl) => ipcRenderer.invoke('devtools:open-for-webcontents', webContentsId, fallbackUrl),
+  // DevTools for the interface itself (the main window's document), docked
+  // at the bottom like F12. Used by the developer dashboard.
+  openHost: () => ipcRenderer.invoke('devtools:toggle-host'),
   // Legacy callback support (kept for compatibility, but not used)
   onToggle: (cb) => subscribe('devtools:toggle', cb),
 });

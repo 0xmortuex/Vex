@@ -41,7 +41,11 @@ function installIpcPolicy(ipcMain, security) {
         throw new Error('Untrusted IPC sender');
       }
     }
-    if (TARGET_CHANNELS.has(channel) && !security.ownsTarget(event, args[0])) throw new Error('Target belongs to another window');
+    // A <webview> that has just attached reports its id as -1; the DevTools
+    // opener then matches the page by URL and checks ownership itself, so the
+    // id check only applies when there is an id to check.
+    const idGiven = !(channel === 'devtools:open-for-webcontents' && Number.isInteger(args[0]) && args[0] <= 0);
+    if (TARGET_CHANNELS.has(channel) && idGiven && !security.ownsTarget(event, args[0])) throw new Error('Target belongs to another window');
     if (channel === 'app:tab-memory' && (!Array.isArray(args[0]) || args[0].some(id => !security.ownsTarget(event, id)))) throw new Error('Invalid tab ownership');
     return host;
   }
