@@ -267,6 +267,7 @@ contextBridge.exposeInMainWorld('vex', {
     list: () => ipcRenderer.invoke('reminders:list'),
     delete: (id) => ipcRenderer.invoke('reminders:delete', id),
     visited: (host) => ipcRenderer.invoke('reminders:visited', host),
+    ack: (id) => ipcRenderer.invoke('reminders:ack', id),
     hold: (untilMs) => ipcRenderer.invoke('reminders:hold', untilMs),
     onFired: (cb) => subscribe('reminders:fired', cb),
     onClicked: (cb) => subscribe('reminders:clicked', cb),

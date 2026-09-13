@@ -21,20 +21,37 @@ const MAX_MESSAGE = 2000;
 const CHECK_MS = 60 * 1000;      // how often the safety-net check runs
 const MIN_LEAD_MS = 60 * 1000;   // reminders are set to the minute
 const REPEATS = ['daily', 'weekdays', 'weekly'];
+const KINDS = ['reminder', 'alarm', 'timer'];
 
 const pad = (n) => String(n).padStart(2, '0');
 const hhmm = (ms) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 // The next occurrence of a repeating reminder, from local wall-clock fields
 // so 09:00 stays 09:00 across a clock change. Always strictly after `after`.
+// `repeat` is daily | weekdays | weekly, or an array of weekdays (0 = Sunday)
+// — the alarm-clock form, "Mon Wed Fri".
 function nextRepeat(atMs, repeat, after) {
   const d = new Date(atMs);
+  const days = Array.isArray(repeat) ? repeat : null;
+  if (days && !days.length) throw new Error('An alarm needs at least one day.');
   const step = () => {
     d.setDate(d.getDate() + (repeat === 'weekly' ? 7 : 1));
     if (repeat === 'weekdays') while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    if (days) while (!days.includes(d.getDay())) d.setDate(d.getDate() + 1);
   };
   step();
   while (d.getTime() <= after) step();
+  return d.getTime();
+}
+
+// First occurrence of an alarm: today at HH:MM if still ahead and today is an
+// allowed day, else the next allowed day.
+function firstAlarmAt(hour, minute, days, now) {
+  const d = new Date(now); d.setHours(hour, minute, 0, 0);
+  const allowed = (Array.isArray(days) && days.length) ? days : [0, 1, 2, 3, 4, 5, 6];
+  if (d.getTime() <= now || !allowed.includes(d.getDay())) {
+    do { d.setDate(d.getDate() + 1); } while (!allowed.includes(d.getDay()));
+  }
   return d.getTime();
 }
 
@@ -94,6 +111,7 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
   const payloadOf = (r, late) => ({
     id: r.id, message: r.message, at: r.at, late, delivered: r.delivered, error: r.error || null,
     url: r.url || null, site: r.site || null, repeat: r.repeat || null, urgent: !!r.urgent,
+    kind: r.kind || 'reminder', sound: !!r.sound,
   });
 
   async function registerOs(r) {
@@ -111,6 +129,7 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
     if (r.repeat && r.at != null) {
       r.lastFiredAt = firedAt;
       r.at = nextRepeat(r.at, r.repeat, firedAt);
+      r.ackedAt = null;   // a repeating alarm rings again until dismissed again
     } else {
       r.firedAt = firedAt;
     }
@@ -182,11 +201,15 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
     //   at a site      { message, site }            fires next time a tab opens that host
     // Either may carry `url` (the page it is about) and `urgent` (fires even
     // during a focus session).
-    async create({ message, at, url, repeat, site, urgent }) {
+    // `kind` is reminder (default), alarm or timer — the clock panel's items
+    // are reminders with a sound and, for alarms, a set of days. `repeat` is
+    // daily | weekdays | weekly, or an array of weekdays for an alarm.
+    async create({ message, at, url, repeat, site, urgent, kind, sound }) {
       await load();
       const text = String(message || '').trim();
       if (!text) throw new Error('Write what you want to be reminded of.');
       if (text.length > MAX_MESSAGE) throw new Error(`That is longer than ${MAX_MESSAGE} characters.`);
+      if (kind != null && !KINDS.includes(kind)) throw new Error('Kind must be reminder, alarm or timer.');
 
       const host = site ? siteKey(site) : '';
       if (site && !host) throw new Error('Say which site — a host like github.com.');
@@ -197,7 +220,12 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
         if (when - now() < MIN_LEAD_MS) throw new Error('Reminders are set to the minute — choose at least a minute from now.');
         when = Math.floor(when / 60000) * 60000;   // to the minute, matching the OS task
       }
-      if (repeat != null && repeat !== '' && !REPEATS.includes(repeat)) throw new Error('Repeat must be daily, weekdays or weekly.');
+      if (Array.isArray(repeat)) {
+        repeat = [...new Set(repeat.map(Number))].filter(d => Number.isInteger(d) && d >= 0 && d <= 6).sort();
+        if (!repeat.length) throw new Error('Pick at least one day for the alarm to repeat on.');
+      } else if (repeat != null && repeat !== '' && !REPEATS.includes(repeat)) {
+        throw new Error('Repeat must be daily, weekdays or weekly.');
+      }
       if (repeat && host) throw new Error('A site reminder fires when you open the site; it cannot also repeat on a schedule.');
       let link = '';
       if (url) {
@@ -213,6 +241,9 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
         repeat: repeat || null,
         url: link || null,
         urgent: !!urgent,
+        kind: kind || 'reminder',
+        sound: !!sound,
+        ackedAt: null,
         createdAt: now(),
         firedAt: null,
         lastFiredAt: null,
@@ -270,6 +301,17 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
       return hits.length;
     },
 
+    // The person dismissed an alarm's ringing (or any fired item). Recorded so
+    // a Vex started later does not ring for something already dealt with.
+    async ack(id) {
+      await load();
+      const r = items.find(x => x.id === id);
+      if (!r) throw new Error('That reminder no longer exists.');
+      r.ackedAt = now();
+      await persist();
+      return { ok: true };
+    },
+
     // Hold non-urgent reminders until `untilMs` (0 clears). Anything that fell
     // due meanwhile fires as a batch when the hold ends.
     hold(untilMs) {
@@ -291,4 +333,4 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
   };
 }
 
-module.exports = { createReminders, nextRepeat, siteKey, REPEATS, MAX_MESSAGE, CHECK_MS, MIN_LEAD_MS };
+module.exports = { createReminders, nextRepeat, firstAlarmAt, siteKey, REPEATS, KINDS, MAX_MESSAGE, CHECK_MS, MIN_LEAD_MS };

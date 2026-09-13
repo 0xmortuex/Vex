@@ -1341,6 +1341,9 @@
     .today-when.overdue { color: #e5484d; }
     .today-text { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .today-error { font-size: 12px; color: #e5484d; padding: 6px 14px; }
+    .today-world-list { flex: 1; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; }
+    .today-city b { font-variant-numeric: tabular-nums; color: var(--vex-text-primary); }
+    .today-city.night b { color: var(--vex-text-muted); }
   </style>
   <script>
     (function () {
@@ -1374,6 +1377,19 @@
         (snap.tasks || []).forEach(function (t) { rows.push(row('Scheduled', hhmm(t.at), t.text + (t.action ? ' — ' + t.action : ''), null, '')); });
         (snap.changed || []).forEach(function (c) { rows.push(row('Changed', c.at ? hhmm(c.at) : '', c.text, c.url, '')); });
         (snap.saved || []).forEach(function (s) { rows.push(row('Saved', s.at ? hhmm(s.at) : '', s.text, s.url, '')); });
+        if (snap.clock && snap.clock.length) {
+          var w = document.createElement('div'); w.className = 'today-item today-world';
+          var k = document.createElement('span'); k.className = 'today-kind'; k.textContent = 'World'; w.appendChild(k);
+          var wrap = document.createElement('span'); wrap.className = 'today-world-list';
+          snap.clock.forEach(function (c) {
+            var el = document.createElement('span'); el.className = 'today-city' + (c.day ? '' : ' night');
+            var t = document.createElement('b'); t.textContent = c.hhmm;
+            var n = document.createElement('span'); n.textContent = ' ' + c.name;
+            el.appendChild(t); el.appendChild(n); el.title = c.zone + ' · ' + c.offset;
+            wrap.appendChild(el);
+          });
+          w.appendChild(wrap); rows.push(w);
+        }
         (snap.errors || []).forEach(function (m) { var e = document.createElement('div'); e.className = 'today-error'; e.textContent = 'Could not read ' + m; rows.push(e); });
         rows.forEach(function (r) { list.appendChild(r); });
         sec.hidden = rows.length === 0;

@@ -1003,6 +1003,13 @@
     try { window.VexQuickReminder && VexQuickReminder.init(); } catch (e) { console.error('[Reminders] init failed:', e); }
     // The Today snapshot the new tab page reads (js/today.js).
     try { window.VexToday && VexToday.init(); } catch (e) { console.error('[Today] init failed:', e); }
+    // Alarms ring, timers tick, and the top-bar pill opens the Clock (js/clock-panel.js).
+    try {
+      if (window.VexClock) {
+        VexClock.init();
+        document.getElementById('timer-pill')?.addEventListener('click', () => { VexClock._tab = 'timers'; SidebarManager.openPanel('clock'); });
+      }
+    } catch (e) { console.error('[Clock] init failed:', e); }
     ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
     // Full screen implies open: switching mode on a closed panel would do
     // nothing visible and look broken.

@@ -204,12 +204,36 @@ const VexQuickReminder = {
       if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host)) throw new Error(`"${m[1]}" does not look like a site — try something like github.com.`);
       return { site: host };
     }
+    // "9am New York time", "tomorrow 17:00 in Tokyo", "monday 9am Istanbul":
+    // the time is read as that city's wall clock and turned into an instant.
+    if (typeof VexClock !== 'undefined') {
+      const words = s.replace(/\s+time$/i, '').split(/\s+/);
+      const notCity = /^(am|pm|noon|midnight|today|tomorrow|tonight|tmr|tmrw|minutes?|mins?|hours?|hrs?|days?|weeks?|[hmdw]|next|this|in|at)$/i;
+      // The city is the last one to three words; try the longest first so
+      // "New York" is not read as "York".
+      for (let k = Math.min(3, words.length - 1); k >= 1; k--) {
+        const tail = words.slice(-k);
+        if (tail.some(w => notCity.test(w) || this.WEEKDAYS[w.toLowerCase()] || /\d/.test(w))) continue;
+        const zone = VexClock.zoneFor(tail.join(' '));
+        if (!zone) continue;
+        let head = words.slice(0, -k);
+        if (head.length && /^in$/i.test(head[head.length - 1])) head = head.slice(0, -1);
+        const local = this.parseWhen(head.join(' '), now);
+        const at = new Date(VexClock.instantIn(zone.zone, { year: local.getFullYear(), month: local.getMonth() + 1, day: local.getDate(), hour: local.getHours(), minute: local.getMinutes() }));
+        return { at: this._checkFuture(at, now instanceof Date ? now : new Date()), zone };
+      }
+    }
     return { at: this.parseWhen(s, now) };
   },
 
   describeTrigger(t, now) {
     if (t && t.site) return `Next time you open ${t.site}`;
-    return this.describe(t.at, now);
+    const base = this.describe(t.at, now);
+    if (t && t.zone && typeof VexClock !== 'undefined') {
+      const p = VexClock.partsIn(t.zone.zone, t.at.getTime());
+      return `${base} (${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')} in ${t.zone.name})`;
+    }
+    return base;
   },
 
   // An iCalendar entry for a timed reminder — one VEVENT with an alarm at the

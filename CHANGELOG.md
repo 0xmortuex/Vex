@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.31.72 (2026-09-13) — A Clock: alarms, timers, stopwatch, world clock
+
+### Notes
+- **A Clock panel in the sidebar** (and Ctrl+K → Clock) with four tabs.
+- **Alarms ring.** Time, days of the week, a label — and an audible alarm that keeps sounding until you press Dismiss or Snooze (9 minutes). An alarm is a reminder underneath, so it gets the Windows wake-up: it rings even if Vex was closed. Repeating alarms roll to the next chosen day and ring again until dismissed again.
+- **Timers.** "25 min", "1h 30", "90s" or 10:00, several at once, with presets. The nearest one ticks in the top bar; click it to open the Clock. A timer of a minute or more keeps counting through a reload and ends with a desktop notification as well as the alarm.
+- **A stopwatch** with laps.
+- **A world clock** for the cities you pick — live times, day or night, the offset from you — and a slider for "what time is it there when it is 3pm here". Any IANA zone works too. The cities also appear on the new tab page.
+- **Reminders in another city's time.** "9am New York time" or "tomorrow 17:00 in Tokyo" lands at that moment, read back in both clocks before it saves.
+- Verified live: an alarm set for 15:46 rang at 15:46 with the sound loop running, Dismiss recorded it and rolled it to the next Sunday.
+
 ## v2.31.71 (2026-09-13) — Reminders that repeat, follow pages and sites; Today on the new tab
 
 ### Notes

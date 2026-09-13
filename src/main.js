@@ -4276,6 +4276,11 @@ ipcMain.handle('reminders:visited', async (_e, host) => {
   if (!reminders) throw new Error('Reminders have not started yet');
   return reminders.visited(host);
 });
+// An alarm's ringing was dismissed.
+ipcMain.handle('reminders:ack', async (_e, id) => {
+  if (!reminders) throw new Error('Reminders have not started yet');
+  return reminders.ack(id);
+});
 // A focus session holds non-urgent reminders until it ends (0 clears).
 ipcMain.handle('reminders:hold', async (_e, untilMs) => {
   if (!reminders) throw new Error('Reminders have not started yet');

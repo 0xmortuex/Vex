@@ -195,6 +195,7 @@ const CommandBar = {
     { id: 'compare-tabs', label: 'Compare Tabs', hint: 'AI compares all open tabs', icon: 'scale', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Compare these tabs side-by-side.',TabManager.tabs); } },
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
     { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
+    { id: 'clock', label: 'Clock', hint: 'Alarms, timers, stopwatch and a world clock', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('clock') },
     { id: 'remind', label: 'Remind me', hint: 'Paste a task and be reminded later', icon: 'bell', isPrimary: true, action: () => {
       if (typeof VexQuickReminder === 'undefined') { window.showToast?.('Reminders are not available in this build', 'error'); return; }
       // Any text selected in the interface is almost certainly the task, so it

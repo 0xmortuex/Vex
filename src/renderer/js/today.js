@@ -67,6 +67,16 @@ const VexToday = {
       }
     } catch (err) { snap.errors.push('watched pages: ' + ((err && err.message) || 'unavailable')); }
 
+    // The world clock's cities, as they read right now.
+    try {
+      if (typeof VexClock !== 'undefined' && VexClock.cities) {
+        snap.clock = VexClock.cities().slice(0, 6).map(c => {
+          const p = VexClock.partsIn(c.zone, now);
+          return { name: c.name, zone: c.zone, hhmm: String(p.hour).padStart(2, '0') + ':' + String(p.minute).padStart(2, '0'), offset: VexClock.offsetLabel(c.zone, now), day: p.hour >= 7 && p.hour < 19 };
+        });
+      }
+    } catch (err) { snap.errors.push('world clock: ' + ((err && err.message) || 'unavailable')); }
+
     try {
       if (typeof ReadLater !== 'undefined' && Array.isArray(ReadLater.items)) {
         snap.saved = ReadLater.items

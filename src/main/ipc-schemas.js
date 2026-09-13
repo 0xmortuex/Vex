@@ -43,14 +43,19 @@ define('storage:history-add', [shape({ url: web, title: optional(string(4096)) }
 define('notify:show', [shape({ title: string(200), body: optional(string(2000)) })]);
 // A reminder is timed (`at`, optionally repeating) or site-triggered (`site`);
 // either may carry the page it is about and an urgent flag.
+const weekdayList = value => Array.isArray(value) && value.length > 0 && value.length <= 7 && value.every(d => Number.isInteger(d) && d >= 0 && d <= 6);
 define('reminders:create', [shape({
   message: string(2000),
   at: optional(integer),
   url: optional(web),
-  repeat: optional(oneOf(['daily', 'weekdays', 'weekly'])),
+  // A named cadence, or an alarm's set of weekdays (0 = Sunday).
+  repeat: optional(value => ['daily', 'weekdays', 'weekly'].includes(value) || weekdayList(value)),
   site: optional(string(253)),
   urgent: optional(boolean),
+  kind: optional(oneOf(['reminder', 'alarm', 'timer'])),
+  sound: optional(boolean),
 })]);
+define('reminders:ack', [value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)]);
 define('reminders:list', []);
 define('reminders:delete', [value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)]);
 define('reminders:visited', [string(253)]);

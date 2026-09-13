@@ -78,6 +78,32 @@ describe('the dialog with a page in hand', () => {
   });
 });
 
+describe('a time in another city', () => {
+  const { VexClock } = require('../../src/renderer/js/clock-panel.js');
+  globalThis.VexClock = VexClock;
+  const jan = new Date(2026, 0, 15, 8, 0);   // local January morning; no DST anywhere relevant
+
+  it('reads "9am New York time" as that city\'s wall clock', () => {
+    const t = VexQuickReminder.parseTrigger('tomorrow 9am New York time', jan);
+    expect(t.zone).toEqual({ name: 'New York', zone: 'America/New_York' });
+    expect(t.at.getTime()).toBe(Date.UTC(2026, 0, 16, 14, 0));
+    expect(VexQuickReminder.describeTrigger(t, jan)).toMatch(/\(09:00 in New York\)$/);
+  });
+  it('accepts "in Tokyo" and an IANA zone', () => {
+    expect(VexQuickReminder.parseTrigger('tomorrow 17:00 in Tokyo', jan).at.getTime()).toBe(Date.UTC(2026, 0, 16, 8, 0));
+    expect(VexQuickReminder.parseTrigger('tomorrow noon Asia/Kolkata', jan).at.getTime()).toBe(Date.UTC(2026, 0, 16, 6, 30));
+  });
+  it('does not mistake a weekday or a unit for a city', () => {
+    expect(VexQuickReminder.parseTrigger('friday 17:00', jan).zone).toBeUndefined();
+    expect(VexQuickReminder.parseTrigger('in 2 hours', jan).zone).toBeUndefined();
+    expect(VexQuickReminder.parseTrigger('tomorrow 9am', jan).zone).toBeUndefined();
+  });
+  it('still refuses a moment already past in that city', () => {
+    // 08:00 local; asking for 00:30 "today" in a zone far ahead can already be gone.
+    expect(() => VexQuickReminder.parseTrigger('today 00:30 in Tokyo', jan)).toThrow(/already passed|at least a minute/);
+  });
+});
+
 describe('a calendar entry', () => {
   const r = { id: 'r1', message: 'Dentist, ask about the referral', at: Date.UTC(2026, 8, 20, 9, 0), url: 'https://example.com/booking', repeat: 'weekly' };
   it('is a valid single-event iCalendar file', () => {
