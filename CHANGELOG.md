@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.74 (2026-09-13) — The setup wizard asks about the settings that matter
+
+### Notes
+- **Three new steps on first run.** *How the browser behaves* — where tabs sit, mouse gestures, cookie banners, sites that block copying, session auto-save, tab-group suggestions. *What Vex may read* — AI history indexing and email-code autofill, explained in plain words before they are on. *Notifications* — a test button that says whether Windows showed it, and where to look if not. Each step shows the current value and applies through the same code as Settings.
+- **The performance step now really offers the nine it promised.** It listed seven: pinned-tab exemption and the memory guard were missing.
+- **Fixed:** the Look and Performance steps were shown as unset every time the wizard was reopened, because two steps recorded "done" one way and the check read it another.
+- 22 steps in all; everything is still skippable, and everything lives in Settings afterwards.
+
 ## v2.31.73 (2026-09-13) — Sentences in Ctrl+K, snooze on the toast, a weekly review, reminders that follow you
 
 ### Notes

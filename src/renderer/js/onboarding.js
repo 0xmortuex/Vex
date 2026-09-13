@@ -62,7 +62,10 @@ const Onboarding = {
   },
 
   _has(k) { try { const v = localStorage.getItem(k); return v != null && v !== ''; } catch { return false; } },
-  _flag(k) { try { return localStorage.getItem(k) === 'true'; } catch { return false; } },
+  // Steps have recorded "done" as 'true' in some places and '1' in others
+  // (the look and performance steps wrote '1'), so a check for 'true' alone
+  // re-showed those two on every relaunch. Both spellings count.
+  _flag(k) { try { const v = localStorage.getItem(k); return v === 'true' || v === '1'; } catch { return false; } },
 
   // Is this step already configured? Each AI backend is judged independently, so
   // setting up cloud AI doesn't mark the Ollama / on-device steps as done.
@@ -85,6 +88,9 @@ const Onboarding = {
       case 'ondevice':       return this._flag('vex.preferOnDeviceAI');
       case 'sync':           return this._has('vex.syncWorkerUrl');
       case 'passwords':      return this._flag('vex.vaultSeeded');
+      case 'browsing':       return this._flag('vex.browsingConfigured');
+      case 'aidata':         return this._flag('vex.aiDataConfigured');
+      case 'notifications':  return this._flag('vex.notificationsChecked');
       default:               return false;
     }
   },
@@ -122,6 +128,8 @@ const Onboarding = {
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' },
       { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, or a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape. Your theme colours can be kept on top of any of them.' },
       { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' },
+      { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' },
+      { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' },
       { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' },
       { key: 'language',       title: 'Language · Dil',           sub: 'Sets the start page language — greeting, labels, and the daily verse. (Full interface translation is on the roadmap.)' },
       { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' },
@@ -135,6 +143,7 @@ const Onboarding = {
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' },
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' },
       { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' },
+      { key: 'notifications',  title: 'Notifications',            sub: 'Reminders, alarms, page-change alerts and websites you allow all arrive as Windows notifications. Send one now to be sure they reach you — if it does not show, the fix is in Windows, and this page says where.' },
       { key: 'done',           title: 'All set',                     sub: 'You’re ready. Everything here lives in Settings if you want to change it later — and Discover (Ctrl+K → “Discover”) introduces every feature Vex has, one at a time.' },
     ].map(step => ({ ...step, title: window.VexI18n?.t(step.key, step.title) || step.title, sub: window.VexI18n?.t(step.key + '.sub', step.sub) || step.sub }));
   },
@@ -688,6 +697,34 @@ const Onboarding = {
         btn.style.borderColor = this._wantTour ? 'var(--primary)' : 'var(--border)';
         btn.querySelector('span:last-child span:first-child').textContent = this._wantTour ? '✓ Tour queued — starts when you finish' : 'Take a quick tour';
       });
+    } else if (key === 'browsing') {
+      this._renderSwitches(body, this.BROWSING_FIELDS(), 'browsing');
+    } else if (key === 'aidata') {
+      this._renderSwitches(body, this.AIDATA_FIELDS(), 'aidata');
+    } else if (key === 'notifications') {
+      // Notifications failed silently for the app's whole life once because
+      // nothing ever checked. This is the check, on day one.
+      body.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button id="ob-notify-test" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Send a test notification</button>
+          <span id="ob-notify-status" role="status" style="font-size:12.5px;line-height:1.5;color:var(--text-muted)">Nothing sent yet.</span>
+          <p style="font-size:11.5px;color:var(--text-muted);margin:0;line-height:1.5">If nothing appears: Windows Settings › System › Notifications — make sure notifications are on, Vex is allowed, and Focus assist / Do not disturb is off. Alarm sound and volume live in the Clock panel.</p>
+        </div>`;
+      body.querySelector('#ob-notify-test')?.addEventListener('click', async () => {
+        const st = body.querySelector('#ob-notify-status');
+        const btn = body.querySelector('#ob-notify-test');
+        if (!window.vex || typeof window.vex.notify !== 'function') { st.textContent = 'Desktop notifications are not available in this build.'; st.style.color = 'var(--danger,#ef4444)'; return; }
+        btn.disabled = true; st.textContent = 'Sending…'; st.style.color = 'var(--text-muted)';
+        try {
+          await window.vex.notify('Vex', 'This is a test notification. If you can read this, they work.');
+          st.textContent = '✓ Windows showed it. Reminders and alarms will reach you the same way.';
+          st.style.color = 'var(--primary)';
+          this._session.notified = true;
+        } catch (err) {
+          st.textContent = 'It did not show: ' + ((err && err.message) || 'unknown error') + ' — see the note below.';
+          st.style.color = 'var(--danger,#ef4444)';
+        } finally { btn.disabled = false; }
+      });
     } else {
       body.innerHTML = '';   // welcome has no body
     }
@@ -822,22 +859,22 @@ const Onboarding = {
       {
         id: 'balanced', name: 'Balanced', tag: 'recommended',
         desc: 'Tabs sleep after 30 minutes, ads and trackers blocked, pages loaded over HTTPS only.',
-        values: { memorySaver: false, autosleep: true, minutes: 30, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+        values: { memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
         id: 'memory', name: 'Save memory',
         desc: 'Tabs sleep after 10 minutes and are discarded when the window is minimized. For a machine with 8 GB, or for forty open tabs.',
-        values: { memorySaver: true, autosleep: true, minutes: 10, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+        values: { memorySaver: true, autosleep: true, minutes: 10, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
         id: 'privacy', name: 'Maximum privacy',
         desc: 'Everything above, plus fingerprint randomization and encrypted DNS. A few sites misbehave under it — you can switch it back off.',
-        values: { memorySaver: false, autosleep: true, minutes: 30, adblock: true, farble: true, doh: 'auto', httpsOnly: true },
+        values: { memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: true, doh: 'auto', httpsOnly: true },
       },
       {
         id: 'nothing', name: 'Leave it all off',
         desc: 'No sleeping, no blocking, no extras. Vex behaves like a plain browser and uses the memory that implies.',
-        values: { memorySaver: false, autosleep: false, minutes: 30, adblock: false, farble: false, doh: 'off', httpsOnly: false },
+        values: { memorySaver: false, autosleep: false, minutes: 30, excludePinned: true, memCeiling: 0, adblock: false, farble: false, doh: 'off', httpsOnly: false },
       },
     ];
   },
@@ -852,6 +889,8 @@ const Onboarding = {
       { key: 'httpsOnly', label: 'HTTPS-only', help: 'Refuse to load a page over an unencrypted connection.' },
       { key: 'farble', label: 'Fingerprint protection', help: 'Randomize canvas, WebGL and audio. Breaks a small number of sites.' },
       { key: 'doh', label: 'Encrypted DNS', help: 'Hide which sites you visit from your network.', select: [['off', 'Off'], ['auto', 'On — safe'], ['strict', 'On — strict']] },
+      { key: 'excludePinned', label: 'Never sleep pinned tabs', help: 'The ones you pinned stay awake whatever the timer says.' },
+      { key: 'memCeiling', label: 'Memory guard', help: 'Sleep idle tabs early when Vex passes this much memory.', select: [[0, 'Off'], [900, '900 MB — aggressive'], [1200, '1.2 GB — balanced'], [1600, '1.6 GB — relaxed'], [2400, '2.4 GB — max']] },
     ];
   },
 
@@ -863,6 +902,8 @@ const Onboarding = {
     if (box('setting-autosleep')) v.autosleep = box('setting-autosleep').checked;
     if (box('setting-autosleep-minutes')) v.minutes = parseInt(box('setting-autosleep-minutes').value, 10) || 30;
     if (box('setting-adblocker')) v.adblock = box('setting-adblocker').checked;
+    v.excludePinned = box('setting-autosleep-exclude-pinned') ? box('setting-autosleep-exclude-pinned').checked : true;
+    v.memCeiling = box('setting-mem-ceiling') ? (parseInt(box('setting-mem-ceiling').value, 10) || 0) : 1200;
     if (typeof PrivacyPack !== 'undefined' && PrivacyPack.cfg) {
       v.farble = !!PrivacyPack.cfg.farble;
       v.httpsOnly = !!PrivacyPack.cfg.httpsOnly;
@@ -873,23 +914,81 @@ const Onboarding = {
 
   // Apply through the real controls, so whatever Settings does on change
   // (persist, tell main, restart a service) happens here too.
+  // Drive a Settings control and fire its change event, so whatever Settings
+  // does on change (persist, tell main, restart a service) happens here too.
+  // Returns false when the control is not in the page — a step that claims
+  // to have applied something must not do so silently.
+  _setControl(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    if (el.type === 'checkbox') { if (el.checked === value) return true; el.checked = value; }
+    else { if (String(el.value) === String(value)) return true; el.value = String(value); }
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  },
+
   async _perfApply(v) {
-    const set = (id, value) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      if (el.type === 'checkbox') { if (el.checked === value) return; el.checked = value; }
-      else { if (String(el.value) === String(value)) return; el.value = String(value); }
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    };
+    const set = (id, value) => this._setControl(id, value);
     set('setting-memory-saver', !!v.memorySaver);
     set('setting-autosleep', !!v.autosleep);
     set('setting-autosleep-minutes', v.minutes);
+    set('setting-autosleep-exclude-pinned', v.excludePinned !== false);
+    set('setting-mem-ceiling', Number.isFinite(Number(v.memCeiling)) ? Number(v.memCeiling) : 1200);
     set('setting-adblocker', !!v.adblock);
     if (typeof PrivacyPack !== 'undefined' && PrivacyPack.setCfg) {
       await PrivacyPack.setCfg({ farble: !!v.farble, httpsOnly: !!v.httpsOnly, doh: v.doh || 'off' });
     }
-    try { localStorage.setItem('vex.perfConfigured', '1'); }
+    try { localStorage.setItem('vex.perfConfigured', 'true'); }
     catch (err) { console.warn('[setup] could not record the performance choice:', err && err.message); }
+  },
+
+  // --- How the browser behaves: the everyday switches, applied through the
+  // same Settings controls so nothing is stored one way here and read
+  // another way there. Current values come from those controls too.
+  BROWSING_FIELDS() {
+    return [
+      { key: 'tabLayout', control: 'setting-tab-layout', label: 'Where tabs sit', help: 'Down the side, or along the top. A borrowed look (Chrome, Firefox…) decides this itself.', select: [['vertical', 'Down the side'], ['horizontal', 'Along the top']] },
+      { key: 'gestures', control: 'setting-gestures', label: 'Mouse gestures', help: 'Hold the right button and drag — left for back, right for forward, down to reload.' },
+      { key: 'consent', control: 'setting-consent', label: 'Hide cookie banners', help: 'The consent pop-ups, gone before they appear.' },
+      { key: 'copyunlock', control: 'setting-copyunlock', label: 'Always allow copy and right-click', help: 'Sites that block selecting or copying text lose that power.' },
+      { key: 'autosave', control: 'setting-autosave', label: 'Save the session every 10 minutes', help: 'Your open tabs, kept, whatever happens.' },
+      { key: 'groupSuggest', control: 'setting-auto-group-suggest', label: 'Suggest tab groups', help: 'When several tabs belong together, Vex offers to group them.' },
+    ];
+  },
+  AIDATA_FIELDS() {
+    return [
+      { key: 'aiIndexing', control: 'setting-ai-indexing-enabled', label: 'AI history indexing', help: 'Vex keeps a local index of pages you visit so Vex AI can find them again ("that article about…"). Off means the AI only knows the page in front of you.' },
+      { key: 'emailHidden', control: 'setting-emailcode-hidden', label: 'Read sign-in codes from your inbox', help: 'When a site asks for a code sent by email, Vex looks for it in a hidden tab of your webmail and fills it. Nothing leaves this machine.' },
+      { key: 'emailAutoSubmit', control: 'setting-emailcode-autosubmit', label: 'Submit the code automatically', help: 'Press the button for you once the code is in.' },
+    ];
+  },
+  _controlValue(control) {
+    const el = document.getElementById(control);
+    if (!el) return null;
+    return el.type === 'checkbox' ? el.checked : el.value;
+  },
+  _renderSwitches(body, fields, sessionKey) {
+    const cur = this._session[sessionKey] || (this._session[sessionKey] = {});
+    for (const f of fields) if (cur[f.key] === undefined) { const v = this._controlValue(f.control); cur[f.key] = v == null ? (f.select ? f.select[0][0] : false) : v; }
+    body.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">${fields.map(f => {
+      const missing = !document.getElementById(f.control);
+      const ctl = f.select
+        ? `<select data-key="${f.key}" ${missing ? 'disabled' : ''} style="padding:6px 9px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12.5px">${f.select.map(([v, l]) => `<option value="${v}" ${String(cur[f.key]) === String(v) ? 'selected' : ''}>${this._esc(l)}</option>`).join('')}</select>`
+        : `<input type="checkbox" data-key="${f.key}" ${cur[f.key] ? 'checked' : ''} ${missing ? 'disabled' : ''} style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer">`;
+      return `<label style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);cursor:pointer${missing ? ';opacity:.55' : ''}">
+        ${ctl}<span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600;color:var(--text)">${this._esc(f.label)}</span><span style="display:block;font-size:11.5px;color:var(--text-muted);line-height:1.4">${this._esc(f.help)}${missing ? ' (not available in this build)' : ''}</span></span></label>`;
+    }).join('')}</div>`;
+    body.querySelectorAll('[data-key]').forEach(el => el.addEventListener('change', () => { cur[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value; }));
+  },
+  _applySwitches(fields, sessionKey, flag) {
+    const cur = this._session[sessionKey] || {};
+    const skipped = [];
+    for (const f of fields) {
+      if (cur[f.key] === undefined) continue;
+      if (!this._setControl(f.control, f.select ? String(cur[f.key]) : !!cur[f.key])) skipped.push(f.label);
+    }
+    if (skipped.length) window.showToast?.('Not available in this build: ' + skipped.join(', '), 'error');
+    try { localStorage.setItem(flag, 'true'); } catch (err) { console.warn('[setup] could not record the choice:', err && err.message); }
   },
 
   _renderPerformance(body) {
@@ -1251,6 +1350,13 @@ const Onboarding = {
       this._setStart('vex.weatherLoc', JSON.stringify(this._pendingLoc));
     } else if (key === 'performance') {
       await this._perfApply(this._perf || this._perfCurrent());
+    } else if (key === 'browsing') {
+      this._applySwitches(this.BROWSING_FIELDS(), 'browsing', 'vex.browsingConfigured');
+    } else if (key === 'aidata') {
+      this._applySwitches(this.AIDATA_FIELDS(), 'aidata', 'vex.aiDataConfigured');
+    } else if (key === 'notifications') {
+      // Done either way: the point was to offer the check, not to insist.
+      try { localStorage.setItem('vex.notificationsChecked', 'true'); } catch (err) { console.warn('[setup] could not record the notification check:', err && err.message); }
     }
     this.step++;
     this._render();
