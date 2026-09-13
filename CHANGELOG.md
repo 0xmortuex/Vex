@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.68 (2026-09-13) — Remind me, and a restart button
+
+### Notes
+- **Paste a task, say when, and Vex tells you later.** Ctrl+K → **Remind me**. One box for what you have to do — pre-filled with any text you had selected — and one for when. It understands "in 2 hours", "in 45m", "tomorrow 9am", "friday 17:00", "tonight", "noon", "2026-09-20 14:00", and a bare time like "6pm" that means today if it is still ahead and tomorrow if it is not. Five one-click chips cover the usual ones.
+- **It reads the time back before it saves anything.** The line under the box says "Tomorrow at 09:00 — 19 hours from now", so you can see Vex understood the same thing you meant. An unreadable phrase, an impossible hour, a date that does not exist or a moment already past each say what is wrong instead of quietly landing somewhere unexpected.
+- Reminders are ordinary scheduled tasks, so they appear in the Schedules panel, survive a restart, and one missed because Vex was closed still arrives when you open it.
+- **A Restart Vex button in the developer dashboard,** beside Reload the interface. Reloading re-runs the interface — js, css, index.html. It cannot pick up changes to the main process, the preload scripts or site tweaks, because those ran before the window existed; editing one and reloading looks exactly like the edit did nothing. Both buttons now say which changes they cover.
+
 ## v2.31.67 (2026-09-13) — A reference beside every tool
 
 ### Notes
