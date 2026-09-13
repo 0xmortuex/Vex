@@ -264,6 +264,7 @@ contextBridge.exposeInMainWorld('vex', {
     list: () => ipcRenderer.invoke('reminders:list'),
     delete: (id) => ipcRenderer.invoke('reminders:delete', id),
     onFired: (cb) => subscribe('reminders:fired', cb),
+    onClicked: (cb) => subscribe('reminders:clicked', cb),
   },
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),

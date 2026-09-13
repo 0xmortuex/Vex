@@ -323,3 +323,33 @@
   background: var(--vex-accent-dim); color: var(--vex-accent);
   border-color: var(--vex-border-accent-strong);
 }
+
+/* ---------- quick reminders, listed alongside scheduled tasks ------------ */
+/* They live in the main process (src/main/reminders.js) so they can fire with
+ * Vex closed; this block shows them here so one panel holds everything. */
+.sched-reminders {
+  margin-bottom: 12px; padding: 10px 11px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.sched-reminders-head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 6px;
+}
+.sched-reminders-count { font-weight: 400; letter-spacing: 0; text-transform: none; opacity: 0.8; }
+.sched-reminders-add {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; font-family: inherit; font-size: 11px; letter-spacing: 0; text-transform: none;
+  background: var(--bg); color: var(--primary); border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+}
+.sched-reminders-add:hover { border-color: var(--primary); }
+.sched-reminder { display: flex; align-items: center; gap: 9px; padding: 5px 4px; border-radius: 7px; font-size: 12px; }
+.sched-reminder:hover { background: var(--bg); }
+.sched-reminder-when { flex: none; color: var(--primary); font-weight: 600; white-space: nowrap; }
+.sched-reminder-text { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sched-reminder-x {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; cursor: pointer;
+  background: transparent; color: var(--text-muted); border: 1px solid transparent; border-radius: 6px;
+}
+.sched-reminder-x:hover { color: var(--danger, #ef4444); border-color: var(--border); }

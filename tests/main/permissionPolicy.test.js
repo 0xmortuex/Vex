@@ -123,3 +123,36 @@ describe('the prompt says what is being asked for', () => {
     }
   });
 });
+
+// Every website notification in Vex was granted by the prompt and then refused
+// at display time. Decisions were stored under `new URL(...).origin` (no
+// trailing slash) and the sync check handler was handed an origin spec with
+// one, so an allowed site never matched its own decision. Measured live:
+// navigator.permissions.query said "denied" seconds after Allow.
+import { originKey } from '../../src/main/permissions.js';
+describe('a decision made in the prompt is honoured by the sync check', () => {
+  it('spells an origin one way whichever form Electron hands over', () => {
+    expect(originKey('https://example.com/')).toBe('https://example.com');
+    expect(originKey('https://example.com')).toBe('https://example.com');
+    expect(originKey('http://localhost:9562/')).toBe('http://localhost:9562');
+    expect(originKey('https://Example.com:443/some/path')).toBe('https://example.com');
+    expect(originKey('not a url/')).toBe('not a url');
+  });
+
+  it('finds the stored allow for an origin given with a trailing slash', async () => {
+    const dir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'vex-perm-'));
+    const ipcMain = { on: vi.fn(), handle: vi.fn() };
+    const svc = createPermissionService({
+      userDataPath: dir,
+      secureSessions: { partitionOf: () => 'persist:main', owner: () => ({}) },
+      ipcMain, _markHidRequestActive: () => {},
+    });
+    const ses = fakeSession();
+    svc.wirePermissionsOnSession(ses, 'test', {});
+    await svc.savePermissionDecisions({ 'https://example.com::notifications': 'allow' });
+    expect(ses.handlers.check({ session: {} }, 'notifications', 'https://example.com/')).toBe(true);
+    expect(ses.handlers.check({ session: {} }, 'notifications', 'https://example.com')).toBe(true);
+    expect(ses.handlers.check({ session: {} }, 'notifications', 'https://other.com/')).toBe(false);
+    require('fs').rmSync(dir, { recursive: true, force: true });
+  });
+});

@@ -239,9 +239,69 @@ const VexQuickReminder = {
       window.showToast?.(prefix + r.message);
       if (r.delivered === 'failed') {
         window.showToast?.('The desktop notification did not show: ' + (r.error || 'unknown error'), 'error');
+        // The toast was the only copy; open the reminder itself instead.
+        this.showCard(r.id);
       }
     });
+    // Clicking the desktop toast opens the reminder in Vex.
+    if (typeof b.onClicked === 'function') b.onClicked((p) => { if (p && p.id) this.showCard(p.id); });
     return true;
+  },
+
+  // The reminder itself, opened from its toast: the full text, when it was
+  // due, and a way to push it back rather than lose it.
+  async showCard(id) {
+    let r = null;
+    try { r = (await this.list()).find(x => x.id === id) || null; }
+    catch (err) { window.showToast?.('Could not open that reminder: ' + ((err && err.message) || ''), 'error'); return null; }
+    if (!r) { window.showToast?.('That reminder is no longer stored.', 'error'); return null; }
+
+    document.getElementById('vex-reminder-card')?.remove();
+    const icon = (n, sz) => (window.VexIcons && VexIcons.has(n)) ? VexIcons.svg(n, { size: sz || 15 }) : '';
+    const wrap = document.createElement('div');
+    wrap.id = 'vex-reminder-card';
+    wrap.className = 'qr-overlay';
+    wrap.innerHTML = `
+      <div class="qr-dialog qr-card" role="dialog" aria-modal="true" aria-labelledby="qr-card-title">
+        <div class="qr-head">
+          <span class="qr-head-icon">${icon('alarm', 16)}</span>
+          <span class="qr-title" id="qr-card-title">Reminder</span>
+          <button class="qr-close" id="qr-card-close" title="Close" aria-label="Close">${icon('x', 14)}</button>
+        </div>
+        <div class="qr-card-when" id="qr-card-when"></div>
+        <div class="qr-card-text" id="qr-card-text"></div>
+        <div class="qr-actions qr-card-actions">
+          <button class="qr-btn" data-snooze="600000">Snooze 10 min</button>
+          <button class="qr-btn" data-snooze="3600000">Snooze 1 hour</button>
+          <button class="qr-btn" data-snooze="tomorrow">Tomorrow 9am</button>
+          <button class="qr-btn qr-primary" id="qr-card-done">Done</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector('#qr-card-when').textContent = (r.firedAt ? 'Was due ' : 'Due ') + this.describe(new Date(r.at)).split(' — ')[0].toLowerCase();
+    wrap.querySelector('#qr-card-text').textContent = r.message;
+
+    const close = () => wrap.remove();
+    wrap.querySelector('#qr-card-close').addEventListener('click', close);
+    wrap.querySelector('#qr-card-done').addEventListener('click', close);
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+    wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+    wrap.querySelectorAll('[data-snooze]').forEach(btn => btn.addEventListener('click', async () => {
+      const v = btn.dataset.snooze;
+      const when = v === 'tomorrow' ? this.parseWhen('tomorrow 9am') : new Date(Date.now() + Number(v));
+      try {
+        const made = await this.create(r.message, when);
+        window.showToast?.('Snoozed — ' + this.describe(when));
+        if (!made || !made.os || !made.os.scheduled) {
+          window.showToast?.('It will fire while Vex is running' + (made && made.os && made.os.error ? ' — ' + made.os.error : ''), 'error');
+        }
+        close();
+      } catch (err) {
+        window.showToast?.((err && err.message) || 'Could not snooze that reminder', 'error');
+      }
+    }));
+    setTimeout(() => wrap.querySelector('#qr-card-done').focus(), 40);
+    return wrap;
   },
 
   _hhmm(ms) {

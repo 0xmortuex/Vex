@@ -917,6 +917,21 @@ body.private-mode #vex-logo::after {
 
 /* Permissions list in Settings */
 .permissions-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+/* Settings › Site permissions: the desktop-notification check. Notifications
+ * failed silently for the app's whole life; this is the one place to prove
+ * they reach the person, in words. */
+.perm-test {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 13px; margin-bottom: 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.perm-test-text { flex: 1; min-width: 0; }
+.perm-test-title { font-size: 13px; font-weight: 650; color: var(--text); margin-bottom: 3px; }
+.perm-test-body { font-size: 12px; line-height: 1.5; }
+.perm-test-body.ok { color: var(--primary); }
+.perm-test-body.bad { color: var(--danger, #ef4444); }
+.perm-test .btn-secondary-sm { flex: none; }
+
 .permission-row {
   display: flex; align-items: center; gap: 16px;
   background: var(--vex-glass-light);

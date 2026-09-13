@@ -1,6 +1,14 @@
 const path = require('path');
 const fs = require('fs');
 const { atomicWrite } = require('./file-store');
+
+// One spelling of an origin for every decision key: scheme://host[:port],
+// no trailing slash, no path. Electron's handlers spell the same origin two
+// ways (see the check handler below); this makes them agree.
+function originKey(origin) {
+  const s = String(origin || '');
+  try { return new URL(s).origin; } catch { return s.replace(/\/+$/, ''); }
+}
 function createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive }) {
 // === Site permission handler (geolocation, camera, mic, notifications, ...) ===
 const permissionsFile = path.join(userDataPath, 'permissions.json');
@@ -128,8 +136,18 @@ function wirePermissionsOnSession(ses, tag, opts) {
     }, 120000);
   });
 
-  // Sync check (used by navigator.permissions.query) — only grant if explicitly allowed
+  // Sync check (used by navigator.permissions.query, and by Chromium before it
+  // DISPLAYS a notification) — only grant if explicitly allowed.
+  //
+  // Decisions are stored under `new URL(...).origin`, which has no trailing
+  // slash. Electron hands this handler an origin spec that does — so an
+  // allowed site never matched its own decision here, and every website
+  // notification in Vex was granted by the prompt and then refused at display
+  // time: navigator.permissions.query said "denied" seconds after Allow, and
+  // `new Notification()` fired onerror. Measured 2026-09-13. Normalise both
+  // sides to the same form before comparing.
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => {
+    requestingOrigin = originKey(requestingOrigin);
     // WebHID: keep navigator.hid available, and mark this origin as having a
     // device request in flight — Chromium runs this 'hid' check at the start of
     // requestDevice(), which lets the device-permission handler permit the
@@ -165,4 +183,4 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
 return { pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
 }
-module.exports = { createPermissionService };
+module.exports = { createPermissionService, originKey };

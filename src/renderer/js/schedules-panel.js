@@ -171,6 +171,7 @@ const SchedulesPanel = {
       c.innerHTML = window.VexUI
         ? VexUI.emptyState('clock', 'No scheduled tasks yet', 'Create one, or start from a template')
         : '<div class="sched-empty">No scheduled tasks yet.</div>';
+      this._renderReminders(c);
       return;
     }
 
@@ -253,6 +254,43 @@ const SchedulesPanel = {
         this._render();
       });
     });
+    this._renderReminders(c);
+  },
+
+  // Quick reminders live in the main process (src/main/reminders.js), not in
+  // this scheduler — that is what lets them fire with Vex closed. They are
+  // shown here too so there is one place to see everything that will happen.
+  async _renderReminders(c) {
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.list !== 'function' || !c || !c.isConnected) return;
+    let pending = [];
+    try { pending = (await b.list()).filter(r => !r.firedAt).sort((a, x) => a.at - x.at); }
+    catch (err) { window.showToast?.('Could not read reminders: ' + ((err && err.message) || ''), 'error'); return; }
+    c.querySelector('#sched-reminders')?.remove();
+    if (!pending.length) return;
+    const when = (ms) => (window.VexQuickReminder ? VexQuickReminder.describe(new Date(ms)).split(' — ')[0] : new Date(ms).toLocaleString());
+    const block = document.createElement('div');
+    block.id = 'sched-reminders';
+    block.className = 'sched-reminders';
+    block.innerHTML = `<div class="sched-reminders-head">${this._icon('alarm', 13)} Reminders <span class="sched-reminders-count">${pending.length}</span>
+        <button class="sched-reminders-add" id="sched-reminders-add">${this._icon('plus', 12)}<span>Remind me</span></button></div>`;
+    for (const r of pending) {
+      const row = document.createElement('div');
+      row.className = 'sched-reminder';
+      row.innerHTML = `<span class="sched-reminder-when"></span><span class="sched-reminder-text"></span>
+        <button class="sched-reminder-x" title="Remove this reminder" aria-label="Remove">${this._icon('trash', 12)}</button>`;
+      row.querySelector('.sched-reminder-when').textContent = when(r.at);
+      row.querySelector('.sched-reminder-text').textContent = r.message;
+      if (!r.os || !r.os.scheduled) row.title = 'Fires while Vex is running' + (r.os && r.os.error ? ' — ' + r.os.error : '');
+      row.querySelector('.sched-reminder-x').addEventListener('click', async () => {
+        try { await b.delete(r.id); window.showToast?.('Reminder removed'); }
+        catch (err) { window.showToast?.((err && err.message) || 'Could not remove it', 'error'); }
+        this._render();
+      });
+      block.appendChild(row);
+    }
+    block.querySelector('#sched-reminders-add').addEventListener('click', () => { window.VexQuickReminder && VexQuickReminder.open(); });
+    c.prepend(block);
   },
 
   // ----------------------------------------------------------------- history

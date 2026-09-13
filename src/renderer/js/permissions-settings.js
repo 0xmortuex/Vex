@@ -13,6 +13,13 @@ const PermissionsSettings = (() => {
     const entries = Object.entries(all);
 
     container.innerHTML = `
+      <div class="perm-test" id="perm-notify-test">
+        <div class="perm-test-text">
+          <div class="perm-test-title">Desktop notifications</div>
+          <div class="perm-test-body muted" id="perm-notify-status">Reminders, page-change alerts and websites you allow all arrive as Windows notifications. Send one to check they reach you.</div>
+        </div>
+        <button class="btn-secondary-sm" id="btn-notify-test">Send a test notification</button>
+      </div>
       <p class="setting-info muted" style="margin-bottom:10px">Sites you've allowed or blocked from accessing location, camera, microphone, notifications, and other sensitive features.</p>
       ${entries.length === 0 ? `
         <div style="color:var(--text-muted);font-size:12px;padding:12px 0">No site permissions set yet. When a site requests access, Vex will ask.</div>
@@ -40,6 +47,29 @@ const PermissionsSettings = (() => {
         <button class="btn-danger" id="btn-clear-all-permissions" style="margin-top:14px">Clear all permissions</button>
       `}
     `;
+
+    // A test toast that says, in words, whether Windows showed it. Notifications
+    // failed silently for the app's whole life because nothing ever checked.
+    const testBtn = container.querySelector('#btn-notify-test');
+    const status = container.querySelector('#perm-notify-status');
+    testBtn?.addEventListener('click', async () => {
+      if (!window.vex || typeof window.vex.notify !== 'function') {
+        status.textContent = 'Desktop notifications are not available in this build.';
+        status.className = 'perm-test-body bad';
+        return;
+      }
+      testBtn.disabled = true;
+      status.textContent = 'Sending…';
+      status.className = 'perm-test-body muted';
+      try {
+        await window.vex.notify('Vex', 'This is a test notification. If you can read this, they work.');
+        status.textContent = 'Windows showed it. If you did not see it, check Focus Assist and Settings › System › Notifications › Vex.';
+        status.className = 'perm-test-body ok';
+      } catch (err) {
+        status.textContent = 'It did not show: ' + ((err && err.message) || 'unknown error');
+        status.className = 'perm-test-body bad';
+      } finally { testBtn.disabled = false; }
+    });
 
     container.querySelectorAll('[data-perm-key]').forEach(btn => {
       btn.addEventListener('click', async () => {

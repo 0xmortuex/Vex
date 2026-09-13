@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.70 (2026-09-13) — Website notifications, a test button, snooze
+
+### Notes
+- **Notifications from websites work now — Discord, WhatsApp, anything you allow.** They never had. The prompt granted them, then Vex refused them at display time: decisions were stored under the origin without a trailing slash, and the check Chromium runs before showing a notification was handed the origin with one, so an allowed site never matched its own decision. Measured live — navigator.permissions.query said "denied" seconds after Allow. Both spellings now agree. Sites you allowed in the past are honoured without asking again.
+- **Settings › Site permissions has a "Send a test notification" button.** It says, in words, whether Windows showed it — and where to look if you did not see it. Notifications failed silently for the app's whole life because nothing ever checked.
+- **Clicking a reminder's notification opens the reminder in Vex**, with the full text, when it was due, and Snooze 10 min / 1 hour / Tomorrow 9am. If the desktop notification was refused, the reminder opens in Vex by itself instead of being lost.
+- **Reminders appear in the Schedules panel** alongside scheduled tasks, with a way to remove them and a "Remind me" button — one place to see everything that will happen.
+- `scripts/verify-reminders.js` boots the real app and proves the whole path — the Windows task, the toast, the cleanup — and with `--closed` that Windows wakes a quit Vex. Gated behind VEX_SMOKE_REMINDERS=1 because it takes two and a half minutes and shows a real notification.
+
 ## v2.31.69 (2026-09-13) — Notifications that show, reminders that fire with Vex closed
 
 ### Notes

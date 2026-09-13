@@ -163,6 +163,7 @@ function fakeBridge({ os = { scheduled: true, error: null } } = {}) {
     list: vi.fn(async () => items.map(r => ({ ...r }))),
     delete: vi.fn(async (id) => { items = items.filter(r => r.id !== id); return { ok: true, osError: null }; }),
     onFired: vi.fn(),
+    onClicked: vi.fn(),
   };
   return { bridge, created };
 }
@@ -341,5 +342,65 @@ describe('the dialog', () => {
     VexQuickReminder.open();
     VexQuickReminder.open();
     expect(document.querySelectorAll('#vex-quick-reminder').length).toBe(1);
+  });
+});
+
+// Clicking a reminder's desktop toast opens the reminder itself in Vex, with a
+// way to push it back rather than lose it.
+describe('the reminder card', () => {
+  let bridge;
+  const tick = () => new Promise(r => setTimeout(r, 0));
+  beforeEach(async () => {
+    document.body.innerHTML = '';
+    ({ bridge } = fakeBridge());
+    global.window.vex = { reminders: bridge };
+    global.window.showToast = vi.fn();
+    await bridge.create('Send the invoice to Dana', NOW.getTime() + 60000);
+  });
+
+  it('opens from a toast click with the full text and when it was due', async () => {
+    expect(VexQuickReminder.init()).toBe(true);
+    const onClicked = bridge.onClicked.mock.calls[0][0];
+    onClicked({ id: 'r1' });
+    await tick(); await tick();
+    const card = document.getElementById('vex-reminder-card');
+    expect(card).toBeTruthy();
+    expect(card.querySelector('#qr-card-text').textContent).toBe('Send the invoice to Dana');
+    // Still ahead, so "Due"; once fired it reads "Was due".
+    expect(card.querySelector('#qr-card-when').textContent).toMatch(/^Due /);
+  });
+
+  it('snoozes by creating a new reminder for the same text', async () => {
+    await VexQuickReminder.showCard('r1');
+    document.querySelector('[data-snooze="600000"]').click();
+    await tick(); await tick();
+    expect(bridge.create).toHaveBeenLastCalledWith('Send the invoice to Dana', expect.any(Number));
+    const [, atMs] = bridge.create.mock.calls.at(-1);
+    expect(atMs - Date.now()).toBeGreaterThan(9 * 60000);
+    expect(atMs - Date.now()).toBeLessThanOrEqual(10 * 60000);
+    expect(document.getElementById('vex-reminder-card')).toBe(null);
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/^Snoozed/));
+  });
+
+  it('Done closes it without creating anything', async () => {
+    const before = bridge.create.mock.calls.length;
+    await VexQuickReminder.showCard('r1');
+    document.getElementById('qr-card-done').click();
+    expect(document.getElementById('vex-reminder-card')).toBe(null);
+    expect(bridge.create.mock.calls.length).toBe(before);
+  });
+
+  it('says so when the reminder is no longer stored', async () => {
+    const r = await VexQuickReminder.showCard('missing');
+    expect(r).toBe(null);
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/no longer stored/i), 'error');
+  });
+
+  it('opens the card itself when the desktop toast was refused', async () => {
+    VexQuickReminder.init();
+    const onFired = bridge.onFired.mock.calls[0][0];
+    onFired({ id: 'r1', message: 'Send the invoice to Dana', at: NOW.getTime(), late: false, delivered: 'failed', error: 'toasts are off' });
+    await tick(); await tick();
+    expect(document.getElementById('vex-reminder-card')).toBeTruthy();
   });
 });

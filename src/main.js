@@ -4199,7 +4199,14 @@ function focusMainWindow() {
 const notifier = require('./main/notify').createNotifier({
   Notification, nativeImage,
   iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
-  onClick: focusMainWindow,
+  // Clicking a toast brings Vex forward; a reminder's toast also opens the
+  // reminder itself in the interface, with a way to snooze it.
+  onClick: ({ tag } = {}) => {
+    focusMainWindow();
+    if (tag && reminders && mainWindow && !mainWindow.isDestroyed()) {
+      try { mainWindow.webContents.send('reminders:clicked', { id: tag }); } catch {}
+    }
+  },
   log: (m) => console.log(m),
 });
 // Windows heads a toast with the Start Menu shortcut that targets the process.
