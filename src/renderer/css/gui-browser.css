@@ -164,6 +164,14 @@ body[data-gui-family="browser"] #url-input { color: var(--b-text); font: var(--b
    under its centred 600px field; here the field runs the toolbar's width, so a
    centred list sat off to one side of the text being typed. */
 body[data-gui-family="browser"] #searchbar-suggestions { left: 4px; right: 4px; width: auto; max-width: none; transform: none; }
+/* The highlighted row (under the pointer, or picked with the arrow keys) took
+   Vex's accent-dim fill and accent text — which here both map to the look's
+   accent, so in Chrome's palette the first suggestion was blue text on a blue
+   bar and could not be read. A real omnibox tints the row and keeps the text. */
+body[data-gui-family="browser"] .sb-suggestion:hover,
+body[data-gui-family="browser"] .sb-suggestion.selected { background: var(--b-btn-hover); }
+body[data-gui-family="browser"] .sb-suggestion:hover .sb-title,
+body[data-gui-family="browser"] .sb-suggestion.selected .sb-title { color: var(--b-text); }
 body[data-gui-family="browser"] #url-input::placeholder { color: var(--b-text-dim); }
 body[data-gui-family="browser"] #url-icon,
 body[data-gui-family="browser"] #url-bar .nav-btn { color: var(--b-text-dim); }
@@ -475,6 +483,10 @@ body[data-sb-side] #panels-container .panel { position: relative; flex: 1 1 auto
 /* A web panel's page fills its panel outright: its inline height:100% has no
    definite height to resolve against in a flexed panel and came out 0px tall. */
 body[data-sb-side] #panels-container .panel > webview { position: absolute; inset: 0; width: 100% !important; height: auto !important; }
+/* A second panel (openBeside) keeps its back/forward/reload strip — only the
+   first panel's moves into the header — so its page starts below the strip,
+   as in Classic (sidebar.js _injectPanelNavStyles), instead of under it. */
+body[data-sb-side] #panels-container .panel:has(> .panel-navbar) > webview { top: 34px; }
 /* Settings is a whole page of its own: it still covers the page area. */
 body[data-sb-side][data-sidebar-panel="settings"] #panels-container { position: absolute; inset: 0; width: auto; border: none; }
 body[data-sb-side][data-sidebar-panel="settings"] #look-sb-resize { display: none; }
@@ -521,6 +533,18 @@ body[data-sb-side] #look-sb-nav .pnav-btn:hover:not(:disabled) { background: var
 /* Maximized: the panel takes the whole page area, like Settings. */
 body[data-sb-side][data-sidebar-max][data-sidebar-panel] #panels-container { position: absolute; inset: 0; width: auto; border: none; }
 body[data-sb-side][data-sidebar-max] #look-sb-resize { display: none; }
+/* Two panels at once (SidebarManager.openBeside — Claude beside Discord): the
+   header spans both, and they share the whole page area half each; a 420px
+   sidebar split in two is no use, so this is always the full area. */
+body[data-sb-side][data-sidebar-panel] #panels-container[data-split] {
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto minmax(0, 1fr);
+  position: absolute; inset: 0; width: auto; border: none;
+}
+body[data-sb-side] #panels-container[data-split] #look-sb-head { grid-column: 1 / -1; }
+body[data-sb-side] #panels-container[data-split] .panel { min-width: 0; }
+body[data-sb-side] #panels-container[data-split] .panel.sb-primary { order: 1; }
+body[data-sb-side] #panels-container[data-split] .panel.sb-side { order: 2; border-left: 1px solid var(--b-toolbar-border); }
+body[data-sb-side] #panels-container[data-split] :is(#look-sb-max, #look-sb-resize) { display: none; }
 body[data-sb-side] #look-sb-resize { display: block; position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; cursor: col-resize; z-index: 6; }
 body[data-sb-side="right"] #look-sb-resize { right: auto; left: -3px; }
 

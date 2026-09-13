@@ -14,6 +14,10 @@
 (function () {
   const WIDTH_KEY = 'vex.lookSidebarWidth';
   const LAST_KEY = 'vex.lookSidebarLast';
+  // Panels open maximized (Discord, Claude, Prime… are whole apps); '0' once
+  // the user has pressed Restore, and Maximize sets it back.
+  const MAX_KEY = 'vex.lookSidebarMax';
+  const prefersMax = () => { try { return localStorage.getItem(MAX_KEY) !== '0'; } catch { return true; } };
   const DEFAULT_WIDTH = 420;
   const MIN_WIDTH = 260;
   const MIN_PAGE = 320;          // the page keeps at least this much room
@@ -62,7 +66,11 @@
       <button id="look-sb-close" title="Close sidebar" aria-label="Close sidebar">${CLOSE_ICON}</button>`;
     container.prepend(head);
     head.querySelector('#look-sb-picker').addEventListener('change', (e) => SidebarManager.showPanel(e.target.value));
-    head.querySelector('#look-sb-max').addEventListener('click', () => setMaximized(!document.body.hasAttribute('data-sidebar-max')));
+    head.querySelector('#look-sb-max').addEventListener('click', () => {
+      const on = !document.body.hasAttribute('data-sidebar-max');
+      setMaximized(on);
+      try { localStorage.setItem(MAX_KEY, on ? '1' : '0'); } catch {}
+    });
     head.querySelector('#look-sb-close').addEventListener('click', () => SidebarManager.hideActivePanel());
 
     const grip = document.createElement('div');
@@ -85,7 +93,10 @@
     }
     picker.value = panel;
     const cur = choices.find(c => c.panel === panel);
-    title.textContent = cur ? cur.label : panel;
+    // With a second panel beside it (SidebarManager.openBeside): "Discord + Claude".
+    const beside = typeof SidebarManager !== 'undefined' ? SidebarManager.sidePanel : null;
+    const other = beside ? choices.find(c => c.panel === beside) : null;
+    title.textContent = (cur ? cur.label : panel) + (beside ? ' + ' + (other ? other.label : beside) : '');
   }
 
   // ---- Maximize: the open panel takes the whole page area (Discord, Prime,
@@ -181,7 +192,9 @@
     if (btn && docked()) placeButton(btn);
     const panel = typeof SidebarManager !== 'undefined' ? SidebarManager.activePanel : null;
     if (btn) btn.classList.toggle('active', !!panel);
-    if (!panel || !docked()) setMaximized(false);
+    // A panel opens the way the user last left it — maximized until they press
+    // Restore. Closing the sidebar ends it either way.
+    setMaximized(!!panel && docked() && prefersMax());
     refreshHeader(panel);
     adoptNav(panel);
   }

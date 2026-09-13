@@ -114,20 +114,48 @@ describe('look sidebar', () => {
     expect(btn.parentElement.firstElementChild).toBe(btn);
   });
 
-  it('maximize fills the page area, restores, and ends when the sidebar closes', async () => {
+  // Discord, Claude, Prime… are whole apps: a panel opens taking the whole
+  // page area, and the header button puts it back in the sidebar.
+  it('a panel opens maximized; Restore puts it in the sidebar; closing ends it', async () => {
     setupDom('chrome', 'right', 'toolbar');
     await load();
     SidebarManager.showPanel('notes');
     const max = document.getElementById('look-sb-max');
-    max.click();
     expect(document.body.hasAttribute('data-sidebar-max')).toBe(true);
     expect(max.title).toBe('Restore to sidebar');
     max.click();
     expect(document.body.hasAttribute('data-sidebar-max')).toBe(false);
+    expect(max.title).toBe('Maximize');
     max.click();
+    expect(document.body.hasAttribute('data-sidebar-max')).toBe(true);
     SidebarManager.hideActivePanel();
     expect(document.body.hasAttribute('data-sidebar-max')).toBe(false);
     expect(max.title).toBe('Maximize');
+  });
+
+  it('remembers Restore: the next panel opens in the sidebar until Maximize is pressed again', async () => {
+    setupDom('chrome', 'right', 'toolbar');
+    await load();
+    SidebarManager.showPanel('notes');
+    document.getElementById('look-sb-max').click();          // restore
+    SidebarManager.showPanel('whatsapp');
+    expect(document.body.hasAttribute('data-sidebar-max')).toBe(false);
+    expect(localStorage.getItem('vex.lookSidebarMax')).toBe('0');
+    document.getElementById('look-sb-max').click();          // maximize again
+    SidebarManager.hideActivePanel();
+    SidebarManager.showPanel('notes');
+    expect(document.body.hasAttribute('data-sidebar-max')).toBe(true);
+  });
+
+  it('names both panels in the header when one sits beside the other', async () => {
+    setupDom('firefox', 'left', 'rail');
+    await load();
+    SidebarManager.sidePanel = 'notes';
+    SidebarManager.showPanel('whatsapp');
+    expect(document.getElementById('look-sb-title').textContent).toBe('WhatsApp + Notes');
+    SidebarManager.sidePanel = null;
+    SidebarManager.showPanel('whatsapp');
+    expect(document.getElementById('look-sb-title').textContent).toBe('WhatsApp');
   });
 
   it('a web panel\'s back/forward/reload move into the header, and back into the panel on switching away', async () => {

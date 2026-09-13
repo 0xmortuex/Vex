@@ -297,6 +297,16 @@ body {
   height: 100%;
 }
 
+/* Two panels at once (SidebarManager.openBeside — Claude beside Discord):
+   half the area each. Only where panels cover the page: the docked looks
+   (body[data-sb-side]) lay this out as a grid in css/gui-browser.css, and
+   these widths halved each grid cell there. */
+body:not([data-sb-side]) #panels-container[data-split] .panel.sb-primary { width: 50%; }
+body:not([data-sb-side]) #panels-container[data-split] .panel.sb-side {
+  left: 50%; width: 50%; box-sizing: border-box;
+  border-left: 1px solid var(--vex-border-medium);
+}
+
 /* Settings Panel — fill the panel area, scroll internally */
 #panel-settings {
   display: flex;

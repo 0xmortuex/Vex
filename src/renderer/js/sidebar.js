@@ -175,6 +175,8 @@ function vexPromptModal(title, value) {
 
 const SidebarManager = {
   activePanel: null,
+  // A second panel shown beside activePanel (openBeside), or null.
+  sidePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
   customPanels: ['settings', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library', 'annotations', 'recall', 'authenticator', 'privacy'],
@@ -245,7 +247,10 @@ const SidebarManager = {
       btn.dataset.panel = p.id;
       btn.title = p.name + ' (pinned site — right-click for options)';
       btn.innerHTML = '<img src="https://' + encodeURIComponent(host) + '/favicon.ico" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">';
-      btn.addEventListener('click', () => this.togglePanel(p.id));
+      btn.addEventListener('click', (e) => {
+        if (e.shiftKey && this._besideOnShift(p.id)) return;
+        this.togglePanel(p.id);
+      });
       // Full customization menu (Rename / Change icon / Change link / Unpin).
       btn.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -283,7 +288,7 @@ const SidebarManager = {
 
     // Set up sidebar icon clicks
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
         const panel = btn.dataset.panel;
         // The "Start Page" (house) icon has no corresponding panel UI —
         // panel-start is an empty div — so opening it used to blank the
@@ -293,6 +298,7 @@ const SidebarManager = {
           this.openStartPage();
           return;
         }
+        if (e.shiftKey && this._besideOnShift(panel)) return;
         this.togglePanel(panel);
       });
       // Right-click → customization menu. Every sidebar button gets one now:
@@ -377,6 +383,11 @@ const SidebarManager = {
       this.hideActivePanel();
       return;
     }
+    // Its icon again takes the second panel away, and only that one.
+    if (this.sidePanel === panelName) {
+      this.closeBeside();
+      return;
+    }
 
     this.showPanel(panelName);
   },
@@ -410,7 +421,24 @@ const SidebarManager = {
     if (!panelEl) return;
 
     panelEl.style.display = 'block';
+    this._preparePanel(panelName, panelEl);
+    this.activePanel = panelName;
 
+    // The panel remembered beside this one (openBeside) comes back with it;
+    // whatever sat beside the previous panel goes.
+    const paired = this._pairs()[panelName];
+    const sideEl = paired && paired !== panelName && this._canSit(paired) && this._canSit(panelName)
+      ? document.getElementById(`panel-${paired}`) : null;
+    this.sidePanel = sideEl ? paired : null;
+    if (sideEl) { sideEl.style.display = 'block'; this._preparePanel(paired, sideEl); }
+    this._layoutPanels();
+    this._announcePanel(panelName);
+  },
+
+  // Everything a panel needs on its way to being shown: the feature panels
+  // draw themselves, the web panels get their <webview> on first open. The
+  // panel is already displayed — a <webview> must not be attached hidden.
+  _preparePanel(panelName, panelEl) {
     // Initialize custom panels on first open
     if (panelName === 'github') GitHubPanel.init();
     if (panelName === 'notes') NotesPanel.init();
@@ -568,14 +596,96 @@ const SidebarManager = {
         this._addPanelNav(panelEl, wv, panelName);
       }
     }
+  },
 
-    this.activePanel = panelName;
+  // ---- Two panels at once -------------------------------------------------
+  // Claude beside Discord, both usable: openBeside puts a second panel next to
+  // the open one, half the area each (css: #panels-container[data-split]).
+  // The pair is remembered both ways, so opening either later brings the other
+  // back with it, until closeBeside — or the second panel's own icon — takes
+  // it away again. Settings is a whole page and never shares.
 
-    // Update sidebar icons
-    document.querySelectorAll('.sidebar-icon').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.panel === panelName);
+  _canSit(panelName) {
+    return !!panelName && panelName !== 'settings' && !!document.getElementById('panel-' + panelName);
+  },
+
+  _pairs() {
+    try {
+      const p = JSON.parse(localStorage.getItem('vex.panelPairs') || '{}');
+      return p && typeof p === 'object' && !Array.isArray(p) ? p : {};
+    } catch { return {}; }
+  },
+
+  _savePair(primary, side) {
+    const pairs = this._pairs();
+    if (side) {
+      pairs[primary] = side;
+      pairs[side] = primary;
+    } else {
+      const other = pairs[primary];
+      delete pairs[primary];
+      if (other && pairs[other] === primary) delete pairs[other];
+    }
+    try { localStorage.setItem('vex.panelPairs', JSON.stringify(pairs)); } catch {}
+  },
+
+  // Shows exactly activePanel and sidePanel, marks which is which for the
+  // layout, and lights both icons.
+  _layoutPanels() {
+    const container = document.getElementById('panels-container');
+    const side = this.sidePanel;
+    document.querySelectorAll('#panels-container .panel').forEach(p => {
+      const name = p.id.replace(/^panel-/, '');
+      const primary = !!this.activePanel && name === this.activePanel;
+      const beside = !!side && name === side;
+      p.classList.toggle('sb-primary', primary);
+      p.classList.toggle('sb-side', beside);
+      p.style.display = primary || beside ? 'block' : 'none';
     });
-    this._announcePanel(panelName);
+    if (container) {
+      if (side) container.dataset.split = side;
+      else delete container.dataset.split;
+    }
+    document.querySelectorAll('.sidebar-icon').forEach(btn => {
+      const n = btn.dataset.panel;
+      btn.classList.toggle('active', (!!this.activePanel && n === this.activePanel) || (!!side && n === side));
+    });
+  },
+
+  panelLabel(panelName) {
+    const btn = document.querySelector('.sidebar-icon[data-panel="' + panelName + '"]');
+    const title = (btn && btn.title) || panelName;
+    return title.replace(/\s*\(.*\)\s*$/, '').split(' — ')[0];
+  },
+
+  openBeside(panelName) {
+    if (!this.activePanel) throw new Error('Open a panel first, then put another beside it');
+    if (panelName === this.activePanel) throw new Error(this.panelLabel(panelName) + ' is already open');
+    if (!this._canSit(panelName) || !this._canSit(this.activePanel)) throw new Error('Settings takes the whole area and cannot share it');
+    const panelEl = document.getElementById('panel-' + panelName);
+    this.sidePanel = panelName;
+    panelEl.style.display = 'block';
+    this._preparePanel(panelName, panelEl);
+    this._savePair(this.activePanel, panelName);
+    this._layoutPanels();
+    this._announcePanel(this.activePanel);
+  },
+
+  closeBeside() {
+    if (!this.sidePanel) return;
+    this._savePair(this.activePanel, null);
+    this.sidePanel = null;
+    this._layoutPanels();
+    this._announcePanel(this.activePanel);
+  },
+
+  // Shift+click on an icon: beside the open panel rather than instead of it.
+  _besideOnShift(panelName) {
+    if (!this.activePanel || this.activePanel === panelName || this.sidePanel === panelName) return false;
+    if (!this._canSit(panelName) || !this._canSit(this.activePanel)) return false;
+    try { this.openBeside(panelName); }
+    catch (err) { window.showToast?.(err.message, 'error'); }
+    return true;
   },
 
   // The browser looks and Glass (css/gui-browser.css section 7) dock a panel
@@ -591,27 +701,21 @@ const SidebarManager = {
   _announcePanel(panelName) {
     if (panelName) document.body.dataset.sidebarPanel = panelName;
     else document.body.removeAttribute('data-sidebar-panel');
-    document.dispatchEvent(new CustomEvent('vex:panel-changed', { detail: { panel: panelName } }));
+    document.dispatchEvent(new CustomEvent('vex:panel-changed', { detail: { panel: panelName, beside: this.sidePanel } }));
   },
 
   hideActivePanel() {
     if (!this.activePanel) return;
 
-    // Hide all panels
-    document.querySelectorAll('#panels-container .panel').forEach(p => {
-      p.style.display = 'none';
-    });
+    this.activePanel = null;
+    // The second panel closes with the first; the pair stays remembered.
+    this.sidePanel = null;
+    // Hides every panel and clears the icons.
+    this._layoutPanels();
     document.getElementById('panels-container').style.pointerEvents = 'none';
 
     // Show webviews
     document.getElementById('webviews-container').style.display = 'block';
-
-    this.activePanel = null;
-
-    // Remove active from sidebar icons
-    document.querySelectorAll('.sidebar-icon').forEach(btn => {
-      btn.classList.remove('active');
-    });
 
     // Show active tab webview
     if (TabManager.activeTabId) {
@@ -1102,10 +1206,20 @@ const SidebarManager = {
     const isUrl = this._isUrlPanel(panelName);
     const isSite = panelName.startsWith('site_');
 
-    const items = [
+    const items = [];
+    // Two panels at once (Claude beside Discord): offered while another panel
+    // is open; the panel already sitting beside it is offered its way out.
+    if (panelName === this.sidePanel) {
+      items.push({ label: 'Close beside ' + this.panelLabel(this.activePanel), action: () => this.closeBeside() });
+      items.push({ separator: true });
+    } else if (this.activePanel && this.activePanel !== panelName && this._canSit(panelName) && this._canSit(this.activePanel)) {
+      items.push({ label: 'Open beside ' + this.panelLabel(this.activePanel), action: () => this.openBeside(panelName) });
+      items.push({ separator: true });
+    }
+    items.push(
       { label: 'Rename…', action: () => this.renamePanel(panelName) },
       { label: 'Change icon…', action: () => this.showIconPicker(e, panelName) },
-    ];
+    );
     // Change link + service switch + refresh/devtools only make sense for
     // buttons that actually load a web page.
     if (isUrl) {
