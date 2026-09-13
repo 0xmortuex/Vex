@@ -252,6 +252,19 @@ contextBridge.exposeInMainWorld('vex', {
   getReleaseList: () => ipcRenderer.invoke('updates:list'),
   restartApp: () => ipcRenderer.invoke('app:restart'),
   focusWindow: () => ipcRenderer.invoke('app:focus'),
+
+  // Desktop notifications are sent by the main process — the renderer is a
+  // file:// page and Chromium denies it the Notification API. Resolves once
+  // Windows has shown the toast; rejects with the reason when it did not.
+  notify: (title, body) => ipcRenderer.invoke('notify:show', { title, body: body == null ? '' : String(body) }),
+  // Reminders live in the main process so they survive a reload and, on
+  // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
+  reminders: {
+    create: (message, at) => ipcRenderer.invoke('reminders:create', { message, at }),
+    list: () => ipcRenderer.invoke('reminders:list'),
+    delete: (id) => ipcRenderer.invoke('reminders:delete', id),
+    onFired: (cb) => subscribe('reminders:fired', cb),
+  },
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),
   openAsApp: (url, title) => ipcRenderer.invoke('app:open-as-app', url, title),

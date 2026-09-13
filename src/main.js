@@ -1,5 +1,5 @@
 require('./diagnostics').install(process.env.VEX_VERBOSE_DIAGNOSTICS === '1');
-const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents, safeStorage, clipboard } = require('electron');
+const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents, safeStorage, clipboard, Notification, nativeImage } = require('electron');
 
 // Enable Chromium's rich print preview UI (Save as PDF, margin controls,
 // pages-per-sheet, background graphics, etc.). Without these flags Electron
@@ -129,6 +129,9 @@ let autoUpdater = null;
 try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
 
 let mainWindow = null;
+// Main-process reminders (src/main/reminders.js); created in startReminders()
+// once the window exists, referenced by the second-instance handler above it.
+let reminders = null;
 let adBlockerEnabled = true;
 let pendingOpenUrl = null;
 // The currently-open Peek-style auth popup window (frameless OAuth child), so a
@@ -431,6 +434,15 @@ if (!gotTheLock) {
     console.log('[Vex URL] second-instance fired.');
     console.log('[Vex URL]   commandLine:', JSON.stringify(commandLine));
     console.log('[Vex URL]   workingDirectory:', workingDirectory);
+    // Windows Task Scheduler launching Vex for a reminder while it is already
+    // running lands here. The in-process timer normally fired it already; a
+    // due-check is idempotent, and the window comes forward either way.
+    if (commandLine.some(a => /^--reminder=/.test(a))) {
+      console.log('[Reminders] woken by the OS while running — checking what is due');
+      if (reminders) reminders.fireDue().catch(err => console.error('[Reminders] fireDue after wake failed:', err.message));
+      focusMainWindow();
+      return;
+    }
     const url = findLaunchUrl(commandLine);
     console.log('[Vex URL]   normalized URL:', url);
     console.log('[Vex URL]   mainWindow present:', !!mainWindow);
@@ -3257,6 +3269,7 @@ app.whenReady().then(async () => {
   await applyStoredRoutings();
   createWindow();
   setupAutoUpdater();
+  startReminders();
 
   // === Boot smoke test (gated by VEX_SMOKE=1) ===
   // Boots the REAL app and asserts the renderer initialized in real Chromium —
@@ -4164,6 +4177,92 @@ ipcMain.handle('app:focus', () => {
 ipcMain.handle('app:restart', () => {
   try { app.relaunch(); app.exit(0); return { ok: true }; }
   catch (e) { return { ok: false, error: e && e.message }; }
+});
+
+// === Desktop notifications and reminders ====================================
+//
+// Both live in the main process on purpose. The renderer is a file:// page and
+// Chromium denies it the Notification API outright — every renderer-side
+// notification Vex ever had was dead on arrival (see src/main/notify.js). And a
+// reminder whose timer lived in the renderer died with a reload, and could not
+// fire at all with Vex closed. src/main/reminders.js holds the timer; on
+// Windows, Task Scheduler launches Vex at the time if it is not running.
+function focusMainWindow() {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } catch (err) { console.error('[Reminders] could not focus the window:', err.message); }
+}
+
+const notifier = require('./main/notify').createNotifier({
+  Notification, nativeImage,
+  iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
+  onClick: focusMainWindow,
+  log: (m) => console.log(m),
+});
+// Windows heads a toast with the Start Menu shortcut that targets the process.
+// The installer writes one for Vex.exe; a development run is electron.exe,
+// and without a shortcut of its own Electron writes one named "Electron" on
+// the first toast. Ours goes first, so dev toasts are headed "Vex (dev)".
+try {
+  require('./main/notify').ensureDevShortcut({
+    shell, fs, packaged: app.isPackaged,
+    startMenuDir: process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs') : null,
+    execPath: process.execPath, appPath: app.getAppPath(),
+    iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
+    appUserModelId: 'com.vex.browser',
+    log: (m) => console.log(m),
+  });
+} catch (err) { console.error('[Notify] could not write the dev Start Menu shortcut:', err.message); }
+
+function startReminders() {
+  const { JsonStore } = require('./main/file-store');
+  const osScheduler = require('./main/os-schedule').createOsScheduler({
+    platform: process.platform,
+    execFile: require('child_process').execFile,
+    execPath: process.execPath,
+    appPath: app.getAppPath(),
+    packaged: app.isPackaged,
+    // A Vex running on a non-default profile must be woken into the same one;
+    // the reminder is in that profile's store and nowhere else.
+    extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)),
+    log: (m) => console.log(m),
+  });
+  reminders = require('./main/reminders').createReminders({
+    store: new JsonStore(userDataPath),
+    notifier,
+    osScheduler,
+    log: (m) => console.log(m),
+    // The renderer shows the same reminder in-app as well — and, when the OS
+    // toast was refused, that in-app copy is the only place it appears, so the
+    // failure is stated rather than lost.
+    onFired: (payload) => {
+      try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('reminders:fired', payload); } catch {}
+      if (payload.delivered === 'failed') focusMainWindow();
+    },
+  });
+  reminders.init().catch(err => console.error('[Reminders] failed to start:', err.message));
+  if (process.argv.some(a => /^--reminder=/.test(a))) console.log('[Reminders] launched by the OS for a reminder');
+}
+
+ipcMain.handle('notify:show', async (_e, payload) => {
+  const { title, body } = payload || {};
+  // Rejections travel to the renderer as the error message; nothing is hidden.
+  return notifier.show({ title, body });
+});
+ipcMain.handle('reminders:create', async (_e, payload) => {
+  if (!reminders) throw new Error('Reminders have not started yet');
+  return reminders.create(payload || {});
+});
+ipcMain.handle('reminders:list', async () => {
+  if (!reminders) throw new Error('Reminders have not started yet');
+  return reminders.list();
+});
+ipcMain.handle('reminders:delete', async (_e, id) => {
+  if (!reminders) throw new Error('Reminders have not started yet');
+  return reminders.delete(id);
 });
 
 // Generate a QR code (PNG data URL) for "Send to phone". Done in the main process

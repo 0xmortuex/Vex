@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.69 (2026-09-13) — Notifications that show, reminders that fire with Vex closed
+
+### Notes
+- **Desktop notifications work — for the first time.** Vex's interface is a file:// page, and Chromium refuses that origin the Notification API outright: the permission read "denied" before anything asked, and the one prompt that did appear said "null wants to send notifications". Every notification Vex had ever tried to send — scheduled reminders, page-change alerts — was silently dropped behind a check that could never pass. They are now sent by the main process, which Windows accepts, and which reports whether the toast actually showed. A refused toast is said in-app, with the reason, rather than lost.
+- **Reminders fire even when Vex is closed.** A reminder now lives in the main process with its own timer, so a reload cannot lose it — and on Windows a matching one-shot task in Task Scheduler launches Vex at the minute if it is not running. Set one, quit Vex, and the notification still arrives; the task cleans itself up afterwards. Verified live in both states: a reminder set for 13:28 showed at 13:28:00.002 with Vex open, and one set for 13:31 showed at 13:31:00.5 from a Vex that Windows started.
+- A reminder missed while the machine was off fires on the next start, marked with the time it was due. Nothing ever fires twice.
+- The Remind me dialog lists what is set and lets you take one back. If Windows refuses to create the wake-up task, the dialog says so when you save, instead of you finding out on the day.
+- A development run is headed "Vex" too, not "Electron". Windows names a toast after the Start Menu shortcut targeting the process; Electron writes one named after its own exe on the first toast, and that stale shortcut was winning. A source run now removes Electron's shortcut for this binary at startup and writes its own, carrying Vex's identity. The installed app was always headed "Vex".
+
 ## v2.31.68 (2026-09-13) — Remind me, and a restart button
 
 ### Notes

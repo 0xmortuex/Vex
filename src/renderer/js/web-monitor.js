@@ -61,7 +61,12 @@ const PageMonitor = {
       this.save();
       if (!silent) {
         window.showToast?.('Page changed: ' + (w.title || w.url));
-        try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification('Vex — page changed', { body: w.title || w.url }); } catch {}
+        // Desktop toast via the main process — the renderer's own Notification
+        // API is denied on file:// and had never shown one (src/main/notify.js).
+        if (window.vex && typeof window.vex.notify === 'function') {
+          Promise.resolve(window.vex.notify('Vex — page changed', w.title || w.url))
+            .catch(err => window.showToast?.('Desktop notification failed: ' + ((err && err.message) || 'unknown error'), 'error'));
+        }
       }
     } else { this.save(); }
   },
@@ -106,8 +111,9 @@ const PageMonitor = {
       row.querySelector('[data-open]').addEventListener('click', () => { w.changed = false; this.save(); TabManager.createTab(w.url, true); close(); });
       row.querySelector('[data-x]').addEventListener('click', () => { this.remove(w.id); this.showManager(); });
     });
-    // Ask for OS notification permission lazily the first time the user opens this.
-    try { if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission(); } catch {}
+    // No permission request: the renderer cannot be granted the Notification
+    // API on file:// (it reads "denied" before asking), and the toast is sent by
+    // the main process instead, which needs none.
   },
 };
 

@@ -966,11 +966,21 @@ const Scheduler = {
     return Math.round(ms / 86400000) + ' days';
   },
 
+  // The desktop toast is sent by the main process. This renderer is a file://
+  // page and Chromium denies it the Notification API — the old
+  // `new Notification()` here was guarded by `permission === 'granted'`, which
+  // was never true, so no scheduled task had ever produced a toast. The in-app
+  // toast still shows; a refused desktop toast is reported, not swallowed.
   _notify(title, body) {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try { new Notification(title, { body }); } catch { /* notifications can be blocked mid-session */ }
-    }
     window.showToast?.(title + (body ? ': ' + body : ''));
+    const bridge = window.vex;
+    if (!bridge || typeof bridge.notify !== 'function') {
+      window.showToast?.('Desktop notifications are not available in this build', 'error');
+      return;
+    }
+    Promise.resolve(bridge.notify(title, body)).catch(err => {
+      window.showToast?.('Desktop notification failed: ' + ((err && err.message) || 'unknown error'), 'error');
+    });
   },
 };
 

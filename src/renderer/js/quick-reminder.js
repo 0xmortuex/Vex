@@ -204,52 +204,49 @@ const VexQuickReminder = {
 
   // ---------------------------------------------------------------- creating
   //
-  // A reminder is a one-off task with the reminder action. The name is what a
-  // notification shows as its title, so it is the first line of the text rather
-  // than "Untitled Task".
-  _name(message) {
-    const first = String(message).trim().split('\n')[0].trim();
-    return (first.length > 60 ? first.slice(0, 57).trimEnd() + '…' : first) || 'Reminder';
+  // The reminder is handed to the main process (src/main/reminders.js), which
+  // owns the timer and the desktop toast. It used to be a renderer-side
+  // scheduler task: that died with a reload, could not fire with Vex closed,
+  // and its toast never showed because the renderer is denied the
+  // Notification API on file://. Now the main process holds it and, on
+  // Windows, Task Scheduler launches Vex at the time if it is not running.
+  _bridge() {
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.create !== 'function') throw new Error('Reminders are not available in this build.');
+    return b;
   },
 
-  create(message, when) {
+  async create(message, when) {
     const text = String(message || '').trim();
     if (!text) throw new Error('Write what you want to be reminded of.');
     if (text.length > this.MAX_MESSAGE) throw new Error(`That is longer than ${this.MAX_MESSAGE} characters — put the detail in a note and remind yourself to open it.`);
     if (!(when instanceof Date) || Number.isNaN(when.getTime())) throw new Error('That is not a real time.');
-    if (typeof Scheduler === 'undefined' || typeof Scheduler.createTask !== 'function') {
-      throw new Error('The scheduler is not available in this build.');
-    }
-
-    const pad = (n) => String(n).padStart(2, '0');
-    const task = Scheduler.createTask({
-      name: this._name(text),
-      description: 'Quick reminder',
-      schedule: {
-        type: 'once',
-        date: `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}`,
-        time: `${pad(when.getHours())}:${pad(when.getMinutes())}`,
-      },
-      action: { type: 'reminder', message: text },
-      // A reminder missed because Vex was closed is still worth showing when it
-      // opens — that is the whole reason catch-up exists.
-      catchUp: true,
-      catchUpWindowMin: 7 * 24 * 60,
-    });
-
-    // Ask for notification permission at the one moment it is expected: the
-    // person has just asked to be told something later. Without it the reminder
-    // degrades to a toast, which they only see if they are looking.
-    this._ensureNotifications();
-    return task;
+    return this._bridge().create(text, when.getTime());
   },
 
-  _ensureNotifications() {
-    try {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-        Notification.requestPermission();
+  async list() { return this._bridge().list(); },
+  async remove(id) { return this._bridge().delete(id); },
+
+  // Called once at startup. The main process shows the desktop toast itself;
+  // this mirrors it inside Vex, and when the toast was refused the in-app copy
+  // is the only one there is — so the refusal is said out loud.
+  init() {
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.onFired !== 'function') return false;
+    b.onFired((r) => {
+      if (!r) return;
+      const prefix = r.late ? 'Reminder (was due ' + this._hhmm(r.at) + '): ' : 'Reminder: ';
+      window.showToast?.(prefix + r.message);
+      if (r.delivered === 'failed') {
+        window.showToast?.('The desktop notification did not show: ' + (r.error || 'unknown error'), 'error');
       }
-    } catch { /* blocked or unavailable — the Scheduler still shows a toast */ }
+    });
+    return true;
+  },
+
+  _hhmm(ms) {
+    const d = new Date(ms);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   },
 
   // ------------------------------------------------------------------- the UI
@@ -284,6 +281,10 @@ const VexQuickReminder = {
           <button class="qr-btn" id="qr-cancel">Cancel</button>
           <button class="qr-btn qr-primary" id="qr-save">Remind me</button>
         </div>
+        <section class="qr-upcoming" id="qr-upcoming" hidden>
+          <div class="qr-label">Upcoming</div>
+          <div class="qr-upcoming-list" id="qr-upcoming-list"></div>
+        </section>
       </div>`;
     document.body.appendChild(wrap);
 
@@ -316,22 +317,61 @@ const VexQuickReminder = {
       whenEl.focus();
     }));
 
-    const save = () => {
+    // What is already set, with a way to take one back. Read from the main
+    // process, which is the only copy — a list drawn from anything else could
+    // disagree with what will actually fire.
+    const upcoming = wrap.querySelector('#qr-upcoming');
+    const upcomingList = wrap.querySelector('#qr-upcoming-list');
+    const renderUpcoming = async () => {
+      let all;
+      try { all = await this.list(); }
+      catch (err) { upcoming.hidden = true; window.showToast?.('Could not read reminders: ' + ((err && err.message) || ''), 'error'); return; }
+      const pending = all.filter(r => !r.firedAt);
+      upcoming.hidden = !pending.length;
+      upcomingList.innerHTML = '';
+      for (const r of pending) {
+        const row = document.createElement('div');
+        row.className = 'qr-up';
+        row.innerHTML = `<span class="qr-up-when"></span><span class="qr-up-text"></span>
+          <button class="qr-up-x" title="Remove this reminder" aria-label="Remove">${icon('x', 12)}</button>`;
+        row.querySelector('.qr-up-when').textContent = this.describe(new Date(r.at)).split(' — ')[0];
+        row.querySelector('.qr-up-text').textContent = r.message;
+        if (!r.os || !r.os.scheduled) row.title = 'Fires while Vex is running' + (r.os && r.os.error ? ' — ' + r.os.error : '');
+        row.querySelector('.qr-up-x').addEventListener('click', async () => {
+          try { await this.remove(r.id); window.showToast?.('Reminder removed'); }
+          catch (err) { window.showToast?.((err && err.message) || 'Could not remove it', 'error'); }
+          renderUpcoming();
+        });
+        upcomingList.appendChild(row);
+      }
+    };
+
+    const saveBtn = wrap.querySelector('#qr-save');
+    const save = async () => {
+      if (saveBtn.disabled) return;
       try {
         if (!textEl.value.trim()) { textEl.focus(); throw new Error('Write what you want to be reminded of.'); }
         // Re-parse rather than trusting the preview: the clock has moved since
         // it was drawn, and "in 1 minute" typed two minutes ago is now past.
         const when = this.parseWhen(whenEl.value);
-        this.create(textEl.value, when);
+        saveBtn.disabled = true;
+        const r = await this.create(textEl.value, when);
         window.showToast?.('Reminder set — ' + this.describe(when));
+        // The OS task is what wakes a closed Vex. If Windows refused it, say so
+        // now rather than let the person find out on the day.
+        if (!r || !r.os || !r.os.scheduled) {
+          window.showToast?.('It will fire while Vex is running' + (r && r.os && r.os.error ? ' — Windows will not wake Vex for it: ' + r.os.error : ''), 'error');
+        }
         close();
       } catch (err) {
+        saveBtn.disabled = false;
         window.showToast?.((err && err.message) || 'Could not set that reminder', 'error');
         refresh();
       }
     };
 
-    wrap.querySelector('#qr-save').addEventListener('click', save);
+    saveBtn.addEventListener('click', save);
+    renderUpcoming();
     wrap.querySelector('#qr-cancel').addEventListener('click', close);
     wrap.querySelector('#qr-close').addEventListener('click', close);
     wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });

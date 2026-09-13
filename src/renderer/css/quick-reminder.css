@@ -75,3 +75,22 @@
 .qr-btn:hover { border-color: var(--primary); }
 .qr-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
 .qr-primary:hover { background: var(--primary-hover, var(--primary)); }
+.qr-primary:disabled { opacity: 0.6; cursor: wait; }
+
+/* ---------- what is already set ------------------------------------------ */
+
+.qr-upcoming { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.qr-upcoming-list { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.qr-up {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 8px; border-radius: 8px; font-size: 12px;
+}
+.qr-up:hover { background: var(--bg); }
+.qr-up-when { flex: none; color: var(--primary); font-weight: 600; white-space: nowrap; }
+.qr-up-text { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qr-up-x {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; cursor: pointer;
+  background: transparent; color: var(--text-muted); border: 1px solid transparent; border-radius: 6px;
+}
+.qr-up-x:hover { color: var(--danger, #ef4444); border-color: var(--border); }

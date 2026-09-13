@@ -38,6 +38,12 @@ define('persist-set', [string(170), string(12 * 1024 * 1024)]);
 define('persist-delete storage-load', [string(170)]);
 define('storage-save', [string(64), value => value !== undefined]);
 define('storage:history-add', [shape({ url: web, title: optional(string(4096)) })]);
+// Desktop notifications and reminders are sent by the main process (see
+// src/main/notify.js for why the renderer cannot). `at` is epoch milliseconds.
+define('notify:show', [shape({ title: string(200), body: optional(string(2000)) })]);
+define('reminders:create', [shape({ message: string(2000), at: integer })]);
+define('reminders:list', []);
+define('reminders:delete', [value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)]);
 define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
 define('devtools:open-for-webcontents', [integer, optional(web)]);

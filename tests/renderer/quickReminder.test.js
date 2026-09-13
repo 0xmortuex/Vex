@@ -153,57 +153,110 @@ describe('describing what it read back', () => {
   });
 });
 
-describe('creating the task', () => {
-  let created;
+// The main process owns reminders (src/main/reminders.js); the renderer hands
+// them over through the preload bridge. These check the hand-over.
+function fakeBridge({ os = { scheduled: true, error: null } } = {}) {
+  const created = [];
+  let items = [];
+  const bridge = {
+    create: vi.fn(async (message, atMs) => { const r = { id: 'r' + (created.length + 1), message, at: atMs, firedAt: null, os }; created.push(r); items.push(r); return { ...r }; }),
+    list: vi.fn(async () => items.map(r => ({ ...r }))),
+    delete: vi.fn(async (id) => { items = items.filter(r => r.id !== id); return { ok: true, osError: null }; }),
+    onFired: vi.fn(),
+  };
+  return { bridge, created };
+}
+
+describe('creating a reminder', () => {
+  let created, bridge;
   beforeEach(() => {
-    created = [];
-    globalThis.Scheduler = { createTask: vi.fn(t => { created.push(t); return { id: 'task_1', ...t }; }) };
-    global.window.Scheduler = globalThis.Scheduler;
+    ({ bridge, created } = fakeBridge());
+    global.window.vex = { reminders: bridge };
     global.window.showToast = vi.fn();
   });
 
-  it('writes a one-off reminder the existing Scheduler owns', () => {
-    VexQuickReminder.create('Email the landlord about the boiler', at('tomorrow 9am'));
+  it('hands the text and the moment, in epoch milliseconds, to the main process', async () => {
+    const when = at('tomorrow 9am');
+    const r = await VexQuickReminder.create('Email the landlord about the boiler', when);
+    expect(bridge.create).toHaveBeenCalledWith('Email the landlord about the boiler', when.getTime());
+    expect(r.os.scheduled).toBe(true);
     expect(created).toHaveLength(1);
-    const t = created[0];
-    expect(t.schedule).toMatchObject({ type: 'once', date: '2026-09-14', time: '09:00' });
-    expect(t.action).toEqual({ type: 'reminder', message: 'Email the landlord about the boiler' });
   });
 
-  it('names the task from the first line, so the notification has a title', () => {
-    VexQuickReminder.create('Call the dentist\nask about the referral', at('tomorrow'));
-    expect(created[0].name).toBe('Call the dentist');
+  it('trims the message before sending it', async () => {
+    await VexQuickReminder.create('  Call the dentist  ', at('tomorrow'));
+    expect(created[0].message).toBe('Call the dentist');
   });
 
-  it('shortens a very long first line rather than using it whole', () => {
-    VexQuickReminder.create('x'.repeat(200), at('tomorrow'));
-    expect(created[0].name.length).toBeLessThanOrEqual(60);
-    expect(created[0].name.endsWith('…')).toBe(true);
-  });
-
-  it('catches up a reminder missed while Vex was closed', () => {
-    VexQuickReminder.create('Something', at('tomorrow'));
-    expect(created[0].catchUp).toBe(true);
-    expect(created[0].catchUpWindowMin).toBeGreaterThan(60);
-  });
-
-  it('refuses an empty message instead of setting a blank reminder', () => {
-    expect(() => VexQuickReminder.create('   ', at('tomorrow'))).toThrow(/write what/i);
+  it('refuses an empty message instead of setting a blank reminder', async () => {
+    await expect(VexQuickReminder.create('   ', at('tomorrow'))).rejects.toThrow(/write what/i);
     expect(created).toHaveLength(0);
   });
 
-  it('says so when the scheduler is not there', () => {
-    delete globalThis.Scheduler; delete global.window.Scheduler;
-    expect(() => VexQuickReminder.create('x', at('tomorrow'))).toThrow(/scheduler is not available/i);
+  it('refuses a message too long for a toast', async () => {
+    await expect(VexQuickReminder.create('x'.repeat(2001), at('tomorrow'))).rejects.toThrow(/longer than/i);
+  });
+
+  it('says so when the bridge is not there', async () => {
+    delete global.window.vex;
+    await expect(VexQuickReminder.create('x', at('tomorrow'))).rejects.toThrow(/not available/i);
+  });
+});
+
+describe('mirroring a fired reminder in-app', () => {
+  it('shows it, and says out loud when the desktop toast was refused', () => {
+    const { bridge } = fakeBridge();
+    global.window.vex = { reminders: bridge };
+    global.window.showToast = vi.fn();
+    expect(VexQuickReminder.init()).toBe(true);
+    const handler = bridge.onFired.mock.calls[0][0];
+    handler({ id: 'r1', message: 'Stand up', at: NOW.getTime(), late: false, delivered: 'toast', error: null });
+    expect(window.showToast).toHaveBeenCalledWith('Reminder: Stand up');
+    handler({ id: 'r2', message: 'Bins', at: NOW.getTime(), late: true, delivered: 'failed', error: 'toasts are off' });
+    expect(window.showToast).toHaveBeenCalledWith('Reminder (was due 14:30): Bins');
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/did not show.*toasts are off/), 'error');
+  });
+
+  it('reports rather than crashes when the bridge is missing', () => {
+    delete global.window.vex;
+    expect(VexQuickReminder.init()).toBe(false);
   });
 });
 
 describe('the dialog', () => {
+  let bridge;
+  const tick = () => new Promise(r => setTimeout(r, 0));
   beforeEach(() => {
     document.body.innerHTML = '';
-    globalThis.Scheduler = { createTask: vi.fn(t => ({ id: 't', ...t })) };
-    global.window.Scheduler = globalThis.Scheduler;
+    ({ bridge } = fakeBridge());
+    global.window.vex = { reminders: bridge };
     global.window.showToast = vi.fn();
+  });
+
+  it('lists what is already set, and can take one back', async () => {
+    await bridge.create('Pay the invoice', NOW.getTime() + 3600000);
+    VexQuickReminder.open();
+    await tick();
+    const rows = document.querySelectorAll('.qr-up');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain('Pay the invoice');
+    expect(document.getElementById('qr-upcoming').hidden).toBe(false);
+    rows[0].querySelector('.qr-up-x').click();
+    await tick(); await tick();
+    expect(bridge.delete).toHaveBeenCalledWith('r1');
+    expect(document.querySelectorAll('.qr-up')).toHaveLength(0);
+    expect(document.getElementById('qr-upcoming').hidden).toBe(true);
+  });
+
+  it('warns when Windows will not wake Vex for it', async () => {
+    ({ bridge } = fakeBridge({ os: { scheduled: false, error: 'Access is denied' } }));
+    global.window.vex = { reminders: bridge };
+    VexQuickReminder.open('Something');
+    document.getElementById('qr-when').value = 'tomorrow 9am';
+    document.getElementById('qr-save').click();
+    await tick(); await tick();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/will not wake Vex.*Access is denied/), 'error');
+    expect(document.getElementById('vex-quick-reminder')).toBe(null);
   });
 
   it('opens with both fields and the quick choices', () => {
@@ -244,29 +297,44 @@ describe('the dialog', () => {
     expect(document.getElementById('qr-when').value).toBeTruthy();
   });
 
-  it('saves and closes', () => {
+  it('saves through the bridge and closes', async () => {
     VexQuickReminder.open('Pay the invoice');
     document.getElementById('qr-when').value = 'tomorrow 9am';
     document.getElementById('qr-save').click();
-    expect(globalThis.Scheduler.createTask).toHaveBeenCalled();
+    await tick(); await tick();
+    expect(bridge.create).toHaveBeenCalledWith('Pay the invoice', expect.any(Number));
     expect(document.getElementById('vex-quick-reminder')).toBe(null);
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/^Reminder set — Tomorrow at 09:00/));
   });
 
-  it('will not save without a message, and stays open to say so', () => {
+  it('will not save without a message, and stays open to say so', async () => {
     VexQuickReminder.open();
     document.getElementById('qr-when').value = 'tomorrow';
     document.getElementById('qr-save').click();
-    expect(globalThis.Scheduler.createTask).not.toHaveBeenCalled();
+    await tick();
+    expect(bridge.create).not.toHaveBeenCalled();
     expect(document.getElementById('vex-quick-reminder')).toBeTruthy();
     expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/write what/i), 'error');
   });
 
-  it('will not save an unreadable time, and stays open', () => {
+  it('will not save an unreadable time, and stays open', async () => {
     VexQuickReminder.open('Something');
     document.getElementById('qr-when').value = 'later maybe';
     document.getElementById('qr-save').click();
-    expect(globalThis.Scheduler.createTask).not.toHaveBeenCalled();
+    await tick();
+    expect(bridge.create).not.toHaveBeenCalled();
     expect(document.getElementById('vex-quick-reminder')).toBeTruthy();
+  });
+
+  it('stays open and re-enables the button when the main process refuses', async () => {
+    bridge.create.mockRejectedValueOnce(new Error('Reminders have not started yet'));
+    VexQuickReminder.open('Something');
+    document.getElementById('qr-when').value = 'tomorrow';
+    document.getElementById('qr-save').click();
+    await tick(); await tick();
+    expect(document.getElementById('vex-quick-reminder')).toBeTruthy();
+    expect(document.getElementById('qr-save').disabled).toBe(false);
+    expect(window.showToast).toHaveBeenCalledWith('Reminders have not started yet', 'error');
   });
 
   it('replaces an already-open dialog rather than stacking them', () => {

@@ -998,6 +998,9 @@
     ShortcutsRegistry.register('command-bar',    () => CommandBar?.open?.() ?? CommandBar?.toggle?.());
     ShortcutsRegistry.register('ask-ai-bar',     () => AskAIBar?.toggle?.());
     try { window.VexDevMode && VexDevMode.init(); } catch (e) { /* dashboard is optional */ }
+    // Mirrors main-process reminders in-app, and says so when the desktop
+    // toast was refused (src/main/reminders.js).
+    try { window.VexQuickReminder && VexQuickReminder.init(); } catch (e) { console.error('[Reminders] init failed:', e); }
     ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
     // Full screen implies open: switching mode on a closed panel would do
     // nothing visible and look broken.
