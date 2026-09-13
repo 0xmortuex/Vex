@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.77 (2026-09-13) — Two panels: a + in the header, a divider to drag, swap sides
+
+### Notes
+- **The Chrome, Safari and IE looks can do it too.** Those looks have no icon rail to Shift+click or right-click, so the panel header now has a **+** that lists the other panels to open beside this one (and *Swap sides* once there are two), and a chip — *+ Claude AI ×* — that names the second panel and closes it.
+- **Drag the divider** between the two panels to change the share (20–80%); Vex remembers it. Double-click the divider, or use *Swap sides* in the menus, to exchange them.
+- **Fixed:** in the Classic look, Discord beside Claude — two web panels — would have stacked one below the other instead of side by side.
+- **Fixed:** hiding a sidebar button in Settings › Sidebar, or unpinning a site, while it was the second panel left it on screen.
+- **Fixed:** the Start button could be opened beside another panel, showing an empty half.
+- Settings › Sidebar explains the three ways in.
+
 ## v2.31.76 (2026-09-13) — Two panels at once, panels open full size, readable suggestions
 
 ### Notes
