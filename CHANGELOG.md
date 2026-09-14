@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.80 (2026-09-14) — Discord rests, mic and camera badges, a memory trend and one button to free it
+
+### Notes
+- **Discord rests when hidden and not in a call.** Its panel runs with background throttling off so it reconnects instantly — and left that way it burned ~35% of a core all day (3,763 s of CPU in three hours, measured). Two minutes out of sight with no call — no microphone in use, not audible, no Disconnect button in its page — and it is throttled; opening it, or a call starting, wakes it at once. Settings › Performance › *Rest Discord when hidden and not in a call*.
+- **Mic and camera badges.** A tab or panel using the microphone or camera shows a red badge (the guest reports it the moment a track starts and stops). Such a tab or panel is never put to sleep, and the Memory panel names it on the Video Capture and Audio rows — the "who holds the capture services?" question answers itself.
+- **Memory trend since launch** at the top of the Memory panel: total memory sampled every 30 seconds from launch, a dot for everything Vex did about it (slept tabs, slept a panel, Discord reloaded), and the change over the session.
+- **Free memory now**, one button: sleep idle tabs (pinned ones idle over 30 minutes too), sleep hidden panels, unload extensions from sessions with no page open.
+- **A note on uBlock Origin** in Settings › Extensions: Electron gives extensions no request blocking, and Vex blocks ad and tracker requests itself, so in Vex uBlock can only hide page elements — at ~85 MB for its background page. Nothing removed; the card says so.
+- **Measured, not changed:** the interface renderer idles at 0.2% CPU with no growth across 15 open/close cycles of panels and menus; the 7% seen earlier was the Memory panel redrawing its process table every 3 s — now every 10 s. The start page's 111 MB is Chromium's per-renderer baseline (38 MB private); removing all fifteen blur filters changed nothing, so they stay.
+
 ## v2.31.79 (2026-09-14) — Idle memory: one uBlock, containers on demand, pinned tabs can sleep
 
 ### Notes
