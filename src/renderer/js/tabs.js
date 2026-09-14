@@ -1890,16 +1890,24 @@ const TabManager = {
     try { metrics = await window.vex.appMetrics(); } catch { return; }
     const totalMB = metrics.reduce((s, p) => s + (p.memKB || 0), 0) / 1024;
     if (totalMB <= this._memCeiling) return;
-    const cands = this.tabs
-      .filter(t => t.id !== this.activeTabId && !t.pinned && !t.sleeping && !t._lazy && !(t.audible && !t.muted))
-      .sort((a, b) => (a.lastViewedAt || 0) - (b.lastViewedAt || 0));
-    let slept = 0;
-    for (const t of cands) {
+    const now = Date.now();
+    const idle = (t) => t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted);
+    const byOldest = (a, b) => (a.lastViewedAt || 0) - (b.lastViewedAt || 0);
+    // Unpinned idle tabs first. Pinned tabs were never touched, so two pinned
+    // claude.ai tabs could hold 550 MB (and the capture and audio services
+    // with them) while the guard slept nothing; past the ceiling, a pinned tab
+    // not looked at for half an hour goes too — the pin keeps its place in the
+    // strip, and it wakes on a click like any other.
+    const cands = this.tabs.filter(t => idle(t) && !t.pinned).sort(byOldest);
+    const pinnedIdle = this.tabs.filter(t => idle(t) && t.pinned && now - (t.lastViewedAt || 0) >= 30 * 60000).sort(byOldest);
+    let slept = 0, pinnedSlept = 0;
+    for (const t of [...cands, ...pinnedIdle]) {
       if (slept >= 5) break; // small batches; re-evaluate next tick
       await this.sleepTab(t.id);
       slept++;
+      if (t.pinned) pinnedSlept++;
     }
-    if (slept) window.showToast?.(`High memory — slept ${slept} idle tab${slept === 1 ? '' : 's'}`);
+    if (slept) window.showToast?.(`High memory — slept ${slept} idle tab${slept === 1 ? '' : 's'}${pinnedSlept ? ` (${pinnedSlept} pinned, idle over 30 min)` : ''}`);
   },
 
   // === Recently Closed ===

@@ -270,7 +270,17 @@ const MemoryPanel = {
     const contents = Array.isArray(p.contents) ? p.contents : [];
     if (p.type === 'Browser') return { kind: 'main', what: 'Vex — main process', detail: 'windows, IPC, extensions, reminders' };
     if (p.type === 'GPU') return { kind: 'gpu', what: 'GPU process', detail: 'compositing and video for every page' };
-    if (p.type === 'Utility') return { kind: 'utility', what: 'Utility — ' + (p.name || 'service'), detail: '' };
+    if (p.type === 'Utility') {
+      // Chromium starts these for a page and keeps them while any page needs
+      // them; the Memory panel cannot see which page, so it says what would.
+      const name = p.name || 'service';
+      const why = /video capture/i.test(name) ? 'runs while a page uses the camera, screen share, or watches the device list (a chat site with voice, say); ends when none does'
+        : /audio/i.test(name) ? 'runs while a page plays or records sound, or keeps an audio context; ends when none does'
+        : /network/i.test(name) ? 'all HTTP for every page; always on'
+        : /cdm|decrypt|widevine/i.test(name) ? 'DRM for Spotify, Netflix, Prime; ends when they close'
+        : '';
+      return { kind: 'utility', what: 'Utility — ' + name, detail: why };
+    }
     const bg = contents.filter(c => c.kind === 'backgroundPage');
     if (bg.length) {
       const names = [...new Set(bg.map(c => c.extension || 'extension'))];

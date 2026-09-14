@@ -721,6 +721,8 @@ ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
   if (entry.manifest && !_readDisabledFolders().has(folderName)) {
     const wanted = new Set(_sessionsFor(entry.path, entry.manifest));
     for (const ses of [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))]) {
+      // A lazy session with no page open gets it when one appears.
+      if (_isLazySession(ses) && !_coveredSessions.has(ses)) continue;
       try {
         const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(entry.path));
         if (wanted.has(ses) && !live) await ses.loadExtension(entry.path, { allowFileAccess: true });
@@ -1489,8 +1491,52 @@ function _sessionsFor(extPath, manifest) {
   return [session.defaultSession, ...partitions.map(p => secureSessions.fromPartition(p))];
 }
 
+// Sessions that get their extensions only while a page is open in them, and
+// give them back a minute after the last one goes: the three containers and
+// the default session rarely hold a page, yet each held its own copy of every
+// extension — three idle uBlock Origin background pages, ~85 MB apiece, for
+// containers with no tab open. persist:main and the app panels stay eager: a
+// content script registered after the first page has started loading misses
+// that page.
+const LAZY_EXT_PARTITIONS = new Set(['default', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping']);
+const LAZY_EXT_RELEASE_MS = 60000;
+const _liveBySession = new Map();   // Session → Set<webContents> open in it
+const _releaseTimers = new Map();   // Session → pending unload
+
+function _isLazySession(ses) {
+  const name = _partitionNameOf(ses);
+  return name !== null && LAZY_EXT_PARTITIONS.has(name);
+}
+
+function _trackSessionUse(contents) {
+  const ses = contents.session;
+  if (!_isLazySession(ses)) return;
+  let live = _liveBySession.get(ses);
+  if (!live) { live = new Set(); _liveBySession.set(ses, live); }
+  live.add(contents);
+  const pending = _releaseTimers.get(ses);
+  if (pending) { clearTimeout(pending); _releaseTimers.delete(ses); }
+  contents.once('destroyed', () => {
+    live.delete(contents);
+    if (live.size) return;
+    _releaseTimers.set(ses, setTimeout(() => {
+      _releaseTimers.delete(ses);
+      if (!live.size) _releaseSessionExtensions(ses);
+    }, LAZY_EXT_RELEASE_MS));
+  });
+}
+
+function _releaseSessionExtensions(ses) {
+  for (const ext of ses.getAllExtensions()) {
+    try { ses.removeExtension(ext.id); }
+    catch (err) { console.error(`[Extensions] could not unload ${ext.name} from ${_partitionNameOf(ses)}:`, err.message); }
+  }
+  _coveredSessions.delete(ses);
+}
+
 async function _loadExtensionEverywhere(extPath, manifest) {
-  const sessions = _sessionsFor(extPath, manifest);
+  // A lazy session only while it has pages (it was covered when the first one appeared).
+  const sessions = _sessionsFor(extPath, manifest).filter(ses => !_isLazySession(ses) || _coveredSessions.has(ses));
   let loaded = null;
   const errors = [];
   for (const ses of sessions) {
@@ -1612,9 +1658,11 @@ ipcMain.handle('extensions:list', () => {
   const disabled = _readDisabledFolders();
   // "Loaded" is read from the live session rather than inferred from the folder,
   // so the manager can't show a failed extension as if it were running.
+  // persist:main is the session every extension is always in (the default
+  // session only holds them while a page is open there).
   const loadedByPath = new Map();
   try {
-    for (const ext of session.defaultSession.getAllExtensions()) loadedByPath.set(path.resolve(ext.path), ext);
+    for (const ext of secureSessions.fromPartition('persist:main').getAllExtensions()) loadedByPath.set(path.resolve(ext.path), ext);
   } catch (err) {
     console.error('[Extensions] could not read the loaded extensions:', err.message);
   }
@@ -2057,6 +2105,7 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
 // new partition) would otherwise run with no extensions at all.
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return;
+  _trackSessionUse(contents);
   _coverNewSession(contents.session)
     .catch(err => console.error('[Extensions] new-session coverage failed:', err.message));
 });
