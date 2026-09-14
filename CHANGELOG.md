@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.78 (2026-09-14) — Less memory: extensions only where they apply, panels that sleep, and a process list you can read
+
+### Notes
+Measured on a real machine before this release: 27 processes, 3 GB resident. A third of it was the Discord panel; ~390 MB was eleven idle copies of uBlock Origin; every sidebar panel ever opened stayed resident.
+- **Extensions load only where they apply.** Browsing sessions get every extension. A sidebar panel's session (Discord, WhatsApp, Claude, Spotify, Prime, Roblox) gets an extension only when its content scripts name that site — Vencord goes to Discord, RoSuite to Roblox, a generic one such as uBlock Origin (Manifest v2, a persistent background page) to browsing only: 5 copies instead of 11, six processes fewer. Settings › Extensions shows *Runs in: browsing tabs + Discord* per extension, with a switch to run it everywhere; the change applies live.
+- **Hidden panels sleep.** Claude, Spotify, GitHub… give their process back after the same idle time as tabs (10 minutes under Memory Saver), never while playing audio, and come back fresh on the next open. Discord is kept awake by default (voice, notifications); both are switches under Settings › Performance. Right-click a panel's icon → *Sleep panel*.
+- **Discord memory notice.** Past 1 GB the Discord panel shows a one-line notice with a Reload button (and a toast, at most every half hour). Never automatic — a reload drops a voice call.
+- **The Memory panel shows everything now.** A *Panels* section with real MB per panel (Sleep / Reload / Open), and a *Processes* section naming every process Vex runs — *Panel: Discord*, *Tab: Hacker News*, *uBlock Origin — background · persist:main*, *GPU process*, service workers — with resident and private memory and CPU, totals per kind, and a *Copy report* button that gives a plain-text table you can paste anywhere.
+- **Fixed:** the Today snapshot read "today" from a second clock and drifted across midnight; a sleeping row in the Memory panel showed a stray `U0001f4a4`.
+
 ## v2.31.77 (2026-09-13) — Two panels: a + in the header, a divider to drag, swap sides
 
 ### Notes
