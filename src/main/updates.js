@@ -1,10 +1,19 @@
+// The updater's last word, for the Memory panel's Health section.
+const state = { lastCheckAt: null, result: null, version: null, error: null };
+
 function bindUpdater(updater, getWindow) {
   if (!updater) return () => {};
   updater.autoDownload = false;
   updater.autoInstallOnAppQuit = true;
   const listeners = [];
   const bind = (event, channel, payload = value => value) => {
-    const listener = value => { const window = getWindow(); if (window && !window.isDestroyed()) window.webContents.send(channel, payload(value)); };
+    const listener = value => {
+      state.lastCheckAt = Date.now();
+      state.result = event;
+      if (value && value.version) state.version = value.version;
+      state.error = event === 'error' ? (value && value.message) || 'unknown' : null;
+      const window = getWindow(); if (window && !window.isDestroyed()) window.webContents.send(channel, payload(value));
+    };
     updater.on(event, listener); listeners.push([event, listener]);
   };
   bind('update-available', 'update-available', value => ({ version: value.version, releaseNotes: value.releaseNotes }));
@@ -14,4 +23,4 @@ function bindUpdater(updater, getWindow) {
   bind('error', 'update-error', error => ({ message: error.message }));
   return () => { for (const [event, listener] of listeners) updater.removeListener(event, listener); };
 }
-module.exports = { bindUpdater };
+module.exports = { bindUpdater, state };

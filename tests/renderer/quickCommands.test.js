@@ -98,3 +98,25 @@ describe('anything else', () => {
     expect(VexQuickCommands.results('stopwatch')[0].id).toBe('quick-stopwatch');
   });
 });
+
+// "free memory" from Ctrl+K — the Memory panel's button, from anywhere.
+describe('free memory', () => {
+  it('offers Free memory now for the plain phrasings and nothing else', () => {
+    for (const q of ['free memory', 'Free up memory', 'free ram']) {
+      const r = VexQuickCommands.results(q).find(x => x.id === 'quick-free-memory');
+      expect(r, q).toBeTruthy();
+      expect(r.label).toBe('Free memory now');
+      expect(r.isPrimary).toBe(true);
+    }
+    expect(VexQuickCommands.results('free the whales').some(x => x.id === 'quick-free-memory')).toBe(false);
+  });
+
+  it('runs the Memory panel, and says so when it is not there', async () => {
+    const r = VexQuickCommands.results('free memory').find(x => x.id === 'quick-free-memory');
+    globalThis.MemoryPanel = { freeNow: vi.fn(async () => ['idle tabs slept']) };
+    r.action();
+    expect(MemoryPanel.freeNow).toHaveBeenCalled();
+    delete globalThis.MemoryPanel;
+    expect(() => r.action()).toThrow(/Memory panel/);
+  });
+});

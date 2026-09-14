@@ -1019,6 +1019,9 @@
     ShortcutsRegistry.register('history-ai',     () => HistoryPanel?.openInAIMode?.());
     ShortcutsRegistry.register('history-panel',  () => SidebarManager?.togglePanel('history'));
     ShortcutsRegistry.register('memory-panel',   () => SidebarManager?.togglePanel('memory'));
+    ShortcutsRegistry.register('free-memory',    () => { if (typeof MemoryPanel !== 'undefined') MemoryPanel.freeNow().catch(err => showToast(err.message, 'error')); });
+    // A tab past its memory ceiling gets a notice with Reload (tabs.js).
+    if (typeof TabManager !== 'undefined' && TabManager.startHeavyTabWatch) TabManager.startHeavyTabWatch();
     ShortcutsRegistry.register('schedules',      () => SidebarManager?.openPanel('schedules'));
     ShortcutsRegistry.register('tabs-sidebar',   () => window.toggleTabsSidebar?.());
     ShortcutsRegistry.register('split-screen',   () => SplitScreen?.toggle?.());

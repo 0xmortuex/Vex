@@ -445,12 +445,9 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
-              <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Keep Discord awake <span style="color:var(--text-muted);font-size:11px">· voice and notifications keep working while it is hidden</span></span>
-                <label class="toggle">
-                  <input type="checkbox" id="setting-panel-keep-discord" checked>
-                  <span class="toggle-slider"></span>
-                </label>
+              <div style="margin-top:8px">
+                <div class="setting-row-label">Keep awake <span style="color:var(--text-muted);font-size:11px;font-weight:normal">· a sleeping panel cannot show a new-message notification; Discord and WhatsApp stay awake unless you untick them</span></div>
+                <div id="setting-panel-keepawake" style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:4px"></div>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Rest Discord when hidden and not in a call <span style="color:var(--text-muted);font-size:11px">· after two minutes out of sight it stops using the CPU; a call, or opening it, wakes it at once</span></span>
@@ -1171,14 +1168,12 @@
   <script src="js/toolbox-workbench.js"></script>
   <script src="js/toolbox.js"></script>
   <script src="js/dev-mode.js"></script>
-  <script src="js/toolbox-reference.js"></script>
+  <!-- The Toolbox's packs and reference tables (~800 KB) load on first use:
+       Toolbox.ensurePacks() in js/toolbox.js fetches them, in this order:
+       toolbox-reference, toolbox-packs, toolbox-pack-text,
+       toolbox-pack-units-math-science, toolbox-pack-money-date-health,
+       toolbox-pack-dev-data-web, toolbox-pack-encoding-net-css. -->
   <script src="js/toolbox-packs.js"></script>
-  <script src="js/toolbox-pack-text.js"></script>
-  <script src="js/toolbox-pack-units-math-science.js"></script>
-  <script src="js/toolbox-pack-money-date-health.js"></script>
-  <script src="js/toolbox-pack-dev-data-web.js"></script>
-  <script src="js/toolbox-pack-encoding-net-css.js"></script>
-  <script src="js/toolbox-pack-formats-text.js"></script>
   <script src="js/job-profiles.js"></script>
   <script src="js/job-setup.js"></script>
   <script src="js/job-work-panel.js"></script>

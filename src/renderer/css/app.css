@@ -985,3 +985,19 @@ body.private-mode #vex-logo::after {
   width: 14px; height: 14px; color: var(--vex-danger);
 }
 .tab-capture svg { width: 12px; height: 12px; }
+
+/* Heavy-tab notice (tabs.js _renderHeavyBanner): over the bottom of the page
+   in front until Reload or Later. */
+.tab-mem-banner {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 35;
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: var(--vex-bg-elevated); color: var(--vex-text-primary);
+  border-top: 1px solid var(--vex-border-medium);
+  font: 12px var(--vex-font-base, system-ui, sans-serif);
+}
+.tab-mem-banner span { flex: 1; min-width: 0; }
+.tab-mem-banner button {
+  padding: 4px 10px; border-radius: var(--vex-radius-sm); cursor: pointer; font: inherit;
+  border: 1px solid var(--vex-border-medium); background: transparent; color: inherit;
+}
+.tab-mem-banner .tmb-reload { background: var(--vex-accent); color: #fff; border-color: transparent; }

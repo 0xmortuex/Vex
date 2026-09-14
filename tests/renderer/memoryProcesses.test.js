@@ -174,6 +174,33 @@ describe('who holds the capture services', () => {
   });
 });
 
+describe('health since launch', () => {
+  it('says what happened, or that nothing did', () => {
+    const quiet = MemoryPanel.healthLines({ version: '2.31.81', electron: '42.5.2', chrome: '148.0', uptimeMs: 90 * 60000, marks: { 'app-ready': 812, 'window-shown': 1540, 'interface-loaded': 2100, 'first-page-loaded': 3300 }, events: [], extensionErrors: [], update: null, remindersScheduled: 2 });
+    expect(quiet[0]).toBe('Vex 2.31.81 · Electron 42.5.2 · Chromium 148.0 · up 1.5 h');
+    expect(quiet[1]).toBe('Startup: app ready 0.8 s · window shown 1.5 s · interface loaded 2.1 s · first page loaded 3.3 s');
+    expect(quiet).toContain('No crashes, hangs or helper processes lost since launch.');
+    expect(quiet).toContain('Updater: no check yet this session');
+    expect(quiet).toContain('Reminders scheduled in Windows: 2');
+
+    const bad = MemoryPanel.healthLines({ uptimeMs: 5 * 60000, marks: {}, events: [{ at: Date.now() - 120000, kind: 'page crashed', detail: 'https://x.example — crashed (exit 5)' }], extensionErrors: [{ folder: 'broken-1', error: 'manifest.json is not valid JSON' }], update: { lastCheckAt: Date.now() - 3600000, result: 'error', version: null, error: 'net::ERR_FAILED' } });
+    expect(bad).toContain('1 event since launch:');
+    expect(bad.some(l => /2 min ago — page crashed: https:\/\/x\.example — crashed \(exit 5\)/.test(l))).toBe(true);
+    expect(bad.some(l => /extension failed to load — broken-1/.test(l))).toBe(true);
+    expect(bad.some(l => /^Updater: error — net::ERR_FAILED \(1\.0 h ago\)$/.test(l))).toBe(true);
+  });
+
+  it('renders, and appends itself to the report', async () => {
+    document.body.innerHTML = '<div id="memory-health"></div>';
+    window.vex = { diagnostics: vi.fn(async () => ({ version: '1', uptimeMs: 60000, marks: {}, events: [{ at: Date.now(), kind: 'page hung', detail: 'https://slow.example' }], extensionErrors: [] })) };
+    await MemoryPanel.renderDiagnostics();
+    const host = document.getElementById('memory-health');
+    expect(host.querySelector('.memory-health').classList.contains('bad')).toBe(true);
+    expect(host.textContent).toMatch(/page hung: https:\/\/slow\.example/);
+    expect(MemoryPanel._lastHealth).toMatch(/page hung/);
+  });
+});
+
 describe('without the bridge', () => {
   beforeEach(() => { document.body.innerHTML = '<div id="memory-procs"></div><div id="memory-summary"></div>'; window.vex = {}; });
   it('says the list is unavailable instead of pretending', async () => {

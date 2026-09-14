@@ -81,11 +81,16 @@ describe('toolbox reference', () => {
     expect(code).toMatch(/window\.VexToolReference\s*=/);
   });
 
-  it('is loaded by index.html before the packs that use it', () => {
+  // The reference and the packs load on first use (Toolbox.ensurePacks), not
+  // from index.html: ~800 KB the interface no longer parses on every launch.
+  // The reference still goes first, before the packs that use it.
+  it('is fetched on first use, before the packs that use it, and not at launch', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'renderer', 'index.html'), 'utf8');
-    const ref = html.indexOf('js/toolbox-reference.js');
-    const firstPack = html.indexOf('js/toolbox-pack-');
-    expect(ref).toBeGreaterThan(-1);
-    expect(ref).toBeLessThan(firstPack);
+    expect(html).not.toMatch(/<script src="js\/toolbox-reference\.js">/);
+    expect(html).not.toMatch(/<script src="js\/toolbox-pack-/);
+    const toolbox = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'renderer', 'js', 'toolbox.js'), 'utf8');
+    const list = toolbox.match(/PACK_SCRIPTS:\s*\[([^\]]*)\]/)[1].match(/'[^']+'/g).map(s => s.slice(1, -1));
+    expect(list[0]).toBe('js/toolbox-reference.js');
+    expect(list.slice(1).every(s => /^js\/toolbox-pack-/.test(s))).toBe(true);
   });
 });

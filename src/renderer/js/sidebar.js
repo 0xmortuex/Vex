@@ -789,9 +789,12 @@ const SidebarManager = {
   },
 
   // vex.panelAutoSleep ('0' = off), vex.panelSleepMinutes (default 30, capped
-  // at 10 under Memory Saver like tabs), vex.panelSleepExempt (default Discord).
+  // at 10 under Memory Saver like tabs), vex.panelSleepExempt — the panels
+  // kept awake. Discord and WhatsApp by default: a sleeping panel cannot show
+  // a new-message notification.
+  KEEP_AWAKE_DEFAULT: ['discord', 'whatsapp'],
   panelSleepPrefs() {
-    let exempt = ['discord'];
+    let exempt = [...this.KEEP_AWAKE_DEFAULT];
     try {
       const e = JSON.parse(localStorage.getItem('vex.panelSleepExempt') || 'null');
       if (Array.isArray(e)) exempt = e.filter(x => typeof x === 'string');
@@ -862,12 +865,9 @@ const SidebarManager = {
     }
     if (keep) {
       keep.checked = this.panelSleepPrefs().exempt.includes('discord');
-      keep.addEventListener('change', () => {
-        const exempt = this.panelSleepPrefs().exempt.filter(x => x !== 'discord');
-        if (keep.checked) exempt.push('discord');
-        try { localStorage.setItem('vex.panelSleepExempt', JSON.stringify(exempt)); } catch {}
-      });
+      keep.addEventListener('change', () => this.setKeepAwake('discord', keep.checked));
     }
+    this.renderKeepAwakeList();
     const rest = document.getElementById('setting-discord-rest');
     if (rest) {
       rest.checked = this.discordRestPrefs().enabled;
@@ -875,6 +875,36 @@ const SidebarManager = {
         try { localStorage.setItem('vex.discordRestHidden', rest.checked ? '1' : '0'); } catch {}
         this.checkDiscordThrottle().catch(() => {});
       });
+    }
+  },
+
+  setKeepAwake(name, on) {
+    const exempt = this.panelSleepPrefs().exempt.filter(x => x !== name);
+    if (on) exempt.push(name);
+    try { localStorage.setItem('vex.panelSleepExempt', JSON.stringify(exempt)); } catch {}
+    this.renderKeepAwakeList();
+  },
+
+  // Settings › Performance › Keep awake: one switch per web panel. The
+  // tradeoff is on the label — a sleeping panel cannot notify.
+  renderKeepAwakeList() {
+    const host = document.getElementById('setting-panel-keepawake');
+    if (!host) return;
+    const exempt = this.panelSleepPrefs().exempt;
+    host.innerHTML = '';
+    for (const name of Object.keys(this.panelConfigs).filter(n => this.isWebPanel(n))) {
+      const row = document.createElement('label');
+      row.className = 'keepawake-row';
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;cursor:pointer';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.dataset.panel = name;
+      box.checked = exempt.includes(name);
+      box.addEventListener('change', () => this.setKeepAwake(name, box.checked));
+      const text = document.createElement('span');
+      text.textContent = this.panelLabel(name);
+      row.append(box, text);
+      host.appendChild(row);
     }
   },
 

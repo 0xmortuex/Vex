@@ -704,6 +704,48 @@ ipcMain.handle('app:processes', () => {
   return { processes: [...rows.values()], workers };
 });
 
+// === Diagnostics (Memory panel › Health) ===
+// What went wrong since launch, kept in memory: renderer crashes and hangs,
+// helper processes gone (GPU, network, audio…), extension load failures, the
+// updater's last word, and how long startup took. Bounded, newest last.
+const _diag = { startedAt: Date.now(), marks: {}, events: [] };
+function _diagMark(name) { if (!(name in _diag.marks)) _diag.marks[name] = Math.round(process.uptime() * 1000); }
+function _diagEvent(kind, detail) {
+  _diag.events.push({ at: Date.now(), kind, detail: String(detail || '').slice(0, 300) });
+  if (_diag.events.length > 100) _diag.events.splice(0, _diag.events.length - 100);
+  console.error(`[Diagnostics] ${kind}: ${detail}`);
+}
+_diagMark('main-loaded');
+app.whenReady().then(() => _diagMark('app-ready'));
+app.on('browser-window-created', (_e, win) => {
+  win.once('show', () => _diagMark('window-shown'));
+  win.webContents.once('did-finish-load', () => _diagMark('interface-loaded'));
+});
+app.on('child-process-gone', (_e, d) => {
+  if (!d || d.reason === 'clean-exit') return;
+  _diagEvent('helper process gone', `${d.type}${d.name ? ' ' + d.name : ''} — ${d.reason} (exit ${d.exitCode})`);
+});
+app.on('web-contents-created', (_e, wc) => {
+  const where = () => { try { return wc.getURL().slice(0, 120) || wc.getType(); } catch { return wc.getType(); } };
+  wc.on('render-process-gone', (_ev, d) => { if (d && d.reason !== 'clean-exit') _diagEvent('page crashed', `${where()} — ${d.reason} (exit ${d.exitCode})`); });
+  wc.on('unresponsive', () => _diagEvent('page hung', where()));
+  wc.on('responsive', () => _diagEvent('page recovered', where()));
+  if (wc.getType() === 'webview') {
+    wc.once('did-finish-load', () => { if (!('first-page-loaded' in _diag.marks)) _diagMark('first-page-loaded'); });
+  }
+});
+ipcMain.handle('app:diagnostics', () => {
+  let update = null;
+  try { update = require('./main/updates').state; } catch {}
+  let scheduled = null;
+  try { scheduled = reminders ? reminders.list().filter(r => r.os && r.os.scheduled).length : null; } catch {}
+  return {
+    startedAt: _diag.startedAt, uptimeMs: Date.now() - _diag.startedAt, marks: _diag.marks, events: _diag.events,
+    extensionErrors: [..._extLoadErrors.entries()].map(([folder, error]) => ({ folder, error: String(error).slice(0, 200) })),
+    update, remindersScheduled: scheduled, version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
+  };
+});
+
 ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
   if (scope !== 'auto' && scope !== 'everywhere') return { ok: false, error: 'Unknown scope: ' + scope };
   const entry = _extEntries().find(x => x.folder === folderName);

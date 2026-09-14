@@ -378,7 +378,46 @@ const Toolbox = {
 
   // `restore` puts the launcher back exactly where it was left: same search,
   // same family filter, same scroll position. Passed by backToLauncher().
+  // ---- Packs load on first use --------------------------------------------
+  // The packs and the reference tables are ~800 KB of the interface's 3.5 MB
+  // of scripts and only the Toolbox reads them, yet they were parsed on every
+  // launch. The first open (or the command palette opening) fetches them, in
+  // order. Only where scripts are fetched at all — under a test harness the
+  // Toolbox works with whatever packs the test loaded.
+  PACK_SCRIPTS: ['js/toolbox-reference.js', 'js/toolbox-pack-text.js', 'js/toolbox-pack-units-math-science.js', 'js/toolbox-pack-money-date-health.js', 'js/toolbox-pack-dev-data-web.js', 'js/toolbox-pack-encoding-net-css.js', 'js/toolbox-pack-formats-text.js'],
+  _packsLoaded: false,
+  // Ready once the last pack script is in the page — a few specs are
+  // registered by scripts that still load at launch, so a non-empty
+  // ToolboxPacks.specs proves nothing.
+  _packsReady() { return this._packsLoaded || !!document.querySelector(`script[src="${this.PACK_SCRIPTS[this.PACK_SCRIPTS.length - 1]}"]`); },
+  _canLoadPacks() { return !!document.querySelector('script[src="js/toolbox.js"]'); },
+  ensurePacks() {
+    if (this._packsReady() || !this._canLoadPacks()) return Promise.resolve(this._packsReady());
+    if (this._packsLoading) return this._packsLoading;
+    this._packsLoading = (async () => {
+      for (const src of this.PACK_SCRIPTS) {
+        if (document.querySelector(`script[src="${src}"]`)) continue;
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = () => reject(new Error('Could not load ' + src));
+          document.head.appendChild(s);
+        });
+      }
+      if (!this._packsReady()) throw new Error('The Toolbox packs loaded but registered no tools');
+      this._packsLoaded = true;
+      return true;
+    })();
+    this._packsLoading.catch(() => { this._packsLoading = null; });
+    return this._packsLoading;
+  },
+
   open(restore) {
+    if (!this._packsReady() && this._canLoadPacks()) {
+      this.ensurePacks().then(() => this.open(restore)).catch(err => window.showToast?.(err.message, 'error'));
+      return;
+    }
     document.getElementById('vex-toolbox')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-toolbox';
@@ -571,6 +610,10 @@ const Toolbox = {
   },
 
   openTool(id) {
+    if (!this._packsReady() && this._canLoadPacks()) {
+      this.ensurePacks().then(() => this.openTool(id)).catch(err => window.showToast?.(err.message, 'error'));
+      return;
+    }
     this._noteRecent(id);
     const fn = this['_' + id];
     if (typeof fn === 'function') { fn.call(this); return; }

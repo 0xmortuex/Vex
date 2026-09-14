@@ -39,6 +39,10 @@ const MemoryPanel = {
           <div class="memory-summary" id="memory-summary"></div>
           <div id="memory-procs"></div>
         </div>
+        <div class="memory-section">
+          <div class="memory-section-head"><h3>Health</h3><span class="memory-section-note">Since launch: crashes, hangs, helper processes gone, extension errors, the updater, startup timings.</span></div>
+          <div id="memory-health"></div>
+        </div>
       </div>
     `;
 
@@ -216,6 +220,8 @@ const MemoryPanel = {
     if (!this._lastProcs || Date.now() - this._lastProcs > 9500) {
       this._lastProcs = Date.now();
       await this.renderProcesses(ctx);
+      await this.renderDiagnostics();
+      if (this._lastHealth) this._lastReport += '\n\nHealth\n' + this._lastHealth;
     }
   },
 
@@ -334,6 +340,47 @@ const MemoryPanel = {
   },
 
   _fmt(mb) { return mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb + ' MB'; },
+
+  // ---- Health since launch -----------------------------------------------------
+  // main's app:diagnostics: events (crashes, hangs, helpers gone), extension
+  // load errors, the updater's last word, startup marks. Shown, and appended
+  // to the report.
+  _fmtAgo(ms) {
+    const m = Math.round(ms / 60000);
+    return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : (m / 60).toFixed(1) + ' h ago';
+  },
+
+  healthLines(d) {
+    const lines = [];
+    const up = Math.round((d.uptimeMs || 0) / 60000);
+    lines.push(`Vex ${d.version || '?'} · Electron ${d.electron || '?'} · Chromium ${d.chrome || '?'} · up ${up < 60 ? up + ' min' : (up / 60).toFixed(1) + ' h'}`);
+    const m = d.marks || {};
+    const parts = ['app-ready', 'window-shown', 'interface-loaded', 'first-page-loaded'].filter(k => k in m).map(k => `${k.replace(/-/g, ' ')} ${(m[k] / 1000).toFixed(1)} s`);
+    if (parts.length) lines.push('Startup: ' + parts.join(' · '));
+    const ev = Array.isArray(d.events) ? d.events : [];
+    lines.push(ev.length ? `${ev.length} event${ev.length === 1 ? '' : 's'} since launch:` : 'No crashes, hangs or helper processes lost since launch.');
+    for (const e of ev.slice(-20)) lines.push(`  ${this._fmtAgo(Date.now() - e.at)} — ${e.kind}: ${e.detail}`);
+    const ex = Array.isArray(d.extensionErrors) ? d.extensionErrors : [];
+    for (const x of ex) lines.push(`  extension failed to load — ${x.folder}: ${x.error}`);
+    if (d.update && d.update.result) lines.push(`Updater: ${d.update.result}${d.update.version ? ' ' + d.update.version : ''}${d.update.error ? ' — ' + d.update.error : ''} (${this._fmtAgo(Date.now() - d.update.lastCheckAt)})`);
+    else lines.push('Updater: no check yet this session');
+    if (d.remindersScheduled != null) lines.push(`Reminders scheduled in Windows: ${d.remindersScheduled}`);
+    return lines;
+  },
+
+  async renderDiagnostics() {
+    const host = document.getElementById('memory-health');
+    if (!host) return null;
+    if (!window.vex || typeof window.vex.diagnostics !== 'function') { host.innerHTML = '<div class="memory-proc-detail">Health is not available in this build.</div>'; return null; }
+    let d;
+    try { d = await window.vex.diagnostics(); }
+    catch (err) { host.innerHTML = `<div class="memory-proc-detail">Could not read health: ${this._esc(err && err.message)}</div>`; return null; }
+    const lines = this.healthLines(d);
+    const bad = (d.events && d.events.length) || (d.extensionErrors && d.extensionErrors.length) || (d.update && d.update.error);
+    host.innerHTML = `<div class="memory-health${bad ? ' bad' : ''}">${lines.map(l => `<div class="memory-health-line${/^  /.test(l) ? ' sub' : ''}">${this._esc(l.trim())}</div>`).join('')}</div>`;
+    this._lastHealth = lines.join('\n');
+    return d;
+  },
 
   // ---- Trend since launch ------------------------------------------------------
   // Total memory sampled every 30 s from launch (sidebar.js init starts it),

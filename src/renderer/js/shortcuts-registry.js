@@ -46,6 +46,7 @@ const ShortcutsRegistry = (() => {
     'reading-mode':   { default: 'Ctrl+Alt+R',   label: 'Reading Mode',               category: 'Tools' },
     'screenshot':     { default: 'Ctrl+Alt+S',   label: 'Screenshot',                 category: 'Tools' },
     'group-tabs':     { default: 'Ctrl+Shift+G', label: 'Organize Tabs with AI',      category: 'Tools' },
+    'free-memory':    { default: 'Ctrl+Alt+M',   label: 'Free memory now',            category: 'Tools' },
     'toggle-theme':   { default: 'Ctrl+Shift+Y', label: 'Open Theme Picker',           category: 'Tools' },
 
     // Window

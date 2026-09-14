@@ -148,15 +148,22 @@ describe('which hidden panels are due', () => {
   });
 
   it('the settings switches read and write the preferences', () => {
-    document.body.insertAdjacentHTML('beforeend', '<input type="checkbox" id="setting-panel-autosleep"><input type="checkbox" id="setting-panel-keep-discord">');
+    document.body.insertAdjacentHTML('beforeend', '<input type="checkbox" id="setting-panel-autosleep"><div id="setting-panel-keepawake"></div>');
     SidebarManager._wirePanelSleepSettings();
     const auto = document.getElementById('setting-panel-autosleep');
-    const keep = document.getElementById('setting-panel-keep-discord');
     expect(auto.checked).toBe(true);
-    expect(keep.checked).toBe(true);
+    // One switch per web panel; Discord and WhatsApp on by default, so a
+    // message can still notify — a sleeping panel cannot.
+    const boxes = [...document.querySelectorAll('#setting-panel-keepawake input')];
+    expect(boxes.map(b => b.dataset.panel)).toEqual(expect.arrayContaining(['discord', 'whatsapp', 'claude', 'spotify']));
+    expect(boxes.filter(b => b.checked).map(b => b.dataset.panel).sort()).toEqual(['discord', 'whatsapp']);
     auto.checked = false; auto.dispatchEvent(new Event('change'));
-    keep.checked = false; keep.dispatchEvent(new Event('change'));
-    expect(SidebarManager.panelSleepPrefs()).toMatchObject({ enabled: false, exempt: [] });
+    const discord = boxes.find(b => b.dataset.panel === 'discord');
+    discord.checked = false; discord.dispatchEvent(new Event('change'));
+    expect(SidebarManager.panelSleepPrefs()).toMatchObject({ enabled: false, exempt: ['whatsapp'] });
+    const claude = document.querySelector('#setting-panel-keepawake input[data-panel="claude"]');
+    claude.checked = true; claude.dispatchEvent(new Event('change'));
+    expect(SidebarManager.panelSleepPrefs().exempt.sort()).toEqual(['claude', 'whatsapp']);
   });
 });
 

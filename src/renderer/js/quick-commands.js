@@ -14,10 +14,23 @@ const VexQuickCommands = {
     const q = String(raw || '').trim();
     if (!q) return [];
     const out = [];
-    for (const fn of [this._remind, this._timer, this._alarm, this._timeIn, this._stopwatch]) {
+    for (const fn of [this._remind, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory]) {
       try { const r = fn.call(this, q); if (r) out.push(r); } catch (err) { /* a parse that failed part-way says so as a result, below */ out.push(this._unreadable(q, err)); }
     }
     return out;
+  },
+
+  // free memory / free up memory / free ram — the Memory panel's button, from anywhere.
+  _freeMemory(q) {
+    if (!/^free(?:\s+up)?\s+(?:memory|ram)$/i.test(q)) return null;
+    return {
+      id: 'quick-free-memory', icon: 'cpu', isPrimary: true, label: 'Free memory now',
+      hint: 'Sleep idle tabs (pinned ones idle over 30 min too), sleep hidden panels, unload idle extensions',
+      action: () => {
+        if (typeof MemoryPanel === 'undefined' || typeof MemoryPanel.freeNow !== 'function') throw new Error('The Memory panel is not loaded');
+        MemoryPanel.freeNow().catch(err => window.showToast?.(err.message, 'error'));
+      },
+    };
   },
 
   _unreadable(q, err) {

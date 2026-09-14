@@ -113,3 +113,8 @@
 .memory-trend svg { display: block; width: 100%; height: 48px; overflow: visible; }
 .memory-trend circle { fill: var(--vex-danger); }
 .memory-trend-label { display: block; margin-top: 4px; font-size: 11px; color: var(--vex-text-muted); }
+
+/* Health since launch (memory-panel.js renderDiagnostics). */
+.memory-health { font-size: 12px; line-height: 1.5; color: var(--vex-text-secondary); }
+.memory-health-line.sub { padding-left: 14px; color: var(--vex-text-muted); font-family: var(--vex-font-mono); font-size: 11px; }
+.memory-health.bad .memory-health-line.sub { color: var(--vex-danger); }

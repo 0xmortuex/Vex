@@ -129,7 +129,7 @@
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
       "include": "build/installer.nsh",
-      "differentialPackage": false
+      "differentialPackage": true
     },
     "publish": [
       {

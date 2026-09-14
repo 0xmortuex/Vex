@@ -129,6 +129,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Every process Vex runs, with the pages / panels / extension pages in each
   // (Memory panel › Processes).
   processes: () => ipcRenderer.invoke('app:processes'),
+  // Health since launch: crashes, hangs, helper processes gone, extension
+  // errors, the updater's last word, startup timings (Memory panel › Health).
+  diagnostics: () => ipcRenderer.invoke('app:diagnostics'),
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // Media grabber: list/download media detected on a tab (by its webContents id).

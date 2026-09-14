@@ -267,6 +267,8 @@ const CommandBar = {
   open() {
     const overlay = document.getElementById('command-overlay');
     const input = document.getElementById('command-input');
+    // Tool results come from the Toolbox packs, which load on first use.
+    if (window.Toolbox && typeof Toolbox.ensurePacks === 'function') Toolbox.ensurePacks().catch(() => {});
 
     overlay.style.display = 'flex';
     this.isOpen = true;

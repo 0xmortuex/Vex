@@ -357,6 +357,7 @@ const TabManager = {
     tab.unread = false;
     tab.lastViewedAt = Date.now();
     tab._lastActive = tab.lastViewedAt;
+    this._renderHeavyBanner();   // the notice follows the tab in front
 
     // Wake sleeping tab on activation
     if (tab.sleeping) {
@@ -1948,6 +1949,78 @@ const TabManager = {
       window.showToast?.(msg);
       document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: msg } }));   // Memory panel trend
     }
+  },
+
+  // === Heavy-tab notice ===
+  // A tab past the ceiling (vex.tabMemoryWarnMB, 800) gets a one-line notice
+  // with Reload when it is in front — the same as the Discord panel's. Never
+  // automatic, never while it is recording or playing, and Later is half an
+  // hour of quiet for that tab.
+  heavyTabCeilingMB() {
+    const v = Number(localStorage.getItem('vex.tabMemoryWarnMB'));
+    return Number.isFinite(v) && v > 0 ? v : 800;
+  },
+
+  async checkHeavyTabs() {
+    if (!window.vex || typeof window.vex.tabMemory !== 'function') return [];
+    const ids = [], byWc = new Map();
+    for (const t of this.tabs) {
+      if (t.sleeping || t._lazy) continue;
+      const wv = WebviewManager.webviews.get(t.id);
+      if (!wv || typeof wv.getWebContentsId !== 'function') continue;
+      let wc; try { wc = wv.getWebContentsId(); } catch { continue; }
+      ids.push(wc); byWc.set(wc, t);
+    }
+    if (!ids.length) { this._renderHeavyBanner(); return []; }
+    const mem = await window.vex.tabMemory(ids);
+    const ceiling = this.heavyTabCeilingMB();
+    const heavy = [];
+    for (const [wc, t] of byWc) {
+      const row = mem && mem.byId && mem.byId[wc];
+      const mb = row ? Math.round(row.memKB / 1024) : 0;
+      t._heavyMB = mb >= ceiling ? mb : 0;
+      if (t._heavyMB) heavy.push(t);
+    }
+    this._renderHeavyBanner();
+    return heavy;
+  },
+
+  _renderHeavyBanner() {
+    const host = document.getElementById('webviews-container');
+    if (!host) return;
+    const tab = this.tabs.find(t => t.id === this.activeTabId);
+    let b = host.querySelector('.tab-mem-banner');
+    const quiet = tab && tab._heavySnoozedAt && Date.now() - tab._heavySnoozedAt < 30 * 60000;
+    const busy = tab && ((tab.audible && !tab.muted) || this.isCapturing(tab));
+    if (!tab || !tab._heavyMB || quiet || busy) { if (b) b.remove(); return; }
+    if (!b) {
+      b = document.createElement('div');
+      b.className = 'tab-mem-banner';
+      b.innerHTML = '<span></span><button class="tmb-reload">Reload tab</button><button class="tmb-later">Later</button>';
+      b.querySelector('.tmb-reload').addEventListener('click', () => {
+        const wv = WebviewManager.webviews.get(this.activeTabId);
+        try { if (wv) wv.reload(); } catch {}
+        const t = this.tabs.find(x => x.id === this.activeTabId);
+        if (t) t._heavyMB = 0;
+        document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'Reloaded a heavy tab' } }));
+        b.remove();
+      });
+      b.querySelector('.tmb-later').addEventListener('click', () => {
+        const t = this.tabs.find(x => x.id === this.activeTabId);
+        if (t) t._heavySnoozedAt = Date.now();
+        b.remove();
+      });
+      host.appendChild(b);
+    }
+    const mb = tab._heavyMB;
+    b.querySelector('span').textContent = `This tab is using ${mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB'}. Reloading frees it.`;
+  },
+
+  startHeavyTabWatch() {
+    if (this._heavyTimer) clearInterval(this._heavyTimer);
+    this._heavyTimer = setInterval(() => {
+      this.checkHeavyTabs().catch(err => console.error('[Tabs] heavy-tab check failed:', err.message));
+    }, 60000);
   },
 
   // === Recently Closed ===
