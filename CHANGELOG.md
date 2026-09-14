@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.79 (2026-09-14) — Idle memory: one uBlock, containers on demand, pinned tabs can sleep
+
+### Notes
+From a Memory panel report after 2.31.78: 15 processes, 1.98 GB — five copies of uBlock Origin (426 MB), three of them for container sessions with no tab open, and two pinned claude.ai tabs (550 MB) the memory guard was not allowed to touch.
+- **Container sessions get extensions only while a tab is open in them**, and give them back a minute after the last one closes; the default session likewise. At startup that is one uBlock Origin background page instead of five (it was eleven two releases ago). Regular tabs and the app panels are unchanged — those load eagerly so a content script never misses the first page.
+- **The memory guard may now sleep pinned tabs.** Past the memory ceiling it still sleeps unpinned idle tabs first; if that is not enough, a pinned tab not looked at for half an hour goes too. The pin keeps its place and the tab wakes on a click. (Two pinned claude.ai tabs also kept Chromium's capture and audio services alive — 236 MB — through their microphone access; they go when the tabs sleep.)
+- **The process list explains the utilities**: what Video Capture, Audio, Network and the DRM service are each for, and when they end.
+
 ## v2.31.78 (2026-09-14) — Less memory: extensions only where they apply, panels that sleep, and a process list you can read
 
 ### Notes
