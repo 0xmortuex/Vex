@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.81 (2026-09-14) — Delta updates, keep-awake per panel, heavy-tab notice, Health, faster launch
+
+### Notes
+- **Updates download only what changed.** Every update so far pulled the whole 98 MB installer; delta packages are now published, so from the release after this one the updater fetches a few MB of changed blocks instead. (This update itself is still a full download: the first delta needs a previous version with a block map.)
+- **Keep awake, per panel.** Settings › Performance lists every web panel with a *Keep awake* switch. Discord and WhatsApp are on by default — a sleeping panel cannot show a new-message notification, which panel sleep did not say before.
+- **Heavy-tab notice.** A tab past 800 MB shows a one-line notice with *Reload* while it is in front, like the Discord panel's — never automatic, never while it is recording or playing; *Later* is half an hour of quiet for that tab.
+- **Health, in the Memory panel:** uptime and startup timings (app ready, window shown, interface loaded, first page), page crashes and hangs and helper processes lost since launch, extensions that failed to load, the updater's last word, reminders scheduled in Windows. Included in *Copy report*.
+- **Faster launch.** The Toolbox's packs and reference tables — about 800 KB, 325 tools — load on first use (opening the Toolbox or Ctrl+K) instead of being parsed on every launch. Measured on this machine: app ready 0.2 s, window 0.6 s, interface 1.3 s, first page 2.0 s.
+- **Free memory from anywhere:** Ctrl+K → "free memory", or Ctrl+Alt+M (rebindable under Settings › Shortcuts).
+
 ## v2.31.80 (2026-09-14) — Discord rests, mic and camera badges, a memory trend and one button to free it
 
 ### Notes
