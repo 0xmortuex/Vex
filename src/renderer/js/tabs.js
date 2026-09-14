@@ -70,6 +70,9 @@ function startUrlWithTheme(base) {
 // removal). Each helper returns a complete <span>/<svg> snippet ready to drop
 // into an innerHTML template.
 const TAB_ICONS = {
+  // Microphone / camera in use (webview.js relays the guest's getUserMedia).
+  mic: '<span class="tab-capture" title="Using the microphone" aria-label="Using the microphone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2.8" width="6" height="11.2" rx="3"/><path d="M5.6 11.6a6.4 6.4 0 0 0 12.8 0"/><path d="M12 18v3.2M9 21.2h6"/></svg></span>',
+  camera: '<span class="tab-capture" title="Using the camera" aria-label="Using the camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5h4L9 5h6l1.5 2.5h4v12h-17z"/><circle cx="12" cy="13.3" r="3.6"/></svg></span>',
   tor: '<span class="tab-private tor" title="Tor tab — routed through Tor" aria-label="Tor tab"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M8 2v12" stroke="currentColor" stroke-width="1.4"/></svg></span>',
   private: '<span class="tab-private" title="Private (off-the-record) tab" aria-label="Private tab"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.2" y="7" width="9.6" height="6.4" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.6 7V5.2a2.4 2.4 0 0 1 4.8 0V7" stroke="currentColor" stroke-width="1.4"/></svg></span>',
   audible: '<span class="tab-audio" title="Playing audio — click to mute" aria-label="Playing audio"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>',
@@ -652,7 +655,7 @@ const TabManager = {
         <div class="tab-title">${this._escapeHtml(tab.title)}</div>
       </div>
       ${tab.sleeping ? TAB_ICONS.sleeping : ''}
-      ${this._audioBadge(tab)}
+      ${this._captureBadge(tab)}${this._audioBadge(tab)}
       ${tab.unread ? '<div class="tab-unread"></div>' : ''}
       <button class="tab-close" title="Close tab">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -692,6 +695,28 @@ const TabManager = {
     return '';
   },
 
+  // Microphone / camera in use, reported by the guest preload's getUserMedia
+  // wrapper (vex-media-capture). Not persisted: a restored tab is not
+  // recording, so the property is non-enumerable and stays out of the session.
+  setCapturing(id, kind, active) {
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab || (kind !== 'mic' && kind !== 'camera')) return;
+    if (!Object.prototype.hasOwnProperty.call(tab, 'capturing')) {
+      Object.defineProperty(tab, 'capturing', { value: {}, writable: true, enumerable: false, configurable: true });
+    }
+    tab.capturing = { ...tab.capturing, [kind]: !!active };
+    this.renderTabUpdate(tab);
+  },
+
+  isCapturing(tab) {
+    return !!(tab && tab.capturing && (tab.capturing.mic || tab.capturing.camera));
+  },
+
+  _captureBadge(tab) {
+    if (!tab.capturing) return '';
+    return (tab.capturing.camera ? TAB_ICONS.camera : '') + (tab.capturing.mic ? TAB_ICONS.mic : '');
+  },
+
   renderTabUpdate(tab) {
     this._notifyTabsChanged();
     const el = document.querySelector(`.tab-item[data-tab-id="${tab.id}"]`);
@@ -717,6 +742,16 @@ const TabManager = {
       const next = holder.firstElementChild;
       if (haveAudio) haveAudio.replaceWith(next);
       else el.querySelector('.tab-close')?.before(next);
+    }
+
+    // Microphone / camera badge, the same way.
+    el.querySelectorAll('.tab-capture').forEach(n => n.remove());
+    const wantCapture = this._captureBadge(tab);
+    if (wantCapture) {
+      const holder = document.createElement('div');
+      holder.innerHTML = wantCapture;
+      const anchor = el.querySelector('.tab-audio') || el.querySelector('.tab-close');
+      for (const n of [...holder.children]) anchor?.before(n);
     }
 
     // Sleep badge, same reasoning as the audio badge above.
@@ -1587,6 +1622,7 @@ const TabManager = {
   _hostOfTab(tab) { try { return new URL(tab.url).hostname.replace(/^www./, ''); } catch { return ''; } },
   _isKeptAwake(tab) {
     if (!tab) return false;
+    if (this.isCapturing(tab)) return true;   // recording: never slept from under it
     if (tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil) return true;
     const h = this._hostOfTab(tab);
     return !!(h && this._neverSleepHosts().has(h));
@@ -1891,7 +1927,7 @@ const TabManager = {
     const totalMB = metrics.reduce((s, p) => s + (p.memKB || 0), 0) / 1024;
     if (totalMB <= this._memCeiling) return;
     const now = Date.now();
-    const idle = (t) => t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted);
+    const idle = (t) => t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted) && !this.isCapturing(t);
     const byOldest = (a, b) => (a.lastViewedAt || 0) - (b.lastViewedAt || 0);
     // Unpinned idle tabs first. Pinned tabs were never touched, so two pinned
     // claude.ai tabs could hold 550 MB (and the capture and audio services
@@ -1907,7 +1943,11 @@ const TabManager = {
       slept++;
       if (t.pinned) pinnedSlept++;
     }
-    if (slept) window.showToast?.(`High memory — slept ${slept} idle tab${slept === 1 ? '' : 's'}${pinnedSlept ? ` (${pinnedSlept} pinned, idle over 30 min)` : ''}`);
+    if (slept) {
+      const msg = `High memory — slept ${slept} idle tab${slept === 1 ? '' : 's'}${pinnedSlept ? ` (${pinnedSlept} pinned, idle over 30 min)` : ''}`;
+      window.showToast?.(msg);
+      document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: msg } }));   // Memory panel trend
+    }
   },
 
   // === Recently Closed ===

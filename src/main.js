@@ -735,6 +735,21 @@ ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
   return { ok: true, scope };
 });
 
+// Free memory now (Memory panel): unload the extensions of the lazy sessions
+// that have no page open, without waiting the minute.
+ipcMain.handle('extensions:release-idle', () => {
+  const released = [];
+  for (const p of LAZY_EXT_PARTITIONS) {
+    const ses = p === 'default' ? session.defaultSession : secureSessions.fromPartition(p);
+    const live = _liveBySession.get(ses);
+    if (live && live.size) continue;
+    if (!ses.getAllExtensions().length) continue;
+    _releaseSessionExtensions(ses);
+    released.push(p);
+  }
+  return { ok: true, released };
+});
+
 // === "Read free" — clear a single site's data to reset a metered paywall ===
 // Clears the origin's local storage caches + removes its cookies in the given
 // partition, so counter-based paywalls (NYT/WaPo-style "N free articles") reset
@@ -1678,6 +1693,8 @@ ipcMain.handle('extensions:list', () => {
       scope: scopes[e.folder] === 'everywhere' ? 'everywhere' : 'auto',
       generic: where.generic,
       where: where.partitions,
+      // Asks for request blocking, which Electron does not give extensions.
+      blocker: (Array.isArray(manifest.permissions) ? manifest.permissions : []).some(p => /^(webRequest|webRequestBlocking|declarativeNetRequest)/.test(String(p))),
       name: extHelpers.localize(manifest.name, e.messages) || e.folder,
       version: manifest.version || '—',
       description: extHelpers.localize(manifest.description, e.messages) || '',

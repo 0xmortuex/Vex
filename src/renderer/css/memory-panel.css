@@ -107,3 +107,9 @@
 .memory-proc-table tr.warm td.num.mem { color: var(--vex-accent); }
 .memory-proc-table tr.busy td.num.cpu { color: var(--vex-danger); }
 .memory-item-kept { font-size: 10px; color: var(--vex-text-muted); margin-left: 6px; }
+
+/* Trend since launch (memory-panel.js renderTrend): an inline chart. */
+.memory-trend { margin: 10px 0 4px; color: var(--vex-accent); }
+.memory-trend svg { display: block; width: 100%; height: 48px; overflow: visible; }
+.memory-trend circle { fill: var(--vex-danger); }
+.memory-trend-label { display: block; margin-top: 4px; font-size: 11px; color: var(--vex-text-muted); }

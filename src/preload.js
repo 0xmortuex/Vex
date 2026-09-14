@@ -334,6 +334,8 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),
   // 'auto' (browsing sessions + the app panels it names) or 'everywhere'.
   extensionsSetScope:       (folderName, scope) => ipcRenderer.invoke('extensions:set-scope', folderName, scope),
+  // Free memory now: unload extensions from sessions with no page open.
+  extensionsReleaseIdle:    () => ipcRenderer.invoke('extensions:release-idle'),
   extensionsOpenPopup:      (request) => ipcRenderer.invoke('extensions:open-popup', request),
 
   // Phase 13: Vex Sync — encryption key + session metadata

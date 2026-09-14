@@ -61,6 +61,7 @@ const ExtensionsSettings = (() => {
       .ext-suggest-limited{color:#f59e0b;}
       .ext-unsupported{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text-muted,#9a9aa5);line-height:1.6;}
       .ext-where{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--text-muted,#9a9aa5);}
+      .ext-note{margin-top:5px;font-size:11px;line-height:1.45;color:#f59e0b;}
       .ext-scope{font:inherit;font-size:11px;padding:2px 6px;border-radius:6px;background:var(--surface,rgba(255,255,255,0.04));
         color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.12));cursor:pointer;}
     `;
@@ -161,6 +162,7 @@ const ExtensionsSettings = (() => {
                       <option value="auto"${e.scope !== 'everywhere' ? ' selected' : ''}>where it applies</option>
                       <option value="everywhere"${e.scope === 'everywhere' ? ' selected' : ''}>everywhere — every app panel too</option>
                     </select></div>` : ''}
+                  ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements — and its background page costs about 85 MB for that.</div>` : ''}
                   ${e.error ? `<div class="ext-error">${_esc(e.error)}</div>` : ''}
                 </div>
                 <div class="ext-card-actions">

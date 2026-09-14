@@ -290,6 +290,9 @@ const SidebarManager = {
     this._wirePanelSleepSettings();
     this.startPanelAutoSleep();
     this.startDiscordMemoryWatch();
+    this.startDiscordRest();
+    // The Memory panel's trend line samples from launch, not from its first open.
+    if (typeof MemoryPanel !== 'undefined' && MemoryPanel.startTrend) MemoryPanel.startTrend();
 
     // Set up sidebar icon clicks
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
@@ -437,6 +440,8 @@ const SidebarManager = {
     if (sideEl) { sideEl.style.display = 'block'; this._preparePanel(paired, sideEl); }
     this._layoutPanels();
     this._announcePanel(panelName);
+    // Discord in front runs unthrottled at once (checkDiscordThrottle).
+    if (this.panelWebviews.discord) this.checkDiscordThrottle().catch(() => {});
   },
 
   // Everything a panel needs on its way to being shown: the feature panels
@@ -555,6 +560,14 @@ const SidebarManager = {
           ? 'contextIsolation=yes,backgroundThrottling=no'
           : 'contextIsolation=yes';
         wv.setAttribute('webpreferences', wp);
+        if (panelName === 'discord') this._discordThrottled = false;   // created unthrottled (see checkDiscordThrottle)
+        // Microphone / camera in use (preload-webview.js getUserMedia wrapper):
+        // a badge on the icon, never slept meanwhile, and a call signal for Discord.
+        wv.addEventListener('ipc-message', (e) => {
+          if (e.channel !== 'vex-media-capture') return;
+          const d = (e.args && e.args[0]) || {};
+          this.setPanelCapturing(panelName, d.kind, d.active);
+        });
         wv.style.width = '100%';
         wv.style.height = '100%';
         // Wire the guest right-click → Vex context menu, exactly like normal
@@ -800,6 +813,7 @@ const SidebarManager = {
     document.querySelectorAll('.panel-navbar[data-panel="' + name + '"]').forEach(n => n.remove());
     this.sleptPanels[name] = Date.now();
     document.dispatchEvent(new CustomEvent('vex:panel-slept', { detail: { panel: name } }));
+    document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'Slept panel: ' + this.panelLabel(name) } }));
   },
 
   // When a panel was last in front (vex.panelUsage): stamped on open and on
@@ -821,7 +835,7 @@ const SidebarManager = {
     let usage = {};
     try { usage = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {}; } catch {}
     return Object.keys(this.panelWebviews).filter(name => {
-      if (name === this.activePanel || name === this.sidePanel || p.exempt.includes(name)) return false;
+      if (name === this.activePanel || name === this.sidePanel || p.exempt.includes(name) || this.isPanelCapturing(name)) return false;
       const wv = this.panelWebviews[name];
       try { if (typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return false; } catch {}
       return now - (Number(usage[name]) || 0) > p.minutes * 60000;
@@ -852,6 +866,14 @@ const SidebarManager = {
         const exempt = this.panelSleepPrefs().exempt.filter(x => x !== 'discord');
         if (keep.checked) exempt.push('discord');
         try { localStorage.setItem('vex.panelSleepExempt', JSON.stringify(exempt)); } catch {}
+      });
+    }
+    const rest = document.getElementById('setting-discord-rest');
+    if (rest) {
+      rest.checked = this.discordRestPrefs().enabled;
+      rest.addEventListener('change', () => {
+        try { localStorage.setItem('vex.discordRestHidden', rest.checked ? '1' : '0'); } catch {}
+        this.checkDiscordThrottle().catch(() => {});
       });
     }
   },
@@ -893,6 +915,7 @@ const SidebarManager = {
       b.innerHTML = '<span></span><button class="dmb-reload">Reload Discord</button><button class="dmb-later">Later</button>';
       b.querySelector('.dmb-reload').addEventListener('click', () => {
         try { this.panelWebviews.discord?.reload(); } catch {}
+        document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'Discord reloaded' } }));
         b.remove();
       });
       b.querySelector('.dmb-later').addEventListener('click', () => { b.remove(); this._discordWarnedAt = Date.now(); });
@@ -906,6 +929,100 @@ const SidebarManager = {
     this._discordMemTimer = setInterval(() => {
       this.checkDiscordMemory().catch(err => console.error('[Sidebar] Discord memory check failed:', err.message));
     }, 60000);
+  },
+
+  // ---- Microphone / camera in a panel -----------------------------------------
+  panelCapture: {},
+
+  setPanelCapturing(name, kind, active) {
+    if (kind !== 'mic' && kind !== 'camera') return;
+    this.panelCapture[name] = { ...(this.panelCapture[name] || {}), [kind]: !!active };
+    const c = this.panelCapture[name];
+    const btn = document.querySelector('.sidebar-icon[data-panel="' + name + '"]');
+    if (btn) {
+      let b = btn.querySelector('.icon-badge.capture');
+      if (!c.mic && !c.camera) { if (b) b.remove(); }
+      else {
+        if (!b) { b = document.createElement('span'); b.className = 'icon-badge capture'; btn.appendChild(b); }
+        b.innerHTML = VexIcons.svg(c.camera ? 'camera' : 'mic', { size: 10 });
+        b.title = c.camera && c.mic ? 'Using the camera and microphone' : c.camera ? 'Using the camera' : 'Using the microphone';
+      }
+    }
+    if (name === 'discord') this.checkDiscordThrottle().catch(() => {});
+  },
+
+  isPanelCapturing(name) {
+    const c = this.panelCapture[name];
+    return !!(c && (c.mic || c.camera));
+  },
+
+  // Free memory now (Memory panel): every hidden web panel that may sleep,
+  // idle or not. Returns the names slept.
+  sleepHiddenPanels() {
+    const p = this.panelSleepPrefs();
+    const slept = [];
+    for (const name of Object.keys(this.panelWebviews)) {
+      if (name === this.activePanel || name === this.sidePanel || p.exempt.includes(name) || this.isPanelCapturing(name)) continue;
+      const wv = this.panelWebviews[name];
+      try { if (typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) continue; } catch {}
+      try { this.sleepPanel(name); slept.push(name); }
+      catch (err) { console.error('[Sidebar] could not sleep panel ' + name + ':', err.message); }
+    }
+    return slept;
+  },
+
+  // ---- Discord rests when hidden and not in a call -----------------------------
+  // Discord's <webview> is created with backgroundThrottling off so a hidden
+  // panel reconnects instantly; left that way it burned ~35% of a core all day
+  // (3,763 s of CPU in three hours, measured). Hidden for two minutes with no
+  // call — no microphone in use, not audible, no Disconnect button in its
+  // page — throttling goes back on; shown again, or a call, and it is off.
+  discordRestPrefs() {
+    return { enabled: localStorage.getItem('vex.discordRestHidden') !== '0', afterMs: 2 * 60000 };
+  },
+
+  async _discordInCall(wv) {
+    if (this.isPanelCapturing('discord')) return true;
+    try { if (typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return true; } catch {}
+    if (typeof wv.executeJavaScript !== 'function') return false;
+    try {
+      return !!(await wv.executeJavaScript(`!!document.querySelector('button[aria-label="Disconnect"], [class*="rtcConnectionStatus"]')`, true));
+    } catch { return false; }
+  },
+
+  async _setDiscordThrottle(on) {
+    const wv = this.panelWebviews.discord;
+    if (!wv || !window.vex || typeof window.vex.setBackgroundThrottling !== 'function') return false;
+    if (this._discordThrottled === on) return true;
+    let id;
+    try { id = wv.getWebContentsId(); } catch { return false; }
+    await window.vex.setBackgroundThrottling(id, on);
+    this._discordThrottled = on;
+    return true;
+  },
+
+  async checkDiscordThrottle(now = Date.now()) {
+    const wv = this.panelWebviews.discord;
+    if (!wv) return null;
+    const visible = this.activePanel === 'discord' || this.sidePanel === 'discord';
+    const prefs = this.discordRestPrefs();
+    if (visible || !prefs.enabled) {
+      await this._setDiscordThrottle(false);
+      return { visible, inCall: null, throttled: false };
+    }
+    let usage = {};
+    try { usage = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {}; } catch {}
+    if (now - (Number(usage.discord) || 0) < prefs.afterMs) return { visible, inCall: null, throttled: !!this._discordThrottled };
+    const inCall = await this._discordInCall(wv);
+    await this._setDiscordThrottle(!inCall);
+    return { visible, inCall, throttled: !inCall };
+  },
+
+  startDiscordRest() {
+    if (this._discordRestTimer) clearInterval(this._discordRestTimer);
+    this._discordRestTimer = setInterval(() => {
+      this.checkDiscordThrottle().catch(err => console.error('[Sidebar] Discord rest check failed:', err.message));
+    }, 30000);
   },
 
   // The browser looks and Glass (css/gui-browser.css section 7) dock a panel

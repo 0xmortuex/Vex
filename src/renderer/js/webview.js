@@ -205,6 +205,12 @@ const WebviewManager = {
         } catch {}
         return;
       }
+      // Microphone / camera in use (preload-webview.js getUserMedia wrapper).
+      if (e.channel === 'vex-media-capture') {
+        const d = (e.args && e.args[0]) || {};
+        if (typeof TabManager !== 'undefined' && TabManager.setCapturing) TabManager.setCapturing(webview.dataset.tabId, d.kind, d.active);
+        return;
+      }
       if (e.channel === 'vex-video-detected' || e.channel === 'vex-pip-fallback') {
         try {
           const payload = (e.args && e.args[0]) || null;

@@ -9,6 +9,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 require('../../src/renderer/js/vex-utils.js');
+const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = VexIcons; global.window.VexIcons = VexIcons;
 const { SidebarManager } = require('../../src/renderer/js/sidebar.js');
 
 function fakeWebview(name, { audible = false, wcId = 100 } = {}) {
@@ -48,6 +50,7 @@ beforeEach(() => {
   SidebarManager.sidePanel = null;
   SidebarManager.panelWebviews = {};
   SidebarManager.sleptPanels = {};
+  SidebarManager.panelCapture = {};
   SidebarManager._discordWarnedAt = 0;
   globalThis.NotesPanel = { init: vi.fn() };
   globalThis.TabManager = { activeTabId: null, _clampMenuToViewport: vi.fn(), _attachMenuDismissal: vi.fn() };
@@ -188,5 +191,92 @@ describe('the Discord memory watch', () => {
     expect(await SidebarManager.checkDiscordMemory()).toBe(null);
     fakeWebview('discord');
     expect(await SidebarManager.checkDiscordMemory()).toBe(null);
+  });
+});
+
+// Discord's webview runs unthrottled so a hidden panel reconnects instantly —
+// and burned ~35% of a core all day. Hidden two minutes with no call, it rests.
+describe('Discord rests when hidden and not in a call', () => {
+  const NOW = 10_000_000;
+  function discordWebview(over) {
+    const wv = fakeWebview('discord', { wcId: 7, ...over });
+    wv.executeJavaScript = vi.fn(async () => over && over.disconnectButton ? true : false);
+    window.vex.setBackgroundThrottling = vi.fn(async () => ({ ok: true }));
+    SidebarManager._discordThrottled = false;
+    return wv;
+  }
+
+  it('throttles after two minutes hidden with no call, and unthrottles when shown', async () => {
+    discordWebview();
+    usage({ discord: NOW - 3 * 60000 });
+    expect(await SidebarManager.checkDiscordThrottle(NOW)).toEqual({ visible: false, inCall: false, throttled: true });
+    expect(window.vex.setBackgroundThrottling).toHaveBeenCalledWith(7, true);
+    SidebarManager.activePanel = 'discord';
+    expect(await SidebarManager.checkDiscordThrottle(NOW)).toEqual({ visible: true, inCall: null, throttled: false });
+    expect(window.vex.setBackgroundThrottling).toHaveBeenLastCalledWith(7, false);
+  });
+
+  it('waits the two minutes, and does not repeat an IPC it has already made', async () => {
+    discordWebview();
+    usage({ discord: NOW - 60000 });
+    expect(await SidebarManager.checkDiscordThrottle(NOW)).toEqual({ visible: false, inCall: null, throttled: false });
+    expect(window.vex.setBackgroundThrottling).not.toHaveBeenCalled();
+    usage({ discord: NOW - 5 * 60000 });
+    await SidebarManager.checkDiscordThrottle(NOW);
+    await SidebarManager.checkDiscordThrottle(NOW);
+    expect(window.vex.setBackgroundThrottling).toHaveBeenCalledTimes(1);
+  });
+
+  it('a call keeps it awake: microphone in use, audible, or the Disconnect button in its page', async () => {
+    usage({ discord: NOW - 10 * 60000 });
+    discordWebview({ audible: true });
+    expect((await SidebarManager.checkDiscordThrottle(NOW)).inCall).toBe(true);
+    SidebarManager.panelWebviews = {};
+    discordWebview({ disconnectButton: true });
+    expect((await SidebarManager.checkDiscordThrottle(NOW)).inCall).toBe(true);
+    SidebarManager.panelWebviews = {};
+    discordWebview();
+    SidebarManager.setPanelCapturing('discord', 'mic', true);
+    expect((await SidebarManager.checkDiscordThrottle(NOW)).inCall).toBe(true);
+    expect(window.vex.setBackgroundThrottling).not.toHaveBeenCalledWith(7, true);
+    SidebarManager.setPanelCapturing('discord', 'mic', false);
+  });
+
+  it('can be switched off in Settings', async () => {
+    discordWebview();
+    usage({ discord: NOW - 10 * 60000 });
+    localStorage.setItem('vex.discordRestHidden', '0');
+    expect((await SidebarManager.checkDiscordThrottle(NOW)).throttled).toBe(false);
+  });
+});
+
+describe('microphone and camera in a panel', () => {
+  it('shows a badge on the icon and keeps the panel from sleeping', () => {
+    fakeWebview('claude');
+    usage({});
+    SidebarManager.setPanelCapturing('claude', 'mic', true);
+    const badge = document.querySelector('.sidebar-icon[data-panel="claude"] .icon-badge.capture');
+    expect(badge.title).toBe('Using the microphone');
+    expect(SidebarManager.isPanelCapturing('claude')).toBe(true);
+    expect(SidebarManager.panelsDueToSleep(10_000_000)).toEqual([]);
+    expect(SidebarManager.sleepHiddenPanels()).toEqual([]);
+    SidebarManager.setPanelCapturing('claude', 'camera', true);
+    expect(document.querySelector('.sidebar-icon[data-panel="claude"] .icon-badge.capture').title).toBe('Using the camera and microphone');
+    SidebarManager.setPanelCapturing('claude', 'mic', false);
+    SidebarManager.setPanelCapturing('claude', 'camera', false);
+    expect(document.querySelector('.icon-badge.capture')).toBe(null);
+    expect(SidebarManager.panelsDueToSleep(10_000_000)).toEqual(['claude']);
+  });
+});
+
+describe('Free memory now: hidden panels', () => {
+  it('sleeps every hidden panel that may sleep, idle or not', () => {
+    fakeWebview('claude'); fakeWebview('spotify', { audible: true }); fakeWebview('discord');
+    usage({ claude: Date.now() });                 // just used — still goes: this is "now"
+    SidebarManager.activePanel = 'notes';
+    expect(SidebarManager.sleepHiddenPanels()).toEqual(['claude']);
+    expect(document.querySelector('#panel-claude webview')).toBe(null);
+    expect(document.querySelector('#panel-discord webview')).not.toBe(null);   // kept awake
+    expect(document.querySelector('#panel-spotify webview')).not.toBe(null);   // playing
   });
 });

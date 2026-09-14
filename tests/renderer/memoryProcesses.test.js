@@ -103,6 +103,77 @@ describe('a panel row', () => {
   });
 });
 
+describe('the trend since launch', () => {
+  beforeEach(() => { MemoryPanel._history = []; document.body.innerHTML = '<div id="memory-trend"></div>'; });
+
+  it('samples the total, keeps notes, and draws a line with a dot per note', async () => {
+    let kb = 1000 * 1024;
+    window.vex = { appMetrics: vi.fn(async () => [{ memKB: kb }, { memKB: 0 }]) };
+    expect(await MemoryPanel.sample()).toBe(1000);
+    kb = 1300 * 1024;
+    await MemoryPanel.sample();
+    MemoryPanel.note('Slept panel: Claude AI');
+    kb = 900 * 1024;
+    MemoryPanel._history[MemoryPanel._history.length - 1].t += 1;   // notes never share an instant with the next sample
+    await MemoryPanel.sample();
+    MemoryPanel.renderTrend();
+    const host = document.getElementById('memory-trend');
+    expect(host.querySelector('polyline')).not.toBe(null);
+    expect(host.querySelectorAll('circle').length).toBe(1);
+    expect(host.querySelector('circle title').textContent).toBe('Slept panel: Claude AI');
+    expect(host.querySelector('.memory-trend-label').textContent).toMatch(/900 MB now · −100 MB over \d+ min · low 900 MB, high 1.27 GB/);
+  });
+
+  it('keeps six hours and says so before there is a line', async () => {
+    window.vex = { appMetrics: vi.fn(async () => [{ memKB: 1024 }]) };
+    for (let i = 0; i < MemoryPanel.TREND_KEEP + 5; i++) await MemoryPanel.sample();
+    expect(MemoryPanel._history.length).toBe(MemoryPanel.TREND_KEEP);
+    MemoryPanel._history = [];
+    MemoryPanel.renderTrend();
+    expect(document.getElementById('memory-trend').textContent).toMatch(/after a minute/);
+  });
+
+  it('takes notes from anywhere through the document event', () => {
+    MemoryPanel.startTrend();
+    document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'High memory — slept 2 idle tabs' } }));
+    expect(MemoryPanel._history.some(h => h.note === 'High memory — slept 2 idle tabs')).toBe(true);
+    clearInterval(MemoryPanel._trendTimer); MemoryPanel._trendTimer = null;
+  });
+});
+
+describe('Free memory now', () => {
+  it('does everything at once and says what it did', async () => {
+    document.body.innerHTML = '<div id="memory-list"></div><div id="memory-panels"></div><div id="memory-trend"></div><div id="memory-procs"></div><div id="memory-summary"></div>';
+    const now = Date.now();
+    globalThis.TabManager = {
+      activeTabId: 'a',
+      tabs: [{ id: 'a', pinned: true, lastViewedAt: now }, { id: 'p', pinned: true, lastViewedAt: now - 40 * 60000 }, { id: 'q', pinned: true, lastViewedAt: now - 5 * 60000 }],
+      sleepAllInactive: vi.fn(async () => {}),
+      sleepTab: vi.fn(async () => {}),
+      isCapturing: () => false,
+    };
+    globalThis.WebviewManager = { webviews: new Map() };
+    globalThis.SidebarManager = { sleepHiddenPanels: vi.fn(() => ['claude']), panelLabel: (n) => 'Claude AI', panelConfigs: {}, isWebPanel: () => false, panelCapture: {}, panelSleepPrefs: () => ({ exempt: [] }) };
+    window.vex = { tabMemory: vi.fn(async () => ({ totalKB: 0, byId: {} })), processes: vi.fn(async () => ({ processes: [], workers: [] })), extensionsReleaseIdle: vi.fn(async () => ({ ok: true, released: ['persist:container-work'] })), appMetrics: vi.fn(async () => []) };
+    window.showToast = vi.fn();
+    MemoryPanel._history = [];
+    const done = await MemoryPanel.freeNow();
+    expect(TabManager.sleepAllInactive).toHaveBeenCalled();
+    expect(TabManager.sleepTab).toHaveBeenCalledWith('p', true);
+    expect(TabManager.sleepTab).toHaveBeenCalledTimes(1);
+    expect(done).toEqual(['idle tabs slept', '1 pinned tab idle over 30 min', 'panels slept: Claude AI', 'extensions unloaded from persist:container-work']);
+    expect(MemoryPanel._history.some(h => /Free memory now/.test(h.note))).toBe(true);
+  });
+});
+
+describe('who holds the capture services', () => {
+  it('is named on the Video Capture and Audio rows', () => {
+    const c = { ...ctx, captures: ['Tab: Claude (mic)'] };
+    expect(MemoryPanel.describeProcess(proc({ type: 'Utility', name: 'Video Capture' }), c).detail).toMatch(/in use by Tab: Claude \(mic\)$/);
+    expect(MemoryPanel.describeProcess(proc({ type: 'Utility', name: 'Network Service' }), c).detail).not.toMatch(/in use by/);
+  });
+});
+
 describe('without the bridge', () => {
   beforeEach(() => { document.body.innerHTML = '<div id="memory-procs"></div><div id="memory-summary"></div>'; window.vex = {}; });
   it('says the list is unavailable instead of pretending', async () => {

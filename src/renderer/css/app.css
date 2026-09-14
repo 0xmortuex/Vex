@@ -978,3 +978,10 @@ body.private-mode #vex-logo::after {
 }
 .perm-badge.allow { background: rgba(111, 191, 115, 0.15); color: var(--vex-success); }
 .perm-badge.deny  { background: color-mix(in srgb, var(--vex-danger) 15%, transparent); color: var(--vex-danger); }
+
+/* Microphone / camera in use on a tab (tabs.js _captureBadge). */
+.tab-capture {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 14px; height: 14px; color: var(--vex-danger);
+}
+.tab-capture svg { width: 12px; height: 12px; }

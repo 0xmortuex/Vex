@@ -477,7 +477,12 @@ function runInMainWorld(src) {
   let contextBridge = null, ipcRenderer = null;
   try { const e = require('electron'); contextBridge = e.contextBridge; ipcRenderer = e.ipcRenderer; } catch { return; }
   if (!ipcRenderer) return;
-  const bridge = { getQuality: () => ipcRenderer.invoke('screen-share:get-quality') };
+  const bridge = {
+    getQuality: () => ipcRenderer.invoke('screen-share:get-quality'),
+    // Microphone / camera in use → the host shows a badge on the tab or panel,
+    // keeps it awake, and can say which page holds the capture services.
+    capture: (kind, active) => { try { ipcRenderer.sendToHost('vex-media-capture', { kind: String(kind), active: !!active }); } catch {} },
+  };
   try {
     if (contextBridge && contextBridge.exposeInMainWorld) contextBridge.exposeInMainWorld('__vexShareBridge', bridge);
     else window.__vexShareBridge = bridge;
@@ -503,6 +508,27 @@ function runInMainWorld(src) {
         return stream;
       });
     };
+    if(navigator.mediaDevices.getUserMedia){
+      var origUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      var live = { audio: 0, video: 0 };
+      var report = function(kind){ try{ bridge.capture(kind === 'audio' ? 'mic' : 'camera', live[kind] > 0); }catch(e){} };
+      navigator.mediaDevices.getUserMedia = function(constraints){
+        return origUM(constraints).then(function(stream){
+          try{
+            stream.getTracks().forEach(function(track){
+              var kind = track.kind; if(kind !== 'audio' && kind !== 'video') return;
+              live[kind]++; report(kind);
+              var done = false;
+              var ended = function(){ if(done) return; done = true; live[kind]--; report(kind); };
+              track.addEventListener('ended', ended);
+              var stop = track.stop;
+              track.stop = function(){ try{ stop.call(track); } finally { ended(); } };
+            });
+          }catch(e){}
+          return stream;
+        });
+      };
+    }
   }catch(e){}})();`;
   function inject() { runInMainWorld(shimSrc); }
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });

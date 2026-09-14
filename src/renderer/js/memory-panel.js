@@ -22,9 +22,11 @@ const MemoryPanel = {
           <div class="memory-total" id="memory-total">-- MB</div>
         </div>
         <div class="memory-actions">
+          <button id="memory-free-now" title="Sleep idle tabs (pinned ones idle over 30 min too), sleep hidden panels, unload extensions from sessions with no page">Free memory now</button>
           <button id="memory-sleep-all">Sleep inactive tabs</button>
           <button id="memory-reload-all">Reload all tabs</button>
         </div>
+        <div class="memory-trend" id="memory-trend" title="Total memory since launch, sampled every 30 seconds; dots mark what Vex did"></div>
         <div class="memory-list" id="memory-list">
           <div style="padding:40px;text-align:center;color:var(--text-muted)">Loading...</div>
         </div>
@@ -59,6 +61,12 @@ const MemoryPanel = {
         }
       });
       window.showToast?.('All tabs reloading');
+    });
+
+    document.getElementById('memory-free-now')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try { await this.freeNow(); } finally { btn.disabled = false; }
     });
 
     document.getElementById('memory-copy-report')?.addEventListener('click', async () => {
@@ -191,11 +199,24 @@ const MemoryPanel = {
     });
 
     this.renderPanels(panels, mem);
+    this.renderTrend();
+    // Who holds the microphone or camera — named on the capture utilities' rows.
+    const captures = [];
+    for (const e of entries) if (TabManager.isCapturing && TabManager.isCapturing(e.tab)) captures.push(`Tab: ${e.tab.title || e.tab.url} (${e.tab.capturing.camera ? 'camera' : 'mic'})`);
+    if (typeof SidebarManager !== 'undefined' && SidebarManager.panelCapture) {
+      for (const [name, c] of Object.entries(SidebarManager.panelCapture)) if (c && (c.mic || c.camera)) captures.push(`Panel: ${SidebarManager.panelLabel(name)} (${c.camera ? 'camera' : 'mic'})`);
+    }
     const ctx = {
       tabs: new Map(entries.filter(e => e.wcId != null).map(e => [e.wcId, e.tab.title || e.tab.url])),
       panels: new Map(panels.filter(p => p.wcId != null).map(p => [p.wcId, p.label])),
+      captures,
     };
-    await this.renderProcesses(ctx);
+    // The process table is the expensive part to draw (it was the 7% CPU seen
+    // with the panel open): every 10 s is plenty, tabs and panels stay at 3 s.
+    if (!this._lastProcs || Date.now() - this._lastProcs > 9500) {
+      this._lastProcs = Date.now();
+      await this.renderProcesses(ctx);
+    }
   },
 
   // ---- Panels ---------------------------------------------------------------
@@ -279,7 +300,9 @@ const MemoryPanel = {
         : /network/i.test(name) ? 'all HTTP for every page; always on'
         : /cdm|decrypt|widevine/i.test(name) ? 'DRM for Spotify, Netflix, Prime; ends when they close'
         : '';
-      return { kind: 'utility', what: 'Utility — ' + name, detail: why };
+      const captures = (ctx && Array.isArray(ctx.captures)) ? ctx.captures : [];
+      const holders = /video capture|audio/i.test(name) && captures.length ? ' — in use by ' + captures.join(', ') : '';
+      return { kind: 'utility', what: 'Utility — ' + name, detail: why + holders };
     }
     const bg = contents.filter(c => c.kind === 'backgroundPage');
     if (bg.length) {
@@ -311,6 +334,88 @@ const MemoryPanel = {
   },
 
   _fmt(mb) { return mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb + ' MB'; },
+
+  // ---- Trend since launch ------------------------------------------------------
+  // Total memory sampled every 30 s from launch (sidebar.js init starts it),
+  // with a note whenever Vex did something about it: the panel shows growth,
+  // not a snapshot. Six hours kept; anything can post a note through the
+  // 'vex:memory-event' document event ({ note }).
+  _history: [],
+  _trendTimer: null,
+  TREND_MS: 30000,
+  TREND_KEEP: 720,
+
+  startTrend() {
+    if (this._trendTimer) return;
+    document.addEventListener('vex:memory-event', (e) => this.note(e.detail && e.detail.note));
+    this.sample().catch(() => {});
+    this._trendTimer = setInterval(() => this.sample().catch(err => console.error('[memory] trend sample failed:', err.message)), this.TREND_MS);
+  },
+
+  async sample() {
+    if (!window.vex || typeof window.vex.appMetrics !== 'function') return null;
+    const metrics = await window.vex.appMetrics();
+    const mb = Math.round(metrics.reduce((s, p) => s + (p.memKB || 0), 0) / 1024);
+    this._history.push({ t: Date.now(), mb });
+    if (this._history.length > this.TREND_KEEP) this._history.splice(0, this._history.length - this.TREND_KEEP);
+    return mb;
+  },
+
+  note(text) {
+    if (!text) return;
+    const last = this._history[this._history.length - 1];
+    this._history.push({ t: Date.now(), mb: last ? last.mb : 0, note: String(text).slice(0, 120) });
+  },
+
+  // An inline chart, not an icon: a polyline of the samples, a dot per note.
+  renderTrend() {
+    const host = document.getElementById('memory-trend');
+    if (!host) return;
+    const pts = this._history.filter(h => h.mb > 0);
+    if (pts.length < 2) { host.innerHTML = '<span class="memory-trend-label">Trend since launch appears after a minute.</span>'; return; }
+    const W = 600, H = 48, PAD = 4;
+    const t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
+    const max = Math.max(...pts.map(p => p.mb)), min = Math.min(...pts.map(p => p.mb));
+    const x = (t) => PAD + ((t - t0) / Math.max(1, t1 - t0)) * (W - 2 * PAD);
+    const y = (mb) => H - PAD - ((mb - min) / Math.max(1, max - min)) * (H - 2 * PAD);
+    const line = pts.map(p => `${x(p.t).toFixed(1)},${y(p.mb).toFixed(1)}`).join(' ');
+    const dots = this._history.filter(h => h.note).map(h => `<circle cx="${x(h.t).toFixed(1)}" cy="${y(h.mb || min).toFixed(1)}" r="3"><title>${this._esc(h.note)}</title></circle>`).join('');
+    const first = pts[0].mb, last = pts[pts.length - 1].mb, delta = last - first;
+    const mins = Math.round((t1 - t0) / 60000);
+    host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${line}" fill="none" stroke="currentColor" stroke-width="1.5"/>${dots}</svg>
+      <span class="memory-trend-label">${this._esc(this._fmt(last))} now · ${delta >= 0 ? '+' : '−'}${this._esc(this._fmt(Math.abs(delta)))} over ${mins} min · low ${this._esc(this._fmt(min))}, high ${this._esc(this._fmt(max))}</span>`;
+  },
+
+  // ---- Free memory now -----------------------------------------------------------
+  // Everything at once: idle tabs (pinned ones idle over 30 minutes too),
+  // hidden panels, extensions in sessions with no page. Never a Discord
+  // reload — that is the notice's job, and only by hand.
+  async freeNow() {
+    const done = [];
+    try { await TabManager.sleepAllInactive(); done.push('idle tabs slept'); }
+    catch (err) { done.push('tabs: ' + err.message); }
+    const now = Date.now();
+    let pinned = 0;
+    for (const t of TabManager.tabs) {
+      const busy = t.id === TabManager.activeTabId || t.sleeping || t._lazy || (t.audible && !t.muted) || (TabManager.isCapturing && TabManager.isCapturing(t));
+      if (!t.pinned || busy || now - (t.lastViewedAt || 0) < 30 * 60000) continue;
+      await TabManager.sleepTab(t.id, true);
+      pinned++;
+    }
+    if (pinned) done.push(`${pinned} pinned tab${pinned === 1 ? '' : 's'} idle over 30 min`);
+    if (typeof SidebarManager !== 'undefined' && SidebarManager.sleepHiddenPanels) {
+      const slept = SidebarManager.sleepHiddenPanels();
+      if (slept.length) done.push('panels slept: ' + slept.map(n => SidebarManager.panelLabel(n)).join(', '));
+    }
+    if (window.vex && typeof window.vex.extensionsReleaseIdle === 'function') {
+      const r = await window.vex.extensionsReleaseIdle();
+      if (r && r.released && r.released.length) done.push('extensions unloaded from ' + r.released.join(', '));
+    }
+    this.note('Free memory now — ' + (done.join('; ') || 'nothing to free'));
+    window.showToast?.(done.length ? 'Freed: ' + done.join('; ') : 'Nothing to free right now');
+    await this.refresh();
+    return done;
+  },
 
   summarize(rows) {
     const KINDS = [['panel', 'panels'], ['tab', 'tabs'], ['extension', 'extension hosts'], ['ui', 'interface'], ['main', 'main'], ['gpu', 'GPU'], ['utility', 'utilities'], ['other', 'other']];
