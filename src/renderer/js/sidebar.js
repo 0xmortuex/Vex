@@ -286,6 +286,10 @@ const SidebarManager = {
       this._origIcons[b.dataset.panel] = { html: b.innerHTML, title: b.title || '' };
     });
     Object.keys(this.panelConfigs).forEach(k => { this._origUrls[k] = this.panelConfigs[k].url; });
+    // Hidden panels give their process back after a while; Discord is watched.
+    this._wirePanelSleepSettings();
+    this.startPanelAutoSleep();
+    this.startDiscordMemoryWatch();
 
     // Set up sidebar icon clicks
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
@@ -399,12 +403,11 @@ const SidebarManager = {
     // beats the inline `display:none` below, so the container never hides and you
     // come back to a broken half-width grid (reported live).
     if (typeof SplitScreen !== 'undefined' && SplitScreen.active) { try { SplitScreen.deactivate(); } catch {} }
-    // Usage timestamps feed the one-time declutter nudge (maybeOfferDeclutter).
-    try {
-      const u = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {};
-      u[panelName] = Date.now();
-      localStorage.setItem('vex.panelUsage', JSON.stringify(u));
-    } catch {}
+    // Usage timestamps feed the one-time declutter nudge (maybeOfferDeclutter)
+    // and the panel sleep clock: the panels leaving the front are stamped too.
+    if (this.activePanel !== panelName) this._touchUsage(this.activePanel);
+    if (this.sidePanel !== panelName) this._touchUsage(this.sidePanel);
+    this._touchUsage(panelName);
     // A fresh open of Discord re-arms the "looks blocked" prompt.
     if (panelName === 'discord') this._discordPromptDismissed = false;
     // Hide all panels
@@ -760,6 +763,151 @@ const SidebarManager = {
     return true;
   },
 
+  // ---- Sleeping web panels --------------------------------------------------
+  // A hidden web panel keeps its <webview>, and so its process: Claude,
+  // Spotify, GitHub… stayed resident (150–350 MB each) after one open, for
+  // good. Sleeping one drops the webview; showPanel makes a fresh one on the
+  // next open. Discord is kept awake by default (voice, notifications), and a
+  // panel playing audio never sleeps.
+
+  isWebPanel(name) {
+    const c = this.panelConfigs[name];
+    return !!(c && c.url) && !this.customPanels.includes(name);
+  },
+
+  // vex.panelAutoSleep ('0' = off), vex.panelSleepMinutes (default 30, capped
+  // at 10 under Memory Saver like tabs), vex.panelSleepExempt (default Discord).
+  panelSleepPrefs() {
+    let exempt = ['discord'];
+    try {
+      const e = JSON.parse(localStorage.getItem('vex.panelSleepExempt') || 'null');
+      if (Array.isArray(e)) exempt = e.filter(x => typeof x === 'string');
+    } catch {}
+    let minutes = Number(localStorage.getItem('vex.panelSleepMinutes'));
+    if (!Number.isFinite(minutes) || minutes <= 0) minutes = 30;
+    if (localStorage.getItem('vex.memorySaver') === '1') minutes = Math.min(minutes, 10);
+    return { enabled: localStorage.getItem('vex.panelAutoSleep') !== '0', minutes, exempt };
+  },
+
+  sleptPanels: {},
+
+  sleepPanel(name) {
+    const wv = this.panelWebviews[name];
+    if (!wv) throw new Error(this.panelLabel(name) + ' is not loaded');
+    if (name === this.activePanel || name === this.sidePanel) throw new Error(this.panelLabel(name) + ' is open — close it first');
+    try { wv.remove(); } catch {}
+    delete this.panelWebviews[name];
+    document.querySelectorAll('.panel-navbar[data-panel="' + name + '"]').forEach(n => n.remove());
+    this.sleptPanels[name] = Date.now();
+    document.dispatchEvent(new CustomEvent('vex:panel-slept', { detail: { panel: name } }));
+  },
+
+  // When a panel was last in front (vex.panelUsage): stamped on open and on
+  // being hidden, so the idle clock starts when you leave it, not when you
+  // came to it.
+  _touchUsage(name) {
+    if (!name) return;
+    try {
+      const u = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {};
+      u[name] = Date.now();
+      localStorage.setItem('vex.panelUsage', JSON.stringify(u));
+    } catch {}
+  },
+
+  // The hidden web panels due to sleep now.
+  panelsDueToSleep(now = Date.now()) {
+    const p = this.panelSleepPrefs();
+    if (!p.enabled) return [];
+    let usage = {};
+    try { usage = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {}; } catch {}
+    return Object.keys(this.panelWebviews).filter(name => {
+      if (name === this.activePanel || name === this.sidePanel || p.exempt.includes(name)) return false;
+      const wv = this.panelWebviews[name];
+      try { if (typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return false; } catch {}
+      return now - (Number(usage[name]) || 0) > p.minutes * 60000;
+    });
+  },
+
+  startPanelAutoSleep() {
+    if (this._panelSleepTimer) clearInterval(this._panelSleepTimer);
+    this._panelSleepTimer = setInterval(() => {
+      for (const name of this.panelsDueToSleep()) {
+        try { this.sleepPanel(name); }
+        catch (err) { console.error('[Sidebar] could not sleep panel ' + name + ':', err.message); }
+      }
+    }, 60000);
+  },
+
+  // Settings › Performance: the two panel switches.
+  _wirePanelSleepSettings() {
+    const auto = document.getElementById('setting-panel-autosleep');
+    const keep = document.getElementById('setting-panel-keep-discord');
+    if (auto) {
+      auto.checked = this.panelSleepPrefs().enabled;
+      auto.addEventListener('change', () => { try { localStorage.setItem('vex.panelAutoSleep', auto.checked ? '1' : '0'); } catch {} });
+    }
+    if (keep) {
+      keep.checked = this.panelSleepPrefs().exempt.includes('discord');
+      keep.addEventListener('change', () => {
+        const exempt = this.panelSleepPrefs().exempt.filter(x => x !== 'discord');
+        if (keep.checked) exempt.push('discord');
+        try { localStorage.setItem('vex.panelSleepExempt', JSON.stringify(exempt)); } catch {}
+      });
+    }
+  },
+
+  // ---- Discord memory watch -------------------------------------------------
+  // Discord runs fully awake and a long session grows (1.4 GB seen). Past the
+  // ceiling (vex.discordMemoryWarnMB, 1024) it gets a notice with a Reload —
+  // never automatic: a reload drops a voice call.
+  _fmtMB(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB'; },
+
+  async checkDiscordMemory() {
+    const wv = this.panelWebviews.discord;
+    if (!wv || typeof wv.getWebContentsId !== 'function') return null;
+    if (!window.vex || typeof window.vex.tabMemory !== 'function') return null;
+    let id;
+    try { id = wv.getWebContentsId(); } catch { return null; }
+    const mem = await window.vex.tabMemory([id]);
+    const row = mem && mem.byId && mem.byId[id];
+    if (!row) return null;
+    const mb = Math.round(row.memKB / 1024);
+    const ceiling = Number(localStorage.getItem('vex.discordMemoryWarnMB')) || 1024;
+    const over = mb >= ceiling;
+    this._discordMemBanner(over ? mb : 0);
+    if (over && Date.now() - (this._discordWarnedAt || 0) > 30 * 60000) {
+      this._discordWarnedAt = Date.now();
+      window.showToast?.('Discord is using ' + this._fmtMB(mb) + ' — reload it from the notice in the Discord panel or the Memory panel', 'warn');
+    }
+    return { mb, over };
+  },
+
+  _discordMemBanner(mb) {
+    const panel = document.getElementById('panel-discord');
+    if (!panel) return;
+    let b = panel.querySelector('.discord-mem-banner');
+    if (!mb) { if (b) b.remove(); return; }
+    if (!b) {
+      b = document.createElement('div');
+      b.className = 'discord-mem-banner';
+      b.innerHTML = '<span></span><button class="dmb-reload">Reload Discord</button><button class="dmb-later">Later</button>';
+      b.querySelector('.dmb-reload').addEventListener('click', () => {
+        try { this.panelWebviews.discord?.reload(); } catch {}
+        b.remove();
+      });
+      b.querySelector('.dmb-later').addEventListener('click', () => { b.remove(); this._discordWarnedAt = Date.now(); });
+      panel.appendChild(b);
+    }
+    b.querySelector('span').textContent = 'Discord is using ' + this._fmtMB(mb) + '. Reloading frees it — a voice call would drop.';
+  },
+
+  startDiscordMemoryWatch() {
+    if (this._discordMemTimer) clearInterval(this._discordMemTimer);
+    this._discordMemTimer = setInterval(() => {
+      this.checkDiscordMemory().catch(err => console.error('[Sidebar] Discord memory check failed:', err.message));
+    }, 60000);
+  },
+
   // The browser looks and Glass (css/gui-browser.css section 7) dock a panel
   // beside the page rather than covering it — gui-style.js stamps
   // body[data-sb-side] for every style that has a sidebar. Settings is a whole
@@ -779,6 +927,9 @@ const SidebarManager = {
   hideActivePanel() {
     if (!this.activePanel) return;
 
+    // Leaving them starts their sleep clock.
+    this._touchUsage(this.activePanel);
+    this._touchUsage(this.sidePanel);
     this.activePanel = null;
     // The second panel closes with the first; the pair stays remembered.
     this.sidePanel = null;
@@ -1406,6 +1557,16 @@ const SidebarManager = {
       }
       items.push({ separator: true });
       items.push({ label: 'Refresh', action: makeRefreshAction(this, panelName) });
+      // A loaded, hidden web panel can give its process back.
+      if (this.panelWebviews[panelName] && panelName !== this.activePanel && panelName !== this.sidePanel) {
+        items.push({
+          label: 'Sleep panel (frees its memory)',
+          action: () => {
+            try { this.sleepPanel(panelName); window.showToast?.(this.panelLabel(panelName) + ' is asleep'); }
+            catch (err) { window.showToast?.(err.message, 'error'); }
+          }
+        });
+      }
       items.push({
         label: 'Open DevTools',
         action: () => {

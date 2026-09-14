@@ -84,4 +84,26 @@
 }
 
 .memory-sleeping { opacity: 0.5; }
-.memory-sleeping .memory-item-title::after { content: ' \U0001f4a4'; }
+
+/* ---- Panels and Processes sections (memory-panel.js) ---- */
+.memory-section { margin-top: 18px; }
+.memory-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.memory-section-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--vex-text-primary); }
+.memory-section-note { font-size: 11px; color: var(--vex-text-muted); flex: 1; min-width: 0; }
+.memory-section-head button { margin-left: auto; }
+.memory-summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.memory-summary span {
+  font-size: 11px; padding: 3px 8px; border-radius: var(--vex-radius-sm);
+  background: var(--vex-glass-input); color: var(--vex-text-secondary); border: 1px solid var(--vex-border-subtle);
+}
+.memory-proc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.memory-proc-table th, .memory-proc-table td { padding: 5px 6px; text-align: left; border-bottom: 1px solid var(--vex-border-subtle); vertical-align: top; }
+.memory-proc-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--vex-text-muted); font-weight: 600; }
+.memory-proc-table td.num { text-align: right; font-family: var(--vex-font-mono); white-space: nowrap; }
+.memory-proc-what { color: var(--vex-text-primary); }
+.memory-proc-detail { color: var(--vex-text-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px; }
+.memory-proc-kind { font-size: 10px; color: var(--vex-text-muted); white-space: nowrap; }
+.memory-proc-table tr.hot td.num.mem { color: var(--vex-danger); }
+.memory-proc-table tr.warm td.num.mem { color: var(--vex-accent); }
+.memory-proc-table tr.busy td.num.cpu { color: var(--vex-danger); }
+.memory-item-kept { font-size: 10px; color: var(--vex-text-muted); margin-left: 6px; }

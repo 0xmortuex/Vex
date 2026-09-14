@@ -126,6 +126,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Real per-tab memory: pass the materialized tabs' <webview> webContents ids,
   // get back { totalKB, byId: { id: {memKB, pid, shared} } }.
   tabMemory: (ids) => ipcRenderer.invoke('app:tab-memory', ids),
+  // Every process Vex runs, with the pages / panels / extension pages in each
+  // (Memory panel › Processes).
+  processes: () => ipcRenderer.invoke('app:processes'),
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // Media grabber: list/download media detected on a tab (by its webContents id).
@@ -329,6 +332,8 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
   extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
   extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),
+  // 'auto' (browsing sessions + the app panels it names) or 'everywhere'.
+  extensionsSetScope:       (folderName, scope) => ipcRenderer.invoke('extensions:set-scope', folderName, scope),
   extensionsOpenPopup:      (request) => ipcRenderer.invoke('extensions:open-popup', request),
 
   // Phase 13: Vex Sync — encryption key + session metadata

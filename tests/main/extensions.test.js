@@ -143,3 +143,45 @@ describe('disabled store', () => {
     expect(fs.readdirSync(dir, { withFileTypes: true }).filter(e => e.isDirectory())).toEqual([]);
   });
 });
+
+// Where an extension is loaded. uBlock Origin (Manifest v2, persistent
+// background page, runs on every site) was loaded into all eleven sessions —
+// eleven idle copies, a process and ~35 MB each. Browsing sessions get every
+// extension; an app panel's partition only one that names its site.
+describe('where an extension is loaded', () => {
+  const ublock = { manifest_version: 2, background: { page: 'background.html' }, content_scripts: [{ matches: ['http://*/*', 'https://*/*'] }] };
+  const vencord = { manifest_version: 3, content_scripts: [{ matches: ['*://*.discord.com/*'] }] };
+  const rosuite = { manifest_version: 3, background: { service_worker: 'bg.js' }, content_scripts: [{ matches: ['https://www.roblox.com/*', 'https://web.roblox.com/*'] }] };
+
+  it('a generic extension stays out of the app panels', () => {
+    const w = ext.partitionsFor(ublock);
+    expect(w.generic).toBe(true);
+    expect(w.partitions).toEqual(ext.BROWSING_PARTITIONS);
+  });
+
+  it('a site-specific one goes to that site\'s panel as well', () => {
+    expect(ext.partitionsFor(vencord).partitions).toEqual([...ext.BROWSING_PARTITIONS, 'persist:discord']);
+    expect(ext.partitionsFor(rosuite).partitions).toEqual([...ext.BROWSING_PARTITIONS, 'persist:roblox']);
+    expect(ext.contentHosts(rosuite).hosts).toEqual(['www.roblox.com', 'web.roblox.com']);
+  });
+
+  it('<all_urls> is generic; no content scripts means browsing only', () => {
+    expect(ext.partitionsFor({ content_scripts: [{ matches: ['<all_urls>'] }] }).generic).toBe(true);
+    expect(ext.partitionsFor({}).partitions).toEqual(ext.BROWSING_PARTITIONS);
+    expect(ext.partitionsFor(null).partitions).toEqual(ext.BROWSING_PARTITIONS);
+  });
+
+  it('"everywhere" puts it in every partition', () => {
+    const w = ext.partitionsFor(ublock, 'everywhere');
+    expect(w.partitions).toEqual([...ext.BROWSING_PARTITIONS, ...Object.keys(ext.APP_PARTITIONS)]);
+    expect(w.partitions).toHaveLength(10);
+  });
+
+  it('remembers only the override, and refuses a corrupt file', () => {
+    expect(ext.readScopes(dir)).toEqual({});
+    ext.writeScopes(dir, { 'ublock-1': 'everywhere', 'other': 'auto' });
+    expect(ext.readScopes(dir)).toEqual({ 'ublock-1': 'everywhere' });
+    fs.writeFileSync(path.join(dir, ext.SCOPE_FILE), '[1,2]');
+    expect(() => ext.readScopes(dir)).toThrow(/corrupt/);
+  });
+});

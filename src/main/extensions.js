@@ -112,7 +112,77 @@ function writeDisabled(extensionsDir, folders) {
   fs.writeFileSync(disabledPath(extensionsDir), JSON.stringify([...folders], null, 2));
 }
 
+// ---- Where an extension is loaded ------------------------------------------
+// The browsing sessions get every extension. The app panels' partitions
+// (Discord, Spotify…) get only the ones whose content scripts name that site:
+// a generic extension does nothing useful there, and one with a persistent
+// background page (Manifest v2 — uBlock Origin) ran one idle copy per
+// partition, a process and ~35 MB each, eleven times over. Scope 'everywhere'
+// overrides that for an extension the user wants in every panel regardless.
+const SCOPE_FILE = 'scope.json';
+const BROWSING_PARTITIONS = ['persist:main', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping'];
+const APP_PARTITIONS = {
+  'persist:discord': ['discord.com', 'discordapp.com'],
+  'persist:whatsapp': ['whatsapp.com'],
+  'persist:claude': ['claude.ai', 'anthropic.com', 'gemini.google.com', 'chatgpt.com', 'openai.com'],
+  'persist:spotify': ['spotify.com'],
+  'persist:netflix': ['netflix.com', 'primevideo.com', 'amazon.com', 'disneyplus.com', 'roku.com'],
+  'persist:roblox': ['roblox.com'],
+};
+const GENERIC_MATCH = /^(<all_urls>|\*:\/\/\*\/|https?:\/\/\*\/|file:\/\/)/;
+
+// The sites an extension's content scripts run on: { generic, hosts }.
+// generic is true when a pattern matches every site.
+function contentHosts(manifest) {
+  const hosts = new Set();
+  let generic = false;
+  const scripts = Array.isArray(manifest && manifest.content_scripts) ? manifest.content_scripts : [];
+  for (const cs of scripts) {
+    for (const m of (Array.isArray(cs && cs.matches) ? cs.matches : [])) {
+      if (typeof m !== 'string') continue;
+      if (GENERIC_MATCH.test(m)) { generic = true; continue; }
+      const mm = m.match(/^[a-z*]+:\/\/([^/]+)\//i);
+      if (mm) hosts.add(mm[1].replace(/^\*\./, '').toLowerCase());
+    }
+  }
+  return { generic, hosts: [...hosts] };
+}
+
+function hostMatches(patternHost, appHost) {
+  return patternHost === appHost || patternHost.endsWith('.' + appHost) || appHost.endsWith('.' + patternHost);
+}
+
+// The partitions (beyond the default session) an extension is loaded into.
+function partitionsFor(manifest, scope) {
+  const { generic, hosts } = contentHosts(manifest);
+  if (scope === 'everywhere') return { partitions: [...BROWSING_PARTITIONS, ...Object.keys(APP_PARTITIONS)], generic, hosts };
+  const apps = Object.keys(APP_PARTITIONS).filter(p => APP_PARTITIONS[p].some(a => hosts.some(h => hostMatches(h, a))));
+  return { partitions: [...BROWSING_PARTITIONS, ...apps], generic, hosts };
+}
+
+function scopePath(extensionsDir) {
+  return path.join(extensionsDir, SCOPE_FILE);
+}
+
+// { <folder>: 'everywhere' } — only the override is recorded.
+function readScopes(extensionsDir) {
+  const file = scopePath(extensionsDir);
+  if (!fs.existsSync(file)) return {};
+  const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Extension scope file is corrupt: expected an object of folder → scope');
+  const out = {};
+  for (const [k, v] of Object.entries(parsed)) if (v === 'everywhere') out[k] = v;
+  return out;
+}
+
+function writeScopes(extensionsDir, scopes) {
+  fs.mkdirSync(extensionsDir, { recursive: true });
+  fs.writeFileSync(scopePath(extensionsDir), JSON.stringify(scopes, null, 2));
+}
+
 module.exports = {
-  DISABLED_FILE, readMessages, localize, slugFromName, pickIcon, pickPages,
-  archiveProblem, disabledPath, readDisabled, writeDisabled
+  DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS,
+  readMessages, localize, slugFromName, pickIcon, pickPages,
+  archiveProblem, disabledPath, readDisabled, writeDisabled,
+  contentHosts, partitionsFor, readScopes, writeScopes
 };

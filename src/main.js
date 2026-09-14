@@ -646,6 +646,93 @@ ipcMain.handle('app:tab-memory', (_e, ids) => {
   return out;
 });
 
+// === Every process Vex runs, and what each one is (Memory panel › Processes) ===
+// app.getAppMetrics() knows the processes; webContents knows which page,
+// panel or extension background page lives in each. Joined by OS pid, so the
+// panel can say "Discord panel — 1,013 MB" or "uBlock Origin background ·
+// persist:spotify" instead of a bare renderer. The renderer names tabs and
+// panels from the webContents ids; extension pages are named here, where the
+// sessions know their extensions.
+ipcMain.handle('app:processes', () => {
+  const rows = new Map();
+  for (const m of app.getAppMetrics()) {
+    rows.set(m.pid, {
+      pid: m.pid, type: m.type, name: m.name || m.serviceName || '', sandboxed: !!m.sandboxed,
+      cpu: (m.cpu && m.cpu.percentCPUUsage) || 0,
+      memKB: (m.memory && m.memory.workingSetSize) || 0,
+      privKB: (m.memory && m.memory.privateBytes) || 0,
+      contents: [],
+    });
+  }
+  for (const wc of webContents.getAllWebContents()) {
+    try {
+      if (wc.isDestroyed()) continue;
+      const row = rows.get(wc.getOSProcessId());
+      if (!row) continue;
+      const url = wc.getURL() || '';
+      let extension = null;
+      if (url.startsWith('chrome-extension://')) {
+        const ext = typeof wc.session.getExtension === 'function' ? wc.session.getExtension(url.split('/')[2]) : null;
+        extension = ext ? ext.name : 'extension';
+      }
+      row.contents.push({
+        id: wc.id, kind: wc.getType(), url: url.slice(0, 200), title: (wc.getTitle() || '').slice(0, 120),
+        partition: _partitionNameOf(wc.session), extension,
+      });
+    } catch { /* a page mid-teardown */ }
+  }
+  // Running service workers (an MV3 extension's background, a site's worker)
+  // live in renderers of their own but are not webContents, and Electron
+  // reports them by Chromium's child id, not the OS pid — so they cannot be
+  // pinned to a row. Listed separately: the panel names them as what a
+  // renderer with no page most likely is.
+  const workers = [];
+  for (const p of ['default', ...EXT_PARTITIONS]) {
+    try {
+      const ses = p === 'default' ? session.defaultSession : secureSessions.fromPartition(p);
+      for (const w of Object.values(ses.serviceWorkers.getAllRunning())) {
+        const url = String(w.scriptUrl || '');
+        let extension = null;
+        if (url.startsWith('chrome-extension://')) {
+          const ext = typeof ses.getExtension === 'function' ? ses.getExtension(url.split('/')[2]) : null;
+          extension = ext ? ext.name : 'extension';
+        }
+        workers.push({ url: url.slice(0, 200), partition: p, extension });
+      }
+    } catch { /* a session without service workers */ }
+  }
+  return { processes: [...rows.values()], workers };
+});
+
+ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
+  if (scope !== 'auto' && scope !== 'everywhere') return { ok: false, error: 'Unknown scope: ' + scope };
+  const entry = _extEntries().find(x => x.folder === folderName);
+  if (!entry) return { ok: false, error: 'No extension folder named ' + folderName };
+  try {
+    const scopes = extHelpers.readScopes(extensionsDir);
+    if (scope === 'everywhere') scopes[folderName] = 'everywhere';
+    else delete scopes[folderName];
+    extHelpers.writeScopes(extensionsDir, scopes);
+  } catch (err) {
+    return { ok: false, error: 'Could not save the scope: ' + err.message };
+  }
+  // Applied live: into the partitions now wanted, out of the rest — taking it
+  // out ends its background page there, and that process, straight away.
+  if (entry.manifest && !_readDisabledFolders().has(folderName)) {
+    const wanted = new Set(_sessionsFor(entry.path, entry.manifest));
+    for (const ses of [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))]) {
+      try {
+        const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(entry.path));
+        if (wanted.has(ses) && !live) await ses.loadExtension(entry.path, { allowFileAccess: true });
+        else if (!wanted.has(ses) && live) ses.removeExtension(live.id);
+      } catch (err) {
+        return { ok: false, error: `Saved, but could not apply it to ${_partitionNameOf(ses) || 'a session'}: ${err.message}` };
+      }
+    }
+  }
+  return { ok: true, scope };
+});
+
 // === "Read free" — clear a single site's data to reset a metered paywall ===
 // Clears the origin's local storage caches + removes its cookies in the given
 // partition, so counter-based paywalls (NYT/WaPo-style "N free articles") reset
@@ -1379,8 +1466,31 @@ function _dedupeVencordFolders() {
 // Loads an extension into every session it must apply to. Returns the loaded
 // Extension AND every per-session failure, so callers can report the real
 // reason instead of a generic "it didn't load".
-async function _loadExtensionEverywhere(extPath) {
-  const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))];
+// Which partition a Session object is — sessions are one per partition string.
+function _partitionNameOf(ses) {
+  if (ses === session.defaultSession) return 'default';
+  for (const p of EXT_PARTITIONS) if (secureSessions.fromPartition(p) === ses) return p;
+  return null;
+}
+
+function _readScopes() {
+  try { return extHelpers.readScopes(extensionsDir); }
+  catch (err) { console.error('[Extensions] scope file unreadable, using defaults:', err.message); return {}; }
+}
+
+// The sessions one extension belongs in (src/main/extensions.js partitionsFor):
+// the default session and the browsing partitions always; an app panel's
+// partition only when the extension names that site, or its scope is
+// 'everywhere'.
+function _sessionsFor(extPath, manifest) {
+  let m = manifest;
+  if (!m) { try { m = JSON.parse(fs.readFileSync(path.join(extPath, 'manifest.json'), 'utf-8')); } catch { m = null; } }
+  const { partitions } = extHelpers.partitionsFor(m || {}, _readScopes()[path.basename(extPath)]);
+  return [session.defaultSession, ...partitions.map(p => secureSessions.fromPartition(p))];
+}
+
+async function _loadExtensionEverywhere(extPath, manifest) {
+  const sessions = _sessionsFor(extPath, manifest);
   let loaded = null;
   const errors = [];
   for (const ses of sessions) {
@@ -1457,10 +1567,14 @@ async function _coverNewSession(ses) {
   _coveredSessions.add(ses);
   if (typeof ses.isPersistent === 'function' && !ses.isPersistent()) return;
   const disabled = _readDisabledFolders();
+  // A partition Vex knows gets only the extensions that belong in it; a
+  // session it does not know (a pinned site's, Tor's) gets them all, as before.
+  const known = _partitionNameOf(ses) !== null;
   for (const entry of _extEntries()) {
     // An extension that already failed to load everywhere fails here too, once
     // per new partition. The manager already reports why, so don't retry it.
     if (!entry.manifest || disabled.has(entry.folder) || _extLoadErrors.has(entry.folder)) continue;
+    if (known && !_sessionsFor(entry.path, entry.manifest).includes(ses)) continue;
     try {
       if (ses.getAllExtensions().some(x => path.resolve(x.path) === path.resolve(entry.path))) continue;
       await ses.loadExtension(entry.path, { allowFileAccess: true });
@@ -1504,13 +1618,18 @@ ipcMain.handle('extensions:list', () => {
   } catch (err) {
     console.error('[Extensions] could not read the loaded extensions:', err.message);
   }
+  const scopes = _readScopes();
   return _extEntries().map(e => {
     const live = loadedByPath.get(path.resolve(e.path)) || null;
     const manifest = e.manifest || {};
     const icon = e.manifest ? extHelpers.pickIcon(manifest) : null;
     const pages = e.manifest ? extHelpers.pickPages(manifest) : { popup: null, options: null };
+    const where = e.manifest ? extHelpers.partitionsFor(manifest, scopes[e.folder]) : { partitions: [], generic: false, hosts: [] };
     return {
       folder: e.folder,
+      scope: scopes[e.folder] === 'everywhere' ? 'everywhere' : 'auto',
+      generic: where.generic,
+      where: where.partitions,
       name: extHelpers.localize(manifest.name, e.messages) || e.folder,
       version: manifest.version || '—',
       description: extHelpers.localize(manifest.description, e.messages) || '',

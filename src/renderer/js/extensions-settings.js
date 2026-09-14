@@ -12,6 +12,14 @@ const ExtensionsSettings = (() => {
     return encodeURI('file:///' + p.replace(/\\/g, '/').replace(/^\/+/, ''));
   }
 
+  // "Runs in: browsing tabs + Discord" — from the partitions main loads it into.
+  const PANEL_NAMES = { 'persist:discord': 'Discord', 'persist:whatsapp': 'WhatsApp', 'persist:claude': 'Claude', 'persist:spotify': 'Spotify', 'persist:netflix': 'Prime / Netflix', 'persist:roblox': 'Roblox' };
+  function _whereText(ext) {
+    const apps = (ext.where || []).map(p => PANEL_NAMES[p]).filter(Boolean);
+    const base = 'Runs in: browsing tabs' + (apps.length ? ' + ' + apps.join(', ') : '');
+    return ext.generic && !apps.length ? base + ' (a generic extension: one copy per panel otherwise)' : base;
+  }
+
   // What the card badge says. "Enabled but not loaded" is a real state — the
   // folder is there and switched on, but Electron refused it — and it must not
   // look identical to a working extension.
@@ -52,6 +60,9 @@ const ExtensionsSettings = (() => {
       .ext-suggest-caveat{font-size:11.5px;margin-top:3px;line-height:1.45;color:var(--text-muted,#9a9aa5);}
       .ext-suggest-limited{color:#f59e0b;}
       .ext-unsupported{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text-muted,#9a9aa5);line-height:1.6;}
+      .ext-where{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--text-muted,#9a9aa5);}
+      .ext-scope{font:inherit;font-size:11px;padding:2px 6px;border-radius:6px;background:var(--surface,rgba(255,255,255,0.04));
+        color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.12));cursor:pointer;}
     `;
     document.head.appendChild(st);
   }
@@ -72,7 +83,7 @@ const ExtensionsSettings = (() => {
 
     container.innerHTML = `
       <div class="extensions-panel">
-        <p class="setting-info muted" style="margin-bottom:12px">Vex supports Chrome extensions loaded from a folder, <code>.zip</code>, or <code>.crx</code>. Extensions load into regular tabs, the sidebar panels and container tabs. Private, Off-the-Record and Tor tabs never load extensions &mdash; Electron can't put them in a temporary session.</p>
+        <p class="setting-info muted" style="margin-bottom:12px">Vex supports Chrome extensions loaded from a folder, <code>.zip</code>, or <code>.crx</code>. Extensions load into regular and container tabs, and into a sidebar panel (Discord, Spotify…) only when they name that site &mdash; or when set to run everywhere below. Private, Off-the-Record and Tor tabs never load extensions &mdash; Electron can't put them in a temporary session.</p>
 
         ${listError ? `<div class="ext-state-error">Couldn't read the installed extensions: ${_esc(listError)}</div>` : ''}
         ${stateError ? `<div class="ext-state-error">${_esc(stateError)}</div>` : ''}
@@ -145,6 +156,11 @@ const ExtensionsSettings = (() => {
                   <div class="ext-name">${_esc(e.name)} <span class="ext-version">v${_esc(e.version)}</span><span class="ext-badge ${status.tone}">${_esc(status.label)}</span></div>
                   <div class="ext-desc">${_esc(e.description || 'No description')}</div>
                   <div class="ext-folder"><code>${_esc(e.folder)}</code></div>
+                  ${Array.isArray(e.where) ? `<div class="ext-where">${_esc(_whereText(e))}
+                    <select class="ext-scope" data-scope="${_esc(e.folder)}" title="Where this extension runs">
+                      <option value="auto"${e.scope !== 'everywhere' ? ' selected' : ''}>where it applies</option>
+                      <option value="everywhere"${e.scope === 'everywhere' ? ' selected' : ''}>everywhere — every app panel too</option>
+                    </select></div>` : ''}
                   ${e.error ? `<div class="ext-error">${_esc(e.error)}</div>` : ''}
                 </div>
                 <div class="ext-card-actions">
@@ -196,6 +212,16 @@ const ExtensionsSettings = (() => {
         } else {
           _toast(wanted ? 'Extension enabled' : 'Extension disabled', 'success');
         }
+        render(container);
+      });
+    });
+    // Where it runs: 'auto' loads it into browsing sessions plus the app
+    // panels it names; 'everywhere' into every panel. Applied live by main.
+    container.querySelectorAll('[data-scope]').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const r = await window.vex.extensionsSetScope(sel.dataset.scope, sel.value);
+        if (!r.ok) _toast('Could not change where it runs: ' + (r.error || 'unknown'), 'error');
+        else _toast(sel.value === 'everywhere' ? 'Now runs in every panel' : 'Now runs only where it applies', 'success');
         render(container);
       });
     });

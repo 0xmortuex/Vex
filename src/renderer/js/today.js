@@ -30,7 +30,8 @@ const VexToday = {
   // rather than hidden, so the page can say "reminders could not be read".
   async build() {
     const now = Date.now();
-    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    // From `now`, not a second clock: the two drifted apart across midnight.
+    const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = startOfDay.getTime() + 24 * 3600 * 1000;
     let job = null;
     try { job = (typeof JobProfiles !== 'undefined' && JobProfiles.current) ? JobProfiles.current() : null; } catch { job = null; }
