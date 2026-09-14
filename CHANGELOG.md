@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.82 (2026-09-14) — The Discord memory notice stops coming back, and moves off the message box
+
+### Notes
+- **Fixed: the Discord memory notice returned every minute after Later.** Later only silenced the toast; the strip itself was rebuilt on the next check. Later now means four hours of quiet, and a new *Don't show again* turns memory notices off.
+- **Fixed: it sat over Discord's message box.** Both notices — Discord's and a heavy tab's — are now a slim strip at the *top* of the panel or page, under the panel's nav strip in the Classic look.
+- **Memory notices are a setting.** Settings › Performance › *Memory notices*: Default (tabs 800 MB, Discord 1 GB), Off, or a ceiling of your own. One setting covers both.
+- **Publishing:** the GitHub release is now created before the installer and its block map upload into it, so the two uploads cannot race to create it (that race left v2.31.81 without `latest.yml` until it was patched by hand). This is the first release that arrives as a delta download for anyone already on v2.31.81.
+
 ## v2.31.81 (2026-09-14) — Delta updates, keep-awake per panel, heavy-tab notice, Health, faster launch
 
 ### Notes
