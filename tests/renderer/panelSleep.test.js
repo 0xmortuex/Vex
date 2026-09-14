@@ -183,6 +183,41 @@ describe('the Discord memory watch', () => {
     expect(document.querySelector('.discord-mem-banner')).toBe(null);
   });
 
+  // Later used to silence only the toast: the strip came straight back on the
+  // next minute's check, over the message box.
+  it('Later keeps the notice away for four hours; Don\'t show again turns notices off', async () => {
+    fakeWebview('discord', { wcId: 7 });
+    window.vex.tabMemory = vi.fn(async () => ({ totalKB: 0, byId: { 7: { memKB: 1500 * 1024, pid: 1 } } }));
+    await SidebarManager.checkDiscordMemory();
+    document.querySelector('.dmb-later').click();
+    expect(document.querySelector('.discord-mem-banner')).toBe(null);
+    await SidebarManager.checkDiscordMemory();
+    await SidebarManager.checkDiscordMemory();
+    expect(document.querySelector('.discord-mem-banner')).toBe(null);
+    SidebarManager._discordBannerSnoozedUntil = Date.now() - 1;
+    await SidebarManager.checkDiscordMemory();
+    expect(document.querySelector('.discord-mem-banner')).not.toBe(null);
+    document.querySelector('.dmb-never').click();
+    expect(localStorage.getItem('vex.memoryNoticeMB')).toBe('0');
+    expect(await SidebarManager.checkDiscordMemory()).toEqual({ mb: 1500, over: false, off: true });
+    expect(document.querySelector('.discord-mem-banner')).toBe(null);
+  });
+
+  it('the Settings select sets the shared ceiling for Discord and tabs', async () => {
+    document.body.insertAdjacentHTML('beforeend', '<select id="setting-memory-notice"><option value=""></option><option value="0"></option><option value="2048"></option></select>');
+    SidebarManager._wirePanelSleepSettings();
+    const sel = document.getElementById('setting-memory-notice');
+    expect(sel.value).toBe('');
+    expect(SidebarManager.memoryNoticeCeiling(1024)).toBe(1024);
+    sel.value = '2048'; sel.dispatchEvent(new Event('change'));
+    expect(SidebarManager.memoryNoticeCeiling(1024)).toBe(2048);
+    fakeWebview('discord', { wcId: 7 });
+    window.vex.tabMemory = vi.fn(async () => ({ totalKB: 0, byId: { 7: { memKB: 1500 * 1024, pid: 1 } } }));
+    expect((await SidebarManager.checkDiscordMemory()).over).toBe(false);
+    sel.value = '0'; sel.dispatchEvent(new Event('change'));
+    expect(SidebarManager.memoryNoticeCeiling(1024)).toBe(0);
+  });
+
   it('is quiet under the ceiling, and takes the notice down again', async () => {
     fakeWebview('discord', { wcId: 7 });
     let kb = 1500 * 1024;

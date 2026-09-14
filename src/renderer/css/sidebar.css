@@ -171,14 +171,18 @@
 
 /* Discord memory notice (sidebar.js checkDiscordMemory): sits over the
    bottom of the Discord panel until Reload or Later. */
+/* At the top, not the bottom: the bottom is Discord's message box. In Classic
+   the panel's nav strip is 34px tall (sidebar.js _injectPanelNavStyles);
+   the strip sits under it. */
 .discord-mem-banner {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 35;
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  position: absolute; left: 0; right: 0; top: 0; z-index: 35;
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
   background: var(--vex-bg-elevated, #1b1e2e); color: var(--vex-text-primary, #e9e9ee);
   border-top: 1px solid var(--vex-border-medium, rgba(255,255,255,0.14));
   font: 12px var(--vex-font-base, system-ui, sans-serif);
 }
 .discord-mem-banner span { flex: 1; min-width: 0; }
+.panel:has(> .panel-navbar) > .discord-mem-banner { top: 34px; }
 .discord-mem-banner button {
   padding: 4px 10px; border-radius: var(--vex-radius-sm, 6px); cursor: pointer; font: inherit;
   border: 1px solid var(--vex-border-medium, rgba(255,255,255,0.14)); background: transparent; color: inherit;

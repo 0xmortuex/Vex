@@ -449,6 +449,17 @@
                 <div class="setting-row-label">Keep awake <span style="color:var(--text-muted);font-size:11px;font-weight:normal">· a sleeping panel cannot show a new-message notification; Discord and WhatsApp stay awake unless you untick them</span></div>
                 <div id="setting-panel-keepawake" style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:4px"></div>
               </div>
+              <div style="margin-top:8px">
+                <div class="setting-row-label">Memory notices — a strip at the top of a tab or the Discord panel using more than</div>
+                <select id="setting-memory-notice">
+                  <option value="">Default (tabs 800 MB, Discord 1 GB)</option>
+                  <option value="0">Off</option>
+                  <option value="800">800 MB</option>
+                  <option value="1024">1 GB</option>
+                  <option value="1536">1.5 GB</option>
+                  <option value="2048">2 GB</option>
+                </select>
+              </div>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Rest Discord when hidden and not in a call <span style="color:var(--text-muted);font-size:11px">· after two minutes out of sight it stops using the CPU; a call, or opening it, wakes it at once</span></span>
                 <label class="toggle">

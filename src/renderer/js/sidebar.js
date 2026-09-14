@@ -876,6 +876,15 @@ const SidebarManager = {
         this.checkDiscordThrottle().catch(() => {});
       });
     }
+    const notice = document.getElementById('setting-memory-notice');
+    if (notice) {
+      notice.value = localStorage.getItem('vex.memoryNoticeMB') || '';
+      notice.addEventListener('change', () => {
+        this.setMemoryNoticeCeiling(notice.value);
+        this._discordBannerSnoozedUntil = 0;
+        this.checkDiscordMemory().catch(() => {});
+      });
+    }
   },
 
   setKeepAwake(name, on) {
@@ -914,6 +923,22 @@ const SidebarManager = {
   // never automatic: a reload drops a voice call.
   _fmtMB(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB'; },
 
+  // Memory notices (Discord's, and a heavy tab's — tabs.js) share one
+  // ceiling, vex.memoryNoticeMB: unset means each keeps its own default,
+  // 0 means off. Settings › Performance, or Don't show again on the notice.
+  memoryNoticeCeiling(defaultMB) {
+    const raw = localStorage.getItem('vex.memoryNoticeMB');
+    if (raw === null || raw === '') return defaultMB;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : defaultMB;
+  },
+
+  setMemoryNoticeCeiling(mb) {
+    try { localStorage.setItem('vex.memoryNoticeMB', mb === null || mb === '' ? '' : String(mb)); } catch {}
+    const sel = document.getElementById('setting-memory-notice');
+    if (sel) sel.value = mb === null || mb === '' ? '' : String(mb);
+  },
+
   async checkDiscordMemory() {
     const wv = this.panelWebviews.discord;
     if (!wv || typeof wv.getWebContentsId !== 'function') return null;
@@ -924,10 +949,13 @@ const SidebarManager = {
     const row = mem && mem.byId && mem.byId[id];
     if (!row) return null;
     const mb = Math.round(row.memKB / 1024);
-    const ceiling = Number(localStorage.getItem('vex.discordMemoryWarnMB')) || 1024;
+    // Off (0) is a real setting; Later is four hours of quiet for the notice.
+    const ceiling = this.memoryNoticeCeiling(Number(localStorage.getItem('vex.discordMemoryWarnMB')) || 1024);
+    if (!ceiling) { this._discordMemBanner(0); return { mb, over: false, off: true }; }
     const over = mb >= ceiling;
-    this._discordMemBanner(over ? mb : 0);
-    if (over && Date.now() - (this._discordWarnedAt || 0) > 30 * 60000) {
+    const quiet = (this._discordBannerSnoozedUntil || 0) > Date.now();
+    this._discordMemBanner(over && !quiet ? mb : 0);
+    if (over && !quiet && Date.now() - (this._discordWarnedAt || 0) > 30 * 60000) {
       this._discordWarnedAt = Date.now();
       window.showToast?.('Discord is using ' + this._fmtMB(mb) + ' — reload it from the notice in the Discord panel or the Memory panel', 'warn');
     }
@@ -942,13 +970,24 @@ const SidebarManager = {
     if (!b) {
       b = document.createElement('div');
       b.className = 'discord-mem-banner';
-      b.innerHTML = '<span></span><button class="dmb-reload">Reload Discord</button><button class="dmb-later">Later</button>';
+      b.innerHTML = '<span></span><button class="dmb-reload">Reload Discord</button><button class="dmb-later" title="Quiet for four hours">Later</button><button class="dmb-never" title="Turn memory notices off (Settings › Performance turns them back on)">Don\'t show again</button>';
       b.querySelector('.dmb-reload').addEventListener('click', () => {
         try { this.panelWebviews.discord?.reload(); } catch {}
         document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'Discord reloaded' } }));
         b.remove();
       });
-      b.querySelector('.dmb-later').addEventListener('click', () => { b.remove(); this._discordWarnedAt = Date.now(); });
+      // Later used to silence only the toast: the notice came straight back on
+      // the next minute's check, over the message box. Four hours of quiet.
+      b.querySelector('.dmb-later').addEventListener('click', () => {
+        b.remove();
+        this._discordWarnedAt = Date.now();
+        this._discordBannerSnoozedUntil = Date.now() + 4 * 3600000;
+      });
+      b.querySelector('.dmb-never').addEventListener('click', () => {
+        b.remove();
+        this.setMemoryNoticeCeiling(0);
+        window.showToast?.('Memory notices are off — Settings › Performance turns them back on');
+      });
       panel.appendChild(b);
     }
     b.querySelector('span').textContent = 'Discord is using ' + this._fmtMB(mb) + '. Reloading frees it — a voice call would drop.';

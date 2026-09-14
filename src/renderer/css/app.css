@@ -989,8 +989,8 @@ body.private-mode #vex-logo::after {
 /* Heavy-tab notice (tabs.js _renderHeavyBanner): over the bottom of the page
    in front until Reload or Later. */
 .tab-mem-banner {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 35;
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  position: absolute; left: 0; right: 0; top: 0; z-index: 35;   /* the top: the bottom is where pages keep their text box */
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
   background: var(--vex-bg-elevated); color: var(--vex-text-primary);
   border-top: 1px solid var(--vex-border-medium);
   font: 12px var(--vex-font-base, system-ui, sans-serif);

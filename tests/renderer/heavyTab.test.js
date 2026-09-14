@@ -68,6 +68,27 @@ describe('the heavy-tab notice', () => {
     expect(document.querySelector('.tab-mem-banner')).toBe(null);
   });
 
+  it('Don\'t show again turns notices off, and the shared ceiling wins over the old per-tab key', async () => {
+    installGlobals();
+    const TM = await loadTabManager();
+    TM.tabs = [fakeTab('big')];
+    TM.activeTabId = 'big';
+    fakeWebview('big', 1);
+    window.vex.tabMemory = memory({ 1: 900 });
+    window.showToast = vi.fn();
+    await TM.checkHeavyTabs();
+    expect(document.querySelector('.tab-mem-banner')).not.toBe(null);
+    document.querySelector('.tmb-never').click();
+    expect(localStorage.getItem('vex.memoryNoticeMB')).toBe('0');
+    expect(document.querySelector('.tab-mem-banner')).toBe(null);
+    expect(await TM.checkHeavyTabs()).toEqual([]);
+    expect(window.vex.tabMemory).toHaveBeenCalledTimes(1);   // off: nothing measured
+    localStorage.setItem('vex.memoryNoticeMB', '2048');
+    localStorage.setItem('vex.tabMemoryWarnMB', '50');
+    expect(TM.heavyTabCeilingMB()).toBe(2048);
+    expect(await TM.checkHeavyTabs()).toEqual([]);
+  });
+
   it('stays silent while the tab records or plays, and honours the ceiling setting', async () => {
     installGlobals();
     const TM = await loadTabManager();

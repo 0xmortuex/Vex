@@ -1956,7 +1956,14 @@ const TabManager = {
   // with Reload when it is in front — the same as the Discord panel's. Never
   // automatic, never while it is recording or playing, and Later is half an
   // hour of quiet for that tab.
+  // The shared memory-notice ceiling (vex.memoryNoticeMB: unset → own
+  // default, 0 → off) wins; vex.tabMemoryWarnMB is the older per-tab key.
   heavyTabCeilingMB() {
+    const shared = localStorage.getItem('vex.memoryNoticeMB');
+    if (shared !== null && shared !== '') {
+      const n = Number(shared);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
     const v = Number(localStorage.getItem('vex.tabMemoryWarnMB'));
     return Number.isFinite(v) && v > 0 ? v : 800;
   },
@@ -1972,8 +1979,13 @@ const TabManager = {
       ids.push(wc); byWc.set(wc, t);
     }
     if (!ids.length) { this._renderHeavyBanner(); return []; }
-    const mem = await window.vex.tabMemory(ids);
     const ceiling = this.heavyTabCeilingMB();
+    if (!ceiling) {   // notices off
+      for (const t of byWc.values()) t._heavyMB = 0;
+      this._renderHeavyBanner();
+      return [];
+    }
+    const mem = await window.vex.tabMemory(ids);
     const heavy = [];
     for (const [wc, t] of byWc) {
       const row = mem && mem.byId && mem.byId[wc];
@@ -1996,7 +2008,13 @@ const TabManager = {
     if (!b) {
       b = document.createElement('div');
       b.className = 'tab-mem-banner';
-      b.innerHTML = '<span></span><button class="tmb-reload">Reload tab</button><button class="tmb-later">Later</button>';
+      b.innerHTML = '<span></span><button class="tmb-reload">Reload tab</button><button class="tmb-later" title="Quiet for half an hour">Later</button><button class="tmb-never" title="Turn memory notices off (Settings › Performance turns them back on)">Don\'t show again</button>';
+      b.querySelector('.tmb-never').addEventListener('click', () => {
+        try { localStorage.setItem('vex.memoryNoticeMB', '0'); } catch {}
+        for (const t of this.tabs) t._heavyMB = 0;
+        b.remove();
+        window.showToast?.('Memory notices are off — Settings › Performance turns them back on');
+      });
       b.querySelector('.tmb-reload').addEventListener('click', () => {
         const wv = WebviewManager.webviews.get(this.activeTabId);
         try { if (wv) wv.reload(); } catch {}
