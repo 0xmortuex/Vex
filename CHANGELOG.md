@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.83 (2026-09-17) — Organize Tabs with AI works on local reasoning models
+
+### Notes
+- **Fixed: Ctrl+Shift+G said "AI returned malformed response".** With a local reasoning model (qwen3, deepseek-r1…) Ollama puts the model's thoughts in a separate field, and asked for JSON the model spent its whole turn there and returned an *empty* answer — measured on qwen3.5: 1,700 characters of thinking, none of reply. Every local AI feature asks for JSON, so all of them were affected, not only tab grouping. JSON requests now tell the model not to think first; models without a thinking mode ignore the flag.
+- **An empty reply is now an error that says so** — "qwen3.5 only produced reasoning and no answer" — instead of an empty string mis-read three layers up.
+- **Tab grouping reads more replies and explains the rest.** It accepts JSON in a code fence, after a `<think>` block, or with a sentence either side, and otherwise says whether the reply was empty, not JSON, or cut off before it finished.
+- **Faster on a local model:** tabs are sent as `t1…tn` instead of their long internal ids (each one ~20 tokens, repeated in the reply) and mapped back afterwards; an id the model invents is dropped. The same eight-tab grouping went from 21–25 s to 14 s here.
+
 ## v2.31.82 (2026-09-14) — The Discord memory notice stops coming back, and moves off the message box
 
 ### Notes
