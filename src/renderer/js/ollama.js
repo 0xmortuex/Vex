@@ -166,13 +166,34 @@ const Ollama = (() => {
       options: { temperature, num_predict: maxTokens }
     };
     if (systemPrompt) body.system = systemPrompt;
-    if (format === 'json') body.format = 'json';
+    if (format === 'json') _asJson(body);
 
-    if (options.onToken) return await _stream('/api/generate', body, options, (e) => e.response);
+    if (options.onToken) return _notEmpty(await _stream('/api/generate', body, options, (e) => e.response), model, null);
     const r = await _post('/api/generate', body, options.signal);
     if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();
-    return data.response || '';
+    return _notEmpty(data.response || '', model, data);
+  }
+
+  // A JSON reply from a reasoning model (qwen3, deepseek-r1…): Ollama puts the
+  // model's thoughts in a separate `thinking` field, and with format:'json' the
+  // model spent its whole turn there and returned an EMPTY response — measured
+  // on qwen3.5: 1,700 chars of thinking, 0 of answer. Every structured feature
+  // then failed as "malformed response". think:false makes it answer directly;
+  // a model without thinking accepts the flag and ignores it.
+  function _asJson(body) {
+    body.format = 'json';
+    body.think = false;
+  }
+
+  // An empty reply is a failure to say so here, not an empty string for a
+  // caller to mis-parse three layers up.
+  function _notEmpty(text, model, data) {
+    if (String(text || '').trim()) return text;
+    const thought = data && (data.thinking || (data.message && data.message.thinking));
+    throw new Error(thought
+      ? `${model} only produced reasoning and no answer — try again, or pick another local model in Settings › AI`
+      : `${model} returned an empty reply`);
   }
 
   async function chat(model, messages, options = {}) {
@@ -181,12 +202,12 @@ const Ollama = (() => {
       model, messages, stream: false,
       options: { temperature, num_predict: maxTokens }
     };
-    if (format === 'json') body.format = 'json';
-    if (options.onToken) return await _stream('/api/chat', body, options, (e) => e.message && e.message.content);
+    if (format === 'json') _asJson(body);
+    if (options.onToken) return _notEmpty(await _stream('/api/chat', body, options, (e) => e.message && e.message.content), model, null);
     const r = await _post('/api/chat', body, options.signal);
     if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();
-    return data.message?.content || '';
+    return _notEmpty(data.message?.content || '', model, data);
   }
 
   // Ollama answers 404 with {"error":"model \"x\" not found, try pulling it"}.

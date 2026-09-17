@@ -22,6 +22,45 @@ function _similarity(a, b) {
   return union ? inter / union : 0;
 }
 
+// Tab ids are UUIDs (~20 tokens each). A reply repeats every id, so forty tabs
+// cost ~800 output tokens in ids alone — slow on a local model, and close to
+// the 2,000-token reply limit, where the JSON is cut off mid-array. The model
+// sees t1…tn; the reply is mapped back, and an id it invented is dropped.
+function _shortIds(tabMeta) {
+  const toReal = new Map();
+  const tabs = tabMeta.map((t, i) => { const short = 't' + (i + 1); toReal.set(short, t.id); return { ...t, id: short }; });
+  return { tabs, toReal };
+}
+
+// The groups out of a model's reply. Accepts the JSON bare, in a code fence,
+// after a <think> block, or with a sentence either side; says which way it
+// failed — "malformed response" told nobody whether the model said nothing,
+// said something else, or was cut off.
+function _parseGroupsReply(result, toReal) {
+  if (result && typeof result === 'object') return _mapGroupIds(result, toReal);
+  let text = String(result == null ? '' : result).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  if (!text) throw new Error('the AI returned an empty reply');
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+  let parsed = null;
+  try { parsed = JSON.parse(text); }
+  catch {
+    const from = text.indexOf('{'), to = text.lastIndexOf('}');
+    if (from !== -1 && to > from) { try { parsed = JSON.parse(text.slice(from, to + 1)); } catch { /* reported below */ } }
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    const cut = /[{[,:"]\s*$/.test(text) || (text.split('{').length > text.split('}').length);
+    throw new Error(cut ? 'the AI reply was cut off before it finished — try with fewer tabs open' : 'the AI reply was not JSON: “' + text.slice(0, 60) + '”');
+  }
+  return _mapGroupIds(parsed, toReal);
+}
+
+function _mapGroupIds(parsed, toReal) {
+  if (!toReal) return parsed;
+  const real = (ids) => (Array.isArray(ids) ? ids : []).map(id => toReal.get(String(id))).filter(Boolean);
+  const groups = (Array.isArray(parsed.groups) ? parsed.groups : []).map(g => (g && typeof g === 'object') ? { ...g, tabIds: real(g.tabIds) } : g);
+  return { ...parsed, groups, ungrouped: real(parsed.ungrouped) };
+}
+
 const TabGrouper = (() => {
   const THRESHOLD_UNGROUPED = 12;
   const CHECK_COOLDOWN_MS = 30 * 60 * 1000;
@@ -208,15 +247,9 @@ const TabGrouper = (() => {
       }
 
       if (typeof AIRouter === 'undefined') throw new Error('AIRouter not loaded');
-      const response = await AIRouter.callAI('groupTabs', { tabs: tabMeta });
-
-      let parsed;
-      try {
-        const str = String(response.result || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
-        parsed = JSON.parse(str);
-      } catch {
-        throw new Error('AI returned malformed response');
-      }
+      const { tabs: shortTabs, toReal } = _shortIds(tabMeta);
+      const response = await AIRouter.callAI('groupTabs', { tabs: shortTabs });
+      const parsed = _parseGroupsReply(response.result, toReal);
 
       parsed.groups = (parsed.groups || []).filter(g => g && g.name && Array.isArray(g.tabIds) && g.tabIds.length >= 2);
 
@@ -582,5 +615,5 @@ const TabGrouper = (() => {
 
 if (typeof window !== 'undefined') window.TabGrouper = TabGrouper;
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { TabGrouper, _domain, _similarity };
+  module.exports = { TabGrouper, _domain, _similarity, _shortIds, _parseGroupsReply };
 }
