@@ -139,6 +139,8 @@ const WebviewManager = {
         if (typeof ConsentBlock !== 'undefined') ConsentBlock.applyTo(webview);
         // Which speakers this site plays through (js/audio-output.js).
         if (typeof AudioOutput !== 'undefined' && t && t.url) AudioOutput.apply(webview, t.url);
+        // …and how fast its videos play (js/page-tools.js).
+        if (typeof PageTools !== 'undefined' && t && t.url) PageTools.applySpeed(webview, t.url);
         // Copy & right-click unlock (only when the global toggle is on)
         if (typeof CopyUnlock !== 'undefined') CopyUnlock.applyTo(webview);
         // Reading & accessibility pack (dyslexia font / CVD filter / ruler)

@@ -195,6 +195,40 @@ const CommandBar = {
     { id: 'compare-tabs', label: 'Compare Tabs', hint: 'AI compares all open tabs', icon: 'scale', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Compare these tabs side-by-side.',TabManager.tabs); } },
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
     { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
+    { id: 'tables', label: 'Copy tables as CSV', hint: 'Every table on this page, as proper CSV for a spreadsheet', icon: 'clipboard', isPrimary: true, action: async () => {
+      if (typeof PageTools === 'undefined') { window.showToast?.('Page tools are not available in this build', 'error'); return; }
+      let tables;
+      try { tables = await PageTools.tables(); }
+      catch (err) { window.showToast?.((err && err.message) || 'Could not read this page', 'error'); return; }
+      if (!tables.length) { window.showToast?.('No data tables on this page'); return; }
+      const csv = tables.map((t, i) => (tables.length > 1 ? '# ' + (t.caption || 'Table ' + (i + 1)) + '\r\n' : '') + PageTools.toCsv(t.rows)).join('\r\n\r\n');
+      try { await navigator.clipboard.writeText(csv); window.showToast?.(tables.length + ' table' + (tables.length === 1 ? '' : 's') + ' copied as CSV — paste into a spreadsheet'); }
+      catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || ''), 'error'); }
+    } },
+    { id: 'tables-note', label: 'Save tables as a note', hint: 'Every table on this page, as Markdown in your Notes', icon: 'clipboard', action: async () => {
+      if (typeof PageTools === 'undefined' || typeof AgentTools === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
+      let tables;
+      try { tables = await PageTools.tables(); }
+      catch (err) { window.showToast?.((err && err.message) || 'Could not read this page', 'error'); return; }
+      if (!tables.length) { window.showToast?.('No data tables on this page'); return; }
+      const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
+      const body = tables.map((t, i) => '## ' + (t.caption || 'Table ' + (i + 1)) + '\n\n' + PageTools.toMarkdown(t.rows)).join('\n\n');
+      try { AgentTools.saveNote('Tables from ' + ((tab && tab.title) || 'a page'), body, tab && tab.url); window.showToast?.('Saved to Notes'); }
+      catch (err) { window.showToast?.((err && err.message) || 'Could not save it', 'error'); }
+    } },
+    { id: 'speed', label: 'Video speed', hint: 'How fast videos play on this site, remembered', icon: 'video', isPrimary: true, action: async () => {
+      if (typeof PageTools === 'undefined') { window.showToast?.('Page tools are not available in this build', 'error'); return; }
+      const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
+      if (!tab || !/^https?:/i.test(tab.url || '')) { window.showToast?.('Open a page first', 'error'); return; }
+      const now = PageTools.speedFor(tab.url);
+      const answer = await vexPrompt({ title: 'Video speed', message: 'How fast should videos play on ' + new URL(tab.url).host + '? (0.5 to 3; 1 is normal)', value: String(now), okLabel: 'Set' });
+      if (answer == null) return;
+      try {
+        const rate = PageTools.setSpeedFor(tab.url, parseFloat(answer));
+        const n = await PageTools.applySpeed(null, tab.url, rate);
+        window.showToast?.(rate === 1 ? 'Back to normal speed' : rate + '× on this site' + (n ? '' : ' — it takes effect when a video appears'));
+      } catch (err) { window.showToast?.((err && err.message) || 'Could not set it', 'error'); }
+    } },
     { id: 'clock', label: 'Clock', hint: 'Alarms, timers, stopwatch and a world clock', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('clock') },
     { id: 'weekly-review', label: 'Weekly review', hint: 'What fired, what you saved and never read, what changed', icon: 'clipboard', action: () => {
       if (typeof VexReview === 'undefined') { window.showToast?.('The weekly review is not available in this build', 'error'); return; }
