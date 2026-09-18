@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.95 (2026-09-19) — Allow a site for one visit, and see (and stop) whatever is using your microphone
+
+### Notes
+- **"Allow" no longer means for ever.** The prompt had two answers and a Remember box that was ticked by default, so agreeing to a microphone for one call agreed to it for good. Three answers now: **Block**, **Allow this visit**, **Always allow**. A visit-only answer lasts until Vex closes and is never written to disk — a "just this once" that survived a restart would be a lie.
+- **Settings › Site Permissions shows what is using your microphone or camera right now**, tab by tab and panel by panel, and **Stop** ends it. Vex has always known this — it draws the recording badge on the tab — but there was nowhere to see it and no way to act: the page had to give the microphone up by itself. The list refreshes while the panel is open.
+
 ## v2.31.94 (2026-09-19) — Snooze a tab, see where a link really goes, and ask about any picture
 
 ### Notes
