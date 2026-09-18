@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.31.94 (2026-09-19) — Snooze a tab, see where a link really goes, and ask about any picture
+
+### Notes
+- **Snooze a tab.** A tab stays open because closing it loses it — so the strip fills with things that are not for today. Right-click one: *in an hour*, *this evening*, *tomorrow morning*, *this weekend*, *Monday morning*, *in a week*. It closes now and opens itself again when you said, and the snooze is written down, so a restart does not lose it.
+- **Tabs you have not touched in a week are archived, not closed.** They leave the strip and go into a list, keeping the address and title; one click brings any of them back. Nothing is ever deleted — closing a tab you might still want is the thing this exists to avoid. Switch it off with `vex.autoArchive`.
+- **Copying a link copies where it really goes, without the tracker.** A wrapped link (Google, Facebook, DuckDuckGo, Reddit, Steam, Bing, LinkedIn) is unwrapped to its real destination, and campaign tags — utm_*, fbclid, gclid and about sixty more — are dropped, so what you paste to someone does not carry a token tying them to you. Unwrapping is done locally; nothing is asked and nobody is told you looked. *Copy Link Exactly* is there when you want it untouched.
+- **An address pretending to be a familiar one is called out.** paypa1.com, secure-paypal.net, github-support.co, and the ones written in another alphabet entirely. A bar says what it is and offers to go back; it never blocks, because a browser that cries wolf is one whose warnings are clicked away. Real subdomains — docs.github.com — are never flagged.
+- **Right-click any image → "Ask Vex about this image".** The model can see (since v2.31.86), so this is a question about the picture. The image is fetched through Vex, shrunk, and handed to a model with vision.
+- **One-time codes now leave the clipboard.** Copying a password already cleared after 30 seconds; copying a 2FA code did not, and it sat there for the next thing you pasted into. Both go through one implementation now, and neither overwrites something you copied since.
+- Vex's own image fetching answers honestly: it sends a proper User-Agent, and an HTTP error is reported as one instead of "that address is not an image". Measured: some sites (Wikimedia) refuse whatever is sent — that is their policy, and Vex now says so rather than guessing.
+
 ## v2.31.93 (2026-09-18) — Mute Discord from inside a game, blur your codes while streaming, and split your sound between devices
 
 ### Notes
