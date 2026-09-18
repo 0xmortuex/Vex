@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.91 (2026-09-18) — The AI says when it will be slow, why it failed, and gives your graphics card back
+
+### Notes
+- **"The AI is broken" usually means the graphics card is full.** A local model lives in video memory. Measured here: a game and OBS had an 8 GB card at 7.7 GB and 92% busy, so the model was pushed onto the processor and the same agent task that took 30 seconds ran past the two-minute limit and returned nothing — twice, with nothing on screen to explain it. Vex now reads the card and says so before the request: *"qwen3.5 is running on the processor, not the graphics card — expect answers to take minutes."*
+- **"Why did that fail?" on every AI error.** One button checks the lot — Worker URL, internet, Ollama, whether the model is installed, whether it is loaded and *where* it is loaded, and how full the card is — and answers in a sentence, with the checks listed underneath so you can argue with it.
+- **You can watch the agent think.** A local model takes tens of seconds, and "Thinking…" for a minute is indistinguishable from a hang. Its reply now appears as it is written — the thought, then the tool it is reaching for. Measured live: 46 updates in a 17-second step.
+- **A model manager, in Settings › AI.** What is installed, what is loaded right now and whether it is on the card or the processor, how much each one needs, and whether it fits yours — plus install, use, unload and delete, with no terminal. An 8 GB card holds one 9 GB model badly and two comfortably at 4 GB each, and until now nothing said so.
+- **Vex gives the card back while you game.** *Free the graphics card* unloads the model on demand (measured: 5.2 GB back), *Free memory now* does it too, and Vex does it on its own after five minutes hidden when something else needs the card — never in the middle of an answer. The next request loads the model again in a few seconds.
+
 ## v2.31.90 (2026-09-18) — Vex stops failing quietly: a problems log, a way back in, and an installer that is started before it ships
 
 ### Notes
