@@ -265,6 +265,7 @@ const WebviewManager = {
         { label: 'Zoom image', act: () => { if (typeof ImageZoom !== 'undefined') ImageZoom.open(p.srcURL); } },
         { label: 'Search image with Lens', act: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(p.srcURL), true) },
         { label: 'Copy image address', act: () => { navigator.clipboard?.writeText(p.srcURL); window.showToast?.('Image URL copied'); } },
+        { label: 'Ask Vex about this image', act: () => { if (typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) AIPanel.askAboutImage(p.srcURL); } },
         { label: 'Open image in new tab', act: () => TabManager.createTab(p.srcURL, true) },
       ];
       items.forEach(it => {
@@ -284,6 +285,14 @@ const WebviewManager = {
 
     onWebview('did-navigate', (e) => {
       const url = e.url;
+      // An address pretending to be a familiar one (js/link-safety.js). Said
+      // once per host per session: a warning that cries wolf is ignored.
+      if (typeof LinkSafety !== 'undefined') {
+        try {
+          const warn = LinkSafety.lookalike(new URL(url).hostname);
+          if (warn) LinkSafety.warnOnce(warn, webview);
+        } catch { /* not an address that can be parsed */ }
+      }
       // Focus-mode site blocker bounces distracting hosts back.
       if (typeof FocusMode !== 'undefined' && FocusMode.guard(webview, url)) return;
       // NEVER let a blank navigation erase the tab's real URL. Tab hibernation,
@@ -970,7 +979,20 @@ const WebviewManager = {
         action: () => TabManager.createTab(e.params.linkURL, true, null, { partition: webview.getAttribute?.("partition") })
       });
       items.push({
+        // Copy where it really GOES, without what identifies you: a wrapped
+        // link otherwise copies the wrapper, and almost every site's links
+        // carry campaign tags that follow whoever you send them to.
         label: 'Copy Link',
+        action: () => {
+          const out = (typeof LinkSafety !== 'undefined') ? LinkSafety.describe(e.params.linkURL) : { clean: e.params.linkURL, wrapped: false, tracked: false };
+          navigator.clipboard.writeText(out.clean);
+          if (out.wrapped || out.tracked) {
+            window.showToast?.('Copied' + (out.wrapped ? ' the real address' : '') + (out.wrapped && out.tracked ? ', ' : '') + (out.tracked ? ' without its tracking tags' : ''));
+          }
+        }
+      });
+      items.push({
+        label: 'Copy Link Exactly',
         action: () => navigator.clipboard.writeText(e.params.linkURL)
       });
       items.push({

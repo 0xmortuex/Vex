@@ -344,8 +344,25 @@ const AIRouter = (() => {
     return { result: text, backend: 'local', model };
   }
 
+  // A question about an image (right-click a picture). The chat prompt, the
+  // page context and the picture, in one turn.
+  async function callLocalVisionChat(request) {
+    const model = localModel;
+    if (!(await localVision(model))) throw new Error(model + " cannot see images. Settings › AI › the model manager lists which of your models can — llava, llama3.2-vision, qwen3.5 and gemma3 can.");
+    const msgs = [{ role: 'system', content: LOCAL_SYSTEM_PROMPTS.chat }];
+    for (const m of (Array.isArray(request.conversationHistory) ? request.conversationHistory : [])) {
+      if (m && m.role && m.content) msgs.push({ role: m.role, content: String(m.content).slice(0, 3000) });
+    }
+    msgs.push({ role: 'user', content: String(request.message || 'What is in this image?'), images: [String(request.image).replace(/^data:image\/[a-z]+;base64,/, '')] });
+    const text = await Ollama.chat(model, msgs, { temperature: 0.4, maxTokens: 1200, numCtx: agentNumCtx(), signal: request.signal, onToken: request.onToken });
+    return { result: text, backend: 'local', model };
+  }
   async function callLocal(feature, request) {
     if (feature === 'agent') return callLocalAgent(request);
+    // A question about an image (right-click → "Ask Vex about this image").
+    // Ollama takes images as bare base64 on the message, same as the agent's
+    // screenshot; a model without vision is told rather than left guessing.
+    if (request.image && feature === 'chat') return callLocalVisionChat(request);
     // Phase 15: persona overrides the default system prompt + temperature.
     // Structured features (summarize/translate/etc.) keep their built-in
     // JSON-schema prompts — persona only overrides chat.

@@ -983,6 +983,7 @@ const AIPanel = {
       const onToken = (feature === 'chat') ? this._liveRenderer(loadingEl) : null;
       const aiResult = await AIRouter.callAI(feature, {
         onToken,
+        image: opts.image || null,
         message: opts.message,
         pageContext,
         selectedText: opts.selectedText,
@@ -1078,6 +1079,60 @@ const AIPanel = {
     if (vexThing && /\b(start|set|create|make|add|save|cancel|stop|open|show|group|rename|close|take)\b/.test(t)) return { agent: true, text: s };
     if (liveWorld && !aboutPage) return { agent: true, text: s };
     return { agent: false, text: s };
+  },
+
+  // Right-click any image → "Ask Vex about this image". The model can see now
+  // (v2.31.86), so this is a question about the picture, not about its address.
+  async askAboutImage(srcUrl, question) {
+    if (!this.isOpen()) this.open();
+    let image;
+    try { image = await this._imageAsData(srcUrl); }
+    catch (err) {
+      this._addError('That image could not be read: ' + ((err && err.message) || ''));
+      VexProblems?.note('AI', 'Could not read an image for the AI', err);
+      return false;
+    }
+    const ask = question || 'What is in this image?';
+    await this.sendMessage('chat', { message: ask, image });
+    return true;
+  },
+
+  // Fetched through main, because the page's own image is on its origin and
+  // the interface is a file:// document — and shrunk, because a model does not
+  // need four megapixels to answer.
+  async _imageAsData(srcUrl) {
+    if (/^data:image\//.test(srcUrl)) return this._shrinkImage(srcUrl);
+    if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Vex cannot fetch images in this build');
+    // A User-Agent is not optional: Wikimedia and others answer a request
+    // without one with 400 and an HTML error page — which then read as "that
+    // address is not an image" instead of what actually happened.
+    const r = await window.vex.apiRequest({ url: srcUrl, binary: true, headers: { 'User-Agent': navigator.userAgent, Accept: 'image/*,*/*;q=0.8' } });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'the request failed');
+    // `ok` means the request completed, not that the server was happy.
+    if (r.status >= 400) throw new Error('the site answered ' + r.status + ' (' + (r.statusText || 'error') + ')');
+    const type = String((r.headers && (r.headers['content-type'] || r.headers['Content-Type'])) || 'image/png').split(';')[0];
+    if (!/^image\//.test(type)) throw new Error('that address gave back ' + type + ', not an image');
+    const base64 = r.base64 || r.body;
+    if (!base64) throw new Error('nothing came back');
+    return this._shrinkImage('data:' + type + ';base64,' + base64);
+  },
+
+  _shrinkImage(dataUrl, max = 1024) {
+    return new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => {
+        try {
+          const scale = Math.min(1, max / Math.max(im.width, im.height));
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(im.width * scale));
+          c.height = Math.max(1, Math.round(im.height * scale));
+          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/jpeg', 0.75));
+        } catch (err) { reject(err); }
+      };
+      im.onerror = () => reject(new Error('the image could not be decoded'));
+      im.src = dataUrl;
+    });
   },
 
   async _sendChat() {

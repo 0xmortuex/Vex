@@ -1007,7 +1007,7 @@ ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
 ipcMain.handle('api:request', async (_e, opts = {}) => {
   const t0 = Date.now();
   try {
-    const { url, method = 'GET', headers = {}, body = null } = opts || {};
+    const { url, method = 'GET', headers = {}, body = null, binary = false } = opts || {};
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false, error: 'Invalid URL (must be http/https)' };
     const init = { method: String(method || 'GET').toUpperCase(), headers: headers && typeof headers === 'object' ? headers : {} };
     if (body != null && init.method !== 'GET' && init.method !== 'HEAD') init.body = String(body);
@@ -1017,6 +1017,9 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
     const text = capped ? buf.slice(0, 5 * 1024 * 1024).toString('utf8') : buf.toString('utf8');
     const hdrs = {};
     try { res.headers.forEach((v, k) => { hdrs[k] = v; }); } catch {}
+    // An image read back as UTF-8 text is ruined, so a binary caller gets
+    // base64 instead (the AI panel's "ask about this image").
+    if (binary) return { ok: true, status: res.status, statusText: res.statusText, headers: hdrs, base64: buf.slice(0, 5 * 1024 * 1024).toString('base64'), size: buf.length, capped, timeMs: Date.now() - t0 };
     return { ok: true, status: res.status, statusText: res.statusText, headers: hdrs, body: text, size: buf.length, capped, timeMs: Date.now() - t0 };
   } catch (err) {
     return { ok: false, error: err.message, timeMs: Date.now() - t0 };

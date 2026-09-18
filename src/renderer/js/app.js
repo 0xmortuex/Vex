@@ -860,6 +860,10 @@
   // (js/game-mode.js).
   if (typeof GameMode !== 'undefined') GameMode.init();
 
+  // Snoozed tabs come back when they are due; a tab untouched for a week is
+  // archived rather than left in the strip (js/tab-snooze.js).
+  if (typeof TabSnooze !== 'undefined') TabSnooze.start();
+
   // WebHID device chooser (navigator.hid.requestDevice)
   if (typeof HidPicker !== 'undefined') HidPicker.init();
 

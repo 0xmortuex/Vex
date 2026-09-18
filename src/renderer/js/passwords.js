@@ -11,13 +11,8 @@ const PasswordVault = {
   NEVER_KEY: 'vex.pwNever',
 
   async _copyPassword(password) {
-    await navigator.clipboard.writeText(password);
-    window.showToast?.('Password copied — clears in 30s if unchanged');
-    setTimeout(async () => {
-      try {
-        if (await navigator.clipboard.readText() === password) await navigator.clipboard.writeText('');
-      } catch { /* Clipboard permission can expire after the user leaves Vex. */ }
-    }, 30000);
+    // One implementation for every secret Vex copies (js/vex-utils.js).
+    return window.vexCopySecret(password, 'Password copied');
   },
 
   _never() { try { return JSON.parse(localStorage.getItem(this.NEVER_KEY) || '[]'); } catch { return []; } },

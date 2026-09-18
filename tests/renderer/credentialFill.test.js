@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import vm from 'node:vm';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+// vex-utils defines window.vexCopySecret, which the vault copies through.
+import '../../src/renderer/js/vex-utils.js';
 import { PasswordVault } from '../../src/renderer/js/passwords.js';
 import { TotpAutofill } from '../../src/renderer/js/totp-autofill.js';
 import { EmailCodeAutofill } from '../../src/renderer/js/email-code-autofill.js';

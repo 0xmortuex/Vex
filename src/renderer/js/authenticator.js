@@ -168,8 +168,10 @@ const Authenticator = {
       const id = item.dataset.id;
       const code = this._codes[id] && this._codes[id].code;
       if (!code) return;
-      try { navigator.clipboard.writeText(code); } catch {}
-      window.showToast?.('Code copied');
+      // A one-time code sitting in the clipboard is the same risk as a
+      // password sitting there (js/vex-utils.js).
+      if (typeof window.vexCopySecret === 'function') window.vexCopySecret(code, 'Code copied').catch(() => {});
+      else { try { navigator.clipboard.writeText(code); } catch {} window.showToast?.('Code copied'); }
       item.classList.add('copied');
       setTimeout(() => item.classList.remove('copied'), 550);
     };

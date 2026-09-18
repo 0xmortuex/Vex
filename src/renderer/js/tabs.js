@@ -1287,6 +1287,18 @@ const TabManager = {
       // some unrelated rebuild happened to run.
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => this.togglePinTab(tab.id) },
       { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, window.VexTabPolicy?.serialize(tab) || tab) },
+      // A tab stays open because closing it loses it. Snoozing closes it now
+      // and opens it again when you said (js/tab-snooze.js).
+      ...(typeof TabSnooze !== 'undefined' && /^https?:/i.test(tab.url || '')
+        ? Object.entries(TabSnooze.WHEN).map(([key, rule], i) => ({
+          label: (i === 0 ? 'Snooze — ' : '') + rule.label,
+          action: () => {
+            try { const e = TabSnooze.snooze(tab.id, key); window.showToast?.('Back ' + rule.label.toLowerCase() + ' — ' + new Date(e.at).toLocaleString()); }
+            catch (err) { window.showToast?.((err && err.message) || 'Could not snooze it', 'error'); }
+          },
+        }))
+        : []),
+      { label: 'Play through…', action: () => this.chooseAudioOutput(tab, document.querySelector('.tab[data-tab-id="' + tab.id + '"]') || document.body) },
       { label: 'Page volume…', action: async () => {
         // Electron's renderer disables window.prompt() — it returns null with
         // no error, so the old `: prompt(...)` fallback silently did nothing.

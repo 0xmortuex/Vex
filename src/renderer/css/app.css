@@ -1070,3 +1070,20 @@ body.streamer-mode [data-sensitive]:focus-within { filter: none; }
 .aom-item.on { color: var(--primary); }
 .aom-item.on::after { content: ' ·'; }
 .aom-hint { padding: 6px 9px; font-size: 11px; color: var(--text-muted); line-height: 1.45; }
+
+/* An address pretending to be a familiar one */
+.lookalike-warn {
+  position: fixed; left: 50%; transform: translateX(-50%); top: 44px; z-index: 9998;
+  display: flex; align-items: center; gap: 16px; max-width: min(720px, 94vw);
+  padding: 11px 15px; border-radius: 11px;
+  background: var(--vex-glass-panel, var(--surface)); border: 1px solid var(--danger);
+  box-shadow: 0 10px 30px var(--vex-shadow-color, rgba(0,0,0,0.35));
+  font-family: 'Outfit', sans-serif;
+}
+.lw-text { display: flex; flex-direction: column; gap: 3px; }
+.lw-text strong { color: var(--danger); font-size: 13px; }
+.lw-text span { color: var(--vex-text-secondary, var(--text-muted)); font-size: 12px; line-height: 1.45; }
+.lw-actions { display: flex; gap: 8px; flex: none; }
+.lw-btn { font: inherit; font-size: 12px; padding: 6px 12px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--vex-text-secondary, var(--text-muted)); border: 1px solid var(--vex-border-subtle, var(--border)); }
+.lw-btn:hover { color: var(--vex-text-primary, var(--text)); background: var(--vex-hover-fill, var(--bg)); }
+.lw-leave { border-color: var(--danger); color: var(--danger); }

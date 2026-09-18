@@ -86,14 +86,31 @@
     });
   }
 
+  // Copying a password or a one-time code leaves it in the clipboard, where
+  // the next thing you paste into gets it — a chat box, an address bar, a page
+  // with a paste listener. It is emptied after a while, but only if it is still
+  // the secret: overwriting something the user copied since would be worse.
+  async function vexCopySecret(text, label, seconds = 30) {
+    const secret = String(text == null ? '' : text);
+    if (!secret) throw new Error('There is nothing to copy');
+    await navigator.clipboard.writeText(secret);
+    window.showToast?.(`${label || 'Copied'} — clears in ${seconds}s if unchanged`);
+    setTimeout(async () => {
+      try { if (await navigator.clipboard.readText() === secret) await navigator.clipboard.writeText(''); }
+      catch { /* the permission lapses once Vex loses focus; nothing to do */ }
+    }, seconds * 1000);
+    return true;
+  }
+
   if (typeof window !== 'undefined') {
     window.escapeHtml = escapeHtml;
+    window.vexCopySecret = vexCopySecret;
     window.VexUI = VexUI;
     window.vexId = vexId;
     window.vexGuestEval = vexGuestEval;
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { escapeHtml, VexUI, vexId, vexGuestEval };
+    module.exports = { escapeHtml, VexUI, vexId, vexGuestEval, vexCopySecret };
   }
 })();
