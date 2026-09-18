@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.32.3 (2026-09-19) — Save a task the agent did, and repeat it without the AI
+
+### Notes
+- **"Save as a task"** on any agent run in the AI history. A run that worked is a recipe — and doing it again through the model costs thirty seconds, a model load, and a slightly different answer each time, when what you wanted was the same six steps.
+- **Ctrl+K → Repeat a task** runs those steps directly. No AI, no waiting, the same result: measured in the tests, the model is not called once.
+- It is deliberately not clever. If a step fails — the page has moved on, a button is gone — it stops, says which step and why, and tells you to send the request as a task so the AI can work it out. A macro that half-works in silence would be worse than no macro.
+- The same permission rules apply as to the agent itself: a recorded step that acts on a site you did not ask about is still confirmed first, and refusing it stops the run.
+
 ## v2.32.2 (2026-09-19) — Find a tab by what is on it, not just its title
 
 ### Notes
