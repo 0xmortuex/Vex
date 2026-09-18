@@ -62,13 +62,38 @@
       + idCounter.toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
+  // Run a script in a <webview> and always get an answer.
+  //
+  // A bare `await webview.executeJavaScript(...)` can wait for ever: when the
+  // guest has no committed document, Electron holds the call until the page
+  // finishes loading — and a tab whose only navigation turned into a download
+  // (or any 204) never loads one. Nothing is thrown, so a try/catch around it
+  // does nothing; the AI agent sat at "Agent started" with no step, no error.
+  // Here that tab answers at once, and any other page has a deadline.
+  const GUEST_EVAL_MS = 8000;
+  function vexGuestEval(webview, code, userGesture, timeoutMs) {
+    if (!webview || typeof webview.executeJavaScript !== 'function') return Promise.reject(new Error('No page to read'));
+    let url = null, loading = false;
+    try { if (typeof webview.getURL === 'function') url = webview.getURL(); } catch { url = null; }
+    try { if (typeof webview.isLoading === 'function') loading = !!webview.isLoading(); } catch { loading = false; }
+    if (url === '' && !loading) return Promise.reject(new Error('This tab has no page loaded (a download link, or an empty response)'));
+    const ms = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : GUEST_EVAL_MS;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('The page did not answer within ' + Math.round(ms / 1000) + ' s')), ms);
+      Promise.resolve()
+        .then(() => webview.executeJavaScript(code, !!userGesture))
+        .then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+    });
+  }
+
   if (typeof window !== 'undefined') {
     window.escapeHtml = escapeHtml;
     window.VexUI = VexUI;
     window.vexId = vexId;
+    window.vexGuestEval = vexGuestEval;
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { escapeHtml, VexUI, vexId };
+    module.exports = { escapeHtml, VexUI, vexId, vexGuestEval };
   }
 })();

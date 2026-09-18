@@ -6,6 +6,9 @@ import { afterEach, expect, it, vi } from 'vitest';
 import '../../src/renderer/js/collection-store.js';
 import { Recall } from '../../src/renderer/js/recall.js';
 import { Annotations } from '../../src/renderer/js/annotations.js';
+// dom-extractor.js reads the page through vex-utils' vexGuestEval (a guest call
+// with a deadline); index.html loads vex-utils first, so the sandbox gets it too.
+const { vexGuestEval } = require('../../src/renderer/js/vex-utils.js');
 
 const source = readFileSync('src/renderer/js/dom-extractor.js', 'utf8');
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -38,7 +41,7 @@ it('Recall discards extracted text after a same-URL navigation', async () => {
 it('excludes password and OTP field values from real extracted context', async () => {
   document.body.innerHTML = '<input type="password" value="secret"><input autocomplete="one-time-code" value="123456"><input value="search">';
   for (const input of document.querySelectorAll('input')) input.getBoundingClientRect = () => ({ width: 100, height: 20, top: 0, bottom: 20 });
-  const extractor = vm.runInNewContext(source + ';DOMExtractor', { window: {} });
+  const extractor = vm.runInNewContext(source + ';DOMExtractor', { window: { vexGuestEval } });
   const result = await extractor.extractInteractiveElements({
     getURL: () => 'https://test.example',
     executeJavaScript: script => vm.runInNewContext(script, { document, location: { href: 'https://test.example' }, window: { innerHeight: 800 }, getComputedStyle }),
@@ -46,7 +49,7 @@ it('excludes password and OTP field values from real extracted context', async (
   expect(result.elements.map(x => x.value)).toEqual([null, null, 'search']);
 });
 it('discards DOM context when a same-URL reload occurs during extraction', async () => {
-  const extractor = vm.runInNewContext(source + ';DOMExtractor', { window: {} });
+  const extractor = vm.runInNewContext(source + ';DOMExtractor', { window: { vexGuestEval } });
   const webview = { _navigationGeneration: 1, getURL: () => 'https://test.example', executeJavaScript: async () => {
     webview._navigationGeneration++;
     return { url: 'https://test.example', elements: ['stale'] };

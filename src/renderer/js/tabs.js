@@ -1110,11 +1110,7 @@ const TabManager = {
       case 'rename': {
         // Native prompt() is disabled in Electron renderer — use in-app modal.
         this._promptInput('Rename group', 'New name', group.name).then(name => {
-          if (name && name.trim()) {
-            group.name = name.trim();
-            VexStorage.saveGroups(this.groups);
-            this.rebuildAllTabs();
-          }
+          if (name && name.trim()) this.renameGroup(group.id, name);
         });
         break;
       }
@@ -1949,6 +1945,19 @@ const TabManager = {
       window.showToast?.(msg);
       document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: msg } }));   // Memory panel trend
     }
+  },
+
+  // Rename a tab group — the group menu's Rename, and the AI agent's
+  // rename_tab_group tool. Returns the group; says what is wrong otherwise.
+  renameGroup(groupId, name) {
+    const group = this.groups.find(g => g.id === groupId);
+    if (!group) throw new Error('No tab group with id "' + groupId + '" — list_tab_groups gives the ids');
+    const clean = String(name == null ? '' : name).trim();
+    if (!clean) throw new Error('A group needs a name');
+    group.name = clean.slice(0, 60);
+    VexStorage.saveGroups(this.groups);
+    this.rebuildAllTabs();
+    return group;
   },
 
   // === Heavy-tab notice ===

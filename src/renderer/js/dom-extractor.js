@@ -6,7 +6,7 @@ const DOMExtractor = {
     if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) throw new Error('Private page context is unavailable');
     try {
       const before = webview.getURL?.(), generation = webview._navigationGeneration;
-      const result = await webview.executeJavaScript(`
+      const result = await window.vexGuestEval(webview, `
         (() => {
           const items = []; let c = 0;
           const sel = 'a[href], button, input, textarea, select, [role="button"], [role="link"], [onclick], [tabindex]:not([tabindex="-1"])';

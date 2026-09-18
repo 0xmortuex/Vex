@@ -8,7 +8,8 @@ const AgentExecutor = {
     }
     if (context.scheduled && (!context.webview || context.webview.isConnected === false)) return { ok: false, error: 'Scheduled tab was closed' };
     if (wv && window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(wv)) return { ok: false, error: 'Private tabs are excluded from agent access' };
-    const needsWebview = !['new_tab', 'list_tabs', 'switch_tab', 'finish', 'ask_user'].includes(toolName);
+    // The tab-group tools work on Vex's own tab strip, not on a page.
+    const needsWebview = !['new_tab', 'list_tabs', 'switch_tab', 'list_tab_groups', 'rename_tab_group', 'finish', 'ask_user'].includes(toolName);
     if (needsWebview && !wv) return { ok: false, error: 'No active webview' };
 
     try {
@@ -41,7 +42,7 @@ const AgentExecutor = {
           return { ok: true, result: 'Reloaded' };
 
         case 'click':
-          const clickRes = await wv.executeJavaScript(`
+          const clickRes = await window.vexGuestEval(wv, `
             (() => {
               const sel = ${JSON.stringify(params.selector)};
               const el = document.querySelector(sel);
@@ -55,7 +56,7 @@ const AgentExecutor = {
           return clickRes.ok ? { ok: true, result: 'Clicked element' } : clickRes;
 
         case 'type_text':
-          const typeRes = await wv.executeJavaScript(`
+          const typeRes = await window.vexGuestEval(wv, `
             (() => {
               const el = document.querySelector(${JSON.stringify(params.selector)});
               if (!el) return { ok: false, error: 'Element not found' };
@@ -72,7 +73,7 @@ const AgentExecutor = {
           return (typeRes && typeRes.ok) ? { ok: true, result: 'Typed text' } : { ok: false, error: (typeRes && typeRes.error) || 'Element not found' };
 
         case 'select_option':
-          const selRes = await wv.executeJavaScript(`
+          const selRes = await window.vexGuestEval(wv, `
             (() => {
               const el = document.querySelector(${JSON.stringify(params.selector)});
               if (!el) return { ok: false, error: 'Element not found' };
@@ -86,7 +87,7 @@ const AgentExecutor = {
         case 'scroll':
           const dir = params.direction || 'down';
           const amt = Number.isFinite(Number(params.amount)) ? Math.max(0, Math.min(Number(params.amount), 10000)) : 500;
-          await wv.executeJavaScript(
+          await window.vexGuestEval(wv, 
             dir === 'top' ? 'window.scrollTo({top:0})' :
             dir === 'bottom' ? 'window.scrollTo({top:document.body.scrollHeight})' :
             dir === 'up' ? `window.scrollBy({top:-${amt}})` :
@@ -100,7 +101,7 @@ const AgentExecutor = {
 
         case 'extract_text':
           const sel = params.selector || 'article, main, [role="main"], body';
-          const text = await wv.executeJavaScript(`
+          const text = await window.vexGuestEval(wv, `
             (() => { const el = document.querySelector(${JSON.stringify(sel)}) || document.body; return el.innerText.substring(0, 15000); })()
           `);
           return { ok: true, result: text };
@@ -115,13 +116,21 @@ const AgentExecutor = {
           const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canPersist(t)).map(t => ({ id: t.id, title: t.title, url: t.url, active: t.id === TabManager.activeTabId }));
           return { ok: true, result: tabs };
 
+        case 'list_tab_groups':
+          return { ok: true, result: (TabManager.groups || []).map(g => ({ id: g.id, name: g.name, color: g.color, tabs: TabManager.tabs.filter(t => t.groupId === g.id).length })) };
+
+        case 'rename_tab_group': {
+          const renamed = TabManager.renameGroup(params.groupId, params.name);
+          return { ok: true, result: 'Renamed group to "' + renamed.name + '"' };
+        }
+
         case 'switch_tab':
           TabManager.switchTab(params.tabId);
           return { ok: true, result: 'Switched tab' };
 
         case 'wait':
           if (params.selector) {
-            await wv.executeJavaScript(`
+            await window.vexGuestEval(wv, `
               new Promise(r => {
                 let poll;
                 const finish = value => { clearTimeout(poll); clearTimeout(deadline); r(value); };
@@ -140,7 +149,7 @@ const AgentExecutor = {
           return { ok: true, result: 'Waited' };
 
         case 'search_in_page':
-          const found = await wv.executeJavaScript(`
+          const found = await window.vexGuestEval(wv, `
             (() => { const t = document.body.innerText; const i = t.toLowerCase().indexOf(${JSON.stringify((params.query || '').toLowerCase())}); return i >= 0 ? { found: true, excerpt: t.substring(Math.max(0,i-100), i+200) } : { found: false }; })()
           `);
           return { ok: true, result: found };

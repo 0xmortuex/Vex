@@ -7,7 +7,7 @@ const PageContext = {
     try {
       const before = webview.getURL?.();
       const generation = webview._navigationGeneration;
-      const result = await webview.executeJavaScript(`
+      const result = await window.vexGuestEval(webview, `
         (() => {
           const clone = document.body.cloneNode(true);
           clone.querySelectorAll('script, style, noscript, iframe, svg').forEach(el => el.remove());
@@ -48,7 +48,7 @@ const PageContext = {
     if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return null;
     try {
       const before = webview.getURL?.(), generation = webview._navigationGeneration;
-      const text = await webview.executeJavaScript('window.getSelection().toString()');
+      const text = await window.vexGuestEval(webview, 'window.getSelection().toString()');
       return before === webview.getURL?.() && generation === webview._navigationGeneration ? text || null : null;
     } catch { return null; }
   }

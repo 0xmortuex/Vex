@@ -26,13 +26,17 @@ const AGENT_TOOLS = [
   { name: 'screenshot', description: 'Capture current page', parameters: {} },
   { name: 'list_tabs', description: 'List all open tabs', parameters: {} },
   { name: 'switch_tab', description: 'Switch to a tab', parameters: { tabId: 'string' } },
+  // Tab groups are Vex's own, not part of any page: without these the agent
+  // asked to rename a group could only poke at whatever page was in front.
+  { name: 'list_tab_groups', description: 'List the tab groups in the tab strip: id, name, color, how many tabs', parameters: {} },
+  { name: 'rename_tab_group', description: 'Rename one tab group. Call once per group; get the ids from list_tab_groups', parameters: { groupId: 'string', name: 'string' } },
   { name: 'wait', description: 'Wait for element or time', parameters: { selector: 'string', ms: 'number' } },
   { name: 'search_in_page', description: 'Find text on page', parameters: { query: 'string' } },
   { name: 'finish', description: 'Task complete — give final answer', parameters: { summary: 'string' } },
   { name: 'ask_user', description: 'Ask user for clarification', parameters: { question: 'string' } }
 ];
 
-const SAFE_TOOLS = ['extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'scroll', 'wait', 'search_in_page'];
+const SAFE_TOOLS = ['extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'list_tab_groups', 'scroll', 'wait', 'search_in_page'];
 
 // === Phase 18: Tool-call loop detection ===
 // Stops the agent from calling the same (tool, args) pair more than MAX_IDENTICAL
