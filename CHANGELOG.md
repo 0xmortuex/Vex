@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.96 (2026-09-19) — Take any table as a spreadsheet, and set how fast a site plays video
+
+### Notes
+- **Copy tables as CSV** (Ctrl+K). Copying a table out of a page gives you run-together text: the columns are in the markup and no browser offers them to you. This reads the real cells — a cell spanning two columns leaves the next one empty, so the rows still line up — and writes proper CSV, quoting anything with a comma, a quote or a line break. **Save tables as a note** does the same as a Markdown table in your Notes.
+- **Video speed, per site, remembered.** Sites that have a speed control bury it three menus deep, and sites that do not leave you at 1×. Set it once for a site and every video there plays at that speed, including one that appears later and one whose player tries to reset it.
+
 ## v2.31.95 (2026-09-19) — Allow a site for one visit, and see (and stop) whatever is using your microphone
 
 ### Notes
