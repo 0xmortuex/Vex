@@ -134,6 +134,11 @@ contextBridge.exposeInMainWorld('vex', {
   diagnostics: () => ipcRenderer.invoke('app:diagnostics'),
   // Make sure the local Ollama server is running (starts it when it is not).
   ollamaEnsure: () => ipcRenderer.invoke('ollama:ensure'),
+  // Safe mode: why this launch is stripped down, and the settings backups.
+  safeMode: () => ipcRenderer.invoke('app:safe-mode'),
+  // "The interface is up": what stops this launch counting as a failed one.
+  started: () => ipcRenderer.send('app:started'),
+  restoreSettings: (name) => ipcRenderer.invoke('app:restore-settings', name),
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // Media grabber: list/download media detected on a tab (by its webContents id).

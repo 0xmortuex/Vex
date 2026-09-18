@@ -716,6 +716,21 @@ ipcMain.handle('app:processes', () => {
 // What went wrong since launch, kept in memory: renderer crashes and hangs,
 // helper processes gone (GPU, network, audio…), extension load failures, the
 // updater's last word, and how long startup took. Bounded, newest last.
+// Getting back in when a launch fails (main/safe-mode.js): two launches that
+// never finish starting put the third into safe mode — no extensions, no
+// panels, no session restore — and the first launch of a new version keeps a
+// copy of the settings as they were under the old one.
+const _bootGuard = require('./main/safe-mode').createBootGuard({
+  dir: userDataPath,
+  fs,
+  argv: process.argv,
+  version: app.getVersion(),
+  settingsFile: path.join(userDataPath, 'vex-persist.json'),
+  log: (m) => console.log(m),
+});
+const _boot = _bootGuard.begin();
+if (_boot.safeMode) console.log('[SafeMode] ON');
+
 const _diag = { startedAt: Date.now(), marks: {}, events: [] };
 function _diagMark(name) { if (!(name in _diag.marks)) _diag.marks[name] = Math.round(process.uptime() * 1000); }
 function _diagEvent(kind, detail) {
@@ -728,6 +743,13 @@ app.whenReady().then(() => _diagMark('app-ready'));
 app.on('browser-window-created', (_e, win) => {
   win.once('show', () => _diagMark('window-shown'));
   win.webContents.once('did-finish-load', () => _diagMark('interface-loaded'));
+  // This launch only counts as a success once the INTERFACE says it is up
+  // (js/app.js, at the end of its startup). did-finish-load is far too early:
+  // it means the HTML arrived, so a Vex that throws during startup would still
+  // look like a good launch and never reach safe mode. The timer is the safety
+  // net for a build where that signal never comes at all.
+  const startedNet = setTimeout(() => _bootGuard.started(), 60000);
+  win.once('closed', () => clearTimeout(startedNet));
 });
 app.on('child-process-gone', (_e, d) => {
   if (!d || d.reason === 'clean-exit') return;
@@ -755,6 +777,13 @@ const _ollamaLauncher = require('./main/ollama-launcher').createOllamaLauncher({
 });
 ipcMain.handle('ollama:ensure', () => _ollamaLauncher.ensure());
 
+ipcMain.on('app:started', () => _bootGuard.started());
+ipcMain.handle('app:safe-mode', () => ({ ..._boot, snapshots: _bootGuard.snapshots().map(x => ({ name: x.name, label: x.label, at: x.at })) }));
+ipcMain.handle('app:restore-settings', (_e, name) => {
+  try { const r = _bootGuard.restoreSettings(String(name || '')); return { ok: true, name: r.name }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('app:diagnostics', () => {
   let update = null;
   try { update = require('./main/updates').state; } catch {}
@@ -764,6 +793,7 @@ ipcMain.handle('app:diagnostics', () => {
     startedAt: _diag.startedAt, uptimeMs: Date.now() - _diag.startedAt, marks: _diag.marks, events: _diag.events,
     extensionErrors: [..._extLoadErrors.entries()].map(([folder, error]) => ({ folder, error: String(error).slice(0, 200) })),
     update, remindersScheduled: scheduled, version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
+    safeMode: _boot.safeMode, bootFails: _boot.fails,
   };
 });
 
@@ -1495,6 +1525,9 @@ function _copyDirRecursive(src, dest) {
 }
 
 function _extEntries() {
+  // Safe mode exists for exactly this: an extension that breaks the browser
+  // cannot be removed from inside a browser that will not start.
+  if (_boot.safeMode) return [];
   if (!fs.existsSync(extensionsDir)) return [];
   return fs.readdirSync(extensionsDir, { withFileTypes: true })
     .filter(e => e.isDirectory())

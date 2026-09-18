@@ -350,6 +350,41 @@ const MemoryPanel = {
     return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : (m / 60).toFixed(1) + ' h ago';
   },
 
+  // How full browser storage is, and what is filling it.
+  //
+  // Vex keeps 60 kinds of thing there — notes, chats, agent runs, settings —
+  // and the cap is a few megabytes. Past it every write THROWS, and the sixty
+  // call sites each swallow it (js/storage.js now records that and saves to
+  // disk instead). This is the warning BEFORE that point, and it names the
+  // store to clear.
+  storageUse() {
+    const rows = [];
+    let total = 0;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        // The UTF-16 pair is what counts against the quota, key included.
+        const bytes = (key.length + (localStorage.getItem(key) || '').length) * 2;
+        total += bytes;
+        rows.push({ key, bytes });
+      }
+    } catch (err) { return { total: 0, rows: [], error: (err && err.message) || 'unreadable' }; }
+    rows.sort((x, y) => y.bytes - x.bytes);
+    return { total, rows, error: null };
+  },
+
+  STORAGE_CAP: 5 * 1024 * 1024,      // Chromium's per-origin localStorage cap
+  storageLines() {
+    const use = this.storageUse();
+    if (use.error) return ['Browser storage: could not be read — ' + use.error];
+    const mb = (n) => (n / (1024 * 1024)).toFixed(2) + ' MB';
+    const pct = Math.round(use.total / this.STORAGE_CAP * 100);
+    const big = use.rows.filter(r => r.bytes > 50 * 1024).slice(0, 5);
+    const out = [`Browser storage: ${mb(use.total)} of about ${mb(this.STORAGE_CAP)} used (${pct}%)${pct >= 80 ? ' — nearly full' : ''}`];
+    for (const r of big) out.push(`  ${r.key} — ${mb(r.bytes)}`);
+    return out;
+  },
+
   healthLines(d) {
     const lines = [];
     const up = Math.round((d.uptimeMs || 0) / 60000);
@@ -365,6 +400,14 @@ const MemoryPanel = {
     if (d.update && d.update.result) lines.push(`Updater: ${d.update.result}${d.update.version ? ' ' + d.update.version : ''}${d.update.error ? ' — ' + d.update.error : ''} (${this._fmtAgo(Date.now() - d.update.lastCheckAt)})`);
     else lines.push('Updater: no check yet this session');
     if (d.remindersScheduled != null) lines.push(`Reminders scheduled in Windows: ${d.remindersScheduled}`);
+    for (const l of this.storageLines()) lines.push(l);
+    // Things that failed quietly (js/problems.js). Without this they reached
+    // the DevTools console and nowhere else.
+    if (typeof VexProblems !== 'undefined') {
+      const n = VexProblems.count();
+      lines.push(n ? `${n} quiet problem${n === 1 ? '' : 's'} — things that failed without saying so:` : 'Nothing has failed quietly.');
+      for (const l of VexProblems.lines(12)) lines.push('  ' + l);
+    }
     return lines;
   },
 
@@ -376,8 +419,17 @@ const MemoryPanel = {
     try { d = await window.vex.diagnostics(); }
     catch (err) { host.innerHTML = `<div class="memory-proc-detail">Could not read health: ${this._esc(err && err.message)}</div>`; return null; }
     const lines = this.healthLines(d);
-    const bad = (d.events && d.events.length) || (d.extensionErrors && d.extensionErrors.length) || (d.update && d.update.error);
+    const problems = (typeof VexProblems !== 'undefined') ? VexProblems.count() : 0;
+    const bad = (d.events && d.events.length) || (d.extensionErrors && d.extensionErrors.length) || (d.update && d.update.error) || problems;
     host.innerHTML = `<div class="memory-health${bad ? ' bad' : ''}">${lines.map(l => `<div class="memory-health-line${/^  /.test(l) ? ' sub' : ''}">${this._esc(l.trim())}</div>`).join('')}</div>`;
+    if (problems) {
+      const clear = document.createElement('button');
+      clear.className = 'memory-clear-problems';
+      clear.id = 'memory-clear-problems';
+      clear.textContent = 'Clear the problem list';
+      clear.addEventListener('click', () => { VexProblems.clear(); this.renderDiagnostics(); });
+      host.appendChild(clear);
+    }
     this._lastHealth = lines.join('\n');
     return d;
   },

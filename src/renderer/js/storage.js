@@ -123,11 +123,39 @@ const _storageOriginals = _storageMethods[_storageOriginalsKey] || {
 if (!_storageMethods[_storageOriginalsKey]) {
   Object.defineProperty(_storageMethods, _storageOriginalsKey, { value: _storageOriginals });
 }
+let _reportingQuota = false;
 const _origSetItem = _storageOriginals.setItem;
 const _origRemoveItem = _storageOriginals.removeItem;
 _storageMethods.setItem = function (key, value) {
-  _origSetItem.call(this, key, value);
+  // localStorage has a hard size cap, and a write past it THROWS. Sixty call
+  // sites across Vex write through here inside a try/catch that says nothing,
+  // so a full store meant notes, chats and settings quietly failing to save.
+  // Now it is recorded, said once, and the value still goes to the file store,
+  // which has no such cap — so nothing is lost even when the cap is reached.
+  let quota = null;
+  try { _origSetItem.call(this, key, value); }
+  catch (err) { quota = err; }
   key = String(key);
+  if (quota) {
+    const mirrored = this === localStorage && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'));
+    // Recording the problem WRITES it, which lands back here and fails again —
+    // a runaway loop at exactly the worst moment. The log about the full store
+    // never reports itself, and a failure while reporting is dropped.
+    const reportable = key !== 'vex.problems' && !_reportingQuota;
+    if (reportable) {
+      _reportingQuota = true;
+      try {
+        if (typeof VexProblems !== 'undefined') VexProblems.note('Storage', `Browser storage is full — "${key}" was ` + (mirrored ? 'saved to disk only' : 'not saved'), quota.message);
+        if (!window.__vexQuotaToldAt || Date.now() - window.__vexQuotaToldAt > 10 * 60000) {
+          window.__vexQuotaToldAt = Date.now();
+          window.showToast?.('Browser storage is full. Vex is saving to disk instead — see Memory panel › Health.', 'error');
+        }
+      } finally { _reportingQuota = false; }
+    }
+    if (!mirrored) throw quota;                        // not ours to rescue
+    PersistentStorage._enqueue('set', key, typeof value === 'string' ? value : String(value));
+    return;
+  }
   if (this === localStorage && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'))) {
     PersistentStorage._enqueue('set', key, this.getItem(key));
   }

@@ -853,6 +853,9 @@
   // Site permission prompts (geolocation, mic, camera, notifications, etc.)
   if (typeof PermissionPrompts !== 'undefined') PermissionPrompts.init();
 
+  // Safe mode says why this launch is stripped down (js/safe-mode-banner.js).
+  if (typeof SafeModeBanner !== 'undefined') SafeModeBanner.init();
+
   // WebHID device chooser (navigator.hid.requestDevice)
   if (typeof HidPicker !== 'undefined') HidPicker.init();
 
@@ -1459,4 +1462,10 @@
   }
 
   window.showToast = showToast;
+
+  // The interface is up. Everything above ran without throwing, so this launch
+  // counts as a good one — and the next failed start begins from zero rather
+  // than tipping Vex into safe mode. A startup that throws never reaches here,
+  // which is the whole point (src/main/safe-mode.js).
+  try { window.vex?.started?.(); } catch (err) { VexProblems?.note('Startup', 'Could not report that the interface started', err); }
 })();

@@ -98,8 +98,8 @@
       try { sent = window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); }
       catch (err) { sent = Promise.reject(err); }
       Promise.resolve(sent)
-        .then((r) => { if (sourceId && r && r.ok === false) window.showToast?.(r.error || 'The share could not start — try again', 'error'); })
-        .catch((err) => window.showToast?.('The share could not start: ' + ((err && err.message) || ''), 'error'));
+        .then((r) => { if (sourceId && r && r.ok === false) { window.showToast?.(r.error || 'The share could not start — try again', 'error'); VexProblems?.note('Screen share', 'The share was refused', r.error); } })
+        .catch((err) => { window.showToast?.('The share could not start: ' + ((err && err.message) || ''), 'error'); VexProblems?.note('Screen share', 'The share could not start', err); });
       ov.remove();
     };
 

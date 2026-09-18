@@ -108,7 +108,7 @@ const AIRouter = (() => {
     if (Date.now() - _ollamaStartAt < 60000) return false;
     _ollamaStartAt = Date.now();
     const r = await window.vex.ollamaEnsure();
-    if (r && r.error) console.warn('[AIRouter] ' + r.error);
+    if (r && r.error) { console.warn('[AIRouter] ' + r.error); if (typeof VexProblems !== 'undefined') VexProblems.note('Local AI', 'Ollama could not be started', r.error); }
     return pingOllama();
   }
 
@@ -202,6 +202,7 @@ const AIRouter = (() => {
       // Stopped by the user: that is not a failure to fall back from.
       if (request && request.signal && request.signal.aborted) throw err;
       console.warn(`[AIRouter] ${primary} failed for ${feature}:`, err.message);
+      if (typeof VexProblems !== 'undefined') VexProblems.note('AI', `${primary} failed for "${feature}"`, err.message);
 
       // Respect explicit user intent: if user picked "Prefer local" or feature=local,
       // don't silently fall back to cloud — that's the whole point of the mode.

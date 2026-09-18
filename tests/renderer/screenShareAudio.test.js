@@ -78,7 +78,8 @@ describe('the pick main hands to Chromium', () => {
 
   it('a pick main refuses is said out loud, not thrown away', () => {
     expect(picker).not.toContain("try { window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); } catch {}");
-    expect(picker).toMatch(/r\.ok === false\) window\.showToast\?\.\(r\.error/);
+    expect(picker).toMatch(/r\.ok === false\) \{ window\.showToast\?\.\(r\.error/);
+    expect(picker).toMatch(/VexProblems\?\.note\('Screen share'/);      // and it reaches the quiet-problems log
     expect(main).toContain("error: 'That share request has expired — start the share again'");
   });
 });

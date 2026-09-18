@@ -1002,3 +1002,23 @@ body.private-mode #vex-logo::after {
   border: 1px solid var(--vex-border-medium); background: transparent; color: inherit;
 }
 .tab-mem-banner .tmb-reload { background: var(--vex-accent); color: #fff; border-color: transparent; }
+
+/* Safe mode — why this launch left things out */
+.safe-mode-banner {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 9999;
+  display: flex; align-items: center; gap: 16px; max-width: min(760px, 94vw);
+  padding: 12px 16px; border-radius: 12px;
+  background: var(--vex-glass-panel, var(--surface)); border: 1px solid var(--warning, #f59e0b);
+  box-shadow: 0 10px 30px var(--vex-shadow-color, rgba(0,0,0,0.35));
+  font-family: 'Outfit', sans-serif;
+}
+.smb-text { display: flex; flex-direction: column; gap: 3px; }
+.smb-text strong { color: var(--warning, #f59e0b); font-size: 13px; }
+.smb-text span { color: var(--vex-text-secondary, var(--text-muted)); font-size: 12px; line-height: 1.45; }
+.smb-actions { display: flex; gap: 8px; flex: none; }
+.smb-btn {
+  font: inherit; font-size: 12px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  background: transparent; color: var(--vex-text-secondary, var(--text-muted)); border: 1px solid var(--vex-border-subtle, var(--border));
+}
+.smb-btn:hover { color: var(--vex-text-primary, var(--text)); background: var(--vex-hover-fill, var(--bg)); }
+.smb-primary { border-color: var(--primary); color: var(--primary); }

@@ -39,12 +39,18 @@ child.stderr.on('data', onData);
 
 const timer = setTimeout(() => finish(false, 'harness timeout (no SMOKE line in 60s)'), 60000);
 
-function cleanup() {
-  try { child.kill('SIGKILL'); } catch {}
-  // Vex's child processes hold the profile for a moment after the kill; one
-  // attempt always lost that race and left the folder (85 of them) in Temp.
-  try { fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); }
-  catch (err) { console.warn('could not remove ' + userDataDir + ': ' + err.message); }
+// Kill the app, wait for it to really be gone, then drop its profile.
+// Removing it the instant after the kill lost the race with Vex's exiting
+// child processes every time (EPERM), and left the folder in Temp for good —
+// 85 of them had piled up.
+async function cleanup() {
+  const dead = new Promise(r => { if (child.exitCode !== null || child.signalCode) return r(); child.once('exit', r); setTimeout(r, 4000); });
+  try { if (process.platform === 'win32') require('child_process').spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore', windowsHide: true }); else child.kill('SIGKILL'); } catch {}
+  await dead;
+  for (let i = 0; i < 12; i++) {
+    try { fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); return; }
+    catch (err) { if (i === 11) { console.warn('could not remove ' + userDataDir + ': ' + err.message); return; } await new Promise(r => setTimeout(r, 500)); }
+  }
 }
 
 function finish(ok, detail) {
@@ -56,8 +62,7 @@ function finish(ok, detail) {
     const tail = buf.split('\n').slice(-25).join('\n');
     console.log('--- last output ---\n' + tail);
   }
-  cleanup();
-  process.exit(ok ? 0 : 1);
+  cleanup().then(() => process.exit(ok ? 0 : 1));
 }
 
 child.on('exit', (code) => {

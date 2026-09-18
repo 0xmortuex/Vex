@@ -118,3 +118,15 @@
 .memory-health { font-size: 12px; line-height: 1.5; color: var(--vex-text-secondary); }
 .memory-health-line.sub { padding-left: 14px; color: var(--vex-text-muted); font-family: var(--vex-font-mono); font-size: 11px; }
 .memory-health.bad .memory-health-line.sub { color: var(--vex-danger); }
+
+/* Health: clearing the quiet-problems list */
+.memory-clear-problems {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: var(--vex-glass-input);
+  border: 1px solid var(--vex-border-subtle);
+  border-radius: var(--vex-radius-sm);
+  color: var(--vex-text-secondary); cursor: pointer;
+  font-family: 'Outfit', sans-serif; font-size: 12px; transition: all 0.15s ease;
+}
+.memory-clear-problems:hover { background: var(--vex-accent-dim); color: var(--vex-accent); border-color: var(--vex-border-accent); }

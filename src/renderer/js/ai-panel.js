@@ -847,7 +847,11 @@ const AIPanel = {
         }));
       }
       localStorage.setItem(this.CONV_KEY, JSON.stringify(out));
-    } catch {}
+    } catch (err) {
+      // A chat that cannot be saved is gone the moment the panel redraws, and
+      // this catch used to be the end of it.
+      if (typeof VexProblems !== 'undefined') VexProblems.note('AI chat', 'This conversation could not be saved', err);
+    }
   },
 
   _updateTabIndicator() {
