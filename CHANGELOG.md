@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.99 (2026-09-19) — The update prompt stops nagging
+
+### Notes
+- **"Later" now means a day, not until the next launch.** Vex ships several times a day, so the update popup came back every single time it started — and a relentless popup is one that gets clicked away without being read. (The Discord memory notice had exactly this problem, fixed the same way in v2.31.82.)
+- **"Skip this one"** never mentions that particular version again, while the next one still gets through.
+
 ## v2.31.98 (2026-09-19) — A box over everything, for the thought you would otherwise lose
 
 ### Notes
