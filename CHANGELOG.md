@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.31.93 (2026-09-18) — Mute Discord from inside a game, blur your codes while streaming, and split your sound between devices
+
+### Notes
+- **Discord hotkeys that work from inside a fullscreen game.** Muting yourself meant alt-tabbing out, finding Vex, finding the panel and clicking — by which time the moment had gone. Vex now takes system-wide hotkeys for *mute*, *deafen* and *leave the call*, and presses Discord's own buttons in the panel. Set them in Settings › Privacy › Gaming and streaming by pressing the keys you want. Each is off until you set it, because a global hotkey takes that combination away from every other program — including the game — and one that another program already holds is reported rather than silently dead. No push-to-talk: that needs the key *release*, which Electron's global shortcuts do not report, and a half-working one is worse than none.
+- **Streamer mode.** Vex holds your one-time codes, your saved passwords and notifications that quote messages — and it sits on the same screen you share. While something is being captured, those are blurred; hover one to read it, and copying still copies the real value. It says so when it turns on, so a blurred code is never a mystery. *While something is being captured* by default, or always on, or off.
+- **Send one site to your headphones and another to the speakers.** Windows gives a whole program one output device, so a browser plays everything through the same place: a Discord call and a music tab could not be split without moving the whole browser, which moves the game's sound with it. Shift-click a tab's sound icon to choose where that site plays. The choice is remembered per site, applies to every open tab at once without a reload, and follows panels too. Windows will not name your outputs until something has had microphone permission once — Vex asks only if you press *Show my devices*, and opens and closes the microphone in the same moment.
+
 ## v2.31.92 (2026-09-18) — The agent can read your own notes, stays on the site you pointed it at, and checks its own work
 
 ### Notes
