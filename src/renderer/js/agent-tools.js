@@ -172,7 +172,7 @@ const AgentTools = {
     let hist = [];
     try { const a = JSON.parse(localStorage.getItem('vex.history') || '[]'); hist = Array.isArray(a) ? a : (a && Array.isArray(a.entries) ? a.entries : []); } catch { hist = []; }
     const words = q.split(/\s+/).filter(Boolean);
-    const hits = hist.filter(h => h && h.url).filter(h => { const hay = ((h.title || '') + ' ' + h.url + ' ' + (h.summary || '')).toLowerCase(); return words.every(w => hay.includes(w)); });
+    const hits = hist.filter(h => h && h.url).filter(h => this._hasWords((h.title || '') + ' ' + h.url + ' ' + (h.summary || ''), words));
     return hits.slice(0, Math.max(1, Math.min(Number(limit) || 10, 25))).map(h => ({ title: h.title || h.url, url: h.url, visited: h.time ? new Date(h.time).toLocaleString() : '' }));
   },
 
@@ -189,6 +189,79 @@ const AgentTools = {
     TabManager.rebuildAllTabs();
     TabManager.persistTabs();
     return { id, name: clean, tabs: ids.length };
+  },
+
+  // Seen live: the agent searched its own notes for "monitors" and found
+  // nothing, because the note says "Monitor" — it then repeated the same
+  // search, tripped the loop detector, and recovered two steps later. Words
+  // match across a plural either way; nothing more clever than that.
+  _hasWords(hay, words) {
+    const text = String(hay || '').toLowerCase();
+    return words.every(w => text.includes(w)
+      || (w.endsWith('s') && w.length > 3 && text.includes(w.slice(0, -1)))
+      || text.includes(w + 's'));
+  },
+
+  // --------------------------------------------- what the user already kept --
+  //
+  // The agent could WRITE a note and never read one, so "what did I note about
+  // the monitors?" or "add this to my shopping note" simply failed. These are
+  // read-only and stay inside Vex: nothing here reaches a page or the network.
+  searchNotes(query, limit) {
+    let notes = [];
+    try { const a = JSON.parse(localStorage.getItem('vex.notes') || '[]'); notes = Array.isArray(a) ? a : []; } catch { notes = []; }
+    const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const hits = words.length
+      ? notes.filter(n => this._hasWords((n.title || '') + ' ' + (n.content || '') + ' ' + (n.tags || []).join(' '), words))
+      : notes.slice();
+    return hits.slice(0, Math.max(1, Math.min(Number(limit) || 8, 20))).map(n => ({
+      id: n.id, title: n.title || 'Untitled', tags: n.tags || [],
+      updated: n.updatedAt ? new Date(n.updatedAt).toLocaleString() : '',
+      preview: String(n.content || '').slice(0, 300),
+    }));
+  },
+
+  readNote(id) {
+    let notes = [];
+    try { const a = JSON.parse(localStorage.getItem('vex.notes') || '[]'); notes = Array.isArray(a) ? a : []; } catch { notes = []; }
+    const note = notes.find(n => n.id === id) || notes.find(n => (n.title || '').toLowerCase() === String(id || '').toLowerCase());
+    if (!note) throw new Error('No note with that id or title — search_notes gives the ids');
+    return { id: note.id, title: note.title || 'Untitled', content: String(note.content || '').slice(0, this.MAX_TEXT), tags: note.tags || [], sourceUrl: note.sourceUrl || '' };
+  },
+
+  // Adds to the end of a note that already exists — "put this on my list".
+  appendNote(id, text) {
+    const body = String(text || '').trim();
+    if (!body) throw new Error('There is nothing to add');
+    let notes = [];
+    try { const a = JSON.parse(localStorage.getItem('vex.notes') || '[]'); notes = Array.isArray(a) ? a : []; } catch { notes = []; }
+    const note = notes.find(n => n.id === id) || notes.find(n => (n.title || '').toLowerCase() === String(id || '').toLowerCase());
+    if (!note) throw new Error('No note with that id or title — search_notes gives the ids');
+    note.content = (note.content ? note.content.replace(/\s+$/, '') + '\n' : '') + body;
+    note.updatedAt = new Date().toISOString();
+    localStorage.setItem('vex.notes', JSON.stringify(notes));
+    try { if (typeof NotesPanel !== 'undefined' && NotesPanel.reloadSyncedState) NotesPanel.reloadSyncedState(); } catch {}
+    return { id: note.id, title: note.title || 'Untitled', added: body.length };
+  },
+
+  searchBookmarks(query, limit) {
+    if (typeof Bookmarks === 'undefined' || !Array.isArray(Bookmarks.items)) throw new Error('Bookmarks are not available');
+    const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const hits = words.length
+      ? Bookmarks.items.filter(b => this._hasWords((b.title || '') + ' ' + b.url + ' ' + (b.folder || ''), words))
+      : Bookmarks.items.slice();
+    return hits.slice(0, Math.max(1, Math.min(Number(limit) || 10, 25))).map(b => ({ title: b.title || b.url, url: b.url, folder: b.folder || '' }));
+  },
+
+  async listReminders() {
+    const bridge = window.vex && window.vex.reminders;
+    if (!bridge) throw new Error('Reminders are not available');
+    const all = await bridge.list();
+    return all.filter(r => !r.firedAt).slice(0, 25).map(r => ({
+      id: r.id, message: r.message, kind: r.kind || 'reminder',
+      when: r.site ? 'next visit to ' + r.site : (r.at ? new Date(r.at).toLocaleString() : 'unknown'),
+      repeats: Array.isArray(r.repeat) ? r.repeat.length + ' days a week' : (r.repeat || 'once'),
+    }));
   },
 
   // ------------------------------------------------ Vex's clock and commands --

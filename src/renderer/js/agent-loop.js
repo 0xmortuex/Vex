@@ -45,6 +45,13 @@ const AGENT_TOOLS = [
   { name: 'create_reminder', description: 'Set a reminder. "when" is plain words: "tomorrow 9am", "in 2 hours", "friday 17:00", "when on github.com"', parameters: { message: 'string', when: 'string' } },
   { name: 'add_bookmark', description: 'Bookmark a page (the current tab when no url is given)', parameters: { url: 'string (optional)', title: 'string (optional)' } },
   { name: 'search_history', description: "Search the user's browsing history by words in the title, address or summary", parameters: { query: 'string', limit: 'number (optional)' } },
+  // What the user already kept. Without these the agent could write a note and
+  // never read one, so "what did I note about X" and "add this to my list" failed.
+  { name: 'search_notes', description: "Search the user's own notes. Use it before answering anything about what they have written down, saved or planned", parameters: { query: 'string', limit: 'number (optional)' } },
+  { name: 'read_note', description: 'Read one note in full. The id comes from search_notes; a title works too', parameters: { id: 'string' } },
+  { name: 'append_note', description: 'Add lines to the end of a note that already exists — a shopping list, a running log. Use save_note for a new one', parameters: { id: 'string', text: 'string' } },
+  { name: 'search_bookmarks', description: "Search the user's bookmarks by title, address or folder", parameters: { query: 'string', limit: 'number (optional)' } },
+  { name: 'list_reminders', description: 'The reminders and alarms that have not fired yet', parameters: {} },
   // ---- Vex's own clock, and everything else Vex does by itself ----
   { name: 'start_timer', description: "Start a countdown timer in Vex's own Clock — it shows in the toolbar and rings when done. NEVER open a timer website. duration is plain words: '20 min', '1h 30', '90s', '10:00'", parameters: { duration: 'string', label: 'string (optional)' } },
   { name: 'list_timers', description: 'The timers running in Vex: id, label, time left', parameters: {} },
@@ -54,11 +61,12 @@ const AGENT_TOOLS = [
   // ---- the conversation ----
   { name: 'plan', description: 'Show the user the numbered steps you intend to take. Required as your FIRST reply in plan mode', parameters: { steps: 'string[]' } },
   { name: 'finish', description: 'Task complete — the final answer, in Markdown. For research: the answer first, then what supports it with [1] markers, then a Sources list of the URLs you read', parameters: { summary: 'string' } },
-  { name: 'ask_user', description: 'Ask the user a question — only when you cannot continue without their choice', parameters: { question: 'string' } }
+  { name: 'ask_user', description: 'Ask the user a question — only when you cannot continue without their choice', parameters: { question: 'string' } },
+  { name: 'hand_over', description: 'Give the page back to the user for a moment: a sign-in, a password, a payment, a captcha, a "prove you are human" wall. They do that bit and press Continue, and you carry on from the page they leave. NEVER type a password or a card number yourself', parameters: { why: 'string' } }
 ];
 
 // Read-only: these run without asking in every permission mode.
-const SAFE_TOOLS = ['web_search', 'read_url', 'read_tab', 'search_history', 'extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'list_tab_groups', 'list_timers', 'vex_features', 'scroll', 'wait', 'search_in_page', 'plan'];
+const SAFE_TOOLS = ['web_search', 'read_url', 'read_tab', 'search_history', 'search_notes', 'read_note', 'search_bookmarks', 'list_reminders', 'extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'list_tab_groups', 'list_timers', 'vex_features', 'scroll', 'wait', 'search_in_page', 'plan'];
 
 // What the agent is told with every request. It rides in the conversation
 // history so it reaches the model through any backend — the cloud worker
@@ -74,6 +82,9 @@ function agentGuide(mode, now) {
     '- VEX itself needs no page: tabs (list_tabs, switch_tab, new_tab, close_tab, read_tab), tab groups (list_tab_groups, rename_tab_group, group_tabs), notes (save_note), reminders (create_reminder), bookmarks (add_bookmark), history (search_history).',
     "- VEX DOES IT ITSELF. Before you open a website for a utility, check whether Vex has it built in — it usually does. A timer is start_timer, never a timer website. An alarm, the stopwatch, a city's time, freeing memory: vex_command with the sentence ('alarm 7am weekdays'). Anything else about the browser — screenshots, reader mode, translating a page, split view, sessions, downloads, themes, passwords: call vex_features with a few words, then vex_command with the command id it returns. Tell the user where the result lives ('the timer is in the toolbar').",
     '- When the words on a page do not explain it, call screenshot to look at it.',
+    "- THE USER'S OWN THINGS: search_notes, read_note, append_note, search_bookmarks, list_reminders, search_history. Anything about what they wrote down, saved or planned starts there, not on the web.",
+    '- NEVER type a password, a card number or a one-time code, and never work around a "prove you are human" wall. At a sign-in, a payment or a captcha, call hand_over with a short reason: the user does that part and you carry on.',
+    '- You may act on the site the user asked about. Before you click or type on a DIFFERENT site, say so in your thought — Vex asks them first.',
     digest ? '- WHAT VEX HAS BUILT IN (vex_features gives the details and the command ids) — ' + digest : '',
     '- Mark intent "risky" for anything that buys, pays, sends, posts, deletes, or submits personal data.',
     '- When a tool fails, read its error: it says what to do next. Never repeat a failing call unchanged.',
@@ -89,6 +100,9 @@ function agentGuide(mode, now) {
 // Words that mean "this cannot be undone or costs money" — asked about even in
 // auto-approve, whatever intent the model claimed.
 // A Vex command that wipes, resets or signs out is asked about even in auto-approve.
+// Acting on a page, as opposed to reading one. Only these are scoped to the
+// sites the run is allowed to touch.
+const PAGE_ACTIONS = ['click', 'click_text', 'type_text', 'press_key', 'select_option', 'navigate', 'new_tab'];
 const RISKY_COMMANDS = /\b(clear|delete|wipe|erase|reset|forget|burn|panic|sign ?out|log ?out|close all|uninstall|remove)\b/i;
 // What an unattended (scheduled) run is offered. AgentExecutor enforces the same list.
 const HEADLESS_TOOLS = ['navigate', 'go_back', 'go_forward', 'reload', 'scroll', 'extract_elements', 'extract_text', 'screenshot', 'wait', 'search_in_page', 'web_search', 'read_url', 'save_note', 'finish'];
@@ -207,6 +221,12 @@ const AgentLoop = {
     this._abort = new AbortController();
     this._pendingImage = null;
     this._slowSaid = false;
+    // Where this run may act without asking (see _offTask).
+    this._allowedSites = new Set();
+    this._currentSite = null;
+    for (const m of String(goal).matchAll(/https?:\/\/[^\s)"']+/g)) this._allowSite(m[0]);
+    for (const m of String(goal).matchAll(/\b([a-z0-9-]+\.(?:com|org|net|io|co\.uk|dev|app|gg|tv|edu|gov|de|fr|nl|se|tr))\b/gi)) { this._allowSite('https://' + m[1]); this._allowSite('https://www.' + m[1]); }
+    try { const wv = WebviewManager.getActiveWebview(); if (wv && wv.getURL) this._allowSite(wv.getURL()); } catch {}
     this._run = { id: (typeof vexId === 'function' ? vexId('run') : 'run_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), goal: String(goal), mode: this._mode, startedAt: Date.now(), steps: [], final: null, backend: null };
     toolCallHistory.reset();
     document.getElementById('ai-send')?.classList.add('running');
@@ -236,6 +256,7 @@ const AgentLoop = {
             pageContext = { url: dom.url, title: dom.title, elements: dom.elements, text: text?.text || '' };
           } catch {}
         }
+        this._currentSite = this._originOf(pageContext && pageContext.url);
 
         this._renderStep('thinking', 'Thinking... (step ' + iteration + ')', 'loading');
 
@@ -323,6 +344,18 @@ const AgentLoop = {
           if (!this._running) { this._renderStep('stopped', 'Stopped by you.', 'warn'); break; }
           this._planApproved = true;
           lastResult = { ok: true, result: 'The user approved the plan. Carry it out now, one tool call at a time.' };
+          this._history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
+          continue;
+        }
+
+        // A sign-in, a payment or a captcha: the user does that part.
+        if (decision.tool === 'hand_over') {
+          const why = String(decision.parameters?.why || 'This part needs you.');
+          const carryOn = await this._handOver(why);
+          if (!carryOn) { this._renderStep('stopped', 'Stopped — the agent was waiting for you.', 'warn'); break; }
+          // Whatever page they left it on is where it carries on.
+          try { const wv2 = WebviewManager.getActiveWebview(); if (wv2 && wv2.getURL) this._allowSite(wv2.getURL()); } catch {}
+          lastResult = { ok: true, result: 'The user did that part and handed the page back. Look at the page again before your next action.' };
           this._history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
           continue;
         }
@@ -471,9 +504,40 @@ const AgentLoop = {
   },
   isRunning() { return this._running; },
 
+  // The sites this run is allowed to act on without asking: wherever it
+  // started, plus anything the user named in the goal, plus anywhere they
+  // approved an action. A page can say anything, and an agent that follows a
+  // link into a site the user never mentioned and starts typing there is the
+  // real-world risk with agents — so that always asks, in every mode.
+  _originOf(url) { try { return new URL(String(url)).origin; } catch { return null; } },
+
+  _allowSite(url) { const o = this._originOf(url); if (o) this._allowedSites.add(o); return o; },
+
+  // The site an action would touch, when it is not the page in front.
+  _targetSite(decision) {
+    const p = decision.parameters || {};
+    if (decision.tool === 'navigate' || decision.tool === 'new_tab') return this._originOf(p.url);
+    return null;
+  },
+
+  _offTask(decision) {
+    if (!PAGE_ACTIONS.includes(decision.tool)) return null;
+    const target = this._targetSite(decision) || this._currentSite;
+    if (!target) return null;
+    return this._allowedSites.has(target) ? null : target;
+  },
+
   async _checkPermission(decision) {
     const intent = decision.intent || 'action';
     const isSafe = SAFE_TOOLS.includes(decision.tool);
+
+    // A page the user never asked for is asked about whatever the mode is.
+    const off = this._offTask(decision);
+    if (off && !isSafe) {
+      const ok = await this._confirmAction(decision, `This acts on ${off}, which you did not ask about. Allow it?`);
+      if (ok) this._allowedSites.add(off);
+      return ok;
+    }
 
     if (this._mode === 'auto') {
       if (intent !== 'risky' && !this._looksRisky(decision)) return true;
@@ -606,6 +670,29 @@ const AgentLoop = {
     container.scrollTop = container.scrollHeight;
   },
 
+
+  // "Your turn": the run waits, visibly, until the user says they are done.
+  _handOver(why) {
+    return new Promise(resolve => {
+      const container = document.getElementById('ai-messages');
+      if (!container) { resolve(false); return; }
+      const el = document.createElement('div');
+      el.className = 'ai-msg assistant';
+      el.innerHTML = '<div class="agent-card agent-handover"><div class="agent-plan-heading">Your turn</div><div class="agent-thought"></div>'
+        + '<div class="agent-btns"><button class="agent-approve">I have done it — carry on</button><button class="agent-deny">Stop here</button></div></div>';
+      el.querySelector('.agent-thought').textContent = why + ' Vex will not type passwords, card numbers or one-time codes, and will not work around a "prove you are human" check.';
+      container.appendChild(el);
+      container.scrollTop = container.scrollHeight;
+      const done = (ok) => {
+        el.querySelector('.agent-btns').innerHTML = ok
+          ? '<span style="color:var(--success,#22c55e);font-size:11px">Carrying on</span>'
+          : '<span style="color:var(--danger);font-size:11px">Stopped</span>';
+        resolve(ok);
+      };
+      el.querySelector('.agent-approve').addEventListener('click', () => done(true));
+      el.querySelector('.agent-deny').addEventListener('click', () => done(false));
+    });
+  },
 
   async _confirmRisky(decision) {
     if (typeof vexConfirm !== 'function') {
@@ -763,5 +850,5 @@ const AgentLoop = {
 // defined and we expose the pure helpers; the <script>-tag path leaves the
 // existing globals untouched.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parseAgentResponse, ToolCallHistory, AgentLoop, AGENT_TOOLS, SAFE_TOOLS, HEADLESS_TOOLS, agentGuide };
+  module.exports = { parseAgentResponse, ToolCallHistory, AgentLoop, AGENT_TOOLS, SAFE_TOOLS, HEADLESS_TOOLS, PAGE_ACTIONS, agentGuide };
 }

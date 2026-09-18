@@ -237,7 +237,10 @@ const AgentExecutor = {
 
         case 'group_tabs': {
           const made = AgentTools.groupTabs(params.name, params.tabIds, params.color);
-          return { ok: true, result: 'Created group "' + made.name + '" with ' + made.tabs + ' tab' + (made.tabs === 1 ? '' : 's') };
+          const real = (TabManager.groups || []).find(g => g.id === made.id);
+          const count = TabManager.tabs.filter(t => t.groupId === made.id).length;
+          if (!real || !count) return { ok: false, error: 'The group was not created' };
+          return { ok: true, result: 'Created and verified group "' + real.name + '" with ' + count + ' tab' + (count === 1 ? '' : 's') };
         }
 
         case 'switch_tab':
@@ -252,9 +255,14 @@ const AgentExecutor = {
           return { ok: true, result: await AgentTools.readUrl(params.url) };
 
         // ---- Vex's own features ------------------------------------------
+        // Everything below CHANGES something, and the model has claimed success
+        // for a call that failed. So each one reads the result back before
+        // saying it is done.
         case 'save_note': {
           const note = AgentTools.saveNote(params.title, params.content, params.sourceUrl);
-          return { ok: true, result: 'Saved the note "' + (note.title || 'Untitled') + '" (Notes panel)' };
+          const back = AgentTools.searchNotes(note.title).some(n => n.id === note.id);
+          if (!back) return { ok: false, error: 'The note did not save — check Memory panel › Health for the reason' };
+          return { ok: true, result: 'Saved and verified the note "' + (note.title || 'Untitled') + '" (Notes panel)' };
         }
 
         case 'create_reminder': {
@@ -265,15 +273,35 @@ const AgentExecutor = {
         case 'add_bookmark': {
           const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
           const made = AgentTools.addBookmark(params.url || (tab && tab.url), params.title || (tab && tab.title));
-          return { ok: true, result: made.already ? 'Already bookmarked: ' + made.url : 'Bookmarked ' + made.url };
+          if (typeof Bookmarks !== 'undefined' && !Bookmarks.has(made.url)) return { ok: false, error: 'The bookmark did not save' };
+          return { ok: true, result: made.already ? 'Already bookmarked: ' + made.url : 'Bookmarked and verified ' + made.url };
         }
+
+        case 'search_notes':
+          return { ok: true, result: AgentTools.searchNotes(params.query, params.limit) };
+
+        case 'read_note':
+          return { ok: true, result: AgentTools.readNote(params.id) };
+
+        case 'append_note': {
+          const added = AgentTools.appendNote(params.id, params.text);
+          return { ok: true, result: 'Added ' + added.added + ' characters to "' + added.title + '"' };
+        }
+
+        case 'search_bookmarks':
+          return { ok: true, result: AgentTools.searchBookmarks(params.query, params.limit) };
+
+        case 'list_reminders':
+          return { ok: true, result: await AgentTools.listReminders() };
 
         case 'search_history':
           return { ok: true, result: AgentTools.searchHistory(params.query, params.limit) };
 
         case 'start_timer': {
           const t = await AgentTools.startTimer(params.duration, params.label);
-          return { ok: true, result: 'Started a ' + t.length + ' timer "' + t.label + '" in Vex — it rings at ' + t.endsAt + ' (id ' + t.id + ')' };
+          const live = AgentTools.listTimers().find(x => x.id === t.id);
+          if (!live) return { ok: false, error: 'The timer did not start' };
+          return { ok: true, result: 'Started a ' + t.length + ' timer "' + t.label + '" in Vex — it rings at ' + t.endsAt + ', ' + live.left + ' left (id ' + t.id + ')' };
         }
 
         case 'list_timers':
@@ -321,6 +349,9 @@ const AgentExecutor = {
 
         case 'finish':
           return { ok: true, result: { finished: true, summary: params.summary } };
+
+        case 'hand_over':
+          return { ok: true, result: { handOver: true, why: String(params.why || 'This needs you.') } };
 
         case 'ask_user':
           return { ok: true, result: { askingUser: true, question: params.question } };
