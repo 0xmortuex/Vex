@@ -692,6 +692,22 @@ const AIPanel = {
           });
           b.appendChild(undo);
         }
+        // A run that worked is a recipe: keep it and repeat it without the AI.
+        if ((run.calls || []).length && typeof AgentLoop.saveAsMacro === 'function') {
+          const keep = document.createElement('button');
+          keep.className = 'ai-history-undo';
+          keep.textContent = 'Save as a task';
+          keep.title = 'Repeat these ' + run.calls.length + ' steps later without asking the AI';
+          keep.addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            const name = await vexPrompt({ title: 'Name this task', message: 'You will run it from Ctrl+K. It repeats the same steps, with no AI.', value: String(run.goal || '').slice(0, 60), okLabel: 'Save' });
+            if (name == null) return;
+            try { AgentLoop.saveAsMacro(run.id, name); window.showToast?.('Saved — Ctrl+K → Repeat a task'); }
+            catch (err) { window.showToast?.((err && err.message) || 'Could not save it', 'error'); }
+            this._renderHistory();
+          });
+          b.appendChild(keep);
+        }
         b.addEventListener('click', () => {
           if (AgentLoop.isRunning()) { window.showToast?.('The agent is running — stop it first'); return; }
           this.toggleHistory(false);

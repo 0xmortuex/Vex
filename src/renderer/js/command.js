@@ -195,6 +195,21 @@ const CommandBar = {
     { id: 'compare-tabs', label: 'Compare Tabs', hint: 'AI compares all open tabs', icon: 'scale', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Compare these tabs side-by-side.',TabManager.tabs); } },
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
     { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
+    { id: 'repeat', label: 'Repeat a task', hint: 'Run a saved agent task again — the same steps, no AI, no waiting', icon: 'refresh', isPrimary: true, action: async () => {
+      if (typeof AgentLoop === 'undefined' || typeof AgentLoop.macros !== 'function') { window.showToast?.('Not available in this build', 'error'); return; }
+      const list = AgentLoop.macros();
+      if (!list.length) { window.showToast?.('No saved tasks yet — run something as an agent, then "Save as a task" in the AI history'); return; }
+      const pick = await vexPrompt({
+        title: 'Repeat a task',
+        message: list.map((m, i) => (i + 1) + '. ' + m.name + ' (' + m.calls.length + ' steps' + (m.runs ? ', run ' + m.runs + ' times' : '') + ')').join('\n'),
+        value: '1', okLabel: 'Run it',
+      });
+      const chosen = list[parseInt(pick, 10) - 1];
+      if (!chosen) return;
+      if (typeof AIPanel !== 'undefined' && !AIPanel.isOpen()) AIPanel.toggle();
+      try { await AgentLoop.runMacro(chosen.id); }
+      catch (err) { window.showToast?.((err && err.message) || 'Could not run it', 'error'); }
+    } },
     { id: 'watchpage', label: 'Tell me when this page changes', hint: 'Vex checks it quietly and says when it is different — a price, a date, a build', icon: 'alarm', isPrimary: true, action: async () => {
       if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
       const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);

@@ -227,7 +227,7 @@ const AgentLoop = {
     for (const m of String(goal).matchAll(/https?:\/\/[^\s)"']+/g)) this._allowSite(m[0]);
     for (const m of String(goal).matchAll(/\b([a-z0-9-]+\.(?:com|org|net|io|co\.uk|dev|app|gg|tv|edu|gov|de|fr|nl|se|tr))\b/gi)) { this._allowSite('https://' + m[1]); this._allowSite('https://www.' + m[1]); }
     try { const wv = WebviewManager.getActiveWebview(); if (wv && wv.getURL) this._allowSite(wv.getURL()); } catch {}
-    this._run = { id: (typeof vexId === 'function' ? vexId('run') : 'run_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), goal: String(goal), mode: this._mode, startedAt: Date.now(), steps: [], final: null, backend: null, undo: [] };
+    this._run = { id: (typeof vexId === 'function' ? vexId('run') : 'run_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), goal: String(goal), mode: this._mode, startedAt: Date.now(), steps: [], final: null, backend: null, undo: [], calls: [] };
     toolCallHistory.reset();
     document.getElementById('ai-send')?.classList.add('running');
 
@@ -392,6 +392,10 @@ const AgentLoop = {
 
         // Execute
         this._renderStep('action', `${decision.thought || ''}\n→ ${decision.tool}(${JSON.stringify(decision.parameters || {})})`, 'action');
+        // Kept so the same run can be repeated without asking a model again
+        // (saveAsMacro): a task that worked should not cost thirty seconds and
+        // a model load every time.
+        if (this._run) this._run.calls.push({ tool: decision.tool, parameters: decision.parameters || {} });
         lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {});
         // A screenshot goes to the model as an image, once — never into the text.
         if (lastResult && lastResult.image) { this._pendingImage = lastResult.image; delete lastResult.image; }
@@ -532,6 +536,97 @@ const AgentLoop = {
       return;
     }
     throw new Error('nothing here knows how to undo a ' + item.kind);
+  },
+
+  // ---- macros --------------------------------------------------------------
+  //
+  // A run that worked is a recipe. Doing it again through the model costs
+  // thirty seconds, a model load, and a slightly different answer each time —
+  // when what the user wants is the same six steps. A macro is those steps,
+  // replayed directly, under the same permission rules as the agent itself.
+  //
+  // It is deliberately NOT clever: if a step fails it stops and says which one,
+  // rather than improvising against a page that is no longer the one recorded.
+  // A macro that half-works in silence would be worse than no macro.
+  MACROS_KEY: 'vex.agentMacros',
+  macros() { try { const a = JSON.parse(localStorage.getItem(this.MACROS_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
+
+  saveAsMacro(runId, name) {
+    const run = this.runs().find(r => r.id === runId);
+    if (!run) throw new Error('That run is no longer saved');
+    const calls = (run.calls || []).filter(c => c && c.tool && !['finish', 'ask_user', 'plan', 'hand_over'].includes(c.tool));
+    if (!calls.length) throw new Error('That run did nothing that can be repeated');
+    const macro = {
+      id: (typeof vexId === 'function' ? vexId('macro') : 'macro_' + Date.now().toString(36)),
+      name: String(name || run.goal).slice(0, 80),
+      goal: run.goal, calls, madeAt: Date.now(), runs: 0, lastRunAt: 0,
+    };
+    const list = [macro, ...this.macros()].slice(0, 40);
+    try { localStorage.setItem(this.MACROS_KEY, JSON.stringify(list)); }
+    catch (err) { throw new Error('The macro could not be saved: ' + ((err && err.message) || '')); }
+    return macro;
+  },
+
+  deleteMacro(id) {
+    try { localStorage.setItem(this.MACROS_KEY, JSON.stringify(this.macros().filter(m => m.id !== id))); }
+    catch (err) { VexProblems?.note('Agent', 'Could not remove the macro', err); }
+  },
+
+  // Replay one. → { done, failed } — `failed` names the step and why it stopped.
+  async runMacro(id, mode) {
+    if (this._running) { window.showToast?.('The agent is running — stop it first'); return null; }
+    const macro = this.macros().find(m => m.id === id);
+    if (!macro) throw new Error('That macro is gone');
+    this._running = true;
+    this._mode = mode || this._mode || 'ask';
+    // The same site rules as a real run: a recorded step that acts somewhere
+    // the user did not point it is still asked about.
+    this._allowedSites = new Set();
+    this._currentSite = null;
+    try { const wv = WebviewManager.getActiveWebview(); if (wv && wv.getURL) this._allowSite(wv.getURL()); } catch {}
+    for (const m of String(macro.goal || '').matchAll(/https?:\/\/[^\s)"']+/g)) this._allowSite(m[0]);
+    document.getElementById('ai-send')?.classList.add('running');
+    this._renderStep('agent-start', 'Repeating: ' + macro.name + ' (' + macro.calls.length + ' steps, no AI)', 'info');
+
+    const done = [];
+    let failed = null;
+    for (const call of macro.calls) {
+      if (!this._running) { failed = { tool: call.tool, error: 'Stopped by you' }; break; }
+      const decision = {
+        tool: call.tool,
+        parameters: call.parameters,
+        intent: SAFE_TOOLS.includes(call.tool) ? 'safe' : 'action',
+        thought: 'Repeating a saved task',
+      };
+      try { this._currentSite = this._originOf((WebviewManager.getActiveWebview() || {}).getURL?.()); } catch {}
+      const allowed = await this._checkPermission(decision);
+      if (!allowed) { failed = { tool: call.tool, error: 'You did not allow it' }; break; }
+      this._renderStep('action', '→ ' + call.tool + '(' + JSON.stringify(call.parameters) + ')', 'action');
+      let result;
+      try { result = await AgentExecutor.executeTool(call.tool, call.parameters || {}); }
+      catch (err) { result = { ok: false, error: (err && err.message) || 'it threw' }; }
+      if (result && result.undo) { (this._macroUndo = this._macroUndo || []).push(result.undo); delete result.undo; }
+      if (!result || !result.ok) {
+        failed = { tool: call.tool, error: (result && result.error) || 'failed' };
+        break;
+      }
+      done.push(call.tool);
+      this._renderStep('result', this._describeResult(call.tool, result.result), 'success');
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    if (failed) {
+      this._renderStep('error', 'Stopped at ' + failed.tool + ': ' + failed.error, 'error');
+      this._renderStep('summary', 'The page has most likely changed since this was recorded. Send the same request as a task and the AI will work it out.', 'info');
+    } else {
+      this._renderStep('end', 'Repeated ' + done.length + ' step' + (done.length === 1 ? '' : 's') + ', without the AI', 'info');
+      const list = this.macros().map(m => (m.id === id ? { ...m, runs: (m.runs || 0) + 1, lastRunAt: Date.now() } : m));
+      try { localStorage.setItem(this.MACROS_KEY, JSON.stringify(list)); } catch { /* the count is not worth an error */ }
+    }
+    this._running = false;
+    document.getElementById('ai-send')?.classList.remove('running');
+    document.getElementById('ai-stop-agent')?.classList.remove('visible');
+    return { done, failed };
   },
 
   deleteRun(id) { localStorage.setItem(this.RUNS_KEY, JSON.stringify(this.runs().filter(r => r.id !== id))); },
