@@ -546,7 +546,7 @@ function wireDisplayMediaOnSession(ses) {
           }
         } catch { /* best effort: a picker behind a window still beats no picker */ }
 
-        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl, restoreRequester });
+        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl, restoreRequester, audioRequested: !!request.audioRequested });
         const payload = { id, sources: sources.map((s) => ({
           id: s.id, name: s.name, isScreen: /screen/i.test(s.id),
           thumbnail: (s.thumbnail && !s.thumbnail.isEmpty()) ? s.thumbnail.toDataURL() : '',
@@ -569,22 +569,30 @@ function wireDisplayMediaOnSession(ses) {
 let _lastShareQuality = null;
 ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height, fps, cursor } = {}) => {
   const p = _pendingScreenPicks.get(id);
-  if (!p) return { ok: false };
+  if (!p) return { ok: false, error: 'That share request has expired — start the share again' };
   if (p.host !== secureSessions.owner(_e.sender)) return { ok: false, error: 'Request belongs to another window' };
   _pendingScreenPicks.delete(id);
   try { p.restoreRequester?.(); } catch {}
   try { if (p.frame.detached || p.frame.url !== p.url) { p.callback(); return { ok: false, error: 'Requesting page changed' }; } } catch { try { p.callback(); } catch {} return { ok: false }; }
   if (!sourceId) { _lastShareQuality = null; try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);
-  _lastShareQuality = { width: width || 0, height: height || 0, fps: fps || 0, cursor: cursor || '', at: Date.now() };
-  // audio === false → share silently; otherwise share system audio (loopback).
-  try { p.callback(src ? { video: src, audio: (audio === false ? undefined : 'loopback') } : undefined); } catch {}
+  if (!src) { _lastShareQuality = null; try { p.callback(); } catch {} return { ok: false, error: 'That screen or window is no longer there — try again' }; }
+  // The answer must match what the page ASKED for. Discord always asks for
+  // audio, and a pick without it is refused outright — "AbortError: Invalid
+  // capture constraints" — so with "Share audio" unticked (a choice Vex
+  // remembers) every share died the moment a screen was picked, silently.
+  // So: audio is supplied whenever it was asked for, and when the user does
+  // not want it the guest shim drops the audio track before the page sees the
+  // stream (dropAudio). Measured on discord.com in the panel, both ways.
+  _lastShareQuality = { width: width || 0, height: height || 0, fps: fps || 0, cursor: cursor || '', dropAudio: p.audioRequested && audio === false, at: Date.now() };
+  try { p.callback(p.audioRequested ? { video: src, audio: 'loopback' } : { video: src }); }
+  catch (err) { _lastShareQuality = null; return { ok: false, error: 'The share could not start: ' + err.message }; }
   return { ok: true };
 });
 ipcMain.handle('screen-share:get-quality', () => {
   const q = _lastShareQuality; _lastShareQuality = null;          // one-shot
   if (!q || Date.now() - q.at > 30000) return null;
-  return { width: q.width, height: q.height, fps: q.fps, cursor: q.cursor };
+  return { width: q.width, height: q.height, fps: q.fps, cursor: q.cursor, dropAudio: !!q.dropAudio };
 });
 // === QR code for the current page (qrcode npm package, rendered in main) ===
 ipcMain.handle('qr:make', async (_e, text) => {

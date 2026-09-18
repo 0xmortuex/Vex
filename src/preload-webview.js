@@ -492,20 +492,27 @@ function runInMainWorld(src) {
     var bridge = window.__vexShareBridge; if(!bridge) return;
     var orig = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getDisplayMedia = function(constraints){
+      // The page gets the stream only after the user's choice is applied to
+      // it: "Share audio" unticked means the audio track is gone BEFORE the
+      // page can send it anywhere (the pick itself must carry audio whenever
+      // the page asked for it, or Chromium refuses the whole share).
       return orig(constraints).then(function(stream){
-        try{
-          bridge.getQuality().then(function(q){
-            if(!q) return;
-            var vt = stream.getVideoTracks && stream.getVideoTracks()[0];
-            if(!vt || !vt.applyConstraints) return;
-            var c = {};
-            if(q.width){ c.width = {ideal:q.width}; c.height = {ideal:q.height}; }
-            if(q.fps){ c.frameRate = {ideal:q.fps}; }
-            if(q.cursor){ c.cursor = q.cursor; }
-            if(Object.keys(c).length) vt.applyConstraints(c).catch(function(){});
-          }).catch(function(){});
-        }catch(e){}
-        return stream;
+        return bridge.getQuality().then(function(q){
+          try{
+            if(q && q.dropAudio && stream.getAudioTracks){
+              stream.getAudioTracks().forEach(function(t){ try{ t.stop(); }catch(e){} stream.removeTrack(t); });
+            }
+            var vt = q && stream.getVideoTracks && stream.getVideoTracks()[0];
+            if(vt && vt.applyConstraints){
+              var c = {};
+              if(q.width){ c.width = {ideal:q.width}; c.height = {ideal:q.height}; }
+              if(q.fps){ c.frameRate = {ideal:q.fps}; }
+              if(q.cursor){ c.cursor = q.cursor; }
+              if(Object.keys(c).length) vt.applyConstraints(c).catch(function(){});
+            }
+          }catch(e){}
+          return stream;
+        }, function(){ return stream; });
       });
     };
     if(navigator.mediaDevices.getUserMedia){

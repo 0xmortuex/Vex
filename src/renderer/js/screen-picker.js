@@ -92,7 +92,14 @@
       if (done) return;
       done = true;
       document.removeEventListener('keydown', onEsc);
-      try { window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); } catch {}
+      // Main's answer used to be thrown away, so a share it refused looked
+      // like nothing happening at all.
+      let sent;
+      try { sent = window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); }
+      catch (err) { sent = Promise.reject(err); }
+      Promise.resolve(sent)
+        .then((r) => { if (sourceId && r && r.ok === false) window.showToast?.(r.error || 'The share could not start — try again', 'error'); })
+        .catch((err) => window.showToast?.('The share could not start: ' + ((err && err.message) || ''), 'error'));
       ov.remove();
     };
 
