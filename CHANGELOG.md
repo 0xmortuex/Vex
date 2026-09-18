@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.2 (2026-09-19) — Find a tab by what is on it, not just its title
+
+### Notes
+- **Ctrl+K now searches inside your open tabs.** It found tabs by title, which is fine until you have thirty and the one you want is called "Order confirmation" while the word you remember is "refund". Each page is skimmed once when it settles and its own words are searchable — a content match is listed under the title matches and marked *On this page*.
+- It half-finishes a word for you: "refun" finds the page that says refund. Every word you type has to be there, so a second word narrows rather than widens.
+- Nothing leaves the machine and nothing is written to disk: the words live in memory for as long as the tab is open, a private tab is never read, and a page that will not answer is simply left findable by title as before.
+
 ## v2.32.1 (2026-09-19) — Tell me when this page changes
 
 ### Notes
