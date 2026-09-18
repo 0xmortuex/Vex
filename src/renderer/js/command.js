@@ -195,6 +195,50 @@ const CommandBar = {
     { id: 'compare-tabs', label: 'Compare Tabs', hint: 'AI compares all open tabs', icon: 'scale', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Compare these tabs side-by-side.',TabManager.tabs); } },
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
     { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
+    { id: 'switchenv', label: 'Switch environment', hint: 'The same path on your local server, staging or live', icon: 'code', isPrimary: true, action: async () => {
+      if (typeof DevSwitch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
+      const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
+      if (!tab || !/^https?:/i.test(tab.url || '')) { window.showToast?.('Open a page first', 'error'); return; }
+      const options = await DevSwitch.options(tab.url);
+      if (!options.length) { window.showToast?.('Nowhere to switch to yet — no dev server is running, and this site has no staging or local address set (Ctrl+K → Set environments)'); return; }
+      const pick = await vexPrompt({
+        title: 'Switch environment',
+        message: 'Same path, another host:\n\n' + options.map((o, i) => (i + 1) + '. ' + o.label + ' — ' + o.host).join('\n'),
+        value: '1', okLabel: 'Go',
+      });
+      const n = parseInt(pick, 10);
+      const chosen = options[n - 1];
+      if (!chosen) return;
+      TabManager.navigateTo ? TabManager.navigateTo(chosen.url) : TabManager.createTab(chosen.url, true);
+    } },
+    { id: 'setenv', label: 'Set environments', hint: 'Tell Vex this site\u2019s staging and local addresses', icon: 'code', action: async () => {
+      if (typeof DevSwitch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
+      const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
+      if (!tab || !/^https?:/i.test(tab.url || '')) { window.showToast?.('Open a page first', 'error'); return; }
+      const now = DevSwitch.groupFor(tab.url) || {};
+      const staging = await vexPrompt({ title: 'Staging address', message: 'The host only, e.g. staging.example.com. Leave empty for none.', value: now.staging || '', okLabel: 'Next' });
+      if (staging == null) return;
+      const local = await vexPrompt({ title: 'Local address', message: 'The host only, e.g. localhost:5173. Leave empty for none.', value: now.local || '', okLabel: 'Save' });
+      if (local == null) return;
+      try {
+        DevSwitch.remember(tab.url, { live: now.key, staging, local });
+        window.showToast?.('Saved — Ctrl+K → Switch environment moves between them');
+      } catch (err) { window.showToast?.((err && err.message) || 'Could not save it', 'error'); }
+    } },
+    { id: 'devservers', label: 'Running dev servers', hint: 'What is listening on this machine right now', icon: 'code', isPrimary: true, action: async () => {
+      if (!window.vex || typeof window.vex.devPorts !== 'function') { window.showToast?.('Not available in this build', 'error'); return; }
+      let servers;
+      try { servers = await window.vex.devPorts(); }
+      catch (err) { window.showToast?.((err && err.message) || 'Could not look', 'error'); return; }
+      if (!servers.length) { window.showToast?.('Nothing is listening on the usual dev ports'); return; }
+      const pick = await vexPrompt({
+        title: 'Running dev servers',
+        message: servers.map((s, i) => (i + 1) + '. localhost:' + s.port + (s.guess ? ' — ' + s.guess : '')).join('\n'),
+        value: '1', okLabel: 'Open',
+      });
+      const chosen = servers[parseInt(pick, 10) - 1];
+      if (chosen) TabManager.createTab(chosen.url, true);
+    } },
     { id: 'capture', label: 'Quick capture', hint: 'A box over everything for a note, a reminder or a timer — give it a hotkey in Settings › Privacy', icon: 'clipboard', isPrimary: true, action: async () => {
       if (!window.vex || typeof window.vex.captureOpen !== 'function') { window.showToast?.('Quick capture is not available in this build', 'error'); return; }
       try { await window.vex.captureOpen(); } catch (err) { window.showToast?.((err && err.message) || 'Could not open it', 'error'); }

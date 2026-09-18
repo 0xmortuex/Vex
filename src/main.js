@@ -783,6 +783,19 @@ ipcMain.handle('ollama:ensure', () => _ollamaLauncher.ensure());
 const _gpuProbe = require('./main/gpu').createGpuProbe({ execFile: require('child_process').execFile });
 ipcMain.handle('system:gpu', () => _gpuProbe.read());
 
+// Which dev servers are up on this machine (src/main/dev-ports.js). A local
+// TCP connect and nothing else: no request is sent, so nothing is disturbed.
+const _devPorts = require('./main/dev-ports').createPortScanner({ net: require('net') });
+let _devPortsCache = { at: 0, list: [] };
+ipcMain.handle('system:dev-ports', async () => {
+  // Knocking on thirty ports is cheap but not free, and the answer does not
+  // change second to second.
+  if (Date.now() - _devPortsCache.at < 5000) return _devPortsCache.list;
+  const list = await _devPorts.scan();
+  _devPortsCache = { at: Date.now(), list };
+  return list;
+});
+
 // Mute Discord without leaving the game (src/main/game-hotkeys.js). These are
 // system-wide, so each one is off until the user sets it.
 const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({

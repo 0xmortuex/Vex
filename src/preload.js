@@ -136,6 +136,8 @@ contextBridge.exposeInMainWorld('vex', {
   ollamaEnsure: () => ipcRenderer.invoke('ollama:ensure'),
   // How full the graphics card is — null when there is no NVIDIA card.
   gpu: () => ipcRenderer.invoke('system:gpu'),
+  // Dev servers listening on this machine.
+  devPorts: () => ipcRenderer.invoke('system:dev-ports'),
   // System-wide hotkeys (mute Discord from inside a game).
   hotkeysGet: () => ipcRenderer.invoke('hotkeys:get'),
   hotkeysSet: (config) => ipcRenderer.invoke('hotkeys:set', config),
