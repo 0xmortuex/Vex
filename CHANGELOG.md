@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.31.90 (2026-09-18) — Vex stops failing quietly: a problems log, a way back in, and an installer that is started before it ships
+
+### Notes
+- **Things that fail quietly now say so.** 907 places in Vex catch an error and say nothing. That is usually right — a favicon that will not load is not worth a toast — but it is how this week's two worst bugs stayed hidden: the Discord screen share was *refused* and the refusal was thrown away, and an agent run was never saved with the chat while nothing said so. Anything that fails quietly now writes one line into **Memory panel › Health**, with a count for repeats and a button to clear it. It also catches what nothing caught before — an uncaught error or an unhandled promise in the interface, which until now reached only the DevTools console. Nothing is sent anywhere; it is there so you can see it, and paste it to me.
+- **A way back in when Vex will not start.** Two launches that never finish starting put the third into **safe mode**: no extensions, no panels, no session restore, and a banner saying why — with *Restore earlier settings* and *Restart normally*. Until now an extension that broke the browser could not be removed, because removing it meant opening the browser. `--safe-mode` asks for it outright. Measured: two starts cut short, the third came up stripped with the banner, and the launch after a good one was normal again.
+- **Your settings are kept before each new version.** The first launch of a new version copies your settings aside first, so an update that breaks something can be undone — five are kept, and restoring is itself undoable.
+- **The installer is started before it is uploaded.** `npm run publish` built an installer and shipped it to everyone without ever running it: the tests cover the source, and nothing covered the packaged app, where the failures are of a different kind (a file left out of the build, a runtime dependency that is missing only once packed). The publish is now build → **start the built app** → create the release → upload, so nothing reaches you that has not started on this machine first. A build that does not come up stops the publish and leaves no release behind.
+- **When browser storage fills, nothing is lost any more.** Vex keeps 60 kinds of thing there, and a write past the cap *throws* — at sixty call sites that each swallowed it, so notes and chats could fail to save in silence. Now it is recorded, said once, and the value still goes to disk, which has no such cap. Health shows how full it is and what is filling it.
+- Development: the smoke test waits for Vex to exit before removing its throwaway profile (it lost that race every time, leaving 85 folders behind), and a test run leaves nothing in Temp.
+
 ## v2.31.89 (2026-09-18) — Permission prompts say what is being asked, and "Remember" covers only that
 
 ### Notes
