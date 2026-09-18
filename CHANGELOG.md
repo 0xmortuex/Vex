@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.31.98 (2026-09-19) — A box over everything, for the thought you would otherwise lose
+
+### Notes
+- **Quick capture.** A thought while you are gaming is gone by the time you have alt-tabbed, found Vex, found the panel and clicked. One hotkey now opens a small box over whatever you were doing — a game, a stream, another program — takes one line, and goes:
+  - anything → a note, titled by its first few words;
+  - **remind me to…**, **timer 20 min**, **alarm 7am** → the reminder or timer, exactly as Ctrl+K would;
+  - **/** anything → a Vex command;
+  - **ask …** → the AI panel, because an answer in a box that closes in a second is useless.
+- It never drags the main window over your game, it appears on the screen your mouse is on, and Escape closes it. Set the hotkey in Settings › Privacy › Gaming and streaming, or open it from Ctrl+K → **Quick capture** — a feature reachable only by a hotkey you must first configure is nearly invisible.
+- The box gets two channels and nothing else: submit a line and close. Vex’s IPC policy refuses it everything an untrusted sender should be refused, which it proved by refusing the first version of this feature outright.
+- Fixed before it shipped: the box closed itself the moment it lost focus — which, opening over a fullscreen game that keeps focus, meant vanishing instantly. It now only closes on blur once it has actually been focused.
+
 ## v2.31.97 (2026-09-19) — Undo what the agent made, and let it read videos and PDFs
 
 ### Notes
