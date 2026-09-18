@@ -94,3 +94,38 @@ describe('AIRouter.resolveBackend — on-device (WebLLM) routing', () => {
     expect(await AIRouter.resolveBackend('chat')).not.toBe('ondevice');
   });
 });
+
+// The agent prefers the cloud model, but it used to be cloud-ONLY: with no AI
+// Worker URL it answered "Cloud AI is not configured" even with a capable
+// local model running.
+describe('AIRouter.resolveBackend — the agent without a cloud worker', () => {
+  it('no Worker URL + Ollama up → the local model drives the agent', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(true);
+    expect(await AIRouter.resolveBackend('agent')).toBe('local');
+  });
+
+  it('no Worker URL + no Ollama → cloud, which says it is not configured', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(false);
+    expect(await AIRouter.resolveBackend('agent')).toBe('cloud');
+  });
+
+  it('asks the local model with a large context window, the tools, and the page state', async () => {
+    const AIRouter = await loadRouter();
+    const chat = vi.fn(async () => '{"tool":"finish","parameters":{"summary":"ok"}}');
+    globalThis.Ollama = { ping: vi.fn(async () => true), chat };
+    const out = await AIRouter.callAI('agent', {
+      userGoal: 'research vex', availableTools: [{ name: 'web_search' }], lastToolResult: { ok: true, result: 'x' },
+      conversationHistory: [{ role: 'user', content: 'GUIDE' }], pageContext: null,
+    });
+    expect(out).toMatchObject({ backend: 'local' });
+    const [, msgs, opts] = chat.mock.calls[0];
+    expect(opts).toMatchObject({ format: 'json', numCtx: 16384, temperature: 0.2 });
+    expect(msgs[0].role).toBe('system');
+    expect(msgs[0].content).toMatch(/Reply with ONLY one JSON object/);
+    expect(msgs[0].content).toContain('"web_search"');
+    expect(msgs[1]).toEqual({ role: 'user', content: 'GUIDE' });
+    expect(msgs.at(-1).content).toMatch(/User's goal: research vex[\s\S]*Current page: none loaded[\s\S]*Last tool result/);
+  });
+});

@@ -53,3 +53,15 @@ describe('an empty reply is an error, not an empty string', () => {
     await expect(Ollama.generate('llama3.2:3b', 'x', {})).rejects.toThrow(/llama3\.2:3b returned an empty reply/);
   });
 });
+
+// Ollama's default context window (4,096 tokens) silently drops the START of a
+// longer prompt — the system prompt. The agent asks for room; nothing else does.
+describe('context window', () => {
+  it('chat passes numCtx through as num_ctx, and leaves it out otherwise', async () => {
+    reply({ message: { content: '{"tool":"finish"}' } });
+    await Ollama.chat('qwen3.5:latest', [{ role: 'user', content: 'x' }], { format: 'json', numCtx: 16384 });
+    expect(sent.options.num_ctx).toBe(16384);
+    await Ollama.chat('qwen3.5:latest', [{ role: 'user', content: 'x' }], { format: 'json' });
+    expect('num_ctx' in sent.options).toBe(false);
+  });
+});

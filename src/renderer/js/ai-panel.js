@@ -89,19 +89,7 @@ const AIPanel = {
       document.getElementById('ai-stop-agent')?.classList.remove('visible');
     });
 
-    // Mode selector
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this._agentMode = btn.dataset.mode;
-        localStorage.setItem('vex.agentMode', this._agentMode);
-      });
-    });
-    // Restore saved mode
-    const savedMode = localStorage.getItem('vex.agentMode') || 'ask';
-    this._agentMode = savedMode;
-    document.querySelector(`.mode-btn[data-mode="${savedMode}"]`)?.classList.add('active');
+    this._initAgentPermission();
 
     document.querySelectorAll('.ai-quick-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -125,12 +113,99 @@ const AIPanel = {
     });
   },
 
+  // ---- How the agent asks for permission ---------------------------------
+  // 'ask' = approve manually, 'plan' = plan first, 'auto' = auto-approve
+  // (the ids AgentLoop has always used; vex.agentMode). Until a choice has
+  // been made (vex.agentModeChosen) the robot button opens this menu instead
+  // of running, so the agent never starts clicking under a default nobody
+  // picked.
+  AGENT_MODES: { ask: 'Approve manually', plan: 'Plan first', auto: 'Auto-approve' },
+
+  _initAgentPermission() {
+    const saved = localStorage.getItem('vex.agentMode');
+    this._agentMode = this.AGENT_MODES[saved] ? saved : 'ask';
+    this._paintAgentPermission();
+    const toggle = document.getElementById('agent-perm-toggle');
+    const menu = document.getElementById('agent-perm-menu');
+    if (!toggle || !menu) return;
+    toggle.addEventListener('click', (e) => { e.stopPropagation(); this._openAgentPermission(menu.hidden); });
+    menu.querySelectorAll('.agent-perm-item').forEach(item => {
+      item.addEventListener('click', () => {
+        this.setAgentMode(item.dataset.mode);
+        this._openAgentPermission(false);
+        const pending = this._pendingAgentRun;
+        this._pendingAgentRun = false;
+        if (pending) this._sendAgent();
+      });
+    });
+    // A click elsewhere closes it — but not the click that opened it (the pill,
+    // or the robot button asking on first use), which reaches here as well.
+    document.addEventListener('click', (e) => {
+      if (menu.hidden || menu.contains(e.target)) return;
+      if (e.target instanceof Element && e.target.closest('#agent-perm-toggle, #ai-send-agent')) return;
+      this._pendingAgentRun = false;
+      this._openAgentPermission(false);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { this._pendingAgentRun = false; this._openAgentPermission(false); } });
+  },
+
+  setAgentMode(mode) {
+    if (!this.AGENT_MODES[mode]) throw new Error('Unknown agent permission mode: ' + mode);
+    this._agentMode = mode;
+    try { localStorage.setItem('vex.agentMode', mode); localStorage.setItem('vex.agentModeChosen', '1'); } catch {}
+    this._paintAgentPermission();
+  },
+
+  _agentModeChosen() {
+    try { return localStorage.getItem('vex.agentModeChosen') === '1'; } catch { return true; }
+  },
+
+  _paintAgentPermission() {
+    const label = document.getElementById('agent-perm-label');
+    if (label) label.textContent = this.AGENT_MODES[this._agentMode];
+    document.querySelectorAll('#agent-perm-menu .agent-perm-item').forEach(item => {
+      const on = item.dataset.mode === this._agentMode;
+      item.classList.toggle('active', on);
+      item.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    const bot = document.getElementById('ai-send-agent');
+    if (bot) bot.title = 'Run as agent — ' + this.AGENT_MODES[this._agentMode].toLowerCase() + ' (change it under “Agent:” below)';
+  },
+
+  _openAgentPermission(open, asking) {
+    const menu = document.getElementById('agent-perm-menu');
+    const toggle = document.getElementById('agent-perm-toggle');
+    if (!menu) return;
+    menu.hidden = !open;
+    menu.classList.toggle('asking', !!(open && asking));
+    const head = document.getElementById('agent-perm-head');
+    if (head) head.textContent = asking ? 'Before the agent starts — how should it ask for permission?' : 'How should the agent ask for permission?';
+    if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // The pill can sit at the panel's right edge, where a menu opening to the
+    // right ran 100px off the window. Shift it back inside the panel.
+    menu.style.left = '';
+    if (open) {
+      const panel = document.getElementById('ai-panel');
+      const bounds = panel ? panel.getBoundingClientRect() : { left: 0, right: window.innerWidth };
+      const box = menu.getBoundingClientRect();
+      const over = box.right - (Math.min(bounds.right, window.innerWidth) - 8);
+      if (over > 0) menu.style.left = -Math.min(over, Math.max(0, box.left - bounds.left - 8)) + 'px';
+    }
+  },
+
   _sendAgent() {
     const input = document.getElementById('ai-input');
     const msg = input?.value.trim();
     if (!msg) {
       input?.focus();
       window.showToast?.('Type a task first, then click the agent button');
+      return;
+    }
+    // First use: ask how it may act before it acts at all. The task stays in
+    // the box and runs as soon as a mode is picked.
+    if (!this._agentModeChosen() && document.getElementById('agent-perm-menu')) {
+      this._pendingAgentRun = true;
+      this._openAgentPermission(true, true);
       return;
     }
     // Don't clear the box for a run that can't start: the agent is already busy,

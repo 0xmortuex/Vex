@@ -1063,10 +1063,32 @@
             </div>
           </div>
 
-          <div class="agent-mode-selector">
-            <button class="mode-btn active" data-mode="ask" title="Ask before each action">Ask</button>
-            <button class="mode-btn" data-mode="plan" title="Show full plan, then execute">Plan</button>
-            <button class="mode-btn" data-mode="auto" title="Execute automatically">Auto</button>
+          <!-- How the agent (the robot button) asks for permission. Three words
+               in three pills — "Ask / Plan / Auto" — did not say what they
+               governed; this names it and explains each choice. The robot
+               button opens it the first time, before anything runs. -->
+          <div class="agent-perm">
+            <button class="ai-pill agent-perm-toggle" id="agent-perm-toggle" aria-haspopup="menu" aria-expanded="false" title="How the agent asks before it clicks, types or navigates">
+              <span class="selector-label">Agent:</span>
+              <span id="agent-perm-label">Approve manually</span>
+              <span class="selector-arrow">&#9662;</span>
+            </button>
+            <div class="agent-perm-menu" id="agent-perm-menu" role="menu" hidden>
+              <div class="agent-perm-head" id="agent-perm-head">How should the agent ask for permission?</div>
+              <button class="agent-perm-item" role="menuitemradio" data-mode="ask">
+                <strong>Approve manually</strong>
+                <span>Asks before every click, typed text or navigation. Reading and searching run without asking.</span>
+              </button>
+              <button class="agent-perm-item" role="menuitemradio" data-mode="plan">
+                <strong>Plan first</strong>
+                <span>Shows its plan once. After you approve, it carries the plan out on its own.</span>
+              </button>
+              <button class="agent-perm-item" role="menuitemradio" data-mode="auto">
+                <strong>Auto-approve</strong>
+                <span>Works on its own from the start.</span>
+              </button>
+              <div class="agent-perm-foot">In every mode it asks before buying, paying, sending, posting or deleting.</div>
+            </div>
           </div>
 
           <span class="ai-controls-spacer"></span>
@@ -1161,6 +1183,7 @@
   <script src="js/multi-tab-context.js"></script>
   <script src="js/tab-selector.js"></script>
   <script src="js/dom-extractor.js"></script>
+  <script src="js/agent-tools.js"></script>
   <script src="js/agent-executor.js"></script>
   <script src="js/agent-loop.js"></script>
   <script src="js/scheduler.js"></script>

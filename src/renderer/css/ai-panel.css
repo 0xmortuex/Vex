@@ -454,3 +454,35 @@
   #ai-panel.expanded .ai-messages,
   #ai-panel.expanded .ai-composer { padding-left: 14px; padding-right: 14px; }
 }
+
+/* ---- Agent permission menu (ai-panel.js _initAgentPermission) ----
+   Replaces the Ask / Plan / Auto pills: one labelled pill, a menu that says
+   what each choice means, opened by the robot button on first use. */
+.agent-perm { position: relative; }
+.agent-perm-menu {
+  position: absolute; bottom: calc(100% + 6px); left: 0;
+  width: 300px; max-width: min(320px, 86vw);
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 16px 40px var(--vex-shadow-color, rgba(0,0,0,0.4));
+  z-index: 30; padding: 6px;
+}
+.agent-perm-menu[hidden] { display: none; }
+.agent-perm-menu.asking { border-color: var(--primary); }
+.agent-perm-head { padding: 6px 8px 4px; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.agent-perm-menu.asking .agent-perm-head { color: var(--text); }
+.agent-perm-item {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 8px 10px; margin: 2px 0; border-radius: 9px;
+  background: transparent; border: 1px solid transparent; color: var(--text);
+  font-family: inherit;
+}
+.agent-perm-item strong { display: block; font-size: 12.5px; font-weight: 600; }
+.agent-perm-item span { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--text-muted); }
+.agent-perm-item:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); }
+.agent-perm-item.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.agent-perm-foot { padding: 6px 8px 4px; font-size: 10.5px; line-height: 1.4; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 4px; }
+
+/* The agent's plan (agent-loop.js _confirmPlan) and its final answer. */
+.agent-plan-steps { margin: 6px 0 8px; padding-left: 20px; font-size: 12px; line-height: 1.5; color: var(--text); }
+.agent-plan-steps li { margin: 2px 0; }
+.ai-msg.agent-final { border-left: 2px solid var(--primary); }

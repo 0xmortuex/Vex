@@ -114,7 +114,10 @@ const AIRouter = (() => {
     } else {
       const pref = routingPrefs[feature] || 'auto';
       if (pref === 'cloud') {
-        decision = 'cloud';
+        // The agent prefers the cloud model. With no AI Worker configured it
+        // used to be simply unavailable — "Cloud AI is not configured" — even
+        // with a capable local model running. Now the local model drives it.
+        decision = (feature === 'agent' && !cloudWorkerUrl() && await pingOllama()) ? 'local' : 'cloud';
       } else if (pref === 'local') {
         // Local-only feature (e.g. history indexing runs on-device for privacy).
         // If Ollama isn't installed/running, skip quietly instead of failing on
@@ -238,7 +241,37 @@ const AIRouter = (() => {
   }
 
   // ---------- LOCAL (Ollama) ----------
+  // The agent on a local model. Same contract as the cloud worker's agent
+  // action: system prompt + tool list, the conversation so far (the agent
+  // guide rides at its head), then the goal, the page state and the last tool
+  // result. Two things a local model needs that the cloud does not: a context
+  // window big enough for all that (Ollama's default 4,096 tokens drops the
+  // START of the prompt — the instructions), and a low temperature so the
+  // tool call is the same JSON shape every time.
+  async function callLocalAgent(request) {
+    const system = LOCAL_SYSTEM_PROMPTS.agent + '\n\nAvailable tools:\n' + JSON.stringify(request.availableTools || []);
+    const msgs = [{ role: 'system', content: system }];
+    for (const m of (Array.isArray(request.conversationHistory) ? request.conversationHistory : [])) {
+      if (m && m.role && m.content) msgs.push({ role: m.role, content: String(m.content).slice(0, 3500) });
+    }
+    let um = "User's goal: " + (request.userGoal || request.message || '') + '\n\n';
+    const pc = request.pageContext;
+    if (pc) {
+      um += 'Current page:\nURL: ' + (pc.url || '') + '\nTitle: ' + (pc.title || '') + '\n';
+      if (pc.elements) um += '\nInteractive elements (first 40):\n' + JSON.stringify((pc.elements || []).slice(0, 40)) + '\n';
+      if (pc.text) um += '\nPage text (truncated):\n' + String(pc.text).substring(0, 3000) + '\n';
+    } else {
+      um += 'Current page: none loaded. Tools that need no page still work (web_search, read_url, tabs, notes…).\n';
+    }
+    if (request.lastToolResult) um += '\nLast tool result:\n' + JSON.stringify(request.lastToolResult).slice(0, 9000) + '\n';
+    um += "\nWhat's your next action? Reply with ONE JSON object.";
+    msgs.push({ role: 'user', content: um });
+    const text = await Ollama.chat(localModel, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: 16384 });
+    return { result: text, backend: 'local', model: localModel };
+  }
+
   async function callLocal(feature, request) {
+    if (feature === 'agent') return callLocalAgent(request);
     // Phase 15: persona overrides the default system prompt + temperature.
     // Structured features (summarize/translate/etc.) keep their built-in
     // JSON-schema prompts — persona only overrides chat.
@@ -374,6 +407,17 @@ const AIRouter = (() => {
     historySearch: `You search browser history. Given a user query and entries, return ONLY this JSON:
 {"matches": [{"id": "entry_id", "relevanceScore": 0.9, "whyRelevant": "reason"}], "interpretation": "what you searched for"}
 Only include relevance > 0.5. Max 10 matches.`,
+
+    agent: `You are Vex AI, an autonomous browser agent. You accomplish the user's goal by calling tools, one at a time.
+
+Reply with ONLY one JSON object — no markdown, no text around it:
+{"thought":"one short sentence","tool":"tool_name","parameters":{},"intent":"safe|action|risky"}
+
+How it works: you get the goal, the current page (if any), the tools, and the result of your last tool call. You reply with ONE tool call. The system runs it and shows you the result. Repeat until the goal is met, then call "finish" with the answer in parameters.summary.
+
+intent: "safe" for reading and searching, "action" for clicking, typing, navigating or changing something in Vex, "risky" for anything that buys, pays, sends, posts, deletes or submits personal data.
+
+Use exactly the tool names and parameter names listed under "Available tools". Never invent a tool. Never repeat a call that just failed — read the error and change something.`,
 
     groupTabs: `You cluster browser tabs into groups. Given tabs (id, title, url, summary), return ONLY this JSON:
 {"groups": [{"name": "Short name", "color": "indigo|cyan|green|amber|red|violet|rose|teal", "tabIds": ["id1", "id2"], "pattern": "what makes a tab fit", "confidence": 0.9}], "ungrouped": ["id"], "reasoning": "one sentence"}

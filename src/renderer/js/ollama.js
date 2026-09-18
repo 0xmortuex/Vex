@@ -197,11 +197,14 @@ const Ollama = (() => {
   }
 
   async function chat(model, messages, options = {}) {
-    const { temperature = 0.5, maxTokens = 2000, format = null } = options;
+    const { temperature = 0.5, maxTokens = 2000, format = null, numCtx = null } = options;
     const body = {
       model, messages, stream: false,
       options: { temperature, num_predict: maxTokens }
     };
+    // Ollama's default context window (4,096 tokens) silently drops the START
+    // of a longer prompt — the system prompt. The agent asks for room.
+    if (Number.isFinite(numCtx) && numCtx > 0) body.options.num_ctx = numCtx;
     if (format === 'json') _asJson(body);
     if (options.onToken) return _notEmpty(await _stream('/api/chat', body, options, (e) => e.message && e.message.content), model, null);
     const r = await _post('/api/chat', body, options.signal);
