@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.8 (2026-09-19) — Everything about one topic, in one place
+
+### Notes
+- **Research projects** (`Ctrl+K` → *Research Projects*). Looking into something takes days and touches everything: eleven tabs, four bookmarks you will never find again, a note, and two AI conversations each attached to a tab that no longer exists. A week later the question comes back and none of it is together.
+  - A project is a folder for one topic. **Add This Page to Project** files whatever you are reading; notes go in beside it.
+  - **Save This Chat to Project** keeps the AI conversation with the research it belongs to. That is the part every browser loses, because a chat belongs to a tab and tabs close.
+  - One project is the one you are working on, so adding something is a single command rather than a decision.
+  - **Open all** brings the whole thing back as tabs — and says how many first, because opening twenty tabs by accident is a bad afternoon.
+  - **Copy as Markdown** exports the lot: pages as links, your notes, and every conversation written out. Research that cannot leave the tool it was done in is a trap.
+- Private and Tor tabs are not collected, here as everywhere — neither the page nor a chat held in one.
+
 ## v2.32.7 (2026-09-19) — What colour is that?
 
 ### Notes

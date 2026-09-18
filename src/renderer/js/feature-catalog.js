@@ -182,6 +182,8 @@ const VexFeatures = {
       what: 'A note pinned to one specific page, which reappears every time you return to it.' },
     { id: 'clip', cat: 'work', cmd: 'clip',
       what: 'Sends the selected text into your notes with a link back to where it came from.' },
+    { id: 'projects', cat: 'work', cmd: 'projects',
+      what: 'A folder for one topic: the pages, your notes, and the AI conversations about it — which every other browser loses, because a chat belongs to a tab and tabs close. Exports as Markdown.' },
     { id: 'eyedropper', cat: 'dev', cmd: 'eyedropper',
       what: 'Sample the colour of any pixel on the screen — a page, a video, another program — and get its hex. Nothing is injected into the page.' },
     { id: 'snippets', cat: 'work', cmd: 'snippets',

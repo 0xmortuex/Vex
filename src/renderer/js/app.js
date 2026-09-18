@@ -911,6 +911,8 @@
   if (window.Snippets) window.Snippets.init();
   // Colours picked off the screen
   if (window.ColorPicker) window.ColorPicker.init();
+  // Everything about one topic in one place
+  if (window.ResearchProjects) window.ResearchProjects.init();
 
   // Library (read later + auto-archive)
   if (typeof ReadLater !== 'undefined') ReadLater.init();
