@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.1 (2026-09-19) — Tell me when this page changes
+
+### Notes
+- **"Tell me when this page changes"** (Ctrl+K). Auto-refresh reloads a page on a timer, which is half the job — you still have to look at it. A watch reads the page quietly in the background, compares it with what was there before, and speaks only when it is different: a toast and a desktop notification, because the whole point is that you are somewhere else.
+  - Watch the whole page, or one part of it by CSS selector — the difference between "the article changed" and "the advert rotated".
+  - Watch a **number** instead: up, down, or past a figure. "Tell me when it is below 300" is what people actually mean, and it reads £1,299.99 and "4 of 12 left" the way a person would.
+  - Every 5 minutes to once a day. The first look sets the baseline and says nothing.
+  - A page that stops loading, or a selector that stops matching, is reported — after five failures, once, rather than every check. **Watched pages** lists what is being kept an eye on and what it last saw.
+- Development: the search-performance test asserted absolute milliseconds and failed three runs in a row while a game was running, with the code untouched. Its ceilings now scale to how fast the machine is at that moment — a false failure teaches you to ignore the suite.
+
 ## v2.32.0 (2026-09-19) — Vex can see your dev servers, and switch a page between local, staging and live
 
 ### Notes
