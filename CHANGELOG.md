@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.0 (2026-09-19) — Vex can see your dev servers, and switch a page between local, staging and live
+
+### Notes
+- **Running dev servers** (Ctrl+K). A dev server is started in a terminal and then hunted for — which port was it, is it still up? The browser is where you go to look and the one thing that could not tell you. Vex knocks on the usual thirty-odd ports and lists what answers, with a guess at what put it there (Vite, Next.js, a Cloudflare Worker, Ollama). It is a local connection and nothing more: no request is sent, so nothing that is listening is disturbed by being found.
+- **Switch environment** (Ctrl+K). The same path on your local server, on staging, or live — everything after the host is kept exactly, which is the part worth not retyping. Tell Vex a site’s staging and local addresses once (**Set environments**) and it works in every direction; any dev server that is up is offered whether you wrote it down or not. A local address gets http, because insisting on https turns "switch to local" into a blank page.
+- Caught by its own test before shipping: switching back from localhost:5173 produced shop.example:5173 — a real address that is not the site — because setting a host without a port keeps the old one.
+
 ## v2.31.99 (2026-09-19) — The update prompt stops nagging
 
 ### Notes
