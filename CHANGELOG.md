@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.89 (2026-09-18) — Permission prompts say what is being asked, and "Remember" covers only that
+
+### Notes
+- **Fixed: allowing a site's microphone also pre-approved its camera and its screen shares.** Chromium reports the microphone, the camera, both together and a *screen share* to Vex as one permission, told apart only by a detail Vex ignored. So every one of those prompts said "wants to access your camera and microphone" — even a screen share, even microphone-only — and **Remember** filed the answer under a single key: allow the mic on a site once, and its camera and screen-share requests were granted without asking; block a screen share, and the mic was blocked with it. Measured in a running Vex. Each request is now asked about, and remembered, as what it is: *use your microphone*, *use your camera*, *use your camera and microphone*, or *share your screen* (you still pick the screen or window afterwards).
+- Answers you saved before this version keep working for the camera and the microphone — that is what their prompt said — and never count for a screen share. Settings › Site Permissions shows them as "camera and microphone".
+- Prompts read properly: "wants to send you notifications", "wants to know your location" (they used to say "wants to access send notifications").
+- Development: a test run now gets its own temp folder, deleted when the run ends — test runs had left 4,761 folders (8.5 GB) in Temp over two weeks. The smoke and UI-check scripts retry deleting their throwaway profile instead of giving up silently, and no longer register Windows scheduled tasks.
+
 ## v2.31.88 (2026-09-18) — Discord screen sharing works with "Share audio" off
 
 ### Notes
