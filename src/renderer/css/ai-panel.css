@@ -489,3 +489,31 @@
 /* An agent answer in a reopened chat: back to its steps */
 .ai-agent-steps-link { margin-top: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: 11px; color: var(--primary); cursor: pointer; }
 .ai-agent-steps-link:hover { text-decoration: underline; }
+
+/* "Why did that fail?" — the AI's own diagnosis */
+.ai-why-btn {
+  margin-top: 6px; padding: 4px 10px; font: inherit; font-size: 11px; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+}
+.ai-why-btn:hover:not(:disabled) { color: var(--text); background: var(--vex-hover-fill, var(--bg)); }
+.ai-why { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); }
+.ai-why-head { font-size: 12px; color: var(--text); margin-bottom: 6px; }
+.ai-why-lines { font-size: 11px; color: var(--text-muted); white-space: pre-wrap; line-height: 1.5; }
+
+/* Settings › AI — the local model manager */
+#model-manager { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.mm-card { font-size: 12px; color: var(--text-muted); padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.mm-empty { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
+.mm-list { display: flex; flex-direction: column; gap: 6px; }
+.mm-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.mm-row.live { border-color: var(--primary); }
+.mm-name { font-size: 12.5px; font-weight: 600; color: var(--text); flex: none; }
+.mm-meta { font-size: 11px; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mm-row-actions { display: flex; gap: 6px; flex: none; }
+.mm-btn { font: inherit; font-size: 11px; padding: 4px 9px; border-radius: 6px; cursor: pointer; background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.mm-btn:hover { color: var(--text); background: var(--vex-hover-fill, var(--bg)); }
+.mm-danger:hover { color: var(--danger); border-color: var(--danger); }
+.mm-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mm-input { flex: 1; min-width: 220px; padding: 6px 10px; font: inherit; font-size: 12px; border-radius: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+.mm-progress { font-size: 11px; color: var(--text-muted); }
+.mm-progress[hidden] { display: none; }

@@ -10,6 +10,8 @@ const AISettings = (() => {
     await populateModels();
     renderRoutingGrid();
     wireHandlers();
+    // What is installed, what is loaded, and what fits (js/model-manager.js).
+    if (typeof ModelManager !== 'undefined') ModelManager.render().catch(err => VexProblems?.note('Local AI', 'Could not list the models', err));
   }
 
   async function refreshStatus() {
@@ -164,6 +166,7 @@ const AISettings = (() => {
       console.log('[AISettings] Refresh → Ollama available:', available);
       await refreshStatus();
       await populateModels();
+      if (typeof ModelManager !== 'undefined') await ModelManager.render().catch(() => {});
       if (btn) { btn.disabled = false; btn.innerHTML = orig; }
       toast(available ? 'Ollama is running' : 'Ollama still not detected', available ? 'success' : 'error');
     };

@@ -291,6 +291,7 @@ const SidebarManager = {
     this.startPanelAutoSleep();
     this.startDiscordMemoryWatch();
     this.startDiscordRest();
+    this.startGpuCourtesy();
     // The Memory panel's trend line samples from launch, not from its first open.
     if (typeof MemoryPanel !== 'undefined' && MemoryPanel.startTrend) MemoryPanel.startTrend();
 
@@ -843,6 +844,45 @@ const SidebarManager = {
       try { if (typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return false; } catch {}
       return now - (Number(usage[name]) || 0) > p.minutes * 60000;
     });
+  },
+
+  // While Vex is hidden — minimised, or behind a fullscreen game — the local
+  // model is holding video memory for nobody. Measured: a game with the card
+  // at 7.7 of 8 GB pushed the model onto the processor, and the same agent task
+  // that took 30 seconds ran past the two-minute limit and returned nothing.
+  // So: hidden for five minutes and the card under pressure, hand it back. The
+  // next request loads it again in a few seconds.
+  GPU_COURTESY_MS: 5 * 60000,
+  startGpuCourtesy() {
+    if (this._gpuCourtesy) return;
+    const consider = () => {
+      clearTimeout(this._gpuCourtesyTimer);
+      if (!document.hidden) return;
+      this._gpuCourtesyTimer = setTimeout(() => this.freeGpuIfCrowded(), this.GPU_COURTESY_MS);
+    };
+    this._gpuCourtesy = consider;
+    document.addEventListener('visibilitychange', consider);
+    consider();
+  },
+
+  async freeGpuIfCrowded() {
+    if (!document.hidden || typeof ModelManager === 'undefined') return null;
+    // Never while the agent or a chat is mid-answer.
+    if (typeof AgentLoop !== 'undefined' && AgentLoop.isRunning && AgentLoop.isRunning()) return null;
+    if (typeof AIPanel !== 'undefined' && AIPanel._sending) return null;
+    let gpu = null;
+    try { gpu = (window.vex && window.vex.gpu) ? await window.vex.gpu() : null; } catch { return null; }
+    // Only when something else actually wants the card.
+    if (!gpu || gpu.usedPercent < 70) return null;
+    try {
+      const r = await ModelManager.freeGpu();
+      if (r.models.length) {
+        const note = `Gave ${(r.freed / 1024).toFixed(1)} GB of video memory back while Vex was hidden (${r.models.join(', ')})`;
+        document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note } }));
+        return r;
+      }
+    } catch (err) { VexProblems?.note('Local AI', 'Could not free the graphics card', err); }
+    return null;
   },
 
   startPanelAutoSleep() {

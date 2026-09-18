@@ -551,6 +551,14 @@
                 <button class="btn-secondary" id="btn-test-agent-model" title="Four canned questions, nothing executed, nothing leaves this machine">Test this model as an agent</button>
               </div>
 
+              <div class="setting-group" style="margin-top:14px">
+                <div class="setting-label">
+                  <strong>Your local models</strong>
+                  <span class="setting-hint">What is installed, what is loaded right now, and whether each one fits on your graphics card. A model that does not fit is not refused — it runs on the processor, which is why answers take minutes.</span>
+                </div>
+                <div id="model-manager"></div>
+              </div>
+
               <div class="setting-row" style="margin-top:14px">
                 <div class="setting-label">
                   <strong>Start Ollama when it is needed</strong>
@@ -1183,6 +1191,8 @@
   <script src="js/sync-engine.js"></script>
   <script src="js/sync-settings.js"></script>
   <script src="js/ollama.js"></script>
+  <script src="js/ai-health.js"></script>
+  <script src="js/model-manager.js"></script>
   <script src="js/ai-router.js"></script>
   <script src="js/ai-settings.js"></script>
   <script src="js/personas-builtin.js"></script>

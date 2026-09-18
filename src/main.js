@@ -777,6 +777,12 @@ const _ollamaLauncher = require('./main/ollama-launcher').createOllamaLauncher({
 });
 ipcMain.handle('ollama:ensure', () => _ollamaLauncher.ensure());
 
+// How full the graphics card is. A local model lives in video memory, and a
+// game fills it: the AI then falls back to the processor and every request
+// takes minutes. Vex says so instead of timing out (src/main/gpu.js).
+const _gpuProbe = require('./main/gpu').createGpuProbe({ execFile: require('child_process').execFile });
+ipcMain.handle('system:gpu', () => _gpuProbe.read());
+
 ipcMain.on('app:started', () => _bootGuard.started());
 ipcMain.handle('app:safe-mode', () => ({ ..._boot, snapshots: _bootGuard.snapshots().map(x => ({ name: x.name, label: x.label, at: x.at })) }));
 ipcMain.handle('app:restore-settings', (_e, name) => {

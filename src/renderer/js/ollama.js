@@ -143,6 +143,11 @@ const Ollama = (() => {
           let event;
           try { event = JSON.parse(line); } catch { continue; }
           if (event.error) throw new Error(event.error);
+          // The last line of a stream carries the counts and timings; without
+          // this a streamed call reported none of them.
+          if (event.done && typeof options.onMeta === 'function') {
+            try { options.onMeta({ promptTokens: event.prompt_eval_count || 0, replyTokens: event.eval_count || 0, totalMs: Math.round((event.total_duration || 0) / 1e6), loadMs: Math.round((event.load_duration || 0) / 1e6) }); } catch {}
+          }
           const piece = pick(event);
           if (piece) {
             full += piece;
@@ -229,6 +234,43 @@ const Ollama = (() => {
     return { capabilities: Array.isArray(data.capabilities) ? data.capabilities : [], contextLength: ctxKey ? Number(info[ctxKey]) : null, family: (data.details && data.details.family) || '', parameterSize: (data.details && data.details.parameter_size) || '' };
   }
 
+  // Which models are loaded in memory right now, and where they are running.
+  // A model that is not loaded costs seconds to load; one that has been pushed
+  // out of video memory by a game runs on the processor at a crawl, and that
+  // is indistinguishable from "the AI is broken" without asking.
+  async function running() {
+    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/ps`);
+    if (!r.ok) throw new Error(await _errorText(r, ''));
+    const data = await r.json();
+    return (data.models || []).map(m => ({
+      name: m.name || m.model,
+      sizeMB: Math.round((m.size || 0) / (1024 * 1024)),
+      vramMB: Math.round((m.size_vram || 0) / (1024 * 1024)),
+      // size_vram well under size means most of it is on the processor.
+      onGpu: (m.size_vram || 0) >= (m.size || 0) * 0.9,
+      expiresAt: m.expires_at || null,
+      contextLength: m.context_length || null,
+    }));
+  }
+
+  // Hand the video memory back now, without stopping Ollama: a zero keep-alive
+  // unloads the model. About 5.5 GB here, which is the difference between a
+  // game running well and not.
+  async function unload(model) {
+    const r = await _post('/api/generate', { model, prompt: '', keep_alive: 0 }, null, 15000);
+    if (!r.ok) throw new Error(await _errorText(r, model));
+    return true;
+  }
+
+  // Remove a model from disk entirely (Settings › AI › the model manager).
+  async function deleteModel(model) {
+    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/delete`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }), timeoutMs: 15000,
+    });
+    if (!r.ok) throw new Error(await _errorText(r, model));
+    return true;
+  }
+
   // Ollama answers 404 with {"error":"model \"x\" not found, try pulling it"}.
   // "Ollama returned 404" told the user nothing actionable.
   async function _errorText(r, model) {
@@ -275,7 +317,7 @@ const Ollama = (() => {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   }
 
-  return { setBaseUrl, getBaseUrl, ping, listModels, generate, chat, show, pullModel };
+  return { setBaseUrl, getBaseUrl, ping, listModels, generate, chat, show, running, unload, deleteModel, pullModel };
 })();
 
 if (typeof window !== 'undefined') window.Ollama = Ollama;

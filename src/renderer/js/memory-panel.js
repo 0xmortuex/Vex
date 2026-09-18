@@ -510,6 +510,12 @@ const MemoryPanel = {
       const r = await window.vex.extensionsReleaseIdle();
       if (r && r.released && r.released.length) done.push('extensions unloaded from ' + r.released.join(', '));
     }
+    // The local model holds video memory — about 5.5 GB here — which is the
+    // difference between a game running well and not.
+    if (typeof ModelManager !== 'undefined') {
+      try { const g = await ModelManager.freeGpu(); if (g.models.length) done.push(`${(g.freed / 1024).toFixed(1)} GB of video memory from ${g.models.join(', ')}`); }
+      catch (err) { done.push('local model: ' + err.message); }
+    }
     this.note('Free memory now — ' + (done.join('; ') || 'nothing to free'));
     window.showToast?.(done.length ? 'Freed: ' + done.join('; ') : 'Nothing to free right now');
     await this.refresh();

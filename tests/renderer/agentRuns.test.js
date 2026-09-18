@@ -191,3 +191,33 @@ describe('a scheduled (unattended) run', () => {
     await expect(AgentLoop.startHeadless('x', 'auto', { webview: wv() })).rejects.toThrow('Navigation failed');
   });
 });
+
+// A local model takes tens of seconds to answer, and "Thinking…" for a minute
+// is indistinguishable from a hang — which is exactly what it looked like when
+// a game had the graphics card. The reply is shown as it is written, and the
+// reason for the slowness is said out loud.
+describe('a slow model explains itself', () => {
+  it('the live row shows the thought and the tool as they arrive', async () => {
+    script([{ tool: 'finish', parameters: { summary: 'done' } }]);
+    const run = AgentLoop.start('research something', 'auto');
+    const req = await vi.waitFor(() => { expect(calls[0]).toBeTruthy(); return calls[0]; });
+    const row = () => document.querySelector('.agent-step-thinking')?.textContent.trim();
+    expect(row()).toMatch(/^Thinking\.\.\. \(step 1\)/);
+    req.onToken('{', '{"thought":"I will look this up on the');
+    expect(row()).toBe('I will look this up on the');
+    req.onToken('x', '{"thought":"I will look this up on the web","tool":"web_search","para');
+    expect(row()).toBe('I will look this up on the web → web_search');
+    await run;
+  });
+
+  it('says why it is going to be slow, once per run', async () => {
+    script([{ tool: 'finish', parameters: { summary: 'done' } }]);
+    const run = AgentLoop.start('x', 'auto');
+    const req = await vi.waitFor(() => { expect(calls[0]).toBeTruthy(); return calls[0]; });
+    req.onSlow('qwen3.5:latest is running on the processor, not the graphics card');
+    req.onSlow('qwen3.5:latest is running on the processor, not the graphics card');
+    await run;
+    const warnings = [...document.querySelectorAll('.agent-step-warn')].map(e => e.textContent.trim());
+    expect(warnings).toEqual(['qwen3.5:latest is running on the processor, not the graphics card']);
+  });
+});

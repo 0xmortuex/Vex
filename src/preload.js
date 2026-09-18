@@ -134,6 +134,8 @@ contextBridge.exposeInMainWorld('vex', {
   diagnostics: () => ipcRenderer.invoke('app:diagnostics'),
   // Make sure the local Ollama server is running (starts it when it is not).
   ollamaEnsure: () => ipcRenderer.invoke('ollama:ensure'),
+  // How full the graphics card is — null when there is no NVIDIA card.
+  gpu: () => ipcRenderer.invoke('system:gpu'),
   // Safe mode: why this launch is stripped down, and the settings backups.
   safeMode: () => ipcRenderer.invoke('app:safe-mode'),
   // "The interface is up": what stops this launch counting as a failed one.

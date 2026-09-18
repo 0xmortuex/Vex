@@ -206,6 +206,7 @@ const AgentLoop = {
     // This signal travels with every request and is aborted by stop().
     this._abort = new AbortController();
     this._pendingImage = null;
+    this._slowSaid = false;
     this._run = { id: (typeof vexId === 'function' ? vexId('run') : 'run_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), goal: String(goal), mode: this._mode, startedAt: Date.now(), steps: [], final: null, backend: null };
     toolCallHistory.reset();
     document.getElementById('ai-send')?.classList.add('running');
@@ -251,6 +252,10 @@ const AgentLoop = {
             lastToolResult: lastResult,
             image,
             signal: this._abort.signal,
+            // The reply as it is written, and a word when it is going to be
+            // slow: a minute of "Thinking…" is indistinguishable from a hang.
+            onToken: (_piece, full) => this._streamStep(full),
+            onSlow: (why) => { if (!this._slowSaid) { this._slowSaid = true; this._renderStep('slow', why, 'warn'); } },
           });
           if (out && this._run) this._run.backend = (out.backend || '') + (out.model ? ' · ' + out.model : '');
           return out;
@@ -442,6 +447,19 @@ const AgentLoop = {
       for (const st of run.steps) this._renderStep(st.type, st.text, st.style);
       if (run.final) this._renderFinal(run.final, run.goal);
     } finally { this._run = live; }
+  },
+
+  // What the model has written so far, in the live "Thinking…" row.
+  _streamStep(full) {
+    const el = document.querySelector('.agent-step-thinking');
+    if (!el) return;
+    const text = String(full || '').replace(/\s+/g, ' ').trim();
+    if (!text) return;
+    // The reply is JSON; the useful part to watch is the thought, then the tool.
+    const thought = text.match(/"thought"\s*:\s*"([^"]{0,160})/);
+    const tool = text.match(/"tool"\s*:\s*"([a-z_]+)/);
+    const shown = tool ? (thought ? thought[1] + ' → ' + tool[1] : tool[1]) : (thought ? thought[1] : text.slice(0, 120));
+    el.innerHTML = this._esc(shown) + ' <span class="ai-spinner"></span>';
   },
 
   stop() {

@@ -331,8 +331,16 @@ const AIRouter = (() => {
     um += "\nWhat's your next action? Reply with ONE JSON object.";
     last.content = um;
     msgs.push(last);
+    // Before a slow one, say why it will be slow: a model pushed out of video
+    // memory by a game runs on the processor and takes minutes, which used to
+    // be indistinguishable from the agent having hung (js/ai-health.js).
+    if (typeof AIHealth !== 'undefined' && typeof request.onSlow === 'function') {
+      try { const why = await AIHealth.slowReason(); if (why) request.onSlow(why); } catch { /* a diagnosis is never worth failing the request for */ }
+    }
     // request.signal is the agent's Stop: it cancels the generation in flight.
-    const text = await Ollama.chat(model, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: agentNumCtx(), signal: request.signal, onMeta: request.onMeta });
+    // onToken streams the reply as it is written — without it a local model
+    // shows "Thinking…" for a minute and a stuck run looks the same as a slow one.
+    const text = await Ollama.chat(model, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: agentNumCtx(), signal: request.signal, onMeta: request.onMeta, onToken: request.onToken });
     return { result: text, backend: 'local', model };
   }
 

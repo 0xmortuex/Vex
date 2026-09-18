@@ -1765,6 +1765,29 @@ const AIPanel = {
       btn.addEventListener('click', () => { el.remove(); onRetry(); });
       el.appendChild(btn);
     }
+    // "The AI stopped working" has a dozen causes and one symptom. This asks
+    // every part — the worker, the internet, Ollama, the model, the graphics
+    // card — and says which one it actually is (js/ai-health.js).
+    if (typeof AIHealth !== 'undefined') {
+      const why = document.createElement('button');
+      why.className = 'ai-why-btn';
+      why.type = 'button';
+      why.textContent = 'Why did that fail?';
+      why.addEventListener('click', async () => {
+        why.disabled = true; why.textContent = 'Checking…';
+        let out;
+        try { out = await AIHealth.explain(text); }
+        catch (err) { out = { headline: 'The check itself failed: ' + ((err && err.message) || ''), lines: [] }; }
+        why.remove();
+        const box = document.createElement('div');
+        box.className = 'ai-why';
+        box.innerHTML = '<div class="ai-why-head"></div><div class="ai-why-lines"></div>';
+        box.querySelector('.ai-why-head').textContent = out.headline;
+        box.querySelector('.ai-why-lines').textContent = out.lines.join('\n');
+        el.appendChild(box);
+      });
+      el.appendChild(why);
+    }
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
   },
