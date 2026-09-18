@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.87 (2026-09-18) — Send decides, chats stop vanishing, Vex starts Ollama itself, and the memory guard stops nagging
+
+### Notes
+- **One Send button.** The robot button is gone. Send now decides: a task ("start a 20 minute timer", "open…", "bookmark this", "group my tabs", "remind me…") or a question a chat model could only guess at ("latest…", "weather today", "price of…") runs as the agent; anything about the page, writing or explaining is answered as chat. `/agent …` or `/chat …` forces one. The permission menu still asks the first time, before anything runs.
+- **Fixed: an AI chat vanished when you closed and reopened the panel, and was not in Recent chats.** An agent run — your request, every step, the answer — only ever existed on screen; it was never stored with the tab's conversation, so reopening the panel redrew from an empty one. It is now part of the chat: the request is saved the moment you send it, the answer when it ends, with *Show what the agent did* to bring the steps back. Reopening the panel while the agent is still working no longer wipes its steps either.
+- **Vex starts Ollama for you.** After a reboot Ollama is not running, and with no AI Worker set every request failed as "Cloud AI is not configured" until you opened Ollama by hand. When the local model is wanted and does not answer, Vex now starts `ollama serve` in the background — no window — and carries on; it also does this at launch if your setup relies on the local model. *Refresh Ollama Status* starts it too. Switch: Settings › AI › *Start Ollama when it is needed*. Background indexing never starts it; a remote Ollama address is left alone.
+- **Fixed: "High memory — slept N idle tabs" kept popping up, and tabs were slept seconds after you left them.** The guard compared *all* of Vex with the ceiling — but most of a heavy session is not in tabs (the Discord panel alone is about 1 GB), so with the default 1.2 GB ceiling it was over for good: every tab was slept within 45 s of being left, with a toast each time, and none of it could bring the total down. Now a tab left under five minutes ago is not idle yet; what the idle tabs really hold is measured, and if that is too little to matter nothing is slept; only as many tabs as it takes are slept; and the toast comes at most once in 30 minutes, saying how much was freed. The Memory panel still records every sweep.
+- Development: a Vex started with `VEX_NO_OS_SCHEDULE=1` registers no Windows scheduled tasks, so test profiles stop leaving wake-up tasks behind.
+
 ## v2.31.86 (2026-09-18) — The agent uses Vex's own features, can see the page, stops when told, and keeps its work
 
 ### Notes
