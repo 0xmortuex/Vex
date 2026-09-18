@@ -49,26 +49,6 @@
 .agent-deny:hover { filter: brightness(1.1); }
 
 /* Agent send button */
-#ai-send-agent {
-  background: transparent; border: 1px solid var(--primary);
-  color: var(--primary); width: 36px; height: 36px; border-radius: 8px;
-  cursor: pointer; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s;
-}
-#ai-send-agent:hover { background: var(--primary); color: white; }
-#ai-send-agent:active { transform: scale(0.95); }
-#ai-send-agent svg { stroke: currentColor; }
-#ai-send-agent.running {
-  background: var(--primary); color: white;
-  animation: agent-pulse 1.5s ease-in-out infinite;
-}
-@keyframes agent-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--vex-accent) 50%, transparent); }
-  50% { box-shadow: 0 0 0 6px transparent; }
-}
-
-/* Stop button */
 #ai-stop-agent {
   display: none; padding: 4px 12px; background: var(--danger); color: white;
   border: none; border-radius: 6px; cursor: pointer; font-size: 11px;

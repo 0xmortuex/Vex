@@ -67,7 +67,9 @@ describe('a tab using the microphone or camera', () => {
 
   it('the memory guard skips a recording tab', async () => {
     installGlobals();
-    globalThis.window.vex.appMetrics = vi.fn(async () => [{ memKB: 2000 * 1024 }]);
+    const wcs = { rec: 1, idle: 2 };
+    globalThis.WebviewManager.webviews = { get: (id) => (wcs[id] ? { getWebContentsId: () => wcs[id] } : undefined) };
+    globalThis.window.vex.tabMemory = vi.fn(async (ids) => ({ totalKB: 2000 * 1024, byId: Object.fromEntries(ids.map(wc => [wc, { memKB: 300 * 1024, pid: 100 + wc }])) }));
     const TM = await loadTabManager();
     TM.tabs = [fakeTab('active', { lastViewedAt: Date.now() }), fakeTab('rec', { lastViewedAt: 1 }), fakeTab('idle', { lastViewedAt: 2 })];
     TM.activeTabId = 'active';

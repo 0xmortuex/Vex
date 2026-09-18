@@ -551,6 +551,14 @@
                 <button class="btn-secondary" id="btn-test-agent-model" title="Four canned questions, nothing executed, nothing leaves this machine">Test this model as an agent</button>
               </div>
 
+              <div class="setting-row" style="margin-top:14px">
+                <div class="setting-label">
+                  <strong>Start Ollama when it is needed</strong>
+                  <span class="setting-hint">If the local model is wanted and Ollama is not running, Vex starts it in the background — no window. It is left running, as Ollama's own app leaves it.</span>
+                </div>
+                <label class="toggle"><input type="checkbox" id="setting-ollama-autostart"><span class="toggle-slider"></span></label>
+              </div>
+
               <div class="setting-row" id="agent-numctx-row" style="margin-top:14px">
                 <div class="setting-label">
                   <strong>Agent context size</strong>
@@ -1038,8 +1046,7 @@
         <div class="ai-input-wrapper">
           <textarea id="ai-input" placeholder="Ask anything about this page…" rows="1"></textarea>
           <div class="ai-input-actions">
-            <button id="ai-send-agent" class="ai-icon-btn" title="Run as agent (take actions on the page)" aria-label="Run as agent"></button>
-            <button id="ai-send" title="Send  (Enter)" aria-label="Send"></button>
+            <button id="ai-send" title="Send  (Enter) — a task runs as the agent, a question is answered. /agent or /chat forces one" aria-label="Send"></button>
           </div>
         </div>
 
@@ -1078,7 +1085,7 @@
             </div>
           </div>
 
-          <!-- How the agent (the robot button) asks for permission. Three words
+          <!-- How the agent asks for permission (Send runs a task as the agent). Three words
                in three pills — "Ask / Plan / Auto" — did not say what they
                governed; this names it and explains each choice. The robot
                button opens it the first time, before anything runs. -->

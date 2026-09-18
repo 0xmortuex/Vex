@@ -132,6 +132,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Health since launch: crashes, hangs, helper processes gone, extension
   // errors, the updater's last word, startup timings (Memory panel › Health).
   diagnostics: () => ipcRenderer.invoke('app:diagnostics'),
+  // Make sure the local Ollama server is running (starts it when it is not).
+  ollamaEnsure: () => ipcRenderer.invoke('ollama:ensure'),
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // Media grabber: list/download media detected on a tab (by its webContents id).

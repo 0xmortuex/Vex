@@ -59,6 +59,8 @@ const AIRouter = (() => {
     forceCloud = _load('vex.forceCloudAI', false) === true;
     localModel = _load('vex.localAIModel', 'llama3.2:3b');
     await refreshOllamaStatus();
+    // Have the local model ready before the first request, not during it.
+    if (!ollamaAvailable && dependsOnLocal()) ollamaUp().catch(err => console.warn('[AIRouter] could not start Ollama:', err.message));
     if (checkTimer) clearInterval(checkTimer);
     checkTimer = setInterval(refreshOllamaStatus, 30000);
   }
@@ -91,6 +93,33 @@ const AIRouter = (() => {
     }
   }
 
+  // After a reboot Ollama is simply not running, and every local AI request
+  // failed until the user opened it by hand. When the local backend is wanted
+  // and does not answer, Vex starts it (main/ollama-launcher.js) — at most one
+  // attempt a minute, only for the default address on this machine, and not at
+  // all with Settings › AI › "Start Ollama when it is needed" off.
+  let _ollamaStartAt = 0;
+  function ollamaAutoStart() { return _load('vex.ollamaAutoStart', true) !== false; }
+  function setOllamaAutoStart(on) { _save('vex.ollamaAutoStart', !!on); }
+  async function ollamaUp() {
+    if (await pingOllama()) return true;
+    if (!ollamaAutoStart() || typeof window === 'undefined' || !window.vex || typeof window.vex.ollamaEnsure !== 'function') return false;
+    if (!/^https?:\/\/(localhost|127\.0\.0\.1):11434$/.test(Ollama.getBaseUrl())) return false;
+    if (Date.now() - _ollamaStartAt < 60000) return false;
+    _ollamaStartAt = Date.now();
+    const r = await window.vex.ollamaEnsure();
+    if (r && r.error) console.warn('[AIRouter] ' + r.error);
+    return pingOllama();
+  }
+
+  // Does this setup rely on the local model? (no AI Worker, "prefer local", or
+  // a feature pinned to local) — then it is worth having Ollama up before the
+  // first request rather than during it.
+  function dependsOnLocal() {
+    if (forceCloud) return false;
+    return !cloudWorkerUrl() || preferLocal || Object.values(routingPrefs).includes('local');
+  }
+
   // On-device (WebLLM/WebGPU) wins for chat-like features when the user has
   // turned it on AND a model is actually loaded. Small models can't do the
   // agent / structured-history features well, so those still route normally.
@@ -117,25 +146,27 @@ const AIRouter = (() => {
         // The agent prefers the cloud model. With no AI Worker configured it
         // used to be simply unavailable — "Cloud AI is not configured" — even
         // with a capable local model running. Now the local model drives it.
-        decision = (feature === 'agent' && !cloudWorkerUrl() && await pingOllama()) ? 'local' : 'cloud';
+        decision = (feature === 'agent' && !cloudWorkerUrl() && await ollamaUp()) ? 'local' : 'cloud';
       } else if (pref === 'local') {
         // Local-only feature (e.g. history indexing runs on-device for privacy).
         // If Ollama isn't installed/running, skip quietly instead of failing on
         // every page — no console spam, no doomed fetch to a dead port.
-        decision = isOllamaAvailable() ? 'local' : 'skip';
+        // A background feature never starts Ollama by itself; a request the
+        // user just made does.
+        decision = (isOllamaAvailable() || (!BACKGROUND_FEATURES.includes(feature) && await ollamaUp())) ? 'local' : 'skip';
       } else {
         // auto mode
         const hasCloud = isOnline() && !!cloudWorkerUrl();
         if (hasCloud) {
           // Cloud is viable; only choose local if the user prefers it AND
           // Ollama is already known to be up.
-          decision = (preferLocal && isOllamaAvailable()) ? 'local' : 'cloud';
+          decision = (preferLocal && (isOllamaAvailable() || await ollamaUp())) ? 'local' : 'cloud';
         } else {
           // Cloud is unconfigured (or offline). Don't trust a possibly-stale
           // availability flag — ping Ollama live. Use local if it answers; only
           // fall through to 'cloud' (which surfaces the "not configured" error)
           // when Ollama is ALSO unavailable.
-          decision = (await pingOllama()) ? 'local' : 'cloud';
+          decision = (await ollamaUp()) ? 'local' : 'cloud';
         }
       }
     }
@@ -509,7 +540,7 @@ Use exactly the tool names and parameter names listed under "Available tools". N
     callAI, resolveBackend,
     getRoutingPrefs, setRoutingPrefs,
     getOllamaStatus, setPreferLocal, setForceCloud,
-    setModel, getModel, localVision, agentNumCtx,
+    setModel, getModel, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
     // Settings › AI "Test as agent": the local agent, on a named model.
     localAgent: (request, model) => callLocalAgent(request, model),
     cloudWorkerUrl,

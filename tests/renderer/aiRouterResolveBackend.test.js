@@ -187,3 +187,63 @@ describe('AIRouter — the local agent: images, Stop, a named model', () => {
     delete globalThis.localStorage;
   });
 });
+
+// After a reboot Ollama is not running. With no AI Worker set, every request
+// then failed as "Cloud AI is not configured" until the user opened Ollama by
+// hand. The router now asks main to start it (src/main/ollama-launcher.js).
+describe('AIRouter — starting Ollama when the local model is wanted', () => {
+  let up;
+  function setup({ ensure, baseUrl = 'http://localhost:11434' } = {}) {
+    up = false;
+    globalThis.Ollama = { ping: vi.fn(async () => up), getBaseUrl: () => baseUrl };
+    const ollamaEnsure = vi.fn(ensure || (async () => { up = true; return { running: true, started: true }; }));
+    globalThis.window = { vex: { ollamaEnsure } };
+    return ollamaEnsure;
+  }
+  afterEach(() => { delete globalThis.window; delete globalThis.localStorage; });
+
+  it('Ollama down + no cloud → it is started, and the request goes local', async () => {
+    const AIRouter = await loadRouter();
+    const ensure = setup();
+    expect(await AIRouter.resolveBackend('chat')).toBe('local');
+    expect(await AIRouter.resolveBackend('agent')).toBe('local');
+    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(ensure).toHaveBeenCalledWith();               // no path, no arguments
+  });
+
+  it('when it cannot be started, the old answer stands — and it is not retried for a minute', async () => {
+    const AIRouter = await loadRouter();
+    const ensure = setup({ ensure: async () => ({ running: false, started: false, error: 'Ollama is not installed' }) });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
+    expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
+    expect(ensure).toHaveBeenCalledTimes(1);
+  });
+
+  it('switched off in Settings, or pointed at another machine: nothing is started', async () => {
+    const store = new Map([['vex.ollamaAutoStart', 'false']]);
+    globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
+    let AIRouter = await loadRouter();
+    let ensure = setup();
+    expect(AIRouter.ollamaAutoStart()).toBe(false);
+    expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
+    expect(ensure).not.toHaveBeenCalled();
+    AIRouter.setOllamaAutoStart(true);
+    expect(store.get('vex.ollamaAutoStart')).toBe('true');
+
+    AIRouter = await loadRouter();
+    ensure = setup({ baseUrl: 'http://192.168.1.20:11434' });
+    expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('a background feature never starts it; a request pinned to local does', async () => {
+    const AIRouter = await loadRouter();
+    const ensure = setup();
+    AIRouter.setRoutingPrefs({ historyIndex: 'local', summarize: 'local' });
+    expect(await AIRouter.resolveBackend('historyIndex')).toBe('skip');
+    expect(ensure).not.toHaveBeenCalled();
+    expect(await AIRouter.resolveBackend('summarize')).toBe('local');
+    expect(ensure).toHaveBeenCalledTimes(1);
+  });
+});

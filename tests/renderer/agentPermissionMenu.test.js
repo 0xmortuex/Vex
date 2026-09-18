@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 //
-// How the agent (the robot button) asks for permission. Three pills — "Ask /
+// How the agent asks for permission. Three pills — "Ask /
 // Plan / Auto" — did not say what they governed, and two could light at once
 // (one hard-coded active in the markup, the saved one added on top). Now one
-// labelled pill opens a menu that explains each choice, and the robot button
-// opens it the first time, before anything runs.
+// labelled pill opens a menu that explains each choice, and the first task
+// sent opens it, before anything runs. (There is no robot button any more:
+// Send decides whether a message is a task — see aiSendRouting.test.js.)
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -12,7 +13,7 @@ const { AIPanel } = require('../../src/renderer/js/ai-panel.js');
 
 const MARKUP = `
   <textarea id="ai-input"></textarea>
-  <button id="ai-send-agent"></button>
+  <button id="ai-send"></button>
   <div id="ai-messages"></div>
   <div class="agent-perm">
     <button id="agent-perm-toggle" aria-expanded="false"><span id="agent-perm-label"></span></button>
@@ -28,6 +29,8 @@ beforeEach(() => {
   document.body.innerHTML = MARKUP;
   localStorage.clear();
   AIPanel._pendingAgentRun = false;
+  AIPanel._conversations = {}; AIPanel._viewingId = null;
+  globalThis.TabManager = { activeTabId: 'tab1', tabs: [{ id: 'tab1' }], getActiveTab() { return this.tabs[0]; } };
   AIPanel.isOpen = () => true;
   globalThis.AgentLoop = { start: vi.fn(async () => {}), isRunning: () => false };
   window.showToast = vi.fn();
@@ -57,7 +60,6 @@ describe('the permission menu', () => {
     expect(label()).toBe('Plan first');
     expect(localStorage.getItem('vex.agentMode')).toBe('plan');
     expect(localStorage.getItem('vex.agentModeChosen')).toBe('1');
-    expect(document.getElementById('ai-send-agent').title).toMatch(/plan first/);
   });
 
   it('closes on a click elsewhere and on Escape, and ignores a nonsense saved mode', () => {
@@ -74,12 +76,12 @@ describe('the permission menu', () => {
   });
 });
 
-describe('the robot button asks first', () => {
+describe('the first task asks first', () => {
   it('on first use it opens the menu instead of running, keeps the task, and runs once a mode is picked', () => {
     AIPanel._initAgentPermission();
     document.getElementById('ai-input').value = 'rename my tab groups';
-    document.getElementById('ai-send-agent').addEventListener('click', () => AIPanel._sendAgent());
-    document.getElementById('ai-send-agent').click();
+    document.getElementById('ai-send').addEventListener('click', () => AIPanel._sendChat());
+    document.getElementById('ai-send').click();
     expect(AgentLoop.start).not.toHaveBeenCalled();
     expect(menu().hidden).toBe(false);                     // and the opening click did not close it again
     expect(menu().classList.contains('asking')).toBe(true);

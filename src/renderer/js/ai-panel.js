@@ -80,9 +80,6 @@ const AIPanel = {
       if (typeof window.showToast === 'function') window.showToast(`Switched to ${mention.name}`, 'info');
     });
 
-    // Agent send button — always uses agent mode
-    document.getElementById('ai-send-agent')?.addEventListener('click', () => this._sendAgent());
-
     // Stop agent button
     document.getElementById('ai-stop-agent')?.addEventListener('click', () => {
       if (typeof AgentLoop !== 'undefined') AgentLoop.stop();
@@ -116,7 +113,7 @@ const AIPanel = {
   // ---- How the agent asks for permission ---------------------------------
   // 'ask' = approve manually, 'plan' = plan first, 'auto' = auto-approve
   // (the ids AgentLoop has always used; vex.agentMode). Until a choice has
-  // been made (vex.agentModeChosen) the robot button opens this menu instead
+  // been made (vex.agentModeChosen) the first task sent opens this menu instead
   // of running, so the agent never starts clicking under a default nobody
   // picked.
   AGENT_MODES: { ask: 'Approve manually', plan: 'Plan first', auto: 'Auto-approve' },
@@ -139,10 +136,10 @@ const AIPanel = {
       });
     });
     // A click elsewhere closes it — but not the click that opened it (the pill,
-    // or the robot button asking on first use), which reaches here as well.
+    // or the first task asking on first use), which reaches here as well.
     document.addEventListener('click', (e) => {
       if (menu.hidden || menu.contains(e.target)) return;
-      if (e.target instanceof Element && e.target.closest('#agent-perm-toggle, #ai-send-agent')) return;
+      if (e.target instanceof Element && e.target.closest('#agent-perm-toggle, #ai-send')) return;
       this._pendingAgentRun = false;
       this._openAgentPermission(false);
     });
@@ -168,8 +165,6 @@ const AIPanel = {
       item.classList.toggle('active', on);
       item.setAttribute('aria-checked', on ? 'true' : 'false');
     });
-    const bot = document.getElementById('ai-send-agent');
-    if (bot) bot.title = 'Run as agent — ' + this.AGENT_MODES[this._agentMode].toLowerCase() + ' (change it under “Agent:” below)';
   },
 
   _openAgentPermission(open, asking) {
@@ -198,7 +193,7 @@ const AIPanel = {
     const msg = input?.value.trim();
     if (!msg) {
       input?.focus();
-      window.showToast?.('Type a task first, then click the agent button');
+      window.showToast?.('Type a task first');
       return;
     }
     // First use: ask how it may act before it acts at all. The task stays in
@@ -221,6 +216,17 @@ const AIPanel = {
     input.value = '';
     if (!this.isOpen()) this.open();
 
+    // The run belongs to this tab's conversation. It used to exist only on
+    // screen: reopening the panel redrew from an empty conversation, so the
+    // question, every step and the answer were gone — and Recent chats had
+    // nothing to list.
+    const tabId = this._getTabId();
+    this._viewingId = null;
+    const conv = this._getConv(tabId);
+    conv.push({ role: 'user', content: msg });
+    this._persistConversations();
+    this._agentTabId = tabId;
+
     // Clear empty state and add user message
     const container = document.getElementById('ai-messages');
     if (container) {
@@ -236,12 +242,15 @@ const AIPanel = {
 
     // Show stop button + running indicator
     document.getElementById('ai-stop-agent')?.classList.add('visible');
-    document.getElementById('ai-send-agent')?.classList.add('running');
 
     // Start agent loop
     const done = () => {
       document.getElementById('ai-stop-agent')?.classList.remove('visible');
-      document.getElementById('ai-send-agent')?.classList.remove('running');
+      // Keep the outcome with the chat; the steps stay with the saved run.
+      const run = (typeof AgentLoop !== 'undefined' && AgentLoop.lastRun && AgentLoop.lastRun.goal === msg) ? AgentLoop.lastRun : null;
+      conv.push({ role: 'assistant', content: (run && run.final) || '*The agent stopped without an answer.*', ...(run ? { agentRun: run.id } : {}) });
+      this._agentTabId = null;
+      this._persistConversations();
     };
     AgentLoop.start(msg, this._agentMode).then(done, (err) => {
       // A rejection here used to vanish: the buttons reset and the user was
@@ -437,7 +446,6 @@ const AIPanel = {
     paint('ai-expand', 'maximize', 15);
     paint('ai-close', 'x', 16);
     paint('ai-send', 'arrow-right', 17);
-    paint('ai-send-agent', 'robot', 16);
 
     // The dimmer behind focus mode. Clicking it closes, like clicking away
     // from the docked panel.
@@ -807,9 +815,11 @@ const AIPanel = {
         if (!Array.isArray(msgs)) continue;
         this._conversations[tabId] = msgs
           .filter(m => m && typeof m.content === 'string' && (m.role === 'user' || m.role === 'assistant'))
-          .map(m => (typeof m.thinking === 'string' && m.thinking)
-            ? { role: m.role, content: m.content, thinking: m.thinking.slice(0, this.MAX_THINKING_CHARS) }
-            : { role: m.role, content: m.content })
+          .map(m => ({
+            role: m.role, content: m.content,
+            ...((typeof m.thinking === 'string' && m.thinking) ? { thinking: m.thinking.slice(0, this.MAX_THINKING_CHARS) } : {}),
+            ...((typeof m.agentRun === 'string' && m.agentRun) ? { agentRun: m.agentRun } : {}),
+          }))
           .slice(-this.MAX_CONV_MESSAGES);
       }
     } catch {}
@@ -830,11 +840,11 @@ const AIPanel = {
         if (++kept > this.MAX_CONV_TABS) break;
         // Reasoning travels with its turn, capped: a long chain of thought is
         // far bigger than the answer and this store is a localStorage budget.
-        out[id] = msgs.slice(-this.MAX_CONV_MESSAGES).map(m => (
-          m.thinking
-            ? { role: m.role, content: m.content, thinking: String(m.thinking).slice(0, this.MAX_THINKING_CHARS) }
-            : { role: m.role, content: m.content }
-        ));
+        out[id] = msgs.slice(-this.MAX_CONV_MESSAGES).map(m => ({
+          role: m.role, content: m.content,
+          ...(m.thinking ? { thinking: String(m.thinking).slice(0, this.MAX_THINKING_CHARS) } : {}),
+          ...(m.agentRun ? { agentRun: String(m.agentRun) } : {}),
+        }));
       }
       localStorage.setItem(this.CONV_KEY, JSON.stringify(out));
     } catch {}
@@ -1017,9 +1027,7 @@ const AIPanel = {
   // like it did nothing (the send is refused while one is in flight).
   _setComposerBusy(on) {
     const send = document.getElementById('ai-send');
-    const agent = document.getElementById('ai-send-agent');
     if (send) send.disabled = !!on;
-    if (agent) agent.disabled = !!on;
     document.getElementById('ai-panel')?.classList.toggle('ai-busy', !!on);
   },
 
@@ -1041,10 +1049,42 @@ const AIPanel = {
     return false;
   },
 
+  // Does this message need DOING, or just answering? Send used to be chat
+  // only, with a separate robot button for the agent — the user had to know
+  // in advance which one a request needed. Now Send decides:
+  //   a task (open, click, fill in, start a timer, remind me, bookmark, group
+  //   my tabs…), or a question about the live world that a chat model can only
+  //   guess at (latest, today, price, weather, news) → the agent;
+  //   anything about this page, writing, explaining, code → chat.
+  // "/agent …" and "/chat …" force one or the other.
+  // → { agent: boolean, text: the message without a prefix }
+  routeMessage(raw) {
+    const s = String(raw || '').trim();
+    const forced = s.match(/^\/(agent|chat)\s+([\s\S]+)$/i);
+    if (forced) return { agent: forced[1].toLowerCase() === 'agent', text: forced[2].trim() };
+    // "hey vex, can you please open…" is "open…".
+    let t = s.toLowerCase(), before;
+    do { before = t; t = t.replace(/^(hey|hi|hello|ok|okay|please|pls|vex|can you|could you|would you|will you|i want you to|i need you to|i'd like you to|go ahead and|just)\b[\s,]*/, ''); } while (t !== before);
+    // About the page in front, or a writing/explaining job: chat, even with a verb in it.
+    const aboutPage = /\b(this|the|current) (page|article|site|video|tab|text|post|thread|document|pdf|code|selection|paragraph)\b|\b(summari[sz]e|tl;?dr|explain|rewrite|rephrase|proofread|translate|paraphrase|what does (this|that|it) mean)\b/.test(t);
+    const task = /^(open|go to|goto|navigate|visit|launch|click|press|tap|type|enter|fill|scroll|log ?in|sign ?in|sign ?up|book|order|buy|purchase|add|download|play|pause|search|google|look up|lookup|find out|find me|research|investigate|check|start|stop|cancel|set|create|make|save|bookmark|remind|close|group|ungroup|rename|organi[sz]e|sort|pin|unpin|mute|unmute|switch|reload|refresh|take|compare prices|subscribe|send|post|reply|schedule|turn (on|off)|enable|disable)\b/.test(t);
+    const vexThing = /\b(timer|alarm|stopwatch|reminder|remind me|bookmark|tab group|my tabs|new tab|split view|screenshot|a note|note titled|in my notes)\b/.test(t);
+    const liveWorld = /\b(latest|newest|current(ly)?|right now|today|tonight|tomorrow|this (week|month|year)|recent(ly)?|news|price of|how much (is|does|are)|stock price|weather|forecast|score|who won|release date|is .{2,40} (down|open|out yet)|search the web|on the web|online)\b/.test(t);
+    if (task && !(aboutPage && /^(search|find|check|compare|save|take|translate)\b/.test(t) && !vexThing && !liveWorld)) return { agent: true, text: s };
+    if (vexThing && /\b(start|set|create|make|add|save|cancel|stop|open|show|group|rename|close|take)\b/.test(t)) return { agent: true, text: s };
+    if (liveWorld && !aboutPage) return { agent: true, text: s };
+    return { agent: false, text: s };
+  },
+
   async _sendChat() {
     const input = document.getElementById('ai-input');
-    const msg = input?.value.trim();
-    if (!msg) return;
+    const typed = input?.value.trim();
+    if (!typed) return;
+    // Send decides whether this is a task for the agent (see routeMessage).
+    // The text stays in the box until the run really starts.
+    const route = this.routeMessage(typed);
+    const msg = route.text;
+    if (route.agent && typeof AgentLoop !== 'undefined' && typeof AgentLoop.start === 'function' && !this._sending) { input.value = msg; this._sendAgent(); return; }
     // A send that never starts (one already in flight) must hand the text back
     // rather than swallow it — the old code cleared the box and dropped it.
     if (this._sending) {
@@ -1204,6 +1244,10 @@ const AIPanel = {
   _renderMessages() {
     const container = document.getElementById('ai-messages');
     if (!container) return;
+    // The agent's steps are drawn live and live nowhere else until it ends:
+    // closing and reopening the panel mid-run must not wipe them.
+    if (typeof AgentLoop !== 'undefined' && AgentLoop.isRunning?.() && this._agentTabId != null
+      && String(this._viewingId || this._getTabId()) === String(this._agentTabId) && container.querySelector('[class*="agent-step"]')) return;
     const conv = this._getConv();
 
     if (conv.length === 0) {
@@ -1229,6 +1273,13 @@ const AIPanel = {
       el.appendChild(contentEl);
       // Copy on every message; retry on an answer, edit-and-resend on a question.
       el.appendChild(this._msgActions(m, i, contentEl));
+      if (m.agentRun && typeof AgentLoop !== 'undefined' && AgentLoop.runs().some(r => r.id === m.agentRun)) {
+        const steps = document.createElement('button');
+        steps.className = 'ai-agent-steps-link';
+        steps.textContent = 'Show what the agent did';
+        steps.addEventListener('click', () => { try { AgentLoop.showRun(m.agentRun); } catch (err) { window.showToast?.((err && err.message) || 'Could not open that run', 'error'); } });
+        el.appendChild(steps);
+      }
       container.appendChild(el);
     });
     container.scrollTop = container.scrollHeight;

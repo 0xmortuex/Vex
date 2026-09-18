@@ -208,7 +208,7 @@ const AgentLoop = {
     this._pendingImage = null;
     this._run = { id: (typeof vexId === 'function' ? vexId('run') : 'run_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), goal: String(goal), mode: this._mode, startedAt: Date.now(), steps: [], final: null, backend: null };
     toolCallHistory.reset();
-    document.getElementById('ai-send-agent')?.classList.add('running');
+    document.getElementById('ai-send')?.classList.add('running');
 
     this._renderStep('agent-start', 'Agent started: ' + goal, 'info');
 
@@ -403,7 +403,7 @@ const AgentLoop = {
     }
 
     this._running = false;
-    document.getElementById('ai-send-agent')?.classList.remove('running');
+    document.getElementById('ai-send')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
     this._renderStep('end', 'Agent finished', 'info');
     this._saveRun();
@@ -418,10 +418,12 @@ const AgentLoop = {
   _saveRun() {
     const run = this._run;
     this._run = null;
+    this.lastRun = null;
     if (!run || !run.steps.length) return;
     run.seconds = Math.round((Date.now() - run.startedAt) / 1000);
     if (run.final) run.final = run.final.slice(0, 20000);
     run.steps = run.steps.slice(0, 120);
+    this.lastRun = run;
     try { localStorage.setItem(this.RUNS_KEY, JSON.stringify([run, ...this.runs()].slice(0, 30))); }
     catch (err) { window.showToast?.('This agent run could not be saved: ' + ((err && err.message) || ''), 'error'); }
   },
@@ -446,7 +448,7 @@ const AgentLoop = {
     this._running = false;
     // Cancel the model call already in flight, not just the next step.
     try { this._abort?.abort(new Error('Stopped by you')); } catch { /* nothing in flight */ }
-    document.getElementById('ai-send-agent')?.classList.remove('running');
+    document.getElementById('ai-send')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
   },
   isRunning() { return this._running; },

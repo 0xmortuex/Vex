@@ -44,6 +44,7 @@ beforeEach(async () => {
     getPreferLocal: () => false,
     getForceCloud: () => false,
     refreshOllamaStatus: async () => false,
+    ollamaUp: async () => false, ollamaAutoStart: () => true, setOllamaAutoStart: () => {}, agentNumCtx: () => 16384,
     getRoutingPrefs: () => ({}),
     setRoutingPrefs: (p) => routingWrites.push(p),
   };
@@ -62,7 +63,7 @@ describe('AISettings re-render', () => {
   });
 
   it('fires one refresh per click on either refresh button', async () => {
-    const spy = vi.spyOn(AIRouter, 'refreshOllamaStatus');
+    const spy = vi.spyOn(AIRouter, 'ollamaUp');   // Refresh also starts Ollama when it is not running
     for (let i = 0; i < 3; i++) await window.AISettings.renderAISettings();
     document.getElementById('btn-refresh-ollama').click();
     await Promise.resolve();

@@ -1917,34 +1917,91 @@ const TabManager = {
       this.sleepTab(t.id); slept++;
     });
   },
+  // The guard used to compare ALL of Vex with the ceiling and sleep idle tabs
+  // whenever it was over. But most of a heavy session is not in tabs — the
+  // Discord panel alone is ~1 GB, then the GPU process, extensions, the window
+  // itself — so with the default 1.2 GB ceiling it was over for good: every
+  // tab was slept within 45 s of being left, with a "High memory" toast each
+  // time, and none of it could bring the total down. Now:
+  //   * a tab left under five minutes ago is not idle yet;
+  //   * what the idle tabs really hold is measured, and if that is too little
+  //     to matter nothing is slept (the memory is somewhere tabs cannot fix);
+  //   * only as many tabs as it takes to get under the ceiling are slept;
+  //   * the toast comes at most once in 30 minutes, with what was freed.
+  GUARD_GRACE_MS: 5 * 60000,
+  GUARD_MIN_RECLAIM_MB: 150,
+  GUARD_TOAST_EVERY_MS: 30 * 60000,
+  _guardToastAt: 0,
+  _guardUnsaid: null,
+
   async _memorySweep() {
-    if (!this._memCeiling || !(window.vex && window.vex.appMetrics)) return;
-    let metrics;
-    try { metrics = await window.vex.appMetrics(); } catch { return; }
-    const totalMB = metrics.reduce((s, p) => s + (p.memKB || 0), 0) / 1024;
-    if (totalMB <= this._memCeiling) return;
+    if (!this._memCeiling || !(window.vex && typeof window.vex.tabMemory === 'function')) return;
     const now = Date.now();
-    const idle = (t) => t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted) && !this.isCapturing(t);
+    const idle = (t) => t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted) && !this.isCapturing(t)
+      && now - (t.lastViewedAt || 0) >= this.GUARD_GRACE_MS;
     const byOldest = (a, b) => (a.lastViewedAt || 0) - (b.lastViewedAt || 0);
     // Unpinned idle tabs first. Pinned tabs were never touched, so two pinned
     // claude.ai tabs could hold 550 MB (and the capture and audio services
     // with them) while the guard slept nothing; past the ceiling, a pinned tab
     // not looked at for half an hour goes too — the pin keeps its place in the
     // strip, and it wakes on a click like any other.
-    const cands = this.tabs.filter(t => idle(t) && !t.pinned).sort(byOldest);
-    const pinnedIdle = this.tabs.filter(t => idle(t) && t.pinned && now - (t.lastViewedAt || 0) >= 30 * 60000).sort(byOldest);
-    let slept = 0, pinnedSlept = 0;
-    for (const t of [...cands, ...pinnedIdle]) {
-      if (slept >= 5) break; // small batches; re-evaluate next tick
+    const cands = [
+      ...this.tabs.filter(t => idle(t) && !t.pinned).sort(byOldest),
+      ...this.tabs.filter(t => idle(t) && t.pinned && now - (t.lastViewedAt || 0) >= 30 * 60000).sort(byOldest),
+    ];
+    const wcOf = new Map();
+    for (const t of cands) {
+      const wv = WebviewManager.webviews.get(t.id);
+      if (!wv || typeof wv.getWebContentsId !== 'function') continue;
+      try { wcOf.set(t, wv.getWebContentsId()); } catch { /* not attached yet */ }
+    }
+    const mem = await window.vex.tabMemory([...wcOf.values()]);
+    const totalMB = ((mem && mem.totalKB) || 0) / 1024;
+    if (totalMB <= this._memCeiling) return;
+
+    // What each candidate would give back. Tabs sharing one renderer process
+    // free it only together, so that process is counted once.
+    const seenPid = new Set();
+    const gain = new Map();
+    for (const [t, wc] of wcOf) {
+      const row = mem.byId && mem.byId[wc];
+      if (!row) continue;
+      gain.set(t, seenPid.has(row.pid) ? 0 : row.memKB / 1024);
+      seenPid.add(row.pid);
+    }
+    const reclaimable = [...gain.values()].reduce((a, b) => a + b, 0);
+    if (reclaimable < this.GUARD_MIN_RECLAIM_MB) {
+      this._guardNote(now, `Over the ${this._memCeiling} MB ceiling (${Math.round(totalMB)} MB), but idle tabs hold only ${Math.round(reclaimable)} MB — nothing slept. See Processes for where it is.`);
+      return;
+    }
+
+    const need = totalMB - this._memCeiling;
+    let slept = 0, pinnedSlept = 0, freed = 0;
+    for (const t of cands) {
+      if (slept >= 5 || freed >= need) break;   // small batches; re-evaluate next tick
+      if (!gain.has(t)) continue;
       await this.sleepTab(t.id);
-      slept++;
+      slept++; freed += gain.get(t);
       if (t.pinned) pinnedSlept++;
     }
-    if (slept) {
-      const msg = `High memory — slept ${slept} idle tab${slept === 1 ? '' : 's'}${pinnedSlept ? ` (${pinnedSlept} pinned, idle over 30 min)` : ''}`;
-      window.showToast?.(msg);
-      document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: msg } }));   // Memory panel trend
-    }
+    if (!slept) return;
+    const words = (n, p, mb) => `High memory — slept ${n} idle tab${n === 1 ? '' : 's'}${p ? ` (${p} pinned, idle over 30 min)` : ''}, about ${Math.round(mb)} MB`;
+    document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: words(slept, pinnedSlept, freed) } }));   // Memory panel trend
+    // The toast: once in a while, with everything slept since the last one.
+    const u = this._guardUnsaid || { slept: 0, pinned: 0, mb: 0 };
+    u.slept += slept; u.pinned += pinnedSlept; u.mb += freed;
+    if (now - this._guardToastAt >= this.GUARD_TOAST_EVERY_MS) {
+      window.showToast?.(words(u.slept, u.pinned, u.mb));
+      this._guardToastAt = now;
+      this._guardUnsaid = null;
+    } else this._guardUnsaid = u;
+  },
+
+  // A line for the Memory panel's trend, not a toast, and not every 45 s.
+  _guardNote(now, note) {
+    if (now - (this._guardNoteAt || 0) < this.GUARD_TOAST_EVERY_MS) return;
+    this._guardNoteAt = now;
+    document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note } }));
   },
 
   // Rename a tab group — the group menu's Rename, and the AI agent's

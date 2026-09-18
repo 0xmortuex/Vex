@@ -23,7 +23,7 @@ function panelText() {
 let executed;
 
 beforeEach(() => {
-  document.body.innerHTML = '<div id="ai-messages"></div><button id="ai-send-agent"></button><button id="ai-stop-agent"></button>';
+  document.body.innerHTML = '<div id="ai-messages"></div><button id="ai-send"></button><button id="ai-stop-agent"></button>';
   executed = [];
   globalThis.window.showToast = vi.fn();
   globalThis.WebviewManager = { getActiveWebview: () => null };

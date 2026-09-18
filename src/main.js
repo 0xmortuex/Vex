@@ -734,6 +734,19 @@ app.on('web-contents-created', (_e, wc) => {
     wc.once('did-finish-load', () => { if (!('first-page-loaded' in _diag.marks)) _diagMark('first-page-loaded'); });
   }
 });
+// Local AI is Ollama's server; after a reboot it is not running. The renderer
+// asks for it to be up — no path, no arguments (main/ollama-launcher.js).
+const _ollamaLauncher = require('./main/ollama-launcher').createOllamaLauncher({
+  platform: process.platform,
+  env: process.env,
+  exists: (p) => fs.existsSync(p),
+  spawn: require('child_process').spawn,
+  probe: require('./main/ollama-launcher').httpProbe(require('http')),
+  sleep: (ms) => new Promise(r => setTimeout(r, ms)),
+  log: (m) => console.log(m),
+});
+ipcMain.handle('ollama:ensure', () => _ollamaLauncher.ensure());
+
 ipcMain.handle('app:diagnostics', () => {
   let update = null;
   try { update = require('./main/updates').state; } catch {}
@@ -4500,7 +4513,10 @@ try {
 function startReminders() {
   const { JsonStore } = require('./main/file-store');
   const osScheduler = require('./main/os-schedule').createOsScheduler({
-    platform: process.platform,
+    // A throwaway profile (a test run, a live probe) must not leave Windows
+    // scheduled tasks behind — 69 were found pointing at deleted temp
+    // profiles, thirty of them launching Vex at once on a Friday afternoon.
+    platform: process.env.VEX_NO_OS_SCHEDULE === '1' ? 'none' : process.platform,
     execFile: require('child_process').execFile,
     execPath: process.execPath,
     appPath: app.getAppPath(),

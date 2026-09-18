@@ -160,7 +160,7 @@ const AISettings = (() => {
     const refreshOllama = async (btn) => {
       const orig = btn ? btn.innerHTML : '';
       if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
-      const available = await AIRouter.refreshOllamaStatus();
+      const available = await AIRouter.ollamaUp();          // starts it when it is not running
       console.log('[AISettings] Refresh → Ollama available:', available);
       await refreshStatus();
       await populateModels();
@@ -171,6 +171,11 @@ const AISettings = (() => {
     document.getElementById('btn-refresh-ollama-inline')?.addEventListener('click', (e) => refreshOllama(e.currentTarget));
     document.getElementById('btn-install-ollama')?.addEventListener('click', showOllamaInstallDialog);
 
+    const autoStart = document.getElementById('setting-ollama-autostart');
+    if (autoStart) {
+      autoStart.checked = AIRouter.ollamaAutoStart();
+      autoStart.addEventListener('change', () => AIRouter.setOllamaAutoStart(autoStart.checked));
+    }
     const ctxSelect = document.getElementById('agent-numctx-select');
     if (ctxSelect) {
       ctxSelect.value = String(AIRouter.agentNumCtx());
