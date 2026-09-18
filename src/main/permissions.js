@@ -9,6 +9,33 @@ function originKey(origin) {
   const s = String(origin || '');
   try { return new URL(s).origin; } catch { return s.replace(/\/+$/, ''); }
 }
+// What a request is REALLY for. Electron reports the microphone, the camera,
+// both together, and a screen share all as the one permission 'media', told
+// apart only by details.mediaTypes — measured: ["audio"], ["video"],
+// ["audio","video"], and [] for getDisplayMedia. Vex ignored that, so every
+// one of them asked for "your camera and microphone", and "Remember" filed
+// the answer under a single key: allowing a site's microphone pre-approved its
+// camera and its screen shares, and blocking a screen share blocked the mic.
+function mediaParts(permission, details) {
+  if (permission !== 'media') return [permission];
+  const types = details && Array.isArray(details.mediaTypes) ? details.mediaTypes : null;
+  if (types && !types.length) return ['display-capture'];
+  const parts = [];
+  if (!types || types.includes('video')) parts.push('camera');
+  if (!types || types.includes('audio')) parts.push('microphone');
+  return parts.length ? parts : ['camera', 'microphone'];
+}
+// 'allow' only when every part is allowed; 'deny' when any part is denied.
+// An answer saved before this change sits under '::media'. Its prompt said
+// "camera and microphone", so it still counts for those two — never for a
+// screen share, which nobody was told they were agreeing to.
+function savedDecision(decisions, origin, parts) {
+  const one = (p) => decisions[`${origin}::${p}`] || ((p === 'camera' || p === 'microphone') ? decisions[`${origin}::media`] : undefined);
+  const found = parts.map(one);
+  if (found.includes('deny')) return 'deny';
+  return found.every(v => v === 'allow') ? 'allow' : null;
+}
+
 function createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive }) {
 // === Site permission handler (geolocation, camera, mic, notifications, ...) ===
 const permissionsFile = path.join(userDataPath, 'permissions.json');
@@ -115,17 +142,18 @@ function wirePermissionsOnSession(ses, tag, opts) {
       return callback(false);
     }
 
-    // Check persisted decisions
-    const decisions = decisionsFor(webContents);
-    const key = `${origin}::${permission}`;
-    if (decisions[key] === 'allow') return callback(true);
-    if (decisions[key] === 'deny')  return callback(false);
+    // Check persisted decisions — under what is really being asked for.
+    const parts = mediaParts(permission, details);
+    const saved = savedDecision(decisionsFor(webContents), origin, parts);
+    if (saved === 'allow') return callback(true);
+    if (saved === 'deny')  return callback(false);
+    const asked = parts.length > 1 ? 'media' : parts[0];
 
     // Ask the user — queued if the renderer isn't listening yet (cold start).
     const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    Object.assign(callback, { _host: secureSessions.owner(webContents), _contents: webContents, _origin: origin, _permission: permission });
+    Object.assign(callback, { _host: secureSessions.owner(webContents), _contents: webContents, _origin: origin, _permission: asked, _parts: parts });
     pendingPermissions.set(id, callback);
-    sendPermissionRequest({ id, origin, permission });
+    sendPermissionRequest({ id, origin, permission: asked });
 
     // Safety timeout — if the user ignores the prompt for 2 minutes, deny.
     setTimeout(() => {
@@ -146,7 +174,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
   // time: navigator.permissions.query said "denied" seconds after Allow, and
   // `new Notification()` fired onerror. Measured 2026-09-13. Normalise both
   // sides to the same form before comparing.
-  ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => {
+  ses.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
     requestingOrigin = originKey(requestingOrigin);
     // WebHID: keep navigator.hid available, and mark this origin as having a
     // device request in flight — Chromium runs this 'hid' check at the start of
@@ -158,8 +186,10 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
     if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;
     if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return true;
-    const decisions = decisionsFor(_wc);
-    return decisions[`${requestingOrigin}::${permission}`] === 'allow';
+    // The check names one device: details.mediaType is 'audio' or 'video'.
+    const kind = details && details.mediaType;
+    const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
+    return savedDecision(decisionsFor(_wc), requestingOrigin, parts) === 'allow';
   });
 }
 
@@ -172,7 +202,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
   try { cb(decision === 'allow'); } catch {}
   if (remember && cb._origin && cb._permission) {
     const d = decisionsFor(cb._contents);
-    d[`${cb._origin}::${cb._permission}`] = decision;
+    for (const part of (cb._parts || [cb._permission])) d[`${cb._origin}::${part}`] = decision;
     const partition = secureSessions.partitionOf(cb._contents);
     if (!partition || partition.startsWith('persist:')) await savePermissionDecisions(d);
   }
@@ -183,4 +213,4 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
 return { pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
 }
-module.exports = { createPermissionService, originKey };
+module.exports = { createPermissionService, originKey, mediaParts, savedDecision };

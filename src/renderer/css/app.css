@@ -860,6 +860,7 @@ body.private-mode #vex-logo::after {
 }
 .perm-message { color: var(--vex-text-secondary); font-size: 12px; margin-top: 3px; line-height: 1.4; }
 .perm-message strong { color: var(--vex-text-primary); }
+.perm-note { display: block; font-size: 11px; opacity: 0.8; }
 .perm-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .perm-remember { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--vex-text-muted); cursor: pointer; }
 .perm-remember input { accent-color: var(--vex-accent); }

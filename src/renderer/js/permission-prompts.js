@@ -20,24 +20,28 @@ const PermissionPrompts = (() => {
     clipboard: _svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>'),
     shield:  _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>')
   };
+  // `ask` finishes the sentence "<site> wants to …"; `label` names the thing
+  // in the "Allowed: site → …" toast. One phrase used to do both jobs, which
+  // read "wants to access send notifications" and "wants to access capture
+  // your screen".
   const LABELS = {
-    'geolocation':    { icon: ICONS.pin,    label: 'your location' },
-    'media':          { icon: ICONS.video,  label: 'your camera and microphone' },
-    'camera':         { icon: ICONS.camera, label: 'your camera' },
-    'microphone':     { icon: ICONS.mic,    label: 'your microphone' },
-    'notifications':  { icon: ICONS.bell,   label: 'send notifications' },
-    'midi':           { icon: ICONS.music,  label: 'MIDI devices' },
-    'midiSysex':      { icon: ICONS.music,  label: 'MIDI devices (SysEx)' },
-    'mediaKeySystem': { icon: ICONS.film,   label: 'play protected content (DRM)' },
-    'display-capture':{ icon: ICONS.screen, label: 'capture your screen' },
-    'clipboard-read': { icon: ICONS.clipboard, label: 'read what you last copied' }
+    'geolocation':    { icon: ICONS.pin,    ask: 'know your location', label: 'location' },
+    'media':          { icon: ICONS.video,  ask: 'use your camera and microphone', label: 'camera and microphone' },
+    'camera':         { icon: ICONS.camera, ask: 'use your camera', label: 'camera' },
+    'microphone':     { icon: ICONS.mic,    ask: 'use your microphone', label: 'microphone' },
+    'notifications':  { icon: ICONS.bell,   ask: 'send you notifications', label: 'notifications' },
+    'midi':           { icon: ICONS.music,  ask: 'use your MIDI devices', label: 'MIDI devices' },
+    'midiSysex':      { icon: ICONS.music,  ask: 'use your MIDI devices (SysEx)', label: 'MIDI devices (SysEx)' },
+    'mediaKeySystem': { icon: ICONS.film,   ask: 'play protected content (DRM)', label: 'protected content' },
+    'display-capture':{ icon: ICONS.screen, ask: 'share your screen', label: 'screen sharing', note: 'You choose which screen or window next.' },
+    'clipboard-read': { icon: ICONS.clipboard, ask: 'read what you last copied', label: 'clipboard' }
   };
 
   function _esc(s) { return window.escapeHtml(s); }
 
   function showPrompt(data) {
     const { id, origin, permission } = data || {};
-    const info = LABELS[permission] || { icon: ICONS.shield, label: permission || 'unknown' };
+    const info = LABELS[permission] || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
 
     document.querySelectorAll('.permission-prompt').forEach(p => p.remove());
 
@@ -47,7 +51,7 @@ const PermissionPrompts = (() => {
       <div class="perm-icon">${info.icon}</div>
       <div class="perm-content">
         <div class="perm-origin">${_esc(origin)}</div>
-        <div class="perm-message">wants to access <strong>${_esc(info.label)}</strong></div>
+        <div class="perm-message">wants to <strong>${_esc(info.ask)}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}</div>
       </div>
       <div class="perm-actions">
         <label class="perm-remember">

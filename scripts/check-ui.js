@@ -721,6 +721,8 @@ async function main() {
     // the app log in that one mode is the right trade for a debugging flag.
     stdio: KEEP_OPEN ? ['ignore', 'ignore', 'ignore'] : ['ignore', 'pipe', 'pipe'],
     detached: KEEP_OPEN,
+    // A throwaway profile must not leave a Windows scheduled task behind.
+    env: { ...process.env, VEX_NO_OS_SCHEDULE: '1' },
   });
 
   let appLog = '';
@@ -752,7 +754,10 @@ async function main() {
         child.kill('SIGKILL');
       }
     } catch { /* already dead */ }
-    try { fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5 }); } catch { /* profile lock; tmp sweeps it */ }
+    // Nothing sweeps Temp on Windows: five quick retries lost to Vex's exiting
+    // child processes and the profile stayed for good.
+    try { fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); }
+    catch (err) { console.warn('could not remove ' + userDataDir + ': ' + err.message); }
   };
 
   // Always kill the app and drop the throwaway profile, including on failure.

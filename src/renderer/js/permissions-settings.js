@@ -29,6 +29,9 @@ const PermissionsSettings = (() => {
             const idx = key.indexOf('::');
             const origin = idx >= 0 ? key.slice(0, idx) : key;
             const permission = idx >= 0 ? key.slice(idx + 2) : '';
+            // 'media' is an answer saved before requests were told apart: it covers
+            // the camera and the microphone, never a screen share.
+            const NAMES = { media: 'camera and microphone', camera: 'camera', microphone: 'microphone', 'display-capture': 'screen sharing', geolocation: 'location', notifications: 'notifications', 'clipboard-read': 'reading the clipboard', midi: 'MIDI devices', midiSysex: 'MIDI devices (SysEx)' };
             const badge = decision === 'allow' ? '\u2713 Allowed' : '\u2717 Blocked';
             return `
               <div class="permission-row">
@@ -36,7 +39,7 @@ const PermissionsSettings = (() => {
                   <div class="perm-row-origin">${_esc(origin)}</div>
                   <div class="perm-row-detail">
                     <span class="perm-badge ${_esc(decision)}">${badge}</span>
-                    ${_esc(permission)}
+                    ${_esc(NAMES[permission] || permission)}
                   </div>
                 </div>
                 <button class="btn-secondary-sm" data-perm-key="${_esc(key)}">Revoke</button>

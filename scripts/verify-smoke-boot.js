@@ -22,7 +22,8 @@ const userDataDir = path.join(os.tmpdir(), 'vex-smoke-' + process.pid + '-' + Da
 let settled = false;
 const child = spawn(electronPath, [...(process.env.VEX_SMOKE_EXECUTABLE ? [] : ['.']), `--user-data-dir=${userDataDir}`], {
   cwd: projectRoot,
-  env: { ...process.env, VEX_SMOKE: '1', VEX_SKIP_VMP_VERIFY: '1' },
+  // VEX_NO_OS_SCHEDULE: a throwaway profile must not leave a Windows scheduled task behind.
+  env: { ...process.env, VEX_SMOKE: '1', VEX_SKIP_VMP_VERIFY: '1', VEX_NO_OS_SCHEDULE: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
@@ -40,7 +41,10 @@ const timer = setTimeout(() => finish(false, 'harness timeout (no SMOKE line in 
 
 function cleanup() {
   try { child.kill('SIGKILL'); } catch {}
-  try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch {}
+  // Vex's child processes hold the profile for a moment after the kill; one
+  // attempt always lost that race and left the folder (85 of them) in Temp.
+  try { fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); }
+  catch (err) { console.warn('could not remove ' + userDataDir + ': ' + err.message); }
 }
 
 function finish(ok, detail) {

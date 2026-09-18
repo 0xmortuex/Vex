@@ -156,3 +156,101 @@ describe('a decision made in the prompt is honoured by the sync check', () => {
     require('fs').rmSync(dir, { recursive: true, force: true });
   });
 });
+
+// Electron reports the microphone, the camera, both, and a SCREEN SHARE all as
+// the one permission 'media', told apart only by details.mediaTypes — measured
+// in a running Vex: ["audio"], ["video"], ["audio","video"], and [] for
+// getDisplayMedia. Vex ignored that: every prompt said "camera and microphone",
+// and "Remember" filed the answer under one key, so allowing a site's
+// microphone pre-approved its camera and its screen shares.
+describe("a 'media' request is filed under what it really asks for", () => {
+  const { mediaParts, savedDecision } = require('../../src/main/permissions.js');
+  const fs = require('fs'), os = require('os'), path = require('path');
+
+  function live() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-perm-'));
+    const ipcMain = { on: vi.fn(), handle: vi.fn() };
+    const send = vi.fn();
+    const host = { win: { webContents: { send } } };
+    const svc = createPermissionService({ userDataPath: dir, secureSessions: { partitionOf: () => 'persist:main', owner: () => host }, ipcMain, _markHidRequestActive: () => {} });
+    svc.permissionsReady();
+    const ses = fakeSession();
+    svc.wirePermissionsOnSession(ses, 'test', {});
+    const respond = ipcMain.handle.mock.calls.find(c => c[0] === 'permission:respond')[1];
+    // Ask; returns the answer, or the prompt that was shown.
+    const ask = (mediaTypes) => {
+      let answer;
+      send.mockClear();
+      ses.handlers.request({ getURL: () => 'https://meet.example/', session: {} }, 'media', (ok) => { answer = ok; }, { requestingUrl: 'https://meet.example/room', mediaTypes });
+      return answer !== undefined ? answer : send.mock.calls[0][1];
+    };
+    const answer = (prompt, decision, remember = true) => respond({ sender: {} }, { id: prompt.id, decision, remember });
+    return { svc, ses, ask, answer, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  }
+
+  it('names the parts', () => {
+    expect(mediaParts('media', { mediaTypes: [] })).toEqual(['display-capture']);
+    expect(mediaParts('media', { mediaTypes: ['audio'] })).toEqual(['microphone']);
+    expect(mediaParts('media', { mediaTypes: ['video'] })).toEqual(['camera']);
+    expect(mediaParts('media', { mediaTypes: ['audio', 'video'] })).toEqual(['camera', 'microphone']);
+    expect(mediaParts('media', {})).toEqual(['camera', 'microphone']);        // no detail: ask for both
+    expect(mediaParts('geolocation', { mediaTypes: [] })).toEqual(['geolocation']);
+  });
+
+  it('the prompt says what is being asked for', () => {
+    const v = live();
+    expect(v.ask([]).permission).toBe('display-capture');
+    expect(v.ask(['audio']).permission).toBe('microphone');
+    expect(v.ask(['video']).permission).toBe('camera');
+    expect(v.ask(['audio', 'video']).permission).toBe('media');
+    v.done();
+  });
+
+  it('remembering the microphone does not approve the camera or a screen share', async () => {
+    const v = live();
+    await v.answer(v.ask(['audio']), 'allow');
+    expect(v.ask(['audio'])).toBe(true);
+    expect(v.ask(['video']).permission).toBe('camera');               // still asks
+    expect(v.ask([]).permission).toBe('display-capture');             // still asks
+    expect(v.svc.loadPermissionDecisions()).toEqual({ 'https://meet.example::microphone': 'allow' });
+    v.done();
+  });
+
+  it('blocking a screen share does not block the microphone', async () => {
+    const v = live();
+    await v.answer(v.ask([]), 'deny');
+    expect(v.ask([])).toBe(false);
+    expect(v.ask(['audio']).permission).toBe('microphone');
+    v.done();
+  });
+
+  it('allowing both remembers each; one denied part denies a request for both', async () => {
+    const v = live();
+    await v.answer(v.ask(['audio', 'video']), 'allow');
+    expect(v.svc.loadPermissionDecisions()).toEqual({ 'https://meet.example::camera': 'allow', 'https://meet.example::microphone': 'allow' });
+    expect(v.ask(['video'])).toBe(true);
+    expect(v.ses.handlers.check({ session: {} }, 'media', 'https://meet.example/', { mediaType: 'audio' })).toBe(true);
+    await v.svc.savePermissionDecisions({ 'https://meet.example::camera': 'deny', 'https://meet.example::microphone': 'allow' });
+    expect(v.ask(['audio', 'video'])).toBe(false);
+    expect(v.ses.handlers.check({ session: {} }, 'media', 'https://meet.example/', { mediaType: 'video' })).toBe(false);
+    v.done();
+  });
+
+  it("an answer saved before this change ('::media') still counts for camera and microphone — never for a screen share", async () => {
+    const v = live();
+    await v.svc.savePermissionDecisions({ 'https://meet.example::media': 'allow' });
+    expect(v.ask(['audio'])).toBe(true);
+    expect(v.ask(['audio', 'video'])).toBe(true);
+    expect(v.ask([]).permission).toBe('display-capture');
+    expect(savedDecision({ 'https://a.example::media': 'deny' }, 'https://a.example', ['microphone'])).toBe('deny');
+    expect(savedDecision({ 'https://a.example::media': 'deny' }, 'https://a.example', ['display-capture'])).toBe(null);
+    v.done();
+  });
+
+  it('"Remember" unticked stores nothing', async () => {
+    const v = live();
+    await v.answer(v.ask(['audio']), 'allow', false);
+    expect(v.svc.loadPermissionDecisions()).toEqual({});
+    v.done();
+  });
+});
