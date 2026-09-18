@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.31.88 (2026-09-18) — Discord screen sharing works with "Share audio" off
+
+### Notes
+- **Fixed: in Discord you picked a screen, the picker closed, and nothing was shared.** Discord always asks for audio with a screen share, and Chromium refuses a pick that leaves out audio the page asked for ("Invalid capture constraints"). Vex's picker has a *Share audio* box and remembers it — so after unticking it once, every share died the moment you picked a screen, without a word. Reproduced on discord.com in the panel: ticked worked, unticked failed. The pick now always carries the audio that was asked for, and with the box unticked Vex removes the audio track before Discord ever receives the stream — so it shares silently, as the box says. Measured both ways after the fix: 1080p live, with and without audio.
+- **A share Vex cannot start now says why.** The picker used to throw away the answer it got back, so a refused or expired share looked like nothing happening at all.
+
 ## v2.31.87 (2026-09-18) — Send decides, chats stop vanishing, Vex starts Ollama itself, and the memory guard stops nagging
 
 ### Notes
