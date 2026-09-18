@@ -518,15 +518,26 @@ function runInMainWorld(src) {
     if(navigator.mediaDevices.getUserMedia){
       var origUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
       var live = { audio: 0, video: 0 };
+      var open = new Set();
       var report = function(kind){ try{ bridge.capture(kind === 'audio' ? 'mic' : 'camera', live[kind] > 0); }catch(e){} };
+      // The host can end them: "stop" in the permissions panel used to be
+      // impossible, because nothing kept hold of the tracks.
+      window.__vexStopCapture = function(kind){
+        var n = 0;
+        open.forEach(function(track){
+          if(kind && kind !== 'all' && track.kind !== (kind === 'mic' ? 'audio' : 'video')) return;
+          try{ track.stop(); n++; }catch(e){}
+        });
+        return n;
+      };
       navigator.mediaDevices.getUserMedia = function(constraints){
         return origUM(constraints).then(function(stream){
           try{
             stream.getTracks().forEach(function(track){
               var kind = track.kind; if(kind !== 'audio' && kind !== 'video') return;
-              live[kind]++; report(kind);
+              live[kind]++; open.add(track); report(kind);
               var done = false;
-              var ended = function(){ if(done) return; done = true; live[kind]--; report(kind); };
+              var ended = function(){ if(done) return; done = true; live[kind]--; open.delete(track); report(kind); };
               track.addEventListener('ended', ended);
               var stop = track.stop;
               track.stop = function(){ try{ stop.call(track); } finally { ended(); } };
@@ -590,6 +601,11 @@ function runInMainWorld(src) {
   function inject() { runInMainWorld(shimSrc); }
   if (document.documentElement) inject();
   else document.addEventListener('readystatechange', inject, { once: true });
+
+  // "Stop" from the permissions panel: end whatever this page is capturing.
+  ipcRenderer.on('vex-stop-capture', (_e, kind) => {
+    runInMainWorld('window.__vexStopCapture && window.__vexStopCapture(' + JSON.stringify(String(kind || 'all')) + ')');
+  });
 
   // The host sends the device id for this tab (js/audio-output.js).
   ipcRenderer.on('vex-audio-sink', (_e, id) => {

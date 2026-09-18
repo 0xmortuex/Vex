@@ -54,12 +54,9 @@ const PermissionPrompts = (() => {
         <div class="perm-message">wants to <strong>${_esc(info.ask)}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}</div>
       </div>
       <div class="perm-actions">
-        <label class="perm-remember">
-          <input type="checkbox" id="perm-remember-${_esc(id)}" checked>
-          Remember
-        </label>
-        <button class="btn-danger-sm" data-decision="deny">Block</button>
-        <button class="btn-primary-sm" data-decision="allow">Allow</button>
+        <button class="btn-danger-sm" data-decision="deny" data-remember="true">Block</button>
+        <button class="btn-secondary-sm" data-decision="allow" data-remember="session">Allow this visit</button>
+        <button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow</button>
       </div>
     `;
     document.body.appendChild(prompt);
@@ -68,14 +65,16 @@ const PermissionPrompts = (() => {
     prompt.querySelectorAll('[data-decision]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const decision = btn.dataset.decision;
-        const remember = document.getElementById(`perm-remember-${id}`)?.checked ?? true;
+        // 'session' lasts until Vex closes and is never written down.
+        const remember = btn.dataset.remember === 'session' ? 'session' : true;
         try {
           await window.vex.permissionRespond({ id, decision, remember, origin, permission });
         } catch (err) { console.error('[Permissions] respond failed:', err); }
         prompt.classList.remove('show');
         setTimeout(() => prompt.remove(), 250);
-        if (remember && typeof window.showToast === 'function') {
-          window.showToast(`${decision === 'allow' ? '\u2713 Allowed' : '\u2717 Blocked'}: ${origin} \u2192 ${info.label}`, 'info', 3000);
+        if (typeof window.showToast === 'function') {
+          const how = remember === 'session' ? ' for this visit' : '';
+          window.showToast(`${decision === 'allow' ? '\u2713 Allowed' : '\u2717 Blocked'}${how}: ${origin} \u2192 ${info.label}`, 'info', 3000);
         }
       });
     });

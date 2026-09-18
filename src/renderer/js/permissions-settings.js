@@ -4,6 +4,66 @@ const PermissionsSettings = (() => {
   function _esc(s) { return window.escapeHtml(s); }
   function _toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
 
+  // A list of what a site MAY do says nothing about what it IS doing. Vex has
+  // known (it draws the recording badges) and had nowhere to show it and no way
+  // to stop it — the page had to give the microphone up by itself.
+  function liveCaptures() {
+    const out = [];
+    try {
+      if (typeof TabManager !== 'undefined' && TabManager.isCapturing) {
+        for (const t of TabManager.tabs) {
+          if (!TabManager.isCapturing(t)) continue;
+          out.push({ where: 'tab', id: t.id, label: t.title || t.url, mic: !!(t.capturing && t.capturing.mic), camera: !!(t.capturing && t.capturing.camera) });
+        }
+      }
+      if (typeof SidebarManager !== 'undefined' && SidebarManager.panelCapture) {
+        for (const [name, c] of Object.entries(SidebarManager.panelCapture)) {
+          if (!c || (!c.mic && !c.camera)) continue;
+          out.push({ where: 'panel', id: name, label: SidebarManager.panelLabel ? SidebarManager.panelLabel(name) : name, mic: !!c.mic, camera: !!c.camera });
+        }
+      }
+    } catch (err) { VexProblems?.note('Permissions', 'Could not read what is capturing', err); }
+    return out;
+  }
+
+  function stopCapture(entry) {
+    const wv = entry.where === 'tab'
+      ? (typeof WebviewManager !== 'undefined' ? WebviewManager.webviews.get(entry.id) : null)
+      : (typeof SidebarManager !== 'undefined' ? SidebarManager.panelWebviews[entry.id] : null);
+    if (!wv || typeof wv.send !== 'function') { _toast('That page is not loaded any more', 'error'); return false; }
+    try {
+      wv.send('vex-stop-capture', 'all');
+      _toast('Asked ' + entry.label + ' to stop. If it starts again, block it in the list below.');
+      return true;
+    } catch (err) {
+      VexProblems?.note('Permissions', 'Could not stop the capture', err);
+      _toast('Could not stop it: ' + ((err && err.message) || ''), 'error');
+      return false;
+    }
+  }
+
+  function renderLive(host) {
+    if (!host) return;
+    const live = liveCaptures();
+    host.innerHTML = '<div class="perm-live-head">In use right now</div>';
+    if (!live.length) {
+      const none = document.createElement('div');
+      none.className = 'perm-live-none';
+      none.textContent = 'Nothing is using your microphone or camera.';
+      host.appendChild(none);
+      return;
+    }
+    for (const entry of live) {
+      const row = document.createElement('div');
+      row.className = 'perm-live-row';
+      row.innerHTML = '<span class="perm-live-what"></span><span class="perm-live-who"></span><button class="perm-live-stop">Stop</button>';
+      row.querySelector('.perm-live-what').textContent = [entry.mic ? 'Microphone' : '', entry.camera ? 'Camera' : ''].filter(Boolean).join(' + ');
+      row.querySelector('.perm-live-who').textContent = entry.label;
+      row.querySelector('.perm-live-stop').addEventListener('click', () => { stopCapture(entry); setTimeout(() => renderLive(host), 600); });
+      host.appendChild(row);
+    }
+  }
+
   async function render(container) {
     if (!container) container = document.getElementById('permissions-panel-content');
     if (!container) return;
@@ -51,6 +111,17 @@ const PermissionsSettings = (() => {
       `}
     `;
 
+    // What is happening now, above what is merely allowed.
+    const liveHost = document.createElement('div');
+    liveHost.className = 'perm-live';
+    container.insertBefore(liveHost, container.firstChild);
+    renderLive(liveHost);
+    clearInterval(render._liveTimer);
+    render._liveTimer = setInterval(() => {
+      if (!liveHost.isConnected) { clearInterval(render._liveTimer); return; }
+      renderLive(liveHost);
+    }, 3000);
+
     // A test toast that says, in words, whether Windows showed it. Notifications
     // failed silently for the app's whole life because nothing ever checked.
     const testBtn = container.querySelector('#btn-notify-test');
@@ -89,7 +160,7 @@ const PermissionsSettings = (() => {
     });
   }
 
-  return { render };
+  return { render, liveCaptures, stopCapture, renderLive };
 })();
 
 window.PermissionsSettings = PermissionsSettings;

@@ -1087,3 +1087,16 @@ body.streamer-mode [data-sensitive]:focus-within { filter: none; }
 .lw-btn { font: inherit; font-size: 12px; padding: 6px 12px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--vex-text-secondary, var(--text-muted)); border: 1px solid var(--vex-border-subtle, var(--border)); }
 .lw-btn:hover { color: var(--vex-text-primary, var(--text)); background: var(--vex-hover-fill, var(--bg)); }
 .lw-leave { border-color: var(--danger); color: var(--danger); }
+
+/* Site permissions: what is using the microphone or camera right now */
+.perm-live { margin-bottom: 14px; }
+.perm-live-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px; }
+.perm-live-none { font-size: 12px; color: var(--text-muted); }
+.perm-live-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 6px;
+  border: 1px solid var(--danger); border-radius: 9px;
+}
+.perm-live-what { font-size: 12px; font-weight: 600; color: var(--danger); flex: none; }
+.perm-live-who { font-size: 12px; color: var(--vex-text-secondary, var(--text-muted)); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.perm-live-stop { font: inherit; font-size: 11px; padding: 4px 12px; border-radius: 7px; cursor: pointer; background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.perm-live-stop:hover { background: var(--danger); color: #fff; }

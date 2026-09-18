@@ -29,14 +29,20 @@ function mediaParts(permission, details) {
 // An answer saved before this change sits under '::media'. Its prompt said
 // "camera and microphone", so it still counts for those two — never for a
 // screen share, which nobody was told they were agreeing to.
-function savedDecision(decisions, origin, parts) {
-  const one = (p) => decisions[`${origin}::${p}`] || ((p === 'camera' || p === 'microphone') ? decisions[`${origin}::media`] : undefined);
+function savedDecision(decisions, origin, parts, session) {
+  const one = (p) => (session && session.get(`${origin}::${p}`))
+    || decisions[`${origin}::${p}`]
+    || (session && (p === 'camera' || p === 'microphone') && session.get(`${origin}::media`))
+    || ((p === 'camera' || p === 'microphone') ? decisions[`${origin}::media`] : undefined);
   const found = parts.map(one);
   if (found.includes('deny')) return 'deny';
   return found.every(v => v === 'allow') ? 'allow' : null;
 }
 
 function createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive }) {
+// Answers that last until Vex closes. Never written to disk: "just this visit"
+// that survived a restart would be a lie.
+const sessionDecisions = new Map();
 // === Site permission handler (geolocation, camera, mic, notifications, ...) ===
 const permissionsFile = path.join(userDataPath, 'permissions.json');
 let cachedDecisions = null, writes = Promise.resolve();
@@ -144,7 +150,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
 
     // Check persisted decisions — under what is really being asked for.
     const parts = mediaParts(permission, details);
-    const saved = savedDecision(decisionsFor(webContents), origin, parts);
+    const saved = savedDecision(decisionsFor(webContents), origin, parts, sessionDecisions);
     if (saved === 'allow') return callback(true);
     if (saved === 'deny')  return callback(false);
     const asked = parts.length > 1 ? 'media' : parts[0];
@@ -189,7 +195,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // The check names one device: details.mediaType is 'audio' or 'video'.
     const kind = details && details.mediaType;
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
-    return savedDecision(decisionsFor(_wc), requestingOrigin, parts) === 'allow';
+    return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisions) === 'allow';
   });
 }
 
@@ -200,17 +206,25 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
   if (cb._host !== secureSessions.owner(_e.sender) || !['allow', 'deny'].includes(decision)) return { ok: false, error: 'Invalid permission response' };
   pendingPermissions.delete(id);
   try { cb(decision === 'allow'); } catch {}
+  // remember: true = keep it; 'session' = until Vex closes; false = this once.
+  // "Allow" used to mean for ever or not at all, and the box was ticked by
+  // default — so agreeing to a microphone for one call agreed to it for good.
   if (remember && cb._origin && cb._permission) {
-    const d = decisionsFor(cb._contents);
-    for (const part of (cb._parts || [cb._permission])) d[`${cb._origin}::${part}`] = decision;
-    const partition = secureSessions.partitionOf(cb._contents);
-    if (!partition || partition.startsWith('persist:')) await savePermissionDecisions(d);
+    const parts = cb._parts || [cb._permission];
+    if (remember === 'session') {
+      for (const part of parts) sessionDecisions.set(`${cb._origin}::${part}`, decision);
+    } else {
+      const d = decisionsFor(cb._contents);
+      for (const part of parts) d[`${cb._origin}::${part}`] = decision;
+      const partition = secureSessions.partitionOf(cb._contents);
+      if (!partition || partition.startsWith('persist:')) await savePermissionDecisions(d);
+    }
   }
   return { ok: true };
 });
 
 
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
+return { sessionDecisions, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision };
