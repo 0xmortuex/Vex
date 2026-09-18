@@ -15,10 +15,35 @@ const UpdateNotifier = {
     setTimeout(() => this.checkOnStartup(), 4000);
   },
 
-  // Startup check: only surfaces a prompt when an update genuinely exists.
+  // "Later" used to mean "ask me again next launch", and Vex ships several
+  // times a day — so the popup was relentless, and a relentless popup is one
+  // that gets dismissed without being read. Later now means a day, and a
+  // version can be skipped outright.
+  SNOOZE_KEY: 'vex.updateSnoozeUntil',
+  SKIP_KEY: 'vex.updateSkipVersion',
+  SNOOZE_MS: 24 * 3600 * 1000,
+
+  snoozedUntil() { const n = Number(localStorage.getItem(this.SNOOZE_KEY)); return Number.isFinite(n) ? n : 0; },
+  skippedVersion() { return localStorage.getItem(this.SKIP_KEY) || ''; },
+
+  // Should this update be shown at all right now?
+  shouldAnnounce(info, now = Date.now()) {
+    if (!info || !info.ok || !info.hasUpdate) return false;
+    if (info.latest && info.latest === this.skippedVersion()) return false;
+    if (now < this.snoozedUntil()) return false;
+    return true;
+  },
+
+  _remember(key, value) {
+    try { localStorage.setItem(key, String(value)); }
+    catch (err) { VexProblems?.note('Updates', 'Could not remember the update choice', err); }
+  },
+
+  // Startup check: only surfaces a prompt when an update genuinely exists AND
+  // the user has not asked for quiet.
   async checkOnStartup() {
     let r; try { r = await window.vex.checkForUpdates?.(); } catch { return; }
-    if (r?.ok && r.hasUpdate) this._showDownloadPrompt(r);
+    if (this.shouldAnnounce(r)) this._showDownloadPrompt(r);
   },
 
   // Update-available popup with a Download button. Clicking it opens the direct
@@ -38,6 +63,7 @@ const UpdateNotifier = {
       <div class="update-notif-actions">
         <button class="update-btn-dl" id="update-get-btn">Download</button>
         <button class="update-btn-later" id="update-skip-btn">Later</button>
+        <button class="update-btn-later" id="update-never-btn" title="Do not mention this version again">Skip this one</button>
       </div>`;
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
@@ -57,7 +83,16 @@ const UpdateNotifier = {
       window.showToast?.('Downloading Vex ' + info.latest + '… run the installer when it finishes', 'info', 4000);
       close();
     });
-    document.getElementById('update-skip-btn')?.addEventListener('click', close);
+    document.getElementById('update-skip-btn')?.addEventListener('click', () => {
+      this._remember(this.SNOOZE_KEY, Date.now() + this.SNOOZE_MS);
+      window.showToast?.('Not again until tomorrow — Settings › About has it whenever you want it');
+      close();
+    });
+    document.getElementById('update-never-btn')?.addEventListener('click', () => {
+      this._remember(this.SKIP_KEY, info.latest || '');
+      window.showToast?.('Vex ' + (info.latest || 'this version') + ' will not be mentioned again');
+      close();
+    });
   },
 
   _showAvailable(info) {
