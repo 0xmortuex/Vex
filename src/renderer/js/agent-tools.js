@@ -115,11 +115,61 @@ const AgentTools = {
     return { title, text };
   },
 
+  // The video id, for any of the shapes YouTube uses.
+  youtubeId(url) {
+    try {
+      const u = new URL(String(url));
+      if (/(^|\.)youtu\.be$/i.test(u.hostname)) return u.pathname.slice(1).split('/')[0] || null;
+      if (!/(^|\.)youtube(-nocookie)?\.com$/i.test(u.hostname)) return null;
+      if (u.pathname === '/watch') return u.searchParams.get('v');
+      const m = u.pathname.match(/^\/(embed|shorts|live|v)\/([^/?#]+)/);
+      return m ? m[2] : null;
+    } catch { return null; }
+  },
+
+  // What was SAID in a video. The page itself is an app shell with no words in
+  // it, so a YouTube link used to be a dead end for research — the agent read
+  // the shell, found nothing, and said so.
+  //
+  // The caption track is listed in the watch page's own JSON and fetched from
+  // YouTube's timedtext endpoint. No key, no third party; if a video has no
+  // captions there is nothing to get and that is said plainly.
+  async youtubeTranscript(url) {
+    const id = this.youtubeId(url);
+    if (!id) throw new Error('That is not a YouTube address');
+    const page = await this._get('https://www.youtube.com/watch?v=' + encodeURIComponent(id));
+    const html = String(page.body || '');
+    const title = (html.match(/<meta name="title" content="([^"]*)"/) || [])[1] || (html.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
+    const tracks = [...html.matchAll(/"baseUrl":"(https:\/\/www\.youtube\.com\/api\/timedtext[^"]+)"/g)].map(m => JSON.parse('"' + m[1] + '"'));
+    if (!tracks.length) throw new Error('This video has no captions, so there is nothing to read. Watch it, or find a page about it.');
+    // Prefer one in the page's language; otherwise the first, which is usually
+    // the original.
+    const chosen = tracks.find(t => /[?&]lang=en/.test(t)) || tracks[0];
+    const xml = String((await this._get(chosen)).body || '');
+    const lines = [...xml.matchAll(/<text[^>]*start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g)].map(m => ({
+      at: Number(m[1]),
+      text: m[2].replace(/<[^>]+>/g, ' ').replace(/&amp;#39;/g, "'").replace(/&amp;quot;/g, '"').replace(/&amp;amp;/g, '&').replace(/&amp;#[0-9]+;/g, ' ').replace(/\s+/g, ' ').trim(),
+    })).filter(l => l.text);
+    if (!lines.length) throw new Error('The captions came back empty');
+    const stamp = (sec) => Math.floor(sec / 60) + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
+    // Timestamps every couple of minutes, so an answer can point at a moment.
+    let out = '', next = 0;
+    for (const l of lines) {
+      if (l.at >= next) { out += `\n[${stamp(l.at)}] `; next = l.at + 120; }
+      out += l.text + ' ';
+    }
+    return { url: 'https://www.youtube.com/watch?v=' + id, title: title.replace(/ - YouTube$/, ''), kind: 'video transcript', text: out.trim().slice(0, this.MAX_TEXT), truncated: out.length > this.MAX_TEXT };
+  },
+
   async readUrl(url) {
+    // A video: read what was said in it, not the page around it.
+    if (this.youtubeId(url)) return this.youtubeTranscript(url);
     const u = this._checkUrl(url);
     const r = await this._get(u.href);
     const type = String((r.headers && (r.headers['content-type'] || r.headers['Content-Type'])) || '').toLowerCase();
-    if (/pdf|octet-stream|image\/|video\/|audio\/|zip/.test(type)) throw new Error('That address is a ' + (type.split(';')[0] || 'file') + ', not a page — open it in a tab instead');
+    // A PDF is where half of anything official lives. It used to be refused.
+    if (/pdf/.test(type) || /\.pdf($|[?#])/i.test(u.pathname + u.search)) return this.readPdf(u.href, r);
+    if (/octet-stream|image\/|video\/|audio\/|zip/.test(type)) throw new Error('That address is a ' + (type.split(';')[0] || 'file') + ', not a page — open it in a tab instead');
     const body = String(r.body || '');
     if (/html|xml/.test(type) || /^\s*</.test(body)) {
       const { title, text } = this.htmlToText(body);
@@ -127,6 +177,37 @@ const AgentTools = {
       return { url: u.href, title, text: text.slice(0, this.MAX_TEXT), truncated: text.length > this.MAX_TEXT };
     }
     return { url: u.href, title: '', text: body.slice(0, this.MAX_TEXT), truncated: body.length > this.MAX_TEXT };
+  },
+
+  // The words out of a PDF, without opening it.
+  //
+  // A PDF stores text in compressed streams, so this is not a full reader: it
+  // takes what is in the UNcompressed text objects, which for a report or a
+  // form is usually most of it. When that comes to nothing, it says so and
+  // suggests the tab — where Vex's own viewer can read it properly.
+  async readPdf(href, fetched) {
+    const r = fetched || await this._get(href);
+    const raw = String(r.body || '');
+    const chunks = [];
+    for (const m of raw.matchAll(/BT([\s\S]{0,20000}?)ET/g)) {
+      const text = [...m[1].matchAll(/\(((?:[^()\\]|\\.)*)\)\s*Tj|\[((?:[^\]])*)\]\s*TJ/g)]
+        .map(t => (t[1] || t[2] || '').replace(/\)\s*-?\d+(\.\d+)?\s*\(/g, '').replace(/\\([()\\])/g, '$1').replace(/^\(|\)$/g, ''))
+        .join('');
+      const clean = text.replace(/\s+/g, ' ').trim();
+      if (clean.length > 1) chunks.push(clean);
+    }
+    const text = chunks.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    // Nothing readable at all means the whole file is compressed streams.
+    if (text.length < 80) {
+      throw new Error('That PDF keeps its text compressed, so it cannot be read this way — open it with new_tab and use extract_text.');
+    }
+    return {
+      url: href, title: (raw.match(/\/Title\s*\(([^)]{1,200})\)/) || [])[1] || '', kind: 'pdf',
+      text: text.slice(0, this.MAX_TEXT), truncated: text.length > this.MAX_TEXT,
+      // Some of it read, but not much: the rest is probably compressed, and a
+      // partial read presented as the whole document would be worse than a note.
+      ...(text.length < 400 ? { note: 'Only part of this PDF is stored as plain text; the rest is compressed. Open it with new_tab and use extract_text to be sure of the whole thing.' } : {}),
+    };
   },
 
   // ---------------------------------------------------------- Vex features --

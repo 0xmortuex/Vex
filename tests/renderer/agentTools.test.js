@@ -65,8 +65,13 @@ describe('read_url', () => {
   });
 
   it('says what to do about a file, an error status, and a page built by JavaScript', async () => {
+    // A PDF is READ now (v2.31.97) — half of anything official lives in one.
+    // Only a fully compressed file, with no plain text at all, is refused, and
+    // it says what to do instead.
     window.vex.apiRequest = vi.fn(async () => page('%PDF-1.7', 'application/pdf'));
-    await expect(AgentTools.readUrl('https://x.example/a.pdf')).rejects.toThrow(/application\/pdf, not a page — open it in a tab/);
+    await expect(AgentTools.readUrl('https://x.example/a.pdf')).rejects.toThrow(/keeps its text compressed.*new_tab.*extract_text/);
+    window.vex.apiRequest = vi.fn(async () => page('%PDF-1.7\nBT (A sentence long enough to count as a real read of this document, with plenty of words.) Tj ET', 'application/pdf'));
+    expect((await AgentTools.readUrl('https://x.example/b.pdf')).text).toContain('long enough to count');
     window.vex.apiRequest = vi.fn(async () => page('nope', 'text/html', 404));
     await expect(AgentTools.readUrl('https://x.example/missing')).rejects.toThrow(/HTTP 404 from x\.example/);
     window.vex.apiRequest = vi.fn(async () => page('<html><body><div id="root"></div></body></html>'));

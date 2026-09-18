@@ -227,7 +227,7 @@ const AgentLoop = {
     for (const m of String(goal).matchAll(/https?:\/\/[^\s)"']+/g)) this._allowSite(m[0]);
     for (const m of String(goal).matchAll(/\b([a-z0-9-]+\.(?:com|org|net|io|co\.uk|dev|app|gg|tv|edu|gov|de|fr|nl|se|tr))\b/gi)) { this._allowSite('https://' + m[1]); this._allowSite('https://www.' + m[1]); }
     try { const wv = WebviewManager.getActiveWebview(); if (wv && wv.getURL) this._allowSite(wv.getURL()); } catch {}
-    this._run = { id: (typeof vexId === 'function' ? vexId('run') : 'run_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), goal: String(goal), mode: this._mode, startedAt: Date.now(), steps: [], final: null, backend: null };
+    this._run = { id: (typeof vexId === 'function' ? vexId('run') : 'run_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), goal: String(goal), mode: this._mode, startedAt: Date.now(), steps: [], final: null, backend: null, undo: [] };
     toolCallHistory.reset();
     document.getElementById('ai-send')?.classList.add('running');
 
@@ -395,6 +395,10 @@ const AgentLoop = {
         lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {});
         // A screenshot goes to the model as an image, once — never into the text.
         if (lastResult && lastResult.image) { this._pendingImage = lastResult.image; delete lastResult.image; }
+        // What it made, so it can be unmade: an agent that acts on its own
+        // needs a way back, and "which of these six notes did it write?" is
+        // not one.
+        if (lastResult && lastResult.undo && this._run) { this._run.undo.push(lastResult.undo); delete lastResult.undo; }
         toolCallHistory.add(decision.tool, decision.parameters || {}, lastResult);
         this._history.push({ role: 'user', content: JSON.stringify({ toolResult: this._forHistory(lastResult) }) });
 
@@ -464,6 +468,70 @@ const AgentLoop = {
     this.lastRun = run;
     try { localStorage.setItem(this.RUNS_KEY, JSON.stringify([run, ...this.runs()].slice(0, 30))); }
     catch (err) { window.showToast?.('This agent run could not be saved: ' + ((err && err.message) || ''), 'error'); }
+  },
+
+  // Undo what a run MADE. Deliberately only Vex's own things: what it did on a
+  // web page is the page's business and cannot be taken back from here, and
+  // pretending otherwise would be worse than saying so.
+  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder'],
+
+  async undoRun(id) {
+    const run = this.runs().find(r => r.id === id);
+    if (!run) throw new Error('That run is no longer saved');
+    const todo = (run.undo || []).filter(u => u && this.UNDOABLE.includes(u.kind));
+    if (!todo.length) throw new Error('That run did not make anything Vex can take back');
+    const undone = [], failed = [];
+    for (const item of todo.slice().reverse()) {
+      try {
+        await this._undoOne(item);
+        undone.push(item.label);
+      } catch (err) { failed.push(item.label + ' (' + ((err && err.message) || 'failed') + ')'); }
+    }
+    // Only what really went comes off the list, so a second attempt can finish.
+    const left = (run.undo || []).filter(u => !undone.includes(u.label));
+    const runs = this.runs().map(r => (r.id === id ? { ...r, undo: left, undoneAt: Date.now() } : r));
+    try { localStorage.setItem(this.RUNS_KEY, JSON.stringify(runs)); } catch { /* the list is display only */ }
+    return { undone, failed };
+  },
+
+  async _undoOne(item) {
+    if (item.kind === 'note') {
+      const notes = JSON.parse(localStorage.getItem('vex.notes') || '[]');
+      if (!notes.some(n => n.id === item.id)) throw new Error('already gone');
+      localStorage.setItem('vex.notes', JSON.stringify(notes.filter(n => n.id !== item.id)));
+      if (typeof NotesPanel !== 'undefined' && NotesPanel.reloadSyncedState) NotesPanel.reloadSyncedState();
+      return;
+    }
+    if (item.kind === 'bookmark') {
+      if (typeof Bookmarks === 'undefined') throw new Error('bookmarks are not available');
+      if (!Bookmarks.has(item.id)) throw new Error('already gone');
+      Bookmarks.items = Bookmarks.items.filter(b => b.url !== item.id);
+      Bookmarks.save();
+      return;
+    }
+    if (item.kind === 'group') {
+      const group = (TabManager.groups || []).find(g => g.id === item.id);
+      if (!group) throw new Error('already gone');
+      for (const t of TabManager.tabs) if (t.groupId === item.id) TabManager._setTabGroup(t.id, null);
+      TabManager.groups = TabManager.groups.filter(g => g.id !== item.id);
+      VexStorage.saveGroups(TabManager.groups);
+      TabManager.rebuildAllTabs();
+      TabManager.persistTabs();
+      return;
+    }
+    if (item.kind === 'timer') {
+      if (typeof VexClock === 'undefined') throw new Error('the Clock is not available');
+      if (!VexClock._timers.some(t => t.id === item.id)) throw new Error('already finished');
+      await VexClock.removeTimer(item.id);
+      return;
+    }
+    if (item.kind === 'reminder') {
+      const bridge = window.vex && window.vex.reminders;
+      if (!bridge) throw new Error('reminders are not available');
+      await bridge.delete(item.id);
+      return;
+    }
+    throw new Error('nothing here knows how to undo a ' + item.kind);
   },
 
   deleteRun(id) { localStorage.setItem(this.RUNS_KEY, JSON.stringify(this.runs().filter(r => r.id !== id))); },

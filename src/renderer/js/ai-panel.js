@@ -669,6 +669,29 @@ const AIPanel = {
         b.innerHTML = '<span class="t"></span><span class="m"></span>';
         b.querySelector('.t').textContent = String(run.goal || '').slice(0, 70);
         b.querySelector('.m').textContent = [run.final ? 'Answered' : 'No answer', (run.steps || []).length + ' steps', (run.seconds || 0) + ' s', run.backend || '', new Date(run.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })].filter(Boolean).join(' · ');
+        // What it MADE can be unmade — only Vex's own things (js/agent-loop.js).
+        if ((run.undo || []).length) {
+          const undo = document.createElement('button');
+          undo.className = 'ai-history-undo';
+          undo.textContent = 'Undo';
+          undo.title = 'Remove what this run made: ' + run.undo.map(u => u.label).join(', ');
+          undo.addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            const made = run.undo.map(u => '• ' + u.label).join('\n');
+            const ok = await vexConfirm({
+              title: 'Undo this run?',
+              message: 'This removes what it made:\n\n' + made + '\n\nWhat it did on a web page cannot be taken back from here.',
+              okLabel: 'Undo', danger: true,
+            });
+            if (!ok) return;
+            try {
+              const r = await AgentLoop.undoRun(run.id);
+              window.showToast?.(r.undone.length ? 'Removed ' + r.undone.join(', ') + (r.failed.length ? ' — could not remove ' + r.failed.join(', ') : '') : 'Nothing was left to remove', r.failed.length ? 'error' : undefined);
+            } catch (err) { window.showToast?.((err && err.message) || 'Could not undo it', 'error'); }
+            this._renderHistory();
+          });
+          b.appendChild(undo);
+        }
         b.addEventListener('click', () => {
           if (AgentLoop.isRunning()) { window.showToast?.('The agent is running — stop it first'); return; }
           this.toggleHistory(false);

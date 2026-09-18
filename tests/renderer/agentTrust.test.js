@@ -243,3 +243,44 @@ describe('searching your own things across a plural', () => {
     expect(AgentTools._hasWords('a list of things', ['as'])).toBe(false);
   });
 });
+
+// A YouTube link used to be a dead end for research — the page is an app shell
+// with no words in it — and a PDF was refused outright, which is where half of
+// anything official lives.
+describe('reading a video and a PDF', () => {
+  it('recognises every shape of YouTube address', () => {
+    expect(AgentTools.youtubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(AgentTools.youtubeId('https://youtu.be/abc123?t=30')).toBe('abc123');
+    expect(AgentTools.youtubeId('https://www.youtube.com/shorts/xyz')).toBe('xyz');
+    expect(AgentTools.youtubeId('https://www.youtube.com/embed/xyz')).toBe('xyz');
+    expect(AgentTools.youtubeId('https://example.com/watch?v=x')).toBe(null);
+  });
+
+  it('reads what was said, with a timestamp every couple of minutes', async () => {
+    const page = '<meta name="title" content="A talk about tabs"><script>"baseUrl":"https://www.youtube.com/api/timedtext?lang=en\u0026v=abc"</script>';
+    const xml = '<transcript><text start="0.5" dur="2">Hello and welcome</text><text start="130" dur="2">Now the second part</text></transcript>';
+    AgentTools._get = vi.fn(async (url) => ({ ok: true, status: 200, body: /timedtext/.test(url) ? xml : page, headers: { 'content-type': 'text/html' } }));
+    const out = await AgentTools.readUrl('https://www.youtube.com/watch?v=abc');
+    expect(out).toMatchObject({ kind: 'video transcript', title: 'A talk about tabs', url: 'https://www.youtube.com/watch?v=abc' });
+    expect(out.text).toContain('[0:00] Hello and welcome');
+    expect(out.text).toContain('[2:10] Now the second part');
+  });
+
+  it('a video with no captions says so instead of returning the page furniture', async () => {
+    AgentTools._get = vi.fn(async () => ({ ok: true, status: 200, body: '<html>no tracks here</html>', headers: {} }));
+    await expect(AgentTools.readUrl('https://youtu.be/nocaps')).rejects.toThrow(/no captions/);
+  });
+
+  it('pulls the words out of a PDF, and says so honestly when it cannot', async () => {
+    const pdf = '%PDF-1.4\n/Title (Quarterly report)\nBT (Revenue rose by 12 percent this quarter, driven by the new product line.) Tj ET\nBT [(A second paragraph with enough words in it to clear the threshold for a real read.)] TJ ET';
+    AgentTools._get = vi.fn(async () => ({ ok: true, status: 200, body: pdf, headers: { 'content-type': 'application/pdf' } }));
+    const out = await AgentTools.readUrl('https://gov.example/report.pdf');
+    expect(out.kind).toBe('pdf');
+    expect(out.title).toBe('Quarterly report');
+    expect(out.text).toContain('Revenue rose by 12 percent');
+    expect(out.note).toMatch(/Only part of this PDF/);      // a short read says so
+
+    AgentTools._get = vi.fn(async () => ({ ok: true, status: 200, body: '%PDF-1.4 (compressed streams only)', headers: { 'content-type': 'application/pdf' } }));
+    await expect(AgentTools.readUrl('https://gov.example/x.pdf')).rejects.toThrow(/keeps its text compressed.*extract_text/);
+  });
+});

@@ -240,7 +240,7 @@ const AgentExecutor = {
           const real = (TabManager.groups || []).find(g => g.id === made.id);
           const count = TabManager.tabs.filter(t => t.groupId === made.id).length;
           if (!real || !count) return { ok: false, error: 'The group was not created' };
-          return { ok: true, result: 'Created and verified group "' + real.name + '" with ' + count + ' tab' + (count === 1 ? '' : 's') };
+          return { ok: true, result: 'Created and verified group "' + real.name + '" with ' + count + ' tab' + (count === 1 ? '' : 's'), undo: { kind: 'group', id: made.id, label: 'the tab group "' + real.name + '"' } };
         }
 
         case 'switch_tab':
@@ -262,19 +262,19 @@ const AgentExecutor = {
           const note = AgentTools.saveNote(params.title, params.content, params.sourceUrl);
           const back = AgentTools.searchNotes(note.title).some(n => n.id === note.id);
           if (!back) return { ok: false, error: 'The note did not save — check Memory panel › Health for the reason' };
-          return { ok: true, result: 'Saved and verified the note "' + (note.title || 'Untitled') + '" (Notes panel)' };
+          return { ok: true, result: 'Saved and verified the note "' + (note.title || 'Untitled') + '" (Notes panel)', undo: { kind: 'note', id: note.id, label: 'the note "' + (note.title || 'Untitled') + '"' } };
         }
 
         case 'create_reminder': {
           const made = await AgentTools.createReminder(params.message, params.when);
-          return { ok: true, result: 'Reminder set: "' + made.message + '" — ' + made.when };
+          return { ok: true, result: 'Reminder set: "' + made.message + '" — ' + made.when, ...(made.id ? { undo: { kind: 'reminder', id: made.id, label: 'the reminder "' + made.message + '"' } } : {}) };
         }
 
         case 'add_bookmark': {
           const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
           const made = AgentTools.addBookmark(params.url || (tab && tab.url), params.title || (tab && tab.title));
           if (typeof Bookmarks !== 'undefined' && !Bookmarks.has(made.url)) return { ok: false, error: 'The bookmark did not save' };
-          return { ok: true, result: made.already ? 'Already bookmarked: ' + made.url : 'Bookmarked and verified ' + made.url };
+          return { ok: true, result: made.already ? 'Already bookmarked: ' + made.url : 'Bookmarked and verified ' + made.url, ...(made.already ? {} : { undo: { kind: 'bookmark', id: made.url, label: 'the bookmark for ' + made.url } }) };
         }
 
         case 'search_notes':
@@ -301,7 +301,7 @@ const AgentExecutor = {
           const t = await AgentTools.startTimer(params.duration, params.label);
           const live = AgentTools.listTimers().find(x => x.id === t.id);
           if (!live) return { ok: false, error: 'The timer did not start' };
-          return { ok: true, result: 'Started a ' + t.length + ' timer "' + t.label + '" in Vex — it rings at ' + t.endsAt + ', ' + live.left + ' left (id ' + t.id + ')' };
+          return { ok: true, result: 'Started a ' + t.length + ' timer "' + t.label + '" in Vex — it rings at ' + t.endsAt + ', ' + live.left + ' left (id ' + t.id + ')', undo: { kind: 'timer', id: t.id, label: 'the timer "' + t.label + '"' } };
         }
 
         case 'list_timers':
