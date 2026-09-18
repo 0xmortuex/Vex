@@ -23,11 +23,15 @@ const GUEST_CLICK = `
     el.click();
   };`;
 
+// What a scheduled (unattended) run may do: its own tab, plus research and
+// keeping what it found. Nothing that clicks, types, or touches other tabs.
+const SCHEDULED_TOOLS = ['navigate', 'go_back', 'go_forward', 'reload', 'scroll', 'extract_elements', 'extract_text', 'screenshot', 'wait', 'search_in_page', 'web_search', 'read_url', 'save_note', 'finish'];
+
 const AgentExecutor = {
   async executeTool(toolName, params, context = {}) {
     params = params || {};
     const wv = context.webview || WebviewManager.getActiveWebview();
-    if (context.scheduled && !['navigate', 'go_back', 'go_forward', 'reload', 'scroll', 'extract_elements', 'extract_text', 'screenshot', 'wait', 'search_in_page', 'finish'].includes(toolName)) {
+    if (context.scheduled && !SCHEDULED_TOOLS.includes(toolName)) {
       return { ok: false, error: 'This tool requires an interactive run: ' + toolName };
     }
     if (context.scheduled && (!context.webview || context.webview.isConnected === false)) return { ok: false, error: 'Scheduled tab was closed' };
@@ -199,11 +203,12 @@ const AgentExecutor = {
           return { ok: true, result: text };
         }
 
-        case 'screenshot':
-          try {
-            await wv.capturePage();
-            return { ok: true, result: { hasScreenshot: true, note: 'Screenshot captured' } };
-          } catch { return { ok: true, result: { hasScreenshot: false, note: 'Screenshot failed' } }; }
+        // The image rides beside the result, not in it: the loop hands it to
+        // the model once, as an image, and never as 200 KB of base64 text.
+        case 'screenshot': {
+          const shot = await AgentTools.pageImage(wv);
+          return { ok: true, result: { hasScreenshot: true, width: shot.width, height: shot.height, note: 'If an image is attached to your next message, it is this screenshot. If none is, this AI backend cannot see images — use extract_text and extract_elements.' }, image: shot.image };
+        }
 
         case 'list_tabs': {
           const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canPersist(t)).map(t => ({ id: t.id, title: t.title, url: t.url, active: t.id === TabManager.activeTabId, group: t.groupId || null, asleep: !!(t.sleeping || t._lazy) }));
@@ -265,6 +270,27 @@ const AgentExecutor = {
 
         case 'search_history':
           return { ok: true, result: AgentTools.searchHistory(params.query, params.limit) };
+
+        case 'start_timer': {
+          const t = await AgentTools.startTimer(params.duration, params.label);
+          return { ok: true, result: 'Started a ' + t.length + ' timer "' + t.label + '" in Vex — it rings at ' + t.endsAt + ' (id ' + t.id + ')' };
+        }
+
+        case 'list_timers':
+          return { ok: true, result: AgentTools.listTimers() };
+
+        case 'cancel_timer': {
+          const t = await AgentTools.cancelTimer(params.id);
+          return { ok: true, result: 'Cancelled the timer "' + t.label + '"' };
+        }
+
+        case 'vex_features':
+          return { ok: true, result: AgentTools.vexFeatures(params.query) };
+
+        case 'vex_command': {
+          const ran = await AgentTools.vexCommand(params.command);
+          return { ok: true, result: 'Ran in Vex: ' + ran.ran + (ran.detail ? ' — ' + ran.detail : '') };
+        }
 
         case 'wait':
           if (params.selector) {
@@ -337,4 +363,4 @@ const AgentExecutor = {
   }
 };
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { AgentExecutor, PAGE_TOOLS };
+if (typeof module !== 'undefined' && module.exports) module.exports = { AgentExecutor, PAGE_TOOLS, SCHEDULED_TOOLS };

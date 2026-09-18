@@ -170,6 +170,47 @@ const AISettings = (() => {
     document.getElementById('btn-refresh-ollama')?.addEventListener('click', (e) => refreshOllama(e.currentTarget));
     document.getElementById('btn-refresh-ollama-inline')?.addEventListener('click', (e) => refreshOllama(e.currentTarget));
     document.getElementById('btn-install-ollama')?.addEventListener('click', showOllamaInstallDialog);
+
+    const ctxSelect = document.getElementById('agent-numctx-select');
+    if (ctxSelect) {
+      ctxSelect.value = String(AIRouter.agentNumCtx());
+      ctxSelect.addEventListener('change', () => {
+        try { localStorage.setItem('vex.agentNumCtx', JSON.stringify(Number(ctxSelect.value))); toast('Agent context size set to ' + ctxSelect.selectedOptions[0].textContent.split(' ')[0], 'success'); }
+        catch (err) { toast('Could not save the context size: ' + ((err && err.message) || ''), 'error'); }
+      });
+    }
+    document.getElementById('btn-test-agent-model')?.addEventListener('click', (e) => testAgentModel(e.currentTarget));
+  }
+
+  // Four canned agent turns against the chosen local model (js/agent-model-test.js).
+  async function testAgentModel(btn) {
+    const box = document.getElementById('agent-test-result');
+    const model = document.getElementById('local-model-select')?.value || AIRouter.getModel();
+    const orig = btn.textContent;
+    btn.disabled = true;
+    box.hidden = false;
+    box.textContent = 'Asking ' + model + '…';
+    try {
+      const r = await AgentModelTest.run(model, (i, n, name) => { btn.textContent = 'Testing ' + i + '/' + n + '…'; box.textContent = 'Asking ' + model + ' — ' + name; });
+      box.textContent = '';
+      const head = document.createElement('div');
+      head.className = 'agent-test-head ' + (r.passed === r.cases.length ? 'good' : r.passed === r.cases.length - 1 ? 'fair' : 'poor');
+      head.textContent = r.model + ': ' + r.verdict + ' (' + r.passed + '/' + r.cases.length + ')';
+      box.appendChild(head);
+      for (const c of r.cases) {
+        const row = document.createElement('div');
+        row.className = 'agent-test-row ' + (c.ok ? 'ok' : 'bad');
+        row.textContent = (c.ok ? 'Passed' : 'Failed') + ' · ' + c.name + ' · ' + c.seconds + ' s' + (c.ok ? '' : ' — ' + c.error);
+        box.appendChild(row);
+      }
+      const facts = document.createElement('div');
+      facts.className = 'agent-test-facts';
+      facts.textContent = [r.vision ? 'Can see screenshots' : 'Cannot see screenshots (no vision)', 'agent context ' + r.numCtx.toLocaleString() + ' tokens', r.contextLength ? 'model limit ' + r.contextLength.toLocaleString() : '', Math.max(0, ...r.cases.map(c => c.promptTokens)) ? 'an empty turn uses ' + Math.max(...r.cases.map(c => c.promptTokens)).toLocaleString() : ''].filter(Boolean).join(' · ');
+      box.appendChild(facts);
+      if (r.warning) { const w = document.createElement('div'); w.className = 'agent-test-row bad'; w.textContent = r.warning; box.appendChild(w); }
+    } catch (err) {
+      box.textContent = 'The test could not run: ' + ((err && err.message) || 'unknown error');
+    } finally { btn.disabled = false; btn.textContent = orig; }
   }
 
   function showOllamaInstallDialog() {

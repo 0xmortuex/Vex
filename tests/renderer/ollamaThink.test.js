@@ -65,3 +65,23 @@ describe('context window', () => {
     expect('num_ctx' in sent.options).toBe(false);
   });
 });
+
+describe('what Ollama knows about a model, and what a call cost', () => {
+  it('show reports capabilities and the context the model was built for', async () => {
+    reply({ capabilities: ['completion', 'vision'], details: { family: 'qwen3', parameter_size: '8B' }, model_info: { 'general.architecture': 'qwen3', 'qwen3.context_length': 40960 } });
+    expect(await Ollama.show('qwen3.5:latest')).toEqual({ capabilities: ['completion', 'vision'], contextLength: 40960, family: 'qwen3', parameterSize: '8B' });
+    expect(sent).toEqual({ model: 'qwen3.5:latest' });
+  });
+
+  it('show of a model that is not installed says so', async () => {
+    reply({ error: 'model "nope" not found' }, false);
+    await expect(Ollama.show('nope')).rejects.toThrow('Ollama: model "nope" not found');
+  });
+
+  it('chat hands the token counts to onMeta', async () => {
+    reply({ message: { content: '{"a":1}' }, prompt_eval_count: 5200, eval_count: 40, total_duration: 3.2e9, load_duration: 1e8 });
+    const onMeta = vi.fn();
+    await Ollama.chat('qwen3.5:latest', [{ role: 'user', content: 'x' }], { format: 'json', onMeta });
+    expect(onMeta).toHaveBeenCalledWith({ promptTokens: 5200, replyTokens: 40, totalMs: 3200, loadMs: 100 });
+  });
+});

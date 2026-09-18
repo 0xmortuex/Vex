@@ -129,3 +129,61 @@ describe('AIRouter.resolveBackend — the agent without a cloud worker', () => {
     expect(msgs.at(-1).content).toMatch(/User's goal: research vex[\s\S]*Current page: none loaded[\s\S]*Last tool result/);
   });
 });
+
+// A screenshot the agent asked for, Stop, and the Settings model test.
+describe('AIRouter — the local agent: images, Stop, a named model', () => {
+  const ask = { userGoal: 'look', availableTools: [], conversationHistory: [], pageContext: null, image: 'data:image/jpeg;base64,PIXELS' };
+
+  it('a model with vision gets the image as bare base64 on the last message', async () => {
+    const AIRouter = await loadRouter();
+    const chat = vi.fn(async () => '{"tool":"finish","parameters":{"summary":"ok"}}');
+    const show = vi.fn(async () => ({ capabilities: ['completion', 'vision'] }));
+    globalThis.Ollama = { ping: vi.fn(async () => true), chat, show };
+    await AIRouter.callAI('agent', ask);
+    await AIRouter.callAI('agent', ask);
+    const [, msgs] = chat.mock.calls[0];
+    expect(msgs.at(-1).images).toEqual(['PIXELS']);
+    expect(msgs.at(-1).content).toMatch(/A screenshot of the current page is attached/);
+    expect(show).toHaveBeenCalledTimes(1);          // asked once per model
+  });
+
+  it('a model without vision is told it cannot see, and gets no image', async () => {
+    const AIRouter = await loadRouter();
+    const chat = vi.fn(async () => '{"tool":"finish","parameters":{"summary":"ok"}}');
+    globalThis.Ollama = { ping: vi.fn(async () => true), chat, show: vi.fn(async () => ({ capabilities: ['completion'] })) };
+    await AIRouter.callAI('agent', ask);
+    const [, msgs] = chat.mock.calls[0];
+    expect('images' in msgs.at(-1)).toBe(false);
+    expect(msgs.at(-1).content).toMatch(/cannot see images. Use extract_text and extract_elements/);
+  });
+
+  it('Stop travels to Ollama, and a stopped call is not retried on another backend', async () => {
+    const AIRouter = await loadRouter();
+    const ctl = new AbortController();
+    const chat = vi.fn(async (_m, _msgs, opts) => { expect(opts.signal).toBe(ctl.signal); ctl.abort(new Error('Stopped by you')); throw new Error('aborted'); });
+    globalThis.Ollama = { ping: vi.fn(async () => true), chat };
+    const fetchSpy = globalThis.fetch = vi.fn();
+    await expect(AIRouter.callAI('agent', { ...ask, image: null, signal: ctl.signal })).rejects.toThrow('aborted');
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('localAgent asks a NAMED model, with the context size from Settings', async () => {
+    const AIRouter = await loadRouter();
+    const chat = vi.fn(async () => '{"tool":"web_search","parameters":{"query":"x"}}');
+    globalThis.Ollama = { ping: vi.fn(async () => true), chat };
+    expect(AIRouter.agentNumCtx()).toBe(16384);
+    const store = new Map();
+    globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
+    localStorage.setItem('vex.agentNumCtx', '32768');
+    expect(AIRouter.agentNumCtx()).toBe(32768);
+    const onMeta = vi.fn();
+    const out = await AIRouter.localAgent({ userGoal: 'x', availableTools: [], conversationHistory: [], onMeta }, 'gemma3:4b');
+    expect(out).toMatchObject({ backend: 'local', model: 'gemma3:4b' });
+    expect(chat.mock.calls[0][0]).toBe('gemma3:4b');
+    expect(chat.mock.calls[0][2]).toMatchObject({ numCtx: 32768, onMeta });
+    localStorage.setItem('vex.agentNumCtx', '12345');
+    expect(AIRouter.agentNumCtx()).toBe(16384);      // not one of the offered sizes
+    delete globalThis.localStorage;
+  });
+});

@@ -210,7 +210,23 @@ const Ollama = (() => {
     const r = await _post('/api/chat', body, options.signal);
     if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();
+    // What the call cost: prompt and reply sizes in tokens, and how long each
+    // took. Settings › AI "Test as agent" reports these.
+    if (typeof options.onMeta === 'function') {
+      options.onMeta({ promptTokens: data.prompt_eval_count || 0, replyTokens: data.eval_count || 0, totalMs: Math.round((data.total_duration || 0) / 1e6), loadMs: Math.round((data.load_duration || 0) / 1e6) });
+    }
     return _notEmpty(data.message?.content || '', model, data);
+  }
+
+  // What Ollama knows about one model: capabilities (['completion','vision',
+  // 'tools','thinking']), the context length it was trained for, its family.
+  async function show(model) {
+    const r = await _post('/api/show', { model }, null, 8000);
+    if (!r.ok) throw new Error(await _errorText(r, model));
+    const data = await r.json();
+    const info = data.model_info || {};
+    const ctxKey = Object.keys(info).find(k => k.endsWith('.context_length'));
+    return { capabilities: Array.isArray(data.capabilities) ? data.capabilities : [], contextLength: ctxKey ? Number(info[ctxKey]) : null, family: (data.details && data.details.family) || '', parameterSize: (data.details && data.details.parameter_size) || '' };
   }
 
   // Ollama answers 404 with {"error":"model \"x\" not found, try pulling it"}.
@@ -259,7 +275,7 @@ const Ollama = (() => {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   }
 
-  return { setBaseUrl, getBaseUrl, ping, listModels, generate, chat, pullModel };
+  return { setBaseUrl, getBaseUrl, ping, listModels, generate, chat, show, pullModel };
 })();
 
 if (typeof window !== 'undefined') window.Ollama = Ollama;

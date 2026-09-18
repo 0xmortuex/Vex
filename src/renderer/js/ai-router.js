@@ -168,6 +168,8 @@ const AIRouter = (() => {
       _dbg(`[AIRouter] ${primary} succeeded for ${feature}`);
       return out;
     } catch (err) {
+      // Stopped by the user: that is not a failure to fall back from.
+      if (request && request.signal && request.signal.aborted) throw err;
       console.warn(`[AIRouter] ${primary} failed for ${feature}:`, err.message);
 
       // Respect explicit user intent: if user picked "Prefer local" or feature=local,
@@ -248,7 +250,25 @@ const AIRouter = (() => {
   // window big enough for all that (Ollama's default 4,096 tokens drops the
   // START of the prompt — the instructions), and a low temperature so the
   // tool call is the same JSON shape every time.
-  async function callLocalAgent(request) {
+  // Whether a local model can see images (Ollama reports it), cached per model.
+  const _vision = new Map();
+  async function localVision(model) {
+    if (_vision.has(model)) return _vision.get(model);
+    const info = await Ollama.show(model);
+    const can = Array.isArray(info && info.capabilities) && info.capabilities.includes('vision');
+    _vision.set(model, can);
+    return can;
+  }
+
+  // The agent's context window on a local model (Settings › AI). 16,384 fits a
+  // long research run on a 16 GB machine; Ollama's default 4,096 does not.
+  function agentNumCtx() {
+    const n = Number(_load('vex.agentNumCtx', 16384));
+    return [8192, 16384, 32768, 65536].includes(n) ? n : 16384;
+  }
+
+  async function callLocalAgent(request, modelOverride) {
+    const model = modelOverride || localModel;
     const system = LOCAL_SYSTEM_PROMPTS.agent + '\n\nAvailable tools:\n' + JSON.stringify(request.availableTools || []);
     const msgs = [{ role: 'system', content: system }];
     for (const m of (Array.isArray(request.conversationHistory) ? request.conversationHistory : [])) {
@@ -264,10 +284,24 @@ const AIRouter = (() => {
       um += 'Current page: none loaded. Tools that need no page still work (web_search, read_url, tabs, notes…).\n';
     }
     if (request.lastToolResult) um += '\nLast tool result:\n' + JSON.stringify(request.lastToolResult).slice(0, 9000) + '\n';
+    // A screenshot the agent asked for. Ollama takes images as bare base64 on
+    // the message; a model without vision is told so, instead of being shown
+    // nothing and left to guess what the page looks like.
+    const last = { role: 'user', content: '' };
+    if (request.image) {
+      if (await localVision(model)) {
+        last.images = [String(request.image).replace(/^data:image\/[a-z]+;base64,/, '')];
+        um += '\nA screenshot of the current page is attached to this message.\n';
+      } else {
+        um += '\nNote: you asked for a screenshot, but this local model (' + model + ') cannot see images. Use extract_text and extract_elements instead.\n';
+      }
+    }
     um += "\nWhat's your next action? Reply with ONE JSON object.";
-    msgs.push({ role: 'user', content: um });
-    const text = await Ollama.chat(localModel, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: 16384 });
-    return { result: text, backend: 'local', model: localModel };
+    last.content = um;
+    msgs.push(last);
+    // request.signal is the agent's Stop: it cancels the generation in flight.
+    const text = await Ollama.chat(model, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: agentNumCtx(), signal: request.signal, onMeta: request.onMeta });
+    return { result: text, backend: 'local', model };
   }
 
   async function callLocal(feature, request) {
@@ -337,7 +371,9 @@ const AIRouter = (() => {
       groupTabs: 'group-tabs'
     };
     const action = actionMap[feature] || 'chat';
-    const body = { action, ...request };
+    // The Stop signal and the local-only meta callback do not belong in a JSON body.
+    const { signal: outerSignal, onMeta: _onMeta, ...sendable } = request;
+    const body = { action, ...sendable };
     // Phase 15: forward persona fields to the worker at top level so it can
     // override system prompt + temperature for chat/summarize/explain.
     if (request.persona) {
@@ -356,6 +392,13 @@ const AIRouter = (() => {
     // spinning forever. Always carry an abort deadline.
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(new Error('Cloud AI request timed out')), CLOUD_TIMEOUT_MS);
+    // The agent's Stop cancels this request — and is reported as a stop, not
+    // as the worker having timed out.
+    const onOuterAbort = () => ctl.abort(new Error('Stopped'));
+    if (outerSignal) {
+      if (outerSignal.aborted) onOuterAbort();
+      else outerSignal.addEventListener('abort', onOuterAbort, { once: true });
+    }
     let r;
     try {
       r = await (window.VexConfig?.fetchAI || fetch)(url, {
@@ -365,10 +408,12 @@ const AIRouter = (() => {
         signal: ctl.signal
       });
     } catch (err) {
+      if (outerSignal && outerSignal.aborted) throw new Error('Stopped');
       if (ctl.signal.aborted) throw new Error(`Cloud AI did not answer within ${Math.round(CLOUD_TIMEOUT_MS / 1000)}s. Check your AI Worker URL in Settings → AI.`);
       throw new Error(_cleanIpcError(err));
     } finally {
       clearTimeout(timer);
+      if (outerSignal) outerSignal.removeEventListener('abort', onOuterAbort);
     }
     if (!r.ok) {
       const err = await r.json().catch(() => ({ error: `Cloud returned ${r.status}` }));
@@ -464,7 +509,9 @@ Use exactly the tool names and parameter names listed under "Available tools". N
     callAI, resolveBackend,
     getRoutingPrefs, setRoutingPrefs,
     getOllamaStatus, setPreferLocal, setForceCloud,
-    setModel, getModel,
+    setModel, getModel, localVision, agentNumCtx,
+    // Settings › AI "Test as agent": the local agent, on a named model.
+    localAgent: (request, model) => callLocalAgent(request, model),
     cloudWorkerUrl,
     _cleanIpcError
   };

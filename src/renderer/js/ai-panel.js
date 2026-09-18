@@ -643,11 +643,33 @@ const AIPanel = {
       .map(([tabId, msgs]) => ({ tabId, msgs, first: msgs.find(m => m.role === 'user') }))
       .reverse();
 
-    if (!rows.length) {
+    const runs = (typeof AgentLoop !== 'undefined' && typeof AgentLoop.runs === 'function') ? AgentLoop.runs() : [];
+    if (!rows.length && !runs.length) {
       list.innerHTML = '<div class="ai-history-empty">No conversations yet.</div>';
       return;
     }
     list.innerHTML = '';
+    // Agent runs: the goal, how it ended, and the whole run back on a click.
+    if (runs.length) {
+      const head = document.createElement('div');
+      head.className = 'ai-history-sub';
+      head.textContent = 'Agent runs';
+      list.appendChild(head);
+      for (const run of runs) {
+        const b = document.createElement('button');
+        b.className = 'ai-history-item ai-history-run';
+        b.innerHTML = '<span class="t"></span><span class="m"></span>';
+        b.querySelector('.t').textContent = String(run.goal || '').slice(0, 70);
+        b.querySelector('.m').textContent = [run.final ? 'Answered' : 'No answer', (run.steps || []).length + ' steps', (run.seconds || 0) + ' s', run.backend || '', new Date(run.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })].filter(Boolean).join(' · ');
+        b.addEventListener('click', () => {
+          if (AgentLoop.isRunning()) { window.showToast?.('The agent is running — stop it first'); return; }
+          this.toggleHistory(false);
+          try { AgentLoop.showRun(run.id); } catch (err) { window.showToast?.((err && err.message) || 'Could not open that run', 'error'); }
+        });
+        list.appendChild(b);
+      }
+      if (rows.length) { const head2 = document.createElement('div'); head2.className = 'ai-history-sub'; head2.textContent = 'Chats'; list.appendChild(head2); }
+    }
     for (const r of rows) {
       const b = document.createElement('button');
       b.className = 'ai-history-item' + (String(r.tabId) === current ? ' current' : '');

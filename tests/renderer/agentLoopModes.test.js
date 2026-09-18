@@ -39,7 +39,9 @@ describe('what the model is told', () => {
     await AgentLoop.start('research x', 'auto');
     expect(calls).toHaveLength(2);
     for (const req of calls) {
-      expect(req.conversationHistory[0]).toEqual({ role: 'user', content: agentGuide('auto') });
+      expect(req.conversationHistory[0].role).toBe('user');
+      expect(req.conversationHistory[0].content.startsWith(agentGuide('auto'))).toBe(true);
+      expect(req.conversationHistory[0].content).toMatch(/\n- Now: .*\d{4}/);          // today's date, not the model's cutoff
       expect(req.conversationHistory.length).toBeLessThanOrEqual(19);   // the worker keeps the last 20
     }
     expect(calls[1].conversationHistory.at(-1).content).toContain('web_search ok');

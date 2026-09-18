@@ -83,3 +83,23 @@
 }
 .agent-step-warn .agent-step { border-left-color: var(--warning, #f59e0b); }
 .agent-step .vex-icon { vertical-align: -2px; }
+
+/* The final answer: keep it */
+.agent-final-actions { display: flex; gap: 6px; margin-top: 8px; }
+.agent-final-btn {
+  font: inherit; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+}
+.agent-final-btn:hover:not(:disabled) { color: var(--text); background: var(--vex-hover-fill, var(--bg)); }
+.agent-final-btn:disabled { cursor: default; opacity: 0.7; }
+
+/* Settings › AI › "Test this model as an agent" */
+.agent-test-result { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+.agent-test-result[hidden] { display: none; }
+.agent-test-head { font-size: 13px; font-weight: 600; color: var(--text); }
+.agent-test-head.good { color: var(--success, #22c55e); }
+.agent-test-head.fair { color: var(--warning, #f59e0b); }
+.agent-test-head.poor { color: var(--danger); }
+.agent-test-row.ok { color: var(--text); }
+.agent-test-row.bad { color: var(--danger); }
+.agent-test-facts { margin-top: 4px; }

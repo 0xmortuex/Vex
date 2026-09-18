@@ -190,6 +190,110 @@ const AgentTools = {
     TabManager.persistTabs();
     return { id, name: clean, tabs: ids.length };
   },
+
+  // ------------------------------------------------ Vex's clock and commands --
+  //
+  // Asked for a 20 minute timer, the agent opened a timer WEBSITE and left it
+  // unstarted: it had no timer tool and nothing told it Vex has a clock. These
+  // are Vex's own features, reached the way the command bar reaches them.
+  async startTimer(duration, label) {
+    if (typeof VexClock === 'undefined') throw new Error('The Clock is not available');
+    const t = await VexClock.addTimer(String(duration || ''), label);
+    return { id: t.id, label: t.label, length: VexClock.fmtLeft(t.total), endsAt: new Date(t.endAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+  },
+
+  listTimers() {
+    if (typeof VexClock === 'undefined') throw new Error('The Clock is not available');
+    return VexClock._timers.map(t => ({ id: t.id, label: t.label, left: VexClock.fmtLeft(t.endAt - Date.now()) }));
+  },
+
+  async cancelTimer(id) {
+    if (typeof VexClock === 'undefined') throw new Error('The Clock is not available');
+    const t = VexClock._timers.find(x => x.id === id) || (VexClock._timers.length === 1 && !id ? VexClock._timers[0] : null);
+    if (!t) throw new Error('No timer with that id — list_timers gives the ids');
+    await VexClock.removeTimer(t.id);
+    return { id: t.id, label: t.label };
+  },
+
+  // What Vex can do by itself, from the catalogue Discover shows. Any word of
+  // the query may match; the most matching words come first.
+  vexFeatures(query) {
+    if (typeof VexFeatures === 'undefined') throw new Error('The feature catalogue is not loaded');
+    const words = String(query || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1);
+    if (!words.length) throw new Error('vex_features needs a query — a few words about what you want to do');
+    const scored = [];
+    for (const f of VexFeatures.ITEMS) {
+      const cmd = VexFeatures.command(f) || {};
+      const hay = [VexFeatures.nameOf(f), f.id, f.what, cmd.label, cmd.hint].join(' ').toLowerCase();
+      const n = words.filter(w => hay.includes(w)).length;
+      if (n) scored.push({ n, f, cmd });
+    }
+    scored.sort((a, b) => b.n - a.n);
+    return scored.slice(0, 8).map(({ f, cmd }) => ({
+      feature: VexFeatures.nameOf(f), what: f.what,
+      ...(f.cmd ? { command: f.cmd } : {}),
+      ...(VexFeatures.keysOf(f) ? { shortcut: VexFeatures.keysOf(f) } : {}),
+      ...(f.manual ? { note: 'Done by hand — tell the user how; there is no command to run' } : {}),
+    }));
+  },
+
+  // The feature list in one paragraph, so the agent knows what exists before it
+  // reaches for a website. vex_features has the details.
+  featureDigest() {
+    if (typeof VexFeatures === 'undefined') return '';
+    return VexFeatures.CATS.map(c => c.name + ': ' + VexFeatures.ITEMS.filter(f => f.cat === c.id).map(f => VexFeatures.nameOf(f)).join(', ')).join('. ');
+  },
+
+  // Runs what the user would type into Ctrl+K: a sentence the command bar
+  // understands ("alarm 7am weekdays", "stopwatch", "what time is it in
+  // Tokyo", "free memory"), or a command id from vex_features.
+  async vexCommand(text) {
+    const q = String(text || '').trim();
+    if (!q) throw new Error('vex_command needs the command: a sentence like "alarm 7am weekdays", or a command id from vex_features');
+    // Seen live: vex_command("start_timer 45s Tea"). A tool's name is not a command.
+    const first = q.split(/[\s(]/)[0];
+    if (typeof AGENT_TOOLS !== 'undefined' && first !== 'vex_command' && AGENT_TOOLS.some(t => t.name === first)) throw new Error(first + ' is one of your tools, not a Vex command — call it directly: {"tool":"' + first + '","parameters":{...}}');
+    if (typeof VexQuickCommands !== 'undefined') {
+      const quick = VexQuickCommands.results(q);
+      const hit = quick.find(r => r.id !== 'quick-error');
+      if (hit) { await hit.action(); return { ran: hit.label, detail: hit.hint || '' }; }
+      if (quick.length) throw new Error(quick[0].label);
+    }
+    if (typeof CommandBar === 'undefined') throw new Error('The command bar is not available');
+    const lower = q.toLowerCase();
+    const cmd = CommandBar.commands.find(c => c.id === q) || CommandBar.commands.find(c => String(c.label || '').toLowerCase() === lower);
+    if (!cmd) throw new Error('Vex has no command "' + q + '" — call vex_features to find the right command id');
+    await cmd.action();
+    return { ran: cmd.label, detail: cmd.hint || '' };
+  },
+
+  // ------------------------------------------------------------ what it sees --
+  // The page as the user sees it, small enough to hand to a model: 1024 px
+  // wide, JPEG. Returns a data URL.
+  async pageImage(wv) {
+    const img = await wv.capturePage();
+    if (!img || (typeof img.isEmpty === 'function' && img.isEmpty())) throw new Error('The page could not be captured (is the tab visible?)');
+    const size = img.getSize();
+    const small = size.width > 1024 ? img.resize({ width: 1024 }) : img;
+    const out = small.getSize();
+    return { image: await this._toJpeg(small.toDataURL(), out.width, out.height), width: out.width, height: out.height };
+  },
+
+  _toJpeg(dataUrl, width, height) {
+    return new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = width; c.height = height;
+          c.getContext('2d').drawImage(im, 0, 0, width, height);
+          resolve(c.toDataURL('image/jpeg', 0.72));
+        } catch (err) { reject(err); }
+      };
+      im.onerror = () => reject(new Error('The screenshot could not be decoded'));
+      im.src = dataUrl;
+    });
+  },
 };
 
 if (typeof window !== 'undefined') window.AgentTools = AgentTools;

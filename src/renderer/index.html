@@ -548,7 +548,22 @@
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
                 <button class="btn-secondary" id="btn-refresh-ollama">Refresh Ollama Status</button>
                 <button class="btn-secondary" id="btn-install-ollama">Ollama Install Guide</button>
+                <button class="btn-secondary" id="btn-test-agent-model" title="Four canned questions, nothing executed, nothing leaves this machine">Test this model as an agent</button>
               </div>
+
+              <div class="setting-row" id="agent-numctx-row" style="margin-top:14px">
+                <div class="setting-label">
+                  <strong>Agent context size</strong>
+                  <span class="setting-hint">How much the local model can hold in mind during an agent run. Larger fits longer tasks and uses more memory.</span>
+                </div>
+                <select id="agent-numctx-select">
+                  <option value="8192">8K — small machines</option>
+                  <option value="16384">16K — default</option>
+                  <option value="32768">32K</option>
+                  <option value="65536">64K — needs a lot of RAM</option>
+                </select>
+              </div>
+              <div id="agent-test-result" class="agent-test-result" hidden></div>
 
               <details class="advanced-routing">
                 <summary>Advanced: Per-Feature Routing</summary>
@@ -1186,6 +1201,7 @@
   <script src="js/agent-tools.js"></script>
   <script src="js/agent-executor.js"></script>
   <script src="js/agent-loop.js"></script>
+  <script src="js/agent-model-test.js"></script>
   <script src="js/scheduler.js"></script>
   <script src="js/schedules-panel.js"></script>
   <script src="js/quick-reminder.js"></script>
