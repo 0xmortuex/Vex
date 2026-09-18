@@ -141,6 +141,9 @@ const WebviewManager = {
         if (typeof AudioOutput !== 'undefined' && t && t.url) AudioOutput.apply(webview, t.url);
         // …and how fast its videos play (js/page-tools.js).
         if (typeof PageTools !== 'undefined' && t && t.url) PageTools.applySpeed(webview, t.url);
+        // The page has settled: skim its words so Ctrl+K can find this tab by
+        // what is ON it, not only by its title (js/tab-content-index.js).
+        document.dispatchEvent(new CustomEvent('vex:tab-settled', { detail: { tabId: tab.id } }));
         // Copy & right-click unlock (only when the global toggle is on)
         if (typeof CopyUnlock !== 'undefined') CopyUnlock.applyTo(webview);
         // Reading & accessibility pack (dyslexia font / CVD filter / ruler)

@@ -575,6 +575,26 @@ const CommandBar = {
           action: () => { try { TabManager.switchTab(t.id); } catch {} },
         } });
       }
+      // Tabs whose PAGE contains the words, for the one called "Order
+      // confirmation" when what you remember is "refund". Ranked below a title
+      // match, and never listed twice.
+      if (typeof TabContentIndex !== 'undefined') {
+        const already = new Set(scored.map(e => e.r.id));
+        for (const hit of TabContentIndex.search(q)) {
+          const id = 'tab:' + hit.tabId;
+          if (already.has(id)) continue;
+          const t = (TabManager.tabs || []).find(x => x.id === hit.tabId);
+          if (!t || t.id === TabManager.activeTabId) continue;
+          let host = ''; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch {}
+          scored.push({ score: 40 + Math.min(hit.score, 9), r: {
+            id,
+            icon: t.favicon ? `<img src="${esc(t.favicon)}" style="width:16px;height:16px;border-radius:3px" alt="">` : this._icon('tabs'),
+            label: t.title || host || t.url || 'Tab',
+            hint: 'On this page · ' + (host || t.url || ''),
+            action: () => { try { TabManager.switchTab(t.id); } catch {} },
+          } });
+        }
+      }
       return scored.sort((a, b) => b.score - a.score).slice(0, 6).map(e => e.r);
     } catch { return []; }
   },

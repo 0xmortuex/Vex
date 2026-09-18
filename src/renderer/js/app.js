@@ -870,6 +870,9 @@
   // Pages the user asked to be told about (js/page-watch.js).
   if (typeof PageWatch !== 'undefined') PageWatch.start();
 
+  // Ctrl+K can find a tab by the words on it (js/tab-content-index.js).
+  if (typeof TabContentIndex !== 'undefined') TabContentIndex.watch();
+
   // WebHID device chooser (navigator.hid.requestDevice)
   if (typeof HidPicker !== 'undefined') HidPicker.init();
 

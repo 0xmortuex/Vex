@@ -402,6 +402,7 @@ const TabManager = {
 
   closeTab(id) {
     this._notifyTabsChanged();
+    document.dispatchEvent(new CustomEvent('vex:tab-closed', { detail: { tabId: id } }));
     const idx = this.tabs.findIndex(t => t.id === id);
     if (idx === -1) return;
 
