@@ -910,6 +910,62 @@ function _isVexStartPage(href) {
 })();
 
 
+// === Copy tracker — what you copied off this page, to the host ===
+//
+// You copy something, copy something else, and the first thing is gone. Every
+// clipboard manager on Windows solves this by watching the system clipboard,
+// which means it also records what you copy out of your password manager, your
+// banking app and your terminal.
+//
+// This watches one thing: copies made ON A WEB PAGE. Nothing typed into Vex's
+// own interface is seen, nothing from other programs is seen, and a copy out of
+// a password field is not sent at all. The host decides what to keep (it
+// refuses private and Tor tabs outright) — this only reports.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  const MAX = 10000;   // a copied article, not a copied file
+
+  // A copy out of a password box is not history, it is a password.
+  function fromSecretField() {
+    try {
+      const a = document.activeElement;
+      if (!a) return false;
+      if (a.tagName === "INPUT" && String(a.type || "").toLowerCase() === "password") return true;
+      // Sites that hide the real field and mirror it, and one-time-code boxes.
+      const hint = ((a.name || "") + (a.id || "") + (a.autocomplete || "")).toLowerCase();
+      return /password|passwd|otp|one-?time|secret|cvv|cvc/.test(hint);
+    } catch { return false; }
+  }
+
+  function report(kind) {
+    try {
+      if (fromSecretField()) return;
+      let text = "";
+      const a = document.activeElement;
+      // A selection inside a field is not in window.getSelection() on every
+      // engine — read the field's own selection when that is what is focused.
+      if (a && /^(input|textarea)$/i.test(a.nodeName) && typeof a.selectionStart === "number") {
+        text = String(a.value || "").slice(a.selectionStart, a.selectionEnd);
+      }
+      if (!text) text = String(window.getSelection() || "");
+      text = text.replace(/ /g, "");
+      if (!text.trim() || text.length > MAX) return;
+      ipcRenderer.sendToHost("vex-copy", {
+        text,
+        kind: String(kind),
+        title: String(document.title || "").slice(0, 120),
+      });
+    } catch { /* best-effort */ }
+  }
+
+  document.addEventListener("copy", () => report("copy"), true);
+  document.addEventListener("cut", () => report("cut"), true);
+})();
+
 // === Mouse-gesture tracker — right-button drag → direction(s) to host ===
 (function () {
   "use strict";

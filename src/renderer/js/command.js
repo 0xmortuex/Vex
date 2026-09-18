@@ -21,6 +21,7 @@ const CommandBar = {
     { id: 'boost', label: 'Boost This Site', hint: 'Custom CSS / JS for the current site', icon: 'palette', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } },
     { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) ReadLater.add(t.url, t.title); } },
     { id: 'library', label: 'Library', hint: 'Read-later queue + auto-archived tabs', icon: 'book', isPrimary: true, action: () => SidebarManager.openPanel('library') },
+    { id: 'clipboard-history', label: 'Clipboard History', hint: 'What you copied before the thing you copied — click one to copy it again', icon: 'clipboard', isPrimary: true, action: () => window.ClipboardHistory?.openPicker() },
     { id: 'clip', label: 'Clip to Notes', hint: 'Save the selected text (or this link) into your Clippings note', icon: 'scissors', action: () => ClipToNotes.clip() },
     { id: 'highlight', label: 'Highlight Selection', hint: 'Highlight the selected text — it reappears every time you revisit the page', icon: 'marker', action: () => { if (typeof Annotations !== 'undefined') Annotations.highlight('yellow'); } },
     { id: 'highlight-green', label: 'Highlight Selection (Green)', hint: 'Highlight selection in green', icon: 'marker', action: () => { if (typeof Annotations !== 'undefined') Annotations.highlight('green'); } },
@@ -480,6 +481,7 @@ const CommandBar = {
 
       // Jump to an already-open tab whose title/URL matches.
       this.results.push(...this._tabResults(q));
+      this.results.push(...this._clipResults(q));
       this.results.push(...this._toolResults(q));
 
       // Search action
@@ -611,6 +613,31 @@ const CommandBar = {
         }
       }
       return scored.sort((a, b) => b.score - a.score).slice(0, 6).map(e => e.r);
+    } catch { return []; }
+  },
+
+  // Things you copied off a page, searchable by what is in them. The point of
+  // a clipboard history is the copy you made BEFORE the one you have now, so
+  // typing any word from it should be enough to get it back.
+  _clipResults(q) {
+    if (!q || !window.ClipboardHistory || !window.ClipboardHistory.enabled()) return [];
+    try {
+      const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
+      const needle = q.toLowerCase();
+      const out = [];
+      for (const item of window.ClipboardHistory.list()) {
+        const text = String(item.text || '');
+        const at = text.toLowerCase().indexOf(needle);
+        if (at < 0) continue;
+        out.push({ score: (at === 0 ? 60 : 45) + (item.pinned ? 5 : 0), r: {
+          id: 'clip:' + item.id,
+          icon: this._icon(item.pinned ? 'pin' : 'clipboard'),
+          label: esc(window.ClipboardHistory.preview(item, 64)),
+          hint: (item.pinned ? 'Kept · ' : 'Copied · ') + (item.host || 'a page') + ' · copies it again',
+          action: () => { window.ClipboardHistory.use(item.id).catch(e => window.showToast?.(e.message, 'error')); },
+        } });
+      }
+      return out.sort((a, b) => b.score - a.score).slice(0, 5).map(e => e.r);
     } catch { return []; }
   },
 

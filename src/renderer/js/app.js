@@ -905,6 +905,9 @@
   if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.init();
   if (typeof CommandChains !== 'undefined') CommandChains.init();
 
+  // What you copied off a page, so the last copy isn't the only copy
+  if (window.ClipboardHistory) window.ClipboardHistory.init();
+
   // Library (read later + auto-archive)
   if (typeof ReadLater !== 'undefined') ReadLater.init();
   if (typeof TabArchiver !== 'undefined') TabArchiver.init();
@@ -943,6 +946,12 @@
   if (gToggle && typeof MouseGestures !== 'undefined') {
     gToggle.checked = MouseGestures.enabled();
     gToggle.addEventListener('change', () => MouseGestures.setEnabled(gToggle.checked));
+  }
+  const clipToggle = document.getElementById('setting-clipboard-history');
+  if (clipToggle && window.ClipboardHistory) {
+    clipToggle.checked = window.ClipboardHistory.enabled();
+    // Turning it off drops what is already held, rather than merely hiding it.
+    clipToggle.addEventListener('change', () => window.ClipboardHistory.setEnabled(clipToggle.checked));
   }
   const cToggle = document.getElementById('setting-consent');
   if (cToggle && typeof ConsentBlock !== 'undefined') {

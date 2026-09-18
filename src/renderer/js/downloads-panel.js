@@ -121,7 +121,8 @@ const DownloadsPanel = {
       window.DownloadToast?.show({
         filename: dl.filename,
         path: dl.path,
-        size: dl.totalBytes || dl.receivedBytes || 0
+        size: dl.totalBytes || dl.receivedBytes || 0,
+        from: dl.url || ''            // so the toast can check before it opens
       });
     } else if (dl.state === 'cancelled') {
       window.showToast?.(`Download cancelled: ${dl.filename}`, 'info');

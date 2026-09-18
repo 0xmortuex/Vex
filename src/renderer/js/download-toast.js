@@ -21,7 +21,7 @@ const DownloadToast = {
   // Inline SVG, drawn in currentColor so it follows the theme.
   FILE_ICON: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
 
-  show({ filename, path, size }) {
+  show({ filename, path, size, from }) {
     const container = this._container();
     const toast = document.createElement('div');
     toast.className = 'download-toast';
@@ -63,9 +63,21 @@ const DownloadToast = {
       if (!btn) return;
       const action = btn.dataset.action;
       if (action === 'open') {
-        Promise.resolve(window.vex?.downloadsOpenFile?.(path)).then((result) => {
-          if (result && !result.ok) window.showToast?.(result.error || 'Could not open that file', 'error');
-        });
+        // This is where an installer is actually opened from — the moment it
+        // lands, not later from the panel. It gets the same check: who signed
+        // it, where it came from. The panel owns that check; asking it here
+        // keeps the two Open buttons from disagreeing.
+        const okToOpen = window.DownloadsPanel?._okToOpen
+          ? window.DownloadsPanel._okToOpen(path, from || '')
+          : Promise.resolve(true);
+        Promise.resolve(okToOpen)
+          .catch(() => true)                       // a check that fails never blocks the open
+          .then((ok) => {
+            if (!ok) return;
+            return Promise.resolve(window.vex?.downloadsOpenFile?.(path)).then((result) => {
+              if (result && !result.ok) window.showToast?.(result.error || 'Could not open that file', 'error');
+            });
+          });
         dismiss();
       } else if (action === 'folder') {
         window.vex?.downloadsShowInFolder?.(path);

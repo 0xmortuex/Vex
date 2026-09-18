@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.32.5 (2026-09-19) — The thing you copied before the thing you copied
+
+### Notes
+- **Clipboard history** (`Ctrl+K` → *Clipboard History*). You copy a tracking number, then copy the address to paste it somewhere, and the tracking number is gone. The clipboard holds one thing and the last copy wins.
+  - **Type any word that was in it** to get it back — `Ctrl+K`, a word from the copy, Enter, and it is on the clipboard again.
+  - Or browse the list, which shows what each copy was and which site it came from.
+- **It watches one thing: copies made on web pages.** Every clipboard manager on Windows, including Win+V, works by watching the system clipboard — which means it also records what you copy out of your password manager, your banking app and your terminal. Vex sees none of that. Copies made in Vex's own interface are not recorded either.
+  - A copy out of a **password field, or a one-time-code box, is never sent at all** — the page-side capture refuses it before anything leaves the tab. Verified against real password and OTP fields in a running build.
+  - **Private and Tor tabs record nothing**, like everything else in them.
+- **Nothing is kept after you close Vex unless you pin it.** The session list lives in memory and goes when Vex does. Pinning is what writes an entry to disk, so keeping something is a decision you make rather than one made for you. *Clear all* clears both.
+- Turn the whole thing off in Settings → Browsing extras. Off means nothing is recorded — and what was already held is dropped, not just hidden.
+
+### Fixes
+- The download safety check added in v2.32.4 only guarded the downloads panel. The **Open** button on the toast that appears the moment a download finishes — which is where an installer is actually opened from — went straight past it. Both buttons now ask the same question.
+
 ## v2.32.4 (2026-09-19) — What an installer actually is, before you double-click it
 
 ### Notes
