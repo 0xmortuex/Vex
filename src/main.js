@@ -4174,6 +4174,16 @@ ipcMain.handle('spellcheck:replace-misspelling', (_e, webContentsId, suggestion,
 });
 
 // Downloads IPC — open/show
+// What a downloaded file IS, before it is opened (src/main/file-check.js).
+// Nothing is sent anywhere: the hash is computed here and shown.
+const _fileCheck = require('./main/file-check').createFileCheck({
+  fs, crypto: require('crypto'), execFile: require('child_process').execFile, platform: process.platform, log: (m) => console.log(m),
+});
+ipcMain.handle('file:inspect', async (_e, filePath, from) => {
+  try { return { ok: true, ...(await _fileCheck.inspect(String(filePath || ''), String(from || ''))) }; }
+  catch (err) { return { ok: false, error: (err && err.message) || 'could not be checked' }; }
+});
+
 ipcMain.handle('downloads:open-file', async (_e, filePath) => {
   try { const r = await shell.openPath(filePath); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }

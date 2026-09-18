@@ -138,6 +138,8 @@ contextBridge.exposeInMainWorld('vex', {
   gpu: () => ipcRenderer.invoke('system:gpu'),
   // Dev servers listening on this machine.
   devPorts: () => ipcRenderer.invoke('system:dev-ports'),
+  // What a downloaded file is, before it is opened.
+  fileInspect: (filePath, from) => ipcRenderer.invoke('file:inspect', filePath, from),
   // System-wide hotkeys (mute Discord from inside a game).
   hotkeysGet: () => ipcRenderer.invoke('hotkeys:get'),
   hotkeysSet: (config) => ipcRenderer.invoke('hotkeys:set', config),

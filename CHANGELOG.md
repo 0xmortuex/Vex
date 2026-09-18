@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.4 (2026-09-19) — What an installer actually is, before you double-click it
+
+### Notes
+- **Vex now tells you what a downloaded program is before it runs.** An installer is the one thing a browser hands you that can do anything to the machine, and browsers say nothing about it. Windows asks "are you sure" and names the publisher — after the double-click, and only if the file is signed. Opening an `.exe`, `.msi`, `.bat` or an archive from the downloads list now says first:
+  - **Who signed it** — read from the file itself, without running it. "Signed by Example Ltd", or plainly *Not signed — nobody has put their name to this file*. Unsigned is not an accusation; most small tools are unsigned. An unsigned installer claiming to be from a large company is the thing worth noticing.
+  - **Where it came from** — the site you actually meant to trust, taken from the download, not from the file's own claims about itself.
+  - **Its SHA-256** — so you can compare it with what the project publishes.
+- Nothing is sent anywhere. The hash is computed on your machine and shown; whether to look it up online is your decision, not Vex's. Vex is not an antivirus and does not pretend to be one — it reports what can be known locally and lets you decide.
+- A PDF, an image or a document opens exactly as it always did. An archive says plainly that what is inside it is not checked.
+- **If the check itself fails, it gets out of the way.** A file that has moved, a signature that cannot be read, an older build with no such bridge: the file opens as before. A safety check that stops you opening your own downloads would be worse than no check.
+
 ## v2.32.3 (2026-09-19) — Save a task the agent did, and repeat it without the AI
 
 ### Notes

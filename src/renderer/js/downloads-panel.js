@@ -222,10 +222,38 @@ const DownloadsPanel = {
     if (!result || !result.ok) window.showToast?.((result && result.error) || 'Could not restart that download', 'error');
   },
 
+  // Everything knowable about a file, before it runs: who signed it, where it
+  // came from, and its fingerprint. Ordinary files open as they always did.
+  async _okToOpen(filePath, from) {
+    if (!window.vex || typeof window.vex.fileInspect !== 'function') return true;
+    let info;
+    try { info = await window.vex.fileInspect(filePath, from || ''); }
+    catch (err) { window.VexProblems?.note('Downloads', 'Could not check the file', err); return true; }
+    if (!info || !info.ok) return true;                       // never block on a failed check
+    if (info.verdict === 'ordinary') return true;
+    const heading = info.verdict === 'signed' ? 'Run ' + info.name + '?'
+      : info.verdict === 'unsigned' ? 'This program is not signed'
+        : info.verdict === 'archive' ? 'Open ' + info.name + '?' : 'Vex could not check this program';
+    // If there is no way to ask, the click still opens: the user asked for it,
+    // and Windows' own prompt is still ahead of them.
+    if (typeof window.vexConfirm !== 'function') return true;
+    return window.vexConfirm({
+      title: heading,
+      message: info.lines.join('\n') + '\n\nOpen it only if you meant to download it from that site.',
+      okLabel: info.verdict === 'archive' ? 'Open' : 'Run it',
+      cancelLabel: 'Not now',
+      danger: info.verdict !== 'signed',
+    });
+  },
+
   // Wire up a single row's action buttons (used by renderList and the
   // incremental _prependRow/_replaceRow paths).
   _bindRowActions(rowEl) {
     rowEl.querySelectorAll('[data-action="open-file"]').forEach(b => b.addEventListener('click', async () => {
+      // An installer is the one thing a browser hands you that can do anything
+      // to the machine, and browsers say nothing about it. Windows asks only
+      // after the double-click, and only when the file is signed.
+      if (!(await this._okToOpen(b.dataset.path, b.dataset.from))) return;
       const result = await window.vex.downloadsOpenFile?.(b.dataset.path);
       if (result && !result.ok) window.showToast?.(result.error || 'Could not open that file', 'error');
     }));
@@ -326,7 +354,7 @@ const DownloadsPanel = {
         : `<button class="dl-btn" data-action="pause" data-id="${id}" title="Pause" aria-label="Pause download">${this.ICONS.pause}</button>`;
       actions += `<button class="dl-btn" data-action="cancel" data-id="${id}" title="Cancel" aria-label="Cancel download">${this.ICONS.close}</button>`;
     } else if (isComplete) {
-      actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" title="Open file">Open</button>
+      actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
             <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>`;
     } else if (isFailed && dl.url) {
       actions = `<button class="dl-btn" data-action="retry" data-id="${id}" title="Try this download again" aria-label="Retry download">${this.ICONS.retry}</button>`;
