@@ -867,6 +867,9 @@
   // The quick-capture window hands its line here (js/quick-capture.js).
   if (typeof QuickCapture !== 'undefined') QuickCapture.init();
 
+  // Pages the user asked to be told about (js/page-watch.js).
+  if (typeof PageWatch !== 'undefined') PageWatch.start();
+
   // WebHID device chooser (navigator.hid.requestDevice)
   if (typeof HidPicker !== 'undefined') HidPicker.init();
 

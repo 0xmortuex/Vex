@@ -195,6 +195,50 @@ const CommandBar = {
     { id: 'compare-tabs', label: 'Compare Tabs', hint: 'AI compares all open tabs', icon: 'scale', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Compare these tabs side-by-side.',TabManager.tabs); } },
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
     { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
+    { id: 'watchpage', label: 'Tell me when this page changes', hint: 'Vex checks it quietly and says when it is different — a price, a date, a build', icon: 'alarm', isPrimary: true, action: async () => {
+      if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
+      const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
+      if (!tab || !/^https?:/i.test(tab.url || '')) { window.showToast?.('Open a page first', 'error'); return; }
+      const what = await vexPrompt({ title: 'What should Vex watch?', message: 'Leave empty for the whole page, or give a CSS selector for one part of it (e.g. .price).', value: '', okLabel: 'Next' });
+      if (what == null) return;
+      const asNumber = await vexConfirm({ title: 'Watch a number?', message: 'Is this a number — a price, a count, a score? Then Vex can tell you when it moves, rather than when any word on the page changes.', okLabel: 'It is a number', cancelLabel: 'Any change' });
+      let direction = 'any', target = null;
+      if (asNumber) {
+        const rule = await vexPrompt({ title: 'When should Vex tell you?', message: 'up · down · any · below 300 · above 300', value: 'down', okLabel: 'Next' });
+        if (rule == null) return;
+        const m = String(rule).trim().toLowerCase().match(/^(up|down|any|below|above)\s*([\d.]+)?$/);
+        if (!m) { window.showToast?.('Say up, down, any, "below 300" or "above 300"', 'error'); return; }
+        direction = m[1];
+        target = m[2] ? Number(m[2]) : null;
+        if ((direction === 'below' || direction === 'above') && target == null) { window.showToast?.('Give the figure too, e.g. "below 300"', 'error'); return; }
+      }
+      const how = await vexPrompt({ title: 'How often?', message: PageWatch.EVERY.map((e, i) => (i + 1) + '. ' + e.label).join('\n'), value: '2', okLabel: 'Watch it' });
+      if (how == null) return;
+      const every = (PageWatch.EVERY[parseInt(how, 10) - 1] || PageWatch.EVERY[1]).ms;
+      try {
+        const w = PageWatch.add({ url: tab.url, title: tab.title || tab.url, selector: what.trim(), kind: asNumber ? 'number' : 'text', every, direction, target });
+        window.showToast?.('Watching — Vex will say when it changes');
+        PageWatch.checkOne(w.id);                 // the first look sets the baseline
+      } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
+    } },
+    { id: 'watches', label: 'Watched pages', hint: 'What Vex is keeping an eye on, and what it last saw', icon: 'alarm', action: async () => {
+      if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
+      const list = PageWatch.list();
+      if (!list.length) { window.showToast?.('Nothing is being watched yet — Ctrl+K → Tell me when this page changes'); return; }
+      const ago = (t) => (t ? Math.round((Date.now() - t) / 60000) + ' min ago' : 'not yet');
+      const pick = await vexPrompt({
+        title: 'Watched pages',
+        message: list.map((w, i) => (i + 1) + '. ' + w.title + (w.selector ? ' [' + w.selector + ']' : '')
+          + '\n   last looked ' + ago(w.lastCheckedAt)
+          + (w.lastValue != null ? ' · now ' + String(w.lastValue).slice(0, 40) : '')
+          + (w.lastError ? ' · ' + w.lastError : '')).join('\n'),
+        value: '', placeholder: 'a number to stop watching it', okLabel: 'Stop watching',
+      });
+      const chosen = list[parseInt(pick, 10) - 1];
+      if (!chosen) return;
+      PageWatch.remove(chosen.id);
+      window.showToast?.('No longer watching ' + chosen.title);
+    } },
     { id: 'switchenv', label: 'Switch environment', hint: 'The same path on your local server, staging or live', icon: 'code', isPrimary: true, action: async () => {
       if (typeof DevSwitch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
       const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
