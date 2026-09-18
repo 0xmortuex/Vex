@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.31.84 (2026-09-18) — The AI agent no longer hangs at "Agent started", and can rename tab groups
+
+### Notes
+- **Fixed: the agent sat at "Agent started: …" for ever — no step, no error, only Stop.** Its first act is to read the page in front, and on a tab with no page loaded that read never finished: a tab whose only navigation turned into a download (a `…/download/Vex-Setup.exe` link) or any empty response has no document, and Electron holds a script call until one loads. Nothing was thrown, so nothing was reported. Reproduced and measured: both page reads hung past 8 s; they now answer in about 1 ms with "This tab has no page loaded", and the agent carries on without page context.
+- **Every page read and page action in the AI paths has a deadline now** (ten calls: the two page readers and the agent's click, type, select, scroll, extract, wait and search). A page that stops answering is reported after 8 s instead of freezing the agent.
+- **The agent can work with tab groups.** "Rename my tab groups" was impossible before — all of its tools acted on the page in front, and groups are Vex's own. New tools: *list tab groups* (runs without asking) and *rename tab group* (asks first in Ask mode, like a click). They work with no page open. The group menu's Rename uses the same code.
+- The agent still runs on the cloud backend only; without an AI Worker URL it says so rather than hanging.
+
 ## v2.31.83 (2026-09-17) — Organize Tabs with AI works on local reasoning models
 
 ### Notes
