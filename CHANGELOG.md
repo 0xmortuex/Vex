@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.31.86 (2026-09-18) — The agent uses Vex's own features, can see the page, stops when told, and keeps its work
+
+### Notes
+- **Fixed: asked for a 20 minute timer, the agent opened a timer *website* and left it unstarted.** It had no timer tool, and nothing told it Vex has a clock. It now starts a real Vex timer (the one in the toolbar, which rings), and can list and cancel timers.
+- **The agent knows what Vex can do.** Every request now carries the feature catalogue Discover shows — 12 categories, 100+ features — and two new tools: *look up a Vex feature* and *run a Vex command*, which does whatever you could type into Ctrl+K: "alarm 7am weekdays", "stopwatch", "what time is it in Tokyo", "free memory", or any command by name. It is told to check Vex before reaching for a website. A command that clears, resets or signs out is asked about even in Auto-approve. It is also told today's date — a model's own idea of "today" is its training cutoff.
+- **It can see the page.** The *screenshot* tool used to capture the page and throw the picture away. The model is now shown it (downscaled, once) — for charts, canvases, images and layouts the page text does not explain. Works on local models with vision (qwen3.5 has it; a model without is told so instead of guessing). Tested: it described a page's colours and layout correctly from a 12 KB image.
+- **Stop means stop.** It used to set a flag while the model call already running carried on — 10 to 20 seconds on a local model. Stop now cancels the call in flight: measured 0.8 s from click to stopped. A stopped call is not retried on another backend.
+- **Runs are kept.** The last 30 agent runs — goal, steps, answer, time, model — are listed in the AI panel's history and open again on a click. Every final answer has **Save as note** and **Copy**.
+- **Scheduled tasks can research.** An unattended run may now search the web, read pages and save a note ("every morning, look up X and note it"), and works around one failed read instead of dying on it. It still cannot click, type, or touch your other tabs.
+- **Settings › AI › Test this model as an agent.** Four canned questions (nothing is executed, nothing leaves the machine) tell you whether a local model picks the right tools, how fast, whether it can see screenshots, and whether the context size is enough. New setting: *Agent context size* (8K–64K).
+- For the cloud agent to see screenshots the AI Worker needs redeploying with the updated `worker.js`; until then it is told it cannot see and reads the text instead.
+- Releases: `npm run publish` now ends by checking the release really has its installer, block map and `latest.yml` (and is not a draft) before moving the website's badge — and refuses loudly otherwise.
+
 ## v2.31.85 (2026-09-18) — An agent that can research and act, runs on your local model, and asks the way you choose
 
 ### Notes
