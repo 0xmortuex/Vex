@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.31.97 (2026-09-19) — Undo what the agent made, and let it read videos and PDFs
+
+### Notes
+- **Undo an agent run.** An agent that acts on its own needs a way back, and "which of these six notes did it write?" is not one. Every run now records what it MADE — notes, bookmarks, tab groups, timers, reminders — and **Undo** in the AI history removes them, newest first, after showing you the list. Only Vex’s own things: what it did on a web page is the page’s business and cannot be taken back from here, and it says so rather than pretending. Anything already gone is reported and the rest still goes.
+- **A YouTube link is no longer a dead end.** The page is an app shell with no words in it, so the agent read it, found nothing and gave up. It now reads what was actually *said* — the caption track, with a timestamp every couple of minutes so an answer can point at a moment. No key and no third party; a video with no captions says so.
+- **PDFs are read instead of refused.** Half of anything official lives in one, and "that address is a file, not a page" was the end of it. The plain-text parts are read; a file that keeps everything compressed says so and points at opening it in a tab, and a short read is flagged as partial rather than passed off as the whole document.
+
 ## v2.31.96 (2026-09-19) — Take any table as a spreadsheet, and set how fast a site plays video
 
 ### Notes
