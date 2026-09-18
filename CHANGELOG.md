@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.32.6 (2026-09-19) — Stop retyping the same paragraph
+
+### Notes
+- **Snippets** (`Ctrl+K` → *Snippets*). Your address. The bank details for an invoice. The three-line reply you send to the same kind of email every week. Everyone retypes something, and the usual answer is a notes app you copy out of — two context switches for four words.
+  - A snippet is an abbreviation and the text it becomes. Type `;addr` in any box on any page, press **Tab**, and it is your address.
+  - **Tab, and only when the word right before the caret is one of yours.** Everywhere else Tab still moves to the next field, which is what it is for. Nothing expands while you type: an expander that fires inside a word you were halfway through is worse than retyping.
+  - Works in ordinary boxes, in big message boxes, and in the rich editors that sites build themselves — verified in a running build against all three.
+  - Multi-line snippets keep their lines in a message box. In a one-line field, where the browser would drop the newlines and weld "Street" onto "Manchester", they become spaces instead.
+  - The longest match wins, so `;sig` and `;sig2` can both exist.
+  - **Never in a password field.**
+- The page is told only the abbreviations and their text — no names, no ids, nothing else about you — and only ever the list you made.
+
 ## v2.32.5 (2026-09-19) — The thing you copied before the thing you copied
 
 ### Notes

@@ -21,6 +21,7 @@ const CommandBar = {
     { id: 'boost', label: 'Boost This Site', hint: 'Custom CSS / JS for the current site', icon: 'palette', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } },
     { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) ReadLater.add(t.url, t.title); } },
     { id: 'library', label: 'Library', hint: 'Read-later queue + auto-archived tabs', icon: 'book', isPrimary: true, action: () => SidebarManager.openPanel('library') },
+    { id: 'snippets', label: 'Snippets', hint: 'Short abbreviations that become text you keep retyping — type one anywhere, press Tab', icon: 'type', isPrimary: true, action: () => window.Snippets?.openManager() },
     { id: 'clipboard-history', label: 'Clipboard History', hint: 'What you copied before the thing you copied — click one to copy it again', icon: 'clipboard', isPrimary: true, action: () => window.ClipboardHistory?.openPicker() },
     { id: 'clip', label: 'Clip to Notes', hint: 'Save the selected text (or this link) into your Clippings note', icon: 'scissors', action: () => ClipToNotes.clip() },
     { id: 'highlight', label: 'Highlight Selection', hint: 'Highlight the selected text — it reappears every time you revisit the page', icon: 'marker', action: () => { if (typeof Annotations !== 'undefined') Annotations.highlight('yellow'); } },

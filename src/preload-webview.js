@@ -910,6 +910,103 @@ function _isVexStartPage(href) {
 })();
 
 
+// === Snippets — a short abbreviation becomes the text you keep retyping ===
+//
+// The expansion happens HERE, in the page, because that is the only place the
+// caret is. The host owns the list and pushes it down ('vex-snippets'); this
+// side never stores anything and never asks for anything.
+//
+// Tab is the trigger, and only when the word immediately before the caret is
+// one of your abbreviations. Anywhere else Tab still moves to the next field,
+// which is what it is for. Nothing expands as you type: a snippet that fires on
+// its own, inside a word you were halfway through, is worse than no snippet.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer) return;
+
+  let snippets = [];      // [{ abbr, text }], pushed by the host
+  ipcRenderer.on("vex-snippets", (_e, list) => {
+    snippets = Array.isArray(list)
+      ? list.filter(s => s && typeof s.abbr === "string" && typeof s.text === "string" && s.abbr)
+      : [];
+  });
+
+  // The word before the caret: letters, digits and the punctuation people
+  // actually start an abbreviation with.
+  const TOKEN = /[A-Za-z0-9_;:@\-\/\\.]+$/;
+
+  function match(before) {
+    const m = TOKEN.exec(before);
+    if (!m) return null;
+    const token = m[0];
+    // Longest abbreviation wins, so ";sig" and ";sig2" can both exist.
+    let best = null;
+    for (const s of snippets) {
+      if (token.endsWith(s.abbr) && (!best || s.abbr.length > best.abbr.length)) best = s;
+    }
+    return best ? { snippet: best, start: m.index + (token.length - best.abbr.length) } : null;
+  }
+
+  document.addEventListener("keydown", (e) => {
+    try {
+      if (e.key !== "Tab" || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      if (!snippets.length) return;
+      const el = e.target;
+      if (!el) return;
+
+      if (/^(input|textarea)$/i.test(el.nodeName) && typeof el.selectionStart === "number") {
+        if (el.readOnly || el.disabled) return;
+        if (el.nodeName.toLowerCase() === "input" && /^(password|checkbox|radio|file|submit|button|range|color)$/i.test(el.type || "")) return;
+        const caret = el.selectionStart;
+        if (caret !== el.selectionEnd) return;                 // a selection, not a caret
+        const hit = match(String(el.value || "").slice(0, caret));
+        if (!hit) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        // A single-line <input> silently drops newlines, which welds the last
+        // word of one line onto the first of the next: a two-line address
+        // arrives as "12 Bridge StreetManchester". Give them a space instead.
+        const single = el.nodeName.toLowerCase() === "input";
+        const text = single ? hit.snippet.text.replace(/\s*\r?\n\s*/g, " ") : hit.snippet.text;
+        if (typeof el.setRangeText === "function") {
+          el.setRangeText(text, hit.start, caret, "end");
+        } else {
+          const v = el.value || "";
+          el.value = v.slice(0, hit.start) + text + v.slice(caret);
+        }
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        return;
+      }
+
+      // contenteditable — the caret is a range, so walk back through the text
+      // node it sits in.
+      if (el.isContentEditable) {
+        const sel = window.getSelection();
+        if (!sel || !sel.isCollapsed || !sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        const node = range.startContainer;
+        if (!node || node.nodeType !== 3) return;              // text nodes only
+        const caret = range.startOffset;
+        const hit = match(String(node.data || "").slice(0, caret));
+        if (!hit) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const replace = document.createRange();
+        replace.setStart(node, hit.start);
+        replace.setEnd(node, caret);
+        sel.removeAllRanges();
+        sel.addRange(replace);
+        // execCommand keeps the site's own undo stack and input events intact,
+        // which direct DOM surgery does not.
+        document.execCommand("insertText", false, hit.snippet.text);
+      }
+    } catch { /* never break typing */ }
+  }, true);
+})();
+
 // === Copy tracker — what you copied off this page, to the host ===
 //
 // You copy something, copy something else, and the first thing is gone. Every

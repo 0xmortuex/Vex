@@ -182,6 +182,8 @@ const VexFeatures = {
       what: 'A note pinned to one specific page, which reappears every time you return to it.' },
     { id: 'clip', cat: 'work', cmd: 'clip',
       what: 'Sends the selected text into your notes with a link back to where it came from.' },
+    { id: 'snippets', cat: 'work', cmd: 'snippets',
+      what: 'An abbreviation that becomes the text you keep retyping. Type it in any box on any page and press Tab.' },
     { id: 'clipboard-history', cat: 'work', cmd: 'clipboard-history',
       what: 'The thing you copied before the thing you copied. Web pages only — never your other programs — and nothing is kept after you close Vex unless you pin it.' },
     { id: 'library', cat: 'work', cmd: 'library', panel: 'library',

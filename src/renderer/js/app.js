@@ -907,6 +907,8 @@
 
   // What you copied off a page, so the last copy isn't the only copy
   if (window.ClipboardHistory) window.ClipboardHistory.init();
+  // Abbreviations that become the text you keep retyping
+  if (window.Snippets) window.Snippets.init();
 
   // Library (read later + auto-archive)
   if (typeof ReadLater !== 'undefined') ReadLater.init();
