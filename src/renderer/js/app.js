@@ -909,6 +909,8 @@
   if (window.ClipboardHistory) window.ClipboardHistory.init();
   // Abbreviations that become the text you keep retyping
   if (window.Snippets) window.Snippets.init();
+  // Colours picked off the screen
+  if (window.ColorPicker) window.ColorPicker.init();
 
   // Library (read later + auto-archive)
   if (typeof ReadLater !== 'undefined') ReadLater.init();

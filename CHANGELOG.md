@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.7 (2026-09-19) — What colour is that?
+
+### Notes
+- **Eyedropper** (`Ctrl+K` → *Pick a Colour From the Screen*). You are looking at a colour and you want its hex. Until now that meant a screenshot, a paint program and a guess — or an extension you had to trust with every page you visit.
+  - It samples any pixel on the **screen**, not just in the page: a video, a PDF, a design tool, another program entirely.
+  - The hex goes straight to the clipboard, because that is what you were about to paste.
+  - **Colours You Picked** keeps the last dozen, each in hex, rgb and hsl, click to copy.
+- Chromium has had this built in since Chrome 95 and almost nothing uses it. The magnifier is drawn by Chromium itself, so no page is injected into and no page is told you used it.
+- Cancelling with Escape is treated as cancelling, not as a failure. And because Chromium only opens the magnifier when you ask for it directly, a request that arrives any other way says so in words rather than passing on `EyeDropper::open() requires user gesture`.
+
 ## v2.32.6 (2026-09-19) — Stop retyping the same paragraph
 
 ### Notes

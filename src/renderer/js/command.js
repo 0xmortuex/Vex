@@ -21,6 +21,8 @@ const CommandBar = {
     { id: 'boost', label: 'Boost This Site', hint: 'Custom CSS / JS for the current site', icon: 'palette', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } },
     { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) ReadLater.add(t.url, t.title); } },
     { id: 'library', label: 'Library', hint: 'Read-later queue + auto-archived tabs', icon: 'book', isPrimary: true, action: () => SidebarManager.openPanel('library') },
+    { id: 'eyedropper', label: 'Pick a Colour From the Screen', hint: 'Sample any pixel — a page, a video, another window — and copy its hex', icon: 'palette', isPrimary: true, action: async () => { try { await window.ColorPicker?.pick(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
+    { id: 'colors', label: 'Colours You Picked', hint: 'The last colours you sampled, in hex, rgb and hsl', icon: 'palette', action: () => window.ColorPicker?.openRecent() },
     { id: 'snippets', label: 'Snippets', hint: 'Short abbreviations that become text you keep retyping — type one anywhere, press Tab', icon: 'type', isPrimary: true, action: () => window.Snippets?.openManager() },
     { id: 'clipboard-history', label: 'Clipboard History', hint: 'What you copied before the thing you copied — click one to copy it again', icon: 'clipboard', isPrimary: true, action: () => window.ClipboardHistory?.openPicker() },
     { id: 'clip', label: 'Clip to Notes', hint: 'Save the selected text (or this link) into your Clippings note', icon: 'scissors', action: () => ClipToNotes.clip() },
