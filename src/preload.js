@@ -136,6 +136,10 @@ contextBridge.exposeInMainWorld('vex', {
   ollamaEnsure: () => ipcRenderer.invoke('ollama:ensure'),
   // How full the graphics card is — null when there is no NVIDIA card.
   gpu: () => ipcRenderer.invoke('system:gpu'),
+  // System-wide hotkeys (mute Discord from inside a game).
+  hotkeysGet: () => ipcRenderer.invoke('hotkeys:get'),
+  hotkeysSet: (config) => ipcRenderer.invoke('hotkeys:set', config),
+  onHotkey: (cb) => subscribe('hotkey:action', cb),
   // Safe mode: why this launch is stripped down, and the settings backups.
   safeMode: () => ipcRenderer.invoke('app:safe-mode'),
   // "The interface is up": what stops this launch counting as a failed one.

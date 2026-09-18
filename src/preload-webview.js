@@ -541,6 +541,62 @@ function runInMainWorld(src) {
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === Where this tab's sound comes out (main world) ==========================
+//
+// Windows sets ONE output device for a whole program, so a browser plays
+// everything through the same speakers: a game's Discord call and a music tab
+// cannot be split between headphones and desk speakers without moving the
+// whole browser. Chromium can do better — every <audio> and <video> element
+// has setSinkId — but a page has to call it, and no page does.
+//
+// So Vex calls it: the host tells this tab which device to use, and every
+// media element on the page, now and later, is pointed at it.
+//
+// Nothing here can eavesdrop: picking an OUTPUT device needs no permission and
+// gives the page no new information — the device list stays inside this shim.
+(function () {
+  let proto = '';
+  try { proto = (window.location && window.location.protocol) || ''; } catch { return; }
+  if (!(proto === 'http:' || proto === 'https:')) return;
+  let ipcRenderer = null;
+  try { ipcRenderer = require('electron').ipcRenderer; } catch { return; }
+  if (!ipcRenderer) return;
+
+  const shimSrc = `(function(){try{
+    if(!window.HTMLMediaElement || !HTMLMediaElement.prototype.setSinkId) return;
+    var wanted = '';
+    var applied = new WeakMap();
+    function point(el){
+      if(!el || typeof el.setSinkId !== 'function') return;
+      if(applied.get(el) === wanted) return;
+      applied.set(el, wanted);
+      // '' is the system default, which is also what a page starts with.
+      el.setSinkId(wanted).catch(function(){ applied.delete(el); });
+    }
+    function all(){ try{ document.querySelectorAll('audio,video').forEach(point); }catch(e){} }
+    window.__vexSetAudioSink = function(id){
+      wanted = String(id || '');
+      all();
+      return wanted;
+    };
+    // Elements created later — a video that appears when you press play, a
+    // Discord call that builds its own audio element — are pointed too.
+    try {
+      new MutationObserver(function(){ if(wanted) all(); }).observe(document.documentElement || document, { childList: true, subtree: true });
+      document.addEventListener('play', function(e){ if(wanted) point(e.target); }, true);
+    }catch(e){}
+  }catch(e){}})();`;
+
+  function inject() { runInMainWorld(shimSrc); }
+  if (document.documentElement) inject();
+  else document.addEventListener('readystatechange', inject, { once: true });
+
+  // The host sends the device id for this tab (js/audio-output.js).
+  ipcRenderer.on('vex-audio-sink', (_e, id) => {
+    runInMainWorld('window.__vexSetAudioSink && window.__vexSetAudioSink(' + JSON.stringify(String(id || '')) + ')');
+  });
+})();
+
 // === Client-Hints consistency shim (main world) ===
 // Vex spoofs the User-Agent string and the Sec-CH-UA* request headers to say
 // "Google Chrome" (castLabs Electron is really Chromium). But navigator.

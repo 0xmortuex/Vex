@@ -669,7 +669,11 @@ const TabManager = {
       if (e.target.closest('.tab-close')) {
         this.closeTab(tab.id);
       } else if (e.target.closest('.tab-audio')) {
-        this.toggleMuteTab(tab.id);
+        // Plain click mutes; with Shift, choose which speakers it plays
+        // through — Windows gives a whole program one device, so without this
+        // a call and a music tab cannot be split.
+        if (e.shiftKey && typeof AudioOutput !== 'undefined') this.chooseAudioOutput(tab, e.target.closest('.tab-audio'));
+        else this.toggleMuteTab(tab.id);
       } else {
         this.switchTab(tab.id);
       }
@@ -707,6 +711,7 @@ const TabManager = {
     }
     tab.capturing = { ...tab.capturing, [kind]: !!active };
     this.renderTabUpdate(tab);
+    document.dispatchEvent(new CustomEvent('vex:media-capture', { detail: { where: 'tab', id, kind, active: !!active } }));
   },
 
   isCapturing(tab) {
@@ -2002,6 +2007,55 @@ const TabManager = {
     if (now - (this._guardNoteAt || 0) < this.GUARD_TOAST_EVERY_MS) return;
     this._guardNoteAt = now;
     document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note } }));
+  },
+
+  // Which speakers this tab plays through. Shift-click the sound icon, or the
+  // tab's right-click menu.
+  async chooseAudioOutput(tab, anchor) {
+    if (typeof AudioOutput === 'undefined') return;
+    const items = await AudioOutput.menuFor(tab.url);
+    document.querySelector('.audio-out-menu')?.remove();
+    const menu = document.createElement('div');
+    menu.className = 'audio-out-menu';
+    menu.innerHTML = '<div class="aom-head">Play this site through</div>';
+    for (const d of items) {
+      const b = document.createElement('button');
+      b.className = 'aom-item' + (d.chosen ? ' on' : '');
+      b.textContent = d.label;
+      b.addEventListener('click', () => {
+        try {
+          AudioOutput.setForUrl(tab.url, d.id);
+          AudioOutput.applyAll();
+          window.showToast?.(d.id ? 'This site now plays through ' + d.label : 'This site is back on the system default');
+        } catch (err) { window.showToast?.((err && err.message) || 'Could not set it', 'error'); }
+        menu.remove();
+      });
+      menu.appendChild(b);
+    }
+    if (!AudioOutput.usable(items)) {
+      // Chromium will not name the outputs until something has had microphone
+      // permission. Vex asks only if the user chooses to, and says why.
+      const hint = document.createElement('div');
+      hint.className = 'aom-hint';
+      hint.textContent = 'Windows will not name your other outputs until Vex has had microphone permission once. Nothing is recorded — the microphone is opened and closed in the same moment.';
+      menu.appendChild(hint);
+      const unlock = document.createElement('button');
+      unlock.className = 'aom-item aom-unlock';
+      unlock.textContent = 'Show my devices';
+      unlock.addEventListener('click', async () => {
+        unlock.textContent = 'Asking…';
+        try { await AudioOutput.unlockDevices(); menu.remove(); this.chooseAudioOutput(tab, anchor); }
+        catch (err) { unlock.textContent = 'Windows said no: ' + ((err && err.message) || ''); }
+      });
+      menu.appendChild(unlock);
+    }
+    document.body.appendChild(menu);
+    const box = (anchor || document.body).getBoundingClientRect();
+    menu.style.left = Math.min(box.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
+    menu.style.top = Math.min(box.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + 'px';
+    setTimeout(() => document.addEventListener('click', function away(ev) {
+      if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', away); }
+    }), 0);
   },
 
   // Rename a tab group — the group menu's Rename, and the AI agent's

@@ -477,6 +477,10 @@ const SidebarManager = {
       // Phase 14: populate the AI Backend section each time Settings opens
       AISettings.renderAISettings();
     }
+    if (panelName === 'settings' && typeof GameMode !== 'undefined') {
+      // Streamer mode and the Discord hotkeys (js/game-mode.js).
+      GameMode.renderSettings().catch(err => VexProblems?.note('Settings', 'Could not show the gaming settings', err));
+    }
     if (panelName === 'settings' && typeof PersonasSettings !== 'undefined') {
       // Phase 15: render the Personas grid each time Settings opens
       PersonasSettings.renderPanel(document.getElementById('personas-panel-content'));
@@ -1046,6 +1050,7 @@ const SidebarManager = {
   setPanelCapturing(name, kind, active) {
     if (kind !== 'mic' && kind !== 'camera') return;
     this.panelCapture[name] = { ...(this.panelCapture[name] || {}), [kind]: !!active };
+    document.dispatchEvent(new CustomEvent('vex:media-capture', { detail: { where: 'panel', id: name, kind, active: !!active } }));
     const c = this.panelCapture[name];
     const btn = document.querySelector('.sidebar-icon[data-panel="' + name + '"]');
     if (btn) {

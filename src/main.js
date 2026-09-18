@@ -783,6 +783,21 @@ ipcMain.handle('ollama:ensure', () => _ollamaLauncher.ensure());
 const _gpuProbe = require('./main/gpu').createGpuProbe({ execFile: require('child_process').execFile });
 ipcMain.handle('system:gpu', () => _gpuProbe.read());
 
+// Mute Discord without leaving the game (src/main/game-hotkeys.js). These are
+// system-wide, so each one is off until the user sets it.
+const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({
+  globalShortcut,
+  log: (m) => console.log(m),
+  load: () => { try { return JSON.parse(_persistLoad()['vex.gameHotkeys'] || '{}'); } catch { return {}; } },
+  save: (applied) => { try { preferences.set('vex.gameHotkeys', JSON.stringify(applied)); } catch (err) { console.error('[Hotkeys] save failed:', err.message); } },
+  onAction: (action) => {
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('hotkey:action', action); }
+    catch (err) { console.error('[Hotkeys] could not deliver ' + action + ':', err.message); }
+  },
+});
+ipcMain.handle('hotkeys:get', () => ({ current: _gameHotkeys.current(), actions: _gameHotkeys.ACTIONS }));
+ipcMain.handle('hotkeys:set', (_e, config) => _gameHotkeys.set(config));
+
 ipcMain.on('app:started', () => _bootGuard.started());
 ipcMain.handle('app:safe-mode', () => ({ ..._boot, snapshots: _bootGuard.snapshots().map(x => ({ name: x.name, label: x.label, at: x.at })) }));
 ipcMain.handle('app:restore-settings', (_e, name) => {
@@ -3432,6 +3447,13 @@ app.whenReady().then(() => {
 // Custom protocol handler for vex://
 app.whenReady().then(async () => {
   // F12: toggle DevTools for the focused window (bottom panel)
+  // The user's own game hotkeys, from the settings file (main/game-hotkeys.js).
+  // Registered after the preference store exists, and only what registers is kept.
+  try {
+    const r = _gameHotkeys.apply();
+    for (const e of r.errors) console.error('[Hotkeys] ' + e.accel + ' for ' + e.action + ': ' + e.error);
+  } catch (err) { console.error('[Hotkeys] could not register:', err.message); }
+
   globalShortcut.register('F12', () => {
     const w = BrowserWindow.getFocusedWindow();
     if (!w) return;

@@ -856,6 +856,10 @@
   // Safe mode says why this launch is stripped down (js/safe-mode-banner.js).
   if (typeof SafeModeBanner !== 'undefined') SafeModeBanner.init();
 
+  // Discord hotkeys that reach into a fullscreen game, and streamer mode
+  // (js/game-mode.js).
+  if (typeof GameMode !== 'undefined') GameMode.init();
+
   // WebHID device chooser (navigator.hid.requestDevice)
   if (typeof HidPicker !== 'undefined') HidPicker.init();
 

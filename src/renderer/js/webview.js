@@ -137,6 +137,8 @@ const WebviewManager = {
         if (typeof TotpAutofill !== 'undefined' && t && t.url) TotpAutofill.autofill(webview, t.url);
         if (typeof EmailCodeAutofill !== 'undefined' && t && t.url) EmailCodeAutofill.tryFill(webview, t.url);
         if (typeof ConsentBlock !== 'undefined') ConsentBlock.applyTo(webview);
+        // Which speakers this site plays through (js/audio-output.js).
+        if (typeof AudioOutput !== 'undefined' && t && t.url) AudioOutput.apply(webview, t.url);
         // Copy & right-click unlock (only when the global toggle is on)
         if (typeof CopyUnlock !== 'undefined') CopyUnlock.applyTo(webview);
         // Reading & accessibility pack (dyslexia font / CVD filter / ruler)

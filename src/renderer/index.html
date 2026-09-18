@@ -360,6 +360,28 @@
               <div id="privacy-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading...</div>
               </div>
+              <div class="setting-group" id="game-mode-settings" style="margin-top:14px">
+                <div class="setting-label">
+                  <strong>Gaming and streaming</strong>
+                  <span class="setting-hint">Vex is on the same screen as your game and your stream. These two make that workable.</span>
+                </div>
+                <div class="setting-row" style="margin-top:10px">
+                  <div class="setting-label">
+                    <strong>Streamer mode</strong>
+                    <span class="setting-hint">Blurs one-time codes, saved passwords and notification text so they cannot be read from a recording. Hover one to read it; copying still copies the real value.</span>
+                  </div>
+                  <select id="setting-streamer-mode">
+                    <option value="auto">While something is being captured</option>
+                    <option value="on">Always on</option>
+                    <option value="off">Off</option>
+                  </select>
+                </div>
+                <div class="setting-label" style="margin-top:12px">
+                  <strong>Discord hotkeys</strong>
+                  <span class="setting-hint">System-wide, so they work from inside a fullscreen game. Each takes that combination away from every other program, so they are off until you set one. Click a box and press the keys.</span>
+                </div>
+                <div id="hotkey-rows"></div>
+              </div>
             </div>
 
             <div class="setting-group">
@@ -1193,6 +1215,8 @@
   <script src="js/ollama.js"></script>
   <script src="js/ai-health.js"></script>
   <script src="js/model-manager.js"></script>
+  <script src="js/game-mode.js"></script>
+  <script src="js/audio-output.js"></script>
   <script src="js/ai-router.js"></script>
   <script src="js/ai-settings.js"></script>
   <script src="js/personas-builtin.js"></script>

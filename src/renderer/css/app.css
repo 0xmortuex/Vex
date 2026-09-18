@@ -1022,3 +1022,51 @@ body.private-mode #vex-logo::after {
 }
 .smb-btn:hover { color: var(--vex-text-primary, var(--text)); background: var(--vex-hover-fill, var(--bg)); }
 .smb-primary { border-color: var(--primary); color: var(--primary); }
+
+/* === Streamer mode ========================================================
+   Vex holds one-time codes, passwords and notifications that quote messages.
+   While the screen is being captured they are blurred rather than hidden: the
+   layout does not move, and hovering one reads it. Copy buttons still copy the
+   real value — only the pixels are obscured. */
+body.streamer-mode .auth-code,
+body.streamer-mode .recovery-code-display,
+body.streamer-mode #vex-loginshub #lh-body,
+body.streamer-mode .toast-item,
+body.streamer-mode [data-sensitive] {
+  filter: blur(7px);
+  transition: filter 0.12s ease;
+}
+body.streamer-mode .auth-code:hover,
+body.streamer-mode .recovery-code-display:hover,
+body.streamer-mode #vex-loginshub #lh-body:hover,
+body.streamer-mode .toast-item:hover,
+body.streamer-mode [data-sensitive]:hover,
+body.streamer-mode [data-sensitive]:focus-within { filter: none; }
+
+/* Discord hotkeys in Settings */
+.hk-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.hk-label { flex: 1; font-size: 12px; color: var(--vex-text-secondary, var(--text-muted)); }
+.hk-key {
+  min-width: 150px; padding: 6px 10px; font: inherit; font-size: 12px; border-radius: 8px; cursor: pointer;
+  background: var(--vex-glass-input, var(--bg)); color: var(--vex-text-primary, var(--text)); border: 1px solid var(--vex-border-subtle, var(--border));
+}
+.hk-key.listening { border-color: var(--primary); color: var(--primary); }
+.hk-clear { padding: 6px 10px; font: inherit; font-size: 11px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--text-muted); border: 1px solid var(--vex-border-subtle, var(--border)); }
+.hk-clear:hover { color: var(--danger); border-color: var(--danger); }
+
+/* Which speakers a site plays through (Shift-click a tab's sound icon) */
+.audio-out-menu {
+  position: fixed; z-index: 100060; min-width: 220px; max-width: 320px; padding: 6px;
+  background: var(--vex-glass-panel, var(--surface)); border: 1px solid var(--vex-border-subtle, var(--border));
+  border-radius: 10px; box-shadow: 0 12px 34px var(--vex-shadow-color, rgba(0,0,0,0.35));
+  font-family: 'Outfit', sans-serif;
+}
+.aom-head { padding: 6px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.aom-item {
+  display: block; width: 100%; text-align: left; padding: 7px 9px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--vex-text-primary, var(--text)); font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.aom-item:hover { background: var(--vex-hover-fill, var(--bg)); }
+.aom-item.on { color: var(--primary); }
+.aom-item.on::after { content: ' ·'; }
+.aom-hint { padding: 6px 9px; font-size: 11px; color: var(--text-muted); line-height: 1.45; }
