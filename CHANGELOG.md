@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.31.85 (2026-09-18) — An agent that can research and act, runs on your local model, and asks the way you choose
+
+### Notes
+- **Research.** The agent has *web search* and *read a page* tools that need no tab: it searches (DuckDuckGo, Bing as a fallback), reads the best results, and answers in formatted Markdown with a Sources list. Before, "research X" meant driving a search engine's page one click at a time. It will not read addresses on this machine or your local network.
+- **Acting on pages actually works on modern sites.** Typing used to write the field's value directly — React and Vue inputs never noticed — and "press Enter" pressed nothing. Typing now goes through the real input path, and `submit` presses Enter or submits the form. Clicks send the whole pointer sequence (menus that open on mouse-down now open). New: *click by visible text* (no selector needed), *press a key*, dropdowns chosen by the text you see, and reading another open tab without switching to it.
+- **Vex's own features are tools now:** save a note, set a reminder ("tomorrow 9am"), add a bookmark, search your history, put tabs in a group, rename groups — on top of tabs. "Research X, save it as a note and bookmark the source" is one request.
+- **Runs on your local model.** The agent was cloud-only: with no AI Worker URL it said "Cloud AI is not configured" even with Ollama running. It now uses the local model in that case, with a context window large enough that the instructions are not pushed out. Tested end to end on qwen3.5: research with sources in about 30 s.
+- **Agent permission, named.** The *Ask / Plan / Auto* pills did not say what they governed (and two could light at once). Now one pill — *Agent: Approve manually ▾* — opens a menu that explains each choice: **Approve manually**, **Plan first**, **Auto-approve**. The robot button opens it the first time, before anything runs. *Plan first* is now a real plan: numbered steps, approved once. In every mode it asks before buying, paying, sending, posting or deleting — judged by Vex, not by what the model claims.
+- **Sturdier runs.** One malformed reply used to end the task; it is now told what was wrong and asked again. Old tool results are shortened in the conversation so a long research run does not outgrow the model's memory. Up to 40 steps instead of 15.
+- An honest limit: a small local model reads carelessly sometimes (it once called a version "latest" while listing a newer one). The cloud model is sharper; the plumbing is the same for both.
+
 ## v2.31.84 (2026-09-18) — The AI agent no longer hangs at "Agent started", and can rename tab groups
 
 ### Notes
