@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.31.92 (2026-09-18) — The agent can read your own notes, stays on the site you pointed it at, and checks its own work
+
+### Notes
+- **It can read what you already kept.** The agent could *write* a note and never read one, so "what did I note about the monitors?" or "add this to my shopping list" simply failed. New: search your notes, read one in full, add lines to one that exists, search your bookmarks, and list the reminders that have not fired. All read-only except the append, all inside Vex — nothing here touches a page or the network. Measured live: it found the note, quoted both monitors and the decision, then added a line to it.
+- **It stays on the site you pointed it at.** A page can say anything, and an agent that follows a link into a site you never mentioned and starts typing is the real risk with agents — until now Vex relied on the model behaving. The sites you named, and the page the run started on, are fair game; anything else is asked about before it clicks or types, in *every* permission mode, and approving a site approves it for the rest of the run. Reading is never scoped, only acting.
+- **It hands the page back at a sign-in, a payment or a captcha.** A new *Your turn* card: the agent explains what it needs, waits, and carries on from wherever you leave it. It is told plainly never to type a password, a card number or a one-time code, and never to work around a "prove you are human" wall.
+- **It checks its own work.** A local model has claimed success for a call that failed. Saving a note, bookmarking a page, making a tab group and starting a timer are now read back before it says done — "Saved **and verified** the note", "0:45 left" — and a write that did not happen is reported as a failure.
+- Searching your own things now matches across a plural: it searched for "monitors", the note said "Monitor", and it found nothing and repeated itself. Seen live, fixed, and covered.
+
 ## v2.31.91 (2026-09-18) — The AI says when it will be slow, why it failed, and gives your graphics card back
 
 ### Notes
