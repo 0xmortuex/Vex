@@ -791,11 +791,73 @@ const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({
   load: () => { try { return JSON.parse(_persistLoad()['vex.gameHotkeys'] || '{}'); } catch { return {}; } },
   save: (applied) => { try { preferences.set('vex.gameHotkeys', JSON.stringify(applied)); } catch (err) { console.error('[Hotkeys] save failed:', err.message); } },
   onAction: (action) => {
-    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('hotkey:action', action); }
-    catch (err) { console.error('[Hotkeys] could not deliver ' + action + ':', err.message); }
+    try {
+      if (action === 'quick-capture') { openQuickCapture(); return; }
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('hotkey:action', action);
+    } catch (err) { console.error('[Hotkeys] could not deliver ' + action + ':', err.message); }
   },
 });
 ipcMain.handle('hotkeys:get', () => ({ current: _gameHotkeys.current(), actions: _gameHotkeys.ACTIONS }));
+
+// === Quick capture ========================================================
+// A small window that floats over whatever you were doing — a game, a stream,
+// another program — takes one line, and goes. Without it a thought is lost by
+// the time you have alt-tabbed, found Vex, found the panel and clicked.
+//
+// It is NOT the main window: bringing Vex forward over a fullscreen game is
+// exactly the interruption this avoids.
+let _captureWin = null;
+function openQuickCapture() {
+  if (_captureWin && !_captureWin.isDestroyed()) { _captureWin.show(); _captureWin.focus(); return _captureWin; }
+  // The screen the mouse is on, so the box appears where you are looking.
+  const { screen } = require('electron');
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const width = 520, height = 168;
+  _captureWin = new BrowserWindow({
+    width, height,
+    x: Math.round(display.workArea.x + (display.workArea.width - width) / 2),
+    y: Math.round(display.workArea.y + display.workArea.height * 0.22),
+    frame: false, transparent: true, resizable: false, movable: true,
+    alwaysOnTop: true, skipTaskbar: true, fullscreenable: false, show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-capture.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false,
+    },
+  });
+  // Above a fullscreen game, which an ordinary always-on-top window is not.
+  try { _captureWin.setAlwaysOnTop(true, 'screen-saver'); } catch { /* best effort */ }
+  _captureWin.loadFile(path.join(__dirname, 'renderer', 'capture.html'));
+  _captureWin.once('ready-to-show', () => { _captureWin.show(); _captureWin.focus(); });
+  _captureWin.on('closed', () => { _captureWin = null; });
+  return _captureWin;
+}
+// A feature you can only reach by a hotkey you must first set up is nearly
+// invisible, so it is a command too.
+ipcMain.handle('capture:open', () => { openQuickCapture(); return { ok: true }; });
+ipcMain.on('capture:close', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win && !win.isDestroyed()) win.close();
+});
+// The line goes to the interface, which already knows how to make a note, set
+// a reminder or run a command — there is no second implementation of any of it.
+ipcMain.handle('capture:submit', async (_e, entry) => {
+  const kind = String((entry && entry.kind) || 'note');
+  const text = String((entry && entry.text) || '').slice(0, 4000);
+  if (!text) throw new Error('There is nothing to save');
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Vex is not running');
+  return new Promise((resolve, reject) => {
+    const id = 'cap_' + Date.now().toString(36);
+    const done = (_ev, payload) => {
+      if (!payload || payload.id !== id) return;
+      ipcMain.off('capture:done', done);
+      clearTimeout(timer);
+      payload.ok ? resolve({ said: payload.said }) : reject(new Error(payload.error || 'That did not work'));
+    };
+    const timer = setTimeout(() => { ipcMain.off('capture:done', done); reject(new Error('Vex did not answer')); }, 15000);
+    ipcMain.on('capture:done', done);
+    mainWindow.webContents.send('capture:take', { id, kind, text });
+  });
+});
 ipcMain.handle('hotkeys:set', (_e, config) => _gameHotkeys.set(config));
 
 ipcMain.on('app:started', () => _bootGuard.started());

@@ -15,6 +15,7 @@
 // No push-to-talk: it needs the key RELEASE as well, and Electron's global
 // shortcuts only report the press. A half-working one is worse than none.
 const ACTIONS = {
+  'quick-capture': 'Note something, set a reminder or a timer, from anywhere',
   'discord-mute': 'Mute or unmute yourself in Discord',
   'discord-deafen': 'Deafen or undeafen yourself in Discord',
   'discord-hangup': 'Leave the Discord call',

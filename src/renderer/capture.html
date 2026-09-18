@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src file:">
+  <title>Vex — quick capture</title>
+  <style>
+    /* A single box that floats over whatever you were doing. It has to be
+       readable against a game, a stream or a white document, so it carries its
+       own background rather than trusting transparency. */
+    :root {
+      --bg: #14141b; --fg: #f2f2f7; --muted: #9a9aa8; --accent: #7aa2ff; --border: rgba(255,255,255,0.12);
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #ffffff; --fg: #17171c; --muted: #6b6b76; --accent: #2f5fd0; --border: rgba(0,0,0,0.12); }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font-family: 'Outfit', 'Segoe UI', system-ui, sans-serif; }
+    .card {
+      height: 100%; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px;
+      background: var(--bg); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 14px;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+      -webkit-app-region: drag;
+    }
+    .row { display: flex; align-items: center; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+    .title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    input {
+      -webkit-app-region: no-drag;
+      width: 100%; padding: 10px 12px; font: inherit; font-size: 15px;
+      color: var(--fg); background: transparent; border: 1px solid var(--border); border-radius: 9px; outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    .hint { font-size: 11.5px; color: var(--muted); line-height: 1.45; -webkit-app-region: no-drag; }
+    .hint b { color: var(--fg); font-weight: 600; }
+    .said { font-size: 12px; color: var(--accent); min-height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="row"><span class="dot"></span><span class="title">Vex — quick capture</span></div>
+    <input id="q" autofocus autocomplete="off" spellcheck="false" placeholder="A note, or “remind me…”, or “/” for a command">
+    <div class="hint"><b>Enter</b> saves · <b>remind me…</b> sets a reminder · <b>timer 20 min</b> · <b>/</b> runs a command · <b>Esc</b> closes</div>
+    <div class="said" id="said"></div>
+  </div>
+  <script>
+    // Deliberately tiny: this window exists to take one line and get out of the
+    // way. Everything it can do already exists in Vex — it only has to say
+    // which one and hand the text over.
+    const input = document.getElementById('q');
+    const said = document.getElementById('said');
+    input.focus();
+
+    function classify(text) {
+      const t = text.trim();
+      if (!t) return null;
+      if (t.startsWith('/')) return { kind: 'command', text: t.slice(1).trim() };
+      if (/^(remind me|remind|alarm|timer|countdown)\b/i.test(t)) return { kind: 'command', text: t };
+      if (/^(ask|vex)\b[\s,]/i.test(t)) return { kind: 'ask', text: t.replace(/^(ask|vex)\b[\s,]+/i, '') };
+      return { kind: 'note', text: t };
+    }
+
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Escape') { window.vexCapture.close(); return; }
+      if (e.key !== 'Enter') return;
+      const parsed = classify(input.value);
+      if (!parsed) { window.vexCapture.close(); return; }
+      said.textContent = 'Saving…';
+      try {
+        const r = await window.vexCapture.submit(parsed);
+        said.textContent = (r && r.said) || 'Saved';
+        input.value = '';
+        setTimeout(() => window.vexCapture.close(), 700);
+      } catch (err) {
+        said.textContent = (err && err.message) || 'That did not work';
+      }
+    });
+
+    // Clicking away is the same as pressing Escape — but only once this box has
+    // actually had focus. Opening over a fullscreen game, the game can keep
+    // focus, and a blur-closes rule would make the box vanish the instant it
+    // appeared, which is exactly when it is most needed.
+    let everFocused = false;
+    window.addEventListener('focus', () => { everFocused = true; });
+    window.addEventListener('blur', () => {
+      if (!everFocused) return;
+      setTimeout(() => { if (!document.hasFocus()) window.vexCapture.close(); }, 150);
+    });
+  </script>
+</body>
+</html>

@@ -35,8 +35,13 @@ function installIpcPolicy(ipcMain, security) {
     const ui = security.isUiFrame(event);
     const host = security.owner(event.sender);
     if (!ui && !security.isAuxiliary(event, channel) && !(GUEST_CHANNELS.has(channel) && host)) {
+      // The quick-capture window is its own BrowserWindow, so it is not a UI
+      // frame and not a guest: it may use exactly the two channels it has, and
+      // nothing else (renderer/capture.html, preload-capture.js).
+      const senderUrl = event.senderFrame?.url || '';
+      if (/^file:.*\/renderer\/capture\.html(?:[?#]|$)/i.test(senderUrl) && ['capture:submit', 'capture:close'].includes(channel)) return host;
       // Start page preloads expose only these two read-only features.
-      const start = event.senderFrame?.url || '';
+      const start = senderUrl;
       if (!(host && /^file:.*\/renderer\/start\.html(?:[?#]|$)/i.test(start) && ['web-suggest', 'theme:get-custom-image'].includes(channel))) {
         throw new Error('Untrusted IPC sender');
       }

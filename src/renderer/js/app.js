@@ -864,6 +864,9 @@
   // archived rather than left in the strip (js/tab-snooze.js).
   if (typeof TabSnooze !== 'undefined') TabSnooze.start();
 
+  // The quick-capture window hands its line here (js/quick-capture.js).
+  if (typeof QuickCapture !== 'undefined') QuickCapture.init();
+
   // WebHID device chooser (navigator.hid.requestDevice)
   if (typeof HidPicker !== 'undefined') HidPicker.init();
 

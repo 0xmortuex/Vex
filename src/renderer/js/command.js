@@ -195,6 +195,10 @@ const CommandBar = {
     { id: 'compare-tabs', label: 'Compare Tabs', hint: 'AI compares all open tabs', icon: 'scale', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Compare these tabs side-by-side.',TabManager.tabs); } },
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
     { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
+    { id: 'capture', label: 'Quick capture', hint: 'A box over everything for a note, a reminder or a timer — give it a hotkey in Settings › Privacy', icon: 'clipboard', isPrimary: true, action: async () => {
+      if (!window.vex || typeof window.vex.captureOpen !== 'function') { window.showToast?.('Quick capture is not available in this build', 'error'); return; }
+      try { await window.vex.captureOpen(); } catch (err) { window.showToast?.((err && err.message) || 'Could not open it', 'error'); }
+    } },
     { id: 'tables', label: 'Copy tables as CSV', hint: 'Every table on this page, as proper CSV for a spreadsheet', icon: 'clipboard', isPrimary: true, action: async () => {
       if (typeof PageTools === 'undefined') { window.showToast?.('Page tools are not available in this build', 'error'); return; }
       let tables;

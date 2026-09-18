@@ -140,6 +140,10 @@ contextBridge.exposeInMainWorld('vex', {
   hotkeysGet: () => ipcRenderer.invoke('hotkeys:get'),
   hotkeysSet: (config) => ipcRenderer.invoke('hotkeys:set', config),
   onHotkey: (cb) => subscribe('hotkey:action', cb),
+  // The quick-capture window hands its line here to be carried out.
+  onCaptureTake: (cb) => subscribe('capture:take', cb),
+  captureDone: (payload) => ipcRenderer.send('capture:done', payload),
+  captureOpen: () => ipcRenderer.invoke('capture:open'),
   // Safe mode: why this launch is stripped down, and the settings backups.
   safeMode: () => ipcRenderer.invoke('app:safe-mode'),
   // "The interface is up": what stops this launch counting as a failed one.
