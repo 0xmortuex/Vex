@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.24 (2026-09-19) — Expenses
+
+### Notes
+- **Expenses** (`Ctrl+K`). Log what you spent: an amount, a category, an optional note and the day. The month view shows the total, how it compares with last month, and a bar for each category. Step back through earlier months with the arrows. **Export CSV** hands the lot to a spreadsheet.
+- **Exact totals.** Amounts are kept in whole cents, never as floating point, so thirty 0.10 entries make exactly 3.00.
+- **Written the way people write money:** `12.50`, `12,50`, `1,234.56`, `1.234,56`, `£12`. Anything ambiguous or malformed is refused with a reason rather than guessed.
+- **One currency, chosen at the top.** An amount written in a *different* currency (typing `£45` while keeping USD) is refused, not quietly relabelled as dollars.
+- The CSV is safe to open in a spreadsheet: a note starting with `=`, `+`, `-` or `@` is exported as text, not run as a formula.
+- Everything stays on this computer. If the saved log ever can't be read, Vex says so rather than starting an empty one that would be saved over it.
+- Found in the live test before release: after logging something in an earlier month, the day box defaulted to the 1st of that month, so the next entries were silently back-dated. It now always starts at today.
+
 ## v2.32.23 (2026-09-19) — Crawl this site
 
 ### Notes
