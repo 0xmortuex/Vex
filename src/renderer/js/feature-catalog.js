@@ -182,6 +182,8 @@ const VexFeatures = {
       what: 'A note pinned to one specific page, which reappears every time you return to it.' },
     { id: 'clip', cat: 'work', cmd: 'clip',
       what: 'Sends the selected text into your notes with a link back to where it came from.' },
+    { id: 'screenshot-full', cat: 'media', cmd: 'screenshot-full',
+      what: 'The whole page, top to bottom, in one image — the long receipt, the thread, the article with its charts — instead of scroll, capture, stitch.' },
     { id: 'save-pdf', cat: 'reading', cmd: 'save-pdf',
       what: 'The page straight to a PDF file. The usual way is the print dialog, a preview and a destination menu.' },
     { id: 'save-page', cat: 'reading', cmd: 'save-page',

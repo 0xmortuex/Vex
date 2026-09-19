@@ -113,6 +113,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 
 ### 🛠 Productivity
 - **Notes & Clip‑to‑Notes**, **Read Later / Library**, **Bookmarks**, **Feeds (RSS)**.
+- **Screenshot the Whole Page** (`Ctrl+K`) — top to bottom in one image, stitched from screenfuls; lazy images are loaded first and a pinned header appears once. A very long page is scaled down; past about 30,000 pixels you get the top and are told so.
 - **Save Page as PDF / as One File** (`Ctrl+K`) — straight to a PDF with no print dialog, or the whole page as a single `.mhtml` that opens offline.
 - **Open a List of Links** (`Ctrl+K`) — paste links in any form; each opens in its own tab.
 - **Images on This Page** (`Ctrl+K`) — every picture at the largest size offered; save one or all.

@@ -177,6 +177,7 @@ const CommandBar = {
     { id: 'read', label: 'Reading Mode', hint: 'Strip clutter, focus on article', shortcut: 'Ctrl+Alt+R', icon: 'book-open', action: () => ReadingMode.activate() },
     { id: 'translate', label: 'Translate Page', hint: 'Translate via Google Translate', icon: 'globe', action: () => { document.getElementById('translate-bar')?.classList.add('visible'); } },
     { id: 'screenshot', label: 'Screenshot', hint: 'Capture current page', shortcut: 'Ctrl+Alt+S', icon: 'camera', action: () => ScreenshotTool.capture() },
+    { id: 'screenshot-full', label: 'Screenshot the Whole Page', hint: 'Top to bottom in one image, not just the part on screen', icon: 'camera', action: () => ScreenshotTool.captureFull() },
     { id: 'shortcuts', label: 'Keyboard Shortcuts', hint: 'View all shortcuts', icon: 'keyboard', action: () => SidebarManager.openPanel('shortcuts') },
     { id: 'theme', label: 'Choose Theme', hint: 'Pick a theme (Ctrl+Shift+Y)', icon: 'palette', action: () => (typeof ThemePicker !== 'undefined' ? ThemePicker.open() : null) },
     { id: 'zoom-in', label: 'Zoom In', hint: 'Zoom in 10%', icon: 'search', action: () => WebviewManager.zoomIn() },

@@ -160,6 +160,8 @@ contextBridge.exposeInMainWorld('vex', {
   mediaDownload: (wcId, url) => ipcRenderer.invoke('media:download', wcId, url),
   // Keep the page you are on: 'pdf', or 'mhtml' (one file that opens offline).
   pageSave: (wcId, format, title) => ipcRenderer.invoke('page:save', wcId, format, title),
+  // The whole page as one PNG, not just what is on screen.
+  captureFullPage: (wcId) => ipcRenderer.invoke('page:capture-full', wcId),
   // Discord censorship bypass (DoH + SNI fragmentation on persist:discord).
   discordBypass: (on) => ipcRenderer.send('discord:set-bypass', on),
   // Bypass mode: 'off' | 'light' (built-in) | 'strong' (ByeDPI).

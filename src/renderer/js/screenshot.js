@@ -15,6 +15,53 @@ const ScreenshotTool = {
     }
   },
 
+  // The whole page, top to bottom, in one image (src/main/full-page-capture.js).
+  async captureFull() {
+    const wv = WebviewManager.getActiveWebview();
+    if (!wv) { window.showToast?.('No active tab to capture'); return null; }
+    let wcId = null;
+    try { wcId = wv.getWebContentsId(); } catch {}
+    if (typeof wcId !== 'number' || wcId < 0) { window.showToast?.('This page has not finished opening yet', 'error'); return null; }
+    window.showToast?.('Capturing the whole page — it scrolls through once so every image loads');
+    const r = await window.vex.captureFullPage(wcId);
+    if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not capture the page', 'error'); return null; }
+    let out;
+    try { out = await this.stitch(r); }
+    catch (err) { window.showToast?.('Could not put the page together: ' + err.message, 'error'); return null; }
+    if (r.cut) window.showToast?.('The page is extremely long — this is the top of it, ' + out.width + '×' + out.height);
+    else if (out.scaled) window.showToast?.('The page is very long, so the image was scaled down to ' + out.width + '×' + out.height);
+    this.showPreview(out.dataUrl);
+    return out;
+  },
+
+  // One screenful per tile, each carrying the scroll position it was REALLY
+  // taken at (the last one overlaps: a page cannot scroll past its end). Drawn
+  // in order, so an overlap is simply painted over by the same pixels.
+  MAX_EDGE: 16000,                    // output px, under Chromium's canvas limit
+  async stitch({ tiles, width, height }) {
+    if (!Array.isArray(tiles) || !tiles.length) throw new Error('nothing was captured');
+    const load = (src) => new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('a piece of the page would not load'));
+      img.src = src;
+    });
+    const images = await Promise.all(tiles.map(t => load(t.dataUrl)));
+    // Tiles are device pixels; positions are CSS pixels.
+    const ratio = images[0].naturalWidth / width || 1;
+    const scale = Math.min(1, this.MAX_EDGE / (height * ratio));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(width * ratio * scale);
+    canvas.height = Math.round(height * ratio * scale);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no canvas to draw on');
+    tiles.forEach((t, i) => {
+      const img = images[i];
+      ctx.drawImage(img, 0, Math.round(t.y * ratio * scale), Math.round(img.naturalWidth * scale), Math.round(img.naturalHeight * scale));
+    });
+    return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, scaled: scale < 1 };
+  },
+
   showPreview(dataUrl) {
     let overlay = document.getElementById('screenshot-overlay');
     if (!overlay) {

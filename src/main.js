@@ -1564,6 +1564,13 @@ ipcMain.handle('page:save', async (_e, wcId, format, title) => {
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not save the page' }; }
 });
 
+// The whole page in one image, not one screenful (src/main/full-page-capture.js).
+const _fullPage = require('./main/full-page-capture').createFullPageCapture({ webContents });
+ipcMain.handle('page:capture-full', async (_e, wcId) => {
+  try { return { ok: true, ...(await _fullPage.capture(wcId)) }; }
+  catch (err) { return { ok: false, error: (err && err.message) || 'Could not capture the page' }; }
+});
+
 ipcMain.handle('media:list', (_e, wcId) => {
   const map = _mediaByWc.get(wcId);
   return map ? Array.from(map.values()) : [];

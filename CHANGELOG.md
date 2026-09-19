@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.10 (2026-09-19) — The whole page in one screenshot
+
+### Notes
+- **Screenshot the Whole Page** (`Ctrl+K`). A screenshot of a web page has always been one screenful of it. For the receipt, the long thread, the article with its charts, that meant scroll, capture, scroll, capture, and stitch — or give up. Now Vex does the scrolling, capturing and stitching, and hands you one image top to bottom. It opens in the same preview as the normal screenshot, so you can copy it, save it or annotate it.
+  - Pictures further down that haven't loaded yet are loaded first, so they don't come out as empty boxes.
+  - A header pinned to the top of the screen shows up once, at the top, instead of on every screenful.
+  - The page goes back to exactly where you were scrolled.
+  - A very long page is scaled down to fit. Past about 30,000 pixels you get the top part and are told so, rather than a crashed tab.
+- How it got right, for the record. Two faster one-pass methods both returned a correctly sized image showing the *first screenful repeated all the way down*: inside a Vex tab the page only ever draws one screen's worth. The next attempt waited on the window to repaint, which a window behind your other windows never does, and one run went past seven minutes. The version shipped takes each screenful on demand. On a long Wikipedia article: 10,949 pixels tall, all of it correct, in 7 seconds.
+- If DevTools is open on that tab, Vex asks you to close it first rather than fighting it for the page.
+
 ## v2.32.9 (2026-09-19) — Getting things out of a page
 
 ### Notes
