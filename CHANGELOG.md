@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.19 (2026-09-19) — Why is this page slow?
+
+### Notes
+- **Why Is This Page Slow?** (`Ctrl+K`). Chromium measures everything about how a page loaded and keeps it in the page, but nobody sees it without opening DevTools and knowing where to look. Vex now reads it and says it plainly:
+  - **Four timings, each graded** against Google's Core Web Vitals thresholds: when the server answered, when the first thing was drawn, when the main content appeared (and what it was), and how much the layout jumped around.
+  - **The culprits, in words:** scripts in the page head that hold up the first paint; pictures sent far bigger than they're shown; pages built from thousands of elements; heavy downloads; and requests to other companies' servers.
+  - **The heaviest files**, and **Copy report** for plain text.
+- **An honest limit, measured:** servers on other sites hide how big their files are unless they choose to reveal it, so every ad and tracker on a big news site reported 0 bytes. Download totals are therefore shown as **"at least"**, and Vex says how many files hid their size. The share from other companies is counted by **requests**, which can always be seen, not by bytes, which would understate it badly.
+- Tested on example.com (Fast, nothing found) and on The Verge (Fast timings, but two scripts blocking the first paint and a 5,127-element page).
+
 ## v2.32.18 (2026-09-19) — Discord that doesn't grow all day
 
 ### Notes

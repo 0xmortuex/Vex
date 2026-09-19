@@ -122,6 +122,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Open a List of Links** (`Ctrl+K`) — paste links in any form; each opens in its own tab.
 - **Images on This Page** (`Ctrl+K`) — every picture at the largest size offered; save one or all.
 - **Check This Page's Links** (`Ctrl+K`) — which links are broken, which moved, which just need a login; *Show on page* outlines the one to fix. Checked from an empty session, so no cookies go out; never run in private or Tor tabs.
+- **Why Is This Page Slow?** (`Ctrl+K`) — load timings (server, first paint, main content, layout shift) graded against Google's Core Web Vitals, with the culprits in words: heaviest files, pictures sent far bigger than shown, scripts blocking the first paint, third‑party weight, an oversized page.
 - **Check Accessibility of This Page** (`Ctrl+K`) — pictures with no description, form boxes with no label, buttons and links with no name, text too faint to read (WCAG contrast), headings that skip levels, a missing language or title — in plain words, each outlined on the page. The common, certain failures, not a full audit.
 - **Cite This Page** (`Ctrl+K`) — APA, MLA, Harvard, Chicago or BibTeX from the page's own metadata.
 - **To-do List** (`Ctrl+K`) — every open `- [ ]` item from every note in one list; tick it there and it's ticked in its note. Add tasks in a keystroke (they go in a "To-do" note); `@tomorrow` or `@2026-10-03` gives one a date, and overdue ones come first.
