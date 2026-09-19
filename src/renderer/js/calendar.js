@@ -21,8 +21,13 @@ const Calendar = {
   // The week starts where the person's locale starts it (Sunday in the US,
   // Monday in most of Europe). 0 = Sunday.
   firstWeekday() {
-    const first = new Intl.Locale(navigator.language || 'en-US').getWeekInfo().firstDay;   // 1 = Monday … 7 = Sunday
-    return first % 7;
+    const loc = new Intl.Locale(navigator.language || 'en-US');
+    // The standard renamed the weekInfo property to getWeekInfo(); Chromium
+    // 148 has the method, older V8 (Node 22, which runs the tests in CI) the
+    // property.
+    const info = typeof loc.getWeekInfo === 'function' ? loc.getWeekInfo() : loc.weekInfo;
+    if (!info || !info.firstDay) throw new Error('This build cannot tell which day your week starts on');
+    return info.firstDay % 7;                            // 1 = Monday … 7 = Sunday → 0 = Sunday
   },
 
   // The days drawn for a month: whole weeks, from the first weekday on or
