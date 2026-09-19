@@ -4599,6 +4599,17 @@ function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
 // so without it every private window came up in the Classic look.
 // How long the computer has had no keyboard or mouse input, for Lock when idle.
 ipcMain.handle('app:idle-seconds', () => require('electron').powerMonitor.getSystemIdleTime());
+// A small always-on-top window over other apps (src/main/overlay.js).
+let _overlay = null;
+ipcMain.handle('overlay:open', (_e, url, opacity) => {
+  const { createOverlayWindow } = require('./main/overlay');
+  if (_overlay && !_overlay.isDestroyed()) { _overlay.close(); _overlay = null; }
+  _overlay = createOverlayWindow({ BrowserWindow, url, opacity: typeof opacity === 'number' ? opacity : 0.92,
+    onOpacity: (o) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('overlay:opacity-changed', o); } catch {} } });
+  _overlay.on('closed', () => { _overlay = null; });
+  return { ok: true };
+});
+ipcMain.handle('overlay:close', () => { if (_overlay && !_overlay.isDestroyed()) _overlay.close(); _overlay = null; return { ok: true }; });
 ipcMain.handle('open-private-window', (_e, look) => openPrivateWindow({ look: look || '' }));
 ipcMain.handle('open-clean-window', (_e, url, look) => openPrivateWindow({ clean: true, url, look: look || '' }));
 

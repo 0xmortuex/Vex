@@ -19,6 +19,8 @@ define('game:state', []);
 define('rec:start', [oneOf(['mp4', 'webm', 'gif'])]);
 define('rec:own-window', []);
 define('app:idle-seconds', []);
+define('overlay:close', []);
+define('overlay:open', [web, optional(value => typeof value === 'number' && value >= 0.2 && value <= 1)]);
 define('rec:chunk', [string(80), value => value instanceof Uint8Array && value.byteLength <= 64 * 1024 * 1024]);
 define('rec:finish', [string(80), optional(string(200))]);
 define('rec:cancel', [string(80)]);

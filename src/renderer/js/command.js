@@ -30,6 +30,13 @@ const CommandBar = {
       try { await VexToday.writeBrief(); window.showToast?.('Your brief is on the new tab page'); }
       catch (err) { window.showToast?.((err && err.message) || 'Could not write the brief', 'error'); }
     } },
+    { id: 'overlay', label: 'Open This Page as an Overlay', hint: 'A small window that floats over your game or other apps — Esc closes it, Ctrl+Up/Down changes how see-through it is', icon: 'window', action: async () => {
+      const t = TabManager.getActiveTab();
+      if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open the page you want floating first', 'error'); return; }
+      const o = Number(localStorage.getItem('vex.overlayOpacity')) || 0.92;
+      await window.vex.overlayOpen(t.url, o);
+      window.showToast?.('Floating over other windows — Esc closes it, Ctrl+Up/Down changes how see-through it is, Ctrl+P stops it floating', 'info', 8000);
+    } },
     { id: 'lock-vex', label: 'Lock Vex', hint: 'A PIN screen over everything until you come back — Ctrl+Alt+L', icon: 'lock', action: () => VexLock.lock() },
     { id: 'cleanwindow', label: 'Share this page in a clean window', hint: 'A private window with only this page: no bookmarks, sidebar or other tabs, streamer mode on', icon: 'eye', action: async () => {
       const t = TabManager.getActiveTab();

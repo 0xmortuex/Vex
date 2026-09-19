@@ -901,6 +901,8 @@
   GitHubWatch.start();
   SponsorSkip.init();
   VexLock.init();
+  // Remember how see-through the overlay was left (src/main/overlay.js).
+  window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });
   {
     const state = document.getElementById('lock-pin-state');
     const say = () => { if (state) state.textContent = VexLock.hasPin() ? 'A PIN is set.' : 'No PIN yet — locking needs one.'; };

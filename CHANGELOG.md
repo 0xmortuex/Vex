@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.48 (2026-09-20) — An overlay window that floats over your game
+
+### Changes
+- **Open This Page as an Overlay** (Ctrl+K). The page you're on opens in a small window that floats over other apps — a guide, a map, a wiki or a chat beside a game.
+  - It's a real page in your Vex session, so you stay signed in.
+  - **Esc** closes it, **Ctrl+Up / Ctrl+Down** make it more or less see-through, **Ctrl+P** stops it floating. Those keys are handled before the page sees them, so a page that swallows keystrokes can't trap you in a window with no buttons of its own.
+  - How see-through you left it is remembered for next time.
+  - A game in exclusive fullscreen draws over everything, this included; it's for borderless windowed.
+  - Checked live: the overlay opened in Vex's session, floating and see-through, and closed again.
+
 ## v2.32.47 (2026-09-20) — Your pull requests, issues and CI in the GitHub panel
 
 ### Changes
