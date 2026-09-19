@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.32.21 (2026-09-19) — Habits
+
+### Notes
+- **Habits** (`Ctrl+K`). Name something you want to do every day, and tick it off. Each habit shows the last seven days as tick boxes, the streak you're on and your best streak.
+- **Forgiving on purpose.** Today and the six days before can be ticked, so a forgotten yesterday still counts. An unticked today doesn't break a streak until the day is over.
+- Days are your local calendar dates, so something done at 23:50 counts for that day.
+- If the saved habits can't be read, Vex says so rather than starting an empty list that would be saved over them.
+
 ## v2.32.20 (2026-09-19) — Task board
 
 ### Notes
