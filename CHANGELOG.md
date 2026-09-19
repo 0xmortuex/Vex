@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.37 (2026-09-19) — Streamer mode only when you share, and a steadier agent
+
+### Fixes
+- **Streamer mode no longer turns on during a call.** Set to turn on by itself, it now does that only while you share your screen: in Discord (panel or tab), in a site's screen share, or while Vex records the screen. Joining a voice or video call, or turning the mic or camera on, leaves it alone. When the share stops, it turns back off. The setting now reads *While you share your screen (not during calls)*.
+
+### Changes
+- **A saved agent task that hits a changed page carries on.** Before, one step failing (a button that moved, a page that changed) stopped the whole macro. Now the agent picks the task up from there by itself, told what was done and what failed. It still stops if you pressed Stop or refused a step.
+- **"Tell me when this changes" in plain words.** Ask the agent, or type in Ctrl+K: *tell me when the price drops under 300*, *watch this page for changes*, *tell me when it goes above 50*. It sets up a page watch on the tab you're on. The agent's Undo removes it.
+- **What each agent step cost.** After each model call, the agent shows how long it took and, when the model reports it, how many tokens it used. "Agent finished" gives the total.
+- **"Always on github.com".** When the agent asks before acting on a site you didn't name, there's now an *Always on <site>* button. That site is remembered for later runs. The list, with a Remove button for each, is in Settings › AI, under the agent settings.
+
 ## v2.32.36 (2026-09-19) — Discord that uses far less memory
 
 ### Notes

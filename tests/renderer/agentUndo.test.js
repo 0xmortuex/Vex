@@ -111,7 +111,58 @@ describe('undoing it', () => {
   });
 
   it('only Vex’s own things are undoable — a click on a page is not', () => {
-    expect(AgentLoop.UNDOABLE).toEqual(['note', 'bookmark', 'group', 'timer', 'reminder']);
+    expect(AgentLoop.UNDOABLE).toEqual(['note', 'bookmark', 'group', 'timer', 'reminder', 'watch']);
     for (const t of ['click', 'type_text', 'navigate']) expect(AgentLoop.UNDOABLE).not.toContain(t);
+  });
+});
+
+describe('what a run cost', () => {
+  it('each step says its seconds and tokens; the end adds them up', () => {
+    document.body.innerHTML = '<div id="ai-messages"></div>';
+    AgentLoop._run = { steps: [] };
+    AgentLoop._noteCost(4210, { promptTokens: 1203, replyTokens: 88 });
+    AgentLoop._noteCost(1800, { promptTokens: 1500, replyTokens: 40 });
+    const lines = [...document.querySelectorAll('.agent-step-cost')].map(e => e.textContent.trim());
+    expect(lines[0]).toMatch(/4\.2 s · 1,203 → 88 tokens/);
+    expect(AgentLoop._costTotal()).toBe(' — 2 steps, 6.0 s thinking, 2,703 tokens in, 128 out');
+  });
+
+  it('the cloud reports no tokens: seconds only', () => {
+    document.body.innerHTML = '<div id="ai-messages"></div>';
+    AgentLoop._run = { steps: [] };
+    AgentLoop._noteCost(2500, null);
+    expect(AgentLoop._costTotal()).toBe(' — 1 step, 2.5 s thinking');
+    AgentLoop._run = null;
+  });
+});
+
+describe('sites the agent may always act on', () => {
+  it('"Always on" is remembered across runs, and can be removed', () => {
+    localStorage.removeItem(AgentLoop.TRUST_KEY);
+    AgentLoop._allowedSites = new Set();
+    AgentLoop._currentSite = 'https://github.com';
+    const click = { tool: 'click_text', parameters: { text: 'Merge' } };
+    expect(AgentLoop._offTask(click)).toBe('https://github.com');
+    AgentLoop.trustSite('https://github.com/some/page');
+    expect(AgentLoop.trustedSites()).toEqual(['https://github.com']);
+    AgentLoop._allowedSites = new Set();                       // a new run
+    expect(AgentLoop._offTask(click)).toBeNull();
+    AgentLoop.untrustSite('https://github.com');
+    expect(AgentLoop._offTask(click)).toBe('https://github.com');
+  });
+
+  it('the question offers it, and choosing it allows this step and remembers the site', async () => {
+    localStorage.removeItem(AgentLoop.TRUST_KEY);
+    document.body.innerHTML = '<div id="ai-messages"></div>';
+    AgentLoop._allowedSites = new Set();
+    AgentLoop._currentSite = 'https://shop.example';
+    AgentLoop._mode = 'auto';
+    const answer = AgentLoop._checkPermission({ tool: 'click_text', parameters: { text: 'Add' }, intent: 'action' });
+    await new Promise(r => setTimeout(r, 0));
+    const always = document.querySelector('.agent-always');
+    expect(always.textContent).toBe('Always on shop.example');
+    always.click();
+    expect(await answer).toBe(true);
+    expect(AgentLoop.trustedSites()).toEqual(['https://shop.example']);
   });
 });

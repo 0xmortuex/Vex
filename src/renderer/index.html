@@ -371,7 +371,7 @@
                     <span class="setting-hint">Blurs one-time codes, saved passwords and notification text so they cannot be read from a recording. Hover one to read it; copying still copies the real value.</span>
                   </div>
                   <select id="setting-streamer-mode">
-                    <option value="auto">While something is being captured</option>
+                    <option value="auto">While you share your screen (not during calls)</option>
                     <option value="on">Always on</option>
                     <option value="off">Off</option>
                   </select>
@@ -611,6 +611,11 @@
                 </select>
               </div>
               <div id="agent-test-result" class="agent-test-result" hidden></div>
+              <div class="setting-row" style="margin-top:14px;display:block">
+                <div class="setting-label"><strong>Sites the agent may act on without asking</strong>
+                  <span class="setting-hint">Added with "Always on …" when the agent asks about a site you did not name. Risky actions there are still asked about when your agent mode says so.</span></div>
+                <div id="agent-trusted-sites" style="margin-top:6px"></div>
+              </div>
 
               <details class="advanced-routing">
                 <summary>Advanced: Per-Feature Routing</summary>

@@ -497,6 +497,19 @@ function runInMainWorld(src) {
       // page can send it anywhere (the pick itself must carry audio whenever
       // the page asked for it, or Chromium refuses the whole share).
       return orig(constraints).then(function(stream){
+        // A screen share is on while its picture is: reported as 'screen' so
+        // streamer mode can tell sharing apart from a call's microphone.
+        try{
+          var shareTrack = stream.getVideoTracks && stream.getVideoTracks()[0];
+          if(shareTrack){
+            bridge.capture('screen', true);
+            var shareDone = false;
+            var shareEnded = function(){ if(shareDone) return; shareDone = true; try{ bridge.capture('screen', false); }catch(e){} };
+            shareTrack.addEventListener('ended', shareEnded);
+            var shareStop = shareTrack.stop;
+            shareTrack.stop = function(){ try{ shareStop.call(shareTrack); } finally { shareEnded(); } };
+          }
+        }catch(e){}
         return bridge.getQuality().then(function(q){
           try{
             if(q && q.dropAudio && stream.getAudioTracks){

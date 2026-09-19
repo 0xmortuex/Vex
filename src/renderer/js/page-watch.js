@@ -49,6 +49,45 @@ const PageWatch = {
 
   remove(id) { this._save(this.list().filter(w => w.id !== id)); },
 
+  // "when it drops under $300", "goes above 50", "goes down", "changes" →
+  // what add() needs. Throws, naming what it could not read, rather than
+  // guessing a watch the person did not ask for.
+  parseWhen(text) {
+    const t = String(text || '').toLowerCase().replace(/,/g, '');
+    const num = (s) => { const m = /(-?\d+(?:\.\d+)?)/.exec(s); return m ? Number(m[1]) : null; };
+    let m;
+    if ((m = /\b(drops?|falls?|goes|gets|is)?\s*(under|below|less than|beneath|cheaper than)\s*([^\s]*\d[\d.]*)/.exec(t))) {
+      const target = num(m[3]);
+      if (target != null) return { kind: 'number', direction: 'below', target };
+    }
+    if ((m = /\b(rises?|climbs?|goes|gets|is)?\s*(over|above|more than|higher than)\s*([^\s]*\d[\d.]*)/.exec(t))) {
+      const target = num(m[3]);
+      if (target != null) return { kind: 'number', direction: 'above', target };
+    }
+    if (/\b(drops?|falls?|goes down|gets cheaper|decreases?|lower)\b/.test(t)) return { kind: 'number', direction: 'down', target: null };
+    if (/\b(rises?|goes up|increases?|higher|climbs?)\b/.test(t)) return { kind: 'number', direction: 'up', target: null };
+    if (/\b(changes?|updates?|is different|anything new|opens?|is (?:back )?in stock|goes live|is out)\b/.test(t)) return { kind: 'text', direction: 'any', target: null };
+    throw new Error('Say what to watch for — "drops under 300", "goes above 50", "goes down", or "changes"');
+  },
+
+  // What the agent and Ctrl+K call: watch the page open now for `when`.
+  watchCurrent(when, { url, title } = {}) {
+    const rule = this.parseWhen(when);
+    let u = url, t = title;
+    if (!u && typeof TabManager !== 'undefined') {
+      const tab = TabManager.tabs.find(x => x.id === TabManager.activeTabId);
+      if (tab) { u = tab.url; t = t || tab.title; }
+    }
+    const watch = this.add({ url: u, title: t, ...rule });
+    return { watch, said: (t || u) + ' — ' + this.describeRule(rule) };
+  },
+  describeRule(r) {
+    if (r.kind === 'text') return 'tells you when the page changes';
+    if (r.direction === 'below') return 'tells you when its number goes below ' + r.target;
+    if (r.direction === 'above') return 'tells you when its number goes above ' + r.target;
+    return 'tells you when its number goes ' + (r.direction === 'down' ? 'down' : 'up');
+  },
+
   // The first number in a piece of text, as a person would read it: "£1,299.99"
   // is 1299.99, and "4 of 12 left" is 4.
   firstNumber(text) {

@@ -80,16 +80,32 @@ describe('repeating it', () => {
     expect(document.getElementById('ai-messages').textContent).toMatch(/Repeated 3 steps, without the AI/);
   });
 
-  it('stops at the step that failed and says what to do instead', async () => {
+  it('when the page has changed, the AI takes over from the step that failed', async () => {
     const macro = AgentLoop.saveAsMacro((await aRunThatWorked()).id, 'Check my orders');
     exec.executeTool = vi.fn(async (tool) => (tool === 'extract_text' ? { ok: false, error: 'No element matches "Orders"' } : { ok: true, result: 'ok' }));
+    const start = vi.spyOn(AgentLoop, 'start').mockResolvedValue();
     const out = await AgentLoop.runMacro(macro.id, 'auto');
     expect(out.done).toEqual(['click_text']);
     expect(out.failed).toEqual({ tool: 'extract_text', error: 'No element matches "Orders"' });
+    expect(out.handedOver).toBe(true);
     const said = document.getElementById('ai-messages').textContent;
     expect(said).toMatch(/Stopped at extract_text: No element matches/);
-    expect(said).toMatch(/page has most likely changed.*the AI will work it out/);
+    expect(said).toMatch(/the AI is taking over from here/);
+    const [goal, mode] = start.mock.calls[0];
+    expect(goal).toMatch(/already did: click_text\. It then failed at extract_text/);
+    expect(mode).toBe('auto');
     expect(AgentLoop.macros()[0].runs).toBe(0);                     // a failed run is not a run
+    start.mockRestore();
+  });
+
+  it('not when you stopped it yourself', async () => {
+    const macro = AgentLoop.saveAsMacro((await aRunThatWorked()).id, 'Check my orders');
+    exec.executeTool = vi.fn(async () => { AgentLoop._running = false; return { ok: true, result: 'ok' }; });
+    const start = vi.spyOn(AgentLoop, 'start').mockResolvedValue();
+    const out = await AgentLoop.runMacro(macro.id, 'auto');
+    expect(out.handedOver).toBe(false);
+    expect(start).not.toHaveBeenCalled();
+    start.mockRestore();
   });
 
   it('still asks before acting on a site the task never mentioned', async () => {

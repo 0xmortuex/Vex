@@ -265,6 +265,11 @@ const AgentExecutor = {
           return { ok: true, result: 'Saved and verified the note "' + (note.title || 'Untitled') + '" (Notes panel)', undo: { kind: 'note', id: note.id, label: 'the note "' + (note.title || 'Untitled') + '"' } };
         }
 
+        case 'watch_page': {
+          const made = window.PageWatch.watchCurrent(params.when);
+          return { ok: true, result: 'Watching: ' + made.said, undo: { kind: 'watch', id: made.watch.id, label: 'the watch on ' + (made.watch.title || made.watch.url) } };
+        }
+
         case 'create_reminder': {
           const made = await AgentTools.createReminder(params.message, params.when);
           return { ok: true, result: 'Reminder set: "' + made.message + '" — ' + made.when, ...(made.id ? { undo: { kind: 'reminder', id: made.id, label: 'the reminder "' + made.message + '"' } } : {}) };

@@ -14,10 +14,27 @@ const VexQuickCommands = {
     const q = String(raw || '').trim();
     if (!q) return [];
     const out = [];
-    for (const fn of [this._remind, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory]) {
+    for (const fn of [this._remind, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory]) {
       try { const r = fn.call(this, q); if (r) out.push(r); } catch (err) { /* a parse that failed part-way says so as a result, below */ out.push(this._unreadable(q, err)); }
     }
     return out;
+  },
+
+  // tell me when this drops under 300 / watch this page for changes / tell me
+  // when it goes down — a page watch on the tab in front (js/page-watch.js).
+  _watch(q) {
+    const m = q.match(/^(?:tell me|let me know|notify me|alert me|ping me)\s+(?:when|if)\s+(.+)$/i) || q.match(/^watch\s+(?:this|this page|the page|it)\s*(?:for|until|till|when)?\s*(.*)$/i);
+    if (!m || typeof PageWatch === 'undefined') return null;
+    const rule = PageWatch.parseWhen(m[1] || 'changes');
+    return {
+      id: 'quick-watch', icon: 'eye', isPrimary: true,
+      label: 'Watch this page: ' + PageWatch.describeRule(rule),
+      hint: 'Checks every 15 minutes in the background and tells you',
+      action: () => {
+        try { const r = PageWatch.watchCurrent(m[1] || 'changes'); window.showToast?.('Watching ' + r.said); }
+        catch (err) { window.showToast?.((err && err.message) || 'Could not watch this page', 'error'); }
+      },
+    };
   },
 
   // free memory / free up memory / free ram — the Memory panel's button, from anywhere.

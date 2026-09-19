@@ -188,6 +188,24 @@ const AISettings = (() => {
       });
     }
     document.getElementById('btn-test-agent-model')?.addEventListener('click', (e) => testAgentModel(e.currentTarget));
+    renderTrustedSites();
+  }
+
+  // The agent's "Always on github.com" list, each with Remove.
+  function renderTrustedSites() {
+    const host = document.getElementById('agent-trusted-sites');
+    if (!host || typeof AgentLoop === 'undefined') return;
+    const sites = AgentLoop.trustedSites();
+    host.innerHTML = '';
+    if (!sites.length) { host.textContent = 'None — the agent asks before acting on any site you did not name.'; host.style.fontSize = '12px'; host.style.color = 'var(--text-muted)'; return; }
+    for (const s of sites) {
+      const row = document.createElement('div');
+      row.className = 'setting-toggle-row';
+      row.innerHTML = '<span></span><button type="button" class="btn-secondary">Remove</button>';
+      row.querySelector('span').textContent = s.replace(/^https?:\/\//, '');
+      row.querySelector('button').addEventListener('click', () => { AgentLoop.untrustSite(s); renderTrustedSites(); });
+      host.appendChild(row);
+    }
   }
 
   // Four canned agent turns against the chosen local model (js/agent-model-test.js).

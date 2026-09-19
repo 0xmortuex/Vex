@@ -83,3 +83,7 @@
 .agent-test-row.ok { color: var(--text); }
 .agent-test-row.bad { color: var(--danger); }
 .agent-test-facts { margin-top: 4px; }
+
+/* What a step cost (agent-loop.js _noteCost): small and quiet, under the step. */
+.agent-step-cost { padding-top: 0; padding-bottom: 0; background: transparent; border: none; box-shadow: none; }
+.agent-step-cost .agent-step { border-left: none; padding: 0 0 0 14px; font-size: 10.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }

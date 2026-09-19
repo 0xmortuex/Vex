@@ -78,15 +78,19 @@ const GameMode = {
     return mode;
   },
 
-  // Is anything being captured right now? Vex already tracks this for the
-  // recording badges: a tab or a panel sharing a screen, camera or microphone.
+  // Is the screen being shared right now? A tab or a panel sharing it
+  // (getDisplayMedia — Discord's Go Live, a meeting's screen share) or Vex's
+  // own screen recorder. NOT a call's microphone or camera: those put nothing
+  // of Vex in front of anyone, and blurring Vex through every call was wrong
+  // (reported 2026-09-19).
   captured() {
     try {
-      if (typeof TabManager !== 'undefined' && TabManager.tabs.some(t => TabManager.isCapturing && TabManager.isCapturing(t))) return true;
+      if (window.ScreenRecorder && ScreenRecorder.recording()) return true;
+      if (typeof TabManager !== 'undefined' && TabManager.tabs.some(t => t.capturing && t.capturing.screen)) return true;
       if (typeof SidebarManager !== 'undefined' && SidebarManager.panelCapture) {
-        for (const c of Object.values(SidebarManager.panelCapture)) if (c && (c.mic || c.camera || c.screen)) return true;
+        for (const c of Object.values(SidebarManager.panelCapture)) if (c && c.screen) return true;
       }
-    } catch { /* treat unknown as not captured; the manual switch still works */ }
+    } catch (err) { window.VexProblems?.note('Streamer mode', 'Could not tell whether the screen is shared', err); }
     return false;
   },
 
@@ -134,7 +138,7 @@ const GameMode = {
     const was = this._was;
     this._was = on;
     if (on !== was) {
-      if (on) window.showToast?.('Streamer mode on — codes, passwords and notifications are blurred while you are being captured. Hover to read one.');
+      if (on) window.showToast?.('Streamer mode on — codes, passwords and notifications are blurred while you share your screen. Hover to read one.');
       else if (was === true) window.showToast?.('Streamer mode off');
     }
     return on;

@@ -1066,7 +1066,7 @@ const SidebarManager = {
   panelCapture: {},
 
   setPanelCapturing(name, kind, active) {
-    if (kind !== 'mic' && kind !== 'camera') return;
+    if (kind !== 'mic' && kind !== 'camera' && kind !== 'screen') return;
     this.panelCapture[name] = { ...(this.panelCapture[name] || {}), [kind]: !!active };
     document.dispatchEvent(new CustomEvent('vex:media-capture', { detail: { where: 'panel', id: name, kind, active: !!active } }));
     const c = this.panelCapture[name];
@@ -1085,7 +1085,7 @@ const SidebarManager = {
 
   isPanelCapturing(name) {
     const c = this.panelCapture[name];
-    return !!(c && (c.mic || c.camera));
+    return !!(c && (c.mic || c.camera || c.screen));
   },
 
   // Free memory now (Memory panel): every hidden web panel that may sleep,

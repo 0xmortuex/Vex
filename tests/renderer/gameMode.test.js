@@ -68,9 +68,9 @@ describe('the Discord hotkeys', () => {
 });
 
 describe('streamer mode', () => {
-  const capturing = () => { globalThis.TabManager.tabs = [{ id: 't1', capturing: { mic: true } }]; };
+  const capturing = () => { globalThis.TabManager.tabs = [{ id: 't1', capturing: { screen: true } }]; };
 
-  it('by default it follows the capture: off normally, on while something is recording', () => {
+  it('by default it follows screen sharing: off normally, on while the screen is shared', () => {
     expect(GameMode.mode()).toBe('auto');
     expect(GameMode.apply()).toBe(false);
     expect(document.body.classList.contains('streamer-mode')).toBe(false);
@@ -81,9 +81,18 @@ describe('streamer mode', () => {
     expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/Streamer mode on — codes, passwords and notifications are blurred/));
   });
 
-  it('a panel sharing a camera counts too', () => {
-    globalThis.SidebarManager.panelCapture = { discord: { camera: true } };
+  it('a panel sharing the screen counts; a call (microphone, camera) does not', () => {
+    globalThis.SidebarManager.panelCapture = { discord: { mic: true, camera: true } };
+    globalThis.TabManager.tabs = [{ id: 't1', capturing: { mic: true } }];
+    expect(GameMode.captured()).toBe(false);
+    globalThis.SidebarManager.panelCapture = { discord: { mic: true, screen: true } };
     expect(GameMode.captured()).toBe(true);
+  });
+
+  it('Vex recording the screen counts too', () => {
+    window.ScreenRecorder = { recording: () => true };
+    expect(GameMode.captured()).toBe(true);
+    delete window.ScreenRecorder;
   });
 
   it('always-on and off ignore the capture', () => {

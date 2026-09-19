@@ -120,3 +120,17 @@ describe('free memory', () => {
     expect(() => r.action()).toThrow(/Memory panel/);
   });
 });
+
+describe('tell me when …', () => {
+  it('watches the page in front, for what was said', () => {
+    require('../../src/renderer/js/page-watch.js');
+    globalThis.PageWatch = window.PageWatch;
+    globalThis.TabManager = { activeTabId: 1, tabs: [{ id: 1, url: 'https://shop.example/tv', title: 'The TV' }] };
+    const [r] = VexQuickCommands.results('tell me when this drops under 300');
+    expect(r.id).toBe('quick-watch');
+    expect(r.label).toBe('Watch this page: tells you when its number goes below 300');
+    r.action();
+    expect(PageWatch.list()[0]).toMatchObject({ url: 'https://shop.example/tv', kind: 'number', direction: 'below', target: 300 });
+    expect(VexQuickCommands.results('watch this page for changes')[0].label).toMatch(/when the page changes/);
+  });
+});

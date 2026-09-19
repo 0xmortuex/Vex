@@ -127,3 +127,15 @@ describe('a watch, end to end', () => {
     expect(JSON.parse(localStorage.getItem(PageWatch.KEY))[0].lastValue).toBe(1299.99);
   });
 });
+
+describe('in plain words', () => {
+  it('reads what to watch for', () => {
+    expect(PageWatch.parseWhen('drops under $300')).toEqual({ kind: 'number', direction: 'below', target: 300 });
+    expect(PageWatch.parseWhen('the price is below £1,299.50')).toEqual({ kind: 'number', direction: 'below', target: 1299.5 });
+    expect(PageWatch.parseWhen('goes above 50')).toEqual({ kind: 'number', direction: 'above', target: 50 });
+    expect(PageWatch.parseWhen('it goes down')).toMatchObject({ direction: 'down' });
+    expect(PageWatch.parseWhen('rises')).toMatchObject({ direction: 'up' });
+    expect(PageWatch.parseWhen('is back in stock')).toEqual({ kind: 'text', direction: 'any', target: null });
+    expect(() => PageWatch.parseWhen('whenever')).toThrow(/Say what to watch for/);
+  });
+});

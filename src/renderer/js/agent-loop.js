@@ -42,6 +42,7 @@ const AGENT_TOOLS = [
   { name: 'rename_tab_group', description: 'Rename one tab group. Call once per group; get the ids from list_tab_groups', parameters: { groupId: 'string', name: 'string' } },
   { name: 'group_tabs', description: 'Put tabs into a new tab group. Ids come from list_tabs', parameters: { name: 'string', tabIds: 'string[]', color: 'string (optional)' } },
   { name: 'save_note', description: 'Save a note in the Notes panel (Markdown). Use it when asked to write something down or keep research', parameters: { title: 'string', content: 'string', sourceUrl: 'string (optional)' } },
+  { name: 'watch_page', description: 'Keep checking the page open now and tell the user when something happens. "when" is plain words: "drops under 300", "goes above 50", "goes down", "changes", "is back in stock"', parameters: { when: 'string' } },
   { name: 'create_reminder', description: 'Set a reminder. "when" is plain words: "tomorrow 9am", "in 2 hours", "friday 17:00", "when on github.com"', parameters: { message: 'string', when: 'string' } },
   { name: 'add_bookmark', description: 'Bookmark a page (the current tab when no url is given)', parameters: { url: 'string (optional)', title: 'string (optional)' } },
   { name: 'search_history', description: "Search the user's browsing history by words in the title, address or summary", parameters: { query: 'string', limit: 'number (optional)' } },
@@ -79,7 +80,7 @@ function agentGuide(mode, now) {
     '- RESEARCH, or any question about the world: do NOT drive a search engine page. Call web_search, then read_url on the 2-4 most relevant results from different sites, then finish. If read_url says a page has little text, open it with new_tab and use extract_text.',
     '- finish.summary is what the user reads. Write Markdown: the direct answer first; then the facts, numbers and dates that support it, marked [1], [2]; then a "Sources" list of the URLs you actually read. Say plainly what you could not verify.',
     "- ACTING on a page: the page's interactive elements arrive with every turn. Use click with one of their selectors, or click_text with the visible words of a button or link. type_text replaces the field's content; add \"submit\": true to press Enter. After an action that changes the page, look at the new page state before acting again.",
-    '- VEX itself needs no page: tabs (list_tabs, switch_tab, new_tab, close_tab, read_tab), tab groups (list_tab_groups, rename_tab_group, group_tabs), notes (save_note), reminders (create_reminder), bookmarks (add_bookmark), history (search_history).',
+    '- VEX itself needs no page: tabs (list_tabs, switch_tab, new_tab, close_tab, read_tab), tab groups (list_tab_groups, rename_tab_group, group_tabs), notes (save_note), reminders (create_reminder), watching a page for a change or a price (watch_page), bookmarks (add_bookmark), history (search_history).',
     "- VEX DOES IT ITSELF. Before you open a website for a utility, check whether Vex has it built in — it usually does. A timer is start_timer, never a timer website. An alarm, the stopwatch, a city's time, freeing memory: vex_command with the sentence ('alarm 7am weekdays'). Anything else about the browser — screenshots, reader mode, translating a page, split view, sessions, downloads, themes, passwords: call vex_features with a few words, then vex_command with the command id it returns. Tell the user where the result lives ('the timer is in the toolbar').",
     '- When the words on a page do not explain it, call screenshot to look at it.',
     "- THE USER'S OWN THINGS: search_notes, read_note, append_note, search_bookmarks, list_reminders, search_history. Anything about what they wrote down, saved or planned starts there, not on the web.",
@@ -265,6 +266,10 @@ const AgentLoop = {
         const image = this._pendingImage;   // a screenshot the model asked for: shown once
         this._pendingImage = null;
         const ask = async () => {
+          // What each step cost: seconds, and tokens when the model says
+          // (local models do; the cloud worker does not report them).
+          const t0 = performance.now();
+          let meta = null;
           const out = await AIRouter.callAI('agent', {
             userGoal: goal,
             pageContext,
@@ -276,6 +281,7 @@ const AgentLoop = {
             // The reply as it is written, and a word when it is going to be
             // slow: a minute of "Thinking…" is indistinguishable from a hang.
             onToken: (_piece, full) => this._streamStep(full),
+            onMeta: (m) => { meta = m; },
             // Show thinking (AI panel switch): the model's own reasoning, as a
             // faded line under the step. The router asks for it only when the
             // switch is on; scheduled runs pass no listener and stay fast.
@@ -290,6 +296,7 @@ const AgentLoop = {
             },
           });
           if (out && this._run) this._run.backend = (out.backend || '') + (out.model ? ' · ' + out.model : '');
+          this._noteCost(performance.now() - t0, meta);
           return out;
         };
         let data;
@@ -462,8 +469,27 @@ const AgentLoop = {
     this._running = false;
     document.getElementById('ai-send')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
-    this._renderStep('end', 'Agent finished', 'info');
+    this._renderStep('end', 'Agent finished' + this._costTotal(), 'info');
     this._saveRun();
+  },
+
+  // ---- what a run cost ------------------------------------------------------------
+  _noteCost(ms, meta) {
+    if (!this._run) return;
+    const c = this._run.cost = this._run.cost || { steps: 0, ms: 0, promptTokens: 0, replyTokens: 0, counted: false };
+    c.steps++; c.ms += ms;
+    let line = '↳ ' + (ms / 1000).toFixed(1) + ' s';
+    if (meta && (meta.promptTokens || meta.replyTokens)) {
+      c.counted = true;
+      c.promptTokens += meta.promptTokens || 0; c.replyTokens += meta.replyTokens || 0;
+      line += ' · ' + (meta.promptTokens || 0).toLocaleString() + ' → ' + (meta.replyTokens || 0).toLocaleString() + ' tokens';
+    }
+    this._renderStep('cost', line, 'cost');
+  },
+  _costTotal() {
+    const c = this._run && this._run.cost;
+    if (!c || !c.steps) return '';
+    return ' — ' + c.steps + ' step' + (c.steps === 1 ? '' : 's') + ', ' + (c.ms / 1000).toFixed(1) + ' s thinking' + (c.counted ? ', ' + c.promptTokens.toLocaleString() + ' tokens in, ' + c.replyTokens.toLocaleString() + ' out' : '');
   },
 
   // ---- saved runs -------------------------------------------------------
@@ -488,7 +514,7 @@ const AgentLoop = {
   // Undo what a run MADE. Deliberately only Vex's own things: what it did on a
   // web page is the page's business and cannot be taken back from here, and
   // pretending otherwise would be worse than saying so.
-  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder'],
+  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder', 'watch'],
 
   async undoRun(id) {
     const run = this.runs().find(r => r.id === id);
@@ -510,6 +536,11 @@ const AgentLoop = {
   },
 
   async _undoOne(item) {
+    if (item.kind === 'watch') {
+      if (!window.PageWatch.list().some(w => w.id === item.id)) throw new Error('already gone');
+      window.PageWatch.remove(item.id);
+      return;
+    }
     if (item.kind === 'note') {
       const notes = JSON.parse(localStorage.getItem('vex.notes') || '[]');
       if (!notes.some(n => n.id === item.id)) throw new Error('already gone');
@@ -626,9 +657,14 @@ const AgentLoop = {
       await new Promise(r => setTimeout(r, 200));
     }
 
+    // The page changed under the recording: the AI takes over from where the
+    // saved steps stopped, instead of leaving the user to start again. Not when
+    // the user stopped it or refused a step — that is an answer, not a failure.
+    const handOver = failed && failed.error !== 'Stopped by you' && failed.error !== 'You did not allow it' && macro.goal;
     if (failed) {
       this._renderStep('error', 'Stopped at ' + failed.tool + ': ' + failed.error, 'error');
-      this._renderStep('summary', 'The page has most likely changed since this was recorded. Send the same request as a task and the AI will work it out.', 'info');
+      if (!handOver) this._renderStep('summary', 'Send the same request as a task and the AI will work it out.', 'info');
+      else this._renderStep('summary', 'The page has changed since this was recorded — the AI is taking over from here.', 'info');
     } else {
       this._renderStep('end', 'Repeated ' + done.length + ' step' + (done.length === 1 ? '' : 's') + ', without the AI', 'info');
       const list = this.macros().map(m => (m.id === id ? { ...m, runs: (m.runs || 0) + 1, lastRunAt: Date.now() } : m));
@@ -637,7 +673,11 @@ const AgentLoop = {
     this._running = false;
     document.getElementById('ai-send')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
-    return { done, failed };
+    if (handOver) {
+      const goal = macro.goal + '\n\n(A saved version of this task already did: ' + (done.length ? done.join(', ') : 'nothing') + '. It then failed at ' + failed.tool + ': ' + failed.error + '. Carry on from the page as it is now; do not repeat what is done.)';
+      this.start(goal, this._mode).catch(err => this._renderStep('error', 'The AI could not take over: ' + ((err && err.message) || ''), 'error'));
+    }
+    return { done, failed, handedOver: !!handOver };
   },
 
   deleteRun(id) { localStorage.setItem(this.RUNS_KEY, JSON.stringify(this.runs().filter(r => r.id !== id))); },
@@ -726,7 +766,27 @@ const AgentLoop = {
     if (!PAGE_ACTIONS.includes(decision.tool)) return null;
     const target = this._targetSite(decision) || this._currentSite;
     if (!target) return null;
-    return this._allowedSites.has(target) ? null : target;
+    return (this._allowedSites.has(target) || this.trustedSites().includes(target)) ? null : target;
+  },
+
+  // Sites the agent may act on in any run without asking ("Always on
+  // github.com"), until removed in Settings › AI. Only this question: a risky
+  // action there is still asked about where the mode says so.
+  TRUST_KEY: 'vex.agentTrustedSites',
+  trustedSites() {
+    try { const a = JSON.parse(localStorage.getItem(this.TRUST_KEY) || '[]'); return Array.isArray(a) ? a.filter(s => typeof s === 'string') : []; }
+    catch (err) { window.showToast?.('The list of sites the agent may use could not be read', 'error'); return []; }
+  },
+  trustSite(origin) {
+    const o = this._originOf(origin);
+    if (!o) throw new Error('Not a web site: ' + origin);
+    const list = this.trustedSites().filter(s => s !== o);
+    list.push(o);
+    localStorage.setItem(this.TRUST_KEY, JSON.stringify(list));
+    return o;
+  },
+  untrustSite(origin) {
+    localStorage.setItem(this.TRUST_KEY, JSON.stringify(this.trustedSites().filter(s => s !== origin)));
   },
 
   async _checkPermission(decision) {
@@ -736,9 +796,10 @@ const AgentLoop = {
     // A page the user never asked for is asked about whatever the mode is.
     const off = this._offTask(decision);
     if (off && !isSafe) {
-      const ok = await this._confirmAction(decision, `This acts on ${off}, which you did not ask about. Allow it?`);
+      const ok = await this._confirmAction(decision, `This acts on ${off}, which you did not ask about. Allow it?`, { alwaysSite: off });
+      if (ok === 'always') this.trustSite(off);
       if (ok) this._allowedSites.add(off);
-      return ok;
+      return !!ok;
     }
 
     if (this._mode === 'auto') {
@@ -909,7 +970,7 @@ const AgentLoop = {
     });
   },
 
-  _confirmAction(decision, heading) {
+  _confirmAction(decision, heading, { alwaysSite } = {}) {
     return new Promise(resolve => {
       const container = document.getElementById('ai-messages');
       if (!container) { resolve(false); return; }
@@ -923,6 +984,7 @@ const AgentLoop = {
           <div class="agent-tool-call"><strong>${this._esc(decision.tool)}</strong> <code>${this._esc(JSON.stringify(decision.parameters || {}))}</code></div>
           <div class="agent-btns">
             <button class="agent-approve">Approve</button>
+            ${alwaysSite ? `<button class="agent-always">Always on ${this._esc(alwaysSite.replace(/^https?:\/\//, ''))}</button>` : ''}
             <button class="agent-deny">Deny</button>
           </div>
         </div>
@@ -933,6 +995,10 @@ const AgentLoop = {
       el.querySelector('.agent-approve').addEventListener('click', () => {
         el.querySelector('.agent-btns').innerHTML = '<span style="color:var(--success,#22c55e);font-size:11px">Approved</span>';
         resolve(true);
+      });
+      el.querySelector('.agent-always')?.addEventListener('click', () => {
+        el.querySelector('.agent-btns').innerHTML = '<span style="color:var(--success,#22c55e);font-size:11px">Allowed on this site from now on — Settings › AI to change it</span>';
+        resolve('always');
       });
       el.querySelector('.agent-deny').addEventListener('click', () => {
         el.querySelector('.agent-btns').innerHTML = '<span style="color:var(--danger);font-size:11px">Denied</span>';
@@ -973,7 +1039,8 @@ const AgentLoop = {
       return;
     }
 
-    if (this._run) this._run.steps.push({ type, text: String(text).slice(0, 700), style });
+    // Cost lines are shown, not kept: the run keeps their total (run.cost).
+    if (this._run && type !== 'cost') this._run.steps.push({ type, text: String(text).slice(0, 700), style });
     const el = document.createElement('div');
     el.className = 'ai-msg assistant agent-step-' + style;
     const icon = window.VexIcons

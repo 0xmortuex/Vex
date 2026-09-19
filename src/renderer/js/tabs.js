@@ -706,7 +706,7 @@ const TabManager = {
   // recording, so the property is non-enumerable and stays out of the session.
   setCapturing(id, kind, active) {
     const tab = this.tabs.find(t => t.id === id);
-    if (!tab || (kind !== 'mic' && kind !== 'camera')) return;
+    if (!tab || (kind !== 'mic' && kind !== 'camera' && kind !== 'screen')) return;
     if (!Object.prototype.hasOwnProperty.call(tab, 'capturing')) {
       Object.defineProperty(tab, 'capturing', { value: {}, writable: true, enumerable: false, configurable: true });
     }
@@ -716,7 +716,7 @@ const TabManager = {
   },
 
   isCapturing(tab) {
-    return !!(tab && tab.capturing && (tab.capturing.mic || tab.capturing.camera));
+    return !!(tab && tab.capturing && (tab.capturing.mic || tab.capturing.camera || tab.capturing.screen));
   },
 
   _captureBadge(tab) {

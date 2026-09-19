@@ -81,6 +81,8 @@ const ScreenRecorder = {
 
     const rec = { recorder, stream, id: opened.id, ext: fmt.ext, started: Date.now(), sending: Promise.resolve(), failed: null };
     this._rec = rec;
+    // Recording the screen is sharing it, as far as streamer mode is concerned.
+    document.dispatchEvent(new CustomEvent('vex:media-capture', { detail: { where: 'vex', kind: 'screen', active: true } }));
 
     // Chunks go to main one after another, never in parallel: order matters.
     recorder.ondataavailable = (e) => {
@@ -114,6 +116,7 @@ const ScreenRecorder = {
     const rec = this._rec;
     if (!rec) return null;
     this._rec = null;
+    document.dispatchEvent(new CustomEvent('vex:media-capture', { detail: { where: 'vex', kind: 'screen', active: false } }));
     clearInterval(rec.timer);
     rec.pill?.remove();
     await new Promise((resolve) => {
