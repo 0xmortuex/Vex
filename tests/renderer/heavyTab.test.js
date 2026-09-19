@@ -120,3 +120,20 @@ describe('the address bar on switching tabs', () => {
     expect(document.activeElement).not.toBe(input);
   });
 });
+
+describe('console errors on a page you are building', () => {
+  it('only local pages count as yours', async () => {
+    const TM = await loadTabManager();
+    for (const u of ['http://localhost:5173/app', 'http://127.0.0.1:8080/', 'https://my-box.local/x', 'file:///C:/work/index.html']) expect(TM.isLocalPage(u), u).toBe(true);
+    for (const u of ['https://example.com/', 'https://notlocalhost.com/', 'about:blank', '']) expect(TM.isLocalPage(u), u).toBe(false);
+  });
+
+  it('the badge counts them and keeps the last one for the tooltip', async () => {
+    const TM = await loadTabManager();
+    expect(TM.errorBadge({ consoleErrors: 0 })).toBe('');
+    const html = TM.errorBadge({ consoleErrors: 3, lastConsoleError: 'Uncaught TypeError: x is not a function' });
+    expect(html).toContain('>3<');
+    expect(html).toContain('3 console errors — last: Uncaught TypeError: x is not a function');
+    expect(TM.errorBadge({ consoleErrors: 120 })).toContain('>99+<');
+  });
+});

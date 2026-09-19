@@ -264,3 +264,6 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 
 /* A note on the tab (TabManager.editTabNote): a small mark, the note on hover. */
 .top-tab .tab-note { flex-shrink: 0; display: inline-flex; color: var(--primary, currentColor); opacity: 0.85; }
+
+/* Console errors on a page you are building (TabManager.errorBadge). */
+.tab-errors { flex-shrink: 0; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; background: var(--danger, #e5484d); color: #fff; font-size: 9.5px; font-weight: 700; display: inline-grid; place-items: center; }

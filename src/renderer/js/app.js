@@ -900,6 +900,7 @@
   if (typeof PageWatch !== 'undefined') PageWatch.start();
   GitHubWatch.start();
   SponsorSkip.init();
+  SiteVolume.init();
   VexLock.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
   window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });

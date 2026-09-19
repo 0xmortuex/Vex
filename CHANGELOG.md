@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.32.50 (2026-09-20) — Volume per site, and console errors on the tab
+
+### Changes
+- **The volume you keep a site at is remembered.** Right-click a tab › *Page volume…* and the figure is kept for that site — YouTube at 40%, Spotify at 80% — and put back on every later visit, including on media the page starts afterwards (the next track, a video further down the page). Setting it back to 100% forgets it.
+  - If the page resets the volume itself in the first seconds, Vex puts your figure back; move the site's own slider later and that wins.
+  - Checked live: applied to media the page made afterwards, a page's reset corrected, a later change left alone.
+- **Console errors on pages you are building.** A red count appears on the tab for a page on localhost, 127.0.0.1, a .local address or a file, with the last error on hover. It starts again at zero on each page, and ordinary websites are left alone. Checked live against a local server that throws.
+
 ## v2.32.49 (2026-09-20) — Search every chat, see what the AI remembers, peek at a source
 
 ### Changes

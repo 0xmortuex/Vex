@@ -665,7 +665,7 @@ const TabManager = {
         ${tab.note ? `<div class="tab-note-line" title="${this._escapeHtml(tab.note)}">${this._escapeHtml(tab.note)}</div>` : ''}
       </div>
       ${tab.sleeping ? TAB_ICONS.sleeping : ''}
-      ${this._captureBadge(tab)}${this._audioBadge(tab)}
+      ${this.errorBadge(tab)}${this._captureBadge(tab)}${this._audioBadge(tab)}
       ${tab.unread ? '<div class="tab-unread"></div>' : ''}
       <button class="tab-close" title="Close tab">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -725,6 +725,21 @@ const TabManager = {
 
   isCapturing(tab) {
     return !!(tab && tab.capturing && (tab.capturing.mic || tab.capturing.camera || tab.capturing.screen));
+  },
+
+  // Pages you are building, where a console error is worth a badge.
+  isLocalPage(url) {
+    try {
+      const u = new URL(String(url || ''));
+      if (u.protocol === 'file:') return true;
+      return /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/.test(u.hostname) || /\.local$/.test(u.hostname);
+    } catch { return false; }
+  },
+
+  // The count of console errors on a local page, with the last one on hover.
+  errorBadge(tab) {
+    if (!tab || !tab.consoleErrors) return '';
+    return `<span class="tab-errors" title="${this._escapeHtml(tab.consoleErrors + ' console error' + (tab.consoleErrors === 1 ? '' : 's') + ' — last: ' + (tab.lastConsoleError || ''))}" aria-label="${tab.consoleErrors} console errors">${tab.consoleErrors > 99 ? '99+' : tab.consoleErrors}</span>`;
   },
 
   _captureBadge(tab) {
@@ -1333,14 +1348,19 @@ const TabManager = {
         // no error, so the old `: prompt(...)` fallback silently did nothing.
         // Say so instead of pretending the menu item worked.
         if (typeof vexPromptModal !== 'function') { window.showToast?.('The volume dialog is unavailable', 'error'); return; }
-        const v = await vexPromptModal('Page volume (0–100%)', '100');
+        // The figure this site is already kept at, if any (js/site-volume.js).
+        const saved = SiteVolume.get(tab.url);
+        const v = await vexPromptModal('Page volume (0–100%)', String(saved == null ? 100 : saved));
         const n = parseInt(v, 10);
         if (isNaN(n)) return;
         const wv = WebviewManager.webviews.get(tab.id);
         if (!wv) { window.showToast?.('This tab is not loaded — open it first', 'warn'); return; }
-        const vol = Math.min(100, Math.max(0, n));
-        wv.executeJavaScript(`document.querySelectorAll('video,audio').forEach(m=>m.volume=${vol / 100})`)
-          .then(() => window.showToast?.('Volume ' + vol + '%'))
+        let vol;
+        try { vol = SiteVolume.set(tab.url, n); }
+        catch (err) { window.showToast?.(err.message, 'error'); return; }
+        const host = SiteVolume.host(tab.url);
+        wv.executeJavaScript(SiteVolume.script(vol))
+          .then(() => window.showToast?.(vol === 100 ? 'Volume 100% — ' + host + ' is no longer kept quieter' : 'Volume ' + vol + '% — kept for ' + host))
           .catch(err => window.showToast?.('Could not set the volume: ' + err.message, 'error'));
       } },
       { sep: true },

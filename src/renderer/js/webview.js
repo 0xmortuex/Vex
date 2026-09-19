@@ -296,6 +296,8 @@ const WebviewManager = {
 
     onWebview('did-navigate', (e) => {
       const url = e.url;
+      // A fresh page starts with a clean count.
+      if (tab.consoleErrors) { tab.consoleErrors = 0; tab.lastConsoleError = ''; TabManager.renderTabUpdate(tab); }
       // An address pretending to be a familiar one (js/link-safety.js). Said
       // once per host per session: a warning that cries wolf is ignored.
       if (typeof LinkSafety !== 'undefined') {
@@ -400,6 +402,15 @@ const WebviewManager = {
 
     // Listen for VEX_CMD messages from start page and other webview content
     onWebview('console-message', (e) => {
+      // Errors on a page you are building (localhost, 127.0.0.1, *.local, a
+      // file://) get a count on the tab — the console is not open while you
+      // are looking at the page, so a thrown error was invisible until you
+      // went looking. Only yours: a badge on every site would be noise.
+      if (e.level >= 3 && TabManager.isLocalPage?.(tab.url)) {
+        tab.consoleErrors = (tab.consoleErrors || 0) + 1;
+        tab.lastConsoleError = String(e.message || '').slice(0, 300);
+        TabManager.renderTabUpdate(tab);
+      }
       if (e.message && e.message.startsWith('VEX_CMD:')) {
         // SECURITY: VEX_CMD is a privileged control channel (navigate the tab,
         // open chrome panels). console-message fires for EVERY guest page, so
