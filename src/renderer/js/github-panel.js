@@ -75,9 +75,11 @@ const GitHubPanel = {
         </div>
 
         <div class="panel-section">
-          <div class="panel-section-title">Contribution Graph</div>
-          <div class="panel-placeholder" id="gh-contrib-placeholder">
-            <p>Visit your GitHub profile to see contributions</p>
+          <div class="panel-section-title">Your open pull requests and issues</div>
+          <div class="panel-list" id="gh-panel-work">
+            <div class="panel-placeholder"><p>Loading...</p></div>
+          </div>
+          <div style="margin-top: 12px; text-align: center;">
             <button class="panel-btn" id="gh-open-profile">Open Profile</button>
           </div>
         </div>
@@ -107,7 +109,8 @@ const GitHubPanel = {
         if (Date.now() - parsed.timestamp < this.CACHE_TTL) {
           this.cache = parsed;
           this.renderProfile(parsed.profile);
-          this.renderRepos(parsed.repos);
+          this.renderRepos(parsed.repos, parsed.ci || {});
+          this.renderWork(parsed.work || null, parsed.workError || null);
           return;
         }
       }
@@ -122,15 +125,65 @@ const GitHubPanel = {
       if (profileRes.ok && reposRes.ok) {
         const profile = await profileRes.json();
         const repos = await reposRes.json();
+        const [work, ci] = await Promise.all([this._work(), this._ci(repos)]);
 
-        this.cache = { profile, repos, timestamp: Date.now() };
+        this.cache = { profile, repos, ci, work: work.items, workError: work.error, timestamp: Date.now() };
         try { localStorage.setItem('vex-github-cache', JSON.stringify(this.cache)); } catch {}
 
         this.renderProfile(profile);
-        this.renderRepos(repos);
+        this.renderRepos(repos, ci);
+        this.renderWork(work.items, work.error);
+      } else {
+        const why = profileRes.status === 404 ? 'GitHub has no user called "' + this.username + '"' : profileRes.status === 403 ? 'GitHub asked Vex to slow down — try again in a while' : 'GitHub answered ' + profileRes.status;
+        this.renderWork(null, why);
       }
     } catch (e) {
       console.error('GitHub API error:', e);
+    }
+  },
+
+  // Open pull requests and issues you wrote, anywhere on GitHub (public only:
+  // Vex has no GitHub sign-in). → { items, error }
+  async _work() {
+    try {
+      const r = await (window.VexNet?.fetch || fetch)('https://api.github.com/search/issues?q=' + encodeURIComponent('author:' + this.username + ' is:open') + '&sort=updated&per_page=15');
+      if (!r.ok) return { items: null, error: 'GitHub answered ' + r.status };
+      const j = await r.json();
+      return { items: (j.items || []).map(i => ({ pr: !!i.pull_request, title: i.title, url: i.html_url, repo: String(i.repository_url || '').split('/').slice(-2).join('/'), updated: i.updated_at })), error: null };
+    } catch (err) { return { items: null, error: (err && err.message) || 'could not be reached' }; }
+  },
+
+  // The last CI run of the five repositories changed most recently.
+  // → { 'owner/repo': 'success' | 'failure' | 'running' | … }
+  async _ci(repos) {
+    const out = {};
+    const recent = [...repos].sort((a, b) => new Date(b.pushed_at || b.updated_at) - new Date(a.pushed_at || a.updated_at)).slice(0, 5);
+    await Promise.all(recent.map(async (repo) => {
+      try {
+        const r = await (window.VexNet?.fetch || fetch)('https://api.github.com/repos/' + repo.full_name + '/actions/runs?per_page=1');
+        if (!r.ok) return;
+        const run = ((await r.json()).workflow_runs || [])[0];
+        if (run) out[repo.full_name] = run.status === 'completed' ? run.conclusion : 'running';
+      } catch (err) { window.VexProblems?.note('GitHub panel', 'Could not read CI for ' + repo.full_name, err); }
+    }));
+    return out;
+  },
+
+  renderWork(items, error) {
+    const box = document.getElementById('gh-panel-work');
+    if (!box) return;
+    if (error) { box.innerHTML = `<div class="panel-placeholder"><p>${this._escapeHtml(error)}</p></div>`; return; }
+    if (!items || !items.length) { box.innerHTML = '<div class="panel-placeholder"><p>Nothing open that you wrote.</p></div>'; return; }
+    box.innerHTML = '';
+    for (const it of items) {
+      const row = document.createElement('div');
+      row.className = 'panel-list-item';
+      row.innerHTML = `<div class="panel-list-item-info">
+          <div class="panel-list-item-title">${VexIcons.svg(it.pr ? 'git' : 'flag', { size: 12 })} ${this._escapeHtml(it.title)}</div>
+          <div class="panel-list-item-meta"><span>${it.pr ? 'Pull request' : 'Issue'} · ${this._escapeHtml(it.repo)}</span><span>${this.timeAgo(new Date(it.updated))}</span></div>
+        </div>`;
+      row.addEventListener('click', () => { SidebarManager.hideActivePanel(); TabManager.createTab(it.url, true); });
+      box.appendChild(row);
     }
   },
 
@@ -155,7 +208,7 @@ const GitHubPanel = {
     `;
   },
 
-  renderRepos(repos) {
+  renderRepos(repos, ci = {}) {
     if (!repos || !repos.length) return;
 
     const container = document.getElementById('gh-panel-repos');
@@ -173,7 +226,7 @@ const GitHubPanel = {
 
       item.innerHTML = `
         <div class="panel-list-item-info">
-          <div class="panel-list-item-title">${this._escapeHtml(repo.name)}</div>
+          <div class="panel-list-item-title">${ci[repo.full_name] ? `<span class="gh-ci gh-ci-${this._escapeHtml(ci[repo.full_name])}" title="Last CI run: ${this._escapeHtml(ci[repo.full_name])}"></span>` : ''}${this._escapeHtml(repo.name)}</div>
           ${repo.description ? `<div class="panel-list-item-desc">${this._escapeHtml(repo.description)}</div>` : ''}
           <div class="panel-list-item-meta">
             ${repo.language ? `<span><span class="lang-dot" style="background:${langColor}"></span> ${this._escapeHtml(repo.language)}</span>` : ''}

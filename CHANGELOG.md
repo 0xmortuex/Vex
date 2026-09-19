@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.32.47 (2026-09-20) — Your pull requests, issues and CI in the GitHub panel
+
+### Changes
+- **The GitHub panel shows your open pull requests and issues**, across every repository, newest first. Click one to open it.
+- **A CI light on your repositories.** The five you changed most recently show how their last GitHub Actions run went: green passed, red failed, amber running.
+- It reads only public data (Vex has no GitHub sign-in), so notifications and private repositories aren't shown. Everything is fetched at most every five minutes, to stay within GitHub's limit for unsigned requests. A username GitHub doesn't know, or GitHub asking to slow down, is said in the panel.
+- Checked live with your account: four repositories with CI lights (Vex's own showing its run in progress) and your open pull requests.
+
 ## v2.32.46 (2026-09-20) — Lock Vex with a PIN, and a Stable update channel
 
 ### Changes

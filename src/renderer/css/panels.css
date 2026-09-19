@@ -346,3 +346,9 @@
   width: 14px;
   height: 14px;
 }
+
+/* GitHub panel: the last CI run of a repository (js/github-panel.js). */
+.gh-ci { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--text-muted, #888); }
+.gh-ci-success { background: #2da44e; }
+.gh-ci-failure, .gh-ci-timed_out { background: #cf222e; }
+.gh-ci-running { background: #bf8700; animation: vex-think-pulse 1.4s ease-in-out infinite; }
