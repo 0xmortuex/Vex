@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.45 (2026-09-20) — Discord pictures load again, and YouTube sponsor skipping
+
+### Fixes
+- **Discord showed "Image failed to load" for posted GIFs and link previews.** "Lighter Discord" (v2.32.36) blocked every GIF and every link-preview picture, including ones people posted, which looked like Discord was broken. It now stops only the decorations from moving (avatars, emoji, stickers, server icons and banners), and anything someone posts or links always loads.
+
+### Changes
+- **Sponsor segments on YouTube are skipped**, using SponsorBlock's community data. When playback reaches a sponsor read, self-promotion or "like and subscribe" part, the video jumps past it and says so for a moment in the corner.
+  - Only the video's id is sent.
+  - Turn it off in Settings › Privacy & Security.
+  - Checked live: seeking into a video's marked sponsor part jumped to its end.
+
 ## v2.32.44 (2026-09-19) — Switch to an open tab, and notes on tabs
 
 ### Changes

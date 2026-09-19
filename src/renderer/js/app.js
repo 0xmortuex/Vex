@@ -897,6 +897,9 @@
   // Pages the user asked to be told about (js/page-watch.js).
   if (typeof PageWatch !== 'undefined') PageWatch.start();
   GitHubWatch.start();
+  SponsorSkip.init();
+  const sponsorToggle = document.getElementById('setting-sponsor-skip');
+  if (sponsorToggle) { sponsorToggle.checked = SponsorSkip.enabled(); sponsorToggle.addEventListener('change', () => SponsorSkip.setEnabled(sponsorToggle.checked)); }
   IcsCalendar.start();
 
   // Ctrl+K can find a tab by the words on it (js/tab-content-index.js).

@@ -344,7 +344,13 @@ const WebviewManager = {
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
         TabManager.updateTab(tab.id, { url: e.url });
+        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: e.url } }));
       }
+    });
+    // A full load, once the page is there to be talked to (js/sponsor-skip.js).
+    onWebview('did-finish-load', () => {
+      try { document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: webview.getURL() } })); }
+      catch (err) { window.VexProblems?.note('Tabs', 'Could not announce a page load', err); }
     });
 
     // OS sleep/resume (or a plain crash) can kill a webview's renderer process,
