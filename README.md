@@ -120,6 +120,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Open a List of Links** (`Ctrl+K`) — paste links in any form; each opens in its own tab.
 - **Images on This Page** (`Ctrl+K`) — every picture at the largest size offered; save one or all.
 - **Check This Page's Links** (`Ctrl+K`) — which links are broken, which moved, which just need a login; *Show on page* outlines the one to fix. Checked from an empty session, so no cookies go out; never run in private or Tor tabs.
+- **Check Accessibility of This Page** (`Ctrl+K`) — pictures with no description, form boxes with no label, buttons and links with no name, text too faint to read (WCAG contrast), headings that skip levels, a missing language or title — in plain words, each outlined on the page. The common, certain failures, not a full audit.
 - **Cite This Page** (`Ctrl+K`) — APA, MLA, Harvard, Chicago or BibTeX from the page's own metadata.
 - **Research Projects** (`Ctrl+K`) — a folder for one topic: the pages you found, your notes, and the AI conversations about it. The chat is the part every browser loses, because it belongs to a tab and tabs close. Open every page at once; export the lot as Markdown.
 - **Eyedropper** (`Ctrl+K`) — sample the colour of any pixel on screen, not just in the page: a video, a PDF, another program. Copies the hex; keeps the last dozen in hex/rgb/hsl.

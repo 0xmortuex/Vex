@@ -196,6 +196,8 @@ const VexFeatures = {
       what: 'Every picture on the page, at the largest size the page offers, to save one at a time or all at once.' },
     { id: 'check-links', cat: 'dev', cmd: 'check-links',
       what: 'Every link on the page asked whether it still works — broken, moved, or behind a login — with the offending link outlined on the page. No cookies are sent.' },
+    { id: 'check-a11y', cat: 'dev', cmd: 'check-a11y',
+      what: 'Checks the page for what stops people using it — pictures with no description, unlabelled boxes, nameless buttons, text too faint to read — in words, each outlined on the page.' },
     { id: 'cite', cat: 'reading', cmd: 'cite',
       what: 'A citation in APA, MLA, Harvard, Chicago or BibTeX, built from what the page publishes about itself.' },
     { id: 'projects', cat: 'work', cmd: 'projects',

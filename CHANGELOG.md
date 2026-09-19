@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.32.14 (2026-09-19) — Can everyone use this page?
+
+### Notes
+- **Check Accessibility of This Page** (`Ctrl+K`). Accessibility audits usually live in developer tools most people never open, and report in WCAG criterion numbers most people can't read. The problems themselves are plain, so Vex now checks the page in front of you for them and says them plainly:
+  - **pictures with no description** (a screen reader reads out the file name, or skips the point the picture made)
+  - **form boxes with no label** (a placeholder alone is flagged as worth a look, because it vanishes as soon as you type)
+  - **buttons and links with no words** (usually an icon, which reads out as just "button")
+  - **text too faint to read**, by WCAG's own contrast formula: 4.5:1 for normal text, 3:1 for large. Text over a background picture is left alone rather than guessed at.
+  - **headings that skip a level**, or no main heading at all
+  - **a missing page language or title**
+- Each finding has **Show on page**, which outlines the element to fix. **Copy report** gives plain text for whoever owns the site. A finding that repeats is said once, with every element it applies to listed beneath.
+- Tested against the W3C's own deliberately inaccessible demonstration site: **22 findings**, including 12 pictures with no description and 7 links with no words. The W3C's *fixed* version of the same site: **nothing found**, so no false alarms.
+- It says plainly what it is: the common, certain failures, the kind a site owner can fix in an afternoon. It isn't a full WCAG audit, and a clean result says so.
+
 ## v2.32.13 (2026-09-19) — Vex gets out of your game's way
 
 ### Notes
