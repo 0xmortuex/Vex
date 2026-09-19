@@ -25,15 +25,21 @@ function mediaParts(permission, details) {
   if (!types || types.includes('audio')) parts.push('microphone');
   return parts.length ? parts : ['camera', 'microphone'];
 }
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 // 'allow' only when every part is allowed; 'deny' when any part is denied.
 // An answer saved before this change sits under '::media'. Its prompt said
 // "camera and microphone", so it still counts for those two — never for a
 // screen share, which nobody was told they were agreeing to.
-function savedDecision(decisions, origin, parts, session) {
+function savedDecision(decisions, origin, parts, session, now = Date.now()) {
+  // "Allow for a day" keeps its end time under decisions.__until__; past it,
+  // the decision is as if never made, and the site asks again.
+  const until = decisions.__until__ || {};
+  const live = (key) => (until[key] && now > until[key] ? undefined : decisions[key]);
   const one = (p) => (session && session.get(`${origin}::${p}`))
-    || decisions[`${origin}::${p}`]
+    || live(`${origin}::${p}`)
     || (session && (p === 'camera' || p === 'microphone') && session.get(`${origin}::media`))
-    || ((p === 'camera' || p === 'microphone') ? decisions[`${origin}::media`] : undefined);
+    || ((p === 'camera' || p === 'microphone') ? live(`${origin}::media`) : undefined);
   const found = parts.map(one);
   if (found.includes('deny')) return 'deny';
   return found.every(v => v === 'allow') ? 'allow' : null;
@@ -230,7 +236,8 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
   if (cb._host !== secureSessions.owner(_e.sender) || !['allow', 'deny'].includes(decision)) return { ok: false, error: 'Invalid permission response' };
   pendingPermissions.delete(id);
   try { cb(decision === 'allow'); } catch {}
-  // remember: true = keep it; 'session' = until Vex closes; false = this once.
+  // remember: true = keep it; 'day' = for 24 hours; 'session' = until Vex
+  // closes; false = this once.
   // "Allow" used to mean for ever or not at all, and the box was ticked by
   // default — so agreeing to a microphone for one call agreed to it for good.
   if (remember && cb._origin && cb._permission) {
@@ -239,7 +246,13 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
       for (const part of parts) sessionDecisions.set(`${cb._origin}::${part}`, decision);
     } else {
       const d = decisionsFor(cb._contents);
-      for (const part of parts) d[`${cb._origin}::${part}`] = decision;
+      const until = { ...(d.__until__ || {}) };
+      for (const part of parts) {
+        const key = `${cb._origin}::${part}`;
+        d[key] = decision;
+        if (remember === 'day') until[key] = Date.now() + DAY_MS; else delete until[key];
+      }
+      if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
       const partition = secureSessions.partitionOf(cb._contents);
       if (!partition || partition.startsWith('persist:')) await savePermissionDecisions(d);
     }

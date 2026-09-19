@@ -1007,6 +1007,16 @@ const WebviewManager = {
         action: () => navigator.clipboard.writeText(e.params.linkURL)
       });
       items.push({
+        // Shorteners and redirects, followed before you click — never from a
+        // private or Tor tab, where asking would contact the site outside it.
+        label: 'Where Does This Link Go?',
+        action: async () => {
+          if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) { window.showToast?.('Not in a private tab — following the link would contact the site from your real connection'); return; }
+          try { await LinkSafety.whereItGoes(e.params.linkURL); }
+          catch (err) { window.showToast?.((err && err.message) || 'Could not follow the link', 'error'); }
+        }
+      });
+      items.push({
         label: 'Send Link to Phone',
         action: () => { try { if (window.SendToPhone) SendToPhone.open(e.params.linkURL); } catch {} }
       });

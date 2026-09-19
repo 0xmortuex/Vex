@@ -1234,7 +1234,7 @@ ipcMain.handle('totp:delete', async (_e, id) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('permissions:list',     () => loadPermissionDecisions());
+ipcMain.handle('permissions:list',     () => { const { __until__, ...d } = loadPermissionDecisions(); return d; });
 ipcMain.handle('permissions:revoke',   async (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; await savePermissionDecisions(d); return { ok: true }; });
 ipcMain.handle('permissions:clear-all', async () => { await savePermissionDecisions({}); return { ok: true }; });
 

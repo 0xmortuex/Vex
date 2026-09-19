@@ -285,3 +285,22 @@ describe('Vex’s own interface and the microphone (dictation)', () => {
     expect(check({ getURL: () => 'https://example.com/', getType: () => 'webview' }, { mediaType: 'audio' })).toBe(false);
   });
 });
+
+describe('how long an answer lasts', () => {
+  it('"Allow this visit" and "Allow for a day" are accepted — the first used to be refused', () => {
+    const { validate } = require('../../src/main/ipc-schemas.js');
+    for (const remember of [true, false, 'session', 'day']) {
+      expect(() => validate('permission:respond', [{ id: 'perm_1', decision: 'allow', remember, origin: 'https://a.example', permission: 'microphone' }]), String(remember)).not.toThrow();
+    }
+    expect(() => validate('permission:respond', [{ id: 'perm_1', decision: 'allow', remember: 'forever' }])).toThrow();
+  });
+
+  it('a day grant counts until it ends, then the site asks again', () => {
+    const { savedDecision } = require('../../src/main/permissions.js');
+    const now = 1_000_000;
+    const d = { 'https://a.example::microphone': 'allow', __until__: { 'https://a.example::microphone': now + 1000 } };
+    expect(savedDecision(d, 'https://a.example', ['microphone'], null, now)).toBe('allow');
+    expect(savedDecision(d, 'https://a.example', ['microphone'], null, now + 1001)).toBeNull();
+    expect(savedDecision({ 'https://a.example::microphone': 'allow' }, 'https://a.example', ['microphone'], null, now + 9e12)).toBe('allow');   // "Always" never ends
+  });
+});

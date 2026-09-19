@@ -244,6 +244,10 @@ const DownloadsPanel = {
       okLabel: info.verdict === 'archive' ? 'Open' : 'Run it',
       cancelLabel: 'Not now',
       danger: info.verdict !== 'signed',
+      // VirusTotal already knows most files by their fingerprint: its page for
+      // this SHA-256 shows what dozens of scanners said. Only the fingerprint
+      // is in the address — the file itself is never uploaded.
+      ...(/^[a-f0-9]{64}$/i.test(info.sha256 || '') ? { extra: { label: 'Check on VirusTotal', run: () => TabManager.createTab('https://www.virustotal.com/gui/file/' + info.sha256.toLowerCase(), true) } } : {}),
     });
   },
 

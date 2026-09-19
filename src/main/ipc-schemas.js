@@ -117,7 +117,10 @@ define('recall:forget', [shape({ url: optional(web), host: optional(string(253))
 define('vault:save', [shape({ host: string(253), username: string(4096), password: string(16384) })]);
 define('vault:delete', [shape({ host: string(253), username: string(4096) })]);
 define('totp:add', [value => string(16384)(value) || shape({ secret: string(16384), label: optional(string(4096)), issuer: optional(string(4096)) })(value)]);
-define('permission:respond', [shape({ id: string(160), decision: oneOf(['allow','deny']), remember: optional(boolean) })]);
+// remember: true / false, 'session' (this visit) or 'day'. It said boolean,
+// and "Allow this visit" sends 'session' — so that button was refused and the
+// site's request hung until it timed out (v2.31.95 to v2.32.33).
+define('permission:respond', [shape({ id: string(160), decision: oneOf(['allow','deny']), remember: optional(oneOf([true, false, 'session', 'day'])) })]);
 define('hid:select-respond', [shape({ id: string(160), deviceId: optional(string(1024)) })]);
 define('screen-picker:choose', [shape({ id: string(160), sourceId: optional(string(1024)), audio: optional(boolean), width: optional(value => Number.isInteger(value) && value >= 0 && value <= 16384), height: optional(value => Number.isInteger(value) && value >= 0 && value <= 16384), fps: optional(value => Number.isInteger(value) && value >= 0 && value <= 240) })]);
 define('sync-save-meta', [shape({ enabled: optional(boolean), email: optional(string(1024)), sessionToken: string(4096), deviceId: string(160), revision: optional(value => Number.isSafeInteger(value) && value >= 0) })]);

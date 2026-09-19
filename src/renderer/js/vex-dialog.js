@@ -43,6 +43,7 @@
             ${opts.input.label ? `<label class="vex-dialog-label" for="${id}-input">${esc(opts.input.label)}</label>` : ''}
             <input class="vex-dialog-input" id="${id}-input" type="text" aria-label="${esc(opts.input.label || opts.title || 'Vex')}" placeholder="${esc(opts.input.placeholder || '')}">` : ''}
           <div class="vex-dialog-actions">
+            ${opts.extra ? `<button class="vex-dialog-btn" data-extra style="margin-right:auto">${esc(opts.extra.label)}</button>` : ''}
             ${opts.cancelLabel === null ? '' : `<button class="vex-dialog-btn" data-cancel>${esc(opts.cancelLabel || t('cancel', 'Cancel'))}</button>`}
             <button class="vex-dialog-btn ${opts.danger ? 'danger' : 'primary'}" data-ok>${esc(opts.okLabel || t('ok', 'OK'))}</button>
           </div>
@@ -66,6 +67,9 @@
 
       overlay.querySelector('[data-ok]').addEventListener('click', () => done(okResult()));
       overlay.querySelector('[data-cancel]')?.addEventListener('click', () => done(cancelResult()));
+      // A third choice (opts.extra = { label, run }): closes as a cancel, then
+      // does its own thing — "look it up first", say.
+      overlay.querySelector('[data-extra]')?.addEventListener('click', () => { done(cancelResult()); opts.extra.run(); });
       overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) done(cancelResult()); });
 
       overlay.addEventListener('keydown', (e) => {

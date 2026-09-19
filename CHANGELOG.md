@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.32.34 (2026-09-19) — Safer links, downloads and permissions
+
+### Fixes
+- **"Allow this visit" on a site's permission prompt didn't work** (since v2.31.95). The button sends "for this visit", and the safety check on the interface's calls expected only yes or no, so it refused the answer. The site's request then hung until it timed out and was denied, and only "Always allow" worked. Fixed and checked live: a page asked for the microphone, "Allow this visit" was clicked, and the page saw it granted.
+
+### Notes
+Four more ideas from the list, finished:
+- **Allow for a day.** Site permission prompts now also offer **Allow for a day**. After 24 hours the site asks again. It shows in Settings › Site Permissions like any other answer and can be removed there.
+- **Which sites used your microphone and camera.** Settings › Site Permissions has a **Recently used** list under "In use right now": for example, "meet.example.com: now; 2 times today, last at 20:02". It keeps 30 days, takes nothing from private or Tor tabs, and **Clear this history** empties it.
+- **Where does this link go?** Right-click a link. Shortened links (bit.ly, t.co…) and redirects are followed to where they really end up:
+  - It asks from an empty session with no cookies or logins, so the site learns nothing about you.
+  - It shows the real address without its tracking tags, warns about lookalike domains and unencrypted pages, and offers **Open it** or **Copy the real address**.
+  - It's not offered in private or Tor tabs, where following the link would contact the site from your real connection.
+- **Check a download on VirusTotal.** The "Run this program?" prompt now has **Check on VirusTotal**. It opens VirusTotal's report for the file by its fingerprint (SHA-256), which shows what dozens of scanners said. The file itself is never uploaded.
+- Checked live in the Firefox look: a short link that redirects twice showed its real destination, the Recently used list filled in after a tab used the microphone, and the prompt showed all four choices.
+
 ## v2.32.33 (2026-09-19) — More from the AI chat
 
 ### Notes

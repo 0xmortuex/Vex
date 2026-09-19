@@ -64,6 +64,37 @@ const PermissionsSettings = (() => {
     }
   }
 
+  // What used the microphone or camera lately (js/capture-history.js).
+  function renderUsed(host) {
+    if (!host || typeof CaptureHistory === 'undefined') return;
+    let rows;
+    try { rows = CaptureHistory.summary(); }
+    catch (err) { host.textContent = err.message; return; }
+    host.innerHTML = '<div class="perm-live-head">Recently used</div>';
+    if (!rows.length) {
+      const none = document.createElement('div');
+      none.className = 'perm-live-none';
+      none.textContent = 'No site has used your microphone or camera in the last 30 days.';
+      host.appendChild(none);
+      return;
+    }
+    const at = (ms) => { const d = new Date(ms); return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString([], { day: 'numeric', month: 'short' }); };
+    for (const r of rows.slice(0, 20)) {
+      const row = document.createElement('div');
+      row.className = 'perm-live-row';
+      row.innerHTML = '<span class="perm-live-what"></span><span class="perm-live-who"></span>';
+      row.querySelector('.perm-live-what').textContent = r.kind === 'mic' ? 'Microphone' : 'Camera';
+      row.querySelector('.perm-live-who').textContent = r.site + ' — ' + (r.now ? 'now; ' : '') + (r.today ? r.today + ' time' + (r.today === 1 ? '' : 's') + ' today' : r.week + ' time' + (r.week === 1 ? '' : 's') + ' this week') + ', last at ' + at(r.last);
+      host.appendChild(row);
+    }
+    const clear = document.createElement('button');
+    clear.className = 'btn-secondary-sm';
+    clear.textContent = 'Clear this history';
+    clear.style.marginTop = '6px';
+    clear.addEventListener('click', () => { CaptureHistory.clear(); renderUsed(host); });
+    host.appendChild(clear);
+  }
+
   async function render(container) {
     if (!container) container = document.getElementById('permissions-panel-content');
     if (!container) return;
@@ -116,10 +147,15 @@ const PermissionsSettings = (() => {
     liveHost.className = 'perm-live';
     container.insertBefore(liveHost, container.firstChild);
     renderLive(liveHost);
+    const usedHost = document.createElement('div');
+    usedHost.className = 'perm-live perm-used';
+    liveHost.after(usedHost);
+    renderUsed(usedHost);
     clearInterval(render._liveTimer);
     render._liveTimer = setInterval(() => {
       if (!liveHost.isConnected) { clearInterval(render._liveTimer); return; }
       renderLive(liveHost);
+      renderUsed(usedHost);
     }, 3000);
 
     // A test toast that says, in words, whether Windows showed it. Notifications

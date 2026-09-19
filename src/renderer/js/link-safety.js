@@ -111,6 +111,44 @@ const LinkSafety = {
     return null;
   },
 
+  // Where a link REALLY ends up — shorteners (bit.ly, t.co…) and HTTP
+  // redirects included, which unwrap() cannot see without asking. Asked on
+  // request only, from the link checker's empty session (no cookies, no
+  // logins), so the site learns nothing about you.
+  async follow(url) {
+    const first = this.describe(url);
+    if (!/^https?:\/\//i.test(first.real)) throw new Error('Only web links can be followed');
+    const r = await window.vex.checkLinks([first.real]);
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Could not follow the link');
+    const x = r.results[0];
+    const final = this.describe(x.finalUrl || first.real);
+    return { first, final, status: x.status, verdict: x.verdict, error: x.error || null, moved: final.clean !== first.clean };
+  },
+
+  // The answer, in a dialog: where it goes, whether that is a lookalike,
+  // and Open / Copy the real address.
+  async whereItGoes(url) {
+    const r = await this.follow(url);
+    const lines = [];
+    lines.push(r.moved ? 'It goes to:\n' + r.final.clean : 'It goes where it says:\n' + r.final.clean);
+    if (r.moved) lines.push('The link itself says:\n' + r.first.url);
+    if (r.final.lookalike) lines.push('Careful: ' + r.final.lookalike.why);
+    if (r.final.insecure) lines.push('The page there is not encrypted (http).');
+    if (r.verdict === 'broken') lines.push('The page there does not answer' + (r.status ? ' (' + r.status + ')' : '') + '.');
+    else if (r.verdict === 'blocked') lines.push('The site there would not answer a stranger — it may need you signed in.');
+    else if (r.error) lines.push('It could not be reached: ' + r.error);
+    const open = await window.vexConfirm({
+      title: 'Where this link goes',
+      message: lines.join('\n\n'),
+      okLabel: 'Open it',
+      cancelLabel: 'Close',
+      danger: !!r.final.lookalike,
+      extra: { label: 'Copy the real address', run: () => navigator.clipboard.writeText(r.final.clean).then(() => window.showToast?.('Copied the real address'), (err) => window.showToast?.('Could not copy: ' + err.message, 'error')) },
+    });
+    if (open) TabManager.createTab(r.final.clean, true);
+    return r;
+  },
+
   // Everything worth saying about a link before it is followed.
   describe(url) {
     const raw = String(url || '');

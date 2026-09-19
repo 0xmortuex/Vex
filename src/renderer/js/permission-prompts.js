@@ -56,6 +56,7 @@ const PermissionPrompts = (() => {
       <div class="perm-actions">
         <button class="btn-danger-sm" data-decision="deny" data-remember="true">Block</button>
         <button class="btn-secondary-sm" data-decision="allow" data-remember="session">Allow this visit</button>
+        <button class="btn-secondary-sm" data-decision="allow" data-remember="day">Allow for a day</button>
         <button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow</button>
       </div>
     `;
@@ -66,14 +67,14 @@ const PermissionPrompts = (() => {
       btn.addEventListener('click', async () => {
         const decision = btn.dataset.decision;
         // 'session' lasts until Vex closes and is never written down.
-        const remember = btn.dataset.remember === 'session' ? 'session' : true;
+        const remember = btn.dataset.remember === 'session' ? 'session' : btn.dataset.remember === 'day' ? 'day' : true;
         try {
           await window.vex.permissionRespond({ id, decision, remember, origin, permission });
         } catch (err) { console.error('[Permissions] respond failed:', err); }
         prompt.classList.remove('show');
         setTimeout(() => prompt.remove(), 250);
         if (typeof window.showToast === 'function') {
-          const how = remember === 'session' ? ' for this visit' : '';
+          const how = remember === 'session' ? ' for this visit' : remember === 'day' ? ' for a day' : '';
           window.showToast(`${decision === 'allow' ? '\u2713 Allowed' : '\u2717 Blocked'}${how}: ${origin} \u2192 ${info.label}`, 'info', 3000);
         }
       });
