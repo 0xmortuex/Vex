@@ -16,6 +16,10 @@ define('app:restore-settings web-suggest qr:make qr:generate permissions:revoke 
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);
 define('game:state', []);
+define('rec:start', [oneOf(['mp4', 'webm'])]);
+define('rec:chunk', [string(80), value => value instanceof Uint8Array && value.byteLength <= 64 * 1024 * 1024]);
+define('rec:finish', [string(80), optional(string(200))]);
+define('rec:cancel', [string(80)]);
 define('capture:submit', [shape({ kind: string(20), text: string(4000) })]);
 define('capture:close capture:done capture:open', []);
 define('extensions:set-enabled', [string(160), boolean]);

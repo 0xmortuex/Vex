@@ -39,6 +39,20 @@ function savedDecision(decisions, origin, parts, session) {
   return found.every(v => v === 'allow') ? 'allow' : null;
 }
 
+// Vex's own interface — the main window's page, not a web page in a tab. Only
+// it may capture the screen without a prompt, and only the screen: it asks
+// when the user presses Record, and the user then chooses what in Vex's own
+// picker, which IS the consent. Web pages keep the normal prompt. Refused
+// here, the recorder failed with "Permission denied" before any picker
+// appeared (measured).
+function isVexUi(contents) {
+  try {
+    if (!contents || contents.isDestroyed?.() || typeof contents.getType !== 'function' || contents.getType() !== 'window') return false;
+    const u = new URL(contents.getURL());
+    return u.protocol === 'file:' && /\/renderer\/index\.html$/i.test(u.pathname);
+  } catch { return false; }
+}
+
 function createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive }) {
 // Answers that last until Vex closes. Never written to disk: "just this visit"
 // that survived a restart would be a lie.
@@ -134,6 +148,12 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // "copy" button and gives nothing away.
     const AUTO_ALLOW = new Set(['fullscreen', 'pointerLock', 'clipboard-sanitized-write', 'mediaKeySystem']);
     if (AUTO_ALLOW.has(permission)) return callback(true);
+    // A screen capture arrives as 'display-capture' or as 'media' with no media
+    // types (see mediaParts) — both mean the screen, and nothing but the screen.
+    if (isVexUi(webContents)) {
+      const asked = mediaParts(permission, details);
+      if (asked.length === 1 && asked[0] === 'display-capture') return callback(true);
+    }
 
     // Dedicated Discord panel session: auto-grant mic/camera/output-device so
     // voice & screen-share work. The generic prompt never surfaces in a panel
@@ -191,6 +211,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // DRM playback (EME) is auto-OK like a normal browser, so the sync check
     // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
     if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;
+    if (permission === 'display-capture' && isVexUi(_wc)) return true;
     if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return true;
     // The check names one device: details.mediaType is 'audio' or 'video'.
     const kind = details && details.mediaType;
@@ -227,4 +248,4 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
 return { sessionDecisions, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
 }
-module.exports = { createPermissionService, originKey, mediaParts, savedDecision };
+module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi };

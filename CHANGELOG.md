@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.32.17 (2026-09-19) — Record the screen
+
+### Notes
+- **Record the Screen** (`Ctrl+K`, run it again to stop). Showing someone how to do something, or what went wrong, is a video, and until now that meant installing a recorder. Pick a screen or a window in the same picker Discord screen share uses, with its sound if you want it. A red pill at the top shows the time and has **Stop** and **Discard**. When you stop, you choose where to save.
+- **It's written to disk as it records**, a chunk every second, so a long recording never piles up in memory. Discard, or saying no to saving, deletes it; nothing is left hidden in a temp folder. Ending the share from Windows' own "Stop sharing" bar stops and saves the same way.
+- **Why WebM and not MP4**, measured rather than assumed: this build *can* record MP4, but its MP4 recorder hands over nothing until you press Stop (a 36-byte header, then silence), so the whole recording would sit in memory for as long as it ran. WebM (VP9 video + Opus audio) arrives chunk by chunk. It plays in Windows' Media Player, Chrome, VLC and Discord.
+
+### Fixes (found while building this)
+- Vex's own window was refused screen capture, so the recorder failed with "Permission denied" before any picker appeared. Vex's own interface may now capture the screen, and only the screen (not your microphone or camera). You choose what in the picker, and that's the consent. Web pages still get the normal permission prompt.
+- Vex's safety check on data passed between its parts counted every byte of binary data as a separate item. A single second of video tripped its 30,000-item limit, so every chunk was refused. Binary data is now checked as one block, with a size limit.
+- Cancelling the picker and being refused before the picker ever opens both used to look like "you chose nothing". A refusal now says so.
+- If a chunk failed to write, Discard could leave the temporary file behind. It no longer can.
+
 ## v2.32.16 (2026-09-19) — Mark up a page, and hide what's private
 
 ### Notes

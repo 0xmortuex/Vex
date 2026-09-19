@@ -168,6 +168,11 @@ contextBridge.exposeInMainWorld('vex', {
   captureFullPage: (wcId) => ipcRenderer.invoke('page:capture-full', wcId),
   // Which of these links answer, from an empty session (no cookies sent).
   checkLinks: (urls) => ipcRenderer.invoke('links:check', urls),
+  // Screen recording: start a file, append chunks as they arrive, then save.
+  recStart: (ext) => ipcRenderer.invoke('rec:start', ext),
+  recChunk: (id, bytes) => ipcRenderer.invoke('rec:chunk', id, bytes),
+  recFinish: (id, name) => ipcRenderer.invoke('rec:finish', id, name),
+  recCancel: (id) => ipcRenderer.invoke('rec:cancel', id),
   // Discord censorship bypass (DoH + SNI fragmentation on persist:discord).
   discordBypass: (on) => ipcRenderer.send('discord:set-bypass', on),
   // Bypass mode: 'off' | 'light' (built-in) | 'strong' (ByeDPI).

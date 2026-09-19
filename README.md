@@ -115,6 +115,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 
 ### 🛠 Productivity
 - **Notes & Clip‑to‑Notes**, **Read Later / Library**, **Bookmarks**, **Feeds (RSS)**.
+- **Record the Screen** (`Ctrl+K`) — pick a screen or a window in the same picker as screen share, with its sound if you want it; saved as a WebM video (VP9 + Opus — plays in Windows Media Player, Chrome, VLC and Discord). Written to disk as it records, so long recordings don't fill memory; a red pill shows the time with Stop and Discard.
 - **Mark Up This Page** (`Ctrl+K`) — pen, highlighter, box, arrow, text, and **redact**: pixelate an email, a name or a balance before you share the picture. Redaction replaces the pixels in the saved image; it isn't a layer that can be removed.
 - **Screenshot the Whole Page** (`Ctrl+K`) — top to bottom in one image, stitched from screenfuls; lazy images are loaded first and a pinned header appears once. A very long page is scaled down; past about 30,000 pixels you get the top and are told so.
 - **Save Page as PDF / as One File** (`Ctrl+K`) — straight to a PDF with no print dialog, or the whole page as a single `.mhtml` that opens offline.

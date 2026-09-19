@@ -184,6 +184,8 @@ const VexFeatures = {
       what: 'Sends the selected text into your notes with a link back to where it came from.' },
     { id: 'gaming', cat: 'media', name: 'Gets out of a game’s way', sel: '#gaming-settings', manual: true,
       what: 'When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and holds background AI — and tells you what it did when you come back. Settings › Gaming.' },
+    { id: 'record-screen', cat: 'media', cmd: 'record-screen',
+      what: 'Record a screen or a window, with its sound, to a video file — no recorder to install. Written to disk as it goes, so a long recording never fills memory.' },
     { id: 'markup', cat: 'media', cmd: 'markup',
       what: 'Draw on a picture of the page — pen, highlighter, boxes, arrows, text — and redact anything private before you share it. Redaction replaces the pixels; it cannot be peeled off.' },
     { id: 'screenshot-full', cat: 'media', cmd: 'screenshot-full',

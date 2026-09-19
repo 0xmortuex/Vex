@@ -1599,6 +1599,19 @@ ipcMain.handle('links:check', async (_e, urls) => {
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not check the links' }; }
 });
 
+// Screen recordings, appended to a temporary file chunk by chunk so a long
+// recording never sits in memory (src/main/recordings.js).
+const _recordings = require('./main/recordings').createRecordings({
+  fs, path, dialog, app, getWindow: () => mainWindow,
+  dir: path.join(app.getPath('userData'), 'recordings-in-progress'),
+  randomId: () => require('crypto').randomBytes(8).toString('hex'),
+});
+_recordings.cleanLeftovers();
+ipcMain.handle('rec:start', (_e, ext) => { try { return { ok: true, ..._recordings.start(ext) }; } catch (err) { return { ok: false, error: err.message }; } });
+ipcMain.handle('rec:chunk', async (_e, id, bytes) => { try { return { ok: true, ...(await _recordings.chunk(id, bytes)) }; } catch (err) { return { ok: false, error: err.message }; } });
+ipcMain.handle('rec:finish', async (_e, id, name) => { try { return await _recordings.finish(id, name); } catch (err) { return { ok: false, error: err.message }; } });
+ipcMain.handle('rec:cancel', async (_e, id) => { try { return await _recordings.cancel(id); } catch (err) { return { ok: false, error: err.message }; } });
+
 // The whole page in one image, not one screenful (src/main/full-page-capture.js).
 const _fullPage = require('./main/full-page-capture').createFullPageCapture({ webContents });
 ipcMain.handle('page:capture-full', async (_e, wcId) => {

@@ -14,6 +14,15 @@
     if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Invalid number');
     if (typeof value === 'string' && value.length > 12 * 1024 * 1024) throw new Error('Text limit exceeded');
     if (!value || typeof value !== 'object') return;
+    // Bytes are one block, not a collection: a second of screen recording is a
+    // Uint8Array of about a million entries, and walking it as a million
+    // "keys" failed every chunk with "Collection limit exceeded" (seen live).
+    // Binary cannot carry the prototype tricks this walk looks for; it only
+    // needs a size limit.
+    if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) {
+      if (value.byteLength > 64 * 1024 * 1024) throw new Error('Binary limit exceeded');
+      return;
+    }
     if (Object.keys(value).length > 30000) throw new Error('Collection limit exceeded');
     for (const [key, child] of Object.entries(value)) {
       if (unsafe.has(key)) throw new Error('Unsafe data property');

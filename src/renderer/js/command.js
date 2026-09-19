@@ -182,6 +182,7 @@ const CommandBar = {
     { id: 'read', label: 'Reading Mode', hint: 'Strip clutter, focus on article', shortcut: 'Ctrl+Alt+R', icon: 'book-open', action: () => ReadingMode.activate() },
     { id: 'translate', label: 'Translate Page', hint: 'Translate via Google Translate', icon: 'globe', action: () => { document.getElementById('translate-bar')?.classList.add('visible'); } },
     { id: 'screenshot', label: 'Screenshot', hint: 'Capture current page', shortcut: 'Ctrl+Alt+S', icon: 'camera', action: () => ScreenshotTool.capture() },
+    { id: 'record-screen', label: 'Record the Screen (Start / Stop)', hint: 'A screen or a window, with sound if you want it, saved as a video you can send', icon: 'video', action: async () => { try { await window.ScreenRecorder?.toggle(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'markup', label: 'Mark Up This Page', hint: 'Draw, highlight, add text, or redact private details on a picture of the page, then save or copy it', icon: 'edit', action: async () => { try { await ScreenshotTool.markUp(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'screenshot-full', label: 'Screenshot the Whole Page', hint: 'Top to bottom in one image, not just the part on screen', icon: 'camera', action: () => ScreenshotTool.captureFull() },
     { id: 'shortcuts', label: 'Keyboard Shortcuts', hint: 'View all shortcuts', icon: 'keyboard', action: () => SidebarManager.openPanel('shortcuts') },
