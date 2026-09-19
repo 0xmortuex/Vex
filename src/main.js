@@ -1599,6 +1599,14 @@ ipcMain.handle('links:check', async (_e, urls) => {
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not check the links' }; }
 });
 
+// One page for the site crawler (src/main/page-fetch.js): the same empty
+// session as the link checker, HTML only, size- and time-limited.
+const _pageFetch = require('./main/page-fetch').createPageFetch({ net, getSession: () => secureSessions.fromPartition('vex-linkcheck') });
+ipcMain.handle('crawl:fetch', async (_e, url, accept) => {
+  try { return { ok: true, ...(await _pageFetch.fetchPage(url, { accept })) }; }
+  catch (err) { return { ok: false, error: (err && err.message) || 'Could not fetch the page' }; }
+});
+
 // Screen recordings, appended to a temporary file chunk by chunk so a long
 // recording never sits in memory (src/main/recordings.js).
 const _recordings = require('./main/recordings').createRecordings({

@@ -168,6 +168,7 @@ contextBridge.exposeInMainWorld('vex', {
   captureFullPage: (wcId) => ipcRenderer.invoke('page:capture-full', wcId),
   // Which of these links answer, from an empty session (no cookies sent).
   checkLinks: (urls) => ipcRenderer.invoke('links:check', urls),
+  crawlFetch: (url, accept) => ipcRenderer.invoke('crawl:fetch', url, accept),
   // Screen recording: start a file, append chunks as they arrive, then save.
   recStart: (ext) => ipcRenderer.invoke('rec:start', ext),
   recChunk: (id, bytes) => ipcRenderer.invoke('rec:chunk', id, bytes),

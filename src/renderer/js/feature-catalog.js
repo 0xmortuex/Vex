@@ -200,6 +200,8 @@ const VexFeatures = {
       what: 'Paste a pile of links — a list, a comma mess, a chat message — and each opens in its own tab.' },
     { id: 'page-images', cat: 'media', cmd: 'page-images',
       what: 'Every picture on the page, at the largest size the page offers, to save one at a time or all at once.' },
+    { id: 'crawl-site', cat: 'dev', cmd: 'crawl-site',
+      what: 'Follows the links of the site you are on, page by page, and says what to fix: broken pages and the pages that link to them, server errors, missing or duplicate titles, missing descriptions, pages hidden from search. Obeys robots.txt.' },
     { id: 'check-links', cat: 'dev', cmd: 'check-links',
       what: 'Every link on the page asked whether it still works — broken, moved, or behind a login — with the offending link outlined on the page. No cookies are sent.' },
     { id: 'check-speed', cat: 'dev', cmd: 'check-speed',

@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.32.23 (2026-09-19) — Crawl this site
+
+### Notes
+- **Crawl This Site** (`Ctrl+K`). *Check This Page's Links* answers for one page; this answers for the whole site. Starting from the page you're on, Vex follows links within the same site, up to 200 pages, and lists what to fix:
+  - **broken pages, with the page that links to each one** ("Open linking page"), because a dead address can only be fixed where it's linked
+  - server errors, and pages that need a sign-in
+  - slow pages (over 3 seconds)
+  - pages hidden from search by `noindex`, in the page or in the `X-Robots-Tag` header
+  - missing titles, the same title on several pages, and missing descriptions
+  - links that go through a redirect
+  - **Copy report** has everything as plain text.
+- **Polite by design:**
+  - It stays on the same site and **obeys robots.txt**, including `Crawl-delay`, which means one page at a time with the wait.
+  - Following RFC 9309, a site that fails to serve its robots.txt (a server error or no answer) is not crawled at all. A site with no robots.txt is fine.
+  - It reads only HTML. Anything else, like a zip or a video, is only asked for its status and never downloaded.
+  - It skips `nofollow` links and pages, and stops the moment you press **Stop** or close the sheet.
+  - Requests come from an empty session with no cookies or logins, the same one the link checker uses. It never runs in private or Tor tabs.
+- Tested live against a local test site with a planted broken link, redirect, slow page, duplicate title, noindex page, a robots.txt-blocked page and an outside link. All were reported, and the server's log shows the blocked page and the outside site were never contacted.
+
 ## v2.32.22 (2026-09-19) — Whiteboard
 
 ### Notes
