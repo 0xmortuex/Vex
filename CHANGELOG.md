@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.32.46 (2026-09-20) — Lock Vex with a PIN, and a Stable update channel
+
+### Changes
+- **Lock Vex.** Set a PIN in Settings › Privacy & Security › Lock Vex, then lock it three ways:
+  - Ctrl+Alt+L, which works inside a page too,
+  - Ctrl+K › *Lock Vex*,
+  - or automatically after 5, 15, 30 or 60 minutes with no keyboard or mouse input on the computer.
+
+  How it behaves:
+  - A PIN screen covers the whole window, and every page and panel underneath is hidden, not just blurred.
+  - A wrong PIN is refused, and after five in a row it waits 30 seconds.
+  - The PIN is kept only as a salted hash.
+  - It's a privacy screen, not encryption: your profile on disk isn't locked.
+  - Checked live in the Firefox look: Ctrl+Alt+L from inside a page, then the PIN to unlock.
+- **Update channels.** Under *Check for Updates*, choose **Latest** (every release, as before) or **Stable**. Stable only tells you about an update once the newest release has been out two days, so a day of several releases is one prompt instead of several.
+
 ## v2.32.45 (2026-09-20) — Discord pictures load again, and YouTube sponsor skipping
 
 ### Fixes

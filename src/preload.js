@@ -181,6 +181,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Screen recording: start a file, append chunks as they arrive, then save.
   recStart: (ext) => ipcRenderer.invoke('rec:start', ext),
   recOwnWindow: () => ipcRenderer.invoke('rec:own-window'),
+  idleSeconds: () => ipcRenderer.invoke('app:idle-seconds'),
+  onLockVex: (callback) => subscribe('lock-vex', callback),
   recChunk: (id, bytes) => ipcRenderer.invoke('rec:chunk', id, bytes),
   recFinish: (id, name) => ipcRenderer.invoke('rec:finish', id, name),
   recCancel: (id) => ipcRenderer.invoke('rec:cancel', id),

@@ -24,6 +24,7 @@ const ShortcutsRegistry = (() => {
     'split-screen':   { default: 'Ctrl+Shift+S', label: 'Split Screen',               category: 'Tabs' },
     'tabs-sidebar':   { default: 'Ctrl+B',       label: 'Toggle Tabs Sidebar',        category: 'Tabs' },
     'pip':            { default: 'Ctrl+Shift+P', label: 'Picture-in-Picture',         category: 'Tabs' },
+    'lock-vex':       { default: 'Ctrl+Alt+L',   label: 'Lock Vex',                   category: 'Tabs' },
 
     // Navigation
     'focus-url':      { default: 'Ctrl+L',       label: 'Focus URL Bar',              category: 'Navigation' },

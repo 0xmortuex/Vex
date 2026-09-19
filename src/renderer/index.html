@@ -337,6 +337,18 @@
 
             <div class="setting-group">
               <label class="setting-label">Privacy &amp; Security</label>
+              <div class="setting-row" style="display:block;margin-bottom:10px">
+                <div class="setting-label"><strong>Lock Vex</strong>
+                  <span class="setting-hint">A PIN screen over the whole window, pages hidden underneath — Ctrl+Alt+L, Ctrl+K › Lock Vex, or when the computer has been idle. A privacy screen, not encryption: your profile on disk is not locked.</span></div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+                  <input id="lock-pin-new" type="password" inputmode="numeric" maxlength="12" placeholder="New PIN (4–12 digits)" aria-label="New PIN">
+                  <input id="lock-pin-again" type="password" inputmode="numeric" maxlength="12" placeholder="Again" aria-label="New PIN again">
+                  <button id="lock-pin-save" type="button" class="btn-secondary">Save PIN</button>
+                  <button id="lock-pin-clear" type="button" class="btn-secondary">Remove PIN</button>
+                  <select id="lock-idle" aria-label="Lock when idle"><option value="0">Never lock when idle</option><option value="5">Lock after 5 idle minutes</option><option value="15">After 15 minutes</option><option value="30">After 30 minutes</option><option value="60">After an hour</option></select>
+                </div>
+                <div id="lock-pin-state" class="setting-hint" style="margin-top:4px"></div>
+              </div>
               <div class="setting-toggle-row">
                 <span>Skip sponsor segments on YouTube (SponsorBlock — sends only the video's id)</span>
                 <label class="toggle"><input type="checkbox" id="setting-sponsor-skip" checked><span class="toggle-slider"></span></label>
@@ -930,6 +942,11 @@
                 <button id="btn-check-updates" class="btn-primary">Check for Updates</button>
                 <span id="update-check-status" style="font-size:11px;color:var(--text-muted)"></span>
               </div>
+              <div class="setting-row" style="margin-bottom:16px">
+                <div class="setting-label"><strong>Update channel</strong>
+                  <span class="setting-hint">Latest tells you about every release. Stable waits until the newest has been out two days, so a busy day of releases is one prompt, not several.</span></div>
+                <select id="setting-update-channel" aria-label="Update channel"><option value="latest">Latest</option><option value="stable">Stable</option></select>
+              </div>
               <div style="background:var(--bg);border-radius:8px;padding:10px 14px;margin-bottom:16px">
                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:var(--text-muted)">Electron</span><span style="color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px" id="about-electron-ver">-</span></div>
                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:var(--text-muted)">Chromium</span><span style="color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px" id="about-chrome-ver">-</span></div>
@@ -1254,6 +1271,7 @@
   <script src="js/page-watch.js"></script>
   <script src="js/github-watch.js"></script>
   <script src="js/sponsor-skip.js"></script>
+  <script src="js/vex-lock.js"></script>
   <script src="js/ics-calendar.js"></script>
   <script src="js/tab-content-index.js"></script>
   <script src="js/ai-router.js"></script>

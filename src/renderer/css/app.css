@@ -1115,3 +1115,14 @@ body.vex-gaming-still *, body.vex-gaming-still *::before, body.vex-gaming-still 
   animation-play-state: paused !important;
   transition: none !important;
 }
+
+/* === Lock Vex (js/vex-lock.js) ==========================================
+   Pages are hidden, not blurred: a blur can still be read. */
+body.vex-locked webview { visibility: hidden !important; }
+.vex-lock-screen { position: fixed; inset: 0; width: 100vw; height: 100vh; max-width: none; max-height: none; z-index: 2147483647; display: flex; align-items: center; justify-content: center; background: var(--bg, #111); }
+.vex-lock-card { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 32px 36px; border-radius: 16px; background: var(--surface, #1c1c1f); border: 1px solid var(--border, rgba(255,255,255,0.12)); box-shadow: 0 24px 60px rgba(0,0,0,0.35); }
+.vex-lock-icon { color: var(--primary, #4c8dff); }
+.vex-lock-title { font-size: 16px; font-weight: 650; color: var(--text, #eee); }
+.vex-lock-card input { width: 180px; text-align: center; font-size: 18px; letter-spacing: 0.3em; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border, #444); background: var(--bg, #111); color: var(--text, #eee); }
+.vex-lock-card button { padding: 8px 22px; border-radius: 8px; border: none; background: var(--primary, #4c8dff); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.vex-lock-msg { min-height: 16px; font-size: 12px; color: var(--danger, #e5484d); }

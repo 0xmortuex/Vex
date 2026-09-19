@@ -81,3 +81,18 @@ describe('the popup', () => {
     expect(document.getElementById('update-notification')).not.toBe(null);
   });
 });
+
+describe('update channels', () => {
+  const now = Date.parse('2026-09-20T12:00:00Z');
+  const fresh = { ...update(), releasedAt: now - 3 * 3600 * 1000 };
+  const settled = { ...update(), releasedAt: now - 3 * 24 * 3600 * 1000 };
+  it('Latest (the default) announces a release as soon as it is out', () => {
+    expect(UpdateNotifier.channel()).toBe('latest');
+    expect(UpdateNotifier.shouldAnnounce(fresh, now)).toBe(true);
+  });
+  it('Stable waits until the newest release has stood for two days', () => {
+    UpdateNotifier.setChannel('stable');
+    expect(UpdateNotifier.shouldAnnounce(fresh, now)).toBe(false);
+    expect(UpdateNotifier.shouldAnnounce(settled, now)).toBe(true);
+  });
+});

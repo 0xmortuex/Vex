@@ -27,8 +27,17 @@ const UpdateNotifier = {
   skippedVersion() { return localStorage.getItem(this.SKIP_KEY) || ''; },
 
   // Should this update be shown at all right now?
+  // Channels. Latest: every release, as it comes out. Stable: only once the
+  // newest release has stood for two days — Vex can ship several a day, and
+  // a copy on Stable hears about the one they settle on, not each one.
+  CHANNEL_KEY: 'vex.updateChannel',
+  STABLE_MS: 2 * 24 * 3600 * 1000,
+  channel() { try { return localStorage.getItem(this.CHANNEL_KEY) === 'stable' ? 'stable' : 'latest'; } catch { return 'latest'; } },
+  setChannel(c) { localStorage.setItem(this.CHANNEL_KEY, c === 'stable' ? 'stable' : 'latest'); },
+
   shouldAnnounce(info, now = Date.now()) {
     if (!info || !info.ok || !info.hasUpdate) return false;
+    if (this.channel() === 'stable' && info.releasedAt && now - info.releasedAt < this.STABLE_MS) return false;
     if (info.latest && info.latest === this.skippedVersion()) return false;
     if (now < this.snoozedUntil()) return false;
     return true;

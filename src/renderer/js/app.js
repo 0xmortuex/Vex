@@ -872,6 +872,8 @@
 
   // === Phase 9: Updates + Welcome ===
   UpdateNotifier.init();
+  const channelSel = document.getElementById('setting-update-channel');
+  if (channelSel) { channelSel.value = UpdateNotifier.channel(); channelSel.addEventListener('change', () => UpdateNotifier.setChannel(channelSel.value)); }
 
   // Downloads: subscribe to events at startup so downloads before panel-open
   // still register (toast + badge).
@@ -898,6 +900,25 @@
   if (typeof PageWatch !== 'undefined') PageWatch.start();
   GitHubWatch.start();
   SponsorSkip.init();
+  VexLock.init();
+  {
+    const state = document.getElementById('lock-pin-state');
+    const say = () => { if (state) state.textContent = VexLock.hasPin() ? 'A PIN is set.' : 'No PIN yet — locking needs one.'; };
+    say();
+    document.getElementById('lock-pin-save')?.addEventListener('click', async () => {
+      const a = document.getElementById('lock-pin-new'), b = document.getElementById('lock-pin-again');
+      if (a.value !== b.value) { window.showToast?.('The two PINs are not the same', 'error'); return; }
+      try { await VexLock.setPin(a.value); a.value = b.value = ''; say(); window.showToast?.('PIN saved — Ctrl+Alt+L locks Vex'); }
+      catch (err) { window.showToast?.(err.message, 'error'); }
+    });
+    document.getElementById('lock-pin-clear')?.addEventListener('click', async () => {
+      if (!VexLock.hasPin()) return;
+      if (!(await vexConfirm({ title: 'Remove the PIN?', message: 'Vex can then not be locked, and will not lock when idle.', okLabel: 'Remove', danger: true }))) return;
+      VexLock.clearPin(); say();
+    });
+    const idle = document.getElementById('lock-idle');
+    if (idle) { idle.value = String(VexLock.idleMinutes()); idle.addEventListener('change', () => VexLock.setIdleMinutes(idle.value)); }
+  }
   const sponsorToggle = document.getElementById('setting-sponsor-skip');
   if (sponsorToggle) { sponsorToggle.checked = SponsorSkip.enabled(); sponsorToggle.addEventListener('change', () => SponsorSkip.setEnabled(sponsorToggle.checked)); }
   IcsCalendar.start();
@@ -1114,6 +1135,7 @@
     ShortcutsRegistry.register('reload',         () => WebviewManager?.reload?.());
     ShortcutsRegistry.register('hard-reload',    () => WebviewManager?.hardReload?.());
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
+    ShortcutsRegistry.register('lock-vex', () => VexLock.lock());
     ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get()));
     ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
     ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing

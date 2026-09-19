@@ -2989,6 +2989,11 @@ app.on('web-contents-created', (_event, contents) => {
     if (handleDictateShortcut(event, input)) return;
     if (handleCommandBarShortcut(event, input, contents)) return;
     if (handleBrowserShortcut(event, input, contents)) return;
+    // Ctrl+Alt+L locks Vex (js/vex-lock.js) even with a page focused.
+    if (input && input.type === 'keyDown' && input.control && input.alt && !input.shift && (input.key || '').toLowerCase() === 'l' && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('lock-vex');
+      event.preventDefault();
+    }
   });
 });
 
@@ -4592,6 +4597,8 @@ function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
 }
 // `look` is the opener's GUI style: a private window keeps its own storage,
 // so without it every private window came up in the Classic look.
+// How long the computer has had no keyboard or mouse input, for Lock when idle.
+ipcMain.handle('app:idle-seconds', () => require('electron').powerMonitor.getSystemIdleTime());
 ipcMain.handle('open-private-window', (_e, look) => openPrivateWindow({ look: look || '' }));
 ipcMain.handle('open-clean-window', (_e, url, look) => openPrivateWindow({ clean: true, url, look: look || '' }));
 
@@ -4625,7 +4632,10 @@ ipcMain.handle('check-for-updates', async () => {
     const m = text.match(/version:\s*([0-9][0-9A-Za-z.\-+]*)/i);
     const latest = m ? m[1].trim() : null;
     if (!latest) return { ok: false, error: 'No version info found', current, url: RELEASES, downloadUrl: DOWNLOAD };
-    return { ok: true, current, latest, hasUpdate: _cmpVer(latest, current) > 0, url: RELEASES, downloadUrl: DOWNLOAD };
+    // When it was published, for the Stable channel (js/update-notifier.js).
+    const d = text.match(/releaseDate:\s*'?([0-9T:.\-Z]+)'?/);
+    const releasedAt = d ? Date.parse(d[1]) || null : null;
+    return { ok: true, current, latest, releasedAt, hasUpdate: _cmpVer(latest, current) > 0, url: RELEASES, downloadUrl: DOWNLOAD };
   } catch (e) {
     return { ok: false, error: e.message, current, url: RELEASES, downloadUrl: DOWNLOAD };
   }
