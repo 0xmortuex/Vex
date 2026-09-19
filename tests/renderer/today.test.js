@@ -72,3 +72,42 @@ describe('the Today snapshot', () => {
     expect(VexToday.isStartPage('https://example.com/renderer/start.html.evil')).toBe(false);
   });
 });
+
+describe('the morning brief', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    global.window.vex = { reminders: { list: vi.fn(async () => [{ id: 'a', message: 'Call Dana', at: later(30), firedAt: null }]), onFired: vi.fn() } };
+    globalThis.Scheduler = { getAllTasks: () => [] };
+    globalThis.ReadLater = { items: [] };
+    globalThis.VexFeeds = { feeds: [{ url: 'u' }], fetchAll: vi.fn(async () => ({ items: [{ title: 'Rust 2.0 is out', at: later(-60) }, { title: 'Old news', at: later(-3 * 24 * 60) }], errors: [] })) };
+  });
+
+  it('is written from what Vex has, only when asked, and shown until the day ends', async () => {
+    let asked = '';
+    globalThis.AIRouter = { callAI: vi.fn(async (feature, { message }) => { asked = message; return { result: 'Call Dana at 15:00; Rust 2.0 came out.' }; }) };
+    expect(VexToday.brief()).toBeNull();
+    const text = await VexToday.writeBrief();
+    expect(text).toBe('Call Dana at 15:00; Rust 2.0 came out.');
+    expect(asked).toContain('Reminder at 15:00: Call Dana');
+    expect(asked).toContain('New in your feeds: Rust 2.0 is out');
+    expect(asked).not.toContain('Old news');
+    expect((await VexToday.build()).brief.text).toBe(text);
+    Date.now.mockReturnValue(NOW + 24 * 3600 * 1000);          // tomorrow: gone
+    expect(VexToday.brief()).toBeNull();
+  });
+
+  it('says so rather than asking the AI about an empty day', async () => {
+    global.window.vex.reminders.list = vi.fn(async () => []);
+    globalThis.VexFeeds = { feeds: [] };
+    globalThis.AIRouter = { callAI: vi.fn() };
+    await expect(VexToday.writeBrief()).rejects.toThrow(/Nothing on today/);
+    expect(AIRouter.callAI).not.toHaveBeenCalled();
+  });
+
+  it('building the snapshot never calls the AI', async () => {
+    globalThis.AIRouter = { callAI: vi.fn() };
+    await VexToday.build();
+    expect(AIRouter.callAI).not.toHaveBeenCalled();
+  });
+});

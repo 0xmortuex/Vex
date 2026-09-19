@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.32.41 (2026-09-19) — A morning brief, pages as Markdown or e-books, text out of screenshots
+
+### Changes
+- **Your morning brief.** Ctrl+K › *Write my morning brief* turns today's reminders, scheduled tasks, changed pages, saved links and the last day's feed headlines into one short paragraph. It sits at the top of Today on the new tab page until the day ends.
+  - The AI is asked only then, never on its own, so opening a new tab never loads a model.
+  - It's told to use only those facts. On a day with nothing in them, it says so instead of asking the AI.
+- **Save Page as Markdown** and **Save Page as an E-book** (.epub), in Ctrl+K. Both keep the article itself, not the menus, headers, footers, sidebars and forms around it.
+  - Links stay links and tables stay tables.
+  - The e-book says where it came from and when, and turns pictures into their descriptions, since an e-reader can't fetch them.
+  - Checked live on a long Wikipedia article. The e-book file was checked with a separate zip reader, every part intact.
+- **Copy text** on a screenshot reads the words in the picture and copies them. It runs on your computer (the first time downloads the reading engine). Checked live: "Invoice 4471 due Friday / Total: 312.50 EUR" read back exactly, in about a second.
+
 ## v2.32.40 (2026-09-19) — A clean window for sharing, split layouts saved, links one at a time
 
 ### Changes

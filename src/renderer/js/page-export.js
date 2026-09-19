@@ -12,6 +12,77 @@
 //                  already says about itself, rather than a citation website
 //                  full of adverts
 
+// Runs INSIDE the page (serialized by PageExport.readable), so it must stand
+// alone. → { title, url, markdown, xhtml }. The article if the page marks
+// one, else its main region, else the body; minus navigation, headers,
+// footers, sidebars, forms and anything hidden. The XHTML keeps only plain
+// structural tags and absolute links, so it is well-formed and safe to put
+// in an e-book; pictures become their alt text there.
+function vexReadablePage() {
+  const root = document.querySelector('article') || document.querySelector('main, [role="main"]') || document.body;
+  const copy = root.cloneNode(true);
+  copy.querySelectorAll('script, style, noscript, template, iframe, svg, canvas, video, audio, nav, header, footer, aside, form, button, input, select, textarea, [aria-hidden="true"], [hidden]').forEach(e => e.remove());
+  const abs = (u) => { try { return new URL(u, location.href).href; } catch { return ''; } };
+  const squash = (s) => s.replace(/\s+/g, ' ');
+
+  function md(node) {
+    if (node.nodeType === 3) return squash(node.nodeValue);
+    if (node.nodeType !== 1) return '';
+    const tag = node.tagName.toLowerCase();
+    const inner = () => Array.from(node.childNodes).map(md).join('');
+    // "<b>Moon </b>pulls": the space belongs outside the marks, or it is lost.
+    const wrap = (mark) => { const raw = inner(), t = raw.trim(); return t ? (/^\s/.test(raw) ? ' ' : '') + mark + t + mark + (/\s$/.test(raw) ? ' ' : '') : raw; };
+    if (/^h[1-6]$/.test(tag)) return '\n\n' + '#'.repeat(Number(tag[1])) + ' ' + inner().trim() + '\n\n';
+    switch (tag) {
+      case 'p': case 'div': case 'section': case 'figure': case 'dl': return '\n\n' + inner().trim() + '\n\n';
+      case 'figcaption': case 'dt': case 'dd': return '\n' + inner().trim() + '\n';
+      case 'br': return '  \n';
+      case 'hr': return '\n\n---\n\n';
+      case 'strong': case 'b': return wrap('**');
+      case 'em': case 'i': return wrap('*');
+      case 'code': return '`' + node.textContent + '`';
+      case 'pre': return '\n\n```\n' + node.textContent.replace(/\n+$/, '') + '\n```\n\n';
+      case 'blockquote': return '\n\n' + inner().trim().split('\n').map(l => '> ' + l).join('\n') + '\n\n';
+      case 'a': { const t = inner().trim(); const h = abs(node.getAttribute('href') || ''); return t && /^https?:/.test(h) ? '[' + t + '](' + h + ')' : t; }
+      case 'img': { const alt = (node.getAttribute('alt') || '').trim(); const src = abs(node.getAttribute('src') || ''); return /^https?:/.test(src) ? '![' + alt + '](' + src + ')' : alt; }
+      case 'ul': case 'ol': {
+        const items = Array.from(node.children).filter(c => c.tagName === 'LI');
+        return '\n\n' + items.map((li, i) => (tag === 'ol' ? (i + 1) + '. ' : '- ') + md(li).trim().replace(/\n/g, '\n   ')).join('\n') + '\n\n';
+      }
+      case 'table': {
+        const rows = Array.from(node.querySelectorAll('tr')).map(tr => Array.from(tr.children).map(c => squash(c.textContent).trim().replace(/\|/g, '\\|')));
+        if (!rows.length) return '';
+        const width = Math.max(...rows.map(r => r.length));
+        const line = (r) => '| ' + Array.from({ length: width }, (_, i) => r[i] || '').join(' | ') + ' |';
+        return '\n\n' + [line(rows[0]), '|' + ' --- |'.repeat(width), ...rows.slice(1).map(line)].join('\n') + '\n\n';
+      }
+      default: return inner();
+    }
+  }
+  const markdown = md(copy).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+
+  // The e-book copy: known tags only, links made absolute, nothing else kept.
+  const KEEP = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr', 'ul', 'ol', 'li', 'a', 'strong', 'b', 'em', 'i', 'code', 'pre', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'figure', 'figcaption', 'sup', 'sub', 'dl', 'dt', 'dd']);
+  function clean(node) {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === 8) { child.remove(); continue; }
+      if (child.nodeType !== 1) continue;
+      const tag = child.tagName.toLowerCase();
+      if (tag === 'img') { child.replaceWith(document.createTextNode((child.getAttribute('alt') || '').trim())); continue; }
+      clean(child);
+      if (!KEEP.has(tag)) { child.replaceWith(...Array.from(child.childNodes)); continue; }
+      const href = tag === 'a' ? abs(child.getAttribute('href') || '') : '';
+      for (const a of Array.from(child.attributes)) child.removeAttribute(a.name);
+      if (/^https?:/.test(href)) child.setAttribute('href', href);
+    }
+  }
+  clean(copy);
+  const xs = new XMLSerializer();
+  const xhtml = Array.from(copy.childNodes).map(n => xs.serializeToString(n)).join('')
+    .replace(/ xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '');
+  return { title: document.title || location.hostname, url: location.href, markdown, xhtml };
+}
+
 const PageExport = {
   _webview() {
     const wv = (typeof WebviewManager !== 'undefined') ? WebviewManager.getActiveWebview() : null;
@@ -33,6 +104,39 @@ const PageExport = {
     if (!r.ok) throw new Error(r.error || 'Could not save the page');
     window.showToast?.((format === 'pdf' ? 'Saved as PDF — ' : 'Saved as one file — ') + String(r.path).split(/[\\/]/).pop());
     return r;
+  },
+
+  // ---- keep its words ------------------------------------------------------
+  // The readable part of the page — the article, not the menus, headers,
+  // footers and forms around it — as Markdown (for notes and editors) or as an
+  // EPUB (for an e-reader). Runs inside the page, on a copy of it.
+  async readable() {
+    const r = await window.vexGuestEval(this._webview(), '(' + vexReadablePage.toString() + ')()');
+    if (!r || !r.markdown.trim()) throw new Error('There is no readable text on this page');
+    return r;
+  },
+
+  async saveMarkdown() {
+    const r = await this.readable();
+    const head = '# ' + r.title + '\n\nFrom <' + r.url + '>, saved ' + new Date().toDateString() + '.\n\n';
+    const res = await window.vex.saveTextFile(this._fileName(r.title, 'md'), head + r.markdown + '\n', 'md');
+    if (!res || res.cancelled) return null;
+    if (!res.ok) throw new Error(res.error || 'The file was not saved');
+    window.showToast?.('Saved as Markdown — ' + String(res.path).split(/[\\/]/).pop());
+    return res;
+  },
+
+  async saveEpub() {
+    const r = await this.readable();
+    const res = await window.vex.saveEpub({ title: r.title, url: r.url, xhtml: r.xhtml });
+    if (!res || res.cancelled) return null;
+    if (!res.ok) throw new Error(res.error || 'The book was not saved');
+    window.showToast?.('Saved as an e-book — ' + String(res.path).split(/[\\/]/).pop());
+    return res;
+  },
+
+  _fileName(title, ext) {
+    return (String(title || 'page').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100) || 'page') + '.' + ext;
   },
 
   // ---- open a list -----------------------------------------------------
@@ -328,4 +432,4 @@ const PageExport = {
 };
 
 if (typeof window !== 'undefined') window.PageExport = PageExport;
-if (typeof module !== 'undefined' && module.exports) module.exports = { PageExport };
+if (typeof module !== 'undefined' && module.exports) module.exports = { PageExport, vexReadablePage };

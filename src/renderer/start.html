@@ -1341,6 +1341,7 @@
     .today-when.overdue { color: #e5484d; }
     .today-text { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .today-error { font-size: 12px; color: #e5484d; padding: 6px 14px; }
+    .today-brief { margin: 0 0 6px; padding: 12px 14px; font-size: 14px; line-height: 1.55; color: var(--vex-text-primary); background: var(--vex-glass-light); border: 1px solid var(--vex-border-subtle); border-left: 3px solid var(--vex-accent, var(--vex-border-accent)); border-radius: var(--vex-radius-md); }
     .today-world-list { flex: 1; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; }
     .today-city b { font-variant-numeric: tabular-nums; color: var(--vex-text-primary); }
     .today-city.night b { color: var(--vex-text-muted); }
@@ -1371,6 +1372,11 @@
         list.innerHTML = '';
         if (!snap) { sec.hidden = true; return; }
         var rows = [];
+        // The morning brief (Ctrl+K › Write my morning brief), first.
+        if (snap.brief && snap.brief.text) {
+          var p = document.createElement('p'); p.className = 'today-brief'; p.textContent = snap.brief.text;
+          rows.push(p);
+        }
         (snap.reminders || []).forEach(function (r) {
           var kind = r.forWork ? 'Work' : (r.kind === 'alarm' ? 'Alarm' : r.kind === 'timer' ? 'Timer' : 'Reminder');
           rows.push(row(kind, r.site ? 'on ' + r.site : hhmm(r.at), r.text, r.url, r.overdue ? 'overdue' : ''));

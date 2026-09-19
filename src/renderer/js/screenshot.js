@@ -77,6 +77,7 @@ const ScreenshotTool = {
           <button class="ss-annotate">Annotate</button>
           <button class="ss-save">Save</button>
           <button class="ss-copy">Copy</button>
+          <button class="ss-ocr" title="Read the words in the picture and copy them">Copy text</button>
           <button class="ss-close">Close</button>
         </div>
       </div>
@@ -108,6 +109,11 @@ const ScreenshotTool = {
         window.showToast?.('Copy failed');
       }
       this.hidePreview();
+    });
+
+    overlay.querySelector('.ss-ocr')?.addEventListener('click', () => {
+      this.hidePreview();
+      DocExtract.ocrImage(dataUrl).catch(err => window.showToast?.('Could not read the text: ' + ((err && err.message) || ''), 'error'));
     });
 
     overlay.querySelector('.ss-close')?.addEventListener('click', () => this.hidePreview());

@@ -104,7 +104,54 @@ const VexToday = {
       }
     } catch (err) { snap.errors.push('read later: ' + ((err && err.message) || 'unavailable')); }
 
+    // The morning brief, if one was written today.
+    const brief = this.brief(now);
+    if (brief) snap.brief = brief;
+
     return snap;
+  },
+
+  // ---- The morning brief -----------------------------------------------------
+  // A paragraph at the top of Today on the new tab page: the day in plain
+  // words. Written by the AI only when asked (Ctrl+K › Write my morning brief)
+  // — never on its own, so opening a new tab never loads a model.
+  BRIEF_KEY: 'vex.morningBrief',
+  _day(ms) { const d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); },
+  brief(now = Date.now()) {
+    try {
+      const b = JSON.parse(localStorage.getItem(this.BRIEF_KEY) || 'null');
+      return b && b.day === this._day(now) && b.text ? { text: b.text, at: b.at } : null;
+    } catch { return null; }
+  },
+
+  // What the brief is written from — only what Vex has, so nothing is made up.
+  briefFacts(snap, headlines = []) {
+    const hhmm = (ms) => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+    const lines = [];
+    for (const r of snap.reminders) lines.push('Reminder' + (r.site ? ' (when on ' + r.site + ')' : ' at ' + hhmm(r.at)) + (r.overdue ? ', overdue' : '') + ': ' + r.text);
+    for (const t of snap.tasks) lines.push('Scheduled at ' + hhmm(t.at) + ': ' + t.text);
+    for (const c of snap.changed) lines.push('A watched page changed: ' + c.text);
+    for (const s of snap.saved) lines.push('Saved to read: ' + s.text);
+    for (const h of headlines.slice(0, 8)) lines.push('New in your feeds: ' + h);
+    return lines;
+  },
+
+  async writeBrief(now = Date.now()) {
+    const snap = await this.build();
+    let headlines = [];
+    if (typeof VexFeeds !== 'undefined' && VexFeeds.feeds && VexFeeds.feeds.length) {
+      const got = await VexFeeds.fetchAll();
+      headlines = got.items.filter(i => now - i.at < 24 * 3600 * 1000).map(i => i.title);
+    }
+    const facts = this.briefFacts(snap, headlines);
+    if (!facts.length) throw new Error('Nothing on today: no reminders, tasks, changed pages, saved links or new feed items to write about');
+    const prompt = 'Write my morning brief: one short paragraph, 2 to 4 sentences, in plain words, no list and no greeting. Say what matters first. Use only these facts and invent nothing:\n\n' + facts.join('\n');
+    const res = await AIRouter.callAI('chat', { message: prompt });
+    const text = String((res && (res.result || res.text || res.message)) || '').trim();
+    if (!text) throw new Error('The AI returned nothing');
+    localStorage.setItem(this.BRIEF_KEY, JSON.stringify({ day: this._day(now), text, at: now }));
+    await this.refresh();
+    return text;
   },
 
   async refresh() {

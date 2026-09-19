@@ -4906,13 +4906,27 @@ ipcMain.handle('reminders:hold', async (_e, untilMs) => {
 ipcMain.handle('file:save-text', async (_e, { name, text, kind } = {}) => {
   const filters = kind === 'ics'
     ? [{ name: 'Calendar entry', extensions: ['ics'] }]
-    : [{ name: 'Text', extensions: ['txt'] }];
+    : kind === 'md'
+      ? [{ name: 'Markdown', extensions: ['md'] }]
+      : [{ name: 'Text', extensions: ['txt'] }];
   const safeName = String(name || 'vex.txt').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
   const r = await dialog.showSaveDialog(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
     title: 'Save', defaultPath: path.join(app.getPath('downloads'), safeName), filters,
   });
   if (r.canceled || !r.filePath) return { ok: false, cancelled: true };
   await fs.promises.writeFile(r.filePath, String(text || ''), 'utf8');
+  return { ok: true, path: r.filePath };
+});
+
+// The readable part of a page as an e-book (renderer: PageExport.saveEpub).
+ipcMain.handle('page:save-epub', async (_e, { title, url, xhtml }) => {
+  const book = require('./main/epub').buildEpub({ title, url, xhtmlBody: xhtml });
+  const safeName = (String(title || 'page').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100) || 'page') + '.epub';
+  const r = await dialog.showSaveDialog(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
+    title: 'Save as an e-book', defaultPath: path.join(app.getPath('downloads'), safeName), filters: [{ name: 'E-book', extensions: ['epub'] }],
+  });
+  if (r.canceled || !r.filePath) return { ok: false, cancelled: true };
+  await fs.promises.writeFile(r.filePath, book);
   return { ok: true, path: r.filePath };
 });
 

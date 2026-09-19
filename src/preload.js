@@ -331,6 +331,7 @@ contextBridge.exposeInMainWorld('vex', {
   },
   // Save a small text file where the user chooses (a calendar entry, an export).
   saveTextFile: (name, text, kind) => ipcRenderer.invoke('file:save-text', { name, text, kind }),
+  saveEpub: (book) => ipcRenderer.invoke('page:save-epub', book),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),
   openAsApp: (url, title) => ipcRenderer.invoke('app:open-as-app', url, title),

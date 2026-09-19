@@ -351,6 +351,20 @@ const DocExtract = {
     this._showResult(text, 'OCR (visible page)');
   },
 
+  // Text out of any picture — a screenshot you just took. → the text ('' when
+  // there is none), shown and copied.
+  async ocrImage(dataUrl, source = 'OCR (screenshot)') {
+    window.showToast?.('Reading the text in the picture — the first time downloads the engine…');
+    const lib = await this._loadOcr();
+    const { data } = await lib.recognize(dataUrl, 'eng', {
+      logger: (msg) => { if (msg && msg.status === 'recognizing text' && typeof msg.progress === 'number') window.showToast?.('OCR… ' + Math.round(msg.progress * 100) + '%'); },
+    });
+    const text = ((data && data.text) || '').trim();
+    if (!text) { window.showToast?.('No readable text in that picture'); return ''; }
+    this._showResult(text, source);
+    return text;
+  },
+
   async _loadOcr() {
     if (this._ocrLib) return this._ocrLib;
     const base = new URL('vendor/runtime/', window.location.href);

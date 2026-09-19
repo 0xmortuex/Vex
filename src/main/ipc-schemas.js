@@ -80,6 +80,7 @@ define('reminders:visited', [string(253)]);
 define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(value) && value >= 0]);
 // Save a small text file where the user chooses — a calendar entry, an export.
 define('file:save-text', [shape({ name: string(200), text: string(1024 * 1024), kind: optional(string(40)) })]);
+define('page:save-epub', [shape({ title: string(500), url: string(4096), xhtml: string(8 * 1024 * 1024) })]);
 define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
 define('page:save', [integer, string(10), optional(string(500))]);
