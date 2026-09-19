@@ -38,6 +38,29 @@ const VideoChat = {
     return String(html).replace(this.STAMP, (all, stamp) => `<button type="button" class="ai-stamp" data-t="${this.seconds(stamp)}" title="Jump the video to ${stamp}">${stamp}</button>`);
   },
 
+  // A link back to one moment of a video: YouTube takes ?t=, everything else
+  // understands the media fragment #t=.
+  momentLink(url, seconds) {
+    const t = Math.max(0, Math.floor(Number(seconds) || 0));
+    const id = AgentTools.youtubeId(url);
+    if (id) return 'https://www.youtube.com/watch?v=' + id + '&t=' + t;
+    const clean = String(url).split('#')[0];
+    return clean + '#t=' + t;
+  },
+
+  // "Note this moment": where the video is now, as a note you can click back to.
+  async noteMoment(note = '') {
+    const tab = TabManager.getActiveTab();
+    if (!tab || !/^https?:/i.test(tab.url || '')) throw new Error('Open the video first');
+    const wv = WebviewManager.getActiveWebview();
+    const at = await window.vexGuestEval(wv, '(() => { const v = document.querySelector("video"); return v ? v.currentTime : null; })()');
+    if (at == null) throw new Error('There is no video on this page');
+    const stamp = new Date(Math.floor(at) * 1000).toISOString().slice(at >= 3600 ? 11 : 14, 19);
+    const link = this.momentLink(tab.url, at);
+    AgentTools.saveNote(tab.title || 'Video note', '[' + stamp + '](' + link + ')' + (note ? ' — ' + note : ''), link);
+    return { stamp, link };
+  },
+
   async seek(seconds) {
     const wv = WebviewManager.getActiveWebview();
     if (!wv) throw new Error('No page is open');

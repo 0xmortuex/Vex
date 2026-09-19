@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.32.52 (2026-09-20) — Note this moment of a video
+
+### Changes
+- **Note This Moment of the Video** (Ctrl+K). While a video plays, it saves a note with the timestamp and a link straight back to that second — with a line of your own if you type one. YouTube links keep `t=`; other sites get the standard `#t=` so the video opens where you left it.
+
 ## v2.32.51 (2026-09-20) — How long a saved link takes, and what is inside a download
 
 ### Changes

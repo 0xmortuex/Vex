@@ -45,3 +45,23 @@ describe('timestamps in the answer', () => {
     await expect(VideoChat.seek(1)).rejects.toThrow('There is no video on this page');
   });
 });
+
+describe('a note that links to a moment', () => {
+  it('links back to the second the video is at', () => {
+    expect(VideoChat.momentLink(VIDEO, 125.7)).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=125');
+    expect(VideoChat.momentLink('https://vimeo.com/123#x', 61)).toBe('https://vimeo.com/123#t=61');
+  });
+
+  it('saves the timestamp and the link as a note, and says when there is no video', async () => {
+    const saved = [];
+    globalThis.TabManager = { getActiveTab: () => ({ url: VIDEO, title: 'How tides work' }) };
+    globalThis.WebviewManager = { getActiveWebview: () => ({}) };
+    globalThis.AgentTools = { ...AgentTools, saveNote: (t, c, s) => saved.push([t, c, s]) };
+    window.vexGuestEval = vi.fn(async () => 3725);
+    const r = await VideoChat.noteMoment('the tide turns');
+    expect(r.stamp).toBe('01:02:05');
+    expect(saved[0]).toEqual(['How tides work', '[01:02:05](https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=3725) — the tide turns', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=3725']);
+    window.vexGuestEval = vi.fn(async () => null);
+    await expect(VideoChat.noteMoment()).rejects.toThrow('no video on this page');
+  });
+});

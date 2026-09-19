@@ -30,6 +30,14 @@ const CommandBar = {
       try { await VexToday.writeBrief(); window.showToast?.('Your brief is on the new tab page'); }
       catch (err) { window.showToast?.((err && err.message) || 'Could not write the brief', 'error'); }
     } },
+    { id: 'note-moment', label: 'Note This Moment of the Video', hint: 'A note linking back to where the video is now', icon: 'note', action: async () => {
+      try {
+        const text = await vexPrompt({ title: 'Note this moment', message: 'What happens here? Leave it empty for just the link.', value: '', okLabel: 'Save' });
+        if (text == null) return;
+        const r = await VideoChat.noteMoment(text);
+        window.showToast?.('Noted ' + r.stamp + ' — in your Notes');
+      } catch (e) { window.showToast?.(e.message, 'error'); }
+    } },
     { id: 'overlay', label: 'Open This Page as an Overlay', hint: 'A small window that floats over your game or other apps — Esc closes it, Ctrl+Up/Down changes how see-through it is', icon: 'window', action: async () => {
       const t = TabManager.getActiveTab();
       if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open the page you want floating first', 'error'); return; }
