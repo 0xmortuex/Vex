@@ -43,6 +43,7 @@ const AGENT_TOOLS = [
   { name: 'group_tabs', description: 'Put tabs into a new tab group. Ids come from list_tabs', parameters: { name: 'string', tabIds: 'string[]', color: 'string (optional)' } },
   { name: 'save_note', description: 'Save a note in the Notes panel (Markdown). Use it when asked to write something down or keep research', parameters: { title: 'string', content: 'string', sourceUrl: 'string (optional)' } },
   { name: 'watch_page', description: 'Keep checking the page open now and tell the user when something happens. "when" is plain words: "drops under 300", "goes above 50", "goes down", "changes", "is back in stock"', parameters: { when: 'string' } },
+  { name: 'change_setting', description: 'Change one of the settings of VEX ITSELF, in plain words: "turn on streamer mode", "turn off mouse gestures", "set the search engine to DuckDuckGo". The user is always asked first', parameters: { request: 'string' } },
   { name: 'create_reminder', description: 'Set a reminder. "when" is plain words: "tomorrow 9am", "in 2 hours", "friday 17:00", "when on github.com"', parameters: { message: 'string', when: 'string' } },
   { name: 'add_bookmark', description: 'Bookmark a page (the current tab when no url is given)', parameters: { url: 'string (optional)', title: 'string (optional)' } },
   { name: 'search_history', description: "Search the user's browsing history by words in the title, address or summary", parameters: { query: 'string', limit: 'number (optional)' } },
@@ -80,7 +81,7 @@ function agentGuide(mode, now) {
     '- RESEARCH, or any question about the world: do NOT drive a search engine page. Call web_search, then read_url on the 2-4 most relevant results from different sites, then finish. If read_url says a page has little text, open it with new_tab and use extract_text.',
     '- finish.summary is what the user reads. Write Markdown: the direct answer first; then the facts, numbers and dates that support it, marked [1], [2]; then a "Sources" list of the URLs you actually read. Say plainly what you could not verify.',
     "- ACTING on a page: the page's interactive elements arrive with every turn. Use click with one of their selectors, or click_text with the visible words of a button or link. type_text replaces the field's content; add \"submit\": true to press Enter. After an action that changes the page, look at the new page state before acting again.",
-    '- VEX itself needs no page: tabs (list_tabs, switch_tab, new_tab, close_tab, read_tab), tab groups (list_tab_groups, rename_tab_group, group_tabs), notes (save_note), reminders (create_reminder), watching a page for a change or a price (watch_page), bookmarks (add_bookmark), history (search_history).',
+    '- VEX itself needs no page: tabs (list_tabs, switch_tab, new_tab, close_tab, read_tab), tab groups (list_tab_groups, rename_tab_group, group_tabs), notes (save_note), reminders (create_reminder), watching a page for a change or a price (watch_page), the settings of Vex (change_setting), bookmarks (add_bookmark), history (search_history).',
     "- VEX DOES IT ITSELF. Before you open a website for a utility, check whether Vex has it built in — it usually does. A timer is start_timer, never a timer website. An alarm, the stopwatch, a city's time, freeing memory: vex_command with the sentence ('alarm 7am weekdays'). Anything else about the browser — screenshots, reader mode, translating a page, split view, sessions, downloads, themes, passwords: call vex_features with a few words, then vex_command with the command id it returns. Tell the user where the result lives ('the timer is in the toolbar').",
     '- When the words on a page do not explain it, call screenshot to look at it.',
     "- THE USER'S OWN THINGS: search_notes, read_note, append_note, search_bookmarks, list_reminders, search_history. Anything about what they wrote down, saved or planned starts there, not on the web.",
@@ -514,7 +515,7 @@ const AgentLoop = {
   // Undo what a run MADE. Deliberately only Vex's own things: what it did on a
   // web page is the page's business and cannot be taken back from here, and
   // pretending otherwise would be worse than saying so.
-  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder', 'watch'],
+  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder', 'watch', 'github-watch', 'setting'],
 
   async undoRun(id) {
     const run = this.runs().find(r => r.id === id);
@@ -536,6 +537,12 @@ const AgentLoop = {
   },
 
   async _undoOne(item) {
+    if (item.kind === 'setting') { VexSettingsControl.undo(item); return; }
+    if (item.kind === 'github-watch') {
+      if (!GitHubWatch.list().some(w => w.id === item.id)) throw new Error('already gone');
+      GitHubWatch.remove(item.id);
+      return;
+    }
     if (item.kind === 'watch') {
       if (!window.PageWatch.list().some(w => w.id === item.id)) throw new Error('already gone');
       window.PageWatch.remove(item.id);
@@ -903,6 +910,24 @@ const AgentLoop = {
     });
   },
 
+  // The answer as a calendar entry (.ics, any calendar opens it) at a time the
+  // user types, read the same way as a reminder's.
+  async toCalendar(goal, summary) {
+    const when = await vexPrompt({ title: 'Add to calendar', message: 'When is it? The answer goes in the entry.', placeholder: 'tomorrow 3pm, friday 17:00, in 2 days', okLabel: 'Save the entry' });
+    if (when == null) return null;
+    const at = VexQuickReminder.parseWhen(when);
+    const title = String(goal || 'Agent answer').split('\n')[0].slice(0, 120);
+    const path = await VexQuickReminder.saveToCalendar({ id: vexId('agent'), at: at.getTime(), message: title + '\n\n' + String(summary) });
+    if (path) window.showToast?.('Saved — open it to add it to your calendar');
+    return path;
+  },
+
+  // The answer as a new email in the user's own mail app; they choose who to.
+  async toMail(goal, summary) {
+    if (typeof window.vex?.composeMail !== 'function') throw new Error('not available in this build');
+    return window.vex.composeMail(String(goal || 'From Vex').split('\n')[0].slice(0, 200), String(summary));
+  },
+
   // The final answer is the point of a research run: Markdown, not an escaped
   // one-liner.
   _renderFinal(summary, goal) {
@@ -917,7 +942,10 @@ const AgentLoop = {
     el.appendChild(body);
     const bar = document.createElement('div');
     bar.className = 'agent-final-actions';
-    bar.innerHTML = '<button class="agent-final-btn" data-act="note">Save as note</button><button class="agent-final-btn" data-act="copy">Copy</button>';
+    bar.innerHTML = '<button class="agent-final-btn" data-act="note">Save as note</button><button class="agent-final-btn" data-act="copy">Copy</button>'
+      + '<button class="agent-final-btn" data-act="calendar">Add to calendar</button><button class="agent-final-btn" data-act="mail">Email draft</button>';
+    bar.querySelector('[data-act="calendar"]').addEventListener('click', () => this.toCalendar(goal, summary).catch(err => window.showToast?.((err && err.message) || 'Could not make the calendar entry', 'error')));
+    bar.querySelector('[data-act="mail"]').addEventListener('click', () => this.toMail(goal, summary).catch(err => window.showToast?.('Could not open your mail app: ' + ((err && err.message) || ''), 'error')));
     bar.querySelector('[data-act="note"]').addEventListener('click', (e) => {
       const btn = e.currentTarget;
       try { AgentTools.saveNote(String(goal || 'Agent answer').slice(0, 120), String(summary)); btn.textContent = 'Saved to Notes'; btn.disabled = true; }

@@ -336,6 +336,7 @@ contextBridge.exposeInMainWorld('vex', {
   getCustomThemeImage: () => ipcRenderer.invoke('theme:get-custom-image'),
   setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  composeMail: (subject, body) => ipcRenderer.invoke('mail:compose', { subject, body }),
   onUpdateAvailable: (cb) => subscribe('update-available', cb),
   onUpdateNotAvailable: (cb) => subscribe('update-not-available', cb),
   onUpdateDownloadProgress: (cb) => subscribe('update-download-progress', cb),

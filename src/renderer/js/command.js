@@ -272,9 +272,18 @@ const CommandBar = {
         PageWatch.checkOne(w.id);                 // the first look sets the baseline
       } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
     } },
+    { id: 'watchgithub', label: 'Tell me when this GitHub run finishes', hint: 'Or when this repository has a new release — asked of GitHub, told on your desktop', icon: 'alarm', isPrimary: true, action: async () => {
+      const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
+      try {
+        const w = GitHubWatch.add(tab && tab.url);
+        window.showToast?.('Watching the ' + GitHubWatch.describe(w) + (w.kind === 'run' ? ' — Vex tells you when it finishes' : ' — Vex tells you when there is a new one'));
+        await GitHubWatch.checkDue();             // a finished run says so now; a release sets its baseline
+      } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
+    } },
     { id: 'watches', label: 'Watched pages', hint: 'What Vex is keeping an eye on, and what it last saw', icon: 'alarm', action: async () => {
       if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
-      const list = PageWatch.list();
+      // GitHub runs and releases are listed with the pages.
+      const list = [...PageWatch.list(), ...GitHubWatch.list().map(w => ({ id: w.id, github: true, title: 'GitHub: ' + GitHubWatch.describe(w), lastCheckedAt: w.lastCheckedAt, lastValue: w.last, lastError: w.error }))];
       if (!list.length) { window.showToast?.('Nothing is being watched yet — Ctrl+K → Tell me when this page changes'); return; }
       const ago = (t) => (t ? Math.round((Date.now() - t) / 60000) + ' min ago' : 'not yet');
       const pick = await vexPrompt({
@@ -287,7 +296,7 @@ const CommandBar = {
       });
       const chosen = list[parseInt(pick, 10) - 1];
       if (!chosen) return;
-      PageWatch.remove(chosen.id);
+      if (chosen.github) GitHubWatch.remove(chosen.id); else PageWatch.remove(chosen.id);
       window.showToast?.('No longer watching ' + chosen.title);
     } },
     { id: 'switchenv', label: 'Switch environment', hint: 'The same path on your local server, staging or live', icon: 'code', isPrimary: true, action: async () => {

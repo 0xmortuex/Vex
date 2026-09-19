@@ -266,8 +266,18 @@ const AgentExecutor = {
         }
 
         case 'watch_page': {
+          const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
+          if (tab && GitHubWatch.parse(tab.url) && /\b(finish|done|complete|pass|fail|build|release|version|out)/i.test(String(params.when || ''))) {
+            const w = GitHubWatch.add(tab.url);
+            return { ok: true, result: 'Watching the ' + GitHubWatch.describe(w) + ' through GitHub', undo: { kind: 'github-watch', id: w.id, label: 'the watch on the ' + GitHubWatch.describe(w) } };
+          }
           const made = window.PageWatch.watchCurrent(params.when);
           return { ok: true, result: 'Watching: ' + made.said, undo: { kind: 'watch', id: made.watch.id, label: 'the watch on ' + (made.watch.title || made.watch.url) } };
+        }
+
+        case 'change_setting': {
+          const r = await VexSettingsControl.apply(String(params.request || ''));
+          return { ok: true, result: r.message, undo: r.changed && r.id ? { kind: 'setting', id: r.id, from: r.from, label: 'the change to "' + r.label + '"' } : undefined };
         }
 
         case 'create_reminder': {

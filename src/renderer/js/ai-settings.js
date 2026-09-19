@@ -188,6 +188,7 @@ const AISettings = (() => {
       });
     }
     document.getElementById('btn-test-agent-model')?.addEventListener('click', (e) => testAgentModel(e.currentTarget));
+    document.getElementById('btn-test-all-models')?.addEventListener('click', (e) => testAllModels(e.currentTarget).catch(err => window.showToast?.('Could not list your models: ' + ((err && err.message) || ''), 'error')));
     renderTrustedSites();
   }
 
@@ -234,6 +235,35 @@ const AISettings = (() => {
       facts.textContent = [r.vision ? 'Can see screenshots' : 'Cannot see screenshots (no vision)', 'agent context ' + r.numCtx.toLocaleString() + ' tokens', r.contextLength ? 'model limit ' + r.contextLength.toLocaleString() : '', Math.max(0, ...r.cases.map(c => c.promptTokens)) ? 'an empty turn uses ' + Math.max(...r.cases.map(c => c.promptTokens)).toLocaleString() : ''].filter(Boolean).join(' · ');
       box.appendChild(facts);
       if (r.warning) { const w = document.createElement('div'); w.className = 'agent-test-row bad'; w.textContent = r.warning; box.appendChild(w); }
+    } catch (err) {
+      box.textContent = 'The test could not run: ' + ((err && err.message) || 'unknown error');
+    } finally { btn.disabled = false; btn.textContent = orig; }
+  }
+
+  // The same four turns on every installed model, ranked.
+  async function testAllModels(btn) {
+    const box = document.getElementById('agent-test-result');
+    const models = (await Ollama.listModels()).filter(m => !AgentModelTest.EMBED.test(m.name));
+    const ok = await vexConfirm({ title: 'Test every model?', message: `Each of your ${models.length} models answers the same four turns, one model at a time, and is unloaded afterwards. Expect about a minute per model, with the graphics card busy throughout.`, okLabel: 'Test them all' });
+    if (!ok) return;
+    const orig = btn.textContent;
+    btn.disabled = true;
+    box.hidden = false;
+    try {
+      const rows = await AgentModelTest.runAll((i, n, model) => { btn.textContent = 'Testing ' + i + '/' + n + '…'; box.textContent = 'Testing ' + model + ' (' + i + ' of ' + n + ')…'; });
+      box.textContent = '';
+      const head = document.createElement('div');
+      head.className = 'agent-test-head';
+      head.textContent = 'Best agent models here, best first';
+      box.appendChild(head);
+      rows.forEach((r, i) => {
+        const row = document.createElement('div');
+        row.className = 'agent-test-row ' + (r.error ? 'bad' : r.passed === r.total ? 'ok' : r.passed === r.total - 1 ? '' : 'bad');
+        row.textContent = r.error
+          ? r.model + ' — could not be tested: ' + r.error
+          : (i + 1) + '. ' + r.model + ' — ' + r.passed + '/' + r.total + ' · ' + r.seconds + ' s' + (r.vision ? ' · sees screenshots' : '');
+        box.appendChild(row);
+      });
     } catch (err) {
       box.textContent = 'The test could not run: ' + ((err && err.message) || 'unknown error');
     } finally { btn.disabled = false; btn.textContent = orig; }

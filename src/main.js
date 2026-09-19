@@ -4611,6 +4611,13 @@ ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true
 ipcMain.handle('get-app-version', () => app.getVersion());
 // Open an http(s) URL in the system's default browser (used by the "What's New"
 // modal so GitHub renders properly instead of in an in-app window).
+// A new email in the user's own mail app, with no recipient: Vex's mail is
+// read-only, so a draft is handed to whatever handles mailto:.
+ipcMain.handle('mail:compose', async (_e, { subject, body }) => {
+  const url = require('./main/mail-draft').mailtoUrl(subject, body);
+  await shell.openExternal(url);
+  return { ok: true };
+});
 ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
   return { ok: false };

@@ -36,6 +36,12 @@ const AIPanel = {
       };
       msgsEl.addEventListener('click', openMdLink);
       msgsEl.addEventListener('auxclick', openMdLink);
+      // A [m:ss] in an answer about a video jumps the video there.
+      msgsEl.addEventListener('click', (e) => {
+        const b = e.target?.closest?.('.ai-stamp');
+        if (!b) return;
+        VideoChat.seek(Number(b.dataset.t)).catch(err => window.showToast?.(err.message, 'error'));
+      });
     }
 
     document.getElementById('ai-input')?.addEventListener('keydown', (e) => {
@@ -1133,6 +1139,8 @@ const AIPanel = {
       const wv = WebviewManager.getActiveWebview();
       let pageContext = null;
       if (wv) { try { pageContext = await PageContext.extractPageContext(wv); } catch {} }
+      // On a YouTube video: what was said in it, not the page around it.
+      pageContext = await VideoChat.contextFor(pageContext);
 
       const conv = this._getConv(tabId);
 
@@ -2140,7 +2148,10 @@ const AIPanel = {
 
   // Every assistant answer renders through here, so this is the one place the
   // emoji preference has to be applied.
-  _md(s) { return this._mdRaw(this._deEmoji(s)); },
+  _md(s) {
+    const tab = typeof TabManager !== 'undefined' ? TabManager.tabs.find(t => t.id === TabManager.activeTabId) : null;
+    return VideoChat.linkify(this._mdRaw(this._deEmoji(s)), tab && tab.url);
+  },
   _mdRaw(s) { return window.VexMarkdown ? VexMarkdown.render(s || '') : this._esc(s).replace(/\n/g, '<br>'); },
 };
 

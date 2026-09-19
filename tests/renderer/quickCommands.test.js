@@ -11,6 +11,8 @@ globalThis.VexIcons = VexIcons; global.window.VexIcons = VexIcons;
 const { VexQuickReminder } = require('../../src/renderer/js/quick-reminder.js');
 const { VexClock } = require('../../src/renderer/js/clock-panel.js');
 const { VexQuickCommands } = require('../../src/renderer/js/quick-commands.js');
+globalThis.VexSettingsControl = require('../../src/renderer/js/settings-control.js').VexSettingsControl;
+globalThis.GitHubWatch = require('../../src/renderer/js/github-watch.js').GitHubWatch;
 globalThis.VexQuickReminder = VexQuickReminder; globalThis.VexClock = VexClock;
 
 let bridge;

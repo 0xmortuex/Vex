@@ -28,6 +28,7 @@ define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])])
 define('downloads:retry', [web]);
 define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate) })]);
 define('rss:fetch open-external', [web]);
+define('mail:compose', [shape({ subject: string(300), body: string(8000) })]);
 // The second argument describes the video to float, and comes from the page,
 // so every field is checked rather than trusted.
 const finite = value => typeof value === 'number' && Number.isFinite(value);

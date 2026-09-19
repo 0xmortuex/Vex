@@ -93,6 +93,36 @@ const AgentModelTest = {
     else if (out.contextLength && numCtx > out.contextLength) out.warning = 'This model was built for ' + out.contextLength.toLocaleString() + ' tokens of context; the agent asks for ' + numCtx.toLocaleString() + '.';
     return out;
   },
+
+  // Models that only make embeddings cannot answer a turn at all.
+  EMBED: /embed|bge-|minilm|nomic-embed/i,
+
+  // The same test on every installed model, one at a time, each unloaded
+  // afterwards so the graphics card is not left holding them all. Ranked by
+  // turns passed, then by speed. Refused during a game: loading model after
+  // model is exactly the load game mode exists to keep off the card.
+  async runAll(onProgress) {
+    if (typeof GameMode !== 'undefined' && GameMode.gaming) throw new Error('Not while a game is running — every model is loaded onto the graphics card in turn');
+    const models = (await Ollama.listModels()).map(m => m.name).filter(n => !this.EMBED.test(n));
+    if (!models.length) throw new Error('No chat models are installed');
+    const rows = [];
+    for (const [i, model] of models.entries()) {
+      if (onProgress) onProgress(i + 1, models.length, model);
+      const row = { model, passed: 0, total: this.CASES.length, seconds: 0, vision: false, verdict: '', error: '' };
+      try {
+        const r = await this.run(model);
+        Object.assign(row, { passed: r.passed, seconds: Math.round(r.cases.reduce((n, c) => n + c.seconds, 0) * 10) / 10, vision: r.vision, verdict: r.verdict });
+      } catch (err) { row.error = (err && err.message) || 'could not be tested'; }
+      try { await Ollama.unload(model); }
+      catch (err) { window.VexProblems?.note('Local AI', 'Could not unload ' + model + ' after its test', err); }
+      rows.push(row);
+    }
+    return this.rank(rows);
+  },
+
+  rank(rows) {
+    return [...rows].sort((a, b) => (!!a.error - !!b.error) || b.passed - a.passed || a.seconds - b.seconds);
+  },
 };
 
 if (typeof window !== 'undefined') window.AgentModelTest = AgentModelTest;

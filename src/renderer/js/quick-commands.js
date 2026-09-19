@@ -14,7 +14,7 @@ const VexQuickCommands = {
     const q = String(raw || '').trim();
     if (!q) return [];
     const out = [];
-    for (const fn of [this._remind, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory]) {
+    for (const fn of [this._remind, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory, this._setting]) {
       try { const r = fn.call(this, q); if (r) out.push(r); } catch (err) { /* a parse that failed part-way says so as a result, below */ out.push(this._unreadable(q, err)); }
     }
     return out;
@@ -25,6 +25,21 @@ const VexQuickCommands = {
   _watch(q) {
     const m = q.match(/^(?:tell me|let me know|notify me|alert me|ping me)\s+(?:when|if)\s+(.+)$/i) || q.match(/^watch\s+(?:this|this page|the page|it)\s*(?:for|until|till|when)?\s*(.*)$/i);
     if (!m || typeof PageWatch === 'undefined') return null;
+    // On a GitHub run or repository, "when it finishes" / "when there is a
+    // new release" is asked of GitHub rather than read off the page.
+    const tab = typeof TabManager !== 'undefined' ? TabManager.tabs.find(t => t.id === TabManager.activeTabId) : null;
+    const gh = tab && GitHubWatch.parse(tab.url);
+    if (gh && /\b(finish|done|complete|pass|fail|build|release|version|out)/i.test(m[1] || '')) {
+      return {
+        id: 'quick-watch-github', icon: 'eye', isPrimary: true,
+        label: gh.kind === 'run' ? 'Tell me when this run finishes' : 'Tell me when ' + gh.owner + '/' + gh.repo + ' has a new release',
+        hint: 'Asked of GitHub every ' + (gh.kind === 'run' ? '2 minutes' : '30 minutes') + ', told on your desktop',
+        action: () => {
+          try { const w = GitHubWatch.add(tab.url); window.showToast?.('Watching the ' + GitHubWatch.describe(w)); GitHubWatch.checkDue(); }
+          catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
+        },
+      };
+    }
     const rule = PageWatch.parseWhen(m[1] || 'changes');
     return {
       id: 'quick-watch', icon: 'eye', isPrimary: true,
@@ -33,6 +48,31 @@ const VexQuickCommands = {
       action: () => {
         try { const r = PageWatch.watchCurrent(m[1] || 'changes'); window.showToast?.('Watching ' + r.said); }
         catch (err) { window.showToast?.((err && err.message) || 'Could not watch this page', 'error'); }
+      },
+    };
+  },
+
+  // turn on streamer mode / turn off mouse gestures / set search engine to bing
+  // — any switch or dropdown in Settings, found by its label, and always
+  // asked about before it changes (js/settings-control.js).
+  _setting(q) {
+    const req = VexSettingsControl.parseRequest(q);
+    if (!req) return null;
+    let plan;
+    try { plan = VexSettingsControl.plan(req); }
+    catch (err) {
+      // Words that name no setting are some other command, not a mistake.
+      if (/^No setting called/.test(err.message)) return null;
+      throw err;
+    }
+    return {
+      id: 'quick-setting', icon: 'settings', isPrimary: true,
+      label: plan.same ? plan.sentence : plan.sentence.replace(/\?$/, ''),
+      hint: plan.same ? 'Nothing to change' : 'Asks before changing it · Settings',
+      action: async () => {
+        if (plan.same) return;
+        try { const r = await VexSettingsControl.apply(req); window.showToast?.(r.message); }
+        catch (err) { window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); }
       },
     };
   },

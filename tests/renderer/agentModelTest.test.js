@@ -81,3 +81,28 @@ describe('AgentModelTest', () => {
     await expect(AgentModelTest.run('x')).rejects.toThrow('not found');
   });
 });
+
+describe('comparing every installed model', () => {
+  it('tests each chat model in turn, unloads it after, and ranks by turns passed then speed', async () => {
+    const BAD = [GOOD[0], GOOD[1], { tool: 'finish', parameters: { summary: 'x' } }, GOOD[3]];
+    const queue = [...GOOD, ...BAD, ...GOOD];
+    model(queue);
+    globalThis.Ollama.listModels = vi.fn(async () => [{ name: 'a:1' }, { name: 'nomic-embed-text' }, { name: 'b:2' }, { name: 'c:3' }]);
+    globalThis.Ollama.unload = vi.fn(async () => {});
+    globalThis.GameMode = { gaming: false };
+    const rows = await AgentModelTest.runAll();
+    expect(Ollama.unload.mock.calls.map(c => c[0])).toEqual(['a:1', 'b:2', 'c:3']);    // the embedder is never asked
+    expect(rows.map(r => [r.model, r.passed])).toEqual([['a:1', 4], ['c:3', 4], ['b:2', 3]]);
+  });
+
+  it('a model that cannot be tested is listed last, with why', () => {
+    const rows = AgentModelTest.rank([{ model: 'x', passed: 0, seconds: 0, error: 'not found' }, { model: 'y', passed: 1, seconds: 9, error: '' }]);
+    expect(rows.map(r => r.model)).toEqual(['y', 'x']);
+  });
+
+  it('is refused while a game is running', async () => {
+    globalThis.GameMode = { gaming: true };
+    await expect(AgentModelTest.runAll()).rejects.toThrow(/Not while a game is running/);
+    globalThis.GameMode = { gaming: false };
+  });
+});

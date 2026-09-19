@@ -14,6 +14,7 @@ require('../../src/renderer/js/vex-utils.js');
 const { VexClock } = require('../../src/renderer/js/clock-panel.js');
 const { VexFeatures } = require('../../src/renderer/js/feature-catalog.js');
 const { VexQuickCommands } = require('../../src/renderer/js/quick-commands.js');
+globalThis.VexSettingsControl = require('../../src/renderer/js/settings-control.js').VexSettingsControl;
 const { AgentTools } = require('../../src/renderer/js/agent-tools.js');
 const { AgentExecutor, SCHEDULED_TOOLS } = require('../../src/renderer/js/agent-executor.js');
 

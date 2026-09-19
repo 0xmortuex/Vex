@@ -65,7 +65,7 @@
 .agent-step .vex-icon { vertical-align: -2px; }
 
 /* The final answer: keep it */
-.agent-final-actions { display: flex; gap: 6px; margin-top: 8px; }
+.agent-final-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .agent-final-btn {
   font: inherit; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
   background: transparent; color: var(--text-muted); border: 1px solid var(--border);

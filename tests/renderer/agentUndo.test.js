@@ -111,7 +111,7 @@ describe('undoing it', () => {
   });
 
   it('only Vex’s own things are undoable — a click on a page is not', () => {
-    expect(AgentLoop.UNDOABLE).toEqual(['note', 'bookmark', 'group', 'timer', 'reminder', 'watch']);
+    expect(AgentLoop.UNDOABLE).toEqual(['note', 'bookmark', 'group', 'timer', 'reminder', 'watch', 'github-watch', 'setting']);
     for (const t of ['click', 'type_text', 'navigate']) expect(AgentLoop.UNDOABLE).not.toContain(t);
   });
 });

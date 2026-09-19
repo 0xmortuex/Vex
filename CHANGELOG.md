@@ -1,5 +1,34 @@
 # Changelog
 
+## v2.32.39 (2026-09-19) — Settings by asking, GitHub build alerts, and more from the agent
+
+### Changes
+- **Change a setting by asking.** In Ctrl+K, or ask the agent: *turn off mouse gestures*, *turn on streamer mode*, *set the search engine to DuckDuckGo*.
+  - Vex finds the switch or dropdown in Settings by the words next to it, shows exactly what will change, and changes it only when you say yes.
+  - It uses the setting's own control, so it's saved the way it always is.
+  - Words that could mean two settings are named back to you instead of guessed. The agent's Undo puts a changed setting back.
+  - Checked live in the Firefox look: typed in Ctrl+K, confirmed, and the setting changed.
+- **"Tell me when this build finishes."** On a GitHub Actions run, Ctrl+K › *Tell me when this GitHub run finishes*, or type *tell me when it finishes*, or ask the agent. Vex asks GitHub every two minutes and puts a desktop notification up when the run passes or fails, then stops watching.
+  - On a repository or its releases page, it tells you when there's a new release (checked every 30 minutes).
+  - They're listed with your watched pages. Public repositories only, since Vex has no GitHub sign-in.
+  - Checked live against GitHub: v2.32.38's CI run came back as "Verify Vex passed".
+- **Downloads say they're done on the desktop** when Vex isn't the window in front, finished or failed.
+- **An agent answer can become a calendar entry or an email.** Under the answer:
+  - **Add to calendar** asks when ("tomorrow 3pm") and saves an .ics with the answer inside.
+  - **Email draft** opens your own mail app with the answer as a new message, and you choose who it goes to. A very long answer is shortened to fit, and says so.
+- **Compare all models** in Settings › AI runs the agent test on every installed model in turn and ranks them by turns passed, then speed.
+  - Each model is unloaded after its test, so the graphics card isn't left holding them all.
+  - It won't start while a game is running.
+- **Timestamps in answers about a YouTube video are buttons**: press [2:05] and the video jumps there. On a video, the chat reads the video's captions in place of the page around the player, when YouTube hands them over.
+
+### Known problem
+- **YouTube now refuses captions to anything but its own player for many videos.** Tested this session, on several videos:
+  - the caption download came back empty,
+  - the transcript service answered "precondition check failed",
+  - and its own transcript panel never loaded.
+
+  So reading a video (the chat, and the agent's "read this video") falls back to the page text for most videos, and the error now says why. Another way in is being looked at.
+
 ## v2.32.38 (2026-09-19) — Sturdier: notes on disk, crash history, a way back from a bad update
 
 ### Changes

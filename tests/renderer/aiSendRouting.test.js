@@ -13,6 +13,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 require('../../src/renderer/js/vex-utils.js');
 const { AIPanel } = require('../../src/renderer/js/ai-panel.js');
+globalThis.AgentTools = globalThis.AgentTools || require('../../src/renderer/js/agent-tools.js').AgentTools;
+globalThis.VideoChat = require('../../src/renderer/js/video-chat.js').VideoChat;
 
 const MARKUP = `
   <div id="ai-panel" class="open"></div>

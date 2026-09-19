@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 require('../../src/renderer/js/vex-icons.js');
 const { AIPanel } = require('../../src/renderer/js/ai-panel.js');
+globalThis.VideoChat = require('../../src/renderer/js/video-chat.js').VideoChat;
 
 const CONV = [
   { role: 'user', content: 'Compare the Pixel 9 and iPhone 16' },
@@ -19,7 +20,7 @@ beforeEach(() => {
   window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   window.showToast = vi.fn();
   globalThis.TabManager = { activeTabId: 't1', tabs: [{ id: 't1', title: 'Phones' }], createTab: vi.fn() };
-  globalThis.AgentTools = { saveNote: vi.fn() };
+  globalThis.AgentTools = { saveNote: vi.fn(), youtubeId: () => null };
   AIPanel._conversations = { t1: CONV.map(m => ({ ...m })) };
   AIPanel._viewingId = null;
   AIPanel._pendingImage = null;

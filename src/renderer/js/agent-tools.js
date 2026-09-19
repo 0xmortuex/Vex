@@ -150,7 +150,7 @@ const AgentTools = {
       at: Number(m[1]),
       text: m[2].replace(/<[^>]+>/g, ' ').replace(/&amp;#39;/g, "'").replace(/&amp;quot;/g, '"').replace(/&amp;amp;/g, '&').replace(/&amp;#[0-9]+;/g, ' ').replace(/\s+/g, ' ').trim(),
     })).filter(l => l.text);
-    if (!lines.length) throw new Error('The captions came back empty');
+    if (!lines.length) throw new Error('YouTube did not hand over the captions — it now refuses them to anything but its own player for many videos');
     const stamp = (sec) => Math.floor(sec / 60) + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
     // Timestamps every couple of minutes, so an answer can point at a moment.
     let out = '', next = 0;
