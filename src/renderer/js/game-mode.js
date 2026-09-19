@@ -24,6 +24,7 @@ const GameMode = {
   },
 
   init() {
+    this.initGaming();
     if (!window.vex || typeof window.vex.onHotkey !== 'function') return false;
     window.vex.onHotkey((action) => this.run(action));
     this.watchCapture();
@@ -127,6 +128,7 @@ const GameMode = {
 // Electron's spelling ('CommandOrControl+Shift+M'), and a typo is a hotkey that
 // silently does nothing.
 GameMode.renderSettings = async function () {
+  this.renderGamingSettings();
   const rows = document.getElementById('hotkey-rows');
   const mode = document.getElementById('setting-streamer-mode');
   if (mode) {
@@ -185,6 +187,132 @@ GameMode._save = async function (action, accel, button) {
   if (failed) window.showToast?.(failed.error, 'error');
   else if (accel) window.showToast?.(accel + ' set');
   this.renderSettings();
+};
+
+// ---- Getting out of a game's way --------------------------------------------
+//
+// 16 GB of RAM and an 8 GB card, shared with a game. Measured here: Ollama
+// running but idle costs 29 MB and no GPU — nothing. A model used recently
+// holds ~5.5 GB of VRAM, and background tabs hold RAM. When main reports a
+// full-screen game (src/main/game-watch.js), Vex hands both back:
+//
+//   free the GPU     every loaded model is unloaded (ModelManager.freeGpu)
+//   sleep tabs       every tab but the one you were on sleeps — except one
+//                    playing sound, on a call, or kept awake by you; they wake
+//                    where you left them
+//   hold the AI      no background AI starts while you play: scheduled tasks
+//                    wait (and catch up after), history indexing skips. A
+//                    question YOU ask is still answered.
+//
+// Each is its own switch in Settings › Gaming, all on by default. Nothing is
+// announced mid-game — a notification over a game is the opposite of the
+// point — you are told what was done when you come back.
+GameMode.GAMING_KEYS = { freeGpu: 'vex.game.freeGpu', sleepTabs: 'vex.game.sleepTabs', holdAi: 'vex.game.holdAi' };
+GameMode.gaming = false;
+GameMode.gamingApp = '';
+GameMode._gamingReport = null;
+
+GameMode.gamingSetting = function (name) {
+  try { return localStorage.getItem(this.GAMING_KEYS[name]) !== 'off'; } catch { return true; }
+};
+GameMode.setGamingSetting = function (name, on) {
+  if (!this.GAMING_KEYS[name]) throw new Error('Unknown gaming setting ' + name);
+  try { localStorage.setItem(this.GAMING_KEYS[name], on ? 'on' : 'off'); } catch {}
+  return this.syncWatcher();
+};
+GameMode.anyGamingOn = function () {
+  return Object.keys(this.GAMING_KEYS).some(k => this.gamingSetting(k));
+};
+
+// The watcher runs only while at least one of the three is wanted.
+GameMode.syncWatcher = async function () {
+  if (!window.vex || typeof window.vex.gameWatch !== 'function') return null;
+  try { return await window.vex.gameWatch(this.anyGamingOn()); } catch (err) { window.VexProblems?.note('Gaming', 'Could not watch for games', err); return null; }
+};
+
+GameMode.initGaming = function () {
+  if (this._gamingWired || !window.vex || typeof window.vex.onGameState !== 'function') return false;
+  this._gamingWired = true;
+  window.vex.onGameState((s) => { (s && s.game) ? this.onGameStart(s.app) : this.onGameEnd(); });
+  this.syncWatcher();
+  return true;
+};
+
+// Is Vex holding background AI right now? (read by AIRouter and Scheduler)
+GameMode.holdingAi = function () { return this.gaming && this.gamingSetting('holdAi'); };
+
+GameMode.onGameStart = async function (app) {
+  if (this.gaming) { this.gamingApp = app || this.gamingApp; return this._gamingReport; }
+  this.gaming = true;
+  this.gamingApp = app || '';
+  const report = { app: this.gamingApp, at: Date.now(), freedMB: 0, models: [], slept: 0 };
+  this._gamingReport = report;
+
+  if (this.gamingSetting('freeGpu') && typeof ModelManager !== 'undefined' && ModelManager.freeGpu) {
+    try { const r = await ModelManager.freeGpu(); report.freedMB = r.freed || 0; report.models = r.models || []; }
+    catch (err) { window.VexProblems?.note('Gaming', 'Could not free the graphics card', err); }
+  }
+
+  if (this.gamingSetting('sleepTabs') && typeof TabManager !== 'undefined') {
+    for (const tab of (TabManager.tabs || []).slice()) {
+      if (tab.id === TabManager.activeTabId || tab.sleeping) continue;
+      // Music, a call, a stream you are listening to: not ours to stop.
+      if ((tab.audible && !tab.muted) || (TabManager.isCapturing && TabManager.isCapturing(tab))) continue;
+      try { await TabManager.sleepTab(tab.id); if (tab.sleeping) report.slept++; }   // sleepTab itself spares kept-awake tabs
+      catch (err) { window.VexProblems?.note('Gaming', 'Could not sleep a tab', err); }
+    }
+  }
+  console.log('[Gaming] ' + (report.app || 'a game') + ' started — freed ' + report.freedMB + ' MB of VRAM, slept ' + report.slept + ' tabs');
+  return report;
+};
+
+GameMode.onGameEnd = function () {
+  if (!this.gaming) return null;
+  this.gaming = false;
+  const r = this._gamingReport;
+  this._gamingReport = null;
+  // Scheduled tasks held back during the game catch up on their next check.
+  const done = [];
+  if (r && r.freedMB) done.push('freed ' + (r.freedMB >= 1024 ? (r.freedMB / 1024).toFixed(1) + ' GB' : r.freedMB + ' MB') + ' of graphics memory');
+  if (r && r.slept) done.push('slept ' + r.slept + ' tab' + (r.slept === 1 ? '' : 's'));
+  if (done.length) window.showToast?.('While you played' + (r.app ? ' ' + r.app : '') + ', Vex ' + done.join(' and ') + '. They come back when you use them.');
+  return r;
+};
+
+GameMode.renderGamingSettings = function (host) {
+  host = host || document.getElementById('gaming-settings');
+  if (!host) return;
+  const rows = [
+    ['freeGpu', 'Free the graphics card', 'Unload the AI model so the game gets all of its video memory (about 5.5 GB on an 8 GB card).'],
+    ['sleepTabs', 'Sleep background tabs', 'Every tab but the one you were on sleeps, except one playing sound or on a call. They wake where you left them.'],
+    ['holdAi', 'Hold background AI', 'Scheduled AI tasks wait until the game ends, then catch up. A question you ask is still answered.'],
+  ];
+  host.innerHTML = '';
+  for (const [key, label, hint] of rows) {
+    const row = document.createElement('div');
+    row.className = 'setting-toggle-row';
+    row.innerHTML = '<span></span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>';
+    row.querySelector('span').textContent = label;
+    row.querySelector('span').title = hint;
+    const box = row.querySelector('input');
+    box.checked = this.gamingSetting(key);
+    box.setAttribute('aria-label', label);
+    box.addEventListener('change', () => this.setGamingSetting(key, box.checked));
+    host.appendChild(row);
+  }
+  // How long a model stays loaded after the AI answers — games or not.
+  if (typeof Ollama !== 'undefined' && Ollama.setKeepAlive) {
+    const row = document.createElement('div');
+    row.className = 'setting-toggle-row';
+    row.innerHTML = '<span>Keep the AI model loaded after a reply</span><select aria-label="Keep the AI model loaded after a reply"></select>';
+    const sel = row.querySelector('select');
+    const now = String(Ollama.keepAlive());
+    for (const [v, text] of [['0', 'Unload at once'], ['1m', '1 minute'], ['5m', '5 minutes'], ['15m', '15 minutes']]) {
+      const o = document.createElement('option'); o.value = v; o.textContent = text; if (v === now) o.selected = true; sel.appendChild(o);
+    }
+    sel.addEventListener('change', () => { Ollama.setKeepAlive(sel.value); window.showToast?.('The model now unloads ' + (sel.value === '0' ? 'straight after each reply' : sel.options[sel.selectedIndex].textContent + ' after a reply')); });
+    host.appendChild(row);
+  }
 };
 
 if (typeof window !== 'undefined') window.GameMode = GameMode;

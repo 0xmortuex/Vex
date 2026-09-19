@@ -182,6 +182,8 @@ const VexFeatures = {
       what: 'A note pinned to one specific page, which reappears every time you return to it.' },
     { id: 'clip', cat: 'work', cmd: 'clip',
       what: 'Sends the selected text into your notes with a link back to where it came from.' },
+    { id: 'gaming', cat: 'media', name: 'Gets out of a game’s way', sel: '#gaming-settings', manual: true,
+      what: 'When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and holds background AI — and tells you what it did when you come back. Settings › Gaming.' },
     { id: 'screenshot-full', cat: 'media', cmd: 'screenshot-full',
       what: 'The whole page, top to bottom, in one image — the long receipt, the thread, the article with its charts — instead of scroll, capture, stitch.' },
     { id: 'save-pdf', cat: 'reading', cmd: 'save-pdf',

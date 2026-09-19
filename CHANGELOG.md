@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.32.13 (2026-09-19) — Vex gets out of your game's way
+
+### Notes
+- **First, the facts, measured on a 16 GB machine with an RTX 4060 (8 GB).** Ollama running with Vex costs you nothing while you game: **29 MB of RAM and no graphics memory** when idle. The real cost is an AI model you used recently. qwen3.5 holds about **5.5 GB of the card's 8 GB**, and Ollama keeps it there for **5 minutes** after the last reply. Start a game in that window and it fights the model for video memory. Background tabs cost RAM too.
+- **When a full-screen game starts, Vex now does three things by itself** (Settings › Gaming, each its own switch, all on):
+  - **Frees the graphics card.** Every loaded model is unloaded. If you ask the AI something mid-game you still get an answer, and the model leaves the card straight after.
+  - **Sleeps background tabs.** Every tab except the one you were on, but **not** one playing music, one on a call, or one you've kept awake. They wake where you left them.
+  - **Holds background AI.** Scheduled AI tasks wait until you're done and then catch up, and history indexing pauses. Nothing loads a model onto your card that you didn't ask for.
+- Nothing pops up while you play; a notification over a game is the opposite of the point. When you come back, Vex tells you what it did, e.g. *"While you played Roblox, Vex freed 2.4 GB of graphics memory and slept 3 tabs."* That's the real message from a live test.
+- **The AI model now unloads 1 minute after a reply**, not Ollama's 5. The only cost is a few seconds' reload for a question after a pause. You can choose 0, 1, 5 or 15 minutes in Settings › Gaming.
+- **How it knows a game is running:** it uses the signal Windows itself uses to hold back notifications during games. That covers exclusive and borderless full screen, and nothing is read from the game. Vex going full screen for a video doesn't count. It picked up Roblox correctly in a live test.
+  - The check runs in a tiny hidden helper that uses **16 MB**. It's compiled once with the C# compiler built into Windows. The first version was a PowerShell loop at **135 MB**, which defeated the point, so it was replaced before release. The helper never shows a window, and it closes itself when Vex does.
+- Honest limit: a full-screen video in another program (VLC, for example) looks the same to Windows, so Vex would treat it as a game too. The only effect is that the GPU is freed and tabs sleep.
+
 ## v2.32.12 (2026-09-19) — Which links on this page are broken?
 
 ### Notes

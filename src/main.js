@@ -796,6 +796,29 @@ ipcMain.handle('system:dev-ports', async () => {
   return list;
 });
 
+// Notice a full-screen game and tell the renderer, which frees the GPU, sleeps
+// background tabs and holds background AI (src/main/game-watch.js). The
+// renderer switches it on or off from the Gaming settings; nothing runs until
+// it asks.
+const _gameWatch = require('./main/game-watch').createGameWatch({
+  spawn: require('child_process').spawn,
+  ownNames: [path.basename(process.execPath, '.exe'), 'Vex', 'electron'],
+  // A tiny compiled helper (~a tenth of PowerShell's memory), built once with
+  // Windows' own C# compiler into Vex's data folder.
+  helper: () => require('./main/game-watch').ensureHelper({
+    fs, path, crypto: require('crypto'), execFile: require('child_process').execFile,
+    dir: path.join(app.getPath('userData'), 'helpers'), windir: process.env.SystemRoot || process.env.windir,
+  }),
+  log: (m) => console.log(m),
+  onChange: (s) => {
+    console.log('[GameWatch] ' + (s.game ? 'game running: ' + s.app : 'no game'));
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', s); } catch { /* window gone */ }
+  },
+});
+ipcMain.handle('game:watch', async (_e, on) => { if (on) await _gameWatch.start(); else _gameWatch.stop(); return { running: _gameWatch.running(), helper: _gameWatch.usingHelper(), ..._gameWatch.state() }; });
+ipcMain.handle('game:state', () => ({ running: _gameWatch.running(), ..._gameWatch.state() }));
+app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} });
+
 // Mute Discord without leaving the game (src/main/game-hotkeys.js). These are
 // system-wide, so each one is off until the user sets it.
 const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({

@@ -768,6 +768,10 @@ const Scheduler = {
   },
 
   _checkDueTasks(nowMs) {
+    // While a game is running (and "hold background AI" is on), nothing is
+    // claimed: a due task simply stays due, and the first check after the game
+    // runs it through the ordinary catch-up — late, not lost.
+    if (typeof window !== 'undefined' && window.GameMode && typeof window.GameMode.holdingAi === 'function' && window.GameMode.holdingAi()) return;
     const now = nowMs === undefined ? Date.now() : nowMs;
     const tasks = this.getAllTasks();
     const skipped = [];

@@ -186,6 +186,13 @@ const AIRouter = (() => {
   const BACKGROUND_FEATURES = ['historyIndex'];
 
   async function callAI(feature, request) {
+    // A game is running and the user asked Vex to hold background AI: work
+    // nobody is waiting for does not load a model onto the game's graphics
+    // card. A question the user asks still goes through.
+    if (BACKGROUND_FEATURES.includes(feature) && typeof window !== 'undefined' && window.GameMode && typeof window.GameMode.holdingAi === 'function' && window.GameMode.holdingAi()) {
+      _dbg(`[AIRouter] holding ${feature} — a game is running`);
+      return null;
+    }
     const primary = await resolveBackend(feature);
     if (primary === 'skip') {
       _dbg(`[AIRouter] skipping ${feature} — no local backend`);

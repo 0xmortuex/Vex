@@ -14,6 +14,8 @@ define('app:started window-minimize window-maximize window-close storage:flushed
 define('file:inspect', [string(4096), optional(string(4096))]);
 define('app:restore-settings web-suggest qr:make qr:generate permissions:revoke updates:notes totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
+define('game:watch', [boolean]);
+define('game:state', []);
 define('capture:submit', [shape({ kind: string(20), text: string(4000) })]);
 define('capture:close capture:done capture:open', []);
 define('extensions:set-enabled', [string(160), boolean]);

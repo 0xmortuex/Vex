@@ -177,10 +177,37 @@ const Ollama = (() => {
     return full;
   }
 
+  // How long a model stays in video memory after its last reply. Ollama's own
+  // default is five minutes, during which ~5.5 GB of an 8 GB card is held —
+  // start a game in that window and it fights the model for VRAM. Vex's
+  // default is one minute: a question after a pause reloads the model (a few
+  // seconds), a game started after a chat gets the card back quickly.
+  // Settings › Gaming changes it; 0 unloads after every reply.
+  const KEEP_ALIVE_KEY = 'vex.ai.keepAlive';
+  const KEEP_ALIVE_CHOICES = ['0', '1m', '5m', '15m'];
+  function keepAlive() {
+    let v = '1m';
+    try { v = localStorage.getItem(KEEP_ALIVE_KEY) || '1m'; } catch {}
+    if (!KEEP_ALIVE_CHOICES.includes(v)) v = '1m';
+    // A question asked DURING a game still loads the model; with "free the
+    // graphics card" on, it goes again the moment it has answered.
+    try {
+      const gm = (typeof window !== 'undefined') ? window.GameMode : null;
+      if (gm && gm.gaming && typeof gm.gamingSetting === 'function' && gm.gamingSetting('freeGpu')) return 0;
+    } catch { /* no game mode: the setting stands */ }
+    return v === '0' ? 0 : v;
+  }
+  function setKeepAlive(v) {
+    const s = String(v);
+    if (!KEEP_ALIVE_CHOICES.includes(s)) throw new Error('Keep-loaded time must be one of ' + KEEP_ALIVE_CHOICES.join(', '));
+    try { localStorage.setItem(KEEP_ALIVE_KEY, s); } catch {}
+    return keepAlive();
+  }
+
   async function generate(model, prompt, options = {}) {
     const { systemPrompt, temperature = 0.5, maxTokens = 2000, format = null } = options;
     const body = {
-      model, prompt, stream: false,
+      model, prompt, stream: false, keep_alive: keepAlive(),
       options: { temperature, num_predict: maxTokens }
     };
     if (systemPrompt) body.system = systemPrompt;
@@ -224,7 +251,7 @@ const Ollama = (() => {
   async function chat(model, messages, options = {}) {
     const { temperature = 0.5, maxTokens = 2000, format = null, numCtx = null } = options;
     const body = {
-      model, messages, stream: false,
+      model, messages, stream: false, keep_alive: keepAlive(),
       options: { temperature, num_predict: maxTokens }
     };
     // Ollama's default context window (4,096 tokens) silently drops the START
@@ -338,7 +365,7 @@ const Ollama = (() => {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   }
 
-  return { setBaseUrl, getBaseUrl, ping, listModels, generate, chat, show, running, unload, deleteModel, pullModel };
+  return { setBaseUrl, getBaseUrl, ping, listModels, generate, chat, show, running, unload, deleteModel, pullModel, keepAlive, setKeepAlive, KEEP_ALIVE_CHOICES };
 })();
 
 if (typeof window !== 'undefined') window.Ollama = Ollama;

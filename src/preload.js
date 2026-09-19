@@ -144,6 +144,10 @@ contextBridge.exposeInMainWorld('vex', {
   hotkeysGet: () => ipcRenderer.invoke('hotkeys:get'),
   hotkeysSet: (config) => ipcRenderer.invoke('hotkeys:set', config),
   onHotkey: (cb) => subscribe('hotkey:action', cb),
+  // A full-screen game started or stopped (src/main/game-watch.js).
+  gameWatch: (on) => ipcRenderer.invoke('game:watch', !!on),
+  gameState: () => ipcRenderer.invoke('game:state'),
+  onGameState: (cb) => subscribe('game:state', cb),
   // The quick-capture window hands its line here to be carried out.
   onCaptureTake: (cb) => subscribe('capture:take', cb),
   captureDone: (payload) => ipcRenderer.send('capture:done', payload),

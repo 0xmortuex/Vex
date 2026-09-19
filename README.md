@@ -87,6 +87,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Catch Me Up** (AI digest of feeds + read‑later), **AI Compose** (rewrites straight into the focused field).
 
 ### ▶️ Media & streaming
+- **Gets out of a game's way** — when a full‑screen game starts (detected the way Windows holds back notifications during games), Vex unloads the AI model from the graphics card, sleeps background tabs (not music, calls or kept‑awake ones) and holds background AI until you're back. A question you ask mid‑game is still answered, and the model leaves the card straight after. The local AI model now unloads 1 minute after a reply instead of Ollama's 5 (Settings › Gaming).
 - **Widevine / DRM playback** — Netflix, Spotify, Prime Video, Disney+, etc. (signed build).
 - **Codec & site fixes** — Spotify DRM‑robustness fallback, an HEVC/H.265 mask so TikTok/Instagram fall back to playable codecs, a Discord "stay‑connected in the panel" spoof, a Google "this browser may not be secure" sign‑in fix, and passkey‑prompt suppression — all automatic.
 - **Screen‑share settings** — when a site asks to share your screen (Discord "Go Live", Meet…), Vex's picker lets you choose the **source, resolution (up to 1440p), FPS (15/30/60), whether to share system audio, and whether to show the cursor** — Discord‑style quality control, no Nitro required.
