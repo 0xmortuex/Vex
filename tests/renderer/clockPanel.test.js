@@ -201,3 +201,52 @@ describe('doing it again', () => {
     expect(bridge.create.mock.calls[0][2].repeat).toBeUndefined();
   });
 });
+
+describe('timers answer at once', () => {
+  let release, bridge;
+  beforeEach(() => {
+    localStorage.clear();
+    document.body.innerHTML = '<button id="timer-pill" hidden><span></span></button><div id="panel"></div>';
+    // Registering with Windows is slow: hold every call until released.
+    const gate = () => new Promise(r => { release = r; });
+    bridge = {
+      create: vi.fn(async (message, at, extra) => { await gate(); return { id: 'r1', message, at, ...extra, os: { scheduled: true } }; }),
+      delete: vi.fn(async () => { await gate(); return { ok: true }; }),
+      list: vi.fn(async () => []), ack: vi.fn(), onFired: vi.fn(), onClicked: vi.fn(),
+    };
+    global.window.vex = { reminders: bridge, focusWindow: vi.fn() };
+    global.window.showToast = vi.fn();
+    VexClock._timers = [];
+    VexClock._tab = 'timers';
+    VexClock.renderPanel(document.getElementById('panel'));
+  });
+
+  it('a new timer is on screen before Windows has been asked', async () => {
+    const pending = VexClock.addTimer('5 min', 'Tea');
+    await Promise.resolve();
+    expect(document.querySelector('#clock-timers').textContent).toContain('Tea');
+    expect(document.getElementById('timer-pill').hidden).toBe(false);
+    release(); await pending;
+    expect(VexClock._timers[0].reminderId).toBe('r1');
+  });
+
+  it('stopping it clears the screen at once', async () => {
+    const p = VexClock.addTimer('5 min', 'Tea'); release(); await p;
+    const stop = VexClock.removeTimer(VexClock._timers[0].id);
+    await Promise.resolve();
+    expect(document.querySelector('#clock-timers').textContent).not.toContain('Tea');
+    release(); await stop;
+    expect(bridge.delete).toHaveBeenCalledWith('r1');
+  });
+
+  it('stopped while it was still being registered: the late reminder is removed, so it cannot ring', async () => {
+    const pending = VexClock.addTimer('5 min', 'Tea');
+    await Promise.resolve();
+    await VexClock.removeTimer(VexClock._timers[0].id);       // no reminder id yet: nothing to delete
+    expect(bridge.delete).not.toHaveBeenCalled();
+    release();                                                   // the registration arrives late…
+    await new Promise(r => setTimeout(r, 0));
+    expect(bridge.delete).toHaveBeenCalledWith('r1');            // …and is taken back at once
+    release(); await pending;
+  });
+});

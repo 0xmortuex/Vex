@@ -2932,12 +2932,25 @@ app.on('web-contents-created', (_event, contents) => {
     if (handleHardReloadShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
     if (handleDictateShortcut(event, input)) return;
+    if (handleCommandBarShortcut(event, input, contents)) return;
     if (handleBrowserShortcut(event, input, contents)) return;
   });
 });
 
 // Ctrl+Alt+D from inside a page: dictation types into web pages, and the page
 // has the focus while you do — so this one key is passed up to Vex.
+// Ctrl+K from inside a page opens the command bar (src/main/command-bar-key.js).
+const { isCommandBarKey } = require('./main/command-bar-key');
+function handleCommandBarShortcut(event, input, contents) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  let url;
+  try { url = contents.getURL(); } catch { url = ''; }
+  if (!isCommandBarKey(input, url)) return false;
+  mainWindow.webContents.send('toggle-command-bar');
+  event.preventDefault();
+  return true;
+}
+
 const { isDictateKey } = require('./main/dictate-key');
 function handleDictateShortcut(event, input) {
   if (!mainWindow || mainWindow.isDestroyed() || !isDictateKey(input)) return false;

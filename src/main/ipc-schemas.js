@@ -12,7 +12,7 @@ const schemas = new Map();
 function define(names, checks) { for (const name of names.split(' ')) schemas.set(name, checks); }
 define('app:started window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear recall:stats privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen open-private-window identity:create tor:create check-for-updates widevine:status widevine:retry download-update install-update get-app-version updates:list app:restart app:focus fx:rates theme:get-custom-image set-as-default-browser is-default-browser sidebar-config:get app:processes app:diagnostics ollama:ensure app:safe-mode system:gpu system:dev-ports hotkeys:get extensions:release-idle extensions:list extensions:install-folder extensions:install-zip extensions:open-folder discord:install-vencord sync-load-key sync-load-meta sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
 define('file:inspect', [string(4096), optional(string(4096))]);
-define('app:restore-settings web-suggest qr:make qr:generate permissions:revoke updates:notes totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
+define('app:restore-settings web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);
 define('game:state', []);
@@ -86,6 +86,10 @@ define('mail:add', [shape({ email: string(320), password: string(512), host: opt
 define('mail:remove', [string(64)]);
 define('mail:inbox', [string(64), optional(integer)]);
 define('mail:message', [string(64), integer]);
+// The tag is optional: with none, the notes are for the running version —
+// which is how "What's new" asks after an update. Requiring it rejected that
+// call, so the popup never appeared after an update (2026-09-07 to v2.32.31).
+define('updates:notes', [optional(string(40))]);
 define('crawl:fetch', [string(4096), optional(value => value === 'text/html' || value === 'text/plain')]);
 define('links:check', [value => Array.isArray(value) && value.length <= 2000 && value.every(string(4096))]);
 // A freshly attached <webview> reports its id as -1; the handler then finds

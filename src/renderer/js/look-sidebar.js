@@ -229,7 +229,29 @@
     return btn;
   }
 
+  // ---- Firefox / Netscape: the button (and Ctrl+B) hide the whole sidebar —
+  // icon rail and any open panel — the way Firefox's Sidebars button does.
+  const RAIL_KEY = 'vex.lookRailHidden';
+  const railLook = () => document.body.dataset.sbLauncher === 'rail' && document.body.dataset.guiFamily === 'browser';
+  function railHidden() { return document.body.classList.contains('look-rail-hidden'); }
+  function setRailHidden(hidden) {
+    if (hidden && typeof SidebarManager !== 'undefined' && SidebarManager.activePanel) SidebarManager.hideActivePanel();
+    document.body.classList.toggle('look-rail-hidden', hidden);
+    localStorage.setItem(RAIL_KEY, hidden ? '1' : '0');
+    syncButtonLabel();
+  }
+  function toggleRail() { setRailHidden(!railHidden()); }
+  function syncButtonLabel() {
+    const btn = document.getElementById('btn-look-sidebar');
+    if (!btn) return;
+    const label = railLook() ? (railHidden() ? 'Show the sidebar (Ctrl+B)' : 'Hide the sidebar (Ctrl+B)') : 'Show sidebar';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    if (railLook()) btn.classList.toggle('active', !railHidden());
+  }
+
   function toggleFromButton() {
+    if (railLook()) { toggleRail(); return; }
     if (SidebarManager.activePanel) { SidebarManager.hideActivePanel(); return; }
     const choices = panelChoices();
     if (!choices.length) throw new Error('No sidebar panels to show — every panel is hidden in Settings › Sidebar');
@@ -254,7 +276,8 @@
     const btn = document.getElementById('btn-look-sidebar');
     if (btn && docked()) placeButton(btn);
     const panel = typeof SidebarManager !== 'undefined' ? SidebarManager.activePanel : null;
-    if (btn) btn.classList.toggle('active', !!panel);
+    if (btn && !railLook()) btn.classList.toggle('active', !!panel);
+    syncButtonLabel();
     // A panel opens the way the user last left it — maximized until they press
     // Restore. Closing the sidebar ends it either way.
     setMaximized(!!panel && docked() && prefersMax());
@@ -268,6 +291,8 @@
     buildHeader(container);
     applyWidth(savedWidth());
     placeButton(buildButton());
+    // The sidebar as it was left (Firefox / Netscape).
+    if (localStorage.getItem(RAIL_KEY) === '1') document.body.classList.add('look-rail-hidden');
 
     document.addEventListener('vex:panel-changed', (e) => {
       const panel = e.detail && e.detail.panel;
@@ -288,5 +313,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  window.VexLookSidebar = { toggle: toggleFromButton, panelChoices };
+  window.VexLookSidebar = { toggle: toggleFromButton, panelChoices, railLook, toggleRail, railHidden };
 })();

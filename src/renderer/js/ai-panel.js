@@ -1043,6 +1043,16 @@ const AIPanel = {
       const onToken = (feature === 'chat') ? this._liveRenderer(loadingEl) : null;
       const aiResult = await AIRouter.callAI(feature, {
         onToken,
+        // A local answer about to be slow: say why above the reply, with a
+        // smaller model or the cloud to switch to.
+        onSlow: (feature === 'chat' && loadingEl) ? (why, advice) => {
+          const note = document.createElement('div');
+          note.className = 'ai-msg assistant agent-step-warn ai-slow-note';
+          note.textContent = why;
+          const choices = advice && AIHealth.choices(advice, 'chat');
+          if (choices) note.appendChild(choices);
+          loadingEl.before(note);
+        } : null,
         // Show thinking (the switch in this panel): the thoughts stream into
         // the subtitle line. The router only asks for them when it is on.
         onThinking: onToken ? onToken.onThinking : null,

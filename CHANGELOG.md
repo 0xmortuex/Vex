@@ -1,5 +1,33 @@
 # Changelog
 
+## v2.32.32 (2026-09-19) — Fixes you reported, in the Firefox look
+
+### Fixes
+- **"What's new" never appeared after an update**, and hadn't since 7 September. After updating, Vex asks for the running version's release notes by leaving the version out. A safety check added that day to everything the interface asks of the main program required the version to be given, so it refused the request. The refusal was then swallowed, and the popup silently didn't show. Opening "What's new" by hand still worked, which is why nobody noticed.
+  - The version may now be left out, and a failure to read the notes is now recorded in Health, not silently dropped.
+  - A new test checks **every** call from the interface against what the main program accepts. It found this one, and no others.
+  - Reproduced before fixing: set the last-seen version to 2.31.97 and ran the startup code. Nothing showed; now it does.
+- **Ctrl+K did nothing until you clicked the command-bar button.** Most of the time the focus is inside a page (the New Tab page is one too), and pages never passed Ctrl+K up to Vex.
+  - It now opens the command bar from inside any page.
+  - The exceptions are Discord and Slack, whose own Ctrl+K is their switcher. The button still opens Vex's there.
+  - Tested by pressing it inside the New Tab page, in the Firefox look.
+- **Starting or stopping a timer took 2–3 seconds.** The timer waited for Windows to register its wake-up task, which means starting PowerShell, before it appeared or disappeared.
+  - It now shows and goes at once, and Windows is told afterwards.
+  - A timer stopped while its registration was still in flight has the late wake-up removed, so it can't ring later.
+- **The Work panel couldn't be scrolled** in the Firefox look, and the Clock panel had the same hidden bug. Opening a panel forced its layout to a plain block. That broke the two panels that lay themselves out as a column with their own scrolling area, and their content ran off the bottom. Panels now keep their own layout. Tested in the Firefox look and the default look: Work scrolls in both.
+- **The Firefox look had no button to close and reopen the sidebar.** It now has Firefox's own **Sidebar** button in the toolbar, and **Ctrl+B** does the same:
+  - it hides the whole sidebar (icon rail and any open panel) and brings it back,
+  - the button is highlighted while the sidebar is shown,
+  - the choice is remembered.
+- **Ctrl+Alt+D inside a web page**, which v2.32.30 couldn't test, is now checked: it starts dictation from inside a page.
+
+### Also finished (from the list of ideas)
+- **"Local AI will be slow" now offers a way out.** The warning, which now also appears in chat and not only for the agent, has buttons:
+  - **Use ‹a smaller model› instead**: the largest model you have installed that fits in the graphics memory that's free.
+  - **Use the cloud**, when an AI Worker is set up.
+  - The next answer uses the one you choose.
+- **To-dos with a date can remind you.** A bell beside a dated to-do sets a reminder for 9:00 on its day (or the next hour, if that's today and 9:00 has gone), and the bell shows it's set.
+
 ## v2.32.31 (2026-09-19) — Mail (read-only)
 
 ### Notes

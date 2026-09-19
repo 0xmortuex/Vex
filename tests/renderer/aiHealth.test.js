@@ -97,3 +97,46 @@ describe('gathering the state', () => {
     expect(globalThis.Ollama.listModels).not.toHaveBeenCalled();
   });
 });
+
+describe('what to do about a slow answer', () => {
+  const GB = 1024 ** 3;
+  const sizes = { 'qwen3.5:latest': 6.6 * GB, 'llama3.2:3b': 2.0 * GB, 'gemma3:1b': 0.8 * GB, 'nomic-embed-text:latest': 0.3 * GB, 'mistral:7b': 4.1 * GB };
+
+  it('offers the largest smaller model that fits in the free video memory, never an embedding model', () => {
+    const gpu = { ...GPU_BUSY, freeMB: 3000 };                       // 2.9 GB free
+    expect(AIHealth.alternativesFrom(state({ sizes, gpu }))).toEqual({ smaller: 'llama3.2:3b', cloud: true });
+    expect(AIHealth.alternativesFrom(state({ sizes, gpu: { ...GPU_BUSY, freeMB: 900 } })).smaller).toBeNull();   // 0.8 GB × 1.2 does not fit
+    expect(AIHealth.alternativesFrom(state({ sizes, gpu: { ...GPU_BUSY, freeMB: 1200 } })).smaller).toBe('gemma3:1b');
+  });
+
+  it('no cloud without a worker, or offline', () => {
+    expect(AIHealth.alternativesFrom(state({ sizes, worker: false })).cloud).toBe(false);
+    expect(AIHealth.alternativesFrom(state({ sizes, online: false })).cloud).toBe(false);
+  });
+
+  it('the buttons switch the model, or send that feature to the cloud', () => {
+    globalThis.AIRouter.setModel = vi.fn();
+    globalThis.AIRouter.setRoutingPrefs = vi.fn();
+    window.showToast = vi.fn();
+    const box = AIHealth.choices({ smaller: 'llama3.2:3b', cloud: true }, 'chat');
+    const [small, cloud] = box.querySelectorAll('button');
+    expect(small.textContent).toBe('Use llama3.2:3b instead');
+    small.click();
+    expect(AIRouter.setModel).toHaveBeenCalledWith('llama3.2:3b');
+    expect(cloud.disabled).toBe(true);                               // one choice per warning
+    const box2 = AIHealth.choices({ smaller: null, cloud: true }, 'agent');
+    box2.querySelector('button').click();
+    expect(AIRouter.setRoutingPrefs).toHaveBeenCalledWith({ agent: 'cloud' });
+    expect(AIHealth.choices({ smaller: null, cloud: false }, 'chat')).toBeNull();
+  });
+
+  it('slowAdvice: nothing when it will not be slow; the reason and the way out when it will', async () => {
+    Ollama.listModels = vi.fn(async () => Object.entries(sizes).map(([name, size]) => ({ name, size })));
+    expect(await AIHealth.slowAdvice()).toBeNull();
+    window.vex.gpu = vi.fn(async () => ({ ...GPU_BUSY, freeMB: 3000, utilization: 20 }));
+    Ollama.running = vi.fn(async () => [{ name: 'qwen3.5:latest', onGpu: false }]);
+    const advice = await AIHealth.slowAdvice();
+    expect(advice.why).toMatch(/running on the processor/);
+    expect(advice).toMatchObject({ smaller: 'llama3.2:3b', cloud: true });
+  });
+});

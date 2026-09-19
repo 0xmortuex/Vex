@@ -65,7 +65,13 @@
     if (_open) return;
     _open = true;
     let notes = null;
-    try { notes = await window.vex.getReleaseNotes(); } catch {}
+    try { notes = await window.vex.getReleaseNotes(); }
+    catch (err) {
+      // Said, not swallowed: a silent failure here hid "What's new" after every
+      // update for two weeks.
+      console.warn('[WhatsNew] could not read the release notes', err);
+      if (typeof VexProblems !== 'undefined') VexProblems.note("What's new", 'Could not read the release notes', err);
+    }
     if (!notes && !opts.force) { _open = false; return; } // silent if we can't fetch on auto-show
 
     // Full history for the version picker (local CHANGELOG, newest-first). Falls

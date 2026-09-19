@@ -280,7 +280,14 @@ const AgentLoop = {
             // faded line under the step. The router asks for it only when the
             // switch is on; scheduled runs pass no listener and stay fast.
             onThinking: (_piece, full) => this._streamThought(full),
-            onSlow: (why) => { if (!this._slowSaid) { this._slowSaid = true; this._renderStep('slow', why, 'warn'); } },
+            onSlow: (why, advice) => {
+              if (this._slowSaid) return;
+              this._slowSaid = true;
+              this._renderStep('slow', why, 'warn');
+              const step = document.querySelector('#ai-messages > .agent-step-warn:last-child');
+              const choices = advice && AIHealth.choices(advice, 'agent');
+              if (step && choices) step.appendChild(choices);
+            },
           });
           if (out && this._run) this._run.backend = (out.backend || '') + (out.model ? ' · ' + out.model : '');
           return out;

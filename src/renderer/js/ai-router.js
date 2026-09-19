@@ -341,9 +341,7 @@ const AIRouter = (() => {
     // Before a slow one, say why it will be slow: a model pushed out of video
     // memory by a game runs on the processor and takes minutes, which used to
     // be indistinguishable from the agent having hung (js/ai-health.js).
-    if (typeof AIHealth !== 'undefined' && typeof request.onSlow === 'function') {
-      try { const why = await AIHealth.slowReason(); if (why) request.onSlow(why); } catch { /* a diagnosis is never worth failing the request for */ }
-    }
+    await warnIfSlow(request);
     // request.signal is the agent's Stop: it cancels the generation in flight.
     // onToken streams the reply as it is written — without it a local model
     // shows "Thinking…" for a minute and a stuck run looks the same as a slow one.
@@ -364,6 +362,13 @@ const AIRouter = (() => {
     const text = await Ollama.chat(model, msgs, { temperature: 0.4, maxTokens: 1200, numCtx: agentNumCtx(), signal: request.signal, onToken: request.onToken, ...thinkOpts(request) });
     return { result: text, backend: 'local', model };
   }
+  // Before a local request that will be slow, say why and what to do instead
+  // (a smaller model that fits, or the cloud) — request.onSlow(why, advice).
+  async function warnIfSlow(request) {
+    if (typeof AIHealth === 'undefined' || typeof request.onSlow !== 'function') return;
+    try { const advice = await AIHealth.slowAdvice(); if (advice) request.onSlow(advice.why, advice); } catch { /* a diagnosis is never worth failing the request for */ }
+  }
+
   async function callLocal(feature, request) {
     if (feature === 'agent') return callLocalAgent(request);
     // A question about an image (right-click → "Ask Vex about this image").
@@ -393,6 +398,8 @@ const AIRouter = (() => {
     // All local features expect JSON because LOCAL_SYSTEM_PROMPTS.chat also
     // asks for {"reply": "..."} — without format:'json' small models ramble.
     const expectsJson = true;
+
+    await warnIfSlow(request);
 
     // Multi-turn chat: pass history when available
     if (feature === 'chat' && Array.isArray(request.conversationHistory) && request.conversationHistory.length) {

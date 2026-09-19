@@ -227,3 +227,24 @@ describe('the board', () => {
     expect(document.querySelector('.vex-tasks-overlay')).not.toBeNull();
   });
 });
+
+describe('due dates → reminders', () => {
+  const t = (due, text = 'Renew passport @2026-09-21') => ({ noteId: 'n', index: 0, text, due: due == null ? null : due.getTime(), overdue: false });
+
+  it('9:00 on the day; the next hour when that is today and 9:00 has gone; never a past day', () => {
+    const now = new Date(2026, 8, 19, 14, 20);
+    expect(OpenTasks.remindTime(t(new Date(2026, 8, 21)), now)).toEqual(new Date(2026, 8, 21, 9, 0));
+    expect(OpenTasks.remindTime(t(new Date(2026, 8, 19)), now)).toEqual(new Date(2026, 8, 19, 15, 0));
+    expect(() => OpenTasks.remindTime(t(new Date(2026, 8, 18)), now)).toThrow(/passed/);
+    expect(() => OpenTasks.remindTime(t(null, 'No date'), now)).toThrow(/no date/);
+  });
+
+  it('creates the reminder without the date tag, and remembers it', async () => {
+    window.VexQuickReminder = { create: vi.fn(async () => ({ id: 'r7' })) };
+    const task = t(new Date(2026, 8, 21));
+    expect(OpenTasks.hasReminder(task)).toBe(false);
+    await OpenTasks.remind(task, new Date(2026, 8, 19, 10));
+    expect(window.VexQuickReminder.create).toHaveBeenCalledWith('Renew passport', new Date(2026, 8, 21, 9, 0));
+    expect(OpenTasks.hasReminder(task)).toBe(true);
+  });
+});

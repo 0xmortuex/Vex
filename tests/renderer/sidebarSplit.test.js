@@ -39,7 +39,7 @@ beforeEach(() => {
   window.showToast = vi.fn();
 });
 
-const shown = () => [...document.querySelectorAll('#panels-container .panel')].filter(p => p.style.display === 'block').map(p => p.id);
+const shown = () => [...document.querySelectorAll('#panels-container .panel')].filter(p => p.style.display !== 'none').map(p => p.id);
 const lit = () => [...document.querySelectorAll('.sidebar-icon.active')].map(b => b.dataset.panel);
 const container = () => document.getElementById('panels-container');
 

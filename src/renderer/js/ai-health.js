@@ -23,7 +23,7 @@ const AIHealth = {
 
     try { out.ollama = await Ollama.ping(); } catch { out.ollama = false; }
     if (out.ollama) {
-      try { const models = await Ollama.listModels(); out.installed = models.map(m => m.name); }
+      try { const models = await Ollama.listModels(); out.installed = models.map(m => m.name); out.sizes = Object.fromEntries(models.map(m => [m.name, m.size || 0])); }
       catch (err) { out.installedError = err.message; }
       try { out.loaded = await Ollama.running(); }
       catch (err) { out.loadedError = err.message; }
@@ -53,6 +53,46 @@ const AIHealth = {
   },
 
   async slowReason() { return this.slowReasonFrom(await this.check()); },
+
+  // What to do about it, not just why: the largest installed model that is
+  // smaller than this one and fits in the video memory that is free (with a
+  // fifth to spare for its working memory), and whether the cloud is there.
+  // Embedding models answer nothing, so they are never offered.
+  alternativesFrom(state) {
+    const sizes = (state && state.sizes) || {};
+    const current = sizes[state.model] || sizes[state.model + ':latest'] || Infinity;
+    const freeBytes = state.gpu && state.gpu.freeMB != null ? state.gpu.freeMB * 1048576 : null;
+    const smaller = Object.entries(sizes)
+      .filter(([name, size]) => name !== state.model && name !== state.model + ':latest' && !/embed/i.test(name) && size > 0 && size < current && (freeBytes == null || size * 1.2 <= freeBytes))
+      .sort((a, b) => b[1] - a[1])[0];
+    return { smaller: smaller ? smaller[0] : null, cloud: !!(state.worker && state.online) };
+  },
+
+  // → { why, smaller, cloud } when a local request is about to be slow, else null.
+  async slowAdvice() {
+    const state = await this.check();
+    const why = this.slowReasonFrom(state);
+    return why ? { why, ...this.alternativesFrom(state) } : null;
+  },
+
+  // The buttons that act on the advice. `feature` is what to send to the
+  // cloud (chat or agent). Switching affects the next answer; the one already
+  // running finishes as it is.
+  choices(advice, feature) {
+    const box = document.createElement('div');
+    box.className = 'ai-slow-choices';
+    box.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px';
+    const btn = (label, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = label; b.className = 'ai-chip';
+      b.style.cssText = 'font:inherit;font-size:11.5px;padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer';
+      b.addEventListener('click', () => { fn(); box.querySelectorAll('button').forEach(x => { x.disabled = true; }); });
+      box.appendChild(b);
+    };
+    if (advice.smaller) btn('Use ' + advice.smaller + ' instead', () => { AIRouter.setModel(advice.smaller); window.showToast?.('The next answers come from ' + advice.smaller); });
+    if (advice.cloud) btn('Use the cloud for ' + (feature === 'agent' ? 'the agent' : 'chat'), () => { AIRouter.setRoutingPrefs({ [feature]: 'cloud' }); window.showToast?.('The next answers come from the cloud — Settings › AI switches it back'); });
+    return box.childElementCount ? box : null;
+  },
 
   // What went wrong, in the order a person would check it. `err` is the error
   // the failed request threw, when there is one.

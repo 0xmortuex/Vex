@@ -567,7 +567,11 @@ body[data-sb-launcher="toolbar"] #btn-look-sidebar { display: grid; place-items:
 /* A rail-launched sidebar (Firefox, Netscape, Glass) needs no toolbar button.
    Glass shows every toolbar button with `display:inline-flex !important` at
    (1,1,2) — naming the toolbar as well puts this at (2,1,1), above it. */
-body[data-sb-launcher="rail"] :is(#top-bar-right, #top-bar-left) > #btn-look-sidebar { display: none !important; }
+body[data-sb-launcher="rail"]:not([data-gui-family="browser"]) :is(#top-bar-right, #top-bar-left) > #btn-look-sidebar { display: none !important; }
+/* Firefox and Netscape do have one: Firefox's "Sidebars" button hides and
+   shows the whole sidebar — the icon rail with it. So does Ctrl+B there. */
+body[data-gui-family="browser"][data-sb-launcher="rail"] #btn-look-sidebar { display: grid; place-items: center; padding: 0; }
+body[data-gui-family="browser"][data-sb-launcher="rail"].look-rail-hidden #icon-sidebar { display: none !important; }
 body[data-sb-side][data-sb-side="left"] #btn-look-sidebar .sb-edge { transform: translateX(-6px); }
 body[data-sb-side] #btn-look-sidebar.active { background: var(--b-btn-hover); color: var(--b-accent); }
 

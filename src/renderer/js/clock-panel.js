@@ -288,14 +288,20 @@ const VexClock = {
     this._timers.push(t);
     this._saveTimers();
     this._remember(this.KEY_RECENT_TIMERS, { label: t.label, total, at: Date.now() }, (a, b) => a.label === b.label && a.total === b.total);
+    // On screen at once. Registering it with the main process comes after:
+    // that also asks Windows (through PowerShell) to wake Vex for it, which
+    // takes a second or two — and the timer used to appear only then.
+    this._pill(); this._rerender();
     // Anything a minute or longer also lives in the main process, so a
     // reload cannot lose it and a desktop toast arrives regardless.
     const b = window.vex && window.vex.reminders;
     if (b && total >= 60000) {
-      try { const r = await b.create(t.label, t.endAt, { kind: 'timer', sound: true, urgent: true }); t.reminderId = r.id; this._saveTimers(); }
-      catch (err) { window.showToast?.('The timer runs, but only while Vex is open: ' + ((err && err.message) || ''), 'error'); }
+      try {
+        const r = await b.create(t.label, t.endAt, { kind: 'timer', sound: true, urgent: true });
+        if (this._timers.includes(t)) { t.reminderId = r.id; this._saveTimers(); }
+        else await b.delete(r.id);                    // stopped while it was being registered
+      } catch (err) { window.showToast?.('The timer runs, but only while Vex is open: ' + ((err && err.message) || ''), 'error'); }
     }
-    this._pill(); this._rerender();
     return t;
   },
 
@@ -303,9 +309,13 @@ const VexClock = {
     const t = this._timers.find(x => x.id === id);
     this._timers = this._timers.filter(x => x.id !== id);
     this._saveTimers();
-    const b = window.vex && window.vex.reminders;
-    if (t && t.reminderId && b) { try { await b.delete(t.reminderId); } catch { /* already fired or gone */ } }
+    // Gone from the screen at once; removing the Windows wake-up comes after.
     this._pill(); this._rerender();
+    const b = window.vex && window.vex.reminders;
+    if (t && t.reminderId && b) {
+      try { await b.delete(t.reminderId); }
+      catch (err) { if (!/no longer exists/i.test((err && err.message) || '')) window.showToast?.('The timer is stopped, but its desktop alert may still appear: ' + ((err && err.message) || ''), 'error'); }
+    }
   },
 
   _tickTimers() {

@@ -430,7 +430,11 @@ const SidebarManager = {
     const panelEl = document.getElementById(`panel-${panelName}`);
     if (!panelEl) return;
 
-    panelEl.style.display = 'block';
+    // Shown by removing the inline "display:none", not by forcing "block":
+    // a panel whose stylesheet lays it out as a flex column (Work, Clock)
+    // needs that to scroll — forced to block, its content ran off the bottom
+    // with nothing to scroll in the docked sidebar of the Firefox look.
+    panelEl.style.display = '';
     this._preparePanel(panelName, panelEl);
     this.activePanel = panelName;
 
@@ -440,7 +444,7 @@ const SidebarManager = {
     const sideEl = paired && paired !== panelName && this._canSit(paired) && this._canSit(panelName)
       ? document.getElementById(`panel-${paired}`) : null;
     this.sidePanel = sideEl ? paired : null;
-    if (sideEl) { sideEl.style.display = 'block'; this._preparePanel(paired, sideEl); }
+    if (sideEl) { sideEl.style.display = ''; this._preparePanel(paired, sideEl); }
     this._layoutPanels();
     this._announcePanel(panelName);
     // Discord in front runs unthrottled at once (checkDiscordThrottle).
@@ -673,7 +677,8 @@ const SidebarManager = {
       const beside = !!side && name === side;
       p.classList.toggle('sb-primary', primary);
       p.classList.toggle('sb-side', beside);
-      p.style.display = primary || beside ? 'block' : 'none';
+      // '' (the panel's own stylesheet display), not 'block' — see showPanel.
+      p.style.display = primary || beside ? '' : 'none';
     });
     if (container) {
       if (side) {
@@ -702,7 +707,7 @@ const SidebarManager = {
     if (!this._canSit(panelName) || !this._canSit(this.activePanel)) throw new Error('Settings takes the whole area and cannot share it');
     const panelEl = document.getElementById('panel-' + panelName);
     this.sidePanel = panelName;
-    panelEl.style.display = 'block';
+    panelEl.style.display = '';
     this._preparePanel(panelName, panelEl);
     this._savePair(this.activePanel, panelName);
     this._layoutPanels();

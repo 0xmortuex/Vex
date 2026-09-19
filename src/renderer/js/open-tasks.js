@@ -139,6 +139,37 @@ const OpenTasks = {
     return cols;
   },
 
+  // --- due dates → reminders -------------------------------------------------------
+  // A dated to-do can be turned into a reminder with one click: 9:00 on its
+  // day (or the next full hour, when that is today and 9:00 has gone). Which
+  // tasks have one is remembered, so the bell shows it is set.
+  REMIND_KEY: 'vex.todo.reminders',
+  REMIND_HOUR: 9,
+  _plain(t) { return t.text.replace(/(?:^|\s)@(\d{4}-\d{2}-\d{2}|today|tomorrow)\b/i, '').trim() || t.text; },
+  _remindKey(t) { return t.noteId + '|' + this._plain(t); },
+  _reminded() {
+    try { const o = JSON.parse(localStorage.getItem(this.REMIND_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; }
+    catch (err) { window.showToast?.('The to-do reminder list could not be read — starting a new one', 'error'); return {}; }
+  },
+  hasReminder(t) { return !!this._reminded()[this._remindKey(t)]; },
+  remindTime(t, now = new Date()) {
+    if (t.due == null) throw new Error('This to-do has no date — add @tomorrow or @2026-10-03 to it');
+    const at = new Date(t.due); at.setHours(this.REMIND_HOUR, 0, 0, 0);
+    if (at > now) return at;
+    const sameDay = new Date(t.due).toDateString() === now.toDateString();
+    if (!sameDay) throw new Error('That day has passed');
+    const next = new Date(now); next.setHours(now.getHours() + 1, 0, 0, 0);
+    return next;
+  },
+  async remind(t, now = new Date()) {
+    const at = this.remindTime(t, now);
+    const r = await window.VexQuickReminder.create(this._plain(t), at);
+    const map = this._reminded();
+    map[this._remindKey(t)] = r && r.id ? r.id : true;
+    localStorage.setItem(this.REMIND_KEY, JSON.stringify(map));
+    return at;
+  },
+
   // A new task goes into the "To-do" note, made if it does not exist.
   add(text) {
     const t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
@@ -228,6 +259,7 @@ const OpenTasks = {
             <div data-text style="font-size:13px;color:var(--text)">${esc(shown)}</div>
             <div style="font-size:10.5px;color:${t.overdue ? 'var(--danger,#e5534b)' : 'var(--text-muted)'}">${t.due != null ? esc('Due ' + dayName(t.due)) + ' · ' : ''}${esc(t.noteTitle)}</div>
           </div>
+          ${t.due != null && !t.overdue ? `<button data-remind type="button" title="${this.hasReminder(t) ? 'A reminder is set' : 'Remind me on the day'}" aria-label="${this.hasReminder(t) ? 'A reminder is set' : 'Remind me on the day'}" style="flex:0 0 auto;display:inline-flex;background:none;border:1px solid var(--border);border-radius:6px;padding:2px 6px;cursor:pointer;color:${this.hasReminder(t) ? 'var(--primary)' : 'var(--text-muted)'}">${VexIcons.svg('bell', { size: 12 })}</button>` : ''}
           <button data-open type="button" style="flex:0 0 auto;font-size:11px;background:none;border:1px solid var(--border);border-radius:6px;padding:2px 7px;cursor:pointer;color:var(--text)">Open note</button>`;
         const box = row.querySelector('input');
         box.addEventListener('change', () => {
@@ -238,6 +270,15 @@ const OpenTasks = {
             // Leave it visible a moment so the tick is seen, then redraw.
             setTimeout(() => { if (rows.isConnected) draw(); }, 900);
           } catch (err) { window.showToast?.(err.message, 'error'); box.checked = !box.checked; draw(); }
+        });
+        row.querySelector('[data-remind]')?.addEventListener('click', async (e) => {
+          e.preventDefault();
+          if (this.hasReminder(t)) { window.showToast?.('A reminder is already set for this — see Remind me'); return; }
+          try {
+            const at = await this.remind(t);
+            window.showToast?.('Reminder set — ' + at.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+            draw();
+          } catch (err) { window.showToast?.(err.message, 'error'); }
         });
         row.querySelector('[data-open]').addEventListener('click', (e) => {
           e.preventDefault();

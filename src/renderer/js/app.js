@@ -1362,6 +1362,8 @@
   // never shows. Clicks are bound separately below on the real buttons.
   const tabsToggleBtn = document.getElementById('btn-toggle-tabs-left');
   function toggleTabsSidebar() {
+    // Firefox / Netscape looks have no side tabs: Ctrl+B hides their sidebar.
+    if (window.VexLookSidebar && VexLookSidebar.railLook()) { VexLookSidebar.toggleRail(); return; }
     document.body.classList.toggle('tabs-hidden');
     tabsToggleBtn?.classList.toggle('active', document.body.classList.contains('tabs-hidden'));
     localStorage.setItem('vex.tabsHidden', document.body.classList.contains('tabs-hidden'));
