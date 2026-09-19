@@ -208,6 +208,8 @@ const VexFeatures = {
       what: 'A citation in APA, MLA, Harvard, Chicago or BibTeX, built from what the page publishes about itself.' },
     { id: 'todo', cat: 'work', cmd: 'todo',
       what: 'Every open checklist item from every note, in one list, sorted by due date. Tick it here and it is ticked in the note; add one and it goes in your To-do note.' },
+    { id: 'todo-board', cat: 'work', cmd: 'todo-board',
+      what: 'The same note tasks in three columns: To do, Doing, Done. Drag a card or use its arrows; the move is written into that task line in its note, so the board and the notes never disagree.' },
     { id: 'projects', cat: 'work', cmd: 'projects',
       what: 'A folder for one topic: the pages, your notes, and the AI conversations about it — which every other browser loses, because a chat belongs to a tab and tabs close. Exports as Markdown.' },
     { id: 'show-thinking', cat: 'ai', cmd: 'show-thinking', sel: '#ai-think-toggle',

@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.20 (2026-09-19) — Task board
+
+### Notes
+- **Task Board** (`Ctrl+K`, or the **Board** button in the To-do list). Your note tasks in three columns: **To do**, **Doing** and **Done**. Drag a card to another column, or use its arrows.
+- **No separate board to fall out of step.** A move is an edit to the task's own line in its note: Doing adds `@doing`, Done ticks the box, and To do clears both. You can also type `@doing` in a note yourself, and the task shows in Doing.
+- Done shows the 20 most recent finished tasks, not every task ever ticked.
+- Only Vex's own cards can be dropped on the board; dragging ordinary text onto it does nothing.
+
+### Internal
+- The CI failures reported on every commit since v2.31.96 are fixed (six lint errors, and adm-zip updated to 0.6.1 for a high-severity advisory). The "Verify Vex" run for the fix passed every step.
+
 ## v2.32.19 (2026-09-19) — Why is this page slow?
 
 ### Notes

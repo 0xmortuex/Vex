@@ -92,6 +92,53 @@ const OpenTasks = {
     return String(content || '');
   },
 
+  // --- the board: To do / Doing / Done ------------------------------------------
+  // The same tasks, in three columns. "Doing" is an open task carrying the tag
+  // @doing, so a board move is an edit to the task's own line in its note —
+  // there is no separate board state to fall out of step with the notes.
+  DOING: /(^|\s)@doing\b/i,
+
+  statusOf(t) { return t.done ? 'done' : this.DOING.test(t.text) ? 'doing' : 'todo'; },
+
+  // Rewrite the nth task line of a note's text for a column.
+  _setStatusIn(content, index, status) {
+    const lines = String(content || '').split('\n');
+    let seen = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const m = this.LINE.exec(lines[i]);
+      if (!m) continue;
+      if (++seen !== index) continue;
+      let text = m[3].replace(/\s*@doing\b/ig, '').replace(/\s+$/, '');
+      if (status === 'doing') text = text + ' @doing';
+      lines[i] = m[1] + (status === 'done' ? '[x]' : '[ ]') + text;
+      return lines.join('\n');
+    }
+    return String(content || '');
+  },
+
+  setStatus(noteId, index, status) {
+    if (!['todo', 'doing', 'done'].includes(status)) throw new Error('A task is To do, Doing or Done');
+    const notes = this._notes();
+    const note = notes.find(n => n && n.id === noteId);
+    if (!note) throw new Error('That note is gone');
+    const after = this._setStatusIn(note.content, index, status);
+    if (after === note.content) return note;                  // already there
+    note.content = after;
+    note.updatedAt = new Date().toISOString();
+    this._write(notes, noteId);
+    return note;
+  },
+
+  // The three columns. Done shows the most recent few only — a board of every
+  // task ever finished is a list nobody reads.
+  board(notes, { doneLimit = 20, now = new Date() } = {}) {
+    const all = this.collect(notes, { includeDone: true, now });
+    const cols = { todo: [], doing: [], done: [] };
+    for (const t of all) cols[this.statusOf(t)].push(t);
+    cols.done = cols.done.slice(0, doneLimit);
+    return cols;
+  },
+
   // A new task goes into the "To-do" note, made if it does not exist.
   add(text) {
     const t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
@@ -132,6 +179,8 @@ const OpenTasks = {
   open() {
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     const { head, body, close } = window.PageExport._sheet('To-do', 'vex-tasks-overlay');
+    head.insertAdjacentHTML('beforeend', `<button data-board type="button" style="font-size:11.5px;color:var(--text);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">Board</button>`);
+    head.querySelector('[data-board]').addEventListener('click', () => { close(); this.openBoard(); });
     const dayName = (ms) => {
       const d = new Date(ms), now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -208,6 +257,70 @@ const OpenTasks = {
     draw();
     input.focus();
     return head;
+  },
+
+  // --- the board view ------------------------------------------------------------
+  COLUMNS: [['todo', 'To do'], ['doing', 'Doing'], ['done', 'Done']],
+  DRAG_TYPE: 'application/x-vex-task',
+
+  openBoard() {
+    const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
+    const { head, body, close } = window.PageExport._sheet('Task board', 'vex-board-overlay');
+    const box = head.closest('[role="dialog"]');
+    if (box) box.style.width = 'min(980px,96vw)';
+    head.insertAdjacentHTML('beforeend', `<button data-list type="button" style="font-size:11.5px;color:var(--text);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">List</button>`);
+    head.querySelector('[data-list]').addEventListener('click', () => { close(); this.open(); });
+
+    const draw = () => {
+      const cols = this.board(this._notes());
+      body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px">${this.COLUMNS.map(([id, label]) => `
+        <div data-col="${id}" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;min-height:180px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);padding:2px 4px 8px">${esc(label)} · ${cols[id].length}</div>
+          <div data-cards style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>`).join('')}</div>
+        <div style="padding:0 14px 12px;font-size:11px;color:var(--text-muted)">Drag a card to another column, or use its arrows. It changes the task in its note: Doing adds <code>@doing</code>, Done ticks it.</div>`;
+      for (const [id] of this.COLUMNS) {
+        const col = body.querySelector(`[data-col="${id}"]`);
+        const list = col.querySelector('[data-cards]');
+        if (!cols[id].length) list.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:6px">Nothing ${id === 'done' ? 'done yet' : 'here'}.</div>`;
+        for (const t of cols[id]) {
+          const shown = t.text.replace(/\s*@doing\b/ig, '').replace(/(?:^|\s)@(\d{4}-\d{2}-\d{2}|today|tomorrow)\b/i, '').trim() || t.text;
+          const card = document.createElement('div');
+          card.draggable = true;
+          card.setAttribute('role', 'group');
+          card.setAttribute('aria-label', shown);
+          card.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 8px;cursor:grab';
+          const i = this.COLUMNS.findIndex(c => c[0] === id);
+          card.innerHTML = `
+            <div style="font-size:12.5px;color:var(--text);${id === 'done' ? 'text-decoration:line-through;opacity:0.7' : ''}">${esc(shown)}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:5px">
+              <span style="flex:1;min-width:0;font-size:10.5px;color:${t.overdue && id !== 'done' ? 'var(--danger,#e5534b)' : 'var(--text-muted)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.noteTitle)}${t.overdue && id !== 'done' ? ' · overdue' : ''}</span>
+              ${i > 0 ? `<button data-to="${this.COLUMNS[i - 1][0]}" type="button" title="Move to ${this.COLUMNS[i - 1][1]}" aria-label="Move to ${this.COLUMNS[i - 1][1]}" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:5px;padding:1px 5px;cursor:pointer;color:var(--text);display:inline-flex">${VexIcons.svg('arrow-left', { size: 12 })}</button>` : ''}
+              ${i < 2 ? `<button data-to="${this.COLUMNS[i + 1][0]}" type="button" title="Move to ${this.COLUMNS[i + 1][1]}" aria-label="Move to ${this.COLUMNS[i + 1][1]}" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:5px;padding:1px 5px;cursor:pointer;color:var(--text);display:inline-flex">${VexIcons.svg('arrow-right', { size: 12 })}</button>` : ''}
+            </div>`;
+          const move = (to) => {
+            try { this.setStatus(t.noteId, t.index, to); draw(); }
+            catch (err) { window.showToast?.(err.message, 'error'); draw(); }
+          };
+          card.querySelectorAll('[data-to]').forEach(b => b.addEventListener('click', () => move(b.dataset.to)));
+          card.addEventListener('dragstart', (e) => { e.dataTransfer.setData(this.DRAG_TYPE, JSON.stringify({ noteId: t.noteId, index: t.index })); e.dataTransfer.effectAllowed = 'move'; });
+          list.appendChild(card);
+        }
+        col.addEventListener('dragover', (e) => { e.preventDefault(); col.style.outline = '2px dashed var(--primary)'; });
+        col.addEventListener('dragleave', () => { col.style.outline = ''; });
+        col.addEventListener('drop', (e) => {
+          e.preventDefault();
+          col.style.outline = '';
+          const raw = e.dataTransfer.getData(this.DRAG_TYPE);
+          if (!raw) return;                    // not one of our cards
+          const d = JSON.parse(raw);
+          try { this.setStatus(d.noteId, d.index, id); } catch (err) { window.showToast?.(err.message, 'error'); }
+          draw();
+        });
+      }
+    };
+    draw();
+    return body;
   },
 
   async quickAdd() {

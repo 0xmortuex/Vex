@@ -3,6 +3,7 @@
 // Every open task from every note, in one list — and ticked where it lives.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+require('../../src/renderer/js/vex-icons.js');
 require('../../src/renderer/js/page-export.js');
 const { OpenTasks } = require('../../src/renderer/js/open-tasks.js');
 const { NotesPanel: RealNotes } = (() => { try { return { NotesPanel: require('../../src/renderer/js/notes-panel.js').NotesPanel }; } catch { return {}; } })();
@@ -150,5 +151,79 @@ describe('the list', () => {
     notesPanel([]);
     OpenTasks.open();
     expect(document.querySelector('.vex-tasks-overlay').textContent).toMatch(/Nothing to do/);
+  });
+});
+
+describe('the board', () => {
+  beforeEach(() => {
+    window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    window.showToast = vi.fn();
+  });
+
+  it('sorts tasks into To do, Doing and Done by what the note line says', () => {
+    const cols = OpenTasks.board([note('a', 'Kitchen', '- [ ] Measure @doing\n- [ ] Order tiles\n- [x] Pick colour')], { now: NOW });
+    expect(cols.todo.map(t => t.text)).toEqual(['Order tiles']);
+    expect(cols.doing.map(t => t.text)).toEqual(['Measure @doing']);
+    expect(cols.done.map(t => t.text)).toEqual(['Pick colour']);
+  });
+
+  it('keeps only the most recent finished ones', () => {
+    const lines = Array.from({ length: 30 }, (_, i) => '- [x] Done ' + i).join('\n');
+    expect(OpenTasks.board([note('a', 'x', lines)], { now: NOW }).done).toHaveLength(20);
+    expect(OpenTasks.board([note('a', 'x', lines)], { doneLimit: 5, now: NOW }).done).toHaveLength(5);
+  });
+
+  it('a move rewrites only that task line, and moves round-trip', () => {
+    const text = 'Notes\n- [ ] One @tomorrow\n- [ ] Two';
+    const doing = OpenTasks._setStatusIn(text, 0, 'doing');
+    expect(doing).toBe('Notes\n- [ ] One @tomorrow @doing\n- [ ] Two');
+    const done = OpenTasks._setStatusIn(doing, 0, 'done');
+    expect(done).toBe('Notes\n- [x] One @tomorrow\n- [ ] Two');
+    expect(OpenTasks._setStatusIn(done, 0, 'todo')).toBe(text);
+    expect(OpenTasks._setStatusIn(text, 1, 'doing')).toBe('Notes\n- [ ] One @tomorrow\n- [ ] Two @doing');
+  });
+
+  it('refuses an unknown column and a missing note', () => {
+    notesPanel([note('a', 'x', '- [ ] One')]);
+    expect(() => OpenTasks.setStatus('a', 0, 'later')).toThrow(/To do, Doing or Done/);
+    expect(() => OpenTasks.setStatus('gone', 0, 'done')).toThrow(/gone/);
+  });
+
+  it('the arrows move a card and write it back to the note', () => {
+    const panel = notesPanel([note('a', 'Kitchen', '- [ ] Measure')]);
+    OpenTasks.openBoard();
+    const col = (id) => document.querySelector(`.vex-board-overlay [data-col="${id}"]`);
+    expect(col('todo').textContent).toContain('Measure');
+    col('todo').querySelector('[data-to="doing"]').click();
+    expect(panel.notes[0].content).toBe('- [ ] Measure @doing');
+    expect(col('doing').textContent).toContain('Measure');
+    expect(col('doing').textContent).not.toContain('@doing');
+    col('doing').querySelector('[data-to="done"]').click();
+    expect(panel.notes[0].content).toBe('- [x] Measure');
+    expect(col('done').textContent).toContain('Measure');
+  });
+
+  it('dropping a card on a column moves it; dropping other text does nothing', () => {
+    const panel = notesPanel([note('a', 'Kitchen', '- [ ] Measure')]);
+    OpenTasks.openBoard();
+    const drop = (id, data) => {
+      const e = new Event('drop', { cancelable: true });
+      e.dataTransfer = { getData: (type) => data[type] || '' };
+      document.querySelector(`.vex-board-overlay [data-col="${id}"]`).dispatchEvent(e);
+    };
+    drop('done', { 'text/plain': 'some text' });
+    expect(panel.notes[0].content).toBe('- [ ] Measure');
+    drop('done', { [OpenTasks.DRAG_TYPE]: JSON.stringify({ noteId: 'a', index: 0 }) });
+    expect(panel.notes[0].content).toBe('- [x] Measure');
+  });
+
+  it('switches between the list and the board', () => {
+    notesPanel([note('a', 'x', '- [ ] One')]);
+    OpenTasks.open();
+    document.querySelector('.vex-tasks-overlay [data-board]').click();
+    expect(document.querySelector('.vex-tasks-overlay')).toBeNull();
+    document.querySelector('.vex-board-overlay [data-list]').click();
+    expect(document.querySelector('.vex-board-overlay')).toBeNull();
+    expect(document.querySelector('.vex-tasks-overlay')).not.toBeNull();
   });
 });
