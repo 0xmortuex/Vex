@@ -68,6 +68,22 @@
   const tabsAt = performance.now();
   await TabManager.init();
   timed('tabs', tabsAt);
+  // A private window takes the look of the window it was opened from.
+  if (window.VexTabPolicy.isPrivateWindow) {
+    const look = new URLSearchParams(location.search).get('look');
+    if (look && look !== VexGuiStyle.get()) await VexGuiStyle.set(look);
+  }
+  // A clean window (for sharing) shows the one page it was opened for, and
+  // none of the bookmarks bar, sidebar or other chrome that says whose it is.
+  if (window.VexTabPolicy.isCleanWindow) {
+    document.body.classList.add('vex-clean-window');
+    const first = new URLSearchParams(location.search).get('url');
+    if (first && /^https?:/i.test(first)) {
+      const others = TabManager.tabs.slice();
+      TabManager.createTab(first, true);
+      for (const t of others) TabManager.closeTab(t.id);
+    }
+  }
 
   // Horizontal tab bar (wraps TabManager methods to auto-refresh)
   if (typeof HorizontalTabs !== 'undefined') HorizontalTabs.init();
@@ -1094,7 +1110,7 @@
     ShortcutsRegistry.register('reload',         () => WebviewManager?.reload?.());
     ShortcutsRegistry.register('hard-reload',    () => WebviewManager?.hardReload?.());
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
-    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.());
+    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get()));
     ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
     ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing
     ShortcutsRegistry.register('next-tab',       () => cycleTab(1));

@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.32.40 (2026-09-19) — A clean window for sharing, split layouts saved, links one at a time
+
+### Changes
+- **Share this page in a clean window** (Ctrl+K). A private window with only that page in it:
+  - no bookmarks bar, no sidebar of panels, no other tabs,
+  - and streamer mode always on.
+
+  For sharing your screen or recording without your own browser in the picture. It's private, so the page is signed out. Checked live in the Firefox look.
+- **Split screen is saved with a workspace snapshot, and comes back.** Which tabs were side by side, in what order, and where the divider was. The snapshot list says "split 2 ways". Checked live: a 35/65 split saved, everything closed, restored as it was.
+- **Read your saved links one at a time.** Ctrl+K › *Next from Read Later* (or *Read them one at a time* in the Library) opens the oldest unread link in the tab you're on, and says how many are left. Links saved from a page's right-click menu now keep their link text as a title.
+
+### Fixes
+- **Split screen showed the wrong address over the left pane.** Both small address bars sat on top of each other over the left half, so the left pane showed the right pane's address, and they ignored the divider. Each now sits over its own pane, including while you drag the divider.
+- **Switching tabs while the address bar had the caret** (a new tab puts it there) left the bar blank over the page you switched to. It now shows that page's address.
+- **Private windows opened in the Classic look**, whatever look you use. They now take the look of the window they're opened from.
+- **Private windows showed the first-run setup wizard** every time. They no longer do.
+- Saving a link to Read Later from the right-click menu showed two notices, and hid any failure. It shows one, and a failure is reported.
+
 ## v2.32.39 (2026-09-19) — Settings by asking, GitHub build alerts, and more from the agent
 
 ### Changes

@@ -1023,6 +1023,12 @@ body.private-mode #vex-logo::after {
 .smb-btn:hover { color: var(--vex-text-primary, var(--text)); background: var(--vex-hover-fill, var(--bg)); }
 .smb-primary { border-color: var(--primary); color: var(--primary); }
 
+/* === A clean window, for sharing the screen ==============================
+   Private, one page, and none of the chrome that says whose browser it is:
+   the bookmarks/shortcuts bar and the sidebar of panels (js/app.js). */
+body.vex-clean-window #gui-shortcuts-bar,
+body.vex-clean-window #icon-sidebar { display: none !important; }
+
 /* === Streamer mode ========================================================
    Vex holds one-time codes, passwords and notifications that quote messages.
    While the screen is being captured they are blurred rather than hidden: the

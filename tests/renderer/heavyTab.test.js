@@ -105,3 +105,18 @@ describe('the heavy-tab notice', () => {
     expect((await TM.checkHeavyTabs()).length).toBe(1);
   });
 });
+
+describe('the address bar on switching tabs', () => {
+  it('shows the new tab\'s address even when a new tab left the caret in it', async () => {
+    installGlobals();
+    const TM = await loadTabManager();
+    TM.tabs = [fakeTab('a'), fakeTab('b')];
+    TM.activeTabId = 'a';
+    const input = document.getElementById('url-input');
+    input.value = '';
+    input.focus();                         // what a new tab does
+    TM.switchTab('b');
+    expect(input.value).toBe('https://b.example/');
+    expect(document.activeElement).not.toBe(input);
+  });
+});

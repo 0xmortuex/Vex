@@ -25,6 +25,12 @@ const CommandBar = {
     { id: 'peek', label: 'Peek Current Page', hint: 'Preview the active page in a floating overlay (Shift+click links to peek them)', icon: 'eye', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof VexPeek !== 'undefined') VexPeek.open(t.url); } },
     { id: 'zap', label: 'Zap Element', hint: 'Click any element on this page to hide it forever on this site', icon: 'zap', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } },
     { id: 'boost', label: 'Boost This Site', hint: 'Custom CSS / JS for the current site', icon: 'palette', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } },
+    { id: 'cleanwindow', label: 'Share this page in a clean window', hint: 'A private window with only this page: no bookmarks, sidebar or other tabs, streamer mode on', icon: 'eye', action: async () => {
+      const t = TabManager.getActiveTab();
+      if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open the page you want to share first', 'error'); return; }
+      await window.vex.openCleanWindow(t.url, VexGuiStyle.get());
+    } },
+    { id: 'readlater-next', label: 'Next from Read Later', hint: 'The oldest link you saved, in this tab — read them one at a time', icon: 'book', action: () => ReadLater.next() },
     { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) ReadLater.add(t.url, t.title); } },
     { id: 'library', label: 'Library', hint: 'Read-later queue + auto-archived tabs', icon: 'book', isPrimary: true, action: () => SidebarManager.openPanel('library') },
     { id: 'save-pdf', label: 'Save Page as PDF', hint: 'Straight to a PDF file — no print dialog, no preview', icon: 'file', action: async () => { try { await window.PageExport?.savePage('pdf'); } catch (e) { window.showToast?.(e.message, 'error'); } } },
@@ -208,7 +214,7 @@ const CommandBar = {
     { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: 'search', action: () => WebviewManager.zoomReset() },
     // Phase 6 commands
     { id: 'fullscreen', label: 'Toggle Fullscreen', hint: 'Enter/exit fullscreen', shortcut: 'F11', icon: 'maximize', action: () => window.vex.toggleFullscreen?.() },
-    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Shift+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.() },
+    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Shift+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get()) },
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
     { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: 'pin', action: () => TabManager.togglePinTab() },

@@ -4534,7 +4534,9 @@ async function applyStoredRoutings() {
     applyRouting, report: err => console.warn('[Routing] Tor unavailable:', err.message) });
 }
 
-ipcMain.handle('open-private-window', () => {
+// clean: the window for sharing a screen — private, and showing only `url`
+// (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
+function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
   const privatePartition = secureSessions.newPrivatePartition();
   const privSession = secureSessions.fromPartition(privatePartition);
   wireDownloadsOnSession(privSession, 'private');
@@ -4563,9 +4565,13 @@ ipcMain.handle('open-private-window', () => {
     }
   });
   secureSessions.registerHost(privWin, privatePartition);
-  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition } });
+  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(clean ? { clean: 'true', url } : {}) } });
   return true;
-});
+}
+// `look` is the opener's GUI style: a private window keeps its own storage,
+// so without it every private window came up in the Classic look.
+ipcMain.handle('open-private-window', (_e, look) => openPrivateWindow({ look: look || '' }));
+ipcMain.handle('open-clean-window', (_e, url, look) => openPrivateWindow({ clean: true, url, look: look || '' }));
 
 // Update IPC
 // Lightweight manual check: fetch latest.yml from the GitHub "latest" release and

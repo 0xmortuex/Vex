@@ -5,6 +5,8 @@
   const isEphemeral = partition => !!partition && !String(partition).startsWith('persist:');
   const policy = {
     isPrivateWindow: !!privatePartition,
+    // A private window opened for sharing the screen (Ctrl+K › Share this page in a clean window).
+    isCleanWindow: !!privatePartition && query.get('clean') === 'true',
     defaultPartition: privatePartition || 'persist:main',
     partitionFor(partition) { return privatePartition || partition || 'persist:main'; },
     canRestore(tab) { return !!tab && !isEphemeral(tab.partition) && typeof tab.url === 'string' && /^(https?:|about:|file:|vex:)/i.test(tab.url); },

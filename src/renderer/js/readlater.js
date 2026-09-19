@@ -38,6 +38,22 @@ const ReadLater = {
     TabManager.createTab(item.url, true);
   },
 
+  // One at a time: the oldest unread link replaces the page in the tab you are
+  // on (a new tab if that tab has nothing to lose), so a pile of saved links
+  // is read through rather than opened as a pile of tabs. → the item, or null.
+  next() {
+    const item = [...this.items].reverse().find(i => !i.read);
+    if (!item) { window.showToast?.('Nothing left in Read Later'); return null; }
+    item.read = true;
+    this.save();
+    const tab = TabManager.getActiveTab();
+    if (tab && /^https?:/i.test(tab.url || '')) WebviewManager.navigate(item.url);
+    else TabManager.createTab(item.url, true);
+    const left = this.unread();
+    window.showToast?.(left ? left + ' more to read — Ctrl+K › Next from Read Later' : 'That was the last one');
+    return item;
+  },
+
   _badge() {
     const btn = document.querySelector('.sidebar-icon[data-panel="library"]');
     if (!btn) return;
@@ -77,6 +93,15 @@ const ReadLater = {
     const unread = this.items.filter(i => !i.read);
     const read = this.items.filter(i => i.read).slice(0, 20);
     section('Read later' + (unread.length ? ' (' + unread.length + ')' : ''));
+    if (unread.length > 1) {
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'btn-secondary';
+      nextBtn.style.cssText = 'margin:2px 8px 6px';
+      nextBtn.textContent = 'Read them one at a time';
+      nextBtn.title = 'Opens the oldest; Ctrl+K › Next from Read Later for the one after';
+      nextBtn.addEventListener('click', () => { SidebarManager.hideActivePanel?.(); this.next(); });
+      body.appendChild(nextBtn);
+    }
     if (!unread.length) body.insertAdjacentHTML('beforeend', window.VexUI ? VexUI.emptyState('inbox', 'Nothing saved yet', 'Ctrl+K → "Read Later" on any page') : '<div style="font-size:12px;color:var(--text-muted);padding:4px 8px">Empty — Ctrl+K → "Read Later" on any page.</div>');
     unread.forEach(it => row(it, { open: (x) => { this.open(x); }, remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
     if (read.length) {

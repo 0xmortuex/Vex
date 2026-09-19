@@ -23,7 +23,9 @@ const SplitScreen = {
         ratio = Math.max(0.2, Math.min(0.8, ratio));
         this.splitRatio = ratio;
         container.style.gridTemplateColumns = `${ratio}fr 4px ${1 - ratio}fr`;
+        this.updateMiniUrlBars();
       });
+      window.addEventListener('resize', () => { if (this.active) this.updateMiniUrlBars(); });
       document.addEventListener('mouseup', () => { if (dragging) { dragging = false; divider.classList.remove('dragging'); } });
     }
 
@@ -51,6 +53,26 @@ const SplitScreen = {
     } else {
       this.applySplit();
     }
+    return true;
+  },
+
+  // What a saved layout needs to rebuild this split: the panes' addresses, in
+  // order, and the divider. Null when the screen is not split.
+  arrangement() {
+    if (!this.active || this.panes.length < 2) return null;
+    const urls = this.panes.map(id => (TabManager.tabs.find(t => t.id === id) || {}).url).filter(Boolean);
+    return urls.length >= 2 ? { urls, ratio: this.splitRatio } : null;
+  },
+
+  // Put a saved split back, over tabs that are already open.
+  restore(tabIds, ratio) {
+    const ids = tabIds.filter(id => TabManager.tabs.some(t => t.id === id)).slice(0, this.MAX_PANES);
+    if (ids.length < 2) return false;
+    this.panes = ids;
+    this.active = true;
+    if (Number.isFinite(ratio)) this.splitRatio = Math.max(0.2, Math.min(0.8, ratio));
+    document.getElementById('btn-split')?.classList.add('active');
+    this.applySplit();
     return true;
   },
 
@@ -218,6 +240,19 @@ const SplitScreen = {
     };
     setBar(leftBar, this.panes[0]);
     setBar(rightBar, this.panes[1]);
+    // Over its own pane, wherever the divider is. A fixed 50% put both bars
+    // over the left pane, so it showed the right pane's address.
+    requestAnimationFrame(() => { this._placeBar(leftBar, this.panes[0]); this._placeBar(rightBar, this.panes[1]); });
+  },
+
+  _placeBar(bar, id) {
+    const wv = id && WebviewManager.webviews.get(id);
+    const host = bar && (bar.offsetParent || bar.parentElement);
+    if (!wv || !host) return;
+    const h = host.getBoundingClientRect(), r = wv.getBoundingClientRect();
+    bar.style.left = Math.round(r.left - h.left) + 'px';
+    bar.style.right = 'auto';
+    bar.style.width = Math.round(r.width) + 'px';
   },
 
   // Render the tab list and resolve via onPick(tabId) / onCancel(). Only offers

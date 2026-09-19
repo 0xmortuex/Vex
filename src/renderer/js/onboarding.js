@@ -40,6 +40,9 @@ const Onboarding = {
   // Show only on a genuinely fresh install — never to existing users on update.
   maybeStart() {
     if (this.done()) return;
+    // A private window keeps its own storage, so it always looks like a first
+    // run — it is not one, and the setup wizard is not what it was opened for.
+    if (window.VexTabPolicy?.isPrivateWindow) return;
     const EVIDENCE = ['vex.tabs', 'vex.sessions', 'vex.bookmarks', 'vex.notes', 'vex.history', 'vex.aiWorkerUrl', 'vex.userName', 'vex.githubUsername', 'vex.weatherLoc', 'vex.personas'];
     const used = EVIDENCE.some(k => { try { return localStorage.getItem(k) != null; } catch { return false; } });
     if (used) { this.finish(); return; }            // existing install — mark done, don't nag

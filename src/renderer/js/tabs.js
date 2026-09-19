@@ -386,7 +386,11 @@ const TabManager = {
       SplitScreen.handleTabClick(id);
     }
 
-    // Update URL bar
+    // Update URL bar. What the bar holds belongs to the tab being left, so a
+    // bar with the caret in it (a new tab puts it there) lets go first —
+    // otherwise the blank new-tab bar stayed blank over the page switched to.
+    const urlInput = document.getElementById('url-input');
+    if (urlInput && document.activeElement === urlInput) urlInput.blur();
     this.updateUrlBar(tab);
 
     // Match Chrome/Edge: when the active tab is a start page, put the caret in

@@ -94,7 +94,8 @@ const GameMode = {
     return false;
   },
 
-  on() { const m = this.mode(); return m === 'on' || (m === 'auto' && this.captured()); },
+  // A clean window exists to be shared, so it is always in streamer mode.
+  on() { if (window.VexTabPolicy?.isCleanWindow) return true; const m = this.mode(); return m === 'on' || (m === 'auto' && this.captured()); },
 
   // The hotkey (Settings › Hotkeys): on if it is off, off if it is on — from
   // inside a game or a stream, where Settings is out of reach.

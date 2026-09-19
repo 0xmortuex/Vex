@@ -44,9 +44,11 @@ const WorkspaceSnapshots = {
     const all = this._all();
     const wsId = this._wsId();
     const list = all[wsId] || [];
-    const sig = JSON.stringify(tabs);
+    // The split screen too, so a layout comes back as it was arranged.
+    const split = typeof SplitScreen !== 'undefined' ? SplitScreen.arrangement() : null;
+    const sig = JSON.stringify([tabs, split && split.urls]);
     if (auto && list[0] && list[0].sig === sig) return; // unchanged → skip dupe
-    list.unshift({ ts: Date.now(), sig, tabs });
+    list.unshift({ ts: Date.now(), sig, tabs, split });
     all[wsId] = list.slice(0, this.MAX);
     this._save(all);
     if (!auto) { window.showToast?.(`Snapshot saved · ${tabs.length} tab${tabs.length > 1 ? 's' : ''}`); this._repaint(); }
@@ -65,15 +67,27 @@ const WorkspaceSnapshots = {
     const snap = list.find(s => s.ts === ts);
     if (!snap || typeof TabManager === 'undefined') return;
     let first = null;
+    const made = [];
     (Array.isArray(snap.tabs) ? snap.tabs : []).forEach((t) => {
       if (!window.VexTabPolicy.canRestore(t)) return;
       try {
         const tab = TabManager.createTab(t.url, false, null, { partition: t.partition });
         tab.pinned = !!t.pinned;
+        made.push({ id: tab.id, url: t.url });
         if (first == null) first = tab.id;
       } catch {}
     });
     if (first != null) { try { TabManager.switchTab(first); } catch {} }
+    // Each pane is the first restored tab at that address not already a pane.
+    if (snap.split && Array.isArray(snap.split.urls) && typeof SplitScreen !== 'undefined') {
+      const ids = [];
+      for (const url of snap.split.urls) {
+        const hit = made.find(m => m.url === url && !ids.includes(m.id));
+        if (hit) ids.push(hit.id);
+      }
+      if (SplitScreen.active) SplitScreen.deactivate();
+      SplitScreen.restore(ids, snap.split.ratio);
+    }
     TabManager.rebuildAllTabs?.();
     TabManager.persistTabs?.();
     window.showToast?.(`Restored ${snap.tabs.length} tab${snap.tabs.length > 1 ? 's' : ''}`);
@@ -99,7 +113,7 @@ const WorkspaceSnapshots = {
       const more = s.tabs.length > 3 ? ` +${s.tabs.length - 3} more` : '';
       return `<div class="wsnap-row" style="display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid var(--border)">
         <div style="flex:1;min-width:0">
-          <div style="font-size:12.5px;color:var(--text);font-weight:600">${this._rel(s.ts)} · ${s.tabs.length} tab${s.tabs.length > 1 ? 's' : ''}</div>
+          <div style="font-size:12.5px;color:var(--text);font-weight:600">${this._rel(s.ts)} · ${s.tabs.length} tab${s.tabs.length > 1 ? 's' : ''}${s.split ? ' · split ' + s.split.urls.length + ' ways' : ''}</div>
           <div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${titles}${more}</div>
         </div>
         <button data-restore="${s.ts}" style="padding:5px 11px;background:var(--primary);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:11.5px">Restore</button>

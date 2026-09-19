@@ -1027,7 +1027,7 @@ const WebviewManager = {
       if (typeof ReadLater !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
         items.push({
           label: 'Read Later',
-          action: () => { try { ReadLater.add(e.params.linkURL); window.showToast?.('Saved to Library'); } catch {} }
+          action: () => ReadLater.add(e.params.linkURL, e.params.linkText || e.params.linkURL)
         });
       }
       if (typeof LinkRot !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
