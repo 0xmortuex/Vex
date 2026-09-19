@@ -14,7 +14,7 @@ const VexQuickCommands = {
     const q = String(raw || '').trim();
     if (!q) return [];
     const out = [];
-    for (const fn of [this._remind, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory, this._setting]) {
+    for (const fn of [this._remind, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory, this._setting, this._guide]) {
       try { const r = fn.call(this, q); if (r) out.push(r); } catch (err) { /* a parse that failed part-way says so as a result, below */ out.push(this._unreadable(q, err)); }
     }
     return out;
@@ -74,6 +74,23 @@ const VexQuickCommands = {
         try { const r = await VexSettingsControl.apply(req); window.showToast?.(r.message); }
         catch (err) { window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); }
       },
+    };
+  },
+
+  // "how do i save a page for later", "can vex block ads", "is there a way to
+  // record my screen" — answered from Vex's own feature list (js/vex-guide.js),
+  // with the thing itself one press away.
+  _guide(q) {
+    if (typeof VexGuide === 'undefined' || !VexGuide.isAbout(q)) return null;
+    const a = VexGuide.answer(q);
+    if (!a.found) {
+      return { id: 'quick-guide-none', icon: 'info', isPrimary: false, label: 'Vex has nothing for that yet', hint: a.headline, action: () => {} };
+    }
+    return {
+      id: 'quick-guide', icon: 'sparkles', isPrimary: true,
+      label: VexFeatures.nameOf(a.entry),
+      hint: a.steps.join(' · ') + (a.others.length ? ' · also: ' + a.others.join(', ') : ''),
+      action: () => { VexGuide.run(a.entry); },
     };
   },
 

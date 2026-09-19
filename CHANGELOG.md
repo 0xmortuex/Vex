@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.53 (2026-09-20) — Ask Vex whether it can do something
+
+### Changes
+- **Ask Vex about Vex, in your own words.** Type a question into Ctrl+K — *how do I group my tabs*, *can vex block ads*, *is there a way to record my screen* — and Vex names the feature that does it, says what it's for, and shows the steps. Pressing it does the thing, rather than telling you where to look.
+  - Answers come from Vex's own feature list, so it can never promise something Vex doesn't have. When nothing matches, it says "Vex has nothing for that yet" instead of inventing an answer.
+  - It needs no AI: the words are matched on your machine, instantly, whether or not local AI is running.
+  - A feature that's switched off or hidden is noticed first, so the first step is turning it back on.
+  - Where there's nothing to run, Vex points at the real control on screen.
+
+  Next: the same answer inside the AI panel with *Show me* and *Do it* buttons, and step-by-step walkthroughs for the few features that genuinely take several steps.
+
 ## v2.32.52 (2026-09-20) — Note this moment of a video
 
 ### Changes
