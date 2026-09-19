@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.15 (2026-09-19) — Every to-do, from every note, in one list
+
+### Notes
+- **To-do List** (`Ctrl+K`). Notes already turned `- [ ] thing` into a real checkbox. They didn't show your checklists *together*, so a task written halfway down a note about a boiler quote only turned up again if you opened that note. Now one list gathers every open task from every note.
+  - **Tick it in the list and it's ticked in its note.** Even when that note is open in the editor at the same moment, the tick can't be lost. Checked live against the real Notes editor, with the note open while it was ticked.
+  - **Add a To-do** (`Ctrl+K`, or the box at the top of the list) puts the task in a pinned note called *To-do*, which is created the first time.
+  - **Dates:** end a task with `@tomorrow`, `@today` or `@2026-10-03`. Dated tasks come first, overdue ones are marked in red, and the date tag is hidden in the list.
+  - **Open note** takes you to where the task was written.
+- This isn't a second to-do app beside Notes. Every task stays a line in the note you wrote it in, so there's one place your tasks actually live, and it syncs like the rest of your notes.
+
 ## v2.32.14 (2026-09-19) — Can everyone use this page?
 
 ### Notes
