@@ -32,7 +32,7 @@ function parse(text) {
   };
 }
 
-function createGpuProbe({ execFile, platform = process.platform, now = () => Date.now(), timeoutMs = 2500 }) {
+function createGpuProbe({ execFile, now = () => Date.now(), timeoutMs = 2500 }) {
   let cached, cachedAt = 0, inFlight = null;     // cachedAt 0 = never asked
 
   function ask() {

@@ -50,12 +50,12 @@ function createGameHotkeys({ globalShortcut, onAction, log, load, save }) {
     const wanted = config || readConfig();
     const applied = {};
     const errors = [];
-    for (const [action, accel] of registered) { try { globalShortcut.unregister(accel); } catch { /* it was never taken */ } }
+    for (const accel of registered.values()) { try { globalShortcut.unregister(accel); } catch { /* it was never taken */ } }
     registered = new Map();
     for (const [action, accel] of Object.entries(wanted)) {
       if (!ACTIONS[action] || !accel) continue;
       if (!isSafeAccelerator(accel)) { errors.push({ action, accel, error: 'That needs a modifier — "Ctrl+Shift+M", not a plain key' }); continue; }
-      let ok = false;
+      let ok;
       try { ok = globalShortcut.register(accel, () => onAction(action)); }
       catch (err) { errors.push({ action, accel, error: err.message }); continue; }
       // Windows hands a combination to whoever asked first: another program

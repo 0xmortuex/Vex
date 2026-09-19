@@ -71,7 +71,7 @@ function createFileCheck({ fs, crypto, execFile, platform = process.platform, lo
     const out = { name, kind: kindOf(filePath), from: String(from || ''), sizeBytes: 0, sha256: '', signature: null, verdict: 'ordinary', lines: [] };
     let stat;
     try { stat = fs.statSync(filePath); }
-    catch (err) { throw new Error('That file is not there any more'); }
+    catch (err) { throw new Error('That file is not there any more', { cause: err }); }
     out.sizeBytes = stat.size;
     out.sha256 = await hash(filePath);
     if (out.kind === 'runnable') out.signature = await signature(filePath);

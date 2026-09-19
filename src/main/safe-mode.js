@@ -62,7 +62,6 @@ function createBootGuard({ dir, fs, argv = [], version = '0.0.0', settingsFile, 
   // Called when the interface is really up. Until this, the launch counts as
   // crashed.
   function started() {
-    const s = read();
     return write({ phase: 'started', fails: 0, version, at: now() });
   }
 

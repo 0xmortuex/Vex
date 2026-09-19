@@ -69,7 +69,7 @@ function createFullPageCapture({ webContents, sleep = (ms) => new Promise(r => s
     const dbg = wc.debugger;
     if (dbg.isAttached()) throw new Error('DevTools is open on this tab — close it and try again');
     try { dbg.attach('1.3'); }
-    catch (err) { throw new Error('Could not reach the page to capture it: ' + err.message); }
+    catch (err) { throw new Error('Could not reach the page to capture it: ' + err.message, { cause: err }); }
     try { return await captureAttached(dbg); }
     finally { try { dbg.detach(); } catch { /* gone with the tab */ } }
   }
