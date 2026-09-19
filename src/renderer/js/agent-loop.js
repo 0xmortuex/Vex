@@ -276,6 +276,10 @@ const AgentLoop = {
             // The reply as it is written, and a word when it is going to be
             // slow: a minute of "Thinking…" is indistinguishable from a hang.
             onToken: (_piece, full) => this._streamStep(full),
+            // Show thinking (AI panel switch): the model's own reasoning, as a
+            // faded line under the step. The router asks for it only when the
+            // switch is on; scheduled runs pass no listener and stay fast.
+            onThinking: (_piece, full) => this._streamThought(full),
             onSlow: (why) => { if (!this._slowSaid) { this._slowSaid = true; this._renderStep('slow', why, 'warn'); } },
           });
           if (out && this._run) this._run.backend = (out.backend || '') + (out.model ? ' · ' + out.model : '');
@@ -655,7 +659,35 @@ const AgentLoop = {
     const thought = text.match(/"thought"\s*:\s*"([^"]{0,160})/);
     const tool = text.match(/"tool"\s*:\s*"([a-z_]+)/);
     const shown = tool ? (thought ? thought[1] + ' → ' + tool[1] : tool[1]) : (thought ? thought[1] : text.slice(0, 120));
+    // Rewriting the row must not throw away the thinking line under it.
+    const live = el.querySelector('.agent-think-live');
     el.innerHTML = this._esc(shown) + ' <span class="ai-spinner"></span>';
+    if (live) el.appendChild(live);
+  },
+
+  // The model's reasoning as it thinks, one line under the step, the same
+  // subtitle as in chat. Text only — it is model output, which a page it read
+  // could have steered.
+  _streamThought(full) {
+    const el = document.querySelector('.agent-step-thinking');
+    if (!el) return;
+    let live = el.querySelector('.agent-think-live');
+    if (!live) {
+      live = document.createElement('div');
+      live.className = 'ai-thinking-live agent-think-live';
+      live.setAttribute('aria-live', 'polite');
+      el.appendChild(live);
+    }
+    // The panel's formatter when it is there; the same rule — the latest line,
+    // one line long — when it is not.
+    const lastLine = () => {
+      const lines = String(full || '').split(/\n+/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const last = lines.length ? lines[lines.length - 1] : '';
+      return last.length > 140 ? '…' + last.slice(-139) : last;
+    };
+    const line = (typeof AIPanel !== 'undefined' && AIPanel._thoughtSubtitle) ? AIPanel._thoughtSubtitle(full) : lastLine();
+    live.textContent = line;
+    live.title = String(full || '').slice(-2000);
   },
 
   stop() {

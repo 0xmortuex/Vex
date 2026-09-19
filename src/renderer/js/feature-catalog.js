@@ -196,6 +196,8 @@ const VexFeatures = {
       what: 'A citation in APA, MLA, Harvard, Chicago or BibTeX, built from what the page publishes about itself.' },
     { id: 'projects', cat: 'work', cmd: 'projects',
       what: 'A folder for one topic: the pages, your notes, and the AI conversations about it — which every other browser loses, because a chat belongs to a tab and tabs close. Exports as Markdown.' },
+    { id: 'show-thinking', cat: 'ai', cmd: 'show-thinking', sel: '#ai-think-toggle',
+      what: 'Watch a reasoning model think: its latest thought as a live line under "Thinking…", the whole of it one click away. Off by default — thinking makes a local model several times slower.' },
     { id: 'eyedropper', cat: 'dev', cmd: 'eyedropper',
       what: 'Sample the colour of any pixel on the screen — a page, a video, another program — and get its hex. Nothing is injected into the page.' },
     { id: 'snippets', cat: 'work', cmd: 'snippets',

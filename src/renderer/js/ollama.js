@@ -130,6 +130,7 @@ const Ollama = (() => {
     const decoder = new TextDecoder();
     let buffer = '';
     let full = '';
+    let thinking = '';
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -148,6 +149,14 @@ const Ollama = (() => {
           if (event.done && typeof options.onMeta === 'function') {
             try { options.onMeta({ promptTokens: event.prompt_eval_count || 0, replyTokens: event.eval_count || 0, totalMs: Math.round((event.total_duration || 0) / 1e6), loadMs: Math.round((event.load_duration || 0) / 1e6) }); } catch {}
           }
+          // A reasoning model asked to think sends its thoughts in their own
+          // field, ahead of the answer — /api/chat in message.thinking,
+          // /api/generate at the top level. They used to be dropped here.
+          const thought = (event.message && event.message.thinking) || event.thinking;
+          if (thought) {
+            thinking += thought;
+            if (typeof options.onThinking === 'function') { try { options.onThinking(thought, thinking); } catch {} }
+          }
           const piece = pick(event);
           if (piece) {
             full += piece;
@@ -161,6 +170,10 @@ const Ollama = (() => {
       await reader.cancel().catch(() => {});
       try { reader.releaseLock(); } catch {}
     }
+    // Only thoughts and no answer is still a failure — say it as one.
+    if (!full.trim() && thinking) {
+      throw new Error(`${body.model} only produced reasoning and no answer — try again, or turn off Show thinking`);
+    }
     return full;
   }
 
@@ -171,9 +184,10 @@ const Ollama = (() => {
       options: { temperature, num_predict: maxTokens }
     };
     if (systemPrompt) body.system = systemPrompt;
-    if (format === 'json') _asJson(body);
+    if (format === 'json') _asJson(body, options.think);
+    else if (options.think) body.think = true;
 
-    if (options.onToken) return _notEmpty(await _stream('/api/generate', body, options, (e) => e.response), model, null);
+    if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/generate', body, options, (e) => e.response), model, null);
     const r = await _post('/api/generate', body, options.signal);
     if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();
@@ -186,9 +200,15 @@ const Ollama = (() => {
   // on qwen3.5: 1,700 chars of thinking, 0 of answer. Every structured feature
   // then failed as "malformed response". think:false makes it answer directly;
   // a model without thinking accepts the flag and ignores it.
-  function _asJson(body) {
+  //
+  // Unless the user has asked to watch it think (Show thinking): measured on
+  // Ollama 0.34 with qwen3.5, think:true + format:'json' returned a valid JSON
+  // answer 6 times out of 6, the thoughts arriving separately in `thinking` —
+  // the empty-answer failure above did not recur. It costs time, not answers:
+  // ~3 s a reply without thinking, 16–39 s with it. Hence a switch, off.
+  function _asJson(body, think) {
     body.format = 'json';
-    body.think = false;
+    body.think = !!think;
   }
 
   // An empty reply is a failure to say so here, not an empty string for a
@@ -210,8 +230,9 @@ const Ollama = (() => {
     // Ollama's default context window (4,096 tokens) silently drops the START
     // of a longer prompt — the system prompt. The agent asks for room.
     if (Number.isFinite(numCtx) && numCtx > 0) body.options.num_ctx = numCtx;
-    if (format === 'json') _asJson(body);
-    if (options.onToken) return _notEmpty(await _stream('/api/chat', body, options, (e) => e.message && e.message.content), model, null);
+    if (format === 'json') _asJson(body, options.think);
+    else if (options.think) body.think = true;
+    if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/chat', body, options, (e) => e.message && e.message.content), model, null);
     const r = await _post('/api/chat', body, options.signal);
     if (!r.ok) throw new Error(await _errorText(r, model));
     const data = await r.json();

@@ -340,7 +340,7 @@ const AIRouter = (() => {
     // request.signal is the agent's Stop: it cancels the generation in flight.
     // onToken streams the reply as it is written — without it a local model
     // shows "Thinking…" for a minute and a stuck run looks the same as a slow one.
-    const text = await Ollama.chat(model, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: agentNumCtx(), signal: request.signal, onMeta: request.onMeta, onToken: request.onToken });
+    const text = await Ollama.chat(model, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: agentNumCtx(), signal: request.signal, onMeta: request.onMeta, onToken: request.onToken, ...thinkOpts(request) });
     return { result: text, backend: 'local', model };
   }
 
@@ -354,7 +354,7 @@ const AIRouter = (() => {
       if (m && m.role && m.content) msgs.push({ role: m.role, content: String(m.content).slice(0, 3000) });
     }
     msgs.push({ role: 'user', content: String(request.message || 'What is in this image?'), images: [String(request.image).replace(/^data:image\/[a-z]+;base64,/, '')] });
-    const text = await Ollama.chat(model, msgs, { temperature: 0.4, maxTokens: 1200, numCtx: agentNumCtx(), signal: request.signal, onToken: request.onToken });
+    const text = await Ollama.chat(model, msgs, { temperature: 0.4, maxTokens: 1200, numCtx: agentNumCtx(), signal: request.signal, onToken: request.onToken, ...thinkOpts(request) });
     return { result: text, backend: 'local', model };
   }
   async function callLocal(feature, request) {
@@ -397,7 +397,7 @@ const AIRouter = (() => {
       const turns = hist.filter(m => m.role !== 'system').slice(-10);
       for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
       msgs.push({ role: 'user', content: userMessage });
-      const text = await Ollama.chat(localModel, msgs, { temperature, maxTokens: 2000, format: 'json', onToken: request.onToken });
+      const text = await Ollama.chat(localModel, msgs, { temperature, maxTokens: 2000, format: 'json', onToken: request.onToken, ...thinkOpts(request) });
       return { result: text, backend: 'local', model: localModel };
     }
 
@@ -408,6 +408,7 @@ const AIRouter = (() => {
       format: expectsJson ? 'json' : null,
       // Only the local backend streams; the cloud worker answers in one piece.
       onToken: request.onToken,
+      ...thinkOpts(request),
     });
     return { result: text, backend: 'local', model: localModel };
   }
@@ -561,12 +562,31 @@ Use exactly the tool names and parameter names listed under "Available tools". N
     _save('vex.localAIModel', name);
   }
 
+  // Show thinking: let a reasoning model think, and stream its thoughts to
+  // whoever is watching (the chat's subtitle line, the agent's step row).
+  // Off by default, and deliberately: measured on this machine's qwen3.5 a
+  // reply takes ~3 s without thinking and 16–39 s with it. Off, nothing
+  // changes — no thinking is requested and none is shown.
+  const THINK_KEY = 'vex.ai.showThinking';
+  function showThinking() { try { return localStorage.getItem(THINK_KEY) === 'on'; } catch { return false; } }
+  function setShowThinking(on) {
+    try { localStorage.setItem(THINK_KEY, on ? 'on' : 'off'); } catch {}
+    try { document.dispatchEvent(new CustomEvent('vex:show-thinking', { detail: { on: !!on } })); } catch {}
+    return !!on;
+  }
+  // What a call asks Ollama for: thinking only when the switch is on AND
+  // someone is listening for the thoughts.
+  function thinkOpts(request) {
+    const on = showThinking() && typeof request.onThinking === 'function';
+    return on ? { think: true, onThinking: request.onThinking } : {};
+  }
+
   return {
     init, refreshOllamaStatus, isOllamaAvailable, isOnline,
     callAI, resolveBackend,
     getRoutingPrefs, setRoutingPrefs,
     getOllamaStatus, setPreferLocal, setForceCloud,
-    setModel, getModel, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
+    setModel, getModel, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
     // Settings › AI "Test as agent": the local agent, on a named model.
     localAgent: (request, model) => callLocalAgent(request, model),
     cloudWorkerUrl,

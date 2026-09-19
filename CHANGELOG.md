@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.11 (2026-09-19) — Watch the AI think
+
+### Notes
+- **Show thinking** (the brain button at the top of the AI panel, or `Ctrl+K` → *Show AI Thinking*). While the AI works on a reply, you can now see what it is thinking, the way Claude shows its thinking. A single faded line under *Thinking…* keeps changing to the model's latest thought. Click it to open the whole reasoning. Once the answer starts, the line goes away, and the reasoning is kept above the reply as *Thought for N words*, saved with the chat.
+  - It works in the **agent** too: each step shows the model's thinking under "what I'm doing → which tool".
+  - It's for **reasoning models** — qwen3.5, deepseek-r1 and the like. A model that doesn't reason has nothing to show, so you'll just see *Thinking…* as before.
+- **It is off by default, and here's the honest reason.** Until now Vex told your local model *not* to think at all, because that's much faster. Measured on this machine's qwen3.5: about **3 seconds** a reply without thinking, and **16–39 seconds** with it (2,500–6,700 characters of reasoning before it answers). Switch it on for the hard question, off for the quick one. Off means exactly what it did before: no thinking is asked for and none is shown.
+- Scheduled agent tasks never think, even with the switch on. Nobody is watching them, so there's no reason to make them slower.
+- Thinking was switched off in the first place because qwen3.5 sometimes thought and then gave no answer. On the current Ollama (0.34) that didn't happen once in six tries. If it ever does, Vex says so and points you at the switch, rather than leaving you with an empty reply.
+- For the record: Vex had been throwing away the thoughts Ollama sends in their own separate stream. It now reads them.
+
 ## v2.32.10 (2026-09-19) — The whole page in one screenshot
 
 ### Notes

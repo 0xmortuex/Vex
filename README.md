@@ -83,6 +83,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **AI Skills** — saved reusable prompts that each become their own `Ctrl+K` command.
 - **AI Scheduler** — recurring headless agent tasks on a daily/weekly/monthly or **5‑field cron** schedule, with missed‑run catch‑up.
 - **MCP client** — connect to Streamable‑HTTP Model Context Protocol servers and run their tools (also exposed to the agent).
+- **Show thinking** (brain button in the AI panel, or `Ctrl+K`) — watch a reasoning model (qwen3.5, deepseek‑r1…) think: its latest thought as a live line under *Thinking…*, in chat and in the agent's steps, the full reasoning one click away. Off by default, because thinking makes a local model several times slower.
 - **Catch Me Up** (AI digest of feeds + read‑later), **AI Compose** (rewrites straight into the focused field).
 
 ### ▶️ Media & streaming

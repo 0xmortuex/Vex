@@ -230,6 +230,34 @@
 }
 #ai-panel.expanded .ai-thinking-body { font-size: 12.5px; max-height: 420px; }
 
+/* Show thinking: the latest thought as one line under "Thinking…", like a
+   subtitle. It sits inside the <summary> so it shows while folded; opening
+   the fold shows the whole of it. Faded, italic, one line — it is there to
+   show the model is working and roughly on what, not to be read closely. */
+.ai-thinking-summary { flex-wrap: wrap; }
+.ai-thinking-live {
+  flex: 0 0 100%; order: 3;
+  padding-left: 20px;
+  font-style: italic; font-size: 11.5px; line-height: 1.45;
+  color: var(--text-muted); opacity: 0.8;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ai-thinking-live:empty,
+.ai-thinking[open] .ai-thinking-live { display: none; }
+
+/* Thoughts arrived before any answer: the bubble holds just the thinking
+   block, full width, and the brain pulses so it still reads as working. */
+.ai-msg.loading.is-thinking { display: block; align-self: stretch; }
+.ai-msg.is-thinking .ai-thinking { margin-bottom: 0; }
+.ai-msg.loading.is-thinking .ai-thinking-ico { animation: vex-think-pulse 1.4s ease-in-out infinite; }
+@keyframes vex-think-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .ai-msg.loading.is-thinking .ai-thinking-ico { animation: none; }
+}
+
+/* The switch in the panel header. */
+#ai-think-toggle.active { color: var(--primary); }
+
 /* Per-message actions — revealed on hover, so they never compete with the text */
 .ai-msg-actions {
   position: absolute; top: 4px; right: 2px;
@@ -517,3 +545,7 @@
 .mm-input { flex: 1; min-width: 220px; padding: 6px 10px; font: inherit; font-size: 12px; border-radius: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
 .mm-progress { font-size: 11px; color: var(--text-muted); }
 .mm-progress[hidden] { display: none; }
+
+/* The agent's step row is a plain bubble, not a <summary>: the thinking line
+   sits on its own row beneath the "what I'm doing" text. */
+.agent-think-live { display: block; padding-left: 0; margin-top: 4px; }

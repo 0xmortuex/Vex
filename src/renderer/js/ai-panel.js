@@ -456,6 +456,27 @@ const AIPanel = {
       document.body.appendChild(b);
     }
 
+    // Show thinking: off by default because it makes a local reasoning model
+    // several times slower. The button says which it is, and what it costs.
+    paint('ai-think-toggle', 'brain', 15);
+    const thinkBtn = document.getElementById('ai-think-toggle');
+    const drawThink = () => {
+      if (!thinkBtn) return;
+      const on = typeof AIRouter !== 'undefined' && AIRouter.showThinking && AIRouter.showThinking();
+      thinkBtn.classList.toggle('active', !!on);
+      thinkBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      thinkBtn.title = on
+        ? 'Show thinking: ON — you see the model think as a live line. Replies from a reasoning model are several times slower. Click to turn off.'
+        : 'Show thinking: off — replies are fast. Click to watch a reasoning model (like qwen3.5) think as it works; replies get several times slower.';
+    };
+    thinkBtn?.addEventListener('click', () => {
+      if (typeof AIRouter === 'undefined' || !AIRouter.setShowThinking) return;
+      const on = AIRouter.setShowThinking(!AIRouter.showThinking());
+      window.showToast?.(on ? 'Show thinking on — a reasoning model will think out loud, and take longer' : 'Show thinking off — back to quick replies');
+    });
+    document.addEventListener('vex:show-thinking', drawThink);
+    drawThink();
+
     document.getElementById('ai-expand')?.addEventListener('click', () => this.toggleMode());
     document.getElementById('ai-new-chat')?.addEventListener('click', () => this.newChat());
     document.getElementById('ai-history-btn')?.addEventListener('click', () => this.toggleHistory());
@@ -1022,6 +1043,9 @@ const AIPanel = {
       const onToken = (feature === 'chat') ? this._liveRenderer(loadingEl) : null;
       const aiResult = await AIRouter.callAI(feature, {
         onToken,
+        // Show thinking (the switch in this panel): the thoughts stream into
+        // the subtitle line. The router only asks for them when it is on.
+        onThinking: onToken ? onToken.onThinking : null,
         image: opts.image || null,
         message: opts.message,
         pageContext,
@@ -1042,6 +1066,9 @@ const AIPanel = {
       }
 
       const parsed = this._parseResponse(aiResult.result);
+      // Thoughts that streamed separately are kept with the answer, so the
+      // "Thought for N words" fold is there afterwards too.
+      if (!parsed.thinking && onToken && onToken.thinking()) parsed.thinking = onToken.thinking();
       // A valid JSON object with no usable text (e.g. {"answer":"…"} from a
       // small local model) must not render as an empty bubble. `reply` doubles
       // as the last-resort text for every renderer below.
@@ -1420,21 +1447,44 @@ const AIPanel = {
     // avoid. ~50ms is below the eye's threshold for "appearing as typed".
     let timer = 0;
     let pending = null;
+    // Thoughts that arrive in their own stream (Ollama's `thinking` field,
+    // with Show thinking on), as opposed to <think> tags inside the answer.
+    let streamedThinking = '';
 
     const paint = () => {
       timer = 0;
-      const { thinking, body } = pending || {};
+      const { body } = pending || {};
+      const thinking = streamedThinking || (pending && pending.thinking) || '';
       if (thinking) {
         if (!thinkEl) {
           thinkEl = this._thinkingBlock(thinking);
-          // Open while it is the only thing happening, so the wait is legible.
-          if (thinkEl) { thinkEl.open = true; loadingEl.insertBefore(thinkEl, loadingEl.firstChild); }
-        } else {
+          if (thinkEl) {
+            // One line that keeps changing, like a subtitle; the whole of it
+            // is one click away. (Open only if the user left it open before.)
+            // Inside the <summary>: a closed <details> hides everything else,
+            // and closed is exactly when the subtitle is the point.
+            const live = document.createElement('span');
+            live.className = 'ai-thinking-live';
+            live.setAttribute('aria-live', 'polite');
+            thinkEl.querySelector('summary')?.appendChild(live);
+            if (!started) {
+              // The block says "Thinking…" itself; the placeholder beside it
+              // was squeezed into a column of letters in a live run.
+              loadingEl.textContent = '';
+              loadingEl.classList.add('is-thinking');
+            }
+            loadingEl.insertBefore(thinkEl, loadingEl.firstChild);
+          }
+        }
+        if (thinkEl) {
           const b = thinkEl.querySelector('.ai-thinking-body');
           if (b) b.textContent = thinking;
           const label = thinkEl.querySelector('.ai-thinking-label');
           const words = thinking.trim().split(/\s+/).filter(Boolean).length;
-          if (label) label.textContent = `Thinking… ${words} word${words === 1 ? '' : 's'}`;
+          if (label) label.textContent = body ? `Thought for ${words} word${words === 1 ? '' : 's'}` : `Thinking… ${words} word${words === 1 ? '' : 's'}`;
+          const live = thinkEl.querySelector('.ai-thinking-live');
+          // Once the answer is being written, the thinking is over.
+          if (live) { live.textContent = body ? '' : this._thoughtSubtitle(thinking); live.hidden = !!body; }
         }
       }
       if (body) {
@@ -1451,17 +1501,37 @@ const AIPanel = {
       if (container && nearBottom) container.scrollTop = container.scrollHeight;
     };
 
-    return (_piece, full) => {
+    const onToken = (_piece, full) => {
       if (!started) {
         started = true;
-        // Drop the "Thinking <spinner>" placeholder text, keep the bubble.
+        // Drop the "Thinking <spinner>" placeholder text, keep the bubble —
+        // and the thoughts already shown in it, which arrived first.
         loadingEl.textContent = '';
+        if (thinkEl) loadingEl.appendChild(thinkEl);
         loadingEl.classList.remove('loading');
         loadingEl.classList.add('streaming');
       }
       pending = this._streamPreview(full);
       if (!timer) timer = setTimeout(paint, 50);
     };
+    onToken.onThinking = (_piece, full) => {
+      streamedThinking = String(full || '');
+      if (!timer) timer = setTimeout(paint, 50);
+    };
+    onToken.thinking = () => streamedThinking;
+    return onToken;
+  },
+
+  // The latest thing the model is thinking, as one short line: the last line
+  // it wrote, without the markdown it writes its notes in.
+  _thoughtSubtitle(thinking) {
+    const lines = String(thinking || '').split(/\n+/).map(l => l
+      .replace(/[*_`#>]+/g, '')
+      .replace(/^\s*(?:[-•]|\d+\.)\s*/, '')
+      .replace(/\s+/g, ' ')
+      .trim()).filter(Boolean);
+    const last = lines.length ? lines[lines.length - 1] : '';
+    return last.length > 140 ? '…' + last.slice(-139) : last;
   },
 
   // When the answer names a Vex feature, offer the way in.
