@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.16 (2026-09-19) — Mark up a page, and hide what's private
+
+### Notes
+- **Mark Up This Page** (`Ctrl+K`) captures what's on screen and opens it straight in the mark-up editor. It used to take three steps: screenshot, preview, then Annotate.
+- **Redact.** Drag over an email address, a name, an order number or a balance, and it's pixelated into flat blocks you can't read. This is the tool for sharing a screenshot of your own account safely. Redaction **replaces the pixels** in the saved picture; it isn't a layer that can be peeled off or a black box someone can undo. Checked live: example.com's heading came out unreadable.
+- **Highlighter** and **Text** join Pen, Box and Arrow. Text gets a dark outline so it stays readable on any background.
+- Each tool now shows a one-line hint about what to do with it, and the toolbar uses proper icons instead of typed symbols.
+
+### Fixes
+- **Copy used to fail silently.** If Windows refused the picture, the editor closed and nothing was on your clipboard, with no word about it. Now it tells you, and keeps your work open so you can save it instead.
+
 ## v2.32.15 (2026-09-19) — Every to-do, from every note, in one list
 
 ### Notes

@@ -118,68 +118,168 @@ const ScreenshotTool = {
   },
 
   // Canvas annotation editor: pen / rectangle / arrow + color, then save/copy.
+  // Mark up a picture of the page: pen, highlighter, box, arrow, text, and
+  // REDACT — pixelate a region so a screenshot can be shared without the
+  // email address, the name or the balance that happened to be on screen.
+  // Redaction replaces the pixels in the saved image; it is not a layer that
+  // can be peeled off afterwards.
+  TOOLS: [
+    ['pen', 'Pen', 'edit'], ['highlight', 'Highlight', 'marker'], ['rect', 'Box', 'maximize'],
+    ['arrow', 'Arrow', 'arrow-right'], ['text', 'Text', 'type'], ['redact', 'Redact', 'eye'],
+  ],
+
+  // Pixelate a rectangle of RGBA pixels in place: each block becomes its
+  // average colour. Pure, so it can be tested without a canvas. Blocks are
+  // large enough that text inside cannot be read back.
+  pixelate(data, width, height, rect, block) {
+    const x0 = Math.max(0, Math.floor(Math.min(rect.x, rect.x + rect.w)));
+    const y0 = Math.max(0, Math.floor(Math.min(rect.y, rect.y + rect.h)));
+    const x1 = Math.min(width, Math.ceil(Math.max(rect.x, rect.x + rect.w)));
+    const y1 = Math.min(height, Math.ceil(Math.max(rect.y, rect.y + rect.h)));
+    const size = Math.max(4, Math.round(block || 12));
+    for (let by = y0; by < y1; by += size) {
+      for (let bx = x0; bx < x1; bx += size) {
+        const ex = Math.min(bx + size, x1), ey = Math.min(by + size, y1);
+        let r = 0, g = 0, b = 0, a = 0, n = 0;
+        for (let y = by; y < ey; y++) for (let x = bx; x < ex; x++) {
+          const i = (y * width + x) * 4; r += data[i]; g += data[i + 1]; b += data[i + 2]; a += data[i + 3]; n++;
+        }
+        if (!n) continue;
+        r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n); a = Math.round(a / n);
+        for (let y = by; y < ey; y++) for (let x = bx; x < ex; x++) {
+          const i = (y * width + x) * 4; data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = a;
+        }
+      }
+    }
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  },
+
+  // Capture what is on screen and go straight to marking it up.
+  async markUp() {
+    const wv = WebviewManager.getActiveWebview();
+    if (!wv) throw new Error('No page is open');
+    const image = await wv.capturePage();
+    if (!image || image.isEmpty()) throw new Error('The page could not be captured');
+    return this.annotate(image.toDataURL());
+  },
+
   annotate(dataUrl) {
     document.getElementById('vex-annotate')?.remove();
+    const icon = (name) => (window.VexIcons ? VexIcons.svg(name, { size: 14 }) : '');
+    const btn = 'display:inline-flex;align-items:center;gap:5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12.5px';
     const wrap = document.createElement('div');
     wrap.id = 'vex-annotate';
     wrap.style.cssText = 'position:fixed;inset:0;z-index:99000;background:rgba(0,0,0,0.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px';
     wrap.innerHTML = `
-      <div style="display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px">
-        <button data-tool="pen" class="an-tool" style="font-family:'Outfit',sans-serif">Pen</button>
-        <button data-tool="rect" class="an-tool" style="font-family:'Outfit',sans-serif">▭ Box</button>
-        <button data-tool="arrow" class="an-tool" style="font-family:'Outfit',sans-serif">➜ Arrow</button>
-        <input type="color" id="an-color" value="#ef4444" style="width:30px;height:30px;border:none;background:none;cursor:pointer">
+      <div role="toolbar" aria-label="Mark up" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px">
+        ${this.TOOLS.map(([id, label, ic]) => `<button data-tool="${id}" class="an-tool" type="button" title="${label}" style="${btn}">${icon(ic)}${label}</button>`).join('')}
+        <input type="color" id="an-color" value="#ef4444" aria-label="Colour" style="width:30px;height:30px;border:none;background:none;cursor:pointer">
         <span style="width:1px;height:20px;background:var(--border)"></span>
-        <button id="an-undo" style="font-family:'Outfit',sans-serif">Undo</button>
-        <button id="an-save" style="font-family:'Outfit',sans-serif;background:var(--primary);color:#fff;border:none;border-radius:7px;padding:6px 14px;cursor:pointer">Save</button>
-        <button id="an-copy" style="font-family:'Outfit',sans-serif">Copy</button>
-        <button id="an-close" style="font-family:'Outfit',sans-serif">✕</button>
+        <button id="an-undo" type="button" style="${btn}">${icon('undo')}Undo</button>
+        <button id="an-save" type="button" style="${btn};background:var(--primary);color:#fff;border-color:var(--primary)">${icon('save')}Save</button>
+        <button id="an-copy" type="button" style="${btn}">${icon('copy')}Copy</button>
+        <button id="an-close" type="button" aria-label="Close" style="${btn}">${icon('x')}</button>
       </div>
-      <canvas id="an-canvas" style="max-width:92vw;max-height:80vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.6);cursor:crosshair"></canvas>`;
-    wrap.querySelectorAll('.an-tool,#an-undo,#an-copy,#an-close').forEach(b => {
-      b.style.cssText += ';background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12.5px';
-    });
+      <div id="an-hint" style="font-size:12px;color:#ddd;min-height:16px"></div>
+      <canvas id="an-canvas" style="max-width:92vw;max-height:78vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.6);cursor:crosshair"></canvas>`;
     document.body.appendChild(wrap);
 
     const canvas = wrap.querySelector('#an-canvas');
     const ctx = canvas.getContext('2d');
+    const hint = wrap.querySelector('#an-hint');
+    const HINTS = {
+      pen: 'Draw freely.', highlight: 'Drag across text to highlight it.', rect: 'Drag to draw a box.',
+      arrow: 'Drag from where the arrow starts to what it points at.', text: 'Click where the words should go.',
+      redact: 'Drag over anything private. It is pixelated in the saved image, not just covered.',
+    };
     const img = new Image();
-    let tool = 'pen', drawing = false, sx = 0, sy = 0, history = [];
+    let tool = 'pen', drawing = false, sx = 0, sy = 0;
+    const history = [];
+    const snapshot = () => { history.push(ctx.getImageData(0, 0, canvas.width, canvas.height)); if (history.length > 25) history.shift(); };
     img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); snapshot(); };
     img.src = dataUrl;
-    const snapshot = () => { history.push(ctx.getImageData(0, 0, canvas.width, canvas.height)); if (history.length > 25) history.shift(); };
     const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * canvas.width / r.width, y: (e.clientY - r.top) * canvas.height / r.height }; };
-    const setTool = (t) => { tool = t; wrap.querySelectorAll('.an-tool').forEach(b => b.style.outline = b.dataset.tool === t ? '2px solid var(--primary)' : 'none'); };
+    const setTool = (t) => {
+      tool = t;
+      wrap.querySelectorAll('.an-tool').forEach(b => { const on = b.dataset.tool === t; b.style.outline = on ? '2px solid var(--primary)' : 'none'; b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+      hint.textContent = HINTS[t] || '';
+    };
     wrap.querySelectorAll('.an-tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
     setTool('pen');
+    const line = () => Math.max(3, canvas.width / 400);
 
-    canvas.addEventListener('mousedown', (e) => {
-      drawing = true; const p = pos(e); sx = p.x; sy = p.y;
+    const drawShape = (p) => {
+      ctx.putImageData(history[history.length - 1], 0, 0);
+      ctx.save();
       ctx.strokeStyle = wrap.querySelector('#an-color').value;
-      ctx.lineWidth = Math.max(3, canvas.width / 400); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      if (tool === 'pen') { ctx.beginPath(); ctx.moveTo(sx, sy); }
+      ctx.lineWidth = line(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (tool === 'rect') ctx.strokeRect(sx, sy, p.x - sx, p.y - sy);
+      else if (tool === 'arrow') {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy); ctx.lineTo(p.x, p.y);
+        const ang = Math.atan2(p.y - sy, p.x - sx), L = Math.max(12, canvas.width / 70);
+        ctx.lineTo(p.x - L * Math.cos(ang - 0.45), p.y - L * Math.sin(ang - 0.45));
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - L * Math.cos(ang + 0.45), p.y - L * Math.sin(ang + 0.45));
+        ctx.stroke();
+      } else if (tool === 'highlight') {
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = wrap.querySelector('#an-color').value === '#ef4444' ? '#ffe14d' : wrap.querySelector('#an-color').value;
+        const h = Math.max(line() * 6, Math.abs(p.y - sy) || line() * 6);
+        ctx.fillRect(Math.min(sx, p.x), Math.min(sy, p.y) - (Math.abs(p.y - sy) ? 0 : h / 2), Math.abs(p.x - sx), h);
+      } else if (tool === 'redact') {
+        ctx.setLineDash([6, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+        ctx.strokeRect(sx, sy, p.x - sx, p.y - sy);
+      }
+      ctx.restore();
+    };
+
+    canvas.addEventListener('mousedown', async (e) => {
+      const p = pos(e); sx = p.x; sy = p.y;
+      if (tool === 'text') {
+        const words = await vexPrompt({ title: 'Add text', label: 'Text', placeholder: 'This one', okLabel: 'Add' });
+        if (!words) return;
+        ctx.save();
+        const size = Math.max(16, Math.round(canvas.width / 55));
+        ctx.font = `600 ${size}px system-ui, sans-serif`;
+        ctx.textBaseline = 'top';
+        // A dark outline keeps it readable on any background.
+        ctx.lineWidth = Math.max(3, size / 6); ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.strokeText(words, sx, sy);
+        ctx.fillStyle = wrap.querySelector('#an-color').value; ctx.fillText(words, sx, sy);
+        ctx.restore();
+        snapshot();
+        return;
+      }
+      drawing = true;
+      if (tool === 'pen') {
+        ctx.strokeStyle = wrap.querySelector('#an-color').value;
+        ctx.lineWidth = line(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(sx, sy);
+      }
     });
     canvas.addEventListener('mousemove', (e) => {
       if (!drawing) return;
       const p = pos(e);
       if (tool === 'pen') { ctx.lineTo(p.x, p.y); ctx.stroke(); }
-      else {
+      else drawShape(p);
+    });
+    const end = (e) => {
+      if (!drawing) return;
+      drawing = false;
+      if (tool === 'redact' && e) {
+        const p = pos(e);
         ctx.putImageData(history[history.length - 1], 0, 0);
-        ctx.beginPath();
-        if (tool === 'rect') ctx.strokeRect(sx, sy, p.x - sx, p.y - sy);
-        else { // arrow
-          ctx.moveTo(sx, sy); ctx.lineTo(p.x, p.y);
-          const ang = Math.atan2(p.y - sy, p.x - sx), L = Math.max(12, canvas.width / 70);
-          ctx.lineTo(p.x - L * Math.cos(ang - 0.45), p.y - L * Math.sin(ang - 0.45));
-          ctx.moveTo(p.x, p.y);
-          ctx.lineTo(p.x - L * Math.cos(ang + 0.45), p.y - L * Math.sin(ang + 0.45));
-          ctx.stroke();
+        const w = p.x - sx, h = p.y - sy;
+        if (Math.abs(w) > 2 && Math.abs(h) > 2) {
+          const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          this.pixelate(frame.data, canvas.width, canvas.height, { x: sx, y: sy, w, h }, Math.max(10, canvas.width / 90));
+          ctx.putImageData(frame, 0, 0);
         }
       }
-    });
-    const end = () => { if (drawing) { drawing = false; snapshot(); } };
+      snapshot();
+    };
     canvas.addEventListener('mouseup', end);
-    canvas.addEventListener('mouseleave', end);
+    canvas.addEventListener('mouseleave', (e) => { if (drawing && tool !== 'redact') end(e); });
     wrap.querySelector('#an-undo').addEventListener('click', () => {
       if (history.length > 1) { history.pop(); ctx.putImageData(history[history.length - 1], 0, 0); }
     });
@@ -187,14 +287,19 @@ const ScreenshotTool = {
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       a.download = `vex-annotated-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`;
-      a.click(); wrap.remove(); window.showToast?.('Annotated screenshot saved');
+      a.click(); wrap.remove(); window.showToast?.('Marked-up picture saved');
     });
     wrap.querySelector('#an-copy').addEventListener('click', () => {
       canvas.toBlob(async (blob) => {
-        try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); window.showToast?.('Copied'); } catch {}
-        wrap.remove();
+        // A failed copy used to be swallowed: the window closed and nothing
+        // was on the clipboard. Say so, and keep the work open to save instead.
+        try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); window.showToast?.('Copied'); wrap.remove(); }
+        catch (err) { window.showToast?.('Could not copy the picture — use Save instead (' + ((err && err.message) || 'clipboard refused') + ')', 'error'); }
       });
     });
     wrap.querySelector('#an-close').addEventListener('click', () => wrap.remove());
+    return wrap;
   }
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { ScreenshotTool };
