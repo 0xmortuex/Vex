@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.51 (2026-09-20) — How long a saved link takes, and what is inside a download
+
+### Changes
+- **Saved links show their age and how long they take to read.** When you save one, Vex quietly reads the page and keeps the reading time, so the Library says "saved 12 days ago · 6 min read" — a queue you can't judge is a queue you don't start.
+- **A nudge for the old ones.** Links saved over a month ago and still unread are counted at the top of the Library, with the reading time they add up to, and one button clears them. Links you've read aren't nagged about.
+- **Look inside a .zip before opening it.** When Vex asks before opening a downloaded archive, there's now a *Look inside* button: the names and sizes of what's in it, up to 200, read through the same guards that protect unpacking. Nothing is unpacked.
+
 ## v2.32.50 (2026-09-20) — Volume per site, and console errors on the tab
 
 ### Changes

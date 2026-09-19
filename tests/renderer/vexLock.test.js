@@ -15,7 +15,7 @@ const submit = async (pin) => {
   await new Promise(r => setTimeout(r, 50));
 };
 
-beforeEach(() => { localStorage.clear(); document.body.innerHTML = ''; L.unlock(); window.showToast = vi.fn(); });
+beforeEach(() => { localStorage.clear(); document.body.innerHTML = ''; L.unlock(); L._waitUntil = 0; window.showToast = vi.fn(); });
 
 describe('VexLock', () => {
   it('will not lock without a PIN, and says where to set one', () => {

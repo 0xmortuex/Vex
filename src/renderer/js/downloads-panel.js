@@ -253,8 +253,29 @@ const DownloadsPanel = {
       // VirusTotal already knows most files by their fingerprint: its page for
       // this SHA-256 shows what dozens of scanners said. Only the fingerprint
       // is in the address — the file itself is never uploaded.
-      ...(/^[a-f0-9]{64}$/i.test(info.sha256 || '') ? { extra: { label: 'Check on VirusTotal', run: () => TabManager.createTab('https://www.virustotal.com/gui/file/' + info.sha256.toLowerCase(), true) } } : {}),
+      // An archive: what is in it, before it is unpacked. Otherwise the
+      // fingerprint check, which is what matters for a program.
+      ...(info.verdict === 'archive' && /\.zip$/i.test(filePath)
+        ? { extra: { label: 'Look inside', run: () => this.peekArchive(filePath) } }
+        : /^[a-f0-9]{64}$/i.test(info.sha256 || '') ? { extra: { label: 'Check on VirusTotal', run: () => TabManager.createTab('https://www.virustotal.com/gui/file/' + info.sha256.toLowerCase(), true) } } : {}),
     });
+  },
+
+  // The names and sizes inside a .zip, listed. Nothing is unpacked.
+  async peekArchive(filePath) {
+    const size = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B';
+    let r;
+    try { r = await window.vex.archiveList(filePath); }
+    catch (err) { window.showToast?.('Could not read it: ' + ((err && err.message) || ''), 'error'); return null; }
+    if (!r || !r.ok) { window.showToast?.(((r && r.error) || 'Could not read it'), 'error'); return null; }
+    const lines = r.entries.filter(e => !e.dir).map(e => e.name + '  ' + size(e.size));
+    const shown = lines.slice(0, 40).join('\n') + (r.count > 40 ? '\n…and ' + (r.count - 40) + ' more' : '');
+    await vexConfirm({
+      title: String(filePath).split(/[\\/]/).pop(),
+      message: r.count + ' item' + (r.count === 1 ? '' : 's') + ' inside:\n\n' + (shown || 'It is empty.'),
+      okLabel: 'Close', cancelLabel: '',
+    });
+    return r;
   },
 
   // Wire up a single row's action buttons (used by renderList and the

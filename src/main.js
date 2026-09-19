@@ -4352,6 +4352,24 @@ ipcMain.handle('spellcheck:replace-misspelling', (_e, webContentsId, suggestion,
 const _fileCheck = require('./main/file-check').createFileCheck({
   fs, crypto: require('crypto'), execFile: require('child_process').execFile, platform: process.platform, log: (m) => console.log(m),
 });
+// What is inside a .zip, without unpacking it: names and sizes only, read
+// through the same guards that protect an extract (src/main/archive-security.js).
+ipcMain.handle('archive:list', async (_e, filePath) => {
+  try {
+    if (!/\.zip$/i.test(String(filePath || ''))) return { ok: false, error: 'Vex can look inside .zip files only' };
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(filePath);
+    const { validateZip } = require('./main/archive-security');
+    validateZip(zip);
+    const entries = zip.getEntries().map(e => ({ name: e.entryName, size: e.header.size, dir: e.isDirectory }));
+    return { ok: true, count: entries.length, entries: entries.slice(0, 200) };
+  } catch (err) {
+    // adm-zip's own wording ('ADM-ZIP: Invalid filename') says nothing to a person.
+    const why = String((err && err.message) || '');
+    return { ok: false, error: /^ADM-ZIP/.test(why) ? 'that file could not be read as a .zip' : (why || 'that file could not be read') };
+  }
+});
+
 ipcMain.handle('file:inspect', async (_e, filePath, from) => {
   try { return { ok: true, ...(await _fileCheck.inspect(String(filePath || ''), String(from || ''))) }; }
   catch (err) { return { ok: false, error: (err && err.message) || 'could not be checked' }; }

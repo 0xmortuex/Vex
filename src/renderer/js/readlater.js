@@ -24,12 +24,50 @@ const ReadLater = {
   },
   unread() { return this.items.filter(i => !i.read).length; },
 
+  OLD_DAYS: 30,
+  WORDS_PER_MINUTE: 220,
+
   add(url, title) {
     if (!url) return;
     if (this.items.some(i => i.url === url && !i.read)) { window.showToast?.('Already in Read Later'); return; }
-    this.items.unshift({ id: vexId('rl'), url, title: title || url, at: Date.now(), read: false });
+    const item = { id: vexId('rl'), url, title: title || url, at: Date.now(), read: false };
+    this.items.unshift(item);
     this.save();
     window.showToast?.('Saved for later (' + this.unread() + ' unread)');
+    this.measure(item.id);                       // how long it is, in the background
+  },
+
+  // Read the page quietly and keep how long it takes to read, so the list can
+  // say "6 min" — a queue you cannot judge is a queue you do not start.
+  async measure(id) {
+    const item = this.items.find(i => i.id === id);
+    if (!item || item.minutes != null || typeof AgentTools === 'undefined') return null;
+    try {
+      const page = await AgentTools.readUrl(item.url);
+      const words = String(page.text || '').split(/\s+/).filter(Boolean).length;
+      if (!words) return null;
+      const live = this.items.find(i => i.id === id);
+      if (!live) return null;                    // removed while it was read
+      live.minutes = Math.max(1, Math.round(words / this.WORDS_PER_MINUTE));
+      if (!live.title || live.title === live.url) live.title = page.title || live.title;
+      this.save();
+      return live.minutes;
+    } catch (err) {
+      window.VexProblems?.note('Read later', 'Could not measure ' + item.url, err);
+      return null;
+    }
+  },
+
+  // Saved long enough ago to be worth a decision.
+  old(now = Date.now()) { return this.items.filter(i => !i.read && now - i.at > this.OLD_DAYS * 24 * 3600 * 1000); },
+
+  describeAge(at, now = Date.now()) {
+    const days = Math.floor((now - at) / (24 * 3600 * 1000));
+    if (days < 1) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 30) return days + ' days ago';
+    const months = Math.round(days / 30);
+    return months === 1 ? 'a month ago' : months + ' months ago';
   },
 
   open(item) {
@@ -83,7 +121,7 @@ const ReadLater = {
       r.addEventListener('mouseleave', () => r.style.background = '');
       let host = it.url; try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch {}
       r.innerHTML = `<img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
-        <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</div><div style="font-size:10.5px;color:var(--text-muted)">${esc(host)}</div></div>
+        <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</div><div style="font-size:10.5px;color:var(--text-muted)">${esc(host)} · saved ${esc(this.describeAge(it.at))}${it.minutes ? ' · ' + it.minutes + ' min read' : ''}</div></div>
         <button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px">✕</button>`;
       r.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) return; opts.open(it); });
       r.querySelector('[data-x]').addEventListener('click', (e) => { e.stopPropagation(); opts.remove(it); });
@@ -101,6 +139,27 @@ const ReadLater = {
       nextBtn.title = 'Opens the oldest; Ctrl+K › Next from Read Later for the one after';
       nextBtn.addEventListener('click', () => { SidebarManager.hideActivePanel?.(); this.next(); });
       body.appendChild(nextBtn);
+    }
+    // A pile of things saved a month ago and never read is worth one decision,
+    // not thirty.
+    const stale = this.old();
+    if (stale.length) {
+      const nudge = document.createElement('div');
+      nudge.style.cssText = 'margin:2px 8px 8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:11.5px;color:var(--text-muted)';
+      nudge.innerHTML = `<div>${stale.length} saved over a month ago${stale.some(i => i.minutes) ? ' · ' + stale.reduce((n, i) => n + (i.minutes || 0), 0) + ' min of reading' : ''}.</div>`;
+      const clear = document.createElement('button');
+      clear.className = 'btn-secondary';
+      clear.style.cssText = 'margin-top:6px';
+      clear.textContent = 'Clear the old ones';
+      clear.addEventListener('click', async () => {
+        if (!(await vexConfirm({ title: 'Clear ' + stale.length + ' old link' + (stale.length === 1 ? '' : 's') + '?', message: 'Saved over a month ago and still unread. The pages themselves are untouched.', okLabel: 'Clear them', danger: true }))) return;
+        const ids = new Set(stale.map(i => i.id));
+        this.items = this.items.filter(i => !ids.has(i.id));
+        this.save();
+        this.renderPanel(container);
+      });
+      nudge.appendChild(clear);
+      body.appendChild(nudge);
     }
     if (!unread.length) body.insertAdjacentHTML('beforeend', window.VexUI ? VexUI.emptyState('inbox', 'Nothing saved yet', 'Ctrl+K → "Read Later" on any page') : '<div style="font-size:12px;color:var(--text-muted);padding:4px 8px">Empty — Ctrl+K → "Read Later" on any page.</div>');
     unread.forEach(it => row(it, { open: (x) => { this.open(x); }, remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
