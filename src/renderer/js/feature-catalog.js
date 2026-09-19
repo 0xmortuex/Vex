@@ -214,6 +214,8 @@ const VexFeatures = {
       what: 'Every open checklist item from every note, in one list, sorted by due date. Tick it here and it is ticked in the note; add one and it goes in your To-do note.' },
     { id: 'todo-board', cat: 'work', cmd: 'todo-board',
       what: 'The same note tasks in three columns: To do, Doing, Done. Drag a card or use its arrows; the move is written into that task line in its note, so the board and the notes never disagree.' },
+    { id: 'parcels', cat: 'work', cmd: 'parcels',
+      what: 'Paste a tracking number and Vex says whose it is (UPS, USPS, FedEx, DHL, Royal Mail, Amazon and more, check digits verified) and opens the tracking page of that carrier. Keeps a list of what you are waiting for.' },
     { id: 'expenses', cat: 'work', cmd: 'expenses',
       what: 'A log of what you spent, kept on this computer: this month by category, compared with last month, and exported as CSV for a spreadsheet.' },
     { id: 'habits', cat: 'work', cmd: 'habits',

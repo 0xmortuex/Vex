@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.32.25 (2026-09-19) — Parcels
+
+### Notes
+- **Parcels** (`Ctrl+K`). Paste a tracking number and Vex says whose it is while you type: UPS, USPS, FedEx, DHL, Royal Mail, Canada Post, Australia Post or Amazon. International post from other countries goes to 17TRACK, which is labelled as an independent service.
+- **Check digits are verified** where the format has one: UPS `1Z…` and the international postal format `AB123456789GB`. A random string isn't taken for a parcel.
+- All-digit numbers are shared between carriers (a FedEx number looks like any twelve digits), so those say **"Probably FedEx"** and the carrier can be picked.
+- Keep a labelled list of what you're waiting for ("New shoes", "Book from the UK"). **Track** opens the carrier's page, **Copy** copies the number, and the bin removes it once it's arrived.
+- **An honest limit:** Vex doesn't fetch the status itself. Every carrier's tracking API needs a business account and key, and the paid services that combine them would see every parcel you get. So nothing is sent anywhere until you press Track, and the status is on the carrier's own page.
+
 ## v2.32.24 (2026-09-19) — Expenses
 
 ### Notes
