@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.49 (2026-09-20) — Search every chat, see what the AI remembers, peek at a source
+
+### Changes
+- **Search every chat.** A box above Recent chats searches the words in all of them at once, showing the line that matched. Chats belong to tabs, so a closed tab's chat was otherwise unreachable.
+- **A line where the AI's memory of a chat begins.** Vex sends the last ten messages with a question, so anything above the line can't be referred to. An answer that seems to have forgotten something now has a visible reason.
+- **Rest on a source an answer cites** and a small card shows that page's title and first words, so you can tell whether it's worth opening. Read once per address and kept for the session; a page that can't be read says so.
+
 ## v2.32.48 (2026-09-20) — An overlay window that floats over your game
 
 ### Changes

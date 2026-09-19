@@ -36,6 +36,12 @@ const AIPanel = {
       };
       msgsEl.addEventListener('click', openMdLink);
       msgsEl.addEventListener('auxclick', openMdLink);
+      // Resting on a source an answer cites shows what is there, so you do not
+      // have to open a tab to find out whether it is worth opening a tab.
+      msgsEl.addEventListener('mouseover', (e) => {
+        const a = e.target?.closest?.('a.vex-md-link');
+        if (a) this._previewSource(a);
+      });
       // A [m:ss] in an answer about a video jumps the video there.
       msgsEl.addEventListener('click', (e) => {
         const b = e.target?.closest?.('.ai-stamp');
@@ -679,14 +685,34 @@ const AIPanel = {
     const show = typeof force === 'boolean' ? force : el.hidden;
     el.hidden = !show;
     document.getElementById('ai-history-btn')?.classList.toggle('active', show);
-    if (show) this._renderHistory();
+    if (show) {
+      this._renderHistory();
+      const box = document.getElementById('ai-history-search');
+      if (box && !box.dataset.wired) { box.dataset.wired = '1'; box.addEventListener('input', () => this._renderHistory()); }
+    }
   },
 
   // Conversations are stored per tab, so "recent chats" is every tab that has
   // one — including tabs that have since been closed.
+  // What is typed in the box above the list: chats whose words match, with
+  // the line that matched (searching every chat was otherwise impossible —
+  // they are one per tab and a closed tab's chat is unreachable by browsing).
+  _historyQuery() { return (document.getElementById('ai-history-search')?.value || '').trim().toLowerCase(); },
+
+  // → the first message that matches, or null. Exported shape for the tests.
+  matchInChat(msgs, query) {
+    if (!query) return null;
+    for (const m of msgs) {
+      const i = String(m.content || '').toLowerCase().indexOf(query);
+      if (i >= 0) return { role: m.role, text: String(m.content).slice(Math.max(0, i - 30), i + 90).trim() };
+    }
+    return null;
+  },
+
   _renderHistory() {
     const list = document.getElementById('ai-history-list');
     if (!list) return;
+    const query = this._historyQuery();
     const current = String(this._getTabId());
     const titleOf = (tabId) => {
       const t = (typeof TabManager !== 'undefined' ? TabManager.tabs : []).find(x => String(x.id) === String(tabId));
@@ -696,13 +722,14 @@ const AIPanel = {
     // Newest first, pinned chats above the rest.
     const rows = Object.entries(this._conversations || {})
       .filter(([, msgs]) => Array.isArray(msgs) && msgs.length)
-      .map(([tabId, msgs]) => ({ tabId, msgs, first: msgs.find(m => m.role === 'user'), meta: meta[tabId] || {} }))
+      .map(([tabId, msgs]) => ({ tabId, msgs, first: msgs.find(m => m.role === 'user'), meta: meta[tabId] || {}, hit: this.matchInChat(msgs, query) }))
+      .filter(r => !query || r.hit)
       .reverse()
       .sort((a, b) => (b.meta.pinned ? 1 : 0) - (a.meta.pinned ? 1 : 0));
 
-    const runs = (typeof AgentLoop !== 'undefined' && typeof AgentLoop.runs === 'function') ? AgentLoop.runs() : [];
+    const runs = query ? [] : ((typeof AgentLoop !== 'undefined' && typeof AgentLoop.runs === 'function') ? AgentLoop.runs() : []);
     if (!rows.length && !runs.length) {
-      list.innerHTML = '<div class="ai-history-empty">No conversations yet.</div>';
+      list.innerHTML = `<div class="ai-history-empty">${query ? 'No chat mentions “' + this._esc(query) + '”.' : 'No conversations yet.'}</div>`;
       return;
     }
     list.innerHTML = '';
@@ -771,7 +798,7 @@ const AIPanel = {
       b.className = 'ai-history-item' + (String(r.tabId) === current ? ' current' : '');
       b.innerHTML = `<span class="t"></span><span class="m"></span>`;
       b.querySelector('.t').textContent = (r.meta.pinned ? 'Pinned · ' : '') + (r.meta.title || (r.first && r.first.content.slice(0, 70)) || titleOf(r.tabId));
-      b.querySelector('.m').textContent = `${r.msgs.length} message${r.msgs.length === 1 ? '' : 's'} · ${titleOf(r.tabId)}`;
+      b.querySelector('.m').textContent = r.hit ? (r.hit.role === 'user' ? 'You: ' : 'Vex: ') + r.hit.text : `${r.msgs.length} message${r.msgs.length === 1 ? '' : 's'} · ${titleOf(r.tabId)}`;
       // Pin, rename, or keep the whole conversation as a note.
       const tool = (label, title, fn) => {
         const x = document.createElement('button');
@@ -850,6 +877,9 @@ const AIPanel = {
   },
 
   // Names and pins for chats in the history list, by conversation id.
+  // How many messages of a chat are sent with a question (the rest is out of
+  // the model's reach — AIPanel._renderMessages draws the line).
+  HISTORY_SENT: 10,
   _CHAT_META_KEY: 'vex.aiChatMeta',
   _chatMeta() {
     try { const o = JSON.parse(localStorage.getItem(this._CHAT_META_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; }
@@ -1161,7 +1191,7 @@ const AIPanel = {
       // Persistent AI memory: prepend remembered facts as a system message at the
       // FRONT of the history (kept ≤10 total so the worker's slice(-10) preserves
       // it). Additive — works on both local + cloud without changing the prompt.
-      let conversationHistory = conv.filter(m => m.role !== 'system').slice(-10);
+      let conversationHistory = conv.filter(m => m.role !== 'system').slice(-this.HISTORY_SENT);
       if (feature === 'chat' && typeof AIMemory !== 'undefined') {
         const memMsg = AIMemory.historyMessage();
         if (memMsg) conversationHistory = [memMsg, ...conversationHistory.slice(-9)];
@@ -1513,6 +1543,39 @@ const AIPanel = {
     container.scrollTop = container.scrollHeight;
   },
 
+  // The title and the first line of a cited page, in a card under the link.
+  // Fetched once per address and kept for the session.
+  _SOURCE_CACHE: new Map(),
+  async _previewSource(a) {
+    const url = a.href;
+    if (!/^https?:/i.test(url) || a.dataset.previewing) return;
+    a.dataset.previewing = '1';
+    const show = (text) => {
+      if (!a.isConnected || !a.matches(':hover')) return;
+      document.querySelectorAll('.ai-source-card').forEach(c => c.remove());
+      const card = document.createElement('div');
+      card.className = 'ai-source-card';
+      card.textContent = text;
+      const r = a.getBoundingClientRect();
+      card.style.left = Math.max(8, Math.min(window.innerWidth - 320, r.left)) + 'px';
+      card.style.top = (r.bottom + 6) + 'px';
+      document.body.appendChild(card);
+      const away = () => { card.remove(); a.removeEventListener('mouseleave', away); };
+      a.addEventListener('mouseleave', away);
+    };
+    if (this._SOURCE_CACHE.has(url)) { show(this._SOURCE_CACHE.get(url)); return; }
+    try {
+      const page = await AgentTools.readUrl(url);
+      const text = (page.title || new URL(url).hostname) + ' — ' + String(page.text || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+      this._SOURCE_CACHE.set(url, text);
+      show(text);
+    } catch (err) {
+      const text = 'Could not read it: ' + ((err && err.message) || 'unavailable');
+      this._SOURCE_CACHE.set(url, text);
+      show(text);
+    } finally { delete a.dataset.previewing; }
+  },
+
   _clearChat() {
     const tabId = this._getTabId();
     if (tabId) this._conversations[tabId] = [];
@@ -1536,7 +1599,18 @@ const AIPanel = {
     }
 
     container.innerHTML = '';
+    // Only the last HISTORY_SENT messages go to the model; a line says where
+    // its memory of this chat begins, so an answer that "forgot" what you said
+    // earlier has a visible reason.
+    const forgotten = Math.max(0, conv.filter(m => m.role !== 'system').length - this.HISTORY_SENT);
     conv.forEach((m, i) => {
+      if (forgotten && i === forgotten) {
+        const mark = document.createElement('div');
+        mark.className = 'ai-context-mark';
+        mark.textContent = 'The model only sees the messages below this line';
+        mark.title = 'Vex sends the last ' + this.HISTORY_SENT + ' messages of a chat, so older ones cannot be referred to.';
+        container.appendChild(mark);
+      }
       const el = document.createElement('div');
       el.className = `ai-msg ${m.role}`;
       // Reasoning is kept with the turn, so reopening a chat still shows it.
