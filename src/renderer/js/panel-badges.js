@@ -62,7 +62,7 @@ const PanelBadges = {
     this._injectStyle();
     if (this._timer) return;
     this.sweep();
-    this._timer = setInterval(() => this.sweep(), 5000);
+    this._timer = VexJobs.every('Panel badges', 5000, () => this.sweep());
   },
 };
 

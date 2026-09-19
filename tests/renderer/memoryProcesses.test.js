@@ -208,3 +208,45 @@ describe('without the bridge', () => {
     expect(document.getElementById('memory-procs').textContent).toMatch(/not available/);
   });
 });
+
+describe('the saved health report\'s settings', () => {
+  it('shows short settings, sizes long ones, and leaves personal ones out by name', () => {
+    localStorage.clear();
+    localStorage.setItem('vex.theme', 'dark');
+    localStorage.setItem('vex.notes', 'x'.repeat(500));
+    localStorage.setItem('vex.syncToken', 'abc123');
+    localStorage.setItem('vex.mailAccounts', '[{"email":"a@b.c"}]');
+    const text = MemoryPanel.settingsLines().join('\n');
+    expect(text).toContain('vex.theme: dark');
+    expect(text).toContain('vex.notes: (500 characters, not included)');
+    expect(text).toContain('vex.syncToken: (left out');
+    expect(text).not.toContain('abc123');
+    expect(text).not.toContain('a@b.c');
+  });
+});
+
+describe('startup, part by part', () => {
+  it('names what the interface spent its start on, and the slow extensions', () => {
+    const lines = MemoryPanel.startupPartLines(
+      { extensionTimes: [{ name: 'uBlock Origin', ms: 820 }, { name: 'Dark Reader', ms: 90 }, { name: 'Vencord', ms: 1400 }] },
+      { parts: { storage: 120, tabs: 380 }, total: 1500 });
+    expect(lines[0]).toBe('Interface: reading saved data 120 ms · restoring tabs 380 ms · the rest of the interface 1.0 s');
+    expect(lines[1]).toBe("Extensions: 3 in 2.3 s, loaded alongside the window (they don't hold up the first page)");
+    expect(lines.slice(2)).toEqual(['  Vencord — 1.4 s', '  uBlock Origin — 820 ms']);
+  });
+  it('says nothing it did not measure', () => {
+    expect(MemoryPanel.startupPartLines({}, null)).toEqual([]);
+  });
+});
+
+describe('crashes from earlier launches', () => {
+  it('are listed with when and under which version; this launch\'s are not repeated', () => {
+    const startedAt = Date.now() - 60000;
+    const lines = MemoryPanel.healthLines({ startedAt, uptimeMs: 60000, marks: {}, events: [], extensionErrors: [], update: null,
+      crashHistory: [{ at: startedAt - 3600000, kind: 'page crashed', detail: 'https://x.example — oom (exit 5)', version: '2.32.36' }, { at: startedAt + 1000, kind: 'page hung', detail: 'now', version: '2.32.37' }] }, null);
+    const i = lines.indexOf('1 crash or hang in earlier launches this week:');
+    expect(i).toBeGreaterThan(-1);
+    expect(lines[i + 1]).toMatch(/^ {2}.+ — page crashed: https:\/\/x\.example — oom \(exit 5\) \(v2\.32\.36\)$/);
+    expect(lines.some(l => /page hung: now/.test(l))).toBe(false);
+  });
+});

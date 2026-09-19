@@ -58,7 +58,7 @@ const Bookmarks = {
     // 1.5s forever; react to the events that can change it instead, with a slow
     // backstop for anything that changes the URL without firing one.
     window.addEventListener('vex-tabs-changed', () => this._syncStar());
-    if (!this._starTimer) this._starTimer = setInterval(() => this._syncStar(), 5000);
+    if (!this._starTimer) this._starTimer = VexJobs.every('Bookmark star', 5000, () => this._syncStar());
   },
 
   _syncStar() {

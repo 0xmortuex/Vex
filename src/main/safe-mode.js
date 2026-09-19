@@ -32,9 +32,9 @@ function createBootGuard({ dir, fs, argv = [], version = '0.0.0', settingsFile, 
   function read() {
     try {
       const raw = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-      if (raw && typeof raw === 'object') return { phase: String(raw.phase || 'started'), fails: Number(raw.fails) || 0, version: String(raw.version || ''), at: Number(raw.at) || 0 };
+      if (raw && typeof raw === 'object') return { phase: String(raw.phase || 'started'), fails: Number(raw.fails) || 0, version: String(raw.version || ''), at: Number(raw.at) || 0, from: String(raw.from || '') };
     } catch { /* first run, or unreadable: treat as a clean start */ }
-    return { phase: 'started', fails: 0, version: '', at: 0 };
+    return { phase: 'started', fails: 0, version: '', at: 0, from: '' };
   }
 
   function write(state) {
@@ -51,12 +51,15 @@ function createBootGuard({ dir, fs, argv = [], version = '0.0.0', settingsFile, 
     const crashed = prev.phase === 'starting';
     const fails = crashed ? prev.fails + 1 : 0;
     const safeMode = asked || fails >= FAILS_BEFORE_SAFE;
-    write({ phase: 'starting', fails, version, at: now() });
     const upgraded = prev.version && prev.version !== version;
+    // The version this one replaced, carried through the failed launches that
+    // follow an update, so safe mode can offer to go back to it.
+    const from = upgraded ? prev.version : (crashed ? prev.from : '');
+    write({ phase: 'starting', fails, version, at: now(), from });
     if (upgraded || !prev.version) snapshotSettings(prev.version || 'first-run');
     if (crashed) note(`[SafeMode] the previous launch did not finish starting (${fails} in a row)`);
     if (safeMode) note('[SafeMode] starting in safe mode: no extensions, no panels, no session restore' + (asked ? ' (asked for with --safe-mode)' : ''));
-    return { safeMode, fails, crashed, asked, upgradedFrom: upgraded ? prev.version : null };
+    return { safeMode, fails, crashed, asked, upgradedFrom: upgraded ? prev.version : null, brokenSinceUpdateFrom: fails >= FAILS_BEFORE_SAFE && from ? from : null };
   }
 
   // Called when the interface is really up. Until this, the launch counts as

@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.32.38 (2026-09-19) — Sturdier: notes on disk, crash history, a way back from a bad update
+
+### Changes
+- **Notes, AI chats, history, agent runs, the clipboard, annotations and Read later are kept on disk, not in browser storage.** Browser storage is capped at about 5 MB, and those are the stores that grow without limit, so they were the ones that would fill it. Existing copies are moved out when Vex starts. Checked live: a note written, Vex restarted, and the note came back from disk and showed in the Notes panel.
+  - Any other value that stops fitting is now read back as written. Before, a full store saved it to disk but went on reading the old copy until the next restart.
+  - **A warning at 80% full**, once a day, pointing at Memory › Health, which names what fills it.
+- **One timer for background work.** Twelve periodic jobs (badges, the Today card, counters in Settings, local-AI status, tab-group suggestions, page watches, tabs sent from your phone, snapshots and others) now share one timer.
+  - Jobs that only matter on screen wait while Vex is minimised or a game is running.
+  - Jobs that notify you, like page watches, wait only during a game.
+  - Anything held runs once as soon as you're back. Health shows how many runs were held.
+- **Startup, part by part**, in Memory › Health:
+  - reading saved data,
+  - restoring tabs,
+  - the rest of the interface,
+  - each extension that took a quarter of a second or more. Extensions load alongside the window, so they don't hold up the first page.
+- **Crashes from earlier launches** are listed in Health too, with when they happened and under which version, for the last week. They're kept in a small file in your profile. Nothing is sent anywhere.
+- **Save report…** in Memory › Processes writes processes, health and your settings to a text file for a bug report. Long values show only their size, and anything that could be personal (tokens, passwords, accounts, mail, sync) is left out by name.
+- **Going back after a bad update.** If a new version fails to start twice, safe mode now says which update it began with, and offers **Go back to <version>**. That downloads the previous installer and pauses updates for a day, so the old version doesn't offer the broken one straight back.
+- **Settings from before each update**, the last five, are listed in Settings › Data with a Restore button each. Before, they could only be restored from inside safe mode.
+- **Start in safe mode** is on the taskbar: right-click Vex. If Vex is already running, it restarts into safe mode. (Holding Shift at launch, as first planned, would have meant a slow check on every start.)
+
+### Fixes
+- "Restart normally" after starting in safe mode from the command line restarted into safe mode again.
+
 ## v2.32.37 (2026-09-19) — Streamer mode only when you share, and a steadier agent
 
 ### Fixes

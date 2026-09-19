@@ -165,7 +165,7 @@ const TabGrouper = (() => {
       groupPatterns = pruned;
       _save('vex.groupPatterns', groupPatterns);
     }
-    setInterval(maybeAutoSuggest, 60000);
+    VexJobs.every('Tab group suggestions', 60000, maybeAutoSuggest);
   }
 
   // ---------- Auto-suggest banner ----------

@@ -108,3 +108,25 @@ describe('the settings snapshot', () => {
     expect(g.snapshots()).toEqual([]);
   });
 });
+
+describe('an update that will not start', () => {
+  it('names the version it replaced once safe mode kicks in, so it can be offered back', () => {
+    const old = guard({ version: '2.32.36' }); old.begin(); old.started();
+    expect(guard({ version: '2.32.37' }).begin().brokenSinceUpdateFrom).toBeNull();   // crashes
+    expect(guard({ version: '2.32.37' }).begin().brokenSinceUpdateFrom).toBeNull();   // crashes again
+    expect(guard({ version: '2.32.37' }).begin()).toMatchObject({ safeMode: true, brokenSinceUpdateFrom: '2.32.36' });
+  });
+
+  it('crashes with no update behind them offer nothing', () => {
+    const g = guard(); g.begin(); g.started();
+    guard().begin(); guard().begin();
+    expect(guard().begin()).toMatchObject({ safeMode: true, brokenSinceUpdateFrom: null });
+  });
+
+  it('a good launch forgets the old version', () => {
+    const old = guard({ version: '2.32.36' }); old.begin(); old.started();
+    const up = guard({ version: '2.32.37' }); up.begin(); up.started();
+    guard({ version: '2.32.37' }).begin(); guard({ version: '2.32.37' }).begin();
+    expect(guard({ version: '2.32.37' }).begin().brokenSinceUpdateFrom).toBeNull();
+  });
+});

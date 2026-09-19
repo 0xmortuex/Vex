@@ -207,7 +207,7 @@ const PageWatch = {
     if (this._timer) return;
     // The first look sets the baseline; nothing is announced from it.
     setTimeout(() => this.checkDue(), 20000);
-    this._timer = setInterval(() => this.checkDue(), 60000);
+    this._timer = VexJobs.every('Page watches', 60000, () => this.checkDue(), { when: 'background' });
   },
 };
 

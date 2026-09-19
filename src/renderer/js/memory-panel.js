@@ -35,7 +35,7 @@ const MemoryPanel = {
           <div class="memory-list" id="memory-panels"></div>
         </div>
         <div class="memory-section">
-          <div class="memory-section-head"><h3>Processes</h3><span class="memory-section-note">Every process Vex runs and what it is.</span><button id="memory-copy-report">Copy report</button></div>
+          <div class="memory-section-head"><h3>Processes</h3><span class="memory-section-note">Every process Vex runs and what it is.</span><button id="memory-copy-report">Copy report</button><button id="memory-save-report" title="Processes, health and your settings in one file, to attach to a bug report">Save report…</button></div>
           <div class="memory-summary" id="memory-summary"></div>
           <div id="memory-procs"></div>
         </div>
@@ -83,8 +83,41 @@ const MemoryPanel = {
       }
     });
 
+    document.getElementById('memory-save-report')?.addEventListener('click', async () => {
+      if (!this._lastReport) { window.showToast?.('Nothing measured yet', 'error'); return; }
+      if (typeof window.vex?.saveTextFile !== 'function') { window.showToast?.('Saving files is not available in this build', 'error'); return; }
+      try {
+        const text = this._lastReport + '\n\nSettings\n' + this.settingsLines().join('\n') + '\n';
+        const r = await window.vex.saveTextFile('vex-health-' + new Date().toISOString().slice(0, 10) + '.txt', text);
+        if (r && r.ok) window.showToast?.('Report saved');
+      } catch (err) {
+        window.showToast?.('Could not save: ' + (err && err.message), 'error');
+      }
+    });
+
     this.refresh();
     this.startAutoRefresh();
+  },
+
+  // Every stored setting, for the saved report. Short values are shown; long
+  // ones (notes, chats, history) only by size, and anything that might be a
+  // secret or personal — keys, tokens, passwords, accounts, mail — is left out
+  // by name, so the file is safe to attach to a public bug report.
+  SECRET_KEY: /token|secret|passw|apikey|api[-_]?key|auth|cookie|session|mail|account|totp|otp|sync|vault|credential|private|recovery|address|phone|contact|profile/i,
+  settingsLines() {
+    const out = [];
+    let keys = [];
+    try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
+    catch (err) { return ['Settings could not be read — ' + ((err && err.message) || 'unreadable')]; }
+    if (typeof PersistentStorage !== 'undefined') for (const [k] of PersistentStorage.fileOnlyEntries()) keys.push(k);
+    keys.sort();
+    for (const key of keys) {
+      const value = localStorage.getItem(key) || '';
+      if (this.SECRET_KEY.test(key)) out.push(`${key}: (left out — may be personal)`);
+      else if (value.length > 120) out.push(`${key}: (${value.length.toLocaleString()} characters, not included)`);
+      else out.push(`${key}: ${value}`);
+    }
+    return out.length ? out : ['No settings stored'];
   },
 
   startAutoRefresh() {
@@ -382,25 +415,59 @@ const MemoryPanel = {
     const big = use.rows.filter(r => r.bytes > 50 * 1024).slice(0, 5);
     const out = [`Browser storage: ${mb(use.total)} of about ${mb(this.STORAGE_CAP)} used (${pct}%)${pct >= 80 ? ' — nearly full' : ''}`];
     for (const r of big) out.push(`  ${r.key} — ${mb(r.bytes)}`);
+    const onDisk = typeof PersistentStorage !== 'undefined' ? PersistentStorage.fileOnlyEntries() : [];
+    if (onDisk.length) out.push('Kept on disk instead, so they cannot fill it: ' + onDisk.map(([k, v]) => `${k} ${mb(v.length * 2)}`).join(' · '));
     return out;
   },
 
-  healthLines(d) {
+  // What each part of startup cost. Extensions load beside the window rather
+  // than before it, so they never delay the first page; the slow ones are
+  // named so one can be turned off in Extensions if it matters.
+  startupPartLines(d, startup) {
+    const s = (ms) => ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : ms + ' ms';
+    const out = [];
+    const p = (startup && startup.parts) || {};
+    const ui = [];
+    if (p.storage != null) ui.push('reading saved data ' + s(p.storage));
+    if (p.tabs != null) ui.push('restoring tabs ' + s(p.tabs));
+    if (startup && startup.total != null) {
+      const rest = startup.total - (p.storage || 0) - (p.tabs || 0);
+      ui.push('the rest of the interface ' + s(Math.max(0, rest)));
+    }
+    if (ui.length) out.push('Interface: ' + ui.join(' · '));
+    const ext = Array.isArray(d.extensionTimes) ? d.extensionTimes : [];
+    if (ext.length) {
+      const total = ext.reduce((n, x) => n + (x.ms || 0), 0);
+      out.push(`Extensions: ${ext.length} in ${s(total)}, loaded alongside the window (they don't hold up the first page)`);
+      for (const x of [...ext].sort((a, b) => b.ms - a.ms).filter(x => x.ms >= 250).slice(0, 5)) out.push(`  ${x.name} — ${s(x.ms)}`);
+    }
+    return out;
+  },
+
+  healthLines(d, startup = (typeof window !== 'undefined' ? window.VexStartup : null)) {
     const lines = [];
     const up = Math.round((d.uptimeMs || 0) / 60000);
     lines.push(`Vex ${d.version || '?'} · Electron ${d.electron || '?'} · Chromium ${d.chrome || '?'} · up ${up < 60 ? up + ' min' : (up / 60).toFixed(1) + ' h'}`);
     const m = d.marks || {};
     const parts = ['app-ready', 'window-shown', 'interface-loaded', 'first-page-loaded'].filter(k => k in m).map(k => `${k.replace(/-/g, ' ')} ${(m[k] / 1000).toFixed(1)} s`);
     if (parts.length) lines.push('Startup: ' + parts.join(' · '));
+    for (const l of this.startupPartLines(d, startup)) lines.push(l);
     const ev = Array.isArray(d.events) ? d.events : [];
     lines.push(ev.length ? `${ev.length} event${ev.length === 1 ? '' : 's'} since launch:` : 'No crashes, hangs or helper processes lost since launch.');
     for (const e of ev.slice(-20)) lines.push(`  ${this._fmtAgo(Date.now() - e.at)} — ${e.kind}: ${e.detail}`);
+    // Earlier launches' crashes, from main's crash log (this launch's are above).
+    const before = (Array.isArray(d.crashHistory) ? d.crashHistory : []).filter(e => !d.startedAt || e.at < d.startedAt);
+    if (before.length) {
+      lines.push(`${before.length} crash${before.length === 1 ? '' : 'es'} or hang${before.length === 1 ? '' : 's'} in earlier launches this week:`);
+      for (const e of before.slice(-8)) lines.push(`  ${new Date(e.at).toLocaleString()} — ${e.kind}: ${e.detail}${e.version ? ' (v' + e.version + ')' : ''}`);
+    }
     const ex = Array.isArray(d.extensionErrors) ? d.extensionErrors : [];
     for (const x of ex) lines.push(`  extension failed to load — ${x.folder}: ${x.error}`);
     if (d.update && d.update.result) lines.push(`Updater: ${d.update.result}${d.update.version ? ' ' + d.update.version : ''}${d.update.error ? ' — ' + d.update.error : ''} (${this._fmtAgo(Date.now() - d.update.lastCheckAt)})`);
     else lines.push('Updater: no check yet this session');
     if (d.remindersScheduled != null) lines.push(`Reminders scheduled in Windows: ${d.remindersScheduled}`);
     for (const l of this.storageLines()) lines.push(l);
+    if (typeof VexJobs !== 'undefined') for (const l of VexJobs.lines()) lines.push(l);
     // Things that failed quietly (js/problems.js). Without this they reached
     // the DevTools console and nowhere else.
     if (typeof VexProblems !== 'undefined') {

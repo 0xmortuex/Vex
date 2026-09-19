@@ -204,6 +204,7 @@ const VexDevMode = {
             const k = localStorage.key(i);
             if (k && k.startsWith('vex')) doomed.push(k);
           }
+          for (const [k] of PersistentStorage.fileOnlyEntries()) doomed.push(k);
           for (const k of doomed) localStorage.removeItem(k);
           setTimeout(() => location.reload(), 400);
           return `Removed ${doomed.length} keys — reloading`;

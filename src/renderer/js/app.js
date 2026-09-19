@@ -1,6 +1,9 @@
 // === Vex App — Main Entry Point ===
 
 (async function () {
+  // What each part of starting the interface cost, for Memory › Health.
+  const startup = window.VexStartup = { began: performance.now(), parts: {} };
+  const timed = (part, t0) => { startup.parts[part] = Math.round(performance.now() - t0); };
   document.getElementById('save-ai-worker-token')?.addEventListener('click', async () => {
     const input = document.getElementById('setting-ai-worker-token');
     try { await window.vex.saveCloudToken(input.value.trim()); input.value = ''; window.showToast?.('AI access token saved'); }
@@ -9,7 +12,9 @@
   // Hydrate localStorage from persistent file store BEFORE anything else reads it.
   // This makes every existing localStorage.getItem('vex.*') call survive reinstalls.
   if (window.PersistentStorage) {
+    const t0 = performance.now();
     try { await PersistentStorage.init(); } catch (e) { console.error('PersistentStorage init:', e); }
+    timed('storage', t0);
   }
 
   const passkeyHosts = document.getElementById('setting-passkey-hosts');
@@ -60,7 +65,9 @@
   SessionManager.init();
   WorkspaceManager.init();
   Translator.init();
+  const tabsAt = performance.now();
   await TabManager.init();
+  timed('tabs', tabsAt);
 
   // Horizontal tab bar (wraps TabManager methods to auto-refresh)
   if (typeof HorizontalTabs !== 'undefined') HorizontalTabs.init();
@@ -487,6 +494,8 @@
       const key = localStorage.key(i);
       if (key.startsWith('vex.')) data[key] = localStorage.getItem(key);
     }
+    // Notes, chats and history are kept on disk rather than in browser storage.
+    for (const [key, value] of PersistentStorage.fileOnlyEntries()) data[key] = value;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -566,7 +575,7 @@
     el.textContent = `${s.indexed} of ${s.total} indexed (${pct}%)${s.queued ? ` · ${s.queued} queued` : ''}`;
   }
   updateIndexingStats();
-  setInterval(updateIndexingStats, 5000);
+  VexJobs.every('Indexing stats', 5000, updateIndexingStats);
 
   // GUI Style picker (Classic vs Glass) — see js/gui-style.js
   const guiSel = document.getElementById('setting-gui-style');
@@ -681,7 +690,7 @@
     el.textContent = patternsPart + rejectedPart;
   }
   updateGroupPatternsCount();
-  setInterval(updateGroupPatternsCount, 5000);
+  VexJobs.every('Group pattern count', 5000, updateGroupPatternsCount);
 
   // === Auto-sleep settings ===
   // First-run default: enabled. Existing users keep whatever they last saved
@@ -999,7 +1008,7 @@
     } catch {}
   };
   window.addEventListener('focus', checkDrops);
-  setInterval(checkDrops, 2 * 60 * 1000);
+  VexJobs.every('Tabs sent from other devices', 2 * 60 * 1000, checkDrops, { when: 'background' });
   setTimeout(checkDrops, 8000); // shortly after launch
 
   // External link → new tab (target="_blank", window.open, middle-click)
@@ -1500,6 +1509,7 @@
   }
 
   window.showToast = showToast;
+  startup.total = Math.round(performance.now() - startup.began);
 
   // The interface is up. Everything above ran without throwing, so this launch
   // counts as a good one — and the next failed start begins from zero rather

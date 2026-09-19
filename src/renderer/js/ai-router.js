@@ -61,8 +61,8 @@ const AIRouter = (() => {
     await refreshOllamaStatus();
     // Have the local model ready before the first request, not during it.
     if (!ollamaAvailable && dependsOnLocal()) ollamaUp().catch(err => console.warn('[AIRouter] could not start Ollama:', err.message));
-    if (checkTimer) clearInterval(checkTimer);
-    checkTimer = setInterval(refreshOllamaStatus, 30000);
+    if (checkTimer) checkTimer.stop();
+    checkTimer = VexJobs.every('Local AI status', 30000, refreshOllamaStatus);
   }
 
   async function refreshOllamaStatus() {

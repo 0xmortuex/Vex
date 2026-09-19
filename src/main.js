@@ -436,6 +436,14 @@ if (!gotTheLock) {
     console.log('[Vex URL]   workingDirectory:', workingDirectory);
     // A Snooze / Open button on a reminder's toast arrives as vex://…
     if (commandLine.some(a => handleVexAction(a))) return;
+    // "Start in safe mode" from the taskbar while Vex is already running:
+    // restart into it (tabs are saved continuously, as for any restart).
+    if (commandLine.includes('--safe-mode')) {
+      console.log('[SafeMode] asked for while running — restarting into safe mode');
+      app.relaunch({ args: [...process.argv.slice(1).filter(a => a !== '--safe-mode'), '--safe-mode'] });
+      app.exit(0);
+      return;
+    }
     // Windows Task Scheduler launching Vex for a reminder while it is already
     // running lands here. The in-process timer normally fired it already; a
     // due-check is idempotent, and the window comes forward either way.
@@ -731,15 +739,31 @@ const _bootGuard = require('./main/safe-mode').createBootGuard({
 const _boot = _bootGuard.begin();
 if (_boot.safeMode) console.log('[SafeMode] ON');
 
-const _diag = { startedAt: Date.now(), marks: {}, events: [] };
+const _diag = { startedAt: Date.now(), marks: {}, events: [], extensionTimes: [] };
+// Crashes and hangs also go to a file, so Health can show last week's, not
+// only this launch's (main/crash-log.js).
+const _crashLog = require('./main/crash-log').createCrashLog({ dir: userDataPath, fs, version: app.getVersion(), log: (m) => console.log(m) });
+const _CRASH_KINDS = new Set(['page crashed', 'page hung', 'helper process gone']);
+if (_boot.crashed) _crashLog.add('Vex did not finish starting', _boot.fails + ' launch' + (_boot.fails === 1 ? '' : 'es') + ' in a row');
 function _diagMark(name) { if (!(name in _diag.marks)) _diag.marks[name] = Math.round(process.uptime() * 1000); }
 function _diagEvent(kind, detail) {
   _diag.events.push({ at: Date.now(), kind, detail: String(detail || '').slice(0, 300) });
+  if (_CRASH_KINDS.has(kind)) _crashLog.add(kind, detail);
   if (_diag.events.length > 100) _diag.events.splice(0, _diag.events.length - 100);
   console.error(`[Diagnostics] ${kind}: ${detail}`);
 }
 _diagMark('main-loaded');
-app.whenReady().then(() => _diagMark('app-ready'));
+app.whenReady().then(() => {
+  _diagMark('app-ready');
+  // Right-click Vex on the taskbar › "Start in safe mode": the way in when an
+  // extension or setting stops Vex starting. Packaged only: in development
+  // the executable is bare Electron and the entry would not start Vex.
+  if (process.platform === 'win32' && app.isPackaged) {
+    try {
+      app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'No extensions, no panels, no session restore' }]);
+    } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
+  }
+});
 app.on('browser-window-created', (_e, win) => {
   win.once('show', () => _diagMark('window-shown'));
   win.webContents.once('did-finish-load', () => _diagMark('interface-loaded'));
@@ -912,7 +936,8 @@ ipcMain.handle('app:diagnostics', () => {
     startedAt: _diag.startedAt, uptimeMs: Date.now() - _diag.startedAt, marks: _diag.marks, events: _diag.events,
     extensionErrors: [..._extLoadErrors.entries()].map(([folder, error]) => ({ folder, error: String(error).slice(0, 200) })),
     update, remindersScheduled: scheduled, version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
-    safeMode: _boot.safeMode, bootFails: _boot.fails,
+    safeMode: _boot.safeMode, bootFails: _boot.fails, extensionTimes: _diag.extensionTimes,
+    crashHistory: _crashLog.recent(),
   };
 });
 
@@ -1944,8 +1969,10 @@ async function loadAllExtensionsOnStartup() {
   for (const entry of _extEntries()) {
     if (entry.error && !entry.manifest) { _extLoadErrors.set(entry.folder, entry.error); continue; }
     if (disabled.has(entry.folder)) continue;
+    const t0 = Date.now();
     try {
       const { extension, errors } = await _loadExtensionEverywhere(entry.path);
+      _diag.extensionTimes.push({ name: (extension && extension.name) || entry.folder, ms: Date.now() - t0 });
       if (extension) {
         _extLoadErrors.delete(entry.folder);
         console.log(`[Extensions] Loaded: ${extension.name} v${extension.manifest.version}`);
@@ -4714,7 +4741,9 @@ ipcMain.handle('app:focus', () => {
 });
 
 ipcMain.handle('app:restart', () => {
-  try { app.relaunch(); app.exit(0); return { ok: true }; }
+  // Without --safe-mode: "Restart normally" after a safe-mode start must not
+  // start in safe mode again.
+  try { app.relaunch({ args: process.argv.slice(1).filter(a => a !== '--safe-mode') }); app.exit(0); return { ok: true }; }
   catch (e) { return { ok: false, error: e && e.message }; }
 });
 

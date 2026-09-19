@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../../src/renderer/js/collection-store.js';
+const { VexJobs } = require('../../src/renderer/js/jobs.js');
+globalThis.VexJobs = VexJobs;
 
 // Background pollers are started from more than one place (panel open, boot,
 // re-render). Each relies on a singleton guard to avoid stacking a second
@@ -10,6 +12,8 @@ let intervals;
 beforeEach(() => {
   intervals = 0;
   vi.spyOn(globalThis, 'setInterval').mockImplementation(() => { intervals++; return intervals; });
+  // A poller moved onto the shared job timer counts the same as its own interval.
+  vi.spyOn(VexJobs, 'every').mockImplementation(() => { intervals++; return { stop() {} }; });
   vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0);
 });
 afterEach(() => vi.restoreAllMocks());

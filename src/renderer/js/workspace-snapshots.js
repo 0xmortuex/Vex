@@ -19,10 +19,10 @@ const WorkspaceSnapshots = {
     // First capture a minute after launch (once tabs have restored), then on a
     // steady cadence. Auto-snapshots that match the previous one are skipped.
     this._startup = setTimeout(() => { this._startup = null; this.snapshot(true); }, 60 * 1000);
-    this._timer = setInterval(() => this.snapshot(true), this.INTERVAL_MS);
+    this._timer = VexJobs.every('Workspace snapshot', this.INTERVAL_MS, () => this.snapshot(true), { when: 'background' });
   },
 
-  dispose() { clearTimeout(this._startup); clearInterval(this._timer); this._startup = this._timer = null; },
+  dispose() { clearTimeout(this._startup); this._timer?.stop(); this._startup = this._timer = null; },
 
   _all() { try { return JSON.parse(localStorage.getItem(this.KEY) || '{}'); } catch { return {}; } },
   _save(o) { try { localStorage.setItem(this.KEY, JSON.stringify(o)); } catch {} },

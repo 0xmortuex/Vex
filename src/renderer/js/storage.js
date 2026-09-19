@@ -35,17 +35,22 @@ const PersistentStorage = {
               this._enqueue('set', k, localStorage.getItem(k));
             }
           }
+          for (const k of FILE_ONLY_KEYS) this._moveToFile(k, _origGetItem.call(localStorage, k));
         } else {
           // File storage is authoritative — hydrate localStorage from it.
           // Values are always stored as raw strings to preserve exact round-trip.
           for (const [k, v] of Object.entries(fileData)) {
             if (k === '__vexPreferenceStore' || this._queue.has(k)) continue;
+            const str = typeof v === 'string' ? v : JSON.stringify(v);
+            if (FILE_ONLY_KEYS.has(k)) { this._moveToFile(k, str); continue; }
             try {
-              const str = typeof v === 'string' ? v : JSON.stringify(v);
-              if (localStorage.getItem(k) !== str) {
-                _origSetItem.call(localStorage, k, str);
-              }
-            } catch {}
+              if (_origGetItem.call(localStorage, k) !== str) _origSetItem.call(localStorage, k, str);
+            } catch (err) {
+              // It no longer fits in browser storage: serve it from memory so
+              // reads are not left with an old copy (or none).
+              this._moveToFile(k, str);
+              console.warn('[PersistentStorage] kept on disk only (browser storage full):', k, err && err.message);
+            }
           }
           // Remove stale Chromium copies of deleted preferences. New writes
           // made during hydration are already queued and must be preserved.
@@ -57,6 +62,7 @@ const PersistentStorage = {
         }
 
         this._ready = true;
+        this.warnIfNearlyFull();
         await this._flush();
         console.log('[PersistentStorage] ready — file keys:', Object.keys(fileData).length);
       } catch (e) {
@@ -64,6 +70,36 @@ const PersistentStorage = {
       }
     })();
     return this._readyPromise;
+  },
+
+  // Held in memory, and in the file store, but not in browser storage.
+  _moveToFile(key, value) {
+    if (value == null) return;
+    _fileOnly.set(key, String(value));
+    _origRemoveItem.call(localStorage, key);
+  },
+  fileOnlyEntries() { return [..._fileOnly.entries()]; },
+
+  // Browser storage is capped at a few megabytes; past it every write fails.
+  // Said once a day from 80%, before that point, naming where to look.
+  NEARLY_FULL: 0.8,
+  CAP_BYTES: 5 * 1024 * 1024,
+  WARNED_KEY: 'vex.storageWarnedAt',
+  browserBytes() {
+    let total = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      total += (k.length + (_origGetItem.call(localStorage, k) || '').length) * 2;
+    }
+    return total;
+  },
+  warnIfNearlyFull(now = Date.now()) {
+    const share = this.browserBytes() / this.CAP_BYTES;
+    if (share < this.NEARLY_FULL) return false;
+    if (now - (Number(localStorage.getItem(this.WARNED_KEY)) || 0) < 24 * 3600 * 1000) return false;
+    localStorage.setItem(this.WARNED_KEY, String(now));
+    window.showToast?.(`Browser storage is ${Math.round(share * 100)}% full. Memory panel › Health shows what fills it.`, 'error', 10000);
+    return true;
   },
 
   _enqueue(op, key, value) {
@@ -118,20 +154,41 @@ const _storageMethods = typeof Storage !== 'undefined' && localStorage instanceo
   ? Storage.prototype : localStorage;
 const _storageOriginalsKey = Symbol.for('vex.storage.originals');
 const _storageOriginals = _storageMethods[_storageOriginalsKey] || {
-  setItem: _storageMethods.setItem, removeItem: _storageMethods.removeItem, clear: _storageMethods.clear
+  setItem: _storageMethods.setItem, removeItem: _storageMethods.removeItem, clear: _storageMethods.clear, getItem: _storageMethods.getItem
 };
+// Originals kept by a build from before getItem was wrapped: getItem is
+// still the native one then.
+if (!_storageOriginals.getItem) _storageOriginals.getItem = _storageMethods.getItem;
 if (!_storageMethods[_storageOriginalsKey]) {
   Object.defineProperty(_storageMethods, _storageOriginalsKey, { value: _storageOriginals });
 }
 let _reportingQuota = false;
 const _origSetItem = _storageOriginals.setItem;
 const _origRemoveItem = _storageOriginals.removeItem;
+const _origGetItem = _storageOriginals.getItem;
+
+// The stores that grow without limit (AI chats, notes, history, agent runs,
+// the clipboard, annotations, read later) live in the file store only: read
+// from memory here and never copied into browser storage, whose cap they
+// would fill. Any other value that stops fitting joins them, so a read never
+// returns an old copy.
+const FILE_ONLY_KEYS = new Set(['vex.aiConversations', 'vex.notes', 'vex.history', 'vex.agentRuns', 'vex.clipboardHistory', 'vex.annotations', 'vex.readLater']);
+const _fileOnly = new Map();
+_storageMethods.getItem = function (key) {
+  if (this === localStorage && _fileOnly.has(String(key))) return _fileOnly.get(String(key));
+  return _origGetItem.call(this, key);
+};
 _storageMethods.setItem = function (key, value) {
   // localStorage has a hard size cap, and a write past it THROWS. Sixty call
   // sites across Vex write through here inside a try/catch that says nothing,
   // so a full store meant notes, chats and settings quietly failing to save.
   // Now it is recorded, said once, and the value still goes to the file store,
   // which has no such cap — so nothing is lost even when the cap is reached.
+  if (this === localStorage && FILE_ONLY_KEYS.has(String(key))) {
+    _fileOnly.set(String(key), String(value));
+    PersistentStorage._enqueue('set', String(key), String(value));
+    return;
+  }
   let quota = null;
   try { _origSetItem.call(this, key, value); }
   catch (err) { quota = err; }
@@ -153,9 +210,11 @@ _storageMethods.setItem = function (key, value) {
       } finally { _reportingQuota = false; }
     }
     if (!mirrored) throw quota;                        // not ours to rescue
+    PersistentStorage._moveToFile(key, String(value));
     PersistentStorage._enqueue('set', key, typeof value === 'string' ? value : String(value));
     return;
   }
+  if (this === localStorage) _fileOnly.delete(key);    // fits again
   if (this === localStorage && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'))) {
     PersistentStorage._enqueue('set', key, this.getItem(key));
   }
@@ -163,12 +222,14 @@ _storageMethods.setItem = function (key, value) {
 _storageMethods.removeItem = function (key) {
   _origRemoveItem.call(this, key);
   key = String(key);
+  if (this === localStorage) _fileOnly.delete(key);
   if (this === localStorage && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'))) {
     PersistentStorage._enqueue('delete', key, null);
   }
 };
 _storageMethods.clear = function () {
-  const keys = this === localStorage ? Object.keys(this) : [];
+  const keys = this === localStorage ? [...Object.keys(this), ..._fileOnly.keys()] : [];
+  if (this === localStorage) _fileOnly.clear();
   _storageOriginals.clear.call(this);
   for (const key of keys) {
     if (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_')) {

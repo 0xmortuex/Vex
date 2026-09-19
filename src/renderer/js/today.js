@@ -18,8 +18,8 @@ const VexToday = {
 
   init() {
     this.refresh();
-    clearInterval(this._timer);
-    this._timer = setInterval(() => this.refresh(), 60 * 1000);
+    this._timer?.stop();
+    this._timer = VexJobs.every('Today refresh', 60 * 1000, () => this.refresh());
     const b = window.vex && window.vex.reminders;
     if (b && typeof b.onFired === 'function') b.onFired(() => this.refresh());
     return true;

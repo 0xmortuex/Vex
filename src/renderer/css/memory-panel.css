@@ -91,6 +91,7 @@
 .memory-section-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--vex-text-primary); }
 .memory-section-note { font-size: 11px; color: var(--vex-text-muted); flex: 1; min-width: 0; }
 .memory-section-head button { margin-left: auto; }
+.memory-section-head button + button { margin-left: 0; }
 .memory-summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
 .memory-summary span {
   font-size: 11px; padding: 3px 8px; border-radius: var(--vex-radius-sm);

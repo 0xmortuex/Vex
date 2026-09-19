@@ -119,11 +119,11 @@ const TabArchiver = {
     if (this._initialized) return;
     this._initialized = true;
     TabManager.tabs.forEach(t => { t._lastActive = t._lastActive || Date.now(); });
-    this._interval = setInterval(() => this.sweep(), 30 * 60 * 1000);
+    this._interval = VexJobs.every('Read later sweep', 30 * 60 * 1000, () => this.sweep(), { when: 'background' });
     this._startup = setTimeout(() => this.sweep(), 60 * 1000);
   },
 
-  dispose() { clearInterval(this._interval); clearTimeout(this._startup); this._initialized = false; },
+  dispose() { this._interval?.stop(); clearTimeout(this._startup); this._initialized = false; },
 
   sweep() {
     if (window.VexTabPolicy?.isPrivateWindow) return;

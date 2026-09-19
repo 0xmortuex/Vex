@@ -326,6 +326,8 @@ GameMode.onGameEnd = function () {
       try { TabManager.wakeTab(id); } catch (err) { window.VexProblems?.note('Gaming', 'Could not wake a tab', err); }
     }, i * this.WAKE_GAP_MS));
   }
+  // Background jobs held back during the game run their owed turn now.
+  if (typeof VexJobs !== 'undefined') VexJobs.resume();
   // Scheduled tasks held back during the game catch up on their next check.
   const done = [];
   if (r && r.freedMB) done.push('freed ' + (r.freedMB >= 1024 ? (r.freedMB / 1024).toFixed(1) + ' GB' : r.freedMB + ' MB') + ' of graphics memory');

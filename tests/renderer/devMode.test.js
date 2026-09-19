@@ -122,8 +122,15 @@ describe('Reset Vex is guarded', () => {
     localStorage.setItem('vex.a', '1');
     localStorage.setItem('vex.b', '2');
     localStorage.setItem('unrelated', '3');
+    // Notes, chats and history live on disk, not in browser storage.
+    const removed = [];
+    globalThis.PersistentStorage = { fileOnlyEntries: () => [['vex.notes', '[]']] };
+    const remove = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(function (k) { removed.push(k); delete this[k]; });
     window.vexPrompt = async () => 'reset';
     await VexDevMode._runAction(reset());
+    remove.mockRestore();
+    delete globalThis.PersistentStorage;
+    expect(removed).toContain('vex.notes');
     expect(localStorage.getItem('vex.a')).toBe(null);
     // Anything that is not Vex's own is left alone.
     expect(localStorage.getItem('unrelated')).toBe('3');
