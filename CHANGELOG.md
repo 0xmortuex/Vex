@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.26 (2026-09-19) — Calendar
+
+### Notes
+- **Calendar** (`Ctrl+K`). Vex already held dated things in two separate lists, reminders and to-dos with a date (`@2026-10-03`, `@tomorrow`), and neither showed a month. Now one does:
+  - Reminders appear on their day. A **repeating reminder shows on every day it will repeat**: daily, weekdays, weekly, or set days.
+  - Dated to-dos from your notes appear on their day and can be ticked right there.
+  - Click any future day to **add a reminder** on it. It goes through the same reminders system as everything else, so it notifies even if Vex is closed.
+  - The week starts where your locale starts it: Sunday in the US, Monday in most of Europe.
+- Alarms and timers stay on the clock, since a daily alarm in every square says nothing. Vex's own weekly-review reminder is left off too.
+- **An honest limit:** this isn't linked to Google or Outlook, which would need your account there. Any timed reminder can still be saved to them as a calendar file, as before.
+
 ## v2.32.25 (2026-09-19) — Parcels
 
 ### Notes
