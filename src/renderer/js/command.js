@@ -12,6 +12,8 @@ const CommandBar = {
   results: [],
 
   commands: [
+    { id: 'dictate', label: 'Dictate', shortcut: 'Ctrl+Alt+D', hint: 'Speak, and it is typed where the cursor was — Whisper on this PC, nothing sent anywhere', icon: 'mic', action: () => Dictation.toggle().catch(e => window.showToast?.(e.message, 'error')) },
+    { id: 'dictation-settings', label: 'Dictation Settings', hint: 'Speech model, the language you speak, remove the downloaded model', icon: 'mic', action: () => Dictation.openSettings() },
     { id: 'do-again', label: 'Do That Again', shortcut: 'Ctrl+Alt+A', icon: 'history', isPrimary: true,
       get hint() { const c = CommandBar.lastCommand(); return c ? 'Again: ' + c.label : 'Runs the last command you used here once more'; },
       action: () => CommandBar.doAgain() },

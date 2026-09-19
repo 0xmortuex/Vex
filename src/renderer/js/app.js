@@ -233,6 +233,8 @@
   const jumpToTab = (n) => { const t = (TabManager.tabs || [])[n - 1]; if (t) TabManager.switchTab(t.id); };
   const bookmarkCurrent = () => { const t = TabManager.getActiveTab && TabManager.getActiveTab(); if (t && t.url && window.Bookmarks) Bookmarks.toggle(t.url, t.title); };
   window.vex.onFocusAddressBar?.(focusAddressBar);
+  // Ctrl+Alt+D pressed inside a page (main passes it up; the page has focus).
+  window.vex.onDictateToggle?.(() => Dictation.toggle().catch(e => window.showToast?.(e.message, 'error')));
   window.vex.onNextTab?.(() => cycleTab(1));
   window.vex.onPrevTab?.(() => cycleTab(-1));
   window.vex.onJumpToTab?.((n) => jumpToTab(n));
@@ -1065,6 +1067,7 @@
     ShortcutsRegistry.register('screenshot',     () => ScreenshotTool?.capture?.());
     ShortcutsRegistry.register('group-tabs',     () => TabGrouper?.analyzeAndPropose?.());
     ShortcutsRegistry.register('do-again',       () => CommandBar.doAgain());
+    ShortcutsRegistry.register('dictate',        () => Dictation.toggle().catch(e => window.showToast?.(e.message, 'error')));
     ShortcutsRegistry.register('toggle-theme',   () => {
       // Opens the visual theme picker (grid of previews). Falls back to a
       // blind cycle only if the picker module somehow failed to load.

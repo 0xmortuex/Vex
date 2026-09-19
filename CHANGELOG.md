@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.32.30 (2026-09-19) — Dictation
+
+### Notes
+- **Dictate** (**Ctrl+Alt+D**, or Ctrl+K › Dictate). Put the cursor in any text box, in a web page or in Vex, press Ctrl+Alt+D, speak, and press it again (or **Stop**). The words are typed where the cursor was. **Esc**, or the ×, throws the recording away.
+- **Runs on this PC.** Electron has no speech recognition of its own; Chrome's sends your voice to Google. So Vex runs OpenAI's Whisper itself:
+  - The model is downloaded once from Hugging Face, **only after you say yes**: Base is 73 MB; Small is 238 MB, slower but clearly better, especially for languages other than English.
+  - After that it works offline, and nothing you say leaves the computer.
+  - It records while the model downloads the first time, so you can start speaking straight away.
+- **Kind to games and memory:**
+  - It runs on the graphics card normally, but **on the processor while a game is running** (Vex's game detection), so it never costs a game frames.
+  - The model is released from memory two minutes after you last dictated.
+- **Dictation Settings** (Ctrl+K): the model, the language you speak (or let Whisper detect it), and **Remove downloaded models**.
+- Vex's own window may now use the microphone without a prompt, and **only** the microphone, never the camera; that is what dictation uses. Web pages still ask, as before.
+- **Tested live:** in a page's text box, a spoken sentence came out as *"Remind me to call the dentist tomorrow morning at 9."* That was on the processor, since a game was running on the test machine, and took about 6 seconds for 4 seconds of speech; the graphics card is faster. The in-page **Ctrl+Alt+D** key is covered by tests, but it couldn't be pressed for real in the automated test without typing into whatever window had focus, so try that first.
+
 ## v2.32.29 (2026-09-19) — Do it again
 
 ### Notes

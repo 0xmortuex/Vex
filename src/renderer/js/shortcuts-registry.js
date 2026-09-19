@@ -48,6 +48,7 @@ const ShortcutsRegistry = (() => {
     'group-tabs':     { default: 'Ctrl+Shift+G', label: 'Organize Tabs with AI',      category: 'Tools' },
     'free-memory':    { default: 'Ctrl+Alt+M',   label: 'Free memory now',            category: 'Tools' },
     'toggle-theme':   { default: 'Ctrl+Shift+Y', label: 'Open Theme Picker',           category: 'Tools' },
+    'dictate':        { default: 'Ctrl+Alt+D',   label: 'Dictate (speak, and it is typed)', category: 'Tools' },
     'do-again':       { default: 'Ctrl+Alt+A',   label: 'Do the last Ctrl+K command again', category: 'Tools' },
 
     // Window
@@ -66,6 +67,8 @@ const ShortcutsRegistry = (() => {
     'split-screen', 'pip', 'sessions', 'reopen-tab', 'history-ai', 'history-panel',
     'memory-panel', 'sleep-tab', 'screenshot', 'fullscreen', 'mute-tab', 'ai-panel',
     'schedules', 'tabs-sidebar',
+    // Passed up from inside pages by main.js (handleDictateShortcut).
+    'dictate',
   ]);
   for (const id of SYSTEM_SHORTCUTS) { if (DEFAULT_SHORTCUTS[id]) DEFAULT_SHORTCUTS[id].system = true; }
 

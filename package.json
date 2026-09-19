@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.18.0",
+    "@huggingface/transformers": "^4.3.0",
     "@mlc-ai/web-llm": "^0.2.84",
     "adm-zip": "^0.6.1",
     "electron-updater": "^6.8.9",

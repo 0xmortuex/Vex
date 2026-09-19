@@ -2914,9 +2914,20 @@ app.on('web-contents-created', (_event, contents) => {
     if (handleFullscreenShortcut(event, input)) return;
     if (handleHardReloadShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
+    if (handleDictateShortcut(event, input)) return;
     if (handleBrowserShortcut(event, input, contents)) return;
   });
 });
+
+// Ctrl+Alt+D from inside a page: dictation types into web pages, and the page
+// has the focus while you do — so this one key is passed up to Vex.
+const { isDictateKey } = require('./main/dictate-key');
+function handleDictateShortcut(event, input) {
+  if (!mainWindow || mainWindow.isDestroyed() || !isDictateKey(input)) return false;
+  mainWindow.webContents.send('dictate-toggle');
+  event.preventDefault();
+  return true;
+}
 const storagePath = path.join(userDataPath, 'vex-storage');
 const { JsonStore, SecretStore, atomicWrite } = require('./main/file-store');
 const dataStore = new JsonStore(storagePath);

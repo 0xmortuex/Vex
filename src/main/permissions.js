@@ -150,9 +150,11 @@ function wirePermissionsOnSession(ses, tag, opts) {
     if (AUTO_ALLOW.has(permission)) return callback(true);
     // A screen capture arrives as 'display-capture' or as 'media' with no media
     // types (see mediaParts) — both mean the screen, and nothing but the screen.
+    // Vex's own interface also gets the microphone, and only that: dictation
+    // opens it when you start dictating, which is the consent. Never a camera.
     if (isVexUi(webContents)) {
       const asked = mediaParts(permission, details);
-      if (asked.length === 1 && asked[0] === 'display-capture') return callback(true);
+      if (asked.length === 1 && (asked[0] === 'display-capture' || asked[0] === 'microphone')) return callback(true);
     }
 
     // Dedicated Discord panel session: auto-grant mic/camera/output-device so
@@ -215,6 +217,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return true;
     // The check names one device: details.mediaType is 'audio' or 'video'.
     const kind = details && details.mediaType;
+    if (isVexUi(_wc) && ((permission === 'media' && kind === 'audio') || permission === 'microphone')) return true;
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
     return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisions) === 'allow';
   });

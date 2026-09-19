@@ -270,6 +270,8 @@ const VexFeatures = {
       what: 'Any timed reminder can be saved as a .ics entry for Outlook or Google Calendar, repeat rule included.' },
     { id: 'clock', cat: 'work', cmd: 'clock', panel: 'clock',
       what: 'Alarms that ring until dismissed — even if Vex was closed, Windows wakes it — with snooze; timers that keep counting through a reload and end with a notification; a stopwatch with laps; and a world clock for the cities you pick, with a slider for "what time is it there when it is 3pm here". Timers you ran come back as one-click Again chips, and alarms you set before can be set again.' },
+    { id: 'dictate', cat: 'work', cmd: 'dictate',
+      what: 'Speak, and it is typed where the cursor was, in a web page or in Vex. Whisper runs on this PC: the model (73 MB, or 238 MB for better accuracy) downloads once after asking, then works offline. Ctrl+Alt+D to start and stop.' },
     { id: 'do-again', cat: 'work', cmd: 'do-again',
       what: 'Runs the last Ctrl+K command you used once more, and says which it is. Also Ctrl+Alt+A while the Vex window has focus, and it can be rebound.' },
     { id: 'quick-commands', cat: 'work', name: 'Plain sentences in Ctrl+K', manual: true,

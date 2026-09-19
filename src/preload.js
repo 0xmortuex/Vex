@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Core browser shortcuts forwarded from a focused page's <webview> guest
   // (they don't reach the host document otherwise).
   onFocusAddressBar: (callback) => subscribe('focus-address-bar', callback),
+  onDictateToggle: (callback) => subscribe('dictate-toggle', callback),
   onNextTab: (callback) => subscribe('next-tab', callback),
   onPrevTab: (callback) => subscribe('prev-tab', callback),
   onJumpToTab: (callback) => subscribe('jump-to-tab', callback),

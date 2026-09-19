@@ -254,3 +254,34 @@ describe("a 'media' request is filed under what it really asks for", () => {
     v.done();
   });
 });
+
+describe('Vex’s own interface and the microphone (dictation)', () => {
+  const UI = 'file:///C:/Program%20Files/Vex/resources/app.asar/src/renderer/index.html';
+  const ask = (ses, permission, details, { type = 'window', url = UI } = {}) => {
+    let answer = 'prompted';
+    const contents = { getURL: () => url, getType: () => type, session: {} };
+    ses.handlers.request(contents, permission, (allowed) => { answer = allowed; }, { requestingUrl: url, ...details });
+    return answer;
+  };
+
+  it('gets the microphone without a prompt — and only the microphone', () => {
+    const { ses } = service();
+    expect(ask(ses, 'media', { mediaTypes: ['audio'] })).toBe(true);
+    expect(ask(ses, 'media', { mediaTypes: ['video'] })).toBe('prompted');
+    expect(ask(ses, 'media', { mediaTypes: ['audio', 'video'] })).toBe('prompted');
+  });
+
+  it('a web page, or a page pretending to be the interface, still has to ask', () => {
+    const { ses } = service();
+    expect(ask(ses, 'media', { mediaTypes: ['audio'] }, { url: 'https://example.com/' })).toBe('prompted');
+    expect(ask(ses, 'media', { mediaTypes: ['audio'] }, { type: 'webview' })).toBe('prompted');
+  });
+
+  it('the sync check agrees', () => {
+    const { ses } = service();
+    const check = (wc, details) => ses.handlers.check(wc, 'media', 'file://', details);
+    expect(check({ getURL: () => UI, getType: () => 'window' }, { mediaType: 'audio' })).toBe(true);
+    expect(check({ getURL: () => UI, getType: () => 'window' }, { mediaType: 'video' })).toBe(false);
+    expect(check({ getURL: () => 'https://example.com/', getType: () => 'webview' }, { mediaType: 'audio' })).toBe(false);
+  });
+});
