@@ -261,3 +261,6 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 }
 .new-tab-btn:hover  { background: var(--surface); color: var(--text); transform: scale(1.05); }
 .new-tab-btn:active { transform: scale(0.95); }
+
+/* A note on the tab (TabManager.editTabNote): a small mark, the note on hover. */
+.top-tab .tab-note { flex-shrink: 0; display: inline-flex; color: var(--primary, currentColor); opacity: 0.85; }

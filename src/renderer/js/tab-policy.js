@@ -26,7 +26,7 @@
       return { id: tab.id, url: tab.url, title: tab.title || '', favicon: tab.favicon || null,
         partition: tab.partition || null, pinned: !!tab.pinned, groupId: tab.groupId || null,
         stackId: tab.stackId || null, sleeping: !!tab.sleeping, originalUrl: tab.originalUrl || null,
-        scrollPosition: tab.scrollPosition || null, keepAwakeUntil: tab.keepAwakeUntil || 0,
+        scrollPosition: tab.scrollPosition || null, keepAwakeUntil: tab.keepAwakeUntil || 0, note: tab.note || '',
         // Only a sleeping tab's figure means anything: an awake tab's is stale.
         memBeforeSleep: tab.sleeping ? policy.sleepMemory(tab) : null };
     },

@@ -148,7 +148,7 @@ const SmartSearchbar = (() => {
         for (const t of TabManager.tabs) {
           if (!t || !t.url) continue;
           if (typeof isStartPage === 'function' && isStartPage(t.url)) continue;
-          out.push({ url: t.url, title: t.title || t.url, kind: 'tab' });
+          out.push({ url: t.url, title: t.title || t.url, kind: 'tab', tabId: t.id });
         }
       }
     } catch {}
@@ -185,7 +185,7 @@ const SmartSearchbar = (() => {
   }
 
   function _kindLabel(kind) {
-    return kind === 'tab' ? 'Open tab'
+    return kind === 'tab' ? 'Switch to tab'
       : kind === 'bookmark' ? 'Bookmark'
       : kind === 'web' ? 'Search'
       : 'History';
@@ -264,6 +264,15 @@ const SmartSearchbar = (() => {
       // submit path so the user's configured search engine resolves it.
       _input.value = r.query;
       if (typeof _onSubmit === 'function') _onSubmit(r.query, false);
+      return;
+    }
+    // Already open: go to that tab rather than opening the page a second time.
+    // The blank new tab you typed in is closed on the way, as it had nothing.
+    if (r.kind === 'tab' && r.tabId != null && typeof TabManager !== 'undefined' && TabManager.tabs.some(t => t.id === r.tabId)) {
+      const from = TabManager.getActiveTab();
+      if (from && from.id === r.tabId) { _input.blur(); return; }
+      TabManager.switchTab(r.tabId);
+      if (from && typeof isStartPage === 'function' && isStartPage(from.url)) TabManager.closeTab(from.id);
       return;
     }
     // Local URL item — navigate directly (already has a scheme).

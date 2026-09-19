@@ -172,6 +172,7 @@ const HorizontalTabs = (() => {
       ${audio}
       ${priv}
       <span class="tab-title">${_esc(tab.title || 'New Tab')}</span>
+      ${TabManager.noteBadge(tab)}
       ${sleep}
       <button class="tab-close" title="Close tab" aria-label="Close">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">

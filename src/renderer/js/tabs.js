@@ -214,6 +214,7 @@ const TabManager = {
             originalUrl: isStartPage(t.url) ? tabUrl : (t.originalUrl || t.url),
             scrollPosition: t.scrollPosition || null,
             keepAwakeUntil: t.keepAwakeUntil || 0,
+            note: t.note || '',
             // Keeps the Memory panel's "(was 219 MB)" across the restart; a
             // malformed saved figure is dropped rather than shown.
             memBeforeSleep: window.VexTabPolicy?.sleepMemory(t) || null
@@ -236,6 +237,7 @@ const TabManager = {
             groupId: t.groupId || null,
             stackId: t.stackId || null,
             keepAwakeUntil: t.keepAwakeUntil || 0,
+            note: t.note || '',
             _lazy: true
           });
         }
@@ -326,6 +328,7 @@ const TabManager = {
       pinned: !!opts?.pinned,
       scrollPosition: opts?.scrollPosition || null,
       keepAwakeUntil: opts?.keepAwakeUntil || 0,
+      note: opts?.note || '',
       unread: false,
       groupId: groupId,
       stackId: null,
@@ -659,6 +662,7 @@ const TabManager = {
       ${this._privateBadge(tab)}
       <div class="tab-info">
         <div class="tab-title">${this._escapeHtml(tab.title)}</div>
+        ${tab.note ? `<div class="tab-note-line" title="${this._escapeHtml(tab.note)}">${this._escapeHtml(tab.note)}</div>` : ''}
       </div>
       ${tab.sleeping ? TAB_ICONS.sleeping : ''}
       ${this._captureBadge(tab)}${this._audioBadge(tab)}
@@ -726,6 +730,25 @@ const TabManager = {
   _captureBadge(tab) {
     if (!tab.capturing) return '';
     return (tab.capturing.camera ? TAB_ICONS.camera : '') + (tab.capturing.mic ? TAB_ICONS.mic : '');
+  },
+
+  // A line on a tab — "waiting on a reply", "compare with the other one" —
+  // kept with the tab across restarts. Empty clears it.
+  async editTabNote(id) {
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab) return null;
+    const text = await vexPrompt({ title: 'Note on this tab', message: 'A line to remember why it is open. Leave it empty to remove the note.', value: tab.note || '', placeholder: 'Waiting on a reply', okLabel: 'Save' });
+    if (text == null) return null;
+    tab.note = String(text).trim().slice(0, 140);
+    this.persistTabs();
+    this.rebuildAllTabs?.();
+    return tab.note;
+  },
+
+  // The note's marker for the tab strip: a small icon whose tooltip is the note.
+  noteBadge(tab) {
+    if (!tab || !tab.note) return '';
+    return `<span class="tab-note" title="${this._escapeHtml(tab.note)}" aria-label="Note: ${this._escapeHtml(tab.note)}">${VexIcons.svg('note', { size: 11 })}</span>`;
   },
 
   renderTabUpdate(tab) {
@@ -1292,6 +1315,7 @@ const TabManager = {
       // some unrelated rebuild happened to run.
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => this.togglePinTab(tab.id) },
       { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, window.VexTabPolicy?.serialize(tab) || tab) },
+      { label: tab.note ? 'Edit the note on this tab…' : 'Add a note to this tab…', action: () => this.editTabNote(tab.id) },
       // A tab stays open because closing it loses it. Snoozing closes it now
       // and opens it again when you said (js/tab-snooze.js).
       ...(typeof TabSnooze !== 'undefined' && /^https?:/i.test(tab.url || '')

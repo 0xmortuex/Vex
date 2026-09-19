@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.32.44 (2026-09-19) — Switch to an open tab, and notes on tabs
+
+### Changes
+- **Already open? Switch to it.** When a page you type in the address bar is already open, its suggestion now reads *Switch to tab*. Choosing it goes to that tab, closing the blank new tab you typed in, instead of opening the page a second time.
+- **A note on a tab.** Right-click a tab › *Add a note to this tab…* ("waiting on a reply").
+  - It shows as a small mark on the tab with the note on hover, or under the title with tabs down the side.
+  - It stays with the tab across restarts.
+  - Checked live in the Firefox look, restart included.
+
 ## v2.32.43 (2026-09-19) — Research with highlights and references
 
 ### Changes

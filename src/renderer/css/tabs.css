@@ -468,3 +468,6 @@
   background: var(--vex-accent, #d4a574); color: #1a1a1a; border-color: transparent; font-weight: 600;
 }
 .vex-prompt-actions .vex-prompt-ok:hover { filter: brightness(1.1); }
+
+/* A note on the tab (TabManager.editTabNote), under its title. */
+.tab-item .tab-note-line { font-size: 10.5px; line-height: 1.3; color: var(--primary, var(--text-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
