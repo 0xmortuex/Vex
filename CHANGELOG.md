@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.32.12 (2026-09-19) — Which links on this page are broken?
+
+### Notes
+- **Check This Page's Links** (`Ctrl+K`). A page full of links rots: an old post points at a moved article, a shop listing at a dead product, your own site at a page you deleted. Until now you found out by clicking them one at a time. Vex now checks every link on the page at once and sorts the answers by what you'd do about them:
+  - **Broken**: the page is gone (404) or the site doesn't exist any more.
+  - **Server error**: the site is failing right now; try later.
+  - **Moved**: still works, but sends you somewhere else, and it shows where. A site just switching http to https, or adding `www`, doesn't count as moved.
+  - **Needs sign-in**: a login or bot wall. That isn't a dead link, so it isn't reported as one.
+  - **Show on page** scrolls to the link and outlines it in red, because what you fix is the paragraph, not a URL in a list. **Copy report** gives you plain text to send to whoever owns the page.
+- It's polite: six requests at a time, a quick header-only check first so no page is downloaded, a 12-second limit per link, and at most 300 links.
+- **It's private.** The checks go out from a separate, empty session: no cookies, no logins, nothing from your browsing. Forty sites contacted learn nothing about who's asking. The catch is that a page behind your login shows as *needs sign-in*. It never runs in a private or Tor tab. Checked live: nothing is sent at all.
+- Found in testing: Electron's built-in fetch either hid where a redirect went or aborted on it, so a moved link looked untouched. It even missed example.com's own "Learn more" link, which moves to iana.org. The checker now follows redirects itself, one hop at a time.
+
+### A correction
+- In v2.32.5 I said a copy made in a private tab was *verified* not to reach clipboard history. That check was flawed. It faked "private" in a way Electron silently undoes, and the text it copied was already in the history, so it would have passed either way. It has now been checked properly, with a genuine off-the-record tab and a unique piece of text. The normal tab's copy was recorded; the off-the-record tab's was not. The feature was right; the earlier evidence wasn't.
+
 ## v2.32.11 (2026-09-19) — Watch the AI think
 
 ### Notes

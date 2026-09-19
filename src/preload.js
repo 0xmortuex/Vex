@@ -162,6 +162,8 @@ contextBridge.exposeInMainWorld('vex', {
   pageSave: (wcId, format, title) => ipcRenderer.invoke('page:save', wcId, format, title),
   // The whole page as one PNG, not just what is on screen.
   captureFullPage: (wcId) => ipcRenderer.invoke('page:capture-full', wcId),
+  // Which of these links answer, from an empty session (no cookies sent).
+  checkLinks: (urls) => ipcRenderer.invoke('links:check', urls),
   // Discord censorship bypass (DoH + SNI fragmentation on persist:discord).
   discordBypass: (on) => ipcRenderer.send('discord:set-bypass', on),
   // Bypass mode: 'off' | 'light' (built-in) | 'strong' (ByeDPI).

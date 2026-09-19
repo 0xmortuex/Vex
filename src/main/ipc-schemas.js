@@ -75,6 +75,7 @@ define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
 define('page:save', [integer, string(10), optional(string(500))]);
 define('page:capture-full', [integer]);
+define('links:check', [value => Array.isArray(value) && value.length <= 2000 && value.every(string(4096))]);
 // A freshly attached <webview> reports its id as -1; the handler then finds
 // the page by URL (and checks ownership itself), so any integer is allowed.
 define('devtools:open-for-webcontents', [value => Number.isInteger(value), optional(web)]);
