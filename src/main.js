@@ -1123,6 +1123,21 @@ ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   } catch { return null; }
 });
 
+// A subscribed calendar's iCal address (renderer: ics-calendar.js). Unlike
+// rss:fetch it says why a fetch failed: a calendar that silently stops
+// updating looks exactly like a quiet week.
+ipcMain.handle('calendar:fetch', async (_e, url) => {
+  if (!/^https?:\/\//i.test(String(url || ''))) return { ok: false, error: 'not a web address' };
+  try {
+    const res = await boundedNetFetch(url, { headers: { Accept: 'text/calendar, text/plain;q=0.8' } });
+    if (!res.ok) return { ok: false, error: res.status === 404 ? 'the address no longer exists (404)' : 'the server answered ' + res.status };
+    const text = await res.text();
+    if (text.length > 10 * 1024 * 1024) return { ok: false, error: 'the calendar is larger than 10 MB' };
+    if (!/BEGIN:VCALENDAR/.test(text.slice(0, 2000))) return { ok: false, error: 'that address is not an iCal calendar' };
+    return { ok: true, text };
+  } catch (err) { return { ok: false, error: (err && err.message) || 'could not be reached' }; }
+});
+
 // === Generic HTTP request for the built-in API client + page-change monitor ===
 // CORS-free arbitrary fetch, run from main like curl. User-driven dev tool in the
 // user's own browser — not exposed to guest pages (only the host renderer's
@@ -1663,6 +1678,13 @@ const _recordings = require('./main/recordings').createRecordings({
   randomId: () => require('crypto').randomBytes(8).toString('hex'),
 });
 _recordings.cleanLeftovers();
+// Vex's own window as a capture source, so "Record this tab" needs no
+// picker (renderer: js/area-recorder.js crops it to the tab or an area).
+ipcMain.handle('rec:own-window', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win) throw new Error('No window to record');
+  return win.getMediaSourceId();
+});
 ipcMain.handle('rec:start', (_e, ext) => { try { return { ok: true, ..._recordings.start(ext) }; } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:chunk', async (_e, id, bytes) => { try { return { ok: true, ...(await _recordings.chunk(id, bytes)) }; } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:finish', async (_e, id, name) => { try { return await _recordings.finish(id, name); } catch (err) { return { ok: false, error: err.message }; } });

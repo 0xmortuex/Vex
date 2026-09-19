@@ -103,7 +103,7 @@ const MemoryPanel = {
   // ones (notes, chats, history) only by size, and anything that might be a
   // secret or personal — keys, tokens, passwords, accounts, mail — is left out
   // by name, so the file is safe to attach to a public bug report.
-  SECRET_KEY: /token|secret|passw|apikey|api[-_]?key|auth|cookie|session|mail|account|totp|otp|sync|vault|credential|private|recovery|address|phone|contact|profile/i,
+  SECRET_KEY: /token|secret|passw|apikey|api[-_]?key|auth|cookie|session|mail|account|totp|otp|sync|vault|credential|private|recovery|address|phone|contact|profile|calendarfeeds/i,
   settingsLines() {
     const out = [];
     let keys = [];

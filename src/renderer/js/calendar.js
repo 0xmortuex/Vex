@@ -7,8 +7,9 @@
 // repeating reminder shown on every day it will repeat.
 //
 // It reads, and it adds reminders through the same main-process API every
-// other part of Vex uses; it keeps no data of its own. It is not a synced
-// calendar — Google and Outlook calendars need your account — and it says so.
+// other part of Vex uses; it keeps no data of its own. Google, Outlook and
+// Apple calendars appear read-only, through the iCal address each publishes
+// (js/ics-calendar.js) — no account, and nothing is written back.
 
 const Calendar = {
   MAX_REPEATS: 62,        // occurrences drawn per repeating reminder per month
@@ -63,9 +64,15 @@ const Calendar = {
   },
 
   // day key → [{ type, ... }] for the month on screen.
-  collect({ reminders = [], tasks = [], from, to }) {
+  collect({ reminders = [], tasks = [], events = [], from, to }) {
     const byDay = new Map();
     const put = (key, item) => { const a = byDay.get(key) || []; a.push(item); byDay.set(key, a); };
+    // Subscribed calendars (js/ics-calendar.js): on every day they touch.
+    for (const e of events) {
+      for (let day = new Date(Math.max(e.start, from)); day.getTime() < Math.min(e.end, to); day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)) {
+        put(this.dayKey(day), { type: 'event', text: e.summary, at: e.start, allDay: e.allDay, where: e.location, calendar: e.calendar });
+      }
+    }
     for (const r of reminders) {
       // Alarms and timers belong to the clock, and a daily alarm on every
       // square says nothing. Reviews are Vex's own.
@@ -97,7 +104,7 @@ const Calendar = {
       const reminders = await window.vex.reminders.list();
       if (!overlay.isConnected) return;
       const tasks = window.OpenTasks.collect(window.OpenTasks._notes(), { includeDone: true });
-      const byDay = this.collect({ reminders, tasks, from, to });
+      const byDay = this.collect({ reminders, tasks, events: IcsCalendar.between(from, to), from, to });
       const today = this.dayKey(new Date());
       const title = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
       const names = days.slice(0, 7).map(d => d.toLocaleDateString(undefined, { weekday: 'short' }));
@@ -118,13 +125,13 @@ const Calendar = {
               style="min-height:66px;text-align:left;vertical-align:top;display:flex;flex-direction:column;gap:2px;padding:4px 5px;border-radius:7px;cursor:pointer;font:inherit;
                      border:${k === selected ? '2px solid var(--primary)' : '1px solid var(--border)'};background:${other ? 'transparent' : 'var(--surface)'};opacity:${other ? 0.55 : 1}">
               <span style="font-size:11px;font-weight:${k === today ? 800 : 500};color:${k === today ? 'var(--primary)' : 'var(--text)'}">${d.getDate()}</span>
-              ${items.slice(0, 2).map(it => `<span style="font-size:10px;line-height:1.25;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;${it.done ? 'text-decoration:line-through;opacity:0.6' : ''}">${it.type === 'reminder' ? esc(new Date(it.at).toTimeString().slice(0, 5)) + ' ' : ''}${esc(it.text)}</span>`).join('')}
+              ${items.slice(0, 2).map(it => `<span style="font-size:10px;line-height:1.25;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;${it.done ? 'text-decoration:line-through;opacity:0.6' : ''}">${it.type !== 'task' && !it.allDay ? esc(new Date(it.at).toTimeString().slice(0, 5)) + ' ' : ''}${esc(it.text)}</span>`).join('')}
               ${items.length > 2 ? `<span style="font-size:10px;color:var(--text-muted)">+${items.length - 2} more</span>` : ''}
             </button>`;
           }).join('')}
         </div>
         <div data-dayview style="padding:12px 14px 6px"></div>
-        <div style="padding:4px 14px 12px;font-size:11px;color:var(--text-muted)">Shows your reminders and the to-dos in your notes that have a date. It is not linked to Google or Outlook — that needs your account there — but any reminder can be saved to them as a calendar file.</div>`;
+        <div data-feeds style="padding:4px 14px 12px"></div>`;
 
       body.querySelector('[data-prev]').addEventListener('click', () => { month--; if (month < 0) { month = 11; year--; } draw(); });
       body.querySelector('[data-next]').addEventListener('click', () => { month++; if (month > 11) { month = 0; year++; } draw(); });
@@ -136,9 +143,45 @@ const Calendar = {
         draw();
       }));
       this._drawDay(body.querySelector('[data-dayview]'), selected, byDay.get(selected) || [], draw, esc);
+      this._drawFeeds(body.querySelector('[data-feeds]'), draw, esc, btn);
     };
     await draw();
     return body;
+  },
+
+  // Your Google / Outlook / Apple calendars, by their iCal address: read-only.
+  _drawFeeds(el, redraw, esc, btn) {
+    const feeds = IcsCalendar.feeds();
+    const errors = new Map(IcsCalendar.errors().map(e => [e.name, e.error]));
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:11.5px;font-weight:650;color:var(--text)">Your calendars</span>
+        <span style="flex:1"></span>
+        <button data-add-cal type="button" style="${btn}">Add a calendar</button>
+      </div>
+      ${feeds.length ? feeds.map((f, i) => `<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);padding:2px 0">
+          <span style="flex:1">${esc(f.name)}${errors.has(f.name) ? ` <span style="color:var(--danger)">— ${esc(errors.get(f.name))}</span>` : ''}</span>
+          <button data-remove-cal="${i}" type="button" style="${btn}">Remove</button></div>`).join('')
+        : '<div style="font-size:11px;color:var(--text-muted)">Shows your reminders and the to-dos in your notes that have a date. Add Google, Outlook or Apple calendars by their iCal address to see their events too (read-only).</div>'}`;
+    el.querySelector('[data-add-cal]').addEventListener('click', async () => {
+      const url = await vexPrompt({ title: 'Add a calendar', message: 'Paste its iCal address. In Google Calendar: Settings › your calendar › "Secret address in iCal format". In Outlook: Settings › Calendar › Shared calendars › Publish a calendar › ICS. Anyone with that address can read the calendar, so Vex keeps it out of reports.', placeholder: 'https://calendar.google.com/calendar/ical/…/basic.ics', okLabel: 'Next' });
+      if (url == null) return;
+      const name = await vexPrompt({ title: 'Name it', message: 'What to call this calendar in Vex.', value: 'Calendar', okLabel: 'Add' });
+      if (name == null) return;
+      try { IcsCalendar.add(url, name); } catch (err) { window.showToast?.(err.message, 'error'); return; }
+      window.showToast?.('Reading the calendar…');
+      await IcsCalendar.refresh();
+      IcsCalendar.start();
+      const err = IcsCalendar.errors().find(e => e.name === (name.trim() || 'Calendar'));
+      window.showToast?.(err ? 'Could not read it: ' + err.error : 'Added — its events are in the month and in Today', err ? 'error' : 'info');
+      redraw();
+    });
+    el.querySelectorAll('[data-remove-cal]').forEach(b => b.addEventListener('click', () => {
+      const f = feeds[Number(b.dataset.removeCal)];
+      IcsCalendar.remove(f.url);
+      window.showToast?.('Removed ' + f.name);
+      redraw();
+    }));
   },
 
   _drawDay(el, key, items, redraw, esc) {
@@ -166,6 +209,11 @@ const Calendar = {
           try { window.OpenTasks.toggle(it.noteId, it.index); } catch (err) { window.showToast?.(err.message, 'error'); }
           redraw();
         });
+      } else if (it.type === 'event') {
+        row.innerHTML = `<span style="display:inline-flex;color:var(--text-muted)">${VexIcons.svg('calendar', { size: 13 })}</span>
+          <span style="width:40px;font-variant-numeric:tabular-nums;color:var(--text-muted)">${it.allDay ? 'all day' : esc(new Date(it.at).toTimeString().slice(0, 5))}</span>
+          <span style="flex:1">${esc(it.text)}${it.where ? ` <span style="color:var(--text-muted)">· ${esc(it.where)}</span>` : ''}</span>
+          <span style="font-size:10.5px;color:var(--text-muted)">${esc(it.calendar)}</span>`;
       } else {
         const repeat = it.repeat ? (Array.isArray(it.repeat) ? 'repeats on set days' : 'repeats ' + (it.repeat === 'weekdays' ? 'on weekdays' : it.repeat)) : '';
         row.innerHTML = `<span style="display:inline-flex;color:var(--text-muted)">${VexIcons.svg('bell', { size: 13 })}</span>

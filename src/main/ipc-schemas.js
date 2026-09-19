@@ -16,7 +16,8 @@ define('app:restore-settings web-suggest qr:make qr:generate permissions:revoke 
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);
 define('game:state', []);
-define('rec:start', [oneOf(['mp4', 'webm'])]);
+define('rec:start', [oneOf(['mp4', 'webm', 'gif'])]);
+define('rec:own-window', []);
 define('rec:chunk', [string(80), value => value instanceof Uint8Array && value.byteLength <= 64 * 1024 * 1024]);
 define('rec:finish', [string(80), optional(string(200))]);
 define('rec:cancel', [string(80)]);
@@ -80,6 +81,7 @@ define('reminders:visited', [string(253)]);
 define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(value) && value >= 0]);
 // Save a small text file where the user chooses — a calendar entry, an export.
 define('file:save-text', [shape({ name: string(200), text: string(1024 * 1024), kind: optional(string(40)) })]);
+define('calendar:fetch', [string(4096)]);
 define('page:save-epub', [shape({ title: string(500), url: string(4096), xhtml: string(8 * 1024 * 1024) })]);
 define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);

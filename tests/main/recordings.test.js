@@ -59,7 +59,7 @@ describe('recording to disk', () => {
 
   it('refuses a format it does not write, and chunks that are not bytes', async () => {
     const { recs } = make();
-    expect(() => recs.start('avi')).toThrow(/MP4 or WebM/);
+    expect(() => recs.start('avi')).toThrow(/MP4, WebM or GIF/);
     const { id } = recs.start('mp4');
     await expect(recs.chunk(id, 'text')).rejects.toThrow(/must be bytes/);
   });

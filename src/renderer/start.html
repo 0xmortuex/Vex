@@ -1377,6 +1377,9 @@
           var p = document.createElement('p'); p.className = 'today-brief'; p.textContent = snap.brief.text;
           rows.push(p);
         }
+        (snap.events || []).forEach(function (e) {
+          rows.push(row('Calendar', e.allDay ? 'All day' : hhmm(e.at), e.text + (e.where ? ' · ' + e.where : ''), null, ''));
+        });
         (snap.reminders || []).forEach(function (r) {
           var kind = r.forWork ? 'Work' : (r.kind === 'alarm' ? 'Alarm' : r.kind === 'timer' ? 'Timer' : 'Reminder');
           rows.push(row(kind, r.site ? 'on ' + r.site : hhmm(r.at), r.text, r.url, r.overdue ? 'overdue' : ''));

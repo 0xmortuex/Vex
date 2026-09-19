@@ -22,6 +22,7 @@ const VexToday = {
     this._timer = VexJobs.every('Today refresh', 60 * 1000, () => this.refresh());
     const b = window.vex && window.vex.reminders;
     if (b && typeof b.onFired === 'function') b.onFired(() => this.refresh());
+    if (!this._calendarWired) { this._calendarWired = true; document.addEventListener('vex:calendar-updated', () => this.refresh()); }
     return true;
   },
 
@@ -104,6 +105,18 @@ const VexToday = {
       }
     } catch (err) { snap.errors.push('read later: ' + ((err && err.message) || 'unavailable')); }
 
+    // Subscribed calendars: today's events not yet over, and any that could
+    // not be read (a calendar that silently stops updating looks like a quiet day).
+    try {
+      if (typeof IcsCalendar !== 'undefined') {
+        snap.events = IcsCalendar.between(startOfDay.getTime(), endOfDay)
+          .filter(e => e.end > now)
+          .slice(0, this.MAX_PER_KIND)
+          .map(e => ({ text: e.summary, where: e.location || '', at: e.start, allDay: e.allDay, calendar: e.calendar }));
+        for (const e of IcsCalendar.errors()) snap.errors.push('calendar "' + e.name + '": ' + e.error);
+      }
+    } catch (err) { snap.errors.push('calendars: ' + ((err && err.message) || 'unavailable')); }
+
     // The morning brief, if one was written today.
     const brief = this.brief(now);
     if (brief) snap.brief = brief;
@@ -128,6 +141,7 @@ const VexToday = {
   briefFacts(snap, headlines = []) {
     const hhmm = (ms) => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
     const lines = [];
+    for (const e of snap.events || []) lines.push('In the calendar' + (e.allDay ? ' all day' : ' at ' + hhmm(e.at)) + ': ' + e.text + (e.where ? ' (' + e.where + ')' : ''));
     for (const r of snap.reminders) lines.push('Reminder' + (r.site ? ' (when on ' + r.site + ')' : ' at ' + hhmm(r.at)) + (r.overdue ? ', overdue' : '') + ': ' + r.text);
     for (const t of snap.tasks) lines.push('Scheduled at ' + hhmm(t.at) + ': ' + t.text);
     for (const c of snap.changed) lines.push('A watched page changed: ' + c.text);

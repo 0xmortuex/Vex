@@ -67,7 +67,14 @@ const ScreenRecorder = {
       if (err && (err.name === 'NotAllowedError' || err.name === 'AbortError') && pickerSeen) return null;   // chose nothing
       throw new Error('Screen capture was refused before anything could be chosen: ' + ((err && err.message) || err));
     } finally { clearInterval(watch); }
+    return this._record(stream);
+  },
 
+  // Record any stream to a file: the chosen screen above, or a cropped part of
+  // Vex's own window (js/area-recorder.js). `cleanup` runs when it ends.
+  async _record(stream, { cleanup = null } = {}) {
+    const fmt = this.format();
+    if (!fmt) { stream.getTracks().forEach(t => t.stop()); throw new Error('This build of Chromium cannot record video'); }
     const opened = await window.vex.recStart(fmt.ext);
     if (!opened || !opened.ok) { stream.getTracks().forEach(t => t.stop()); throw new Error((opened && opened.error) || 'Could not start the recording file'); }
 
@@ -79,7 +86,7 @@ const ScreenRecorder = {
       throw new Error('Could not start recording: ' + err.message);
     }
 
-    const rec = { recorder, stream, id: opened.id, ext: fmt.ext, started: Date.now(), sending: Promise.resolve(), failed: null };
+    const rec = { recorder, stream, id: opened.id, ext: fmt.ext, started: Date.now(), sending: Promise.resolve(), failed: null, cleanup };
     this._rec = rec;
     // Recording the screen is sharing it, as far as streamer mode is concerned.
     document.dispatchEvent(new CustomEvent('vex:media-capture', { detail: { where: 'vex', kind: 'screen', active: true } }));
@@ -125,6 +132,7 @@ const ScreenRecorder = {
       try { rec.recorder.stop(); } catch { resolve(); }
     });
     rec.stream.getTracks().forEach(t => { try { t.stop(); } catch { /* ended */ } });
+    if (rec.cleanup) { try { rec.cleanup(); } catch (err) { window.VexProblems?.note('Recording', 'Could not release the capture', err); } }
     await rec.sending;                                   // the last chunk is on disk
     if (discard) { await window.vex.recCancel(rec.id); window.showToast?.('Recording discarded'); return { discarded: true }; }
     if (rec.failed) window.showToast?.(rec.failed + ' — saving what was recorded', 'error');
@@ -137,7 +145,7 @@ const ScreenRecorder = {
     return r;
   },
 
-  _showPill(rec) {
+  _showPill(rec, stop = (discard) => this.stop(discard)) {
     const pill = document.createElement('div');
     pill.className = 'vex-rec-pill';
     pill.setAttribute('role', 'status');
@@ -149,9 +157,9 @@ const ScreenRecorder = {
       <button data-discard type="button" title="Throw this recording away" style="font:inherit;font-size:12px;padding:3px 8px;border-radius:14px;border:1px solid rgba(255,255,255,0.6);background:none;color:#fff;cursor:pointer">Discard</button>`;
     const time = pill.querySelector('[data-time]');
     rec.timer = setInterval(() => { time.textContent = this.elapsed(Date.now() - rec.started); }, 1000);
-    pill.querySelector('[data-stop]').addEventListener('click', () => this.stop());
+    pill.querySelector('[data-stop]').addEventListener('click', () => stop(false));
     pill.querySelector('[data-discard]').addEventListener('click', async () => {
-      if (await vexConfirm({ title: 'Discard this recording?', message: 'It is deleted, not saved.', okLabel: 'Discard', danger: true })) this.stop(true);
+      if (await vexConfirm({ title: 'Discard this recording?', message: 'It is deleted, not saved.', okLabel: 'Discard', danger: true })) stop(true);
     });
     document.body.appendChild(pill);
     rec.pill = pill;

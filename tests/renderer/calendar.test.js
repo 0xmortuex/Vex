@@ -8,6 +8,7 @@ require('../../src/renderer/js/vex-icons.js');
 require('../../src/renderer/js/page-export.js');
 require('../../src/renderer/js/open-tasks.js');
 const { Calendar } = require('../../src/renderer/js/calendar.js');
+globalThis.IcsCalendar = require('../../src/renderer/js/ics-calendar.js').IcsCalendar;
 
 const at = (y, m, d, h = 9, min = 0) => new Date(y, m - 1, d, h, min).getTime();
 const SEP_FROM = at(2026, 9, 1, 0), SEP_TO = at(2026, 10, 1, 0);

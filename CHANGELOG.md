@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.32.42 (2026-09-19) — Your calendars in Vex, and recording a tab or a GIF
+
+### Changes
+- **Your Google, Outlook or Apple calendar, read-only.** In the Calendar (Ctrl+K › Calendar), *Add a calendar* and paste its iCal address. In Google Calendar that's Settings › your calendar › *Secret address in iCal format*. Its events show:
+  - in the month and day views,
+  - and in Today on the new tab page,
+  - and in the morning brief.
+
+  More detail:
+  - Repeating events are expanded (daily, weekly on set days, monthly, yearly, with their end dates and skipped days), and so are moved occurrences.
+  - Times in other time zones are converted, including across clock changes.
+  - Rules Vex can't expand yet are shown once and noted in Memory › Health, not guessed.
+  - It refreshes every 30 minutes. A calendar that can't be read says why, in the Calendar and in Today.
+  - The address works like a password, so it's kept out of health reports.
+  - Checked live with Google's public US holidays calendar.
+- **Record This Tab** and **Record an Area** (Ctrl+K). They record just the page in front, or a box you drag over the window, with no picker, as a video. Checked live: the recording is cropped exactly to the tab.
+- **Record a GIF** (Ctrl+K): drag a box, record up to 30 seconds, and it's saved as an animated GIF for a chat or an issue. Checked live: Chromium opens the GIF it makes, and the writer is tested against an independent decoder.
+
 ## v2.32.41 (2026-09-19) — A morning brief, pages as Markdown or e-books, text out of screenshots
 
 ### Changes

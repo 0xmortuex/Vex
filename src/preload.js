@@ -180,6 +180,7 @@ contextBridge.exposeInMainWorld('vex', {
   },
   // Screen recording: start a file, append chunks as they arrive, then save.
   recStart: (ext) => ipcRenderer.invoke('rec:start', ext),
+  recOwnWindow: () => ipcRenderer.invoke('rec:own-window'),
   recChunk: (id, bytes) => ipcRenderer.invoke('rec:chunk', id, bytes),
   recFinish: (id, name) => ipcRenderer.invoke('rec:finish', id, name),
   recCancel: (id) => ipcRenderer.invoke('rec:cancel', id),
@@ -332,6 +333,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Save a small text file where the user chooses (a calendar entry, an export).
   saveTextFile: (name, text, kind) => ipcRenderer.invoke('file:save-text', { name, text, kind }),
   saveEpub: (book) => ipcRenderer.invoke('page:save-epub', book),
+  calendarFetch: (url) => ipcRenderer.invoke('calendar:fetch', url),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),
   openAsApp: (url, title) => ipcRenderer.invoke('app:open-as-app', url, title),
