@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 require('../../src/renderer/js/vex-utils.js');
 const { ResearchProjects } = require('../../src/renderer/js/research-projects.js');
+globalThis.PageExport = require('../../src/renderer/js/page-export.js').PageExport;
 
 beforeEach(() => {
   localStorage.clear();
@@ -280,5 +281,30 @@ describe('the view', () => {
   it('says plainly when there is nothing yet', () => {
     ResearchProjects.open();
     expect(document.querySelector('[data-body]').textContent).toMatch(/No projects yet/);
+  });
+});
+
+describe('highlights and references', () => {
+  it('a highlight and its page share one reference, cited from what the page says about itself', () => {
+    localStorage.clear();
+    ResearchProjects.init();
+    ResearchProjects.create('Tides');
+    const meta = { title: 'How tides work', authors: ['Jane Q. Smith'], date: '2024-03-03', site: 'Ocean Journal', url: 'https://ocean.example/tides' };
+    ResearchProjects.addQuote('The Moon pulls the sea.', { url: 'https://ocean.example/tides', title: 'How tides work', meta });
+    ResearchProjects.addPage('https://ocean.example/tides', 'How tides work', null, meta);
+    ResearchProjects.addPage('https://other.example/a', 'Another page');
+    const md = ResearchProjects.toMarkdown(ResearchProjects.activeId());
+    expect(md).toContain('## Highlights\n\n> The Moon pulls the sea.\n\n— How tides work [1]');
+    expect(md).toMatch(/\[How tides work\]\(https:\/\/ocean\.example\/tides\) — ocean\.example \[1\]/);
+    expect(md).toMatch(/\[Another page\]\(https:\/\/other\.example\/a\) — other\.example \[2\]/);
+    expect(md).toContain('## References\n\n1. Smith, J. Q. (2024, March 3). How tides work. Ocean Journal. https://ocean.example/tides');
+    expect(md).toMatch(/\n2\. Another page\. \(n\.d\.\)\. other\.example\. https:\/\/other\.example\/a/);
+    // …in the style asked for.
+    expect(ResearchProjects.toMarkdown(ResearchProjects.activeId(), { style: 'mla' })).toMatch(/1\. Smith, Jane Q\. "How tides work\."/);
+  });
+
+  it('a highlight needs text and a real page', () => {
+    expect(() => ResearchProjects.addQuote('  ', { url: 'https://a.example' })).toThrow('Select some text');
+    expect(() => ResearchProjects.addQuote('x', { url: 'file:///c:/x' })).toThrow('real web page');
   });
 });

@@ -86,15 +86,25 @@ const ResearchProjects = {
     return p;
   },
 
-  addPage(url, title, projectId) {
+  addPage(url, title, projectId, meta = null) {
     const u = String(url || '');
     if (!/^https?:/i.test(u)) throw new Error('Only a real web page can go in a project');
     const p = this.get(projectId) || this.active();
     if (!p) throw new Error('Make a project first, or choose one to add to');
     if (p.items.some(i => i.kind === 'page' && i.url === u)) throw new Error('That page is already in “' + p.name + '”');
     let host = ''; try { host = new URL(u).hostname.replace(/^www\./, ''); } catch {}
-    this._add(p.id, { kind: 'page', url: u, title: String(title || u).slice(0, 200), host });
+    this._add(p.id, { kind: 'page', url: u, title: String(title || u).slice(0, 200), host, meta });
     return p;
+  },
+
+  // A passage you highlighted, with the page it came from and what the page
+  // says about itself (authors, date, site, DOI), so the export can cite it.
+  addQuote(text, { url, title, meta = null } = {}, projectId) {
+    const t = String(text == null ? '' : text).replace(/\s+\n/g, '\n').trim();
+    if (!t) throw new Error('Select some text on the page first');
+    if (!/^https?:/i.test(String(url || ''))) throw new Error('Only a passage from a real web page can go in a project');
+    let host = ''; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+    return this._add(projectId, { kind: 'quote', text: t.slice(0, 5000), url: String(url), title: String(title || url).slice(0, 200), host, meta });
   },
 
   addNote(text, projectId) {
@@ -123,16 +133,36 @@ const ResearchProjects = {
 
   // --- getting it back out ----------------------------------------------
   // Research that cannot leave the tool it was done in is a trap.
-  toMarkdown(id) {
+  // A cited document: highlights as quotes, pages as a list, each marked with
+  // the number of its entry under References (APA unless `style` says
+  // otherwise — any style PageExport.cite knows).
+  toMarkdown(id, { style = 'apa' } = {}) {
     const p = this.get(id);
     if (!p) throw new Error('That project is gone');
     const when = (t) => { try { return new Date(t).toLocaleDateString(); } catch { return ''; } };
     const out = ['# ' + p.name, '', '_Started ' + when(p.at) + ' · ' + p.items.length + ' item' + (p.items.length === 1 ? '' : 's') + '_', ''];
 
+    // One number per source, in the order it first appears, so a highlight
+    // and the page it came from share an entry.
+    const sources = [];
+    const ref = (i) => {
+      const meta = { title: i.title, url: i.url, site: i.host, ...(i.meta || {}) };
+      let n = sources.findIndex(s => s.url === i.url);
+      if (n < 0) { sources.push({ url: i.url, meta }); n = sources.length - 1; }
+      else if (i.meta && !sources[n].metaFromPage) sources[n].meta = meta;
+      if (i.meta) sources[n].metaFromPage = true;
+      return '[' + (n + 1) + ']';
+    };
+
+    const quotes = p.items.filter(i => i.kind === 'quote').slice().reverse();     // oldest first, as read
+    if (quotes.length) {
+      out.push('## Highlights', '');
+      for (const q of quotes) out.push('> ' + q.text.replace(/\n/g, '\n> '), '', '— ' + q.title + ' ' + ref(q), '');
+    }
     const pages = p.items.filter(i => i.kind === 'page');
     if (pages.length) {
       out.push('## Pages', '');
-      for (const i of pages) out.push('- [' + i.title.replace(/[\[\]]/g, '') + '](' + i.url + ') — ' + (i.host || ''));
+      for (const i of pages) out.push('- [' + i.title.replace(/[\[\]]/g, '') + '](' + i.url + ') — ' + (i.host || '') + ' ' + ref(i));
       out.push('');
     }
     const notes = p.items.filter(i => i.kind === 'note');
@@ -144,6 +174,10 @@ const ResearchProjects = {
     for (const c of chats) {
       out.push('## ' + c.title, '');
       for (const m of c.messages) out.push('**' + (m.role === 'user' ? 'You' : 'Vex') + ':** ' + m.content, '');
+    }
+    if (sources.length) {
+      out.push('## References', '');
+      sources.forEach((s, n) => out.push((n + 1) + '. ' + PageExport.cite(s.meta, style)));
     }
     return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
   },
@@ -195,8 +229,10 @@ const ResearchProjects = {
             page: p.items.filter(i => i.kind === 'page').length,
             note: p.items.filter(i => i.kind === 'note').length,
             chat: p.items.filter(i => i.kind === 'chat').length,
+            quote: p.items.filter(i => i.kind === 'quote').length,
           };
           const parts = [counts.page + ' page' + (counts.page === 1 ? '' : 's')];
+          if (counts.quote) parts.push(counts.quote + ' highlight' + (counts.quote === 1 ? '' : 's'));
           if (counts.note) parts.push(counts.note + ' note' + (counts.note === 1 ? '' : 's'));
           if (counts.chat) parts.push(counts.chat + ' chat' + (counts.chat === 1 ? '' : 's'));
           r.innerHTML = `
@@ -228,7 +264,7 @@ const ResearchProjects = {
     const drawOne = () => {
       const p = this.get(viewing && viewing.id);
       if (!p) { drawList(); return; }
-      head.innerHTML = `${btn('&larr;', 'data-back')}<div style="flex:1;min-width:0;font-size:13.5px;font-weight:650;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>${btn('Open all', 'data-openall')}${btn('Copy as Markdown', 'data-export')}`;
+      head.innerHTML = `${btn('&larr;', 'data-back')}<div style="flex:1;min-width:0;font-size:13.5px;font-weight:650;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>${btn('Open all', 'data-openall')}${btn('Copy as Markdown', 'data-export')}${btn('Save with references', 'data-save')}`;
       foot.textContent = p.items.length + ' item' + (p.items.length === 1 ? '' : 's') + (this.activeId() === p.id ? ' · this is the one you are working on' : '');
 
       if (!p.items.length) {
@@ -244,6 +280,14 @@ const ResearchProjects = {
               <span style="flex:0 0 auto;color:var(--text-muted)">${window.VexIcons ? VexIcons.svg('globe', { size: 15 }) : ''}</span>
               <div style="flex:1;min-width:0">
                 <div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.title)}</div>
+                <div style="font-size:10.5px;color:var(--text-muted)">${esc(item.host)}</div>
+              </div>`;
+          } else if (item.kind === 'quote') {
+            const oneLine = item.text.replace(/\s+/g, ' ').trim();
+            r.innerHTML = `
+              <span style="flex:0 0 auto;color:var(--text-muted)">${window.VexIcons ? VexIcons.svg('marker', { size: 15 }) : ''}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">“${esc(oneLine.length > 90 ? oneLine.slice(0, 89) + '…' : oneLine)}”</div>
                 <div style="font-size:10.5px;color:var(--text-muted)">${esc(item.host)}</div>
               </div>`;
           } else if (item.kind === 'note') {
@@ -266,7 +310,7 @@ const ResearchProjects = {
           r.appendChild(del);
           r.addEventListener('click', (e) => {
             if (e.target.closest('[data-del]')) { this.removeItem(p.id, item.id); drawOne(); return; }
-            if (item.kind === 'page') { try { TabManager.createTab(item.url, true); close(); } catch {} }
+            if (item.kind === 'page' || item.kind === 'quote') { try { TabManager.createTab(item.url, true); close(); } catch {} }
           });
           body.appendChild(r);
         }
@@ -288,6 +332,19 @@ const ResearchProjects = {
           await navigator.clipboard.writeText(this.toMarkdown(p.id));
           window.showToast?.('“' + p.name + '” copied as Markdown');
         } catch (err) { window.showToast?.('Could not copy that', 'error'); }
+      });
+      // The cited document, as a file: highlights, pages, notes and chats,
+      // with a References list in the style you pick.
+      head.querySelector('[data-save]').addEventListener('click', async () => {
+        const styles = [['apa', 'APA'], ['mla', 'MLA'], ['harvard', 'Harvard'], ['chicago', 'Chicago']];
+        const pick = await vexPrompt({ title: 'Reference style', message: styles.map((s, i) => (i + 1) + '. ' + s[1]).join('\n'), value: '1', okLabel: 'Save' });
+        if (pick == null) return;
+        const style = (styles[parseInt(pick, 10) - 1] || styles[0])[0];
+        try {
+          const r = await window.vex.saveTextFile(p.name.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 100) + '.md', this.toMarkdown(p.id, { style }), 'md');
+          if (r && r.ok) window.showToast?.('Saved “' + p.name + '” with its references');
+          else if (r && !r.cancelled) throw new Error(r.error || 'The file was not saved');
+        } catch (err) { window.showToast?.((err && err.message) || 'Could not save it', 'error'); }
       });
     };
 
@@ -315,8 +372,29 @@ const ResearchProjects = {
       if (name == null) return null;
       this.create(name);
     }
-    const p = this.addPage(tab.url, tab.title);
+    const p = this.addPage(tab.url, tab.title, null, await this._meta());
     window.showToast?.('Added to “' + p.name + '”');
+    return p;
+  },
+
+  // What the page says about itself, for the references. A page that cannot
+  // be read still goes in — cited by its title and address — and the reason
+  // is recorded.
+  async _meta() {
+    try { return await PageExport.pageMeta(); }
+    catch (err) { window.VexProblems?.note('Research projects', 'Could not read the page\'s citation details', err); return null; }
+  },
+
+  // The text selected on the page, as a highlight in the project.
+  async addSelection() {
+    const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
+    if (!tab || !tab.url) throw new Error('There is no page open');
+    if (window.VexTabPolicy && !window.VexTabPolicy.canPersist(tab)) throw new Error('A private tab is not collected, here as everywhere');
+    const text = await PageContext.extractSelectedText(WebviewManager.getActiveWebview());
+    if (!text || !text.trim()) throw new Error('Select some text on the page first');
+    if (!this.active()) throw new Error('Make a project first — Ctrl+K › Add This Page to Project starts one');
+    const p = this.addQuote(text, { url: tab.url, title: tab.title, meta: await this._meta() });
+    window.showToast?.('Highlight saved to “' + p.name + '”');
     return p;
   },
 

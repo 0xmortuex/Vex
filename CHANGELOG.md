@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.32.43 (2026-09-19) — Research with highlights and references
+
+### Changes
+- **Highlights in research projects.** Select a passage on a page, then Ctrl+K › *Add the Selected Text to Project*. It's kept with the page it came from and what the page says about itself: authors, date, site and DOI, where the page publishes them. Pages added to a project now keep those details too.
+- **Save with references.** A project saves as a document with:
+  - the highlights as quotes,
+  - the pages, notes and conversations,
+  - and a numbered **References** list in APA, MLA, Harvard or Chicago.
+
+  Each highlight and page is marked with its reference number, and a highlight shares one entry with the page it came from.
+
+### Fixes
+- MLA and Chicago citations doubled the full stop after an author whose name ends in an initial ("Smith, Jane Q..").
+
+### Not done, and why
+- **Picture-in-picture for any part of a page, with the site's own subtitles**, was built and tested, then taken out:
+  - The version of Electron Vex runs on closes that kind of floating window the moment it opens.
+  - YouTube's own player refuses to open in a small window of its own (errors 153 and 152).
+
+  Ordinary picture-in-picture still works, without the site's subtitles.
+
 ## v2.32.42 (2026-09-19) — Your calendars in Vex, and recording a tab or a GIF
 
 ### Changes

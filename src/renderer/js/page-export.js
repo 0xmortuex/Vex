@@ -320,6 +320,9 @@ const PageExport = {
     const mShort = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'June', 'July', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.'];
     const year = d ? d.getFullYear() : null;
     const accessed = today;
+    // An author list ends with a full stop — one, even when the name already
+    // ends in an initial ("Smith, Jane Q." not "Smith, Jane Q..").
+    const stop = (s) => s ? s.replace(/\.\s*$/, '') + '. ' : '';
 
     if (style === 'apa') {
       // Smith, J. Q., & Doe, A. (2024, March 3). Title. Site. URL
@@ -332,8 +335,8 @@ const PageExport = {
     if (style === 'mla') {
       // Smith, Jane, and Alan Doe. "Title." Site, 3 Mar. 2024, URL. Accessed 19 Sept. 2026.
       const full = (n) => n.first ? n.last + ', ' + n.first : n.last;
-      const who = names.length === 0 ? '' : names.length === 1 ? full(names[0]) + '. '
-        : names.length === 2 ? full(names[0]) + ', and ' + (names[1].first ? names[1].first + ' ' : '') + names[1].last + '. '
+      const who = names.length === 0 ? '' : names.length === 1 ? stop(full(names[0]))
+        : names.length === 2 ? stop(full(names[0]) + ', and ' + (names[1].first ? names[1].first + ' ' : '') + names[1].last)
           : full(names[0]) + ', et al. ';
       const when = d ? d.getDate() + ' ' + mShort[d.getMonth()] + ' ' + year + ', ' : '';
       return `${who}"${title}." ${site ? site + ', ' : ''}${when}${url.replace(/^https?:\/\//, '')}. Accessed ${accessed.getDate()} ${mShort[accessed.getMonth()]} ${accessed.getFullYear()}.`;
@@ -346,8 +349,8 @@ const PageExport = {
     }
     if (style === 'chicago') {
       // Smith, Jane, and Alan Doe. "Title." Site. March 3, 2024. URL.
-      const who = names.length === 0 ? '' : names.length === 1 ? (names[0].first ? names[0].last + ', ' + names[0].first : names[0].last) + '. '
-        : (names[0].first ? names[0].last + ', ' + names[0].first : names[0].last) + ', ' + names.slice(1, -1).map(n => (n.first ? n.first + ' ' : '') + n.last).map(x => x + ', ').join('') + 'and ' + (names[names.length - 1].first ? names[names.length - 1].first + ' ' : '') + names[names.length - 1].last + '. ';
+      const who = names.length === 0 ? '' : names.length === 1 ? stop(names[0].first ? names[0].last + ', ' + names[0].first : names[0].last)
+        : stop((names[0].first ? names[0].last + ', ' + names[0].first : names[0].last) + ', ' + names.slice(1, -1).map(n => (n.first ? n.first + ' ' : '') + n.last).map(x => x + ', ').join('') + 'and ' + (names[names.length - 1].first ? names[names.length - 1].first + ' ' : '') + names[names.length - 1].last);
       const when = d ? months[d.getMonth()] + ' ' + d.getDate() + ', ' + year + '. ' : '';
       return `${who}"${title}." ${site ? site + '. ' : ''}${when}${url}.`;
     }
