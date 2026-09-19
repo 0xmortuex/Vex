@@ -195,3 +195,14 @@
   background: var(--vex-danger); color: #fff;
 }
 .sidebar-icon .icon-badge.capture svg { width: 9px; height: 9px; }
+
+/* A Discord call (sidebar.js updateDiscordBadge): bottom corner, so it never
+   covers the capture badge. Green while the mic is live, red muted/deafened. */
+.sidebar-icon .icon-badge.discord-call {
+  min-width: 14px; height: 14px; padding: 0 2px; top: auto; bottom: 1px; right: 1px;
+  background: #2da44e; color: #fff;
+}
+.sidebar-icon .icon-badge.discord-call[data-tone="off"] { background: var(--vex-danger); }
+.sidebar-icon .icon-badge.discord-call svg { width: 9px; height: 9px; }
+/* The browser looks' rail hangs badges off the top corner; this one stays low. */
+body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon .icon-badge.discord-call { top: auto; bottom: -3px; }

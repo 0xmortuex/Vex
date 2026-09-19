@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.32.35 (2026-09-19) — Llama only when you ask, and gaming, Discord, streaming
+
+### Changes
+- **History indexing is now off by default, and switched off once on existing profiles.** It summarizes every page you visit so AI history search can find pages by meaning, and it does that with the local AI model. That's why llama kept loading while you browsed, including while you played, because game mode only notices *fullscreen* games and Roblox in a window doesn't count.
+  - Now the model only runs when you ask the AI something.
+  - AI history search still finds pages by their title and address.
+  - To have summaries again, turn **AI History Indexing** on in Settings › AI. After this one-time switch-off, turning it on is kept.
+
+### Notes
+Four more ideas from the list, finished:
+- **Gaming, panels too.** When a game starts, hidden panels now sleep along with background tabs. It's the same rule as "Free memory now": never a panel kept awake in Settings, playing sound, or on a call.
+- **Gaming, tabs come back.** When the game ends, the tabs it put to sleep wake up one at a time, rather than all at once or only when you next click them. There's a switch for this in Settings › Gaming.
+- **Gaming, Vex stays still.** While the game has the screen, Vex stops its own animations. Windows already slows a window a fullscreen game covers; this stops the rest. There's a switch for this too.
+- **Your Discord call, on the Discord icon.** Without opening the panel, a small badge on the Discord icon shows you're in a call:
+  - green while your microphone is live, red when muted or deafened,
+  - a screen icon while you're sharing,
+  - hover it for the words ("In a Discord call: muted, sharing your screen").
+  - It reads Discord's own Mute, Deafen and Stop Streaming buttons. Mute and Deafen are the same buttons the Discord hotkeys already use. Sharing couldn't be tested without your Discord account.
+- **Streamer mode, the gaps closed:**
+  - an email address in a **tab title** (e.g. "Inbox – you@gmail.com") is blurred while streamer mode is on,
+  - so are the addresses in **Mail** and "Signed in as" in Sync, and Vex's **form-fill** menu,
+  - there's a **hotkey** to turn streamer mode on or off from inside a game (Settings › Hotkeys, off until you set it).
+- Checked in the Firefox look: a Gmail-style tab title was blurred in the tab strip, and the gaming switches showed.
+
 ## v2.32.34 (2026-09-19) — Safer links, downloads and permissions
 
 ### Fixes

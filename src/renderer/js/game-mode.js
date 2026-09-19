@@ -32,6 +32,7 @@ const GameMode = {
   },
 
   async run(action) {
+    if (action === 'streamer-toggle') return this.toggleStreamer();
     const selectors = this.CLICKS[action];
     if (!selectors) return false;
     const wv = (typeof SidebarManager !== 'undefined' && SidebarManager.panelWebviews) ? SidebarManager.panelWebviews.discord : null;
@@ -90,6 +91,32 @@ const GameMode = {
 
   on() { const m = this.mode(); return m === 'on' || (m === 'auto' && this.captured()); },
 
+  // The hotkey (Settings › Hotkeys): on if it is off, off if it is on — from
+  // inside a game or a stream, where Settings is out of reach.
+  toggleStreamer() {
+    const next = this.on() ? 'off' : 'on';
+    this.setMode(next);
+    if (next === 'off') window.showToast?.('Streamer mode off — Settings turns "while you are being captured" back on');
+    return next;
+  },
+
+  // An email address in a tab's title ("Inbox – you@gmail.com") is blurred
+  // too, and re-checked as titles change while streamer mode is on.
+  EMAIL: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
+  markTitles(on) {
+    document.querySelectorAll('.tab-title').forEach(el => {
+      if (on && this.EMAIL.test(el.textContent || '')) el.setAttribute('data-sensitive', '');
+      else el.removeAttribute('data-sensitive');
+    });
+    if (on && !this._titleWatch && typeof MutationObserver !== 'undefined') {
+      this._titleWatch = new MutationObserver(() => this.markTitles(true));
+      this._titleWatch.observe(document.body, { subtree: true, childList: true, characterData: true });
+    } else if (!on && this._titleWatch) {
+      this._titleWatch.disconnect();
+      this._titleWatch = null;
+    }
+  },
+
   // What it hides: the things that identify you or unlock something.
   //   • one-time codes and password values (the authenticator and the vault)
   //   • the email address in the profile row
@@ -99,6 +126,7 @@ const GameMode = {
   apply() {
     const on = this.on();
     document.body.classList.toggle('streamer-mode', on);
+    this.markTitles(on);
     document.body.dataset.streamerMode = this.mode();
     // Turning on by itself, mid-stream, must be visible — otherwise the first
     // sign of it is a blurred code and a moment of thinking Vex has broken.
@@ -207,7 +235,8 @@ GameMode._save = async function (action, accel, button) {
 // Each is its own switch in Settings › Gaming, all on by default. Nothing is
 // announced mid-game — a notification over a game is the opposite of the
 // point — you are told what was done when you come back.
-GameMode.GAMING_KEYS = { freeGpu: 'vex.game.freeGpu', sleepTabs: 'vex.game.sleepTabs', holdAi: 'vex.game.holdAi' };
+GameMode.GAMING_KEYS = { freeGpu: 'vex.game.freeGpu', sleepTabs: 'vex.game.sleepTabs', wakeAfter: 'vex.game.wakeAfter', holdAi: 'vex.game.holdAi', stillVex: 'vex.game.stillVex' };
+GameMode.WAKE_GAP_MS = 1500;
 GameMode.gaming = false;
 GameMode.gamingApp = '';
 GameMode._gamingReport = null;
@@ -220,8 +249,11 @@ GameMode.setGamingSetting = function (name, on) {
   try { localStorage.setItem(this.GAMING_KEYS[name], on ? 'on' : 'off'); } catch {}
   return this.syncWatcher();
 };
+// The watcher runs when something would happen during a game. "Wake the tabs
+// after the game" only follows "Sleep background tabs"; on its own it has
+// nothing to do.
 GameMode.anyGamingOn = function () {
-  return Object.keys(this.GAMING_KEYS).some(k => this.gamingSetting(k));
+  return Object.keys(this.GAMING_KEYS).some(k => k !== 'wakeAfter' && this.gamingSetting(k));
 };
 
 // The watcher runs only while at least one of the three is wanted.
@@ -245,7 +277,9 @@ GameMode.onGameStart = async function (app) {
   if (this.gaming) { this.gamingApp = app || this.gamingApp; return this._gamingReport; }
   this.gaming = true;
   this.gamingApp = app || '';
-  const report = { app: this.gamingApp, at: Date.now(), freedMB: 0, models: [], slept: 0 };
+  const report = { app: this.gamingApp, at: Date.now(), freedMB: 0, models: [], slept: 0, sleptIds: [], panels: [] };
+  // Vex's own animations stop while the game has the screen.
+  if (this.gamingSetting('stillVex')) document.body.classList.add('vex-gaming-still');
   this._gamingReport = report;
 
   if (this.gamingSetting('freeGpu') && typeof ModelManager !== 'undefined' && ModelManager.freeGpu) {
@@ -258,8 +292,14 @@ GameMode.onGameStart = async function (app) {
       if (tab.id === TabManager.activeTabId || tab.sleeping) continue;
       // Music, a call, a stream you are listening to: not ours to stop.
       if ((tab.audible && !tab.muted) || (TabManager.isCapturing && TabManager.isCapturing(tab))) continue;
-      try { await TabManager.sleepTab(tab.id); if (tab.sleeping) report.slept++; }   // sleepTab itself spares kept-awake tabs
+      try { await TabManager.sleepTab(tab.id); if (tab.sleeping) { report.slept++; report.sleptIds.push(tab.id); } }   // sleepTab itself spares kept-awake tabs
       catch (err) { window.VexProblems?.note('Gaming', 'Could not sleep a tab', err); }
+    }
+    // Hidden panels too — the same ones "Free memory now" sleeps: never one
+    // kept awake in Settings, playing sound, or on a call.
+    if (typeof SidebarManager !== 'undefined' && SidebarManager.sleepHiddenPanels) {
+      try { report.panels = SidebarManager.sleepHiddenPanels(); }
+      catch (err) { window.VexProblems?.note('Gaming', 'Could not sleep the panels', err); }
     }
   }
   console.log('[Gaming] ' + (report.app || 'a game') + ' started — freed ' + report.freedMB + ' MB of VRAM, slept ' + report.slept + ' tabs');
@@ -271,11 +311,22 @@ GameMode.onGameEnd = function () {
   this.gaming = false;
   const r = this._gamingReport;
   this._gamingReport = null;
+  document.body.classList.remove('vex-gaming-still');
+  // The tabs the game put to sleep come back, one at a time so waking them
+  // is not a memory spike of its own. A tab closed meanwhile is skipped.
+  if (r && r.sleptIds && r.sleptIds.length && this.gamingSetting('wakeAfter') && typeof TabManager !== 'undefined') {
+    r.sleptIds.forEach((id, i) => setTimeout(() => {
+      const tab = (TabManager.tabs || []).find(t => t.id === id);
+      if (!tab || !tab.sleeping) return;
+      try { TabManager.wakeTab(id); } catch (err) { window.VexProblems?.note('Gaming', 'Could not wake a tab', err); }
+    }, i * this.WAKE_GAP_MS));
+  }
   // Scheduled tasks held back during the game catch up on their next check.
   const done = [];
   if (r && r.freedMB) done.push('freed ' + (r.freedMB >= 1024 ? (r.freedMB / 1024).toFixed(1) + ' GB' : r.freedMB + ' MB') + ' of graphics memory');
   if (r && r.slept) done.push('slept ' + r.slept + ' tab' + (r.slept === 1 ? '' : 's'));
-  if (done.length) window.showToast?.('While you played' + (r.app ? ' ' + r.app : '') + ', Vex ' + done.join(' and ') + '. They come back when you use them.');
+  if (r && r.panels && r.panels.length) done.push('slept ' + r.panels.length + ' panel' + (r.panels.length === 1 ? '' : 's'));
+  if (done.length) window.showToast?.('While you played' + (r.app ? ' ' + r.app : '') + ', Vex ' + done.join(' and ') + '. ' + (r.sleptIds && r.sleptIds.length && this.gamingSetting('wakeAfter') ? 'The tabs are waking now; panels come back when you open them.' : 'They come back when you use them.'));
   return r;
 };
 
@@ -284,7 +335,9 @@ GameMode.renderGamingSettings = function (host) {
   if (!host) return;
   const rows = [
     ['freeGpu', 'Free the graphics card', 'Unload the AI model so the game gets all of its video memory (about 5.5 GB on an 8 GB card).'],
-    ['sleepTabs', 'Sleep background tabs', 'Every tab but the one you were on sleeps, except one playing sound or on a call. They wake where you left them.'],
+    ['sleepTabs', 'Sleep background tabs and panels', 'Every tab but the one you were on sleeps, and hidden panels too — except anything playing sound, on a call, or kept awake in Settings.'],
+    ['wakeAfter', 'Wake the tabs after the game', 'The tabs the game put to sleep come back one at a time when it ends, instead of when you next click them.'],
+    ['stillVex', 'Keep Vex still', 'Vex stops its own animations while the game has the screen. (Windows already slows a window a fullscreen game covers.)'],
     ['holdAi', 'Hold background AI', 'Scheduled AI tasks wait until the game ends, then catch up. A question you ask is still answered.'],
   ];
   host.innerHTML = '';

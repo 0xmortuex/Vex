@@ -19,6 +19,7 @@ const ACTIONS = {
   'discord-mute': 'Mute or unmute yourself in Discord',
   'discord-deafen': 'Deafen or undeafen yourself in Discord',
   'discord-hangup': 'Leave the Discord call',
+  'streamer-toggle': 'Turn streamer mode on or off (blur codes, passwords, emails)',
 };
 
 // A combination Vex refuses to take from the rest of the machine. Plain keys

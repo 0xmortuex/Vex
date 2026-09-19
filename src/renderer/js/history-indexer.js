@@ -15,12 +15,21 @@ const HistoryIndexer = (() => {
   const SKIP_DOMAIN_FRAGMENTS = ['google.com/search', 'bing.com/search', 'duckduckgo.com', 'yandex.com/search'];
   const SKIP_SCHEMES = ['file:', 'vex:', 'about:', 'chrome:', 'data:', 'devtools:'];
 
+  // OFF unless you turn it on (Settings › AI). It was on by default, and it
+  // loads the local model for every page you visit — which is what a user
+  // saw as "llama running" while they browsed and gamed (2026-09-19). Profiles
+  // from before are switched off once, by MIGRATED_KEY; turning it on again
+  // after that is kept.
+  const MIGRATED_KEY = 'vex.aiIndexingDefaultOff';
+  function migrateDefaultOff() {
+    if (localStorage.getItem(MIGRATED_KEY) === '1') return;
+    localStorage.setItem('vex.aiIndexingEnabled', 'false');
+    localStorage.setItem(MIGRATED_KEY, '1');
+  }
+  migrateDefaultOff();
+
   function isEnabled() {
-    try {
-      const v = localStorage.getItem('vex.aiIndexingEnabled');
-      if (v === null) return true; // default on
-      return v === 'true';
-    } catch { return true; }
+    return localStorage.getItem('vex.aiIndexingEnabled') === 'true';
   }
 
   function setEnabled(on) {

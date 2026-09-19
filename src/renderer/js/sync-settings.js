@@ -209,7 +209,7 @@ const SyncSettings = (() => {
         <div class="sync-header signed-in">
           <div class="sync-icon-big">${VexIcons.svg('check', { size: 22 })}</div>
           <div>
-            <div class="sync-title">Signed in as ${escapeHtml(state.email)}</div>
+            <div class="sync-title">Signed in as <span data-sensitive>${escapeHtml(state.email)}</span></div>
             <div class="sync-subtitle">Last sync: pushed ${lastPush} &middot; pulled ${lastPull}</div>
           </div>
           <button class="btn-primary" id="btn-sync-now">Sync Now</button>

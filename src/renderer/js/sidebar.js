@@ -1152,6 +1152,60 @@ const SidebarManager = {
     this._discordRestTimer = setInterval(() => {
       this.checkDiscordThrottle().catch(err => console.error('[Sidebar] Discord rest check failed:', err.message));
     }, 30000);
+    // The call, on the Discord icon: muted or live, and sharing — without
+    // opening the panel. A cheap look at Discord's own buttons every 10 s.
+    if (this._discordStateTimer) clearInterval(this._discordStateTimer);
+    this._discordStateTimer = setInterval(() => {
+      this.updateDiscordBadge().catch(err => console.warn('[Sidebar] Discord call state:', err.message));
+    }, 10000);
+  },
+
+  // ---- Discord call state on its icon --------------------------------------------
+  // Read by Discord's button labels (class names change every few weeks, the
+  // labels do not). Muted is either "Unmute" (older) or "Mute" pressed
+  // (aria-checked) (newer); the same for Deafen. Sharing: "Stop Streaming".
+  DISCORD_STATE_SCRIPT: `(() => {
+    const q = (s) => document.querySelector(s);
+    const btn = (prefix) => q('button[aria-label^="' + prefix + '"]');
+    const mute = btn('Mute') || btn('Unmute');
+    const deaf = btn('Deafen') || btn('Undeafen');
+    const on = (b, word) => !!b && ((b.getAttribute('aria-label') || '').startsWith('Un' + word.toLowerCase()) || b.getAttribute('aria-checked') === 'true');
+    return {
+      inCall: !!q('button[aria-label="Disconnect"], [class*="rtcConnectionStatus"]'),
+      muted: on(mute, 'Mute'),
+      deafened: on(deaf, 'Deafen'),
+      sharing: !!q('button[aria-label^="Stop Streaming"], button[aria-label^="Stop Sharing"]'),
+    };
+  })()`,
+
+  // → { icon, tone, title } for the badge, or null when not in a call.
+  discordBadgeFor(s) {
+    if (!s || !s.inCall) return null;
+    const parts = [s.deafened ? 'deafened' : s.muted ? 'muted' : 'microphone live', s.sharing ? 'sharing your screen' : ''].filter(Boolean);
+    return {
+      icon: s.sharing ? 'monitor' : s.deafened ? 'headphones' : 'mic',
+      tone: s.deafened || s.muted ? 'off' : 'live',
+      title: 'In a Discord call: ' + parts.join(', '),
+    };
+  },
+
+  async updateDiscordBadge() {
+    const wv = this.panelWebviews.discord;
+    const btn = document.querySelector('.sidebar-icon[data-panel="discord"]');
+    if (!btn) return null;
+    let state = null;
+    if (wv && typeof wv.executeJavaScript === 'function') {
+      try { state = await wv.executeJavaScript(this.DISCORD_STATE_SCRIPT, true); } catch { state = null; }   // still loading
+    }
+    const badge = this.discordBadgeFor(state);
+    let el = btn.querySelector('.icon-badge.discord-call');
+    if (!badge) { if (el) el.remove(); return null; }
+    if (!el) { el = document.createElement('span'); el.className = 'icon-badge discord-call'; btn.appendChild(el); }
+    el.dataset.tone = badge.tone;
+    el.innerHTML = VexIcons.svg(badge.icon, { size: 10 });
+    el.title = badge.title;
+    btn.setAttribute('aria-description', badge.title);
+    return badge;
   },
 
   // The browser looks and Glass (css/gui-browser.css section 7) dock a panel

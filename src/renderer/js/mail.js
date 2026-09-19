@@ -130,7 +130,7 @@ const VexMail = {
     head.querySelectorAll('[data-mailhead]').forEach(n => n.remove());
     const btn = 'font-size:11.5px;color:var(--text);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer';
     head.insertAdjacentHTML('beforeend', `
-      ${accounts.length > 1 ? `<select data-mailhead data-account aria-label="Account" style="font-size:11.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 4px">${accounts.map(a => `<option value="${esc(a.id)}" ${a.id === accountId ? 'selected' : ''}>${esc(a.email)}</option>`).join('')}</select>` : ''}
+      ${accounts.length > 1 ? `<select data-mailhead data-account data-sensitive aria-label="Account" style="font-size:11.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 4px">${accounts.map(a => `<option value="${esc(a.id)}" ${a.id === accountId ? 'selected' : ''}>${esc(a.email)}</option>`).join('')}</select>` : ''}
       <button data-mailhead data-refresh type="button" style="${btn}">Refresh</button>
       <button data-mailhead data-manage type="button" style="${btn}">Accounts</button>`);
     head.querySelector('[data-account]')?.addEventListener('change', (e) => this._drawInbox(accounts, e.target.value));
@@ -144,7 +144,7 @@ const VexMail = {
     if (!this._ui.overlay.isConnected) return;
     this._state.inbox = inbox;
     body.innerHTML = `
-      <div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted)">${esc(inbox.account.email)} · <b style="color:var(--text)">${inbox.unseen}</b> unread of ${inbox.total}${inbox.account.webmail ? ` · <a href="#" data-webmail style="color:var(--primary)">Open ${esc(inbox.account.name)}</a>` : ''}</div>
+      <div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted)"><span data-sensitive>${esc(inbox.account.email)}</span> · <b style="color:var(--text)">${inbox.unseen}</b> unread of ${inbox.total}${inbox.account.webmail ? ` · <a href="#" data-webmail style="color:var(--primary)">Open ${esc(inbox.account.name)}</a>` : ''}</div>
       <div style="display:grid;grid-template-columns:minmax(260px,38%) 1fr;min-height:420px">
         <div data-list role="list" style="border-right:1px solid var(--border);overflow-y:auto;max-height:70vh"></div>
         <div data-reader style="overflow-y:auto;max-height:70vh;padding:14px 16px;font-size:12.5px;color:var(--text-muted)">Choose a message.</div>
@@ -207,7 +207,7 @@ const VexMail = {
     for (const a of accounts) {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text)';
-      row.innerHTML = `<span style="flex:1">${esc(a.email)} <span style="color:var(--text-muted)">· ${esc(a.name)}</span></span><button data-remove type="button" style="font-size:11.5px;color:var(--text);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">Remove</button>`;
+      row.innerHTML = `<span style="flex:1"><span data-sensitive>${esc(a.email)}</span> <span style="color:var(--text-muted)">· ${esc(a.name)}</span></span><button data-remove type="button" style="font-size:11.5px;color:var(--text);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">Remove</button>`;
       row.querySelector('[data-remove]').addEventListener('click', async () => {
         const ok = await window.vexConfirm({ title: 'Remove ' + a.email + '?', message: 'Vex forgets this account and its app password. Nothing in the mailbox changes.', okLabel: 'Remove', danger: true });
         if (!ok) return;

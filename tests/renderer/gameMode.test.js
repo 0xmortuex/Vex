@@ -117,3 +117,31 @@ describe('streamer mode', () => {
     expect(GameMode.on()).toBe(true);
   });
 });
+
+describe('streamer mode, the rest', () => {
+  it('blurs an email address in a tab title, and only while on — also one that appears later', async () => {
+    document.body.innerHTML = '<div class="tab-title">Inbox (3) - you@gmail.com - Gmail</div><div class="tab-title">YouTube</div>';
+    GameMode.setMode('on');
+    const [mail, yt] = document.querySelectorAll('.tab-title');
+    expect(mail.hasAttribute('data-sensitive')).toBe(true);
+    expect(yt.hasAttribute('data-sensitive')).toBe(false);
+    yt.textContent = 'Shared with dana@work.example';
+    await new Promise(r => setTimeout(r, 0));
+    expect(yt.hasAttribute('data-sensitive')).toBe(true);
+    GameMode.setMode('off');
+    expect(document.querySelectorAll('.tab-title[data-sensitive]')).toHaveLength(0);
+  });
+
+  it('the hotkey turns it on, and off again', async () => {
+    GameMode.setMode('auto');                  // nothing captured: off
+    expect(await GameMode.run('streamer-toggle')).toBe('on');
+    expect(document.body.classList.contains('streamer-mode')).toBe(true);
+    expect(await GameMode.run('streamer-toggle')).toBe('off');
+    expect(document.body.classList.contains('streamer-mode')).toBe(false);
+  });
+
+  it('is offered as a hotkey', () => {
+    const { ACTIONS } = require('../../src/main/game-hotkeys.js');
+    expect(ACTIONS['streamer-toggle']).toMatch(/streamer mode/);
+  });
+});

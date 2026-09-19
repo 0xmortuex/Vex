@@ -92,8 +92,8 @@ describe('registering them', () => {
     expect(broken.apply().applied).toEqual({});
   });
 
-  it('offers quick capture and the Discord three — and no push-to-talk, because a global shortcut cannot see the key release', () => {
-    expect(Object.keys(ACTIONS)).toEqual(['quick-capture', 'discord-mute', 'discord-deafen', 'discord-hangup']);
+  it('offers quick capture, the Discord three and streamer mode — and no push-to-talk, because a global shortcut cannot see the key release', () => {
+    expect(Object.keys(ACTIONS)).toEqual(['quick-capture', 'discord-mute', 'discord-deafen', 'discord-hangup', 'streamer-toggle']);
     expect(Object.keys(ACTIONS)).not.toContain('discord-push-to-talk');
   });
 });

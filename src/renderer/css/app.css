@@ -1032,6 +1032,7 @@ body.streamer-mode .auth-code,
 body.streamer-mode .recovery-code-display,
 body.streamer-mode #vex-loginshub #lh-body,
 body.streamer-mode .toast-item,
+body.streamer-mode #vex-formfill,
 body.streamer-mode [data-sensitive] {
   filter: blur(7px);
   transition: filter 0.12s ease;
@@ -1040,6 +1041,7 @@ body.streamer-mode .auth-code:hover,
 body.streamer-mode .recovery-code-display:hover,
 body.streamer-mode #vex-loginshub #lh-body:hover,
 body.streamer-mode .toast-item:hover,
+body.streamer-mode #vex-formfill:hover,
 body.streamer-mode [data-sensitive]:hover,
 body.streamer-mode [data-sensitive]:focus-within { filter: none; }
 
@@ -1100,3 +1102,10 @@ body.streamer-mode [data-sensitive]:focus-within { filter: none; }
 .perm-live-who { font-size: 12px; color: var(--vex-text-secondary, var(--text-muted)); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .perm-live-stop { font: inherit; font-size: 11px; padding: 4px 12px; border-radius: 7px; cursor: pointer; background: transparent; color: var(--danger); border: 1px solid var(--danger); }
 .perm-live-stop:hover { background: var(--danger); color: #fff; }
+
+/* Gaming (js/game-mode.js, "Keep Vex still"): nothing in Vex animates while a
+   game has the screen. */
+body.vex-gaming-still *, body.vex-gaming-still *::before, body.vex-gaming-still *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}

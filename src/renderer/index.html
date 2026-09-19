@@ -841,11 +841,11 @@
             <!-- Phase 12: AI History Indexing -->
             <div class="setting-group">
               <label class="setting-label">AI History Indexing</label>
-              <p class="setting-info muted" style="margin-bottom:10px">Generate short summaries for pages you visit so you can find them later by meaning, not just URL. Page content is sent to the Vex AI worker once per page; only the summary is stored. <strong>Everything stays local after that.</strong></p>
+              <p class="setting-info muted" style="margin-bottom:10px">Summarize the pages you visit so AI history search can find them by meaning, not just title and address. <strong>Off by default:</strong> it runs the AI model (the local one, unless you route it to the cloud in the table above) for every page you open, which costs memory and graphics power while you browse. Only the summary is kept.</p>
               <div class="setting-toggle-row">
                 <span>Enable AI history indexing</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-ai-indexing-enabled" checked>
+                  <input type="checkbox" id="setting-ai-indexing-enabled">
                   <span class="toggle-slider"></span>
                 </label>
               </div>

@@ -78,7 +78,7 @@ describe('when it ends', () => {
   it('says what was done, once you are back', async () => {
     await GameMode.onGameStart('Valorant');
     GameMode.onGameEnd();
-    expect(window.showToast).toHaveBeenCalledWith('While you played Valorant, Vex freed 5.5 GB of graphics memory and slept 2 tabs. They come back when you use them.');
+    expect(window.showToast).toHaveBeenCalledWith('While you played Valorant, Vex freed 5.5 GB of graphics memory and slept 2 tabs. The tabs are waking now; panels come back when you open them.');
     expect(GameMode.holdingAi()).toBe(false);
   });
   it('and says nothing if there was nothing to do', async () => {
@@ -91,14 +91,15 @@ describe('when it ends', () => {
 });
 
 describe('the watcher follows the switches', () => {
-  it('runs while any of the three is on, stops when all are off', async () => {
+  it('runs while anything would happen during a game, stops when nothing would', async () => {
     GameMode.initGaming();
     expect(window.vex.gameWatch).toHaveBeenLastCalledWith(true);
     GameMode.setGamingSetting('freeGpu', false);
     GameMode.setGamingSetting('sleepTabs', false);
-    expect(window.vex.gameWatch).toHaveBeenLastCalledWith(true);
     GameMode.setGamingSetting('holdAi', false);
-    expect(window.vex.gameWatch).toHaveBeenLastCalledWith(false);
+    expect(window.vex.gameWatch).toHaveBeenLastCalledWith(true);          // "Keep Vex still" is still on
+    GameMode.setGamingSetting('stillVex', false);
+    expect(window.vex.gameWatch).toHaveBeenLastCalledWith(false);         // "Wake after" alone has nothing to do
   });
   it('main\'s reports drive start and end', async () => {
     GameMode.initGaming();
@@ -110,11 +111,11 @@ describe('the watcher follows the switches', () => {
 });
 
 describe('the settings', () => {
-  it('shows the three switches and the keep-loaded choice, and saves them', () => {
+  it('shows the five switches and the keep-loaded choice, and saves them', () => {
     document.body.innerHTML = '<div id="gaming-settings"></div>';
     GameMode.renderGamingSettings();
     const boxes = document.querySelectorAll('#gaming-settings input[type=checkbox]');
-    expect(boxes).toHaveLength(3);
+    expect(boxes).toHaveLength(5);
     expect([...boxes].every(b => b.checked)).toBe(true);
     boxes[1].checked = false; boxes[1].dispatchEvent(new Event('change'));
     expect(GameMode.gamingSetting('sleepTabs')).toBe(false);
@@ -186,5 +187,46 @@ describe('a question asked during a game', () => {
     await GameMode.onGameStart('Roblox');
     await Ollama.chat('qwen3.5:latest', []);
     expect(sent.keep_alive).toBe('1m');
+  });
+});
+
+describe('panels, waking up, and keeping Vex still', () => {
+  it('hidden panels sleep too (the same rules as Free memory now)', async () => {
+    globalThis.SidebarManager = { sleepHiddenPanels: vi.fn(() => ['spotify', 'github']) };
+    const r = await GameMode.onGameStart('Game');
+    expect(SidebarManager.sleepHiddenPanels).toHaveBeenCalled();
+    expect(r.panels).toEqual(['spotify', 'github']);
+    delete globalThis.SidebarManager;
+  });
+
+  it('after the game, the tabs it slept wake one at a time — not ones asleep before, not closed ones', async () => {
+    vi.useFakeTimers();
+    TabManager.wakeTab = vi.fn((id) => { const t = TabManager.tabs.find(x => x.id === id); if (t) t.sleeping = false; });
+    await GameMode.onGameStart('Game');
+    expect(TabManager.tabs.find(t => t.id === 2).sleeping).toBe(true);
+    GameMode.onGameEnd();
+    vi.advanceTimersByTime(0);
+    expect(TabManager.wakeTab).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(GameMode.WAKE_GAP_MS * 5);
+    expect(TabManager.wakeTab.mock.calls.map(c => c[0])).toEqual([2, 4]);   // 7 was asleep already
+    vi.useRealTimers();
+  });
+
+  it('"Wake the tabs after the game" off: they stay asleep', async () => {
+    vi.useFakeTimers();
+    GameMode.setGamingSetting ? GameMode.setGamingSetting('wakeAfter', false) : localStorage.setItem('vex.game.wakeAfter', 'off');
+    TabManager.wakeTab = vi.fn();
+    await GameMode.onGameStart('Game');
+    GameMode.onGameEnd();
+    vi.advanceTimersByTime(60000);
+    expect(TabManager.wakeTab).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('Vex stops animating while the game has the screen, and starts again after', async () => {
+    await GameMode.onGameStart('Game');
+    expect(document.body.classList.contains('vex-gaming-still')).toBe(true);
+    GameMode.onGameEnd();
+    expect(document.body.classList.contains('vex-gaming-still')).toBe(false);
   });
 });
