@@ -73,6 +73,7 @@ define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(
 define('file:save-text', [shape({ name: string(200), text: string(1024 * 1024), kind: optional(string(40)) })]);
 define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
+define('page:save', [integer, string(10), optional(string(500))]);
 // A freshly attached <webview> reports its id as -1; the handler then finds
 // the page by URL (and checks ownership itself), so any integer is allowed.
 define('devtools:open-for-webcontents', [value => Number.isInteger(value), optional(web)]);

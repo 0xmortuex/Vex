@@ -113,6 +113,10 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 
 ### 🛠 Productivity
 - **Notes & Clip‑to‑Notes**, **Read Later / Library**, **Bookmarks**, **Feeds (RSS)**.
+- **Save Page as PDF / as One File** (`Ctrl+K`) — straight to a PDF with no print dialog, or the whole page as a single `.mhtml` that opens offline.
+- **Open a List of Links** (`Ctrl+K`) — paste links in any form; each opens in its own tab.
+- **Images on This Page** (`Ctrl+K`) — every picture at the largest size offered; save one or all.
+- **Cite This Page** (`Ctrl+K`) — APA, MLA, Harvard, Chicago or BibTeX from the page's own metadata.
 - **Research Projects** (`Ctrl+K`) — a folder for one topic: the pages you found, your notes, and the AI conversations about it. The chat is the part every browser loses, because it belongs to a tab and tabs close. Open every page at once; export the lot as Markdown.
 - **Eyedropper** (`Ctrl+K`) — sample the colour of any pixel on screen, not just in the page: a video, a PDF, another program. Copies the hex; keeps the last dozen in hex/rgb/hsl.
 - **Snippets** (`Ctrl+K`) — an abbreviation that becomes the text you keep retyping: your address, an invoice footer, a reply you send weekly. Type it in any box on any page and press `Tab`. Nothing expands while you type.

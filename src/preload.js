@@ -158,6 +158,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Media grabber: list/download media detected on a tab (by its webContents id).
   mediaList: (wcId) => ipcRenderer.invoke('media:list', wcId),
   mediaDownload: (wcId, url) => ipcRenderer.invoke('media:download', wcId, url),
+  // Keep the page you are on: 'pdf', or 'mhtml' (one file that opens offline).
+  pageSave: (wcId, format, title) => ipcRenderer.invoke('page:save', wcId, format, title),
   // Discord censorship bypass (DoH + SNI fragmentation on persist:discord).
   discordBypass: (on) => ipcRenderer.send('discord:set-bypass', on),
   // Bypass mode: 'off' | 'light' (built-in) | 'strong' (ByeDPI).

@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.32.9 (2026-09-19) — Getting things out of a page
+
+### Notes
+A browser is very good at showing you a page and oddly bad at letting you keep any of it. Five new `Ctrl+K` commands:
+- **Save Page as PDF.** Straight to a file. The usual route is the print dialog, a preview that takes its time, and a destination menu. Backgrounds are kept.
+- **Save Page as One File.** The whole page, with its text, pictures and styles, in a single `.mhtml` that opens offline in any Chromium browser. It's for the article that will be paywalled or deleted next month. Browsers usually have no menu for this at all. What is saved is exactly what you are looking at, signed-in state included, because nothing is downloaded again.
+- **Open a List of Links.** Someone sends you twelve links and you open them one by one. Now you paste them in, in any form: one per line, a comma mess, or a chat message with links inside it. Each one opens in its own tab. If your clipboard already holds links, they are filled in for you. Vex asks before opening more than eight, and won't open more than fifty.
+- **Images on This Page.** Every picture on the page, biggest first, at the largest size the page offers. Tracking pixels and icons are left out. Save one, or all of them (Vex asks first if there are more than ten). Downloads go through the tab itself, so images behind a login still come down.
+- **Cite This Page.** APA 7, MLA 9, Harvard, Chicago or BibTeX, built from what the page publishes about itself: the scholarly `citation_*` tags Google Scholar reads, then Open Graph, then JSON-LD. A DOI takes priority over the page address. When the page names no author, the citation leaves the author out and tells you to check before you hand it in. Vex doesn't invent one. Your style choice is remembered.
+
+### Fixes (found before release)
+- A BibTeX "Accessed" date created after midnight would have said yesterday for anyone east of Greenwich. It was being written in UTC; it now uses your own date.
+
 ## v2.32.8 (2026-09-19) — Everything about one topic, in one place
 
 ### Notes

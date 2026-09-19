@@ -1555,6 +1555,15 @@ function wireMediaSnifferOnSession(ses) {
   });
 }
 
+// Keep a page as a PDF, or as one file that opens offline (src/main/page-save.js).
+const _pageSave = require('./main/page-save').createPageSave({
+  webContents, dialog, app, getWindow: () => mainWindow,
+});
+ipcMain.handle('page:save', async (_e, wcId, format, title) => {
+  try { return await _pageSave.save(wcId, format, title); }
+  catch (err) { return { ok: false, error: (err && err.message) || 'Could not save the page' }; }
+});
+
 ipcMain.handle('media:list', (_e, wcId) => {
   const map = _mediaByWc.get(wcId);
   return map ? Array.from(map.values()) : [];
