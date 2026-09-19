@@ -42,6 +42,25 @@ const AIPanel = {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._sendChat(); }
     });
 
+    // Paste or drop a picture into the box: it goes with the next question
+    // (the same path as right-click › Ask Vex about this image).
+    document.getElementById('ai-input')?.addEventListener('paste', (e) => {
+      const item = [...((e.clipboardData && e.clipboardData.items) || [])].find(i => i.kind === 'file' && /^image\//.test(i.type));
+      if (!item) return;
+      e.preventDefault();
+      this._attachImage(item.getAsFile());
+    });
+    const aiPanelEl = document.getElementById('ai-panel');
+    aiPanelEl?.addEventListener('dragover', (e) => {
+      if ([...((e.dataTransfer && e.dataTransfer.items) || [])].some(i => i.kind === 'file' && /^image\//.test(i.type))) e.preventDefault();
+    });
+    aiPanelEl?.addEventListener('drop', (e) => {
+      const file = [...((e.dataTransfer && e.dataTransfer.files) || [])].find(f => /^image\//.test(f.type));
+      if (!file) return;
+      e.preventDefault();
+      this._attachImage(file);
+    });
+
     // Phase 15: Persona switcher
     document.getElementById('active-persona-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -667,10 +686,13 @@ const AIPanel = {
       const t = (typeof TabManager !== 'undefined' ? TabManager.tabs : []).find(x => String(x.id) === String(tabId));
       return t ? (t.title || t.url || 'Untitled') : 'Closed tab';
     };
+    const meta = this._chatMeta();
+    // Newest first, pinned chats above the rest.
     const rows = Object.entries(this._conversations || {})
       .filter(([, msgs]) => Array.isArray(msgs) && msgs.length)
-      .map(([tabId, msgs]) => ({ tabId, msgs, first: msgs.find(m => m.role === 'user') }))
-      .reverse();
+      .map(([tabId, msgs]) => ({ tabId, msgs, first: msgs.find(m => m.role === 'user'), meta: meta[tabId] || {} }))
+      .reverse()
+      .sort((a, b) => (b.meta.pinned ? 1 : 0) - (a.meta.pinned ? 1 : 0));
 
     const runs = (typeof AgentLoop !== 'undefined' && typeof AgentLoop.runs === 'function') ? AgentLoop.runs() : [];
     if (!rows.length && !runs.length) {
@@ -742,8 +764,27 @@ const AIPanel = {
       const b = document.createElement('button');
       b.className = 'ai-history-item' + (String(r.tabId) === current ? ' current' : '');
       b.innerHTML = `<span class="t"></span><span class="m"></span>`;
-      b.querySelector('.t').textContent = (r.first && r.first.content.slice(0, 70)) || titleOf(r.tabId);
+      b.querySelector('.t').textContent = (r.meta.pinned ? 'Pinned · ' : '') + (r.meta.title || (r.first && r.first.content.slice(0, 70)) || titleOf(r.tabId));
       b.querySelector('.m').textContent = `${r.msgs.length} message${r.msgs.length === 1 ? '' : 's'} · ${titleOf(r.tabId)}`;
+      // Pin, rename, or keep the whole conversation as a note.
+      const tool = (label, title, fn) => {
+        const x = document.createElement('button');
+        x.className = 'ai-history-undo'; x.type = 'button'; x.textContent = label; x.title = title;
+        x.addEventListener('click', async (ev) => { ev.stopPropagation(); await fn(); });
+        b.appendChild(x);
+      };
+      tool(r.meta.pinned ? 'Unpin' : 'Pin', r.meta.pinned ? 'Stop keeping this chat at the top' : 'Keep this chat at the top', () => { this._setChatMeta(r.tabId, { pinned: !r.meta.pinned }); this._renderHistory(); });
+      tool('Rename', 'Give this chat a name', async () => {
+        const name = await vexPrompt({ title: 'Name this chat', value: r.meta.title || (r.first && r.first.content.slice(0, 60)) || '', okLabel: 'Rename' });
+        if (name == null) return;
+        this._setChatMeta(r.tabId, { title: String(name).replace(/\s+/g, ' ').trim().slice(0, 80) || undefined });
+        this._renderHistory();
+      });
+      tool('To note', 'Save the whole conversation as a note', () => {
+        const text = r.msgs.filter(m => m.role !== 'system').map(m => `**${m.role === 'user' ? 'You' : 'Vex AI'}:** ${m.content}`).join('\n\n');
+        try { AgentTools.saveNote((r.meta.title || (r.first && r.first.content) || 'AI chat').replace(/\s+/g, ' ').slice(0, 80), text); window.showToast?.('Saved to Notes'); }
+        catch (err) { window.showToast?.((err && err.message) || 'Could not save the note', 'error'); }
+      });
       b.addEventListener('click', () => {
         // Open the chat here rather than hunting for its tab. Chats outlive
         // tabs now, so "that tab is closed" is no longer a dead end.
@@ -770,6 +811,78 @@ const AIPanel = {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  },
+
+  // A picture attached to the next question, as a data URL.
+  _pendingImage: null,
+  MAX_IMAGE_BYTES: 8 * 1024 * 1024,
+  _attachImage(file) {
+    if (!file) return;
+    if (file.size > this.MAX_IMAGE_BYTES) { window.showToast?.('That picture is over 8 MB — use a smaller one or a screenshot of the part that matters', 'error'); return; }
+    const reader = new FileReader();
+    reader.onerror = () => window.showToast?.('That picture could not be read: ' + ((reader.error && reader.error.message) || ''), 'error');
+    reader.onload = () => {
+      this._pendingImage = String(reader.result);
+      const input = document.getElementById('ai-input');
+      document.getElementById('ai-attach')?.remove();
+      const chip = document.createElement('div');
+      chip.id = 'ai-attach';
+      chip.style.cssText = 'display:flex;align-items:center;gap:8px;margin:0 10px 6px;padding:4px 6px 4px 4px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:11.5px;color:var(--text)';
+      chip.innerHTML = `<img alt="" style="width:34px;height:34px;object-fit:cover;border-radius:5px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><button type="button" aria-label="Remove the picture" title="Remove the picture" style="display:inline-flex;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px">${this._icon('x', 12)}</button>`;
+      chip.querySelector('img').src = this._pendingImage;
+      chip.querySelector('span').textContent = 'Picture attached — ask about it, or just press Enter';
+      chip.querySelector('button').addEventListener('click', () => this._clearAttachment());
+      const anchor = input && (input.closest('.ai-input-row, .ai-input-wrap, form') || input.parentElement);
+      if (anchor) anchor.insertAdjacentElement('beforebegin', chip);
+      input?.focus();
+    };
+    reader.readAsDataURL(file);
+  },
+  _clearAttachment() {
+    this._pendingImage = null;
+    document.getElementById('ai-attach')?.remove();
+  },
+
+  // Names and pins for chats in the history list, by conversation id.
+  _CHAT_META_KEY: 'vex.aiChatMeta',
+  _chatMeta() {
+    try { const o = JSON.parse(localStorage.getItem(this._CHAT_META_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; }
+    catch (err) { window.showToast?.('Chat names and pins could not be read', 'error'); return {}; }
+  },
+  _setChatMeta(id, patch) {
+    const all = this._chatMeta();
+    const next = { ...(all[id] || {}), ...patch };
+    for (const k of Object.keys(next)) if (next[k] === undefined || next[k] === false) delete next[k];
+    if (Object.keys(next).length) all[id] = next; else delete all[id];
+    localStorage.setItem(this._CHAT_META_KEY, JSON.stringify(all));
+  },
+
+  // The links an answer cites, in order, without repeats.
+  _linksIn(text) {
+    const seen = new Set();
+    for (const u of String(text || '').match(/https?:\/\/[^\s<>"')\]]+/g) || []) seen.add(u.replace(/[.,;:!?]+$/, ''));
+    return [...seen];
+  },
+
+  // "Dig deeper" and "Open sources" under the latest answer.
+  _nextChips(m) {
+    const box = document.createElement('div');
+    box.className = 'follow-ups ai-next-chips';
+    const chip = (label, fn) => {
+      const b = document.createElement('button');
+      b.className = 'follow-up-btn'; b.type = 'button'; b.textContent = label;
+      b.addEventListener('click', fn);
+      box.appendChild(b);
+    };
+    chip('Dig deeper', () => this.sendMessage('chat', { message: 'Go deeper on that: more detail, concrete examples, and anything I should watch out for.' }));
+    const links = this._linksIn(m.content);
+    if (links.length) {
+      chip(links.length === 1 ? 'Open the source' : 'Open the ' + Math.min(links.length, 5) + ' sources', () => {
+        for (const u of links.slice(0, 5)) TabManager.createTab(u, false);
+        window.showToast?.('Opened ' + Math.min(links.length, 5) + ' tab' + (links.length === 1 ? '' : 's') + ' in the background');
+      });
+    }
+    return box;
   },
 
   // Copy / retry, per message.
@@ -800,6 +913,18 @@ const AIPanel = {
     });
 
     if (m.role === 'assistant') {
+      // Any answer — a comparison table, a plan, an explanation — kept as a
+      // note, titled with the question that produced it.
+      act('note', 'Save as note', (b) => {
+        const conv = this._getConv();
+        let ask = '';
+        for (let i = index - 1; i >= 0; i--) if (conv[i] && conv[i].role === 'user') { ask = conv[i].content; break; }
+        try {
+          AgentTools.saveNote((ask || 'AI answer').replace(/\s+/g, ' ').trim().slice(0, 80), m.content);
+          b.innerHTML = this._icon('check', 13); b.title = 'Saved to Notes';
+          window.showToast?.('Saved to Notes');
+        } catch (err) { window.showToast?.((err && err.message) || 'Could not save the note', 'error'); }
+      });
       act('refresh', 'Try this answer again', () => {
         const conv = this._getConv();
         // The prompt that produced this answer is the user turn before it.
@@ -1214,6 +1339,17 @@ const AIPanel = {
   async _sendChat() {
     const input = document.getElementById('ai-input');
     const typed = input?.value.trim();
+    // A picture pasted or dropped into the box goes with this question (or on
+    // its own: "what is in this image?").
+    if (this._pendingImage) {
+      if (this._sending) { window.showToast?.('Vex is still answering — one moment', 'info'); return; }
+      const image = this._pendingImage;
+      this._clearAttachment();
+      input.value = '';
+      if (!this.isOpen()) this.open();
+      await this.sendMessage('chat', { message: typed || 'What is in this image?', image });
+      return;
+    }
     if (!typed) return;
     // Send decides whether this is a task for the agent (see routeMessage).
     // The text stays in the box until the run really starts.
@@ -1408,6 +1544,11 @@ const AIPanel = {
       el.appendChild(contentEl);
       // Copy on every message; retry on an answer, edit-and-resend on a question.
       el.appendChild(this._msgActions(m, i, contentEl));
+      // Under the latest answer: where to go next.
+      if (m.role === 'assistant' && i === conv.length - 1) {
+        const chips = this._nextChips(m);
+        if (chips) el.appendChild(chips);
+      }
       if (m.agentRun && typeof AgentLoop !== 'undefined' && AgentLoop.runs().some(r => r.id === m.agentRun)) {
         const steps = document.createElement('button');
         steps.className = 'ai-agent-steps-link';

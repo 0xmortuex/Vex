@@ -90,6 +90,7 @@ const SelectionAIBar = {
     const ico = (n) => (window.VexIcons ? VexIcons.svg(n, { size: 14 }) : '');
     el.innerHTML = `
       <button type="button" data-act="explain">${ico('bulb')}<span>Explain</span></button>
+      <button type="button" data-act="debug" title="An error message: what it means, the likely cause, and the fix">${ico('warning')}<span>Debug</span></button>
       <button type="button" data-act="summarize">${ico('note')}<span>Summarize</span></button>
       <button type="button" data-act="translate">${ico('globe')}<span>Translate</span></button>
       <span class="vex-sel-div" data-edit></span>
@@ -154,6 +155,7 @@ const SelectionAIBar = {
     if (typeof AIPanel === 'undefined') return;
     AIPanel.open();
     if (act === 'explain') AIPanel.sendMessage('explain', { selectedText: text });
+    else if (act === 'debug') AIPanel.sendMessage('chat', { message: `Debug this. Say what the error means, the most likely cause, and how to fix it, with the fix as code if it is code:\n\n"""${text}"""` });
     else if (act === 'translate') AIPanel.sendMessage('translate', { selectedText: text, targetLanguage: 'English' });
     else if (act === 'summarize') {
       // The 'summarize' feature renders only a structured {summary,...} card and

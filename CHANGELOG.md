@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.32.33 (2026-09-19) — More from the AI chat
+
+### Notes
+Five ideas from the list that were half there, finished:
+- **Save any answer as a note.** Every answer has a **Save as note** button beside Copy, including comparison tables. The note is titled with the question that produced it.
+- **Where to go next.** Under the latest answer:
+  - **Dig deeper** asks for more detail, examples and caveats.
+  - **Open the sources** opens the links the answer cited (up to five), in background tabs.
+- **Pin, rename, and keep chats.** In the chat list (the clock button):
+  - **Pin** keeps a chat at the top.
+  - **Rename** gives it your own name.
+  - **To note** saves the whole conversation as one note.
+- **Paste or drop a picture into the AI box.** It's attached (shown above the box, with × to remove it) and goes with your question. Press Enter on its own for "What is in this image?". It uses the same route as right-click › Ask Vex about this image, so it needs a model that can see images.
+- **Debug**, in the bar that appears when you select text: for an error message. It says what the error means, the likely cause, and the fix, as code when it's code.
+- Checked in the Firefox look: the table answer with its buttons and chips, and a picture pasted into the box.
+
 ## v2.32.32 (2026-09-19) — Fixes you reported, in the Firefox look
 
 ### Fixes
