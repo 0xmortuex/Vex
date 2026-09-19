@@ -1599,6 +1599,23 @@ ipcMain.handle('links:check', async (_e, urls) => {
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not check the links' }; }
 });
 
+// A read-only inbox over IMAP (src/main/mail.js). Accounts — addresses and
+// app passwords — live in one file encrypted by Windows.
+const _mail = require('./main/mail').createMail({
+  ImapFlow: require('imapflow').ImapFlow,
+  simpleParser: require('mailparser').simpleParser,
+  // secretStore is declared further down this file; reach it when used.
+  secrets: { read: (...a) => secretStore.read(...a), write: (...a) => secretStore.write(...a) },
+  file: path.join(userDataPath, 'mail-accounts.enc'),
+  randomId: () => require('crypto').randomBytes(8).toString('hex'),
+});
+const _mailCall = (fn) => async (...args) => { try { return { ok: true, value: await fn(...args) }; } catch (err) { return { ok: false, error: (err && err.message) || 'Mail failed' }; } };
+ipcMain.handle('mail:accounts', _mailCall(() => _mail.accounts()));
+ipcMain.handle('mail:add', _mailCall((_e, account) => _mail.add(account)));
+ipcMain.handle('mail:remove', _mailCall((_e, id) => _mail.remove(id)));
+ipcMain.handle('mail:inbox', _mailCall((_e, id, limit) => _mail.inbox(id, limit)));
+ipcMain.handle('mail:message', _mailCall((_e, id, uid) => _mail.message(id, uid)));
+
 // One page for the site crawler (src/main/page-fetch.js): the same empty
 // session as the link checker, HTML only, size- and time-limited.
 const _pageFetch = require('./main/page-fetch').createPageFetch({ net, getSession: () => secureSessions.fromPartition('vex-linkcheck') });

@@ -12,6 +12,7 @@ const CommandBar = {
   results: [],
 
   commands: [
+    { id: 'mail', label: 'Mail', hint: 'Your newest mail, read-only: reading here never marks it read; reply in the webmail', icon: 'mail', isPrimary: true, action: async () => { try { await window.VexMail.open(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'dictate', label: 'Dictate', shortcut: 'Ctrl+Alt+D', hint: 'Speak, and it is typed where the cursor was — Whisper on this PC, nothing sent anywhere', icon: 'mic', action: () => Dictation.toggle().catch(e => window.showToast?.(e.message, 'error')) },
     { id: 'dictation-settings', label: 'Dictation Settings', hint: 'Speech model, the language you speak, remove the downloaded model', icon: 'mic', action: () => Dictation.openSettings() },
     { id: 'do-again', label: 'Do That Again', shortcut: 'Ctrl+Alt+A', icon: 'history', isPrimary: true,

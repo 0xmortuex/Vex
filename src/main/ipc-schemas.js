@@ -81,6 +81,11 @@ define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
 define('page:save', [integer, string(10), optional(string(500))]);
 define('page:capture-full', [integer]);
+define('mail:accounts', []);
+define('mail:add', [shape({ email: string(320), password: string(512), host: optional(string(255)), port: optional(integer), secure: optional(boolean) })]);
+define('mail:remove', [string(64)]);
+define('mail:inbox', [string(64), optional(integer)]);
+define('mail:message', [string(64), integer]);
 define('crawl:fetch', [string(4096), optional(value => value === 'text/html' || value === 'text/plain')]);
 define('links:check', [value => Array.isArray(value) && value.length <= 2000 && value.every(string(4096))]);
 // A freshly attached <webview> reports its id as -1; the handler then finds

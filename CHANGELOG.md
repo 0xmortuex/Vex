@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.32.31 (2026-09-19) — Mail (read-only)
+
+### Notes
+- **Mail** (`Ctrl+K`). The newest 50 messages from Gmail, Yahoo, iCloud or any IMAP account, with the unread count, and each message as text, in a two-pane window.
+- **Read-only, on purpose.** The mailbox is opened read-only, and messages are fetched without touching their flags. Reading in Vex never marks mail read, moves it, or changes anything on the server. To answer, **Reply in Gmail** opens that exact message in the webmail. Yahoo and iCloud open their inbox.
+- **Nothing reports that you opened it.** Messages are shown as text, so pictures and other remote content are never loaded, and a tracking pixel gets no request. HTML-only mail is turned into its words by the browser's parser, where no script can run. Links open in a new tab. Attachments are listed by name and size, to download from the webmail.
+- **Signing in:**
+  - It uses an **app password**, the kind Gmail, Yahoo and iCloud issue for mail programs, not your main password. The window says where each provider hides it.
+  - Vex signs in once to check the password before keeping it. The addresses and passwords are kept in one file, **encrypted by Windows**, and a password is never shown again.
+  - Other providers: enter the IMAP server. On port 993 the connection is encrypted from the start. On any other port, Vex insists on switching to encryption (STARTTLS) before sending the password. The only exception is a program on this computer, such as ProtonMail Bridge.
+- **An honest limit:** **Outlook.com and Hotmail can't be read here.** Microsoft no longer lets mail programs sign in with a password and requires its own sign-in flow. Vex says so up front instead of failing at sign-in.
+- **Tested live against a local test mail server:**
+  - A wrong password was refused with the reason, and the right one signed in.
+  - An HTML message with a tracking pixel was shown as text, and the pixel's server got **0 requests**.
+  - The unread message was **still unread** on the server afterwards.
+  - The saved accounts file is encrypted, with no password in plain text.
+- Found in that test and fixed before release: the mail library's own text version of HTML mail listed every picture's address, the tracking pixel included, as a clickable link. Vex now makes the text itself, without them.
+
 ## v2.32.30 (2026-09-19) — Dictation
 
 ### Notes

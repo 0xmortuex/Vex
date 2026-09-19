@@ -170,6 +170,13 @@ contextBridge.exposeInMainWorld('vex', {
   // Which of these links answer, from an empty session (no cookies sent).
   checkLinks: (urls) => ipcRenderer.invoke('links:check', urls),
   crawlFetch: (url, accept) => ipcRenderer.invoke('crawl:fetch', url, accept),
+  mail: {
+    accounts: () => ipcRenderer.invoke('mail:accounts'),
+    add: (account) => ipcRenderer.invoke('mail:add', account),
+    remove: (id) => ipcRenderer.invoke('mail:remove', id),
+    inbox: (id, limit) => ipcRenderer.invoke('mail:inbox', id, limit),
+    message: (id, uid) => ipcRenderer.invoke('mail:message', id, uid),
+  },
   // Screen recording: start a file, append chunks as they arrive, then save.
   recStart: (ext) => ipcRenderer.invoke('rec:start', ext),
   recChunk: (id, bytes) => ipcRenderer.invoke('rec:chunk', id, bytes),
