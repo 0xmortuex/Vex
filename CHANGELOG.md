@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.32.18 (2026-09-19) — Discord that doesn't grow all day
+
+### Notes
+- **Measured first.** On the reporting machine, the Discord panel's process held **2.15 GB** by itself, while the whole rest of Vex held about 1 GB. Discord is kept awake so its notifications arrive, which means it was never slept and never reloaded, and a Discord left running all day keeps growing.
+- **Discord now has a memory limit** (Settings › Performance, **1.5 GB** by default, or Never / 700 MB / 1 GB / 2 GB). Past it, Vex swaps in a fresh Discord, but only when that costs you nothing:
+  - it's **hidden**: not the panel you're looking at, and not the one beside it
+  - you're **not in a call**: no microphone or camera, nothing playing, no Disconnect button on screen
+  - at most **once every 30 minutes**
+  - It stays signed in and keeps notifying; it just starts clean. Checked live: a new process came up while the panel stayed hidden, and opening it afterwards showed the fresh one.
+- **A limit that's too low can't loop.** Three minutes after a refresh, Vex measures the fresh Discord. If a fresh one is already close to your limit, Vex raises the limit above it once and tells you, rather than refreshing again and again.
+- The existing "Discord is using …" notice still appears while you have Discord open. A refresh clears it, because its number is out of date.
+
+### What the plugin review found (for your own Vencord build)
+- The code review ranked **MessageLoggerEnhanced** far above everything else: up to **2,000 messages per server** kept in memory, for every server and your DMs. With **MessageLogger** on as well, the work is done twice. Next come **AutoExport** (a full member-list request every 5 minutes), **ShowHiddenChannels**, **PlatformIndicators** and **WhoReacted**. Opening a whole-member-list window (RoleMembers, ServerMemberExporter, WhipCount, ServerInfo, PermissionsViewer) in a big server holds those members until Discord reloads, which is another thing the new limit clears.
+
+### Internal
+- Creating a web panel moved into its own function, so a panel can be rebuilt without being shown. Showing a panel works exactly as before (all 361 panel tests pass).
+- Found by the tests before release: with nothing saved, the limit read as 0 ("Never"), so the feature would have shipped switched off for everyone.
+
 ## v2.32.17 (2026-09-19) — Record the screen
 
 ### Notes

@@ -487,6 +487,10 @@
                   <option value="2048">2 GB</option>
                 </select>
               </div>
+              <div style="margin-top:8px">
+                <div class="setting-row-label" style="color:var(--text-muted);font-size:11px;font-weight:normal">Discord kept awake all day grows. Past this size Vex swaps in a fresh one — only while it is hidden, not in a call and silent. It stays signed in and keeps notifying.</div>
+                <div id="discord-memory-setting"></div>
+              </div>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Rest Discord when hidden and not in a call <span style="color:var(--text-muted);font-size:11px">· after two minutes out of sight it stops using the CPU; a call, or opening it, wakes it at once</span></span>
                 <label class="toggle">
@@ -1204,6 +1208,7 @@
   <script src="js/tabs.js"></script>
   <script src="js/horizontal-tabs.js"></script>
   <script src="js/webview.js"></script>
+  <script src="js/discord-memory.js"></script>
   <script src="js/sidebar.js"></script>
   <script src="js/settings-ui.js"></script>
   <script src="js/tools.js"></script>

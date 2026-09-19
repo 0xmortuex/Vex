@@ -290,6 +290,8 @@ const SidebarManager = {
     this._wirePanelSleepSettings();
     this.startPanelAutoSleep();
     this.startDiscordMemoryWatch();
+    // Past its limit, a hidden idle Discord is swapped for a fresh one (js/discord-memory.js).
+    if (window.DiscordMemory) window.DiscordMemory.start();
     this.startDiscordRest();
     this.startGpuCourtesy();
     // The Memory panel's trend line samples from launch, not from its first open.
@@ -547,77 +549,84 @@ const SidebarManager = {
 
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {
-      const config = this.panelConfigs[panelName];
-      if (config && config.url) {
-        const wv = document.createElement('webview');
-        wv.setAttribute('src', config.url);
-        if (config.partition) {
-          wv.setAttribute('partition', config.partition);
-        }
-        wv.setAttribute('allowpopups', '');
-        // Discord freezes for a few seconds when you toggle the panel off (or
-        // switch tabs) and come back: hiding the panel sets the guest to
-        // display:none, and Electron's default backgroundThrottling lets
-        // Chromium suspend the page — so on return the heavy Discord SPA has to
-        // reconnect its gateway and replay throttled timers before it paints.
-        // Keep the Discord guest running while hidden so re-showing is instant.
-        const wp = panelName === 'discord'
-          ? 'contextIsolation=yes,backgroundThrottling=no'
-          : 'contextIsolation=yes';
-        wv.setAttribute('webpreferences', wp);
-        if (panelName === 'discord') this._discordThrottled = false;   // created unthrottled (see checkDiscordThrottle)
-        // Microphone / camera in use (preload-webview.js getUserMedia wrapper):
-        // a badge on the icon, never slept meanwhile, and a call signal for Discord.
-        wv.addEventListener('ipc-message', (e) => {
-          if (e.channel !== 'vex-media-capture') return;
-          const d = (e.args && e.args[0]) || {};
-          this.setPanelCapturing(panelName, d.kind, d.active);
-        });
-        wv.style.width = '100%';
-        wv.style.height = '100%';
-        // Wire the guest right-click → Vex context menu, exactly like normal
-        // tab webviews do in WebviewManager.createWebview. Without this, panel
-        // webviews (Claude/Spotify/WhatsApp) swallowed right-clicks entirely —
-        // no menu, and spellcheck suggestions never surfaced. Guard with
-        // typeof, NOT window.WebviewManager: webview.js declares a top-level
-        // `const`, which is visible across classic scripts but is NOT a window
-        // property — the old `window.WebviewManager &&` guard was always
-        // undefined, silently eating every panel right-click (found live via
-        // CDP, 2026-08-25).
-        wv.addEventListener('context-menu', (e) => {
-          if (typeof WebviewManager !== 'undefined' && typeof WebviewManager.showContextMenu === 'function') {
-            WebviewManager.showContextMenu(e, wv);
-          }
-        });
-        // Password vault — panels (Spotify, Claude, WhatsApp…) get the same
-        // save-prompt + autofill as tab webviews. Without this, logging into
-        // the Spotify panel never offered to save and never autofilled (the
-        // vault was only wired in WebviewManager.createWebview for tabs).
-        if (typeof PasswordVault !== 'undefined') PasswordVault.attach(wv);
-        // Apply the saved Master Volume level to this panel's media (Spotify,
-        // Netflix, etc.) on load + as media appears, like tab webviews do.
-        wv.addEventListener('dom-ready', () => {
-          if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(wv);
-          if (typeof PasswordVault !== 'undefined') { try { PasswordVault.autofill(wv, wv.getURL()); } catch {} }
-          if (typeof TotpAutofill !== 'undefined') { try { TotpAutofill.autofill(wv, wv.getURL()); } catch {} }
-          if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }
-        });
-        // Discord: if the page fails to connect (it's blocked), offer the bypass.
-        if (panelName === 'discord') {
-          wv.addEventListener('did-fail-load', (e) => {
-            if (!e.isMainFrame || e.errorCode === -3) return; // ignore aborts
-            this._showDiscordBlockedPrompt(wv, panelEl);
-          });
-          wv.addEventListener('did-finish-load', () => this._hideDiscordBlockedPrompt());
-        }
-        panelEl.appendChild(wv);
-        this.panelWebviews[panelName] = wv;
-        // Panels aren't tabs, so the main toolbar's back/forward/reload can't
-        // drive them. Give every web panel (Spotify, Claude, Discord, pinned
-        // sites, …) its own slim back/forward/reload bar.
-        this._addPanelNav(panelEl, wv, panelName);
-      }
+      this._createPanelWebview(panelName, panelEl);
     }
+  },
+
+  // One web panel's <webview>, wired and placed in its panel. Used by
+  // showPanel, and by the Discord memory limit (js/discord-memory.js) to
+  // replace a bloated Discord with a fresh one WITHOUT showing it.
+  _createPanelWebview(panelName, panelEl) {
+    const config = this.panelConfigs[panelName];
+    if (!config || !config.url || !panelEl) return null;
+    const wv = document.createElement('webview');
+    wv.setAttribute('src', config.url);
+    if (config.partition) {
+      wv.setAttribute('partition', config.partition);
+    }
+    wv.setAttribute('allowpopups', '');
+    // Discord freezes for a few seconds when you toggle the panel off (or
+    // switch tabs) and come back: hiding the panel sets the guest to
+    // display:none, and Electron's default backgroundThrottling lets
+    // Chromium suspend the page — so on return the heavy Discord SPA has to
+    // reconnect its gateway and replay throttled timers before it paints.
+    // Keep the Discord guest running while hidden so re-showing is instant.
+    const wp = panelName === 'discord'
+      ? 'contextIsolation=yes,backgroundThrottling=no'
+      : 'contextIsolation=yes';
+    wv.setAttribute('webpreferences', wp);
+    if (panelName === 'discord') this._discordThrottled = false;   // created unthrottled (see checkDiscordThrottle)
+    // Microphone / camera in use (preload-webview.js getUserMedia wrapper):
+    // a badge on the icon, never slept meanwhile, and a call signal for Discord.
+    wv.addEventListener('ipc-message', (e) => {
+      if (e.channel !== 'vex-media-capture') return;
+      const d = (e.args && e.args[0]) || {};
+      this.setPanelCapturing(panelName, d.kind, d.active);
+    });
+    wv.style.width = '100%';
+    wv.style.height = '100%';
+    // Wire the guest right-click → Vex context menu, exactly like normal
+    // tab webviews do in WebviewManager.createWebview. Without this, panel
+    // webviews (Claude/Spotify/WhatsApp) swallowed right-clicks entirely —
+    // no menu, and spellcheck suggestions never surfaced. Guard with
+    // typeof, NOT window.WebviewManager: webview.js declares a top-level
+    // `const`, which is visible across classic scripts but is NOT a window
+    // property — the old `window.WebviewManager &&` guard was always
+    // undefined, silently eating every panel right-click (found live via
+    // CDP, 2026-08-25).
+    wv.addEventListener('context-menu', (e) => {
+      if (typeof WebviewManager !== 'undefined' && typeof WebviewManager.showContextMenu === 'function') {
+        WebviewManager.showContextMenu(e, wv);
+      }
+    });
+    // Password vault — panels (Spotify, Claude, WhatsApp…) get the same
+    // save-prompt + autofill as tab webviews. Without this, logging into
+    // the Spotify panel never offered to save and never autofilled (the
+    // vault was only wired in WebviewManager.createWebview for tabs).
+    if (typeof PasswordVault !== 'undefined') PasswordVault.attach(wv);
+    // Apply the saved Master Volume level to this panel's media (Spotify,
+    // Netflix, etc.) on load + as media appears, like tab webviews do.
+    wv.addEventListener('dom-ready', () => {
+      if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(wv);
+      if (typeof PasswordVault !== 'undefined') { try { PasswordVault.autofill(wv, wv.getURL()); } catch {} }
+      if (typeof TotpAutofill !== 'undefined') { try { TotpAutofill.autofill(wv, wv.getURL()); } catch {} }
+      if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }
+    });
+    // Discord: if the page fails to connect (it's blocked), offer the bypass.
+    if (panelName === 'discord') {
+      wv.addEventListener('did-fail-load', (e) => {
+        if (!e.isMainFrame || e.errorCode === -3) return; // ignore aborts
+        this._showDiscordBlockedPrompt(wv, panelEl);
+      });
+      wv.addEventListener('did-finish-load', () => this._hideDiscordBlockedPrompt());
+    }
+    panelEl.appendChild(wv);
+    this.panelWebviews[panelName] = wv;
+    // Panels aren't tabs, so the main toolbar's back/forward/reload can't
+    // drive them. Give every web panel (Spotify, Claude, Discord, pinned
+    // sites, …) its own slim back/forward/reload bar.
+    this._addPanelNav(panelEl, wv, panelName);
+    return wv;
   },
 
   // ---- Two panels at once -------------------------------------------------
@@ -901,6 +910,7 @@ const SidebarManager = {
 
   // Settings › Performance: the two panel switches.
   _wirePanelSleepSettings() {
+    if (window.DiscordMemory) window.DiscordMemory.renderSetting();
     const auto = document.getElementById('setting-panel-autosleep');
     const keep = document.getElementById('setting-panel-keep-discord');
     if (auto) {
