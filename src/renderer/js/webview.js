@@ -253,6 +253,8 @@ const WebviewManager = {
     if (window.ClipboardHistory) window.ClipboardHistory.attach(webview);
     // Give this page the snippet list so Tab can expand an abbreviation in it
     if (window.Snippets) window.Snippets.attach(webview);
+    // Note the price on product pages that publish one (private and Tor tabs are refused inside)
+    if (window.PriceHistory) window.PriceHistory.attach(webview);
     // Apply the saved master-volume level to this page's media (and keep it
     // enforced as media loads). Re-checked per navigation; no-op at 100%.
     onWebview('dom-ready', () => {

@@ -214,6 +214,8 @@ const VexFeatures = {
       what: 'Every open checklist item from every note, in one list, sorted by due date. Tick it here and it is ticked in the note; add one and it goes in your To-do note.' },
     { id: 'todo-board', cat: 'work', cmd: 'todo-board',
       what: 'The same note tasks in three columns: To do, Doing, Done. Drag a card or use its arrows; the move is written into that task line in its note, so the board and the notes never disagree.' },
+    { id: 'price-history', cat: 'work', cmd: 'price-history',
+      what: 'Notes the price on product pages you open (from the data shops publish for search engines) and shows what a product cost each time you looked, and the lowest you have seen. Kept on this computer; never in private tabs.' },
     { id: 'calendar', cat: 'work', cmd: 'calendar',
       what: 'A month of your reminders (repeating ones on every day they repeat) and the to-dos in your notes that have a date. Tick to-dos there, and add a reminder on any day. Not linked to Google or Outlook.' },
     { id: 'parcels', cat: 'work', cmd: 'parcels',

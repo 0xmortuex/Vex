@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.32.27 (2026-09-19) — Price history
+
+### Notes
+- **Price History** (`Ctrl+K`). Price trackers are services that crawl shops for you, and in return they see every product you look at. Vex does the part that needs no one else:
+  - Shops publish their price for search engines (schema.org Product/Offer data, or `product:price` tags). When you open a product page, Vex notes that price on this computer, one point per day.
+  - On that page later, Price History shows what it cost each time you looked, **the lowest you've seen** and the highest, with a small chart.
+  - Every other product you've looked at is listed with how far it's gone up or down since you first saw it.
+- **Careful with what it records:**
+  - A price that isn't a clean number is skipped, never guessed.
+  - Tracking tags (`utm_…`, `gclid`, …) are ignored, so one product is one line.
+  - If a shop switches currency, a new line starts rather than mixing pounds and euros.
+  - Private and Tor tabs are never read. The "Note prices" switch in the sheet turns it off, and **Forget all** deletes the history.
+- **An honest limit:** it only knows prices of pages you opened, from today on. It doesn't check shops by itself, and a page that doesn't publish its price isn't recorded.
+- Tested live on a local test shop: the price was noted with the newsletter tag stripped, and the same kind of page opened in a real private tab was refused and never recorded.
+
+### Internal
+- v2.32.26's CI run failed. Three Calendar tests used `Intl.Locale.getWeekInfo()`, which Vex's Chromium 148 has but the Node 22 that CI tests on doesn't: it has the older `weekInfo` property from before the standard renamed it. Calendar now reads either, and says so plainly if neither exists. The whole suite now also runs locally under Node 22 before each release, as CI does.
+
 ## v2.32.26 (2026-09-19) — Calendar
 
 ### Notes
