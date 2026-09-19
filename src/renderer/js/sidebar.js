@@ -404,6 +404,9 @@ const SidebarManager = {
   },
 
   showPanel(panelName) {
+    // Discord set to open as a tab (Settings › Performance): its button, Ctrl+K
+    // and links open or switch to that tab instead of the panel.
+    if (panelName === 'discord' && window.DiscordMemory && DiscordMemory.mode() === 'tab') { DiscordMemory.openTab(); return; }
     // Split screen and sidebar panels both own the content area — opening a panel
     // must exit split first. Otherwise .split-mode's `display:grid !important`
     // beats the inline `display:none` below, so the container never hides and you
@@ -1190,7 +1193,7 @@ const SidebarManager = {
   },
 
   async updateDiscordBadge() {
-    const wv = this.panelWebviews.discord;
+    const wv = window.DiscordMemory ? DiscordMemory.webview() : this.panelWebviews.discord;
     const btn = document.querySelector('.sidebar-icon[data-panel="discord"]');
     if (!btn) return null;
     let state = null;

@@ -1389,3 +1389,14 @@ function _isVexStartPage(href) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { _isVexStartPage };
 }
+
+// === Free the page's in-memory caches (Discord, when hidden) ===
+// Decoded images and fonts Chromium keeps for a page it may redraw. The host
+// asks for this a little after Discord is hidden (js/discord-memory.js); the
+// page loses nothing, it only decodes again when next shown.
+(function () {
+  let electron;
+  try { electron = require('electron'); } catch { return; }
+  if (!electron.ipcRenderer || !electron.webFrame) return;
+  electron.ipcRenderer.on('vex-clear-cache', () => { electron.webFrame.clearCache(); });
+})();

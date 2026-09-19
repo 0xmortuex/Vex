@@ -16,6 +16,8 @@ function webview(id) {
 beforeEach(() => {
   vi.useRealTimers();
   localStorage.clear();
+  // The refresh on its own: idle sleep (tested below) would otherwise act first.
+  localStorage.setItem('vex.discordIdleSleepMin', '0');
   document.body.innerHTML = '<div id="panel-discord"></div>';
   DiscordMemory._lastRefresh = 0;
   DiscordMemory._raisedTo = 0;
@@ -39,13 +41,13 @@ beforeEach(() => {
 });
 
 describe('the limit', () => {
-  it('is 1.5 GB unless changed, and only takes the offered values', () => {
-    expect(DiscordMemory.limitMB()).toBe(1500);
+  it('is 1 GB unless changed, and only takes the offered values', () => {
+    expect(DiscordMemory.limitMB()).toBe(1000);
     DiscordMemory.setLimitMB('700');
     expect(DiscordMemory.limitMB()).toBe(700);
     expect(() => DiscordMemory.setLimitMB(123)).toThrow(/one of/);
     localStorage.setItem(DiscordMemory.KEY, 'nonsense');
-    expect(DiscordMemory.limitMB()).toBe(1500);
+    expect(DiscordMemory.limitMB()).toBe(1000);
   });
 
   it('off means nothing is measured or refreshed', async () => {
@@ -58,7 +60,7 @@ describe('the limit', () => {
 describe('refreshing', () => {
   it('over the limit, hidden and quiet: a fresh Discord replaces it, still hidden', async () => {
     const r = await DiscordMemory.check();
-    expect(r).toMatchObject({ action: 'refreshed', mb: 2150, limit: 1500 });
+    expect(r).toMatchObject({ action: 'refreshed', mb: 2150, limit: 1000 });
     expect(sb._createPanelWebview).toHaveBeenCalledWith('discord', document.getElementById('panel-discord'));
     expect(sb.panelWebviews.discord.getWebContentsId()).toBe(12);
     expect(document.querySelectorAll('#panel-discord webview')).toHaveLength(1);   // the old one is gone
@@ -117,10 +119,112 @@ describe('the setting', () => {
   it('offers Never through 2 GB and saves the choice', () => {
     document.body.innerHTML = '<div id="discord-memory-setting"></div>';
     DiscordMemory.renderSetting();
-    const sel = document.querySelector('#discord-memory-setting select');
+    const sel = document.querySelector('#discord-memory-setting [data-limit]');
     expect([...sel.options].map(o => o.textContent)).toEqual(['Never', '700 MB', '1 GB', '1.5 GB', '2 GB']);
-    expect(sel.value).toBe('1500');
-    sel.value = '1000'; sel.dispatchEvent(new Event('change'));
+    expect(sel.value).toBe('1000');
+    sel.value = '700'; sel.dispatchEvent(new Event('change'));
+    expect(DiscordMemory.limitMB()).toBe(700);
+  });
+});
+
+describe('asleep when idle', () => {
+  const MIN = 60000;
+  beforeEach(() => {
+    localStorage.setItem('vex.discordIdleSleepMin', '15');
+    sb.sleepPanel = vi.fn((name) => { delete sb.panelWebviews[name]; });
+  });
+
+  it('hidden and not in a call for 15 minutes: it sleeps', async () => {
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: Date.now() - 16 * MIN }));
+    expect(await DiscordMemory.check()).toEqual({ action: 'slept' });
+    expect(sb.sleepPanel).toHaveBeenCalledWith('discord');
+  });
+
+  it('not yet 15 minutes, or in a call, or open: it stays awake', async () => {
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: Date.now() - 5 * MIN }));
+    await DiscordMemory.check();
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: Date.now() - 60 * MIN }));
+    sb._discordInCall = vi.fn(async () => true);
+    await DiscordMemory.check();
+    sb._discordInCall = vi.fn(async () => false);
+    sb.activePanel = 'discord';
+    await DiscordMemory.check();
+    expect(sb.sleepPanel).not.toHaveBeenCalled();
+  });
+
+  it('"Never" keeps it awake', async () => {
+    localStorage.setItem('vex.discordIdleSleepMin', '0');
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: 0 }));
+    await DiscordMemory.check();
+    expect(sb.sleepPanel).not.toHaveBeenCalled();
+  });
+});
+
+describe('the limit, lowered once', () => {
+  it('a limit left at the old 1.5 GB becomes 1 GB once; a choice after that is kept', () => {
+    localStorage.setItem(DiscordMemory.KEY, '1500');
+    window.vex.setDiscordLite = vi.fn(async () => true);
+    DiscordMemory.start();
     expect(DiscordMemory.limitMB()).toBe(1000);
+    DiscordMemory.setLimitMB(1500);
+    DiscordMemory.start();
+    expect(DiscordMemory.limitMB()).toBe(1500);
+    clearInterval(DiscordMemory._timer);
+  });
+});
+
+describe('Discord as a tab', () => {
+  beforeEach(() => {
+    globalThis.TabManager = { tabs: [], switchTab: vi.fn(), createTab: vi.fn() };
+    globalThis.WebviewManager = { webviews: new Map() };
+    sb.sleepPanel = vi.fn((name) => { delete sb.panelWebviews[name]; });
+    sb.hideActivePanel = vi.fn();
+    sb.closeBeside = vi.fn();
+  });
+
+  it('switching to a tab frees the panel at once', () => {
+    DiscordMemory.setMode('tab');
+    expect(DiscordMemory.mode()).toBe('tab');
+    expect(sb.sleepPanel).toHaveBeenCalledWith('discord');
+  });
+
+  it('opens one Discord tab in the same session as the panel, and goes back to it after', () => {
+    DiscordMemory.openTab();
+    expect(TabManager.createTab).toHaveBeenCalledWith('https://discord.com/app', true, null, { partition: 'persist:discord' });
+    TabManager.tabs.push({ id: 7, url: 'https://discord.com/channels/1/2', partition: 'persist:discord' });
+    DiscordMemory.openTab();
+    expect(TabManager.switchTab).toHaveBeenCalledWith(7);
+    expect(TabManager.createTab).toHaveBeenCalledTimes(1);
+  });
+
+  it('a discord.com tab in another session is not "the" Discord tab', () => {
+    TabManager.tabs.push({ id: 3, url: 'https://discord.com/app', partition: 'persist:main' });
+    expect(DiscordMemory.discordTab()).toBeNull();
+  });
+
+  it('hotkeys and the call badge reach the tab when there is no panel', () => {
+    delete sb.panelWebviews.discord;
+    const wv = { id: 'tab-wv' };
+    TabManager.tabs.push({ id: 7, url: 'https://discord.com/app', partition: 'persist:discord' });
+    WebviewManager.webviews.set(7, wv);
+    expect(DiscordMemory.webview()).toBe(wv);
+  });
+});
+
+describe('the heaviest plugins', () => {
+  it('turns them off through Vencord and reloads Discord', async () => {
+    const wv = sb.panelWebviews.discord;
+    wv.reload = vi.fn();
+    window.Vencord = { Settings: { plugins: { MessageLoggerEnhanced: { enabled: true }, MessageLogger: { enabled: false }, WhoReacted: { enabled: true }, Other: { enabled: true } } } };
+    window.vexGuestEval = vi.fn(async (_wv, code) => (0, eval)(code));
+    expect(await DiscordMemory.turnOffHeavyPlugins()).toEqual(['MessageLoggerEnhanced', 'WhoReacted']);
+    expect(window.Vencord.Settings.plugins.Other.enabled).toBe(true);
+    expect(wv.reload).toHaveBeenCalled();
+    delete window.Vencord;
+  });
+
+  it('says so when Vencord is not there', async () => {
+    window.vexGuestEval = vi.fn(async (_wv, code) => (0, eval)(code));
+    await expect(DiscordMemory.turnOffHeavyPlugins()).rejects.toThrow(/Vencord is not running/);
   });
 });

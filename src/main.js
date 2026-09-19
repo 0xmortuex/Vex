@@ -1388,10 +1388,16 @@ ipcMain.handle('hid:select-respond', (_e, payload) => {
   return { ok: true };
 });
 
+// Lighter Discord (src/main/discord-lite.js): set by the renderer's switch.
+const { isHeavyDiscordMedia } = require('./main/discord-lite');
+let _discordLite = false;
+ipcMain.handle('discord:lite', (_e, on) => { _discordLite = !!on; return _discordLite; });
+
 function wireAdblockerOnSession(ses, tag) {
   if (!ses || ses.__vexAdblockWired) return;
   ses.__vexAdblockWired = true;
   ses.webRequest.onBeforeRequest((details, callback) => {
+    if (_discordLite && tag === 'persist:discord' && isHeavyDiscordMedia(details.url)) { callback({ cancel: true }); return; }
     // Engine verdict (EasyList) ORed with the legacy domain list so we never
     // regress an existing block while the richer engine adds coverage. When the
     // engine isn't ready yet engineBlocks() returns null and the legacy list

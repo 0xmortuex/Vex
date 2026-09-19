@@ -170,6 +170,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Which of these links answer, from an empty session (no cookies sent).
   checkLinks: (urls) => ipcRenderer.invoke('links:check', urls),
   crawlFetch: (url, accept) => ipcRenderer.invoke('crawl:fetch', url, accept),
+  setDiscordLite: (on) => ipcRenderer.invoke('discord:lite', on),
   mail: {
     accounts: () => ipcRenderer.invoke('mail:accounts'),
     add: (account) => ipcRenderer.invoke('mail:add', account),

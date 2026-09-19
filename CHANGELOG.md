@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.32.36 (2026-09-19) — Discord that uses far less memory
+
+### Notes
+Everything asked for, from the list of ways to shrink Discord (it measured about 1.07 GB on your machine). All of it is in Settings › Performance:
+- **Open Discord as a tab** (new choice: *panel* or *tab*). As a tab, Discord only runs while the tab is open, and uses nothing once it's closed.
+  - The sidebar's Discord button stays: it opens the Discord tab, or switches to it if it's already open, so you never get two.
+  - It uses the same session as the panel, so your login, your Vencord build and the Discord connection bypass all come with it.
+  - The Discord hotkeys and the call badge follow the tab.
+  - The cost: with the tab closed there are no Discord notifications, and closing it ends a call.
+- **Discord goes to sleep when idle.** Hidden, and not in a call, for 15 minutes (or 30, 60, never), the panel sleeps and frees all its memory. It wakes when you open it. It's never put to sleep during a call, with the mic or camera on, or while it plays sound. While asleep there are no Discord notifications.
+- **Refreshed sooner.** The "refresh Discord when it grows past" limit is now **1 GB**, down from 1.5 GB. A limit left at the old default was moved down once; choose any other value and it's kept.
+- **Lighter Discord** (on): animated avatars, emoji and stickers, posted GIFs, the GIF picker's previews and the pictures in link previews are simply not fetched, while still avatars, emoji and posted pictures appear as normal. Checked live in a Discord tab: a GIF and an animated emoji were refused before any request went out, and a still emoji loaded.
+- **Caches cleared when hidden.** 20 seconds after you hide Discord, its in-memory images and fonts are released, and they're decoded again when you look.
+- **Turn off the heaviest Vencord plugins**, one button: MessageLoggerEnhanced, MessageLogger, ShowHiddenChannels, PlatformIndicators and WhoReacted, the biggest memory users in the plugin review. It uses Vencord's own settings, then reloads Discord. Nothing changes until you press it.
+- **In Discord's own settings**, which Vex can't change for you, the section lists what helps:
+  - Reduced motion, and no autoplaying GIFs, animated emoji or stickers,
+  - no link or image previews,
+  - and leaving large servers you don't read.
+
 ## v2.32.35 (2026-09-19) — Llama only when you ask, and gaming, Discord, streaming
 
 ### Changes

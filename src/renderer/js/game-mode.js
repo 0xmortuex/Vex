@@ -35,7 +35,8 @@ const GameMode = {
     if (action === 'streamer-toggle') return this.toggleStreamer();
     const selectors = this.CLICKS[action];
     if (!selectors) return false;
-    const wv = (typeof SidebarManager !== 'undefined' && SidebarManager.panelWebviews) ? SidebarManager.panelWebviews.discord : null;
+    // The panel, or the tab when Discord opens as a tab.
+    const wv = window.DiscordMemory ? DiscordMemory.webview() : ((typeof SidebarManager !== 'undefined' && SidebarManager.panelWebviews) ? SidebarManager.panelWebviews.discord : null);
     if (!wv) { window.showToast?.('Open the Discord panel once, and the hotkey will work from anywhere', 'error'); return false; }
     const code = `(() => {
       const found = ${JSON.stringify(selectors)}.map(s => document.querySelector(s)).find(Boolean);

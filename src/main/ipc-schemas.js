@@ -90,6 +90,7 @@ define('mail:message', [string(64), integer]);
 // which is how "What's new" asks after an update. Requiring it rejected that
 // call, so the popup never appeared after an update (2026-09-07 to v2.32.31).
 define('updates:notes', [optional(string(40))]);
+define('discord:lite', [boolean]);
 define('crawl:fetch', [string(4096), optional(value => value === 'text/html' || value === 'text/plain')]);
 define('links:check', [value => Array.isArray(value) && value.length <= 2000 && value.every(string(4096))]);
 // A freshly attached <webview> reports its id as -1; the handler then finds
