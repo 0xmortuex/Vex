@@ -261,11 +261,33 @@ const VexClock = {
     return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(sec).padStart(2, '0');
   },
 
+  // ---- what you did before, to do again
+  //
+  // A finished timer vanishes and a one-off alarm is gone once it rings, so
+  // the tea timer or the Tuesday 06:15 had to be typed again every time. The
+  // last few of each are kept, with Again.
+  KEY_RECENT_TIMERS: 'vex.clock.recentTimers',
+  KEY_RECENT_ALARMS: 'vex.clock.recentAlarms',
+  MAX_RECENT: 8,
+  _loadRecent(key) {
+    try { const a = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(a) ? a : []; }
+    catch (err) { window.showToast?.('Your recent clock items could not be read — starting a new list', 'error'); return []; }
+  },
+  _remember(key, item, same) {
+    const list = [item, ...this._loadRecent(key).filter(x => !same(x, item))].slice(0, this.MAX_RECENT);
+    try { localStorage.setItem(key, JSON.stringify(list)); }
+    catch (err) { window.showToast?.('Could not remember that for next time: ' + ((err && err.message) || ''), 'error'); }
+  },
+  recentTimers() { return this._loadRecent(this.KEY_RECENT_TIMERS).filter(t => Number.isFinite(t.total) && t.total >= 1000); },
+  recentAlarms() { return this._loadRecent(this.KEY_RECENT_ALARMS).filter(a => Number.isInteger(a.hh) && Number.isInteger(a.mm) && Array.isArray(a.days)); },
+  _sameAlarm(a, b) { return a.label === b.label && a.hh === b.hh && a.mm === b.mm && a.days.slice().sort().join() === b.days.slice().sort().join(); },
+
   async addTimer(text, label) {
     const total = this.parseDuration(text);
     const t = { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), label: String(label || '').trim() || 'Timer', endAt: Date.now() + total, total, reminderId: null };
     this._timers.push(t);
     this._saveTimers();
+    this._remember(this.KEY_RECENT_TIMERS, { label: t.label, total, at: Date.now() }, (a, b) => a.label === b.label && a.total === b.total);
     // Anything a minute or longer also lives in the main process, so a
     // reload cannot lose it and a desktop toast arrives regardless.
     const b = window.vex && window.vex.reminders;
@@ -377,6 +399,7 @@ const VexClock = {
         <div class="ck-row ck-row-end"><span class="ck-hint">Rings until dismissed, even if Vex was closed — Windows wakes it.</span><button class="qr-btn qr-primary" type="submit">Add alarm</button></div>
       </form>
       <div class="ck-list" id="ck-alarm-list"></div>
+      <div class="ck-list" id="ck-alarm-recent"></div>
       <div class="ck-form ck-sound" id="ck-sound">
         <div class="ck-sound-head">Sound</div>
         <div class="ck-row">
@@ -423,6 +446,23 @@ const VexClock = {
         row.querySelector('.ck-x').addEventListener('click', async () => { try { await b.delete(r.id); } catch (err) { window.showToast?.((err && err.message) || 'Could not remove it', 'error'); } paint(); });
         list.appendChild(row);
       }
+      // Alarms you set before that are not set now — rang once, or removed.
+      const active = items.map(r => { const d = new Date(r.at); return { label: r.message, hh: d.getHours(), mm: d.getMinutes(), days: Array.isArray(r.repeat) ? r.repeat : [] }; });
+      const again = this.recentAlarms().filter(a => !active.some(x => this._sameAlarm(x, a)));
+      const recent = body.querySelector('#ck-alarm-recent');
+      recent.innerHTML = again.length ? '<div class="ck-sound-head">Set again</div>' : '';
+      for (const a of again) {
+        const row = document.createElement('div'); row.className = 'ck-item';
+        row.innerHTML = `<span class="ck-item-big"></span><span class="ck-item-text"><span class="ck-item-label"></span><span class="ck-item-sub"></span></span><button class="qr-btn ck-mini" type="button">Set again</button>`;
+        row.querySelector('.ck-item-big').textContent = String(a.hh).padStart(2, '0') + ':' + String(a.mm).padStart(2, '0');
+        row.querySelector('.ck-item-label').textContent = a.label;
+        row.querySelector('.ck-item-sub').textContent = a.days.length ? (a.days.length === 7 ? 'every day' : a.days.slice().sort().map(i => days[i]).join(' ')) : 'once';
+        row.querySelector('button').addEventListener('click', async () => {
+          try { await this.setAlarm(a); paint(); }
+          catch (err) { window.showToast?.((err && err.message) || 'Could not set the alarm', 'error'); }
+        });
+        recent.appendChild(row);
+      }
     };
     body.querySelector('#ck-alarm-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -431,18 +471,27 @@ const VexClock = {
       if (!Number.isInteger(hh) || !Number.isInteger(mm)) { window.showToast?.('Pick a time for the alarm', 'error'); return; }
       const chosen = [...body.querySelectorAll('#ck-alarm-days input:checked')].map(i => +i.value);
       const label = body.querySelector('#ck-alarm-label').value.trim() || 'Alarm';
-      const now = new Date();
-      const first = (() => { const d = new Date(now); d.setHours(hh, mm, 0, 0); const allowed = chosen.length ? chosen : [0, 1, 2, 3, 4, 5, 6]; if (d.getTime() <= now.getTime() + 60000 || !allowed.includes(d.getDay())) { do { d.setDate(d.getDate() + 1); } while (!allowed.includes(d.getDay())); } return d.getTime(); })();
       try {
-        const job = (typeof JobProfiles !== 'undefined' && JobProfiles.current) ? JobProfiles.current() : null;
-        const r = await b.create(label, first, { kind: 'alarm', sound: true, urgent: true, ...(chosen.length ? { repeat: chosen } : {}), ...(job ? { job } : {}) });
-        window.showToast?.('Alarm set — ' + (window.VexQuickReminder ? VexQuickReminder.describe(new Date(r.at)) : new Date(r.at).toLocaleString()));
-        if (!r.os || !r.os.scheduled) window.showToast?.('It will ring while Vex is running' + (r.os && r.os.error ? ' — Windows will not wake Vex for it: ' + r.os.error : ''), 'error');
+        await this.setAlarm({ hh, mm, days: chosen, label });
         body.querySelector('#ck-alarm-label').value = '';
         paint();
       } catch (err) { window.showToast?.((err && err.message) || 'Could not set the alarm', 'error'); }
     });
     paint();
+  },
+
+  // Set an alarm from its parts; used by the form and by Set again.
+  async setAlarm({ hh, mm, days, label }) {
+    const b = window.vex && window.vex.reminders;
+    if (!b) throw new Error('Alarms are not available in this build.');
+    const now = new Date();
+    const first = (() => { const d = new Date(now); d.setHours(hh, mm, 0, 0); const allowed = days.length ? days : [0, 1, 2, 3, 4, 5, 6]; if (d.getTime() <= now.getTime() + 60000 || !allowed.includes(d.getDay())) { do { d.setDate(d.getDate() + 1); } while (!allowed.includes(d.getDay())); } return d.getTime(); })();
+    const job = (typeof JobProfiles !== 'undefined' && JobProfiles.current) ? JobProfiles.current() : null;
+    const r = await b.create(label, first, { kind: 'alarm', sound: true, urgent: true, ...(days.length ? { repeat: days } : {}), ...(job ? { job } : {}) });
+    this._remember(this.KEY_RECENT_ALARMS, { label, hh, mm, days: days.slice(), at: Date.now() }, (x, y) => this._sameAlarm(x, y));
+    window.showToast?.('Alarm set — ' + (window.VexQuickReminder ? VexQuickReminder.describe(new Date(r.at)) : new Date(r.at).toLocaleString()));
+    if (!r.os || !r.os.scheduled) window.showToast?.('It will ring while Vex is running' + (r.os && r.os.error ? ' — Windows will not wake Vex for it: ' + r.os.error : ''), 'error');
+    return r;
   },
 
   // ---- timers
@@ -457,7 +506,26 @@ const VexClock = {
         <div class="qr-chips">${['5 min', '10 min', '15 min', '25 min', '45 min', '1 hour'].map(p => `<button type="button" class="qr-chip" data-len="${p}">${p}</button>`).join('')}</div>
         <div class="ck-hint">A timer of a minute or more keeps running through a reload and ends with a desktop notification.</div>
       </form>
-      <div class="ck-list" id="clock-timers"></div>`;
+      <div class="ck-list" id="clock-timers"></div>
+      <div class="ck-list" id="clock-timers-recent"></div>`;
+    // Timers you ran before, to start again in one click.
+    const recent = body.querySelector('#clock-timers-recent');
+    const again = this.recentTimers();
+    if (again.length) {
+      recent.innerHTML = '<div class="ck-sound-head">Again</div><div class="qr-chips"></div>';
+      const chips = recent.querySelector('.qr-chips');
+      for (const t of again) {
+        const c = document.createElement('button');
+        c.type = 'button'; c.className = 'qr-chip';
+        c.textContent = this.fmtLeft(t.total) + (t.label && t.label !== 'Timer' ? ' · ' + t.label : '');
+        c.title = 'Start this timer again';
+        c.addEventListener('click', async () => {
+          try { await this.addTimer(this.fmtLeft(t.total), t.label); }
+          catch (err) { window.showToast?.((err && err.message) || 'Could not start the timer', 'error'); }
+        });
+        chips.appendChild(c);
+      }
+    }
     const paint = () => {
       const list = body.querySelector('#clock-timers'); list.innerHTML = this._timers.length ? '' : '<div class="ck-empty">No timers running.</div>';
       for (const t of this._timers.slice().sort((a, c) => a.endAt - c.endAt)) {

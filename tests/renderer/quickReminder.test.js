@@ -229,6 +229,7 @@ describe('the dialog', () => {
   const tick = () => new Promise(r => setTimeout(r, 0));
   beforeEach(() => {
     document.body.innerHTML = '';
+    localStorage.clear();
     ({ bridge } = fakeBridge());
     global.window.vex = { reminders: bridge };
     global.window.showToast = vi.fn();
@@ -238,14 +239,14 @@ describe('the dialog', () => {
     await bridge.create('Pay the invoice', NOW.getTime() + 3600000);
     VexQuickReminder.open();
     await tick();
-    const rows = document.querySelectorAll('.qr-up');
+    const rows = document.querySelectorAll('#qr-upcoming-list .qr-up');
     expect(rows).toHaveLength(1);
     expect(rows[0].textContent).toContain('Pay the invoice');
     expect(document.getElementById('qr-upcoming').hidden).toBe(false);
     rows[0].querySelector('.qr-up-x').click();
     await tick(); await tick();
     expect(bridge.delete).toHaveBeenCalledWith('r1');
-    expect(document.querySelectorAll('.qr-up')).toHaveLength(0);
+    expect(document.querySelectorAll('#qr-upcoming-list .qr-up')).toHaveLength(0);
     expect(document.getElementById('qr-upcoming').hidden).toBe(true);
   });
 
@@ -402,5 +403,65 @@ describe('the reminder card', () => {
     onFired({ id: 'r1', message: 'Send the invoice to Dana', at: NOW.getTime(), late: false, delivered: 'failed', error: 'toasts are off' });
     await tick(); await tick();
     expect(document.getElementById('vex-reminder-card')).toBeTruthy();
+  });
+});
+
+describe('remind me again', () => {
+  let bridge;
+  const tick = () => new Promise(r => setTimeout(r, 0));
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    localStorage.clear();
+    ({ bridge } = fakeBridge());
+    global.window.vex = { reminders: bridge };
+    global.window.showToast = vi.fn();
+  });
+
+  it('remembers what you set, but not when', async () => {
+    await VexQuickReminder.create('Rebook the dentist', at('tomorrow 9am'), { url: 'https://dentist.example/book', repeat: 'weekly', urgent: true });
+    expect(VexQuickReminder._loadRecent()[0]).toMatchObject({ message: 'Rebook the dentist', url: 'https://dentist.example/book', repeat: 'weekly', urgent: true, site: '' });
+    expect(VexQuickReminder._loadRecent()[0]).not.toHaveProperty('when');
+  });
+
+  it('offers only what is not waiting to fire already', async () => {
+    await VexQuickReminder.create('Water plants', at('tomorrow 9am'));
+    expect(VexQuickReminder.againList(await bridge.list())).toEqual([]);            // still pending
+    await bridge.delete('r1');
+    expect(VexQuickReminder.againList(await bridge.list()).map(r => r.message)).toEqual(['Water plants']);
+  });
+
+  it('includes reminders that fired this week, however they were made', () => {
+    const all = [{ id: 'x', message: 'Made by the calendar', at: 1, firedAt: NOW.getTime() - 3600000, kind: 'reminder' }, { id: 'y', message: 'Wake up', at: 1, firedAt: NOW.getTime(), kind: 'alarm' }];
+    expect(VexQuickReminder.againList(all).map(r => r.message)).toEqual(['Made by the calendar']);
+  });
+
+  it('Again fills in everything but the time, and the saved reminder keeps the old link', async () => {
+    await VexQuickReminder.create('Read the contract', at('tomorrow 9am'), { url: 'https://docs.example/contract', repeat: 'daily' });
+    await bridge.delete('r1');
+    VexQuickReminder.open();
+    await tick(); await tick();
+    const row = document.querySelector('#qr-again-list .qr-up');
+    expect(row.textContent).toContain('Read the contract');
+    expect(row.textContent).toContain('about docs.example');
+    row.querySelector('button').click();
+    expect(document.getElementById('qr-text').value).toBe('Read the contract');
+    expect(document.getElementById('qr-repeat').value).toBe('daily');
+    expect(document.getElementById('qr-when').value).toBe('');
+    expect(document.activeElement).toBe(document.getElementById('qr-when'));
+    const create = vi.spyOn(VexQuickReminder, 'create');
+    document.getElementById('qr-when').value = 'tomorrow 9am';
+    document.getElementById('qr-save').click();
+    await tick(); await tick();
+    expect(create).toHaveBeenCalledWith('Read the contract', expect.any(Date), expect.objectContaining({ url: 'https://docs.example/contract', repeat: 'daily' }));
+    create.mockRestore();
+  });
+
+  it('a site reminder comes back as the same site', async () => {
+    await VexQuickReminder.create('Check the order', { site: 'shop.example' });
+    await bridge.delete('r1');
+    VexQuickReminder.open();
+    await tick(); await tick();
+    document.querySelector('#qr-again-list .qr-up button').click();
+    expect(document.getElementById('qr-when').value).toBe('when I open shop.example');
   });
 });

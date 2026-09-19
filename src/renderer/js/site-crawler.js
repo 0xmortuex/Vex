@@ -233,6 +233,15 @@ const SiteCrawler = {
     if (!overlay.isConnected) return null;                  // closed while crawling
     stopBtn.remove();
     this._render({ run, head, body, close, esc });
+    // What changed since the last crawl from this page, and Run again.
+    if (window.CheckHistory) {
+      const pages = run.results.filter(r => !r.robots).length;
+      const entries = [{ key: 'pages', label: 'Pages checked', value: pages, text: String(pages) },
+        ...this.findings(run.results).map(f => ({ key: f.id, label: f.label, value: f.items.length, text: String(f.items.length) })).filter(e => e.value)];
+      const broken = this.findings(run.results).find(f => f.id === 'broken').items.length;
+      const prev = window.CheckHistory.track('crawl', wv, entries, pages + ' pages, ' + (broken ? broken + ' broken' : 'none broken'));
+      window.CheckHistory.decorate({ head, body, close }, 'crawl', prev, entries, () => this.run());
+    }
     return run;
   },
 

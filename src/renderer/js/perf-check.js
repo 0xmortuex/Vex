@@ -169,7 +169,17 @@ const PerfCheck = {
     if (!wv) throw new Error('No page is open');
     const r = await window.vexGuestEval(wv, this.script());
     if (!r || !r.metrics) throw new Error('The page did not report its timings');
-    this._render(r);
+    const sheet = this._render(r);
+    // What changed since the last check of this page, and Run again (which
+    // reloads first: these timings describe a load).
+    if (window.CheckHistory) {
+      const entries = Object.entries(this.THRESHOLDS).filter(([m]) => r.metrics[m] != null)
+        .map(([m, t]) => ({ key: m, label: t[3], value: r.metrics[m], text: this.fmt(m, r.metrics[m]) }));
+      const n = this.findings(r).length;
+      entries.push({ key: 'problems', label: 'Things slowing it down', value: n, text: String(n) });
+      const prev = window.CheckHistory.track('speed', wv, entries, this.summary(r));
+      window.CheckHistory.decorate(sheet, 'speed', prev, entries, () => window.CheckHistory.runOn('speed', null));
+    }
     return r;
   },
 
@@ -185,7 +195,8 @@ const PerfCheck = {
 
   _render(r) {
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
-    const { head, body } = window.PageExport._sheet('How fast is this page?', 'vex-perf-overlay');
+    const sheet = window.PageExport._sheet('How fast is this page?', 'vex-perf-overlay');
+    const { head, body } = sheet;
     head.insertAdjacentHTML('beforeend', `<button data-copy type="button" style="font-size:11.5px;color:var(--text);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">Copy report</button>`);
     head.querySelector('[data-copy]').addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(this.report(r)); window.showToast?.('Performance report copied'); }
@@ -208,7 +219,8 @@ const PerfCheck = {
       <div style="padding:4px 8px 10px">${f.length ? f.map(x => `<div style="display:flex;gap:8px;padding:6px;font-size:12.5px;color:var(--text)"><span style="flex:0 0 auto;margin-top:5px;width:8px;height:8px;border-radius:50%;background:${x.sev > 1 ? 'var(--danger,#e5534b)' : 'var(--warning,#d4a72c)'}"></span><span>${esc(x.text)}</span></div>`).join('') : '<div style="padding:10px 6px;font-size:12.5px;color:var(--text-muted)">Nothing here is slowing it down noticeably.</div>'}</div>
       ${r.heaviest && r.heaviest.length ? `<div style="padding:0 14px 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Heaviest files</div>
       <div style="padding:0 14px 14px">${r.heaviest.map(h => `<div style="display:flex;gap:10px;font-size:11.5px;padding:2px 0"><span style="flex:0 0 64px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text)">${esc(this.size(h.bytes))}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted)">${esc(h.name)}</span></div>`).join('')}</div>` : ''}
-      <div style="padding:0 14px 12px;font-size:10.5px;color:var(--text-muted)">${r.weight.hiddenSizes ? esc(r.weight.hiddenSizes + ' files from other sites did not reveal their size, so download totals are a minimum. ') : ''}Measured by Chromium as this page loaded. Graded against Google's Core Web Vitals thresholds. Reload the page and check again for a fresh load.</div>`;
+      <div style="padding:0 14px 12px;font-size:10.5px;color:var(--text-muted)">${r.weight.hiddenSizes ? esc(r.weight.hiddenSizes + ' files from other sites did not reveal their size, so download totals are a minimum. ') : ''}Measured by Chromium as this page loaded. Graded against Google's Core Web Vitals thresholds. Run again reloads the page and measures a fresh load.</div>`;
+    return sheet;
   },
 };
 

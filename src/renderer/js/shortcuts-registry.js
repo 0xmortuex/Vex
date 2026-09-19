@@ -48,6 +48,7 @@ const ShortcutsRegistry = (() => {
     'group-tabs':     { default: 'Ctrl+Shift+G', label: 'Organize Tabs with AI',      category: 'Tools' },
     'free-memory':    { default: 'Ctrl+Alt+M',   label: 'Free memory now',            category: 'Tools' },
     'toggle-theme':   { default: 'Ctrl+Shift+Y', label: 'Open Theme Picker',           category: 'Tools' },
+    'do-again':       { default: 'Ctrl+Alt+A',   label: 'Do the last Ctrl+K command again', category: 'Tools' },
 
     // Window
     'fullscreen':     { default: 'F11',          label: 'Fullscreen',                 category: 'Window' }

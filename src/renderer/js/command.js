@@ -12,6 +12,9 @@ const CommandBar = {
   results: [],
 
   commands: [
+    { id: 'do-again', label: 'Do That Again', shortcut: 'Ctrl+Alt+A', icon: 'history', isPrimary: true,
+      get hint() { const c = CommandBar.lastCommand(); return c ? 'Again: ' + c.label : 'Runs the last command you used here once more'; },
+      action: () => CommandBar.doAgain() },
     { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: 'plus', action: () => TabManager.createTab(START_URL, true) },
     { id: 'discover', label: 'Discover — everything Vex can do', hint: 'Every feature, by category, with "show me" on the real button', icon: 'compass', isPrimary: true, action: () => { if (typeof VexDiscover !== 'undefined') VexDiscover.open(); } },
     { id: 'tour', label: 'Guide / Tour', hint: 'The interactive walkthrough of the main controls', icon: 'compass', action: () => { if (typeof VexTour !== 'undefined') VexTour.start(); } },
@@ -25,6 +28,7 @@ const CommandBar = {
     { id: 'save-page', label: 'Save Page as One File', hint: 'The whole page — text, pictures, styles — in one .mhtml that opens offline', icon: 'save', action: async () => { try { await window.PageExport?.savePage('mhtml'); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'open-links', label: 'Open a List of Links', hint: 'Paste links in any form and each opens in its own tab', icon: 'link', action: async () => { try { await window.PageExport?.promptOpenMany(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'page-images', label: 'Images on This Page', hint: 'Every picture on the page, full size, to save one or all', icon: 'image', action: async () => { try { await window.PageExport?.openImages(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
+    { id: 'recent-checks', label: 'Recent Page Checks', hint: 'Link, speed, accessibility and crawl checks you ran, to run again and see what changed', icon: 'history', action: () => { try { window.CheckHistory?.open(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'crawl-site', label: 'Crawl This Site', hint: 'Every page of the site you are on: broken links and where they are, missing or duplicate titles, pages hidden from search', icon: 'globe', action: async () => { try { await window.SiteCrawler?.run(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'check-links', label: "Check This Page's Links", hint: 'Which links are broken, which moved — asked from an empty session so no site learns who you are', icon: 'link', action: async () => { try { await window.LinkChecker?.run(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'check-speed', label: 'Why Is This Page Slow?', hint: 'Load timings graded against Core Web Vitals, the heaviest files, oversized pictures and blocking scripts', icon: 'activity', action: async () => { try { await window.PerfCheck?.run(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
@@ -711,7 +715,9 @@ const CommandBar = {
     const u = this._usage();
     const e = u[item.id] || { n: 0, at: 0 };
     e.n = Math.min(999, (e.n || 0) + 1);
-    e.at = Date.now();
+    // Strictly after every earlier stamp, so "the last command" (Do That
+    // Again) is exact even for two in the same millisecond.
+    e.at = Math.max(Date.now(), ...Object.values(u).map(x => (x && x.at) || 0).map(t => t + 1));
     u[item.id] = e;
     const ids = Object.keys(u);
     if (ids.length > 60) {
@@ -725,6 +731,24 @@ const CommandBar = {
     this._recordUsage(item);
     this.close();
     item.action();
+  },
+
+  // ---- do that again
+  // The last command run from here, read from the usage record (which already
+  // stamps each command with when it was last used) — "Do That Again" and
+  // Ctrl+Alt+A run it once more. It is never itself.
+  lastCommand() {
+    const u = this._usage();
+    const id = Object.keys(u).filter(k => k !== 'do-again' && this.commands.some(c => c.id === k))
+      .sort((a, b) => (u[b].at || 0) - (u[a].at || 0))[0];
+    return id ? this.commands.find(c => c.id === id) : null;
+  },
+
+  doAgain() {
+    const c = this.lastCommand();
+    if (!c) { window.showToast?.('Nothing to do again yet — run something from Ctrl+K first'); return false; }
+    this._execute(c);
+    return true;
   },
 
   // An icon name from vex-icons.js as <svg>. Kept tiny so call sites read well.

@@ -175,7 +175,16 @@ const A11yCheck = {
     if (!wv) throw new Error('No page is open');
     const result = await window.vexGuestEval(wv, this.script());
     if (!result || !Array.isArray(result.issues)) throw new Error('The page could not be checked');
-    this._render(result, wv);
+    const sheet = this._render(result, wv);
+    // What changed since the last check of this page, and Run again.
+    if (window.CheckHistory) {
+      const entries = Object.entries(this.RULES).map(([rule, label]) => {
+        const n = result.counts[rule] || result.issues.filter(i => i.rule === rule).length;
+        return { key: rule, label, value: n, text: String(n) };
+      }).filter(e => e.value);
+      const prev = window.CheckHistory.track('a11y', wv, entries, this.summary(result));
+      window.CheckHistory.decorate(sheet, 'a11y', prev, entries, () => this.run());
+    }
     return result;
   },
 
@@ -241,6 +250,7 @@ const A11yCheck = {
       if (total > items.length) list.insertAdjacentHTML('beforeend', `<div style="padding:2px 24px 6px;font-size:11px;color:var(--text-muted)">…and ${total - items.length} more like these</div>`);
     }
     if (!result.issues.length) list.innerHTML = '<div style="padding:24px;text-align:center;font-size:12.5px;color:var(--text-muted)">Nothing found.</div>';
+    return { head, body, close };
   },
 
   showOnPage(wv, index) {

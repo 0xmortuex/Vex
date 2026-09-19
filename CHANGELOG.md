@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.32.29 (2026-09-19) — Do it again
+
+### Notes
+You asked to be able to repeat actions you took before, in the Clock and elsewhere. Four places now remember:
+- **Clock: timers.** Every timer you start is remembered by length and label (the last 8, no duplicates). Under the presets, **Again** chips such as "3:00 · Tea" or "25:00 · Focus" start one again in a click.
+- **Clock: alarms.** Every alarm you set is remembered: time, days and label. Once it's no longer set (a one-off that rang, or one you removed), it appears under **Set again**, with the same days.
+- **Reminders.** *Remind me* has a **Remind me again** list of past reminders. It includes those you set there and any that fired in the last week, however they were made (Calendar, the AI). **Again** fills in the text, the page it was about, the repeat and urgency, and puts you in the *When?* box, since the time is the one thing that changes.
+- **Ctrl+K: Do That Again.** Re-runs the last command you used, and its hint says which one ("Again: Check This Page's Links"). It's also on **Ctrl+Alt+A**, rebindable in Settings. Like Vex's other Ctrl+Alt shortcuts, it works while the Vex window has focus, not while you're typing inside a web page; web pages keep their own keys.
+- **Page checks.** The link check, speed check, accessibility check and site crawl each keep their numbers per page:
+  - The next check of the same page opens with **what changed**, for example *Broken 2 → 1 · Working 0 → 1*, or *The same as last time*.
+  - Every report has **Run again**. For the speed check it reloads the page first, because its timings describe a page load.
+  - **Recent Page Checks** (`Ctrl+K`) lists them, to run any again. It opens the page first if another one is showing.
+  - Only the counts are kept, never the page or the report, and nothing at all from a private or Tor tab.
+- Tested live: after one of two broken links on a test page was fixed, Run again reported *Broken 2 → 1 · Working 0 → 1*. A timer, an alarm (Tue/Thu 06:15) and a weekly reminder with a link each came back correctly.
+
 ## v2.32.28 (2026-09-19) — Watched pages show up where they should
 
 ### Fixes

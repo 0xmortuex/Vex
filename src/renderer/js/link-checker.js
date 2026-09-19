@@ -70,6 +70,13 @@ const LinkChecker = {
     const byUrl = new Map(links.map(l => [l.url, l]));
     const rows = r.results.map(x => ({ ...x, ...(byUrl.get(x.url) || {}), group: this.groupOf(x) }));
     this._render({ rows, skipped: r.skipped, wv, head, body, close });
+    // What changed since the last check of this page, and Run again.
+    if (window.CheckHistory) {
+      const entries = this.GROUPS.map(([g, label]) => { const n = rows.filter(x => x.group === g).length; return { key: g, label, value: n, text: String(n) }; });
+      const bad = rows.filter(x => ['broken', 'error', 'slow'].includes(x.group)).length;
+      const prev = window.CheckHistory.track('links', wv, entries, bad ? bad + ' of ' + rows.length + ' links not working' : 'All ' + rows.length + ' links working');
+      window.CheckHistory.decorate({ head, body, close }, 'links', prev, entries, () => this.run());
+    }
     return rows;
   },
 

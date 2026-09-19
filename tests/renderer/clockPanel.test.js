@@ -132,3 +132,72 @@ describe('timers and ringing', () => {
     ring.querySelector('#ck-dismiss').click();
   });
 });
+
+describe('doing it again', () => {
+  let bridge, active;
+  beforeEach(() => {
+    localStorage.clear();
+    document.body.innerHTML = '<button id="timer-pill" hidden><span></span></button><div id="panel"></div>';
+    active = [];
+    bridge = {
+      create: vi.fn(async (message, at, extra) => { const r = { id: 'r' + Math.random().toString(36).slice(2, 6), message, at, ...extra, os: { scheduled: true, error: null } }; active.push(r); return r; }),
+      delete: vi.fn(async (id) => { active = active.filter(r => r.id !== id); return { ok: true }; }),
+      list: vi.fn(async () => active.slice()), ack: vi.fn(async () => ({ ok: true })), onFired: vi.fn(), onClicked: vi.fn(),
+    };
+    global.window.vex = { reminders: bridge, focusWindow: vi.fn() };
+    global.window.showToast = vi.fn();
+    VexClock._timers = [];
+  });
+
+  it('remembers timers you ran, newest first, without repeats', async () => {
+    await VexClock.addTimer('25 min', 'Focus');
+    await VexClock.addTimer('3 min', 'Tea');
+    await VexClock.addTimer('25:00', 'Focus');
+    expect(VexClock.recentTimers().map(t => [t.label, t.total])).toEqual([['Focus', 25 * 60000], ['Tea', 3 * 60000]]);
+  });
+
+  it('keeps only the last few', async () => {
+    for (let i = 1; i <= 10; i++) await VexClock.addTimer(i + ' min', 'T' + i);
+    expect(VexClock.recentTimers()).toHaveLength(VexClock.MAX_RECENT);
+    expect(VexClock.recentTimers()[0].label).toBe('T10');
+  });
+
+  it('Again on a timer chip starts the same length and label', async () => {
+    await VexClock.addTimer('1h 30', 'Bread');
+    await VexClock.removeTimer(VexClock._timers[0].id);
+    VexClock._tab = 'timers';
+    VexClock.renderPanel(document.getElementById('panel'));
+    const chip = [...document.querySelectorAll('#clock-timers-recent .qr-chip')].find(c => c.textContent.includes('Bread'));
+    expect(chip.textContent).toBe('1:30:00 · Bread');
+    chip.click();
+    await new Promise(r => setTimeout(r, 0));
+    expect(VexClock._timers.map(t => [t.label, t.total])).toEqual([['Bread', 90 * 60000]]);
+  });
+
+  it('alarms you set are offered again once they are no longer set', async () => {
+    const r = await VexClock.setAlarm({ hh: 6, mm: 15, days: [2], label: 'Gym' });
+    VexClock._tab = 'alarms';
+    VexClock.renderPanel(document.getElementById('panel'));
+    await new Promise(res => setTimeout(res, 0));
+    expect(document.querySelector('#ck-alarm-recent').textContent).not.toContain('Gym');   // still set
+    await bridge.delete(r.id);
+    VexClock.renderPanel(document.getElementById('panel'));
+    await new Promise(res => setTimeout(res, 0));
+    const row = [...document.querySelectorAll('#ck-alarm-recent .ck-item')].find(x => x.textContent.includes('Gym'));
+    expect(row.textContent).toContain('06:15');
+    expect(row.textContent).toContain('Tue');
+    row.querySelector('button').click();
+    await new Promise(res => setTimeout(res, 0));
+    const again = bridge.create.mock.calls[1];
+    expect(again[0]).toBe('Gym');
+    expect(again[2]).toMatchObject({ kind: 'alarm', repeat: [2] });
+    expect(new Date(again[1]).getDay()).toBe(2);
+    expect(new Date(again[1]).getHours()).toBe(6);
+  });
+
+  it('a one-off alarm is remembered with no days, and set again as a one-off', async () => {
+    await VexClock.setAlarm({ hh: 23, mm: 5, days: [], label: 'Bins' });
+    expect(VexClock.recentAlarms()[0]).toMatchObject({ label: 'Bins', hh: 23, mm: 5, days: [] });
+    expect(bridge.create.mock.calls[0][2].repeat).toBeUndefined();
+  });
+});

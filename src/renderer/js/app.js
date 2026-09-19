@@ -1064,6 +1064,7 @@
     ShortcutsRegistry.register('reading-mode',   () => ReadingMode?.activate?.());
     ShortcutsRegistry.register('screenshot',     () => ScreenshotTool?.capture?.());
     ShortcutsRegistry.register('group-tabs',     () => TabGrouper?.analyzeAndPropose?.());
+    ShortcutsRegistry.register('do-again',       () => CommandBar.doAgain());
     ShortcutsRegistry.register('toggle-theme',   () => {
       // Opens the visual theme picker (grid of previews). Falls back to a
       // blind cycle only if the picker module somehow failed to load.

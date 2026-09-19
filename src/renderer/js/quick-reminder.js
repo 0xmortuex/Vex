@@ -310,14 +310,51 @@ const VexQuickReminder = {
     // Tagged with the job it was set under, so Today can show work apart.
     try { const job = (typeof JobProfiles !== 'undefined' && JobProfiles.current) ? JobProfiles.current() : null; if (job) opts.job = String(job); } catch { /* no job set */ }
     let made;
-    if (when && typeof when === 'object' && !(when instanceof Date) && when.site) {
-      made = await this._bridge().create(text, null, { ...opts, site: String(when.site) });
+    const site = when && typeof when === 'object' && !(when instanceof Date) && when.site ? String(when.site) : '';
+    if (site) {
+      made = await this._bridge().create(text, null, { ...opts, site });
     } else {
       if (!(when instanceof Date) || Number.isNaN(when.getTime())) throw new Error('That is not a real time.');
       made = await this._bridge().create(text, when.getTime(), opts);
     }
+    this._remember({ message: text, url: opts.url || '', repeat: opts.repeat || '', urgent: !!opts.urgent, site });
     this._mirror();
     return made;
+  },
+
+  // ---- remind me again
+  //
+  // A reminder that has fired is pruned after a week, and one you removed is
+  // gone at once — so "call the dentist to rebook" had to be typed again. The
+  // last few you set are kept here (text, page, repeat, urgency; never the
+  // time, which is the thing that changes), to set again with a new time.
+  KEY_RECENT: 'vex.reminders.recent',
+  MAX_RECENT: 12,
+  _sameReminder(a, b) { return a.message === b.message && (a.url || '') === (b.url || '') && (a.site || '') === (b.site || ''); },
+  _loadRecent() {
+    try { const a = JSON.parse(localStorage.getItem(this.KEY_RECENT) || '[]'); return Array.isArray(a) ? a.filter(r => r && typeof r.message === 'string' && r.message) : []; }
+    catch (err) { window.showToast?.('Your recent reminders could not be read — starting a new list', 'error'); return []; }
+  },
+  _remember(r) {
+    const list = [{ ...r, at: Date.now() }, ...this._loadRecent().filter(x => !this._sameReminder(x, r))].slice(0, this.MAX_RECENT);
+    try { localStorage.setItem(this.KEY_RECENT, JSON.stringify(list)); }
+    catch (err) { window.showToast?.('Could not remember that reminder for next time: ' + ((err && err.message) || ''), 'error'); }
+  },
+
+  // What can be set again: remembered ones, plus any reminder that fired in
+  // the last week however it was made (the calendar, the AI), less anything
+  // still waiting to fire.
+  againList(all) {
+    const pending = all.filter(r => !r.firedAt && (!r.kind || r.kind === 'reminder'));
+    const fired = all.filter(r => r.firedAt && (!r.kind || r.kind === 'reminder'))
+      .sort((a, b) => b.firedAt - a.firedAt)
+      .map(r => ({ message: r.message, url: r.url || '', repeat: typeof r.repeat === 'string' ? r.repeat : '', urgent: !!r.urgent, site: r.site || '', at: r.firedAt }));
+    const out = [];
+    for (const r of [...this._loadRecent(), ...fired].sort((a, b) => (b.at || 0) - (a.at || 0))) {
+      if (out.some(x => this._sameReminder(x, r)) || pending.some(p => this._sameReminder({ message: p.message, url: p.url, site: p.site }, r))) continue;
+      out.push(r);
+    }
+    return out.slice(0, this.MAX_RECENT);
   },
 
   async list() { return this._bridge().list(); },
@@ -575,6 +612,10 @@ const VexQuickReminder = {
           <div class="qr-label">Upcoming</div>
           <div class="qr-upcoming-list" id="qr-upcoming-list"></div>
         </section>
+        <section class="qr-upcoming" id="qr-again" hidden>
+          <div class="qr-label">Remind me again</div>
+          <div class="qr-upcoming-list" id="qr-again-list"></div>
+        </section>
       </div>`;
     document.body.appendChild(wrap);
 
@@ -611,6 +652,37 @@ const VexQuickReminder = {
       whenEl.focus();
     }));
 
+    // Past reminders, to set again: Again fills in everything but the time.
+    // The page a past reminder was about travels with it, whatever tab is open.
+    let carried = null;
+    const again = wrap.querySelector('#qr-again');
+    const againList = wrap.querySelector('#qr-again-list');
+    const renderAgain = (all) => {
+      const items = this.againList(all);
+      again.hidden = !items.length;
+      againList.innerHTML = '';
+      for (const r of items) {
+        const row = document.createElement('div');
+        row.className = 'qr-up';
+        row.innerHTML = `<span class="qr-up-text"></span><span class="qr-up-when"></span><button class="qr-btn qr-again-btn" type="button">Again</button>`;
+        row.querySelector('.qr-up-text').textContent = r.message;
+        row.querySelector('.qr-up-when').textContent = [r.site ? 'when I open ' + r.site : '', r.repeat ? 'repeats ' + r.repeat : '', r.url ? (() => { try { return 'about ' + new URL(r.url).hostname.replace(/^www\./, ''); } catch { return ''; } })() : ''].filter(Boolean).join(' · ');
+        row.querySelector('button').addEventListener('click', () => {
+          textEl.value = r.message;
+          repeatEl.value = r.repeat || '';
+          wrap.querySelector('#qr-urgent').checked = !!r.urgent;
+          carried = { url: r.url || '' };
+          const pageBox = wrap.querySelector('#qr-page');
+          if (pageBox) pageBox.checked = false;          // the link is the old reminder's, not this tab's
+          whenEl.value = r.site ? 'when I open ' + r.site : '';
+          refresh();
+          if (!r.site) { preview.textContent = 'When this time? Everything else is as before.'; preview.className = 'qr-preview'; }
+          whenEl.focus();
+        });
+        againList.appendChild(row);
+      }
+    };
+
     // What is already set, with a way to take one back. Read from the main
     // process, which is the only copy — a list drawn from anything else could
     // disagree with what will actually fire.
@@ -620,6 +692,7 @@ const VexQuickReminder = {
       let all;
       try { all = await this.list(); }
       catch (err) { upcoming.hidden = true; window.showToast?.('Could not read reminders: ' + ((err && err.message) || ''), 'error'); return; }
+      renderAgain(all);
       const pending = all.filter(r => !r.firedAt);
       upcoming.hidden = !pending.length;
       upcomingList.innerHTML = '';
@@ -651,7 +724,7 @@ const VexQuickReminder = {
         const extra = {
           repeat: (!trig.site && repeatEl.value) || undefined,
           urgent: wrap.querySelector('#qr-urgent').checked || undefined,
-          url: (page && wrap.querySelector('#qr-page') && wrap.querySelector('#qr-page').checked) ? page.url : undefined,
+          url: (page && wrap.querySelector('#qr-page') && wrap.querySelector('#qr-page').checked) ? page.url : ((carried && carried.url) || undefined),
         };
         saveBtn.disabled = true;
         const r = await this.create(textEl.value, trig.site ? { site: trig.site } : trig.at, extra);
