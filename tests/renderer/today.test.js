@@ -5,6 +5,7 @@
 // failing is reported in the snapshot, not allowed to blank the others.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { VexToday } = require('../../src/renderer/js/today.js');
+require('../../src/renderer/js/page-watch.js');       // the real one: a mock of a module that did not exist hid a dead section
 
 const NOW = new Date(2026, 8, 13, 14, 30).getTime();
 const later = (min) => NOW + min * 60000;
@@ -22,7 +23,7 @@ describe('the Today snapshot', () => {
     ]), onFired: vi.fn() } };
     globalThis.Scheduler = { getAllTasks: () => [{ id: 't1', name: 'Nightly sweep', enabled: true }, { id: 't2', name: 'Paused', enabled: false }],
       nextOccurrence: (t) => (t.id === 't1' ? later(90) : null), describeAction: () => 'Open pages' };
-    globalThis.WebMonitor = { watches: [{ id: 'w1', url: 'https://news.example/', title: 'News', changed: true, changedAt: later(-10) }, { id: 'w2', url: 'https://quiet.example/', changed: false }] };
+    localStorage.setItem('vex.pageWatches', JSON.stringify([{ id: 'w1', url: 'https://news.example/', title: 'News', lastChangedAt: later(-10) }, { id: 'w2', url: 'https://quiet.example/', title: 'Quiet', lastChangedAt: 0 }, { id: 'w3', url: 'https://stale.example/', title: 'Stale', lastChangedAt: later(-2 * 24 * 60) }]));
     globalThis.ReadLater = { items: [{ id: 'r1', url: 'https://read.example/', title: 'Long read', at: later(-120), read: false }, { id: 'r2', url: 'https://old.example/', title: 'Old', at: later(-5 * 24 * 60), read: false }] };
   });
 
@@ -48,7 +49,7 @@ describe('the Today snapshot', () => {
   });
 
   it('copes with a Vex that has none of the sources', async () => {
-    delete global.window.vex; delete globalThis.Scheduler; delete globalThis.WebMonitor; delete globalThis.ReadLater;
+    delete global.window.vex; delete globalThis.Scheduler; localStorage.removeItem('vex.pageWatches'); delete globalThis.ReadLater;
     const snap = await VexToday.refresh();
     expect(snap).toMatchObject({ reminders: [], tasks: [], changed: [], saved: [], errors: [] });
   });

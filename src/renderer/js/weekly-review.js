@@ -65,8 +65,10 @@ const VexReview = {
       }
     } catch (err) { r.errors.push('read later: ' + ((err && err.message) || 'unavailable')); }
     try {
-      if (typeof WebMonitor !== 'undefined' && Array.isArray(WebMonitor.watches)) {
-        r.changed = WebMonitor.watches.filter(w => w.changedAt && w.changedAt >= weekAgo).map(w => ({ text: w.title || w.url, url: w.url, at: w.changedAt }));
+      // Page watches (page-watch.js). This read a WebMonitor that never
+      // existed, so "which watched pages changed" was always empty.
+      if (window.PageWatch) {
+        r.changed = window.PageWatch.list().filter(w => w.lastChangedAt && w.lastChangedAt >= weekAgo).map(w => ({ text: w.title || w.url, url: w.url, at: w.lastChangedAt }));
       }
     } catch (err) { r.errors.push('watched pages: ' + ((err && err.message) || 'unavailable')); }
     try {

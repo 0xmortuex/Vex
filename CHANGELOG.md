@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.32.28 (2026-09-19) — Watched pages show up where they should
+
+### Fixes
+- **"Watched pages that changed" was always empty**, both on the **Today** card of the new tab page and in the Friday **Weekly Review**. Both read the list from a module called `WebMonitor` that was never written; the real one is *Tell me when this changes* (`PageWatch`). Because the read was guarded, it failed silently. Their tests mocked the same missing module, so they passed. Both now read the real watches: Today shows those that changed in the last 24 hours, and the review those from the last week. Checked live with a watched page that changed an hour ago; it appears in both.
+- **A new check stops this happening again:** a test now fails if any guarded read names a module that nothing in Vex declares. Run against the old code, it names exactly this bug, and it finds no others.
+
+### Notes
+- Price alerts already exist, so nothing new was built for them. *Tell me when this changes* can watch a number on a page and tell you when it goes **below** (or above) a figure. Together with Price History (v2.32.27), that covers "tell me when it's cheaper".
+
 ## v2.32.27 (2026-09-19) — Price history
 
 ### Notes

@@ -73,12 +73,14 @@ const VexToday = {
     } catch (err) { snap.errors.push('scheduled tasks: ' + ((err && err.message) || 'unavailable')); }
 
     try {
-      if (typeof WebMonitor !== 'undefined' && Array.isArray(WebMonitor.watches)) {
-        snap.changed = WebMonitor.watches
-          .filter(w => w.changed)
-          .sort((a, c) => (c.changedAt || 0) - (a.changedAt || 0))
+      // Page watches (page-watch.js) that changed in the last day. This read
+      // a WebMonitor that never existed, so the section was always empty.
+      if (window.PageWatch) {
+        snap.changed = window.PageWatch.list()
+          .filter(w => w.lastChangedAt && now - w.lastChangedAt < 24 * 3600 * 1000)
+          .sort((a, c) => c.lastChangedAt - a.lastChangedAt)
           .slice(0, this.MAX_PER_KIND)
-          .map(w => ({ id: w.id, text: w.title || w.url, url: w.url, at: w.changedAt || null }));
+          .map(w => ({ id: w.id, text: w.title || w.url, url: w.url, at: w.lastChangedAt }));
       }
     } catch (err) { snap.errors.push('watched pages: ' + ((err && err.message) || 'unavailable')); }
 

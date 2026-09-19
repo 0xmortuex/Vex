@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
 globalThis.VexIcons = VexIcons; global.window.VexIcons = VexIcons;
 const { VexReview } = require('../../src/renderer/js/weekly-review.js');
+require('../../src/renderer/js/page-watch.js');       // the real one: a mock of a module that did not exist hid a dead section
 
 const NOW = new Date(2026, 8, 13, 14, 30).getTime();   // Sunday
 const ago = (days) => NOW - days * 24 * 3600000;
@@ -23,7 +24,7 @@ describe('building the review', () => {
       { id: 'f', message: 'Weekly review', at: NOW + 5 * 86400000, firedAt: null, kind: 'review', createdAt: ago(9) },
     ]), onFired: vi.fn(), create: vi.fn(async (m, at, x) => ({ id: 'rv', message: m, at, ...x })) } };
     globalThis.ReadLater = { items: [{ id: 'r1', url: 'https://read.example/', title: 'Long read', at: ago(3), read: false }, { id: 'r2', url: 'https://done.example/', title: 'Done', at: ago(2), read: true }, { id: 'r3', url: 'https://old.example/', title: 'Old', at: ago(30), read: false }] };
-    globalThis.WebMonitor = { watches: [{ id: 'w1', url: 'https://news.example/', title: 'News', changedAt: ago(1) }, { id: 'w2', url: 'https://quiet.example/', changedAt: ago(40) }] };
+    localStorage.setItem('vex.pageWatches', JSON.stringify([{ id: 'w1', url: 'https://news.example/', title: 'News', lastChangedAt: ago(1) }, { id: 'w2', url: 'https://quiet.example/', title: 'Quiet', lastChangedAt: ago(40) }]));
     localStorage.setItem('vex.tool.history.base64', JSON.stringify([{ input: 'a', at: ago(1) }, { input: 'b', at: ago(2) }, { input: 'c', at: ago(30) }]));
   });
 
@@ -92,7 +93,7 @@ describe('scheduling itself', () => {
     document.body.innerHTML = '';
     let handler = null;
     global.window.vex = { reminders: { list: vi.fn(async () => []), create: vi.fn(async () => ({})), onFired: (cb) => { handler = cb; } } };
-    globalThis.ReadLater = { items: [] }; globalThis.WebMonitor = { watches: [] };
+    globalThis.ReadLater = { items: [] }; localStorage.setItem('vex.pageWatches', '[]');
     expect(VexReview.init()).toBe(true);
     handler({ id: 'rv', kind: 'review', message: 'Weekly review' });
     await new Promise(r => setTimeout(r, 0)); await new Promise(r => setTimeout(r, 0));
