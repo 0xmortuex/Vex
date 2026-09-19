@@ -186,6 +186,8 @@ const VexFeatures = {
       what: 'When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and holds background AI — and tells you what it did when you come back. Settings › Gaming.' },
     { id: 'record-screen', cat: 'media', cmd: 'record-screen',
       what: 'Record a screen or a window, with its sound, to a video file — no recorder to install. Written to disk as it goes, so a long recording never fills memory.' },
+    { id: 'whiteboard', cat: 'media', cmd: 'whiteboard',
+      what: 'A blank white page to sketch on with the same pen, highlighter, boxes, arrows and text as Mark Up. Save it as a picture or copy it; closing after drawing asks first.' },
     { id: 'markup', cat: 'media', cmd: 'markup',
       what: 'Draw on a picture of the page — pen, highlighter, boxes, arrows, text — and redact anything private before you share it. Redaction replaces the pixels; it cannot be peeled off.' },
     { id: 'screenshot-full', cat: 'media', cmd: 'screenshot-full',

@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.22 (2026-09-19) — Whiteboard
+
+### Notes
+- **Whiteboard** (`Ctrl+K`). A blank white page to sketch on, with the same pen, highlighter, box, arrow, text and undo as **Mark Up This Page**. Save it as a PNG or copy it.
+- The pen starts dark instead of red, and there's no Redact button, because there's nothing on a blank page to hide.
+- **Closing after you've drawn asks first.** A marked-up screenshot can be taken again, but a sketch can't. Closing an empty board doesn't ask.
+
+### Internal
+- Found in the live test, not the unit test: the command first reached the editor as `window.ScreenshotTool`, which doesn't exist (it's a top-level `const`), so Ctrl+K did nothing. It now uses the bare name like its neighbours; the existing guard test covers this pattern.
+
 ## v2.32.21 (2026-09-19) — Habits
 
 ### Notes

@@ -163,7 +163,18 @@ const ScreenshotTool = {
     return this.annotate(image.toDataURL());
   },
 
-  annotate(dataUrl) {
+  // A blank page to draw on: the same editor, on white, with nothing to redact.
+  whiteboard() {
+    const c = document.createElement('canvas');
+    c.width = this.BOARD_W; c.height = this.BOARD_H;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height);
+    return this.annotate(c.toDataURL('image/png'), { board: true });
+  },
+  BOARD_W: 1600,
+  BOARD_H: 1000,
+
+  annotate(dataUrl, { board = false } = {}) {
     document.getElementById('vex-annotate')?.remove();
     const icon = (name) => (window.VexIcons ? VexIcons.svg(name, { size: 14 }) : '');
     const btn = 'display:inline-flex;align-items:center;gap:5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12.5px';
@@ -172,8 +183,8 @@ const ScreenshotTool = {
     wrap.style.cssText = 'position:fixed;inset:0;z-index:99000;background:rgba(0,0,0,0.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px';
     wrap.innerHTML = `
       <div role="toolbar" aria-label="Mark up" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px">
-        ${this.TOOLS.map(([id, label, ic]) => `<button data-tool="${id}" class="an-tool" type="button" title="${label}" style="${btn}">${icon(ic)}${label}</button>`).join('')}
-        <input type="color" id="an-color" value="#ef4444" aria-label="Colour" style="width:30px;height:30px;border:none;background:none;cursor:pointer">
+        ${this.TOOLS.filter(([id]) => !(board && id === 'redact')).map(([id, label, ic]) => `<button data-tool="${id}" class="an-tool" type="button" title="${label}" style="${btn}">${icon(ic)}${label}</button>`).join('')}
+        <input type="color" id="an-color" value="${board ? '#1f2937' : '#ef4444'}" aria-label="Colour" style="width:30px;height:30px;border:none;background:none;cursor:pointer">
         <span style="width:1px;height:20px;background:var(--border)"></span>
         <button id="an-undo" type="button" style="${btn}">${icon('undo')}Undo</button>
         <button id="an-save" type="button" style="${btn};background:var(--primary);color:#fff;border-color:var(--primary)">${icon('save')}Save</button>
@@ -224,7 +235,8 @@ const ScreenshotTool = {
         ctx.stroke();
       } else if (tool === 'highlight') {
         ctx.globalAlpha = 0.35;
-        ctx.fillStyle = wrap.querySelector('#an-color').value === '#ef4444' ? '#ffe14d' : wrap.querySelector('#an-color').value;
+        const picked = wrap.querySelector('#an-color').value;
+        ctx.fillStyle = (picked === '#ef4444' || picked === '#1f2937') ? '#ffe14d' : picked;   // the default pen colour highlights in yellow
         const h = Math.max(line() * 6, Math.abs(p.y - sy) || line() * 6);
         ctx.fillRect(Math.min(sx, p.x), Math.min(sy, p.y) - (Math.abs(p.y - sy) ? 0 : h / 2), Math.abs(p.x - sx), h);
       } else if (tool === 'redact') {
@@ -286,8 +298,8 @@ const ScreenshotTool = {
     wrap.querySelector('#an-save').addEventListener('click', () => {
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = `vex-annotated-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`;
-      a.click(); wrap.remove(); window.showToast?.('Marked-up picture saved');
+      a.download = `vex-${board ? 'whiteboard' : 'annotated'}-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`;
+      a.click(); wrap.remove(); window.showToast?.(board ? 'Whiteboard saved' : 'Marked-up picture saved');
     });
     wrap.querySelector('#an-copy').addEventListener('click', () => {
       canvas.toBlob(async (blob) => {
@@ -297,7 +309,14 @@ const ScreenshotTool = {
         catch (err) { window.showToast?.('Could not copy the picture — use Save instead (' + ((err && err.message) || 'clipboard refused') + ')', 'error'); }
       });
     });
-    wrap.querySelector('#an-close').addEventListener('click', () => wrap.remove());
+    wrap.querySelector('#an-close').addEventListener('click', async () => {
+      // A whiteboard is work of its own, not a picture that can be taken again.
+      if (board && history.length > 1) {
+        const ok = await window.vexConfirm({ title: 'Close the whiteboard?', message: 'What you drew is not saved. Use Save or Copy first to keep it.', okLabel: 'Close without saving', danger: true });
+        if (!ok) return;
+      }
+      wrap.remove();
+    });
     return wrap;
   }
 };

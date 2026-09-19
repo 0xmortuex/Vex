@@ -72,3 +72,34 @@ describe('Mark Up This Page', () => {
     await expect(ScreenshotTool.markUp()).rejects.toThrow(/could not be captured/);
   });
 });
+
+describe('Whiteboard', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    // jsdom has no canvas drawing; a stub records what the blank page was filled with.
+    HTMLCanvasElement.prototype.getContext = function () { return { fillRect: vi.fn(), set fillStyle(v) { this._fill = v; }, get fillStyle() { return this._fill; } }; };
+    HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,BLANK';
+  });
+
+  it('opens the editor on a white page, with no Redact and a dark pen', () => {
+    const wrap = ScreenshotTool.whiteboard();
+    const tools = [...wrap.querySelectorAll('.an-tool')].map(b => b.dataset.tool);
+    expect(tools).toEqual(['pen', 'highlight', 'rect', 'arrow', 'text']);
+    expect(wrap.querySelector('#an-color').value).toBe('#1f2937');
+  });
+
+  it('marking up a page still has Redact and the red pen', () => {
+    const wrap = ScreenshotTool.annotate('data:image/png;base64,AAA');
+    expect([...wrap.querySelectorAll('.an-tool')].map(b => b.dataset.tool)).toContain('redact');
+    expect(wrap.querySelector('#an-color').value).toBe('#ef4444');
+  });
+
+  it('closing an untouched whiteboard does not ask', async () => {
+    window.vexConfirm = vi.fn();
+    const wrap = ScreenshotTool.whiteboard();
+    wrap.querySelector('#an-close').click();
+    await Promise.resolve();
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(wrap.isConnected).toBe(false);
+  });
+});
