@@ -909,6 +909,10 @@
   SiteRulesUI.init();
   // A meeting that was running when Vex closed (js/meeting-mode.js).
   MeetingMode.init();
+  // Type @ in the AI box to name a tab (js/tab-mentions.js).
+  TabMentions.init();
+  // Drop a PDF or a text file on the AI panel (js/chat-file.js).
+  ChatFile.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
   window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });
   {

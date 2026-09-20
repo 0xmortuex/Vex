@@ -1201,6 +1201,12 @@ const AIPanel = {
         const vexMsg = this._vexKnowledge(opts.message);
         if (vexMsg) conversationHistory = [vexMsg, ...conversationHistory.slice(-9)];
       }
+      // A file dropped on the panel (js/chat-file.js) goes in front of the
+      // question, marked as material rather than instructions.
+      if (feature === 'chat' && typeof ChatFile !== 'undefined') {
+        const fileMsg = ChatFile.historyMessage();
+        if (fileMsg) conversationHistory = [fileMsg, ...conversationHistory.slice(-9)];
+      }
       // Only chat streams: the other actions render structured output that
       // means nothing until it is complete.
       const onToken = (feature === 'chat') ? this._liveRenderer(loadingEl) : null;

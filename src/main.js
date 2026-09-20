@@ -1203,6 +1203,29 @@ ipcMain.handle('dict:lookup', async (_e, word) => {
   }
 });
 
+// === The text of a file you dropped on the AI panel ========================
+// The renderer hands over the bytes; the words come back. A PDF is inflated
+// and read here (src/main/pdf-text.js) because zlib is here; plain text, and
+// the text-shaped formats, are just decoded. Nothing is written to disk and
+// nothing leaves the machine — what the AI is then asked is the renderer's
+// business, and the user's.
+ipcMain.handle('doc:text', async (_e, bytes, name) => {
+  const filename = String(name || '');
+  try {
+    const buffer = Buffer.from(bytes.buffer || bytes, bytes.byteOffset || 0, bytes.byteLength || bytes.length);
+    if (/\.pdf$/i.test(filename) || buffer.subarray(0, 5).toString('latin1') === '%PDF-') {
+      const text = require('./main/pdf-text').extract(buffer, (raw) => require('zlib').inflateSync(raw));
+      if (!text) return { ok: false, error: 'There is no text in that PDF to read — it is probably a scan of paper, or it is locked' };
+      return { ok: true, text, kind: 'pdf' };
+    }
+    const text = buffer.toString('utf8').replace(/\u0000/g, '');
+    if (!text.trim()) return { ok: false, error: 'That file has no text in it' };
+    return { ok: true, text, kind: 'text' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // === Is it me or the server? ===============================================
 // Times a plain TCP connection to a few well-known hosts (src/main/latency.js)
 // so a stutter can be blamed on the right thing. Nothing is sent, and nothing

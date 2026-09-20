@@ -603,6 +603,10 @@ Use exactly the tool names and parameter names listed under "Available tools". N
     setModel, getModel, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
     // Settings › AI "Test as agent": the local agent, on a named model.
     localAgent: (request, model) => callLocalAgent(request, model),
+    // One named backend, with no routing and no falling back to another —
+    // for asking the same question of two of them at once
+    // (js/two-models.js). Everything else should use callAI.
+    callOn: (backend, feature, request) => callBackend(backend, feature, request),
     cloudWorkerUrl,
     _cleanIpcError
   };

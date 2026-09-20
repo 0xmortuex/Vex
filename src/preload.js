@@ -161,6 +161,8 @@ contextBridge.exposeInMainWorld('vex', {
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // One cookie at a time, in the tab's own partition.
+  // The words inside a file dropped on the AI panel.
+  docText: (bytes, name) => ipcRenderer.invoke('doc:text', bytes, name),
   // Per-site switches: JavaScript, cookies, third-party content.
   siteRulesGet: () => ipcRenderer.invoke('siterules:get'),
   siteRulesSet: (rules) => ipcRenderer.invoke('siterules:set', rules),
