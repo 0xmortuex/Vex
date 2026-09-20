@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.32.59 (2026-09-20) — What your extensions can see, night mode for sound, moments in a video, cards from highlights
+
+### Changes
+- **What each extension can actually see.** Settings › Extensions now says it on the card: *Can read and change every page you open*, or the sites it names, plus what it is allowed to do in sentences rather than permission strings — your cookies, your history, the address of every tab, talking to a program on this machine. The far-reaching ones sort to the top, since that is what you opened the list to check. Vex cannot give an extension some sites and not others (that is all or nothing), and it says so instead of pretending.
+- **Even out the sound** (Ctrl+K, per site): quiet dialogue comes up, loud parts are held down — a film at eleven at night without a hand on the volume. It applies to whatever the page plays next, too, and is remembered for that site. Audio a site will not let Vex read is reported rather than silently muted.
+- **Note this moment.** While a video or podcast is playing, *Note This Moment* writes your line with the time on it, as a link back to that second — YouTube's own `t=`, a media fragment anywhere else. One note per video, found by its address, so a talk's notes stay one page.
+- **Cards from your highlights.** *Make Cards from What I Highlighted* turns a page's highlights into cards — your note on a highlight becomes the question, the highlighted text the answer — and *Go Through My Cards* brings them back on a spacing that grows while you keep getting them right (a day, three, a week, and on). Got one wrong? It comes back tomorrow and drops two steps, not back to the beginning. Everything stays on this machine.
+
 ## v2.32.58 (2026-09-20) — Name a tab with @, two models at once, and a PDF you can ask about
 
 ### Changes
