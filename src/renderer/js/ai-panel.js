@@ -115,6 +115,24 @@ const AIPanel = {
     document.getElementById('ai-stop-agent')?.addEventListener('click', () => {
       if (typeof AgentLoop !== 'undefined') AgentLoop.stop();
       document.getElementById('ai-stop-agent')?.classList.remove('visible');
+      document.getElementById('ai-pause-agent')?.classList.remove('visible');
+    });
+
+    // Pause / continue, and saying something while it is held: the run waits
+    // between steps and takes what you say as its next instruction.
+    document.getElementById('ai-pause-agent')?.addEventListener('click', async () => {
+      if (typeof AgentLoop === 'undefined' || !AgentLoop.isRunning()) return;
+      if (AgentLoop.isPaused()) { AgentLoop.resume(); return; }
+      AgentLoop.pause();
+      const say = await window.vexPrompt({
+        title: 'Paused',
+        message: 'It stops after the step it is on. Add something for it to take into account, or leave this empty and press Continue.',
+        label: 'What should it do differently?',
+        okLabel: 'Continue',
+      });
+      if (!AgentLoop.isRunning()) return;
+      if (say && say.trim()) { try { AgentLoop.nudge(say); } catch (err) { window.showToast?.(err.message, 'error'); } }
+      AgentLoop.resume();
     });
 
     this._initAgentPermission();
@@ -273,6 +291,7 @@ const AIPanel = {
 
     // Show stop button + running indicator
     document.getElementById('ai-stop-agent')?.classList.add('visible');
+    document.getElementById('ai-pause-agent')?.classList.add('visible');
 
     // Start agent loop
     const done = () => {

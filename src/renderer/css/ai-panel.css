@@ -466,6 +466,16 @@
   background: transparent; border: 1px solid var(--danger); color: var(--danger);
   padding: 2px 9px; border-radius: 999px; font-size: 11px; cursor: pointer; font-family: inherit;
 }
+/* Pause sits beside Stop and appears with it: holding a run is the smaller
+   decision, so it is the quieter button. */
+#ai-pause-agent { display: none; }
+#ai-pause-agent.visible { display: inline-block; }
+#ai-pause-agent {
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  padding: 2px 9px; border-radius: 999px; font-size: 11px; cursor: pointer; font-family: inherit;
+  margin-right: 6px;
+}
+body.agent-paused #ai-pause-agent { border-color: var(--primary); color: var(--primary); }
 .ai-backend { margin-left: auto; opacity: 0.8; }
 
 /* ---------- narrow windows ---------------------------------------------- */

@@ -258,6 +258,58 @@ const AgentExecutor = {
         // Everything below CHANGES something, and the model has claimed success
         // for a call that failed. So each one reads the result back before
         // saying it is done.
+        // Several sources at once (js/agent-tools.js): research, not a click.
+        case 'read_many': {
+          const pages = await AgentTools.readMany(params.urls);
+          const failed = pages.filter(p => !p.ok);
+          return { ok: true, result: { read: pages.filter(p => p.ok), failed: failed.map(p => ({ url: p.url, error: p.error })) } };
+        }
+
+        // A file the user asked for. Never silent: it goes through the normal
+        // approval, and the download itself shows in the downloads list.
+        case 'download_file': {
+          const url = AgentTools._checkUrlLoose(params.url);
+          const res = await window.vex.downloadsRetry(url);
+          if (!res || res.ok === false) return { ok: false, error: (res && res.error) || 'The download would not start' };
+          return { ok: true, result: 'Downloading ' + url + ' — it will appear in the downloads list when it is done' };
+        }
+
+        // "Every morning at 9, check X": the agent sets up the schedule
+        // itself rather than telling the user where the form is.
+        case 'create_schedule': {
+          if (typeof Scheduler === 'undefined') return { ok: false, error: 'The scheduler is not running' };
+          const schedule = ScheduleWords.parse(params.when);
+          const prompt = String(params.prompt || '').trim();
+          if (!prompt) return { ok: false, error: 'A scheduled task needs the instruction to run' };
+          const task = Scheduler.createTask({
+            name: String(params.name || prompt).slice(0, 80),
+            schedule,
+            action: { type: 'agent', prompt, startingUrl: params.startingUrl || '', maxIterations: 15 },
+          });
+          return {
+            ok: true,
+            result: 'Scheduled "' + task.name + '" ' + ScheduleWords.describe(schedule) + ' (Schedules panel)',
+            undo: { kind: 'schedule', id: task.id, label: 'the schedule "' + task.name + '"' },
+          };
+        }
+
+        // Signing in without the model ever seeing the password: the vault
+        // fills the page itself. The agent is told whether it worked, and
+        // nothing else.
+        case 'sign_in': {
+          const wv = WebviewManager.webviews.get(TabManager.activeTabId);
+          const tab = TabManager.getActiveTab();
+          const url = (wv && wv.getURL && wv.getURL()) || (tab && tab.url) || '';
+          if (!wv || !/^https:/i.test(url)) return { ok: false, error: 'Open the site’s sign-in page first (and it must be https)' };
+          if (typeof PasswordVault === 'undefined') return { ok: false, error: 'The logins hub is not available' };
+          let host = '';
+          try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { host = ''; }
+          const saved = await window.vex.vaultGet(host);
+          if (!saved || !saved.length) return { ok: false, error: 'There is no saved login for ' + host + ' — the user has to sign in themselves this once' };
+          await PasswordVault.autofill(wv, url);
+          return { ok: true, result: 'Filled the saved login for ' + host + '. Press the page’s own sign-in button to continue — the password was never shown to you.' };
+        }
+
         case 'save_note': {
           const note = AgentTools.saveNote(params.title, params.content, params.sourceUrl);
           const back = AgentTools.searchNotes(note.title).some(n => n.id === note.id);

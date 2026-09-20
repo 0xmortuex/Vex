@@ -41,6 +41,10 @@ const AGENT_TOOLS = [
   { name: 'list_tab_groups', description: 'List the tab groups in the tab strip: id, name, color, how many tabs', parameters: {} },
   { name: 'rename_tab_group', description: 'Rename one tab group. Call once per group; get the ids from list_tab_groups', parameters: { groupId: 'string', name: 'string' } },
   { name: 'group_tabs', description: 'Put tabs into a new tab group. Ids come from list_tabs', parameters: { name: 'string', tabIds: 'string[]', color: 'string (optional)' } },
+  { name: 'read_many', description: 'Read several pages AT ONCE (up to 6) and get each one’s text back. Use this instead of read_url one address at a time whenever you have more than one source to read — it is one wait instead of six', parameters: { urls: 'string[]' } },
+  { name: 'download_file', description: 'Download a file the user asked for to their Downloads folder. Only for a direct link to the file itself (a PDF, an invoice, an installer) — not a page about it. The user is asked first', parameters: { url: 'string' } },
+  { name: 'create_schedule', description: 'Set something to run again and again, by itself. "when" is plain words: "every weekday at 8:30", "every morning at 9", "every 30 minutes". "prompt" is what should be done each time, written as you would write the task to yourself', parameters: { name: 'string (optional)', prompt: 'string', when: 'string', startingUrl: 'string (optional)' } },
+  { name: 'sign_in', description: 'Fill the user’s saved login on the sign-in page that is open. You never see the username or password, and you must NOT type either yourself. After it is filled, click the page’s own sign-in button', parameters: {} },
   { name: 'save_note', description: 'Save a note in the Notes panel (Markdown). Use it when asked to write something down or keep research', parameters: { title: 'string', content: 'string', sourceUrl: 'string (optional)' } },
   { name: 'watch_page', description: 'Keep checking the page open now and tell the user when something happens. "when" is plain words: "drops under 300", "goes above 50", "goes down", "changes", "is back in stock"', parameters: { when: 'string' } },
   { name: 'change_setting', description: 'Change one of the settings of VEX ITSELF, in plain words: "turn on streamer mode", "turn off mouse gestures", "set the search engine to DuckDuckGo". The user is always asked first', parameters: { request: 'string' } },
@@ -68,7 +72,7 @@ const AGENT_TOOLS = [
 ];
 
 // Read-only: these run without asking in every permission mode.
-const SAFE_TOOLS = ['web_search', 'read_url', 'read_tab', 'search_history', 'search_notes', 'read_note', 'search_bookmarks', 'list_reminders', 'extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'list_tab_groups', 'list_timers', 'vex_features', 'scroll', 'wait', 'search_in_page', 'plan'];
+const SAFE_TOOLS = ['web_search', 'read_url', 'read_many', 'read_tab', 'search_history', 'search_notes', 'read_note', 'search_bookmarks', 'list_reminders', 'extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'list_tab_groups', 'list_timers', 'vex_features', 'scroll', 'wait', 'search_in_page', 'plan'];
 
 // What the agent is told with every request. It rides in the conversation
 // history so it reaches the model through any backend — the cloud worker
@@ -81,7 +85,7 @@ function agentGuide(mode, now) {
     '- RESEARCH, or any question about the world: do NOT drive a search engine page. Call web_search, then read_url on the 2-4 most relevant results from different sites, then finish. If read_url says a page has little text, open it with new_tab and use extract_text.',
     '- finish.summary is what the user reads. Write Markdown: the direct answer first; then the facts, numbers and dates that support it, marked [1], [2]; then a "Sources" list of the URLs you actually read. Say plainly what you could not verify.',
     "- ACTING on a page: the page's interactive elements arrive with every turn. Use click with one of their selectors, or click_text with the visible words of a button or link. type_text replaces the field's content; add \"submit\": true to press Enter. After an action that changes the page, look at the new page state before acting again.",
-    '- VEX itself needs no page: tabs (list_tabs, switch_tab, new_tab, close_tab, read_tab), tab groups (list_tab_groups, rename_tab_group, group_tabs), notes (save_note), reminders (create_reminder), watching a page for a change or a price (watch_page), the settings of Vex (change_setting), bookmarks (add_bookmark), history (search_history).',
+    '- VEX itself needs no page: tabs (list_tabs, switch_tab, new_tab, close_tab, read_tab), tab groups (list_tab_groups, rename_tab_group, group_tabs), notes (save_note), reminders (create_reminder), something that runs again and again (create_schedule), watching a page for a change or a price (watch_page), the settings of Vex (change_setting), bookmarks (add_bookmark), history (search_history), a file to keep (download_file), signing in with a saved login (sign_in).',
     "- VEX DOES IT ITSELF. Before you open a website for a utility, check whether Vex has it built in — it usually does. A timer is start_timer, never a timer website. An alarm, the stopwatch, a city's time, freeing memory: vex_command with the sentence ('alarm 7am weekdays'). Anything else about the browser — screenshots, reader mode, translating a page, split view, sessions, downloads, themes, passwords: call vex_features with a few words, then vex_command with the command id it returns. Tell the user where the result lives ('the timer is in the toolbar').",
     '- When the words on a page do not explain it, call screenshot to look at it.',
     "- THE USER'S OWN THINGS: search_notes, read_note, append_note, search_bookmarks, list_reminders, search_history. Anything about what they wrote down, saved or planned starts there, not on the web.",
@@ -247,6 +251,17 @@ const AgentLoop = {
 
       while (iteration < this._maxIter && this._running) {
         iteration++;
+
+        // Paused by the user: the run stops between steps, never in the middle
+        // of one, and anything typed while paused goes to the model as the
+        // next thing it is told (js/agent-loop.js pause/nudge). The wait is
+        // only entered when it is actually paused — an await on every step,
+        // paused or not, would change the timing of every run for nothing.
+        if (this._paused) {
+          await this._waitWhilePaused();
+          if (!this._running) break;
+        }
+        this._flushNudges();
 
         // Get current page state
         const wv = WebviewManager.getActiveWebview();
@@ -470,6 +485,7 @@ const AgentLoop = {
     this._running = false;
     document.getElementById('ai-send')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
+    document.getElementById('ai-pause-agent')?.classList.remove('visible');
     this._renderStep('end', 'Agent finished' + this._costTotal(), 'info');
     this._saveRun();
   },
@@ -578,6 +594,12 @@ const AgentLoop = {
       await VexClock.removeTimer(item.id);
       return;
     }
+    if (item.kind === 'schedule') {
+      if (typeof Scheduler === 'undefined') throw new Error('the scheduler is not available');
+      if (!Scheduler.getTask(item.id)) throw new Error('already gone');
+      Scheduler.deleteTask(item.id);
+      return;
+    }
     if (item.kind === 'reminder') {
       const bridge = window.vex && window.vex.reminders;
       if (!bridge) throw new Error('reminders are not available');
@@ -680,6 +702,7 @@ const AgentLoop = {
     this._running = false;
     document.getElementById('ai-send')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
+    document.getElementById('ai-pause-agent')?.classList.remove('visible');
     if (handOver) {
       const goal = macro.goal + '\n\n(A saved version of this task already did: ' + (done.length ? done.join(', ') : 'nothing') + '. It then failed at ' + failed.tool + ': ' + failed.error + '. Carry on from the page as it is now; do not repeat what is done.)';
       this.start(goal, this._mode).catch(err => this._renderStep('error', 'The AI could not take over: ' + ((err && err.message) || ''), 'error'));
@@ -744,12 +767,82 @@ const AgentLoop = {
     live.title = String(full || '').slice(-2000);
   },
 
+  // ---- pause, resume, and changing your mind mid-run ----------------------
+  //
+  // A run going the wrong way used to leave two choices: watch it finish, or
+  // stop it and start again from the beginning. Pausing holds it between
+  // steps — the page stays where it is, nothing is thrown away — and a note
+  // typed while paused reaches the model as the next thing it is told, so the
+  // plan can be corrected rather than restarted.
+  _paused: false,
+  _pauseWaiters: [],
+  _nudges: [],
+
+  isPaused() { return !!this._paused; },
+
+  pause() {
+    if (!this._running || this._paused) return false;
+    this._paused = true;
+    this._renderStep('paused', 'Paused. Nothing is running until you continue.', 'warn');
+    this._paintPause();
+    return true;
+  },
+
+  resume() {
+    if (!this._paused) return false;
+    this._paused = false;
+    const waiting = this._pauseWaiters.splice(0);
+    for (const go of waiting) go();
+    this._renderStep('resumed', this._nudges.length ? 'Carrying on, with what you added.' : 'Carrying on.', 'info');
+    this._paintPause();
+    return true;
+  },
+
+  togglePause() { return this._paused ? this.resume() : this.pause(); },
+
+  // Something to tell the model before its next step. Kept until then rather
+  // than injected mid-call, so it is never half-read.
+  nudge(text) {
+    const note = String(text || '').trim();
+    if (!note) throw new Error('Write what it should do differently');
+    if (!this._running) throw new Error('Nothing is running');
+    this._nudges.push(note);
+    this._renderStep('nudge', 'You said: ' + note, 'info');
+    return note;
+  },
+
+  _flushNudges() {
+    if (!this._nudges.length) return;
+    const said = this._nudges.splice(0).join('\n');
+    this._history.push({ role: 'user', content: 'The user is watching and has stepped in: ' + said });
+  },
+
+  _waitWhilePaused() {
+    if (!this._paused) return Promise.resolve();
+    return new Promise(resolve => this._pauseWaiters.push(resolve));
+  },
+
+  _paintPause() {
+    const btn = document.getElementById('ai-pause-agent');
+    if (btn) {
+      btn.textContent = this._paused ? 'Continue' : 'Pause';
+      btn.title = this._paused ? 'Carry on from where it stopped' : 'Hold the agent between steps';
+    }
+    document.body.classList.toggle('agent-paused', !!this._paused);
+  },
+
   stop() {
     this._running = false;
+    // A paused run that is stopped must not be left waiting forever.
+    this._paused = false;
+    for (const go of this._pauseWaiters.splice(0)) go();
+    this._nudges = [];
+    this._paintPause();
     // Cancel the model call already in flight, not just the next step.
     try { this._abort?.abort(new Error('Stopped by you')); } catch { /* nothing in flight */ }
     document.getElementById('ai-send')?.classList.remove('running');
     document.getElementById('ai-stop-agent')?.classList.remove('visible');
+    document.getElementById('ai-pause-agent')?.classList.remove('visible');
   },
   isRunning() { return this._running; },
 

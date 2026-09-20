@@ -242,6 +242,24 @@ const AgentTools = {
     return { url: u, already: false };
   },
 
+  // Several sources at once. Research was one page at a time: six sources
+  // meant six round trips one after the other, and most of a minute of
+  // waiting. These go together, and one that fails comes back as its own
+  // failure rather than stopping the rest.
+  MAX_PARALLEL: 6,
+  async readMany(urls) {
+    const list = (Array.isArray(urls) ? urls : []).map(u => String(u || '').trim()).filter(Boolean).slice(0, this.MAX_PARALLEL);
+    if (!list.length) throw new Error('read_many needs a list of addresses');
+    return Promise.all(list.map(async (url) => {
+      try {
+        const page = await this.readUrl(url);
+        return { url, ok: true, title: page.title || '', text: page.text || '', truncated: !!page.truncated };
+      } catch (err) {
+        return { url, ok: false, error: err.message };
+      }
+    }));
+  },
+
   _checkUrlLoose(url) {
     try { const u = new URL(String(url || '')); if (/^https?:$/.test(u.protocol)) return u.href; } catch {}
     throw new Error('Not a web address: ' + url);
