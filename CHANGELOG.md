@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.32.61 (2026-09-20) — Teach Vex a task
+
+### Changes
+- **Teach Vex this task** (Ctrl+K). Do a job once — the six clicks into a dashboard, the monthly invoice, the same form every week — and Vex records it as a task it can repeat afterwards, with no AI involved at all. A badge at the bottom of the window counts the steps while it records, with *Done* and *Throw away*.
+  - A button is replayed by its words ("Continue"), not by a class name that changes on the next deploy; a field by its id or name; a page move by its address. Typing into one field is one step with the value you ended on, and a double click is one click.
+  - **Passwords are never recorded.** A password, one-time code or card field becomes a step that hands the page back to you: the replay stops there, you type it, and it carries on. Checked live — a recording made on a form where a password was typed contains no trace of it, and the replay still finished the task.
+  - Repeat a taught task from Ctrl+K › *Repeat a Saved Task*, under exactly the same permission rules as the agent itself.
+
 ## v2.32.60 (2026-09-20) — The agent reads several sources at once, sets up its own schedules, and can be paused mid-run
 
 ### Changes
