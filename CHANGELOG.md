@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.71 (2026-09-20) — An answer keeps being written when you close the panel
+
+### Fixes
+- **Closing the AI panel no longer looks like it stopped the answer.** It never did stop it — the request ran on and the answer was saved — but reopening the panel redrew the message list, and that took the bubble the answer was being written into with it. Every word after that landed somewhere off screen, so there was nothing to see until the whole answer arrived: indistinguishable from a dead question. The bubble is put back now, the same one, so a half-written answer carries on in front of you.
+  - The same applies to switching tab mid-answer. Each chat belongs to its tab: leave and the answer keeps being written; come back and it is there, still going.
+- **And while the panel is shut, the toolbar button says Vex is working** — a pulsing dot, and "Vex is answering" on the tooltip. When the answer lands while you are elsewhere, the dot turns green and a line says it has answered.
+
 ## v2.32.70 (2026-09-20) — Nothing sleeps during a call, and animated emoji stop being videos
 
 ### Fixes

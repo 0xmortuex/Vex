@@ -313,6 +313,8 @@ const AIPanel = {
   open() {
     this._initShell();
     document.getElementById('ai-panel')?.classList.add('open');
+    // The mark that says an answer arrived while this was shut has done its job.
+    document.getElementById('btn-toggle-ai')?.classList.remove('answered');
     this._bindDismiss();
     this._syncBackdrop();
     this._syncStarters();
@@ -1202,6 +1204,13 @@ const AIPanel = {
       }
 
       loadingEl = this._addLoading();
+      // The bubble an answer is being written into, and which chat it belongs
+      // to. _renderMessages empties the list to redraw it, which used to take
+      // this element with it: closing and reopening the panel, or switching
+      // tab, left the answer streaming into a node that was no longer on
+      // screen — it looked exactly as though the answer had stopped. The
+      // node is put back now instead of being abandoned (_restoreLive).
+      this._live = { tabId: this._viewingId || tabId, el: loadingEl };
       // Phase 14: route through AIRouter for local/cloud selection.
       // Map action → feature name.
       const featureMap = { chat: 'chat', summarize: 'summarize', translate: 'translate', explain: 'explain' };
@@ -1279,6 +1288,12 @@ const AIPanel = {
       }
 
       this._renderResponse(action, parsed, { backend: aiResult.backend, model: aiResult.model });
+      // Answered while you were somewhere else: say so, rather than leaving it
+      // sitting in a closed panel. The answer is already saved either way.
+      if (!this.isOpen()) {
+        window.showToast?.('Vex has answered — Ctrl+Shift+A to read it', 'info', 6000);
+        document.getElementById('btn-toggle-ai')?.classList.add('answered');
+      }
       return true;
     } catch (err) {
       loadingEl?.remove();
@@ -1287,6 +1302,7 @@ const AIPanel = {
       this._addError(err.message || 'Network error', () => this.sendMessage(action, { ...opts, _noEcho: true }));
       return false;
     } finally {
+      this._live = null;
       this._sending = false;
       this._setComposerBusy(false);
     }
@@ -1298,6 +1314,15 @@ const AIPanel = {
     const send = document.getElementById('ai-send');
     if (send) send.disabled = !!on;
     document.getElementById('ai-panel')?.classList.toggle('ai-busy', !!on);
+    // And outside the panel, because the panel is often shut while Vex is
+    // still answering: the toolbar button marks itself, so a closed panel
+    // never looks like a stopped answer.
+    const btn = document.getElementById('btn-toggle-ai');
+    if (btn) {
+      btn.classList.toggle('working', !!on);
+      if (on) { btn.dataset.idleTitle = btn.dataset.idleTitle || btn.title; btn.title = 'Vex is answering — click to watch'; }
+      else if (btn.dataset.idleTitle) { btn.title = btn.dataset.idleTitle; }
+    }
   },
 
   // True only when the message is clearly about the user's own browsing past.
@@ -1745,8 +1770,23 @@ const AIPanel = {
       }
       container.appendChild(el);
     });
+    this._restoreLive(container);
     container.scrollTop = container.scrollHeight;
     this._syncStarters();
+  },
+
+  // An answer still being written belongs to a chat, not to a screen. When the
+  // list is redrawn — reopening the panel, switching tab, loading a past chat
+  // — the bubble goes back in if this is the chat it belongs to: the same
+  // element, so every token still arriving lands in it. If it belongs to
+  // another chat it is not shown here, and it is still running — the answer
+  // is saved to that chat when it finishes.
+  _restoreLive(container) {
+    const live = this._live;
+    if (!live || !live.el) return false;
+    if (String(live.tabId) !== String(this._viewingId || this._getTabId())) return false;
+    container.appendChild(live.el);
+    return true;
   },
 
   // === Live answers ========================================================
