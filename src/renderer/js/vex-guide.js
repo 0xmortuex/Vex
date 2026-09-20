@@ -33,7 +33,12 @@ const VexGuide = {
 
   // Is this a question about what Vex can do, rather than about a web page?
   isAbout(text) {
-    return /^(how (do|can) i|how to|can vex|does vex|is there|i want to|i need to|where (is|do i))\b/i.test(String(text || '').trim());
+    const asked = String(text || '').trim();
+    if (/^(how (do|can) i|how to|can vex|does vex|is there|i want to|i need to|where (is|do i)|what can (you|vex))\b/i.test(asked)) return true;
+    // "it is using all my RAM", "too many tabs", "stop autoplay": a complaint
+    // is a question too, and the templates (js/guide-templates.js) know these
+    // by name rather than by the shape of the sentence.
+    return typeof GuideTemplates !== 'undefined' && !!GuideTemplates.match(asked);
   },
 
   _bag(text) {
@@ -102,6 +107,13 @@ const VexGuide = {
 
   // The whole answer for one question. → { found, entry, headline, steps, others }
   answer(question) {
+    // A question people actually ask, answered the way a person would answer
+    // it (js/guide-templates.js). Those beat the feature search, which knows
+    // what features are called but not what people call their problems.
+    if (typeof GuideTemplates !== 'undefined') {
+      const ready = GuideTemplates.answer(question);
+      if (ready) return ready;
+    }
     const hits = this.find(question);
     if (!hits.length) return { found: false, headline: 'Vex has nothing for that yet — nothing in its feature list matches those words.', steps: [], others: [] };
     const [best, ...rest] = hits;

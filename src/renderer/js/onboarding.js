@@ -49,14 +49,48 @@ const Onboarding = {
     setTimeout(() => this.start(), 900);
   },
 
-  start() { this._returnFocus = document.activeElement; this.activeSteps = this.STEPS(); this.step = 0; this._pendingLoc = null; this._session = {}; this._wantTour = false; this._perf = null; this._weatherCountry = null; this._weatherHits = null; this._render(); },
+  // How much of the wizard to walk: 'quick' is the handful that change how
+  // Vex looks and searches, 'full' is everything. A wizard of twenty-two steps
+  // reads as a chore however good each step is, so the short way is offered
+  // first and the long one is one click away.
+  PACE_KEY: 'vex.onboardingPace',
+  pace() { try { return localStorage.getItem(this.PACE_KEY) === 'full' ? 'full' : 'quick'; } catch { return 'quick'; } },
+  setPace(pace) {
+    this._pace = pace === 'full' ? 'full' : 'quick';
+    try { localStorage.setItem(this.PACE_KEY, this._pace); } catch {}
+    // Keep the step we are on (welcome) and re-cut the rest to the new pace.
+    const key = (this.activeSteps || this.STEPS())[this.step]?.key;
+    this.activeSteps = this._stepsForPace();
+    const at = this.activeSteps.findIndex(step => step.key === key);
+    this.step = at >= 0 ? at : 0;
+    this._render();
+    return this._pace;
+  },
+  _stepsForPace() {
+    const all = this.STEPS();
+    return (this._pace || this.pace()) === 'full' ? all : all.filter(step => step.quick);
+  },
+
+  // "about two minutes left", from what each remaining step actually asks for.
+  _timeLeft(steps) {
+    const secs = steps.slice(this.step + 1).reduce((n, step) => n + (step.secs || 25), 0);
+    if (secs <= 45) return 'nearly done';
+    const mins = Math.max(1, Math.round(secs / 60));
+    return 'about ' + mins + (mins === 1 ? ' minute' : ' minutes') + ' left';
+  },
+
+  start() { this._returnFocus = document.activeElement; this._pace = this.pace(); this.activeSteps = this._stepsForPace(); this.step = 0; this._pendingLoc = null; this._session = {}; this._wantTour = false; this._perf = null; this._weatherCountry = null; this._weatherHits = null; this._render(); },
 
   // Re-open the wizard on demand (the top-bar setup button). Shows ALL steps,
   // each pre-filled with whatever's already saved and tagged "✓ already set" so
   // nothing is hidden but you're not redoing anything from scratch.
   relaunch() {
     this._returnFocus = document.activeElement;
-    this.activeSteps = this.STEPS();
+    // Coming back to the wizard on purpose means you want the whole thing:
+    // the short path is still one click away on the first step. (A first run
+    // starts the other way round — see start().)
+    this._pace = 'full';
+    this.activeSteps = this._stepsForPace();
     this.step = 0;
     this._pendingLoc = null;
     this._session = {};
@@ -126,28 +160,28 @@ const Onboarding = {
 
   STEPS() {
     return [
-      { key: 'welcome',        title: 'Welcome to Vex',                sub: 'Let’s set up the bits that make Vex feel like yours. Skip anything you don’t want — you can re-open this wizard anytime from the ✦ button by the reload button.' },
-      { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' },
-      { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' },
-      { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, or a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape. Your theme colours can be kept on top of any of them.' },
-      { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' },
-      { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' },
-      { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' },
-      { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' },
-      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the start page language — greeting, labels, and the daily verse. (Full interface translation is on the roadmap.)' },
-      { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' },
-      { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Leave blank for none.' },
-      { key: 'weather',        title: 'Weather location',         sub: 'Choose your country, then search for a city, district or postcode and pick it from the list.' },
-      { key: 'github',         title: 'GitHub username',          sub: 'Optional — shows your repo/follower stats + activity on the start page.' },
-      { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' },
-      { key: 'defaultbrowser', title: 'Make Vex your default',    sub: 'So links from Discord, email, and other apps open in Vex.' },
-      { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL for the most capable AI. See SELF_HOSTING.md. Skip if you’ll use local AI instead.' },
-      { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' },
-      { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' },
-      { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' },
-      { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' },
-      { key: 'notifications',  title: 'Notifications',            sub: 'Reminders, alarms, page-change alerts and websites you allow all arrive as Windows notifications. Send one now to be sure they reach you — if it does not show, the fix is in Windows, and this page says where.' },
-      { key: 'done',           title: 'All set',                     sub: 'You’re ready. Everything here lives in Settings if you want to change it later — and Discover (Ctrl+K → “Discover”) introduces every feature Vex has, one at a time.' },
+      { key: 'welcome',        title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the ✦ button by reload brings this back whenever you want it.', quick: true, secs: 20 },
+      { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' , quick: true, secs: 40},
+      { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
+      { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, or a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
+      { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' , secs: 40},
+      { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
+      { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' , secs: 30},
+      { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' , secs: 40},
+      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the start page language — greeting, labels, and the daily verse. (Full interface translation is on the roadmap.)' , secs: 15},
+      { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' , secs: 20},
+      { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Leave blank for none.' , quick: true, secs: 15},
+      { key: 'weather',        title: 'Weather location',         sub: 'Choose your country, then search for a city, district or postcode and pick it from the list.' , secs: 40},
+      { key: 'github',         title: 'GitHub username',          sub: 'Optional — shows your repo/follower stats + activity on the start page.' , secs: 20},
+      { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' , quick: true, secs: 15},
+      { key: 'defaultbrowser', title: 'Make Vex your default',    sub: 'So links from Discord, email, and other apps open in Vex.' , quick: true, secs: 15},
+      { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL for the most capable AI. See SELF_HOSTING.md. Skip if you’ll use local AI instead.' , secs: 45},
+      { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' , secs: 45},
+      { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' , secs: 45},
+      { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' , secs: 45},
+      { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' , secs: 40},
+      { key: 'notifications',  title: 'Notifications',            sub: 'Reminders, alarms, page-change alerts and websites you allow all arrive as Windows notifications. Send one now to be sure they reach you — if it does not show, the fix is in Windows, and this page says where.' , secs: 25},
+      { key: 'done',           title: 'All set',                     sub: 'You’re ready. Everything here lives in Settings if you want to change it later — and Discover (Ctrl+K → “Discover”) introduces every feature Vex has, one at a time.' , quick: true, secs: 10},
     ].map(step => ({ ...step, title: window.VexI18n?.t(step.key, step.title) || step.title, sub: window.VexI18n?.t(step.key + '.sub', step.sub) || step.sub }));
   },
 
@@ -208,7 +242,8 @@ const Onboarding = {
     overlay.firstElementChild.setAttribute('aria-label', s.title);
     const labels = { 'ob-skipall': ['skipSetup', 'Skip setup'], 'ob-back': ['back', 'Back'], 'ob-skip': ['skip', 'Skip'], 'ob-next': this.step === 0 ? ['getStarted', 'Get started'] : isLast ? ['finish', 'Finish'] : ['saveContinue', 'Save & continue'] };
     for (const [id, [key, fallback]] of Object.entries(labels)) { const button = overlay.querySelector('#' + id); if (button) button.textContent = window.VexI18n?.t(key, fallback) || fallback; }
-    overlay.querySelector('#ob-progress-label').textContent = `${window.VexI18n?.t('step', 'Step') || 'Step'} ${this.step + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${steps.length}`;
+    overlay.querySelector('#ob-progress-label').textContent =
+      `${window.VexI18n?.t('step', 'Step') || 'Step'} ${this.step + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${steps.length} · ${this._timeLeft(steps)}`;
     overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
     overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
     overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
@@ -227,6 +262,31 @@ const Onboarding = {
     document.addEventListener('keydown', this._keyHandler);
     this._renderBody(s.key, overlay.querySelector('#ob-body'));
     overlay.querySelector('input,button')?.focus();
+  },
+
+  // The welcome step's only question: how much of this you want to sit through.
+  _renderPace(body) {
+    const pace = this._pace || this.pace();
+    const all = this.STEPS();
+    // What is left AFTER this question, so the number on the card and the one
+    // in the header are the same number.
+    const mins = (steps) => Math.max(1, Math.round(steps.filter(x => x.key !== 'welcome').reduce((n, step) => n + (step.secs || 25), 0) / 60));
+    const card = (id, name, desc, on) => `
+      <button data-pace="${id}" style="display:flex;gap:11px;width:100%;box-sizing:border-box;padding:13px 14px;margin-bottom:9px;border-radius:12px;border:2px solid ${on ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">
+        <span style="display:flex;flex-direction:column;gap:3px">
+          <span style="font-size:13.5px;font-weight:600">${name}</span>
+          <span style="font-size:11.5px;color:var(--text-muted);line-height:1.5">${desc}</span>
+        </span>
+      </button>`;
+    body.innerHTML =
+      card('quick', 'Just the essentials — about ' + mins(all.filter(x => x.quick)) + ' minutes',
+        'How Vex looks, which panels you keep, your name, your search engine, and whether links open here. Everything else has a sensible default and lives in Settings.', pace !== 'full')
+      + card('full', 'Everything — about ' + mins(all) + ' minutes',
+        'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync, passwords and notifications.', pace === 'full')
+      + `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.5">Either way, every step has a <b>Skip</b>, nothing here is permanent, and <b>Skip setup</b> leaves the whole thing. Vex works before you answer a single question.</div>`;
+    body.querySelectorAll('[data-pace]').forEach(btn => {
+      btn.addEventListener('click', () => this.setPace(btn.dataset.pace));
+    });
   },
 
   _input(id, ph, val) {
@@ -493,7 +553,9 @@ const Onboarding = {
 
   _renderBody(key, body) {
     const input = (id, ph, val) => this._input(id, ph, val);
-    if (key === 'setupstyle') {
+    if (key === 'welcome') {
+      this._renderPace(body);
+    } else if (key === 'setupstyle') {
       this._renderSetupStyle(body);
     } else if (key === 'theme') {
       const themes = (typeof ThemeManager !== 'undefined' ? ThemeManager.THEMES : []);
@@ -687,6 +749,13 @@ const Onboarding = {
       // Single first-run welcome ends here; offer the interface tour as an
       // opt-in button instead of a second stacked welcome overlay.
       body.innerHTML = `
+        <div style="display:flex;gap:10px;padding:12px 14px;border-radius:11px;border:1px solid var(--primary);background:color-mix(in srgb, var(--primary) 8%, transparent);margin-bottom:10px">
+          <span style="display:inline-flex;color:var(--primary)">${VexIcons.svg('sparkles', { size: 19 })}</span>
+          <span style="display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:13.5px;font-weight:600;color:var(--text)">One thing worth remembering</span>
+            <span style="font-size:11.5px;color:var(--text-muted);line-height:1.5">You never have to hunt for anything. Press <b>Ctrl+K</b> and say what you want in your own words — &ldquo;how do I save this page?&rdquo;, &ldquo;stop videos autoplaying&rdquo;, &ldquo;where are my downloads&rdquo; — and Vex answers with the steps, or just does it.</span>
+          </span>
+        </div>
         <button id="ob-take-tour" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">
           <span style="display:inline-flex">${VexIcons.svg('compass', { size: 19 })}</span>
           <span style="display:flex;flex-direction:column;gap:2px">

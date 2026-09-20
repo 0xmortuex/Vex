@@ -229,4 +229,13 @@ function isPipOpen() {
   return !!(pipWindow && !pipWindow.isDestroyed());
 }
 
-module.exports = { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition };
+// Is this the pop-out's own page? The IPC policy asks, because the pop-out is
+// its own window and has to be told apart from a page pretending to be one.
+// It used to be recognised by its preload path, which this Electron no longer
+// reports (getLastWebPreferences().preload is undefined) — so every button in
+// the pop-out was refused as an untrusted sender and did nothing at all.
+function isPipContents(contents) {
+  return !!(pipWindow && !pipWindow.isDestroyed() && contents && contents === pipWindow.webContents);
+}
+
+module.exports = { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents };

@@ -16,7 +16,7 @@ const { createSessionSecurity } = require('../../src/main/session-security.js');
 const ROOT = path.resolve('src');
 const UI_URL = pathToFileURL(path.join(ROOT, 'renderer/index.html')).toString();
 
-function build() {
+function build({ isPipContents } = {}) {
   const madeSessions = [];
   const session = {
     fromPartition: (p) => { const s = { partition: p, clearStorageData: vi.fn(() => Promise.resolve()), clearCache: vi.fn(() => Promise.resolve()), closeAllConnections: vi.fn(() => Promise.resolve()) }; madeSessions.push(s); return s; },
@@ -26,7 +26,7 @@ function build() {
     fromId: (id) => byId.get(id) || null,
     getAllWebContents: () => [...byId.values()],
   };
-  const security = createSessionSecurity({ session, webContents, root: ROOT });
+  const security = createSessionSecurity({ session, webContents, root: ROOT, isPipContents });
   return { security, byId, madeSessions };
 }
 
@@ -212,7 +212,7 @@ describe('which frame counts as the interface', () => {
   });
 });
 
-describe('the two preloads allowed to speak without being the interface', () => {
+describe('the two windows allowed to speak without being the interface', () => {
   const aux = (channel, preload, url) => {
     const { security } = build();
     const frame = { url: url || pathToFileURL(path.join(ROOT, 'renderer/popup-chrome.html')).toString() };
@@ -220,12 +220,32 @@ describe('the two preloads allowed to speak without being the interface', () => 
     return security.isAuxiliary({ sender, senderFrame: frame }, channel);
   };
 
-  it('lets the Picture-in-Picture preload use its own channels', () => {
-    expect(aux('pip:close', path.join(ROOT, 'preload-pip.js'))).toBe(true);
+  // The pop-out used to be recognised by its preload path. Electron stopped
+  // reporting that (getLastWebPreferences().preload is undefined), so every
+  // button in the Picture-in-Picture window was refused as an untrusted
+  // sender and did nothing at all — silently. It is now asked of the module
+  // that owns the window.
+  const pip = (channel, { isThePopOut }) => {
+    const sender = { mainFrame: { url: 'https://site.example/watch' }, getLastWebPreferences: () => ({}) };
+    const { security } = build({ isPipContents: (contents) => isThePopOut && contents === sender });
+    return security.isAuxiliary({ sender, senderFrame: sender.mainFrame }, channel);
+  };
+
+  it('lets the Picture-in-Picture window use its own channels', () => {
+    for (const channel of ['pip:close', 'pip:back-to-tab', 'pip:toggle-pin']) {
+      expect(pip(channel, { isThePopOut: true }), channel).toBe(true);
+    }
   });
 
-  it('does not let some other preload borrow them', () => {
+  it('does not let any other page borrow them', () => {
+    expect(pip('pip:back-to-tab', { isThePopOut: false })).toBe(false);
     expect(aux('pip:close', 'C:/evil/preload.js')).toBe(false);
+  });
+
+  it('a build with no pop-out at all refuses them rather than throwing', () => {
+    const { security } = build();
+    const sender = { mainFrame: { url: 'https://site.example/' }, getLastWebPreferences: () => ({}) };
+    expect(security.isAuxiliary({ sender, senderFrame: sender.mainFrame }, 'pip:close')).toBe(false);
   });
 
   it('lets the popup chrome act only on its own channel, from its own page', () => {

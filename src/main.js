@@ -93,12 +93,12 @@ const { pathToFileURL } = require('url');
 const { shouldBlock } = require('./adblocker');
 const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
 const _torLauncher = require('./tor-launcher');
-const { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition } = require('./pip');
+const { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
 const { createSessionSecurity } = require('./main/session-security');
-const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname });
+const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname, isPipContents });
 const boundedNetFetch = require('./main/network').createBoundedFetch(net.fetch.bind(net));
 require('./main/ipc-policy').installIpcPolicy(ipcMain, secureSessions);
 ipcMain.on('storage:flushed', event => {

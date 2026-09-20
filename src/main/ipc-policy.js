@@ -78,9 +78,14 @@ function installIpcPolicy(ipcMain, security) {
       if (host?.privatePartition && PRIVATE_DISABLED.test(channel)) return;
       callback(event, ...args);
     }
-    catch {
-      if (channel === 'privacy:config-sync') event.returnValue = { farble: false };
-      if (channel === 'compatibility:get') event.returnValue = { suppressPasskeys: false };
+    catch (err) {
+      if (channel === 'privacy:config-sync') { event.returnValue = { farble: false }; return; }
+      if (channel === 'compatibility:get') { event.returnValue = { suppressPasskeys: false }; return; }
+      // Everything else used to be swallowed without a word, which is how a
+      // refused message from the Picture-in-Picture pop-out looked exactly
+      // like a button that did nothing. Say which channel was refused and why
+      // — never the payload, which is the caller's business.
+      console.warn('[IPC] refused "%s": %s', channel, (err && err.message) || err);
     }
   });
 }

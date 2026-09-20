@@ -2,7 +2,7 @@ const path = require('path');
 const { fileURLToPath } = require('url');
 const { randomUUID } = require('crypto');
 
-function createSessionSecurity({ session, webContents, root }) {
+function createSessionSecurity({ session, webContents, root, isPipContents }) {
   const hosts = new Map();
   const partitions = new WeakMap();
   const sessions = new Set();
@@ -115,8 +115,10 @@ function createSessionSecurity({ session, webContents, root }) {
   return { fromPartition, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget,
     isAuxiliary(event, channel) {
       if (event.senderFrame !== event.sender.mainFrame) return false;
-      const preload = event.sender.getLastWebPreferences?.().preload;
-      if (channel.startsWith('pip:') && preload === path.join(root, 'preload-pip.js')) return true;
+      // The Picture-in-Picture pop-out, asked of the module that owns it. It
+      // used to be recognised by its preload path — which this Electron does
+      // not report any more, so every button in the pop-out was refused.
+      if (channel.startsWith('pip:')) return !!(isPipContents && isPipContents(event.sender));
       try { return channel === 'popup-chrome:action' && fileURLToPath(event.senderFrame.url) === path.join(root, 'renderer/popup-chrome.html'); }
       catch { return false; }
     },

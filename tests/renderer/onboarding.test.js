@@ -365,3 +365,43 @@ describe('Onboarding._setStart', () => {
     expect(localStorage.getItem('vex.githubUsername')).toBeNull();
   });
 });
+
+// A wizard of twenty-two steps reads as a chore however good each step is, so
+// the first run offers a short path. What must hold: the short path really is
+// the steps that matter, the choice is remembered, and re-opening the wizard
+// on purpose still offers everything.
+describe('how much of the wizard to walk', () => {
+  beforeEach(() => { localStorage.clear(); Onboarding._pace = null; });
+
+  it('a first run starts on the short path', () => {
+    const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
+    Onboarding.start();
+    const keys = Onboarding.activeSteps.map(s => s.key);
+    expect(keys).toContain('welcome');
+    expect(keys).toContain('look');
+    expect(keys).toContain('search');
+    expect(keys).toContain('done');
+    expect(keys).not.toContain('ollama');
+    expect(keys.length).toBeLessThan(Onboarding.STEPS().length);
+    render.mockRestore();
+  });
+
+  it('asking for everything gives every step, and is remembered', () => {
+    const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
+    Onboarding.start();
+    Onboarding.setPace('full');
+    expect(Onboarding.activeSteps.map(s => s.key)).toEqual(Onboarding.STEPS().map(s => s.key));
+    expect(localStorage.getItem('vex.onboardingPace')).toBe('full');
+    // And the step you were on is kept, rather than starting over.
+    expect(Onboarding.activeSteps[Onboarding.step].key).toBe('welcome');
+    render.mockRestore();
+  });
+
+  it('says how long is left, in minutes', () => {
+    const steps = Onboarding.STEPS();
+    Onboarding.step = 0;
+    expect(Onboarding._timeLeft(steps)).toMatch(/about \d+ minutes left/);
+    Onboarding.step = steps.length - 2;
+    expect(Onboarding._timeLeft(steps)).toMatch(/nearly done|about 1 minute left/);
+  });
+});
