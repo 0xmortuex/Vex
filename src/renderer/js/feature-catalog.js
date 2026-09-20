@@ -62,6 +62,8 @@ const VexFeatures = {
       what: 'Every tab by state — active, kept awake, sleeping, never loaded — with what each one is really costing you in memory.' },
     { id: 'memory-panel', phrases: 'less memory ram slow heavy usage', cat: 'tabs', cmd: 'memory', panel: 'memory',
       what: 'Live memory per tab, measured rather than estimated, with sleep and wake on each row.' },
+    { id: 'tasks', phrases: 'task manager end task what is using my memory processes kill', cat: 'tabs', cmd: 'tasks', name: 'Running tasks',
+      what: 'Every process Vex is running, biggest first, named — and a button to end one, or keep it off for an hour, eight hours, or until you let it back. Right-click any tab or panel → “What is this using?”.' },
     { id: 'keep-awake', cat: 'tabs', name: 'Keep a tab awake', manual: true,
       what: 'Right-click a tab → keep awake, and it stays loaded no matter how long you ignore it. For a dashboard, a match, a long upload.' },
     { id: 'split', phrases: 'side by side two pages at once compare split screen two windows', cat: 'tabs', cmd: 'split',

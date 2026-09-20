@@ -38,6 +38,10 @@ body[data-gui-family="browser"] > *:not(#top-tab-bar):not(#top-bar):not(#gui-sho
 body[data-gui-family="browser"] :is(#vex-logo, #workspace-btn, #sync-indicator,
   #btn-toggle-tabs-left, #btn-onboarding, #btn-restart-app, #btn-tor, #btn-notes-top,
   #btn-copy-url, #btn-ai-summarize) { display: none !important; }
+/* #btn-site-rules is deliberately NOT in that list: it only appears when the
+   site you are on has something switched off, and hiding it is how a site
+   ends up quietly broken with nothing on screen to say why. */
+
 /* The icon rail stays only where that browser has one (Firefox, Netscape). */
 body[data-gui-family="browser"]:not([data-sb-launcher="rail"]) #icon-sidebar { display: none !important; }
 /* Only the workspace BUTTON goes: its list lives inside the switcher, and the

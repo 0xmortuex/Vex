@@ -33,6 +33,7 @@ const GuideTemplates = {
       ask: ['using all my ram', 'too much memory', 'vex is slow', 'browser is slow', 'slow down my pc', 'eating my ram', 'high memory', 'free up memory', 'laggy'],
       headline: 'Vex can hand memory back without closing anything you are reading.',
       steps: [
+        'To see what is actually costing it: right-click the tab or panel → “What is this using?”, or Ctrl+K → “Running Tasks”. Every process, biggest first, with End on each — once, or kept off for an hour.',
         'Ctrl+K → "Free memory now" puts idle tabs to sleep at once; they come back where you left them when you click them.',
         'Ctrl+Shift+M opens Memory, which shows what each tab is actually costing.',
         'Ctrl+K → "Set the Memory Ceiling from This Machine" so tabs start sleeping at a figure that suits your machine rather than a fixed one.',

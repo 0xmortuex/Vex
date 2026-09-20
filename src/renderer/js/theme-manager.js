@@ -57,6 +57,11 @@ const ThemeManager = {
     { id: 'plum',       label: 'Plum',        preview: 'plum.png',       accent: '#c026d3', mock: { bg: '#150a17', side: '#1d0d20', surf: '#261029', txt: '#f0d4f5', acc: '#c026d3' } },
     { id: 'arctic',     label: 'Arctic',      preview: 'arctic.png',     accent: '#38bdf8', mock: { bg: '#0a1118', side: '#0d1822', surf: '#122230', txt: '#d0e4f0', acc: '#38bdf8' } },
     { id: 'wine',       label: 'Wine',        preview: 'wine.png',       accent: '#be123c', mock: { bg: '#14080c', side: '#1d0a11', surf: '#260e16', txt: '#f0cdd4', acc: '#be123c' } },
+    // The colours the Firefox look paints the chrome with, as themes, so the
+    // rest of Vex can match it instead of pulling in a different palette.
+    // Light is the first light theme here.
+    { id: 'firefox-light', label: 'Firefox Light', preview: 'firefox-light.png', accent: '#0061e0', mock: { bg: '#f9f9fb', side: '#f0f0f4', surf: '#ffffff', txt: '#15141a', acc: '#0061e0' } },
+    { id: 'firefox-dark',  label: 'Firefox Dark',  preview: 'firefox-dark.png',  accent: '#00ddff', mock: { bg: '#1c1b22', side: '#18171e', surf: '#2b2a33', txt: '#fbfbfe', acc: '#00ddff' } },
     { id: 'custom',     label: 'Custom Image', preview: 'custom.png',    accent: '#8b8bff', mock: { bg: '#0e0e12', side: '#141419', surf: '#1a1a22', txt: '#e6e6f0', acc: '#8b8bff' }, upload: true },
   ],
 

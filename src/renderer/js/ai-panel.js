@@ -1769,6 +1769,18 @@ const AIPanel = {
     return { thinking: split.thinking, body: body.trim() };
   },
 
+  // Markdown of an answer that is still being written. The worry that kept
+  // this as plain text was a half-written code fence swallowing the rest —
+  // so the fence is closed for the render and opened again by the next token.
+  // Everything else (a half-typed **bold**, a link with no closing bracket)
+  // renders as the literal characters for a moment and fixes itself as the
+  // rest arrives, which is what every other chat does.
+  _streamMarkdown(text) {
+    const body = String(text == null ? '' : text);
+    const fences = (body.match(/^\s*```/gm) || []).length;
+    return this._md(fences % 2 ? body + '\n```' : body);
+  },
+
   // Turn the loading bubble into a live one and return the token handler.
   _liveRenderer(loadingEl) {
     if (!loadingEl) return null;
@@ -1828,9 +1840,11 @@ const AIPanel = {
           bodyEl.className = 'ai-msg-content';
           loadingEl.appendChild(bodyEl);
         }
-        // Plain text while streaming: markdown is rendered once at the end,
-        // because half a fence or half a link renders as garbage.
-        bodyEl.textContent = body;
+        // Formatted AS IT IS WRITTEN. It used to be plain text until the
+        // answer finished, and then re-rendered — so while you were reading
+        // it there were no headings, no bold, no lists, and no way to see
+        // what the important parts were until it was over.
+        bodyEl.innerHTML = this._streamMarkdown(body);
       }
       const nearBottom = container && (container.scrollHeight - container.scrollTop - container.clientHeight < 120);
       if (container && nearBottom) container.scrollTop = container.scrollHeight;
@@ -1847,7 +1861,10 @@ const AIPanel = {
         loadingEl.classList.add('streaming');
       }
       pending = this._streamPreview(full);
-      if (!timer) timer = setTimeout(paint, 50);
+      // 50 ms reads as "typing"; past a few thousand characters the render
+      // costs more than the eye gains, so it eases off rather than stuttering.
+      const every = String(full || '').length > 6000 ? 120 : 50;
+      if (!timer) timer = setTimeout(paint, every);
     };
     onToken.onThinking = (_piece, full) => {
       streamedThinking = String(full || '');
@@ -2326,7 +2343,10 @@ const AIPanel = {
   // emoji preference has to be applied.
   _md(s) {
     const tab = typeof TabManager !== 'undefined' ? TabManager.tabs.find(t => t.id === TabManager.activeTabId) : null;
-    return VideoChat.linkify(this._mdRaw(this._deEmoji(s)), tab && tab.url);
+    const html = this._mdRaw(this._deEmoji(s));
+    // Guarded because this now runs on every token of an answer that is still
+    // being written: a throw here would stop the answer being drawn at all.
+    return typeof VideoChat !== 'undefined' ? VideoChat.linkify(html, tab && tab.url) : html;
   },
   _mdRaw(s) { return window.VexMarkdown ? VexMarkdown.render(s || '') : this._esc(s).replace(/\n/g, '<br>'); },
 };

@@ -12,6 +12,9 @@ beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
   document.body.innerHTML = '<div id="ai-messages"></div>';
+  // An answer still being written is rendered as markdown now, and that path
+  // escapes and links through the renderer's own helpers.
+  window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 });
 
 describe('the subtitle line', () => {

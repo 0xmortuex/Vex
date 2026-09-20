@@ -38,7 +38,7 @@ describe('ThemeManager', () => {
       'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave',
       'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome',
       'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian',
-      'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'custom'
+      'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'custom'
     ]);
     expect(TM.DEFAULT_THEME).toBe('oxford');
   });

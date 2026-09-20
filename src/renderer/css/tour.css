@@ -104,3 +104,74 @@
   cursor: pointer;
 }
 .welcome-actions .btn-tour:hover { background: var(--accent-glow, rgba(99, 102, 241, 0.12)); }
+
+/* === "Which tour?" — the chooser and its area picker ======================
+   Built on the shared dialog shell (css/vex-dialog.css) so it matches every
+   other in-app dialog; only the two choice buttons and the area list are new. */
+.vex-tour-pick .vex-dialog { width: 460px; max-width: calc(100vw - 32px); }
+.vex-tour-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+.vex-tour-pick-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 13px 15px;
+  border-radius: 11px;
+  border: 1px solid var(--border, #1f2530);
+  background: var(--bg, #0a0c10);
+  color: var(--text, #e5e9f0);
+  font-family: inherit;
+  cursor: pointer;
+}
+.vex-tour-pick-opt:hover,
+.vex-tour-pick-opt:focus-visible {
+  border-color: var(--primary, #6366f1);
+  background: var(--vex-hover-fill, rgba(255, 255, 255, 0.04));
+}
+.vex-tour-pick-name { font-size: 14px; font-weight: 600; }
+.vex-tour-pick-sub { font-size: 11.5px; line-height: 1.5; color: var(--text-muted, #6b7482); }
+
+.vex-tour-areas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 12px 0 4px;
+  max-height: min(46vh, 340px);
+  overflow-y: auto;
+}
+.vex-tour-area {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.vex-tour-area:hover { background: var(--vex-hover-fill, rgba(255, 255, 255, 0.04)); }
+.vex-tour-area input { margin: 0; accent-color: var(--primary, #6366f1); cursor: pointer; }
+.vex-tour-area-name { font-size: 13px; font-weight: 600; color: var(--text, #e5e9f0); }
+.vex-tour-area-n {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #6b7482);
+  background: var(--bg, #0a0c10);
+  border: 1px solid var(--border, #1f2530);
+  border-radius: 20px;
+  padding: 0 7px;
+  margin-left: 4px;
+}
+.vex-tour-area-blurb {
+  grid-column: 2;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted, #6b7482);
+}
+/* The area picker's Start is disabled until something is ticked; the shared
+   dialog CSS has no disabled state because nothing else needed one. */
+.vex-tour-pick .vex-dialog-btn:disabled { opacity: .5; cursor: default; }

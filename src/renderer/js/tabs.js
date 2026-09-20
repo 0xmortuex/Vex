@@ -1464,6 +1464,9 @@ const TabManager = {
       { label: 'Mute All Others', action: () => this.muteAllOtherTabs(tab.id) },
       { sep: true },
       { label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id, true) },
+      // "Why is Vex using 4 GB?" starts with one tab. This opens the task
+      // list with this tab's process already picked out (js/tasks.js).
+      { label: 'What is this using?…', action: () => { if (typeof VexTasks !== 'undefined') VexTasks.open({ tab: tab.id }); } },
       { label: this._isKeptAwake(tab) ? 'Keep awake — change…' : 'Prevent from sleeping…', action: () => this._showKeepAwakeChooser(tab) },
       { sep: true },
       { label: 'Close', action: () => this.closeTab(tab.id), danger: true },

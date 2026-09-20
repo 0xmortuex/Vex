@@ -6,7 +6,10 @@
 // time from the command bar (Ctrl+K → "Tour"). Steps whose target isn't present
 // or visible are skipped, so it adapts to layout/feature differences.
 // Public API:
+//   VexTour.offer(opts)             ask which tour — quick, or a full one
+//                                   through the areas you choose
 //   VexTour.start()                 the built-in walkthrough (marks it seen)
+//   VexTour.full(catIds, opts)      every feature in those catalogue areas
 //   VexTour.run(steps, opts)        any step list — Discover drives this to
 //                                   tour one category, or spotlight a single
 //                                   control ("Show me"). opts.markSeen only
@@ -24,6 +27,8 @@ const VexTour = {
   _onKey: null,
 
   _running: null,
+  _pick: null,          // the "which tour?" overlay, while it is open
+  _pickMarkSeen: false, // mark the tour seen even if this offer is declined
 
   steps: [
     { title: 'Welcome to Vex', text: 'A fast, private browser with vertical tabs, workspaces, and a built-in AI agent. Here’s a 60-second tour of everything.' },
@@ -87,6 +92,185 @@ const VexTour = {
 
   start() { this.run(this.steps, { markSeen: true }); },
 
+  // === Take a tour: which one? =============================================
+  //
+  // "Take a tour" means two different things. Somebody who has just installed
+  // Vex wants the minute that names the main controls. Somebody who has used
+  // it for a month wants to be shown the things they never found — and that
+  // is well over a hundred cards, which nobody finishes. So the button asks,
+  // and the long one asks which areas first.
+  //
+  // The areas are the feature catalogue's own categories (js/feature-catalog),
+  // so a feature added there turns up in the tour without being listed twice.
+
+  AREAS_KEY: 'vex.tourAreas',
+
+  _esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  },
+
+  // The control to spotlight for a catalogue entry: its own, else its sidebar
+  // icon, else the command-bar button (every command lives behind it). Only a
+  // target that is really on screen, so the step is never dropped later.
+  _targetFor(f) {
+    if (!f || typeof document === 'undefined') return null;
+    const tries = [f.sel, f.panel ? `[data-panel="${f.panel}"]` : null, f.cmd ? '#btn-command' : null];
+    for (const sel of tries) if (sel && this._visible({ sel })) return sel;
+    return null;
+  },
+
+  // Areas ticked last time, so a second full tour does not ask the same
+  // question again from scratch.
+  _lastAreas() {
+    try {
+      const v = JSON.parse(localStorage.getItem(this.AREAS_KEY) || '[]');
+      return Array.isArray(v) ? v.filter(x => typeof x === 'string') : [];
+    } catch { return []; }
+  },
+
+  // The step list for a full tour of the chosen areas: each area introduces
+  // itself, then one card per feature in it. A feature with a control on
+  // screen is spotlighted; the rest are cards in the middle, because "Vex has
+  // this, and here is the shortcut" is worth saying either way.
+  fullSteps(catIds) {
+    const ids = (Array.isArray(catIds) ? catIds : []).filter(Boolean);
+    if (typeof VexFeatures === 'undefined' || !ids.length) return [];
+    const steps = [];
+    for (const cat of VexFeatures.CATS) {
+      if (!ids.includes(cat.id)) continue;
+      const items = VexFeatures.byCat(cat.id);
+      if (!items.length) continue;
+      steps.push({
+        title: cat.name,
+        html: this._esc(cat.blurb) + ` <b>${items.length}</b> thing${items.length === 1 ? '' : 's'} in this area.`,
+      });
+      for (const f of items) {
+        const keys = VexFeatures.keysOf(f);
+        steps.push({
+          sel: this._targetFor(f) || undefined,
+          title: VexFeatures.nameOf(f),
+          html: this._esc(f.what) + (keys ? ` <kbd>${this._esc(keys)}</kbd>` : ''),
+        });
+      }
+    }
+    if (steps.length) {
+      steps.push({
+        title: 'That is the tour',
+        html: 'All of it is on one screen too — <kbd>Ctrl+K</kbd> → <b>Discover</b>. And you can ask for any of it in your own words from the same box.',
+      });
+    }
+    return steps;
+  },
+
+  // Run the full tour of those areas. Returns how many cards it showed.
+  full(catIds, opts) {
+    const ids = (Array.isArray(catIds) ? catIds : []).filter(Boolean);
+    try { localStorage.setItem(this.AREAS_KEY, JSON.stringify(ids)); } catch { /* a remembered choice is a convenience, not the feature */ }
+    const shown = this.run(this.fullSteps(ids), { markSeen: true, onDone: opts && opts.onDone });
+    if (!shown) window.showToast?.('There is nothing to show for those areas in this window', 'info');
+    return shown;
+  },
+
+  // Ask which tour. opts.markSeen marks it seen even on "Not now", so an
+  // offer Vex made by itself is not made again at every launch.
+  offer(opts) {
+    if (typeof document === 'undefined') return null;
+    this._closePick();
+    this._pickMarkSeen = !!(opts && opts.markSeen);
+    const overlay = document.createElement('div');
+    overlay.className = 'vex-dialog-overlay vex-tour-pick';
+    document.body.appendChild(overlay);
+    this._pick = overlay;
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) this._closePick(); });
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); this._closePick(); } });
+    this._renderPick();
+    return overlay;
+  },
+
+  _closePick() {
+    if (!this._pick) return;
+    this._pick.remove();
+    this._pick = null;
+    if (this._pickMarkSeen) {
+      this._pickMarkSeen = false;
+      try { localStorage.setItem('vex.tourSeen', '1'); } catch { /* the offer still happened */ }
+    }
+  },
+
+  _renderPick() {
+    const o = this._pick;
+    if (!o) return;
+    o.innerHTML = `
+      <div class="vex-dialog" role="dialog" aria-modal="true" aria-label="Take a tour">
+        <div class="vex-dialog-title">Take a tour</div>
+        <div class="vex-dialog-msg">Two of them. You can run the other one afterwards.</div>
+        <div class="vex-tour-picks">
+          <button class="vex-tour-pick-opt" data-pick="quick">
+            <span class="vex-tour-pick-name">Quick tour</span>
+            <span class="vex-tour-pick-sub">About a minute: the address bar, your tabs, workspaces, the sidebar, Ctrl+K and the AI panel — what you touch every day.</span>
+          </button>
+          <button class="vex-tour-pick-opt" data-pick="full">
+            <span class="vex-tour-pick-name">Full tour</span>
+            <span class="vex-tour-pick-sub">Everything Vex has, area by area. You pick the areas first, so it is as long as you want it to be.</span>
+          </button>
+        </div>
+        <div class="vex-dialog-actions"><button class="vex-dialog-btn" data-cancel>Not now</button></div>
+      </div>`;
+    const quick = o.querySelector('[data-pick="quick"]');
+    quick.addEventListener('click', () => { this._pickMarkSeen = false; this._closePick(); this.start(); });
+    o.querySelector('[data-pick="full"]').addEventListener('click', () => this._renderAreas());
+    o.querySelector('[data-cancel]').addEventListener('click', () => this._closePick());
+    quick.focus();
+  },
+
+  _renderAreas() {
+    const o = this._pick;
+    if (!o) return;
+    const cats = ((typeof VexFeatures !== 'undefined' && VexFeatures.CATS) || [])
+      .map(c => ({ cat: c, n: VexFeatures.byCat(c.id).length }))
+      .filter(r => r.n > 0);
+    const before = new Set(this._lastAreas());
+    const total = cats.reduce((sum, r) => sum + r.n, 0);
+    o.innerHTML = `
+      <div class="vex-dialog" role="dialog" aria-modal="true" aria-label="Which areas to tour">
+        <div class="vex-dialog-title">Which areas?</div>
+        <div class="vex-dialog-msg">Tick what you want to be shown. All of it is ${total} features — most people take two or three areas at a time.</div>
+        <div class="vex-tour-areas">
+          ${cats.map(({ cat, n }) => `
+            <label class="vex-tour-area">
+              <input type="checkbox" value="${this._esc(cat.id)}"${before.has(cat.id) ? ' checked' : ''}>
+              <span class="vex-tour-area-name">${this._esc(cat.name)} <span class="vex-tour-area-n">${n}</span></span>
+              <span class="vex-tour-area-blurb">${this._esc(cat.blurb)}</span>
+            </label>`).join('')}
+        </div>
+        <div class="vex-dialog-actions">
+          <button class="vex-dialog-btn" data-all style="margin-right:auto">Everything</button>
+          <button class="vex-dialog-btn" data-back>Back</button>
+          <button class="vex-dialog-btn primary" data-start>Start</button>
+        </div>
+      </div>`;
+    const boxes = [...o.querySelectorAll('.vex-tour-areas input')];
+    const startBtn = o.querySelector('[data-start]');
+    const chosen = () => boxes.filter(b => b.checked).map(b => b.value);
+    const sync = () => {
+      const ids = chosen();
+      const n = ids.reduce((sum, id) => sum + VexFeatures.byCat(id).length, 0);
+      startBtn.disabled = !ids.length;
+      startBtn.textContent = ids.length ? `Start — ${n} card${n === 1 ? '' : 's'}` : 'Start';
+    };
+    boxes.forEach(b => b.addEventListener('change', sync));
+    o.querySelector('[data-all]').addEventListener('click', () => { boxes.forEach(b => { b.checked = true; }); sync(); });
+    o.querySelector('[data-back]').addEventListener('click', () => this._renderPick());
+    startBtn.addEventListener('click', () => {
+      const ids = chosen();
+      if (!ids.length) return;
+      this._pickMarkSeen = false;
+      this._closePick();
+      this.full(ids);
+    });
+    sync();
+    (boxes[0] || startBtn).focus();
+  },
 
   // Run an arbitrary list of steps. Returns the number actually shown, so a
   // caller can say "nothing to show" instead of opening an empty tour.

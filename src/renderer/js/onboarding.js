@@ -34,7 +34,9 @@ const Onboarding = {
     if (this._returnFocus?.isConnected) this._returnFocus.focus();
     this._returnFocus = null;
     this._reloadStartPages();
-    if (wantTour) setTimeout(() => { try { window.VexTour?.start?.(); } catch {} }, 450);
+    // Quick or full is asked once the wizard is out of the way, so the choice
+    // is made with the real window behind it rather than inside a step.
+    if (wantTour) setTimeout(() => { try { window.VexTour?.offer?.(); } catch {} }, 450);
   },
 
   // Show only on a genuinely fresh install — never to existing users on update.
@@ -759,15 +761,15 @@ const Onboarding = {
         <button id="ob-take-tour" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">
           <span style="display:inline-flex">${VexIcons.svg('compass', { size: 19 })}</span>
           <span style="display:flex;flex-direction:column;gap:2px">
-            <span style="font-size:13.5px;font-weight:600">Take a quick tour</span>
-            <span style="font-size:11.5px;color:var(--text-muted)">A 60-second walkthrough of tabs, the sidebar, AI, and more — right after you finish.</span>
+            <span style="font-size:13.5px;font-weight:600">Take a tour</span>
+            <span style="font-size:11.5px;color:var(--text-muted)">When you finish, Vex asks which one: a quick minute on the main controls, or a full tour through the areas you choose.</span>
           </span>
         </button>`;
       const btn = body.querySelector('#ob-take-tour');
       btn?.addEventListener('click', () => {
         this._wantTour = !this._wantTour;
         btn.style.borderColor = this._wantTour ? 'var(--primary)' : 'var(--border)';
-        btn.querySelector('span:last-child span:first-child').textContent = this._wantTour ? '✓ Tour queued — starts when you finish' : 'Take a quick tour';
+        btn.querySelector('span:last-child span:first-child').textContent = this._wantTour ? '✓ Tour queued — starts when you finish' : 'Take a tour';
       });
     } else if (key === 'browsing') {
       this._renderSwitches(body, this.BROWSING_FIELDS(), 'browsing');

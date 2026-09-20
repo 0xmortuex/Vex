@@ -1,0 +1,434 @@
+// === Running tasks — what is actually using the memory ====================
+//
+// "Vex is using 4 GB" is never a useful sentence: a browser is a dozen
+// processes and the one to blame is almost always a single page or panel.
+// The Memory panel already measures them and names them; what it could not do
+// is END one, which is the thing people open a task manager to do.
+//
+// So: every process Vex runs, biggest first, named by the Memory panel's own
+// describeProcess (one description of a process in this app, not two), with a
+// button that ends it.
+//
+// Ending never destroys anything you did not close yourself:
+//   a tab     is put to sleep — its renderer really does go, and the page
+//             comes back exactly where you left it when you click it
+//   a panel   is closed and slept, the same as the Memory panel's Sleep
+//   an extension is switched off, which is the only way its background page
+//             stops, so that one always leaves a hold you can undo
+// Vex's own processes (main, GPU, the interface, Chromium's services) are
+// listed but cannot be ended: Chromium starts them again immediately, and
+// ending the main process is quitting.
+//
+// A hold is "and keep it off": for an hour, for eight, or until you let it
+// back. It is kept by putting the thing back to sleep whenever it returns
+// (js/jobs.js runs the check), not by blocking anything — so a hold can never
+// leave you unable to open something. The Held list at the top says what is
+// held and lets it back in one click.
+const VexTasks = {
+  HOLDS_KEY: 'vex.taskHolds',
+
+  // How long "and keep it off" lasts. null = until you let it back.
+  WHEN: [
+    { key: 'hour', label: 'for an hour', ms: 60 * 60 * 1000 },
+    { key: 'eight', label: 'for eight hours', ms: 8 * 60 * 60 * 1000 },
+    { key: 'forever', label: 'until I let it back', ms: null },
+  ],
+
+  _el: null,
+  _timer: null,
+  _focus: null,     // { tab } or { panel } — the row to highlight when it opens
+
+  _esc(s) {
+    if (typeof window !== 'undefined' && typeof window.escapeHtml === 'function') return window.escapeHtml(String(s == null ? '' : s));
+    return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  },
+
+  _host(url) {
+    try { return new URL(String(url)).hostname.replace(/^www\./, ''); } catch { return ''; }
+  },
+
+  _fmt(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : Math.round(mb) + ' MB'; },
+
+  // ---- Holds ---------------------------------------------------------------
+
+  _read() {
+    try { const v = JSON.parse(localStorage.getItem(this.HOLDS_KEY) || '{}'); return (v && typeof v === 'object') ? v : {}; }
+    catch { return {}; }
+  },
+
+  _write(holds) {
+    try { localStorage.setItem(this.HOLDS_KEY, JSON.stringify(holds)); }
+    catch (err) { console.warn('[tasks] could not save the holds:', err && err.message); }
+  },
+
+  // Every live hold. Expired ones are dropped here — and an extension whose
+  // hold has run out is switched back on, because it cannot come back itself.
+  holds() {
+    const holds = this._read();
+    const now = Date.now();
+    let changed = false;
+    for (const [key, h] of Object.entries(holds)) {
+      if (!h || h.until == null || h.until > now) continue;
+      delete holds[key];
+      changed = true;
+      if (key.startsWith('ext:')) this._setExtension(key.slice(4), true, h.label);
+    }
+    if (changed) this._write(holds);
+    return holds;
+  },
+
+  isHeld(key) { return !!this.holds()[key]; },
+
+  hold(key, ms, label, kind) {
+    if (!key) throw new Error('A hold needs something to hold');
+    const holds = this.holds();
+    holds[key] = { until: ms == null ? null : Date.now() + ms, label: String(label || key), kind: kind || '', at: Date.now() };
+    this._write(holds);
+    return holds[key];
+  },
+
+  release(key) {
+    const holds = this.holds();
+    const had = holds[key];
+    if (!had) return null;
+    delete holds[key];
+    this._write(holds);
+    if (key.startsWith('ext:')) this._setExtension(key.slice(4), true, had.label);
+    return had;
+  },
+
+  // "held until 15:04" / "held until you let it back"
+  holdText(hold) {
+    if (!hold) return '';
+    if (hold.until == null) return 'held until you let it back';
+    return 'held until ' + new Date(hold.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  },
+
+  async _setExtension(folder, enabled, label) {
+    if (!window.vex || typeof window.vex.extensionsSetEnabled !== 'function') return false;
+    try {
+      await window.vex.extensionsSetEnabled(folder, enabled);
+      if (enabled) window.showToast?.((label || folder) + ' is switched back on', 'info');
+      return true;
+    } catch (err) {
+      window.showToast?.('Could not ' + (enabled ? 'switch on ' : 'switch off ') + (label || folder) + ': ' + ((err && err.message) || 'failed'), 'error');
+      return false;
+    }
+  },
+
+  // ---- What is running -----------------------------------------------------
+
+  // Which webContents id is which tab and which panel — the same join the
+  // Memory panel does, so describeProcess can name them.
+  _context() {
+    const ctx = { tabs: new Map(), tabIds: new Map(), panels: new Map(), panelNames: new Map(), captures: [] };
+    const wcOf = (wv) => { try { return wv && typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null; } catch { return null; } };
+    if (typeof TabManager !== 'undefined' && typeof WebviewManager !== 'undefined') {
+      for (const t of TabManager.tabs || []) {
+        const id = wcOf(WebviewManager.webviews.get(t.id));
+        if (id == null) continue;
+        ctx.tabs.set(id, t.title || t.url);
+        ctx.tabIds.set(id, t.id);
+      }
+    }
+    if (typeof SidebarManager !== 'undefined' && SidebarManager.panelWebviews) {
+      for (const [name, wv] of Object.entries(SidebarManager.panelWebviews)) {
+        const id = wcOf(wv);
+        if (id == null) continue;
+        ctx.panels.set(id, SidebarManager.panelLabel(name));
+        ctx.panelNames.set(id, name);
+      }
+    }
+    return ctx;
+  },
+
+  // One process, ready to draw: what it is, what it costs, what ending it
+  // would mean — or why it cannot be ended.
+  describe(p, ctx, extensions) {
+    const named = (typeof MemoryPanel !== 'undefined')
+      ? MemoryPanel.describeProcess(p, ctx)
+      : { kind: 'other', what: p.name || ('Process ' + p.pid), detail: '' };
+    const contents = Array.isArray(p.contents) ? p.contents : [];
+    const row = {
+      pid: p.pid,
+      kind: named.kind,
+      what: named.what,
+      detail: named.detail,
+      memMB: Math.round((p.memKB || 0) / 1024),
+      cpu: p.cpu || 0,
+      tabs: [],
+      panels: [],
+      hosts: [],
+      folder: null,
+      key: null,
+      endable: false,
+      why: '',
+    };
+    for (const c of contents) {
+      if (ctx.panelNames.has(c.id)) row.panels.push(ctx.panelNames.get(c.id));
+      else if (ctx.tabIds.has(c.id)) row.tabs.push(ctx.tabIds.get(c.id));
+      const host = this._host(c.url);
+      if (host && !row.hosts.includes(host)) row.hosts.push(host);
+    }
+    if (row.kind === 'panel' && row.panels.length) {
+      row.key = 'panel:' + row.panels[0];
+      row.endable = true;
+    } else if (row.kind === 'tab' && row.tabs.length) {
+      row.key = row.hosts.length ? 'site:' + row.hosts[0] : null;
+      const active = typeof TabManager !== 'undefined' ? TabManager.activeTabId : null;
+      row.endable = !row.tabs.every(id => id === active);
+      if (!row.endable) row.why = 'This is the page you are looking at — open another tab first';
+    } else if (row.kind === 'extension') {
+      const names = [...new Set(contents.map(c => c.extension).filter(Boolean))];
+      const match = (extensions || []).find(e => names.includes(e.name));
+      if (match) { row.folder = match.folder; row.key = 'ext:' + match.folder; row.endable = true; }
+      else row.why = 'Vex cannot tell which extension this is — switch it off in Settings › Extensions';
+    } else if (row.kind === 'main') {
+      row.why = 'This is Vex itself — ending it is quitting';
+    } else if (row.kind === 'gpu' || row.kind === 'utility') {
+      row.why = 'Chromium runs this for the pages that need it and starts it again straight away';
+    } else if (row.kind === 'ui') {
+      row.why = 'The toolbar, tabs and sidebar you are using';
+    } else {
+      row.why = 'Nothing is running in it — it goes on its own';
+    }
+    return row;
+  },
+
+  // Every process, biggest first.
+  async rows() {
+    if (!window.vex || typeof window.vex.processes !== 'function') throw new Error('The process list is not available in this build');
+    const got = await window.vex.processes();
+    const procs = Array.isArray(got) ? got : (got && got.processes) || [];
+    const ctx = this._context();
+    ctx.workers = (got && got.workers) || [];
+    let extensions = [];
+    if (window.vex && typeof window.vex.extensionsList === 'function') {
+      try { extensions = await window.vex.extensionsList() || []; } catch { extensions = []; }
+    }
+    return procs.map(p => this.describe(p, ctx, extensions)).sort((a, b) => b.memMB - a.memMB);
+  },
+
+  // ---- Ending --------------------------------------------------------------
+
+  // End one row, optionally keeping it off. `ms` undefined means once only;
+  // null means until it is let back. Returns what it did, in words.
+  async end(row, ms) {
+    if (!row || !row.endable) throw new Error(row && row.why ? row.why : 'That one cannot be ended');
+    const keep = ms !== undefined;
+    let did = '';
+    if (row.kind === 'panel') {
+      const name = row.panels[0];
+      if (typeof SidebarManager === 'undefined') throw new Error('The sidebar is not available in this window');
+      if (name === SidebarManager.activePanel || name === SidebarManager.sidePanel) SidebarManager.hideActivePanel();
+      SidebarManager.sleepPanel(name);
+      did = SidebarManager.panelLabel(name) + ' closed';
+    } else if (row.kind === 'tab') {
+      const active = TabManager.activeTabId;
+      const ids = row.tabs.filter(id => id !== active);
+      for (const id of ids) await TabManager.sleepTab(id, true);
+      did = ids.length === 1 ? 'Tab put to sleep' : ids.length + ' tabs put to sleep';
+    } else if (row.kind === 'extension') {
+      if (!await this._setExtension(row.folder, false, row.what)) throw new Error('Could not switch that extension off');
+      did = row.what.replace(/ — background$/, '') + ' switched off';
+      // An extension cannot come back by itself, so there is always something
+      // to undo — a bare "End now" becomes a hold with no end date.
+      if (!keep) { this.hold(row.key, null, row.what, row.kind); return did + ' — let it back from Running tasks'; }
+    }
+    if (keep && row.key) {
+      const h = this.hold(row.key, ms, row.what, row.kind);
+      return did + ', ' + this.holdText(h);
+    }
+    return did;
+  },
+
+  // Keep the holds kept: anything held that is running again goes back to
+  // sleep. Nothing is closed and nothing is blocked — the worst a hold can do
+  // is put a page to sleep, which loses nothing.
+  enforce() {
+    const holds = this.holds();
+    const keys = Object.keys(holds);
+    if (!keys.length) return [];
+    const acted = [];
+    for (const key of keys) {
+      if (key.startsWith('panel:')) {
+        const name = key.slice(6);
+        if (typeof SidebarManager === 'undefined' || !SidebarManager.panelWebviews || !SidebarManager.panelWebviews[name]) continue;
+        // Open in front of them: they went back to it on purpose, so the hold
+        // waits rather than snatching it away.
+        if (name === SidebarManager.activePanel || name === SidebarManager.sidePanel) continue;
+        try { SidebarManager.sleepPanel(name); acted.push(holds[key].label); } catch { /* already gone */ }
+      } else if (key.startsWith('site:')) {
+        const host = key.slice(5);
+        if (typeof TabManager === 'undefined') continue;
+        for (const t of TabManager.tabs || []) {
+          if (t.id === TabManager.activeTabId || t.sleeping || t._lazy) continue;
+          if (this._host(t.url) !== host) continue;
+          TabManager.sleepTab(t.id, true);
+          acted.push(host);
+        }
+      }
+    }
+    if (acted.length) {
+      const what = [...new Set(acted)].join(', ');
+      window.showToast?.(what + ' — still held, so Vex put it back to sleep. Open Running tasks to let it back.', 'info', 6000);
+      if (this._el) this.refresh();
+    }
+    return acted;
+  },
+
+  // ---- The window ----------------------------------------------------------
+
+  // opts.tab / opts.panel highlights the row that thing is running in, which
+  // is what "what is this using?" on a tab or a panel wants.
+  open(opts) {
+    this._focus = opts || null;
+    if (this._el) { this.refresh(); return this._el; }
+    const el = document.createElement('div');
+    el.className = 'vextasks-backdrop';
+    el.innerHTML = `
+      <div class="vextasks" role="dialog" aria-modal="true" aria-label="Running tasks">
+        <div class="vextasks-head">
+          <div class="vextasks-headings">
+            <h2>Running tasks</h2>
+            <div class="vextasks-sub">Every process Vex is running, biggest first. Ending one gives its memory back — a page you end is put to sleep and comes back where you left it.</div>
+          </div>
+          <div class="vextasks-total" id="vextasks-total">…</div>
+          <button class="vextasks-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="vextasks-held" id="vextasks-held" hidden></div>
+        <div class="vextasks-body" id="vextasks-body"><div class="vextasks-empty">Measuring…</div></div>
+      </div>`;
+    document.body.appendChild(el);
+    this._el = el;
+    el.querySelector('.vextasks-close').addEventListener('click', () => this.close());
+    el.addEventListener('mousedown', (e) => { if (e.target === el) this.close(); });
+    this._onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); this.close(); } };
+    window.addEventListener('keydown', this._onKey, true);
+    this.refresh();
+    // Live, because the numbers move and because an end has to be seen to have
+    // worked. Three seconds matches the Memory panel's own tab refresh.
+    this._timer = setInterval(() => this.refresh(), 3000);
+    return el;
+  },
+
+  close() {
+    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    if (this._onKey) { window.removeEventListener('keydown', this._onKey, true); this._onKey = null; }
+    this._menu?.remove();
+    this._menu = null;
+    if (this._el) { this._el.remove(); this._el = null; }
+    this._focus = null;
+  },
+
+  async refresh() {
+    const el = this._el;
+    if (!el) return;
+    const body = el.querySelector('#vextasks-body');
+    let rows;
+    try { rows = await this.rows(); }
+    catch (err) { body.innerHTML = `<div class="vextasks-empty">${this._esc((err && err.message) || 'Could not read the processes')}</div>`; return; }
+    if (!this._el) return;                                   // closed while measuring
+    const total = rows.reduce((sum, r) => sum + r.memMB, 0);
+    el.querySelector('#vextasks-total').textContent = this._fmt(total);
+    this._renderHeld();
+    body.innerHTML = `
+      <table class="vextasks-table">
+        <thead><tr><th>What</th><th class="num">Memory</th><th class="num">CPU</th><th></th></tr></thead>
+        <tbody>${rows.map((r, i) => this._row(r, i)).join('')}</tbody>
+      </table>`;
+    this._rows = rows;
+    body.querySelectorAll('[data-end]').forEach(b => b.addEventListener('click', (e) => this._endMenu(e.currentTarget, rows[Number(b.dataset.end)])));
+    const focused = body.querySelector('.vextasks-row.on');
+    if (focused) focused.scrollIntoView({ block: 'center' });
+  },
+
+  // Which row is the thing the user right-clicked running in?
+  _isFocus(row) {
+    const f = this._focus;
+    if (!f) return false;
+    if (f.tab != null) return row.tabs.includes(f.tab);
+    if (f.panel) return row.panels.includes(f.panel);
+    return false;
+  },
+
+  _row(r, i) {
+    const held = r.key ? this.holds()[r.key] : null;
+    const size = r.memMB >= 700 ? ' hot' : r.memMB >= 300 ? ' warm' : '';
+    return `
+      <tr class="vextasks-row${this._isFocus(r) ? ' on' : ''}${r.cpu >= 25 ? ' busy' : ''}">
+        <td>
+          <div class="vextasks-what">${this._esc(r.what)}${held ? ` <span class="vextasks-heldtag">${this._esc(this.holdText(held))}</span>` : ''}</div>
+          ${r.detail ? `<div class="vextasks-detail" title="${this._esc(r.detail)}">${this._esc(r.detail)}</div>` : ''}
+          <div class="vextasks-kind">pid ${r.pid}${r.why ? ' · ' + this._esc(r.why) : ''}</div>
+        </td>
+        <td class="num${size}">${this._fmt(r.memMB)}</td>
+        <td class="num">${r.cpu.toFixed(0)}%</td>
+        <td class="num">${r.endable ? `<button class="vextasks-end" data-end="${i}">End…</button>` : ''}</td>
+      </tr>`;
+  },
+
+  _renderHeld() {
+    const host = this._el && this._el.querySelector('#vextasks-held');
+    if (!host) return;
+    const holds = this.holds();
+    const keys = Object.keys(holds);
+    host.hidden = !keys.length;
+    if (!keys.length) { host.innerHTML = ''; return; }
+    host.innerHTML = '<span class="vextasks-held-title">Held off:</span>' + keys.map(k => `
+      <span class="vextasks-held-one">${this._esc(holds[k].label)} · ${this._esc(this.holdText(holds[k]))}
+        <button data-release="${this._esc(k)}">Let it back</button></span>`).join('');
+    host.querySelectorAll('[data-release]').forEach(b => b.addEventListener('click', () => {
+      const had = this.release(b.dataset.release);
+      window.showToast?.((had ? had.label : 'It') + ' is no longer held', 'info');
+      this.refresh();
+    }));
+  },
+
+  // End now, or end and keep it off. A menu rather than four buttons because
+  // most of the time the first one is all anybody wants.
+  _endMenu(btn, row) {
+    this._menu?.remove();
+    const menu = document.createElement('div');
+    menu.className = 'vextasks-menu';
+    // Only something Vex can recognise again later can be kept off: a panel,
+    // an extension, a site. The start page and anything without an address
+    // can be ended, and that is all.
+    const items = [
+      { label: 'End now', ms: undefined },
+      ...(row.key ? this.WHEN.map(w => ({ label: 'End, and keep it off ' + w.label, ms: w.ms })) : []),
+    ];
+    if (!row.key) items.push({ note: 'There is no address to hold this one by, so it can only be ended.' });
+    menu.innerHTML = items.map((it, i) => it.note
+      ? `<div class="vextasks-menu-note">${this._esc(it.note)}</div>`
+      : `<button data-i="${i}">${this._esc(it.label)}</button>`).join('');
+    document.body.appendChild(menu);
+    this._menu = menu;
+    const r = btn.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+    menu.style.top = Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + 'px';
+    const away = (e) => { if (!menu.contains(e.target)) { menu.remove(); this._menu = null; document.removeEventListener('mousedown', away, true); } };
+    document.addEventListener('mousedown', away, true);
+    menu.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', async () => {
+      const item = items[Number(b.dataset.i)];
+      menu.remove();
+      this._menu = null;
+      document.removeEventListener('mousedown', away, true);
+      try {
+        const said = await this.end(row, item.ms);
+        window.showToast?.(said, 'success');
+      } catch (err) { window.showToast?.((err && err.message) || 'Could not end that one', 'error'); }
+      this.refresh();
+    }));
+  },
+
+  // The hold check runs whether or not the window is open — a hold set an hour
+  // ago has to keep being kept.
+  start() {
+    if (typeof VexJobs === 'undefined') return;
+    VexJobs.every('Held tasks', 20000, () => { try { this.enforce(); } catch (err) { console.warn('[tasks] hold check failed:', err && err.message); } }, { when: 'ui' });
+  },
+};
+
+if (typeof window !== 'undefined') window.VexTasks = VexTasks;
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexTasks };

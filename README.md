@@ -44,6 +44,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Tabs your way** — horizontal (Chrome‑style top bar) or **vertical** (left sidebar) layout.
 - **Tab groups + AI auto‑grouping** — clusters open tabs into named groups and remembers the pattern so future tabs auto‑join (`Organize My Tabs`, `Ctrl+Shift+G`).
 - **Tab sleep / wake / hibernate** — idle tabs sleep with scroll restore; **Tab Health dashboard** shows every tab by state (active · kept‑awake · awake · hibernated · sleeping · not‑loaded) with live memory and one‑click sleep/wake/keep‑awake.
+- **Running tasks** — every process Vex runs, biggest first and named ("Panel: Discord — 1,013 MB"), with **End** on each: once, or kept off for an hour, eight hours, or until you let it back. Right‑click any tab or panel → "What is this using?", or `Ctrl+K` → Running Tasks.
 - **"Never sleep" (keep awake)** — pin a tab so it stays live and loaded in the background (right‑click a tab → ☕).
 - **Split screen** — 2, 3, or 4 panes side‑by‑side (2×2 for four) — `Ctrl+Shift+S`.
 - **Tab preview on hover**, **pin/unpin**, **mute tab / mute others**.

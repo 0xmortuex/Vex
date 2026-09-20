@@ -58,6 +58,7 @@ const SiteRulesUI = {
       const tab = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
       await this.sweep(url, tab && tab.partition);
     }
+    this._mark(url);
     return rule;
   },
 
@@ -76,9 +77,45 @@ const SiteRulesUI = {
     return gone;
   },
 
+  // What is switched off here, in words: for the marker's tooltip and for the
+  // toast that says why a site stopped working.
+  describe(url) {
+    const rule = this.forUrl(url) || {};
+    const names = this.WHAT.filter(w => rule[w.id] === 'off').map(w => w.name.toLowerCase());
+    if (!names.length) return '';
+    const host = this.host(url);
+    return host + ': ' + (names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]) + ' switched off';
+  },
+
+  // A site with something switched off says so in the toolbar, every time you
+  // are on it. Before this the only sign was the site quietly not working —
+  // YouTube with "content from other sites" off serves its video from another
+  // host, so the player was simply black with nothing to explain it.
+  _mark(url) {
+    const btn = document.getElementById('btn-site-rules');
+    if (!btn) return '';
+    const said = this.describe(url);
+    btn.hidden = !said;
+    if (said) btn.title = said + ' — click to change';
+    return said;
+  },
+
   init() {
     // The stored rules are the truth; this only makes main agree with them.
     this.push().catch(err => window.VexProblems?.note('Site switches', 'Could not tell Vex about your per-site switches', err));
+    document.getElementById('btn-site-rules')?.addEventListener('click', () => {
+      try { this.open(); } catch (err) { window.showToast?.(err.message, 'error'); }
+    });
+    // The marker follows the tab you are looking at, whichever way you got there.
+    const follow = () => {
+      try { this._mark(this._tab().url); } catch { this._mark(''); }
+    };
+    document.addEventListener('vex:tab-navigated', follow);
+    // Switching tabs announces itself as vex-tabs-changed, so that is the one
+    // to listen to; there is no separate "switched" event.
+    window.addEventListener('vex-tabs-changed', follow);
+    follow();
+
     document.addEventListener('vex:tab-navigated', (e) => {
       const { tabId, url } = e.detail || {};
       if (!this.isOff(url || '', 'cookies')) return;

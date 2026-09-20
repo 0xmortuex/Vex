@@ -437,3 +437,44 @@
   --tab-active: #371420; --tab-hover: #260e16;
   --danger: #fb7185; --success: #a3b18a; --warning: #fbbf24;
 }
+
+/* === Firefox's own colours, as themes ======================================
+   The Firefox LOOK already paints Vex's chrome in these (gui-browser.css), but
+   the theme picker had no matching entry — so choosing a theme always dragged
+   the rest of the interface somewhere else, and there was no way to ask for
+   "the colours Firefox actually uses". These two are that: Proton light and
+   Proton dark, taken from the same values the look uses.
+
+   Light is the first genuinely light theme here, so the greys go the other way
+   round: the deep surface is the one BELOW the page, not above it. */
+[data-theme="firefox-light"] {
+  --vex-bg-base: #f9f9fb; --vex-bg-elevated: #ffffff; --vex-bg-deep: #f0f0f4;
+  --vex-glass-strong: #f0f0f4; --vex-glass-medium: #f0f0f4; --vex-glass-light: #ffffff;
+  --vex-glass-tab-active: #ffffff; --vex-glass-tab-inactive: #f0f0f4; --vex-glass-input: #ffffff;
+  --vex-border-subtle: #e0e0e6; --vex-border-medium: #cfcfd8; --vex-border-strong: #b1b1bb;
+  --vex-border-accent: #0061e0; --vex-border-accent-strong: #0061e0;
+  --vex-accent: #0061e0; --vex-accent-dim: #0061e026; --vex-accent-glow: #0061e01f;
+  --vex-text-primary: #15141a; --vex-text-secondary: #5b5b66; --vex-text-muted: #6f6e78;
+  --vex-text-accent: #0061e0; --vex-success: #017a4a; --vex-danger: #c50042; --vex-danger-hover: #e11d48; --vex-warning: #a47f00;
+  --bg: #f9f9fb; --bg-2: #f0f0f4; --sidebar: #f0f0f4; --surface: #ffffff;
+  --border: #cfcfd8; --text: #15141a; --text-muted: #5b5b66;
+  --primary: #0061e0; --primary-hover: #0250bb; --accent: #0061e0;
+  --tab-active: #ffffff; --tab-hover: #e8e8ee;
+  --danger: #c50042; --success: #017a4a; --warning: #a47f00;
+  --vex-hover-fill: rgba(21, 20, 26, 0.07); --vex-shadow-color: rgba(21, 20, 26, 0.14);
+}
+[data-theme="firefox-dark"] {
+  --vex-bg-base: #1c1b22; --vex-bg-elevated: #2b2a33; --vex-bg-deep: #18171e;
+  --vex-glass-strong: #18171e; --vex-glass-medium: #1c1b22; --vex-glass-light: #2b2a33;
+  --vex-glass-tab-active: #42414d; --vex-glass-tab-inactive: #1c1b22; --vex-glass-input: #1c1b22;
+  --vex-border-subtle: #3a3945; --vex-border-medium: #52525e; --vex-border-strong: #6f6e78;
+  --vex-border-accent: #00ddff; --vex-border-accent-strong: #00ddff;
+  --vex-accent: #00ddff; --vex-accent-dim: #00ddff38; --vex-accent-glow: #00ddff2e;
+  --vex-text-primary: #fbfbfe; --vex-text-secondary: #bfbfc9; --vex-text-muted: #8f8f9d;
+  --vex-text-accent: #00ddff; --vex-success: #54ffbd; --vex-danger: #ff9aa2; --vex-danger-hover: #ffb3b9; --vex-warning: #ffd567;
+  --bg: #1c1b22; --bg-2: #18171e; --sidebar: #1c1b22; --surface: #2b2a33;
+  --border: #52525e; --text: #fbfbfe; --text-muted: #bfbfc9;
+  --primary: #00ddff; --primary-hover: #80ebff; --accent: #00ddff;
+  --tab-active: #42414d; --tab-hover: #2b2a33;
+  --danger: #ff9aa2; --success: #54ffbd; --warning: #ffd567;
+}

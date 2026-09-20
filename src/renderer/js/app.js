@@ -1421,18 +1421,24 @@
     });
     document.getElementById('welcome-tour')?.addEventListener('click', () => {
       closeWelcome();
-      setTimeout(() => { try { VexTour.start(); } catch {} }, 420);
+      setTimeout(() => { try { VexTour.offer(); } catch {} }, 420);
     });
   } else if (!wizardOwnsWelcome && !localStorage.getItem('vex.tourSeen')) {
     // Existing user who hasn't seen the tour yet — offer it once after load.
     // Guarded by !wizardOwnsWelcome so a fresh install (wizard showing) never
     // auto-launches the tour on top of the wizard — the wizard's own "Take a
     // tour" button is the entry point there.
-    setTimeout(() => { try { if (typeof VexTour !== 'undefined') VexTour.start(); } catch {} }, 1000);
+    // markSeen: an offer Vex made by itself counts as made even if declined,
+    // otherwise it asks again at every launch.
+    setTimeout(() => { try { if (typeof VexTour !== 'undefined') VexTour.offer({ markSeen: true }); } catch {} }, 1000);
   }
 
   // === Phase 8: Scheduler ===
   Scheduler.start();
+
+  // A task held off (js/tasks.js) has to be kept off, so the check runs
+  // whether or not the Running tasks window is open.
+  if (typeof VexTasks !== 'undefined') VexTasks.start();
 
   // === Phase 10: Multi-Tab AI ===
   TabSelector.init();

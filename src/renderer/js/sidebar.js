@@ -1860,6 +1860,9 @@ const SidebarManager = {
       }
       items.push({ separator: true });
       items.push({ label: 'Refresh', action: makeRefreshAction(this, panelName) });
+      // What this panel is actually costing, beside everything else running
+      // — and the way to end it, or keep it off for a while (js/tasks.js).
+      items.push({ label: 'What is this using?…', action: () => { if (typeof VexTasks !== 'undefined') VexTasks.open({ panel: panelName }); } });
       // A loaded, hidden web panel can give its process back.
       if (this.panelWebviews[panelName] && panelName !== this.activePanel && panelName !== this.sidePanel) {
         items.push({
