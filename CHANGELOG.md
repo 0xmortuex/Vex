@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.32.67 (2026-09-20) — Picture-in-Picture buttons work again, a shorter setup, and answers to the questions people actually ask
+
+### Fixes
+- **The Picture-in-Picture pop-out's buttons did nothing.** *Back to tab*, *Close* and *Keep on top* were all refused as untrusted messages, because the window was recognised by its preload file and this Electron stopped reporting one — so pressing Back to tab looked exactly like "the picture went and nothing else happened". Fixed and checked live: it closes the pop-out and takes you back to the tab the video came from.
+- A refused message used to be swallowed without a word, which is why a dead button left no trace. Refusals now say which channel was refused and why (never what was in it).
+
+### Changes
+- **The setup wizard asks one thing first: how much of it you want.** *Just the essentials* is about two minutes — how Vex looks, which panels you keep, your name, your search engine, and whether links open here. *Everything* is the full eleven. The header says how long is left instead of only which step you are on, and every step still has a Skip.
+  - The last step says the one thing worth remembering: press **Ctrl+K** and say what you want in your own words.
+  - Re-opening the wizard later still offers every step, with the short path one click away.
+- **Ask Vex anything, in your own words.** Fourteen of the questions people actually ask now have a written answer rather than a search result: "what can you do", "it's using all my RAM", "I want two accounts on one site", "stop autoplay", "block ads", "too many tabs", "save this page", "set up the AI", "do it for me", "am I being tracked", "where are my passwords", "that shortcut doesn't work", "back up my stuff", "change how it looks", "picture-in-picture". Each answers in a sentence, lists the steps, and offers a button that does it.
+  - A complaint counts as a question now — it no longer has to start with "how do I".
+
 ## v2.32.66 (2026-09-20) — Bug sweep: shortcuts that needed a click first, missing buttons, a panel that would not scroll
 
 ### Fixes
