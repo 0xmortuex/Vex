@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.32.54 (2026-09-20) — Ask Vex in your own words, and it answers properly
+
+### Changes
+- **Ask in the AI panel, not just Ctrl+K.** A question like *how do I stop ads* now comes back as a card: what the feature is, the steps, and buttons — **Do it**, **Show me** (points at the real control), **Step me through it**, and **Ask the AI anyway** if the match was wrong. No model is loaded to answer it.
+- **It understands the words people actually use.** Around sixty features now carry their everyday wording, so *make it dark*, *hide my ip*, *get rid of cookie banners*, *watch a video in a small window* and *remember my passwords* all land on the right thing. Measured on thirty questions written the way someone would type them: thirty answered, on the right feature.
+- **Better matching.** A word in the feature's own name counts for more than the same word buried in its description; "read"/"reading" match but "list"/"listen" don't; and the plain feature wins over a specialised one with the same word in its name — *take a screenshot* gives Screenshot, not Screenshot to code.
+- **Walkthroughs** for the three that really take several steps — the agent, container tabs and Sync — highlighting each control in turn.
+- **Four features the list had never mentioned**: find on this page, which search engine the address bar uses, refusing cookie banners, and memory saver.
+- **A test keeps it honest**: every feature the guide can offer must point at a command, control, panel or Settings switch that still exists, so an answer can never send you to a button that has been removed.
+
+### Downloads
+- **The "download finished" card stays until you deal with it.** It used to take itself off the screen after a few seconds, so looking away cost you the file. It now waits for Open, Show or the × — only the stack is capped at five, so a batch can't bury the window.
+- **A downloads button in the toolbar**, next to the extensions one. It marks itself while something is downloading, and drops down the last six: click a finished one to open it (with the same safety check the panel makes), or *Open downloads* for the full list. One still downloading opens the panel instead.
+- **Double-click a download in the Downloads panel to open it**, as you would in Explorer. Its own buttons still win.
+
 ## v2.32.53 (2026-09-20) — Ask Vex whether it can do something
 
 ### Changes

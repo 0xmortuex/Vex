@@ -20,7 +20,8 @@ describe('what the question is', () => {
   });
 
   it('throws away the words that carry no meaning', () => {
-    expect(VexGuide.ask('how do i group my tabs')).toEqual(['group', 'my', 'tabs'].filter(w => w !== 'my'));
+    // 'tabs' and 'tab' are the same word to a person.
+    expect(VexGuide.ask('how do i group my tabs')).toEqual(['group', 'tab']);
   });
 });
 
@@ -45,5 +46,45 @@ describe('the answer', () => {
     const a = VexGuide.answer('can vex group tabs');
     await VexGuide.run(a.entry);
     expect(CommandBar.commands[0].action).toHaveBeenCalled();
+  });
+});
+
+describe('the words people actually type', () => {
+  const asked = (q) => { const a = VexGuide.answer(q); return a.found ? a.entry.id : null; };
+
+  it('lands on the right feature for everyday wording', () => {
+    expect(asked('how do i stop ads')).toBe('adblock');
+    expect(asked('how do i make it dark')).toBe('themes');
+    expect(asked('can vex hide my ip')).toBe('tor');
+    expect(asked('how do i get rid of cookie banners')).toBe('consent-banners');
+    expect(asked('how do i watch a video in a small window')).toBe('pip');
+    expect(asked('how do i sync my tabs to another computer')).toBe('sync');
+    expect(asked('how do i find a word on the page')).toBe('find-in-page');
+    expect(asked('can vex remember my passwords')).toBe('passwords');
+  });
+
+  it('prefers the plain feature over a specialised one with the same word', () => {
+    expect(asked('can vex take a screenshot')).toBe('screenshot');   // not "screenshot to code"
+    expect(asked('how do i zoom a page')).toBe('zoom');              // not "find on this page"
+  });
+
+  it('a word with an ending still matches; a word that merely starts the same does not', () => {
+    expect(asked('is there a reading list')).toBe('library');        // "list" is not "listen"
+  });
+
+  it('still refuses what Vex does not have', () => {
+    expect(asked('how do i order a pizza')).toBeNull();
+    expect(asked('how do i mine bitcoin')).toBeNull();
+  });
+});
+
+describe('a walkthrough', () => {
+  it('runs the feature\'s own steps when it has them, else points at the control', () => {
+    const runs = [];
+    globalThis.VexTour = { run: (steps) => runs.push(steps) };
+    VexGuide.walk(VexFeatures.get('agent'));
+    expect(runs[0].map(s => s.sel)).toEqual(['#btn-toggle-ai', '#ai-input', '#ai-send']);
+    VexGuide.walk(VexFeatures.get('vertical-tabs'));
+    expect(runs[1].map(s => s.sel)).toEqual(['#tabs-list']);
   });
 });

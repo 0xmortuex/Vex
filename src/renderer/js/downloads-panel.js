@@ -150,6 +150,7 @@ const DownloadsPanel = {
   },
 
   _updateBadge() {
+    window.DownloadsButton?.refresh();
     const icon = document.querySelector('.sidebar-icon[data-panel="downloads"]');
     if (!icon) return;
     const active = this.downloads.filter(d => d.state === 'progressing').length;
@@ -281,6 +282,15 @@ const DownloadsPanel = {
   // Wire up a single row's action buttons (used by renderList and the
   // incremental _prependRow/_replaceRow paths).
   _bindRowActions(rowEl) {
+    // Double-click the row itself opens the file, as it does in Explorer.
+    const openBtn = rowEl.querySelector('[data-action="open-file"]');
+    if (openBtn) {
+      rowEl.addEventListener('dblclick', (e) => {
+        if (e.target.closest('button')) return;          // the row's own buttons win
+        openBtn.click();
+      });
+      rowEl.title = 'Double-click to open';
+    }
     rowEl.querySelectorAll('[data-action="open-file"]').forEach(b => b.addEventListener('click', async () => {
       // An installer is the one thing a browser hands you that can do anything
       // to the machine, and browsers say nothing about it. Windows asks only

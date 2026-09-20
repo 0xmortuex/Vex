@@ -11,7 +11,15 @@
 // asked for the wording when it happens to be on. With no match, it says so.
 const VexGuide = {
   // Words that carry no meaning in "how do I …" questions.
-  STOP: new Set(['how', 'do', 'i', 'can', 'vex', 'the', 'a', 'an', 'to', 'in', 'on', 'of', 'is', 'there', 'any', 'way', 'for', 'my', 'me', 'it', 'this', 'that', 'with', 'and', 'or', 'does', 'have', 'get', 'want', 'please', 'help', 'something', 'anything', 'feature', 'able']),
+  STOP: new Set([
+    'how', 'do', 'i', 'can', 'vex', 'the', 'a', 'an', 'to', 'in', 'on', 'of', 'is', 'there', 'any', 'way', 'for',
+    'my', 'me', 'it', 'this', 'that', 'with', 'and', 'or', 'does', 'have', 'get', 'want', 'please', 'help',
+    'something', 'anything', 'feature', 'able', 'make', 'change', 'see', 'use', 'using', 'set', 'put', 'turn',
+    'add', 'new', 'some', 'when', 'what', 'where', 'from', 'at', 'be', 'am', 'are', 'you', 'your', 'one', 'again', 'take', 'open', 'go', 'keep', 'stop', 'work', 'working', 'all',
+  ]),
+
+  // "tabs" and "tab" are the same word to a person.
+  _stem(w) { return w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w; },
 
   // "how do i …", "can vex …", "is there a way to …" → the words that matter.
   ask(text) {
@@ -19,7 +27,8 @@ const VexGuide = {
       .replace(/^(how (do|can) i|how to|can vex|does vex|is there (a way to|anything (that|to))?|i want to|i need to)\s+/i, '')
       .replace(/[^a-z0-9]+/g, ' ')
       .split(' ')
-      .filter(w => w && !this.STOP.has(w));
+      .filter(w => w && !this.STOP.has(w))
+      .map(w => this._stem(w));
   },
 
   // Is this a question about what Vex can do, rather than about a web page?
@@ -27,10 +36,14 @@ const VexGuide = {
     return /^(how (do|can) i|how to|can vex|does vex|is there|i want to|i need to|where (is|do i))\b/i.test(String(text || '').trim());
   },
 
-  _words(entry, label) {
-    return new Set(String([entry.name, label, entry.what, entry.id, (entry.phrases || []).join(' ')].filter(Boolean).join(' '))
-      .toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(Boolean));
+  _bag(text) {
+    return new Set(String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(Boolean).map(w => this._stem(w)));
   },
+
+  // A word in the feature's NAME or in the words people use for it counts for
+  // much more than the same word buried in its description — "stop ads" must
+  // land on the ad blocker, not on a page-speed check that mentions adverts.
+  STRONG: 3,
 
   // The catalogue reads the live command registry, so a renamed command shows
   // up here rather than quietly disagreeing.
@@ -48,12 +61,30 @@ const VexGuide = {
     return items
       .map(entry => {
         const label = this._label(entry);
-        const have = this._words(entry, label);
-        const hits = want.filter(w => have.has(w) || [...have].some(h => w.length >= 4 && h.startsWith(w))).length;
-        return { entry, label, score: hits / want.length };
+        const strong = this._bag([entry.name, label, entry.id, entry.phrases].filter(Boolean).join(' '));
+        const weak = this._bag(entry.what);
+        // Whole words, or the same word with an ending ("block"/"blocking").
+        // Not "screen"/"screenshot": a longer word is a different word, so the
+        // tail may only be a couple of letters.
+        const has = (bag, w) => bag.has(w) || [...bag].some(h => {
+          const [short, long] = h.length <= w.length ? [h, w] : [w, h];
+          // Only a real ending: "read"/"reading" yes, "list"/"listen" no.
+          return short.length >= 4 && long.startsWith(short) && /^(s|es|ed|d|ing|ion|er|ers|ly)$/.test(long.slice(short.length));
+        });
+        let strongHits = 0, weakHits = 0;
+        for (const w of want) { if (has(strong, w)) strongHits++; else if (has(weak, w)) weakHits++; }
+        const missed = want.length - strongHits - weakHits;
+        // How much of the feature's OWN name the question did not account for:
+        // asked "take a screenshot", plain Screenshot beats Screenshot to code.
+        const nameBag = this._bag([entry.name, label, entry.id].filter(Boolean).join(' '));
+        const spare = [...nameBag].filter(h => !want.some(w => has(new Set([h]), w))).length;
+        return { entry, label, strongHits, missed, spare, score: strongHits * this.STRONG + weakHits };
       })
-      .filter(r => r.score >= 0.5)
-      .sort((a, b) => b.score - a.score)
+      // Everything they said has to be somewhere in the feature (one word may
+      // be missing when the rest is in its own name), and a feature that only
+      // mentions their words in passing is not an answer.
+      .filter(r => (r.missed === 0 && (r.strongHits > 0 || want.length > 1)) || (r.missed <= 1 && r.strongHits >= 1))
+      .sort((a, b) => b.strongHits - a.strongHits || a.missed - b.missed || a.spare - b.spare || b.score - a.score)
       .slice(0, limit);
   },
 
@@ -76,7 +107,8 @@ const VexGuide = {
     const [best, ...rest] = hits;
     // A feature that is switched off or hidden cannot be followed to, so the
     // first step is turning it back on.
-    const off = VexFeatures.offState(best.entry);
+    let off = null;
+    try { off = VexFeatures.offState(best.entry); } catch { off = null; }   // needs a window; never worth failing the answer
     const steps = this.steps(best.entry, best.label);
     return {
       found: true,
@@ -96,6 +128,14 @@ const VexGuide = {
     if (c) return Promise.resolve(c.action());
     if (entry.panel && typeof SidebarManager !== 'undefined') return Promise.resolve(SidebarManager.openPanel(entry.panel));
     return this.show(entry);
+  },
+
+  // The few features that really take several steps (signing in to sync, a
+  // container tab, setting the agent loose) carry their own step list, and
+  // that is a walkthrough: highlight, wait, next.
+  walk(entry) {
+    if (!entry.steps || !entry.steps.length) return this.show(entry);
+    return VexTour.run(entry.steps.map(s => ({ sel: s.sel, title: s.title || VexFeatures.nameOf(entry), html: s.html })), { markSeen: false });
   },
 
   // Point at the control itself, so the next time they know where it lives.

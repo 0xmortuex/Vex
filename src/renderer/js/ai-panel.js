@@ -1389,6 +1389,17 @@ const AIPanel = {
       return;
     }
     if (!typed) return;
+    // "How do I …?" about Vex itself is answered from Vex's own feature list,
+    // with the thing one press away — and without loading a model.
+    if (typeof VexGuide !== 'undefined' && VexGuide.isAbout(typed)) {
+      const guided = VexGuide.answer(typed);
+      if (guided.found) {
+        input.value = '';
+        if (!this.isOpen()) this.open();
+        this._renderGuide(typed, guided);
+        return;
+      }
+    }
     // Send decides whether this is a task for the agent (see routeMessage).
     // The text stays in the box until the run really starts.
     const route = this.routeMessage(typed);
@@ -1574,6 +1585,55 @@ const AIPanel = {
       this._SOURCE_CACHE.set(url, text);
       show(text);
     } finally { delete a.dataset.previewing; }
+  },
+
+  // The guide's answer as a card: what it is, the steps, and buttons that do
+  // it rather than describe it. "Ask the AI anyway" is always there, because
+  // the match is words, not understanding, and it can be wrong.
+  _renderGuide(question, a) {
+    const container = document.getElementById('ai-messages');
+    if (!container) return null;
+    const you = document.createElement('div');
+    you.className = 'ai-msg user';
+    you.innerHTML = '<div class="ai-msg-content"></div>';
+    you.querySelector('.ai-msg-content').textContent = question;
+    container.appendChild(you);
+
+    const el = document.createElement('div');
+    el.className = 'ai-msg assistant vex-guide-card';
+    const head = document.createElement('div');
+    head.className = 'ai-msg-content';
+    head.textContent = a.headline;
+    const list = document.createElement('ol');
+    list.className = 'vex-guide-steps';
+    for (const s of a.steps) { const li = document.createElement('li'); li.textContent = s; list.append(li); }
+    const bar = document.createElement('div');
+    bar.className = 'agent-final-actions';
+    const button = (label, title, run) => {
+      const b = document.createElement('button');
+      b.className = 'agent-final-btn';
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', async () => {
+        try { await run(); } catch (err) { window.showToast?.((err && err.message) || 'That did not work', 'error'); }
+      });
+      bar.appendChild(b);
+      return b;
+    };
+    if (VexFeatures.command(a.entry) || a.entry.panel) button('Do it', 'Run it now', () => VexGuide.run(a.entry));
+    if (a.entry.sel || a.entry.setting) button('Show me', 'Point at it on screen', () => VexGuide.show(a.entry));
+    if (a.entry.steps) button('Step me through it', 'One step at a time', () => VexGuide.walk(a.entry));
+    button('Ask the AI anyway', 'Send the question to the model instead', () => this.sendMessage('chat', { message: question }));
+    el.append(head, list, bar);
+    if (a.others.length) {
+      const also = document.createElement('div');
+      also.className = 'vex-guide-also';
+      also.textContent = 'Also in Vex: ' + a.others.join(', ');
+      el.appendChild(also);
+    }
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+    return el;
   },
 
   _clearChat() {

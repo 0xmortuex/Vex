@@ -2,11 +2,16 @@
 // Pops a glassmorphic card in the bottom-right when a download finishes,
 // with Open / Show-in-folder / dismiss actions. Multiple toasts stack
 // vertically (newest on top via flex-direction: column-reverse on the
-// container). Auto-dismisses after 8s; pauses while hovered.
+// container).
+//
+// It does NOT go away on its own. A download you have to do something with —
+// open it, find it, ignore it — was being taken off the screen after a few
+// seconds, which meant looking the other way cost you the file (reported
+// 2026-09-20). It stays until you act on it or close it; only the stack is
+// capped, so a batch of downloads cannot bury the window.
 
 const DownloadToast = {
-  AUTO_DISMISS_MS: 8000,
-  POST_HOVER_MS: 3000,
+  MAX_ON_SCREEN: 5,
 
   _container() {
     let c = document.getElementById('download-toast-container');
@@ -46,16 +51,10 @@ const DownloadToast = {
     toast.querySelector('.download-toast-filename').textContent = filename || 'Download';
     toast.querySelector('.download-toast-size').textContent = this._formatBytes(size);
 
-    let dismissTimer = null;
     const dismiss = () => {
       if (toast.classList.contains('leaving')) return;
       toast.classList.add('leaving');
-      clearTimeout(dismissTimer);
       setTimeout(() => toast.remove(), 250);
-    };
-    const armDismiss = (ms) => {
-      clearTimeout(dismissTimer);
-      dismissTimer = setTimeout(dismiss, ms);
     };
 
     toast.addEventListener('click', (e) => {
@@ -86,11 +85,11 @@ const DownloadToast = {
       }
     });
 
-    toast.addEventListener('mouseenter', () => clearTimeout(dismissTimer));
-    toast.addEventListener('mouseleave', () => armDismiss(this.POST_HOVER_MS));
-
     container.appendChild(toast);
-    armDismiss(this.AUTO_DISMISS_MS);
+    // Only the oldest go, and only once there are more than a windowful.
+    const live = [...container.querySelectorAll('.download-toast:not(.leaving)')];
+    for (const old of live.slice(0, Math.max(0, live.length - this.MAX_ON_SCREEN))) old.remove();
+    return toast;
   },
 
   _formatBytes(bytes) {
@@ -102,4 +101,5 @@ const DownloadToast = {
   }
 };
 
-window.DownloadToast = DownloadToast;
+if (typeof window !== 'undefined') window.DownloadToast = DownloadToast;
+if (typeof module !== 'undefined' && module.exports) module.exports = { DownloadToast };

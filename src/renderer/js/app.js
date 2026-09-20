@@ -900,6 +900,7 @@
   if (typeof PageWatch !== 'undefined') PageWatch.start();
   GitHubWatch.start();
   SponsorSkip.init();
+  DownloadsButton.init();
   SiteVolume.init();
   VexLock.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
