@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.32.60 (2026-09-20) — The agent reads several sources at once, sets up its own schedules, and can be paused mid-run
+
+### Changes
+- **Several sources at once.** Research used to be one page at a time — six sources, six waits. The agent now reads up to six pages in one go, each coming back with its own text, and one that fails does not take the others with it.
+- **"Every weekday at 8:30, check the status page."** The agent sets up the repeating task itself: the words become a real schedule, it turns up in the Schedules panel like any other, and undo removes it. Something it cannot read the time out of is refused rather than guessed at — nothing quietly runs at the wrong hour.
+- **Downloading a file.** Asked for the invoice, the installer, the PDF, the agent downloads it to your Downloads folder through the usual approval, and it appears in the downloads list. It cannot be pointed at a file on this machine or at something on your network.
+- **Signing in with a saved login.** The agent can ask the logins hub to fill a sign-in page — the model never sees the username or the password, is told only that it worked, and clicks the site's own button afterwards. Refused over plain http, and when there is no saved login for that site it says so and leaves it to you.
+- **Pause, and change your mind.** A **Pause** button beside Stop holds a run *between* steps, never in the middle of one: the page stays where it is and nothing is thrown away. Anything you type while it is held becomes the next thing the agent is told — "use the UK site, not the US one" — so a run going the wrong way is corrected instead of restarted.
+
 ## v2.32.59 (2026-09-20) — What your extensions can see, night mode for sound, moments in a video, cards from highlights
 
 ### Changes
