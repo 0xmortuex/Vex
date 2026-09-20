@@ -913,6 +913,8 @@
   TabMentions.init();
   // Drop a PDF or a text file on the AI panel (js/chat-file.js).
   ChatFile.init();
+  // Sites you asked to have their sound evened out (js/night-audio.js).
+  NightAudio.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
   window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });
   {

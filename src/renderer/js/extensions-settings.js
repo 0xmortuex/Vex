@@ -47,6 +47,15 @@ const ExtensionsSettings = (() => {
       .ext-badge.bad{background:color-mix(in srgb, #ef4444 20%, transparent);color:#ef4444;}
       .ext-error{color:#ef4444;font-size:11px;margin-top:4px;line-height:1.35;word-break:break-word;}
       .ext-card-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+      .ext-audit{margin-top:6px;font-size:11.5px;}
+      .ext-reach{color:var(--text-muted);}
+      .ext-reach-all{color:var(--danger,#ef4444);}
+      .ext-reach-some{color:var(--text);}
+      .ext-reach-click{color:var(--text-muted);}
+      .ext-audit summary{cursor:pointer;color:var(--text-muted);font-size:11px;margin-top:3px;}
+      .ext-powers{margin:4px 0 0;padding-left:16px;color:var(--text);}
+      .ext-powers li{margin:1px 0;}
+      .ext-hosts{margin-top:4px;color:var(--text-muted);font-size:10.5px;}
       .ext-toggle{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted,#9a9aa5);cursor:pointer;}
       .ext-open-btn{background:transparent;border:1px solid var(--border,rgba(255,255,255,0.12));color:var(--text,#e9e9ee);
         border-radius:6px;font-size:11px;padding:3px 8px;cursor:pointer;font-family:inherit;}
@@ -68,6 +77,28 @@ const ExtensionsSettings = (() => {
     document.head.appendChild(st);
   }
 
+  // What this extension can read and do, in the manifest's own words
+  // (src/main/extension-audit.js). Shown on the card because "it can read
+  // every page you open" is the thing nobody checks after installing.
+  function _auditHtml(e) {
+    const a = e && e.audit;
+    if (!a || !a.reach) return '';
+    const tone = { all: 'ext-reach-all', some: 'ext-reach-some', click: 'ext-reach-click', none: '' }[a.reach.level] || '';
+    const heavy = a.powers.filter(p => p.heavy);
+    const rest = a.powers.filter(p => !p.heavy);
+    const list = (items) => items.map(p => `<li>${_esc(p.says)}</li>`).join('');
+    return `
+      <div class="ext-audit">
+        <div class="ext-reach ${tone}">${_esc(a.reach.says)}</div>
+        ${a.powers.length ? `<details>
+          <summary>What it is allowed to do (${a.powers.length})</summary>
+          <ul class="ext-powers">${list(heavy)}${list(rest)}</ul>
+          ${a.reach.hosts.length ? `<div class="ext-hosts">Sites it names: ${_esc(a.reach.hosts.join(', '))}</div>` : ''}
+          <div class="ext-hosts">Vex cannot give an extension access to some sites and not others — that is all or nothing. What you can do is switch it off, or keep it out of the app panels above.</div>
+        </details>` : ''}
+      </div>`;
+  }
+
   async function render(container) {
     if (!container) container = document.getElementById('extensions-panel-content');
     if (!container) return;
@@ -77,6 +108,10 @@ const ExtensionsSettings = (() => {
     let listError = null;
     try { extensions = await window.vex.extensionsList(); }
     catch (err) { listError = (err && err.message) || String(err); }
+
+    // The ones that can read everything come first: this list is read to
+    // check, and what you are checking for should not be at the bottom.
+    extensions = extensions.slice().sort((a, b) => ((b.audit && b.audit.weight) || 0) - ((a.audit && a.audit.weight) || 0));
 
     // Reported by main when the enabled/disabled file can't be read — without
     // this the user would silently get every extension back on after a restart.
@@ -162,6 +197,7 @@ const ExtensionsSettings = (() => {
                       <option value="auto"${e.scope !== 'everywhere' ? ' selected' : ''}>where it applies</option>
                       <option value="everywhere"${e.scope === 'everywhere' ? ' selected' : ''}>everywhere — every app panel too</option>
                     </select></div>` : ''}
+                  ${_auditHtml(e)}
                   ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements — and its background page costs about 85 MB for that.</div>` : ''}
                   ${e.error ? `<div class="ext-error">${_esc(e.error)}</div>` : ''}
                 </div>

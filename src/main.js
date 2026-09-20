@@ -2224,6 +2224,9 @@ ipcMain.handle('extensions:list', () => {
         ? `chrome-extension://${live.id}/${String(pages.options).replace(/^\/+/, '')}`
         : null,
       iconPath: icon ? path.join(e.path, icon) : null,
+      // What this extension can read, and what it is allowed to do, in words
+      // (src/main/extension-audit.js).
+      audit: require('./main/extension-audit').auditOne(e),
       error: e.error || _extLoadErrors.get(e.folder) || null,
       stateError: _extStateError
     };
