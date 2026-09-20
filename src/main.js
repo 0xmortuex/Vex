@@ -1226,6 +1226,58 @@ ipcMain.handle('doc:text', async (_e, bytes, name) => {
   }
 });
 
+// === The clips folder ======================================================
+// Reading one folder of recordings (src/main/clips.js) so last night's clip
+// can be found and watched without going through Explorer. Read-only: the
+// folder is chosen by the user, and nothing in it is touched.
+const _clipsFile = path.join(userDataPath, 'clips-folder.json');
+let _clipsDir = '';
+try { _clipsDir = String(JSON.parse(fs.readFileSync(_clipsFile, 'utf8')).dir || ''); } catch { _clipsDir = ''; }
+
+ipcMain.handle('clips:folder', async (_e, pick) => {
+  const clips = require('./main/clips');
+  if (pick) {
+    const result = await dialog.showOpenDialog({ title: 'Where your clips are', properties: ['openDirectory'] });
+    if (result.canceled || !result.filePaths[0]) return { ok: false, cancelled: true, dir: _clipsDir };
+    _clipsDir = result.filePaths[0];
+    try { fs.writeFileSync(_clipsFile, JSON.stringify({ dir: _clipsDir })); } catch { /* it still works this session */ }
+  }
+  return { ok: true, dir: _clipsDir, guesses: clips.guesses(app.getPath('home')) };
+});
+
+ipcMain.handle('clips:list', async (_e, dir) => {
+  const clips = require('./main/clips');
+  const folder = String(dir || _clipsDir || '');
+  if (!folder) return { ok: false, error: 'No clips folder chosen yet' };
+  try {
+    return { ok: true, dir: folder, clips: clips.list(folder) };
+  } catch (err) {
+    return { ok: false, error: err.code === 'ENOENT' ? 'That folder is not there any more' : err.message };
+  }
+});
+
+// === What is free to keep this week ========================================
+// Epic's and Steam's own public lists, merged (src/main/free-games.js). No
+// account, no key; a store that does not answer is left out rather than
+// taking the list down.
+ipcMain.handle('games:free', async () => {
+  const games = require('./main/free-games');
+  const get = async (url) => {
+    try {
+      const res = await boundedNetFetch(url);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }
+  };
+  try {
+    const [epic, steam] = await Promise.all([get(games.EPIC), get(games.STEAM)]);
+    if (!epic && !steam) return { ok: false, error: 'Neither store answered — check your connection' };
+    return { ok: true, games: games.merge(epic, steam), stores: { epic: !!epic, steam: !!steam } };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // === Is it me or the server? ===============================================
 // Times a plain TCP connection to a few well-known hosts (src/main/latency.js)
 // so a stutter can be blamed on the right thing. Nothing is sent, and nothing

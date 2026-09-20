@@ -163,6 +163,11 @@ contextBridge.exposeInMainWorld('vex', {
   // One cookie at a time, in the tab's own partition.
   // The words inside a file dropped on the AI panel.
   docText: (bytes, name) => ipcRenderer.invoke('doc:text', bytes, name),
+  // The folder your recordings land in, and what is in it.
+  clipsFolder: (pick) => ipcRenderer.invoke('clips:folder', pick),
+  clipsList: (dir) => ipcRenderer.invoke('clips:list', dir),
+  // What is free to keep on Epic and Steam this week.
+  freeGames: () => ipcRenderer.invoke('games:free'),
   // Per-site switches: JavaScript, cookies, third-party content.
   siteRulesGet: () => ipcRenderer.invoke('siterules:get'),
   siteRulesSet: (rules) => ipcRenderer.invoke('siterules:set', rules),

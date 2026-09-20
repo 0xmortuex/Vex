@@ -915,6 +915,8 @@
   ChatFile.init();
   // Sites you asked to have their sound evened out (js/night-audio.js).
   NightAudio.init();
+  // A quiet daily look at what is free to keep (js/free-games.js).
+  FreeGames.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
   window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });
   {
