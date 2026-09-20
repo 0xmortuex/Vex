@@ -27,6 +27,9 @@ const DownloadsButton = {
     if (!b) return;
     const live = (DownloadsPanel.downloads || []).filter(d => d.state === 'progressing');
     this._sample(live);
+    // Closing the drop means "not now", not "never": once nothing is running,
+    // the next download is a new event and may show itself again.
+    if (!live.length) this._dismissed = false;
     b.classList.toggle('has-active', live.length > 0);
     const pct = this._overall(live);
     b.style.setProperty('--dl-progress', pct == null ? '0' : String(pct));
@@ -34,7 +37,25 @@ const DownloadsButton = {
     b.title = live.length
       ? live.length + ' download' + (live.length === 1 ? '' : 's') + ' in progress' + (pct != null ? ' — ' + pct + '%' : '')
       : 'Downloads';
-    if (this._open) this._fill();
+    this._paint();
+  },
+
+  // Electron reports a download's progress on every chunk — dozens of times a
+  // second on a fast line. Redrawing the drop that often is what made this
+  // feel broken: the bar could not animate (a brand-new element has nothing to
+  // animate FROM), the text flickered, and Pause and Cancel were replaced
+  // under the pointer between the press and the click landing.
+  //
+  // So: at most one repaint every PAINT_MS, and a repaint changes the numbers
+  // on the rows already there rather than building new ones.
+  PAINT_MS: 200,
+
+  _paint() {
+    if (!this._open || this._painting) return;
+    this._painting = setTimeout(() => {
+      this._painting = null;
+      if (this._open) this._fill();
+    }, this.PAINT_MS);
   },
 
   // How far along everything running is, together, or null when nothing says.
@@ -70,6 +91,9 @@ const DownloadsButton = {
     // Closing it while something is still running means "not now": the next
     // file in a batch must not make it jump open again.
     this._dismissed = (DownloadsPanel.downloads || []).some(d => d.state === 'progressing');
+    if (this._painting) { clearTimeout(this._painting); this._painting = null; }
+    this._sig = '';
+    this._rows = null;
     this._open?.remove();
     this._open = null;
     this._shield?.remove();
@@ -119,6 +143,13 @@ const DownloadsButton = {
     const menu = this._open;
     if (!menu) return;
     const list = (DownloadsPanel.downloads || []).slice(0, this.RECENT);
+    // What the drop is MADE of: which downloads, in what state. The byte
+    // counts are deliberately not in here — a number changing is a patch, not
+    // a rebuild.
+    const sig = list.map(d => d.id + ':' + d.state + ':' + (d.paused ? 'p' : '')).join('|');
+    if (sig === this._sig && this._rows && this._rows.size) { this._patch(list); return; }
+    this._sig = sig;
+    this._rows = new Map();
     menu.innerHTML = '';
     if (!list.length) {
       const empty = document.createElement('div');
@@ -127,7 +158,12 @@ const DownloadsButton = {
       menu.appendChild(empty);
     }
     for (const dl of list) {
-      if (dl.state === 'progressing') { menu.appendChild(this._liveRow(dl)); continue; }
+      if (dl.state === 'progressing') {
+        const row = this._liveRow(dl);
+        this._rows.set(dl.id, row);
+        menu.appendChild(row);
+        continue;
+      }
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'downloads-drop-row' + (dl.state === 'completed' ? '' : ' dim');
@@ -184,6 +220,25 @@ const DownloadsButton = {
     return row;
   },
 
+  // The same row, with this moment's numbers in it. Everything the eye
+  // follows — the bar, the percentage, the line underneath — is a text or
+  // width change on the element that is already there, so the bar slides
+  // instead of jumping and the buttons stay where your pointer put them.
+  _patch(list) {
+    for (const dl of list) {
+      if (dl.state !== 'progressing') continue;
+      const row = this._rows.get(dl.id);
+      if (!row || !row.isConnected) { this._sig = ''; return; }   // drawn over by something else
+      const pct = dl.totalBytes > 0 ? Math.min(100, Math.round(dl.receivedBytes / dl.totalBytes * 100)) : null;
+      const bar = row.querySelector('.ddl-bar i');
+      if (bar && pct != null) bar.style.width = pct + '%';
+      const pctEl = row.querySelector('.ddl-pct');
+      if (pctEl) pctEl.textContent = pct == null ? '' : pct + '%';
+      const detail = row.querySelector('.ddl-detail');
+      if (detail) detail.textContent = this.detail(dl, (this._rate.get(dl.id) || {}).bps || 0);
+    }
+  },
+
   _size(n) {
     if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
     if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
@@ -203,7 +258,10 @@ const DownloadsButton = {
     if (bps > 1024 && dl.totalBytes > 0) {
       const left = Math.max(0, dl.totalBytes - (dl.receivedBytes || 0)) / bps;
       const plural = (n, word) => 'about ' + n + ' ' + word + (n === 1 ? '' : 's') + ' left';
-      parts.push(left < 10 ? 'nearly done'
+      // Three seconds, not ten: on a fast line a whole 24 MB file is under ten
+      // seconds from the first chunk, so "nearly done" was on screen for the
+      // entire download and told you nothing.
+      parts.push(left < 3 ? 'nearly done'
         : left < 90 ? plural(Math.round(left), 'second')
           : left < 5400 ? plural(Math.round(left / 60), 'minute')
             : 'about ' + (left / 3600).toFixed(1) + ' hours left');

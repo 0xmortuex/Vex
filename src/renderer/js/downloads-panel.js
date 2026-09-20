@@ -101,6 +101,11 @@ const DownloadsPanel = {
     // move the bar, which is far cheaper and doesn't fight the CSS transition.
     if (wasPaused !== dl.paused) this._replaceRow(dl);
     else this._patchRow(dl);
+    // And the toolbar button, which is where most people watch a download.
+    // This was missing: only start and finish told it anything, so its bar and
+    // its drop-down sat at 0% for the whole transfer and then jumped to done.
+    // It throttles its own drawing, so saying so on every chunk is cheap.
+    window.DownloadsButton?.refresh();
   },
 
   _onComplete(data) {

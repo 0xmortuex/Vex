@@ -54,6 +54,20 @@ describe('downloads panel', () => {
     expect(document.querySelector('.download-meta').textContent).not.toContain('0%');
   });
 
+  it('tells the toolbar button about every chunk', () => {
+    // It did not, and that is the whole reason the toolbar's bar and its
+    // drop-down sat at 0% for a whole download and then jumped to finished
+    // (reported 2026-09-21). The button throttles its own drawing.
+    const refresh = vi.fn();
+    window.DownloadsButton = { refresh, started: () => {} };
+    start();                                  // starting one tells it too
+    refresh.mockClear();
+    DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 500, totalBytes: 1000, state: 'progressing' });
+    DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 900, totalBytes: 1000, state: 'progressing' });
+    expect(refresh).toHaveBeenCalledTimes(2);
+    delete window.DownloadsButton;
+  });
+
   it('offers pause while running and resume once paused', async () => {
     start();
     const actions = () => [...document.querySelectorAll('.download-item .dl-btn')].map(b => b.dataset.action);

@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.32.74 (2026-09-21) — Download progress that actually moves
+
+### Fixes
+- **The download bar sat at 0% for the whole transfer and then jumped to finished.** The progress Electron reports on every chunk went to the Downloads panel and nowhere else — the toolbar button was told when a download started and when it ended, and nothing in between. It is told about every chunk now, so the bar fills, the percentage counts up, and the line underneath says how much of how much, how fast, and how long is left, while it is happening.
+- **The drop-down no longer rebuilds itself dozens of times a second.** It was thrown away and rebuilt on every chunk, which is why the bar never animated and why Pause and Cancel could miss: the button you pressed had been replaced between the press and the click. It repaints at most five times a second now, and a repaint changes the numbers on the row that is already there rather than building a new one.
+- **"Nearly done" no longer means "started".** It was shown for anything under ten seconds remaining, which on a quick connection is the entire download; it is the last three seconds now, and before that it counts the seconds down properly.
+- **Closing the drop means "not now", not "never".** Closing it during a download stopped it ever opening itself again, because the flag that remembers you closed it was never cleared. It clears once nothing is downloading.
+
 ## v2.32.73 (2026-09-21) — Ask Vex what you don't know, shelves in the Library, and the font Vex wears
 
 ### Changes

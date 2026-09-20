@@ -14,6 +14,10 @@ beforeEach(() => {
   globalThis.SidebarManager = { openPanel: vi.fn() };
   window.vex = { downloadsOpenFile: vi.fn(async () => ({ ok: true })) };
   DownloadsButton._open = null;
+  DownloadsButton._dismissed = false;
+  DownloadsButton._sig = '';
+  DownloadsButton._rows = null;
+  DownloadsButton._rate.clear();
 });
 
 describe('the completion card', () => {
@@ -106,6 +110,9 @@ describe('while something is downloading', () => {
     expect(DownloadsButton.detail(dl, 3.1 * 1048576)).toBe('24.0 MB of 240.0 MB · 3.1 MB/s · about 70 seconds left');
     expect(DownloadsButton.detail(dl, 1.5 * 1048576)).toMatch(/about 2 minutes left$/);
     expect(DownloadsButton.detail(running({ receivedBytes: 239 * 1048576 }), 2 * 1048576)).toMatch(/nearly done$/);
+    // A fast line finishes a whole file in a few seconds: saying "nearly
+    // done" from the first chunk is how it read before (reported 2026-09-21).
+    expect(DownloadsButton.detail(running({ receivedBytes: 2 * 1048576 }), 4 * 1048576)).toMatch(/about 60 seconds left$/);
     expect(DownloadsButton.detail(dl, 0)).toBe('24.0 MB of 240.0 MB');              // no rate yet: no guess
     expect(DownloadsButton.detail(running({ totalBytes: 0 }), 0)).toBe('24.0 MB so far');
     expect(DownloadsButton.detail(running({ paused: true }), 3 * 1048576)).toBe('24.0 MB of 240.0 MB · paused');
@@ -132,6 +139,67 @@ describe('while something is downloading', () => {
     expect(b.title).toBe('1 download in progress — 10%');
   });
 
+  it('a number changing patches the row it is already showing, never rebuilds it', () => {
+    DownloadsButton.init();
+    const dl = running({ receivedBytes: 24 * 1048576 });
+    DownloadsPanel.downloads = [dl];
+    DownloadsButton.started();
+    const row = document.querySelector('.downloads-drop-live');
+    const bar = row.querySelector('.ddl-bar i');
+    expect(row.querySelector('.ddl-pct').textContent).toBe('10%');
+
+    dl.receivedBytes = 120 * 1048576;
+    DownloadsButton.refresh();
+    vi.advanceTimersByTime(250);
+    // The SAME elements: a new one every chunk is what stopped the bar
+    // animating and moved the buttons under the pointer.
+    expect(document.querySelector('.downloads-drop-live')).toBe(row);
+    expect(row.querySelector('.ddl-bar i')).toBe(bar);
+    expect(bar.style.width).toBe('50%');
+    expect(row.querySelector('.ddl-pct').textContent).toBe('50%');
+  });
+
+  it('repaints on a timer, however fast the chunks arrive', () => {
+    DownloadsButton.init();
+    const dl = running();
+    DownloadsPanel.downloads = [dl];
+    DownloadsButton.started();
+    const fill = vi.spyOn(DownloadsButton, '_fill');
+    for (let i = 0; i < 40; i++) { dl.receivedBytes += 1048576; DownloadsButton.refresh(); }
+    expect(fill).not.toHaveBeenCalled();               // nothing yet: it is waiting
+    vi.advanceTimersByTime(250);
+    expect(fill).toHaveBeenCalledTimes(1);             // forty chunks, one repaint
+    fill.mockRestore();
+  });
+
+  it('"not now" lasts until the downloads finish, not forever', () => {
+    DownloadsButton.init();
+    DownloadsPanel.downloads = [running()];
+    DownloadsButton.started();
+    DownloadsButton.close();
+    DownloadsButton.started();
+    expect(document.querySelector('.downloads-drop')).toBeNull();   // still not now
+    // Everything has finished; the next download is a new event.
+    DownloadsPanel.downloads = [{ ...running(), state: 'completed' }];
+    DownloadsButton.refresh();
+    DownloadsPanel.downloads = [running({ id: '3', filename: 'next.zip' })];
+    DownloadsButton.started();
+    expect(document.querySelector('.downloads-drop')).not.toBeNull();
+  });
+
+  it('a download finishing does rebuild it — the row is a different thing now', () => {
+    DownloadsButton.init();
+    const dl = running();
+    DownloadsPanel.downloads = [dl];
+    DownloadsButton.started();
+    expect(document.querySelector('.downloads-drop-live')).not.toBeNull();
+    DownloadsPanel.downloads = [{ ...dl, state: 'completed', path: 'C:/d/big.iso' }];
+    DownloadsButton.refresh();
+    vi.advanceTimersByTime(250);
+    expect(document.querySelector('.downloads-drop-live')).toBeNull();
+    expect(document.querySelector('.downloads-drop-row').textContent).toMatch(/big\.iso/);
+  });
+
   it('pause and cancel are on the row, not two screens away', async () => {
     window.vex.downloadsControl = vi.fn(async () => ({ ok: true }));
     DownloadsButton.init();
@@ -144,6 +212,7 @@ describe('while something is downloading', () => {
     expect(window.vex.downloadsControl).toHaveBeenCalledWith('2', 'pause');
     DownloadsPanel.downloads = [running({ paused: true })];
     DownloadsButton.refresh();
+    vi.advanceTimersByTime(250);                       // the drop repaints on a timer now
     expect(document.querySelector('.ddl-acts button').textContent).toBe('Resume');
     expect(document.querySelector('.downloads-drop-live').classList.contains('paused')).toBe(true);
   });
