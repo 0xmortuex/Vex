@@ -257,6 +257,7 @@ const WebviewManager = {
     // What you copied off this page (private and Tor tabs are refused inside)
     if (window.ClipboardHistory) window.ClipboardHistory.attach(webview);
     if (window.Dictionary) window.Dictionary.attach(webview);
+    if (window.TeachMode) window.TeachMode.attach(webview);
     // Give this page the snippet list so Tab can expand an abbreviation in it
     if (window.Snippets) window.Snippets.attach(webview);
     // Note the price on product pages that publish one (private and Tor tabs are refused inside)

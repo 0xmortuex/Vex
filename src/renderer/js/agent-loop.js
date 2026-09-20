@@ -638,6 +638,25 @@ const AgentLoop = {
     return macro;
   },
 
+  // A macro made from steps the user did themselves (js/teach-mode.js), not
+  // from a run the model drove. Same shape, same replay, same permissions.
+  saveMacroFromSteps(name, calls, startedAt) {
+    const steps = (Array.isArray(calls) ? calls : []).filter(c => c && c.tool);
+    if (!steps.length) throw new Error('There is nothing in that recording to repeat');
+    const macro = {
+      id: (typeof vexId === 'function' ? vexId('macro') : 'macro_' + Date.now().toString(36)),
+      name: String(name || 'Taught task').slice(0, 80),
+      // The goal doubles as where a replay is allowed to act without asking.
+      goal: startedAt ? String(name || 'Taught task') + ' (' + startedAt + ')' : String(name || 'Taught task'),
+      taught: true,
+      calls: steps, madeAt: Date.now(), runs: 0, lastRunAt: 0,
+    };
+    const list = [macro, ...this.macros()].slice(0, 40);
+    try { localStorage.setItem(this.MACROS_KEY, JSON.stringify(list)); }
+    catch (err) { throw new Error('The macro could not be saved: ' + ((err && err.message) || '')); }
+    return macro;
+  },
+
   deleteMacro(id) {
     try { localStorage.setItem(this.MACROS_KEY, JSON.stringify(this.macros().filter(m => m.id !== id))); }
     catch (err) { VexProblems?.note('Agent', 'Could not remove the macro', err); }

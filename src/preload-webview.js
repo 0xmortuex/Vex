@@ -1441,3 +1441,86 @@ if (typeof module !== 'undefined' && module.exports) {
     } catch { /* the page is not ours to break */ }
   }, true);
 })();
+
+// === Teach mode: what you did, recorded as steps ===========================
+// The host switches this on for one tab ('vex-teach'), and from then until it
+// is switched off again every click and every field you fill is reported as a
+// step the agent can repeat later (js/teach-mode.js).
+//
+// It is off until asked for, and it is careful about two things:
+//   * a password, a one-time code or a card number is NEVER reported — the
+//     click on the field is, the value is not
+//   * a step names the thing clicked the way a person would ("the Continue
+//     button"), falling back to an id or a name, so a replay does not depend
+//     on a generated class that changes on the next deploy
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  let recording = false;
+  ipcRenderer.on("vex-teach", (_e, on) => { recording = !!on; });
+
+  const SECRET = /password|passwd|otp|one-?time|secret|cvv|cvc|card-?number|ssn|pin/i;
+  function isSecret(el) {
+    try {
+      if (String(el.type || "").toLowerCase() === "password") return true;
+      return SECRET.test((el.name || "") + " " + (el.id || "") + " " + (el.getAttribute("autocomplete") || "") + " " + (el.getAttribute("aria-label") || "") + " " + (el.placeholder || ""));
+    } catch { return true; }
+  }
+
+  function cssPath(el) {
+    try {
+      if (el.id && !/^[0-9]/.test(el.id)) return "#" + CSS.escape(el.id);
+      for (const attr of ["data-testid", "data-test", "name", "aria-label"]) {
+        const v = el.getAttribute && el.getAttribute(attr);
+        if (v) return el.tagName.toLowerCase() + "[" + attr + "=" + JSON.stringify(v) + "]";
+      }
+      // Last resort: the shortest path that still points at one element.
+      const parts = [];
+      let node = el;
+      while (node && node.nodeType === 1 && parts.length < 4) {
+        let part = node.tagName.toLowerCase();
+        if (node.parentElement) {
+          const same = [...node.parentElement.children].filter(c => c.tagName === node.tagName);
+          if (same.length > 1) part += ":nth-of-type(" + (same.indexOf(node) + 1) + ")";
+        }
+        parts.unshift(part);
+        node = node.parentElement;
+      }
+      return parts.join(" > ");
+    } catch { return ""; }
+  }
+
+  const label = (el) => {
+    try {
+      const text = (el.innerText || el.textContent || el.value || "").replace(/\s+/g, " ").trim();
+      return text.length > 0 && text.length <= 60 ? text : "";
+    } catch { return ""; }
+  };
+
+  document.addEventListener("click", (e) => {
+    if (!recording) return;
+    try {
+      const el = (e.target.closest && e.target.closest("a,button,[role=button],input,select,label,summary,[onclick]")) || e.target;
+      if (!el || el.nodeType !== 1) return;
+      ipcRenderer.sendToHost("vex-teach-step", { kind: "click", selector: cssPath(el), text: label(el), tag: el.tagName.toLowerCase() });
+    } catch { /* never break the page being taught */ }
+  }, true);
+
+  document.addEventListener("change", (e) => {
+    if (!recording) return;
+    try {
+      const el = e.target;
+      if (!el || !/^(input|textarea|select)$/i.test(el.tagName)) return;
+      const type = String(el.type || "").toLowerCase();
+      if (type === "file") return;                       // a file picker is not replayable
+      if (isSecret(el)) {
+        ipcRenderer.sendToHost("vex-teach-step", { kind: "secret", selector: cssPath(el) });
+        return;
+      }
+      ipcRenderer.sendToHost("vex-teach-step", { kind: "type", selector: cssPath(el), value: String(el.value == null ? "" : el.value).slice(0, 500) });
+    } catch { /* as above */ }
+  }, true);
+})();

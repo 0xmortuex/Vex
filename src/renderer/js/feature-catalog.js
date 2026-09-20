@@ -201,6 +201,8 @@ const VexFeatures = {
       what: 'Pause holds a run between steps — the page stays where it is — and anything you type while it is held becomes the next thing the agent is told, so a run going the wrong way is corrected rather than restarted.' },
     { id: 'agent-schedule', phrases: 'agent every morning run this daily set up a schedule from chat repeat this task', cat: 'ai', sel: '#ai-input', manual: true, name: 'Ask the agent to set something up for every day',
       what: 'Say “every weekday at 8:30, check the status page and note anything new” and the agent makes the scheduled task itself — it turns up in the Schedules panel like any other.' },
+    { id: 'teach', phrases: 'teach vex record what I do macro repeat the same clicks do this every month', cat: 'ai', cmd: 'teach', name: 'Teach Vex a task',
+      what: 'Do a task once while Vex records the clicks, and it becomes a saved task that repeats without the AI. A password step hands the page back to you instead of being recorded.' },
     { id: 'siteidentity', cat: 'privacy', cmd: 'siteidentity',
       what: 'Exactly what this page can see about your browser, with a verdict on why a site might be refusing to work.' },
     { id: 'pwhealth', cat: 'privacy', cmd: 'pwhealth',
