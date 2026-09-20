@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.58 (2026-09-20) — Name a tab with @, two models at once, and a PDF you can ask about
+
+### Changes
+- **Name a tab with @.** Type `@` in the AI box and the open tabs are there by name — pick one and it goes into the question, without leaving the sentence you were writing. The same list holds your personas (which `@` already meant), and a persona whose name starts with what you typed comes first. The pill above the box shows how many tabs are included, so the choice is never invisible.
+- **Ask two models side by side** (Ctrl+K): the same question put to the cloud model and the one on this machine at once, with both answers next to each other and how long each took. A backend that is off or unconfigured says so in its own column instead of taking the comparison down. *Keep this answer* puts that question and answer into the chat, so the conversation carries on from the one you chose.
+- **Ask about a file on your machine.** Drop a PDF or a text file on the AI panel and ask about it. The words are read on this machine — a PDF's compressed streams are inflated in the main process, kerning that stands for a space becomes one — and go with your question as material to answer from, never as instructions. A scan of paper says it has no text in it rather than handing the model rubbish, and the file itself is not uploaded anywhere.
+
 ## v2.32.57 (2026-09-20) — Switches for one site, "is it me or the server?", and meeting mode
 
 ### Changes
