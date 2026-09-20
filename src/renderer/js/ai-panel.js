@@ -1330,7 +1330,24 @@ const AIPanel = {
   routeMessage(raw) {
     const s = String(raw || '').trim();
     const forced = s.match(/^\/(agent|chat)\s+([\s\S]+)$/i);
-    if (forced) return { agent: forced[1].toLowerCase() === 'agent', text: forced[2].trim() };
+    if (forced) {
+      const agent = forced[1].toLowerCase() === 'agent';
+      const text = forced[2].trim();
+      // You saying which it is, is the answer. When the rules would have said
+      // otherwise, that correction is remembered (js/route-learn.js) so the
+      // same kind of sentence goes the right way next time.
+      if (typeof RouteLearn !== 'undefined' && this._guessAgent(text) !== agent) RouteLearn.learn(text, agent);
+      return { agent, text };
+    }
+    const guess = this._guessAgent(s);
+    const decided = (typeof RouteLearn !== 'undefined') ? RouteLearn.decide(s, guess) : { agent: guess };
+    return { agent: decided.agent, text: s, learned: !!decided.changed };
+  },
+
+  // The rules alone, with nothing learned applied — so a correction can be
+  // compared against what would have happened without it.
+  _guessAgent(raw) {
+    const s = String(raw || '').trim();
     // "hey vex, can you please open…" is "open…".
     let t = s.toLowerCase(), before;
     do { before = t; t = t.replace(/^(hey|hi|hello|ok|okay|please|pls|vex|can you|could you|would you|will you|i want you to|i need you to|i'd like you to|go ahead and|just)\b[\s,]*/, ''); } while (t !== before);
@@ -1339,10 +1356,10 @@ const AIPanel = {
     const task = /^(open|go to|goto|navigate|visit|launch|click|press|tap|type|enter|fill|scroll|log ?in|sign ?in|sign ?up|book|order|buy|purchase|add|download|play|pause|search|google|look up|lookup|find out|find me|research|investigate|check|start|stop|cancel|set|create|make|save|bookmark|remind|close|group|ungroup|rename|organi[sz]e|sort|pin|unpin|mute|unmute|switch|reload|refresh|take|compare prices|subscribe|send|post|reply|schedule|turn (on|off)|enable|disable)\b/.test(t);
     const vexThing = /\b(timer|alarm|stopwatch|reminder|remind me|bookmark|tab group|my tabs|new tab|split view|screenshot|a note|note titled|in my notes)\b/.test(t);
     const liveWorld = /\b(latest|newest|current(ly)?|right now|today|tonight|tomorrow|this (week|month|year)|recent(ly)?|news|price of|how much (is|does|are)|stock price|weather|forecast|score|who won|release date|is .{2,40} (down|open|out yet)|search the web|on the web|online)\b/.test(t);
-    if (task && !(aboutPage && /^(search|find|check|compare|save|take|translate)\b/.test(t) && !vexThing && !liveWorld)) return { agent: true, text: s };
-    if (vexThing && /\b(start|set|create|make|add|save|cancel|stop|open|show|group|rename|close|take)\b/.test(t)) return { agent: true, text: s };
-    if (liveWorld && !aboutPage) return { agent: true, text: s };
-    return { agent: false, text: s };
+    if (task && !(aboutPage && /^(search|find|check|compare|save|take|translate)\b/.test(t) && !vexThing && !liveWorld)) return true;
+    if (vexThing && /\b(start|set|create|make|add|save|cancel|stop|open|show|group|rename|close|take)\b/.test(t)) return true;
+    if (liveWorld && !aboutPage) return true;
+    return false;
   },
 
   // Right-click any image → "Ask Vex about this image". The model can see now

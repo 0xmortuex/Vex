@@ -34,6 +34,13 @@ const AIRouter = (() => {
   let preferLocal = false;
   let forceCloud = false;
   let localModel = 'llama3.2:3b';
+  // A second, smaller local model for the jobs nobody is watching: naming a
+  // tab group, indexing a page, sorting a question. These run often, matter
+  // little, and on a small model finish in a second instead of ten — while the
+  // chat and the agent keep the model you chose for them. Empty means "use the
+  // one model for everything", which is what it does until this is set.
+  let smallModel = '';
+  const ROUTINE_FEATURES = ['historyIndex', 'historySearch', 'groupTabs', 'summarizeTab', 'suggest', 'route'];
   let ollamaAvailable = null;
   let checkTimer = null;
 
@@ -58,6 +65,7 @@ const AIRouter = (() => {
     preferLocal = _load('vex.preferLocalAI', false) === true;
     forceCloud = _load('vex.forceCloudAI', false) === true;
     localModel = _load('vex.localAIModel', 'llama3.2:3b');
+    smallModel = _load('vex.localSmallModel', '');
     await refreshOllamaStatus();
     // Have the local model ready before the first request, not during it.
     if (!ollamaAvailable && dependsOnLocal()) ollamaUp().catch(err => console.warn('[AIRouter] could not start Ollama:', err.message));
@@ -369,6 +377,12 @@ const AIRouter = (() => {
     try { const advice = await AIHealth.slowAdvice(); if (advice) request.onSlow(advice.why, advice); } catch { /* a diagnosis is never worth failing the request for */ }
   }
 
+  // Which local model answers this: the small one for routine work, the one
+  // you chose for anything you are waiting on.
+  function modelFor(feature) {
+    return (smallModel && ROUTINE_FEATURES.includes(feature)) ? smallModel : localModel;
+  }
+
   async function callLocal(feature, request) {
     if (feature === 'agent') return callLocalAgent(request);
     // A question about an image (right-click → "Ask Vex about this image").
@@ -411,11 +425,13 @@ const AIRouter = (() => {
       const turns = hist.filter(m => m.role !== 'system').slice(-10);
       for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
       msgs.push({ role: 'user', content: userMessage });
-      const text = await Ollama.chat(localModel, msgs, { temperature, maxTokens: 2000, format: 'json', onToken: request.onToken, ...thinkOpts(request) });
-      return { result: text, backend: 'local', model: localModel };
+      const model = modelFor(feature);
+      const text = await Ollama.chat(model, msgs, { temperature, maxTokens: 2000, format: 'json', onToken: request.onToken, ...thinkOpts(request) });
+      return { result: text, backend: 'local', model };
     }
 
-    const text = await Ollama.generate(localModel, userMessage, {
+    const model = modelFor(feature);
+    const text = await Ollama.generate(model, userMessage, {
       systemPrompt,
       temperature,
       maxTokens: 2000,
@@ -424,7 +440,7 @@ const AIRouter = (() => {
       onToken: request.onToken,
       ...thinkOpts(request),
     });
-    return { result: text, backend: 'local', model: localModel };
+    return { result: text, backend: 'local', model };
   }
 
   // ---------- CLOUD (Cloudflare worker) ----------
@@ -575,6 +591,13 @@ Use exactly the tool names and parameter names listed under "Available tools". N
     localModel = name;
     _save('vex.localAIModel', name);
   }
+  function getSmallModel() { return smallModel; }
+  function setSmallModel(name) {
+    smallModel = String(name || '').trim();
+    _save('vex.localSmallModel', smallModel);
+    _dbg('[AIRouter] small model for routine work:', smallModel || '(none)');
+  }
+  function routineFeatures() { return [...ROUTINE_FEATURES]; }
 
   // Show thinking: let a reasoning model think, and stream its thoughts to
   // whoever is watching (the chat's subtitle line, the agent's step row).
@@ -600,7 +623,7 @@ Use exactly the tool names and parameter names listed under "Available tools". N
     callAI, resolveBackend,
     getRoutingPrefs, setRoutingPrefs,
     getOllamaStatus, setPreferLocal, setForceCloud,
-    setModel, getModel, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
+    setModel, getModel, setSmallModel, getSmallModel, routineFeatures, modelFor, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
     // Settings › AI "Test as agent": the local agent, on a named model.
     localAgent: (request, model) => callLocalAgent(request, model),
     // One named backend, with no routing and no falling back to another —

@@ -132,6 +132,7 @@ const timestamp = value => value == null || (typeof value === 'number' && Number
 define('dict:lookup', [string(40)]);
 define('net:latency', []);
 define('games:free', []);
+define('system:memory', []);
 define('clips:folder', [optional(boolean)]);
 define('clips:list', [optional(string(4096))]);
 // A file dropped on the AI panel: its bytes, and what it was called.

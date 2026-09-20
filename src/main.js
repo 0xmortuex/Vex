@@ -1226,6 +1226,20 @@ ipcMain.handle('doc:text', async (_e, bytes, name) => {
   }
 });
 
+// === What this machine can spare ===========================================
+// The memory ceiling used to be the same 1200 MB on every machine. This reads
+// what the machine actually has (src/main/memory-baseline.js) so the ceiling
+// can be set from that, and says why in words the renderer can show.
+ipcMain.handle('system:memory', () => {
+  const baseline = require('./main/memory-baseline');
+  try {
+    const reading = baseline.read(require('os'));
+    return { ok: true, ...reading, ...baseline.suggest(reading) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // === The clips folder ======================================================
 // Reading one folder of recordings (src/main/clips.js) so last night's clip
 // can be found and watched without going through Explorer. Read-only: the
