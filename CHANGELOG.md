@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.64 (2026-09-20) — A small model for routine work, routing that learns your wording, a ceiling that fits your machine
+
+### Changes
+- **A small model for routine jobs** (Ctrl+K): name a quick local model for the work nobody is watching — indexing a page, naming a tab group, sorting a question — and chat and the agent keep the model you chose for them. Leave it empty and one model does everything, as before.
+- **Vex learns which of your sentences are tasks.** Correcting it with `/agent` or `/chat` now teaches it: the unusual words of that sentence are remembered with the side you picked, and next time a sentence like it goes the right way on its own. Only corrections count — agreeing with the rules teaches nothing — one word repeated all week cannot outvote everything else, and *Forget What Vex Learned About My Phrasing* empties it. It never leaves this machine.
+- **A memory ceiling that fits this machine.** The ceiling that decides when idle tabs are put to sleep was the same 1200 MB on every machine — far too cautious on a big one, far too late on a small one. *Set the Memory Ceiling from This Machine* works it out from what you actually have (about a tenth of total, kept between 600 and 4000 MB) and from what is free right now, and tells you the number and the reason before changing anything.
+
 ## v2.32.63 (2026-09-20) — Tree tabs, and an inbox sorted into what actually wants an answer
 
 ### Changes
