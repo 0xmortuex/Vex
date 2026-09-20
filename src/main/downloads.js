@@ -1,5 +1,5 @@
 const path = require('path');
-function createDownloadService({ app, secureSessions, broadcast, ipcMain }) {
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [] }) {
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
 // can pause/resume/cancel a transfer that is still running. An item is dropped
@@ -28,7 +28,16 @@ function wireDownloadsOnSession(ses, tag) {
       if (partition && !partition.startsWith('persist:')) { try { owner?.win.webContents.send(channel, data); } catch {} }
       else _broadcastDownloadEvent(channel, data);
     };
-    const savePath = _uniqueDownloadPath(app.getPath('downloads'), item.getFilename());
+    // A sorting rule can put this in a folder of its own and rename it
+    // (src/main/download-rules.js). No rule matching leaves both alone.
+    const placed = require('./download-rules').place(rules(), { filename: item.getFilename(), url: item.getURL() });
+    let dir = app.getPath('downloads');
+    if (placed.folder) {
+      const wanted = path.join(dir, placed.folder);
+      try { require('fs').mkdirSync(wanted, { recursive: true }); dir = wanted; }
+      catch (err) { console.warn('[Downloads] could not make ' + wanted + ', using the Downloads folder:', err.message); }
+    }
+    const savePath = _uniqueDownloadPath(dir, placed.filename || item.getFilename());
     item.setSavePath(savePath);
     const info = {
       id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,

@@ -339,6 +339,7 @@ contextBridge.exposeInMainWorld('vex', {
   saveTextFile: (name, text, kind) => ipcRenderer.invoke('file:save-text', { name, text, kind }),
   saveEpub: (book) => ipcRenderer.invoke('page:save-epub', book),
   archiveList: (filePath) => ipcRenderer.invoke('archive:list', filePath),
+  downloadsSetRules: (rules) => ipcRenderer.invoke('downloads:set-rules', rules),
   calendarFetch: (url) => ipcRenderer.invoke('calendar:fetch', url),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),

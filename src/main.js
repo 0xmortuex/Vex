@@ -1712,7 +1712,19 @@ ipcMain.handle('media:download', (_e, wcId, url) => {
 // Chrome-style collision handling: setting an explicit save path bypasses
 // Electron's automatic "file (1).ext" dedup, so a second download of the same
 // name would silently OVERWRITE the first on disk. Find a free name instead.
-const { wireDownloadsOnSession } = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain });
+// Sorting rules for downloads (src/main/download-rules.js). Kept in the
+// profile so a download that starts before the window is ready still lands in
+// the right folder.
+const _rulesFile = path.join(userDataPath, 'download-rules.json');
+let _downloadRules = [];
+try { _downloadRules = JSON.parse(fs.readFileSync(_rulesFile, 'utf8')); } catch { _downloadRules = []; }
+if (!Array.isArray(_downloadRules)) _downloadRules = [];
+ipcMain.handle('downloads:set-rules', (_e, rules) => {
+  _downloadRules = Array.isArray(rules) ? rules.slice(0, 50) : [];
+  try { fs.writeFileSync(_rulesFile, JSON.stringify(_downloadRules)); return { ok: true }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+const { wireDownloadsOnSession } = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules });
 
 // === Phase 18: Chrome extension loader ===
 const extensionsDir = path.join(userDataPath, 'extensions');

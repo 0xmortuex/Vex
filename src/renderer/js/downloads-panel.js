@@ -38,6 +38,7 @@ const DownloadsPanel = {
     // Any download left in 'progressing' from a previous session is stale
     this.downloads.forEach(d => { if (d.state === 'progressing') { d.state = 'interrupted'; d.paused = false; } });
 
+    this.pushRules();
     window.vex?.onDownloadStarted?.((data) => this._onStart(data));
     window.vex?.onDownloadProgress?.((data) => this._onProgress(data));
     window.vex?.onDownloadComplete?.((data) => this._onComplete(data));
@@ -175,6 +176,7 @@ const DownloadsPanel = {
           <h2>Downloads</h2>
           <div class="downloads-actions">
             <button class="btn-link" id="btn-open-dl-folder">Open downloads folder</button>
+            <button class="btn-link" id="btn-dl-rules">Sorting rules</button>
             <button class="downloads-clear-btn" id="downloads-clear-btn">Clear finished</button>
           </div>
         </div>
@@ -182,12 +184,70 @@ const DownloadsPanel = {
       </div>
     `;
     panel.querySelector('#btn-open-dl-folder')?.addEventListener('click', () => window.vex.downloadsOpenFolder?.());
+    panel.querySelector('#btn-dl-rules')?.addEventListener('click', () => this.editRules());
     panel.querySelector('#downloads-clear-btn')?.addEventListener('click', () => {
       this.downloads = this.downloads.filter(d => d.state === 'progressing');
       this.save();
       this.renderList();
       this._updateBadge();
     });
+  },
+
+  // --- where downloads land ------------------------------------------------
+  // PDFs from one site into Invoices, named with the date. The rules live in
+  // the main process too (it names the file before the first byte arrives),
+  // so every change is sent there; this is the copy the panel shows.
+  RULES_KEY: 'vex.downloadRules',
+  rules() { try { const a = JSON.parse(localStorage.getItem(this.RULES_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
+  async saveRules(list) {
+    localStorage.setItem(this.RULES_KEY, JSON.stringify(list));
+    const r = await window.vex.downloadsSetRules?.(list);
+    if (r && !r.ok) window.showToast?.('The rules are set for now, but could not be saved for next time: ' + r.error, 'error');
+    return list;
+  },
+  // Sent at startup as well: main reads its own copy from the profile, and
+  // this keeps the two from drifting after a settings restore or a sync.
+  pushRules() { const list = this.rules(); if (list.length) window.vex.downloadsSetRules?.(list); },
+
+  async editRules() {
+    const list = this.rules();
+    const shown = list.length
+      ? list.map((r, i) => (i + 1) + '. ' + this.describeRule(r)).join('\n')
+      : 'No rules yet — everything lands in your Downloads folder.';
+    const answer = await vexPrompt({
+      title: 'Where downloads land',
+      message: shown + '\n\nType a number to remove that rule, or "add" for a new one.',
+      value: 'add', okLabel: 'Go',
+    });
+    if (answer == null) return null;
+    const n = parseInt(answer, 10);
+    if (Number.isFinite(n) && list[n - 1]) {
+      const gone = list.splice(n - 1, 1)[0];
+      await this.saveRules(list);
+      window.showToast?.('Removed the rule for ' + this.describeRule(gone));
+      return list;
+    }
+    if (!/^add$/i.test(String(answer).trim())) return list;
+    const what = await vexPrompt({ title: 'Which downloads?', message: 'A kind of file, a site, or both.\n\nExamples: “pdf”, “github.com”, “pdf from github.com”.', placeholder: 'pdf from github.com', okLabel: 'Next' });
+    if (what == null) return list;
+    const m = /^\s*([a-z0-9,\s]*?)\s*(?:from\s+(\S+))?\s*$/i.exec(String(what));
+    const ext = (m && m[1] || '').trim().replace(/^\./, '');
+    const site = (m && m[2] || '').trim();
+    if (!ext && !site) { window.showToast?.('Say a kind of file, a site, or both', 'error'); return list; }
+    const folder = await vexPrompt({ title: 'Into which folder?', message: 'Under your Downloads folder. “Invoices”, or “Work/Invoices”.', placeholder: 'Invoices', okLabel: 'Next' });
+    if (folder == null) return list;
+    const renamed = await vexPrompt({ title: 'Renamed how?', message: 'Leave it empty to keep the name the site gave it.\n\nYou can use {date}, {site}, {name} and {ext}.', value: '', placeholder: '{date} {site} {name}', okLabel: 'Add the rule' });
+    if (renamed == null) return list;
+    const rule = { id: vexId('dlrule'), ext, site, folder: String(folder).trim(), rename: String(renamed).trim() };
+    list.unshift(rule);                                   // newest first: the specific one you just made wins
+    await this.saveRules(list);
+    window.showToast?.('From now on: ' + this.describeRule(rule));
+    return list;
+  },
+
+  describeRule(r) {
+    const what = [r.ext ? r.ext.split(/[,\s]+/).filter(Boolean).join('/') + ' files' : '', r.site ? 'from ' + r.site : ''].filter(Boolean).join(' ') || 'downloads';
+    return what + ' → ' + (r.folder || 'Downloads') + (r.rename ? ', named “' + r.rename + '”' : '');
   },
 
   renderList() {

@@ -38,6 +38,14 @@ const CommandBar = {
         window.showToast?.('Noted ' + r.stamp + ' — in your Notes');
       } catch (e) { window.showToast?.(e.message, 'error'); }
     } },
+    { id: 'music-playpause', label: 'Play or Pause the Music', hint: 'The Spotify (or other music) panel, from anywhere', icon: 'music', action: async () => { try { await PanelMedia.playPause(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
+    { id: 'music-next', label: 'Next Track', hint: 'Skip forward in the music panel', icon: 'skip', action: async () => { try { await PanelMedia.next(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
+    { id: 'music-prev', label: 'Previous Track', hint: 'Back a track in the music panel', icon: 'skip', action: async () => { try { await PanelMedia.previous(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
+    { id: 'music-volume', label: 'Music Volume…', hint: 'Set the music panel’s own volume, 0 to 100', icon: 'volume', action: async () => {
+      const v = await vexPrompt({ title: 'Music volume', message: 'A number from 0 to 100.', value: '70', okLabel: 'Set' });
+      if (v == null) return;
+      try { await PanelMedia.volume(v); } catch (e) { window.showToast?.(e.message, 'error'); }
+    } },
     { id: 'overlay', label: 'Open This Page as an Overlay', hint: 'A small window that floats over your game or other apps — Esc closes it, Ctrl+Up/Down changes how see-through it is', icon: 'window', action: async () => {
       const t = TabManager.getActiveTab();
       if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open the page you want floating first', 'error'); return; }

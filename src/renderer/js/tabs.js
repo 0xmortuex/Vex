@@ -88,6 +88,10 @@ const MENU_ICONS = {
   color: MENU_ICON('<circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 2.5v11" stroke="currentColor" stroke-width="1.3"/>'),
   stack: MENU_ICON('<rect x="2.5" y="6.5" width="11" height="7" rx="1.3" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 4.5h7M6 2.5h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'),
   close: MENU_ICON('<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'),
+  sleep: MENU_ICON('<path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'),
+  reload: MENU_ICON('<path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5V6h-3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'),
+  mute: MENU_ICON('<path d="M8 3.5 5 6H3v4h2l3 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M10.5 6.5l3 3M13.5 6.5l-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'),
+  save: MENU_ICON('<path d="M3.5 3.5h7l2 2v7h-9z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 3.5v3h5v-3M5.5 12.5v-3h5v3" stroke="currentColor" stroke-width="1.3"/>'),
   ungroup: MENU_ICON('<path d="M8 10.5V2.5M5 5.5L8 2.5l3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 12.5h11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'),
   trash: MENU_ICON('<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.2a1 1 0 0 0 1 .8h3.6a1 1 0 0 0 1-.8l.7-8.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'),
   keepAwake: MENU_ICON('<path d="M3 5.5h8v4.2A3.3 3.3 0 0 1 7.7 13H6.3A3.3 3.3 0 0 1 3 9.7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M11 6.8h1.3a1.9 1.9 0 0 1 0 3.8H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'),
@@ -1127,6 +1131,11 @@ const TabManager = {
       <div class="tab-context-item" data-action="change-color">${MENU_ICONS.color}Change color</div>
       <div class="tab-context-item${canStack ? '' : ' disabled'}" data-action="convert-to-stack" title="${canStack ? '' : 'A stack needs at least 2 tabs'}">${MENU_ICONS.stack}Convert to Stack</div>
       <div class="tab-context-sep"></div>
+      <div class="tab-context-item" data-action="sleep-tabs">${MENU_ICONS.sleep}Sleep ${count} tab${count === 1 ? '' : 's'}</div>
+      <div class="tab-context-item" data-action="reload-tabs">${MENU_ICONS.reload}Reload them</div>
+      <div class="tab-context-item" data-action="mute-tabs">${MENU_ICONS.mute}Mute or unmute them</div>
+      <div class="tab-context-item" data-action="save-session">${MENU_ICONS.save}Save as a session</div>
+      <div class="tab-context-sep"></div>
       <div class="tab-context-item" data-action="close-tabs">${MENU_ICONS.close}Close ${count} tab${count === 1 ? '' : 's'}</div>
       <div class="tab-context-item" data-action="ungroup">${MENU_ICONS.ungroup}Ungroup (keep tabs)</div>
       <div class="tab-context-sep"></div>
@@ -1152,6 +1161,56 @@ const TabManager = {
     const tabsInGroup = this.tabs.filter(t => t.groupId === groupId);
 
     switch (action) {
+      // A group is a unit — "these six tabs" — so the things you do to a tab
+      // should be doable to all of them at once (idea 30).
+      case 'sleep-tabs': {
+        let slept = 0;
+        for (const t of tabsInGroup) {
+          if (t.sleeping || t.id === this.activeTabId) continue;
+          try { await this.sleepTab(t.id); if (t.sleeping) slept++; }            // sleepTab spares audible and kept-awake tabs itself
+          catch (err) { window.VexProblems?.note('Tab groups', 'Could not sleep a tab', err); }
+        }
+        window.showToast?.(slept ? 'Slept ' + slept + ' tab' + (slept === 1 ? '' : 's') + ' in “' + group.name + '”' : 'Nothing in “' + group.name + '” could sleep — a tab playing sound or kept awake is left alone');
+        this.rebuildAllTabs();
+        return;
+      }
+      case 'reload-tabs': {
+        let done = 0;
+        for (const t of tabsInGroup) {
+          const wv = WebviewManager.webviews.get(t.id);
+          if (!wv || t.sleeping || t._lazy) continue;
+          try { wv.reload(); done++; } catch (err) { window.VexProblems?.note('Tab groups', 'Could not reload a tab', err); }
+        }
+        window.showToast?.(done ? 'Reloading ' + done + ' tab' + (done === 1 ? '' : 's') : 'Nothing in “' + group.name + '” is loaded to reload');
+        return;
+      }
+      case 'mute-tabs': {
+        // All on, or all off: whichever leaves the group in one state. Done
+        // here rather than through toggleMuteTab, which says so for each tab
+        // — six toasts for one click — and can only reach loaded tabs.
+        const want = tabsInGroup.some(t => !t.muted);
+        let changed = 0, asleep = 0;
+        for (const t of tabsInGroup) {
+          const wv = WebviewManager.webviews.get(t.id);
+          if (!wv) { asleep++; continue; }
+          try { wv.setAudioMuted(want); t.muted = want; this.renderTabUpdate(t); changed++; }
+          catch (err) { window.VexProblems?.note('Tab groups', 'Could not mute a tab', err); }
+        }
+        this.persistTabs();
+        window.showToast?.((changed ? (want ? 'Muted ' : 'Unmuted ') + changed + ' tab' + (changed === 1 ? '' : 's') : 'Nothing to mute')
+          + (asleep ? ' — ' + asleep + ' sleeping tab' + (asleep === 1 ? '' : 's') + ' will be silent anyway' : ''));
+        return;
+      }
+      case 'save-session': {
+        if (typeof SessionManager === 'undefined') { window.showToast?.('Sessions are not available in this build', 'error'); return; }
+        const name = await vexPrompt({ title: 'Save “' + group.name + '” as a session', message: 'The pages in this group, saved so you can open them again later.', value: group.name, okLabel: 'Save' });
+        if (name == null) return;
+        try {
+          SessionManager.saveCurrentSession(name, tabsInGroup);
+          window.showToast?.('Saved “' + name + '” — Ctrl+K › Sessions to open it again');
+        } catch (err) { window.showToast?.((err && err.message) || 'Could not save it', 'error'); }
+        return;
+      }
       // NB: rebuildAllTabs() calls renderGroups() internally. Calling
       // renderGroups() separately AFTER rebuildAllTabs() blanks every tab
       // out of every group (innerHTML = ''). Just call rebuildAllTabs().

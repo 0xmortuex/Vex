@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.55 (2026-09-20) — Whole tab groups at once, download sorting, music controls
+
+### Changes
+- **Do things to a whole tab group.** Right-click a group's name: **sleep** its tabs (giving their memory back), **reload** them, **mute or unmute** them, or **save them as a session** to open again later. Checked live on a real group: a tab playing sound or kept awake is still left alone, the one you're looking at isn't slept, and the session holds only that group's pages.
+- **Downloads can sort themselves.** Downloads panel › *Sorting rules*: say which downloads ("pdf", "github.com", or "pdf from github.com"), which folder under Downloads they go in, and optionally a new name built from `{date}`, `{site}`, `{name}`. The first matching rule wins, so specific ones go first.
+  - The file is named and filed before the first byte arrives, so nothing has to be moved afterwards.
+  - A folder or name you type can't climb out of the Downloads folder or take a name Windows reserves.
+  - Checked live: a PDF from a site arrived as `2026-09-20 127.0.0.1 invoice_final_2.pdf` inside its own folder.
+- **Music controls from anywhere** (Ctrl+K): *Play or Pause the Music*, *Next Track*, *Previous Track*, *Music Volume…*. Play, pause and volume use the page's own player, so they work whatever the site calls its buttons; next and previous use the player's own buttons, and say so plainly when a site has none Vex can find.
+
 ## v2.32.54 (2026-09-20) — Ask Vex in your own words, and it answers properly
 
 ### Changes

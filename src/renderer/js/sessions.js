@@ -21,8 +21,14 @@ const SessionManager = {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.sessions));
   },
 
-  saveCurrentSession(name) {
-    const tabs = window.VexTabPolicy.snapshot(TabManager.tabs);
+  // `onlyTabs` saves a subset — a tab group saved as a session, from the
+  // group's own right-click menu.
+  saveCurrentSession(name, onlyTabs) {
+    const tabs = window.VexTabPolicy.snapshot(onlyTabs || TabManager.tabs);
+    // Only when saving a chosen set (a tab group): "save this group" that
+    // silently saves nothing is worse than an error. Saving the window as it
+    // is keeps its old behaviour, empty or not.
+    if (onlyTabs && !tabs.length) throw new Error('There is nothing to save — a private tab is never collected');
     const session = {
       id: vexId('sess_'),
       name: name || 'Session ' + new Date().toLocaleString(),
