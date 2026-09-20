@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.65 (2026-09-20) — Who is live
+
+### Changes
+- **Who is live** (Ctrl+K): the Twitch and YouTube channels you follow, and which are streaming right now — with the stream's title, and on Twitch how many are watching. Follow one by pasting its address, its @handle, or just its name.
+  - No account and no API key: both sites say it on the channel's own public page, and Vex reads that one fact.
+  - Vex checks every ten minutes in the background (nothing runs while a game is on) and says something **once** when a channel goes live, not again until it goes off and comes back. A check that failed counts as "could not ask", never as "off", so a dropped connection cannot make it announce the same stream twice.
+  - From the list, **Watch** opens it in a tab and **In the corner** opens it in the always-on-top window.
+
+This finishes the list of ideas from the original 120 that can be built here. Still out of reach for outside reasons: the Send routing image fix (needs the Worker redeployed), Roblox friends (needs a service), YouTube caption fetching (YouTube blocks it) and Document picture-in-picture (Electron closes those windows at once).
+
 ## v2.32.64 (2026-09-20) — A small model for routine work, routing that learns your wording, a ceiling that fits your machine
 
 ### Changes
