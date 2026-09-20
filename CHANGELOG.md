@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.63 (2026-09-20) — Tree tabs, and an inbox sorted into what actually wants an answer
+
+### Changes
+- **Tree tabs** (Ctrl+K): in the side strip, a tab opened from another sits indented under it, with a short line joining them — so a research detour looks like a detour instead of more noise. It only indents under a parent that is still open, in the same group and above it in the list; anything else stays where it was. Off until you switch it on.
+- **What my inbox actually wants** (Ctrl+K): your unread mail sorted into three piles — what wants an answer (a person, a thread, a question), what is worth a look, and bulk grouped by who keeps sending it — each with a line saying why it landed there. Clicking one opens that exact message in your webmail, where you can reply; clicking a sender opens their whole pile as one search, where a thousand can be archived in four clicks.
+  - Vex's own inbox is read-only on purpose, so nothing here moves, archives or marks anything, and the dialog says so rather than pretending.
+
 ## v2.32.62 (2026-09-20) — Free to keep this week, and your clips folder
 
 ### Changes
