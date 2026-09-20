@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.32.68 (2026-09-20) — Running tasks, a tour you choose, Firefox's own colours, and answers that format themselves as they are written
+
+### Changes
+- **Running tasks** — what is actually using the memory, and a way to end it. Right-click any tab or panel → **What is this using?**, or Ctrl+K → *Running Tasks*. Every process Vex runs, biggest first and named for what it really is ("Panel: Discord — 1,013 MB", "uBlock Origin — background", "GPU process"), with **End** on the ones that can be ended.
+  - Ending never loses anything you did not close yourself: a page is put to sleep and comes back where you left it, a panel is closed, an extension is switched off.
+  - Or end it **and keep it off** — for an hour, for eight hours, or until you let it back. A held thing that comes back is quietly put to sleep again, never blocked, and the bar at the top says what is held with one click to let it back.
+  - Vex's own processes are listed but cannot be ended, and each says why: the main process is Vex itself, Chromium restarts its services immediately, and the page you are looking at needs another tab open first.
+- **"Take a quick tour" is now "Take a tour", and it asks which.** *Quick tour* is the minute that names the controls you use every day. *Full tour* asks which areas you care about first — tabs, AI, privacy, reading, productivity, media, panels, logins, looks, developer tools, your data, only-in-Vex — with how many features are in each, and builds the walkthrough from what you ticked. It remembers the areas for next time.
+- **Firefox's own colours are a theme now.** *Firefox Light* and *Firefox Dark* are in the theme picker (Ctrl+Shift+Y) and in the setup wizard, so the colours can match the Firefox look instead of only the shape of it — the start page included.
+- **An answer formats itself while it is being written.** Headings, bold, lists and code used to appear only once the model had finished, so the important parts were invisible during the part you actually watch. A half-written code fence is closed for the drawing and opened again by the next word, so nothing swallows the rest.
+- **A site being held back says so.** When JavaScript, cookies or content from other sites is switched off for the site you are on, a marker appears in the toolbar naming what is off — clicking it opens the switches. This is what a black YouTube player looked like with nothing on screen to explain it.
+
 ## v2.32.67 (2026-09-20) — Picture-in-Picture buttons work again, a shorter setup, and answers to the questions people actually ask
 
 ### Fixes
