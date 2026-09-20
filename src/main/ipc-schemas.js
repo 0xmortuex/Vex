@@ -117,7 +117,21 @@ define('routing:set', [optional(string(160)), oneOf(['direct','tor','proxy']), o
 define('discord:set-bypass-mode', [oneOf(['off','light','strong']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
 define('discord:install-vencord-local', [optional(string())]);
 define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value))]);
-define('site:clear-data', [shape({ url: web, partition: optional(string(160)) })]);
+define('site:clear-data cookies:list', [shape({ url: web, partition: optional(string(160)) })]);
+// Editing one cookie: the name and the three things that decide which cookie
+// of that name it is (domain, path, secure) come straight back from the list.
+const cookieRef = {
+  url: web,
+  partition: optional(string(160)),
+  name: string(4096),
+  domain: optional(string(253)),
+  path: optional(string(1024)),
+  secure: optional(boolean),
+};
+const timestamp = value => value == null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
+define('dict:lookup', [string(40)]);
+define('cookies:remove', [shape(cookieRef)]);
+define('cookies:set', [shape({ ...cookieRef, value: string(16384), httpOnly: optional(boolean), expires: timestamp })]);
 define('translate:text', [shape({ text: string(100000), tl: value => typeof value === 'string' && /^[a-z-]{2,16}$/i.test(value) })]);
 define('recall:index', [shape({ url: web, text: optional(string(100000)), title: optional(string(4096)) })]);
 const count = (max) => value => value == null || (Number.isSafeInteger(value) && value >= 0 && value <= max);

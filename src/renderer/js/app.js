@@ -903,6 +903,8 @@
   DownloadsButton.init();
   SiteVolume.init();
   VexLock.init();
+  // Pages you asked to be shown what is new on (js/whats-new.js).
+  WhatsNew.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
   window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });
   {
@@ -1506,6 +1508,14 @@
     const lang = document.getElementById('translate-lang')?.value || 'en';
     Translator.translate(lang);
     document.getElementById('translate-bar')?.classList.remove('visible');
+  });
+  // The same page in both languages, rather than Google's copy of it.
+  document.getElementById('translate-side')?.addEventListener('click', async () => {
+    const lang = document.getElementById('translate-lang')?.value || 'en';
+    try { localStorage.setItem('vex.translateLang', lang); } catch {}
+    document.getElementById('translate-bar')?.classList.remove('visible');
+    try { await TranslateSide.toggle(lang); }
+    catch (err) { window.showToast?.(err.message, 'error'); }
   });
   document.getElementById('translate-close')?.addEventListener('click', () => {
     document.getElementById('translate-bar')?.classList.remove('visible');

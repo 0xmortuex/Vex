@@ -8,11 +8,28 @@ require('../../src/renderer/js/vex-icons.js');
 globalThis.VexIcons = window.VexIcons;
 const { VexLock: L } = require('../../src/renderer/js/vex-lock.js');
 
-const submit = async (pin) => {
+// Checking a PIN is deliberately slow (PBKDF2), and how slow depends on the
+// machine — so wait for the answer to land rather than for a fixed moment.
+const settled = async (done, ms = 5000) => {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (done()) return true;
+    await new Promise(r => setTimeout(r, 10));
+  }
+  return done();
+};
+
+// `blocked` is a try made during the thirty-second wait: it is turned away
+// without the PIN being checked at all, so there is nothing to wait for.
+const submit = async (pin, { blocked = false } = {}) => {
   const form = document.querySelector('.vex-lock-screen form');
+  const fails = L._fails;
+  const waited = L._waitUntil;
   form.querySelector('input').value = pin;
   form.dispatchEvent(new Event('submit', { cancelable: true }));
-  await new Promise(r => setTimeout(r, 50));
+  if (blocked) { await Promise.resolve(); return; }
+  // The attempt is over when it opened, or when it was counted against us.
+  await settled(() => !document.querySelector('.vex-lock-screen') || L._fails !== fails || L._waitUntil !== waited);
 };
 
 beforeEach(() => { localStorage.clear(); document.body.innerHTML = ''; L.unlock(); L._waitUntil = 0; window.showToast = vi.fn(); });
@@ -49,7 +66,7 @@ describe('VexLock', () => {
     L.lock();
     for (let i = 0; i < 5; i++) await submit('0000');
     expect(document.querySelector('.vex-lock-msg').textContent).toMatch(/wait 30 s/);
-    await submit('4821');
+    await submit('4821', { blocked: true });
     expect(L.locked()).toBe(true);
   });
 });

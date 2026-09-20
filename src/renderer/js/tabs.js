@@ -340,6 +340,10 @@ const TabManager = {
       partition: window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null
     };
 
+    // Where this tab came from: the page that was in front when it opened
+    // (js/tab-trail.js). A tab opened from nothing records nothing.
+    if (typeof TabTrail !== 'undefined') TabTrail.record(tab, this.getActiveTab());
+
     this.tabs.push(tab);
     WebviewManager.createWebview(tab);
     this.renderTab(tab);

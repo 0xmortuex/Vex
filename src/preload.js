@@ -160,6 +160,12 @@ contextBridge.exposeInMainWorld('vex', {
   restoreSettings: (name) => ipcRenderer.invoke('app:restore-settings', name),
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
+  // One cookie at a time, in the tab's own partition.
+  // What a word means, asked of a dictionary from the main process.
+  dictLookup: (word) => ipcRenderer.invoke('dict:lookup', word),
+  cookiesList: (opts) => ipcRenderer.invoke('cookies:list', opts),
+  cookiesRemove: (opts) => ipcRenderer.invoke('cookies:remove', opts),
+  cookiesSet: (opts) => ipcRenderer.invoke('cookies:set', opts),
   // Media grabber: list/download media detected on a tab (by its webContents id).
   mediaList: (wcId) => ipcRenderer.invoke('media:list', wcId),
   mediaDownload: (wcId, url) => ipcRenderer.invoke('media:download', wcId, url),

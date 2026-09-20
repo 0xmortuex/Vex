@@ -1022,6 +1022,73 @@ ipcMain.handle('site:clear-data', async (_e, opts) => {
   }
 });
 
+// === One cookie at a time =================================================
+// "Clear this site's data" is a hammer. Often one cookie is the problem — a
+// stale consent flag, a session the site will not let go of, a counter — and
+// the rest are the login you would rather keep. These read, change and remove
+// them one by one, in the tab's own partition, so a container's cookies stay
+// that container's.
+const _cookieUrl = (c) => {
+  const dom = String((c && c.domain) || '').replace(/^\./, '');
+  return dom ? `http${c.secure ? 's' : ''}://${dom}${(c && c.path) || '/'}` : '';
+};
+const _cookieSession = (partition) => (partition ? secureSessions.fromPartition(partition) : session.defaultSession);
+
+ipcMain.handle('cookies:list', async (_e, opts) => {
+  const { partition, url } = opts || {};
+  try {
+    const cookies = await _cookieSession(partition).cookies.get({ url });
+    return {
+      ok: true,
+      cookies: cookies.map(c => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain || '',
+        path: c.path || '/',
+        secure: !!c.secure,
+        httpOnly: !!c.httpOnly,
+        // A cookie with no expiry goes when the browser does.
+        expires: c.expirationDate ? Math.round(c.expirationDate * 1000) : null,
+      })),
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('cookies:remove', async (_e, opts) => {
+  const o = opts || {};
+  try {
+    await _cookieSession(o.partition).cookies.remove(_cookieUrl(o) || o.url, o.name);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('cookies:set', async (_e, opts) => {
+  const o = opts || {};
+  try {
+    const spec = {
+      url: _cookieUrl(o) || o.url,
+      name: o.name,
+      value: String(o.value == null ? '' : o.value),
+      path: o.path || '/',
+      secure: !!o.secure,
+      httpOnly: !!o.httpOnly,
+    };
+    // A cookie the site set for its whole domain (".example.com") stays that
+    // way; one set for this host alone stays host-only. Changing which it is
+    // would make a second cookie of the same name rather than edit this one.
+    if (typeof o.domain === 'string' && o.domain.startsWith('.')) spec.domain = o.domain;
+    if (Number.isFinite(o.expires) && o.expires > 0) spec.expirationDate = o.expires / 1000;
+    await _cookieSession(o.partition).cookies.set(spec);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // === Full-text recall ("memex") — index the text of pages you read, search it
 // later. Stored as a capped JSON log in userData; local only, never uploaded.
 // Ranking, tokenizing and snippeting live in ./main/recall-index.js. ===
@@ -1110,6 +1177,30 @@ ipcMain.handle('translate:text', async (_e, { text, tl } = {}) => {
     const data = await res.json();
     return (data && data[0]) ? data[0].map(s => s[0]).join('') : null;
   } catch { return null; }
+});
+
+// === What a word means =====================================================
+// Asked of Wiktionary's own API, which is free, needs no key and is not going
+// anywhere. From here and not from the page, because a page's own rules (CSP)
+// would block the request, and because the page has no business knowing which
+// words you did not know.
+//
+// Wiktionary answers in wiki markup turned into HTML, so the tags come off
+// here: the renderer is given text, never markup to paste into a card.
+const { readDefinitions } = require('./main/dictionary');
+ipcMain.handle('dict:lookup', async (_e, word) => {
+  const term = String(word || '').trim();
+  if (!term || term.length > 40 || !/^[\p{L}][\p{L}'-]*$/u.test(term)) return { ok: false, error: 'That is not a word' };
+  try {
+    const res = await boundedNetFetch('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(term));
+    if (res.status === 404) return { ok: false, notFound: true, error: 'No entry for "' + term + '"' };
+    if (!res.ok) return { ok: false, error: 'The dictionary did not answer (' + res.status + ')' };
+    const meanings = readDefinitions(await res.json());
+    if (!meanings.length) return { ok: false, notFound: true, error: 'No English entry for "' + term + '"' };
+    return { ok: true, word: term, phonetic: '', meanings };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 // === RSS fetch (renderer fetch would be CORS-blocked for arbitrary feeds) ===

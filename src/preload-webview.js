@@ -1413,3 +1413,31 @@ if (typeof module !== 'undefined' && module.exports) {
   if (!electron.ipcRenderer || !electron.webFrame) return;
   electron.ipcRenderer.on('vex-clear-cache', () => { electron.webFrame.clearCache(); });
 })();
+
+// === Double-click a word, get its meaning ==================================
+// Double-clicking a word already selects it — this reports that word, and
+// where on screen it is, so the host can offer a definition beside it
+// (js/dictionary.js). The host ignores it unless the user switched the
+// feature on, so nothing is looked up by accident.
+//
+// One word only: a double-click inside a field, on a link, or on a longer
+// selection is someone editing or following something, not asking what a word
+// means.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  document.addEventListener("dblclick", (e) => {
+    try {
+      const el = e.target;
+      if (el && el.closest && el.closest("input, textarea, [contenteditable=''], [contenteditable='true'], a[href]")) return;
+      const sel = window.getSelection();
+      const text = String((sel && sel.toString()) || "").trim();
+      if (!text || text.length > 40 || /\s/.test(text)) return;
+      if (!/^[\p{L}][\p{L}'-]*$/u.test(text)) return;
+      ipcRenderer.sendToHost("vex-word", { word: text, x: Math.round(e.clientX), y: Math.round(e.clientY) });
+    } catch { /* the page is not ours to break */ }
+  }, true);
+})();
