@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.32.62 (2026-09-20) — Free to keep this week, and your clips folder
+
+### Changes
+- **Free games this week** (Ctrl+K): what Epic and Steam are giving away to keep, from the stores' own lists — no account, no key. Free now comes first, soonest to disappear at the top, then what is coming next, each with how long is left. Only games that become yours to keep are listed: a 90%-off sale is a sale. Tick *Tell me* and Vex checks once a day, quietly, and says something when a new one starts.
+- **My clips** (Ctrl+K): the folder your recordings land in — OBS, ShadowPlay, Discord — newest first, with when each clip was made and how big it is. Click one to watch it in a tab, *Copy path* to paste into a chat, or *Show* to drag it somewhere. Vex only reads that folder: nothing is moved, renamed or uploaded.
+
 ## v2.32.61 (2026-09-20) — Teach Vex a task
 
 ### Changes
