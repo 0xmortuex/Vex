@@ -25,4 +25,21 @@ function isHeavyDiscordMedia(url) {
   return /\.gif$/i.test(u.pathname) || u.searchParams.get('animated') === 'true';
 }
 
-module.exports = { isHeavyDiscordMedia };
+// The same picture, still: Discord's CDN renders the first frame of any
+// decoration asked for as .png, and only animates .webp when asked to.
+//
+// This replaced cancelling the request outright, which relied on Discord
+// noticing the failure and drawing its own still version — where it does not,
+// an emoji is simply missing, and a missing emoji reads as Discord being
+// broken rather than as a setting. A redirect cannot leave a hole: the
+// picture arrives, it just does not move.
+function stillVersionOf(url) {
+  if (!isHeavyDiscordMedia(url)) return null;
+  const u = new URL(url);
+  if (/\.gif$/i.test(u.pathname)) u.pathname = u.pathname.replace(/\.gif$/i, '.png');
+  u.searchParams.delete('animated');
+  const out = u.toString();
+  return out === url ? null : out;
+}
+
+module.exports = { isHeavyDiscordMedia, stillVersionOf };

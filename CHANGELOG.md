@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.70 (2026-09-20) — Nothing sleeps during a call, and animated emoji stop being videos
+
+### Fixes
+- **A voice call is never interrupted to save memory.** Sleeping a panel ends what it is doing, so every path that sleeps one on its own now asks first whether it is in a call, holding the microphone or camera, or making any sound — and waits if it is. That covers the "keep it off" holds, End, and Sleep it now, as well as the idle sleeping that was already careful. A panel you sleep by hand is still your decision; one Vex sleeps by itself will not cut off a call.
+- **Lighter Discord fetches the still picture rather than nothing.** It used to cancel the request for an animated emoji, avatar or sticker and rely on Discord drawing its own still version; where that did not happen the decoration was simply missing, which reads as Discord being broken. It now asks the same CDN for the same picture as a still one, so it always arrives — it just stops being a video your machine decodes all day. GIFs people post are untouched, as before.
+
+### Changes
+- **"What is this using?" says what Vex is already doing about animated emoji.** On the Discord panel there is now a row for it — *already still* or *animating* — and, when it is off, a button that turns it on and reloads the panel. Lighter Discord ships on, so for most people this is the line that says so.
+- The *Let it sleep when you are not looking* button now says the part that matters: it still never sleeps during a call or while something is playing.
+
 ## v2.32.69 (2026-09-20) — Everything Vex can do, in one place; what is inside an app rather than a list of processes; downloads you can watch
 
 ### Changes

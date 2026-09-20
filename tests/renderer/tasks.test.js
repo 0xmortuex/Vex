@@ -213,11 +213,46 @@ describe('what is inside one app', () => {
     const labels = acts.map(a => a.label);
     expect(labels).toContain('Reload it');
     expect(labels).toContain('Clear its cache and reload');
-    expect(labels).toContain('Turn off animated emoji and avatars');
+    expect(labels).not.toContain('Make emoji and avatars still');   // Lighter Discord is already on
     await acts.find(a => a.label === 'Reload it').run();
     expect(reloaded).toEqual([501]);
     await acts.find(a => a.label.startsWith('Clear')).run();
     expect(reloaded).toEqual([501, 'hard:501']);
+  });
+
+  it('says what Vex is already doing about animated emoji, and offers it when it is off', async () => {
+    globalThis.SidebarManager.panelWebviews = { discord: guest(501, 'https://discord.com/channels/@me') };
+    let lite = true;
+    globalThis.DiscordMemory = { lite: () => lite, setLite: async (on) => { lite = on; } };
+    const d = await VexTasks.inside({ panel: 'discord' });
+    const row = VexTasks.insideRows(d).find(r => r.what.includes('Animated'));
+    expect(row.n).toBe('already still');
+    expect(row.detail).toMatch(/GIFs people post still play/);
+    expect(VexTasks.insideActions({ panel: 'discord' }, d).map(a => a.label)).not.toContain('Make emoji and avatars still');
+
+    lite = false;
+    const off = VexTasks.insideRows(d).find(r => r.what.includes('Animated'));
+    expect(off.n).toBe('animating');
+    const act = VexTasks.insideActions({ panel: 'discord' }, d).find(a => a.label === 'Make emoji and avatars still');
+    expect(act).toBeTruthy();
+    await act.run();
+    expect(lite).toBe(true);
+    expect(reloaded).toContain(501);
+  });
+
+  it('never sleeps a panel that is in a call or making a sound', async () => {
+    globalThis.SidebarManager.panelWebviews = { discord: guest(501, 'https://discord.com/channels/@me') };
+    globalThis.SidebarManager.panelBusy = () => 'it is using the microphone or camera';
+    const d = await VexTasks.inside({ panel: 'discord' });
+    const act = VexTasks.insideActions({ panel: 'discord' }, d).find(a => a.label === 'Sleep it now');
+    expect(act.why).toMatch(/Not now: it is using the microphone/);
+    await expect(act.run()).rejects.toThrow(/would cut that off/);
+    expect(panelSlept).toEqual([]);
+    // And a hold does not sneak past it either.
+    VexTasks.hold('panel:discord', 60000, 'Panel: Discord', 'panel');
+    expect(VexTasks.enforce()).toEqual([]);
+    expect(panelSlept).toEqual([]);
+    delete globalThis.SidebarManager.panelBusy;
   });
 
   it('names the keep-awake setting as the reason a hidden panel never gives its memory back', async () => {

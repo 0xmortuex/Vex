@@ -866,9 +866,7 @@ const SidebarManager = {
     let usage = {};
     try { usage = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {}; } catch {}
     return Object.keys(this.panelWebviews).filter(name => {
-      if (name === this.activePanel || name === this.sidePanel || p.exempt.includes(name) || this.isPanelCapturing(name)) return false;
-      const wv = this.panelWebviews[name];
-      try { if (typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return false; } catch {}
+      if (name === this.activePanel || name === this.sidePanel || p.exempt.includes(name) || this.panelBusy(name)) return false;
       return now - (Number(usage[name]) || 0) > p.minutes * 60000;
     });
   },
@@ -1089,6 +1087,19 @@ const SidebarManager = {
     if (name === 'discord') this.checkDiscordThrottle().catch(() => {});
   },
 
+  // Is this panel doing something that sleeping would interrupt — a voice
+  // call, a camera, a screen share, or anything making a sound? Every path
+  // that sleeps a panel on its own asks this first, because a panel slept
+  // mid-call drops the call, which is not a memory saving anybody wants.
+  // Returns the reason, in words, or '' when it is safe to sleep.
+  panelBusy(name) {
+    if (this.isPanelCapturing(name)) return 'it is using the microphone or camera';
+    const wv = this.panelWebviews[name];
+    try { if (wv && typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return 'it is making a sound'; }
+    catch { /* a panel mid-teardown cannot be asked */ }
+    return '';
+  },
+
   isPanelCapturing(name) {
     const c = this.panelCapture[name];
     return !!(c && (c.mic || c.camera || c.screen));
@@ -1100,9 +1111,7 @@ const SidebarManager = {
     const p = this.panelSleepPrefs();
     const slept = [];
     for (const name of Object.keys(this.panelWebviews)) {
-      if (name === this.activePanel || name === this.sidePanel || p.exempt.includes(name) || this.isPanelCapturing(name)) continue;
-      const wv = this.panelWebviews[name];
-      try { if (typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) continue; } catch {}
+      if (name === this.activePanel || name === this.sidePanel || p.exempt.includes(name) || this.panelBusy(name)) continue;
       try { this.sleepPanel(name); slept.push(name); }
       catch (err) { console.error('[Sidebar] could not sleep panel ' + name + ':', err.message); }
     }

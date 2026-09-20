@@ -1,7 +1,7 @@
 // Lighter Discord: the animated versions of decorations are not fetched;
 // anything someone posts or links always is.
 import { describe, expect, it } from 'vitest';
-const { isHeavyDiscordMedia } = require('../../src/main/discord-lite.js');
+const { isHeavyDiscordMedia, stillVersionOf } = require('../../src/main/discord-lite.js');
 
 describe('what Lighter Discord leaves out', () => {
   it('animated emoji, avatars, stickers, server icons and banners', () => {
@@ -34,5 +34,25 @@ describe('what Lighter Discord leaves out', () => {
       'https://discord.com/assets/app.js',
       'not a url',
     ]) expect(isHeavyDiscordMedia(u), u).toBe(false);
+  });
+});
+
+// It used to cancel the request and rely on Discord drawing its own still
+// version. Where that did not happen the emoji was simply missing, which
+// reads as Discord being broken — so the still picture is fetched instead.
+describe('the still version it asks for instead', () => {
+  it('turns an animated decoration into the same picture, not moving', () => {
+    expect(stillVersionOf('https://cdn.discordapp.com/emojis/123.gif?size=48'))
+      .toBe('https://cdn.discordapp.com/emojis/123.png?size=48');
+    expect(stillVersionOf('https://cdn.discordapp.com/avatars/1/a_abc.webp?size=80&animated=true'))
+      .toBe('https://cdn.discordapp.com/avatars/1/a_abc.webp?size=80');
+    expect(stillVersionOf('https://media.discordapp.net/stickers/99.gif'))
+      .toBe('https://media.discordapp.net/stickers/99.png');
+  });
+
+  it('leaves alone everything Lighter Discord leaves alone', () => {
+    expect(stillVersionOf('https://media.discordapp.net/attachments/1/2/party.gif')).toBeNull();
+    expect(stillVersionOf('https://cdn.discordapp.com/emojis/123.webp?size=48')).toBeNull();
+    expect(stillVersionOf('not a url')).toBeNull();
   });
 });

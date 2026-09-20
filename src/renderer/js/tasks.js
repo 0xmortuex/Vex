@@ -226,6 +226,10 @@ const VexTasks = {
     if (row.kind === 'panel') {
       const name = row.panels[0];
       if (typeof SidebarManager === 'undefined') throw new Error('The sidebar is not available in this window');
+      // A voice call or anything playing: ending it would cut that off, so it
+      // is refused rather than done quietly.
+      const busy = (SidebarManager.panelBusy && SidebarManager.panelBusy(name)) || '';
+      if (busy) throw new Error(SidebarManager.panelLabel(name) + ' is in use — ' + busy + '. Ending it would cut that off.');
       if (name === SidebarManager.activePanel || name === SidebarManager.sidePanel) SidebarManager.hideActivePanel();
       SidebarManager.sleepPanel(name);
       did = SidebarManager.panelLabel(name) + ' closed';
@@ -263,12 +267,18 @@ const VexTasks = {
         // Open in front of them: they went back to it on purpose, so the hold
         // waits rather than snatching it away.
         if (name === SidebarManager.activePanel || name === SidebarManager.sidePanel) continue;
+        // In a voice call, or playing something: a hold is about memory, and
+        // no memory saving is worth dropping a call. It waits.
+        if (SidebarManager.panelBusy && SidebarManager.panelBusy(name)) continue;
         try { SidebarManager.sleepPanel(name); acted.push(holds[key].label); } catch { /* already gone */ }
       } else if (key.startsWith('site:')) {
         const host = key.slice(5);
         if (typeof TabManager === 'undefined') continue;
         for (const t of TabManager.tabs || []) {
           if (t.id === TabManager.activeTabId || t.sleeping || t._lazy) continue;
+          // Playing sound, or holding the microphone or camera: leave it.
+          if (t.audible && !t.muted) continue;
+          if (TabManager.isCapturing && TabManager.isCapturing(t)) continue;
           if (this._host(t.url) !== host) continue;
           TabManager.sleepTab(t.id, true);
           acted.push(host);
@@ -378,6 +388,16 @@ const VexTasks = {
       rows.push({ what: 'Kept on your disk', n: d.storeMB >= 1024 ? (d.storeMB / 1024).toFixed(1) + ' GB' : d.storeMB + ' MB',
         detail: (d.storeDetail.length ? d.storeDetail.map(([k, v]) => k.replace(/([A-Z])/g, ' $1').toLowerCase() + ' ' + v + ' MB').join(', ') + ' — ' : '') + 'not memory, but it is read into memory as you use it, and it can all be fetched again.' });
     }
+    if (/discord\.com/.test(d.url || '') && typeof DiscordMemory !== 'undefined') {
+      const on = DiscordMemory.lite();
+      rows.push({
+        what: 'Animated emoji and avatars',
+        n: on ? 'already still' : 'animating',
+        detail: on
+          ? 'Lighter Discord is on, so every animated emoji, avatar and sticker is fetched as a still picture. Each animated one is a video that would otherwise be decoded frame by frame, all day, whether or not you are looking at it. GIFs people post still play.'
+          : 'Every animated emoji, avatar and sticker on screen is a video being decoded frame by frame, all day. Vex can fetch them as still pictures instead — the button below.',
+      });
+    }
     if (d.vencord != null) rows.push({ what: 'Vencord plugins running', n: String(d.vencord), detail: 'Each one patches Discord as it runs. Ones you do not use are worth switching off.' });
     return rows;
   },
@@ -407,14 +427,19 @@ const VexTasks = {
     if (target.panel && typeof SidebarManager !== 'undefined') {
       let kept = false;
       try { kept = (SidebarManager.panelSleepPrefs().exempt || []).includes(target.panel); } catch { kept = false; }
+      const busy = (SidebarManager.panelBusy && SidebarManager.panelBusy(target.panel)) || '';
       acts.push(kept ? {
         label: 'Let it sleep when you are not looking',
-        why: 'It is set to stay awake, so it keeps every megabyte of this while hidden. Letting it sleep hands all of it back until you open it again — the cost is that it cannot notify you while asleep.',
-        run: async () => { SidebarManager.setKeepAwake(target.panel, false); return name + ' will sleep when it has been hidden a while'; },
+        why: 'It is set to stay awake, so it keeps every megabyte of this while hidden. Letting it sleep hands all of it back until you open it again. It still never sleeps during a voice call or while it is making a sound — only when it has been quiet and hidden for a while — and it cannot notify you while asleep.',
+        run: async () => { SidebarManager.setKeepAwake(target.panel, false); return name + ' will sleep once it has been hidden and quiet for a while'; },
       } : {
         label: 'Sleep it now',
-        why: 'Closes it and hands back everything above. It comes back where you left it.',
+        why: busy
+          ? 'Not now: ' + busy + '. Sleeping it would end that, so this waits until it is quiet.'
+          : 'Closes it and hands back everything above. It comes back where you left it.',
         run: async () => {
+          const stop = (SidebarManager.panelBusy && SidebarManager.panelBusy(target.panel)) || '';
+          if (stop) throw new Error(name + ' is in use — ' + stop + '. Sleeping it now would cut that off.');
           if (target.panel === SidebarManager.activePanel || target.panel === SidebarManager.sidePanel) SidebarManager.hideActivePanel();
           SidebarManager.sleepPanel(target.panel);
           return name + ' is asleep';
@@ -428,11 +453,16 @@ const VexTasks = {
         run: async () => { await TabManager.sleepTab(target.tab, true); return name + ' is asleep'; },
       });
     }
-    if (/discord\.com/.test(d.url || '')) {
+    if (/discord\.com/.test(d.url || '') && typeof DiscordMemory !== 'undefined' && !DiscordMemory.lite()) {
       acts.push({
-        label: 'Turn off animated emoji and avatars',
-        why: 'In Discord: Settings → Accessibility → turn on Reduce Motion, and Settings → Appearance → turn off animated emoji. Every animated emoji and avatar on screen is a video being decoded.',
-        run: async () => { const wv = this._guestFor(target); if (wv) { try { wv.focus(); } catch {} } return 'Open Discord’s own settings — Accessibility → Reduce Motion'; },
+        label: 'Make emoji and avatars still',
+        why: 'Fetches every animated emoji, avatar, sticker and server icon as a still picture instead of a moving one. They still appear — they just stop being videos your machine decodes all day. GIFs people post are untouched.',
+        run: async () => {
+          await DiscordMemory.setLite(true);
+          const wv = this._guestFor(target);
+          try { if (wv) wv.reload(); } catch { /* it will apply on the next load */ }
+          return 'Animated emoji and avatars are still pictures now — ' + name + ' is reloading';
+        },
       });
     }
     return acts;
