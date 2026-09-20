@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.32.69 (2026-09-20) — Everything Vex can do, in one place; what is inside an app rather than a list of processes; downloads you can watch
+
+### Changes
+- **Everything Vex can do — the Library, second tab.** All 220 features in one searchable reference, grouped by area. Each one says what it is for, then the paragraph that actually helps: when to reach for it, and the part that surprises people (a sleeping tab really does give its process back; the third site switch is why YouTube goes black; Discord is the heaviest panel there is). Every entry has three buttons — **Open it**, **Show me** (points at the real control) and **Ask Vex about this**, which asks the assistant using that entry as the facts, so the answer is about your Vex rather than a model's memory.
+  - The Library button is back on the sidebar for everyone it was hidden from, and `Ctrl+K` → **Everything Vex Can Do** goes straight to it.
+  - Every answer the guide gives now ends with **Read the whole entry**, which opens the Library on that feature.
+- **"What is this using?" now answers the question it was asked.** Right-click a tab or a sidebar panel and Running tasks opens **on that app**: how much JavaScript it is holding, how far the page has grown, what is playing, which other sites are embedded in it, how much it keeps on your disk — and, for Discord, how many Vencord plugins are running. Underneath, the handful of things that genuinely lower those numbers, each with the button that does it: reload it, clear its cache, let it sleep when you are not looking.
+  - The flat list of operating-system processes is still there behind **Show every process Vex runs**, with End and holds unchanged — but it is no longer the answer to "what is Discord doing".
+- **A download shows itself while it downloads.** Starting one drops the downloads button open with a bar: how much of how much, how fast, and how long is left, with **Pause** and **Cancel** on the row. The button itself carries a progress bar, and closing the drop while a download is running means "not now" — the next file will not make it jump open again.
+
+### Fixes
+- **The second AI button is gone.** Anyone who picked a job profile had two sparkles side by side doing exactly the same thing: the real AI button, and one the job profile added back when the browser looks used to hide it. The looks stopped hiding it in v2.32.66, so the spare is removed.
+- **The downloads drop closes when you click the page.** A click inside a page never reaches Vex's own window, so the drop used to sit there until you clicked the button again.
+- **Toolbar buttons that were hidden now really are hidden.** `display: flex` on their class was quietly beating the browser's own rule, so the developer-tools button showed with developer mode off, and the site-rules marker showed on every site instead of only the ones being held back.
+- **The sidebar icons fit the window.** On a short window the last few panels were simply off the bottom, with no scrollbar and nothing to say so. They shrink to fit now, and when even that is not enough the rail says it scrolls.
+
 ## v2.32.68 (2026-09-20) — Running tasks, a tour you choose, Firefox's own colours, and answers that format themselves as they are written
 
 ### Changes
