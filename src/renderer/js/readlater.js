@@ -108,11 +108,36 @@ const ReadLater = {
     dot.textContent = n > 9 ? '9+' : String(n);
   },
 
+  // The Library holds two things now: what you saved, and the reference to
+  // everything Vex can do (js/feature-library.js). They belong together —
+  // both are "the things in Vex you meant to come back to".
+  TAB_KEY: 'vex.libraryTab',
+
+  tab() { try { return localStorage.getItem(this.TAB_KEY) === 'features' ? 'features' : 'saved'; } catch { return 'saved'; } },
+
+  showTab(which) {
+    try { localStorage.setItem(this.TAB_KEY, which === 'features' ? 'features' : 'saved'); } catch { /* the tab is a convenience */ }
+    const panel = document.getElementById('panel-library');
+    if (panel) this.renderPanel(panel);
+  },
+
   renderPanel(container) {
     if (!container) return;
     const esc = (s) => window.escapeHtml(s);
-    container.innerHTML = `<div class="panel-header"><h2>Library</h2></div><div id="lib-body" style="padding:0 10px 20px;overflow-y:auto;max-height:calc(100vh - 110px)"></div>`;
+    const on = this.tab();
+    container.innerHTML = `<div class="panel-header"><h2>Library</h2></div>
+      <div class="lib-tabs">
+        <button data-tab="saved" class="${on === 'saved' ? 'on' : ''}">Saved</button>
+        <button data-tab="features" class="${on === 'features' ? 'on' : ''}">Everything Vex can do</button>
+      </div>
+      <div id="lib-body" style="padding:0 10px 20px;overflow-y:auto;max-height:calc(100vh - 148px)"></div>`;
+    container.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => this.showTab(b.dataset.tab)));
     const body = container.querySelector('#lib-body');
+    if (on === 'features') {
+      if (typeof FeatureLibrary === 'undefined') { body.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">The feature list is not available in this window.</div>'; return; }
+      FeatureLibrary.render(body);
+      return;
+    }
     const section = (label) => { const h = document.createElement('div'); h.style.cssText = 'font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;padding:12px 8px 4px'; h.textContent = label; body.appendChild(h); };
     const row = (it, opts) => {
       const r = document.createElement('div');

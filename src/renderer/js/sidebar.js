@@ -330,9 +330,15 @@ const SidebarManager = {
     // Settings → Sidebar). Runs once per install; respects later user choices.
     this._applyLeanDefault();
     this._hideBookmarksOnce();
+    this._showLibraryOnce();
 
     // Apply any saved per-button customizations (name/icon/link/hidden).
     this.applyPanelOverrides();
+    // A window that got shorter hides icons off the bottom, so refit then too.
+    window.addEventListener('resize', () => {
+      clearTimeout(this._fitTimer);
+      this._fitTimer = setTimeout(() => this.fitRail(), 120);
+    });
 
     // Mount user-pinned site panels (Vivaldi-style web panels).
     this.loadSitePanels();
@@ -1330,7 +1336,7 @@ const SidebarManager = {
   // browser core (start/history/downloads/settings), the app panels
   // (WhatsApp/Claude/Spotify/Netflix/Discord/Roblox) and Notes/Authenticator
   // stay visible. Bookmarks is default-off too (still one click away to re-show).
-  DEFAULT_HIDDEN_PANELS: ['queue', 'memory', 'schedules', 'library', 'feeds', 'annotations', 'recall', 'bookmarks'],
+  DEFAULT_HIDDEN_PANELS: ['queue', 'memory', 'schedules', 'feeds', 'annotations', 'recall', 'bookmarks'],
 
   // Applied once per install (guarded by vex.sidebarLeanV1). Merges hidden:true
   // onto each default-hidden panel; a later Show in Settings sticks because this
@@ -1363,6 +1369,23 @@ const SidebarManager = {
     } catch {}
   },
 
+  // The Library was in the lean default's hidden list, which was fine while it
+  // only held saved links. It now also holds the reference to everything Vex
+  // can do — and a list of every feature that you can only reach if you
+  // already know it exists is the joke it was written to end. So it comes
+  // back, once, and only if you never hid it yourself.
+  _showLibraryOnce() {
+    try {
+      if (localStorage.getItem('vex.sidebarLibraryShownV1')) return;
+      const ov = loadPanelOverrides();
+      if (ov.library && ov.library.hidden && ov.library.chosen !== true) {
+        ov.library = Object.assign({}, ov.library, { hidden: false });
+        savePanelOverrides(ov);
+      }
+      localStorage.setItem('vex.sidebarLibraryShownV1', '1');
+    } catch { /* the rail is drawn from the overrides either way */ }
+  },
+
   applyPanelOverrides() {
     const ov = loadPanelOverrides();
     // Iterate EVERY sidebar button, not just the ones with an override — a
@@ -1381,6 +1404,28 @@ const SidebarManager = {
       if (o.name) btn.title = o.name;
       if (o.icon && SIDEBAR_ICONS[o.icon]) btn.innerHTML = SIDEBAR_ICONS[o.icon];
     });
+    this.fitRail();
+  },
+
+  // Make the icons fit the window.
+  //
+  // The rail scrolls, with no scrollbar and nothing else to say so, which on a
+  // short window meant the last few panels were simply gone: invisible, and
+  // reachable only by a scroll nobody knew to try. So the icons shrink until
+  // they fit — twice, and if they still do not fit, the rail says it scrolls
+  // rather than hiding the fact.
+  fitRail() {
+    const rail = document.getElementById('icon-sidebar');
+    if (!rail || !rail.clientHeight) return null;
+    rail.classList.remove('compact', 'tight', 'scrolls');
+    const over = () => rail.scrollHeight > rail.clientHeight + 1;
+    if (!over()) return 'roomy';
+    rail.classList.add('compact');
+    if (!over()) return 'compact';
+    rail.classList.add('tight');
+    if (!over()) return 'tight';
+    rail.classList.add('scrolls');
+    return 'scrolls';
   },
 
   setPanelOverride(panel, patch) {

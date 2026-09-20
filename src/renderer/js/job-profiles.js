@@ -507,17 +507,11 @@ const JobProfiles = {
     };
     mk('Toolbox — your job tools', VexIcons.svg('toolbox', { size: 15 }), () => { try { window.Toolbox && Toolbox.open(); } catch {} });
 
-    // Vex AI, right beside the Toolbox. AIPanel is a top-level const, not a
-    // property of window, so it is reached by bare identifier — going through
-    // window would make this button silently do nothing.
-    mk('Ask Vex AI', VexIcons.svg('sparkles', { size: 15 }), () => {
-      const panel = (typeof AIPanel !== 'undefined' && AIPanel) || null;
-      if (!panel || typeof panel.toggle !== 'function') {
-        window.showToast?.('The AI panel is not available', 'error');
-        return;
-      }
-      panel.toggle();
-    });
+    // There used to be a second button here, "Ask Vex AI", a sparkle that
+    // opened the AI panel. It was added when the browser looks hid the real
+    // AI button; v2.32.66 put that one back, so anyone with a job profile had
+    // TWO sparkles side by side doing exactly the same thing. The real one
+    // (#btn-toggle-ai) is always in the toolbar now, so this one is gone.
 
     // The developer dashboard button sits beside the Toolbox one. This redraw
     // just re-created that button, so let it retake its place.

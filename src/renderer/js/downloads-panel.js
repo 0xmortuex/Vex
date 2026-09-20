@@ -81,6 +81,10 @@ const DownloadsPanel = {
     this.save();
     this._prependRow(dl);
     this._updateBadge();
+    // Show it happening: the downloads button drops open with a bar, the way
+    // every other browser does, instead of only saying something once the
+    // file has already finished.
+    window.DownloadsButton?.started?.();
     window.showToast?.(`Downloading ${dl.filename}…`, 'info', 2500);
   },
 

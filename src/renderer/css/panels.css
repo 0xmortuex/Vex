@@ -356,6 +356,36 @@
 /* The toolbar downloads button and its drop-down (js/downloads-button.js). */
 #btn-downloads-top { position: relative; }
 #btn-downloads-top.has-active::after { content: ''; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+/* While something is downloading: a bar across the foot of the button itself,
+   so the progress is visible without opening anything. --dl-progress is the
+   percentage, set by js/downloads-button.js. */
+#btn-downloads-top.has-progress::before {
+  content: ''; position: absolute; left: 4px; right: 4px; bottom: 3px; height: 2px; border-radius: 2px;
+  background: linear-gradient(to right,
+    var(--primary) 0 calc(var(--dl-progress, 0) * 1%),
+    var(--border) calc(var(--dl-progress, 0) * 1%) 100%);
+}
+#btn-downloads-top.has-progress > svg { transform: translateY(-1px); }
+/* Catches a click on the page, which lives in a <webview> and never reaches
+   this document. One below the drop's own z-index. */
+.downloads-drop-shield { position: fixed; inset: 0; z-index: 100044; background: transparent; }
+/* One running download: name and percentage, the bar, then the numbers. */
+.downloads-drop-live { padding: 8px 8px 9px; border-radius: 7px; }
+.downloads-drop-live + .downloads-drop-live { border-top: 1px solid var(--border); border-radius: 0; }
+.downloads-drop-live .ddl-top { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; }
+.downloads-drop-live .ddl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+.downloads-drop-live .ddl-pct { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--primary); font-weight: 600; }
+.downloads-drop-live .ddl-bar { height: 4px; margin: 6px 0 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.downloads-drop-live .ddl-bar i { display: block; height: 100%; background: var(--primary); border-radius: 3px; transition: width .3s ease; }
+/* No Content-Length: a moving stripe rather than a bar that lies. */
+.downloads-drop-live .ddl-bar.unknown i { background: repeating-linear-gradient(90deg, var(--primary) 0 10px, transparent 10px 20px); animation: ddl-slide 1s linear infinite; }
+@keyframes ddl-slide { to { background-position: 20px 0; } }
+.downloads-drop-live.paused .ddl-bar i { background: var(--text-muted); animation: none; }
+.downloads-drop-live .ddl-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); }
+.downloads-drop-live .ddl-detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.downloads-drop-live .ddl-acts { display: flex; gap: 4px; flex: 0 0 auto; }
+.downloads-drop-live .ddl-acts button { font: inherit; font-size: 11px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+.downloads-drop-live .ddl-acts button:hover { border-color: var(--primary); color: var(--primary); }
 .downloads-drop { position: fixed; z-index: 100045; min-width: 260px; max-width: 340px; padding: 6px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 14px 40px rgba(0,0,0,0.35); }
 .downloads-drop-row { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 7px 8px; border: none; border-radius: 7px; background: none; color: var(--text); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
 .downloads-drop-row:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); }

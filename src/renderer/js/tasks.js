@@ -1,11 +1,17 @@
 // === Running tasks — what is actually using the memory ====================
 //
-// "Vex is using 4 GB" is never a useful sentence: a browser is a dozen
-// processes and the one to blame is almost always a single page or panel.
-// The Memory panel already measures them and names them; what it could not do
-// is END one, which is the thing people open a task manager to do.
+// Two questions, and they need different answers.
 //
-// So: every process Vex runs, biggest first, named by the Memory panel's own
+// "Discord is using 1.5 GB — what inside it is doing that?" is the one people
+// actually ask, and a list of operating-system processes cannot answer it,
+// because the whole app IS one process. So right-clicking a panel or a tab
+// opens on that app and asks the page itself: how much JavaScript it holds,
+// how far the page has grown, what is playing, what other sites it has
+// embedded, what it has stored on your disk — and then the handful of things
+// that really lower those numbers, each with the button that does it.
+//
+// "What is Vex running at all?" is the second, and that is the process list:
+// every process, biggest first, named by the Memory panel's own
 // describeProcess (one description of a process in this app, not two), with a
 // button that ends it.
 //
@@ -277,12 +283,167 @@ const VexTasks = {
     return acted;
   },
 
+  // ---- Inside one app ------------------------------------------------------
+  //
+  // "Discord is using 1.5 GB" is where the question starts, not where it ends.
+  // The next question is what INSIDE it is using that, and a list of operating
+  // system processes cannot answer it — one process IS Discord.
+  //
+  // So this asks the page itself: how much JavaScript it is holding, how big
+  // the page has grown, what is playing, what other sites it has embedded,
+  // what it has stored on your disk. Then it says which of those you can do
+  // something about, with the button that does it.
+
+  // Run a measurement inside a guest page. Everything is guarded in there
+  // because one missing API must not cost the whole reading.
+  INSIDE_SCRIPT: `(async () => {
+    const t = (fn, d) => { try { return fn(); } catch { return d; } };
+    const m = t(() => performance.memory, null);
+    let store = null;
+    try { store = await navigator.storage.estimate(); } catch { store = null; }
+    let workers = 0;
+    try { workers = (await navigator.serviceWorker.getRegistrations()).length; } catch { workers = 0; }
+    const media = t(() => [...document.querySelectorAll('video, audio')], []);
+    return {
+      url: location.href.slice(0, 200),
+      heapMB: m ? Math.round(m.usedJSHeapSize / 1048576) : null,
+      heapLimitMB: m ? Math.round(m.jsHeapSizeLimit / 1048576) : null,
+      nodes: t(() => document.getElementsByTagName('*').length, 0),
+      images: t(() => document.images.length, 0),
+      media: media.length,
+      playing: media.filter(el => !el.paused && !el.ended).length,
+      frames: t(() => [...document.querySelectorAll('iframe')].map(f => { try { return new URL(f.src || 'about:blank').hostname || 'in the page itself'; } catch { return 'in the page itself'; } }), []),
+      workers,
+      storeMB: store && store.usage != null ? Math.round(store.usage / 1048576) : null,
+      storeDetail: (store && store.usageDetails) ? Object.entries(store.usageDetails).map(([k, v]) => [k, Math.round(v / 1048576)]).filter(p => p[1] >= 1) : [],
+      vencord: t(() => (window.Vencord && window.Vencord.Plugins && window.Vencord.Plugins.plugins)
+        ? Object.values(window.Vencord.Plugins.plugins).filter(p => p && p.started).length : null, null),
+    };
+  })()`,
+
+  // The <webview> behind a panel name or a tab id.
+  _guestFor(target) {
+    if (!target) return null;
+    if (target.panel) return (typeof SidebarManager !== 'undefined' && SidebarManager.panelWebviews) ? SidebarManager.panelWebviews[target.panel] || null : null;
+    if (target.tab != null) return (typeof WebviewManager !== 'undefined') ? WebviewManager.webviews.get(target.tab) || null : null;
+    return null;
+  },
+
+  _nameFor(target) {
+    if (!target) return '';
+    if (target.panel) return (typeof SidebarManager !== 'undefined') ? SidebarManager.panelLabel(target.panel) : target.panel;
+    const tab = (typeof TabManager !== 'undefined') ? (TabManager.tabs || []).find(t => t.id === target.tab) : null;
+    return tab ? (tab.title || tab.url || 'This tab') : 'This tab';
+  },
+
+  // What is inside it, measured. Throws with something worth reading.
+  async inside(target) {
+    const wv = this._guestFor(target);
+    if (!wv || typeof wv.executeJavaScript !== 'function') throw new Error(this._nameFor(target) + ' is not loaded, so there is nothing running in it to measure');
+    const got = await wv.executeJavaScript(this.INSIDE_SCRIPT);
+    // The process it lives in, so the total agrees with Running tasks.
+    let processMB = null;
+    try {
+      const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
+      if (id != null && window.vex && typeof window.vex.tabMemory === 'function') {
+        const mem = await window.vex.tabMemory([id]);
+        const one = mem && mem.byId && mem.byId[id];
+        if (one) processMB = Math.round(one.memKB / 1024);
+      }
+    } catch { /* the breakdown is still worth showing without the total */ }
+    return Object.assign({ processMB, name: this._nameFor(target) }, got);
+  },
+
+  // What a reading means, in rows: a figure, and what it is made of.
+  insideRows(d) {
+    const rows = [];
+    if (d.heapMB != null) {
+      rows.push({ what: 'JavaScript it is holding', n: d.heapMB + ' MB',
+        detail: d.heapLimitMB ? 'The app’s own code and data. It may use up to ' + (d.heapLimitMB >= 1024 ? (d.heapLimitMB / 1024).toFixed(1) + ' GB' : d.heapLimitMB + ' MB') + ' before Chromium forces it to collect.' : 'The app’s own code and data.' });
+    }
+    rows.push({ what: 'How big the page has grown', n: d.nodes.toLocaleString() + ' elements',
+      detail: d.nodes > 30000 ? 'Very large — a long-running chat that has never been reloaded keeps every message it has drawn.' : 'Each one costs memory, and an app that is never reloaded only adds them.' });
+    if (d.images || d.media) {
+      rows.push({ what: 'Pictures, video and sound', n: d.images.toLocaleString() + ' images' + (d.media ? ', ' + d.media + ' player' + (d.media === 1 ? '' : 's') : ''),
+        detail: d.playing ? d.playing + ' playing right now — video and animated pictures are decoded frame by frame and are the most expensive thing on any page.' : 'Animated pictures (emoji, avatars, GIFs) are decoded frame by frame even when you are not looking at them.' });
+    }
+    if (d.frames && d.frames.length) {
+      const by = {};
+      for (const h of d.frames) by[h] = (by[h] || 0) + 1;
+      rows.push({ what: 'Other sites embedded in it', n: d.frames.length + ' frame' + (d.frames.length === 1 ? '' : 's'),
+        detail: Object.entries(by).map(([h, n]) => n > 1 ? h + ' ×' + n : h).join(', ') + ' — each one is its own page, with its own memory.' });
+    }
+    if (d.workers) rows.push({ what: 'Background workers', n: String(d.workers), detail: 'Service workers keep running after you close the app’s tab, to deliver notifications.' });
+    if (d.storeMB != null) {
+      rows.push({ what: 'Kept on your disk', n: d.storeMB >= 1024 ? (d.storeMB / 1024).toFixed(1) + ' GB' : d.storeMB + ' MB',
+        detail: (d.storeDetail.length ? d.storeDetail.map(([k, v]) => k.replace(/([A-Z])/g, ' $1').toLowerCase() + ' ' + v + ' MB').join(', ') + ' — ' : '') + 'not memory, but it is read into memory as you use it, and it can all be fetched again.' });
+    }
+    if (d.vencord != null) rows.push({ what: 'Vencord plugins running', n: String(d.vencord), detail: 'Each one patches Discord as it runs. Ones you do not use are worth switching off.' });
+    return rows;
+  },
+
+  // What actually lowers it, with the button that does it. Only things that
+  // are true for this app right now.
+  insideActions(target, d) {
+    const acts = [];
+    const name = d.name;
+    acts.push({
+      label: 'Reload it',
+      why: 'A chat app that has been open for days holds everything it has drawn since. Reloading gives that back straight away — usually the biggest single win.',
+      run: async () => { const wv = this._guestFor(target); if (!wv) throw new Error('It is not loaded'); wv.reload(); return name + ' is reloading'; },
+    });
+    acts.push({
+      label: 'Clear its cache and reload',
+      why: d.storeMB != null ? 'Throws away the ' + (d.storeMB >= 1024 ? (d.storeMB / 1024).toFixed(1) + ' GB' : d.storeMB + ' MB') + ' of pictures and files it has kept. It fetches what it needs again — you stay signed in.' : 'Throws away the pictures and files it has kept; it fetches them again, and you stay signed in.',
+      run: async () => {
+        const wv = this._guestFor(target);
+        const id = wv && typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
+        if (id == null || !window.vex || typeof window.vex.hardReloadWebview !== 'function') throw new Error('Vex cannot reach that page right now');
+        const r = await window.vex.hardReloadWebview(id);
+        if (!r || !r.ok) throw new Error((r && r.error) || 'Could not clear it');
+        return name + '’s cache is cleared and it is reloading';
+      },
+    });
+    if (target.panel && typeof SidebarManager !== 'undefined') {
+      let kept = false;
+      try { kept = (SidebarManager.panelSleepPrefs().exempt || []).includes(target.panel); } catch { kept = false; }
+      acts.push(kept ? {
+        label: 'Let it sleep when you are not looking',
+        why: 'It is set to stay awake, so it keeps every megabyte of this while hidden. Letting it sleep hands all of it back until you open it again — the cost is that it cannot notify you while asleep.',
+        run: async () => { SidebarManager.setKeepAwake(target.panel, false); return name + ' will sleep when it has been hidden a while'; },
+      } : {
+        label: 'Sleep it now',
+        why: 'Closes it and hands back everything above. It comes back where you left it.',
+        run: async () => {
+          if (target.panel === SidebarManager.activePanel || target.panel === SidebarManager.sidePanel) SidebarManager.hideActivePanel();
+          SidebarManager.sleepPanel(target.panel);
+          return name + ' is asleep';
+        },
+      });
+    }
+    if (target.tab != null && typeof TabManager !== 'undefined' && target.tab !== TabManager.activeTabId) {
+      acts.push({
+        label: 'Put it to sleep',
+        why: 'Hands back everything above until you click the tab again, which brings it back where you left it.',
+        run: async () => { await TabManager.sleepTab(target.tab, true); return name + ' is asleep'; },
+      });
+    }
+    if (/discord\.com/.test(d.url || '')) {
+      acts.push({
+        label: 'Turn off animated emoji and avatars',
+        why: 'In Discord: Settings → Accessibility → turn on Reduce Motion, and Settings → Appearance → turn off animated emoji. Every animated emoji and avatar on screen is a video being decoded.',
+        run: async () => { const wv = this._guestFor(target); if (wv) { try { wv.focus(); } catch {} } return 'Open Discord’s own settings — Accessibility → Reduce Motion'; },
+      });
+    }
+    return acts;
+  },
+
   // ---- The window ----------------------------------------------------------
 
-  // opts.tab / opts.panel highlights the row that thing is running in, which
-  // is what "what is this using?" on a tab or a panel wants.
+  // opts.tab / opts.panel opens on what is inside that app — the question
+  // people actually have. With nothing, it lists every process Vex runs.
   open(opts) {
-    this._focus = opts || null;
+    this._focus = opts && (opts.panel || opts.tab != null) ? opts : null;
     if (this._el) { this.refresh(); return this._el; }
     const el = document.createElement('div');
     el.className = 'vextasks-backdrop';
@@ -290,8 +451,8 @@ const VexTasks = {
       <div class="vextasks" role="dialog" aria-modal="true" aria-label="Running tasks">
         <div class="vextasks-head">
           <div class="vextasks-headings">
-            <h2>Running tasks</h2>
-            <div class="vextasks-sub">Every process Vex is running, biggest first. Ending one gives its memory back — a page you end is put to sleep and comes back where you left it.</div>
+            <h2 id="vextasks-title">Running tasks</h2>
+            <div class="vextasks-sub" id="vextasks-sub">Measuring…</div>
           </div>
           <div class="vextasks-total" id="vextasks-total">…</div>
           <button class="vextasks-close" aria-label="Close">&times;</button>
@@ -324,7 +485,10 @@ const VexTasks = {
   async refresh() {
     const el = this._el;
     if (!el) return;
+    if (this._focus) return this._refreshInside();
     const body = el.querySelector('#vextasks-body');
+    el.querySelector('#vextasks-title').textContent = 'Running tasks';
+    el.querySelector('#vextasks-sub').textContent = 'Every process Vex is running, biggest first. Ending one gives its memory back — a page you end is put to sleep and comes back where you left it.';
     let rows;
     try { rows = await this.rows(); }
     catch (err) { body.innerHTML = `<div class="vextasks-empty">${this._esc((err && err.message) || 'Could not read the processes')}</div>`; return; }
@@ -341,6 +505,61 @@ const VexTasks = {
     body.querySelectorAll('[data-end]').forEach(b => b.addEventListener('click', (e) => this._endMenu(e.currentTarget, rows[Number(b.dataset.end)])));
     const focused = body.querySelector('.vextasks-row.on');
     if (focused) focused.scrollIntoView({ block: 'center' });
+  },
+
+  // What is inside the app you asked about, and what to do about it.
+  async _refreshInside() {
+    const el = this._el;
+    const target = this._focus;
+    if (!el || !target) return;
+    const body = el.querySelector('#vextasks-body');
+    const name = this._nameFor(target);
+    el.querySelector('#vextasks-title').textContent = name;
+    el.querySelector('#vextasks-sub').textContent = 'What inside it is using the memory, and what actually lowers it.';
+    let d;
+    try { d = await this.inside(target); }
+    catch (err) {
+      if (!this._el) return;
+      body.innerHTML = `<div class="vextasks-empty">${this._esc((err && err.message) || 'Could not measure it')}
+        <div style="margin-top:12px"><button class="vextasks-end" data-all>Show every process Vex runs</button></div></div>`;
+      body.querySelector('[data-all]')?.addEventListener('click', () => { this._focus = null; this.refresh(); });
+      return;
+    }
+    if (!this._el) return;
+    el.querySelector('#vextasks-total').textContent = d.processMB != null ? this._fmt(d.processMB) : (d.heapMB != null ? this._fmt(d.heapMB) + '+' : '—');
+    this._renderHeld();
+    const rows = this.insideRows(d);
+    const acts = this.insideActions(target, d);
+    this._acts = acts;
+    body.innerHTML = `
+      <table class="vextasks-table vextasks-inside">
+        <tbody>${rows.map(r => `
+          <tr class="vextasks-row">
+            <td><div class="vextasks-what">${this._esc(r.what)}</div><div class="vextasks-detail vextasks-wrap">${this._esc(r.detail)}</div></td>
+            <td class="num">${this._esc(r.n)}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+      <div class="vextasks-advice">
+        <div class="vextasks-advice-head">What actually lowers it</div>
+        ${acts.map((a, i) => `
+          <div class="vextasks-act">
+            <button class="vextasks-end" data-act="${i}">${this._esc(a.label)}</button>
+            <span>${this._esc(a.why)}</span>
+          </div>`).join('')}
+      </div>
+      <div class="vextasks-foot">
+        ${d.processMB != null ? `It sits in one process of ${this._esc(this._fmt(d.processMB))} — that figure is what the machine sees, and everything above is what is inside it. ` : ''}
+        <button class="vextasks-link" data-all>Show every process Vex runs</button>
+      </div>`;
+    body.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', async () => {
+      const act = this._acts[Number(b.dataset.act)];
+      b.disabled = true;
+      try { window.showToast?.(await act.run(), 'success'); }
+      catch (err) { window.showToast?.((err && err.message) || 'That did not work', 'error'); }
+      b.disabled = false;
+      setTimeout(() => this.refresh(), 1200);
+    }));
+    body.querySelector('[data-all]')?.addEventListener('click', () => { this._focus = null; this.refresh(); });
   },
 
   // Which row is the thing the user right-clicked running in?

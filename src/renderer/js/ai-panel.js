@@ -1665,6 +1665,9 @@ const AIPanel = {
     if (VexFeatures.command(a.entry) || a.entry.panel) button('Do it', 'Run it now', () => VexGuide.run(a.entry));
     if (a.entry.sel || a.entry.setting) button('Show me', 'Point at it on screen', () => VexGuide.show(a.entry));
     if (a.entry.steps) button('Step me through it', 'One step at a time', () => VexGuide.walk(a.entry));
+    // Three lines is the answer; the Library entry is the whole thing — where
+    // it lives, every step, and what sits next to it (js/feature-library.js).
+    if (typeof FeatureLibrary !== 'undefined' && a.entry.id) button('Read the whole entry', 'Open it in the Library', () => FeatureLibrary.openAt(a.entry.id));
     button('Ask the AI anyway', 'Send the question to the model instead', () => this.sendMessage('chat', { message: question }));
     el.append(head, list, bar);
     if (a.others.length) {

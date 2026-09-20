@@ -16,13 +16,27 @@ const PROCS = [
   { pid: 14, type: 'Tab', memKB: 1024 * 80, cpu: 0, contents: [{ id: 701, kind: 'backgroundPage', url: 'chrome-extension://abc/bg.html', extension: 'uBlock Origin', partition: 'persist:main' }] },
 ];
 
-let slept, panelSlept, extEnabled;
+let slept, panelSlept, extEnabled, reloaded;
+
+// A <webview> that answers the measurement script with a plausible reading.
+const READING = {
+  url: 'https://discord.com/channels/@me', heapMB: 480, heapLimitMB: 2048,
+  nodes: 38402, images: 120, media: 2, playing: 1,
+  frames: ['youtube.com', 'discord.com', 'discord.com'], workers: 1,
+  storeMB: 1200, storeDetail: [['caches', 900], ['indexedDB', 280]], vencord: 34,
+};
+const guest = (id, url) => ({
+  getWebContentsId: () => id,
+  executeJavaScript: () => Promise.resolve({ ...READING, url }),
+  reload: () => reloaded.push(id),
+  focus: () => {},
+});
 
 beforeEach(() => {
   localStorage.clear();
   document.body.innerHTML = '';
   VexTasks.close();
-  slept = []; panelSlept = []; extEnabled = [];
+  slept = []; panelSlept = []; extEnabled = []; reloaded = [];
   globalThis.MemoryPanel = MemoryPanel;
   globalThis.VexTasks = VexTasks;
   globalThis.TabManager = {
@@ -33,13 +47,15 @@ beforeEach(() => {
   };
   globalThis.WebviewManager = {
     webviews: new Map([
-      ['tab-discord', { getWebContentsId: () => 501 }],
-      ['tab-yt', { getWebContentsId: () => 601 }],
+      ['tab-discord', guest(501, 'https://discord.com/channels/@me')],
+      ['tab-yt', guest(601, 'https://www.youtube.com/watch?v=x')],
     ]),
   };
   globalThis.SidebarManager = {
     activePanel: null, sidePanel: null, panelWebviews: {},
     panelLabel: (n) => n[0].toUpperCase() + n.slice(1),
+    panelSleepPrefs: () => ({ exempt: [] }),
+    setKeepAwake: () => {},
     sleepPanel: (n) => panelSlept.push(n),
     hideActivePanel: () => { globalThis.SidebarManager.activePanel = null; },
   };
@@ -168,6 +184,61 @@ describe('keeping a hold', () => {
   });
 });
 
+describe('what is inside one app', () => {
+  it('asks the page itself, and turns the reading into plain rows', async () => {
+    globalThis.SidebarManager.panelWebviews = { discord: guest(501, 'https://discord.com/channels/@me') };
+    const d = await VexTasks.inside({ panel: 'discord' });
+    expect(d.name).toBe('Discord');
+    const rows = VexTasks.insideRows(d);
+    const find = (s) => rows.find(r => r.what.includes(s));
+    expect(find('JavaScript').n).toBe('480 MB');
+    expect(find('grown').n).toBe('38,402 elements');
+    expect(find('grown').detail).toMatch(/never been reloaded/);        // 38k is "very large"
+    expect(find('embedded').n).toBe('3 frames');
+    expect(find('embedded').detail).toMatch(/discord\.com ×2/);
+    expect(find('disk').n).toBe('1.2 GB');
+    expect(find('Vencord').n).toBe('34');
+  });
+
+  it('says so plainly when the app is not loaded', async () => {
+    globalThis.SidebarManager.panelWebviews = {};
+    await expect(VexTasks.inside({ panel: 'discord' })).rejects.toThrow(/not loaded/);
+  });
+
+  it('offers the things that really lower it, and they do something', async () => {
+    globalThis.SidebarManager.panelWebviews = { discord: guest(501, 'https://discord.com/channels/@me') };
+    window.vex.hardReloadWebview = (id) => { reloaded.push('hard:' + id); return Promise.resolve({ ok: true }); };
+    const d = await VexTasks.inside({ panel: 'discord' });
+    const acts = VexTasks.insideActions({ panel: 'discord' }, d);
+    const labels = acts.map(a => a.label);
+    expect(labels).toContain('Reload it');
+    expect(labels).toContain('Clear its cache and reload');
+    expect(labels).toContain('Turn off animated emoji and avatars');
+    await acts.find(a => a.label === 'Reload it').run();
+    expect(reloaded).toEqual([501]);
+    await acts.find(a => a.label.startsWith('Clear')).run();
+    expect(reloaded).toEqual([501, 'hard:501']);
+  });
+
+  it('names the keep-awake setting as the reason a hidden panel never gives its memory back', async () => {
+    globalThis.SidebarManager.panelWebviews = { discord: guest(501, 'https://discord.com/channels/@me') };
+    let keptAwake = true;
+    globalThis.SidebarManager.panelSleepPrefs = () => ({ exempt: keptAwake ? ['discord'] : [] });
+    globalThis.SidebarManager.setKeepAwake = (n, on) => { keptAwake = on; };
+    const d = await VexTasks.inside({ panel: 'discord' });
+    let act = VexTasks.insideActions({ panel: 'discord' }, d).find(a => /sleep/i.test(a.label));
+    expect(act.label).toBe('Let it sleep when you are not looking');
+    expect(act.why).toMatch(/stay awake/);
+    await act.run();
+    expect(keptAwake).toBe(false);
+    // Once it can sleep, the offer becomes sleeping it now.
+    act = VexTasks.insideActions({ panel: 'discord' }, d).find(a => /sleep/i.test(a.label));
+    expect(act.label).toBe('Sleep it now');
+    await act.run();
+    expect(panelSlept).toEqual(['discord']);
+  });
+});
+
 describe('the window', () => {
   it('lists every process with a way to end the ones that can be', async () => {
     VexTasks.open();
@@ -181,12 +252,19 @@ describe('the window', () => {
     expect(document.querySelector('.vextasks-backdrop')).toBeNull();
   });
 
-  it('picks out the row the right-clicked tab is running in', async () => {
+  it('opens on the app you asked about, not on a list of processes', async () => {
     VexTasks.open({ tab: 'tab-yt' });
     await new Promise(r => setTimeout(r, 0));
     await new Promise(r => setTimeout(r, 0));
-    const on = document.querySelector('.vextasks-row.on');
-    expect(on.textContent).toContain('A video');
+    await new Promise(r => setTimeout(r, 0));
+    expect(document.getElementById('vextasks-title').textContent).toBe('A video');
+    expect(document.querySelector('.vextasks-inside')).toBeTruthy();
+    expect(document.body.textContent).toContain('What actually lowers it');
+    // And the whole process list is still one click away.
+    document.querySelector('[data-all]').click();
+    await new Promise(r => setTimeout(r, 0));
+    await new Promise(r => setTimeout(r, 0));
+    expect(document.getElementById('vextasks-title').textContent).toBe('Running tasks');
     VexTasks.close();
   });
 

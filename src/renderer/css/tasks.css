@@ -164,3 +164,47 @@
   padding: 6px 10px 4px;
   max-width: 250px;
 }
+
+/* The "what is inside this app" view: figures on the right, what they mean
+   underneath, and then the things that actually lower them. */
+.vextasks-inside td { vertical-align: top; }
+.vextasks-inside .num { font-size: 13px; font-weight: 600; padding-left: 20px; }
+.vextasks-wrap { white-space: normal; max-width: none; margin-top: 2px; }
+.vextasks-advice { padding: 14px 10px 4px; }
+.vextasks-advice-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-weight: 700;
+  color: var(--text-muted, #6b7482);
+  margin-bottom: 10px;
+}
+.vextasks-act {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted, #6b7482);
+}
+.vextasks-act .vextasks-end { width: 100%; padding: 7px 10px; }
+.vextasks-foot {
+  padding: 12px 10px 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted, #6b7482);
+  border-top: 1px solid var(--border, #1f2530);
+  margin-top: 8px;
+}
+.vextasks-link {
+  font-family: inherit;
+  font-size: 11.5px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary, #6366f1);
+  cursor: pointer;
+  text-decoration: underline;
+}

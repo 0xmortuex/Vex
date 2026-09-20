@@ -157,10 +157,16 @@ describe('Job Profiles catalogue', () => {
   });
 });
 
-// The top bar draws the Toolbox button and the Vex AI button, and nothing else.
+// The top bar draws the Toolbox button and nothing else.
+//
 // It used to also draw up to three individual tool buttons out there, which is
 // what looked wrong: they sat beside the Toolbox icon rendering a typographic
 // mark rather than a drawn icon. Every tool belongs inside the Toolbox.
+//
+// It also drew an "Ask Vex AI" sparkle, added when the browser looks hid the
+// real AI button. v2.32.66 put that one back, so anyone with a job profile had
+// two identical sparkles side by side (reported 2026-09-20). Only the Toolbox
+// is drawn here now.
 describe('the job buttons in the top bar', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="top-bar-right"><button id="btn-command"></button></div>';
@@ -174,18 +180,16 @@ describe('the job buttons in the top bar', () => {
     return [...document.querySelectorAll('#top-bar-right .vex-job-btn')];
   };
 
-  it('draws exactly two buttons: the Toolbox and Vex AI', () => {
+  it('draws exactly one button: the Toolbox', () => {
     const job = JobProfiles.list().find(j => j.tools.length >= 6);
     localStorage.setItem('vex.jobTools', JSON.stringify(job.tools));
     const btns = draw(job.id);
-    expect(btns.map(b => b.title)).toEqual(['Toolbox — your job tools', 'Ask Vex AI']);
+    expect(btns.map(b => b.title)).toEqual(['Toolbox — your job tools']);
   });
 
-  it('puts Vex AI immediately after the Toolbox button', () => {
-    const job = JobProfiles.list()[0];
-    const btns = draw(job.id);
-    expect(btns[1].title).toBe('Ask Vex AI');
-    expect(btns[0].nextElementSibling).toBe(btns[1]);
+  it('never draws a second AI button beside the real one', () => {
+    const btns = draw(JobProfiles.list()[0].id);
+    expect(btns.map(b => b.title).join(' ')).not.toMatch(/AI/);
   });
 
   it('draws no per-tool buttons, whatever the job has enabled', () => {
@@ -211,7 +215,7 @@ describe('the job buttons in the top bar', () => {
   it('is idempotent — redrawing does not stack duplicates', () => {
     const id = JobProfiles.list()[0].id;
     draw(id); draw(id); const btns = draw(id);
-    expect(btns.length).toBe(2);
+    expect(btns.length).toBe(1);
   });
 });
 

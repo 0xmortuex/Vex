@@ -206,3 +206,20 @@
 .sidebar-icon .icon-badge.discord-call svg { width: 9px; height: 9px; }
 /* The browser looks' rail hangs badges off the top corner; this one stays low. */
 body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon .icon-badge.discord-call { top: auto; bottom: -3px; }
+
+/* === Fitting the icons in a short window (SidebarManager.fitRail) =========
+   The rail has no scrollbar by design, so anything past the bottom edge was
+   invisible AND looked unreachable. It shrinks to fit first, and only says it
+   scrolls when even that is not enough. */
+#icon-sidebar.compact { gap: 5px; padding: 8px 5px; }
+#icon-sidebar.compact .sidebar-icon { width: 30px; height: 30px; }
+#icon-sidebar.compact .sidebar-icon svg { width: 17px; height: 17px; }
+#icon-sidebar.tight { gap: 3px; padding: 6px 4px; }
+#icon-sidebar.tight .sidebar-icon { width: 26px; height: 26px; border-radius: 7px; }
+#icon-sidebar.tight .sidebar-icon svg { width: 15px; height: 15px; }
+/* Still too many: a fade at the foot, and a thin scrollbar under the pointer,
+   so there is something to tell you the list goes on. */
+#icon-sidebar.scrolls { mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%); }
+#icon-sidebar.scrolls:hover { scrollbar-width: thin; mask-image: none; }
+#icon-sidebar.scrolls:hover::-webkit-scrollbar { width: 4px; }
+#icon-sidebar.scrolls::-webkit-scrollbar-thumb { background: var(--vex-border-strong); border-radius: 3px; }

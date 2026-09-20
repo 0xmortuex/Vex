@@ -40,7 +40,7 @@ describe('the toolbar button', () => {
     DownloadsPanel.downloads = [{ id: '1', filename: 'big.iso', state: 'progressing', receivedBytes: 50, totalBytes: 200 }];
     DownloadsButton.refresh();
     expect(DownloadsButton.button().classList.contains('has-active')).toBe(true);
-    expect(DownloadsButton.button().title).toBe('1 download in progress');
+    expect(DownloadsButton.button().title).toBe('1 download in progress — 25%');
   });
 
   it('drops down the last few, newest first, with what each one is doing', () => {
@@ -52,7 +52,10 @@ describe('the toolbar button', () => {
     DownloadsButton.init();
     DownloadsButton.toggle();
     const rows = [...document.querySelectorAll('.downloads-drop-row')].map(r => r.textContent);
-    expect(rows).toEqual(['notes.txt2 KB', 'big.iso25%', 'gone.zipcancelled']);
+    expect(rows).toEqual(['notes.txt2 KB', 'gone.zipcancelled']);
+    // The one still running is a bar, not a line of text.
+    expect(document.querySelector('.downloads-drop-live .ddl-name').textContent).toBe('big.iso');
+    expect(document.querySelector('.downloads-drop-live .ddl-pct').textContent).toBe('25%');
     expect(document.querySelector('.downloads-drop-all').textContent).toBe('Open downloads');
   });
 
@@ -66,12 +69,82 @@ describe('the toolbar button', () => {
     expect(window.vex.downloadsOpenFile).toHaveBeenCalledWith('C:/d/setup.exe');
   });
 
-  it('one still downloading opens the panel instead, and the menu closes', () => {
-    DownloadsPanel.downloads = [{ id: '2', filename: 'big.iso', state: 'progressing', receivedBytes: 1, totalBytes: 4 }];
+});
+
+describe('while something is downloading', () => {
+  const running = (over) => Object.assign({ id: '2', filename: 'big.iso', state: 'progressing', receivedBytes: 24 * 1048576, totalBytes: 240 * 1048576 }, over);
+
+  it('shows itself when the download starts, without being asked', () => {
+    DownloadsButton.init();
+    DownloadsPanel.downloads = [running()];
+    DownloadsButton.started();
+    expect(document.querySelector('.downloads-drop')).not.toBeNull();
+    expect(document.querySelector('.ddl-bar i').style.width).toBe('10%');
+  });
+
+  it('closing it while it runs means "not now" — the next file does not reopen it', () => {
+    DownloadsButton.init();
+    DownloadsPanel.downloads = [running()];
+    DownloadsButton.started();
+    DownloadsButton.close();
+    DownloadsButton.started();
+    expect(document.querySelector('.downloads-drop')).toBeNull();
+  });
+
+  it('a click on the page closes it — that click never reaches this document', () => {
     DownloadsButton.init();
     DownloadsButton.toggle();
-    document.querySelector('.downloads-drop-row').click();
-    expect(SidebarManager.openPanel).toHaveBeenCalledWith('downloads');
+    const shield = document.querySelector('.downloads-drop-shield');
+    expect(shield).not.toBeNull();
+    shield.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     expect(document.querySelector('.downloads-drop')).toBeNull();
+    expect(document.querySelector('.downloads-drop-shield')).toBeNull();
+  });
+
+  it('says how much of how much, how fast, and how long is left', () => {
+    const dl = running();
+    expect(DownloadsButton.detail(dl, 3.1 * 1048576)).toBe('24.0 MB of 240.0 MB · 3.1 MB/s · about 70 seconds left');
+    expect(DownloadsButton.detail(dl, 1.5 * 1048576)).toMatch(/about 2 minutes left$/);
+    expect(DownloadsButton.detail(running({ receivedBytes: 239 * 1048576 }), 2 * 1048576)).toMatch(/nearly done$/);
+    expect(DownloadsButton.detail(dl, 0)).toBe('24.0 MB of 240.0 MB');              // no rate yet: no guess
+    expect(DownloadsButton.detail(running({ totalBytes: 0 }), 0)).toBe('24.0 MB so far');
+    expect(DownloadsButton.detail(running({ paused: true }), 3 * 1048576)).toBe('24.0 MB of 240.0 MB · paused');
+  });
+
+  it('measures the speed itself, because nothing reports it', () => {
+    DownloadsButton._rate.clear();
+    const dl = running({ receivedBytes: 0 });
+    DownloadsPanel.downloads = [dl];
+    DownloadsButton.refresh();
+    vi.advanceTimersByTime(1000);
+    dl.receivedBytes = 2 * 1048576;
+    DownloadsButton.refresh();
+    expect(DownloadsButton._rate.get('2').bps).toBeGreaterThan(1.5 * 1048576);
+  });
+
+  it('puts the progress on the button itself', () => {
+    DownloadsButton.init();
+    DownloadsPanel.downloads = [running()];
+    DownloadsButton.refresh();
+    const b = DownloadsButton.button();
+    expect(b.classList.contains('has-progress')).toBe(true);
+    expect(b.style.getPropertyValue('--dl-progress')).toBe('10');
+    expect(b.title).toBe('1 download in progress — 10%');
+  });
+
+  it('pause and cancel are on the row, not two screens away', async () => {
+    window.vex.downloadsControl = vi.fn(async () => ({ ok: true }));
+    DownloadsButton.init();
+    DownloadsPanel.downloads = [running()];
+    DownloadsButton.toggle();
+    const [pause, cancel] = document.querySelectorAll('.ddl-acts button');
+    expect([pause.textContent, cancel.textContent]).toEqual(['Pause', 'Cancel']);
+    pause.click();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(window.vex.downloadsControl).toHaveBeenCalledWith('2', 'pause');
+    DownloadsPanel.downloads = [running({ paused: true })];
+    DownloadsButton.refresh();
+    expect(document.querySelector('.ddl-acts button').textContent).toBe('Resume');
+    expect(document.querySelector('.downloads-drop-live').classList.contains('paused')).toBe(true);
   });
 });

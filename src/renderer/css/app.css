@@ -95,6 +95,12 @@ body {
   gap: 2px;
 }
 
+/* `display: flex` on a class beats the browser's own [hidden] rule, so a
+   toolbar button that JavaScript hid stayed on screen: the developer-tools
+   button showed with developer mode off, and the site-rules marker showed on
+   every site. Every button in here obeys `hidden` now, in every look. */
+#top-bar [hidden], #top-bar-right [hidden], #url-bar [hidden] { display: none !important; }
+
 .nav-btn {
   display: flex;
   align-items: center;
