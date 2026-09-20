@@ -133,6 +133,8 @@ define('dict:lookup', [string(40)]);
 define('net:latency', []);
 define('games:free', []);
 define('system:memory', []);
+// The channels to ask about: a kind and a name each, nothing else.
+define('live:check', [value => Array.isArray(value) && value.length <= 30 && value.every(c => object(c) && (c.kind === 'twitch' || c.kind === 'youtube') && typeof c.name === 'string' && c.name.length <= 80)]);
 define('clips:folder', [optional(boolean)]);
 define('clips:list', [optional(string(4096))]);
 // A file dropped on the AI panel: its bytes, and what it was called.

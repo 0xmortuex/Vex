@@ -919,6 +919,8 @@
   FreeGames.init();
   // Tabs indented under the tab they came from (js/tree-tabs.js).
   TreeTabs.init();
+  // The channels you follow, checked quietly (js/live-channels.js).
+  LiveChannels.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
   window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });
   {

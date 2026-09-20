@@ -217,6 +217,8 @@ const VexFeatures = {
       what: 'Correcting Vex with /agent or /chat teaches it your wording, so the same kind of sentence goes the right way next time. This command forgets what it learned.' },
     { id: 'memceiling', phrases: 'memory ceiling too much ram tabs sleeping too often memory limit for this pc', cat: 'tabs', cmd: 'memceiling', name: 'A memory ceiling that fits this machine',
       what: 'Works the ceiling out from what this machine actually has, and from what is free right now, instead of the same 1200 MB for everyone — and says why before changing it.' },
+    { id: 'live', phrases: 'twitch live youtube live streamer went live follow a channel notify me when streaming', cat: 'media', cmd: 'live', name: 'Who is live',
+      what: 'The Twitch and YouTube channels you follow, and which are streaming right now — read from their own public pages, with no account. Vex says something once when one goes live.' },
     { id: 'siteidentity', cat: 'privacy', cmd: 'siteidentity',
       what: 'Exactly what this page can see about your browser, with a verdict on why a site might be refusing to work.' },
     { id: 'pwhealth', cat: 'privacy', cmd: 'pwhealth',

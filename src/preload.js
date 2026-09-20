@@ -163,6 +163,8 @@ contextBridge.exposeInMainWorld('vex', {
   // One cookie at a time, in the tab's own partition.
   // The words inside a file dropped on the AI panel.
   docText: (bytes, name) => ipcRenderer.invoke('doc:text', bytes, name),
+  // Which of the channels you follow are live right now.
+  liveCheck: (channels) => ipcRenderer.invoke('live:check', channels),
   // How much memory this machine has, and the ceiling that suits it.
   systemMemory: () => ipcRenderer.invoke('system:memory'),
   // The folder your recordings land in, and what is in it.

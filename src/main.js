@@ -1226,6 +1226,22 @@ ipcMain.handle('doc:text', async (_e, bytes, name) => {
   }
 });
 
+// === Who is live right now =================================================
+// Twitch's and YouTube's own public pages, read for one fact each
+// (src/main/live-channels.js). No account and no API key.
+ipcMain.handle('live:check', async (_e, channels) => {
+  const live = require('./main/live-channels');
+  try {
+    const statuses = await live.check(channels, async (target, opts) => {
+      const res = await boundedNetFetch(target, opts);
+      return { ok: res.ok, status: res.status, text: res.status === 404 ? '' : await res.text() };
+    });
+    return { ok: true, statuses };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // === What this machine can spare ===========================================
 // The memory ceiling used to be the same 1200 MB on every machine. This reads
 // what the machine actually has (src/main/memory-baseline.js) so the ceiling
