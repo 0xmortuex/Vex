@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.32.56 (2026-09-20) — One cookie at a time, what's new since you were last here, and a dictionary on double-click
+
+### Changes
+- **Cookies and storage for this site** (Ctrl+K): every cookie and every stored item one site keeps, listed one by one — change a value, or remove a single one, instead of clearing the lot. Cookies are read and changed in the tab's own container, so a Work tab's cookies stay the Work tab's. Checked live: a consent cookie edited from `yes` to `no` kept its expiry, an HttpOnly session cookie removed, a stored setting changed — and the page itself saw all three.
+  - A value too big to bring back whole is shown but not editable, so nothing is ever written back shortened.
+- **What's new since I was last here.** For a thread, a changelog or a wiki page you keep coming back to: the paragraphs that were not there last time are marked, and the page scrolls to the first. Only pages you ask about are remembered, and what is kept is a hash per paragraph — never the text. A remembered page marks itself when you arrive, and *Stop Marking What's New Here* forgets it and clears the marks.
+- **How I got here.** The chain of pages that led to this tab: the page it was opened from, and the one before that. A hop whose tab is still open switches to it; one you closed opens again. Kept for this run of Vex only.
+- **Translate side by side.** The translate bar has a *Side by side* button: the page stays exactly as it is, and the translation goes under each paragraph in a quieter colour, so you can read both. Run it again to take the translation off. Checked live against a real page in French.
+- **Double-click a word for its meaning.** Off until you switch it on (Ctrl+K). With it on, double-clicking a word on any page shows what it means beside it. The word is looked up by Vex against Wiktionary, not by the page — so the site is never told which words you did not know — and a word is asked for once however often you click it.
+
+### Fixes
+- The lock-screen test waited a fixed 50 ms for a PIN check that is deliberately slow, and failed at random on a loaded machine; it now waits for the answer.
+
 ## v2.32.55 (2026-09-20) — Whole tab groups at once, download sorting, music controls
 
 ### Changes
