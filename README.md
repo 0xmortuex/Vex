@@ -161,7 +161,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Per‑site Settings** — remembered zoom, forced dark mode, and custom CSS/JS **Boosts** (Zap‑to‑hide any element) per website.
 - **Setup Gallery** — save, name, share and switch whole setups (panels, shortcuts, theme) via portable `VEXSETUP1` codes.
 - **Custom Tools bar** — pin any web app as a one‑click shortcut (drag‑reorder, edit, remove).
-- **Customizable keyboard shortcuts**, **customizable sidebar** (rename/re‑icon/reorder/hide/re‑link), **Chrome extension support** (install from folder/ZIP; Vencord for Discord).
+- **Keyboard shortcuts you control** — rebind any of them, and give a key to anything that has none: every one of the 250+ `Ctrl+K` commands can have one (Shortcuts panel, or Settings). **Customizable sidebar** (rename/re‑icon/reorder/hide/re‑link), **Chrome extension support** (install from folder/ZIP; Vencord for Discord).
 
 ### ☁️ Sync
 - **Vex Sync** — end‑to‑end encrypted (AES‑GCM‑256) sync of tabs, bookmarks, history and settings across devices, via your own self‑hosted Cloudflare Worker. A hex recovery code is your key.

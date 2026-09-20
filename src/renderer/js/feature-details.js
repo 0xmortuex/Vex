@@ -226,7 +226,7 @@ const FeatureDetails = {
   airestyle: 'Describe a look — "declutter", "match my dark theme" — and the AI writes the CSS, saved as a per-site boost you can edit afterwards.',
   setupgallery: 'Your whole setup as a code you can paste on another machine or hand to someone else. Themes, layout, panels and settings travel; your data does not.',
   startpage: 'A start page with your name, the weather, your GitHub activity, a daily verse or quote and your own shortcuts. Every part of it can be switched off.',
-  shortcuts: 'Rebind any shortcut to whatever you actually press. A few are fixed because Windows or Chromium claims them first, and those say so.',
+  shortcuts: 'Two things in one screen: rebind what already has a key, and give a key to anything that has none — every command in Ctrl+K can have one, which is over two hundred of them. A few are fixed because Windows or Chromium claims them first, and those say so instead of pretending.',
   extensions: 'Install Chrome extensions from a folder, a .zip or a .crx. The manager says honestly which parts of an extension Electron cannot support — request blocking, for one — rather than letting it fail quietly.',
   'tools-bar': 'Pin any web app to the sidebar as a button of your own, with your choice of icon.',
 

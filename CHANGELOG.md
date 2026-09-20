@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.72 (2026-09-20) — Eleven more shortcuts, and a key for anything else you want
+
+### Changes
+- **Anything in the command bar can have a keyboard shortcut now.** The Shortcuts screen has a box at the bottom: search the 250-odd things Vex can do, pick one, press the keys. It appears in the list under **Your own**, with an × to take it off again. A key already doing something else is refused by name rather than quietly stolen.
+- **Eleven features that had no key have one**, all on Ctrl+Alt (where there is still room) and all rebindable:
+  - `Ctrl+Alt+B` Library · `Ctrl+Alt+E` Everything Vex can do · `Ctrl+Alt+T` Running tasks · `Ctrl+Alt+J` Downloads · `Ctrl+Alt+P` Logins & 2FA codes · `Ctrl+Alt+F` Focus mode · `Ctrl+Alt+C` Clip the selection to Notes · `Ctrl+Alt+W` Watch this page for changes · `Ctrl+Alt+X` Toolbox · `Ctrl+Alt+K` Save to Read Later · `Ctrl+Alt+G` Translate this page.
+- **The Shortcuts panel is the editor.** It used to be a written-out list of keys, which meant it showed the defaults even after you had changed them, and nothing on it could be changed. It is the same editable screen as Settings now, so what it shows is what your keys really are.
+
+### Fixes
+- A shortcut with nothing behind it no longer swallows the key: it is passed on to whatever else wants it.
+
 ## v2.32.71 (2026-09-20) — An answer keeps being written when you close the panel
 
 ### Fixes

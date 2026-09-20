@@ -106,7 +106,10 @@ describe('shortcut editor: key capture is torn down with the panel', () => {
     const btn = host.querySelector('button.shortcut-key');
     btn.click();
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('QuotaExceededError'); });
-    press({ key: 'j', ctrlKey: true, altKey: true });
+    // A combination nothing else uses: a clash is refused before the save is
+    // ever attempted, which would test the wrong thing. Ctrl+Alt+J belongs to
+    // Downloads since v2.32.72.
+    press({ key: '9', ctrlKey: true, altKey: true });
     expect(lastToast().type).toBe('error');
     expect(lastToast().message).toMatch(/could not be saved/i);
   });

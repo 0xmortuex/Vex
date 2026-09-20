@@ -53,8 +53,49 @@ const ShortcutsRegistry = (() => {
     'do-again':       { default: 'Ctrl+Alt+A',   label: 'Do the last Ctrl+K command again', category: 'Tools' },
 
     // Window
-    'fullscreen':     { default: 'F11',          label: 'Fullscreen',                 category: 'Window' }
+    'fullscreen':     { default: 'F11',          label: 'Fullscreen',                 category: 'Window' },
+
+    // Features that had no key of their own. Each one names the Ctrl+K command
+    // it runs (`cmd`), so there is nothing to wire up: the registry runs the
+    // command itself when the key is pressed. All rebindable, none claimed by
+    // the main process, and Ctrl+Alt is where there is room left — Ctrl and
+    // Ctrl+Shift are largely spoken for by Chromium and by Vex already.
+    'library':        { default: 'Ctrl+Alt+B',   label: 'Library (what you saved)',   category: 'Panels',     cmd: 'library' },
+    'everything':     { default: 'Ctrl+Alt+E',   label: 'Everything Vex can do',      category: 'Panels',     cmd: 'everything' },
+    'tasks':          { default: 'Ctrl+Alt+T',   label: 'Running tasks',              category: 'Tools',      cmd: 'tasks' },
+    'downloads':      { default: 'Ctrl+Alt+J',   label: 'Downloads',                  category: 'Panels',     cmd: 'downloads' },
+    'logins':         { default: 'Ctrl+Alt+P',   label: 'Logins & 2FA codes',         category: 'Panels',     cmd: 'loginshub' },
+    'focus-mode':     { default: 'Ctrl+Alt+F',   label: 'Focus mode',                 category: 'Tools',      cmd: 'focus' },
+    'clip-to-notes':  { default: 'Ctrl+Alt+C',   label: 'Clip the selection to Notes', category: 'Tools',     cmd: 'clip' },
+    'watch-page':     { default: 'Ctrl+Alt+W',   label: 'Watch this page for changes', category: 'Tools',     cmd: 'watch' },
+    'toolbox':        { default: 'Ctrl+Alt+X',   label: 'Toolbox',                    category: 'Tools',      cmd: 'toolbox' },
+    'read-later':     { default: 'Ctrl+Alt+K',   label: 'Save this page to Read Later', category: 'Tools',    cmd: 'readlater' },
+    'translate-page': { default: 'Ctrl+Alt+G',   label: 'Translate this page',        category: 'Tools',      cmd: 'translate' }
   };
+
+  // A binding the user made for a Ctrl+K command that has no built-in key.
+  // Stored under 'cmd:<command id>' beside the built-in ones, and the label
+  // is read from the live command bar rather than copied, so a renamed
+  // command does not leave a stale name in the list.
+  const CUSTOM_PREFIX = 'cmd:';
+  const isCustomId = (id) => String(id || '').startsWith(CUSTOM_PREFIX);
+  const commandIdOf = (id) => String(id).slice(CUSTOM_PREFIX.length);
+
+  function _command(cmdId) {
+    const list = (typeof CommandBar !== 'undefined' && CommandBar.commands) || [];
+    return list.find(c => c.id === cmdId) || null;
+  }
+
+  // Every command that could be given a key, and has not got one.
+  function assignable() {
+    const list = (typeof CommandBar !== 'undefined' && CommandBar.commands) || [];
+    const taken = new Set();
+    for (const id in DEFAULT_SHORTCUTS) if (DEFAULT_SHORTCUTS[id].cmd) taken.add(DEFAULT_SHORTCUTS[id].cmd);
+    for (const id in userShortcuts) if (isCustomId(id)) taken.add(commandIdOf(id));
+    return list
+      .filter(c => c && c.id && !taken.has(c.id) && typeof c.action === 'function')
+      .map(c => ({ id: c.id, label: c.label || c.id, hint: c.hint || '' }));
+  }
 
   // These combos are ALSO claimed by the main-process keyboard layer
   // (main.js before-input-event), which fires them and preventDefault()s the
@@ -103,19 +144,41 @@ const ShortcutsRegistry = (() => {
   function getAllShortcuts() {
     const out = {};
     for (const id in DEFAULT_SHORTCUTS) {
+      const def = DEFAULT_SHORTCUTS[id];
       out[id] = {
-        ...DEFAULT_SHORTCUTS[id],
-        current: userShortcuts[id] || DEFAULT_SHORTCUTS[id].default,
-        isCustom: !!userShortcuts[id] && userShortcuts[id] !== DEFAULT_SHORTCUTS[id].default,
-        hasHandler: handlers.has(id)
+        ...def,
+        current: userShortcuts[id] || def.default,
+        isCustom: !!userShortcuts[id] && userShortcuts[id] !== def.default,
+        // A key with nothing behind it does nothing, and the editor greys it
+        // out rather than pretending. An entry that names a Ctrl+K command
+        // counts as handled while that command exists.
+        hasHandler: handlers.has(id) || !!(def.cmd && _command(def.cmd))
+      };
+    }
+    // The ones the user added for a command of their choosing.
+    for (const id in userShortcuts) {
+      if (!isCustomId(id)) continue;
+      const cmd = _command(commandIdOf(id));
+      out[id] = {
+        label: cmd ? (cmd.label || cmd.id) : commandIdOf(id) + ' (no longer in Vex)',
+        category: 'Your own',
+        current: userShortcuts[id],
+        isCustom: true,
+        removable: true,
+        hasHandler: !!cmd,
+        cmd: commandIdOf(id)
       };
     }
     return out;
   }
 
   function setShortcut(id, combo) {
-    if (!DEFAULT_SHORTCUTS[id]) return false;
-    if (DEFAULT_SHORTCUTS[id].system) return { system: true }; // fixed at the main-process level
+    // A key for any Ctrl+K command: 'cmd:<id>', made by the editor's "give
+    // something else a key" box rather than shipped as a default.
+    if (isCustomId(id)) {
+      if (!_command(commandIdOf(id))) return { unknown: true };
+    } else if (!DEFAULT_SHORTCUTS[id]) return false;
+    else if (DEFAULT_SHORTCUTS[id].system) return { system: true }; // fixed at the main-process level
     const all = getAllShortcuts();
     for (const [otherId, data] of Object.entries(all)) {
       if (otherId !== id && data.current === combo) {
@@ -132,6 +195,14 @@ const ShortcutsRegistry = (() => {
     delete userShortcuts[id];
     return _save();
   }
+
+  // A shortcut the user added has no default to fall back to, so removing it
+  // takes the key away entirely.
+  function removeShortcut(id) {
+    if (!isCustomId(id)) return resetShortcut(id);
+    delete userShortcuts[id];
+    return _save();
+  }
   function resetAll() { userShortcuts = {}; return _save(); }
 
   function register(id, handler) {
@@ -140,6 +211,15 @@ const ShortcutsRegistry = (() => {
       return;
     }
     handlers.set(id, handler);
+  }
+
+  function _commandHandler(cmdId) {
+    const cmd = _command(cmdId);
+    if (!cmd || typeof cmd.action !== 'function') return null;
+    return () => {
+      try { cmd.action(); }
+      catch (err) { window.showToast?.((err && err.message) || 'That did not work', 'error'); }
+    };
   }
 
   function eventToShortcut(e) {
@@ -176,8 +256,11 @@ const ShortcutsRegistry = (() => {
     const all = getAllShortcuts();
     for (const [id, data] of Object.entries(all)) {
       if (data.current !== combo) continue;
-      const h = handlers.get(id);
-      if (!h) return; // binding exists but no registered handler — don't swallow
+      // Either something registered a handler for this id, or the entry names
+      // a Ctrl+K command and the registry runs that. A binding with neither
+      // is not swallowed: the key goes on to whatever else wants it.
+      const h = handlers.get(id) || (data.cmd ? _commandHandler(data.cmd) : null);
+      if (!h) return;
       try {
         e.preventDefault();
         e.stopPropagation();
@@ -188,8 +271,8 @@ const ShortcutsRegistry = (() => {
   }
 
   return {
-    init, getShortcut, getAllShortcuts,
-    setShortcut, resetShortcut, resetAll,
+    init, getShortcut, getAllShortcuts, assignable,
+    setShortcut, resetShortcut, removeShortcut, resetAll,
     register, eventToShortcut
   };
 })();

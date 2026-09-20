@@ -464,7 +464,7 @@ const VexFeatures = {
     { id: 'startpage', phrases: 'new tab page home page start page', cat: 'look', cmd: 'start',
       what: 'A start page with your name, the weather, your GitHub activity, a daily verse or quote, and your own shortcuts.' },
     { id: 'shortcuts', phrases: 'keyboard shortcuts hotkeys keys', cat: 'look', cmd: 'shortcuts',
-      what: 'Rebind any keyboard shortcut to whatever you actually press.' },
+      what: 'Rebind any keyboard shortcut to whatever you actually press — and give a key to anything that has none, from the whole command list.' },
     { id: 'extensions', phrases: 'extensions add-ons plugins chrome store', cat: 'look', name: 'Chrome extensions', setting: { section: 'extensions-panel-content' },
       what: 'Install extensions from a folder, a .zip or a .crx. The manager says honestly which parts of an extension Vex can run.' },
     { id: 'tools-bar', cat: 'look', cmd: 'tools', sel: '#tools-bar',

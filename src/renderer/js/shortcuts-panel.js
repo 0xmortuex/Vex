@@ -1,60 +1,25 @@
-// === Vex Keyboard Shortcuts Panel ===
+// === Vex Keyboard Shortcuts panel ==========================================
+//
+// This used to be a written-out list of keys, which meant it disagreed with
+// the app the moment anybody rebound anything — and there was no way to
+// change a key from here at all. It is the editor now (js/shortcut-editor.js,
+// the same one in Settings), so the panel shows what your keys REALLY are and
+// every one of them can be changed where you are reading it.
 
 const ShortcutsPanel = {
-  shortcuts: {
-    'Tabs': [
-      { name: 'New Tab', keys: 'Ctrl+T' },
-      { name: 'Close Tab', keys: 'Ctrl+W' },
-      { name: 'Reopen Closed Tab', keys: 'Ctrl+Shift+T' },
-      { name: 'Sleep Current Tab', keys: 'Ctrl+Shift+Z' }
-    ],
-    'Navigation': [
-      { name: 'Back', keys: 'Alt+Left' },
-      { name: 'Forward', keys: 'Alt+Right' },
-      { name: 'Reload', keys: 'Ctrl+R' },
-      { name: 'Hard Reload (clear cache)', keys: 'Ctrl+Shift+R' },
-      { name: 'Focus URL Bar', keys: 'Ctrl+L' },
-      { name: 'Find in Page', keys: 'Ctrl+F' }
-    ],
-    'Panels': [
-      { name: 'History', keys: 'Ctrl+H' },
-      { name: 'Notes', keys: 'Ctrl+Shift+N' },
-      { name: 'Memory', keys: 'Ctrl+Shift+M' },
-      { name: 'Sessions', keys: 'Ctrl+Shift+O' }
-    ],
-    'Tools': [
-      { name: 'Command Bar', keys: 'Ctrl+K' },
-      { name: 'Screenshot', keys: 'Ctrl+Alt+S' },
-      { name: 'Reading Mode', keys: 'Ctrl+Alt+R' },
-      { name: 'Split Screen', keys: 'Ctrl+Shift+S' },
-      { name: 'Picture-in-Picture', keys: 'Ctrl+Shift+P' }
-    ],
-    'Zoom': [
-      { name: 'Zoom In', keys: 'Ctrl+=' },
-      { name: 'Zoom Out', keys: 'Ctrl+-' },
-      { name: 'Reset Zoom', keys: 'Ctrl+0' }
-    ],
-    'Window': [
-      { name: 'Minimize', keys: 'System' },
-      { name: 'Maximize', keys: 'System' },
-      { name: 'Close', keys: 'System' }
-    ]
-  },
-
   init() {
     const panel = document.getElementById('panel-shortcuts');
-    if (!panel || panel.dataset.rendered) return;
+    if (!panel) return;
     panel.dataset.rendered = 'true';
-
-    let html = '<div class="shortcuts-container"><h2>Keyboard Shortcuts</h2>';
-    for (const [category, items] of Object.entries(this.shortcuts)) {
-      html += `<div class="shortcuts-category"><div class="shortcuts-category-title">${category}</div>`;
-      for (const item of items) {
-        html += `<div class="shortcut-row"><span class="shortcut-row-name">${item.name}</span><span class="shortcut-row-keys">${item.keys}</span></div>`;
-      }
-      html += '</div>';
+    panel.innerHTML = '<div class="shortcuts-container"><h2>Keyboard shortcuts</h2><div id="shortcuts-panel-editor"></div></div>';
+    const host = panel.querySelector('#shortcuts-panel-editor');
+    if (typeof ShortcutEditor === 'undefined') {
+      host.innerHTML = '<div style="color:var(--text-muted);font-size:12px">The shortcut editor is not available in this window.</div>';
+      return;
     }
-    html += '</div>';
-    panel.innerHTML = html;
-  }
+    ShortcutEditor.renderPanel(host);
+  },
 };
+
+if (typeof window !== 'undefined') window.ShortcutsPanel = ShortcutsPanel;
+if (typeof module !== 'undefined' && module.exports) module.exports = { ShortcutsPanel };

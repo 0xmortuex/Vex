@@ -316,3 +316,25 @@
   background: var(--surface); padding: 1px 6px; border-radius: 3px;
   font-family: 'JetBrains Mono', monospace; font-size: 10px;
 }
+
+/* === "Give something else a key" (js/shortcut-editor.js) ==================
+   Any Ctrl+K command can be bound, which is two hundred of them — so this is
+   a search box and a short list, not a wall. */
+.shortcut-adder { border-top: 1px solid var(--border); padding-top: 16px; }
+.shortcut-adder .panel-desc { margin: 0 0 10px; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.shortcut-add-q {
+  width: 100%; box-sizing: border-box;
+  font: inherit; font-size: 13px;
+  padding: 8px 11px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+}
+.shortcut-add-q:focus { outline: none; border-color: var(--primary); }
+.shortcut-add-list { margin-top: 10px; display: flex; flex-direction: column; }
+.shortcut-add-row {
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 12px; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.shortcut-add-row:last-child { border-bottom: none; }
+.shortcut-add-name { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shortcut-add-empty { padding: 10px 0; font-size: 12px; color: var(--text-muted); line-height: 1.5; }

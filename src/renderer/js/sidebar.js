@@ -471,7 +471,7 @@ const SidebarManager = {
     if (panelName === 'history') HistoryPanel.init();
     if (panelName === 'memory') MemoryPanel.init();
     if (panelName === 'schedules') SchedulesPanel.init();
-    if (panelName === 'shortcuts') ShortcutsPanel.init();
+    if (panelName === 'shortcuts') ShortcutsPanel.init();   // redrawn each open: your keys may have changed
     if (panelName === 'queue') QueuePanel.init();
     if (panelName === 'bookmarks' && typeof Bookmarks !== 'undefined') Bookmarks.renderPanel(panelEl);
     if (panelName === 'feeds' && typeof VexFeeds !== 'undefined') VexFeeds.renderPanel(panelEl);
