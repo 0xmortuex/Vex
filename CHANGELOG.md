@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.66 (2026-09-20) — Bug sweep: shortcuts that needed a click first, missing buttons, a panel that would not scroll
+
+### Fixes
+- **Shortcuts now work while you are reading a page.** Vex's own keys were only heard while Vex's own interface had the focus — so the moment you clicked into a page, half of them went quiet and seemed to need "a click somewhere else first". Ctrl+B, Ctrl+H, Ctrl+M and Ctrl+Shift+T / O / S / Z / A / M / L / H all answer from inside a page now, as do Ctrl+J and the theme picker (and any key you rebound, because the key itself is passed up and your own binding still decides).
+  - What belongs to the page stays the page's: Ctrl+S, Ctrl+P, Ctrl+A, Ctrl+C, the developer-tools keys, and Ctrl+F on a site that has its own find.
+- **The AI panel and Split view are back in the toolbar in the browser looks.** They were hidden with the rest of Vex's own chrome, but unlike Notes (on the rail) or Tor (in the command bar) they had no other button — so in the Firefox look neither could be opened with a mouse at all.
+- **The Authenticator panel scrolls.** With more than a handful of 2FA accounts the codes below the fold were unreachable, because nothing in that panel scrolled.
+
+Also measured while sweeping, and left alone: opening the command bar, a panel, the AI panel, a new tab or another tab all land between 7 and 33 ms, and redrawing a 44-tab strip takes 1 ms. The only slow one is the very first open of Settings (172 ms while it builds), once per run.
+
 ## v2.32.65 (2026-09-20) — Who is live
 
 ### Changes
