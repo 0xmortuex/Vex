@@ -182,6 +182,8 @@ const WebviewManager = {
           try { if (window.VexToday) VexToday.push(webview); } catch (err) { console.error('[Today] push failed:', err); }
           // A browser look in its own colours hands the page its palette.
           window.VexGuiStyle?.paintStartPage(webview).catch(err => console.error('[gui-style] start page palette failed:', err));
+          // And the font Vex is wearing (js/fonts.js), for the same reason.
+          try { window.VexFonts?.paintStartPages(); } catch (err) { console.error('[fonts] start page failed:', err); }
         }
       } catch {}
     });

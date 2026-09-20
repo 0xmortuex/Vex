@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.73 (2026-09-21) — Ask Vex what you don't know, shelves in the Library, and the font Vex wears
+
+### Changes
+- **"Ask Vex what you don't know", at the top of the Library.** Searching only finds a feature you can already name, which is no use for the ones you have never heard of. This takes the problem instead: say what you are trying to DO — "I keep losing tabs", "two accounts on one site", "Discord is using all my RAM" — and Vex answers with the features for it, drawn as the same cards, each with Open it / Show me / Ask Vex about this. When nothing matches it says so plainly and hands the question to the AI, which is given Vex's own feature list.
+  - Underneath it, **three things you have never run**, from Vex's own record of what you have used — different each day, and gone once you have tried them.
+- **Every feature is now on a shelf.** Twelve categories filed 221 features and left "Productivity" as fifty-four things under one heading. Each area now has named shelves inside it — *Reminders and alarms*, *Memory, and sleeping*, *Getting back to where you were*, *Which model, and what it knows about you* — 35 of them in all. A search still gives a flat list, because by then you have already said what you want.
+- **The font Vex wears is yours to pick** (`Ctrl+K` → **Font**). Twenty-three faces, from Segoe UI and Calibri to **Times New Roman**, Georgia, Garamond and Cambria — and five more for code, kept separate so shortcuts and columns of numbers still line up whatever the rest is wearing. Every panel, menu, button and the new tab page follow it; pages keep their own typography, as they should.
+  - Everything offered is already on the machine. Nothing is downloaded, so it works offline and cannot leave you with an unreadable interface.
+  - Each face in the picker is drawn in itself, because the name of a typeface tells you nothing about whether you want to read in it.
+
 ## v2.32.72 (2026-09-20) — Eleven more shortcuts, and a key for anything else you want
 
 ### Changes

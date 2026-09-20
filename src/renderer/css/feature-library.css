@@ -106,3 +106,86 @@
 .flib-btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
 .flib-btn.primary:hover { filter: brightness(1.08); color: #fff; }
 .flib-empty { padding: 24px 6px; font-size: 12px; line-height: 1.6; color: var(--text-muted); }
+
+/* A shelf inside an area (VexFeatures.GROUPS) — the line that says which of
+   the fifty-four things in "Productivity" belong together. */
+.flib-shelf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+}
+.flib-shelf span {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: .7;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0 6px;
+}
+
+/* === "Ask Vex what you don't know" =======================================
+   The search box only finds what you can name. This one takes the problem. */
+.flib-ask {
+  padding: 12px 12px 14px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.flib-ask-head { font-size: 13px; font-weight: 700; color: var(--text); }
+.flib-ask-sub { font-size: 11px; line-height: 1.5; color: var(--text-muted); margin: 3px 0 9px; }
+.flib-ask-form { display: flex; gap: 6px; }
+.flib-ask-form input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+.flib-ask-form input:focus { outline: none; border-color: var(--primary); }
+.flib-ask-out:not(:empty) { margin-top: 10px; }
+.flib-ask-headline { font-size: 12.5px; line-height: 1.5; color: var(--text); font-weight: 600; }
+.flib-ask-steps {
+  margin: 6px 0 4px;
+  padding-left: 18px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.flib-ask-answer .flib-card:first-of-type { border-top: 1px solid var(--border); margin-top: 8px; }
+.flib-ask-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.flib-ask-more span { flex: 1; min-width: 160px; }
+/* Things you have never run — the other half of "what you don't know". */
+.flib-never { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 10px; }
+.flib-never-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.flib-never-one {
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.flib-never-one:hover { border-style: solid; border-color: var(--primary); color: var(--primary); }

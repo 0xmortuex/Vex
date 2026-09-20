@@ -1,7 +1,121 @@
-@font-face{font-family:Outfit;src:url('../fonts/Outfit[wght].ttf') format('truetype');font-weight:100 900;font-display:swap}
-@font-face{font-family:'JetBrains Mono';src:url('../fonts/JetBrainsMono[wght].ttf') format('truetype');font-weight:100 800;font-display:swap}
-@font-face{font-family:'Space Grotesk';src:url('../fonts/SpaceGrotesk[wght].ttf') format('truetype');font-weight:300 700;font-display:swap}
-@font-face{font-family:Fraunces;src:url('../fonts/Fraunces[SOFT,WONK,opsz,wght].ttf') format('truetype');font-weight:100 900;font-display:swap}
-@font-face{font-family:Spectral;src:url('../fonts/Spectral-Regular.ttf') format('truetype');font-weight:400;font-display:swap}
-@font-face{font-family:Spectral;src:url('../fonts/Spectral-Medium.ttf') format('truetype');font-weight:500;font-display:swap}
-@font-face{font-family:Spectral;src:url('../fonts/Spectral-SemiBold.ttf') format('truetype');font-weight:600;font-display:swap}
+/* === The font Vex wears (js/fonts.js) ====================================
+   Three hundred places in these stylesheets name 'Outfit' or 'JetBrains Mono'
+   directly, and a hundred more are inline styles written by JavaScript.
+   Rewriting them all would be a very large diff and would still miss the next
+   one somebody writes — so the choice is applied from here instead.
+
+   `!important` in a stylesheet beats an inline style that has none, which is
+   what lets this reach the inline `font-family:'Outfit'` in the JS too. The
+   whole block only applies when a font has actually been chosen: without
+   [data-vex-font] nothing here matches and Vex looks exactly as it shipped. */
+
+:root {
+  --vex-font-base: 'Outfit', system-ui, -apple-system, sans-serif;
+  --vex-font-display: 'Space Grotesk', 'Outfit', sans-serif;
+  --vex-font-mono: 'JetBrains Mono', Consolas, monospace;
+}
+
+html[data-vex-font] body,
+html[data-vex-font] body :is(
+  div, span, p, a, li, ul, ol, dl, dt, dd,
+  h1, h2, h3, h4, h5, h6,
+  button, input, textarea, select, option, optgroup, label, legend, fieldset,
+  table, td, th, caption, summary, details,
+  small, strong, em, b, i, u, blockquote, figcaption, output, meter, progress
+) {
+  font-family: var(--vex-font-base) !important;
+}
+
+/* Code keeps a font where every letter is the same width, whatever the
+   interface is wearing — a column of numbers that stops lining up is a
+   regression, not a preference. */
+html[data-vex-font] body :is(code, pre, kbd, samp, var),
+html[data-vex-font] body :is(
+  .memory-proc-table td.num,
+  .vextasks-table .num,
+  .sys-tag,
+  [class*="-mono"],
+  .mono
+) {
+  font-family: var(--vex-font-mono) !important;
+}
+
+/* A page inside a <webview> is a separate document and is never touched by
+   this: sites keep their own typography, which is the only correct answer. */
+
+/* === The picker ======================================================== */
+.vexfont-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100040;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5vh 16px;
+  box-sizing: border-box;
+}
+.vexfont {
+  display: flex;
+  flex-direction: column;
+  width: 720px;
+  max-width: 100%;
+  max-height: 88vh;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.vexfont-head { padding: 16px 18px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; }
+.vexfont-head h2 { margin: 0 0 3px; font-size: 16px; font-weight: 700; }
+.vexfont-head p { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
+.vexfont-close { background: none; border: none; color: var(--text-muted); font-size: 22px; line-height: 1; cursor: pointer; }
+.vexfont-close:hover { color: var(--text); }
+.vexfont-body { overflow-y: auto; padding: 10px 14px 14px; }
+.vexfont-kind {
+  margin: 12px 2px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+}
+.vexfont-kind span { display: block; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; margin-top: 2px; }
+.vexfont-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.vexfont-one {
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.vexfont-one:hover { border-color: var(--primary); }
+.vexfont-one.on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.vexfont-name { display: block; font-size: 14px; }
+.vexfont-note { display: block; font-size: 10.5px; color: var(--text-muted); margin-top: 1px; font-family: var(--vex-font-base); }
+.vexfont-sample { display: block; font-size: 12.5px; color: var(--text-muted); margin-top: 5px; }
+.vexfont-foot {
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.vexfont-foot button {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.vexfont-foot button:hover { border-color: var(--primary); color: var(--primary); }

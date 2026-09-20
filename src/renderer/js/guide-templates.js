@@ -75,7 +75,7 @@ const GuideTemplates = {
     },
     {
       id: 'find-a-tab',
-      ask: ['too many tabs', 'find a tab', 'lost a tab', 'cant find the tab', 'which tab was it', 'tab i had open'],
+      ask: ['too many tabs', 'find a tab', 'lost a tab', 'losing tabs', 'keep losing tabs', 'cant find the tab', 'which tab was it', 'tab i had open', 'lost in tabs'],
       headline: 'You do not have to look through them — ask for the tab by what was on it.',
       steps: [
         'Ctrl+K and start typing: open tabs are listed first, by title and address.',

@@ -23,6 +23,20 @@
         document.documentElement.setAttribute('data-look-palette', '');
       } catch (e) { console.error('[start] look palette:', e); }
     })();
+    // The font Vex is wearing (js/fonts.js pushes it in and keeps a copy
+    // here). Applied before first paint for the same reason as the palette:
+    // otherwise every new tab flashes the shipped face first.
+    (function () {
+      try {
+        var f = localStorage.getItem('vex.fontCss');
+        if (!f) return;
+        var s = document.createElement('style');
+        s.id = 'vex-font';
+        s.textContent = f;
+        document.head.appendChild(s);
+        document.documentElement.setAttribute('data-vex-font', '');
+      } catch (e) { console.error('[start] font:', e); }
+    })();
   </script>
   <style>
     /* Accessibility baseline (mirrors css/a11y.css — this page is a separate

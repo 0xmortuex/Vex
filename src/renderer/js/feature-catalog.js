@@ -445,6 +445,8 @@ const VexFeatures = {
       what: 'One saved profile fills any signup or checkout form. Card numbers are never stored.' },
 
     // --- Make it yours ----------------------------------------------------
+    { id: 'font', phrases: 'font typeface times new roman serif letters text size reading', cat: 'look', cmd: 'font', name: 'The font Vex wears',
+      what: 'The typeface of the browser itself \u2014 twenty-three of them, from Segoe UI to Times New Roman, plus the one used for code.' },
     { id: 'themes', phrases: 'dark dark mode light mode colour color appearance skin', cat: 'look', cmd: 'theme',
       what: 'Thirty-five themes, and the whole interface follows — including the new tab page.' },
     { id: 'guistyle', phrases: 'look like chrome firefox safari edge browser look', cat: 'look', name: 'Browser looks', setting: { section: 'boosts-panel-content' },
@@ -523,6 +525,90 @@ const VexFeatures = {
 
   // Everything in one category.
   byCat(catId) { return this.ITEMS.filter(f => f.cat === catId); },
+
+  // === Inside a category ====================================================
+  //
+  // Twelve categories was enough to file two hundred features, and not enough
+  // to read them: "Productivity" alone is fifty-four things with nothing to
+  // say which of them belong together. These are the shelves inside each one.
+  //
+  // Only a category that needs them has them. An id that is not listed here
+  // still appears — it lands in "More" at the end of its category, so adding a
+  // feature to the catalogue can never make it disappear from the Library.
+  GROUPS: {
+    tabs: [
+      { name: 'The tab strip', ids: ['vertical-tabs', 'treetabs', 'tab-groups', 'reopen', 'closeduplicates', 'switchtoopen', 'open-links', 'gestures'] },
+      { name: 'Memory, and sleeping', ids: ['tab-sleep', 'memory-saver', 'tab-health', 'memory-panel', 'tasks', 'keep-awake', 'memceiling'] },
+      { name: 'More than one thing at once', ids: ['split', 'pip', 'peek', 'workspaces', 'containers', 'pinsite', 'openasapp'] },
+      { name: 'Getting back to where you were', ids: ['sessions', 'wsnap', 'tabtrail', 'apps-not-links'] },
+    ],
+    ai: [
+      { name: 'Asking it things', ids: ['ai-panel', 'askvex', 'summarize', 'selection-bar', 'compose', 'tabmentions', 'chatfile', 'show-thinking', 'twomodels'] },
+      { name: 'Having it do the work', ids: ['agent', 'agent-pause', 'agent-schedule', 'teach', 'skills', 'schedules', 'tabai'] },
+      { name: 'Which model, and what it knows about you', ids: ['ai-router', 'ondevice', 'smallmodel', 'personas', 'ai-memory', 'routelearn', 'mcp'] },
+      { name: 'Finding what you have read', ids: ['recall', 'remember', 'catchup', 'screenshot-code'] },
+    ],
+    privacy: [
+      { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint'] },
+      { name: 'The connection itself', ids: ['doh', 'https-only', 'tor', 'routing', 'dpi'] },
+      { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window'] },
+      { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'siteidentity'] },
+      { name: 'Your passwords', ids: ['pwhealth'] },
+    ],
+    reading: [
+      { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page'] },
+      { name: 'Getting through them', ids: ['readaloud', 'speedread', 'bionic', 'accessibility', 'zoom', 'dictionary'] },
+      { name: 'In another language', ids: ['translate', 'translate-side'] },
+      { name: 'Keeping what you read', ids: ['save-pdf', 'save-page', 'annotations', 'cards', 'cite', 'pagediff'] },
+    ],
+    work: [
+      { name: 'Notes', ids: ['notes', 'stickynote', 'clip', 'quick-capture', 'clipboard-history', 'snippets'] },
+      { name: 'What you have to do', ids: ['todo', 'todo-board', 'projects', 'habits', 'calendar', 'today', 'today-work', 'weekly-review'] },
+      { name: 'Reminders and alarms', ids: ['remind', 'remind-repeat', 'remind-page', 'remind-zone', 'remind-calendar', 'focus-reminders', 'toast-snooze', 'clock', 'alarm-sound'] },
+      { name: 'Keeping and finding pages', ids: ['library', 'bookmarks', 'history', 'feeds', 'watch', 'wayback', 'queue', 'sendphone', 'autorefresh', 'pasteandgo'] },
+      { name: 'Settling into work', ids: ['focus', 'focusflows', 'meeting', 'jobsetup'] },
+      { name: 'Tools, and doing things twice', ids: ['toolbox', 'toolbox-reference', 'toolbox-full', 'toolbox-favourites', 'tool-history', 'automations', 'chains', 'do-again', 'quick-commands', 'dictate'] },
+      { name: 'Mail, parcels and money', ids: ['mail', 'triage', 'parcels', 'expenses', 'price-history'] },
+      { name: 'This machine', ids: ['resmon', 'downloads'] },
+    ],
+    media: [
+      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
+      { name: 'Capturing what is on screen', ids: ['screenshot', 'screenshot-full', 'record-screen', 'clips', 'markup', 'whiteboard', 'page-images', 'qr'] },
+      { name: 'Games and calls', ids: ['gaming', 'screenshare'] },
+    ],
+    panels: [
+      { name: 'The apps', ids: ['panel-whatsapp', 'panel-discord', 'panel-spotify', 'panel-netflix', 'panel-claude', 'panel-github', 'panel-roblox'] },
+      { name: 'And your own', ids: ['panel-authenticator', 'pinsite2'] },
+    ],
+    look: [
+      { name: 'The whole browser', ids: ['themes', 'font', 'guistyle', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
+      { name: 'One site at a time', ids: ['siteprofiles', 'boost', 'zap', 'airestyle'] },
+      { name: 'The rest', ids: ['search-engine', 'extensions', 'setupgallery'] },
+    ],
+    dev: [
+      { name: 'Checking a page', ids: ['check-links', 'check-speed', 'check-a11y', 'crawl-site', 'recent-checks'] },
+      { name: 'While you are building', ids: ['devtools', 'apiclient', 'formatjson', 'responsive', 'eyedropper', 'dev-mode', 'dev-dashboard'] },
+    ],
+  },
+
+  // A category's features, on their shelves. Anything not filed goes to the
+  // end under "More", and a category with no shelves comes back as one
+  // unnamed group so the caller can draw them all the same way.
+  groupsFor(catId) {
+    const items = this.byCat(catId);
+    const shelves = this.GROUPS[catId];
+    if (!shelves) return [{ name: '', items }];
+    const seen = new Set();
+    const out = [];
+    for (const shelf of shelves) {
+      const got = shelf.ids.map(id => items.find(f => f.id === id)).filter(Boolean);
+      for (const f of got) seen.add(f.id);
+      if (got.length) out.push({ name: shelf.name, items: got });
+    }
+    const rest = items.filter(f => !seen.has(f.id));
+    if (rest.length) out.push({ name: 'More', items: rest });
+    return out;
+  },
 
   get(id) { return this.ITEMS.find(f => f.id === id) || null; },
 

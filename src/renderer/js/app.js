@@ -1440,6 +1440,10 @@
   // whether or not the Running tasks window is open.
   if (typeof VexTasks !== 'undefined') VexTasks.start();
 
+  // The font Vex wears (js/fonts.js). Applied before anything is measured, so
+  // nothing is laid out in one face and then redrawn in another.
+  if (typeof VexFonts !== 'undefined') VexFonts.init();
+
   // === Phase 10: Multi-Tab AI ===
   TabSelector.init();
 
