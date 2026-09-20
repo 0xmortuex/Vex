@@ -258,6 +258,21 @@
   window.vex.onFocusAddressBar?.(focusAddressBar);
   // Ctrl+Alt+D pressed inside a page (main passes it up; the page has focus).
   window.vex.onDictateToggle?.(() => Dictation.toggle().catch(e => window.showToast?.(e.message, 'error')));
+
+  // A shortcut pressed while a PAGE had focus. Main cannot know what the user
+  // rebound it to, so it passes the key itself up and the shortcut registry
+  // decides — the same path as pressing it with Vex's own interface focused.
+  window.vex.onGuestShortcut?.((combo) => {
+    if (!combo || !combo.key) return;
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: combo.key,
+      ctrlKey: !!combo.ctrl,
+      shiftKey: !!combo.shift,
+      altKey: !!combo.alt,
+      bubbles: true,
+      cancelable: true,
+    }));
+  });
   window.vex.onNextTab?.(() => cycleTab(1));
   window.vex.onPrevTab?.(() => cycleTab(-1));
   window.vex.onJumpToTab?.((n) => jumpToTab(n));

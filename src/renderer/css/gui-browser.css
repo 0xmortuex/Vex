@@ -29,9 +29,15 @@ body[data-gui-family="browser"] #main-layout       { order: 4; flex: 1 1 auto; h
 body[data-gui-family="browser"] > *:not(#top-tab-bar):not(#top-bar):not(#gui-shortcuts-bar):not(#main-layout) { order: 10; }
 
 /* ---- 2. Vex-only chrome a mainstream browser does not have -------------- */
+/* Hidden here, and reachable elsewhere: Notes and the other panels are on the
+   icon rail, Tor and Copy address are in the command bar, workspaces are in
+   the workspace switcher, and onboarding and Restart are in Settings.
+   NOT hidden: the AI panel and Split view. They are Vex's own, they have no
+   rail entry and no other button, so hiding them left the two of them
+   unreachable with a mouse in the look this browser is mostly used in. */
 body[data-gui-family="browser"] :is(#vex-logo, #workspace-btn, #sync-indicator,
   #btn-toggle-tabs-left, #btn-onboarding, #btn-restart-app, #btn-tor, #btn-notes-top,
-  #btn-toggle-ai, #btn-split, #btn-copy-url, #btn-ai-summarize) { display: none !important; }
+  #btn-copy-url, #btn-ai-summarize) { display: none !important; }
 /* The icon rail stays only where that browser has one (Firefox, Netscape). */
 body[data-gui-family="browser"]:not([data-sb-launcher="rail"]) #icon-sidebar { display: none !important; }
 /* Only the workspace BUTTON goes: its list lives inside the switcher, and the

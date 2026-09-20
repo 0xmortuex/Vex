@@ -80,6 +80,9 @@ contextBridge.exposeInMainWorld('vex', {
   // (they don't reach the host document otherwise).
   onFocusAddressBar: (callback) => subscribe('focus-address-bar', callback),
   onDictateToggle: (callback) => subscribe('dictate-toggle', callback),
+  // A shortcut pressed while a page had focus, passed up so the renderer's
+  // own registry (and any rebinding) still decides what it does.
+  onGuestShortcut: (callback) => subscribe('guest-shortcut', callback),
   onNextTab: (callback) => subscribe('next-tab', callback),
   onPrevTab: (callback) => subscribe('prev-tab', callback),
   onJumpToTab: (callback) => subscribe('jump-to-tab', callback),

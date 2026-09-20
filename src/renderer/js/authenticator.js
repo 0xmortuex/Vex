@@ -214,11 +214,14 @@ const Authenticator = {
     const st = document.createElement('style');
     st.id = 'auth-styles';
     st.textContent = `
-      .auth-panel{padding:12px 14px;font-family:inherit;color:var(--text)}
-      .auth-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+      /* The panel fills the sidebar and the LIST is what scrolls: with more
+         than a handful of accounts the codes below the fold used to be
+         unreachable, because nothing here scrolled at all. */
+      .auth-panel{padding:12px 14px;font-family:inherit;color:var(--text);display:flex;flex-direction:column;height:100%;min-height:0;box-sizing:border-box}
+      .auth-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex:none}
       .auth-head h3{margin:0;font-size:15px}
       .auth-add-btn{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
-      .auth-add-form{background:rgba(127,127,127,.08);border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:12px}
+      .auth-add-form{background:rgba(127,127,127,.08);border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:12px;flex:none}
       .auth-hint{font-size:11.5px;color:var(--text-muted);margin:0 0 8px;line-height:1.5}
       .auth-qr-drop{display:flex;align-items:center;gap:9px;padding:12px 12px;margin-bottom:8px;border:1.5px dashed var(--vex-border-medium,var(--border));border-radius:10px;background:rgba(127,127,127,.05);color:var(--text-muted);font-size:11.5px;line-height:1.4;cursor:pointer;text-align:left;transition:border-color .12s,background .12s,color .12s}
       .auth-qr-drop:hover{border-color:var(--primary);color:var(--text);background:color-mix(in srgb, var(--primary) 7%, transparent)}
@@ -231,7 +234,7 @@ const Authenticator = {
       .auth-actions{display:flex;align-items:center;gap:10px}
       .auth-save{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
       .auth-status{font-size:11.5px;color:var(--text-muted)}
-      .auth-list{display:flex;flex-direction:column;gap:8px}
+      .auth-list{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:0;overflow-y:auto}
       .auth-empty{color:var(--text-muted);font-size:12.5px;text-align:center;padding:24px 8px;line-height:1.6}
       .auth-item{display:flex;align-items:center;justify-content:space-between;background:rgba(127,127,127,.06);border:1px solid var(--border);border-radius:10px;padding:9px 11px;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,transform .06s}
       .auth-item:hover{background:rgba(127,127,127,.13);border-color:var(--vex-border-medium,var(--border))}

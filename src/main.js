@@ -377,31 +377,17 @@ function handleHardReloadShortcut(event, input) {
 // their own find, so swallowing Ctrl+F there replaced a working search with a
 // find bar guaranteed to report nothing. Let the key reach the page instead.
 const { guestOwnsFind } = require('./main/find-policy');
+const { shortcutFor } = require('./main/guest-shortcuts');
 
 function handleBrowserShortcut(event, input, contents) {
-  if (!mainWindow || mainWindow.isDestroyed() || !input || input.type !== 'keyDown') return false;
-  const ctrl = input.control || input.meta;
-  if (!ctrl || input.alt) return false;
-  const key = input.key || '';
-  const lk = key.toLowerCase();
-  const send = (ch, ...a) => { mainWindow.webContents.send(ch, ...a); event.preventDefault(); return true; };
-  if (input.shift) {
-    if (key === 'Tab') return send('prev-tab');
-    return false; // other Ctrl+Shift+* combos are not ours to intercept in the guest
-  }
-  switch (lk) {
-    case 't': return send('new-tab');
-    case 'w': return send('close-tab');
-    case 'l': return send('focus-address-bar');
-    case 'f': return guestOwnsFind(contents && contents.getURL && contents.getURL()) ? false : send('find-in-page');
-    case 'd': return send('bookmark-current');
-    case '=': case '+': return send('zoom-in');
-    case '-': return send('zoom-out');
-    case '0': return send('zoom-reset');
-    case 'tab': return send('next-tab');
-  }
-  if (lk >= '1' && lk <= '9') return send('jump-to-tab', parseInt(lk, 10));
-  return false;
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  let url;
+  try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
+  const hit = shortcutFor(input, { ownsFind: guestOwnsFind(url) });
+  if (!hit) return false;
+  mainWindow.webContents.send(hit.channel, ...(hit.args || []));
+  event.preventDefault();
+  return true;
 }
 
 // === URL/path normalisation for argv from Windows shell ===
