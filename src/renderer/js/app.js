@@ -917,6 +917,8 @@
   NightAudio.init();
   // A quiet daily look at what is free to keep (js/free-games.js).
   FreeGames.init();
+  // Tabs indented under the tab they came from (js/tree-tabs.js).
+  TreeTabs.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
   window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });
   {

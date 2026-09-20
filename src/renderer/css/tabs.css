@@ -472,3 +472,28 @@
 /* A note on the tab (TabManager.editTabNote), under its title. */
 .tab-item .tab-note-line { font-size: 10.5px; line-height: 1.3; color: var(--primary, var(--text-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tab-item .tab-errors { flex-shrink: 0; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; background: var(--danger, #e5484d); color: #fff; font-size: 9.5px; font-weight: 700; display: inline-grid; place-items: center; }
+
+/* === Tree tabs (js/tree-tabs.js) ==========================================
+   A tab opened from another sits indented under it, with a short line back to
+   the left edge so the nesting reads as a branch rather than a stray margin.
+   The indent itself is set per tab in JS, because it depends on which of a
+   tab's parents are still open. */
+body.tree-tabs .tab-item[data-depth] { position: relative; }
+body.tree-tabs .tab-item[data-depth]::before {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: 50%;
+  width: 6px;
+  height: 1px;
+  background: var(--border);
+}
+body.tree-tabs .tab-item[data-depth]::after {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: -4px;
+  bottom: 50%;
+  width: 1px;
+  background: var(--border);
+}
