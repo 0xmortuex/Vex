@@ -48,7 +48,12 @@ const WebviewManager = {
     // keeps receiving mail in the background, so the email-code autofill reads a
     // current inbox instead of a frozen one.
     const keptAwake = !!(tab && tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil);
-    webview.setAttribute('webpreferences', 'contextIsolation=yes' + (keptAwake ? ',backgroundThrottling=no' : ''));
+    // A site whose JavaScript is switched off (js/site-rules-ui.js): the tab
+    // is built without it, because a page cannot be un-run once it has run.
+    const noScripts = !!(window.SiteRulesUI && window.SiteRulesUI.scriptsOff(tab.url));
+    webview.setAttribute('webpreferences', 'contextIsolation=yes'
+      + (keptAwake ? ',backgroundThrottling=no' : '')
+      + (noScripts ? ',javascript=no' : ''));
     webview.dataset.tabId = tab.id;
 
     // Events

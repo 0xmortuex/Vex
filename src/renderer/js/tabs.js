@@ -318,6 +318,13 @@ const TabManager = {
   },
 
   createTab(url, activate = true, groupId = null, opts = null) {
+    // Already open in this container? Go there instead of opening it twice
+    // (js/duplicate-tabs.js). Deliberate copies pass allowDuplicate.
+    if (activate && typeof DuplicateTabs !== 'undefined' && !(opts && opts.allowDuplicate)) {
+      const open = DuplicateTabs.match(this.tabs, url, opts && opts.partition);
+      if (open) { this.switchTab(open.id); DuplicateTabs.announce(open); return open.id; }
+    }
+
     const id = this._newId();
     // A start tab gets the active theme baked into its URL (?theme=) so the
     // file://-loaded start page renders in-theme; real URLs pass through.
@@ -533,6 +540,19 @@ const TabManager = {
     this.tabs.push(tab);
     this.renderTab(tab);
     return tab;
+  },
+
+  // Build a tab's page again from nothing. Some things are decided when the
+  // webview is made and cannot be changed after — whether the page may run
+  // JavaScript is one — so for those a reload is not enough.
+  rebuildTab(id) {
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab) return false;
+    WebviewManager.destroyWebview(id);
+    tab._lazy = true;
+    tab.sleeping = false;
+    if (this.activeTabId === id) this._materializeTab(tab);
+    return true;
   },
 
   // Materialize a lazy tab's webview on first activation
@@ -1392,7 +1412,7 @@ const TabManager = {
       // strip never got .pinned, so "Pin Tab" looked like it did nothing until
       // some unrelated rebuild happened to run.
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => this.togglePinTab(tab.id) },
-      { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, window.VexTabPolicy?.serialize(tab) || tab) },
+      { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, { ...(window.VexTabPolicy?.serialize(tab) || tab), allowDuplicate: true }) },
       { label: tab.note ? 'Edit the note on this tab…' : 'Add a note to this tab…', action: () => this.editTabNote(tab.id) },
       // A tab stays open because closing it loses it. Snoozing closes it now
       // and opens it again when you said (js/tab-snooze.js).
@@ -2295,7 +2315,7 @@ const TabManager = {
     const last = list.shift();
     saveRecentlyClosed(list);
     if (window.VexTabPolicy && !window.VexTabPolicy.canRestore(last)) return;
-    this.createTab(last.url, true, this.groups.some(group => group.id === last.groupId) ? last.groupId : null, last);
+    this.createTab(last.url, true, this.groups.some(group => group.id === last.groupId) ? last.groupId : null, { ...last, allowDuplicate: true });
   },
 
   // === Mute/Unmute ===

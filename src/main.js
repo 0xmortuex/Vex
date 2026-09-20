@@ -1203,6 +1203,19 @@ ipcMain.handle('dict:lookup', async (_e, word) => {
   }
 });
 
+// === Is it me or the server? ===============================================
+// Times a plain TCP connection to a few well-known hosts (src/main/latency.js)
+// so a stutter can be blamed on the right thing. Nothing is sent, and nothing
+// about the machine goes out with it.
+ipcMain.handle('net:latency', async () => {
+  const latency = require('./main/latency');
+  try {
+    return { ok: true, ...(await latency.check(latency.tcpConnect(require('net')))) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // === RSS fetch (renderer fetch would be CORS-blocked for arbitrary feeds) ===
 ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   try {
@@ -1533,6 +1546,11 @@ function wireAdblockerOnSession(ses, tag) {
     // regress an existing block while the richer engine adds coverage. When the
     // engine isn't ready yet engineBlocks() returns null and the legacy list
     // carries on alone.
+    // A site whose third-party content is switched off (js/site-rules.js).
+    if (Object.keys(_siteRules).length && SiteRules.blocksThirdParty(_siteRules, _pageUrlOf(details.webContentsId), details.url)) {
+      callback({ cancel: true });
+      return;
+    }
     if (adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
@@ -1581,6 +1599,10 @@ function wireClientHintsOnSession(ses) {
   ses.__vexCHWired = true;
   ses.webRequest.onBeforeSendHeaders((details, callback) => {
     const h = details.requestHeaders || {};
+    // A site whose cookies are switched off is sent none.
+    if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
+      for (const k of Object.keys(h)) if (k.toLowerCase() === 'cookie') delete h[k];
+    }
     // Per-session override (set for ephemeral "New Identity" sessions) keeps the
     // brand hints consistent with that session's spoofed Chrome version; falls
     // back to the global real-Chromium-version identity for every normal session.
@@ -1815,6 +1837,35 @@ ipcMain.handle('downloads:set-rules', (_e, rules) => {
   try { fs.writeFileSync(_rulesFile, JSON.stringify(_downloadRules)); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Per-site switches (src/main/site-rules.js): JavaScript, cookies and
+// third-party content, off for one site at a time. Kept in the profile so a
+// page that loads before the window is ready is already covered.
+const SiteRules = require('./main/site-rules');
+const _siteRulesFile = path.join(userDataPath, 'site-rules.json');
+let _siteRules = {};
+try { _siteRules = SiteRules.clean(JSON.parse(fs.readFileSync(_siteRulesFile, 'utf8'))); } catch { _siteRules = {}; }
+ipcMain.handle('siterules:set', (_e, rules) => {
+  _siteRules = SiteRules.clean(rules);
+  try { fs.writeFileSync(_siteRulesFile, JSON.stringify(_siteRules)); return { ok: true, rules: _siteRules }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
+
+// Which page made a request: asked of the webContents, and remembered for a
+// moment, because this is on the path of every request a page makes.
+const _pageUrlCache = new Map();
+function _pageUrlOf(webContentsId) {
+  if (!webContentsId) return '';
+  const now = Date.now();
+  const hit = _pageUrlCache.get(webContentsId);
+  if (hit && now - hit.at < 2000) return hit.url;
+  let url;
+  try { url = webContents.fromId(webContentsId)?.getURL() || ''; } catch { url = ''; }
+  _pageUrlCache.set(webContentsId, { url, at: now });
+  if (_pageUrlCache.size > 200) _pageUrlCache.delete(_pageUrlCache.keys().next().value);
+  return url;
+}
+
 const { wireDownloadsOnSession } = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules });
 
 // === Phase 18: Chrome extension loader ===
@@ -3397,6 +3448,10 @@ function createWindow() {
             else responseHeaders[k] = responseHeaders[k].map(csp => csp.replace(/frame-ancestors[^;]*;?/gi, ''));
           }
         }
+      }
+      // ...and is not allowed to set any either.
+      if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
+        for (const k of Object.keys(responseHeaders)) if (k.toLowerCase() === 'set-cookie') delete responseHeaders[k];
       }
       _addMediaCorsHeaders(details, responseHeaders);
       callback({ responseHeaders });

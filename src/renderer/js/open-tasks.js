@@ -188,6 +188,12 @@ const OpenTasks = {
     return inbox;
   },
 
+  // Notes as they are on disk, and writing them back. Public so anything else
+  // that keeps a note (js/meeting-mode.js) goes through the same writer rather
+  // than a second one that could disagree with the open editor.
+  notes() { return this._notes(); },
+  writeNotes(notes, changedId) { return this._write(notes, changedId); },
+
   _write(notes, changedId) {
     if (typeof NotesPanel !== 'undefined' && NotesPanel.notes) {
       NotesPanel.notes = notes;

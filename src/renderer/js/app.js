@@ -905,6 +905,10 @@
   VexLock.init();
   // Pages you asked to be shown what is new on (js/whats-new.js).
   WhatsNew.init();
+  // Per-site switches: tell main what they are (js/site-rules-ui.js).
+  SiteRulesUI.init();
+  // A meeting that was running when Vex closed (js/meeting-mode.js).
+  MeetingMode.init();
   // Remember how see-through the overlay was left (src/main/overlay.js).
   window.vex.onOverlayOpacity?.((o) => { try { localStorage.setItem('vex.overlayOpacity', String(o)); } catch {} });
   {

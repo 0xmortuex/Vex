@@ -161,6 +161,11 @@ contextBridge.exposeInMainWorld('vex', {
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // One cookie at a time, in the tab's own partition.
+  // Per-site switches: JavaScript, cookies, third-party content.
+  siteRulesGet: () => ipcRenderer.invoke('siterules:get'),
+  siteRulesSet: (rules) => ipcRenderer.invoke('siterules:set', rules),
+  // How long a few well-known services take to answer, and yours for comparison.
+  netLatency: () => ipcRenderer.invoke('net:latency'),
   // What a word means, asked of a dictionary from the main process.
   dictLookup: (word) => ipcRenderer.invoke('dict:lookup', word),
   cookiesList: (opts) => ipcRenderer.invoke('cookies:list', opts),

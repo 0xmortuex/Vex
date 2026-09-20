@@ -130,6 +130,9 @@ const cookieRef = {
 };
 const timestamp = value => value == null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
 define('dict:lookup', [string(40)]);
+define('net:latency', []);
+define('siterules:get', []);
+define('siterules:set', [object]);
 define('cookies:remove', [shape(cookieRef)]);
 define('cookies:set', [shape({ ...cookieRef, value: string(16384), httpOnly: optional(boolean), expires: timestamp })]);
 define('translate:text', [shape({ text: string(100000), tl: value => typeof value === 'string' && /^[a-z-]{2,16}$/i.test(value) })]);
