@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.57 (2026-09-20) — Switches for one site, "is it me or the server?", and meeting mode
+
+### Changes
+- **What this site is allowed** (Ctrl+K): three switches for one site — **JavaScript**, **cookies**, and **content from other sites**. Each is normally on; turning one off applies to every page of that site until you turn it back.
+  - JavaScript off rebuilds the tab without it, because a page cannot be un-run once it has started.
+  - Cookies off means none are sent to the site, none it sends back are kept, and the ones it already had are taken away — on every load, so a cookie the page writes in its own script does not survive either.
+  - Content from other sites off refuses anything the page loads from a host that is not its own: adverts, trackers, embeds. Checked live — an off-host image loads normally, then is refused with the switch off, and cookies come back when the switch goes back on.
+- **Is it me or the server?** (Ctrl+K): times your own connection and Discord, Steam, Riot, Roblox, Epic and YouTube, and answers in one sentence. A service is only called slow when it is both well behind your own line and slow enough to feel — a game server on another continent is far away, not broken.
+- **Meeting mode** (Ctrl+K): holds your reminders, mutes every other tab making a sound, and opens a note with the time on it. *Note a Line in the Meeting* writes what was just said with its time; *Add an Action Item* writes it as a task, so it turns up in Open Tasks with everything else. A tab that was already muted stays muted at the end, and a meeting survives Vex being closed and reopened. Nothing is recorded or transcribed — it writes down what you type and nothing else.
+- **Not the same page twice.** Opening a page you already have open in the same container goes to that tab instead of making a second copy. Duplicate Tab, reopening a closed tab and restoring a session still give you a copy, and the whole thing can be switched off (Ctrl+K › *Switch to a Page I Already Have Open*).
+
 ## v2.32.56 (2026-09-20) — One cookie at a time, what's new since you were last here, and a dictionary on double-click
 
 ### Changes
