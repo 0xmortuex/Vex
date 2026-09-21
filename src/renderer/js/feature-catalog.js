@@ -62,6 +62,8 @@ const VexFeatures = {
       what: 'Every tab by state — active, kept awake, sleeping, never loaded — with what each one is really costing you in memory.' },
     { id: 'memory-panel', phrases: 'less memory ram slow heavy usage', cat: 'tabs', cmd: 'memory', panel: 'memory',
       what: 'Live memory per tab, measured rather than estimated, with sleep and wake on each row.' },
+    { id: 'keys-sheet', phrases: 'what keys can i press keyboard shortcuts list cheat sheet hotkeys what does ctrl do', cat: 'tabs', cmd: 'keys-sheet', name: 'What you can press', keys: 'Ctrl+Shift+K',
+      what: 'Every key Vex answers to, over whatever you are doing, with the ones that matter where you are first.' },
     { id: 'why-slow', phrases: 'why is vex slow lagging stuttering sluggish what is making it slow slow down', cat: 'tabs', cmd: 'why-slow', name: 'Why is Vex slow right now?',
       what: 'One screen: what is holding a processor core, what is holding the memory, whether a route is on and whether a game has the card \u2014 each with the button that fixes it.' },
     { id: 'tasks', phrases: 'task manager end task what is using my memory processes kill', cat: 'tabs', cmd: 'tasks', name: 'Running tasks',
@@ -161,7 +163,7 @@ const VexFeatures = {
       what: 'Send a whole container through Tor or your own proxy, and keep it that way.' },
     { id: 'routing-all', phrases: 'vpn route everything through tor hide my ip for everything whole browser proxy check my ip', cat: 'privacy', cmd: 'routing-all', name: 'All of Vex through one route',
       what: 'One route for every tab and every container at once, put back after a restart — and a check that asks what address the internet sees with it and without it.' },
-    { id: 'site-routes', phrases: 'always open this site through tor per site vpn rule route one site only', cat: 'privacy', cmd: 'site-routes', name: 'Sites that always go through a route',
+    { id: 'site-routes', phrases: 'always open this site through tor per site vpn rule route one site only hide my ip for one site just this site anonymous for one site always open this site in a container second account work personal', cat: 'privacy', cmd: 'site-routes', name: 'Sites that always go through a route',
       what: 'Name a site and it opens in a routed session of its own every time — without routing the rest of your browsing.' },
     { id: 'dpi', cat: 'privacy', name: 'Censorship bypass', setting: { section: 'privacy-panel-content' },
       what: 'A local proxy that defeats DNS and SNI blocking without a VPN or admin rights, plus a stronger desync mode for stubborn blocks.' },
@@ -389,6 +391,8 @@ const VexFeatures = {
       what: 'Pick your profession and Vex sets a fitting theme and puts the tools that job actually uses within reach.' },
     { id: 'resmon', cat: 'work', cmd: 'resmon',
       what: 'Live CPU and memory for every process Vex is running, so you can see what is eating your machine.' },
+    { id: 'backup', phrases: 'backup restore export everything move to a new pc reinstall save my setup import', cat: 'work', cmd: 'backup', name: 'Back up everything, or put it back',
+      what: 'One file with your notes, sessions, keybindings, site rules, panels and the whole look \u2014 and a way to put it all back. Saved logins are never in it.' },
     { id: 'downloads', phrases: 'downloads downloaded files open when done open it when it finishes', cat: 'work', cmd: 'downloads', panel: 'downloads',
       what: 'Downloads you can pause, resume, cancel and retry, with the real byte counts \u2014 and \u201copen when done\u201d on any one of them.' },
     { id: 'sendphone', phrases: 'send to phone my phone', cat: 'work', cmd: 'sendphone',
@@ -548,7 +552,7 @@ const VexFeatures = {
   GROUPS: {
     tabs: [
       { name: 'The tab strip', ids: ['vertical-tabs', 'treetabs', 'tab-groups', 'reopen', 'closeduplicates', 'switchtoopen', 'open-links', 'gestures'] },
-      { name: 'Memory, and sleeping', ids: ['why-slow', 'tab-sleep', 'memory-saver', 'tab-health', 'memory-panel', 'tasks', 'keep-awake', 'memceiling'] },
+      { name: 'Memory, and sleeping', ids: ['why-slow', 'keys-sheet', 'tab-sleep', 'memory-saver', 'tab-health', 'memory-panel', 'tasks', 'keep-awake', 'memceiling'] },
       { name: 'More than one thing at once', ids: ['split', 'pip', 'peek', 'workspaces', 'containers', 'pinsite', 'openasapp'] },
       { name: 'Getting back to where you were', ids: ['sessions', 'wsnap', 'tabtrail', 'apps-not-links'] },
     ],
@@ -579,7 +583,7 @@ const VexFeatures = {
       { name: 'Settling into work', ids: ['focus', 'focusflows', 'meeting', 'jobsetup'] },
       { name: 'Tools, and doing things twice', ids: ['toolbox', 'toolbox-reference', 'toolbox-full', 'toolbox-favourites', 'tool-history', 'automations', 'chains', 'do-again', 'quick-commands', 'dictate'] },
       { name: 'Mail, parcels and money', ids: ['mail', 'triage', 'parcels', 'expenses', 'price-history'] },
-      { name: 'This machine', ids: ['resmon', 'downloads'] },
+      { name: 'This machine', ids: ['resmon', 'downloads', 'backup'] },
     ],
     media: [
       { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
@@ -712,12 +716,24 @@ const VexFeatures = {
   // Everything with no record of use, in catalogue order.
   unused() { return this.ITEMS.filter(f => !this.used(f)); },
 
-  // Search across name, description, category and shortcut.
+  FILLER: new Set(['a', 'an', 'the', 'my', 'me', 'for', 'of', 'to', 'in', 'on', 'is', 'it', 'and', 'or', 'can', 'i', 'do', 'how', 'vex']),
+
+  // Search across the words people actually type, the name, the description,
+  // the category and the shortcut.
+  //
+  // `phrases` was missing from this list, which is the one field written for
+  // exactly this: every entry carries the words someone would use who does
+  // not know what the feature is called — "text too small", "hide my ip for
+  // one site" — and none of them were searched. The entries were right and
+  // the search never looked at them.
   search(query) {
     const q = String(query || '').trim().toLowerCase();
     if (!q) return this.ITEMS.slice();
-    const words = q.split(/\s+/).filter(Boolean);
-    const hay = (f) => [this.nameOf(f), f.what, f.cat, this.keysOf(f),
+    // Every word has to appear, so the filler words in a spoken sentence
+    // ('for', 'the', 'my') would fail a search that should have matched.
+    const words = q.split(/\s+/).filter(w => w && !this.FILLER.has(w));
+    if (!words.length) return [];
+    const hay = (f) => [this.nameOf(f), f.phrases, f.what, f.cat, this.keysOf(f),
       (this.command(f) || {}).label, (this.command(f) || {}).hint].join(' ').toLowerCase();
     return this.ITEMS.filter(f => { const h = hay(f); return words.every(w => h.includes(w)); });
   },

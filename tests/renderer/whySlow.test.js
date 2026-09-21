@@ -128,3 +128,63 @@ describe('the screen', () => {
     expect(text).not.toMatch(/Nothing here is slowing Vex down/);
   });
 });
+
+// A diagnosis screen only helps the people who think to open it — and if you
+// knew to look, you half knew the answer. So Vex watches and says it once.
+// The rules that stop it becoming a nag are the whole design, so they are
+// what is pinned here.
+describe('saying it without being asked', () => {
+  const found = (over = {}) => ({ id: 'cpu:9', title: 'YouTube is using 80% of a processor core', detail: '', fix: 'go-tab', tab: 7, ...over });
+
+  beforeEach(() => {
+    WhySlow._said = {};
+    WhySlow._strikes = {};
+    WhySlow._quietUntil = 0;
+    globalThis.TabManager = { activeTabId: 'other', switchTab: vi.fn() };
+  });
+
+  it('waits for a second sighting: a page that is busy while it loads is not a fault', () => {
+    expect(WhySlow.worthSaying([found()])).toBe(null);
+    WhySlow._strikes['cpu:9'] = 2;
+    expect(WhySlow.worthSaying([found()])).toBeTruthy();
+  });
+
+  it('says one thing once an hour, and nothing at all for four after "not now"', () => {
+    WhySlow._strikes['cpu:9'] = 2;
+    const now = Date.now();
+    WhySlow._said['cpu:9'] = now - 60000;
+    expect(WhySlow.worthSaying([found()], now)).toBe(null);
+    expect(WhySlow.worthSaying([found()], now + 3700000)).toBeTruthy();
+    WhySlow._quietUntil = now + WhySlow.QUIET_MS;
+    expect(WhySlow.worthSaying([found()], now + 3700000)).toBe(null);
+  });
+
+  // A route being on, a game running, panels kept awake: all things the user
+  // chose. A browser that comments on your choices is one people switch off.
+  it('only speaks about the processor and a really heavy panel', () => {
+    WhySlow._strikes['cpu:9'] = 2;
+    expect(WhySlow.worthSaying([{ id: 'route', title: 'Everything is going through Tor' }])).toBe(null);
+    expect(WhySlow.worthSaying([{ id: 'game', title: 'A game has the screen' }])).toBe(null);
+    expect(WhySlow.worthSaying([{ id: 'kept', title: '3 panels are kept awake' }])).toBe(null);
+    expect(WhySlow.worthSaying([{ id: 'mem:2', title: 'A page is holding 900 MB' }])).toBe(null);
+    expect(WhySlow.worthSaying([{ id: 'mem:2', title: 'Discord is holding 1.9 GB' }])).toBeTruthy();
+  });
+
+  it('never about the tab you are looking at', async () => {
+    TabManager.activeTabId = 7;
+    expect(WhySlow._isActive(found())).toBe(true);
+  });
+
+  it('the notice carries the fix, the whole picture, and a way to stop it', () => {
+    const bar = WhySlow._notice(found());
+    const labels = [...bar.querySelectorAll('button')].map(b => b.textContent);
+    expect(labels).toEqual(['Go to that tab', 'Why', 'Not now']);
+    bar.querySelector('button').click();
+    expect(TabManager.switchTab).toHaveBeenCalledWith(7);
+    labels.length = 0;
+    const again = WhySlow._notice(found());
+    [...again.querySelectorAll('button')].find(b => b.textContent === 'Not now').click();
+    expect(WhySlow._quietUntil).toBeGreaterThan(Date.now());
+    expect(document.getElementById('vex-slow-notice')).toBe(null);
+  });
+});

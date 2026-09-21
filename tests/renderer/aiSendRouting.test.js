@@ -48,7 +48,7 @@ describe('AIPanel.routeMessage', () => {
 
   it('a task is for the agent', () => {
     for (const s of [
-      'start a 20 minute timer', 'Start an 20 minute timer', 'set an alarm for 7am on weekdays', 'remind me to call Dana tomorrow at 9',
+      'group my github tabs', 'Start an 20 minute timer', 'set an alarm for 7am on weekdays', 'remind me to call Dana tomorrow at 9',
       'open youtube and play lofi', 'go to github.com', 'click the sign in button', 'fill in this form with my details',
       'bookmark this page', 'group my tabs by topic', 'rename my tab groups', 'close all the youtube tabs',
       'hey vex, can you please open reddit', 'Could you search the web for cheap flights to Rome', 'research the best 1440p monitors and save a note',
@@ -77,9 +77,9 @@ describe('AIPanel.routeMessage', () => {
 
 describe('Send', () => {
   it('runs a task as the agent, in the chosen permission mode', async () => {
-    document.getElementById('ai-input').value = 'start a 20 minute timer';
+    document.getElementById('ai-input').value = 'group my github tabs';
     await AIPanel._sendChat();
-    expect(AgentLoop.start).toHaveBeenCalledWith('start a 20 minute timer', 'auto');
+    expect(AgentLoop.start).toHaveBeenCalledWith('group my github tabs', 'auto');
     expect(AIPanel.sendMessage).not.toHaveBeenCalled();
     expect(document.getElementById('ai-input').value).toBe('');
   });
@@ -111,21 +111,21 @@ describe('Send', () => {
 
 describe('an agent run is part of the chat', () => {
   it('the question is stored at once, the answer when it ends, with a way back to the steps', async () => {
-    document.getElementById('ai-input').value = 'start a 20 minute timer';
+    document.getElementById('ai-input').value = 'group my github tabs';
     await AIPanel._sendChat();
-    expect(AIPanel._conversations.tab1).toEqual([{ role: 'user', content: 'start a 20 minute timer' }]);
+    expect(AIPanel._conversations.tab1).toEqual([{ role: 'user', content: 'group my github tabs', at: expect.any(Number) }]);
     expect(JSON.parse(localStorage.getItem('vex.aiConversations')).tab1).toHaveLength(1);   // survives a crash mid-run
 
-    finish('The timer is running — it is in the toolbar.');
+    finish('Grouped 4 tabs.');
     await vi.waitFor(() => expect(AIPanel._conversations.tab1).toHaveLength(2));
-    expect(AIPanel._conversations.tab1[1]).toEqual({ role: 'assistant', content: 'The timer is running — it is in the toolbar.', agentRun: 'run_1' });
+    expect(AIPanel._conversations.tab1[1]).toEqual({ role: 'assistant', content: 'Grouped 4 tabs.', at: expect.any(Number), agentRun: 'run_1' });
     expect(JSON.parse(localStorage.getItem('vex.aiConversations')).tab1[1].agentRun).toBe('run_1');
 
     // Close and reopen the panel: the chat is still there.
     AIPanel._renderMessages();
     const text = document.getElementById('ai-messages').textContent;
-    expect(text).toContain('start a 20 minute timer');
-    expect(text).toContain('The timer is running');
+    expect(text).toContain('group my github tabs');
+    expect(text).toContain('Grouped 4 tabs.');
     document.querySelector('.ai-agent-steps-link').click();
     expect(AgentLoop.showRun).toHaveBeenCalledWith('run_1');
 
@@ -183,5 +183,67 @@ describe('an order is an order', () => {
       'summarize this',
       'rewrite this more simply',
     ]) expect(goes(ask), ask).toBe(false);
+  });
+});
+
+// Asked "make an timer for 10 minutes", Vex replied with three paragraphs on
+// how a countdown works, steps for a button that does not exist, and an offer
+// to explain alarms. It had the clock and the parser all along. An order Vex
+// can carry out is carried out — before any model is consulted, so there is
+// nothing left that could invent a user interface.
+describe('an order Vex can carry out itself', () => {
+  beforeEach(() => {
+    globalThis.VexQuickCommands = require('../../src/renderer/js/quick-commands.js').VexQuickCommands;
+    globalThis.VexClock = {
+      parseDuration: (t) => { const m = String(t).match(/^(\d+)\s*(m|min|mins|minute|minutes)$/i); if (!m) throw new Error('not a duration'); return Number(m[1]) * 60000; },
+      fmtLeft: (ms) => Math.round(ms / 60000) + ':00',
+      addTimer: vi.fn(async () => ({ id: 't1', label: 'Timer', total: 600000 })),
+    };
+    AIPanel._renderMessages = vi.fn();
+    AIPanel._persistConversations = vi.fn();
+  });
+
+  it('starts the timer and says so in one line, with no model asked', async () => {
+    document.getElementById('ai-input').value = 'make an timer for 10 minutes';
+    await AIPanel._sendChat();
+    expect(VexClock.addTimer).toHaveBeenCalled();
+    expect(AgentLoop.start).not.toHaveBeenCalled();
+    expect(AIPanel.sendMessage).not.toHaveBeenCalled();
+    const conv = AIPanel._conversations.tab1;
+    expect(conv[0]).toMatchObject({ role: 'user', content: 'make an timer for 10 minutes' });
+    expect(conv[1].role).toBe('assistant');
+    expect(conv[1].content).toMatch(/Timer/);
+    expect(conv[1].didIt).toBe(true);
+    expect(document.getElementById('ai-input').value).toBe('');
+  });
+
+  // The parse is confident, not infallible: someone who meant a question
+  // needs one press to get the model rather than retyping.
+  it('leaves a way to ask the model anyway', async () => {
+    AIPanel._renderMessages = () => {
+      const el = document.createElement('div');
+      el.className = 'ai-msg assistant';
+      document.getElementById('ai-messages').appendChild(el);
+    };
+    document.getElementById('ai-input').value = 'set a timer for 5 minutes';
+    await AIPanel._sendChat();
+    const again = [...document.querySelectorAll('#ai-messages button')].find(b => b.textContent === 'Ask the AI instead');
+    expect(again).toBeTruthy();
+    again.click();
+    expect(AIPanel.sendMessage).toHaveBeenCalledWith('chat', { message: 'set a timer for 5 minutes' });
+  });
+
+  it('says plainly when it could not, instead of explaining', async () => {
+    VexClock.addTimer = vi.fn(async () => { throw new Error('the clock is not ready'); });
+    document.getElementById('ai-input').value = 'make a timer for 10 minutes';
+    await AIPanel._sendChat();
+    expect(AIPanel._conversations.tab1[1].content).toBe('I could not: the clock is not ready');
+  });
+
+  it('a question is left to the model exactly as before', async () => {
+    document.getElementById('ai-input').value = 'what is a timer';
+    await AIPanel._sendChat();
+    expect(VexClock.addTimer).not.toHaveBeenCalled();
+    expect(AIPanel._conversations.tab1).toBeUndefined();
   });
 });

@@ -20,6 +20,69 @@ const VexQuickCommands = {
     return out;
   },
 
+  // === The same sentences, said the way people say them ====================
+  //
+  // The parsers above expect command-bar shorthand: "timer 25 min". Nobody
+  // says that to an assistant. They say "make a timer for 10 minutes", and
+  // asked that, Vex replied with three paragraphs explaining how the user
+  // could do it themselves — including steps for a button that does not
+  // exist. It had the clock, the parser and the Windows wake-up all along.
+  //
+  // So: strip the politeness and the filler, and what is left is the
+  // shorthand the parsers already understand. This runs before any model is
+  // consulted, which means it is instant, works offline, and cannot invent a
+  // user interface, because it never asks anything that could.
+  //
+  // Anything it does not recognise returns null and the request goes on to
+  // the model exactly as before.
+  POLITE: /^(hey|hi|hello|ok|okay|please|pls|vex|can you|could you|would you|will you|i want you to|i need you to|i'd like you to|go ahead and|just|for me|now)\b[\s,]*/i,
+
+  // "make an timer" is not a typo worth refusing over.
+  START_WORDS: /^(?:make|set|start|create|put on|add|begin|run|give me|do)\s+(?:an?|the|my)?\s*/i,
+
+  plainly(raw) {
+    let t = String(raw || '').trim();
+    if (!t) return '';
+    let before;
+    do { before = t; t = t.replace(this.POLITE, ''); } while (t !== before);
+    t = t.replace(/[?!.]+$/, '').trim();
+    // "make a timer for 10 minutes" → "timer 10 minutes". The start word only
+    // comes off when a thing Vex owns follows it, so "make a note of this" and
+    // "start a video" are left alone.
+    const m = t.match(new RegExp(this.START_WORDS.source + '(timer|countdown|alarm|stopwatch|reminder)\\b(.*)$', 'i'));
+    if (m) {
+      const thing = m[1].toLowerCase();
+      let rest = (m[2] || '').replace(/^\s*(?:for|of|at|to|on|lasting|that lasts)\s+/i, '').trim();
+      if (thing === 'reminder') return rest ? 'remind me ' + rest : t;
+      return (thing === 'countdown' ? 'timer' : thing) + (rest ? ' ' + rest : '');
+    }
+    // The other way round: "start a 20 minute timer", "set a 5 min countdown".
+    // The duration comes first and the noun last, which is at least as common
+    // as saying it the other way.
+    const back = t.match(new RegExp(this.START_WORDS.source + '(.{1,24}?)\\s+(timer|countdown|stopwatch|alarm)$', 'i'));
+    if (back) {
+      const thing = back[2].toLowerCase();
+      if (thing === 'stopwatch') return 'stopwatch';
+      return (thing === 'countdown' ? 'timer' : thing) + ' ' + back[1].trim();
+    }
+    // "remind me in 10 minutes to X" and friends already parse; only the
+    // leading filler was in the way.
+    return t;
+  },
+
+  // The one thing Vex can do for this sentence with no model at all, or null.
+  // Only a confident result counts: a parser that threw, or one that offered
+  // a non-primary suggestion, is not certain enough to act on by itself.
+  intent(raw) {
+    const plain = this.plainly(raw);
+    if (!plain) return null;
+    let found = [];
+    try { found = this.results(plain) || []; }
+    catch (err) { console.warn('[QuickCommands] could not read that:', err.message); return null; }
+    const hit = found.find(r => r && r.isPrimary && typeof r.action === 'function' && r.id !== 'quick-unreadable');
+    return hit || null;
+  },
+
   // tell me when this drops under 300 / watch this page for changes / tell me
   // when it goes down — a page watch on the tab in front (js/page-watch.js).
   _watch(q) {
@@ -36,7 +99,7 @@ const VexQuickCommands = {
         hint: 'Asked of GitHub every ' + (gh.kind === 'run' ? '2 minutes' : '30 minutes') + ', told on your desktop',
         action: () => {
           try { const w = GitHubWatch.add(tab.url); window.showToast?.('Watching the ' + GitHubWatch.describe(w)); GitHubWatch.checkDue(); }
-          catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
+          catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); throw err; }
         },
       };
     }
@@ -47,7 +110,7 @@ const VexQuickCommands = {
       hint: 'Checks every 15 minutes in the background and tells you',
       action: () => {
         try { const r = PageWatch.watchCurrent(m[1] || 'changes'); window.showToast?.('Watching ' + r.said); }
-        catch (err) { window.showToast?.((err && err.message) || 'Could not watch this page', 'error'); }
+        catch (err) { window.showToast?.((err && err.message) || 'Could not watch this page', 'error'); throw err; }
       },
     };
   },
@@ -72,7 +135,7 @@ const VexQuickCommands = {
       action: async () => {
         if (plan.same) return;
         try { const r = await VexSettingsControl.apply(req); window.showToast?.(r.message); }
-        catch (err) { window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); }
+        catch (err) { window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); throw err; }
       },
     };
   },
@@ -146,7 +209,7 @@ const VexQuickCommands = {
           window.showToast?.('Reminder set — ' + when);
           if (!best.trigger.site && (!r || !r.os || !r.os.scheduled)) window.showToast?.('It will fire while Vex is running' + (r && r.os && r.os.error ? ' — ' + r.os.error : ''), 'error');
           if (best.trigger.site && VexQuickReminder._hostsChanged) VexQuickReminder._hostsChanged();
-        } catch (err) { window.showToast?.((err && err.message) || 'Could not set the reminder', 'error'); }
+        } catch (err) { window.showToast?.((err && err.message) || 'Could not set the reminder', 'error'); throw err; }
       },
     };
   },
@@ -168,7 +231,7 @@ const VexQuickCommands = {
       hint: 'Ends at ' + new Date(Date.now() + ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       action: async () => {
         try { await VexClock.addTimer(words.slice(0, words.length - (label ? label.split(/\s+/).length : 0)).join(' '), label); window.showToast?.('Timer started — ' + VexClock.fmtLeft(ms)); }
-        catch (err) { window.showToast?.((err && err.message) || 'Could not start the timer', 'error'); }
+        catch (err) { window.showToast?.((err && err.message) || 'Could not start the timer', 'error'); throw err; }
       },
     };
   },
@@ -209,7 +272,7 @@ const VexQuickCommands = {
           const r = await b.create(label, first.getTime(), { kind: 'alarm', sound: true, urgent: true, ...(days.length ? { repeat: days } : {}), ...(job ? { job } : {}) });
           window.showToast?.('Alarm set — ' + VexQuickReminder.describe(new Date(r.at)));
           if (!r.os || !r.os.scheduled) window.showToast?.('It will ring while Vex is running' + (r.os && r.os.error ? ' — ' + r.os.error : ''), 'error');
-        } catch (err) { window.showToast?.((err && err.message) || 'Could not set the alarm', 'error'); }
+        } catch (err) { window.showToast?.((err && err.message) || 'Could not set the alarm', 'error'); throw err; }
       },
     };
   },

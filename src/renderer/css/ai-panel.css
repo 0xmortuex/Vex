@@ -616,3 +616,18 @@ body.agent-paused #ai-pause-agent { border-color: var(--primary); color: var(--p
 .ai-footer:empty { display: none; }
 .ai-footer { padding-top: 0; }
 .ai-backend:empty { display: none; }
+
+/* The history list, tidied. Pin / Rename / To note used to be appended
+   straight onto the item, which is a flex column — so each one took a full
+   line and a list of ten chats was forty rows tall. They belong on one band,
+   and the band belongs out of the way until the row is wanted. */
+.ai-history-tools {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+  opacity: 0; max-height: 0; overflow: hidden;
+  transition: opacity 120ms ease, max-height 120ms ease;
+}
+.ai-history-item:hover .ai-history-tools,
+.ai-history-item:focus-within .ai-history-tools { opacity: 1; max-height: 40px; }
+/* A heading that is not the first needs air above it, or the days run together. */
+.ai-history-sub + .ai-history-item { margin-top: 1px; }
+.ai-history-item + .ai-history-sub { margin-top: 8px; }

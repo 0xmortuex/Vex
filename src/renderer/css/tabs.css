@@ -497,3 +497,28 @@ body.tree-tabs .tab-item[data-depth]::after {
   width: 1px;
   background: var(--border);
 }
+
+/* Which session a tab is in (js/site-routes.js decides; js/tabs.js applies).
+   A container tab and an ordinary one looked identical, which is how a
+   password goes into the wrong one — the isolation is the whole feature and
+   it was invisible. A stripe down the leading edge rather than a badge: it
+   reads at a glance across a column of thirty tabs, and it costs no width. */
+.tab-item.container-tab, .top-tab.container-tab,
+.tab-item.routed-tor, .top-tab.routed-tor,
+.tab-item.routed-proxy, .top-tab.routed-proxy {
+  position: relative;
+}
+.tab-item.container-tab::before, .top-tab.container-tab::before,
+.tab-item.routed-tor::before, .top-tab.routed-tor::before,
+.tab-item.routed-proxy::before, .top-tab.routed-proxy::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 18%; bottom: 18%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--vex-session-mark);
+  pointer-events: none;
+}
+.tab-item.container-tab, .top-tab.container-tab { --vex-session-mark: #f59e0b; }
+.tab-item.routed-tor, .top-tab.routed-tor { --vex-session-mark: #7c3aed; }
+.tab-item.routed-proxy, .top-tab.routed-proxy { --vex-session-mark: #0ea5e9; }

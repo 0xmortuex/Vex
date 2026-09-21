@@ -63,6 +63,8 @@ const CommandBar = {
     { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) ReadLater.add(t.url, t.title); } },
     { id: 'library', label: 'Library', hint: 'What you saved — read later, archived tabs', icon: 'book', isPrimary: true, action: () => { try { ReadLater.showTab('saved'); } catch {} SidebarManager.openPanel('library'); } },
     { id: 'routing-all', label: 'Private Routing — All of Vex Through Tor or a Proxy', hint: 'Send everything through Tor or a proxy you name, and check that it is really working', icon: 'globe', isPrimary: true, action: () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.open(); } },
+    { id: 'backup', label: 'Back Up Everything, or Put It Back', hint: 'One file with your notes, sessions, keybindings, site rules and the whole look — saved logins are never in it', icon: 'archive', action: () => { if (typeof VexBackup !== 'undefined') VexBackup.open(); } },
+    { id: 'keys-sheet', label: 'What You Can Press — Shortcut Sheet', hint: 'Every key Vex answers to, over whatever you are doing, with the ones that matter here first', icon: 'keyboard', shortcut: 'Ctrl+Shift+K', action: () => { if (typeof KeysSheet !== 'undefined') KeysSheet.open(); } },
     { id: 'why-slow', label: 'Why Is Vex Slow Right Now?', hint: 'One screen: what is holding the processor, what is holding the memory, whether a route is on and whether a game has the card', icon: 'activity', isPrimary: true, action: () => { if (typeof WhySlow !== 'undefined') WhySlow.open(); } },
     { id: 'site-routes', label: 'Site Rules — Always Open These Sites Through Tor', hint: 'Name a site and it opens in a routed session of its own, every time, without routing the rest of your browsing', icon: 'globe', action: () => { if (typeof SiteRoutes !== 'undefined') SiteRoutes.open(); } },
     { id: 'skin', label: 'Skin', hint: 'A texture on Vex’s own surfaces, the shape of its corners, and how it catches the light', icon: 'palette', isPrimary: true, action: () => { if (typeof VexSkins !== 'undefined') VexSkins.open(); } },
@@ -618,7 +620,13 @@ const CommandBar = {
       // (AI fallback removed — use Ctrl+J for Ask Vex AI)
 
       // Matching commands — fuzzy-scored, best first.
-      this.results.push(...this._rankCommands(q));
+      const ranked = this._rankCommands(q);
+      this.results.push(...ranked);
+      // And then what Vex can DO, which is not the same list. A command is
+      // named after itself; the feature catalogue carries the words people
+      // actually type. "make text bigger" and "hide my ip for one site" both
+      // exist and neither matched a command name, so Ctrl+K said nothing.
+      this.results.push(...this._featureResults(q, ranked));
     }
 
     this.selectedIndex = 0;
@@ -760,6 +768,43 @@ const CommandBar = {
     } catch { return []; }
   },
 
+  // Features whose own words match, that the command search did not already
+  // find. Deliberately last and deliberately few: this is the safety net for
+  // a query that would otherwise come back with nothing but a web search,
+  // not a second opinion on a query that already worked.
+  FEATURE_HITS: 4,
+
+  _featureResults(q, alreadyFound) {
+    if (!q || q.length < 3 || typeof VexFeatures === 'undefined') return [];
+    let hits = [];
+    try { hits = VexFeatures.search(q) || []; }
+    catch (err) { console.warn('[Command] the feature search failed:', err.message); return []; }
+    const have = new Set((alreadyFound || []).map(c => c.id));
+    return hits
+      .filter(f => !f.cmd || !have.has(f.cmd))
+      .slice(0, this.FEATURE_HITS)
+      .map(f => {
+        const name = VexFeatures.nameOf(f);
+        return {
+          id: 'feature:' + f.id,
+          label: name,
+          hint: f.what || 'In the Library',
+          icon: VexFeatures.iconOf(f),
+          action: () => {
+            // Run it where it can be run; otherwise show it in the Library,
+            // which is where its explanation lives.
+            try {
+              if ((f.cmd || f.panel) && typeof VexGuide !== 'undefined') { VexGuide.run(f); return; }
+            } catch (err) { window.showToast?.(err.message, 'error'); return; }
+            try {
+              if (typeof ReadLater !== 'undefined') ReadLater.showTab('features');
+              SidebarManager.openPanel('library');
+            } catch (err) { window.showToast?.(err.message || 'That could not be opened', 'error'); }
+          },
+        };
+      });
+  },
+
   _rankCommands(q) {
     const usage = this._usage();
     const now = Date.now();
@@ -817,7 +862,15 @@ const CommandBar = {
   _execute(item) {
     this._recordUsage(item);
     this.close();
-    item.action();
+    // An action that fails says so. Called bare, a rejected promise became an
+    // unhandled rejection in the console and silence on screen.
+    try {
+      Promise.resolve(item.action()).catch(err => {
+        window.showToast?.((err && err.message) || 'That did not work', 'error');
+      });
+    } catch (err) {
+      window.showToast?.((err && err.message) || 'That did not work', 'error');
+    }
   },
 
   // ---- do that again

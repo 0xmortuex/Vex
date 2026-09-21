@@ -1121,6 +1121,10 @@
     // Main-process shortcuts in src/main.js keep firing as system-level
     // defaults (they're labelled "system" in the editor).
     ShortcutsRegistry.register('command-bar',    () => CommandBar?.open?.() ?? CommandBar?.toggle?.());
+    ShortcutsRegistry.register('keys-sheet', () => { if (typeof KeysSheet !== 'undefined') KeysSheet.toggle(); });
+    // Vex watches its own weight and says something once when one thing has
+    // clearly been the problem for a minute (js/why-slow.js).
+    if (typeof WhySlow !== 'undefined') { try { WhySlow.start(); } catch (err) { console.warn('[Vex] the slowness watch did not start:', err.message); } }
     ShortcutsRegistry.register('ask-ai-bar',     () => AskAIBar?.toggle?.());
     try { window.VexDevMode && VexDevMode.init(); } catch (e) { /* dashboard is optional */ }
     // Mirrors main-process reminders in-app, and says so when the desktop

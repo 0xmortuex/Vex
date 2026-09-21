@@ -64,7 +64,10 @@ describe('the chat list', () => {
     [...older.querySelectorAll('button')].find(b => b.textContent === 'Pin').click();
     await Promise.resolve();
     items = [...document.querySelectorAll('.ai-history-item')];
-    expect(items[0].querySelector('.t').textContent).toBe('Pinned · Older chat');
+    // Pinned chats now get a heading of their own rather than a prefix
+    // fighting the name for room inside the title.
+    expect(items[0].querySelector('.t').textContent).toBe('Older chat');
+    expect(document.querySelector('.ai-history-sub').textContent).toBe('Pinned');
     const phones = items.find(i => i.textContent.includes('Pixel'));
     [...phones.querySelectorAll('button')].find(b => b.textContent === 'Rename').click();
     await new Promise(r => setTimeout(r, 0));

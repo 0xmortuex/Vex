@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.32.78 (2026-09-21) — An assistant that does it, a tab that says which session it is in, and one file with everything
+
+### Changes
+- **Asked to do something Vex can do, Vex now does it.** Asked to "make an timer for 10 minutes", it replied with three paragraphs about how a countdown works, steps for a button that does not exist, and an offer to explain alarms next. It had the clock, the duration parser and the Windows wake-up all along.
+  - Vex now recognises the sentence **before any model is consulted**: instant, works with no model loaded, and incapable of inventing a user interface because nothing in that path could invent anything. "Make a timer for 10 minutes", "set a 25 min countdown", "start a 20 minute timer", "hey vex start a stopwatch", alarms and reminders all simply happen, and Vex says so in one line.
+  - There is one press to **ask the model anyway**, because the recognition is confident rather than infallible.
+  - When it cannot, it says so in one sentence. The quick actions used to swallow their own failures, so a timer that did not start still looked like one that had.
+- **A tab now says which session it is in.** A container tab and an ordinary tab looked identical — which is how a password goes into the wrong one, and how "why am I signed out of this" becomes a mystery. Containers, Tor-routed and proxy-routed tabs each wear a coloured edge and say which session they are in when you hover them. The isolation was the whole feature and it was invisible.
+- **Site rules do more than route.** The rule people actually want most is not about an IP address at all: **this site always opens in my work container**. Two accounts, no signing out, no remembering. Each rule can also say the site is **always muted** and **never allowed to sleep**.
+- **What you can press** (`Ctrl+Shift+K`). Vex answers to more than sixty keys and gained eleven in one release, all listed on a settings page nobody decides to go and read — so the keys existed and went unused. Now they appear over whatever you are doing, grouped, with the ones that matter where you are marked and placed first. A key with nothing behind it is left out rather than listed and quietly broken; one you set yourself is marked as yours. Nothing on the sheet can be changed by accident, and there is a way through to the screen that does change them.
+- **Back up everything, or put it back** (Settings → Data, or `Ctrl+K`). A setup code carries the decoration. This carries the rest: notes, sessions, keybindings, site rules, panels, the whole look. Saved logins and authenticator codes are **never** in the file — they live encrypted in Vex itself and cannot be read from there at all, and a backup containing them would be a password file sitting in a downloads folder. Your AI conversations go in only if you tick the box. A restore says what the file holds before changing anything, skips an entry it cannot read rather than giving up on the rest, and **can be undone** until you close Vex.
+- **"Why is Vex slow" now speaks up.** A diagnosis screen only helps people who think to open it — and if you knew to look, you half knew the answer. When one thing has clearly been the problem for a minute, Vex says so once, with the button that fixes it. It waits for a second sighting, never mentions the tab you are looking at, says one thing an hour, and goes quiet for four on "not now". It never comments on a route being on, a game running or panels you chose to keep awake: a browser that remarks on your choices is one people switch off.
+- **The AI history is dated and grouped.** Chats had no times at all, so the list could only ever say "12 messages" and could not be ordered by anything. Every message now carries when it was said; the list is grouped under Today, Yesterday, Earlier this week and by month, with a clock time on today's and a date on older ones. Pinned chats get a heading of their own instead of a prefix fighting the name for room, and Pin / Rename / To note sit on one band that appears on hover rather than each taking a full line.
+- **`Ctrl+K` now finds a feature by what it does**, not only by what it is called. Typing "make text bigger" or "hide my ip for one site" used to find nothing at all, even though both exist.
+- The tab keep-awake card now says that a tab on a call, using the microphone or camera, or playing a sound is never slept anyway — so nobody picks "Never" defensively and holds a gigabyte for no reason.
+
+### Fixes
+- **The feature search never looked at the one field written for it.** Every catalogue entry carries `phrases` — the words someone would use who does not know what a feature is called — and the search read the name, description, category and shortcut, and not those. 226 entries' worth of plain-English search terms had never once been searched.
+- **"How do I…?" answered orders.** Asked to *make* a timer, the guide matched the sentence as a question about Vex and showed a card explaining a feature. An instruction Vex can carry out now beats an explanation of how to carry it out.
+- A command that failed in `Ctrl+K` produced an unhandled rejection in the console and silence on screen; it now says what went wrong.
+- The AI's own prompts now forbid describing Vex's buttons, menus and shortcuts, inventing one, giving steps for a phone or another program, explaining what an everyday thing is unasked, or finishing with an offer to explain something else.
+- "Dig deeper" no longer appears under a reply that is a thing having happened.
+
 ## v2.32.77 (2026-09-21) — A panel that sleeps between your calls, rules per site, and one screen that says why it is slow
 
 ### Changes

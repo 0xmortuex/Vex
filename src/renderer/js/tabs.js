@@ -356,6 +356,11 @@ const TabManager = {
 
     this.tabs.push(tab);
     WebviewManager.createWebview(tab);
+    // A site rule can also say how the tab behaves once it is open — muted,
+    // or never allowed to sleep (js/site-routes.js).
+    if (typeof SiteRoutes !== 'undefined') {
+      try { SiteRoutes.applyTo(tab); } catch (err) { console.warn('[Vex] site rule skipped:', err.message); }
+    }
     this.renderTab(tab);
 
     if (activate) {
@@ -711,6 +716,7 @@ const TabManager = {
       el.classList.add('private-tab');
       if (String(tab.partition).startsWith('tor-')) el.classList.add('tor-tab');
     }
+    this._markSession(el, tab);
 
     el.innerHTML = `
       ${tab.loading
@@ -826,10 +832,42 @@ const TabManager = {
     return `<span class="tab-note" title="${this._escapeHtml(tab.note)}" aria-label="Note: ${this._escapeHtml(tab.note)}">${VexIcons.svg('note', { size: 11 })}</span>`;
   },
 
+  // === Which session a tab is in ===========================================
+  //
+  // A container tab and an ordinary tab looked identical. That is how a
+  // password goes into the wrong one, and how "why am I signed out" becomes a
+  // mystery: the isolation is the whole feature and it was invisible. Every
+  // tab not in the ordinary session now wears a marker and says which session
+  // it is in when you hover it.
+  //
+  // The words and the class both come from SiteRoutes, so they cannot drift
+  // apart into a tab that is striped one colour and described as another.
+  SESSION_MARKERS: ['routed-tor', 'routed-proxy', 'container-tab'],
+
+  _markSession(el, tab) {
+    if (!el) return '';
+    let mark = '', words = '';
+    try {
+      if (typeof SiteRoutes !== 'undefined') { mark = SiteRoutes.markerFor(tab); words = SiteRoutes.describe(tab); }
+    } catch { /* an unmarked tab is better than a broken strip */ }
+    for (const cls of this.SESSION_MARKERS) el.classList.toggle(cls, cls === mark);
+    // Hovering says it in full. The page's own title stays first, because
+    // that is what you are hovering to read; the session follows it.
+    if (words) {
+      el.dataset.session = words;
+      el.title = (tab.title ? tab.title + ' — ' : '') + words;
+    } else {
+      delete el.dataset.session;
+      if (el.title && el.title.includes(' — This tab ')) el.title = tab.title || '';
+    }
+    return mark;
+  },
+
   renderTabUpdate(tab) {
     this._notifyTabsChanged();
     const el = document.querySelector(`.tab-item[data-tab-id="${tab.id}"]`);
     if (!el) return;
+    this._markSession(el, tab);
 
     // Sleep / keep-awake state also arrives through this path (webview.js fires
     // renderTabUpdate on media + load events, sleepTab/wakeTab toggle the class
@@ -1974,6 +2012,7 @@ const TabManager = {
     ov.innerHTML = `<div class="ka-card">
         <div class="ka-title"><svg class="ka-title-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5.5h8v4.2A3.3 3.3 0 0 1 7.7 13H6.3A3.3 3.3 0 0 1 3 9.7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M11 6.8h1.3a1.9 1.9 0 0 1 0 3.8H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Prevent "${this._escapeHtml((tab.title || 'tab').slice(0, 38))}" from sleeping</div>
         <div class="ka-sub">Keep this tab awake for:</div>
+        <div class="ka-sub ka-note" style="margin-bottom:10px">A tab on a call, using the microphone or camera, or playing a sound it is not muted for, is never slept anyway — so you do not need this to stay on a call. Use it for a page you want to find exactly as you left it.</div>
         <div class="ka-grid">
           <button class="ka-btn" data-ms="${1 * HOUR}">1 hour</button>
           <button class="ka-btn" data-ms="${5 * HOUR}">5 hours</button>

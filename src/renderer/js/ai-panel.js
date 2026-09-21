@@ -272,7 +272,7 @@ const AIPanel = {
     const tabId = this._getTabId();
     this._viewingId = null;
     const conv = this._getConv(tabId);
-    conv.push({ role: 'user', content: msg });
+    conv.push({ role: 'user', content: msg, at: Date.now() });
     this._persistConversations();
     this._agentTabId = tabId;
 
@@ -298,7 +298,7 @@ const AIPanel = {
       document.getElementById('ai-stop-agent')?.classList.remove('visible');
       // Keep the outcome with the chat; the steps stay with the saved run.
       const run = (typeof AgentLoop !== 'undefined' && AgentLoop.lastRun && AgentLoop.lastRun.goal === msg) ? AgentLoop.lastRun : null;
-      conv.push({ role: 'assistant', content: (run && run.final) || '*The agent stopped without an answer.*', ...(run ? { agentRun: run.id } : {}) });
+      conv.push({ role: 'assistant', content: (run && run.final) || '*The agent stopped without an answer.*', at: Date.now(), ...(run ? { agentRun: run.id } : {}) });
       this._agentTabId = null;
       this._persistConversations();
     };
@@ -747,13 +747,23 @@ const AIPanel = {
       return t ? (t.title || t.url || 'Untitled') : 'Closed tab';
     };
     const meta = this._chatMeta();
-    // Newest first, pinned chats above the rest.
+    // Newest first, pinned above the rest, and each one carrying when it was
+    // last spoken to so the list can be dated and grouped rather than being a
+    // wall of "12 messages".
     const rows = Object.entries(this._conversations || {})
       .filter(([, msgs]) => Array.isArray(msgs) && msgs.length)
-      .map(([tabId, msgs]) => ({ tabId, msgs, first: msgs.find(m => m.role === 'user'), meta: meta[tabId] || {}, hit: this.matchInChat(msgs, query) }))
+      .map(([tabId, msgs], i) => ({
+        tabId, msgs, i,
+        first: msgs.find(m => m.role === 'user'),
+        meta: meta[tabId] || {},
+        at: this._chatTime(msgs),
+        hit: this.matchInChat(msgs, query),
+      }))
       .filter(r => !query || r.hit)
-      .reverse()
-      .sort((a, b) => (b.meta.pinned ? 1 : 0) - (a.meta.pinned ? 1 : 0));
+      // Pinned, then newest. A conversation from before messages carried a
+      // time has none, and falls back to the order it was stored in — which
+      // is the order it was made in, and the best guess available.
+      .sort((a, b) => (b.meta.pinned ? 1 : 0) - (a.meta.pinned ? 1 : 0) || b.at - a.at || b.i - a.i);
 
     const runs = query ? [] : ((typeof AgentLoop !== 'undefined' && typeof AgentLoop.runs === 'function') ? AgentLoop.runs() : []);
     if (!rows.length && !runs.length) {
@@ -821,18 +831,39 @@ const AIPanel = {
       }
       if (rows.length) { const head2 = document.createElement('div'); head2.className = 'ai-history-sub'; head2.textContent = 'Chats'; list.appendChild(head2); }
     }
+    // Under a heading for the day it belongs to. A list of thirty chats with
+    // no dates is a list you scroll rather than read — and pinned ones get
+    // their own heading rather than a "Pinned ·" prefix inside the title,
+    // which is where it used to live and where it fought with the name.
+    let band = null;
     for (const r of rows) {
+      const want = r.meta.pinned ? 'Pinned' : this._whenBand(r.at);
+      if (want !== band) {
+        band = want;
+        const h = document.createElement('div');
+        h.className = 'ai-history-sub';
+        h.textContent = band;
+        list.appendChild(h);
+      }
       const b = document.createElement('button');
       b.className = 'ai-history-item' + (String(r.tabId) === current ? ' current' : '');
       b.innerHTML = `<span class="t"></span><span class="m"></span>`;
-      b.querySelector('.t').textContent = (r.meta.pinned ? 'Pinned · ' : '') + (r.meta.title || (r.first && r.first.content.slice(0, 70)) || titleOf(r.tabId));
-      b.querySelector('.m').textContent = r.hit ? (r.hit.role === 'user' ? 'You: ' : 'Vex: ') + r.hit.text : `${r.msgs.length} message${r.msgs.length === 1 ? '' : 's'} · ${titleOf(r.tabId)}`;
-      // Pin, rename, or keep the whole conversation as a note.
+      b.querySelector('.t').textContent = r.meta.title || (r.first && r.first.content.slice(0, 70)) || titleOf(r.tabId);
+      const when = this._whenExactly(r.at);
+      b.querySelector('.m').textContent = r.hit
+        ? (r.hit.role === 'user' ? 'You: ' : 'Vex: ') + r.hit.text
+        : [when, r.msgs.length + ' message' + (r.msgs.length === 1 ? '' : 's'), titleOf(r.tabId)].filter(Boolean).join(' · ');
+      // Pin, rename, or keep the whole conversation as a note. In a row of
+      // their own: appended straight onto the item they each took a full
+      // line, because the item is a column — which is what made the list
+      // look like a pile rather than a list.
+      const tools = document.createElement('div');
+      tools.className = 'ai-history-tools';
       const tool = (label, title, fn) => {
         const x = document.createElement('button');
         x.className = 'ai-history-undo'; x.type = 'button'; x.textContent = label; x.title = title;
         x.addEventListener('click', async (ev) => { ev.stopPropagation(); await fn(); });
-        b.appendChild(x);
+        tools.appendChild(x);
       };
       tool(r.meta.pinned ? 'Unpin' : 'Pin', r.meta.pinned ? 'Stop keeping this chat at the top' : 'Keep this chat at the top', () => { this._setChatMeta(r.tabId, { pinned: !r.meta.pinned }); this._renderHistory(); });
       tool('Rename', 'Give this chat a name', async () => {
@@ -855,6 +886,7 @@ const AIPanel = {
         this._syncStarters();
         this._syncViewingBanner();
       });
+      if (tools.childElementCount) b.appendChild(tools);
       list.appendChild(b);
     }
   },
@@ -904,6 +936,44 @@ const AIPanel = {
     document.getElementById('ai-attach')?.remove();
   },
 
+  // === When a conversation happened ========================================
+  //
+  // Messages carry `at` now. Conversations from before that do not, and must
+  // not all pile into "Today" — an unknown time is unknown, and the list
+  // says so rather than guessing.
+  _chatTime(msgs) {
+    if (!Array.isArray(msgs)) return 0;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const at = Number(msgs[i] && msgs[i].at);
+      if (Number.isFinite(at) && at > 0) return at;
+    }
+    return 0;
+  },
+
+  // The heading a conversation belongs under.
+  _whenBand(at) {
+    if (!at) return 'Older';
+    const now = new Date();
+    const then = new Date(at);
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (at >= midnight) return 'Today';
+    if (at >= midnight - 86400000) return 'Yesterday';
+    if (at >= midnight - 6 * 86400000) return 'Earlier this week';
+    if (then.getFullYear() === now.getFullYear() && then.getMonth() === now.getMonth()) return 'Earlier this month';
+    return then.toLocaleDateString([], { month: 'long', year: 'numeric' });
+  },
+
+  // The time on the row: a clock time for today, a date for anything older,
+  // because "14:32" three weeks later tells you nothing.
+  _whenExactly(at) {
+    if (!at) return '';
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (at >= midnight) return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (at >= midnight - 6 * 86400000) return new Date(at).toLocaleDateString([], { weekday: 'short' }) + ' ' + new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(at).toLocaleDateString([], { day: 'numeric', month: 'short' });
+  },
+
   // Names and pins for chats in the history list, by conversation id.
   // How many messages of a chat are sent with a question (the rest is out of
   // the model's reach — AIPanel._renderMessages draws the line).
@@ -928,8 +998,11 @@ const AIPanel = {
     return [...seen];
   },
 
-  // "Dig deeper" and "Open sources" under the latest answer.
+  // "Dig deeper" and "Open sources" under the latest answer. Not under a
+  // reply that is a thing having happened — there is nothing to go deeper
+  // into, and the offer reads as though Vex did not understand.
   _nextChips(m) {
+    if (m && m.didIt) return null;
     const box = document.createElement('div');
     box.className = 'follow-ups ai-next-chips';
     const chip = (label, fn) => {
@@ -1205,7 +1278,7 @@ const AIPanel = {
       // Add user message for chat. `_noEcho` is set when retrying a failed send:
       // the bubble is already in the transcript and must not be duplicated.
       if (action === 'chat' && opts.message && !opts._noEcho) {
-        conv.push({ role: 'user', content: opts.message });
+        conv.push({ role: 'user', content: opts.message, at: Date.now() });
         this._persistConversations();
         this._renderMessages();
       }
@@ -1290,7 +1363,7 @@ const AIPanel = {
 
       // Store assistant reply for chat history
       if (action === 'chat') {
-        conv.push({ role: 'assistant', content: parsed.reply, action, thinking: parsed.thinking || undefined });
+        conv.push({ role: 'assistant', content: parsed.reply, action, at: Date.now(), thinking: parsed.thinking || undefined });
         this._persistConversations();
       }
 
@@ -1467,6 +1540,34 @@ const AIPanel = {
       return;
     }
     if (!typed) return;
+    // An order Vex can carry out itself is carried out, not discussed.
+    //
+    // Asked "make an timer for 10 minutes", Vex replied with three paragraphs
+    // about how a countdown works and how the user could set one up —
+    // including steps for a button that does not exist — and offered to
+    // explain alarms next. It had the clock, the duration parser and the
+    // Windows wake-up all along; nothing connected them to the assistant.
+    //
+    // This does. It runs BEFORE any model is consulted, so the answer is
+    // instant, works with no model loaded at all, and cannot invent a user
+    // interface, because nothing here is capable of inventing anything.
+    //
+    // It also runs before the "how do I …?" guide below, which was the other
+    // half of the same bug: asked to MAKE a timer, VexGuide.isAbout said yes
+    // — it reads the sentence as being about Vex, which it is — and answered
+    // an order with a card explaining a feature. An instruction Vex can carry
+    // out beats an explanation of how to carry it out, every time.
+    if (typeof VexQuickCommands !== 'undefined') {
+      let doable = null;
+      try { doable = VexQuickCommands.intent(typed); }
+      catch (err) { console.warn('[AI] quick intent failed:', err.message); }
+      if (doable) {
+        input.value = '';
+        if (!this.isOpen()) this.open();
+        await this._doItDirectly(typed, doable);
+        return;
+      }
+    }
     // "How do I …?" about Vex itself is answered from Vex's own feature list,
     // with the thing one press away — and without loading a model.
     if (typeof VexGuide !== 'undefined' && VexGuide.isAbout(typed)) {
@@ -1529,7 +1630,7 @@ const AIPanel = {
 
     const conv = this._getConv();
     if (!opts._noEcho) {
-      conv.push({ role: 'user', content: message });
+      conv.push({ role: 'user', content: message, at: Date.now() });
       this._persistConversations();
       this._renderMessages();
     }
@@ -1553,7 +1654,7 @@ const AIPanel = {
         throw new Error('The AI backend returned an empty response. Try again, or pick a different backend in Settings → AI.');
       }
       const parsed = this._parseResponse(aiResult.result);
-      conv.push({ role: 'assistant', content: parsed.reply || String(aiResult.result) });
+      conv.push({ role: 'assistant', content: parsed.reply || String(aiResult.result), at: Date.now() });
       this._persistConversations();
       this._renderMultiTabResponse(parsed, tabs, { backend: aiResult.backend, model: aiResult.model });
       return true;
@@ -1668,6 +1769,45 @@ const AIPanel = {
   // The guide's answer as a card: what it is, the steps, and buttons that do
   // it rather than describe it. "Ask the AI anyway" is always there, because
   // the match is words, not understanding, and it can be wrong.
+  // Do the thing, say so in one line, and stop. The conversation keeps both
+  // halves so the answer survives closing the panel, like any other reply.
+  //
+  // The escape hatch matters: the parse is confident, not infallible, and
+  // someone who meant a question rather than an order needs one press to get
+  // the model instead of retyping.
+  async _doItDirectly(question, doable) {
+    const conv = this._getConv();
+    conv.push({ role: 'user', content: question, at: Date.now() });
+    let line;
+    try {
+      await doable.action();
+      // The command bar's label is a label — "Timer: 10:00" — which reads
+      // oddly as an answer. Its hint says what will happen and when, so the
+      // two together make a sentence: "Timer: 10:00 — Ends at 23:39".
+      line = [doable.label, doable.hint].filter(Boolean).join(' — ') || 'Done.';
+    } catch (err) {
+      line = 'I could not: ' + ((err && err.message) || 'that did not work');
+    }
+    conv.push({ role: 'assistant', content: line, at: Date.now(), didIt: true });
+    this._persistConversations();
+    this._renderMessages();
+    const container = document.getElementById('ai-messages');
+    const last = container && container.querySelector('.ai-msg.assistant:last-of-type');
+    if (last) {
+      const bar = document.createElement('div');
+      bar.className = 'agent-final-actions';
+      const b = document.createElement('button');
+      b.className = 'agent-final-btn';
+      b.textContent = 'Ask the AI instead';
+      b.title = 'Send this to the model as a question';
+      b.addEventListener('click', () => this.sendMessage('chat', { message: question }));
+      bar.appendChild(b);
+      last.appendChild(bar);
+      container.scrollTop = container.scrollHeight;
+    }
+    return line;
+  },
+
   _renderGuide(question, a) {
     const container = document.getElementById('ai-messages');
     if (!container) return null;
@@ -2205,7 +2345,7 @@ const AIPanel = {
 
     if (!opts._noEcho) {
       const conv = this._getConv();
-      conv.push({ role: 'user', content: query });
+      conv.push({ role: 'user', content: query, at: Date.now() });
       this._persistConversations();
       this._renderMessages();
     }

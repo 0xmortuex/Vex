@@ -334,6 +334,12 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { url });
       this._updateFavicon(tab.id, url);
       if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
+      // A site rule's "always muted" and "never let it sleep" apply to where
+      // the tab has ARRIVED, which a link followed inside an existing tab
+      // makes different from where it was made (js/site-routes.js).
+      if (typeof SiteRoutes !== 'undefined') {
+        try { SiteRoutes.applyTo(tab); } catch (err) { console.warn('[Vex] site rule skipped:', err.message); }
+      }
 
       // Add to history (both legacy storage and new HistoryPanel) — but never
       // for Off-the-Record tabs (in-memory partition, no trace).

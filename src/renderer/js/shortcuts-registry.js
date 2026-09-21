@@ -7,6 +7,10 @@ const ShortcutsRegistry = (() => {
   const DEFAULT_SHORTCUTS = {
     // AI
     'command-bar':    { default: 'Ctrl+K',       label: 'Command Bar (URLs, commands, search)', category: 'Navigation' },
+    // Sixty shortcuts listed on a settings page nobody decides to read is
+    // sixty shortcuts nobody uses. One key puts them over whatever you are
+    // doing, the relevant ones first (js/keys-sheet.js).
+    'keys-sheet':     { default: 'Ctrl+Shift+K', label: 'What you can press (shortcut sheet)', category: 'Navigation' },
     'ask-ai-bar':     { default: 'Ctrl+J',       label: 'Ask Vex AI (quick prompt)',  category: 'AI' },
     'ai-panel':       { default: 'Ctrl+Shift+A', label: 'Toggle AI Panel',            category: 'AI' },
     'ai-focus-mode':  { default: 'Ctrl+Shift+F', label: 'Vex AI full screen',         category: 'AI' },

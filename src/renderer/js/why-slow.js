@@ -173,6 +173,116 @@ const WhySlow = {
     };
   },
 
+  // === Saying it without being asked =======================================
+  //
+  // A diagnosis screen only helps the people who think to open it — and if
+  // you knew to look, you half knew the answer already. So Vex watches, and
+  // when one thing has clearly been the problem for a while, it says so once,
+  // with the same button that fixes it.
+  //
+  // The rules that stop this becoming a nag, which is the only way a thing
+  // like this survives contact with a real day:
+  //
+  //  - Sustained, not momentary. A tab must hold a core across two checks a
+  //    minute apart. Opening a heavy page is not a fault.
+  //  - Never about what you are looking at. The tab in front is allowed to
+  //    work hard; that is what you asked it to do.
+  //  - Once per cause per hour, and "not now" silences everything for four.
+  //  - Only the processor and only a really heavy panel. A route being on, a
+  //    game running, three panels kept awake — those are all things you
+  //    chose, and a browser that comments on your choices is a browser people
+  //    switch off.
+  WATCH_MS: 60000,
+  QUIET_MS: 4 * 3600000,
+  SAID_AGAIN_MS: 3600000,
+  WATCH_MB: 1800,
+
+  _said: {},
+  _quietUntil: 0,
+  _strikes: {},
+
+  // Which single finding, if any, is worth interrupting for. Pure, so the
+  // judgement can be tested without waiting a minute for it.
+  worthSaying(found, now = Date.now()) {
+    if (now < this._quietUntil) return null;
+    for (const f of found) {
+      if (!/^cpu:|^mem:/.test(f.id)) continue;
+      if (f.id.startsWith('mem:') && !/([\d.]+) GB/.test(f.title)) continue;
+      if ((this._said[f.id] || 0) > now - this.SAID_AGAIN_MS) continue;
+      // Two checks in a row before it counts: a page that is busy for five
+      // seconds while it loads is not a problem, it is a page loading.
+      if (f.id.startsWith('cpu:') && (this._strikes[f.id] || 0) < 2) continue;
+      return f;
+    }
+    return null;
+  },
+
+  // One pass of the watch. Returns what it said, or null.
+  async check() {
+    let d;
+    try { d = await this.gather(); }
+    catch { return null; }                       // a check that cannot run says nothing
+    if (d.error) return null;
+    const found = this.reasons(d).filter(f => !this._isActive(f));
+    // Strikes are counted before the decision, so the second sighting of the
+    // same busy process is the one that speaks.
+    const seen = new Set(found.filter(f => f.id.startsWith('cpu:')).map(f => f.id));
+    for (const id of Object.keys(this._strikes)) if (!seen.has(id)) delete this._strikes[id];
+    for (const id of seen) this._strikes[id] = (this._strikes[id] || 0) + 1;
+    const say = this.worthSaying(found);
+    if (!say) return null;
+    this._said[say.id] = Date.now();
+    this._notice(say);
+    return say;
+  },
+
+  // The tab in front is allowed to work hard.
+  _isActive(f) {
+    try { return !!(f.tab && typeof TabManager !== 'undefined' && f.tab === TabManager.activeTabId); }
+    catch { return false; }
+  },
+
+  _notice(f) {
+    document.getElementById('vex-slow-notice')?.remove();
+    const esc = (v) => (window.escapeHtml ? window.escapeHtml(String(v)) : String(v));
+    const bar = document.createElement('div');
+    bar.id = 'vex-slow-notice';
+    bar.className = 'vexslow-notice';
+    bar.innerHTML = '<span>' + esc(f.title) + '</span>';
+    const act = (label, title, run) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', run);
+      bar.appendChild(b);
+      return b;
+    };
+    const fix = this._action(f, () => bar.remove());
+    if (fix) bar.appendChild(fix);
+    act('Why', 'The whole picture', () => { bar.remove(); this.open(); });
+    act('Not now', 'Nothing more for four hours', () => {
+      bar.remove();
+      this._quietUntil = Date.now() + this.QUIET_MS;
+      window.showToast?.('Vex will not mention this again for four hours');
+    });
+    document.body.appendChild(bar);
+    // It goes by itself: a bar that waits for you to dismiss it is in the way
+    // of the thing you were doing when it appeared.
+    setTimeout(() => bar.remove(), 20000);
+    return bar;
+  },
+
+  start() {
+    if (this._timer) clearInterval(this._timer);
+    if (localStorage.getItem('vex.slowWatch') === '0') return false;
+    this._timer = setInterval(() => {
+      this.check().catch(err => console.warn('[WhySlow] the watch failed:', err.message));
+    }, this.WATCH_MS);
+    return true;
+  },
+
+  stop() { if (this._timer) { clearInterval(this._timer); this._timer = null; } },
+
   // ---- the screen ---------------------------------------------------------
   async open() {
     document.getElementById('vex-whyslow')?.remove();

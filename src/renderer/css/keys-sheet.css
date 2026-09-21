@@ -1,0 +1,81 @@
+/* === What you can press ====================================================
+ * Over whatever you are doing, not a page you have to go to. The categories
+ * that matter where you are sit first and are marked; the rest follow, so it
+ * is a reminder when you need one and a reference when you want one.
+ */
+.vexkeys-ov {
+  position: fixed; inset: 0; z-index: 100070;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(3px);
+}
+.vexkeys {
+  width: 680px; max-width: 94vw; max-height: 84vh;
+  display: flex; flex-direction: column;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.vexkeys-head { display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
+.vexkeys-head h2 { margin: 0 0 3px; font-size: 16px; font-weight: 700; }
+.vexkeys-head p { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
+.vexkeys-x { margin-left: auto; background: none; border: none; color: var(--text-muted); font-size: 22px; line-height: 1; cursor: pointer; }
+.vexkeys-x:hover { color: var(--text); }
+
+.vexkeys-body { overflow-y: auto; padding: 12px 14px; column-gap: 22px; }
+@media (min-width: 620px) { .vexkeys-body { columns: 2; } }
+.vexkeys-group { break-inside: avoid; margin-bottom: 14px; }
+.vexkeys-cat {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 5px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.vexkeys-cat span {
+  font-size: 9.5px; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 99px;
+  background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary);
+}
+.vexkeys-group.here .vexkeys-cat { color: var(--text); }
+.vexkeys-row { display: flex; align-items: baseline; gap: 10px; padding: 3px 0; }
+.vexkeys-label { flex: 1; font-size: 12.5px; min-width: 0; }
+.vexkeys-label i { font-style: normal; font-size: 10px; color: var(--text-muted); margin-left: 5px; }
+.vexkeys-combo { display: inline-flex; gap: 3px; flex: none; }
+.vexkeys-combo kbd {
+  font-family: var(--vex-font-mono, monospace); font-size: 10.5px; line-height: 1;
+  padding: 3px 5px; border-radius: 5px;
+  background: var(--bg); border: 1px solid var(--border); border-bottom-width: 2px;
+  color: var(--text);
+}
+.vexkeys-empty { padding: 20px; font-size: 12.5px; color: var(--text-muted); }
+.vexkeys-foot {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 18px; border-top: 1px solid var(--border);
+  font-size: 11.5px; color: var(--text-muted);
+}
+.vexkeys-foot span { flex: 1; }
+.vexkeys-edit {
+  padding: 6px 12px; font-size: 12px; font-family: inherit; cursor: pointer;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+}
+.vexkeys-edit:hover { border-color: var(--primary); color: var(--primary); }
+
+/* === "This is what is slowing Vex down" =====================================
+ * Said once, when one thing has clearly been the problem for a minute, with
+ * the button that fixes it. Bottom-right, out of the way of the page, and it
+ * leaves by itself: a bar that waits to be dismissed is in the way of the
+ * thing you were doing when it appeared.
+ */
+.vexslow-notice {
+  position: fixed; right: 16px; bottom: 16px; z-index: 100055;
+  display: flex; align-items: center; gap: 8px; max-width: min(520px, 90vw);
+  padding: 10px 12px; border-radius: 11px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
+  font-size: 12.5px;
+  animation: vexslow-in 180ms ease-out;
+}
+@keyframes vexslow-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.vexslow-notice > span { flex: 1; min-width: 0; line-height: 1.45; }
+.vexslow-notice button {
+  flex: none; padding: 4px 10px; font-size: 11.5px; font-family: inherit; cursor: pointer;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 7px;
+}
+.vexslow-notice button:hover { border-color: var(--primary); color: var(--primary); }

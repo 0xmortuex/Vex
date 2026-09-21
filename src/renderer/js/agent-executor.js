@@ -332,6 +332,18 @@ const AgentExecutor = {
           return { ok: true, result: r.message, undo: r.changed && r.id ? { kind: 'setting', id: r.id, from: r.from, label: 'the change to "' + r.label + '"' } : undefined };
         }
 
+        case 'start_stopwatch': {
+          if (typeof VexClock === 'undefined' || typeof VexClock.swToggle !== 'function') {
+            return { ok: false, error: 'The stopwatch is not available in this window' };
+          }
+          try {
+            VexClock._loadSw();
+            if (VexClock._sw.running) return { ok: true, result: 'The stopwatch was already running' };
+            VexClock.swToggle();
+          } catch (err) { return { ok: false, error: err.message }; }
+          return { ok: true, result: 'Stopwatch running' };
+        }
+
         case 'create_reminder': {
           const made = await AgentTools.createReminder(params.message, params.when);
           return { ok: true, result: 'Reminder set: "' + made.message + '" — ' + made.when, ...(made.id ? { undo: { kind: 'reminder', id: made.id, label: 'the reminder "' + made.message + '"' } } : {}) };
