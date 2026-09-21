@@ -1195,7 +1195,12 @@ const WebviewManager = {
         // This is a provisional icon; the real one from the page's <link rel=icon>
         // arrives via the 'page-favicon-updated' event and overwrites it. The tab
         // UI's <img> onerror handles sites with no /favicon.ico.
-        TabManager.updateTab(tabId, { favicon: `${u.origin}/favicon.ico` });
+        const guess = `${u.origin}/favicon.ico`;
+        // One that has already failed this session is not worth asking for
+        // again (js/tabs.js). The real icon still arrives from the page's own
+        // <link rel=icon> through page-favicon-updated.
+        if (TabManager.isDeadFavicon && TabManager.isDeadFavicon(guess)) return;
+        TabManager.updateTab(tabId, { favicon: guess });
       }
     } catch {}
   }

@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.79 (2026-09-22) — A quieter console, and one crash fixed
+
+### Fixes
+- **A favicon that will not load is now asked for once, not on every redraw.** A tab's icon points at the site's own `/favicon.ico` on purpose — asking Google's icon service would hand it every domain you visit. Some sites refuse to serve theirs to us: Gmail sends `Cross-Origin-Resource-Policy: same-site`, the Chrome Web Store answers 403, Discord answers 404. The tab kept the dead address, so **every single redraw asked again**, and the console filled with hundreds of identical failures. Vex now remembers an address that failed, takes it off every tab wearing it, and never sets it again that session. The real icon still arrives from the page's own `<link rel=icon>` as before.
+- **A crash when a page was read after its tab had gone.** Price history waits a couple of seconds after a page loads before reading it — long enough for the tab to have been closed, slept or navigated away. A detached `<webview>` throws rather than answering, and the error surfaced as "Vex interface: The WebView must be attached to the DOM". Asking where a guest page is now has one safe answer for the whole app: a page that has gone is simply not there.
+- The first line of every console session was Vex announcing it had flushed **zero** buffered URLs. It now says so only when there was something to flush.
+- Vex's own windows declare an icon, so they show one instead of nothing.
+
+### Known, not fixed
+- One `file:///favicon.ico` line per window still appears. It is Chromium's own automatic favicon probe for the shell document, not a request Vex makes: declaring an icon on the page does not stop it, and Chromium refuses to redirect a `file://` request anywhere (`ERR_UNSAFE_REDIRECT`), so the obvious interception is not available. It reads one local path that has never existed, touches no network, and has no effect on anything — but it is still a line in the console, and it is honest to say it is still there.
+
 ## v2.32.78 (2026-09-21) — An assistant that does it, a tab that says which session it is in, and one file with everything
 
 ### Changes

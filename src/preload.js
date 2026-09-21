@@ -390,7 +390,10 @@ contextBridge.exposeInMainWorld('vex', {
   // URLs that arrived (and were buffered) before this point — see the early
   // ipcRenderer.on('open-url') subscription at the top of this file.
   onOpenUrl: (cb) => {
-    console.log('[Vex URL] preload: renderer registered onOpenUrl listener; flushing', _openUrlBuffer.length, 'buffered URL(s)');
+    // Only worth saying when there was something to flush. Said every
+    // start regardless, it was the first line of every console session
+    // and told nobody anything: zero buffered URLs is the normal case.
+    if (_openUrlBuffer.length) console.log('[Vex URL] preload: flushing', _openUrlBuffer.length, 'buffered URL(s) to the renderer');
     _openUrlCb = cb;
     while (_openUrlBuffer.length) {
       const url = _openUrlBuffer.shift();

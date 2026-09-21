@@ -86,6 +86,21 @@
     });
   }
 
+  // Where a guest page is, or '' if it is no longer anywhere.
+  //
+  // A <webview> throws from getURL() the moment it is detached — "The WebView
+  // must be attached to the DOM and the dom-ready event emitted" — and every
+  // piece of background work that wakes up on a timer is asking about a page
+  // that may have been closed, slept or reloaded while it waited. Asked
+  // through this, a page that has gone is simply not there, which is what the
+  // caller meant.
+  function vexGuestUrl(webview) {
+    try {
+      if (!webview || typeof webview.getURL !== 'function') return '';
+      return webview.getURL() || '';
+    } catch { return ''; }
+  }
+
   // Copying a password or a one-time code leaves it in the clipboard, where
   // the next thing you paste into gets it — a chat box, an address bar, a page
   // with a paste listener. It is emptied after a while, but only if it is still
@@ -108,9 +123,10 @@
     window.VexUI = VexUI;
     window.vexId = vexId;
     window.vexGuestEval = vexGuestEval;
+    window.vexGuestUrl = vexGuestUrl;
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { escapeHtml, VexUI, vexId, vexGuestEval, vexCopySecret };
+    module.exports = { escapeHtml, VexUI, vexId, vexGuestEval, vexGuestUrl, vexCopySecret };
   }
 })();

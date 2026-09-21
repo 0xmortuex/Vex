@@ -130,6 +130,26 @@ const TabManager = {
   // or the Phase 16 AI auto-grouper (Ctrl+Shift+G).
   _legacySeedIds: new Set(['cusa', 'school', 'dev', 'chat']),
 
+  // Favicon addresses that answered with an error. A site that will not serve
+  // its icon to us will not start doing so this session, and asking again on
+  // every redraw costs a request and a console line each time. Kept for the
+  // session only: a site fixing its headers should not need Vex reinstalled.
+  _deadFavicons: new Set(),
+
+  isDeadFavicon(url) { return !!url && this._deadFavicons.has(url); },
+
+  markDeadFavicon(url) {
+    if (!url || url.startsWith('data:')) return false;
+    this._deadFavicons.add(url);
+    // Take it off every tab wearing it, or the next render asks again.
+    let cleared = 0;
+    for (const t of this.tabs) {
+      if (t.favicon === url) { t.favicon = null; cleared++; }
+    }
+    if (cleared) { try { this.persistTabs(); } catch { /* the tabs are still right on screen */ } }
+    return true;
+  },
+
   async init() {
     // Favicon fallback: tab favicons now point at the site's first-party
     // /favicon.ico (no Google leak). When a site has none, the <img> errors —
@@ -142,6 +162,13 @@ const TabManager = {
         const img = e.target;
         if (!img || img.nodeName !== 'IMG' || !img.classList.contains('tab-favicon')) return;
         img.onerror = null;
+        // Swapping the picture for the placeholder fixed the look and not the
+        // cause: the dead address stayed on the tab, so every redraw asked for
+        // it again. Gmail sends Cross-Origin-Resource-Policy: same-site on its
+        // /favicon.ico, which fails forever — and filled the console with
+        // hundreds of identical ERR_BLOCKED_BY_RESPONSE lines, one per render.
+        // Remembered here, asked once.
+        this.markDeadFavicon(img.getAttribute('src'));
         img.outerHTML = '<div class="tab-favicon-placeholder"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/></svg></div>';
       }, true);
     }

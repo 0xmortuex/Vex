@@ -4,6 +4,7 @@
 // a day; never guessed, never from a private tab.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+require('../../src/renderer/js/vex-utils.js');   // vexGuestUrl: a detached webview has no URL
 require('../../src/renderer/js/vex-icons.js');
 require('../../src/renderer/js/page-export.js');
 const { PriceHistory } = require('../../src/renderer/js/price-history.js');

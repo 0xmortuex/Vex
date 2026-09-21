@@ -135,10 +135,13 @@ const PriceHistory = {
     on('did-finish-load', () => {
       if (!this.enabled()) return;
       if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
-      const url = webview.getURL();
+      const url = window.vexGuestUrl(webview);
       if (!/^https?:\/\//i.test(url)) return;
       setTimeout(() => {
-        if (webview.getURL() !== url) return;                // moved on already
+        // Two and a half seconds is long enough for the tab to have been
+        // closed, slept or navigated away, and a detached webview throws
+        // rather than answering. A page that has gone is not one to read.
+        if (window.vexGuestUrl(webview) !== url) return;
         window.vexGuestEval(webview, this.READ_SCRIPT)
           .then(found => { if (found) this.record({ url, ...found }); })
           // Background work on every page load: a failure is logged, not shown
