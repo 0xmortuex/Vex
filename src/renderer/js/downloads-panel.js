@@ -127,7 +127,11 @@ const DownloadsPanel = {
     this._replaceRow(dl);
     this._updateBadge();
 
-    if (dl.state === 'completed') {
+    // Asked for at the start: open it now, through the same check as any
+    // other Open. The toast is skipped — the file is already in front of you.
+    if (this.openWhenDone.has(dl.id)) {
+      this._openIfWanted(dl).catch(err => window.VexProblems?.note('Downloads', 'Could not open the finished file', err));
+    } else if (dl.state === 'completed') {
       window.DownloadToast?.show({
         filename: dl.filename,
         path: dl.path,
@@ -301,6 +305,52 @@ const DownloadsPanel = {
 
   // Everything knowable about a file, before it runs: who signed it, where it
   // came from, and its fingerprint. Ordinary files open as they always did.
+  // === Open it when it is done ==============================================
+  //
+  // A download you are waiting for is one you are going to open the moment it
+  // lands, and the toast that says so goes away after a few seconds — so if
+  // you looked away, it is a trip to the panel. Ask once, at the start, and
+  // Vex opens it for you.
+  //
+  // It is NOT a way round the safety check. An installer opened this way goes
+  // through exactly the same question as one opened by hand: who signed it,
+  // where it came from, and do you mean to run it. Waiting for a file is not
+  // consent to run an unsigned program.
+  //
+  // Per download and never remembered: it is an answer about this file, not a
+  // setting about every file.
+  openWhenDone: new Set(),
+
+  setOpenWhenDone(id, on) {
+    if (!id) return false;
+    if (on) this.openWhenDone.add(id); else this.openWhenDone.delete(id);
+    const dl = this.activeDownloads.get(id) || this.downloads.find(d => d.id === id);
+    if (dl) this._replaceRow(dl);
+    try { window.DownloadsButton?.refresh(); } catch { /* the panel is still right */ }
+    return on;
+  },
+
+  wantsOpen(id) { return this.openWhenDone.has(id); },
+
+  // Called when a download finishes. Separate from _onComplete so the rule is
+  // readable and testable: only a completed file, only one that was asked for,
+  // and only after the same check every other Open goes through.
+  async _openIfWanted(dl) {
+    if (!dl || !this.openWhenDone.has(dl.id)) return false;
+    this.openWhenDone.delete(dl.id);
+    if (dl.state !== 'completed' || !dl.path) {
+      window.showToast?.(dl.filename + ' did not finish, so it was not opened', 'info');
+      return false;
+    }
+    let ok = true;
+    try { ok = await this._okToOpen(dl.path, dl.url || ''); }
+    catch { ok = true; }                      // a check that fails never blocks
+    if (!ok) return false;
+    const result = await window.vex?.downloadsOpenFile?.(dl.path);
+    if (result && !result.ok) { window.showToast?.(result.error || 'Could not open that file', 'error'); return false; }
+    return true;
+  },
+
   async _okToOpen(filePath, from) {
     if (!window.vex || typeof window.vex.fileInspect !== 'function') return true;
     let info;
@@ -367,6 +417,10 @@ const DownloadsPanel = {
       if (!(await this._okToOpen(b.dataset.path, b.dataset.from))) return;
       const result = await window.vex.downloadsOpenFile?.(b.dataset.path);
       if (result && !result.ok) window.showToast?.(result.error || 'Could not open that file', 'error');
+    }));
+    rowEl.querySelectorAll('[data-action="open-when-done"]').forEach(b => b.addEventListener('click', () => {
+      const on = this.setOpenWhenDone(b.dataset.id, !this.wantsOpen(b.dataset.id));
+      window.showToast?.(on ? 'It will open the moment it finishes' : 'It will not open by itself');
     }));
     rowEl.querySelectorAll('[data-action="show-in-folder"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsShowInFolder?.(b.dataset.path)));
     rowEl.querySelectorAll('[data-action="pause"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'pause')));
@@ -464,6 +518,9 @@ const DownloadsPanel = {
         ? `<button class="dl-btn" data-action="resume" data-id="${id}" title="Resume" aria-label="Resume download">${this.ICONS.resume}</button>`
         : `<button class="dl-btn" data-action="pause" data-id="${id}" title="Pause" aria-label="Pause download">${this.ICONS.pause}</button>`;
       actions += `<button class="dl-btn" data-action="cancel" data-id="${id}" title="Cancel" aria-label="Cancel download">${this.ICONS.close}</button>`;
+      // Asked at the start, because that is when you know you are waiting for it.
+      const wants = this.openWhenDone.has(dl.id);
+      actions = `<button class="dl-btn${wants ? ' on' : ''}" data-action="open-when-done" data-id="${id}" aria-pressed="${wants}" title="${wants ? 'Vex will open this the moment it finishes \u2014 press again to stop' : 'Open this the moment it finishes'}">${wants ? 'Will open' : 'Open when done'}</button>` + actions;
     } else if (isComplete) {
       actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
             <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>`;

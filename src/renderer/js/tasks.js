@@ -54,6 +54,7 @@ const VexTasks = {
   },
 
   _fmt(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : Math.round(mb) + ' MB'; },
+  _ms(n) { return n >= 1000 ? (n / 1000).toFixed(1) + ' s' : Math.round(n) + ' ms'; },
 
   // ---- Holds ---------------------------------------------------------------
 
@@ -328,6 +329,21 @@ const VexTasks = {
       storeDetail: (store && store.usageDetails) ? Object.entries(store.usageDetails).map(([k, v]) => [k, Math.round(v / 1048576)]).filter(p => p[1] >= 1) : [],
       vencord: t(() => (window.Vencord && window.Vencord.Plugins && window.Vencord.Plugins.plugins)
         ? Object.values(window.Vencord.Plugins.plugins).filter(p => p && p.started).length : null, null),
+      // What each of those plugins actually costs, when PluginProfiler is one
+      // of them: it wraps every plugin's start, flux handler and context menu
+      // and times them, and publishes a plain snapshot on window for exactly
+      // this. A count is a fact with no consequence; "this one has spent four
+      // seconds of your afternoon" is something you can act on.
+      plugins: t(() => {
+        const bridge = window.VexPluginProfiler;
+        if (!bridge || typeof bridge.snapshot !== 'function') return null;
+        const rows = bridge.snapshot();
+        return {
+          seconds: typeof bridge.measuredFor === 'function' ? bridge.measuredFor() : 0,
+          rows: rows.slice(0, 5).map(r => ({ name: String(r.name).slice(0, 40), totalMs: Math.round(r.totalMs || 0), fluxCalls: r.fluxCalls || 0, worstEvent: String(r.worstEvent || '').slice(0, 40) })),
+          measured: rows.filter(r => (r.totalMs || 0) >= 1).length,
+        };
+      }, null),
     };
   })()`,
 
@@ -398,7 +414,24 @@ const VexTasks = {
           : 'Every animated emoji, avatar and sticker on screen is a video being decoded frame by frame, all day. Vex can fetch them as still pictures instead — the button below.',
       });
     }
-    if (d.vencord != null) rows.push({ what: 'Vencord plugins running', n: String(d.vencord), detail: 'Each one patches Discord as it runs. Ones you do not use are worth switching off.' });
+    if (d.vencord != null) {
+      // The count on its own was a fact with no consequence. With the
+      // profiler running it becomes a name and a number.
+      const pp = d.plugins;
+      let detail = 'Each one patches Discord as it runs. Ones you do not use are worth switching off. '
+        + 'Turn on the PluginProfiler plugin and this row says what each of them actually costs.';
+      if (pp && pp.rows && pp.rows.length) {
+        const mins = Math.max(1, Math.round((pp.seconds || 0) / 60));
+        const dearest = pp.rows.filter(r => r.totalMs >= 1);
+        detail = dearest.length
+          ? 'Measured over ' + mins + ' minute' + (mins === 1 ? '' : 's') + ': '
+            + dearest.map(r => r.name + ' ' + this._ms(r.totalMs) + (r.fluxCalls ? ' across ' + r.fluxCalls.toLocaleString() + ' events' : '')).join(', ')
+            + '. The rest have cost nothing measurable.'
+          : 'Measured over ' + mins + ' minute' + (mins === 1 ? '' : 's') + ': none of them has cost anything measurable yet. '
+            + 'A plugin that patches Discord once at startup costs nothing afterwards.';
+      }
+      rows.push({ what: 'Vencord plugins running', n: String(d.vencord), detail });
+    }
     return rows;
   },
 

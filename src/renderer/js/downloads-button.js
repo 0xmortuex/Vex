@@ -197,11 +197,16 @@ const DownloadsButton = {
     const row = document.createElement('div');
     row.className = 'downloads-drop-live' + (dl.paused ? ' paused' : '');
     const pct = dl.totalBytes > 0 ? Math.min(100, Math.round(dl.receivedBytes / dl.totalBytes * 100)) : null;
+    // This is where a download is actually watched, so this is where "open it
+    // the moment it is done" belongs — the panel is a trip you are trying to
+    // avoid. The safety check is unchanged: an installer still asks.
+    const wants = (typeof DownloadsPanel !== 'undefined') && DownloadsPanel.wantsOpen?.(dl.id);
     row.innerHTML = `
       <div class="ddl-top"><span class="ddl-name"></span><span class="ddl-pct"></span></div>
       <div class="ddl-bar${pct == null ? ' unknown' : ''}"><i style="width:${pct == null ? 100 : pct}%"></i></div>
       <div class="ddl-meta"><span class="ddl-detail"></span>
         <span class="ddl-acts">
+          <button type="button" data-open-when-done class="${wants ? 'on' : ''}" aria-pressed="${wants}">${wants ? 'Will open' : 'Open when done'}</button>
           <button type="button" data-do="${dl.paused ? 'resume' : 'pause'}">${dl.paused ? 'Resume' : 'Pause'}</button>
           <button type="button" data-do="cancel">Cancel</button>
         </span></div>`;
@@ -209,6 +214,12 @@ const DownloadsButton = {
     row.querySelector('.ddl-name').title = dl.filename || 'download';
     row.querySelector('.ddl-pct').textContent = pct == null ? '' : pct + '%';
     row.querySelector('.ddl-detail').textContent = this.detail(dl, (this._rate.get(dl.id) || {}).bps || 0);
+    row.querySelector('[data-open-when-done]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof DownloadsPanel === 'undefined') { window.showToast?.('Vex cannot reach that download', 'error'); return; }
+      const on = DownloadsPanel.setOpenWhenDone(dl.id, !DownloadsPanel.wantsOpen(dl.id));
+      window.showToast?.(on ? 'It will open the moment it finishes' : 'It will not open by itself');
+    });
     row.querySelectorAll('[data-do]').forEach(b => b.addEventListener('click', async (e) => {
       e.stopPropagation();
       const action = b.dataset.do;
@@ -236,6 +247,15 @@ const DownloadsButton = {
       if (pctEl) pctEl.textContent = pct == null ? '' : pct + '%';
       const detail = row.querySelector('.ddl-detail');
       if (detail) detail.textContent = this.detail(dl, (this._rate.get(dl.id) || {}).bps || 0);
+      // Patched rather than redrawn, like everything else on this row: the
+      // throttle exists so buttons do not move under the pointer.
+      const open = row.querySelector('[data-open-when-done]');
+      if (open) {
+        const wants = (typeof DownloadsPanel !== 'undefined') && DownloadsPanel.wantsOpen?.(dl.id);
+        open.textContent = wants ? 'Will open' : 'Open when done';
+        open.classList.toggle('on', !!wants);
+        open.setAttribute('aria-pressed', String(!!wants));
+      }
     }
   },
 

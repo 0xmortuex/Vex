@@ -1,0 +1,59 @@
+/* === How big Vex itself is, and how tightly it is packed ==================
+ *
+ * Page zoom (Ctrl+= ) makes a web page bigger. It does nothing for Vex's own
+ * tab strip, sidebar, menus and settings, which is exactly what someone who
+ * cannot read 12px type needs bigger. This is that, and its opposite: a
+ * larger screen fits more when everything is packed tighter.
+ *
+ * Only Vex's own surfaces scale. A webview is a web page, it has its own
+ * zoom, and scaling it here would fight that — so a panel holding a webview
+ * is left at its natural size and the rest of the chrome moves around it.
+ *
+ * `zoom` rather than a font-size multiplier because the interface is written
+ * in pixels: zoom takes the icons, the paddings and the borders with it, and
+ * a half-scaled interface with full-size icons looks broken. */
+
+:root {
+  --vex-ui-scale: 1;
+  --vex-density: 1;
+}
+
+html[data-vex-scale] #top-bar,
+html[data-vex-scale] #top-tab-bar,
+html[data-vex-scale] #icon-sidebar,
+html[data-vex-scale] #tabs-sidebar,
+html[data-vex-scale] #gui-shortcuts,
+html[data-vex-scale] #ai-panel,
+html[data-vex-scale] #command-bar,
+html[data-vex-scale] .tab-context-menu,
+html[data-vex-scale] .vex-dialog,
+html[data-vex-scale] .panel:not(:has(webview)) {
+  zoom: var(--vex-ui-scale);
+}
+
+/* How tightly the repeating rows are packed. The rows people actually have a
+ * hundred of: tabs, sidebar icons, settings rows, list rows in a panel. */
+html[data-vex-density] .tab-item {
+  padding: calc(8px * var(--vex-density)) calc(10px * var(--vex-density));
+}
+html[data-vex-density] .sidebar-icon {
+  width: calc(42px * var(--vex-density));
+  height: calc(42px * var(--vex-density));
+}
+html[data-vex-density] .setting-toggle-row,
+html[data-vex-density] .settings-content .setting-toggle-row {
+  padding-top: calc(10px * var(--vex-density));
+  padding-bottom: calc(10px * var(--vex-density));
+}
+html[data-vex-density] .keepawake-row,
+html[data-vex-density] .vexsr-rule {
+  padding-top: calc(6px * var(--vex-density));
+  padding-bottom: calc(6px * var(--vex-density));
+}
+
+/* Tight packing loses the breathing room that separated one row from the
+ * next; a hairline puts the separation back without the space. */
+html[data-vex-density="tight"] .tab-item + .tab-item,
+html[data-vex-density="tight"] .setting-toggle-row + .setting-toggle-row {
+  border-top: 1px solid var(--vex-border-subtle, var(--border));
+}

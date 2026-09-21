@@ -273,7 +273,7 @@ describe('Shareable setup codes', () => {
     globalThis.ThemeManager = { THEMES: [{ id: 'oxford', label: 'Oxford' }], applyTheme: vi.fn() };
   };
 
-  it('encode → decode roundtrips the current setup', () => {
+  it('encode → decode roundtrips the current setup, look and all', () => {
     stubEnv('glass');
     localStorage.setItem('vex.theme', 'oxford');
     localStorage.setItem('vex.panelOverrides', JSON.stringify({ netflix: { hidden: true }, roblox: { hidden: true }, discord: { name: 'DC' } }));
@@ -281,13 +281,57 @@ describe('Shareable setup codes', () => {
     const code = Onboarding._encodeSetupCode();
     expect(code.startsWith('VEXSETUP1.')).toBe(true);
     const d = Onboarding._decodeSetupCode(code);
-    expect(d).toEqual({
+    expect(d).toMatchObject({
       theme: 'oxford',
       glass: true,
       hidden: expect.arrayContaining(['netflix', 'roblox']),
       shortcuts: [{ name: 'Google', url: 'https://www.google.com' }],
     });
     expect(d.hidden).toHaveLength(2); // discord (rename only) is NOT hidden
+  });
+
+  // A code used to carry the panels and the theme and leave out the skin and
+  // the typeface — so two people with the same code saw different browsers.
+  it('carries the skin and the typeface, and applies them', () => {
+    stubEnv('classic');
+    require('../../src/renderer/js/skins.js');
+    require('../../src/renderer/js/fonts.js');
+    VexSkins.set('pattern', 'grid');
+    VexSkins.set('shape', 'sharp');
+    VexFonts.set('times');
+    const d = Onboarding._decodeSetupCode(Onboarding._encodeSetupCode());
+    expect(d.skin).toMatchObject({ pattern: 'grid', shape: 'sharp' });
+    expect(d.font).toMatchObject({ ui: 'times' });
+    VexSkins.reset(); VexFonts.reset();
+    expect(VexSkins.pattern().id).toBe('none');
+    Onboarding._applySetupCode(d);
+    expect(VexSkins.pattern().id).toBe('grid');
+    expect(VexSkins.shape().id).toBe('sharp');
+    expect(VexFonts.current().id).toBe('times');
+  });
+
+  // A pattern or a typeface this Vex does not have is dropped, not applied.
+  it('drops a skin or a font it does not know', () => {
+    stubEnv('classic');
+    const code = 'VEXSETUP1.' + btoa(JSON.stringify({
+      v: 2, theme: null, glass: false, hidden: [], shortcuts: null,
+      skin: { pattern: 'not-a-pattern', shape: 'sharp', glow: 'x', strength: 'y' },
+      font: { ui: 'not-a-font', mono: 'times' },
+    })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const d = Onboarding._decodeSetupCode(code);
+    expect(d.skin).toEqual({ pattern: null, shape: 'sharp', glow: null, strength: null });
+    expect(d.font).toEqual({ ui: null, mono: null });   // Times is not a code font
+  });
+
+  // v1 codes were shared before the look travelled; they still work.
+  it('still accepts a v1 code, which simply carries no look', () => {
+    stubEnv('classic');
+    const code = 'VEXSETUP1.' + btoa(JSON.stringify({ v: 1, theme: 'oxford', glass: true, hidden: [], shortcuts: null }))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const d = Onboarding._decodeSetupCode(code);
+    expect(d.theme).toBe('oxford');
+    expect(d.skin).toBeNull();
+    expect(d.font).toBeNull();
   });
 
   it('rejects garbage, wrong prefix, and non-JSON payloads', () => {

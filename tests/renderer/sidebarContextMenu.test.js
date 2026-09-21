@@ -78,7 +78,7 @@ describe('sidebar context menu (jsdom integration)', () => {
     expect(labels).toEqual([
       'Rename…', 'Change icon…', 'Change link…',
       'Switch to Claude', 'Switch to Gemini', 'Switch to ChatGPT',
-      'Refresh', 'What is this using?…', 'Open DevTools',
+      'Refresh', 'What is this using?…', 'Keep awake…  (Sleeps when idle)', 'Open DevTools',
       'Hide button', 'Reset to default',
     ]);
   });

@@ -71,9 +71,9 @@ describe('downloads panel', () => {
   it('offers pause while running and resume once paused', async () => {
     start();
     const actions = () => [...document.querySelectorAll('.download-item .dl-btn')].map(b => b.dataset.action);
-    expect(actions()).toEqual(['pause', 'cancel', 'remove']);
+    expect(actions()).toEqual(['open-when-done', 'pause', 'cancel', 'remove']);
     DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 100, totalBytes: 1000, state: 'progressing', paused: true, canResume: true });
-    expect(actions()).toEqual(['resume', 'cancel', 'remove']);
+    expect(actions()).toEqual(['open-when-done', 'resume', 'cancel', 'remove']);
     expect(document.querySelector('.download-meta').textContent).toContain('paused');
     document.querySelector('[data-action="resume"]').click();
     await Promise.resolve();
@@ -189,5 +189,58 @@ describe('before a downloaded program runs', () => {
     DownloadsPanel._onComplete({ id: 'd1', state: 'completed', receivedBytes: 1000, totalBytes: 1000 });
     document.querySelector('[data-action="open-file"]').click();
     await vi.waitFor(() => expect(window.vex.downloadsOpenFile).toHaveBeenCalled());
+  });
+});
+
+// A download you are waiting for is one you open the moment it lands, and the
+// toast that offers that goes away after a few seconds. Asked once, at the
+// start — and never a way round the check an installer still has to pass.
+describe('open it when it is done', () => {
+  beforeEach(() => { DownloadsPanel.openWhenDone = new Set(); });
+
+  it('is offered on a running download and shows that it is on', () => {
+    start();
+    const btn = () => document.querySelector('[data-action="open-when-done"]');
+    expect(btn().textContent).toBe('Open when done');
+    btn().click();
+    expect(DownloadsPanel.wantsOpen('d1')).toBe(true);
+    expect(btn().textContent).toBe('Will open');
+    expect(btn().getAttribute('aria-pressed')).toBe('true');
+    btn().click();
+    expect(DownloadsPanel.wantsOpen('d1')).toBe(false);
+  });
+
+  it('opens the file when it finishes, and only that one', async () => {
+    start();
+    start({ id: 'd2', fileName: 'other.bin', path: 'C:/dl/other.bin' });
+    DownloadsPanel.setOpenWhenDone('d1', true);
+    DownloadsPanel._onComplete({ id: 'd1', state: 'completed', receivedBytes: 1000, totalBytes: 1000, path: 'C:/dl/thing.bin' });
+    await vi.waitFor(() => expect(window.vex.downloadsOpenFile).toHaveBeenCalledWith('C:/dl/thing.bin'));
+    DownloadsPanel._onComplete({ id: 'd2', state: 'completed', receivedBytes: 1000, totalBytes: 1000, path: 'C:/dl/other.bin' });
+    await Promise.resolve();
+    expect(window.vex.downloadsOpenFile).toHaveBeenCalledTimes(1);
+    // Asked for once, not a standing setting.
+    expect(DownloadsPanel.wantsOpen('d1')).toBe(false);
+  });
+
+  // Waiting for a file is not consent to run an unsigned program: the same
+  // question is asked as for a file opened by hand, and No means no.
+  it('still asks before running something that is not ordinary', async () => {
+    window.vex.fileInspect = vi.fn(async () => ({ ok: true, verdict: 'unsigned', name: 'setup.exe', lines: ['Nobody signed it'], sha256: '' }));
+    window.vexConfirm = vi.fn(async () => false);
+    start({ id: 'd3', fileName: 'setup.exe', path: 'C:/dl/setup.exe' });
+    DownloadsPanel.setOpenWhenDone('d3', true);
+    DownloadsPanel._onComplete({ id: 'd3', state: 'completed', receivedBytes: 10, totalBytes: 10, path: 'C:/dl/setup.exe' });
+    await vi.waitFor(() => expect(window.vexConfirm).toHaveBeenCalled());
+    expect(window.vex.downloadsOpenFile).not.toHaveBeenCalled();
+    delete window.vexConfirm;
+  });
+
+  it('says so rather than opening nothing when the download fails', async () => {
+    start({ id: 'd4' });
+    DownloadsPanel.setOpenWhenDone('d4', true);
+    DownloadsPanel._onComplete({ id: 'd4', state: 'failed' });
+    await vi.waitFor(() => expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/did not finish/), 'info'));
+    expect(window.vex.downloadsOpenFile).not.toHaveBeenCalled();
   });
 });

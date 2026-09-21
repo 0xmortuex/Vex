@@ -109,7 +109,8 @@ describe('the picker', () => {
     VexFonts.open();
     expect(document.querySelector('.vexfont')).not.toBeNull();
     const kinds = [...document.querySelectorAll('.vexfont-kind')].map(e => e.firstChild.textContent.trim());
-    expect(kinds).toEqual(['Without serifs', 'With serifs', 'Every letter the same width', 'The font for code']);
+    expect(kinds).toEqual(['Without serifs', 'With serifs', 'Every letter the same width', 'The font for code',
+      'How big Vex is', 'How tightly packed']);
     // Each row is drawn in the face it offers, and with !important: the
     // sweeping rule would otherwise draw all of them in the one already
     // chosen, which is a font picker that shows you nothing.
@@ -130,5 +131,56 @@ describe('the picker', () => {
     VexFonts.open();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(document.querySelector('.vexfont')).toBeNull();
+  });
+});
+
+// A typeface was only half of "can I read this". Page zoom makes a PAGE
+// bigger and never touched Vex's own tab strip, sidebar, menus or settings.
+describe('how big Vex is, and how tightly packed', () => {
+  const root = () => document.documentElement;
+
+  it('starts at what Vex ships with, and says so on the document by saying nothing', () => {
+    VexFonts.applyScale();
+    expect(VexFonts.size().id).toBe('normal');
+    expect(VexFonts.density().id).toBe('normal');
+    expect(root().hasAttribute('data-vex-scale')).toBe(false);
+    expect(root().hasAttribute('data-vex-density')).toBe(false);
+    expect(root().style.getPropertyValue('--vex-ui-scale')).toBe('1');
+  });
+
+  it('a size puts both the number and the switch on the document', () => {
+    VexFonts.setSize('large');
+    expect(root().getAttribute('data-vex-scale')).toBe('large');
+    expect(root().style.getPropertyValue('--vex-ui-scale')).toBe('1.15');
+    VexFonts.setDensity('tight');
+    expect(root().getAttribute('data-vex-density')).toBe('tight');
+    expect(root().style.getPropertyValue('--vex-density')).toBe('0.6');
+  });
+
+  it('refuses a size or a density it does not have', () => {
+    expect(() => VexFonts.setSize('enormous')).toThrow(/no interface size/);
+    expect(() => VexFonts.setDensity('airy')).toThrow(/no density/);
+  });
+
+  it('remembers both, and the picker offers them', () => {
+    VexFonts.setSize('largest');
+    VexFonts.setDensity('roomy');
+    expect(localStorage.getItem('vex.uiScale')).toBe('largest');
+    VexFonts.open();
+    expect(document.querySelector('[data-size="largest"]').classList.contains('on')).toBe(true);
+    document.querySelector('[data-density="cosy"]').click();
+    expect(VexFonts.density().id).toBe('cosy');
+    expect(document.querySelector('[data-density="cosy"]').classList.contains('on')).toBe(true);
+    expect(document.querySelector('#vexfont-now').textContent).toMatch(/largest size/);
+    VexFonts.close();
+  });
+
+  it('back to the default takes the size and the density with it', () => {
+    VexFonts.setSize('small');
+    VexFonts.setDensity('tight');
+    VexFonts.reset();
+    expect(VexFonts.size().id).toBe('normal');
+    expect(VexFonts.density().id).toBe('normal');
+    expect(root().hasAttribute('data-vex-scale')).toBe(false);
   });
 });

@@ -18,6 +18,71 @@
 const VexFonts = {
   KEY: 'vex.font',
   MONO_KEY: 'vex.fontMono',
+  SCALE_KEY: 'vex.uiScale',
+  DENSITY_KEY: 'vex.uiDensity',
+
+  // === How big, and how tightly packed ===================================
+  //
+  // A typeface was only half the answer. Page zoom (Ctrl+=) makes a web page
+  // bigger and does nothing at all for Vex's own tab strip, sidebar, menus
+  // and settings — which is exactly what someone who cannot read 12px type
+  // needs bigger. Density is the other direction: a large screen fits far
+  // more of a list when the rows are not padded for a laptop.
+  //
+  // Only Vex's own surfaces move (css/ui-scale.css). A panel holding a web
+  // page keeps its natural size, because a page has its own zoom and scaling
+  // it here would fight that.
+  SIZES: [
+    { id: 'small', name: 'Small', scale: 0.9, note: 'More on the screen' },
+    { id: 'normal', name: 'Normal', scale: 1, note: 'What Vex ships with' },
+    { id: 'large', name: 'Large', scale: 1.15, note: 'Easier on the eyes' },
+    { id: 'larger', name: 'Larger', scale: 1.3, note: 'For reading at a distance' },
+    { id: 'largest', name: 'Largest', scale: 1.5, note: 'Half again' },
+  ],
+
+  DENSITIES: [
+    { id: 'tight', name: 'Tight', factor: 0.6, note: 'Rows packed close, with a line between them' },
+    { id: 'cosy', name: 'Cosy', factor: 0.8, note: 'A little closer than standard' },
+    { id: 'normal', name: 'Standard', factor: 1, note: 'What Vex ships with' },
+    { id: 'roomy', name: 'Roomy', factor: 1.3, note: 'Easier to hit with a finger' },
+  ],
+
+  size() { try { return this.SIZES.find(s => s.id === localStorage.getItem(this.SCALE_KEY)) || this.SIZES[1]; } catch { return this.SIZES[1]; } },
+  density() { try { return this.DENSITIES.find(d => d.id === localStorage.getItem(this.DENSITY_KEY)) || this.DENSITIES[2]; } catch { return this.DENSITIES[2]; } },
+
+  setSize(id) {
+    const found = this.SIZES.find(s => s.id === id);
+    if (!found) throw new Error('There is no interface size called "' + id + '"');
+    try { localStorage.setItem(this.SCALE_KEY, id); } catch (err) { console.warn('[fonts] could not remember the size:', err.message); }
+    this.applyScale();
+    return found;
+  },
+
+  setDensity(id) {
+    const found = this.DENSITIES.find(d => d.id === id);
+    if (!found) throw new Error('There is no density called "' + id + '"');
+    try { localStorage.setItem(this.DENSITY_KEY, id); } catch (err) { console.warn('[fonts] could not remember the density:', err.message); }
+    this.applyScale();
+    return found;
+  },
+
+  // Both on the document at once: the variables always carry the numbers, and
+  // the attribute is what turns the rules on — with the default chosen there
+  // is no attribute and not one rule applies.
+  applyScale() {
+    if (typeof document === 'undefined') return null;
+    const root = document.documentElement;
+    const size = this.size();
+    const density = this.density();
+    root.style.setProperty('--vex-ui-scale', String(size.scale));
+    root.style.setProperty('--vex-density', String(density.factor));
+    if (size.id === 'normal') root.removeAttribute('data-vex-scale');
+    else root.setAttribute('data-vex-scale', size.id);
+    if (density.id === 'normal') root.removeAttribute('data-vex-density');
+    else root.setAttribute('data-vex-density', density.id);
+    document.dispatchEvent(new CustomEvent('vex:ui-scale-changed', { detail: { size: size.id, density: density.id } }));
+    return { size: size.id, density: density.id };
+  },
 
   // What Vex wears when nobody has said otherwise. Times New Roman rather
   // than the geometric sans it shipped with: asked for directly, and it suits
@@ -100,8 +165,10 @@ const VexFonts = {
   },
 
   reset() {
-    try { localStorage.removeItem(this.KEY); localStorage.removeItem(this.MONO_KEY); } catch { /* applied anyway */ }
+    try { for (const k of [this.KEY, this.MONO_KEY, this.SCALE_KEY, this.DENSITY_KEY]) localStorage.removeItem(k); }
+    catch { /* applied anyway */ }
     this.apply();
+    this.applyScale();
   },
 
   // Put the choice on the document. The variables always carry it; the
@@ -250,7 +317,39 @@ const VexFonts = {
                <span class="vexfont-sample" style="font-family:${f.stack} !important">if (x &lt;= 10) { return 0; }</span>
              </button>`).join('')}
          </div>`;
-    el.querySelector('#vexfont-now').textContent = 'Now: ' + now.name + ', with ' + mono.name + ' for code.';
+    // How big it all is, and how tightly packed — the other two halves of
+    // "can I read this", and neither of them is a typeface.
+    const size = this.size();
+    const density = this.density();
+    body.insertAdjacentHTML('beforeend', `
+      <div class="vexfont-kind">How big Vex is<span>Vex’s own tab strip, sidebar, menus and settings. A web page keeps its own zoom — Ctrl and + is still the way to make a page bigger.</span></div>
+      <div class="vexfont-grid">
+        ${this.SIZES.map(s => `
+          <button class="vexfont-one${s.id === size.id ? ' on' : ''}" data-size="${esc(s.id)}">
+            <span class="vexfont-name">${esc(s.name)}</span>
+            <span class="vexfont-note">${esc(s.note)}${s.id === size.id ? ' \u00b7 in use' : ''}</span>
+            <span class="vexfont-sample" style="font-size:${Math.round(12.5 * s.scale)}px">${esc(this.SAMPLE)}</span>
+          </button>`).join('')}
+      </div>
+      <div class="vexfont-kind">How tightly packed<span>The rows you have a hundred of: tabs, sidebar icons and settings.</span></div>
+      <div class="vexfont-grid">
+        ${this.DENSITIES.map(d => `
+          <button class="vexfont-one${d.id === density.id ? ' on' : ''}" data-density="${esc(d.id)}">
+            <span class="vexfont-name">${esc(d.name)}</span>
+            <span class="vexfont-note">${esc(d.note)}${d.id === density.id ? ' \u00b7 in use' : ''}</span>
+          </button>`).join('')}
+      </div>`);
+    body.querySelectorAll('[data-size]').forEach(b => b.addEventListener('click', () => {
+      try { const s = this.setSize(b.dataset.size); window.showToast?.('Vex is ' + s.name.toLowerCase() + ' now', 'success'); }
+      catch (err) { window.showToast?.(err.message, 'error'); }
+      this._draw();
+    }));
+    body.querySelectorAll('[data-density]').forEach(b => b.addEventListener('click', () => {
+      try { const d = this.setDensity(b.dataset.density); window.showToast?.('Rows are ' + d.name.toLowerCase() + ' now', 'success'); }
+      catch (err) { window.showToast?.(err.message, 'error'); }
+      this._draw();
+    }));
+    el.querySelector('#vexfont-now').textContent = 'Now: ' + now.name + ', with ' + mono.name + ' for code, at ' + size.name.toLowerCase() + ' size.';
     body.querySelectorAll('[data-font]').forEach(b => b.addEventListener('click', () => {
       try { const f = this.set(b.dataset.font); window.showToast?.('Vex is in ' + f.name + ' now', 'success'); }
       catch (err) { window.showToast?.((err && err.message) || 'That font is not available', 'error'); }
@@ -265,6 +364,7 @@ const VexFonts = {
 
   init() {
     this.apply();
+    this.applyScale();
     return true;
   },
 };

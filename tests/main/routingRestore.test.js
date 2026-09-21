@@ -26,3 +26,29 @@ it('waits for a saved custom proxy before allowing window startup', async () => 
   release(); await result;
   expect(ready).toBe(true);
 });
+
+// "All of Vex through one route" is saved under one key that stands for every
+// browsing session. Restored as if it were a partition it proxied a session
+// nothing uses, and every real tab came back direct after a restart.
+it('puts one route back on every browsing session, not on a session called __all__', async () => {
+  const blocked = [], started = [];
+  await restoreRoutes({
+    routes: { __all__: { mode: 'tor', custom: null, at: 1 } },
+    allPartitions: ['persist:main', 'persist:discord'],
+    getSession: (partition) => ({ setProxy: async () => { blocked.push(partition); } }),
+    applyRouting: async (partition) => { started.push(partition); },
+    report: () => {},
+  });
+  expect(blocked).toEqual(['', 'persist:main', 'persist:discord']);
+  expect(started).toEqual(['', 'persist:main', 'persist:discord']);
+});
+
+it('leaves other reserved keys alone', async () => {
+  const seen = [];
+  await restoreRoutes({
+    routes: { __somethingElse: { mode: 'tor' }, 'persist:x': { mode: 'tor' } },
+    getSession: () => ({ setProxy: async () => {} }),
+    applyRouting: async (p) => { seen.push(p); }, report: () => {},
+  });
+  expect(seen).toEqual(['persist:x']);
+});

@@ -180,3 +180,46 @@ html[data-skin-glow="halo"] :is(.nav-btn.active, .sidebar-icon.active, .tab.acti
   display: flex; gap: 12px; align-items: flex-start;
 }
 .vexroute-check span { flex: 1; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
+
+/* === Sites that always go through a route ================================= */
+/* The rule list, its own screen. Kept apart from .vexroute-* above: that one
+   sets one route for everything, this one names exceptions. */
+.vexsr-ov {
+  position: fixed; inset: 0; z-index: 100060; display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(3px);
+}
+.vexsr-card {
+  width: 520px; max-width: 94vw; max-height: 86vh; overflow-y: auto;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 14px; padding: 18px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.vexsr-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.vexsr-title { flex: 1; font-size: 15px; font-weight: 700; }
+.vexsr-sub, .vexsr-note { font-size: 11.5px; line-height: 1.55; color: var(--text-muted); }
+.vexsr-note { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.vexsr-sub code { font-size: 11px; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+.vexsr-list { margin: 12px 0 10px; display: flex; flex-direction: column; gap: 6px; }
+.vexsr-empty { font-size: 12px; color: var(--text-muted); padding: 10px 0; }
+.vexsr-rule {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+}
+.vexsr-host { flex: 1; font-size: 12.5px; font-weight: 600; word-break: break-all; }
+.vexsr-mode { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.vexsr-row { display: flex; gap: 6px; }
+.vexsr-input {
+  flex: 1; min-width: 0; padding: 8px 10px; font-size: 12.5px; font-family: inherit;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+}
+.vexsr-input:focus { outline: none; border-color: var(--primary); }
+.vexsr-go {
+  padding: 8px 14px; font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer;
+  background: var(--primary, var(--accent)); color: #111; border: 1px solid transparent; border-radius: 8px;
+}
+.vexsr-go:hover { filter: brightness(1.08); }
+.vexsr-x {
+  padding: 4px 10px; font-size: 11.5px; font-family: inherit; cursor: pointer;
+  background: none; color: var(--text-muted); border: 1px solid var(--border); border-radius: 7px;
+}
+.vexsr-x:hover { color: var(--text); border-color: var(--primary); }
+.vexsr-msg { min-height: 16px; margin-top: 8px; font-size: 11.5px; color: var(--text-muted); }

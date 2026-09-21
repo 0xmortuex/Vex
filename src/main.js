@@ -4853,7 +4853,7 @@ ipcMain.handle('routing:get', (_e, partition) => { try { return readRouting()[pa
 // own, so a restart puts it back. check makes a real request through a real
 // session and reports the address the internet saw — routed and direct, so
 // the answer is a comparison rather than a claim.
-const _ALL_ROUTE_KEY = '__all__';
+const _ALL_ROUTE_KEY = require('./main/routing').ALL_ROUTE_KEY;
 
 ipcMain.handle('routing:set-all', (event, mode, custom) => {
   const operation = routingPending.catch(() => {}).then(async () => {
@@ -4938,6 +4938,8 @@ ipcMain.handle('routing:check', async (_e, partition) => {
 async function applyStoredRoutings() {
   await require('./main/routing').restoreRoutes({ routes: readRouting(),
     getSession: partition => partition ? secureSessions.fromPartition(partition) : session.defaultSession,
+    // '__all__' means every browsing session, not a session of its own.
+    allPartitions: BROWSING_SESSIONS,
     applyRouting, report: err => console.warn('[Routing] Tor unavailable:', err.message) });
 }
 

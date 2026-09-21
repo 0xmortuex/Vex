@@ -129,3 +129,12 @@
 /* A paused transfer should not look like one that is still moving. */
 .download-item.paused .download-progress-bar { opacity: 0.45; }
 .download-item.paused .download-meta { font-style: italic; }
+
+/* "Open when done" is a switch, not an action: it has to look pressed while
+   it is on, or there is no way to tell you asked for it. */
+.dl-btn.on,
+.downloads-drop-live .ddl-acts button.on {
+  border-color: var(--vex-accent, var(--primary));
+  color: var(--vex-accent, var(--primary));
+  background: color-mix(in srgb, var(--vex-accent, var(--primary)) 14%, transparent);
+}

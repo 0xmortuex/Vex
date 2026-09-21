@@ -359,12 +359,24 @@ const Onboarding = {
     try { const sc = JSON.parse(localStorage.getItem('vex.shortcuts') || 'null'); if (Array.isArray(sc)) shortcuts = sc.map(s => ({ name: s.name || '', url: s.url })); } catch {}
     try { ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {}; } catch {}
     const APP = this._APP_PANELS().map(p => p.id);
+    // A setup code carried the panels, the shortcuts and the theme — which
+    // is most of a setup and none of the look. Two people with the same code
+    // saw different browsers, because the skin and the typeface are the part
+    // you actually notice. v2 carries the whole look.
     const data = {
-      v: 1,
+      v: 2,
       theme,
       glass: (() => { try { return (window.VexGuiStyle?.get?.() || 'classic') === 'glass'; } catch { return false; } })(),
       hidden: APP.filter(p => ov[p] && ov[p].hidden),
       shortcuts,   // null = stock set
+      skin: (() => {
+        try { return { pattern: VexSkins.pattern().id, shape: VexSkins.shape().id, glow: VexSkins.glow().id, strength: VexSkins.strength().id }; }
+        catch { return null; }
+      })(),
+      font: (() => {
+        try { return { ui: VexFonts.current().id, mono: VexFonts.currentMono().id }; }
+        catch { return null; }
+      })(),
     };
     const json = JSON.stringify(data);
     const b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -383,13 +395,27 @@ const Onboarding = {
       const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
       const json = decodeURIComponent(escape(atob(b64 + '==='.slice(0, (4 - b64.length % 4) % 4))));
       const d = JSON.parse(json);
-      if (!d || d.v !== 1) return null;
+      // v1 codes are still valid: they simply carry no skin and no font.
+      if (!d || (d.v !== 1 && d.v !== 2)) return null;
+      const oneOf = (list, id) => { try { return list.some(x => x.id === id) ? id : null; } catch { return null; } };
       const APP = new Set(this._APP_PANELS().map(p => p.id));
       const out = {
         theme: typeof d.theme === 'string' && /^[a-z0-9-]{1,40}$/i.test(d.theme) ? d.theme : null,
         glass: !!d.glass,
         hidden: Array.isArray(d.hidden) ? d.hidden.filter(p => APP.has(p)) : [],
         shortcuts: null,
+        // Each piece is checked against what this Vex actually has, so a code
+        // can never name a pattern or a typeface that does not exist here.
+        skin: (d.skin && typeof d.skin === 'object' && typeof VexSkins !== 'undefined') ? {
+          pattern: oneOf(VexSkins.PATTERNS, d.skin.pattern),
+          shape: oneOf(VexSkins.SHAPES, d.skin.shape),
+          glow: oneOf(VexSkins.GLOWS, d.skin.glow),
+          strength: oneOf(VexSkins.STRENGTHS, d.skin.strength),
+        } : null,
+        font: (d.font && typeof d.font === 'object' && typeof VexFonts !== 'undefined') ? {
+          ui: oneOf(VexFonts.FONTS, d.font.ui),
+          mono: (() => { const f = VexFonts.get(d.font.mono); return f && f.kind === 'mono' ? f.id : null; })(),
+        } : null,
       };
       if (Array.isArray(d.shortcuts)) {
         out.shortcuts = d.shortcuts
@@ -419,6 +445,18 @@ const Onboarding = {
         const themes = (typeof ThemeManager !== 'undefined' && ThemeManager.THEMES) || [];
         if (themes.some(t => t.id === d.theme)) ThemeManager.applyTheme(d.theme);
       } catch {}
+    }
+    // The look. Each piece is applied on its own so one unknown name cannot
+    // cost the rest of the setup.
+    if (d.skin) {
+      for (const kind of ['pattern', 'shape', 'glow', 'strength']) {
+        if (!d.skin[kind]) continue;
+        try { VexSkins.set(kind, d.skin[kind]); } catch (err) { console.warn('[setup] skin ' + kind + ':', err.message); }
+      }
+    }
+    if (d.font) {
+      if (d.font.ui) { try { VexFonts.set(d.font.ui); } catch (err) { console.warn('[setup] font:', err.message); } }
+      if (d.font.mono) { try { VexFonts.setMono(d.font.mono); } catch (err) { console.warn('[setup] code font:', err.message); } }
     }
     try { localStorage.setItem('vex.setupProfile', 'imported'); } catch {}
   },
@@ -485,7 +523,10 @@ const Onboarding = {
       const d = this._decodeSetupCode(raw);
       if (!d) { st.textContent = '✗ Not a valid setup code — check it copied completely.'; st.style.color = 'var(--danger, #ef4444)'; return; }
       const sc = d.shortcuts == null ? 'stock shortcuts' : `${d.shortcuts.length} shortcut${d.shortcuts.length === 1 ? '' : 's'}`;
-      st.textContent = `✓ Valid — ${APP.length - d.hidden.length} of ${APP.length} panels, ${sc}, ${d.glass ? 'Glass' : 'Classic'} look${d.theme ? `, “${d.theme}” theme` : ''}.`;
+      const look = [];
+      if (d.skin && d.skin.pattern && d.skin.pattern !== 'none') { try { look.push(VexSkins.PATTERNS.find(x => x.id === d.skin.pattern).name.toLowerCase() + ' skin'); } catch { /* named below anyway */ } }
+      if (d.font && d.font.ui) { try { look.push(VexFonts.get(d.font.ui).name); } catch { /* named below anyway */ } }
+      st.textContent = `✓ Valid — ${APP.length - d.hidden.length} of ${APP.length} panels, ${sc}, ${d.glass ? 'Glass' : 'Classic'} look${d.theme ? `, “${d.theme}” theme` : ''}${look.length ? ', ' + look.join(', ') : ''}.`;
       st.style.color = 'var(--text)';
     };
     updateCount();

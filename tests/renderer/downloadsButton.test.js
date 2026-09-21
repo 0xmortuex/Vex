@@ -10,7 +10,12 @@ const { DownloadToast } = require('../../src/renderer/js/download-toast.js');
 beforeEach(() => {
   vi.useFakeTimers();
   document.body.innerHTML = '<button id="btn-downloads-top" class="nav-btn"></button>';
-  globalThis.DownloadsPanel = { downloads: [], _okToOpen: vi.fn(async () => true) };
+  globalThis.DownloadsPanel = {
+    downloads: [], _okToOpen: vi.fn(async () => true),
+    openWhenDone: new Set(),
+    wantsOpen(id) { return this.openWhenDone.has(id); },
+    setOpenWhenDone(id, on) { if (on) this.openWhenDone.add(id); else this.openWhenDone.delete(id); return on; },
+  };
   globalThis.SidebarManager = { openPanel: vi.fn() };
   window.vex = { downloadsOpenFile: vi.fn(async () => ({ ok: true })) };
   DownloadsButton._open = null;
@@ -200,20 +205,37 @@ describe('while something is downloading', () => {
     expect(document.querySelector('.downloads-drop-row').textContent).toMatch(/big\.iso/);
   });
 
+  // The drop-down is where a download is actually watched, so it is where
+  // "open it the moment it is done" belongs — the panel is the trip you are
+  // trying to avoid.
+  it('asks for the file to be opened when it lands, from the row itself', () => {
+    DownloadsButton.init();
+    DownloadsPanel.openWhenDone = new Set();
+    DownloadsPanel.downloads = [running()];
+    DownloadsButton.toggle();
+    const btn = () => document.querySelector('[data-open-when-done]');
+    expect(btn().textContent).toBe('Open when done');
+    btn().click();
+    expect(DownloadsPanel.wantsOpen('2')).toBe(true);
+    DownloadsButton.refresh();
+    vi.advanceTimersByTime(250);
+    expect(btn().textContent).toBe('Will open');
+  });
+
   it('pause and cancel are on the row, not two screens away', async () => {
     window.vex.downloadsControl = vi.fn(async () => ({ ok: true }));
     DownloadsButton.init();
     DownloadsPanel.downloads = [running()];
     DownloadsButton.toggle();
-    const [pause, cancel] = document.querySelectorAll('.ddl-acts button');
-    expect([pause.textContent, cancel.textContent]).toEqual(['Pause', 'Cancel']);
+    const [openWhenDone, pause, cancel] = document.querySelectorAll('.ddl-acts button');
+    expect([openWhenDone.textContent, pause.textContent, cancel.textContent]).toEqual(['Open when done', 'Pause', 'Cancel']);
     pause.click();
     await vi.advanceTimersByTimeAsync(10);
     expect(window.vex.downloadsControl).toHaveBeenCalledWith('2', 'pause');
     DownloadsPanel.downloads = [running({ paused: true })];
     DownloadsButton.refresh();
     vi.advanceTimersByTime(250);                       // the drop repaints on a timer now
-    expect(document.querySelector('.ddl-acts button').textContent).toBe('Resume');
+    expect(document.querySelector('.ddl-acts [data-do]').textContent).toBe('Resume');
     expect(document.querySelector('.downloads-drop-live').classList.contains('paused')).toBe(true);
   });
 });

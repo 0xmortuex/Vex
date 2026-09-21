@@ -343,8 +343,11 @@ const TabManager = {
       unread: false,
       groupId: groupId,
       stackId: null,
-      // Container tabs: an isolated cookie jar (persist:container-<name>)
-      partition: window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null
+      // Container tabs: an isolated cookie jar (persist:container-<name>).
+      // A site rule can move an ordinary tab into a routed session of its own
+      // (js/site-routes.js) — never a container tab, which was a choice.
+      partition: (typeof SiteRoutes !== 'undefined' ? SiteRoutes.reroute(resolvedUrl, window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null) : null)
+        || window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null
     };
 
     // Where this tab came from: the page that was in front when it opened
@@ -1935,6 +1938,8 @@ const TabManager = {
       .ka-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
       .ka-btn{border:1px solid var(--border,rgba(255,255,255,0.14));background:var(--bg,#0e0e16);color:var(--text,#e9e9ee);border-radius:9px;padding:9px;font-size:12.5px;cursor:pointer;font-family:inherit;}
       .ka-btn:hover{background:var(--primary,#6366f1);border-color:transparent;color:#fff;}
+      .ka-wide{width:100%;margin-top:8px;}
+      .ka-note{margin:6px 0 0;font-size:11.5px;line-height:1.45;}
       .ka-stop{width:100%;margin-top:8px;color:#ff6b81;border-color:rgba(224,85,106,0.4);}
       .ka-cancel{width:100%;margin-top:8px;background:transparent;border:1px solid var(--border,rgba(255,255,255,0.14));color:var(--text-muted,#9a9aa5);border-radius:9px;padding:8px;font-size:12.5px;cursor:pointer;font-family:inherit;}
     `;

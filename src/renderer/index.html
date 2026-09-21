@@ -45,6 +45,7 @@
   <link rel="stylesheet" href="css/tasks.css">
   <link rel="stylesheet" href="css/feature-library.css">
   <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/ui-scale.css">
   <link rel="stylesheet" href="css/skins.css">
   <link rel="stylesheet" href="css/settings-redesign.css">
   <link rel="stylesheet" href="css/peek.css">
@@ -507,7 +508,7 @@
                 </label>
               </div>
               <div style="margin-top:8px">
-                <div class="setting-row-label">Keep awake <span style="color:var(--text-muted);font-size:11px;font-weight:normal">· a sleeping panel cannot show a new-message notification; Discord and WhatsApp stay awake unless you untick them</span></div>
+                <div class="setting-row-label">Keep awake <span style="color:var(--text-muted);font-size:11px;font-weight:normal">· an hour, a day, never, or only while it is in a call — a sleeping panel hands back all of its memory but cannot show a new-message notification. Discord and WhatsApp never sleep unless you change them.</span></div>
                 <div id="setting-panel-keepawake" style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:4px"></div>
               </div>
               <div style="margin-top:8px">
@@ -719,6 +720,10 @@
               <div class="setting-toggle-row">
                 <span>Send everything through Tor or a proxy<br><span style="font-size:11.5px;color:var(--text-muted)">Applies to every tab and container at once, survives a restart, and can be checked: Vex asks what address the internet sees with the route and without it.</span></span>
                 <button id="setting-open-routing" class="btn-secondary">Set it up…</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Sites that always go through a route<br><span style="font-size:11.5px;color:var(--text-muted)">Name a site and it opens in a routed session of its own, every time — without routing the rest of your browsing.</span></span>
+                <button id="setting-open-site-routes" class="btn-secondary">Site rules…</button>
               </div>
               <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Vex is not a VPN service and does not run one — this routes the browser through Tor or through a proxy you already have. Anything outside Vex goes the way it always did.</div>
             </div>
@@ -1422,6 +1427,8 @@
   <script src="js/fonts.js"></script>
   <script src="js/skins.js"></script>
   <script src="js/private-routing.js"></script>
+  <script src="js/site-routes.js"></script>
+  <script src="js/why-slow.js"></script>
   <script src="js/feature-details.js"></script>
   <script src="js/feature-library.js"></script>
   <script src="js/peek.js"></script>

@@ -119,7 +119,8 @@ describe('which hidden panels are due', () => {
     expect(SidebarManager.panelsDueToSleep(now)).toEqual([]);
     SidebarManager.activePanel = null;
     expect(SidebarManager.panelsDueToSleep(now)).toEqual(['claude']);
-    // Keep Discord awake can be turned off.
+    // Keep Discord awake can be turned off — here through the old list,
+    // which is still read for anyone who set it before the card existed.
     localStorage.setItem('vex.panelSleepExempt', '[]');
     expect(SidebarManager.panelsDueToSleep(now)).toEqual(['claude', 'discord']);
   });
@@ -147,23 +148,118 @@ describe('which hidden panels are due', () => {
     vi.useRealTimers();
   });
 
-  it('the settings switches read and write the preferences', () => {
+  it('the settings rows read the preferences and open the chooser', () => {
     document.body.insertAdjacentHTML('beforeend', '<input type="checkbox" id="setting-panel-autosleep"><div id="setting-panel-keepawake"></div>');
     SidebarManager._wirePanelSleepSettings();
     const auto = document.getElementById('setting-panel-autosleep');
     expect(auto.checked).toBe(true);
-    // One switch per web panel; Discord and WhatsApp on by default, so a
-    // message can still notify — a sleeping panel cannot.
-    const boxes = [...document.querySelectorAll('#setting-panel-keepawake input')];
-    expect(boxes.map(b => b.dataset.panel)).toEqual(expect.arrayContaining(['discord', 'whatsapp', 'claude', 'spotify']));
-    expect(boxes.filter(b => b.checked).map(b => b.dataset.panel).sort()).toEqual(['discord', 'whatsapp']);
+    // One row per web panel, each saying what it is set to. Discord and
+    // WhatsApp never sleep by default, so a message can still notify — a
+    // sleeping panel cannot.
+    const rows = [...document.querySelectorAll('#setting-panel-keepawake button')];
+    expect(rows.map(b => b.dataset.panel)).toEqual(expect.arrayContaining(['discord', 'whatsapp', 'claude', 'spotify']));
+    const said = Object.fromEntries(rows.map(b => [b.dataset.panel, b.textContent]));
+    expect(said.discord).toBe('Never sleeps');
+    expect(said.claude).toBe('Sleeps when idle');
     auto.checked = false; auto.dispatchEvent(new Event('change'));
-    const discord = boxes.find(b => b.dataset.panel === 'discord');
-    discord.checked = false; discord.dispatchEvent(new Event('change'));
-    expect(SidebarManager.panelSleepPrefs()).toMatchObject({ enabled: false, exempt: ['whatsapp'] });
-    const claude = document.querySelector('#setting-panel-keepawake input[data-panel="claude"]');
-    claude.checked = true; claude.dispatchEvent(new Event('change'));
-    expect(SidebarManager.panelSleepPrefs().exempt.sort()).toEqual(['claude', 'whatsapp']);
+    expect(SidebarManager.panelSleepPrefs().enabled).toBe(false);
+    // The row is the way in to the card.
+    rows.find(b => b.dataset.panel === 'claude').click();
+    expect(document.querySelector('.keepawake-ov .ka-title').textContent).toMatch(/Claude/);
+  });
+});
+
+// The panel chooser: the same hour/custom/never a tab has had, plus the one
+// only a panel can offer — awake for a call, asleep the rest of the day.
+describe('how long a panel stays awake', () => {
+  const card = () => document.querySelector('.keepawake-ov');
+  const press = (text) => [...document.querySelectorAll('.keepawake-ov button')].find(b => b.textContent.includes(text)).click();
+
+  it('reads the old yes/no list once, so nobody loses their choice', () => {
+    expect(SidebarManager.keepAwakeFor('discord')).toEqual({ mode: 'always' });
+    expect(SidebarManager.keepAwakeFor('claude')).toEqual({ mode: 'off' });
+    localStorage.setItem('vex.panelSleepExempt', '["claude"]');
+    expect(SidebarManager.keepAwakeFor('claude')).toEqual({ mode: 'always' });
+    expect(SidebarManager.keepAwakeFor('discord')).toEqual({ mode: 'off' });
+    // A choice made in the new card wins over the old list.
+    SidebarManager.setKeepAwakeMode('claude', 'off');
+    expect(SidebarManager.keptAwakeNow('claude')).toBe(false);
+  });
+
+  it('an hour keeps it awake for an hour and not a minute longer', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000_000);
+    SidebarManager.showKeepAwakeChooser('claude');
+    press('1 hour');
+    expect(card()).toBe(null);
+    expect(SidebarManager.keptAwakeNow('claude')).toBe(true);
+    expect(SidebarManager.panelSleepPrefs().exempt).toContain('claude');
+    expect(SidebarManager.keepAwakeLabel('claude')).toBe('Awake for 60 more minutes');
+    vi.setSystemTime(1_000_000_000 + 3600_001);
+    expect(SidebarManager.keptAwakeNow('claude')).toBe(false);
+    expect(SidebarManager.panelSleepPrefs().exempt).not.toContain('claude');
+    expect(SidebarManager.keepAwakeLabel('claude')).toBe('Sleeps when idle');
+    vi.useRealTimers();
+  });
+
+  it('never sleeps until reverted, and the card offers the way back', () => {
+    SidebarManager.showKeepAwakeChooser('claude');
+    press('Never (until reverted)');
+    expect(SidebarManager.keepAwakeLabel('claude')).toBe('Never sleeps');
+    SidebarManager.showKeepAwakeChooser('claude');
+    press('Let it sleep when idle again');
+    expect(SidebarManager.keepAwakeFor('claude')).toEqual({ mode: 'off' });
+  });
+
+  it('custom asks for the hours', async () => {
+    window.vexPrompt = vi.fn(async () => '2.5');
+    SidebarManager.showKeepAwakeChooser('claude');
+    press('Custom');
+    await vi.waitFor(() => expect(SidebarManager.keptAwakeNow('claude')).toBe(true));
+    expect(window.vexPrompt).toHaveBeenCalled();
+    expect(SidebarManager.keepAwakeLabel('claude')).toBe('Awake for 3 more hours');
+  });
+
+  // The point of the whole thing: Discord holds 1.4 GB because 'kept awake'
+  // meant all day. 'Only during a call' is not exempt at all — panelBusy
+  // already refuses to sleep a panel on the microphone or making a sound.
+  it('only during a call lets it sleep when it is quiet, and never mid-call', () => {
+    fakeWebview('discord');
+    SidebarManager.showKeepAwakeChooser('discord');
+    press('Only while it is in a call');
+    expect(SidebarManager.keepAwakeLabel('discord')).toBe('Awake during calls');
+    expect(SidebarManager.panelSleepPrefs().exempt).not.toContain('discord');
+    usage({});
+    expect(SidebarManager.panelsDueToSleep(10_000_000)).toContain('discord');
+    // On a call it is busy, so nothing sleeps it.
+    SidebarManager.setPanelCapturing('discord', 'mic', true);
+    expect(SidebarManager.panelsDueToSleep(10_000_000)).not.toContain('discord');
+  });
+
+  it('the memory notice offers it, at the moment the gigabyte is on screen', async () => {
+    fakeWebview('discord', { wcId: 7 });
+    window.vex.tabMemory = vi.fn(async () => ({ totalKB: 0, byId: { 7: { memKB: 1500 * 1024, pid: 1 } } }));
+    await SidebarManager.checkDiscordMemory();
+    document.querySelector('.dmb-calls').click();
+    expect(SidebarManager.keepAwakeFor('discord')).toEqual({ mode: 'call' });
+    expect(document.querySelector('.discord-mem-banner')).toBe(null);
+  });
+
+  it('the panel menu says what it is set to, and opens the card', () => {
+    SidebarManager.showContextMenu({ clientX: 0, clientY: 0 }, 'discord');
+    const item = [...document.querySelectorAll('.tab-context-item')].find(i => /Keep awake/.test(i.textContent));
+    expect(item.textContent).toMatch(/Never sleeps/);
+    item.click();
+    expect(document.querySelector('.keepawake-ov .ka-title').textContent).toMatch(/Discord/);
+  });
+
+  it('setting one awake builds it again if it was asleep', () => {
+    fakeWebview('claude');
+    SidebarManager.sleepPanel('claude');
+    expect(SidebarManager.panelWebviews.claude).toBeUndefined();
+    SidebarManager.setKeepAwakeMode('claude', 'always');
+    expect(SidebarManager.panelWebviews.claude).toBeTruthy();
+    expect(SidebarManager.sleptPanels.claude).toBeUndefined();
   });
 });
 

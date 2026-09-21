@@ -622,6 +622,20 @@ const WebviewManager = {
   },
 
   navigate(url) {
+    // A site rule cannot move a tab that already exists — a webview's session
+    // is fixed the moment it is attached — so the tab opens beside this one,
+    // in the routed session, and this one stays where it was.
+    if (typeof SiteRoutes !== 'undefined') {
+      try {
+        const tab = TabManager.getActiveTab();
+        const routed = SiteRoutes.reroute(url, tab && tab.partition);
+        if (routed && routed !== (tab && tab.partition || 'persist:main')) {
+          TabManager.createTab(url, true, tab && tab.groupId, { partition: routed });
+          window.showToast?.(SiteRoutes.describe({ partition: routed }) || 'Opened through your site rule');
+          return;
+        }
+      } catch (err) { console.warn('[Vex] site rule skipped:', err.message); }
+    }
     const wv = this.getActiveWebview();
     if (wv) {
       // Electron webview DOM element uses .src or .loadURL()

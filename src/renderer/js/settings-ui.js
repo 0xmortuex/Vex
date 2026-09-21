@@ -140,6 +140,7 @@ const SettingsUI = {
     ['setting-open-skin', () => (typeof VexSkins !== 'undefined' ? VexSkins.open() : null)],
     ['setting-open-font', () => (typeof VexFonts !== 'undefined' ? VexFonts.open() : null)],
     ['setting-open-routing', () => (typeof PrivateRouting !== 'undefined' ? PrivateRouting.open() : null)],
+    ['setting-open-site-routes', () => (typeof SiteRoutes !== 'undefined' ? SiteRoutes.open() : null)],
     ['setting-open-library', () => {
       try { if (typeof ReadLater !== 'undefined') ReadLater.showTab('features'); } catch { /* the panel opens either way */ }
       if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('library');

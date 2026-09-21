@@ -822,11 +822,10 @@ const SidebarManager = {
   // a new-message notification.
   KEEP_AWAKE_DEFAULT: ['discord', 'whatsapp'],
   panelSleepPrefs() {
-    let exempt = [...this.KEEP_AWAKE_DEFAULT];
-    try {
-      const e = JSON.parse(localStorage.getItem('vex.panelSleepExempt') || 'null');
-      if (Array.isArray(e)) exempt = e.filter(x => typeof x === 'string');
-    } catch {}
+    // Exempt is worked out, not stored: a panel kept awake for an hour is
+    // exempt for that hour and not a minute longer, and one set to 'only
+    // during a call' is never exempt (panelBusy holds the call open).
+    const exempt = Object.keys(this.panelConfigs).filter(n => this.keptAwakeNow(n));
     let minutes = Number(localStorage.getItem('vex.panelSleepMinutes'));
     if (!Number.isFinite(minutes) || minutes <= 0) minutes = 30;
     if (localStorage.getItem('vex.memorySaver') === '1') minutes = Math.min(minutes, 10);
@@ -930,7 +929,9 @@ const SidebarManager = {
       auto.addEventListener('change', () => { try { localStorage.setItem('vex.panelAutoSleep', auto.checked ? '1' : '0'); } catch {} });
     }
     if (keep) {
-      keep.checked = this.panelSleepPrefs().exempt.includes('discord');
+      // Ticked for anything but 'sleeps when idle'; the list below it is
+      // where the hour, the day and 'only during calls' are chosen.
+      keep.checked = this.keepAwakeFor('discord').mode !== 'off';
       keep.addEventListener('change', () => this.setKeepAwake('discord', keep.checked));
     }
     this.renderKeepAwakeList();
@@ -953,11 +954,146 @@ const SidebarManager = {
     }
   },
 
-  setKeepAwake(name, on) {
-    const exempt = this.panelSleepPrefs().exempt.filter(x => x !== name);
-    if (on) exempt.push(name);
-    try { localStorage.setItem('vex.panelSleepExempt', JSON.stringify(exempt)); } catch {}
+  // === Keeping a panel awake ===============================================
+  //
+  // This used to be a yes/no list: a panel was exempt from sleeping for ever,
+  // or it was not. Tabs have had the better answer for a long time — an hour,
+  // five, a day, a number you type, or until you say otherwise — and a panel
+  // is the thing that actually costs a gigabyte, so it gets the same card.
+  //
+  // It also gets one a tab cannot have: only while it is in a call. Vex
+  // already refuses to sleep a panel holding the microphone or making a
+  // sound (panelBusy), so 'call' means 'not exempt at all, and lean on that'
+  // — which is how Discord can hand its memory back all day and still never
+  // drop a call.
+  //
+  //   { discord: { mode: 'call' }, whatsapp: { mode: 'until', until: 1e12 } }
+  //
+  // A panel that is not listed follows KEEP_AWAKE_DEFAULT, and the old yes/no
+  // list is read once so nobody's existing choice is lost.
+  KEEP_AWAKE_KEY: 'vex.panelKeepAwake',
+
+  keepAwakePrefs() {
+    let map = null;
+    try { map = JSON.parse(localStorage.getItem(this.KEEP_AWAKE_KEY) || 'null'); } catch { map = null; }
+    return (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
+  },
+
+  keepAwakeFor(name) {
+    const set = this.keepAwakePrefs()[name];
+    if (set && set.mode) return set;
+    let legacy = null;
+    try { legacy = JSON.parse(localStorage.getItem('vex.panelSleepExempt') || 'null'); } catch { legacy = null; }
+    if (Array.isArray(legacy)) return { mode: legacy.includes(name) ? 'always' : 'off' };
+    return { mode: this.KEEP_AWAKE_DEFAULT.includes(name) ? 'always' : 'off' };
+  },
+
+  // Exempt from sleeping right now? 'call' deliberately is not: the call
+  // itself is held open by panelBusy, and the rest of the day it may sleep.
+  keptAwakeNow(name) {
+    const pref = this.keepAwakeFor(name);
+    if (pref.mode === 'always') return true;
+    if (pref.mode === 'until') return Number(pref.until) > Date.now();
+    return false;
+  },
+
+  // The same setting in words, for the menu and the settings row.
+  keepAwakeLabel(name) {
+    const pref = this.keepAwakeFor(name);
+    if (pref.mode === 'always') return 'Never sleeps';
+    if (pref.mode === 'call') return 'Awake during calls';
+    if (pref.mode === 'until') {
+      const mins = Math.round((Number(pref.until) - Date.now()) / 60000);
+      if (mins > 90) return 'Awake for ' + Math.round(mins / 60) + ' more hours';
+      if (mins > 0) return 'Awake for ' + mins + ' more minutes';
+    }
+    return 'Sleeps when idle';
+  },
+
+  setKeepAwakeMode(name, mode, until) {
+    if (!name) return false;
+    const map = this.keepAwakePrefs();
+    // 'off' is written down rather than removed: it has to beat the old
+    // yes/no list, or turning Discord's default off would not stick.
+    map[name] = (mode === 'until') ? { mode, until: Number(until) || 0 } : { mode: mode === 'off' ? 'off' : mode };
+    let ok = true;
+    try { localStorage.setItem(this.KEEP_AWAKE_KEY, JSON.stringify(map)); }
+    catch (err) { ok = false; console.error('[Sidebar] the keep-awake setting could not be saved:', err.message); }
+    // Keeping it awake means it has to be awake: one already asleep is built
+    // again in the background, or the setting reads as a lie until the panel
+    // is next opened.
+    if (ok && this.keptAwakeNow(name) && !this.panelWebviews[name] && this.isWebPanel(name)) {
+      const el = document.getElementById('panel-' + name);
+      if (el) {
+        try { this._createPanelWebview(name, el); delete this.sleptPanels[name]; }
+        catch (err) { console.warn('[Sidebar] ' + name + ' could not be woken:', err.message); }
+      }
+    }
     this.renderKeepAwakeList();
+    document.dispatchEvent(new CustomEvent('vex:panel-keepawake', { detail: { panel: name, mode } }));
+    return ok;
+  },
+
+  // The old yes/no switch, kept because Settings and anything else calling it
+  // should go on working: on is 'always', off is 'off'.
+  setKeepAwake(name, on) {
+    return this.setKeepAwakeMode(name, on ? 'always' : 'off');
+  },
+
+  // The card tabs use, with the one choice only a panel can offer.
+  showKeepAwakeChooser(name) {
+    if (!name || typeof document === 'undefined') return null;
+    document.querySelectorAll('.keepawake-ov').forEach(e => e.remove());
+    try { TabManager._injectKeepAwakeStyles(); } catch { /* the card still reads fine unstyled */ }
+    const HOUR = 3600 * 1000;
+    const label = this.panelLabel(name);
+    const esc = (v) => (window.escapeHtml ? window.escapeHtml(String(v)) : String(v));
+    const active = this.keepAwakeFor(name).mode !== 'off';
+    const ov = document.createElement('div');
+    ov.className = 'keepawake-ov';
+    ov.innerHTML = '<div class="ka-card">'
+      + '<div class="ka-title">Keep \u201c' + esc(label.slice(0, 38)) + '\u201d awake</div>'
+      + '<div class="ka-sub">A sleeping panel hands back all of its memory and comes back where you left it \u2014 but it cannot notify you while it sleeps. Right now: <b>' + esc(this.keepAwakeLabel(name)) + '</b>.</div>'
+      + '<div class="ka-grid">'
+      + '<button class="ka-btn" data-mode="until" data-ms="' + (1 * HOUR) + '">1 hour</button>'
+      + '<button class="ka-btn" data-mode="until" data-ms="' + (5 * HOUR) + '">5 hours</button>'
+      + '<button class="ka-btn" data-mode="until" data-ms="' + (12 * HOUR) + '">12 hours</button>'
+      + '<button class="ka-btn" data-mode="until" data-ms="' + (24 * HOUR) + '">24 hours</button>'
+      + '<button class="ka-btn" data-mode="custom">Custom\u2026</button>'
+      + '<button class="ka-btn" data-mode="always">Never (until reverted)</button>'
+      + '</div>'
+      + '<button class="ka-btn ka-wide" data-mode="call">Only while it is in a call</button>'
+      + '<div class="ka-sub ka-note">A call, the microphone or any sound already stops Vex sleeping a panel. This leans on that: awake for the call, asleep the rest of the day \u2014 which is where the gigabyte goes.</div>'
+      + (active ? '<button class="ka-btn ka-wide ka-stop">Let it sleep when idle again</button>' : '')
+      + '<button class="ka-cancel">Cancel</button>'
+      + '</div>';
+    const close = () => ov.remove();
+    const say = (msg) => { try { window.showToast?.(msg); } catch { /* the setting is saved either way */ } };
+    ov.addEventListener('click', e => { if (e.target === ov) close(); });
+    ov.querySelector('.ka-cancel').addEventListener('click', close);
+    ov.querySelector('.ka-stop')?.addEventListener('click', () => {
+      this.setKeepAwakeMode(name, 'off');
+      say(label + ' sleeps when idle again');
+      close();
+    });
+    ov.querySelectorAll('.ka-btn[data-mode]').forEach(b => b.addEventListener('click', async () => {
+      const mode = b.dataset.mode;
+      if (mode === 'always') { this.setKeepAwakeMode(name, 'always'); say(label + ' will not sleep until you say otherwise'); close(); return; }
+      if (mode === 'call') { this.setKeepAwakeMode(name, 'call'); say(label + ' stays awake for calls and sleeps the rest of the time'); close(); return; }
+      if (mode === 'custom') {
+        close();
+        if (typeof vexPromptModal !== 'function') { say('The input box is unavailable'); return; }
+        const h = parseFloat(await vexPromptModal('Keep ' + label + ' awake for how many hours?', '3'));
+        if (h > 0) { this.setKeepAwakeMode(name, 'until', Date.now() + h * HOUR); say(label + ' kept awake for ' + h + ' hour' + (h === 1 ? '' : 's')); }
+        else if (!Number.isNaN(h)) say('Enter a number of hours above 0');
+        return;
+      }
+      this.setKeepAwakeMode(name, 'until', Date.now() + parseInt(b.dataset.ms, 10));
+      say(label + ' kept awake for ' + b.textContent);
+      close();
+    }));
+    document.body.appendChild(ov);
+    return ov;
   },
 
   // Settings › Performance › Keep awake: one switch per web panel. The
@@ -965,20 +1101,23 @@ const SidebarManager = {
   renderKeepAwakeList() {
     const host = document.getElementById('setting-panel-keepawake');
     if (!host) return;
-    const exempt = this.panelSleepPrefs().exempt;
     host.innerHTML = '';
     for (const name of Object.keys(this.panelConfigs).filter(n => this.isWebPanel(n))) {
-      const row = document.createElement('label');
+      // A row, not a tick box: 'awake' has five answers now and a tick can
+      // only say two of them.
+      const row = document.createElement('div');
       row.className = 'keepawake-row';
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;cursor:pointer';
-      const box = document.createElement('input');
-      box.type = 'checkbox';
-      box.dataset.panel = name;
-      box.checked = exempt.includes(name);
-      box.addEventListener('change', () => this.setKeepAwake(name, box.checked));
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;justify-content:space-between';
       const text = document.createElement('span');
       text.textContent = this.panelLabel(name);
-      row.append(box, text);
+      const state = document.createElement('button');
+      state.className = 'btn-secondary';
+      state.dataset.panel = name;
+      state.style.cssText = 'font-size:11.5px;padding:3px 10px;white-space:nowrap';
+      state.textContent = this.keepAwakeLabel(name);
+      state.title = 'Choose how long ' + this.panelLabel(name) + ' stays awake';
+      state.addEventListener('click', () => this.showKeepAwakeChooser(name));
+      row.append(text, state);
       host.appendChild(row);
     }
   },
@@ -1036,7 +1175,7 @@ const SidebarManager = {
     if (!b) {
       b = document.createElement('div');
       b.className = 'discord-mem-banner';
-      b.innerHTML = '<span></span><button class="dmb-reload">Reload Discord</button><button class="dmb-later" title="Quiet for four hours">Later</button><button class="dmb-never" title="Turn memory notices off (Settings › Performance turns them back on)">Don\'t show again</button>';
+      b.innerHTML = '<span></span><button class="dmb-reload">Reload Discord</button><button class="dmb-calls" title="Discord sleeps when you have not used it for a while, and wakes for a call — a call in progress is never slept">Only during calls</button><button class="dmb-later" title="Quiet for four hours">Later</button><button class="dmb-never" title="Turn memory notices off (Settings › Performance turns them back on)">Don\'t show again</button>';
       b.querySelector('.dmb-reload').addEventListener('click', () => {
         try { this.panelWebviews.discord?.reload(); } catch {}
         document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'Discord reloaded' } }));
@@ -1044,6 +1183,13 @@ const SidebarManager = {
       });
       // Later used to silence only the toast: the notice came straight back on
       // the next minute's check, over the message box. Four hours of quiet.
+      // The notice is the moment this is worth offering: the gigabyte is on
+      // the screen, and this is the setting that gives it back.
+      b.querySelector('.dmb-calls').addEventListener('click', () => {
+        this.setKeepAwakeMode('discord', 'call');
+        window.showToast?.('Discord will sleep when idle and stay awake for calls — Settings › Performance changes it back');
+        b.remove();
+      });
       b.querySelector('.dmb-later').addEventListener('click', () => {
         b.remove();
         this._discordWarnedAt = Date.now();
@@ -1917,6 +2063,12 @@ const SidebarManager = {
       // What this panel is actually costing, beside everything else running
       // — and the way to end it, or keep it off for a while (js/tasks.js).
       items.push({ label: 'What is this using?…', action: () => { if (typeof VexTasks !== 'undefined') VexTasks.open({ panel: panelName }); } });
+      // How long it stays awake: an hour, a day, never, or only during a
+      // call — the same choice a tab has had all along.
+      items.push({
+        label: 'Keep awake…  (' + this.keepAwakeLabel(panelName) + ')',
+        action: () => this.showKeepAwakeChooser(panelName),
+      });
       // A loaded, hidden web panel can give its process back.
       if (this.panelWebviews[panelName] && panelName !== this.activePanel && panelName !== this.sidePanel) {
         items.push({

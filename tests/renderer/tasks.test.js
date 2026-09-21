@@ -316,3 +316,40 @@ describe('the window', () => {
     VexTasks.close();
   });
 });
+
+// "34 plugins running" is a fact with no consequence. PluginProfiler wraps
+// every plugin's start, event handlers and context menus and times them; when
+// it is there, this row becomes a name and a number.
+describe('what the Vencord plugins cost', () => {
+  const row = (d) => VexTasks.insideRows({ ...READING, ...d }).find(r => r.what === 'Vencord plugins running');
+
+  it('without the profiler, says how to get the figures', () => {
+    expect(row({ plugins: null }).n).toBe('34');
+    expect(row({ plugins: null }).detail).toMatch(/PluginProfiler/);
+  });
+
+  it('with it, names the dearest ones and over how long', () => {
+    const detail = row({
+      plugins: {
+        seconds: 600,
+        measured: 2,
+        rows: [
+          { name: 'MessageLogger', totalMs: 4200, fluxCalls: 18000, worstEvent: 'MESSAGE_CREATE' },
+          { name: 'Translate', totalMs: 60, fluxCalls: 12, worstEvent: '' },
+          { name: 'Quiet', totalMs: 0, fluxCalls: 0, worstEvent: '' },
+        ],
+      },
+    }).detail;
+    expect(detail).toMatch(/Measured over 10 minutes/);
+    expect(detail).toMatch(/MessageLogger 4\.2 s across 18,000 events/);
+    expect(detail).toMatch(/Translate 60 ms/);
+    expect(detail).not.toMatch(/Quiet/);          // nothing measurable, not named
+  });
+
+  // A plugin that patches Discord once at startup costs nothing afterwards,
+  // and the row has to be able to say that rather than imply guilt.
+  it('says plainly when nothing has cost anything', () => {
+    const detail = row({ plugins: { seconds: 120, measured: 0, rows: [{ name: 'Quiet', totalMs: 0, fluxCalls: 0, worstEvent: '' }] } }).detail;
+    expect(detail).toMatch(/none of them has cost anything measurable/);
+  });
+});
