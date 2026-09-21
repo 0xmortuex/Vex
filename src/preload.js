@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('vex', {
   // Per-container routing (Tor / custom proxy / direct) for a session partition.
   routingSet: (partition, mode, custom) => ipcRenderer.invoke('routing:set', partition, mode, custom),
   routingGet: (partition) => ipcRenderer.invoke('routing:get', partition),
+  // All of Vex through one route, and a real check of whether it is working.
+  routingSetAll: (mode, custom) => ipcRenderer.invoke('routing:set-all', mode, custom),
+  routingGetAll: () => ipcRenderer.invoke('routing:get-all'),
+  routingCheck: (partition) => ipcRenderer.invoke('routing:check', partition),
 
   // Storage
   saveData: (key, data) => ipcRenderer.invoke('storage-save', key, data),

@@ -377,6 +377,11 @@ function handleHardReloadShortcut(event, input) {
 // their own find, so swallowing Ctrl+F there replaced a working search with a
 // find bar guaranteed to report nothing. Let the key reach the page instead.
 const { guestOwnsFind } = require('./main/find-policy');
+// The sessions ordinary browsing happens in: the default one plus the
+// containers. Routing, and anything else that must cover "all of Vex",
+// works through this list.
+const BROWSING_SESSIONS = ['persist:main', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping'];
+
 const { shortcutFor } = require('./main/guest-shortcuts');
 
 // The key combinations the renderer's shortcut registry currently answers to
@@ -3585,7 +3590,7 @@ function createWindow() {
   // so the OAuth authorize page + discord.com links work in regular Vex tabs —
   // not just the Discord sidebar panel. A PAC script sends ONLY discord.* through
   // ByeDPI (everything else stays direct). TCP only — voice UDP still needs Zapret.
-  const _BROWSING_SESSIONS = ['persist:main', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping'];
+  const _BROWSING_SESSIONS = BROWSING_SESSIONS;
   function _routeBrowsingDiscord(port) {
     let cfg = { mode: 'direct' };
     if (port) {
@@ -4836,6 +4841,96 @@ ipcMain.handle('routing:set', (event, partition, mode, custom) => {
   return operation.catch(e => ({ ok: false, error: e && e.message }));
 });
 ipcMain.handle('routing:get', (_e, partition) => { try { return readRouting()[partition || 'default'] || { mode: 'direct' }; } catch { return { mode: 'direct' }; } });
+
+// === All of Vex through one route ==========================================
+//
+// Routing existed per container, which is the right shape for "this account
+// goes through Tor" and the wrong shape for what people mean by a VPN: send
+// EVERYTHING through it, and tell me whether it is really working.
+//
+// Both halves are here. set-all applies one route to every browsing session
+// (and the default one) in a single pass and records it under a name of its
+// own, so a restart puts it back. check makes a real request through a real
+// session and reports the address the internet saw — routed and direct, so
+// the answer is a comparison rather than a claim.
+const _ALL_ROUTE_KEY = '__all__';
+
+ipcMain.handle('routing:set-all', (event, mode, custom) => {
+  const operation = routingPending.catch(() => {}).then(async () => {
+    const targets = [null, ...BROWSING_SESSIONS];
+    const failed = [];
+    for (const partition of targets) {
+      try { await applyRouting(partition, mode, custom, event && event.sender); }
+      catch (err) { failed.push((partition || 'default') + ': ' + (err && err.message)); }
+    }
+    if (failed.length === targets.length) throw new Error(failed[0] || 'Could not apply that route');
+    if (mode === 'direct') await getRoutingStore().delete(_ALL_ROUTE_KEY);
+    else await getRoutingStore().set(_ALL_ROUTE_KEY, { mode, custom: custom || null, at: Date.now() });
+    return { ok: true, mode, custom: custom || null, partial: failed.length ? failed : null };
+  });
+  routingPending = operation;
+  return operation.catch(e => ({ ok: false, error: e && e.message }));
+});
+
+ipcMain.handle('routing:get-all', () => {
+  try { return readRouting()[_ALL_ROUTE_KEY] || { mode: 'direct' }; }
+  catch { return { mode: 'direct' }; }
+});
+
+// What the internet sees, asked through one of Vex's own sessions so the
+// answer reflects the route that session is really using. `direct` asks the
+// same question through a throwaway session with no proxy at all, which is
+// what makes the result mean something.
+const _IP_SERVICE = 'https://api.ipify.org?format=json';
+const _IP_TIMEOUT = 12000;
+
+function _askApparentIp(ses) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (value) => { if (!done) { done = true; resolve(value); } };
+    const timer = setTimeout(() => finish({ ok: false, error: 'No answer in ' + (_IP_TIMEOUT / 1000) + ' seconds' }), _IP_TIMEOUT);
+    let req;
+    try { req = net.request({ url: _IP_SERVICE, session: ses, useSessionCookies: false }); }
+    catch (err) { clearTimeout(timer); return finish({ ok: false, error: (err && err.message) || 'Could not ask' }); }
+    req.on('response', (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; if (body.length > 4096) { try { req.abort(); } catch {} } });
+      res.on('end', () => {
+        clearTimeout(timer);
+        try {
+          const parsed = JSON.parse(body);
+          finish(parsed && parsed.ip ? { ok: true, ip: String(parsed.ip) } : { ok: false, error: 'The service answered with something unexpected' });
+        } catch { finish({ ok: false, error: 'The service answered with something unexpected' }); }
+      });
+      res.on('error', (err) => { clearTimeout(timer); finish({ ok: false, error: (err && err.message) || 'The connection failed' }); });
+    });
+    req.on('error', (err) => { clearTimeout(timer); finish({ ok: false, error: (err && err.message) || 'The connection failed' }); });
+    try { req.end(); } catch (err) { clearTimeout(timer); finish({ ok: false, error: (err && err.message) || 'Could not ask' }); }
+  });
+}
+
+ipcMain.handle('routing:check', async (_e, partition) => {
+  const routed = partition ? secureSessions.fromPartition(partition) : secureSessions.fromPartition('persist:main');
+  const began = Date.now();
+  const through = await _askApparentIp(routed);
+  const took = Date.now() - began;
+  // A second session, never routed, for the comparison. Made fresh each time
+  // so nothing about it can have been changed by a route.
+  const bare = session.fromPartition('vex-route-check-' + Date.now());
+  try { await bare.setProxy({ mode: 'direct' }); } catch { /* it is direct already */ }
+  const plain = await _askApparentIp(bare);
+  try { await bare.clearStorageData(); } catch { /* nothing was stored */ }
+  return {
+    ok: !!through.ok,
+    ip: through.ip || null,
+    error: through.error || null,
+    directIp: plain.ok ? plain.ip : null,
+    directError: plain.ok ? null : (plain.error || null),
+    changed: !!(through.ok && plain.ok && through.ip !== plain.ip),
+    ms: took,
+    service: _IP_SERVICE,
+  };
+});
 
 // Re-apply saved routings at startup (Tor ones lazily — starting Tor for every
 // container on boot would be heavy, so a Tor container reconnects on first use;

@@ -133,9 +133,35 @@ const SettingsUI = {
     } else if (empty) { empty.style.display = 'none'; }
   },
 
+  // The pickers that live in Settings but open as their own screens, because
+  // a texture, a typeface and a palette cannot be shown in a drop-down.
+  PICKERS: [
+    ['setting-open-theme', () => (typeof ThemePicker !== 'undefined' ? ThemePicker.open() : null)],
+    ['setting-open-skin', () => (typeof VexSkins !== 'undefined' ? VexSkins.open() : null)],
+    ['setting-open-font', () => (typeof VexFonts !== 'undefined' ? VexFonts.open() : null)],
+    ['setting-open-routing', () => (typeof PrivateRouting !== 'undefined' ? PrivateRouting.open() : null)],
+    ['setting-open-library', () => {
+      try { if (typeof ReadLater !== 'undefined') ReadLater.showTab('features'); } catch { /* the panel opens either way */ }
+      if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('library');
+    }],
+  ],
+
+  _wirePickers() {
+    for (const [id, open] of this.PICKERS) {
+      const btn = document.getElementById(id);
+      if (!btn || btn.dataset.wired) continue;
+      btn.dataset.wired = '1';
+      btn.addEventListener('click', () => {
+        try { open(); }
+        catch (err) { window.showToast?.((err && err.message) || 'That could not be opened', 'error'); }
+      });
+    }
+  },
+
   enhance() {
     const root = document.querySelector('#panel-settings .settings-content');
     if (!root) return;
+    this._wirePickers();
     const groups = Array.from(root.children).filter(el => el.classList && el.classList.contains('setting-group'));
     if (!groups.length) return;
 

@@ -1451,6 +1451,9 @@
   // And the skin (js/skins.js): texture, shape and light, over any theme.
   if (typeof VexSkins !== 'undefined') VexSkins.init();
 
+  // The toolbar marker for a route that is on (js/private-routing.js).
+  if (typeof PrivateRouting !== 'undefined') PrivateRouting.init().catch(err => console.warn('[routing] ' + (err && err.message)));
+
   // === Phase 10: Multi-Tab AI ===
   TabSelector.init();
 

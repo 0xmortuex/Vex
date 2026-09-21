@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.32.76 (2026-09-21) — All of Vex through one route, and the newer features where people look for them
+
+### Changes
+- **Private routing: everything Vex does, through Tor or a proxy of your own** (`Ctrl+K` → **Private Routing**, or Settings → Private routing). Routing already existed per container, which is the right shape for "this account goes through Tor" and the wrong shape for what people mean by a VPN. This applies one route to every tab and every container at once, and puts it back after a restart.
+  - **And it can be checked.** The Check button asks what address the internet sees *through* the route, asks the same question again through a session with no route at all, and shows you both — because a claim that traffic is routed is worth nothing and two addresses side by side are worth something. A proxy on your own machine coming out at your own address is explained rather than called a failure.
+  - A marker appears in the toolbar while a route is on: a route you forgot about is slow browsing with no explanation.
+  - Said plainly on the screen itself: Vex is not a VPN service and does not run one. It routes the browser through Tor, or through a proxy you already have. Anything outside Vex goes the way it always did.
+  - Tested end to end before shipping: through a local proxy (the proxy saw every request, and saw nothing after switching back to direct) and through Tor (14 seconds to start; the internet then saw a Tor exit node instead of this machine).
+- **Settings knows about the newer features.** An **Appearance** group with the theme, skin and font pickers and a way into the Library, and a **Private routing** group — each a button that opens the real screen, because a texture, a typeface and a palette cannot be shown in a drop-down. Settings is where people look for these; until now they lived only in `Ctrl+K`.
+
+### Fixes
+- The routing check called an unrouted connection "carrying traffic" — it now says nothing is routed, which is what it means.
+
 ## v2.32.75 (2026-09-21) — Skins, Times New Roman, one key back to the last tab, and an AI that just does it
 
 ### Changes
