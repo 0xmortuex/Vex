@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.32.77 (2026-09-21) — A panel that sleeps between your calls, rules per site, and one screen that says why it is slow
+
+### Changes
+- **How long a panel stays awake, chosen the way a tab's is** (right-click a sidebar icon → **Keep awake…**, or Settings → Performance). It used to be a tick box: awake for ever, or not. Now it is the same card tabs have had all along — an hour, five, twelve, twenty-four, a number you type, or never until you say otherwise — with one choice only a panel can offer:
+  - **Only while it is in a call.** Vex already refuses to sleep a panel that is holding the microphone or making a sound, so this leans on that: awake for the call, asleep the rest of the day. That is where Discord's gigabyte goes, and it is why it was held: "kept awake" meant all day, because there was no way to say anything else.
+  - The Discord memory notice now offers it directly, at the moment the figure is on the screen. A setting you meet when it would help is a setting you use.
+  - Each panel's row in Settings says what it is set to rather than showing a tick, because "awake" now has five answers and a tick can say two of them.
+  - A panel set to stay awake that was already asleep is built again there and then, instead of the setting quietly meaning nothing until the panel is next opened.
+- **Sites that always go through a route** (`Ctrl+K` → **Site Rules**, or Settings → Private routing). Name a site and every tab that goes there opens in a session of its own that is routed through Tor or through a proxy you have — every time, without you remembering to, and without routing the rest of your browsing. A rule for `example.com` covers `mail.example.com`.
+  - It fails closed. The routed session is armed when Vex starts, and a Tor session has a refused loopback proxy installed on it before a single request can leave. If Tor is not up yet the site does not load; it does not quietly load direct, which is the failure that makes a rule worse than no rule.
+  - A tab you deliberately opened in a container is left exactly where it is. A rule only ever moves an ordinary tab.
+  - Said on the screen: a routed session is a separate cookie jar, so a site opened by a rule is signed out of. For Tor that is the point; for a proxy it is worth knowing.
+- **Why is Vex slow right now?** (`Ctrl+K`). The answer was already in Vex, in four places nobody visits at the moment it matters: the process list knows which renderer is burning the processor, the tab list knows which page that is, the routing screen knows whether every request is going the long way round, and the graphics probe knows a game has the card. Each on its own is a number. Together they are a sentence, heaviest first, each with the button that fixes it — go to that tab, let that panel sleep, open the routing settings.
+  - It never says "nothing is wrong" over a measurement that failed: a process list it could not read is its own answer, with the reason.
+- **How big Vex is, and how tightly packed** (`Ctrl+K` → **Font**). Page zoom makes a page bigger and has never touched Vex's own tab strip, sidebar, menus and settings — which is exactly what someone who cannot read twelve-pixel type needs bigger. Five sizes, from ten per cent smaller to half again larger, taking the icons, paddings and borders with them; and four row densities, because a large screen fits far more of a list when the rows are not padded for a laptop. A panel holding a web page keeps its natural size: a page has its own zoom, and scaling it here would fight that.
+- **A setup code now carries the whole look.** It carried the panels, the shortcuts and the theme — most of a setup and none of the look, so two people with the same code saw different browsers. It now carries the skin and the typeface as well. Codes shared before this still work; they simply carry no look, and a pattern or face this Vex does not have is dropped rather than applied.
+- **Open a download the moment it finishes**, asked once at the start — which is when you know you are waiting for it, rather than catching a toast that has already gone. It is on the toolbar drop-down, where a download is actually watched, and in the panel. It is not a way round the safety check: an installer opened this way is asked about exactly as one opened by hand — who signed it, where it came from — because waiting for a file is not consent to run an unsigned program.
+- **"What is this using?" now says what the Vencord plugins cost**, not just how many are running. Thirty-four plugins running is a fact with no consequence; "MessageLogger has spent 4.2 seconds across 18,000 events in the last ten minutes" is something to act on. The figures come from PluginProfiler, which times every plugin's start, event handlers and context menus and now publishes a plain snapshot for this. Without it, the row says how to turn it on — and when nothing has cost anything measurable, it says that too rather than implying guilt.
+- **Two things that were built but not findable** are now in the Library and searchable: private routing for all of Vex, and the interface size.
+
+### Fixes
+- **Routing everything through Tor or a proxy did not survive a restart.** The setting was saved under a name that stands for every browsing session, and was restored as though it were a session of its own — so a restart proxied a session nothing uses and brought every real tab back direct. Introduced with the feature in v2.32.76; it now applies to every session again, fail-closed, before any restored page can make a request.
+- Settings' "Keep awake" line still described tick boxes that are no longer there.
+
 ## v2.32.76 (2026-09-21) — All of Vex through one route, and the newer features where people look for them
 
 ### Changes
