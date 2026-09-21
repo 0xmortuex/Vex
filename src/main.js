@@ -379,11 +379,20 @@ function handleHardReloadShortcut(event, input) {
 const { guestOwnsFind } = require('./main/find-policy');
 const { shortcutFor } = require('./main/guest-shortcuts');
 
+// The key combinations the renderer's shortcut registry currently answers to
+// (js/shortcuts-registry.js pushes them on start and on every rebind). Held
+// here so a key pressed while a PAGE has the focus can be passed up to it.
+let _guestWantedKeys = new Set();
+ipcMain.on('shortcuts:guest-keys', (event, combos) => {
+  if (!secureSessions.isUiFrame(event)) return;
+  _guestWantedKeys = new Set((Array.isArray(combos) ? combos : []).filter(c => typeof c === 'string').slice(0, 300));
+});
+
 function handleBrowserShortcut(event, input, contents) {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
-  const hit = shortcutFor(input, { ownsFind: guestOwnsFind(url) });
+  const hit = shortcutFor(input, { ownsFind: guestOwnsFind(url), wanted: _guestWantedKeys });
   if (!hit) return false;
   mainWindow.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();

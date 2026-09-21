@@ -445,6 +445,8 @@ const VexFeatures = {
       what: 'One saved profile fills any signup or checkout form. Card numbers are never stored.' },
 
     // --- Make it yours ----------------------------------------------------
+    { id: 'skin', phrases: 'pattern texture skin shapes corners rounded flat glow decorate style', cat: 'look', cmd: 'skin', name: 'Skins — texture, shape and light',
+      what: 'Nineteen textures for Vex’s own surfaces (dots, graph paper, honeycomb, circuitry, contours, grain…), five corner shapes and four kinds of shadow — on top of any theme.' },
     { id: 'font', phrases: 'font typeface times new roman serif letters text size reading', cat: 'look', cmd: 'font', name: 'The font Vex wears',
       what: 'The typeface of the browser itself \u2014 twenty-three of them, from Segoe UI to Times New Roman, plus the one used for code.' },
     { id: 'themes', phrases: 'dark dark mode light mode colour color appearance skin', cat: 'look', cmd: 'theme',
@@ -581,7 +583,7 @@ const VexFeatures = {
       { name: 'And your own', ids: ['panel-authenticator', 'pinsite2'] },
     ],
     look: [
-      { name: 'The whole browser', ids: ['themes', 'font', 'guistyle', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
+      { name: 'The whole browser', ids: ['themes', 'skin', 'font', 'guistyle', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
       { name: 'One site at a time', ids: ['siteprofiles', 'boost', 'zap', 'airestyle'] },
       { name: 'The rest', ids: ['search-engine', 'extensions', 'setupgallery'] },
     ],

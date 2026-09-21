@@ -19,10 +19,21 @@ const VexFonts = {
   KEY: 'vex.font',
   MONO_KEY: 'vex.fontMono',
 
+  // What Vex wears when nobody has said otherwise. Times New Roman rather
+  // than the geometric sans it shipped with: asked for directly, and it suits
+  // a browser whose own screens are mostly prose — the Library, the guide,
+  // the reference beside every tool. Outfit is still one pick away.
+  //
+  // The stylesheets still name Outfit in three hundred places, so the default
+  // is itself an override: the sweeping rule in css/fonts.css is on unless
+  // somebody chooses Outfit back.
+  SHIPPED: 'times',
+  SHIPPED_MONO: 'jetbrains',
+
   // kind is what the list groups by; `stack` is what actually gets applied,
   // with fallbacks so a machine without the face still reads sensibly.
   FONTS: [
-    { id: 'default', kind: 'sans', name: 'Outfit', note: 'What Vex ships with', stack: "'Outfit', system-ui, -apple-system, sans-serif" },
+    { id: 'default', kind: 'sans', name: 'Outfit', note: 'Vex’s old face, geometric', stack: "'Outfit', system-ui, -apple-system, sans-serif" },
     { id: 'system', kind: 'sans', name: 'Your system font', note: 'Whatever Windows is set to', stack: "system-ui, 'Segoe UI', sans-serif" },
     { id: 'segoe', kind: 'sans', name: 'Segoe UI', note: 'Windows’ own', stack: "'Segoe UI', system-ui, sans-serif" },
     { id: 'calibri', kind: 'sans', name: 'Calibri', note: 'Softer, narrower', stack: "Calibri, 'Segoe UI', sans-serif" },
@@ -34,7 +45,7 @@ const VexFonts = {
     { id: 'arial', kind: 'sans', name: 'Arial', note: 'The plain one', stack: "Arial, Helvetica, sans-serif" },
     { id: 'grotesk', kind: 'sans', name: 'Space Grotesk', note: 'Vex’s heading face, everywhere', stack: "'Space Grotesk', 'Outfit', sans-serif" },
 
-    { id: 'times', kind: 'serif', name: 'Times New Roman', note: 'The classic', stack: "'Times New Roman', Times, serif" },
+    { id: 'times', kind: 'serif', name: 'Times New Roman', note: 'The default', stack: "'Times New Roman', Times, serif" },
     { id: 'georgia', kind: 'serif', name: 'Georgia', note: 'Made for screens', stack: "Georgia, 'Times New Roman', serif" },
     { id: 'cambria', kind: 'serif', name: 'Cambria', note: 'Sturdy at small sizes', stack: "Cambria, Georgia, serif" },
     { id: 'constantia', kind: 'serif', name: 'Constantia', note: 'Bookish', stack: "Constantia, Georgia, serif" },
@@ -59,12 +70,17 @@ const VexFonts = {
 
   // The interface font, and the one used for code. 'jetbrains' is the code
   // default; 'default' (Outfit) is the interface one.
-  current() { try { return this.get(localStorage.getItem(this.KEY)) || this.get('default'); } catch { return this.get('default'); } },
-  currentMono() { try { return this.get(localStorage.getItem(this.MONO_KEY)) || this.get('jetbrains'); } catch { return this.get('jetbrains'); } },
+  current() { try { return this.get(localStorage.getItem(this.KEY)) || this.get(this.SHIPPED); } catch { return this.get(this.SHIPPED); } },
+  currentMono() { try { return this.get(localStorage.getItem(this.MONO_KEY)) || this.get(this.SHIPPED_MONO); } catch { return this.get(this.SHIPPED_MONO); } },
 
-  // Nothing to override while both are the shipped ones, so the rule in
-  // css/fonts.css stays switched off and Vex is byte-for-byte as before.
-  isDefault() { return this.current().id === 'default' && this.currentMono().id === 'jetbrains'; },
+  // Is this what Vex ships with? Used by the picker, not by the rule.
+  isShipped() { return this.current().id === this.SHIPPED && this.currentMono().id === this.SHIPPED_MONO; },
+
+  // Does anything have to be overridden? The stylesheets are written in
+  // Outfit and JetBrains Mono, so those two together are the only pair that
+  // needs no rule at all.
+  needsOverride() { return this.current().id !== 'default' || this.currentMono().id !== 'jetbrains'; },
+  isDefault() { return !this.needsOverride(); },
 
   set(id) {
     const font = this.get(id);
@@ -100,8 +116,8 @@ const VexFonts = {
     // Vex's own heading face stays.
     root.style.setProperty('--vex-font-display', font.id === 'default' ? "'Space Grotesk', 'Outfit', sans-serif" : font.stack);
     root.style.setProperty('--vex-font-mono', mono.stack);
-    if (this.isDefault()) root.removeAttribute('data-vex-font');
-    else root.setAttribute('data-vex-font', font.id);
+    if (this.needsOverride()) root.setAttribute('data-vex-font', font.id);
+    else root.removeAttribute('data-vex-font');
     document.dispatchEvent(new CustomEvent('vex:font-changed', { detail: { font: font.id, mono: mono.id } }));
     this.paintStartPages();
     return font;
@@ -113,7 +129,7 @@ const VexFonts = {
   // first paint instead of flashing the old face. Same shape as the browser
   // look's palette (js/gui-style.js).
   startPageCss() {
-    if (this.isDefault()) return '';
+    if (!this.needsOverride()) return '';
     const font = this.current();
     const mono = this.currentMono();
     // The doubled attribute is not a typo. Under a browser look the start page
@@ -188,7 +204,7 @@ const VexFonts = {
         </div>
         <div class="vexfont-body" id="vexfont-body"></div>
         <div class="vexfont-foot">
-          <button data-reset type="button">Back to how Vex ships</button>
+          <button data-reset type="button">Back to the default</button>
           <span id="vexfont-now"></span>
         </div>
       </div>`;

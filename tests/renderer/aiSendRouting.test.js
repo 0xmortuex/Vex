@@ -154,3 +154,34 @@ describe('an agent run is part of the chat', () => {
     await vi.waitFor(() => expect(AIPanel._agentTabId).toBe(null));
   });
 });
+describe('an order is an order', () => {
+  // Reported 2026-09-21: "when I gave orders to Vex AI it tried to explain
+  // some things that I did not ask". Half of that is the prompt; the other
+  // half is here — an imperative that never reached the agent got answered
+  // with an explanation of how to do it yourself.
+  const goes = (msg) => AIPanel.routeMessage(msg).agent;
+
+  it('ordinary verbs that were missing', () => {
+    for (const order of [
+      'delete every bookmark in the old folder',
+      'clear my downloads',
+      'copy this page address to my notes',
+      'export my notes',
+      'install uBlock Origin',
+      'archive these tabs',
+      'record the screen',
+      'split the window with the docs',
+      'hide the sidebar',
+      'zoom this site to 125%',
+    ]) expect(goes(order), order).toBe(true);
+  });
+
+  it('a question about the page is still a question', () => {
+    for (const ask of [
+      'what does this page say about pricing?',
+      'explain this paragraph',
+      'summarize this',
+      'rewrite this more simply',
+    ]) expect(goes(ask), ask).toBe(false);
+  });
+});

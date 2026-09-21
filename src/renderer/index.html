@@ -5,7 +5,6 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self'; connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vex</title>
-  <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/accessibility-ui.css">
   <link rel="stylesheet" href="css/theme-tokens.css">
   <link rel="stylesheet" href="css/theme-extra.css">
@@ -46,6 +45,7 @@
   <link rel="stylesheet" href="css/tasks.css">
   <link rel="stylesheet" href="css/feature-library.css">
   <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/skins.css">
   <link rel="stylesheet" href="css/settings-redesign.css">
   <link rel="stylesheet" href="css/peek.css">
   <link rel="stylesheet" href="css/extras.css">
@@ -1094,6 +1094,8 @@
         <button class="ai-icon-btn" id="ai-think-toggle" title="Show thinking" aria-label="Show thinking" aria-pressed="false"></button>
         <button class="ai-icon-btn" id="ai-new-chat" title="New chat" aria-label="New chat"></button>
         <button class="ai-icon-btn" id="ai-history-btn" title="Recent chats" aria-label="Recent chats"></button>
+        <button class="ai-icon-btn" id="ai-export" title="Save this conversation to a file" aria-label="Save this conversation"></button>
+        <button class="ai-icon-btn ai-clear" id="ai-clear" title="Clear this conversation" aria-label="Clear this conversation"></button>
         <button class="ai-icon-btn" id="ai-expand" title="Full screen (Ctrl+Shift+F)" aria-label="Full screen"></button>
         <button class="ai-icon-btn ai-close" id="ai-close" title="Close (Esc)" aria-label="Close"></button>
       </div>
@@ -1201,15 +1203,12 @@
           </div>
 
           <span class="ai-controls-spacer"></span>
-
-          <button class="ai-pill ai-pill-quiet" id="ai-export" title="Save this conversation to a file">Export</button>
-          <button class="ai-pill ai-pill-quiet ai-clear" id="ai-clear" title="Clear this conversation">Clear</button>
         </div>
 
         <div class="ai-footer">
           <button id="ai-pause-agent" title="Hold the agent between steps">Pause</button>
           <button id="ai-stop-agent" title="Stop agent">Stop</button>
-          <span class="ai-backend" id="ai-backend">Vex AI</span>
+          <span class="ai-backend" id="ai-backend"></span>
         </div>
       </div>
     </div>
@@ -1381,6 +1380,7 @@
   <script src="js/discover.js"></script>
   <script src="js/tasks.js"></script>
   <script src="js/fonts.js"></script>
+  <script src="js/skins.js"></script>
   <script src="js/feature-details.js"></script>
   <script src="js/feature-library.js"></script>
   <script src="js/peek.js"></script>

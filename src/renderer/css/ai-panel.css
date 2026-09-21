@@ -570,3 +570,49 @@ body.agent-paused #ai-pause-agent { border-color: var(--primary); color: var(--p
 /* The guide's answer (AIPanel._renderGuide). */
 .vex-guide-card .vex-guide-steps { margin: 6px 0 0 18px; padding: 0; font-size: 12.5px; line-height: 1.6; color: var(--text); }
 .vex-guide-card .vex-guide-also { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
+
+/* === Reading an answer, not scanning a wall ==============================
+   The panel held four rows of controls under the box you type in, starters
+   that never went away, and headings the same size as the text under them.
+   These are the spacing rules that make an answer read as a piece of writing;
+   they come last so they win over the older ones above. */
+
+/* One rhythm down the column: a question, its answer, a gap, the next pair. */
+.ai-messages { gap: 10px; }
+.ai-msg.user + .ai-msg.assistant { margin-top: -2px; }
+.ai-msg.assistant + .ai-msg.user { margin-top: 6px; }
+
+/* Headings inside an answer look like headings. */
+.ai-msg.assistant :is(h1, h2, h3, h4) {
+  font-family: var(--vex-font-display, inherit);
+  line-height: 1.3;
+  margin: 12px 0 5px;
+  color: var(--text);
+}
+.ai-msg.assistant :is(h1, h2, h3, h4):first-child { margin-top: 0; }
+.ai-msg.assistant h1 { font-size: 1.28em; }
+.ai-msg.assistant h2 { font-size: 1.16em; }
+.ai-msg.assistant :is(h3, h4) { font-size: 1.06em; }
+.ai-msg.assistant p { margin: 0 0 8px; }
+.ai-msg.assistant > :last-child { margin-bottom: 0; }
+.ai-msg.assistant hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+.ai-msg.assistant blockquote {
+  margin: 8px 0; padding: 2px 0 2px 11px;
+  border-left: 2px solid var(--border); color: var(--text-muted);
+}
+/* An inline code span the width of the panel used to break across two lines
+   with a box on each. */
+.ai-msg.assistant code { overflow-wrap: anywhere; }
+.ai-msg.assistant table { border-collapse: collapse; margin: 8px 0; font-size: .95em; width: 100%; }
+.ai-msg.assistant :is(td, th) { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+.ai-msg.assistant th { background: var(--vex-hover-fill, var(--tab-hover)); font-weight: 600; }
+
+/* The question, as a quiet block rather than a shout. */
+.ai-msg.user { border-radius: 13px 13px 5px 13px; padding: 8px 13px; }
+
+/* The composer: one row of chips, one line to type in, nothing else. */
+.ai-composer-inner { gap: 8px; }
+.ai-controls { row-gap: 6px; }
+.ai-footer:empty { display: none; }
+.ai-footer { padding-top: 0; }
+.ai-backend:empty { display: none; }

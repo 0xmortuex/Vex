@@ -217,6 +217,7 @@ const FeatureDetails = {
 
   // ---- Make it yours -------------------------------------------------------
   'search-engine': 'Which engine the address bar uses — Google, DuckDuckGo, Brave or Bing. Per-site search shortcuts are separate and live in Settings.',
+  skin: 'A theme says what colour Vex is; a skin says what it is made of. The texture is drawn in the theme’s own ink at a strength you choose, so it follows every theme rather than fighting it, and it is only ever on Vex’s own surfaces — a web page is never touched. Shape and light are separate choices, so sharp corners with a barely-there texture is a perfectly good answer.',
   font: 'Every panel, menu and button in Vex, in the face you pick \u2014 and the code font separately, so numbers and shortcuts still line up whatever you choose. Pages are never touched: a site keeps its own typography. Everything offered is already on the machine, so nothing is downloaded and it works offline.',
   themes: 'Thirty-seven themes, and the whole interface follows, including the new tab page. Firefox Light and Firefox Dark are there if you want the colours to match the Firefox look.',
   guistyle: 'Wear a different browser: Chrome, Firefox, Safari, Internet Explorer on XP, or Netscape on 98. It changes the shape of the browser, not the colours — pick a theme for those.',

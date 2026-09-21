@@ -363,10 +363,39 @@ const TabManager = {
     return tab;
   },
 
+  // === Back and forth between two tabs ======================================
+  //
+  // Alt+Tab's useful half, and the half Ctrl+Tab in a browser does not do:
+  // one key, and you are on the tab you were on before this one. Pressing it
+  // again brings you back, because the jump itself records where you came
+  // from — so it alternates rather than walking a list.
+  //
+  // Vex tried holding Ctrl and cycling an MRU list once (v2.32.x) and took it
+  // out again: the key-up that ends such a cycle never arrives from inside a
+  // page. One press has no key-up to miss.
+  lastUsedTab() {
+    const back = this._previousTabId;
+    if (!back || back === this.activeTabId) {
+      // Nowhere to go back to yet: the next best thing is the tab used most
+      // recently before this one, which is what the record would have said.
+      const others = this.tabs.filter(t => t.id !== this.activeTabId);
+      if (!others.length) return null;
+      others.sort((a, b) => (b.lastViewedAt || 0) - (a.lastViewedAt || 0));
+      this.switchTab(others[0].id);
+      return others[0].id;
+    }
+    if (!this.tabs.some(t => t.id === back)) { this._previousTabId = null; return null; }
+    this.switchTab(back);
+    return back;
+  },
+
   switchTab(id) {
     this._notifyTabsChanged();
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
+    // The one you were on a moment ago, for the back-and-forth key
+    // (lastUsedTab below). Alt+Tab for tabs, without holding anything.
+    if (this.activeTabId && this.activeTabId !== id) this._previousTabId = this.activeTabId;
 
     // Hide any active panel
     SidebarManager.hideActivePanel();

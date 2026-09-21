@@ -70,7 +70,11 @@ const ShortcutsRegistry = (() => {
     'watch-page':     { default: 'Ctrl+Alt+W',   label: 'Watch this page for changes', category: 'Tools',     cmd: 'watch' },
     'toolbox':        { default: 'Ctrl+Alt+X',   label: 'Toolbox',                    category: 'Tools',      cmd: 'toolbox' },
     'read-later':     { default: 'Ctrl+Alt+K',   label: 'Save this page to Read Later', category: 'Tools',    cmd: 'readlater' },
-    'translate-page': { default: 'Ctrl+Alt+G',   label: 'Translate this page',        category: 'Tools',      cmd: 'translate' }
+    'translate-page': { default: 'Ctrl+Alt+G',   label: 'Translate this page',        category: 'Tools',      cmd: 'translate' },
+    // Alt+Tab's useful half, for tabs: one press and you are back on the tab
+    // you were on before this one. Alt+Q because Alt+Tab itself belongs to
+    // Windows and can never be taken from it.
+    'last-tab':       { default: 'Alt+Q',         label: 'Back to the last tab you used', category: 'Tabs' }
   };
 
   // A binding the user made for a Ctrl+K command that has no built-in key.
@@ -129,12 +133,27 @@ const ShortcutsRegistry = (() => {
     return true;
   }
 
+  // Tell main which combinations we answer to, so the same keys work while a
+  // PAGE has the focus (main/guest-shortcuts.js passes those back up). Sent on
+  // start and after every rebind; without it a rebound key only worked while
+  // Vex's own interface was focused.
+  function _tellMain() {
+    if (!window.vex || typeof window.vex.setGuestShortcutKeys !== 'function') return false;
+    const all = getAllShortcuts();
+    const combos = Object.values(all).filter(d => d.current && d.hasHandler).map(d => d.current);
+    try { window.vex.setGuestShortcutKeys([...new Set(combos)]); return true; }
+    catch (err) { console.warn('[Shortcuts] could not hand the keys to the window:', err && err.message); return false; }
+  }
+
   function init() {
     userShortcuts = _load();
     if (!listenerAttached) {
       document.addEventListener('keydown', _onKeyDown, true); // capture so we fire before most listeners
       listenerAttached = true;
     }
+    // After the command bar has built its list, so a shortcut that names a
+    // command counts as handled.
+    setTimeout(_tellMain, 1200);
   }
 
   function getShortcut(id) {
@@ -186,14 +205,18 @@ const ShortcutsRegistry = (() => {
       }
     }
     userShortcuts[id] = combo;
+    const ok = _save();
+    _tellMain();
     // `true` still means "bound and saved"; { saved: false } means the binding
     // is live for this session only, which the editor tells the user about.
-    return _save() ? true : { saved: false };
+    return ok ? true : { saved: false };
   }
 
   function resetShortcut(id) {
     delete userShortcuts[id];
-    return _save();
+    const ok = _save();
+    _tellMain();
+    return ok;
   }
 
   // A shortcut the user added has no default to fall back to, so removing it
@@ -201,9 +224,11 @@ const ShortcutsRegistry = (() => {
   function removeShortcut(id) {
     if (!isCustomId(id)) return resetShortcut(id);
     delete userShortcuts[id];
-    return _save();
+    const ok = _save();
+    _tellMain();
+    return ok;
   }
-  function resetAll() { userShortcuts = {}; return _save(); }
+  function resetAll() { userShortcuts = {}; const ok = _save(); _tellMain(); return ok; }
 
   function register(id, handler) {
     if (!DEFAULT_SHORTCUTS[id]) {
@@ -273,7 +298,7 @@ const ShortcutsRegistry = (() => {
   return {
     init, getShortcut, getAllShortcuts, assignable,
     setShortcut, resetShortcut, removeShortcut, resetAll,
-    register, eventToShortcut
+    register, eventToShortcut, _tellMain
   };
 })();
 

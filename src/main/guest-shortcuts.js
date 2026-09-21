@@ -46,10 +46,45 @@ const SHIFTED = {
 // key travels, not a decision made here.
 const PASS_UP = { shift: ['y', 'g'], plain: ['j'] };
 
-function shortcutFor(input, { ownsFind = false } = {}) {
+// The combination as the renderer's registry writes it: "Ctrl+Alt+B", "Alt+Q".
+// Only used to compare against the keys the renderer said it wants.
+function comboOf(input) {
+  const key = String(input.key || '');
+  if (!key || ['Control', 'Alt', 'Shift', 'Meta'].includes(key)) return '';
+  const mods = [];
+  if (input.control || input.meta) mods.push('Ctrl');
+  if (input.alt) mods.push('Alt');
+  if (input.shift) mods.push('Shift');
+  let k = key;
+  if (k === ' ') k = 'Space';
+  else if (k.startsWith('Arrow')) k = k.slice(5);
+  else if (k.length === 1) k = k.toUpperCase();
+  mods.push(k);
+  return mods.join('+');
+}
+
+function shortcutFor(input, { ownsFind = false, wanted = null } = {}) {
   if (!input || input.type !== 'keyDown') return null;
   const ctrl = input.control || input.meta;
-  if (!ctrl || input.alt) return null;                  // Ctrl+Alt is handled on its own
+
+  // Anything the renderer's registry has a binding for goes up as the key
+  // itself, so a shortcut works while you are reading a page and keeps
+  // working after you rebind it. `wanted` is the live set of combinations
+  // the renderer asked for (main.js keeps it in step); without it, only the
+  // fixed table below answers — which is what left every Ctrl+Alt shortcut
+  // dead inside a page.
+  //
+  // A page's own keys are never taken: the checks below run first for the
+  // ones a page owns, and a plain letter is never in `wanted` because the
+  // registry refuses to bind one.
+  if (wanted && wanted.size) {
+    const combo = comboOf(input);
+    if (combo && wanted.has(combo) && !/^(Ctrl\+[A-Z]|Ctrl\+Shift\+[A-Z])$/.test(combo)) {
+      return { channel: 'guest-shortcut', args: [{ key: String(input.key || '').toLowerCase(), ctrl: !!ctrl, shift: !!input.shift, alt: !!input.alt }] };
+    }
+  }
+
+  if (!ctrl || input.alt) return null;                  // Ctrl+Alt is handled above
   const key = String(input.key || '');
   const lk = key.toLowerCase();
 
@@ -69,4 +104,4 @@ function shortcutFor(input, { ownsFind = false } = {}) {
   return null;
 }
 
-module.exports = { shortcutFor, PLAIN, SHIFTED, PASS_UP };
+module.exports = { shortcutFor, comboOf, PLAIN, SHIFTED, PASS_UP };

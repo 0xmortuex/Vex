@@ -1137,6 +1137,10 @@
     } catch (e) { console.error('[Clock] init failed:', e); }
     // The weekly review: a Friday reminder that opens a card (js/weekly-review.js).
     try { window.VexReview && VexReview.init(); } catch (e) { console.error('[Review] init failed:', e); }
+    ShortcutsRegistry.register('last-tab',       () => {
+      const went = TabManager?.lastUsedTab?.();
+      if (!went) window.showToast?.('No other tab to go back to', 'info', 2000);
+    });
     ShortcutsRegistry.register('ai-panel',       () => AIPanel?.toggle?.());
     // Full screen implies open: switching mode on a closed panel would do
     // nothing visible and look broken.
@@ -1443,6 +1447,9 @@
   // The font Vex wears (js/fonts.js). Applied before anything is measured, so
   // nothing is laid out in one face and then redrawn in another.
   if (typeof VexFonts !== 'undefined') VexFonts.init();
+
+  // And the skin (js/skins.js): texture, shape and light, over any theme.
+  if (typeof VexSkins !== 'undefined') VexSkins.init();
 
   // === Phase 10: Multi-Tab AI ===
   TabSelector.init();

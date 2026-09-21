@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.32.75 (2026-09-21) — Skins, Times New Roman, one key back to the last tab, and an AI that just does it
+
+### Changes
+- **Skins: what Vex is made of, not just what colour it is** (`Ctrl+K` → **Skin**). Thirty-seven themes and every one of them was flat colour. A skin sits on top of any theme and any browser look, and it is three separate choices:
+  - **Texture** — nineteen of them, drawn on Vex's own surfaces: dots, graph paper, ruled, diagonal, crosshatch, honeycomb, triangles, circuitry, waves, fish scales, night sky, confetti, contours, plaid, basket weave, chevrons, brickwork, terrazzo, and paper grain. Each is drawn in the theme's own ink at a strength you pick (barely there → bold), so it follows your colours instead of fighting them. Web pages are never touched.
+  - **Shape** — soft, sharp, round, drawn (thick outlines) or dense, which changes corners, border weight and how much air sits between things.
+  - **Light** — normal shadows, flat, lifted, or a halo in the theme's accent.
+  - Every swatch in the picker is drawn with the thing it offers, because a list of names tells you nothing.
+- **Times New Roman is the default font.** Vex shipped in a geometric sans; it wears a serif now, everywhere — panels, menus, the new tab page. The code font is unchanged, so anything that has to line up still does, and all 23 faces (Segoe UI, Calibri, Georgia, Garamond, Verdana…) are still one click away in `Ctrl+K` → Font, including Outfit if you want it back.
+- **One key to the tab you were just on** — `Alt+Q`, and press it again to come back. Alt+Tab's useful half, without holding anything down. Rebindable like everything else.
+- **Every rebound shortcut now works while you are reading a page.** Only a fixed list of keys was passed up from inside a page, so the eleven `Ctrl+Alt` shortcuts added in v2.32.72 — and anything you had rebound yourself — did nothing unless Vex's own interface had the focus. The registry now tells the window which keys it answers to, and that list follows every rebind.
+
+### Fixes
+- **An order is carried out, not explained.** Asked to do something, Vex AI would describe how you might do it yourself, or teach you about it first. It is told plainly now: an instruction is an order — do it, say what happened in one line, or say in one sentence that you cannot. No preamble, no advice nobody asked for. The agent's summary is what it did, not how it works.
+  - The same for reaching the agent at all: "delete", "clear", "copy", "export", "install", "archive", "record", "hide", "zoom" and thirty more ordinary verbs were missing from the list that decides whether something is a job, so those orders were answered as questions.
+- **The AI panel is tidier.** Three suggested prompts sat under every conversation for its whole life (they are for an empty chat, and a redraw put them back after the code that hides them); Export and Clear took a row of their own under the box you type in and are icons in the header now; "Vex AI" was written twice on screen. Headings, lists, quotes, tables and inline code inside an answer now have spacing of their own instead of running together.
+- A duplicate stylesheet link that shipped in v2.32.73.
+
 ## v2.32.74 (2026-09-21) — Download progress that actually moves
 
 ### Fixes

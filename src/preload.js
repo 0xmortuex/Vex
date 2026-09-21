@@ -83,6 +83,9 @@ contextBridge.exposeInMainWorld('vex', {
   // A shortcut pressed while a page had focus, passed up so the renderer's
   // own registry (and any rebinding) still decides what it does.
   onGuestShortcut: (callback) => subscribe('guest-shortcut', callback),
+  // Which key combinations the renderer's registry answers to, so a key
+  // pressed while a page has the focus can be passed up to it.
+  setGuestShortcutKeys: (combos) => ipcRenderer.send('shortcuts:guest-keys', combos),
   onNextTab: (callback) => subscribe('next-tab', callback),
   onPrevTab: (callback) => subscribe('prev-tab', callback),
   onJumpToTab: (callback) => subscribe('jump-to-tab', callback),

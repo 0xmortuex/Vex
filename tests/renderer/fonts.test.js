@@ -20,9 +20,16 @@ beforeEach(() => {
 const root = () => document.documentElement;
 
 describe('picking one', () => {
-  it('ships as it always was, and says so by leaving the override off', () => {
+  it('Times New Roman by default, which is itself an override', () => {
+    // The stylesheets are written in Outfit, so the shipped face needs the
+    // sweeping rule on. Only picking Outfit back turns it off.
     VexFonts.apply();
-    expect(VexFonts.isDefault()).toBe(true);
+    expect(VexFonts.current().id).toBe('times');
+    expect(VexFonts.isShipped()).toBe(true);
+    expect(VexFonts.needsOverride()).toBe(true);
+    expect(root().getAttribute('data-vex-font')).toBe('times');
+    VexFonts.set('default');
+    expect(VexFonts.needsOverride()).toBe(false);
     expect(root().hasAttribute('data-vex-font')).toBe(false);
   });
 
@@ -53,8 +60,9 @@ describe('picking one', () => {
     VexFonts.set('verdana');
     VexFonts.setMono('courier');
     VexFonts.reset();
-    expect(VexFonts.isDefault()).toBe(true);
-    expect(root().hasAttribute('data-vex-font')).toBe(false);
+    expect(VexFonts.isShipped()).toBe(true);
+    expect(VexFonts.current().id).toBe('times');
+    expect(VexFonts.currentMono().id).toBe('jetbrains');
   });
 
   it('every face names a real fallback chain, so a machine without it still reads', () => {
@@ -66,7 +74,8 @@ describe('picking one', () => {
 });
 
 describe('the start page, which is a different document', () => {
-  it('is given the font as CSS, and nothing while the default is in use', () => {
+  it('is given the font as CSS, and nothing only when Outfit is chosen back', () => {
+    VexFonts.set('default');
     expect(VexFonts.startPageCss()).toBe('');
     VexFonts.set('times');
     const css = VexFonts.startPageCss();

@@ -523,7 +523,9 @@ const AIRouter = (() => {
 
   // ---------- Local prompts (smaller models need tighter guidance) ----------
   const LOCAL_SYSTEM_PROMPTS = {
-    chat: `You are Vex AI, a helpful browser assistant. Answer the user's question concisely based on any provided page content. Match the user's language. Respond with JSON: {"reply": "your response", "citations": [], "suggestedFollowUps": []}. Return ONLY JSON.`,
+    chat: `You are Vex AI, a helpful browser assistant. Answer the user's question concisely based on any provided page content. Match the user's language.
+An instruction is an order: carry it out and say what happened in one line, or say in one sentence that you cannot. Never explain what you are about to do, never describe how the user could do it themselves, and never add advice they did not ask for.
+Respond with JSON: {"reply": "your response", "citations": [], "suggestedFollowUps": []}. Return ONLY JSON.`,
 
     summarize: `You are a web page summarizer. Given a page's content, return ONLY this JSON (no markdown fences):
 {"title": "Short descriptive title", "summary": "2-3 sentence summary", "keyPoints": ["point 1", "point 2", "point 3", "point 4", "point 5"], "readingTime": "X min read", "topics": ["topic1", "topic2"]}`,
@@ -550,7 +552,9 @@ How it works: you get the goal, the current page (if any), the tools, and the re
 
 intent: "safe" for reading and searching, "action" for clicking, typing, navigating or changing something in Vex, "risky" for anything that buys, pays, sends, posts, deletes or submits personal data.
 
-Use exactly the tool names and parameter names listed under "Available tools". Never invent a tool. Never repeat a call that just failed — read the error and change something.`,
+Use exactly the tool names and parameter names listed under "Available tools". Never invent a tool. Never repeat a call that just failed — read the error and change something.
+
+You were given an order, so carry it out. "thought" is one short sentence about the next step, never a plan or an explanation for the user. When you finish, parameters.summary is what you DID, in one or two lines — not how it works, not what they could do next.`,
 
     groupTabs: `You cluster browser tabs into groups. Given tabs (id, title, url, summary), return ONLY this JSON:
 {"groups": [{"name": "Short name", "color": "indigo|cyan|green|amber|red|violet|rose|teal", "tabIds": ["id1", "id2"], "pattern": "what makes a tab fit", "confidence": 0.9}], "ungrouped": ["id"], "reasoning": "one sentence"}

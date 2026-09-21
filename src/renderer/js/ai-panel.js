@@ -435,7 +435,10 @@ const AIPanel = {
     if (!row) return;
     const p = this.getActivePersona();
     const prompts = (p && Array.isArray(p.quickPrompts)) ? p.quickPrompts.slice(0, 5) : [];
-    if (!prompts.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+    // Somewhere to begin is only useful before you have begun. This ran AFTER
+    // _syncStarters had hidden the row, so three suggestions sat under every
+    // conversation for its whole life, pushing the answers up the panel.
+    if (!prompts.length || this._getConv().length) { row.style.display = 'none'; row.innerHTML = ''; return; }
     row.style.display = 'flex';
     row.innerHTML = prompts.map(pt => {
       const label = pt.length > 44 ? pt.substring(0, 42) + '\u2026' : pt;
@@ -495,6 +498,10 @@ const AIPanel = {
     const paint = (id, icon, size) => { const el = document.getElementById(id); if (el && !el.innerHTML.trim()) el.innerHTML = this._icon(icon, size); };
     paint('ai-new-chat', 'plus', 16);
     paint('ai-history-btn', 'history', 15);
+    // Export and Clear sit with the other whole-conversation actions now,
+    // rather than on a row of their own under the box you type in.
+    paint('ai-export', 'download', 15);
+    paint('ai-clear', 'trash', 15);
     paint('ai-expand', 'maximize', 15);
     paint('ai-close', 'x', 16);
     paint('ai-send', 'arrow-right', 17);
@@ -1378,7 +1385,11 @@ const AIPanel = {
     do { before = t; t = t.replace(/^(hey|hi|hello|ok|okay|please|pls|vex|can you|could you|would you|will you|i want you to|i need you to|i'd like you to|go ahead and|just)\b[\s,]*/, ''); } while (t !== before);
     // About the page in front, or a writing/explaining job: chat, even with a verb in it.
     const aboutPage = /\b(this|the|current) (page|article|site|video|tab|text|post|thread|document|pdf|code|selection|paragraph)\b|\b(summari[sz]e|tl;?dr|explain|rewrite|rephrase|proofread|translate|paraphrase|what does (this|that|it) mean)\b/.test(t);
-    const task = /^(open|go to|goto|navigate|visit|launch|click|press|tap|type|enter|fill|scroll|log ?in|sign ?in|sign ?up|book|order|buy|purchase|add|download|play|pause|search|google|look up|lookup|find out|find me|research|investigate|check|start|stop|cancel|set|create|make|save|bookmark|remind|close|group|ungroup|rename|organi[sz]e|sort|pin|unpin|mute|unmute|switch|reload|refresh|take|compare prices|subscribe|send|post|reply|schedule|turn (on|off)|enable|disable)\b/.test(t);
+    // An order starts with a verb. The list was missing a pile of ordinary
+    // ones — delete, clear, copy, move, export, print, zoom, install — so
+    // "delete these bookmarks" was answered with an explanation of how to
+    // delete bookmarks rather than being done (reported 2026-09-21).
+    const task = /^(open|go to|goto|navigate|visit|launch|click|press|tap|type|enter|fill|scroll|log ?in|sign ?in|sign ?up|book|order|buy|purchase|add|download|play|pause|search|google|look up|lookup|find out|find me|research|investigate|check|start|stop|cancel|set|create|make|save|bookmark|remind|close|group|ungroup|rename|organi[sz]e|sort|pin|unpin|mute|unmute|switch|reload|refresh|take|compare prices|subscribe|send|post|reply|schedule|turn (on|off)|enable|disable|delete|remove|clear|empty|wipe|copy|cut|paste|move|duplicate|export|import|print|zoom|install|uninstall|update|upgrade|restart|hide|show|split|sleep|wake|snooze|archive|tidy|clean ?up|upload|record|capture|screenshot|highlight|annotate|jump)\b/.test(t);
     const vexThing = /\b(timer|alarm|stopwatch|reminder|remind me|bookmark|tab group|my tabs|new tab|split view|screenshot|a note|note titled|in my notes)\b/.test(t);
     const liveWorld = /\b(latest|newest|current(ly)?|right now|today|tonight|tomorrow|this (week|month|year)|recent(ly)?|news|price of|how much (is|does|are)|stock price|weather|forecast|score|who won|release date|is .{2,40} (down|open|out yet)|search the web|on the web|online)\b/.test(t);
     if (task && !(aboutPage && /^(search|find|check|compare|save|take|translate)\b/.test(t) && !vexThing && !liveWorld)) return true;
