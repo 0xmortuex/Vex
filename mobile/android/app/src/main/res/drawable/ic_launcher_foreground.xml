@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder mark: a Vex "V" in Oxford navy. Replace with the real icon
+     (assets/icon.svg rasterised) before shipping a release build. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#1E3A5F"
+        android:pathData="M34,34 L54,74 L74,34 L66,34 L54,58 L42,34 Z" />
+</vector>

@@ -1,0 +1,12 @@
+include ':app'
+
+// cap sync writes capacitor.settings.gradle (the module list for the installed
+// plugins) and capacitor-cordova-android-plugins/. Neither is in git, so a
+// fresh clone has to survive their absence — run `npm run sync` before Gradle.
+if (file('capacitor.settings.gradle').exists()) {
+    apply from: 'capacitor.settings.gradle'
+}
+if (file('capacitor-cordova-android-plugins').exists()) {
+    include ':capacitor-cordova-android-plugins'
+    project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+}

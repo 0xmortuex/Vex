@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="oxford">
+<head>
+<meta charset="utf-8">
+<title>Vex</title>
+<!-- viewport-fit=cover so the chrome can sit inside the gesture/notch insets -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="css/mobile.css">
+</head>
+<body>
+
+<!-- Page load progress. Sits at the very top edge, above the content rect. -->
+<div id="progress" class="progress" aria-hidden="true"><i></i></div>
+
+<!-- The content rect. Nothing is drawn here: the native tab WebView is placed
+     over this element's bounds by VexTabs.setBounds(). Everything the UI shows
+     "on the page" (find bar, sheets) is drawn above it and hides it. -->
+<main id="content" class="content" aria-label="Page"></main>
+
+<!-- Shown in the content rect when there is no page to show (fresh start,
+     every tab closed). The native layer is hidden while this is up. -->
+<section id="start" class="start" hidden>
+  <div class="start-mark">Vex</div>
+  <p class="start-sub">A browser built just for you.</p>
+  <div class="start-tiles" id="start-tiles"></div>
+</section>
+
+<!-- Bottom chrome: back, URL pill, tab switcher, menu. Thumb-reachable. -->
+<nav id="toolbar" class="toolbar" aria-label="Browser toolbar">
+  <button class="tb-btn" id="tb-back" aria-label="Back" disabled>
+    <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
+  <button class="urlpill" id="tb-url" aria-label="Address and search">
+    <span class="urlpill-lock" id="tb-lock" aria-hidden="true"></span>
+    <span class="urlpill-text" id="tb-url-text">Search or type a URL</span>
+    <span class="urlpill-shield" id="tb-shield" hidden aria-label="Trackers blocked">0</span>
+  </button>
+  <button class="tb-btn tb-tabs" id="tb-tabs" aria-label="Tabs"><span id="tb-tabcount">1</span></button>
+  <button class="tb-btn" id="tb-menu" aria-label="Menu">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+  </button>
+</nav>
+
+<!-- Full-screen omnibox: opens over everything when the URL pill is tapped. -->
+<div id="omnibox" class="omnibox" hidden>
+  <div class="omnibox-bar">
+    <button class="tb-btn" id="omni-cancel" aria-label="Cancel">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <input id="omni-input" class="omnibox-input" type="text" inputmode="url" autocapitalize="off"
+           autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Search or type a URL">
+    <button class="tb-btn" id="omni-clear" aria-label="Clear">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <ul id="omni-results" class="omnibox-results" role="listbox"></ul>
+</div>
+
+<!-- Tab switcher: a grid of live snapshots, private tabs in their own section. -->
+<div id="tabgrid" class="tabgrid" hidden>
+  <header class="tabgrid-head">
+    <button class="seg" id="tg-normal" aria-pressed="true">Tabs</button>
+    <button class="seg" id="tg-private" aria-pressed="false">Private</button>
+    <button class="tb-btn" id="tg-close-all" aria-label="Close all tabs">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div class="tabgrid-scroll"><div id="tabgrid-list" class="tabgrid-list"></div></div>
+  <footer class="tabgrid-foot">
+    <button class="pill-btn" id="tg-new">New tab</button>
+    <button class="pill-btn ghost" id="tg-done">Done</button>
+  </footer>
+</div>
+
+<!-- Menu sheet. -->
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-scrim" data-close="sheet"></div>
+  <div class="sheet-body" role="dialog" aria-label="Menu">
+    <div class="sheet-grip"></div>
+    <div class="sheet-quick">
+      <button class="quick" id="m-forward" aria-label="Forward"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="quick" id="m-reload" aria-label="Reload"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-2.3-5.6M20 4v5h-5"/></svg></button>
+      <button class="quick" id="m-star" aria-label="Bookmark"><svg viewBox="0 0 24 24"><path d="M12 4l2.5 5.2 5.5.8-4 3.9.9 5.6L12 17l-4.9 2.5.9-5.6-4-3.9 5.5-.8z"/></svg></button>
+      <button class="quick" id="m-share" aria-label="Share"><svg viewBox="0 0 24 24"><path d="M12 15V4m0 0L8 8m4-4l4 4M5 14v5h14v-5"/></svg></button>
+    </div>
+    <div class="sheet-list" id="sheet-list"></div>
+  </div>
+</div>
+
+<!-- Find in page. -->
+<div id="findbar" class="findbar" hidden>
+  <input id="find-input" class="find-input" type="text" placeholder="Find in page" enterkeyhint="search"
+         autocapitalize="off" autocorrect="off" spellcheck="false">
+  <span class="find-count" id="find-count"></span>
+  <button class="tb-btn" id="find-prev" aria-label="Previous match"><svg viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></svg></button>
+  <button class="tb-btn" id="find-next" aria-label="Next match"><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg></button>
+  <button class="tb-btn" id="find-close" aria-label="Close find"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+
+<!-- Full-height panel used by history, bookmarks, downloads and settings. -->
+<div id="panel" class="panel" hidden>
+  <header class="panel-head">
+    <button class="tb-btn" id="panel-back" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h1 id="panel-title">Panel</h1>
+    <button class="tb-btn" id="panel-action" hidden></button>
+  </header>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="js/bridge.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/search.js"></script>
+<script src="js/tabs.js"></script>
+<script src="js/adblock.js"></script>
+<script src="js/gestures.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

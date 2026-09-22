@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- The chrome itself is served from the app bundle over https://localhost
+         by Capacitor, so cleartext stays off for it. Pages are a different
+         matter: a browser that cannot open http:// at all is not a browser, so
+         the page WebViews are allowed cleartext and the chrome is not. Vex
+         still upgrades navigations to https where the site supports it (see
+         TabWebView.shouldOverrideUrlLoading). -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>

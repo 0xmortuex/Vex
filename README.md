@@ -257,6 +257,21 @@ npm run dist:win   # build the signed Windows installer
 
 ---
 
+## Vex for Android (in progress)
+
+`mobile/` holds an Android port in progress: the Vex chrome rendered by Capacitor, real pages rendered by Android's system WebView, and a native layer doing the work the desktop main process does — tabs, request blocking, downloads, find in page, edge‑swipe navigation. It is a working scaffold, not a release.
+
+```bash
+cd mobile
+npm install
+npx cap sync android
+cd android && ./gradlew assembleDebug
+```
+
+What does and does not survive the move — DRM, extensions, Tor/ByeDPI and on‑device AI all have hard answers — is written down feature by feature in [`mobile/PORTING.md`](mobile/PORTING.md). Build and development notes are in [`mobile/README.md`](mobile/README.md).
+
+---
+
 ## Under the hood
 
 - **Runtime:** Electron `42.5.2` (castLabs `+wvcus` — enables Widevine), **Chromium 148**, bundled Node. The exact versions are shown live in **Settings → About**.
