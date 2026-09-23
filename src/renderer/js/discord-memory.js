@@ -205,7 +205,12 @@ const DiscordMemory = {
 
   consent() {
     const v = localStorage.getItem(this.CONSENT_KEY);
-    return (v === 'auto' || v === 'never') ? v : 'ask';
+    if (v === 'auto' || v === 'never' || v === 'ask') return v;
+    // No answer about Discord in particular: follow the one setting that
+    // governs every unattended sleeper (js/sleep-consent.js), so turning it
+    // off in one place turns it off everywhere.
+    try { if (typeof SleepConsent !== 'undefined') return SleepConsent.mode(); } catch { /* ask, then */ }
+    return 'ask';
   },
 
   setConsent(mode) {

@@ -2100,6 +2100,7 @@ const TabManager = {
     this._autoSleepInterval = setInterval(() => {
       const threshold = (thresholdMinutes || 30) * 60 * 1000;
       const now = Date.now();
+      const due = [];
       this.tabs.forEach(t => {
         if (t.id === this.activeTabId) return;
         if (t.sleeping || t._lazy) return;
@@ -2108,9 +2109,21 @@ const TabManager = {
         // silence the user's music/video mid-playback. Muted tabs are fair game.
         if (t.audible && !t.muted) return;
         if (!t.lastViewedAt) t.lastViewedAt = now;
-        if (now - t.lastViewedAt >= threshold) {
-          this.sleepTab(t.id);
-        }
+        if (now - t.lastViewedAt >= threshold) due.push(t);
+      });
+      if (!due.length) return;
+      const sleep = () => due.forEach(t => this.sleepTab(t.id));
+      // A tab that sleeps behind your back has reloaded by the time you come
+      // back to it, losing the place you were in — which is why this asks
+      // (js/sleep-consent.js).
+      if (typeof SleepConsent === 'undefined') { sleep(); return; }
+      SleepConsent.ask({
+        id: 'tabs',
+        title: due.length === 1
+          ? '“' + String(due[0].title || 'One tab').slice(0, 40) + '” has been idle for a while. Let it sleep?'
+          : due.length + ' tabs have been idle for a while. Let them sleep?',
+        detail: 'Asleep they use no memory and reload where they were when you come back to them.',
+        run: sleep,
       });
     }, 30000);
   },

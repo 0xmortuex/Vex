@@ -293,7 +293,14 @@ GameMode.onGameStart = async function (app) {
     catch (err) { window.VexProblems?.note('Gaming', 'Could not free the graphics card', err); }
   }
 
-  if (this.gamingSetting('sleepTabs') && typeof TabManager !== 'undefined') {
+  // A game is the one moment a question cannot be answered — the screen is
+  // not Vex's. So unless the user has said "do it automatically", gaming mode
+  // leaves the tabs and panels alone and offers once, afterwards, when there
+  // is somebody there to answer (js/sleep-consent.js). Alt-tabbing into a
+  // game and coming back to everything reloaded was the complaint.
+  const maySleep = (typeof SleepConsent === 'undefined') || SleepConsent.auto();
+  if (!maySleep) report.leftAlone = true;
+  if (maySleep && this.gamingSetting('sleepTabs') && typeof TabManager !== 'undefined') {
     for (const tab of (TabManager.tabs || []).slice()) {
       if (tab.id === TabManager.activeTabId || tab.sleeping) continue;
       // Music, a call, a stream you are listening to: not ours to stop.
@@ -313,6 +320,12 @@ GameMode.onGameStart = async function (app) {
 };
 
 GameMode.onGameEnd = function () {
+  // Now there is somebody to ask.
+  try {
+    if (this._gamingReport && this._gamingReport.leftAlone && typeof SleepConsent !== 'undefined') {
+      SleepConsent.offerAfterGame(this._gamingReport.app);
+    }
+  } catch (err) { window.VexProblems?.note('Gaming', 'Could not offer to free memory next time', err); }
   if (!this.gaming) return null;
   this.gaming = false;
   const r = this._gamingReport;

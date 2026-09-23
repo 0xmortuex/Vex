@@ -923,17 +923,46 @@ const SidebarManager = {
   startPanelAutoSleep() {
     if (this._panelSleepTimer) clearInterval(this._panelSleepTimer);
     this._panelSleepTimer = setInterval(() => {
-      for (const name of this.panelsDueToSleep()) {
-        if (this._asksBeforeSleeping(name)) continue;   // DiscordMemory asks
-        try { this.sleepPanel(name); }
-        catch (err) { console.error('[Sidebar] could not sleep panel ' + name + ':', err.message); }
-      }
+      const due = this.panelsDueToSleep().filter(n => !this._asksBeforeSleeping(n));  // Discord asks for itself
+      if (!due.length) return;
+      const sleep = () => {
+        for (const name of due) {
+          try { this.sleepPanel(name); }
+          catch (err) { console.error('[Sidebar] could not sleep panel ' + name + ':', err.message); }
+        }
+      };
+      // Asked about together rather than one at a time: three questions in a
+      // row about three panels is not asking, it is an obstacle course.
+      if (typeof SleepConsent === 'undefined') { sleep(); return; }
+      const names = due.map(n => this.panelLabel(n));
+      const said = names.length === 1 ? names[0] + ' has'
+        : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have';
+      SleepConsent.ask({
+        id: 'panels',
+        title: said + ' been idle for a while. Let ' + (names.length === 1 ? 'it' : 'them') + ' sleep?',
+        detail: 'Asleep ' + (names.length === 1 ? 'it uses' : 'they use') + ' no memory and come'
+          + (names.length === 1 ? 's' : '') + ' back where you left off — but cannot notify you until then.',
+        run: sleep,
+      });
     }, 60000);
   },
 
   // Settings › Performance: the two panel switches.
   _wirePanelSleepSettings() {
     if (window.DiscordMemory) window.DiscordMemory.renderSetting();
+    const consent = document.getElementById('setting-sleep-consent');
+    if (consent && typeof SleepConsent !== 'undefined' && !consent.dataset.wired) {
+      consent.dataset.wired = '1';
+      consent.value = SleepConsent.mode();
+      consent.addEventListener('change', () => {
+        try {
+          SleepConsent.set(consent.value);
+          window.showToast?.(consent.value === 'ask' ? 'Vex will ask before anything sleeps by itself'
+            : consent.value === 'auto' ? 'Vex will sleep idle tabs and panels by itself'
+              : 'Nothing will sleep unless you ask it to');
+        } catch (err) { window.showToast?.(err.message, 'error'); consent.value = SleepConsent.mode(); }
+      });
+    }
     const auto = document.getElementById('setting-panel-autosleep');
     const keep = document.getElementById('setting-panel-keep-discord');
     if (auto) {

@@ -503,6 +503,14 @@
                 </label>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
+                <span>Before Vex puts anything to sleep on its own<br><span style="font-size:11.5px;color:var(--text-muted)">A tab or panel that sleeps behind your back has reloaded by the time you come back to it. This covers every unattended one — idle tabs, idle panels, Discord’s memory watch, and gaming mode. Buttons you press yourself always act at once.</span></span>
+                <select id="setting-sleep-consent" aria-label="Before Vex puts anything to sleep on its own">
+                  <option value="ask">ask me first</option>
+                  <option value="auto">just do it</option>
+                  <option value="never">never do it</option>
+                </select>
+              </div>
+              <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Sleep hidden sidebar panels too <span style="color:var(--text-muted);font-size:11px">· Claude, Spotify, GitHub… after the same idle time; never one playing audio</span></span>
                 <label class="toggle">
                   <input type="checkbox" id="setting-panel-autosleep" checked>
@@ -1434,6 +1442,7 @@
   <script src="js/skins.js"></script>
   <script src="js/private-routing.js"></script>
   <script src="js/site-routes.js"></script>
+  <script src="js/sleep-consent.js"></script>
   <script src="js/why-slow.js"></script>
   <script src="js/keys-sheet.js"></script>
   <script src="js/backup.js"></script>

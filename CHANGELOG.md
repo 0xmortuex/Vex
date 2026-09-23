@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.32.82 (2026-09-23) — Nothing sleeps behind your back
+
+### Fixes
+- **Alt-tabbing into a game reset every tab you had open.** Gaming mode sleeps every background tab *and* every hidden panel the moment a game starts, and it is on unless you turn it off — so switching to a game and back meant coming home to reloaded pages, including the one you were reading. It no longer touches them unless you have said it may. A game is the one moment a question cannot be answered, so it does not ask mid-game: it leaves everything alone and offers once, afterwards, when there is somebody there to answer.
+- **One setting now governs every unattended sleeper**, because there were four and no single place to say no: the idle tab timer, the idle panel timer, Discord's memory watch, and gaming mode. Settings → Performance → **Before Vex puts anything to sleep on its own**: *ask me first* (the default), *just do it*, or *never do it*.
+  - Asked together, not one at a time — "Claude AI and Spotify have been idle for a while. Let them sleep?" rather than three questions in a row.
+  - Ignoring the notice is a no: it expires after half a minute and nothing is slept.
+  - **"Not now" is four hours of quiet.** Being asked the same question every minute is not being asked.
+  - A button you press yourself — Sleep it now, Free memory now, the keep-awake card — still acts immediately. The button is the answer; asking again would be theatre.
+  - Discord's own setting from v2.32.80 still overrides this for Discord; with nothing chosen there, it follows this one, so turning it off in one place turns it off everywhere.
+
 ## v2.32.81 (2026-09-23) — "make me a timer" is the same request as "make a timer"
 
 ### Fixes
