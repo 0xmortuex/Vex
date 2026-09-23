@@ -1540,6 +1540,37 @@ const AIPanel = {
       return;
     }
     if (!typed) return;
+
+    // "you do it".
+    //
+    // Shown a card explaining a feature, the obvious human reply is to ask
+    // Vex to do it instead. Said to the model, that sentence has no subject —
+    // it does not know what "it" is — and a small model asked to "do it" with
+    // no context invents something: one answered with instructions for
+    // embedding a timer in a Google Doc. The card knows what it was about, so
+    // this does not need a model at all.
+    if (this._lastGuide && this.DO_IT.test(typed)) {
+      const { question, entry } = this._lastGuide;
+      this._lastGuide = null;
+      input.value = '';
+      if (!this.isOpen()) this.open();
+      // The original request first — it may be something Vex can simply do
+      // (a timer, an alarm) — and the feature the card named otherwise.
+      let doable = null;
+      if (typeof VexQuickCommands !== 'undefined') {
+        try { doable = VexQuickCommands.intent(question); }
+        catch (err) { console.warn('[AI] quick intent failed:', err.message); }
+      }
+      if (doable) { await this._doItDirectly(typed, doable); return; }
+      try {
+        await VexGuide.run(entry);
+        await this._doItDirectly(typed, { label: 'Opened ' + VexFeatures.nameOf(entry), action: () => {} });
+      } catch (err) {
+        await this._doItDirectly(typed, { label: '', action: () => { throw err; } });
+      }
+      return;
+    }
+
     // An order Vex can carry out itself is carried out, not discussed.
     //
     // Asked "make an timer for 10 minutes", Vex replied with three paragraphs
@@ -1769,6 +1800,10 @@ const AIPanel = {
   // The guide's answer as a card: what it is, the steps, and buttons that do
   // it rather than describe it. "Ask the AI anyway" is always there, because
   // the match is words, not understanding, and it can be wrong.
+  // "do it" and the handful of ways people say it. Deliberately the WHOLE
+  // message: "do it in the background" is a new instruction, not this one.
+  DO_IT: /^(?:you |can you |could you |please |just |yes,? |ok,? |okay,? )*(?:do|run|start) it(?: then| please| for me| yourself)?[.!?]*$/i,
+
   // Do the thing, say so in one line, and stop. The conversation keeps both
   // halves so the answer survives closing the panel, like any other reply.
   //
@@ -1811,6 +1846,8 @@ const AIPanel = {
   _renderGuide(question, a) {
     const container = document.getElementById('ai-messages');
     if (!container) return null;
+    // What this card is about, so "you do it" means something (see _sendChat).
+    this._lastGuide = { question, entry: a.entry };
     const you = document.createElement('div');
     you.className = 'ai-msg user';
     you.innerHTML = '<div class="ai-msg-content"></div>';

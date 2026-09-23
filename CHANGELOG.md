@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.32.81 (2026-09-23) — "make me a timer" is the same request as "make a timer"
+
+### Fixes
+- **Recognising an order no longer depends on the exact words it was said in.** v2.32.78 taught Vex to carry out "make a timer for 10 minutes" without asking a model. It did not understand "make **me** a timer for 10 minutes" — the same request with one word added — and answered that one with a card about a feature instead. That is what matching sentence templates buys you: it works until the next sentence.
+  - It does not match shapes any more. It looks for the three things that have to be present — a thing Vex owns, something asking for it, and (for a countdown) a length — anywhere in the sentence, and rebuilds the request from them. "Make me a timer for 10 min", "give me a timer for 1 hour 30 minutes", "set a 5 min countdown", "start a 20 minute timer" and "hey vex start a stopwatch" all simply happen now.
+  - A question is still a question: "how do I make a timer" gets the guide, not a timer. A remark is still a remark: "the timer is wrong" is left alone. And a timer with no length given is handed to the model rather than guessed at.
+- **"You do it" now means something.** Shown a card explaining a feature, the obvious reply is to ask Vex to do it instead — and said to a model, that sentence has no subject at all. One answered it with instructions for embedding a timer in a Google Doc. Vex now remembers what the card was about: "do it", "you do it", "just do it" and the rest run the original request, or the feature the card named. A longer sentence like "do it in the background" is a new instruction, not this one.
+- **A guide is an explanation, not an action.** Asked "how do I split the screen", Vex reported directions as though it had just done something, which also meant the question never reached the guide card — so the "Do it" button on that card had nothing behind it.
+
 ## v2.32.80 (2026-09-23) — Vex asks before it closes Discord, and a no means no
 
 ### Fixes

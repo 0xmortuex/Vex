@@ -247,3 +247,65 @@ describe('an order Vex can carry out itself', () => {
     expect(AIPanel._conversations.tab1).toBeUndefined();
   });
 });
+
+// Shown a card explaining a feature, the obvious human reply is to ask Vex to
+// do it instead. Said to the model, "you do it" has no subject — it cannot
+// know what "it" is — and a small model asked to do it with no context
+// invents something: one answered with instructions for embedding a timer in
+// a Google Doc. The card knows what it was about.
+describe('"you do it" after a card', () => {
+  beforeEach(() => {
+    globalThis.VexQuickCommands = require('../../src/renderer/js/quick-commands.js').VexQuickCommands;
+    globalThis.VexClock = {
+      parseDuration: (t) => { const m = String(t).match(/^(\d+)\s*(m|min|mins|minute|minutes)$/i); if (!m) throw new Error('not a duration'); return Number(m[1]) * 60000; },
+      fmtLeft: (ms) => Math.round(ms / 60000) + ':00',
+      addTimer: vi.fn(async () => ({ id: 't1', label: 'Timer', total: 600000 })),
+    };
+    globalThis.VexGuide = { run: vi.fn(async () => true), isAbout: () => false };
+    globalThis.VexFeatures = { nameOf: () => 'Split screen' };
+    AIPanel._renderMessages = vi.fn();
+    AIPanel._persistConversations = vi.fn();
+    AIPanel._lastGuide = null;
+  });
+
+  const say = async (text) => { document.getElementById('ai-input').value = text; await AIPanel._sendChat(); };
+
+  it('does the original request when Vex can simply do it', async () => {
+    AIPanel._lastGuide = { question: 'make me an timer for 10 minutes', entry: { id: 'agent' } };
+    await say('you do it');
+    expect(VexClock.addTimer).toHaveBeenCalled();
+    expect(VexGuide.run).not.toHaveBeenCalled();          // no need for the card
+    expect(AIPanel.sendMessage).not.toHaveBeenCalled();   // and no model at all
+  });
+
+  it('otherwise runs the feature the card was about', async () => {
+    AIPanel._lastGuide = { question: 'how do I split the screen', entry: { id: 'split' } };
+    await say('do it');
+    expect(VexGuide.run).toHaveBeenCalledWith({ id: 'split' });
+    expect(AIPanel._conversations.tab1[1].content).toMatch(/Opened Split screen/);
+  });
+
+  it('every ordinary way of saying it, and nothing more', async () => {
+    for (const phrase of ['you do it', 'do it', 'just do it', 'yes do it', 'Can you do it?', 'do it then']) {
+      expect(AIPanel.DO_IT.test(phrase)).toBe(true);
+    }
+    for (const phrase of ['do it in the background', 'do it for every tab', 'undo it', 'how do I do it']) {
+      expect(AIPanel.DO_IT.test(phrase)).toBe(false);
+    }
+  });
+
+  // With no card behind it, "do it" is just a sentence and goes to the model.
+  it('means nothing on its own', async () => {
+    await say('do it');
+    expect(VexGuide.run).not.toHaveBeenCalled();
+    expect(AIPanel.sendMessage).toHaveBeenCalledWith('chat', { message: 'do it' });
+  });
+
+  it('is used once: the second "do it" is a fresh sentence again', async () => {
+    AIPanel._lastGuide = { question: 'how do I split the screen', entry: { id: 'split' } };
+    await say('do it');
+    VexGuide.run.mockClear();
+    await say('do it');
+    expect(VexGuide.run).not.toHaveBeenCalled();
+  });
+});
