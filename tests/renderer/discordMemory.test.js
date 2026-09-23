@@ -59,6 +59,7 @@ describe('the limit', () => {
 
 describe('refreshing', () => {
   it('over the limit, hidden and quiet: a fresh Discord replaces it, still hidden', async () => {
+    DiscordMemory.setConsent('auto');
     const r = await DiscordMemory.check();
     expect(r).toMatchObject({ action: 'refreshed', mb: 2150, limit: 1000 });
     expect(sb._createPanelWebview).toHaveBeenCalledWith('discord', document.getElementById('panel-discord'));
@@ -91,6 +92,7 @@ describe('refreshing', () => {
   }
 
   it('at most once every 30 minutes', async () => {
+    DiscordMemory.setConsent('auto');
     const t = Date.now();
     await DiscordMemory.check(t);
     const again = await DiscordMemory.check(t + 10 * 60000);
@@ -99,6 +101,7 @@ describe('refreshing', () => {
   });
 
   it('a fresh Discord already near the limit raises the limit once, instead of refreshing for ever', async () => {
+    DiscordMemory.setConsent('auto');
     vi.useFakeTimers();
     DiscordMemory.setLimitMB(700);
     await DiscordMemory.check();
@@ -135,6 +138,7 @@ describe('asleep when idle', () => {
   });
 
   it('hidden and not in a call for 15 minutes: it sleeps', async () => {
+    DiscordMemory.setConsent('auto');
     localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: Date.now() - 16 * MIN }));
     expect(await DiscordMemory.check()).toEqual({ action: 'slept' });
     expect(sb.sleepPanel).toHaveBeenCalledWith('discord');
@@ -226,5 +230,94 @@ describe('the heaviest plugins', () => {
   it('says so when Vencord is not there', async () => {
     window.vexGuestEval = vi.fn(async (_wv, code) => (0, eval)(code));
     await expect(DiscordMemory.turnOffHeavyPlugins()).rejects.toThrow(/Vencord is not running/);
+  });
+});
+
+// Vex used to sleep and refresh Discord on a timer, silently. That is a
+// decision about someone's messages made without them: asleep, Discord cannot
+// notify you until you open it again. It asks now, and an unanswered question
+// is a no.
+describe('asking before it frees Discord\u2019s memory', () => {
+  beforeEach(() => {
+    DiscordMemory._quietUntil = 0;
+    document.getElementById('vex-discord-ask')?.remove();
+    // The outer harness leaves idle sleep off so the refresh can be tested on
+    // its own; both questions are asked here, so both paths need their stub.
+    sb.sleepPanel = vi.fn();
+  });
+
+  const press = (label) => {
+    const bar = document.getElementById('vex-discord-ask');
+    const b = [...bar.querySelectorAll('button')].find(x => x.textContent === label);
+    if (!b) throw new Error('no button called ' + label + ' \u2014 has: ' + [...bar.querySelectorAll('button')].map(x => x.textContent));
+    b.click();
+  };
+
+  it('asks by default, and touches nothing until it is answered', async () => {
+    expect(DiscordMemory.consent()).toBe('ask');
+    const r = await DiscordMemory.check();
+    expect(r.action).toBe('asked');
+    expect(sb._createPanelWebview).not.toHaveBeenCalled();
+    expect(sb.sleepPanel).not.toHaveBeenCalled();
+    expect(document.getElementById('vex-discord-ask')).not.toBeNull();
+  });
+
+  it('yes does the thing that was described', async () => {
+    await DiscordMemory.check();
+    press('Refresh it');
+    expect(sb._createPanelWebview).toHaveBeenCalledWith('discord', document.getElementById('panel-discord'));
+    expect(document.getElementById('vex-discord-ask')).toBe(null);
+  });
+
+  // The whole complaint: asked, and then done anyway.
+  it('"Not now" leaves Discord alone, and is not asked again for hours', async () => {
+    await DiscordMemory.check();
+    press('Not now');
+    expect(sb._createPanelWebview).not.toHaveBeenCalled();
+    expect(sb.sleepPanel).not.toHaveBeenCalled();
+    const again = await DiscordMemory.check();
+    expect(again.action).toBe('quiet');
+    expect(document.getElementById('vex-discord-ask')).toBe(null);
+    // And after the quiet time, it may ask once more.
+    DiscordMemory._quietUntil = Date.now() - 1;
+    expect((await DiscordMemory.check()).action).toBe('asked');
+  });
+
+  it('ignoring it is a no: the notice goes and Discord is untouched', async () => {
+    vi.useFakeTimers();
+    await DiscordMemory.check();
+    await vi.advanceTimersByTimeAsync(31000);
+    expect(document.getElementById('vex-discord-ask')).toBe(null);
+    expect(sb._createPanelWebview).not.toHaveBeenCalled();
+    expect(sb.sleepPanel).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('one question at a time, however often the watch runs', async () => {
+    await DiscordMemory.check();
+    await DiscordMemory.check();
+    await DiscordMemory.check();
+    expect(document.querySelectorAll('#vex-discord-ask')).toHaveLength(1);
+  });
+
+  it('"Always" does it and stops asking; "never" stops it happening at all', async () => {
+    await DiscordMemory.check();
+    press('Always');
+    expect(DiscordMemory.consent()).toBe('auto');
+    expect(sb._createPanelWebview).toHaveBeenCalled();
+    DiscordMemory.setConsent('never');
+    expect((await DiscordMemory.check()).action).toBe('off');
+    expect(() => DiscordMemory.setConsent('sideways')).toThrow(/ask, do it automatically, or never/);
+  });
+
+  it('asks about sleeping too, saying what sleeping costs', async () => {
+    localStorage.setItem('vex.discordIdleSleepMin', '15');
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: Date.now() - 60 * 60000 }));
+    const r = await DiscordMemory.check();
+    expect(r).toMatchObject({ action: 'asked', what: 'sleep' });
+    const said = document.getElementById('vex-discord-ask').textContent;
+    expect(said).toMatch(/cannot notify you/);
+    press('Let it sleep');
+    expect(sb.sleepPanel).toHaveBeenCalledWith('discord');
   });
 });

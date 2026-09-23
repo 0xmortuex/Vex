@@ -418,3 +418,42 @@ describe('Free memory now: hidden panels', () => {
     expect(document.querySelector('#panel-spotify webview')).not.toBe(null);   // playing
   });
 });
+
+// Discord is the one panel whose sleep is not a free win: asleep it cannot
+// notify you. Vex asks before freeing its memory (js/discord-memory.js) — and
+// this loop was the other way it got slept without a word, which is how
+// someone could be asked, answer no, and watch it close anyway.
+describe('the one panel that is asked about first', () => {
+  beforeEach(() => { delete globalThis.DiscordMemory; });
+
+  it('is skipped here while Vex is set to ask', () => {
+    globalThis.DiscordMemory = { consent: () => 'ask' };
+    expect(SidebarManager._asksBeforeSleeping('discord')).toBe(true);
+    expect(SidebarManager._asksBeforeSleeping('claude')).toBe(false);
+  });
+
+  it('is slept here like any other panel once the user has said "always"', () => {
+    globalThis.DiscordMemory = { consent: () => 'auto' };
+    expect(SidebarManager._asksBeforeSleeping('discord')).toBe(false);
+  });
+
+  it('is left alone when the question cannot be asked at all', () => {
+    expect(SidebarManager._asksBeforeSleeping('discord')).toBe(false);
+    globalThis.DiscordMemory = { consent: () => { throw new Error('gone'); } };
+    expect(SidebarManager._asksBeforeSleeping('discord')).toBe(false);
+  });
+
+  it('the timer honours it, sleeping the others and not Discord', () => {
+    vi.useFakeTimers();
+    globalThis.DiscordMemory = { consent: () => 'ask' };
+    fakeWebview('claude'); fakeWebview('discord');
+    usage({});
+    localStorage.setItem('vex.panelKeepAwake', JSON.stringify({ discord: { mode: 'call' } }));
+    SidebarManager.startPanelAutoSleep();
+    vi.advanceTimersByTime(60000);
+    expect(SidebarManager.panelWebviews.claude).toBeUndefined();   // slept
+    expect(SidebarManager.panelWebviews.discord).toBeTruthy();     // asked about instead
+    clearInterval(SidebarManager._panelSleepTimer);
+    vi.useRealTimers();
+  });
+});

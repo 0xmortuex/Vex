@@ -909,10 +909,22 @@ const SidebarManager = {
     return null;
   },
 
+  // Discord is the one panel whose sleep is not a free win: asleep it cannot
+  // notify you, so closing it to save memory is a decision about your
+  // messages. It is asked about rather than done (js/discord-memory.js), and
+  // this loop is the OTHER way it used to be slept without a word — which is
+  // how someone could be asked, say no, and watch it close anyway.
+  _asksBeforeSleeping(name) {
+    if (name !== 'discord') return false;
+    try { return typeof DiscordMemory !== 'undefined' && DiscordMemory.consent() !== 'auto'; }
+    catch { return false; }
+  },
+
   startPanelAutoSleep() {
     if (this._panelSleepTimer) clearInterval(this._panelSleepTimer);
     this._panelSleepTimer = setInterval(() => {
       for (const name of this.panelsDueToSleep()) {
+        if (this._asksBeforeSleeping(name)) continue;   // DiscordMemory asks
         try { this.sleepPanel(name); }
         catch (err) { console.error('[Sidebar] could not sleep panel ' + name + ':', err.message); }
       }

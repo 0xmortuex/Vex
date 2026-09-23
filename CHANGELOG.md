@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.80 (2026-09-23) — Vex asks before it closes Discord, and a no means no
+
+### Fixes
+- **Discord is no longer slept or refreshed to save memory without your say-so.** Vex did both on a timer, silently. That is a decision about somebody's messages made without them: asleep, Discord cannot notify you until you open it again, and refreshing it reloads whatever was on screen. A browser that closes your chat to save memory it was never asked to save has the priority backwards.
+  - It asks now, in a notice that waits: **Let it sleep** / **Refresh it**, **Not now**, or **Always**. Ignoring it is a no — the notice expires after half a minute and Discord is left exactly as it was.
+  - **"Not now" means four hours of quiet**, not sixty seconds. Being asked the same question every minute is not being asked, it is being nagged.
+  - Only one question at a time, however often the watch runs.
+  - Settings → Performance: **ask me first** (the default), **just do it**, or **never do it**.
+- **And the second way it happened, which is probably the one you saw.** The general panel auto-sleep closed any idle panel, Discord included — so someone could be asked about Discord's memory, say no, and watch the other timer close it a minute later anyway. That loop now leaves Discord to the part of Vex that asks. This was reachable as soon as Discord was set to "only during a call", which the memory notice itself offers.
+
 ## v2.32.79 (2026-09-22) — A quieter console, and one crash fixed
 
 ### Fixes
