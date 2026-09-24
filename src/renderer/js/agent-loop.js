@@ -124,9 +124,45 @@ class ToolCallHistory {
     this.recentCalls = [];
     this.MAX_IDENTICAL = 2;
     this.WINDOW = 5;
+    // Searching is not research. A run went round twenty times on "list of
+    // specific scientific historical errors in bible examples", "... examples
+    // list", "... examples contradictions" — different enough to slip past
+    // exact-argument loop detection, identical in everything that matters —
+    // and never wrote a word, though it had read six good sources by the
+    // sixth step. Past this many searches there is nothing left to find that
+    // another search will find.
+    this.MAX_SEARCHES = 6;
+    this.searches = 0;
+    this.readUrls = new Map();
   }
   _sig(tool, args) { return `${tool}::${JSON.stringify(args || {})}`; }
+
+  // Two searches are the same search when they are the same words in another
+  // order, or the same words with one more bolted on.
+  _words(q) { return new Set(String(q || '').toLowerCase().match(/[a-z0-9]+/g) || []); }
+  _nearlySameSearch(query) {
+    const now = this._words(query);
+    if (now.size < 2) return false;
+    for (const c of this.recentCalls) {
+      if (c.toolName !== 'web_search') continue;
+      const before = this._words(c.args && c.args.query);
+      if (!before.size) continue;
+      let shared = 0;
+      for (const w of now) if (before.has(w)) shared++;
+      // Four fifths of the longer of the two: "the same question again".
+      if (shared / Math.max(now.size, before.size) >= 0.8) return true;
+    }
+    return false;
+  }
   add(tool, args, result) {
+    if (tool === 'web_search') this.searches++;
+    // What has already been read, so reading it again costs nothing and
+    // teaches the model that it has been there.
+    if ((tool === 'read_url' || tool === 'read_many') && result && result.ok) {
+      for (const u of [args && args.url, ...(Array.isArray(args && args.urls) ? args.urls : [])].filter(Boolean)) {
+        this.readUrls.set(String(u), result.result);
+      }
+    }
     this.recentCalls.push({
       signature: this._sig(tool, args),
       toolName: tool, args,
@@ -138,7 +174,26 @@ class ToolCallHistory {
     const sig = this._sig(tool, args);
     const window = this.recentCalls.slice(-this.WINDOW);
     const identical = window.filter(c => c.signature === sig).length;
-    return identical >= this.MAX_IDENTICAL;
+    if (identical >= this.MAX_IDENTICAL) return true;
+    // Rephrasing the same search is still the same search.
+    if (tool === 'web_search' && (this.searches >= this.MAX_SEARCHES || this._nearlySameSearch(args && args.query))) return true;
+    return false;
+  }
+
+  // Why this call was refused, in terms the model can act on. Saying "stop"
+  // is not enough on its own: it has to be told what to do instead, which is
+  // always the same thing — you have read enough, write the answer.
+  loopReason(tool, args) {
+    if (tool !== 'web_search') return null;
+    if (this.searches >= this.MAX_SEARCHES) {
+      return 'You have searched ' + this.searches + ' times. Searching again will not find anything new. '
+        + 'Use what you have already read and call finish with the answer.';
+    }
+    if (this._nearlySameSearch(args && args.query)) {
+      return 'You have already searched for almost exactly this. Rewording it returns the same pages. '
+        + 'Either read one of the results you have not read yet, or call finish with what you have.';
+    }
+    return null;
   }
   loopGuidance(tool, args) {
     const sig = this._sig(tool, args);
@@ -146,6 +201,8 @@ class ToolCallHistory {
     const lastResult = matching.length ? matching[matching.length - 1].result : null;
     const resultPreview = typeof lastResult === 'string' ? lastResult :
       JSON.stringify(lastResult || {}).substring(0, 300);
+    const why = this.loopReason(tool, args);
+    if (why) return { ok: false, loopPrevented: true, error: 'STOP SEARCHING: ' + why };
     return {
       ok: false,
       loopPrevented: true,
@@ -247,6 +304,7 @@ const AgentLoop = {
       // Phase 18: stall detection — stop if URL + tool combo stays the same
       // for STALL_THRESHOLD consecutive iterations.
       let stallCounter = 0;
+      let refusals = 0;             // nudges that did not work, in a row
       let lastProgressMarker = null;
       const STALL_THRESHOLD = 3;
 
@@ -420,10 +478,24 @@ const AgentLoop = {
         if (toolCallHistory.isStuckInLoop(decision.tool, decision.parameters || {})) {
           lastResult = toolCallHistory.loopGuidance(decision.tool, decision.parameters || {});
           this._history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
-          this._renderStep('loop-prevent', 'Loop detected — ' + decision.tool + ' called too many times with same args. Nudging agent to try a different approach.', 'warn');
+          const why = toolCallHistory.loopReason(decision.tool, decision.parameters || {});
+          this._renderStep('loop-prevent', why
+            ? 'Enough searching — ' + why.replace(/^You have /, 'it has ')
+            : 'Loop detected — ' + decision.tool + ' called too many times with the same arguments. Asking it to try something else.', 'warn');
+          // Nudged three times and still going round: the nudge is not
+          // working, and every further turn is a minute of somebody's life
+          // spent watching the same search. Stop and write the answer.
+          refusals++;
+          if (refusals >= 3) {
+            this._renderStep('stall', 'Still going round in circles — stopping and writing what I have.', 'warn');
+            const wrote = await this._answerFromWhatIHave(goal);
+            if (!wrote) this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
+            break;
+          }
           // Don't execute; let model re-plan on the next iteration.
           continue;
         }
+        refusals = 0;
 
         // Execute
         this._renderStep('action', `${decision.thought || ''}\n→ ${decision.tool}(${JSON.stringify(decision.parameters || {})})`, 'action');
@@ -458,8 +530,9 @@ const AgentLoop = {
         if (marker === lastProgressMarker) {
           stallCounter++;
           if (stallCounter >= STALL_THRESHOLD) {
-            this._renderStep('stall', 'Agent appears stuck on ' + decision.tool + ' at ' + (currentUrl || 'this page') + '. Stopping.', 'warn');
-            this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
+            this._renderStep('stall', 'Stuck on ' + decision.tool + ' at ' + (currentUrl || 'this page') + ' — stopping and writing what I have.', 'warn');
+            const wrote = await this._answerFromWhatIHave(goal);
+            if (!wrote) this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
             break;
           }
         } else {
@@ -476,8 +549,14 @@ const AgentLoop = {
       }
 
       if (exhausted && this._running) {
-        this._renderStep('error', 'Max iterations reached', 'error');
-        this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
+        // Running out of steps is not the same as having nothing to say.
+        // A research run that read six sources and then printed "Couldn't
+        // complete" threw away eight minutes of work and every word of it;
+        // the material was there by the sixth step. So the last act of an
+        // exhausted run is to write the answer from what it already has.
+        this._renderStep('error', 'Out of steps — writing the answer from what I have', 'warn');
+        const wrote = await this._answerFromWhatIHave(goal);
+        if (!wrote) this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
       }
     } catch (err) {
       this._renderStep('error', 'Agent error: ' + err.message, 'error');
@@ -489,6 +568,47 @@ const AgentLoop = {
     document.getElementById('ai-pause-agent')?.classList.remove('visible');
     this._renderStep('end', 'Agent finished' + this._costTotal(), 'info');
     this._saveRun();
+  },
+
+  // One last request, with no tools offered: write the answer from the
+  // history. Used when the steps run out, and when the agent is stuck going
+  // round in circles — both are moments when it has read plenty and simply
+  // never stopped to say so.
+  //
+  // It asks for prose rather than a tool call, because a model that has just
+  // spent forty steps failing to call the right tool is not the one to trust
+  // with a forty-first.
+  async _answerFromWhatIHave(goal) {
+    if (!this._history.length) return false;
+    this._renderStep('thinking', 'Writing the answer…', 'loading');
+    try {
+      const out = await AIRouter.callAI('chat', {
+        message: 'You ran out of steps on this task: "' + goal + '"\n\n'
+          + 'Write the best answer you can from what you have already read, in Markdown. '
+          + 'Answer first, then what supports it, then a Sources list of the URLs you read. '
+          + 'Do not apologise, do not describe what you tried, and do not suggest what to do next. '
+          + 'If what you gathered genuinely does not answer it, say in one sentence what is missing and give what you do have.',
+        conversationHistory: this._history.slice(-18),
+        signal: this._abort.signal,
+        onToken: (_piece, full) => this._streamStep(full),
+      });
+      document.querySelector('.agent-step-thinking')?.remove();
+      let text = out && (out.result != null ? out.result : out);
+      // The chat backend answers in JSON when it is a worker, and in prose
+      // when it is a local model. Either is fine; the reply is what is wanted.
+      if (typeof text === 'string' && /^\s*\{/.test(text)) {
+        try { const j = JSON.parse(text); text = j.reply || j.summary || text; } catch { /* prose after all */ }
+      }
+      text = String(text || '').trim();
+      if (!text) return false;
+      if (this._run) this._run.final = text;
+      this._renderFinal(text, goal);
+      return true;
+    } catch (err) {
+      document.querySelector('.agent-step-thinking')?.remove();
+      this._renderStep('error', 'Could not write the answer: ' + (err.message || 'the model did not reply'), 'error');
+      return false;
+    }
   },
 
   // ---- what a run cost ------------------------------------------------------------

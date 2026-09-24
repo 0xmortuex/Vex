@@ -309,3 +309,49 @@ describe('"you do it" after a card', () => {
     expect(VexGuide.run).not.toHaveBeenCalled();
   });
 });
+
+// "cancel it, now research something else" became the task: the run carried
+// on, and "cancel it" was handed to the model as part of what to research.
+// A cancel is an instruction about Vex, not a thing to look up.
+describe('cancelling', () => {
+  beforeEach(() => {
+    globalThis.VexGuide = { run: vi.fn(async () => true), isAbout: () => false };
+    globalThis.VexQuickCommands = require('../../src/renderer/js/quick-commands.js').VexQuickCommands;
+    AIPanel._renderMessages = vi.fn();
+    AIPanel._persistConversations = vi.fn();
+    AIPanel._lastGuide = null;
+    AgentLoop.stop = vi.fn();
+  });
+
+  const say = async (text) => { document.getElementById('ai-input').value = text; await AIPanel._sendChat(); };
+
+  it('stops the run, and runs what came after it as its own request', async () => {
+    let running = true;
+    AgentLoop.isRunning = () => running;
+    AgentLoop.stop = vi.fn(() => { running = false; });
+    await say('cancel it, now research about the errors in bible');
+    expect(AgentLoop.stop).toHaveBeenCalled();
+    // The rest is a task of its own, not part of the cancelled one.
+    expect(AgentLoop.start).toHaveBeenCalled();
+    expect(AgentLoop.start.mock.calls[0][0]).toBe('research about the errors in bible');
+    expect(AgentLoop.start.mock.calls[0][0]).not.toMatch(/cancel/i);
+  });
+
+  it('says so when there was nothing running, rather than looking ignored', async () => {
+    AgentLoop.isRunning = () => false;
+    await say('stop');
+    expect(AIPanel._conversations.tab1[1].content).toMatch(/nothing running/i);
+    expect(AIPanel.sendMessage).not.toHaveBeenCalled();
+  });
+
+  // "stop the timer" and "cancel my subscription" are things to do.
+  it('leaves an ordinary request that happens to start with a verb alone', async () => {
+    AgentLoop.isRunning = () => true;
+    for (const phrase of ['stop the timer', 'cancel my subscription', 'stop all the music']) {
+      expect(AIPanel.CANCEL.test(phrase)).toBe(false);
+    }
+    for (const phrase of ['cancel it', 'stop', 'nvm, do something else', 'never mind']) {
+      expect(AIPanel.CANCEL.test(phrase)).toBe(true);
+    }
+  });
+});

@@ -1541,6 +1541,40 @@ const AIPanel = {
     }
     if (!typed) return;
 
+    // "cancel it, now research something else".
+    //
+    // Typed at an agent, that whole sentence became the task: the run carried
+    // on, and "cancel it" was handed to the model as part of what to research.
+    // A cancel is an instruction about Vex, not a thing to look up.
+    //
+    // The clause has to END the way a cancel ends — the message, or a comma
+    // — so "stop the timer" and "cancel my subscription" are left alone: they
+    // are things to do, not this.
+    const cancel = typed.match(this.CANCEL);
+    if (cancel) {
+      const running = (typeof AgentLoop !== 'undefined' && AgentLoop.isRunning && AgentLoop.isRunning());
+      const rest = typed.slice(cancel[0].length).replace(/^(?:and\s+|then\s+|now\s+)+/i, '').trim();
+      {
+        // Handled whether or not anything was running: "stop" sent to a chat
+        // model with nothing to stop comes back as a confused paragraph.
+        input.value = '';
+        if (!this.isOpen()) this.open();
+        if (running) {
+          try { AgentLoop.stop(); } catch (err) { window.showToast?.(err.message, 'error'); }
+        }
+        // Say what happened either way: pressing cancel on something that had
+        // already finished should not look like it was ignored.
+        const conv = this._getConv();
+        conv.push({ role: 'user', content: typed, at: Date.now() });
+        conv.push({ role: 'assistant', content: running ? 'Stopped.' : 'There was nothing running to stop.', at: Date.now(), didIt: true });
+        this._persistConversations();
+        this._renderMessages();
+        // And then the actual request, as its own thing.
+        if (rest) { input.value = rest; await this._sendChat(); }
+        return;
+      }
+    }
+
     // "you do it".
     //
     // Shown a card explaining a feature, the obvious human reply is to ask
@@ -1800,6 +1834,10 @@ const AIPanel = {
   // The guide's answer as a card: what it is, the steps, and buttons that do
   // it rather than describe it. "Ask the AI anyway" is always there, because
   // the match is words, not understanding, and it can be wrong.
+  // A cancel, and only a cancel: the clause has to end where a cancel ends,
+  // so "stop the timer" and "cancel my subscription" are ordinary requests.
+  CANCEL: /^(?:please\s+)?(?:cancel|stop|abort|halt|forget it|never\s?mind|nvm)(?:\s+(?:it|that|this|the\s+(?:task|run|agent|search|job)))?\s*(?:[,.;!]+\s*|$)/i,
+
   // "do it" and the handful of ways people say it. Deliberately the WHOLE
   // message: "do it in the background" is a new instruction, not this one.
   DO_IT: /^(?:you |can you |could you |please |just |yes,? |ok,? |okay,? )*(?:do|run|start) it(?: then| please| for me| yourself)?[.!?]*$/i,

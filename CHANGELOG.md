@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.32.83 (2026-09-24) — The agent answers with what it found, and "cancel it" cancels
+
+### Fixes
+- **Running out of steps no longer throws the work away.** A research run searched, read six good sources, kept searching, hit its step limit after eight minutes and 448,000 tokens, and printed *"Couldn't complete"* — having had the material since the sixth step. An exhausted run now writes the best answer it can from what it already read, as prose, with its sources. The same applies when it gets stuck in one place. Only if that fails too does it fall back to the old "here is what I tried" summary.
+- **Rewording a search is still the same search.** Loop detection compared tool arguments exactly, so "list of specific scientific historical errors in bible examples", "… examples list" and "… examples contradictions" all counted as different questions and the run went round twenty times. Two searches that share four fifths of their words are now one search. There is also a budget: after six searches Vex tells the agent to stop looking and answer from what it has. Reading is never rationed — that is the part that gathers anything.
+- **Three refusals in a row ends the run.** Being nudged to try something else only helps if it works; when it does not, every further turn is another minute of watching the same search. After the third, Vex stops and writes the answer.
+- **"Cancel it, now research something else" now cancels.** That whole sentence used to become the task — the run carried on, and "cancel it" was handed to the model as part of what to research. A cancel stops the run, and anything after it runs as its own request. Said with nothing running, Vex says so rather than looking ignored. "Stop the timer" and "cancel my subscription" are left alone: they are things to do, not this.
+
 ## v2.32.82 (2026-09-23) — Nothing sleeps behind your back
 
 ### Fixes
