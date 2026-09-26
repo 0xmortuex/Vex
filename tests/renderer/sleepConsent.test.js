@@ -30,11 +30,15 @@ const press = (label) => {
 };
 
 describe('the setting', () => {
-  it('asks unless told otherwise', () => {
-    expect(SleepConsent.mode()).toBe('ask');
+  // Asking was not enough: six unattended sleepers, and the last two found
+  // were the ones doing the damage. Nothing sleeps by itself now unless the
+  // user turns it back on.
+  it('never sleeps anything unless it is told to', () => {
+    expect(SleepConsent.mode()).toBe('never');
     expect(SleepConsent.auto()).toBe(false);
+    expect(SleepConsent.never()).toBe(true);
     localStorage.setItem('vex.sleepConsent', 'nonsense');
-    expect(SleepConsent.mode()).toBe('ask');
+    expect(SleepConsent.mode()).toBe('never');
     expect(SleepConsent.set('auto')).toBe('auto');
     expect(SleepConsent.auto()).toBe(true);
     expect(() => SleepConsent.set('sideways')).toThrow(/ask, do it automatically, or never/);
@@ -42,6 +46,7 @@ describe('the setting', () => {
 });
 
 describe('asking', () => {
+  beforeEach(() => SleepConsent.set('ask'));
   const ask = (run, over = {}) => SleepConsent.ask({ id: 'panels', title: 'Two panels have been idle. Let them sleep?', run, ...over });
 
   it('does nothing until it is answered', () => {
@@ -114,6 +119,8 @@ describe('asking', () => {
 // A game is the one moment a question cannot be answered: the screen is not
 // Vex's. So it is asked afterwards, when somebody is there.
 describe('after a game', () => {
+  beforeEach(() => SleepConsent.set('ask'));
+
   it('offers once, and only while Vex is set to ask', () => {
     expect(SleepConsent.offerAfterGame('Helldivers')).toBe(true);
     expect(document.getElementById('vex-sleep-ask').textContent).toMatch(/Helldivers/);
@@ -132,5 +139,42 @@ describe('after a game', () => {
     SleepConsent.offerAfterGame('a game');
     press('Always');
     expect(SleepConsent.mode()).toBe('auto');
+  });
+});
+
+// The two found last, and the reason the default changed: the memory ceiling
+// sweep, and the one that fired three minutes after the Vex window went
+// behind another app — which is what "apps like discord and claude keep
+// closing when I switch" actually was.
+describe('the ones that fired while you were elsewhere', () => {
+  const { TabManager } = require('../../src/renderer/js/tabs.js');
+
+  beforeEach(() => {
+    TabManager.tabs = [
+      { id: 'a', title: 'Claude', url: 'https://claude.ai/', lastViewedAt: 0 },
+      { id: 'b', title: 'Discord', url: 'https://discord.com/', lastViewedAt: 0 },
+    ];
+    TabManager.activeTabId = 'a';
+    TabManager.sleepTab = vi.fn();
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+  });
+
+  it('idle discard sleeps nothing while Vex is set to never', () => {
+    TabManager._discardIdleTabs();
+    expect(TabManager.sleepTab).not.toHaveBeenCalled();
+  });
+
+  it('and does its old job once the user asks for it back', () => {
+    SleepConsent.set('auto');
+    TabManager._discardIdleTabs();
+    expect(TabManager.sleepTab).toHaveBeenCalledWith('b');
+  });
+
+  it('the memory ceiling sweep is the same: it says something, it does not close things', async () => {
+    TabManager._memCeiling = 100;
+    window.vex = { tabMemory: vi.fn(async () => ({ byId: {} })) };
+    await TabManager._memorySweep();
+    expect(window.vex.tabMemory).not.toHaveBeenCalled();
+    expect(TabManager.sleepTab).not.toHaveBeenCalled();
   });
 });

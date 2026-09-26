@@ -12,9 +12,21 @@
 //
 // This is that place. One setting governs every unattended sleeper:
 //
-//   ask     (the default) — a notice that waits, and doing nothing is a no
+//   never   (the default) — nothing is ever slept unless you press something
+//   ask     — a notice that waits, and doing nothing is a no
 //   auto    — what Vex used to do, for anyone who wants the memory back
-//   never   — nothing is ever slept unless you press something yourself
+//
+// The default is `never` because asking was not enough. Vex had SIX of these,
+// and the two found last were the ones doing the damage: the memory guard,
+// which sleeps idle tabs whenever Vex is over its ceiling, and idle discard,
+// which sleeps every background tab three minutes after the Vex window goes
+// behind another app. That last one is why switching to another program and
+// back reloaded the tab you were reading — reported twice, once as "the
+// claude tab resets", once as "apps like discord and claude keep closing".
+//
+// Memory can still be freed the moment you want it freed: Free memory now,
+// Sleep it now, the keep-awake card. And Vex still SAYS when something has
+// grown — a notice is information, not an action.
 //
 // It governs the UNATTENDED ones only. Pressing "Sleep it now", "Free memory
 // now", or a keep-awake card is permission: the button IS the answer, and
@@ -27,7 +39,7 @@ const SleepConsent = {
   mode() {
     let v = null;
     try { v = localStorage.getItem(this.KEY); } catch { v = null; }
-    return (v === 'auto' || v === 'never') ? v : 'ask';
+    return (v === 'auto' || v === 'ask') ? v : 'never';
   },
 
   set(mode) {

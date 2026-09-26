@@ -75,12 +75,49 @@ const WebviewManager = {
       // isn't where you saved it (a tracker leak). Best-effort, throttled inside.
       try { window.LeakCanary && window.LeakCanary.check(webview, webview.getURL && webview.getURL()); } catch {}
 
-      // Detect page background color and apply to webview element
+      // === A base for a page that paints none ==============================
+      //
+      // Chromium's own viewers paint no background: open a JSON API and the
+      // viewer leaves the page transparent and colours its text for the
+      // scheme the browser reports — white, in dark mode. With nothing
+      // behind it that is white text on Vex's own light surface: the body is
+      // there, perfectly selectable, and completely invisible. The same URL
+      // in Chrome reads fine. It hits every page that paints nothing — a
+      // JSON response, a plain .txt, a directory listing.
+      //
+      // Only such a page is given anything. A background on <html> stops the
+      // body's background propagating to the canvas, so a site that styles
+      // only its body would get our colour showing through its margins —
+      // which is why this is decided per page rather than applied to all of
+      // them, and why `:where()` (zero specificity) is used even then.
       try {
-        webview.executeJavaScript(`getComputedStyle(document.body).backgroundColor`)
-          .then(bg => { if (bg) webview.style.background = bg; })
-          .catch(() => {});
-      } catch {}
+        webview.executeJavaScript(`(() => {
+          const solid = (c) => {
+            const flat = String(c || '').split(' ').join('');
+            return (flat && flat !== 'transparent' && flat !== 'rgba(0,0,0,0)') ? c : '';
+          };
+          // A page that has not built a body yet is exactly the kind this is
+          // for: asking for its background threw, the whole thing was
+          // swallowed by a silent catch, and nothing was painted.
+          const el = document.body || document.documentElement;
+          return {
+            body: el ? solid(getComputedStyle(el).backgroundColor) : '',
+            html: document.documentElement ? solid(getComputedStyle(document.documentElement).backgroundColor) : '',
+            dark: matchMedia('(prefers-color-scheme: dark)').matches,
+          };
+        })()`)
+          .then(seen => {
+            const want = this.baseColourFor(seen);
+            if (!want) return;
+            // The element behind the page, so there is no flash of the wrong
+            // colour while it loads.
+            webview.style.background = want.element;
+            if (!want.inject) return;
+            webview.insertCSS(want.inject)
+              .catch(err => console.warn('[Vex] could not give the page a base colour:', err && err.message));
+          })
+          .catch(err => console.warn('[Vex] could not read the page background:', err && err.message));
+      } catch (err) { console.warn('[Vex] page background check failed:', err && err.message); }
 
       // Apply saved zoom for this domain
       try {
@@ -1183,6 +1220,20 @@ const WebviewManager = {
       TabManager._clampMenuToViewport?.(menu, x, y);
       TabManager._attachMenuDismissal?.(menu);
     }
+  },
+
+  // What to paint behind a page, given what the page paints itself.
+  //
+  // Only a page that paints NOTHING is given anything: a background on <html>
+  // stops the body's background propagating to the canvas, so a site that
+  // styles only its body would get our colour showing through its margins.
+  // And even then at zero specificity, so anything the page adds later wins.
+  baseColourFor(seen) {
+    if (!seen) return null;
+    const painted = seen.html || seen.body;
+    if (painted) return { element: painted, inject: null };
+    const base = seen.dark ? '#202124' : '#ffffff';
+    return { element: base, inject: ':where(html){background-color:' + base + '}' };
   },
 
   _updateFavicon(tabId, url) {

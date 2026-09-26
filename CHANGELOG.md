@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.32.84 (2026-09-26) — A page that paints nothing, and nothing that sleeps by itself
+
+### Fixes
+- **An API response showed a blank page.** Open a JSON endpoint that answers with an error — `{"error":"unauthorized"}` — and Vex showed nothing at all, where the same URL in Chrome read fine. The body was there the whole time and perfectly selectable: it was white text on a white page. Chromium's own viewer paints no background and colours its text for the scheme the browser reports; Vex copied that transparent background onto the page's surface, so the text landed on Vex's own light one. It hit every page that paints nothing of its own — a JSON response, a plain `.txt`, a directory listing.
+  - Such a page is now given a base that matches the scheme it is being styled for. Only such a page: a background on `<html>` stops a page's own body background reaching the canvas, so a site that styles only its body would have had our colour showing through its margins. And even then it is set at a specificity the page can always beat.
+- **Nothing sleeps by itself any more.** Asking was not enough, because there were more of these than had been found: the memory ceiling sweep, which sleeps idle tabs whenever Vex is over its limit, and **idle discard, which sleeps every background tab three minutes after the Vex window goes behind another app**. That last one is why switching to another program and back had reloaded what you were reading — reported twice, once as "the claude tab resets", once as "apps like discord and claude keep closing".
+  - **Settings → Performance → Before Vex puts anything to sleep on its own now defaults to *never do it*.** All six unattended sleepers are off: idle tabs, idle panels, Discord's memory watch, gaming mode, the memory ceiling, and the one that fired while Vex sat in the background. *ask me first* and *just do it* are still there for anyone who wants them.
+  - Vex still **says** when something has grown — a notice is information, not an action — and every button you press yourself still frees memory at once.
+
 ## v2.32.83 (2026-09-24) — The agent answers with what it found, and "cancel it" cancels
 
 ### Fixes
