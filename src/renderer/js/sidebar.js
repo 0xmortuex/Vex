@@ -933,7 +933,7 @@ const SidebarManager = {
       };
       // Asked about together rather than one at a time: three questions in a
       // row about three panels is not asking, it is an obstacle course.
-      if (typeof SleepConsent === 'undefined') { sleep(); return; }
+      if (typeof SleepConsent === 'undefined') return;   // cannot ask, so do not act
       const names = due.map(n => this.panelLabel(n));
       const said = names.length === 1 ? names[0] + ' has'
         : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have';

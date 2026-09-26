@@ -42,6 +42,13 @@ function fakeTab(id, over = {}) { return { id, url: `https://${id}.example/`, ti
 function notes() { const out = []; document.addEventListener('vex:memory-event', (e) => out.push(e.detail.note)); return out; }
 
 beforeEach(() => {
+  // These test WHAT is slept, not whether Vex may sleep unattended: the
+  // guard fails closed now, so say the user asked for it.
+  globalThis.SleepConsent = {
+    mode: () => 'auto', auto: () => true, never: () => false,
+    ask: ({ run }) => { run(); return true; },
+    offerAfterGame: () => false,
+  };
   document.body.innerHTML = `<input id="url-input"><div id="tabs-list"></div><div id="tab-groups-container"></div><button id="btn-new-tab"></button>`;
 });
 

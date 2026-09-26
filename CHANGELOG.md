@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.32.86 (2026-09-26) — Nothing sleeps unasked, and the tab strip is the height of a tab
+
+### Fixes
+- **Pages were still being slept without being asked about.** v2.32.84 put one setting in front of every unattended sleeper and set it to *never*, but the four guards were written the wrong way round: each one read "if the setting cannot be read, go ahead and sleep". So any moment the setting was not yet loaded — the seconds after a window opens, a sub-window that does not load it at all — the memory sweep, the idle-tab discard, the panel timer and the game-mode sweep all fell back to sleeping, which is how "High memory — slept 3 idle tabs" still appeared with the setting on *never*. A guard that falls back to acting is no guard at all: the one case it exists for is exactly when it would close the pages anyway. All four now fail closed — if the answer cannot be read, nothing sleeps.
+- **The tab strip still left space above the tabs.** The first pass narrowed the inset but not the strip, so the bar stayed taller than the tabs it holds. The strip is now the height of a tab: in the Chrome looks the bar and the tab are both 34px and the fill is exact, and in Firefox the remaining gap is 1px. The window controls and the new-tab button have not moved.
+
 ## v2.32.85 (2026-09-26) — Sites can ask about notifications again, and the tab strip fits its tabs
 
 ### Fixes

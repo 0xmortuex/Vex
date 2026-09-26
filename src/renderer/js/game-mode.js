@@ -298,7 +298,10 @@ GameMode.onGameStart = async function (app) {
   // leaves the tabs and panels alone and offers once, afterwards, when there
   // is somebody there to answer (js/sleep-consent.js). Alt-tabbing into a
   // game and coming back to everything reloaded was the complaint.
-  const maySleep = (typeof SleepConsent === 'undefined') || SleepConsent.auto();
+  // If that answer cannot be read, nothing sleeps. A guard that falls back to
+  // sleeping is no guard at all: the one case it exists for — something has
+  // gone wrong — is exactly when it would close the user's pages anyway.
+  const maySleep = (typeof SleepConsent !== 'undefined') && SleepConsent.auto();
   if (!maySleep) report.leftAlone = true;
   if (maySleep && this.gamingSetting('sleepTabs') && typeof TabManager !== 'undefined') {
     for (const tab of (TabManager.tabs || []).slice()) {

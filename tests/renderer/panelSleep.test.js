@@ -29,6 +29,13 @@ function fakeWebview(name, { audible = false, wcId = 100 } = {}) {
 const usage = (o) => localStorage.setItem('vex.panelUsage', JSON.stringify(o));
 
 beforeEach(() => {
+  // These test WHAT is slept, not whether Vex may sleep unattended: the
+  // guard fails closed now, so say the user asked for it.
+  globalThis.SleepConsent = {
+    mode: () => 'auto', auto: () => true, never: () => false,
+    ask: ({ run }) => { run(); return true; },
+    offerAfterGame: () => false,
+  };
   document.body.innerHTML = `
     <div id="icon-sidebar">
       <button class="sidebar-icon" data-panel="claude" title="Claude AI"></button>

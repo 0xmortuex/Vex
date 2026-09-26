@@ -222,7 +222,7 @@ body[data-gui-family="browser"] #window-controls .win-btn-close:hover { backgrou
 body[data-gui-style="chrome"] {
   --b-font: "Segoe UI", system-ui, sans-serif;
   --b-tab-radius: 8px 8px 0 0; --b-tab-h: 34px; --b-tab-gap: 0px; --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
-  --b-tabbar-h: 38px; --b-tabbar-pad: 3px 0 0 8px; --b-toolbar-h: 40px;
+  --b-tabbar-h: 34px; --b-tabbar-pad: 0 0 0 8px; --b-toolbar-h: 40px;
   --b-btn-size: 32px; --b-btn-radius: 50%; --b-url-radius: 999px; --b-url-h: 32px; --b-ring-w: 2px;
   --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
   --b-menu-glyph: '\22EE';
@@ -240,7 +240,7 @@ body[data-gui-style="chrome"] {
 body[data-gui-style="chrome-dark"] {
   --b-font: "Segoe UI", system-ui, sans-serif;
   --b-tab-radius: 8px 8px 0 0; --b-tab-h: 34px; --b-tab-gap: 0px; --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
-  --b-tabbar-h: 38px; --b-tabbar-pad: 3px 0 0 8px; --b-toolbar-h: 40px;
+  --b-tabbar-h: 34px; --b-tabbar-pad: 0 0 0 8px; --b-toolbar-h: 40px;
   --b-btn-size: 32px; --b-btn-radius: 50%; --b-url-radius: 999px; --b-url-h: 32px; --b-ring-w: 2px;
   --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
   --b-menu-glyph: '\22EE';
@@ -260,7 +260,7 @@ body[data-gui-style="firefox"] {
   --b-font: "Segoe UI", system-ui, sans-serif;
   --b-tab-radius: 6px; --b-tab-h: 34px; --b-tab-gap: 4px; --b-tab-align: center;
   --b-tab-shadow: 0 0 4px rgba(0,0,0,0.25); --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
-  --b-tabbar-h: 40px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
+  --b-tabbar-h: 36px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
   --b-btn-size: 32px; --b-btn-radius: 4px; --b-url-radius: 4px; --b-url-h: 32px; --b-ring-w: 1px;
   --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
   --b-newtab-radius: 4px; --b-close-radius: 4px; --b-menu-glyph: '\2630';
@@ -279,7 +279,7 @@ body[data-gui-style="firefox-dark"] {
   --b-font: "Segoe UI", system-ui, sans-serif;
   --b-tab-radius: 6px; --b-tab-h: 34px; --b-tab-gap: 4px; --b-tab-align: center;
   --b-tab-shadow: 0 0 4px rgba(0,0,0,0.5); --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
-  --b-tabbar-h: 40px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
+  --b-tabbar-h: 36px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
   --b-btn-size: 32px; --b-btn-radius: 4px; --b-url-radius: 4px; --b-url-h: 32px; --b-ring-w: 1px;
   --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
   --b-newtab-radius: 4px; --b-close-radius: 4px; --b-menu-glyph: '\2630';

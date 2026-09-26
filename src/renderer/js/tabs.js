@@ -2116,7 +2116,7 @@ const TabManager = {
       // A tab that sleeps behind your back has reloaded by the time you come
       // back to it, losing the place you were in — which is why this asks
       // (js/sleep-consent.js).
-      if (typeof SleepConsent === 'undefined') { sleep(); return; }
+      if (typeof SleepConsent === 'undefined') return;   // cannot ask, so do not act
       SleepConsent.ask({
         id: 'tabs',
         title: due.length === 1
@@ -2178,7 +2178,7 @@ const TabManager = {
     // This fired three minutes after the window lost focus, which is what
     // "apps like discord and claude keep closing when I switch" was
     // (js/sleep-consent.js).
-    if (typeof SleepConsent !== 'undefined' && !SleepConsent.auto()) return;
+    if (typeof SleepConsent === 'undefined' || !SleepConsent.auto()) return;
     let slept = 0;
     this.tabs.forEach(t => {
       if (t.id === this.activeTabId || t.sleeping || t._lazy || t.pinned) return;
@@ -2208,7 +2208,7 @@ const TabManager = {
     if (!this._memCeiling || !(window.vex && typeof window.vex.tabMemory === 'function')) return;
     // Over the ceiling is a reason to say something, not a licence to close
     // the user's pages (js/sleep-consent.js).
-    if (typeof SleepConsent !== 'undefined' && !SleepConsent.auto()) return;
+    if (typeof SleepConsent === 'undefined' || !SleepConsent.auto()) return;
     const now = Date.now();
     const idle = (t) => t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted) && !this.isCapturing(t)
       && now - (t.lastViewedAt || 0) >= this.GUARD_GRACE_MS;

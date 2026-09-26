@@ -10,6 +10,13 @@ const { Ollama } = require('../../src/renderer/js/ollama.js');
 
 let gameCb;
 beforeEach(() => {
+  // These test WHAT is slept, not whether Vex may sleep unattended: the
+  // guard fails closed now, so say the user asked for it.
+  globalThis.SleepConsent = {
+    mode: () => 'auto', auto: () => true, never: () => false,
+    ask: ({ run }) => { run(); return true; },
+    offerAfterGame: () => false,
+  };
   localStorage.clear();
   document.body.innerHTML = '';
   window.showToast = vi.fn();

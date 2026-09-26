@@ -7,13 +7,13 @@
   /* The tabs should fill the strip. A 6px inset over 32px tabs in a 40px
      bar left a dead band across the top of the window, which read as the
      strip not being filled. */
-  padding: 3px 8px 0 8px;
+  padding: 0 8px 0 8px;
   background: var(--vex-glass-medium);
   backdrop-filter: var(--vex-blur-light);
   -webkit-backdrop-filter: var(--vex-blur-light);
   border-bottom: 1px solid var(--vex-border-subtle);
   -webkit-app-region: drag;
-  min-height: 38px;
+  min-height: 34px;
   flex-shrink: 0;
   overflow: hidden;
 }
