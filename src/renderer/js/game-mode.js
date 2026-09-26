@@ -343,6 +343,15 @@ GameMode.onGameEnd = function () {
       try { TabManager.wakeTab(id); } catch (err) { window.VexProblems?.note('Gaming', 'Could not wake a tab', err); }
     }, i * this.WAKE_GAP_MS));
   }
+  // Whatever Windows killed to make room for the game comes back now. Vex did
+  // not close these — the OS took the memory from the biggest processes it
+  // could find, which is the Discord and Claude panels (js/sidebar.js,
+  // render-process-gone). They were left alone while the game still needed
+  // the memory; the game is over, so they are loaded again.
+  let broughtBack = [];
+  try {
+    if (typeof SidebarManager !== 'undefined' && SidebarManager.recoverCrashedPanels) broughtBack = SidebarManager.recoverCrashedPanels();
+  } catch (err) { window.VexProblems?.note('Gaming', 'Could not bring a panel back', err); }
   // Background jobs held back during the game run their owed turn now.
   if (typeof VexJobs !== 'undefined') VexJobs.resume();
   // Scheduled tasks held back during the game catch up on their next check.
@@ -350,6 +359,9 @@ GameMode.onGameEnd = function () {
   if (r && r.freedMB) done.push('freed ' + (r.freedMB >= 1024 ? (r.freedMB / 1024).toFixed(1) + ' GB' : r.freedMB + ' MB') + ' of graphics memory');
   if (r && r.slept) done.push('slept ' + r.slept + ' tab' + (r.slept === 1 ? '' : 's'));
   if (r && r.panels && r.panels.length) done.push('slept ' + r.panels.length + ' panel' + (r.panels.length === 1 ? '' : 's'));
+  // Being closed by the OS is worth saying even when Vex slept nothing: the
+  // panel was gone and is back, and the reason was the memory, not Vex.
+  if (broughtBack.length) done.push('loaded ' + broughtBack.join(' and ') + ' again after Windows closed ' + (broughtBack.length === 1 ? 'it' : 'them') + ' for memory');
   if (done.length) window.showToast?.('While you played' + (r.app ? ' ' + r.app : '') + ', Vex ' + done.join(' and ') + '. ' + (r.sleptIds && r.sleptIds.length && this.gamingSetting('wakeAfter') ? 'The tabs are waking now; panels come back when you open them.' : 'They come back when you use them.'));
   return r;
 };

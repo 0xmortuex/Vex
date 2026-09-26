@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.87 (2026-09-26) — A panel Windows closes comes back by itself
+
+### Fixes
+- **Discord and Claude kept closing while a game was running, and had to be opened again by hand.** This was not one of Vex's sleepers — all of those have been off since v2.32.84. The crash log says what it was:
+  `page crashed: https://discord.com/channels/@me — killed (exit -1073741510)`, next to the audio service dying in the same second. That exit code is the operating system taking the process: with 16 GB shared with a game, Windows reclaims memory from the biggest processes it can find, and the Discord panel — one to two gigabytes after a day — is the biggest thing Vex has. Tabs have healed themselves from this for a long time; **panels never did**, so the panel went blank and stayed blank.
+  - A panel whose renderer is killed is now loaded again, where you were in it and not at its front page.
+  - If you are looking at it, it comes back in under a second. If it is out of sight it comes back quietly.
+  - While the game is still running, a hidden panel is deliberately **not** reloaded on the spot — a gigabyte of Discord loaded back into a machine that has just run out of memory is killed again, and four of those in a row would spend the retries and leave it dead anyway. It comes back when the game ends, or the moment you open it, and the after-the-game notice says so.
+  - After four kills in two minutes it stops and says there is not enough memory for it right now, rather than fighting the operating system in a loop.
+
 ## v2.32.86 (2026-09-26) — Nothing sleeps unasked, and the tab strip is the height of a tab
 
 ### Fixes
