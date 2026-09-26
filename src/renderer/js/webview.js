@@ -75,6 +75,23 @@ const WebviewManager = {
       // isn't where you saved it (a tracker leak). Best-effort, throttled inside.
       try { window.LeakCanary && window.LeakCanary.check(webview, webview.getURL && webview.getURL()); } catch {}
 
+      // === "Notifications are blocked" ====================================
+      //
+      // Electron's permission CHECK handler is a boolean: allowed or not. It
+      // has no way to say "nobody has asked yet", so every site that had not
+      // been granted notifications read as DENIED — `Notification.permission`
+      // returned 'denied' and navigator.permissions agreed.
+      //
+      // Most sites check that before asking. Finding 'denied' they never ask
+      // at all; they just say "Notifications are blocked. Allow them in your
+      // browser or system settings, then try again." So Vex's prompt was
+      // never reached, and there was no setting anywhere that would have
+      // helped — the advice in that sentence was impossible to follow.
+      //
+      // A site the user really blocked keeps reading 'denied': requesting is
+      // refused from the saved decision, so nothing is lost by letting it ask.
+      try { this._letSitesAsk(webview); } catch (err) { console.warn('[Vex] notification state:', err && err.message); }
+
       // === A base for a page that paints none ==============================
       //
       // Chromium's own viewers paint no background: open a JSON API and the
@@ -1220,6 +1237,53 @@ const WebviewManager = {
       TabManager._clampMenuToViewport?.(menu, x, y);
       TabManager._attachMenuDismissal?.(menu);
     }
+  },
+
+  // Let a page discover that it may ASK for notifications.
+  //
+  // Only the unasked state is rewritten: 'granted' is left alone, and a site
+  // that has been blocked is told 'denied' as before, so a block still reads
+  // as a block. Injected into the page's own world, where the site's own
+  // check will see it.
+  async _letSitesAsk(webview) {
+    if (!window.vex || typeof window.vex.permissionsList !== 'function') return false;
+    let url = '';
+    try { url = webview.getURL() || ''; } catch { return false; }
+    if (!/^https?:/i.test(url)) return false;
+    let origin = '';
+    try { origin = new URL(url).origin; } catch { return false; }
+    let decisions = {};
+    try { decisions = (await window.vex.permissionsList()) || {}; } catch { return false; }
+    if (!this.shouldOfferNotificationPrompt(decisions, origin)) return false;
+    await webview.executeJavaScript(`(() => {
+      try {
+        if (window.__vexNotifAsk) return;
+        window.__vexNotifAsk = true;
+        const N = window.Notification;
+        if (!N) return;
+        // Chromium reports 'denied' where Vex means 'nobody has asked'.
+        Object.defineProperty(N, 'permission', { configurable: true, get: () => 'default' });
+        const query = navigator.permissions && navigator.permissions.query;
+        if (query) {
+          navigator.permissions.query = function (d) {
+            if (d && d.name === 'notifications') {
+              return Promise.resolve({ state: 'prompt', status: 'prompt', onchange: null,
+                addEventListener() {}, removeEventListener() {} });
+            }
+            return query.call(this, d);
+          };
+        }
+      } catch (err) { console.warn('[Vex] could not offer the notification prompt:', err && err.message); }
+    })()`);
+    return true;
+  },
+
+  // Should this origin be told it may ask? Only when nobody has decided yet:
+  // a site that was blocked keeps reading 'denied', and one already granted
+  // needs nothing.
+  shouldOfferNotificationPrompt(decisions, origin) {
+    const saved = (decisions || {})[origin + '::notifications'];
+    return saved !== 'deny' && saved !== 'allow';
   },
 
   // What to paint behind a page, given what the page paints itself.

@@ -44,3 +44,26 @@ describe('what to paint behind a page', () => {
     expect(inject.startsWith(':where(html)')).toBe(true);
   });
 });
+
+// "Notifications are blocked. Allow them in your browser or system settings,
+// then try again." — a site's own words, shown because Vex told it the
+// permission was denied before anyone had been asked. Electron's permission
+// check is a boolean with no way to say "nobody has asked yet", so every
+// ungranted site read as blocked, most never asked, and Vex's own prompt was
+// never reached. The advice in that sentence could not be followed: there was
+// no setting anywhere that would have helped.
+describe('letting a site ask about notifications', () => {
+  const key = 'https://a.test::notifications';
+
+  it('offers the prompt when nobody has decided', () => {
+    expect(WebviewManager.shouldOfferNotificationPrompt({}, 'https://a.test')).toBe(true);
+    expect(WebviewManager.shouldOfferNotificationPrompt(null, 'https://a.test')).toBe(true);
+    expect(WebviewManager.shouldOfferNotificationPrompt({ 'https://b.test::notifications': 'deny' }, 'https://a.test')).toBe(true);
+  });
+
+  // A block is a block: it must keep reading as denied.
+  it('leaves a site that was blocked, or already allowed, exactly as it is', () => {
+    expect(WebviewManager.shouldOfferNotificationPrompt({ [key]: 'deny' }, 'https://a.test')).toBe(false);
+    expect(WebviewManager.shouldOfferNotificationPrompt({ [key]: 'allow' }, 'https://a.test')).toBe(false);
+  });
+});

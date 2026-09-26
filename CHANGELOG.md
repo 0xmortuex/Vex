@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.85 (2026-09-26) — Sites can ask about notifications again, and the tab strip fits its tabs
+
+### Fixes
+- **"Notifications are blocked. Allow them in your browser or system settings, then try again."** — a site's own words, and there was no setting anywhere that would have helped, because nothing was blocked. Electron's permission check is a plain yes/no with no way to say *nobody has asked yet*, so every site that had not already been granted notifications read as **denied**: `Notification.permission` returned `'denied'` and `navigator.permissions` agreed. Most sites check that before asking — finding it denied they never ask at all, so Vex's own prompt was never reached and the advice in that message could not be followed.
+  - A site that has not been decided about is now told it may ask, and Vex's prompt appears as it was always meant to. A site that was really blocked still reads as blocked, and one already allowed is untouched.
+- **The tab strip left a band of empty space above the tabs.** The inset was bigger than the tabs needed in every look — 9px above them in the default and Edge looks, 8px in Chrome, 5px above and below in Firefox — so the strip read as not filled. It now hugs them: 4–5px in the Chrome-style looks and 3px either side in Firefox, with the window controls still where they were.
+
 ## v2.32.84 (2026-09-26) — A page that paints nothing, and nothing that sleeps by itself
 
 ### Fixes
