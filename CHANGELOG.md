@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.99 (2026-09-27) — Four more extensions made for Vex, installable in one click
+
+### New
+- **Four more extensions made for Vex** are in Settings › Extensions › *Extensions worth installing*, each with an **Install** button:
+  - **GitHub Pulse**: a bar at the top of every GitHub repository with its latest workflow runs, deployment and release, and (with an optional read-only token) when its Cloudflare Worker was last deployed.
+  - **DevForum+**: on the Roblox Developer Forum, API names in code link to their docs, Alt+D searches the docs, and code without a Copy button gets one.
+  - **ChatKeep**: export a ChatGPT, Claude or Gemini conversation as Markdown, and keep one prompt library for all three. It sends nothing anywhere.
+  - **Cineverse+**: Paribu Cineverse with IMDb ratings on every film (with a free OMDb key), and on the booking page the soonest showings at your 6 nearest cinemas, using your location from Settings › Location.
+  They install once their releases are published on GitHub; until then the button says there is no release yet.
+
 ## v2.32.98 (2026-09-27) — Install extensions in one click, RoSuite included
 
 ### New

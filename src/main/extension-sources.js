@@ -14,6 +14,10 @@
 const SOURCES = {
   // First-party.
   rosuite:                  { repo: '0xmortuex/RoSuite',              asset: /^RoSuite-.*\.zip$/i },
+  'github-pulse':           { repo: '0xmortuex/GitHub-Pulse',         asset: /^GitHub-Pulse-.*\.zip$/i },
+  'devforum-plus':          { repo: '0xmortuex/DevForum-Plus',        asset: /^DevForum-Plus-.*\.zip$/i },
+  chatkeep:                 { repo: '0xmortuex/ChatKeep',             asset: /^ChatKeep-.*\.zip$/i },
+  'cineverse-plus':         { repo: '0xmortuex/Cineverse-Plus',       asset: /^Cineverse-Plus-.*\.zip$/i },
   // The catalogue's recommendations.
   'dark-reader':            { repo: 'darkreader/darkreader',          asset: /^darkreader-chrome\.zip$/i },
   stylus:                   { repo: 'openstyles/stylus',              asset: /^stylus-chrome-mv3-.*\.zip$/i },

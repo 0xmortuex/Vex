@@ -15,6 +15,11 @@ const REAL = {
   'return-youtube-dislike': ['Anarios/return-youtube-dislike', ['GITHUB_SHA256SUMS.txt', 'return-youtube-dislike-chrome-4.0.6.zip', 'return-youtube-dislike-firefox-4.0.6.zip', 'return-youtube-dislike-source-4.0.6.zip'], 'return-youtube-dislike-chrome-4.0.6.zip'],
   'ublock-origin': ['gorhill/uBlock', ['uBlock0_1.75.0.chromium.crx', 'uBlock0_1.75.0.chromium.zip', 'uBlock0_1.75.0.firefox.signed.xpi'], 'uBlock0_1.75.0.chromium.zip'],
   rosuite: ['0xmortuex/RoSuite', ['RoSuite-1.1.0.zip'], 'RoSuite-1.1.0.zip'],
+  // Vex's own, built alongside it (2026-09-27).
+  'github-pulse': ['0xmortuex/GitHub-Pulse', ['GitHub-Pulse-1.0.0.zip'], 'GitHub-Pulse-1.0.0.zip'],
+  'devforum-plus': ['0xmortuex/DevForum-Plus', ['DevForum-Plus-1.0.0.zip'], 'DevForum-Plus-1.0.0.zip'],
+  chatkeep: ['0xmortuex/ChatKeep', ['ChatKeep-1.0.0.zip'], 'ChatKeep-1.0.0.zip'],
+  'cineverse-plus': ['0xmortuex/Cineverse-Plus', ['Cineverse-Plus-1.0.0.zip'], 'Cineverse-Plus-1.0.0.zip'],
 };
 
 describe('the extensions Vex installs in one click', () => {
