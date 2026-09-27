@@ -37,6 +37,10 @@ function fakeWebview(over = {}) {
   };
 }
 
+// Back / Forward / Reload are one row of icon buttons now (v2.32.90), not
+// three text rows.
+const isNavRow = (el) => !!el && el.classList.contains('ctx-button-row') && !!el.querySelector('[aria-label="Back"]');
+
 function fakeEvent(params = {}) {
   return { params };
 }
@@ -80,7 +84,7 @@ describe('showContextMenu — spelling suggestions', () => {
     expect(menu.children[2].textContent).toBe('feathers');
     // Followed by a separator, then the normal menu (starting with Back).
     expect(menu.children[3].classList.contains('tab-context-sep')).toBe(true);
-    expect(menu.children[4].textContent).toBe('Back');
+    expect(isNavRow(menu.children[4])).toBe(true);
   });
 
   it('returns N suggestion items at the top for N suggestions', async () => {
@@ -176,7 +180,7 @@ describe('showContextMenu — misspelled word with no suggestions', () => {
     expect(menu.children[0].textContent).toBe('No suggestions');
     expect(menu.children[0].style.pointerEvents).toBe('none'); // disabled
     expect(menu.children[1].classList.contains('tab-context-sep')).toBe(true);
-    expect(menu.children[2].textContent).toBe('Back');
+    expect(isNavRow(menu.children[2])).toBe(true);
   });
 
   it('treats a missing dictionarySuggestions field as no suggestions', async () => {
@@ -231,7 +235,8 @@ describe('showContextMenu — editable contexts', () => {
     const menu = document.querySelector('.tab-context-menu');
     expect(menu.children[0].textContent).toBe('world');
     expect(menu.children[1].classList.contains('tab-context-sep')).toBe(true);
-    expect(menu.children[2].textContent).toBe('Cut');
+    expect(isNavRow(menu.children[2])).toBe(true);
+    expect(menu.children[3].textContent).toBe('Cut');
   });
 
   it('editable + selection does not duplicate Copy', async () => {
@@ -275,8 +280,8 @@ describe('showContextMenu — no misspelled word', () => {
     WM.showContextMenu(fakeEvent({}), fakeWebview(), { x: 10, y: 10 });
 
     const menu = document.querySelector('.tab-context-menu');
-    // No leading separator, no "No suggestions" — first item is Back.
-    expect(menu.children[0].textContent).toBe('Back');
+    // No leading separator, no "No suggestions" — first is Back / Forward / Reload.
+    expect(isNavRow(menu.children[0])).toBe(true);
     const labels = [...menu.querySelectorAll('.tab-context-item')].map(i => i.textContent);
     expect(labels).not.toContain('No suggestions');
   });

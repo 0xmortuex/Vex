@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.32.90 (2026-09-27) — A right-click menu you can read at a glance
+
+### Changes
+- **The right-click menu on a page is grouped.** It had grown to twenty-odd rows in one column. Now:
+  - **Back / Forward / Reload** are one row of buttons at the top, like Edge and Chrome's newer menus (spelling suggestions still come first when you right-click a misspelled word).
+  - **What you clicked** comes next, with only the rows you reach for: a picture gets Save Image, Save Image As… and Copy Image; a link gets Open Link in New Tab and Copy Link; selected text gets Copy and Search. Everything else for it is under **More for this image / link / text**. A picture inside a link shows the picture first.
+  - **Page** (copy its address, copy as Markdown, open in a new tab or as an app, duplicate, send to phone, auto-refresh) and **This site** (dark mode, zap an element, reset the site's settings) are submenus.
+  - Submenus open on hover, or at once on a click, one at a time, and flip to the left near the right edge of the screen.
+  - A plain right-click on a page in a tab is now four rows (the buttons, Page, This site, Inspect Element) instead of fourteen.
+
+### Fixes
+- **A hovered row in any Vex menu was a blue bar with no words on it in the browser looks** (Chrome, Firefox, Edge and the rest). Those looks set the "dim" accent to the full accent, so the row's accent-coloured text sat on the same colour. Rows now get a light tint and keep their normal text colour, the way the command bar already did it. This applies to every menu that uses these rows, including the tab menus. Measured: 14.4:1 contrast in the Firefox look, 9.7:1 in Firefox dark.
+- Choosing a row no longer leaves the menu's invisible click-catcher behind to swallow your next click.
+
 ## v2.32.89 (2026-09-27) — "Never" now reaches profiles that had already answered
 
 ### Fixes

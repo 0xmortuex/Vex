@@ -359,11 +359,17 @@
   opacity: 0.8;
 }
 
-.tab-context-item:hover {
-  background: var(--vex-accent-dim);
-  color: var(--vex-accent);
+/* A WASH of the accent with the text left its own colour, as in the command
+   bar (command.css). The browser looks set --vex-accent-dim to the solid
+   accent, so accent text on it made every hovered menu row a blue bar with
+   no words on it. */
+.tab-context-item:hover,
+.tab-context-item.has-sub.open {
+  background: color-mix(in srgb, var(--vex-accent) 16%, var(--vex-bg-elevated, #1b1e2e));
+  color: var(--vex-text-primary);
 }
-.tab-context-item:hover .ctx-icon { opacity: 1; }
+.tab-context-item:hover .ctx-icon,
+.tab-context-item.has-sub.open .ctx-icon { opacity: 1; }
 
 .tab-context-item.danger {
   color: var(--vex-danger);
@@ -377,6 +383,36 @@
   height: 1px;
   background: var(--vex-border-subtle);
   margin: 4px 8px;
+}
+
+/* The page menu (js/webview.js _renderMenu): Back / Forward / Reload as one
+   row of buttons, and rows that open a submenu beside them. */
+.ctx-button-row {
+  display: flex;
+  gap: 2px;
+  padding: 0 0 2px;
+}
+.ctx-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border: 0;
+  border-radius: var(--vex-radius-sm);
+  background: transparent;
+  color: var(--vex-text-primary);
+  cursor: pointer;
+}
+.ctx-button:hover:not(:disabled) { background: color-mix(in srgb, var(--vex-accent) 16%, var(--vex-bg-elevated, #1b1e2e)); }
+.ctx-button:disabled { opacity: 0.35; cursor: default; }
+.ctx-button-row + .tab-context-sep { margin-top: 2px; }
+.tab-context-item.has-sub .ctx-sub-chevron { margin-left: auto; display: flex; opacity: 0.6; }
+.tab-context-menu.ctx-submenu {
+  position: absolute;
+  left: calc(100% - 4px);
+  animation: none;
+  min-width: 200px;
 }
 
 /* === Phase 18: Group context menu + color picker === */

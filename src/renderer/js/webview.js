@@ -855,6 +855,116 @@ const WebviewManager = {
     return /^(https?:|data:image\/|blob:)/i.test(src) ? src : '';
   },
 
+  // The rows for what was clicked (a picture, a link, some text): the first
+  // few stay in the menu, the rest open from "More for ...". No separator
+  // leads a submenu, and a group with nothing extra gets no submenu.
+  _pushGroup(items, group, isTop, moreLabel, icon) {
+    const rows = group.filter(it => !it.sep);
+    if (!rows.length) return;
+    const top = rows.filter(isTop);
+    const more = rows.filter(it => !top.includes(it));
+    items.push({ sep: true }, ...top);
+    if (more.length) items.push({ label: moreLabel, icon, sub: more });
+  },
+
+  // Draw the rows into the menu. A row with `sub` opens a submenu beside it on
+  // hover (or at once on a click), kept inside the menu element so the menu's
+  // own close takes it too; a row with `buttons` is a row of icon buttons.
+  // Every action closes the whole menu through the shared dismissal, which
+  // also removes its click-catching overlay (a bare menu.remove() left that
+  // overlay behind to eat the next click).
+  _renderMenu(menu, items) {
+    const closeAll = () => {
+      if (typeof TabManager !== 'undefined' && TabManager._dismissMenu) TabManager._dismissMenu(menu);
+      else menu.remove();
+    };
+    const run = (fn) => { try { fn(); } finally { closeAll(); } };
+    let openSub = null, openRow = null, timer = null;
+    const closeSub = () => {
+      if (openSub) openSub.remove();
+      if (openRow) { openRow.classList.remove('open'); openRow.setAttribute('aria-expanded', 'false'); }
+      openSub = openRow = null;
+    };
+    const showSub = (row, subItems) => {
+      clearTimeout(timer);
+      if (openRow === row) return;
+      closeSub();
+      const sub = document.createElement('div');
+      sub.className = 'tab-context-menu ctx-submenu';
+      sub.setAttribute('role', 'menu');
+      subItems.forEach(it => sub.appendChild(draw(it, true)));
+      menu.appendChild(sub);
+      // Beside the row; flipped to the left, or lifted, to stay on screen.
+      sub.style.top = (row.offsetTop - 7) + 'px';
+      const r = sub.getBoundingClientRect();
+      if (r.right > window.innerWidth - 4) { sub.style.left = 'auto'; sub.style.right = 'calc(100% - 4px)'; }
+      if (r.bottom > window.innerHeight - 4) sub.style.top = (row.offsetTop - 7 - (r.bottom - window.innerHeight + 8)) + 'px';
+      sub.addEventListener('mouseenter', () => clearTimeout(timer));
+      sub.addEventListener('mouseleave', () => { clearTimeout(timer); timer = setTimeout(closeSub, 350); });
+      openSub = sub; openRow = row;
+      row.classList.add('open');
+      row.setAttribute('aria-expanded', 'true');
+    };
+    const icon = (name) => (typeof VexIcons !== 'undefined' && name) ? VexIcons.svg(name, { size: 14, className: 'ctx-icon' }) : '';
+    const draw = (item, inSub) => {
+      if (item.sep) {
+        const sep = document.createElement('div');
+        sep.className = 'tab-context-sep';
+        sep.setAttribute('role', 'separator');
+        return sep;
+      }
+      if (item.buttons) {
+        const bar = document.createElement('div');
+        bar.className = 'ctx-button-row';
+        for (const b of item.buttons) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'ctx-button';
+          btn.title = b.label;
+          btn.setAttribute('aria-label', b.label);
+          btn.innerHTML = icon(b.icon);
+          btn.disabled = !!b.disabled;
+          btn.addEventListener('mousedown', (ev) => { if (ev.button !== 0 || b.disabled) return; ev.preventDefault(); run(b.action); });
+          bar.appendChild(btn);
+        }
+        return bar;
+      }
+      const el = document.createElement('div');
+      el.className = 'tab-context-item';
+      el.setAttribute('role', 'menuitem');
+      if (item.sub) el.innerHTML = icon(item.icon);
+      el.appendChild(document.createTextNode(item.label));
+      if (item.disabled) {
+        el.style.opacity = '0.4';
+        el.style.pointerEvents = 'none';
+        el.setAttribute('aria-disabled', 'true');
+      }
+      if (item.sub) {
+        el.classList.add('has-sub');
+        el.setAttribute('aria-haspopup', 'menu');
+        el.setAttribute('aria-expanded', 'false');
+        el.insertAdjacentHTML('beforeend', '<span class="ctx-sub-chevron">' + icon('chevron-right') + '</span>');
+        el.addEventListener('mouseenter', () => { clearTimeout(timer); timer = setTimeout(() => showSub(el, item.sub), 120); });
+        el.addEventListener('mouseleave', () => { clearTimeout(timer); timer = setTimeout(() => { if (!(openSub && openSub.matches(':hover'))) closeSub(); }, 350); });
+        el.addEventListener('mousedown', (ev) => { if (ev.button !== 0) return; ev.preventDefault(); showSub(el, item.sub); });
+        return el;
+      }
+      // Moving onto another row of the menu puts an open submenu away.
+      if (!inSub) el.addEventListener('mouseenter', () => { if (openSub) { clearTimeout(timer); timer = setTimeout(closeSub, 250); } });
+      // Activate on mousedown, not click: this menu is opened from a
+      // <webview> guest right-click, so focus sits in the guest. The
+      // guest-host focus churn fires a host-window 'blur' that runs the
+      // dismissal close() and removes the menu BETWEEN a left-click's
+      // mousedown and mouseup, so the 'click' never materialises. Acting
+      // on mousedown wins that race. button 0 only: ignore right/middle so
+      // a right-click on a menu item doesn't trigger its action.
+      el.addEventListener('mousedown', (ev) => { if (ev.button !== 0) return; run(item.action); });
+      return el;
+    };
+    menu.setAttribute('role', 'menu');
+    items.forEach(it => menu.appendChild(draw(it, false)));
+  },
+
   showContextMenu(e, webview) {
     // Clear any prior menu AND its dismissal overlay. Removing only the menu
     // (the old behaviour) leaked a stack of transparent .context-menu-overlay
@@ -998,13 +1108,9 @@ const WebviewManager = {
       editItems.push({ sep: true });
     }
 
-    const items = [
-      ...spellingItems,
-      ...editItems,
-      { label: 'Back', action: () => webview.goBack(), disabled: !webview.canGoBack() },
-      { label: 'Forward', action: () => webview.goForward(), disabled: !webview.canGoForward() },
-      { label: 'Reload', action: () => webview.reload() },
-      { sep: true },
+    // What is on this page, and what is about this site, each in a submenu:
+    // twenty-odd rows in one column was more than anyone reads (2026-09-27).
+    const pageItems = [
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
       { label: 'Copy as Markdown link', action: () => { try { const u = webview.getURL(); const title = (webview.getTitle && webview.getTitle()) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
       { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL(), true, null, { partition: webview.getAttribute?.("partition") }) },
@@ -1015,13 +1121,27 @@ const WebviewManager = {
       ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.createTab(t.url, true, null, { partition: t.partition }); } catch {} } }] : []),
       { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
       ...(isTab ? [{ label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? 'Auto-refresh: on…' : 'Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } }] : []),
-      { sep: true },
+    ];
+    const siteItems = [
       // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
       // "Reset this site" clears this host's saved zoom and dark-mode override.
       { label: this._shouldForceDark(curUrl) ? 'Dark mode: on for this site' : 'Dark mode for this site',
         action: () => this.toggleForceDarkForSite(webview) },
       { label: 'Zap element (hide it forever)', action: () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } catch {} } },
       { label: 'Reset this site’s settings', action: () => this.resetSite(webview) }
+    ];
+
+    // Back / Forward / Reload as one row of buttons, like Edge and Chrome's
+    // newer menus: first, after any spelling suggestions (those lead, as in
+    // every browser, because they are about the word under the pointer).
+    const items = [
+      ...spellingItems,
+      { buttons: [
+        { label: 'Back', icon: 'arrow-left', action: () => webview.goBack(), disabled: !webview.canGoBack() },
+        { label: 'Forward', icon: 'arrow-right', action: () => webview.goForward(), disabled: !webview.canGoForward() },
+        { label: 'Reload', icon: 'refresh', action: () => webview.reload() },
+      ] },
+      ...editItems,
     ];
 
     // Right-clicking an input (e.g. the verification-code box): offer to fill the
@@ -1034,9 +1154,13 @@ const WebviewManager = {
       });
     }
 
+    // Pushed picture first, then link, then text: the thing under the pointer
+    // leads (a picture inside a link is mostly about the picture).
+    const groups = [];
+    const textItems = [];
     if (e.params.selectionText) {
-      items.push({ sep: true });
-      items.push({
+      textItems.push({ sep: true });
+      textItems.push({
         label: `Search "${e.params.selectionText.substring(0, 20)}..."`,
         action: () => {
           const q = encodeURIComponent(e.params.selectionText);
@@ -1045,13 +1169,13 @@ const WebviewManager = {
       });
       // Editable contexts already got a Copy row in editItems above.
       if (!e.params.isEditable) {
-        items.push({
+        textItems.push({
           label: 'Copy',
           action: () => webview.copy()
         });
       }
       if (typeof Annotations !== 'undefined') {
-        items.push({
+        textItems.push({
           label: 'Highlight',
           action: () => Annotations.highlight('yellow')
         });
@@ -1062,15 +1186,15 @@ const WebviewManager = {
         const sel = e.params.selectionText;
         const pageUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
         const pageTitle = (() => { try { return webview.getTitle(); } catch { return ''; } })();
-        items.push({ sep: true });
+        textItems.push({ sep: true });
         if (typeof VexQuickReminder !== 'undefined') {
-          items.push({
+          textItems.push({
             label: 'Remind me about this',
             action: () => VexQuickReminder.open(sel, { url: pageUrl, title: pageTitle }),
           });
         }
         if (typeof StickyNotes !== 'undefined') {
-          items.push({
+          textItems.push({
             label: 'Save as a note for this page',
             action: () => {
               const key = StickyNotes._norm(pageUrl);
@@ -1081,7 +1205,7 @@ const WebviewManager = {
           });
         }
         if (typeof AIPanel !== 'undefined') {
-          items.push({
+          textItems.push({
             label: 'Ask Vex AI about this',
             action: () => { AIPanel.open(); AIPanel.sendMessage('chat', { message: `About this text from ${pageTitle || pageUrl}:\n\n"""${sel}"""\n\nWhat should I know?` }); },
           });
@@ -1090,35 +1214,37 @@ const WebviewManager = {
       // AI options for selected text
       if (typeof AIPanel !== 'undefined') {
         const sel = e.params.selectionText;
-        items.push({ sep: true });
-        items.push({
+        textItems.push({ sep: true });
+        textItems.push({
           label: `Explain "${sel.substring(0, 25)}${sel.length > 25 ? '...' : ''}"`,
           action: () => { AIPanel.open(); AIPanel.sendMessage('explain', { selectedText: sel }); }
         });
-        items.push({
+        textItems.push({
           label: 'Summarize selection',
           // Route via chat (free-form reply) \u2014 the 'summarize' feature renders
           // only a structured {summary} card and comes back blank for a snippet.
           action: () => { AIPanel.open(); AIPanel.sendMessage('chat', { message: `Summarize the following text clearly and concisely:\n\n"""${sel}"""` }); }
         });
-        items.push({
+        textItems.push({
           label: 'Translate selection',
           action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: 'English' }); }
         });
       }
-      items.push({
+      textItems.push({
         label: 'Read aloud',
         action: () => { try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(e.params.selectionText)); } catch {} }
       });
     }
+    groups.push(() => this._pushGroup(items, textItems, (it) => it.label === 'Copy' || /^Search "/.test(it.label), 'More for this text', 'type'));
 
+    const linkItems = [];
     if (e.params.linkURL) {
-      items.push({ sep: true });
-      items.push({
+      linkItems.push({ sep: true });
+      linkItems.push({
         label: 'Open Link in New Tab',
         action: () => TabManager.createTab(e.params.linkURL, true, null, { partition: webview.getAttribute?.("partition") })
       });
-      items.push({
+      linkItems.push({
         // Copy where it really GOES, without what identifies you: a wrapped
         // link otherwise copies the wrapper, and almost every site's links
         // carry campaign tags that follow whoever you send them to.
@@ -1131,11 +1257,11 @@ const WebviewManager = {
           }
         }
       });
-      items.push({
+      linkItems.push({
         label: 'Copy Link Exactly',
         action: () => navigator.clipboard.writeText(e.params.linkURL)
       });
-      items.push({
+      linkItems.push({
         // Shorteners and redirects, followed before you click — never from a
         // private or Tor tab, where asking would contact the site outside it.
         label: 'Where Does This Link Go?',
@@ -1145,28 +1271,30 @@ const WebviewManager = {
           catch (err) { window.showToast?.((err && err.message) || 'Could not follow the link', 'error'); }
         }
       });
-      items.push({
+      linkItems.push({
         label: 'Send Link to Phone',
         action: () => { try { if (window.SendToPhone) SendToPhone.open(e.params.linkURL); } catch {} }
       });
-      items.push({
+      linkItems.push({
         label: 'Copy Link as Markdown',
         action: () => { try { const txt = (e.params.linkText || e.params.selectionText || e.params.linkURL || '').replace(/[\[\]]/g, '').trim() || e.params.linkURL; navigator.clipboard.writeText(`[${txt}](${e.params.linkURL})`); window.showToast?.('Copied as Markdown'); } catch {} }
       });
       if (typeof ReadLater !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
-        items.push({
+        linkItems.push({
           label: 'Read Later',
           action: () => ReadLater.add(e.params.linkURL, e.params.linkText || e.params.linkURL)
         });
       }
       if (typeof LinkRot !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
-        items.push({
+        linkItems.push({
           label: 'Open Archived Version',
           action: () => LinkRot.viewArchived(e.params.linkURL)
         });
       }
     }
+    groups.push(() => this._pushGroup(items, linkItems, (it) => it.label === 'Open Link in New Tab' || it.label === 'Copy Link', 'More for this link', 'link'));
 
+    const imageItems = [];
     // The picture under the pointer, whether Chromium saw it (an <img> on
     // top) or the page found it under a link, an overlay or a CSS background
     // (contextImage). Save goes straight to Downloads like every download;
@@ -1174,16 +1302,17 @@ const WebviewManager = {
     if (imageSrc) {
       const web = /^https?:/i.test(imageSrc);
       const partition = webview.getAttribute?.('partition');
-      items.push({ sep: true });
-      items.push({ label: 'Open Image in New Tab', action: () => TabManager.createTab(imageSrc, true, null, { partition }) });
-      items.push({ label: 'Save Image', action: () => this.saveImage(webview, imageSrc, false) });
-      items.push({ label: 'Save Image As…', action: () => this.saveImage(webview, imageSrc, true) });
-      items.push({ label: 'Copy Image', action: () => this.copyImage(webview, imageSrc, e.params) });
-      items.push({ label: 'Copy Image Address', action: () => { navigator.clipboard.writeText(imageSrc); window.showToast?.('Image address copied'); } });
-      if (web) items.push({ label: 'Search Image with Lens', action: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imageSrc), true) });
-      if (typeof ImageZoom !== 'undefined') items.push({ label: 'Zoom Image', action: () => ImageZoom.open(imageSrc) });
-      if (web && typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) items.push({ label: 'Ask Vex About This Image', action: () => AIPanel.askAboutImage(imageSrc) });
+      imageItems.push({ sep: true });
+      imageItems.push({ label: 'Open Image in New Tab', action: () => TabManager.createTab(imageSrc, true, null, { partition }) });
+      imageItems.push({ label: 'Save Image', action: () => this.saveImage(webview, imageSrc, false) });
+      imageItems.push({ label: 'Save Image As…', action: () => this.saveImage(webview, imageSrc, true) });
+      imageItems.push({ label: 'Copy Image', action: () => this.copyImage(webview, imageSrc, e.params) });
+      imageItems.push({ label: 'Copy Image Address', action: () => { navigator.clipboard.writeText(imageSrc); window.showToast?.('Image address copied'); } });
+      if (web) imageItems.push({ label: 'Search Image with Lens', action: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imageSrc), true) });
+      if (typeof ImageZoom !== 'undefined') imageItems.push({ label: 'Zoom Image', action: () => ImageZoom.open(imageSrc) });
+      if (web && typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) imageItems.push({ label: 'Ask Vex About This Image', action: () => AIPanel.askAboutImage(imageSrc) });
     }
+    groups.push(() => this._pushGroup(items, imageItems, (it) => /^(Save Image|Save Image As…|Copy Image)$/.test(it.label), 'More for this image', 'image'));
 
     // Inspect Element — opens DevTools detached for the right-clicked tab's
     // webContents. Round 5 silently failed because <webview>.getWebContentsId()
@@ -1196,6 +1325,10 @@ const WebviewManager = {
     // walk getAllWebContents() and find the right guest by URL when the ID
     // lookup fails. Also log the awaited result so future silent failures
     // surface in the host renderer's DevTools console.
+    groups.reverse().forEach(add => add());
+    items.push({ sep: true });
+    items.push({ label: 'Page', icon: 'file', sub: pageItems });
+    items.push({ label: 'This site', icon: 'globe', sub: siteItems });
     items.push({ sep: true });
     items.push({
       label: 'Inspect Element',
@@ -1218,34 +1351,7 @@ const WebviewManager = {
       }
     });
 
-    items.forEach(item => {
-      if (item.sep) {
-        const sep = document.createElement('div');
-        sep.className = 'tab-context-sep';
-        menu.appendChild(sep);
-      } else {
-        const el = document.createElement('div');
-        el.className = 'tab-context-item';
-        el.textContent = item.label;
-        if (item.disabled) {
-          el.style.opacity = '0.4';
-          el.style.pointerEvents = 'none';
-        }
-        // Activate on mousedown, not click: this menu is opened from a
-        // <webview> guest right-click, so focus sits in the guest. The
-        // guesthost focus churn fires a host-window 'blur' that runs the
-        // dismissal close() and removes the menu BETWEEN a left-click's
-        // mousedown and mouseup — so the 'click' never materialises. Acting
-        // on mousedown wins that race. button 0 only: ignore right/middle so
-        // a right-click on a menu item doesn't trigger its action.
-        el.addEventListener('mousedown', (e) => {
-          if (e.button !== 0) return;
-          item.action();
-          menu.remove();
-        });
-        menu.appendChild(el);
-      }
-    });
+    this._renderMenu(menu, items);
 
     document.body.appendChild(menu);
     // Use the shared dismissal/clamp helpers so this menu closes on
