@@ -41,6 +41,170 @@ function runInMainWorld(src) {
   return false;
 }
 
+// === chrome.permissions for extensions ===
+// Electron gives extensions no chrome.permissions at all. Dark Reader's
+// background page reads chrome.permissions.onRemoved while starting up, threw,
+// and never answered a page again: every site stayed under its crude
+// "fallback" coat (a dark background on every element, icons as grey bars,
+// images blanked), 2026-09-27. This preload runs in extension pages without
+// isolation, so the page's own `chrome` gets an honest stand-in: it reports
+// what the manifest granted and Vex actually provides, and grants nothing new.
+(function () {
+  if (location.protocol !== 'chrome-extension:') return;
+  var c = window.chrome;
+  if (!c || !c.runtime || typeof c.runtime.getManifest !== 'function' || c.permissions) return;
+  var manifest = c.runtime.getManifest() || {};
+  var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
+  var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
+  // Permissions that never come with a chrome.<name> namespace of their own.
+  var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
+  var apis = granted.filter(function (p) {
+    return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
+  });
+  function has(q) {
+    q = q || {};
+    return (q.permissions || []).every(function (p) { return apis.indexOf(p) !== -1; })
+      && (q.origins || []).every(function (o) { return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1; });
+  }
+  function answer(value, cb) {
+    if (typeof cb === 'function') { setTimeout(function () { cb(value); }, 0); return undefined; }
+    return Promise.resolve(value);
+  }
+  function noEvent() { return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } }; }
+  c.permissions = {
+    contains: function (q, cb) { return answer(has(q), cb); },
+    getAll: function (cb) { return answer({ permissions: apis.slice(), origins: origins.slice() }, cb); },
+    // Already granted: true. Anything more cannot be granted here: false.
+    request: function (q, cb) { return answer(has(q), cb); },
+    remove: function (q, cb) { return answer(false, cb); },
+    onAdded: noEvent(),
+    onRemoved: noEvent(),
+  };
+})();
+
+// === chrome.browserAction / chrome.action for extensions ===
+// Vex has no per-extension toolbar button to put an icon or a badge on (the
+// extensions menu lists them and opens their popups), and Electron leaves the
+// API undefined, so an extension that sets its badge while starting up threw
+// there (Dark Reader, 2026-09-27). Its calls now succeed and change nothing.
+(function () {
+  if (location.protocol !== 'chrome-extension:') return;
+  var c = window.chrome;
+  if (!c || !c.runtime || typeof c.runtime.getManifest !== 'function') return;
+  var manifest = c.runtime.getManifest() || {};
+  function done(value) {
+    return function () {
+      var cb = arguments[arguments.length - 1];
+      if (typeof cb === 'function') { setTimeout(function () { cb(value); }, 0); return undefined; }
+      return Promise.resolve(value);
+    };
+  }
+  function stub() {
+    return {
+      setIcon: done(undefined), setBadgeText: done(undefined), setBadgeBackgroundColor: done(undefined),
+      setBadgeTextColor: done(undefined), setTitle: done(undefined), setPopup: done(undefined),
+      getBadgeText: done(''), getTitle: done(manifest.name || ''), getPopup: done(''),
+      enable: done(undefined), disable: done(undefined),
+      onClicked: { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } },
+    };
+  }
+  if (manifest.browser_action && !c.browserAction) c.browserAction = stub();
+  if (manifest.action && !c.action) c.action = stub();
+})();
+
+// === chrome.storage.sync for extensions ===
+// Electron has chrome.storage.sync, but every call fails with '"sync" is not
+// available in this instance of Chrome'. Dark Reader then read its settings
+// as null and crashed; Stylus, Return YouTube Dislike and uBlock also use it.
+// There is no account to sync with here, so "sync" is kept on this machine:
+// in the extension's own localStorage, which its background page, popup and
+// options page share (the same origin). storage.local is left alone.
+(function () {
+  if (location.protocol !== 'chrome-extension:') return;
+  var c = window.chrome;
+  var ls = window.localStorage;
+  if (!c || !c.storage || !c.storage.local || !ls) return;
+  var P = 'vex.storage.sync:';
+  var listeners = [];
+  function all() {
+    var out = {};
+    for (var i = 0; i < ls.length; i++) {
+      var k = ls.key(i);
+      if (k && k.indexOf(P) === 0) out[k.slice(P.length)] = JSON.parse(ls.getItem(k));
+    }
+    return out;
+  }
+  function pick(keys) {
+    var items = all();
+    if (keys == null) return items;
+    if (typeof keys === 'string') keys = [keys];
+    var out = {};
+    if (Array.isArray(keys)) { keys.forEach(function (k) { if (k in items) out[k] = items[k]; }); return out; }
+    Object.keys(keys).forEach(function (k) { out[k] = k in items ? items[k] : keys[k]; });
+    return out;
+  }
+  function changed(changes) {
+    if (!Object.keys(changes).length) return;
+    listeners.slice().forEach(function (fn) { fn(changes, 'sync'); });
+  }
+  function write(set, removeKeys) {
+    var changes = {};
+    Object.keys(set || {}).forEach(function (k) {
+      var raw = ls.getItem(P + k);
+      changes[k] = { newValue: set[k] };
+      if (raw !== null) changes[k].oldValue = JSON.parse(raw);
+      ls.setItem(P + k, JSON.stringify(set[k]));
+    });
+    (removeKeys || []).forEach(function (k) {
+      var raw = ls.getItem(P + k);
+      if (raw === null) return;
+      changes[k] = { oldValue: JSON.parse(raw) };
+      ls.removeItem(P + k);
+    });
+    return changes;
+  }
+  function run(work, cb) {
+    var p = new Promise(function (resolve) { resolve(work()); });
+    if (typeof cb === 'function') { p.then(function (v) { cb(v); }); return undefined; }
+    return p;
+  }
+  var sync = {
+    QUOTA_BYTES: 102400, QUOTA_BYTES_PER_ITEM: 8192, MAX_ITEMS: 512,
+    MAX_WRITE_OPERATIONS_PER_HOUR: 1800, MAX_WRITE_OPERATIONS_PER_MINUTE: 120,
+    get: function (keys, cb) { if (typeof keys === 'function') { cb = keys; keys = null; } return run(function () { return pick(keys); }, cb); },
+    set: function (items, cb) { return run(function () { changed(write(items, null)); }, cb); },
+    remove: function (keys, cb) { return run(function () { changed(write(null, [].concat(keys))); }, cb); },
+    clear: function (cb) { return run(function () { changed(write(null, Object.keys(all()))); }, cb); },
+    getBytesInUse: function (keys, cb) {
+      if (typeof keys === 'function') { cb = keys; keys = null; }
+      return run(function () { return JSON.stringify(pick(keys)).length; }, cb);
+    },
+    onChanged: {
+      addListener: function (fn) { listeners.push(function (ch) { fn(ch); }); },
+      removeListener: function () {},
+      hasListener: function () { return false; },
+    },
+  };
+  // chrome.storage.onChanged also reports 'sync' changes, including ones made
+  // by the extension's other pages (the localStorage 'storage' event).
+  var globalListeners = [];
+  listeners.push(function (ch, area) { globalListeners.forEach(function (fn) { fn(ch, area); }); });
+  window.addEventListener('storage', function (e) {
+    if (!e.key || e.key.indexOf(P) !== 0) return;
+    var ch = {};
+    ch[e.key.slice(P.length)] = {};
+    if (e.oldValue !== null) ch[e.key.slice(P.length)].oldValue = JSON.parse(e.oldValue);
+    if (e.newValue !== null) ch[e.key.slice(P.length)].newValue = JSON.parse(e.newValue);
+    changed(ch);
+  });
+  var nativeOnChanged = c.storage.onChanged;
+  if (nativeOnChanged && typeof nativeOnChanged.addListener === 'function') {
+    var add = nativeOnChanged.addListener.bind(nativeOnChanged);
+    nativeOnChanged.addListener = function (fn) { globalListeners.push(fn); return add(fn); };
+  }
+  Object.defineProperty(c.storage, 'sync', { value: sync, configurable: true, enumerable: true });
+})();
+
 (function () {
   'use strict';
   var ipcRenderer;

@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.33.2 (2026-09-27) — Compact group chips, and Dark Reader works
+
+### Changes
+- **Collapsed groups are compact chips, like Chrome's.** A group in the tab strip is as wide as its name (at least 120px, room either side) instead of sharing the width equally with the tabs, where four closed groups took more than half the strip. The tabs stretch over the rest, so the bar is still covered. Names are written as you typed them instead of in bold capitals.
+- **The tab strip is set in Segoe UI**, as in Firefox and Chrome, whatever font the rest of Vex wears.
+
+### Fixes
+- **Dark Reader broke every site.** Electron leaves out three Chrome extension APIs: `chrome.permissions`, `chrome.browserAction`, and a working `chrome.storage.sync`. Dark Reader tripped over each while starting and never themed a page, so every site stayed under its crude fallback: a dark background painted on every element, icons turned into grey bars, images blanked (Google's results looked broken). Extension pages now get honest stand-ins: permissions report what the extension was granted and grant nothing new, the toolbar icon and badge calls succeed and change nothing (Vex has no per-extension button), and "sync" storage is kept on this machine. Dark Reader now themes pages properly. Stylus, uBlock Origin and Return YouTube Dislike used sync storage too. v2.32.98 said Dark Reader "really darkened a page"; what was checked then was that fallback, not the real theme.
+
 ## v2.33.1 (2026-09-27) — The extensions menu scrolls
 
 ### Fixes

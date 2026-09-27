@@ -215,7 +215,7 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 .top-group-label {
   display: inline-flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 20px;
   margin: 0 4px 0 6px;
   /* Theme-aware fill derived from --group-color (the stored identity hex).
      Light themes mute it toward the surface; dark themes keep it vivid.
@@ -227,21 +227,23 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
      screen 2026-09-27, after the tabs themselves had been made to fill it).
      Shaped like the look's tabs, so a group reads as part of the row. */
   border-radius: var(--b-tab-radius, 8px);
-  /* The tab titles' size: 10px suited the old 22px pill, and read as lost in
-     a chip as big as a tab (2026-09-27). */
-  font-size: 12px;
-  font-weight: 700;
+  /* A step above the tab titles, with room either side (asked for "a bit
+     bigger", 2026-09-27): 10px suited the old 22px pill and read as lost in
+     a chip as tall as a tab. */
+  font-size: 13px;
+  font-weight: 600;
   align-self: stretch;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  /* Shares the strip with the tabs rather than stopping at 140px: the tabs
-     and groups cover the whole bar (2026-09-27). */
-  flex: 1 1 0;
-  min-width: 72px;
+  /* As wide as its name, like Chrome's group chips; the tabs stretch over
+     the rest, so the bar is still covered. Sharing the width equally made
+     four collapsed groups take more than half the strip (2026-09-27). The
+     name is written as typed: bold serif capitals spaced unevenly. */
+  flex: 0 0 auto;
+  min-width: 120px;
+  max-width: 240px;
+  box-sizing: border-box;
   justify-content: center;
   cursor: pointer;
   transition: transform 0.12s, opacity 0.12s;
-  max-width: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -249,6 +251,13 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   -webkit-app-region: no-drag;
 }
 .top-group-label:hover { opacity: 0.92; }   /* no lift: a lifted chip reopens a gap under it */
+
+/* The tab strip is set in Segoe UI, as in Firefox and Chrome, whatever font
+   the rest of Vex wears (user's choice, 2026-09-27). The id outranks the
+   font picker's !important rule in fonts.css. */
+#top-tabs-list :is(.top-tab, .top-tab *, .top-group-label) {
+  font-family: "Segoe UI", system-ui, sans-serif !important;
+}
 
 /* Drag-to-reorder — dim the tab being dragged, show an insertion line on the
    edge of the tab it would land next to (inset so overflow:hidden can't clip it) */
