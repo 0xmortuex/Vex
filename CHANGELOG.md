@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.32.98 (2026-09-27) — Install extensions in one click, RoSuite included
+
+### New
+- **Extensions install in one click.** Settings › Extensions › *Extensions worth installing* used to say: open the publisher's page, download the .zip, come back, press Install from .zip, find the file. Each entry now has an **Install** button that fetches the latest release from the publisher's own GitHub and installs it through the same checked path as a zip picked by hand. When one is already installed the button says **Update** and shows the version you have. The old copy is replaced only after the new one has loaded, so an update that fails leaves you with what you had. Vex decides where each comes from (the renderer can only name one of the listed extensions), and only takes GitHub release downloads. Checked live: Dark Reader, Stylus, Violentmonkey, Return YouTube Dislike and uBlock Origin each installed in 1–2 seconds, installing again kept one copy, and Dark Reader really darkened a page.
+- **RoSuite is in the catalogue**, the first extension made for Vex: a Roblox server browser (busiest first, filters, join a server), live game stats, profile value and activity, and a trade calculator. It installs once its 1.1.0 release is published on GitHub; until then the button says there is no release yet.
+
 ## v2.32.97 (2026-09-27) — Watch the AI work, and read what it did at a glance
 
 ### New

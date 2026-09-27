@@ -68,6 +68,9 @@ const ExtensionsSettings = (() => {
       .ext-suggest-works{font-size:11.5px;margin-top:5px;line-height:1.45;color:var(--text,#e9e9ee);}
       .ext-suggest-caveat{font-size:11.5px;margin-top:3px;line-height:1.45;color:var(--text-muted,#9a9aa5);}
       .ext-suggest-limited{color:#f59e0b;}
+      .ext-source-link{font-size:11.5px;font-weight:400;color:var(--text-muted,#9a9aa5);text-decoration:none;}
+      .ext-source-link:hover{color:var(--primary,#6366f1);text-decoration:underline;}
+      .ext-open-btn:disabled{opacity:.6;cursor:default;}
       .ext-unsupported{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text-muted,#9a9aa5);line-height:1.6;}
       .ext-where{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--text-muted,#9a9aa5);}
       .ext-note{margin-top:5px;font-size:11px;line-height:1.45;color:#f59e0b;}
@@ -158,16 +161,19 @@ const ExtensionsSettings = (() => {
           <details${extensions.length === 0 ? ' open' : ''}>
             <summary>Extensions worth installing</summary>
             <div class="help-content">
-              <p class="setting-info muted" style="margin:0 0 8px">Each of these was checked against what Electron actually supports. Vex can't download from the Chrome Web Store, so "Get it" opens the publisher's own release page &mdash; download the <code>.zip</code> or <code>.crx</code>, then use <strong>Install from .zip / .crx</strong> above.</p>
-              ${VexExtensionCatalog.ENTRIES.map(x => `
+              <p class="setting-info muted" style="margin:0 0 8px">Each of these was checked against what Electron actually supports. <strong>Install</strong> fetches the latest release from the publisher's own GitHub and installs it; press it again later to update.</p>
+              ${VexExtensionCatalog.ENTRIES.map(x => {
+                const have = extensions.find(e => String(e.name || '').toLowerCase() === x.name.toLowerCase());
+                return `
                 <div class="ext-suggest">
-                  <div class="ext-suggest-name">${_esc(x.name)}
-                    <button class="ext-open-btn" data-open="${_esc(x.source)}" style="margin-left:auto">Get it</button>
+                  <div class="ext-suggest-name">${_esc(x.name)}${have ? ` <span class="ext-version">v${_esc(have.version)} installed</span>` : ''}
+                    <a href="#" class="ext-source-link" data-open="${_esc(x.source)}" style="margin-left:auto">Source</a>
+                    <button class="ext-open-btn" data-install-catalog="${_esc(x.id)}">${have ? 'Update' : 'Install'}</button>
                   </div>
                   <div class="ext-suggest-what">${_esc(x.what)}</div>
                   <div class="ext-suggest-works${x.limited ? ' ext-suggest-limited' : ''}"><strong>In Vex:</strong> ${_esc(x.works)}</div>
                   ${x.caveat ? `<div class="ext-suggest-caveat">${_esc(x.caveat)}</div>` : ''}
-                </div>`).join('')}
+                </div>`; }).join('')}
             </div>
           </details>
         </div>
@@ -222,6 +228,25 @@ const ExtensionsSettings = (() => {
       a.addEventListener('click', (e) => {
         e.preventDefault();
         if (typeof TabManager !== 'undefined') TabManager.createTab(a.dataset.open, true);
+      });
+    });
+    // One click: the latest release from the publisher's GitHub, installed by
+    // main (main/extension-sources.js decides where it comes from).
+    container.querySelectorAll('[data-install-catalog]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!window.vex || typeof window.vex.extensionsInstallCatalog !== 'function') { _toast('Installing is not available in this window', 'error'); return; }
+        const label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Installing…';
+        try {
+          const r = await window.vex.extensionsInstallCatalog(btn.dataset.installCatalog);
+          if (r && r.ok) { _toast(`Installed: ${r.name} v${r.version}`, 'success'); render(container); return; }
+          _toast('Install failed: ' + ((r && r.error) || 'unknown'), 'error');
+        } catch (err) {
+          _toast('Install failed: ' + ((err && err.message) || 'unknown'), 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = label;
       });
     });
     document.getElementById('btn-install-zip')?.addEventListener('click', async () => {

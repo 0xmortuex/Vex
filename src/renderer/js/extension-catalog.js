@@ -18,6 +18,15 @@
 const VexExtensionCatalog = {
   ENTRIES: [
     {
+      id: 'rosuite',
+      limited: false,
+      name: 'RoSuite',
+      what: 'Roblox, improved: a server browser (busiest or emptiest first, filters, join a server), live game stats, profile value and activity, and a trade calculator.',
+      works: 'Fully. Content scripts and Roblox’s public APIs, with your existing Roblox sign-in. Runs in tabs and in the Roblox panel.',
+      caveat: 'Trades and friends-in-server need you signed in to Roblox. Made for Vex, open source.',
+      source: 'https://github.com/0xmortuex/RoSuite',
+    },
+    {
       id: 'dark-reader',
       limited: false,
       name: 'Dark Reader',

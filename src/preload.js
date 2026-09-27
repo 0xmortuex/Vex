@@ -427,6 +427,7 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsList:           () => ipcRenderer.invoke('extensions:list'),
   extensionsInstallFolder:  () => ipcRenderer.invoke('extensions:install-folder'),
   extensionsInstallZip:     () => ipcRenderer.invoke('extensions:install-zip'),
+  extensionsInstallCatalog: (id) => ipcRenderer.invoke('extensions:install-catalog', id),
   extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
   extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
   extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),

@@ -2528,6 +2528,31 @@ function _removeExtBySlugPrefix(prefix) {
   } catch {}
 }
 
+// One-click install for the catalogue (main/extension-sources.js): the latest
+// GitHub release of an extension Vex knows, installed through the same checked
+// path as a zip picked by hand. An update replaces the old copy only once the
+// new one has loaded (_activateInstalledFolder → _removeSupersededCopies).
+const _extSources = require('./main/extension-sources');
+ipcMain.handle('extensions:install-catalog', async (_e, id) => {
+  try {
+    if (!Object.prototype.hasOwnProperty.call(_extSources.SOURCES, id)) return { ok: false, error: 'Vex does not install that extension by itself' };
+    const src = _extSources.SOURCES[id];
+    const res = await boundedNetFetch(_extSources.latestReleaseUrl(id), {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Vex' }, maxBytes: 2 * 1024 * 1024, timeoutMs: 20000,
+    });
+    if (res.status === 404) return { ok: false, error: 'There is no release to install yet' };
+    if (!res.ok) return { ok: false, error: 'GitHub answered ' + res.status };
+    const release = await res.json();
+    const asset = _extSources.pickAsset(release, src.asset);
+    if (!asset) return { ok: false, error: 'The latest release (' + (release.tag_name || '?') + ') has no Chrome build to install' };
+    const buffer = await _downloadBuffer(asset.browser_download_url);
+    const done = await _installExtFromZipBuffer(buffer, id);
+    return done.ok ? { ...done, release: release.tag_name || '', file: asset.name } : done;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // One-click Vencord: download the official chromium browser extension and load
 // it into the Discord panel session (persist:discord, included in EXT_PARTITIONS).
 ipcMain.handle('discord:install-vencord', async () => {
