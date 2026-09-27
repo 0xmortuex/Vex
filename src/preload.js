@@ -290,6 +290,8 @@ contextBridge.exposeInMainWorld('vex', {
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
   downloadsRetry:        (url) => ipcRenderer.invoke('downloads:retry', url),
+  downloadsAskWhere:     (url) => ipcRenderer.invoke('downloads:ask-where', url),
+  copyImageFrom:         (url, partition) => ipcRenderer.invoke('image:copy', url, partition),
 
   // Notes & Sessions shortcuts
   onToggleNotes: (callback) => subscribe('toggle-notes', callback),

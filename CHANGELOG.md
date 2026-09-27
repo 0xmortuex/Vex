@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.32.88 (2026-09-27) — Right-click a picture and you can save it
+
+### Fixes
+- **Right-clicking a picture in Gemini's image viewer gave no way to save or copy it.** The menu had Back, Reload, the link rows… and nothing about the picture. Vex has always had Save and Copy Image, but only added them when Chromium reported that the thing under the pointer was an image — and Chromium only says that when the `<img>` itself is on top. Gemini lays a link over its pictures; other galleries make the picture click-through or paint it as a background. In all three Chromium reports "none", so the picture rows were dropped. The page now finds the picture actually under the pointer and the menu uses it. Checked on a test page in both a tab and a panel: a plain picture, one under a link (Gemini's layout), one that is click-through, and a background picture all get the full set.
+- **"Save Image As…" never asked where.** It was an ordinary download straight into Downloads, so there was no way to pick a name, a folder or a different place. There are now two: **Save Image** (straight to Downloads, as before) and **Save Image As…**, which opens the Windows Save dialog. The Downloads panel shows where you actually put it.
+- **Copy Image** works on those hidden pictures too. It used to ask Chromium for "the image at this point", which is the same question that had no answer; a picture the page found is now fetched in the page's own session (signed-in pictures stay signed in) and put on the clipboard. A WebP or AVIF picture that the clipboard cannot hold says so and points at Save Image.
+- **Search Image with Lens, Zoom Image and Ask Vex About This Image never showed.** They lived in a second menu that the main one removed the instant it opened. They are in the picture section now.
+- **In a panel, "Duplicate Tab" duplicated whatever tab was open behind it**, and Auto-refresh had no tab to refresh. A panel no longer shows either. "Copy as Markdown link" and "Open as App" now use the page you right-clicked for the title, not the active tab.
+
 ## v2.32.87 (2026-09-26) — A panel Windows closes comes back by itself
 
 ### Fixes

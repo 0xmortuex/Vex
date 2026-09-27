@@ -5343,6 +5343,30 @@ ipcMain.handle('file:save-text', async (_e, { name, text, kind } = {}) => {
   return { ok: true, path: r.filePath };
 });
 
+// Copy a picture onto the clipboard (renderer: WebviewManager.copyImage).
+// For the pictures a right-click finds under a link or an overlay, where
+// Chromium's own copyImageAt has nothing at that point to copy. Fetched in the
+// page's own session, so a signed-in picture is fetched signed in. PNG and
+// JPEG are asked for first, because the clipboard image cannot be made from
+// WebP or AVIF.
+ipcMain.handle('image:copy', async (_e, url, partition) => {
+  try {
+    const { nativeImage, clipboard, session } = require('electron');
+    let img;
+    if (/^data:image\//i.test(url)) img = nativeImage.createFromDataURL(url);
+    else if (/^https?:\/\//i.test(url)) {
+      if (partition && !/^(persist:)?[\w.-]{1,120}$/.test(partition)) throw new Error('Unknown page session');
+      const ses = partition ? session.fromPartition(partition) : session.defaultSession;
+      const res = await ses.fetch(url, { headers: { Accept: 'image/png,image/jpeg;q=0.9,image/gif;q=0.8,image/*;q=0.5' } });
+      if (!res.ok) throw new Error('the site answered ' + res.status);
+      img = nativeImage.createFromBuffer(Buffer.from(await res.arrayBuffer()));
+    } else throw new Error('that picture cannot be fetched from here \u2014 Save Image works');
+    if (!img || img.isEmpty()) throw new Error('this picture\u2019s format cannot go on the clipboard \u2014 Save Image works');
+    clipboard.writeImage(img);
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
 // The readable part of a page as an e-book (renderer: PageExport.saveEpub).
 ipcMain.handle('page:save-epub', async (_e, { title, url, xhtml }) => {
   const book = require('./main/epub').buildEpub({ title, url, xhtmlBody: xhtml });

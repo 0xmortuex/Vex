@@ -596,6 +596,8 @@ const SidebarManager = {
     // Microphone / camera in use (preload-webview.js getUserMedia wrapper):
     // a badge on the icon, never slept meanwhile, and a call signal for Discord.
     wv.addEventListener('ipc-message', (e) => {
+      // The picture under a right-click, for the menu (js/webview.js contextImage).
+      if (e.channel === 'vex-ctx-image') { if (typeof WebviewManager !== 'undefined') WebviewManager.noteContextImage(wv, e.args && e.args[0]); return; }
       if (e.channel !== 'vex-media-capture') return;
       const d = (e.args && e.args[0]) || {};
       this.setPanelCapturing(panelName, d.kind, d.active);

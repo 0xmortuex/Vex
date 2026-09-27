@@ -258,6 +258,7 @@ const WebviewManager = {
     // one toast per session — it's the actionable one (codec/GPU decode bug,
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
+      if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
       // PiP video-detection from the guest preload (sent via sendToHost because a
       // guest window.postMessage can't cross to the host). Re-emit as a host
       // window message so PiPManager (app.js) handles it unchanged. Gate on the
@@ -325,38 +326,6 @@ const WebviewManager = {
     });
     // Now Playing mini-bar (which tab is making noise)
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
-    // Right-click an image → reverse-search it with Google Lens
-    onWebview('context-menu', (e) => {
-      const p = e.params || {};
-      if (p.mediaType !== 'image' || !p.srcURL || !/^https?:/i.test(p.srcURL)) return;
-      document.querySelectorAll('.vex-img-menu').forEach(m => m.remove());
-      const menu = document.createElement('div');
-      menu.className = 'tab-context-menu vex-img-menu';
-      const r = webview.getBoundingClientRect();
-      menu.style.left = (r.left + (p.x || 0)) + 'px';
-      menu.style.top = (r.top + (p.y || 0)) + 'px';
-      const items = [
-        { label: 'Zoom image', act: () => { if (typeof ImageZoom !== 'undefined') ImageZoom.open(p.srcURL); } },
-        { label: 'Search image with Lens', act: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(p.srcURL), true) },
-        { label: 'Copy image address', act: () => { navigator.clipboard?.writeText(p.srcURL); window.showToast?.('Image URL copied'); } },
-        { label: 'Ask Vex about this image', act: () => { if (typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) AIPanel.askAboutImage(p.srcURL); } },
-        { label: 'Open image in new tab', act: () => TabManager.createTab(p.srcURL, true) },
-      ];
-      items.forEach(it => {
-        const el = document.createElement('div');
-        el.className = 'tab-context-item';
-        el.textContent = it.label;
-        // _dismissMenu (not bare menu.remove) so the dismissal overlay is torn
-        // down with the menu — otherwise it orphans over the page and eats the
-        // next click.
-        el.addEventListener('click', () => { it.act(); if (window.Tabs?._dismissMenu) Tabs._dismissMenu(menu); else menu.remove(); });
-        menu.appendChild(el);
-      });
-      document.body.appendChild(menu);
-      if (window.Tabs?._clampMenuToViewport) TabManager._clampMenuToViewport(menu, parseInt(menu.style.left), parseInt(menu.style.top));
-      if (window.Tabs?._attachMenuDismissal) TabManager._attachMenuDismissal(menu);
-    });
-
     onWebview('did-navigate', (e) => {
       const url = e.url;
       // A fresh page starts with a clean count.
@@ -831,6 +800,61 @@ const WebviewManager = {
     if (wv) wv.stopFindInPage('clearSelection');
   },
 
+  // Save a picture from a page. As = the system Save dialog (name, folder,
+  // type), through main's download handler so it is still one download in
+  // the Downloads panel (src/main/downloads.js, askWhere).
+  async saveImage(webview, src, as) {
+    try {
+      if (as) {
+        if (!window.vex || typeof window.vex.downloadsAskWhere !== 'function') throw new Error('Save As is not available in this window');
+        await window.vex.downloadsAskWhere(src);
+      }
+      webview.downloadURL(src);
+    } catch (err) {
+      window.VexProblems?.note('Images', 'Could not save the image', err);
+      window.showToast?.('Could not save the image: ' + ((err && err.message) || ''), 'error');
+    }
+  },
+
+  // Copy the picture itself. copyImageAt asks Chromium for the image at a
+  // point, which is exactly what fails when the picture is under a link or
+  // pointer-events:none, so a picture the page found is fetched by main in
+  // this page's own session and put on the clipboard from there.
+  async copyImage(webview, src, params) {
+    const p = params || {};
+    if (p.mediaType === 'image' && p.srcURL === src && typeof webview.copyImageAt === 'function') {
+      try { webview.copyImageAt(p.x, p.y); window.showToast?.('Image copied'); return; } catch { /* fetch it instead */ }
+    }
+    try {
+      if (!window.vex || typeof window.vex.copyImageFrom !== 'function') throw new Error('Copying images is not available in this window');
+      const r = await window.vex.copyImageFrom(src, webview.getAttribute?.('partition') || '');
+      if (!r || !r.ok) throw new Error((r && r.error) || 'the image could not be read');
+      window.showToast?.('Image copied');
+    } catch (err) {
+      window.showToast?.('Could not copy the image: ' + ((err && err.message) || ''), 'error');
+    }
+  },
+
+  // The picture the page itself found under the pointer (preload-webview.js,
+  // "The picture under a right-click"). Kept for a moment only: it belongs
+  // to one right-click.
+  noteContextImage(webview, data) {
+    if (!webview) return;
+    const src = data && typeof data.src === 'string' ? data.src : '';
+    webview._vexCtxImage = { src, at: Date.now() };
+  },
+
+  // Chromium's answer when it saw an image; otherwise the page's, if it
+  // arrived for this right-click. Only addresses Vex can do something with.
+  contextImage(params, webview) {
+    const p = params || {};
+    let src = (p.mediaType === 'image' && p.srcURL) ? p.srcURL : '';
+    const found = webview && webview._vexCtxImage;
+    if (webview) webview._vexCtxImage = null;
+    if (!src && found && found.src && Date.now() - found.at < 2000) src = found.src;
+    return /^(https?:|data:image\/|blob:)/i.test(src) ? src : '';
+  },
+
   showContextMenu(e, webview) {
     // Clear any prior menu AND its dismissal overlay. Removing only the menu
     // (the old behaviour) leaked a stack of transparent .context-menu-overlay
@@ -838,6 +862,8 @@ const WebviewManager = {
     document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove());
 
     const curUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
+    const isTab = !!(webview.dataset && webview.dataset.tabId);
+    const imageSrc = this.contextImage(e.params, webview);
 
     const menu = document.createElement('div');
     menu.className = 'tab-context-menu';
@@ -980,12 +1006,15 @@ const WebviewManager = {
       { label: 'Reload', action: () => webview.reload() },
       { sep: true },
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
-      { label: 'Copy as Markdown link', action: () => { try { const t = TabManager.getActiveTab(); const u = webview.getURL(); const title = (t && t.title) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
+      { label: 'Copy as Markdown link', action: () => { try { const u = webview.getURL(); const title = (webview.getTitle && webview.getTitle()) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
       { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL(), true, null, { partition: webview.getAttribute?.("partition") }) },
-      { label: 'Open as App', action: () => { try { window.vex.openAsApp(webview.getURL(), (TabManager.getActiveTab() || {}).title); } catch {} } },
-      { label: '⧉ Duplicate Tab', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true, null, { partition: t.partition }); } catch {} } },
+      { label: 'Open as App', action: () => { try { window.vex.openAsApp(webview.getURL(), (webview.getTitle && webview.getTitle()) || ''); } catch {} } },
+      // A tab's own rows. In a panel (Gemini, Claude, Discord...) "Duplicate
+      // Tab" copied whatever TAB was active and Auto-refresh had no tab to
+      // refresh, so a panel gets neither.
+      ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.createTab(t.url, true, null, { partition: t.partition }); } catch {} } }] : []),
       { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
-      { label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? '⟳ Auto-refresh: on…' : '⟳ Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } },
+      ...(isTab ? [{ label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? 'Auto-refresh: on…' : 'Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } }] : []),
       { sep: true },
       // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
       // "Reset this site" clears this host's saved zoom and dark-mode override.
@@ -1138,31 +1167,22 @@ const WebviewManager = {
       }
     }
 
-    // Image-specific options when right-clicking an <img> or background-image
-    // element. e.params.mediaType is set by Chromium for image/video/audio;
-    // e.params.srcURL is the resource URL.
-    if (e.params.mediaType === 'image' && e.params.srcURL) {
+    // The picture under the pointer, whether Chromium saw it (an <img> on
+    // top) or the page found it under a link, an overlay or a CSS background
+    // (contextImage). Save goes straight to Downloads like every download;
+    // Save As asks where and under what name.
+    if (imageSrc) {
+      const web = /^https?:/i.test(imageSrc);
+      const partition = webview.getAttribute?.('partition');
       items.push({ sep: true });
-      items.push({
-        label: 'Open Image in New Tab',
-        action: () => TabManager.createTab(e.params.srcURL, true, null, { partition: webview.getAttribute?.("partition") })
-      });
-      items.push({
-        label: 'Copy Image',
-        action: () => { try { webview.copyImageAt?.(e.params.x, e.params.y); } catch {} }
-      });
-      items.push({
-        label: 'Copy Image Address',
-        action: () => navigator.clipboard.writeText(e.params.srcURL)
-      });
-      items.push({
-        label: 'Save Image As…',
-        action: () => {
-          // <webview>.downloadURL forwards to the underlying webContents,
-          // which goes through Vex's existing will-download wiring (DownloadsPanel).
-          try { webview.downloadURL(e.params.srcURL); } catch {}
-        }
-      });
+      items.push({ label: 'Open Image in New Tab', action: () => TabManager.createTab(imageSrc, true, null, { partition }) });
+      items.push({ label: 'Save Image', action: () => this.saveImage(webview, imageSrc, false) });
+      items.push({ label: 'Save Image As…', action: () => this.saveImage(webview, imageSrc, true) });
+      items.push({ label: 'Copy Image', action: () => this.copyImage(webview, imageSrc, e.params) });
+      items.push({ label: 'Copy Image Address', action: () => { navigator.clipboard.writeText(imageSrc); window.showToast?.('Image address copied'); } });
+      if (web) items.push({ label: 'Search Image with Lens', action: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imageSrc), true) });
+      if (typeof ImageZoom !== 'undefined') items.push({ label: 'Zoom Image', action: () => ImageZoom.open(imageSrc) });
+      if (web && typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) items.push({ label: 'Ask Vex About This Image', action: () => AIPanel.askAboutImage(imageSrc) });
     }
 
     // Inspect Element — opens DevTools detached for the right-clicked tab's

@@ -1114,6 +1114,57 @@ function _isVexStartPage(href) {
   }, true);
 })();
 
+// === The picture under a right-click =======================================
+// Chromium only calls a right-click an image when the <img> itself is the
+// topmost thing hit. Galleries rarely leave it that way: Gemini's image viewer
+// lays a link over the picture, others make the <img> pointer-events:none or
+// paint it as a CSS background. The menu then had link rows and no Save or
+// Copy Image at all (reported 2026-09-27). This finds the picture actually
+// under the pointer and tells the host, which builds the menu with it.
+(function () {
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  const MAX = 4 * 1024 * 1024;                 // a data: image can be big; past this it is not worth sending
+  const urlOf = (el) => {
+    if (!el || el.nodeType !== 1) return "";
+    if (el.tagName === "IMG") return el.currentSrc || el.src || "";
+    if (el.tagName === "PICTURE") { const i = el.querySelector("img"); return i ? (i.currentSrc || i.src || "") : ""; }
+    try {
+      const bg = getComputedStyle(el).backgroundImage;
+      if (bg && bg !== "none") {
+        const at = bg.indexOf("url(");
+        if (at >= 0) {
+          let u = bg.slice(at + 4, bg.indexOf(")", at)).trim();
+          if (u[0] === '"' || u[0] === "'") u = u.slice(1, -1);
+          return u;
+        }
+      }
+    } catch {}
+    return "";
+  };
+  const over = (el, x, y) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 8 && r.height > 8 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  };
+  const pictureAt = (x, y) => {
+    const hit = document.elementsFromPoint(x, y) || [];
+    for (const el of hit.slice(0, 15)) { const u = urlOf(el); if (u) return u; }
+    // A pointer-events:none picture is invisible to hit-testing, so look
+    // inside what WAS hit, one ancestor wider at a time: the nearest picture
+    // under the pointer, not a thumbnail somewhere behind a viewer.
+    for (let el = hit[0]; el && el !== document.documentElement; el = el.parentElement) {
+      for (const img of el.querySelectorAll("img")) if (over(img, x, y)) return urlOf(img);
+    }
+    return "";
+  };
+  document.addEventListener("contextmenu", (e) => {
+    let src = "";
+    try { src = pictureAt(e.clientX, e.clientY); } catch {}
+    if (src.length > MAX) src = "";
+    try { ipcRenderer.sendToHost("vex-ctx-image", { src }); } catch {}
+  }, true);
+})();
+
 // === Selection AI — report a page text selection (text + on-screen rect) to
 // the HOST renderer so it can show a floating Explain/Summarize/Translate bar.
 // Coordinates are relative to THIS guest's viewport; the host offsets them by
