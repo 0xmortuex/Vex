@@ -623,6 +623,14 @@
                 </select>
               </div>
 
+              <div class="setting-row" style="margin-top:14px">
+                <div class="setting-label">
+                  <strong>Show the AI working</strong>
+                  <span class="setting-hint">A cursor moves to what it clicks and types, with a caption saying what it is doing. About half a second slower per step.</span>
+                </div>
+                <label class="toggle"><input type="checkbox" id="setting-agent-cursor" checked aria-label="Show the AI working"><span class="toggle-slider"></span></label>
+              </div>
+
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
                 <button class="btn-secondary" id="btn-refresh-ollama">Refresh Ollama Status</button>
                 <button class="btn-secondary" id="btn-install-ollama">Ollama Install Guide</button>
@@ -1402,7 +1410,9 @@
   <script src="js/dom-extractor.js"></script>
   <script src="js/agent-tools.js"></script>
   <script src="js/video-chat.js"></script>
+  <script src="js/agent-cursor.js"></script>
   <script src="js/agent-executor.js"></script>
+  <script src="js/agent-run-card.js"></script>
   <script src="js/agent-loop.js"></script>
   <script src="js/agent-model-test.js"></script>
   <script src="js/scheduler.js"></script>

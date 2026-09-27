@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.32.97 (2026-09-27) — Watch the AI work, and read what it did at a glance
+
+### New
+- **You can watch the AI work.** On the page, a Vex cursor glides to each thing before it is clicked, typed into or chosen, and taps it. A ring marks what it is about to act on, a caption beside the cursor says what it is doing in its own words ("Adding the poster to the cart"), and typing appears a few letters at a time instead of all at once. The cursor ignores the mouse and cannot be styled by the page. It costs about half a second per action; **Settings › AI › Show the AI working** turns it off. Scheduled runs, which happen while nobody is watching, never show it.
+- **A task is one tidy card in the chat, not a bubble per step.** Every step used to be its own message: the reasoning with the raw tool call under it, then the result, the token cost, and every warning, each in a bubble of its own, about forty for a twelve-step task. Now the card shows the status, how long it has been going, the goal, and one live "Now:" line. The steps are folded away until you open them, one plain line each ("Clicked "Search" — now shows "Moon Knight Poster" …"), with chips to filter them: Clicks & typing, Pages & tabs, Reading, Web search, Vex, Problems, You. Click a step for the reasoning behind it, the exact action and the full result. The time and tokens sit in the footer. A question to you, a plan to approve, a hand-over and the answer stay messages of their own. Saved runs come back as the same card.
+
+### Fixes
+- **The AI could not tell what its actions did, so it did not know when it was done.** After a click it only heard 'Clicked "Add to cart"', never that the page now said "Added to cart: 1 item", and it kept going until it ran out of steps (40 steps, 92 seconds, 168,000 tokens on a three-step shop task). Every click, typing, key press and choice now reports what it changed: what is new on the page, the page it went to, or that nothing visibly changed. The same task now takes 7–15 steps and 20–60 seconds.
+- **It repeated actions that did nothing.** An identical click, typing or key press is refused when it last changed nothing and nothing else has happened to the page since; the AI is shown the last change that did happen and told to finish if that was the goal. An action that worked can still be repeated ("Next page", "Next page").
+- **Typing into a button came back as "Script failed to execute".** It now says that is a button, not a text field, and how to find the field.
+- **An answer wrapped in braces** (`{ "The task ...": "..." }`) was printed as it came; its words are shown instead.
+- The AI's instructions now say to use the open site's own search box when the task is about that site, and to finish as soon as a result shows the goal is done.
+
+### Known limit
+- On a small local model (tested with qwen3.5) the AI still makes judgement mistakes: it opened the second search result instead of the first in some runs, and sometimes searches the web when the site in front of it would do. The cursor makes those mistakes visible as they happen; a larger model makes fewer of them.
+
 ## v2.32.96 (2026-09-27) — Your location answer is kept the way you gave it
 
 ### Fixes

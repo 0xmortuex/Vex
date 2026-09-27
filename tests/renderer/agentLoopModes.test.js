@@ -77,7 +77,7 @@ describe('plan first', () => {
     expect(AgentExecutor.executeTool).not.toHaveBeenCalled();
     document.querySelector('.agent-approve').click();
     await run;
-    expect(AgentExecutor.executeTool).toHaveBeenCalledWith('rename_tab_group', { groupId: 'g1', name: 'Gaming' });
+    expect(AgentExecutor.executeTool).toHaveBeenCalledWith('rename_tab_group', { groupId: 'g1', name: 'Gaming' }, expect.objectContaining({ show: true }));
     expect(document.querySelectorAll('.agent-approve').length).toBe(0);      // asked exactly once
     expect(calls[1].lastToolResult.result).toMatch(/approved the plan/);
   });
@@ -137,7 +137,7 @@ describe('a reply that is not a tool call', () => {
     const replies = ['{"thought":"I will now save the note and then bookmark', JSON.stringify({ tool: 'save_note', parameters: { title: 'T', content: 'C' }, intent: 'action' }), JSON.stringify({ tool: 'finish', parameters: { summary: 'saved' } })];
     globalThis.AIRouter = { callAI: vi.fn(async (f, req) => { calls.push(req); return { result: replies.shift() }; }) };
     await AgentLoop.start('save a note', 'auto');
-    expect(AgentExecutor.executeTool).toHaveBeenCalledWith('save_note', { title: 'T', content: 'C' });
+    expect(AgentExecutor.executeTool).toHaveBeenCalledWith('save_note', { title: 'T', content: 'C' }, expect.objectContaining({ show: true }));
     expect(calls[1].conversationHistory.at(-1).content).toMatch(/not a valid tool call \(or it was cut off\)/);
     expect(steps().join(' | ')).toMatch(/not a tool call — asking again/);
     expect(document.querySelector('.agent-final').textContent).toContain('saved');

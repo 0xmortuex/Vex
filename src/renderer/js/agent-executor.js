@@ -37,6 +37,14 @@ const AgentExecutor = {
     if (context.scheduled && (!context.webview || context.webview.isConnected === false)) return { ok: false, error: 'Scheduled tab was closed' };
     if (wv && window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(wv)) return { ok: false, error: 'Private tabs are excluded from agent access' };
     if (PAGE_TOOLS.includes(toolName) && !wv) return { ok: false, error: 'No page is open — use new_tab first, or a tool that needs no page (web_search, read_url)' };
+    // The cursor the user watches (js/agent-cursor.js): interactive runs only,
+    // never a scheduled one, and not when it is switched off in Settings › AI.
+    const show = !!context.show && !context.scheduled && typeof AgentCursor !== 'undefined' && AgentCursor.enabled();
+    const PRE = show ? AgentCursor.GUEST : '';
+    const CUR = show ? 'window.__vexCursor' : 'null';
+    const CAPTION = JSON.stringify(String(context.caption || ''));
+    // Animation and letter-by-letter typing take their time; the page is not stuck.
+    const EVAL_MS = show ? 20000 : undefined;
 
     try {
       switch (toolName) {
@@ -68,23 +76,28 @@ const AgentExecutor = {
           return { ok: true, result: 'Reloaded' };
 
         case 'click': {
+          const before = await this._snapshot(wv);
           const res = await window.vexGuestEval(wv, `
-            (() => { ${GUEST_CLICK}
+            (async () => { ${PRE} ${GUEST_CLICK}
               const el = document.querySelector(${JSON.stringify(params.selector || '')});
               if (!el) return { ok: false, error: 'Element not found: ' + ${JSON.stringify(params.selector || '')} + ' — call extract_elements for current selectors, or use click_text' };
+              const label = (el.innerText || el.textContent || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 60);
+              const cur = ${CUR};
+              if (cur) { await cur.moveTo(el, ${CAPTION} || ('Clicking ' + (label ? '"' + label + '"' : 'here'))); await cur.tap(); }
               __click(el);
-              return { ok: true, label: (el.innerText || el.textContent || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 60) };
+              return { ok: true, label };
             })()
-          `);
-          await new Promise(r => setTimeout(r, 500));
-          return (res && res.ok) ? { ok: true, result: 'Clicked' + (res.label ? ' "' + res.label + '"' : ' element') } : { ok: false, error: (res && res.error) || 'Element not found' };
+          `, false, EVAL_MS);
+          await this._settle(wv);
+          return (res && res.ok) ? { ok: true, result: 'Clicked' + (res.label ? ' "' + res.label + '"' : ' element') + await this._whatChanged(wv, before) } : { ok: false, error: (res && res.error) || 'Element not found' };
         }
 
         // Click by what the button or link SAYS — no selector needed. The
         // closest match wins: exact text, then starts-with, then contains.
         case 'click_text': {
+          const before = await this._snapshot(wv);
           const res = await window.vexGuestEval(wv, `
-            (() => { ${GUEST_CLICK}
+            (async () => { ${PRE} ${GUEST_CLICK}
               const want = ${JSON.stringify(String(params.text || '').trim().toLowerCase())};
               if (!want) return { ok: false, error: 'click_text needs the text to look for' };
               const nodes = [...document.querySelectorAll('a[href], button, [role="button"], [role="link"], [role="menuitem"], [role="tab"], input[type="submit"], input[type="button"], summary, label, [onclick]')];
@@ -98,12 +111,14 @@ const AgentExecutor = {
                 if (s > score || (s === score && s > 0 && best && t.length < label(best).length)) { best = el; score = s; }
               }
               if (!best) return { ok: false, error: 'Nothing clickable says "' + want + '" — call extract_elements to see what is there' };
+              const cur = ${CUR};
+              if (cur) { await cur.moveTo(best, ${CAPTION} || ('Clicking "' + label(best).slice(0, 40) + '"')); await cur.tap(); }
               __click(best);
               return { ok: true, label: label(best).slice(0, 60) };
             })()
-          `);
-          await new Promise(r => setTimeout(r, 500));
-          return (res && res.ok) ? { ok: true, result: 'Clicked "' + res.label + '"' } : { ok: false, error: (res && res.error) || 'Nothing matched' };
+          `, false, EVAL_MS);
+          await this._settle(wv);
+          return (res && res.ok) ? { ok: true, result: 'Clicked "' + res.label + '"' + await this._whatChanged(wv, before) } : { ok: false, error: (res && res.error) || 'Nothing matched' };
         }
 
         // Writing el.value directly never reached React/Vue inputs (they watch
@@ -114,22 +129,46 @@ const AgentExecutor = {
           const raw = String(params.text == null ? '' : params.text);
           const submit = params.submit === true || /\n$/.test(raw);
           const text = raw.replace(/\n+$/, '');
+          const before = await this._snapshot(wv);
           const res = await window.vexGuestEval(wv, `
-            (() => {
+            (async () => { ${PRE}
               const el = document.querySelector(${JSON.stringify(params.selector || '')});
               if (!el) return { ok: false, error: 'Element not found: ' + ${JSON.stringify(params.selector || '')} };
+              // Typing into a button used to throw inside the page and come back
+              // as "Script failed to execute", which told the model nothing.
+              const NOT_TEXT = ['button', 'submit', 'reset', 'image', 'checkbox', 'radio', 'file', 'hidden', 'range', 'color'];
+              const isField = el.isContentEditable || el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && !NOT_TEXT.includes(String(el.type || '').toLowerCase()));
+              if (!isField) {
+                const said = String(el.innerText || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 40);
+                return { ok: false, error: 'That is a ' + el.tagName.toLowerCase() + (said ? ' ("' + said + '")' : '') + ', not a text field. type_text needs an input box, a text area or an editable area: call extract_elements to find the field' };
+              }
+              const text = ${JSON.stringify(text)}, clear = ${params.clearFirst === false ? 'false' : 'true'};
+              const cur = ${CUR};
+              if (cur) await cur.moveTo(el, ${CAPTION} || ('Typing "' + text.slice(0, 40) + '"'));
               el.scrollIntoView({ behavior: 'instant', block: 'center' });
               el.focus();
-              const text = ${JSON.stringify(text)}, clear = ${params.clearFirst === false ? 'false' : 'true'};
+              // Watched, it types a few letters at a time (at most 40 steps,
+              // about a second and a half); otherwise all at once, as before.
+              const steps = cur ? Math.max(1, Math.min(text.length, 40)) : 1;
+              const per = cur ? Math.max(12, Math.min(45, Math.round(1400 / steps))) : 0;
+              const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+              const cut = (i) => Math.floor(text.length * i / steps);
               if (el.isContentEditable) {
                 if (clear) { const sel = window.getSelection(); sel.selectAllChildren(el); }
-                document.execCommand('insertText', false, text);
+                for (let i = 0; i < steps; i++) {
+                  document.execCommand('insertText', false, text.slice(cut(i), cut(i + 1)));
+                  if (per) await sleep(per);
+                }
               } else {
                 const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
                 const setter = Object.getOwnPropertyDescriptor(proto, 'value');
-                const next = (clear ? '' : (el.value || '')) + text;
-                if (setter && setter.set) setter.set.call(el, next); else el.value = next;
-                el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+                const base = clear ? '' : (el.value || '');
+                for (let i = 0; i < steps; i++) {
+                  const next = base + text.slice(0, cut(i + 1));
+                  if (setter && setter.set) setter.set.call(el, next); else el.value = next;
+                  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text.slice(cut(i), cut(i + 1)) }));
+                  if (per) await sleep(per);
+                }
                 el.dispatchEvent(new Event('change', { bubbles: true }));
               }
               let submitted = false;
@@ -142,28 +181,39 @@ const AgentExecutor = {
               }
               return { ok: true, inForm: !!el.form, submitted };
             })()
-          `);
+          `, false, EVAL_MS);
           if (!res || !res.ok) return { ok: false, error: (res && res.error) || 'Element not found' };
           // No form to submit: a real Enter key is what the page is waiting for.
           if (submit && !res.submitted) this._pressKey(wv, 'Enter');
           if (submit) await new Promise(r => setTimeout(r, 800));
-          return { ok: true, result: submit ? 'Typed text and pressed Enter' : 'Typed text' };
+          await this._settle(wv, 0);
+          // What is in a box is not page text, so without Enter the change
+          // itself is invisible to the snapshot: say what the field holds.
+          let changed = await this._whatChanged(wv, before);
+          if (/nothing visible changed/.test(changed) && !submit) changed = ' — the field now says "' + text.slice(0, 80) + '"';
+          return { ok: true, result: (submit ? 'Typed text and pressed Enter' : 'Typed text') + changed };
         }
 
         case 'press_key': {
           const key = String(params.key || '').trim();
           if (!this.KEYS[key.toLowerCase()]) return { ok: false, error: 'press_key takes one of: ' + Object.values(this.KEYS).join(', ') };
+          const before = await this._snapshot(wv);
+          if (show) await this._say(wv, PRE, context.caption || 'Pressing ' + this.KEYS[key.toLowerCase()]);
           this._pressKey(wv, this.KEYS[key.toLowerCase()]);
           await new Promise(r => setTimeout(r, 400));
-          return { ok: true, result: 'Pressed ' + this.KEYS[key.toLowerCase()] };
+          await this._settle(wv, 0);
+          return { ok: true, result: 'Pressed ' + this.KEYS[key.toLowerCase()] + await this._whatChanged(wv, before) };
         }
 
         case 'select_option': {
+          const before = await this._snapshot(wv);
           const selRes = await window.vexGuestEval(wv, `
-            (() => {
+            (async () => { ${PRE}
               const el = document.querySelector(${JSON.stringify(params.selector || '')});
               if (!el) return { ok: false, error: 'Element not found' };
               const want = ${JSON.stringify(String(params.value == null ? '' : params.value))};
+              const cur = ${CUR};
+              if (cur) { await cur.moveTo(el, ${CAPTION} || ('Choosing "' + want.slice(0, 40) + '"')); await cur.tap(); }
               // By value, or by the text the user sees.
               const opt = [...(el.options || [])].find(o => o.value === want) || [...(el.options || [])].find(o => o.textContent.trim().toLowerCase() === want.toLowerCase());
               if (el.options && !opt) return { ok: false, error: 'No option "' + want + '". Options: ' + [...el.options].map(o => o.textContent.trim()).slice(0, 20).join(' | ') };
@@ -174,13 +224,15 @@ const AgentExecutor = {
               el.dispatchEvent(new Event('change', { bubbles: true }));
               return { ok: true };
             })()
-          `);
-          return (selRes && selRes.ok) ? { ok: true, result: 'Selected option' } : { ok: false, error: (selRes && selRes.error) || 'Element not found' };
+          `, false, EVAL_MS);
+          await this._settle(wv, 300);
+          return (selRes && selRes.ok) ? { ok: true, result: 'Selected option' + await this._whatChanged(wv, before) } : { ok: false, error: (selRes && selRes.error) || 'Element not found' };
         }
 
         case 'scroll': {
           const dir = params.direction || 'down';
           const amt = Number.isFinite(Number(params.amount)) ? Math.max(0, Math.min(Number(params.amount), 10000)) : 500;
+          if (show) await this._say(wv, PRE, context.caption || 'Scrolling ' + dir);
           await window.vexGuestEval(wv,
             dir === 'top' ? 'window.scrollTo({top:0})' :
             dir === 'bottom' ? 'window.scrollTo({top:document.body.scrollHeight})' :
@@ -452,6 +504,47 @@ const AgentExecutor = {
 
   // The keys press_key accepts, as Electron names them.
   KEYS: { enter: 'Enter', tab: 'Tab', escape: 'Escape', esc: 'Escape', backspace: 'Backspace', delete: 'Delete', space: 'Space', arrowup: 'Up', up: 'Up', arrowdown: 'Down', down: 'Down', arrowleft: 'Left', left: 'Left', arrowright: 'Right', right: 'Right', pageup: 'PageUp', pagedown: 'PageDown', home: 'Home', end: 'End' },
+
+  // What the page looked like, to tell afterwards what an action did. The
+  // model used to hear only 'Clicked "Add to cart"' and never that the page
+  // now said "Added to cart: 1 item", so it could not tell it had finished and
+  // clicked on until it ran out of steps (2026-09-27).
+  async _snapshot(wv) {
+    try {
+      return await window.vexGuestEval(wv, '({ url: location.href, title: document.title, text: (document.body ? document.body.innerText : "").slice(0, 30000) })', false, 4000);
+    } catch { return null; }
+  },
+
+  // After an action: let a navigation it started finish before looking.
+  async _settle(wv, ms = 500) {
+    if (ms) await new Promise(r => setTimeout(r, ms));
+    let loading = false;
+    try { loading = typeof wv.isLoading === 'function' && wv.isLoading(); } catch { loading = false; }
+    if (loading) await this._waitForLoad(wv, 8000);
+  },
+
+  // " — now on …" / " — new on the page: …" / " — nothing visible changed".
+  async _whatChanged(wv, before) {
+    const after = await this._snapshot(wv);
+    return this.describeChange(before, after);
+  },
+  describeChange(before, after) {
+    if (!before || !after) return '';
+    const parts = [];
+    if (after.url !== before.url) parts.push('now on "' + String(after.title || after.url).slice(0, 80) + '" (' + String(after.url).slice(0, 160) + ')');
+    else if (after.title !== before.title) parts.push('the page title is now "' + String(after.title).slice(0, 80) + '"');
+    if (after.url === before.url) {
+      const had = new Set(String(before.text || '').split('\n').map(l => l.trim()).filter(Boolean));
+      const fresh = String(after.text || '').split('\n').map(l => l.trim()).filter(l => l && !had.has(l));
+      if (fresh.length) parts.push('new on the page: ' + fresh.slice(0, 6).map(l => '"' + l.slice(0, 120) + '"').join(', ') + (fresh.length > 6 ? ' and ' + (fresh.length - 6) + ' more lines' : ''));
+    }
+    return ' — ' + (parts.length ? parts.join('; ') : 'nothing visible changed on the page');
+  },
+
+  // The caption alone, for an action with nothing to point at (a key, a scroll).
+  async _say(wv, PRE, text) {
+    try { await window.vexGuestEval(wv, PRE + ' window.__vexCursor && window.__vexCursor.say(' + JSON.stringify(String(text || '')) + '); true', false, 3000); } catch { /* watching is a nicety */ }
+  },
 
   // A real key press into the page (a trusted event, unlike a dispatched one).
   _pressKey(wv, keyCode) {
