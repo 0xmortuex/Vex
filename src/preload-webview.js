@@ -314,8 +314,9 @@ function runInMainWorld(src) {
     if (!rawPref || typeof rawPref !== 'object') return { mode: 'denied' };
     if (rawPref.mode === 'off') return { mode: 'denied' };
     if (rawPref.mode === 'manual') {
-      const lat = (typeof rawPref.latitude  === 'number' && Number.isFinite(rawPref.latitude))  ? Math.round(rawPref.latitude  * 10) / 10 : null;
-      const lng = (typeof rawPref.longitude === 'number' && Number.isFinite(rawPref.longitude)) ? Math.round(rawPref.longitude * 10) / 10 : null;
+      // 4 dp (~11 m), as in main-helpers.js COARSE_DECIMAL_PLACES.
+      const lat = (typeof rawPref.latitude  === 'number' && Number.isFinite(rawPref.latitude))  ? Math.round(rawPref.latitude  * 1e4) / 1e4 : null;
+      const lng = (typeof rawPref.longitude === 'number' && Number.isFinite(rawPref.longitude)) ? Math.round(rawPref.longitude * 1e4) / 1e4 : null;
       // Manual mode with no usable coordinates denies rather than falling back
       // to an IP lookup — see the note on coarsenLocation in main-helpers.js.
       if (lat == null || lng == null) return { mode: 'denied' };
@@ -432,9 +433,9 @@ function runInMainWorld(src) {
       try { loc = await bridge.resolveLocation(window.location.origin); } catch (_) {}
       if (!loc || loc.mode === 'denied') { _deny(error, 1, 'Geolocation permission denied'); return; }
       if (loc.mode === 'manual' && loc.latitude != null && loc.longitude != null) {
-        // Coords are already rounded to 1 dp upstream — accuracy reflects
-        // that (~11 km city-level rather than the old 20 m manual-pin claim).
-        try { success(_pos(loc.latitude, loc.longitude, 11000)); } catch (_) {}
+        // Rounded to 4 dp (~11 m) upstream. The accuracy said 11 km when it
+        // was 1 dp, and sites ignore a "near me" that vague.
+        try { success(_pos(loc.latitude, loc.longitude, 25)); } catch (_) {}
         return;
       }
       // mode === 'ip' — caller does IP fallback. M-5 is tracked separately.

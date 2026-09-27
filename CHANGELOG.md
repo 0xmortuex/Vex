@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.32.94 (2026-09-27) — "Near me" is measured from where you said you are
+
+### Fixes
+- **A site you allowed got your location rounded to about 11 km.** Since the September security audit, the location Vex hands a site was cut to one decimal place (about 11 km) and labelled as accurate only to 11 km. On a cinema site's "near me" list that put the point 5 km from the saved Home location, so the nearest cinemas and their distances were wrong, and many sites ignore a location that vague anyway. The location only ever reaches a site after you press Allow for it, and Chrome and Firefox give such a site the precise position, so Vex now gives your saved location to about 11 m, labelled accurate to 25 m. Everything else from the audit stays: the prompt, and only latitude and longitude ever reaching the page. Checked on that site: the near-me list now comes sorted by distance from the saved location.
+- Vex does not know where you are unless you tell it: sites get the location saved in **Settings › Location**. On a desktop PC, Windows' own location comes from the internet connection and is usually 10–50 km off, so the saved point (your phone's map will give you the coordinates) is what makes "near me" right.
+
 ## v2.32.93 (2026-09-27) — Sites can ask for your location again
 
 ### Fixes
