@@ -100,6 +100,7 @@ function agentGuide(mode, now) {
     '- When a tool fails, read its error: it says what to do next. Never repeat a failing call unchanged.',
     '- NUMBERS: never add, subtract, average or take a percentage in your head. Call calculate and use its answer.',
     '- ask_user only when you cannot continue without a choice from the user.',
+    '- Never invent what the user did not give you: a date, a time, an amount, a recipient, which one of several. If the order needs it and the page does not settle it, ask_user before you fill it in or submit.',
     mode === 'plan'
       ? '- Permission mode: PLAN. Your FIRST reply must be {"tool":"plan","parameters":{"steps":["...","..."]},"intent":"safe","thought":"..."} with the numbered steps you intend. Once the user approves, carry them out one tool call at a time.'
       : '- Permission mode: ' + (mode === 'auto' ? 'AUTO-APPROVE — act without asking, except for risky actions.' : 'APPROVE MANUALLY — the user confirms each action; read-only tools run without asking.'),

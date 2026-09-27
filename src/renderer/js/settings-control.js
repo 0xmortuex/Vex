@@ -88,6 +88,18 @@ const VexSettingsControl = {
     return best.c;
   },
 
+  // A dropdown's "on" or "off": the option whose value is on/off, or whose
+  // words start with On / Always on / Off / Never.
+  _onOffOption(control, on) {
+    const opts = [...control.el.options];
+    const byValue = opts.find(o => o.value.toLowerCase() === (on ? 'on' : 'off'));
+    if (byValue) return byValue;
+    const re = on ? /^(on|always on|always)\b/i : /^(off|never)\b/i;
+    const byText = opts.filter(o => re.test(o.textContent.trim()));
+    if (byText.length === 1) return byText[0];
+    throw new Error(`"${control.label}" is a choice, not a switch: ${opts.map(o => o.textContent.trim()).join(', ')}. Say "set ${control.label} to …"`);
+  },
+
   _optionFor(select, words) {
     const want = this._words(words).join(' ');
     const opts = [...select.options];
@@ -101,12 +113,17 @@ const VexSettingsControl = {
   // What would change: { control, from, to, toValue, sentence }, or null
   // when it is already that way.
   plan(req) {
-    const control = this.find(req.query, { kind: typeof req.want === 'boolean' ? 'toggle' : 'choice' });
+    // "Turn on streamer mode" looked only among switches, and streamer mode is
+    // a dropdown (While sharing / Always on / Off), so it could never be
+    // reached and a switch with a word in common came closest (2026-09-28).
+    // On/off now looks at dropdowns too, and means their On or Off.
+    const onOff = typeof req.want === 'boolean';
+    const control = this.find(req.query, onOff ? {} : { kind: 'choice' });
     if (control.kind === 'toggle') {
       if (control.el.checked === req.want) return { control, same: true, sentence: `"${control.label}" is already ${req.want ? 'on' : 'off'}` };
       return { control, from: control.el.checked, toValue: req.want, sentence: `Turn ${req.want ? 'on' : 'off'} "${control.label}"?` };
     }
-    const opt = this._optionFor(control.el, req.want);
+    const opt = onOff ? this._onOffOption(control, req.want) : this._optionFor(control.el, req.want);
     const now = control.el.selectedOptions[0];
     if (control.el.value === opt.value) return { control, same: true, sentence: `"${control.label}" is already "${opt.textContent.trim()}"` };
     return { control, from: control.el.value, toValue: opt.value, sentence: `Change "${control.label}" from "${now ? now.textContent.trim() : control.el.value}" to "${opt.textContent.trim()}"?` };

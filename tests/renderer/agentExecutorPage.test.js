@@ -125,6 +125,19 @@ describe('click and click_text', () => {
   });
 });
 
+describe('close_tab and switch_tab say which tab, and refuse one that is not open', () => {
+  it('names what it closed and will not "switch" to a closed tab', async () => {
+    const tabs = [{ id: 'a', title: 'Desk gadgets', url: 'http://x/gadgets' }, { id: 'b', title: 'Orders', url: 'http://x/orders' }];
+    globalThis.TabManager = { tabs, activeTabId: 'b', closeTab: (id) => { const i = tabs.findIndex(t => t.id === id); if (i >= 0) tabs.splice(i, 1); }, switchTab: vi.fn() };
+    expect((await AgentExecutor.executeTool('close_tab', { tabId: 'b' })).result).toBe('Closed "Orders" (http://x/orders). 1 tab(s) still open');
+    expect((await AgentExecutor.executeTool('close_tab', { tabId: 'b' })).error).toMatch(/No open tab has the id "b" — list_tabs gives the ids/);
+    expect((await AgentExecutor.executeTool('switch_tab', { tabId: 'b' })).error).toMatch(/No open tab has the id "b" — it may have been closed/);
+    expect((await AgentExecutor.executeTool('switch_tab', { tabId: 'a' })).result).toBe('Switched to "Desk gadgets" (http://x/gadgets)');
+    expect(TabManager.switchTab).toHaveBeenCalledWith('a');
+    delete globalThis.TabManager;
+  });
+});
+
 describe('calculate', () => {
   it('adds up exactly with the command bar calculator, currency signs and all', async () => {
     globalThis.VexCalc = require('../../src/renderer/js/calc.js').VexCalc;

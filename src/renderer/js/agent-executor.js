@@ -59,9 +59,18 @@ const AgentExecutor = {
           TabManager.createTab(params.url, true);
           return { ok: true, result: 'Opened new tab: ' + params.url };
 
-        case 'close_tab':
-          TabManager.closeTab(params.tabId || TabManager.activeTabId);
-          return { ok: true, result: 'Closed tab' };
+        // Both used to answer "Closed tab" / "Switched tab" whatever the id: a
+        // run closed the one tab it was told to keep, then "switched" to it
+        // twice and never found out (2026-09-28). They say which tab now, and
+        // an id that is not open is an error.
+        case 'close_tab': {
+          const id = params.tabId || TabManager.activeTabId;
+          const tab = TabManager.tabs.find(t => t.id === id);
+          if (!tab) return { ok: false, error: 'No open tab has the id "' + id + '" — list_tabs gives the ids' };
+          TabManager.closeTab(id);
+          if (TabManager.tabs.some(t => t.id === id)) return { ok: false, error: 'The tab "' + (tab.title || tab.url) + '" did not close' };
+          return { ok: true, result: 'Closed "' + (tab.title || tab.url) + '" (' + tab.url + '). ' + TabManager.tabs.length + ' tab(s) still open' };
+        }
 
         case 'go_back':
           if (wv.canGoBack()) wv.goBack();
@@ -319,9 +328,12 @@ const AgentExecutor = {
           return { ok: true, result: 'Created and verified group "' + real.name + '" with ' + count + ' tab' + (count === 1 ? '' : 's'), undo: { kind: 'group', id: made.id, label: 'the tab group "' + real.name + '"' } };
         }
 
-        case 'switch_tab':
-          TabManager.switchTab(params.tabId);
-          return { ok: true, result: 'Switched tab' };
+        case 'switch_tab': {
+          const tab = TabManager.tabs.find(t => t.id === params.tabId);
+          if (!tab) return { ok: false, error: 'No open tab has the id "' + params.tabId + '" — it may have been closed; list_tabs gives the ids' };
+          TabManager.switchTab(tab.id);
+          return { ok: true, result: 'Switched to "' + (tab.title || tab.url) + '" (' + tab.url + ')' };
+        }
 
         // ---- research: no page needed -----------------------------------
         case 'web_search':
@@ -476,8 +488,18 @@ const AgentExecutor = {
           return { ok: true, result: 'Cancelled the timer "' + t.label + '"' };
         }
 
-        case 'vex_features':
-          return { ok: true, result: AgentTools.vexFeatures(params.query) };
+        // Settings are not features: asked for "streamer mode", this listed
+        // eight other things, and the agent switched on Meeting Mode and said
+        // streamer mode was on (2026-09-28). When the words name a setting,
+        // say so first.
+        case 'vex_features': {
+          const features = AgentTools.vexFeatures(params.query);
+          let setting = null;
+          try { if (typeof VexSettingsControl !== 'undefined') setting = VexSettingsControl.find(params.query); } catch { /* not a setting's name */ }
+          if (!setting) return { ok: true, result: features };
+          const how = setting.kind === 'toggle' ? '"turn on ' + setting.label + '" or "turn off ' + setting.label + '"' : '"set ' + setting.label + ' to …" (' + [...setting.el.options].map(o => o.textContent.trim()).join(', ') + ')';
+          return { ok: true, result: { setting: setting.label + ' is a SETTING, not a feature: change it with change_setting, ' + how, features } };
+        }
 
         case 'vex_command': {
           const ran = await AgentTools.vexCommand(params.command);

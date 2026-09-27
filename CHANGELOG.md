@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.33.4 (2026-09-28) — The agent, round two: tabs, settings, and honest answers
+
+A second round of eight tasks on qwen3.5: comparing two open shops (passed), reading a chart that is only a picture (passed, by looking at it), finding one order in a table over three pages (passed), starting a Vex timer (passed), writing the three cheapest products into a note (the model ordered them wrongly), closing every tab but one, a vague "book a meeting room", and turning on streamer mode. The last three found bugs in Vex:
+
+### Fixes
+- **"Turn on streamer mode" could never work.** It is the agent's own example of a setting it can change, but streamer mode is a dropdown (While sharing your screen / Always on / Off), and "turn on" only ever looked at on/off switches, so it could not be reached and a switch with a word in common came closest. Turning a dropdown on or off now picks its On or Off, and one with neither says what its choices are. This also applies to "turn on …" typed in the command bar.
+- **Asked for a setting, the agent was shown features.** Looking up "streamer mode" listed eight unrelated features, and the agent switched on Meeting Mode and reported that streamer mode was on. When the words name a setting, the lookup now says so and how to change it.
+- **Closing and switching tabs always said it worked.** A run closed the one tab it was told to keep, then "switched" to it twice and never found out. Both now name the tab they closed or switched to, and refuse a tab that is not open.
+- **The agent is told never to make up what you did not say** (a time, a date, an amount, which one), and to ask instead. It does not always listen yet: given only "book a meeting room", it still picked a room and a time.
+
 ## v2.33.3 (2026-09-27) — The AI agent, tested on hard tasks and fixed where it tripped
 
 Eight hard tasks were given to the agent on qwen3.5 (the model you use): comparing six products across their pages, a form with a hidden date rule, adding up a table, a feed that needs "Load more", tab groups and notes, a payment, a page with hidden instructions for AI agents, and a web research task. It passed four: the form (recovering from the date error by itself), the payment (handed it to you, typed no card), the hidden instructions (ignored them), and the research (found it, saved the note). The failures that were Vex's fault are fixed:
