@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.32.92 (2026-09-27) — ChatGPT is not blocked from its own service
+
+### Fixes
+- **ChatGPT signed in showed "Content failed to load"**, in a tab and in the panel alike. Signed out it loads normally; signed in, its app also calls `bzr.openai.com`, which the tracker list Vex uses blocks outright (`||bzr.openai.com^`). That block first appears in the reporting profile's blocked-tracker log on the day ChatGPT broke, and it is the only one of ChatGPT's own requests the list blocks. Vex now lets that one host through **on ChatGPT's own pages only**; from every other site it is blocked exactly as before. Checked live: from chatgpt.com the request goes out, from example.com it is still blocked.
+
 ## v2.32.91 (2026-09-27) — No space above anything in the tab strip
 
 ### Fixes

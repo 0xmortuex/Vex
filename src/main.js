@@ -90,7 +90,7 @@ app.setAppUserModelId('com.vex.browser');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { shouldBlock } = require('./adblocker');
+const { shouldBlock, repairAllows } = require('./adblocker');
 const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
 const _torLauncher = require('./tor-launcher');
 const { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents } = require('./pip');
@@ -1662,7 +1662,8 @@ function wireAdblockerOnSession(ses, tag) {
       callback({ cancel: true });
       return;
     }
-    if (adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))) {
+    if (adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
+        && !repairAllows(details.url, _pageUrlOf(details.webContentsId))) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
