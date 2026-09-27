@@ -111,6 +111,28 @@ const AgentExecutor = {
                 if (s > score || (s === score && s > 0 && best && t.length < label(best).length)) { best = el; score = s; }
               }
               if (!best) return { ok: false, error: 'Nothing clickable says "' + want + '" — call extract_elements to see what is there' };
+              // Fifteen "Like" buttons, one per post: the first one on the page
+              // was clicked, and a run asked to like one person's post liked
+              // someone else's (2026-09-27). When several match equally well,
+              // click none; say which is which and give each a selector.
+              const bestLabel = label(best);
+              const twins = nodes.filter(el => seen(el) && label(el) === bestLabel && (el === best || (!el.contains(best) && !best.contains(el))));
+              if (twins.length > 1) {
+                const around = (el) => {
+                  let p = el.parentElement;
+                  for (let i = 0; i < 5 && p; i++, p = p.parentElement) {
+                    const t = (p.innerText || p.textContent || '').replace(/\\s+/g, ' ').trim();
+                    if (t.length > bestLabel.length + 3) return t.replace(new RegExp(bestLabel.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&'), 'ig'), '').trim().slice(0, 70);
+                  }
+                  return '';
+                };
+                const list = twins.slice(0, 12).map((el, i) => {
+                  const id = 'vex-m' + (i + 1);
+                  el.setAttribute('data-vex-id', id);
+                  return '[data-vex-id="' + id + '"] next to: ' + (around(el) || '(no text nearby)');
+                });
+                return { ok: false, error: twins.length + ' things on the page say "' + bestLabel + '"; nothing was clicked. Click the right one with click and its selector:\\n' + list.join('\\n') + (twins.length > 12 ? '\\n(and ' + (twins.length - 12) + ' more further down)' : '') };
+              }
               const cur = ${CUR};
               if (cur) { await cur.moveTo(best, ${CAPTION} || ('Clicking "' + label(best).slice(0, 40) + '"')); await cur.tap(); }
               __click(best);
@@ -406,6 +428,15 @@ const AgentExecutor = {
           const made = AgentTools.addBookmark(params.url || (tab && tab.url), params.title || (tab && tab.title));
           if (typeof Bookmarks !== 'undefined' && !Bookmarks.has(made.url)) return { ok: false, error: 'The bookmark did not save' };
           return { ok: true, result: made.already ? 'Already bookmarked: ' + made.url : 'Bookmarked and verified ' + made.url, ...(made.already ? {} : { undo: { kind: 'bookmark', id: made.url, label: 'the bookmark for ' + made.url } }) };
+        }
+
+        // The command bar's own calculator (js/calc.js): arithmetic, units,
+        // currency. Currency signs are dropped so "€12.50 + €48.20" works.
+        case 'calculate': {
+          const expr = String(params.expression || '').replace(/[€$£₺¥₹]/g, '').trim();
+          const out = typeof VexCalc !== 'undefined' ? VexCalc.evaluate(expr) : null;
+          if (!out || out.unavailable) return { ok: false, error: 'calculate takes numbers with + - * / % ^ and brackets ("12.5 + 48.2"), a unit ("20 cm to in") or a currency ("10 usd to eur"); a comma is read as a thousands separator, so use a dot for decimals' };
+          return { ok: true, result: expr + ' ' + out.text };
         }
 
         case 'search_notes':

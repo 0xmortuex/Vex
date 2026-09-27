@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.33.3 (2026-09-27) — The AI agent, tested on hard tasks and fixed where it tripped
+
+Eight hard tasks were given to the agent on qwen3.5 (the model you use): comparing six products across their pages, a form with a hidden date rule, adding up a table, a feed that needs "Load more", tab groups and notes, a payment, a page with hidden instructions for AI agents, and a web research task. It passed four: the form (recovering from the date error by itself), the payment (handed it to you, typed no card), the hidden instructions (ignored them), and the research (found it, saved the note). The failures that were Vex's fault are fixed:
+
+### Fixes
+- **Browsing a list item by item was mistaken for a loop.** Going back to a list to open the next product repeats the same click every time, and each time it works. The loop guard stopped such a run at the third product, and the agent then wrote that no laptop qualified, having just added the right one to the cart. A repeated action is now allowed when something new was reached since the last time; list, same item, list, same item is still stopped.
+- **"Click Like" clicked the first Like on the page.** Asked to like one person's post, the agent pressed the first of fifteen Like buttons, which was someone else's. When several things on the page say the same, it now clicks none of them and is told which is which ("next to: nadia_k …"), with a selector for each.
+- **The agent did sums in its head, and got them wrong.** It picked the right four rows and added them up to 105.80 instead of 99.00. It now has a calculator (the command bar's own: arithmetic, units, currency) and is told to use it for every total, difference, average or percentage.
+- **Every release check left a real Windows reminder task behind.** The restart smoke test started Vex with a fresh profile, whose weekly-review reminder registered a Windows Task Scheduler entry pointing at a deleted temporary folder. It now runs with scheduling off, like the other smoke test.
+
 ## v2.33.2 (2026-09-27) — Compact group chips, and Dark Reader works
 
 ### Changes

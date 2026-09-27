@@ -106,6 +106,31 @@ describe('click and click_text', () => {
     expect(miss.ok).toBe(false);
     expect(miss.error).toMatch(/Nothing clickable says "checkout" — call extract_elements/);
   });
+
+  it('click_text clicks nothing when several things say the same, and tells them apart', async () => {
+    document.body.innerHTML = ['sam_r', 'nadia_k', 'finn'].map(a => `<div class="post"><b>${a}</b><p>Weekend post by ${a}</p><button>Like</button></div>`).join('');
+    const clicked = [];
+    for (const b of document.querySelectorAll('button')) box(b).addEventListener('click', () => clicked.push(b.parentElement.querySelector('b').textContent));
+    const r = await AgentExecutor.executeTool('click_text', { text: 'Like' }, { webview: guest() });
+    expect(r.ok).toBe(false);
+    expect(clicked).toEqual([]);
+    expect(r.error).toMatch(/^3 things on the page say "like"; nothing was clicked/);
+    const line = r.error.split('\n').find(l => l.includes('nadia_k'));
+    expect(line).toMatch(/^\[data-vex-id="vex-m2"\] next to: nadia_k/);
+    // The selector it gave clicks that one.
+    expect((await AgentExecutor.executeTool('click', { selector: '[data-vex-id="vex-m2"]' }, { webview: guest() })).ok).toBe(true);
+    expect(clicked).toEqual(['nadia_k']);
+  });
+});
+
+describe('calculate', () => {
+  it('adds up exactly with the command bar calculator, currency signs and all', async () => {
+    globalThis.VexCalc = require('../../src/renderer/js/calc.js').VexCalc;
+    expect(await AgentExecutor.executeTool('calculate', { expression: '€12.50 + €48.20 + €7.30 + €31.00' })).toEqual({ ok: true, result: '12.50 + 48.20 + 7.30 + 31.00 = 99' });
+    expect((await AgentExecutor.executeTool('calculate', { expression: '(1249 - 949) / 949 * 100' })).result).toMatch(/= 31\.6122/);
+    expect((await AgentExecutor.executeTool('calculate', { expression: 'the sum of my expenses' })).error).toMatch(/^calculate takes numbers/);
+    delete globalThis.VexCalc;
+  });
 });
 
 describe('select_option and press_key', () => {

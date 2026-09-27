@@ -65,6 +65,9 @@ const AGENT_TOOLS = [
   { name: 'cancel_timer', description: 'Cancel a running timer. Ids come from list_timers', parameters: { id: 'string' } },
   { name: 'vex_features', description: 'Look up what Vex can do BY ITSELF (alarms, stopwatch, world clock, screenshots, reader mode, translate, split view, sessions, memory, downloads, passwords, themes, 100+ more). Returns features with the command id that runs each. Call this before using a website for any utility', parameters: { query: 'string' } },
   { name: 'vex_command', description: "Run something in Vex exactly as if typed into its command bar: a sentence ('alarm 7am weekdays', 'stopwatch', 'what time is it in Tokyo', 'free memory') or a command id from vex_features ('clock', 'split')", parameters: { command: 'string' } },
+  // A test run picked the right four rows and added them up to 105.80
+  // instead of 99.00 (2026-09-27): a language model is not a calculator.
+  { name: 'calculate', description: 'Work out a number exactly: "12.50 + 48.20 + 7.30 + 31", "(1249 - 949) / 949 * 100", "20 cm to in", "10 usd to eur". Use it for EVERY total, difference, average or percentage instead of working it out yourself. A dot for decimals', parameters: { expression: 'string' } },
   // ---- the conversation ----
   { name: 'plan', description: 'Show the user the numbered steps you intend to take. Required as your FIRST reply in plan mode', parameters: { steps: 'string[]' } },
   { name: 'finish', description: 'Task complete — the final answer, in Markdown. For research: the answer first, then what supports it with [1] markers, then a Sources list of the URLs you read', parameters: { summary: 'string' } },
@@ -73,7 +76,7 @@ const AGENT_TOOLS = [
 ];
 
 // Read-only: these run without asking in every permission mode.
-const SAFE_TOOLS = ['web_search', 'read_url', 'read_many', 'read_tab', 'search_history', 'search_notes', 'read_note', 'search_bookmarks', 'list_reminders', 'extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'list_tab_groups', 'list_timers', 'vex_features', 'scroll', 'wait', 'search_in_page', 'plan'];
+const SAFE_TOOLS = ['web_search', 'read_url', 'read_many', 'read_tab', 'search_history', 'search_notes', 'read_note', 'search_bookmarks', 'list_reminders', 'extract_elements', 'extract_text', 'screenshot', 'list_tabs', 'list_tab_groups', 'list_timers', 'vex_features', 'scroll', 'wait', 'search_in_page', 'plan', 'calculate'];
 
 // What the agent is told with every request. It rides in the conversation
 // history so it reaches the model through any backend — the cloud worker
@@ -95,6 +98,7 @@ function agentGuide(mode, now) {
     digest ? '- WHAT VEX HAS BUILT IN (vex_features gives the details and the command ids) — ' + digest : '',
     '- Mark intent "risky" for anything that buys, pays, sends, posts, deletes, or submits personal data.',
     '- When a tool fails, read its error: it says what to do next. Never repeat a failing call unchanged.',
+    '- NUMBERS: never add, subtract, average or take a percentage in your head. Call calculate and use its answer.',
     '- ask_user only when you cannot continue without a choice from the user.',
     mode === 'plan'
       ? '- Permission mode: PLAN. Your FIRST reply must be {"tool":"plan","parameters":{"steps":["...","..."]},"intent":"safe","thought":"..."} with the numbered steps you intend. Once the user approves, carry them out one tool call at a time.'
@@ -200,12 +204,34 @@ class ToolCallHistory {
     return '';
   }
 
+  // A call and what came of it, to tell new ground from ground already covered.
+  _key(c) {
+    const r = c.result;
+    return c.signature + '=>' + String(r && typeof r === 'object' ? (r.result != null ? r.result : r.error) : r).slice(0, 400);
+  }
+  // Going back to a list to open the next item repeats the same click every
+  // time ("← All laptops"), and each time it works. The identical-call window
+  // stopped such a run at the third item, and the agent then wrote that no
+  // laptop qualified, having just added the right one (2026-09-27). An action
+  // that did something may be done again when something new was reached
+  // since; list → same item → list → same item reaches nothing new and is
+  // still a loop.
+  _repeatWithProgress(tool, sig) {
+    if (!ToolCallHistory.ACTS.includes(tool)) return false;
+    const at = this.recentCalls.map(c => c.signature).lastIndexOf(sig);
+    if (at < 0) return false;
+    const last = this.recentCalls[at].result;
+    if (!last || !last.ok || this._didNothing(last)) return false;
+    const seen = new Set(this.recentCalls.slice(0, at + 1).map(c => this._key(c)));
+    return this.recentCalls.slice(at + 1).some(c => !seen.has(this._key(c)));
+  }
+
   isStuckInLoop(tool, args) {
     if (this._futileRepeat(tool, args)) return true;
     const sig = this._sig(tool, args);
     const window = this.recentCalls.slice(-this.WINDOW);
     const identical = window.filter(c => c.signature === sig).length;
-    if (identical >= this.MAX_IDENTICAL) return true;
+    if (identical >= this.MAX_IDENTICAL && !this._repeatWithProgress(tool, sig)) return true;
     // Rephrasing the same search is still the same search.
     if (tool === 'web_search' && (this.searches >= this.MAX_SEARCHES || this._nearlySameSearch(args && args.query))) return true;
     return false;

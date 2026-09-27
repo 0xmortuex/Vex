@@ -79,6 +79,39 @@ describe('an action that did nothing is not done again', () => {
   });
 });
 
+describe('going back to a list to open the next item is not a loop', () => {
+  const { ToolCallHistory } = require('../../src/renderer/js/agent-loop.js');
+  const ok = (r) => ({ ok: true, result: r });
+  const back = ok('Clicked "← All laptops" — now on "Laptop Store" (http://shop.test/laptops)');
+  it('lets "← All laptops" be clicked for every laptop visited', () => {
+    const h = new ToolCallHistory();
+    for (const [i, name] of ['Lumen Air', 'Swift 13', 'Vertex Pro'].entries()) {
+      expect(h.isStuckInLoop('click', { selector: '#back' }), 'before laptop ' + name).toBe(false);
+      if (i) h.add('click', { selector: '#back' }, back);
+      h.add('click', { selector: '#item' + i }, ok('Clicked "' + name + '" — now on "' + name + '"'));
+    }
+    h.add('click', { selector: '#back' }, back);
+    h.add('click', { selector: '#item3' }, ok('Clicked "Titan X" — now on "Titan X"'));
+    expect(h.isStuckInLoop('click', { selector: '#back' })).toBe(false);
+  });
+  it('still stops list → same item → list → same item', () => {
+    const h = new ToolCallHistory();
+    for (let i = 0; i < 2; i++) {
+      h.add('click', { selector: '#item0' }, ok('Clicked "Lumen Air" — now on "Lumen Air"'));
+      h.add('click', { selector: '#back' }, back);
+    }
+    expect(h.isStuckInLoop('click', { selector: '#item0' })).toBe(true);
+  });
+  it('lets Next be pressed page after page', () => {
+    const h = new ToolCallHistory();
+    for (let p = 2; p <= 4; p++) {
+      expect(h.isStuckInLoop('click_text', { text: 'Next' }), 'before page ' + p).toBe(false);
+      h.add('click_text', { text: 'Next' }, ok('Clicked "Next" — new on the page: "Page ' + p + '"'));
+      h.add('extract_text', {}, ok('Results on page ' + p));
+    }
+  });
+});
+
 describe('a retry after the page was changed in between', () => {
   const { ToolCallHistory } = require('../../src/renderer/js/agent-loop.js');
   const ok = (r) => ({ ok: true, result: r });

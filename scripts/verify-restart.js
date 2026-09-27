@@ -8,7 +8,10 @@ async function launch(profile, phase) {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, [...(process.env.VEX_SMOKE_EXECUTABLE ? [] : ['.']), '--user-data-dir=' + profile], {
       cwd: path.resolve(__dirname, '..'), windowsHide: true,
-      env: { ...process.env, VEX_SMOKE: '1', VEX_RESTART_PHASE: phase, VEX_SKIP_VMP_VERIFY: '1' },
+      // VEX_NO_OS_SCHEDULE: the fresh profile's weekly-review reminder used to
+      // register a real Windows task, pointing at this temp profile, on every
+      // run (one was left behind by each release gate).
+      env: { ...process.env, VEX_SMOKE: '1', VEX_RESTART_PHASE: phase, VEX_SKIP_VMP_VERIFY: '1', VEX_NO_OS_SCHEDULE: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '', timedOut = false;
