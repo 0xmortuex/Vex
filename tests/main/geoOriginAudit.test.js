@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
+// The handler reads decisions through the same savedDecision every other
+// permission uses ("Allow this visit" in the session map, day answers that end).
+const { savedDecision } = createRequire(import.meta.url)('../../src/main/permissions.js');
 
 function handler(decisions) {
   const source = readFileSync(new URL('../../src/main.js', import.meta.url), 'utf8');
@@ -9,7 +13,7 @@ function handler(decisions) {
   let fn;
   vm.runInNewContext(source.slice(start, end), {
     ipcMain: { handle: (_name, callback) => { fn = callback; } },
-    URL, decisionsFor: () => decisions,
+    URL, decisionsFor: () => decisions, savedDecision, sessionDecisions: new Map(),
     pendingPermissions: new Map(), sendPermissionRequest: vi.fn(), setTimeout: vi.fn(),
   });
   return fn;

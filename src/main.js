@@ -511,7 +511,8 @@ function _broadcastDownloadEvent(channel, data) {
     if (!w.isDestroyed()) { try { w.webContents.send(channel, data); } catch {} }
   });
 }
-const { pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
+const { savedDecision } = require('./main/permissions');
+const { pendingPermissions, sessionDecisions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -1483,7 +1484,14 @@ ipcMain.handle('totp:delete', async (_e, id) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('permissions:list',     () => { const { __until__, ...d } = loadPermissionDecisions(); return d; });
+// Only decisions still in force: an "Allow for a day" that has run out is as
+// if never made (savedDecision), so it is not listed as allowed either.
+ipcMain.handle('permissions:list',     () => {
+  const { __until__, ...d } = loadPermissionDecisions();
+  const now = Date.now();
+  for (const [key, end] of Object.entries(__until__ || {})) if (end < now) delete d[key];
+  return d;
+});
 ipcMain.handle('permissions:revoke',   async (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; await savePermissionDecisions(d); return { ok: true }; });
 ipcMain.handle('permissions:clear-all', async () => { await savePermissionDecisions({}); return { ok: true }; });
 
@@ -3385,10 +3393,14 @@ ipcMain.handle('geolocation:check-permission', async (_e) => {
     origin = url.origin;
   } catch { return 'deny'; }
 
-  const decisions = decisionsFor(_e.sender);
-  const key = `${origin}::geolocation`;
-  if (decisions[key] === 'allow') return 'allow';
-  if (decisions[key] === 'deny') return 'deny';
+  // The same reading every other permission gets (main/permissions.js):
+  // "Allow this visit" lives in sessionDecisions, and "Allow for a day" ends
+  // at decisions.__until__. Reading decisions[key] alone ignored both, so a
+  // site allowed for this visit asked again every time it wanted the
+  // location, and one allowed for a day stayed allowed for good.
+  const saved = savedDecision(decisionsFor(_e.sender), origin, ['geolocation'], sessionDecisions);
+  if (saved === 'allow') return 'allow';
+  if (saved === 'deny') return 'deny';
 
   return await new Promise((resolve) => {
     const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

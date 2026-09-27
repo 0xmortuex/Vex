@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.32.96 (2026-09-27) — Your location answer is kept the way you gave it
+
+### Fixes
+- **"Allow this visit" for your location asked again every time.** A site's location request read only the answers saved for good, not the ones kept for this visit, so a site allowed for this visit got the prompt again each time it wanted the location. It now reads answers the same way camera, microphone and the rest do: allowed for this visit stays allowed until Vex closes. Checked on the cinema site: a second request got the location with no second prompt.
+- **"Allow for a day" for your location never ran out.** The end time was ignored for location, so a day's answer lasted for good. It now ends after the day, and the site asks again.
+- The list of site permissions no longer shows a day's answer that has already run out as allowed.
+
 ## v2.32.95 (2026-09-27) — The tabs and groups cover the whole top bar
 
 ### Changes
