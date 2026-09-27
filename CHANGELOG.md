@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.33.0 (2026-09-27) — Group names as big as tab titles
+
+### Fixes
+- **Group names in the tab strip were small for their chip.** Since the chips grew to a tab's full size, their 10px capitals looked lost in them. They are now 12px, the tab titles' own size.
+
 ## v2.32.99 (2026-09-27) — Four more extensions made for Vex, installable in one click
 
 ### New

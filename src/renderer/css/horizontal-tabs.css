@@ -227,7 +227,9 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
      screen 2026-09-27, after the tabs themselves had been made to fill it).
      Shaped like the look's tabs, so a group reads as part of the row. */
   border-radius: var(--b-tab-radius, 8px);
-  font-size: 10px;
+  /* The tab titles' size: 10px suited the old 22px pill, and read as lost in
+     a chip as big as a tab (2026-09-27). */
+  font-size: 12px;
   font-weight: 700;
   align-self: stretch;
   text-transform: uppercase;
