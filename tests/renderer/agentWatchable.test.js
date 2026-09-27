@@ -112,6 +112,20 @@ describe('going back to a list to open the next item is not a loop', () => {
   });
 });
 
+describe('an action its own reasoning says not to do', () => {
+  const { ToolCallHistory } = require('../../src/renderer/js/agent-loop.js');
+  it('is recognised from the thought, the way qwen3.5 wrote it', () => {
+    expect(ToolCallHistory.saysNotTo('Titan X has a 4.3 rating which is below the required 4.5, so I should not add it to the cart.')).toBe('should not add');
+    expect(ToolCallHistory.saysNotTo("It's more expensive than Swift 13, so I shouldn't add it")).toBe("shouldn't add");
+    expect(ToolCallHistory.saysNotTo('I will not actually click Buy yet')).toBe('will not actually click');
+  });
+  it('leaves ordinary reasoning alone', () => {
+    for (const t of ['Swift 13 meets all criteria, so add it to the cart.', "I don't need to scroll, the button is visible — click Add.", 'Go back to the list to check the next laptop.', 'This is not the cheapest one; open the next laptop.', '', undefined]) {
+      expect(ToolCallHistory.saysNotTo(t), String(t)).toBeNull();
+    }
+  });
+});
+
 describe('a retry after the page was changed in between', () => {
   const { ToolCallHistory } = require('../../src/renderer/js/agent-loop.js');
   const ok = (r) => ({ ok: true, result: r });

@@ -204,6 +204,15 @@ class ToolCallHistory {
     return '';
   }
 
+  // The model's reasoning and its action disagreeing. qwen3.5 wrote "Titan X
+  // has a 4.3 rating ... so I should not add it to the cart" and clicked Add
+  // to cart in the same turn — copying the selector of its last step — nine
+  // times in one run (2026-09-27). Returns the words that say not to, or null.
+  static saysNotTo(thought) {
+    const m = String(thought || '').match(/\b(?:should(?:\s+not|n['’]t)|must(?:\s+not|n['’]t)|won['’]t|will\s+not|do\s+not|don['’]t|shall\s+not|not\s+going\s+to)\s+(?:\w+\s+)?(?:add|click|press|buy|purchase|like|select|choose|submit|put|order|send|delete|remove)\b/i);
+    return m ? m[0] : null;
+  }
+
   // A call and what came of it, to tell new ground from ground already covered.
   _key(c) {
     const r = c.result;
@@ -537,6 +546,22 @@ const AgentLoop = {
         // Approval can sit open for a long time; the user may have pressed Stop
         // in the meantime.
         if (!this._running) { this._renderStep('stopped', 'Stopped by you.', 'warn'); break; }
+
+        // Its own reasoning says not to: do not do it, and say why.
+        const notTo = ToolCallHistory.ACTS.includes(decision.tool) ? ToolCallHistory.saysNotTo(decision.thought) : null;
+        if (notTo) {
+          lastResult = { ok: false, error: 'NOT DONE: your thought says "' + notTo + '", but this action would do it. Do what your thought says instead — go back, look at the next option, or call finish if the goal is already done.' };
+          this._history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
+          this._renderStep('loop-prevent', 'Not doing that — its own reasoning says not to.', 'warn');
+          refusals++;
+          if (refusals >= 3) {
+            this._renderStep('stall', 'Its actions keep contradicting its reasoning — stopping and writing what I have.', 'warn');
+            const wrote = await this._answerFromWhatIHave(goal);
+            if (!wrote) this._renderStep('summary', toolCallHistory.summarizeFailure(goal), 'info');
+            break;
+          }
+          continue;
+        }
 
         // Phase 18: Loop prevention — intercept before executing
         if (toolCallHistory.isStuckInLoop(decision.tool, decision.parameters || {})) {

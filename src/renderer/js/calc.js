@@ -41,12 +41,43 @@ const VexCalc = {
     return r.toLocaleString('en-US', { maximumFractionDigits: 6 });
   },
 
+  // Worked out by a small parser, not Function(): the window's CSP has no
+  // 'unsafe-eval', so Function() threw in the real app and every sum ("12*7",
+  // the agent's calculate tool) came back as nothing — only the tests, which
+  // have no CSP, ever saw it work (2026-09-28).
   _math(q) {
+    // "1 2 + 3" is two numbers, not 12 + 3.
+    if (/[\d.]\s+[\d.]/.test(q)) return null;
+    const src = q.replace(/,/g, '').replace(/\*\*/g, '^').replace(/\s+/g, '');
+    if (!/^[0-9+\-*/%^.()]+$/.test(src)) return null;
+    let i = 0;
+    const peek = () => src[i];
+    const number = () => {
+      const m = /^\d*\.?\d+(?:e[+-]?\d+)?|^\d+\.?/i.exec(src.slice(i));
+      if (!m) throw new Error('number expected');
+      i += m[0].length;
+      return parseFloat(m[0]);
+    };
+    const primary = () => {
+      if (peek() === '(') { i++; const v = expr(); if (peek() !== ')') throw new Error(') expected'); i++; return v; }
+      return number();
+    };
+    // ^ binds tighter than a leading minus (-2^2 = -4) and groups to the right.
+    const power = () => { const b = primary(); if (peek() === '^') { i++; return Math.pow(b, unary()); } return b; };
+    const unary = () => { if (peek() === '-') { i++; return -unary(); } if (peek() === '+') { i++; return unary(); } return power(); };
+    const term = () => {
+      let v = unary();
+      while (peek() === '*' || peek() === '/' || peek() === '%') { const op = src[i++]; const r = unary(); v = op === '*' ? v * r : op === '/' ? v / r : v % r; }
+      return v;
+    };
+    const expr = () => {
+      let v = term();
+      while (peek() === '+' || peek() === '-') { const op = src[i++]; const r = term(); v = op === '+' ? v + r : v - r; }
+      return v;
+    };
     try {
-      const expr = q.replace(/,/g, '').replace(/\^/g, '**');
-      if (!/^[0-9+\-*/%.()\s*]+$/.test(expr)) return null; // after ^→** only these
-      const val = Function('"use strict";return (' + expr + ')')();
-      if (typeof val !== 'number' || !isFinite(val)) return null;
+      const val = expr();
+      if (i !== src.length || typeof val !== 'number' || !isFinite(val)) return null;
       return { text: '= ' + this._fmt(val), value: String(val) };
     } catch { return null; }
   },

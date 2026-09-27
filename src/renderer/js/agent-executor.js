@@ -126,12 +126,14 @@ const AgentExecutor = {
                   }
                   return '';
                 };
-                const list = twins.slice(0, 12).map((el, i) => {
-                  const id = 'vex-m' + (i + 1);
-                  el.setAttribute('data-vex-id', id);
-                  return '[data-vex-id="' + id + '"] next to: ' + (around(el) || '(no text nearby)');
+                // Its own attribute: data-vex-id is handed out afresh before every
+                // step, which overwrote these before the agent could use one.
+                document.querySelectorAll('[data-vex-pick]').forEach(el => el.removeAttribute('data-vex-pick'));
+                const list = twins.slice(0, 20).map((el, i) => {
+                  el.setAttribute('data-vex-pick', String(i + 1));
+                  return '[data-vex-pick="' + (i + 1) + '"] next to: ' + (around(el) || '(no text nearby)');
                 });
-                return { ok: false, error: twins.length + ' things on the page say "' + bestLabel + '"; nothing was clicked. Click the right one with click and its selector:\\n' + list.join('\\n') + (twins.length > 12 ? '\\n(and ' + (twins.length - 12) + ' more further down)' : '') };
+                return { ok: false, error: twins.length + ' things on the page say "' + bestLabel + '"; nothing was clicked. Click the right one with click and its selector:\\n' + list.join('\\n') + (twins.length > 20 ? '\\n(and ' + (twins.length - 20) + ' more further down)' : '') };
               }
               const cur = ${CUR};
               if (cur) { await cur.moveTo(best, ${CAPTION} || ('Clicking "' + label(best).slice(0, 40) + '"')); await cur.tap(); }

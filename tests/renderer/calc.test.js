@@ -55,4 +55,19 @@ describe('VexCalc.evaluate', () => {
     VexCalc._rates = { USD: 1, EUR: 0.9 };
     expect(VexCalc.evaluate('10 usd to zzz')).toBeNull();
   });
+
+  // The window's CSP has no 'unsafe-eval'. Function() used to do the sums,
+  // threw there, and every calculation in the real app came back empty.
+  it('works where eval is forbidden, as it is in the Vex window', () => {
+    const real = globalThis.Function;
+    globalThis.Function = function () { throw new EvalError('Refused to evaluate a string as JavaScript (CSP)'); };
+    try {
+      expect(VexCalc.evaluate('12.5 + 48.2 + 7.3 + 31').text).toBe('= 99');
+      expect(VexCalc.evaluate('2^3^2').value).toBe('512');
+      expect(VexCalc.evaluate('-2^2').value).toBe('-4');
+      expect(VexCalc.evaluate('(1 + 2) * 3 % 4').value).toBe('1');
+      expect(VexCalc.evaluate('2 ** 3').value).toBe('8');
+      for (const bad of ['2+', '(1+2', '1/0', '1 2 + 3']) expect(VexCalc.evaluate(bad), bad).toBeNull();
+    } finally { globalThis.Function = real; }
+  });
 });

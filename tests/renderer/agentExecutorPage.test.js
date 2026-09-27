@@ -116,9 +116,11 @@ describe('click and click_text', () => {
     expect(clicked).toEqual([]);
     expect(r.error).toMatch(/^3 things on the page say "like"; nothing was clicked/);
     const line = r.error.split('\n').find(l => l.includes('nadia_k'));
-    expect(line).toMatch(/^\[data-vex-id="vex-m2"\] next to: nadia_k/);
-    // The selector it gave clicks that one.
-    expect((await AgentExecutor.executeTool('click', { selector: '[data-vex-id="vex-m2"]' }, { webview: guest() })).ok).toBe(true);
+    expect(line).toMatch(/^\[data-vex-pick="2"\] next to: nadia_k/);
+    // The selector it gave still clicks that one after the page's elements are
+    // numbered afresh for the next step (data-vex-id is rewritten each turn).
+    for (const [i, b] of [...document.querySelectorAll('button')].entries()) b.setAttribute('data-vex-id', 'vex-' + (i + 1));
+    expect((await AgentExecutor.executeTool('click', { selector: '[data-vex-pick="2"]' }, { webview: guest() })).ok).toBe(true);
     expect(clicked).toEqual(['nadia_k']);
   });
 });
