@@ -178,3 +178,37 @@ describe('the ones that fired while you were elsewhere', () => {
     expect(TabManager.sleepTab).not.toHaveBeenCalled();
   });
 });
+
+describe('a choice saved before "never" became the default', () => {
+  it('"auto" from an old notice goes back to never, once', () => {
+    localStorage.setItem('vex.sleepConsent', 'auto');
+    expect(SleepConsent.resetOnce()).toBe(true);
+    expect(SleepConsent.mode()).toBe('never');
+    expect(SleepConsent.auto()).toBe(false);
+  });
+
+  it('"ask" goes back to never too: a notice about closing things is still the feature', () => {
+    localStorage.setItem('vex.sleepConsent', 'ask');
+    SleepConsent.resetOnce();
+    expect(SleepConsent.mode()).toBe('never');
+  });
+
+  it("Discord's own saved \"auto\" goes too", () => {
+    localStorage.setItem('vex.discordMemoryConsent', 'auto');
+    expect(SleepConsent.resetOnce()).toBe(true);
+    expect(localStorage.getItem('vex.discordMemoryConsent')).toBe('never');
+  });
+
+  it('runs once: turning it back on afterwards is kept', () => {
+    localStorage.setItem('vex.sleepConsent', 'auto');
+    SleepConsent.resetOnce();
+    SleepConsent.set('auto');
+    expect(SleepConsent.resetOnce()).toBe(false);
+    expect(SleepConsent.mode()).toBe('auto');
+  });
+
+  it('says nothing when there was nothing to change', () => {
+    expect(SleepConsent.resetOnce()).toBe(false);
+    expect(SleepConsent.mode()).toBe('never');
+  });
+});

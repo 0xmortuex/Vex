@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.32.89 (2026-09-27) — "Never" now reaches profiles that had already answered
+
+### Fixes
+- **Discord was still being put to sleep after a long while, days after being told to stop.** v2.32.84 changed the *default* for putting things to sleep on their own to "never", but a saved choice beats a default. The "let it sleep?" notices in the versions before that had an **Always** button, and one click on it saved "do it automatically". The profile this was reported from had exactly that (`vex.sleepConsent = "auto"`), so Discord kept being slept after fifteen minutes hidden and not in a call. On the first start of this version, a saved "auto" or "ask", and Discord's own saved "auto", go back to **never**, once, with a one-line notice saying so. It never runs again, so turning it back on in Settings › Performance is kept. Checked against a copy of that profile: the setting reads never, and a Discord hidden for three hours is left alone.
+
 ## v2.32.88 (2026-09-27) — Right-click a picture and you can save it
 
 ### Fixes

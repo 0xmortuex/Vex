@@ -54,6 +54,33 @@ const SleepConsent = {
   auto() { return this.mode() === 'auto'; },
   never() { return this.mode() === 'never'; },
 
+  // Once, on the first start of this version: a saved "auto" or "ask" goes
+  // back to never. Changing the DEFAULT to never (v2.32.84) did nothing for
+  // anyone who had already answered one of the notices — a saved choice
+  // beats a default — and the "Always" button on those notices saved
+  // "auto". So the user who asked, twice, for Vex to stop closing Discord and
+  // Claude kept a profile that told it to, and Discord went on being slept
+  // after fifteen hidden minutes (found in the profile 2026-09-27:
+  // vex.sleepConsent = "auto"). Settings › Performance turns it back on, and
+  // this never runs again, so a choice made after it is kept.
+  RESET_KEY: 'vex.sleepConsentReset',
+  DISCORD_KEY: 'vex.discordMemoryConsent',
+  resetOnce() {
+    try {
+      if (localStorage.getItem(this.RESET_KEY)) return false;
+      localStorage.setItem(this.RESET_KEY, '1');
+      let changed = false;
+      const was = localStorage.getItem(this.KEY);
+      if (was === 'auto' || was === 'ask') { localStorage.setItem(this.KEY, 'never'); changed = true; }
+      // Discord's own answer, saved by its notice the same way.
+      if (localStorage.getItem(this.DISCORD_KEY) === 'auto') { localStorage.setItem(this.DISCORD_KEY, 'never'); changed = true; }
+      return changed;
+    } catch (err) {
+      console.error('[SleepConsent] could not reset the saved choice:', err.message);
+      return false;
+    }
+  },
+
   _quiet: {},
 
   // Ask. Returns true when the question was put (or when the answer was
@@ -125,5 +152,11 @@ const SleepConsent = {
   },
 };
 
-if (typeof window !== 'undefined') window.SleepConsent = SleepConsent;
+if (typeof window !== 'undefined') {
+  window.SleepConsent = SleepConsent;
+  // Before any sleeper's first check (they start seconds after this script).
+  if (SleepConsent.resetOnce()) {
+    setTimeout(() => window.showToast?.('Vex no longer puts Discord, Claude or your tabs to sleep by itself — Settings › Performance turns it back on', 'info', 9000), 6000);
+  }
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { SleepConsent };
