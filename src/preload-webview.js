@@ -328,9 +328,19 @@ function runInMainWorld(src) {
   const bridge = {
     resolveLocation: async (origin) => {
       let decision;
+      // No argument: main takes the site from the asking frame, never from
+      // the page. Sending { origin } failed the channel's schema (an optional
+      // string), the refusal landed in this catch, and every site that asked
+      // for a location was told "denied" without a prompt ever being shown
+      // (paribucineverse.com, 2026-09-27). `origin` stays in the signature
+      // for the page-side caller.
+      void origin;
       try {
-        decision = await ipcRenderer.invoke('geolocation:check-permission', { origin });
-      } catch { return { mode: 'denied' }; }
+        decision = await ipcRenderer.invoke('geolocation:check-permission');
+      } catch (err) {
+        console.warn('[Vex] location permission check failed:', err && err.message);
+        return { mode: 'denied' };
+      }
       if (decision !== 'allow') return { mode: 'denied' };
       let raw;
       try { raw = await ipcRenderer.invoke('geolocation:get'); } catch { return { mode: 'denied' }; }

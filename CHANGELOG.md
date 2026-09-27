@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.32.93 (2026-09-27) — Sites can ask for your location again
+
+### Fixes
+- **Every site that asked for your location was refused, and Vex never showed its "allow location?" prompt.** A cinema site (paribucineverse.com) said "Konuma izin vermeniz gerekiyor" (you need to allow location), and pressing its "İzin Ver" (Allow) button did nothing. Vex answers location requests itself, because Chromium's own location service does not work on Windows. But the page-side half asked the other half in a shape that its security check refuses (it sent an object where the check takes nothing or text). The refusal was caught quietly, and a caught error was treated as "denied". That had been the case for every site since the September security audit. The question now reaches Vex, the prompt appears, and the site gets the location you set in Settings › Location. Checked on that site: Vex asks, the site gets the coordinates, and its cinema list loads.
+- **Sites that check before they ask were told location was blocked.** Electron reports anything nobody has decided on as "denied", so a site that checks first shows its own "allow it in your settings" message instead of asking. A site you haven't decided on now reads as "prompt", one you allowed as "granted", and one you blocked still reads as "denied". This is the same correction notifications got in v2.32.85, now covering location too.
+
 ## v2.32.92 (2026-09-27) — ChatGPT is not blocked from its own service
 
 ### Fixes

@@ -1365,12 +1365,16 @@ const WebviewManager = {
     }
   },
 
-  // Let a page discover that it may ASK for notifications.
+  // Let a page discover that it may ASK for notifications or a location.
   //
-  // Only the unasked state is rewritten: 'granted' is left alone, and a site
-  // that has been blocked is told 'denied' as before, so a block still reads
-  // as a block. Injected into the page's own world, where the site's own
-  // check will see it.
+  // Electron's permission check is a plain yes/no, so anything nobody has
+  // decided on reads as 'denied' to navigator.permissions.query. Sites check
+  // that before asking, find "denied", and show their own "allow it in your
+  // settings" message instead of asking: notifications (v2.32.85), and a
+  // cinema site's "Konuma izin vermeniz gerekiyor" for location (2026-09-27).
+  // So an undecided permission reads 'prompt', one allowed in Vex reads
+  // 'granted', and one blocked still reads 'denied'. Injected into the page's
+  // own world, where the site's own check will see it.
   async _letSitesAsk(webview) {
     if (!window.vex || typeof window.vex.permissionsList !== 'function') return false;
     let url = '';
@@ -1380,28 +1384,41 @@ const WebviewManager = {
     try { origin = new URL(url).origin; } catch { return false; }
     let decisions = {};
     try { decisions = (await window.vex.permissionsList()) || {}; } catch { return false; }
-    if (!this.shouldOfferNotificationPrompt(decisions, origin)) return false;
+    const states = {
+      notifications: this.shouldOfferNotificationPrompt(decisions, origin) ? 'prompt' : null,
+      geolocation: this.permissionStateFor(decisions, origin, 'geolocation'),
+    };
     await webview.executeJavaScript(`(() => {
       try {
-        if (window.__vexNotifAsk) return;
-        window.__vexNotifAsk = true;
+        if (window.__vexPermAsk) return;
+        window.__vexPermAsk = true;
+        const S = ${JSON.stringify(states)};
         const N = window.Notification;
-        if (!N) return;
         // Chromium reports 'denied' where Vex means 'nobody has asked'.
-        Object.defineProperty(N, 'permission', { configurable: true, get: () => 'default' });
+        if (N && S.notifications === 'prompt') Object.defineProperty(N, 'permission', { configurable: true, get: () => 'default' });
         const query = navigator.permissions && navigator.permissions.query;
         if (query) {
           navigator.permissions.query = function (d) {
-            if (d && d.name === 'notifications') {
-              return Promise.resolve({ state: 'prompt', status: 'prompt', onchange: null,
-                addEventListener() {}, removeEventListener() {} });
+            const state = d && S[d.name];
+            if (state) {
+              return Promise.resolve({ state, status: state, name: d.name, onchange: null,
+                addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; } });
             }
             return query.call(this, d);
           };
         }
-      } catch (err) { console.warn('[Vex] could not offer the notification prompt:', err && err.message); }
+      } catch (err) { console.warn('[Vex] could not correct the permission state:', err && err.message); }
     })()`);
     return true;
+  },
+
+  // What navigator.permissions.query should say about one permission, from
+  // what the user decided in Vex.
+  permissionStateFor(decisions, origin, name) {
+    const saved = (decisions || {})[origin + '::' + name];
+    if (saved === 'allow') return 'granted';
+    if (saved === 'deny') return 'denied';
+    return 'prompt';
   },
 
   // Should this origin be told it may ask? Only when nobody has decided yet:

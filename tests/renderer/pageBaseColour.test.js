@@ -67,3 +67,21 @@ describe('letting a site ask about notifications', () => {
     expect(WebviewManager.shouldOfferNotificationPrompt({ [key]: 'allow' }, 'https://a.test')).toBe(false);
   });
 });
+
+// A cinema site showed "Konuma izin vermeniz gerekiyor" (you need to allow
+// location) because navigator.permissions.query said 'denied' for a site
+// nobody had decided on (2026-09-27).
+describe('what a site sees when it checks a permission before asking', () => {
+  const o = 'https://www.paribucineverse.com';
+  it('undecided reads as prompt, so the site asks', () => {
+    expect(WebviewManager.permissionStateFor({}, o, 'geolocation')).toBe('prompt');
+    expect(WebviewManager.permissionStateFor(null, o, 'geolocation')).toBe('prompt');
+  });
+  it('allowed in Vex reads as granted, blocked stays denied', () => {
+    expect(WebviewManager.permissionStateFor({ [o + '::geolocation']: 'allow' }, o, 'geolocation')).toBe('granted');
+    expect(WebviewManager.permissionStateFor({ [o + '::geolocation']: 'deny' }, o, 'geolocation')).toBe('denied');
+  });
+  it("another site's decision does not count", () => {
+    expect(WebviewManager.permissionStateFor({ 'https://other.test::geolocation': 'allow' }, o, 'geolocation')).toBe('prompt');
+  });
+});
