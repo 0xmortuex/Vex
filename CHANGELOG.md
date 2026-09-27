@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.33.1 (2026-09-27) — The extensions menu scrolls
+
+### Fixes
+- **The extensions menu ran off the bottom of the window.** With a dozen extensions listed above Vex's own tools, the rest of the menu was out of reach and could not be scrolled. It now stops at the bottom of the window and scrolls.
+
 ## v2.33.0 (2026-09-27) — Group names as big as tab titles
 
 ### Fixes

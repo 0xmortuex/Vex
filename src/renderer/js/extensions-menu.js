@@ -65,6 +65,9 @@ const ExtensionsMenu = {
     left = Math.max(8, left);
     menu.style.top = (r.bottom + 6) + 'px';
     menu.style.left = left + 'px';
+    // With a dozen extensions above the built-in tools the list ran off the
+    // bottom of the window with no way to reach the rest; it scrolls instead.
+    menu.style.maxHeight = Math.max(160, window.innerHeight - r.bottom - 14) + 'px';
     this._menu = menu;
     btn.classList.add('active');
 
@@ -185,7 +188,7 @@ const ExtensionsMenu = {
       .ext-menu{position:fixed;z-index:100000;min-width:252px;max-width:300px;padding:6px;border-radius:12px;
         background:var(--surface,#1b1b24);border:1px solid var(--border,rgba(255,255,255,0.10));
         box-shadow:0 14px 44px rgba(0,0,0,0.40);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-        animation:extMenuIn .12s ease;}
+        animation:extMenuIn .12s ease;overflow-y:auto;overscroll-behavior:contain;}
       @keyframes extMenuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
       .ext-menu-item{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border:none;border-radius:8px;
         background:transparent;color:var(--text,#e9e9ee);cursor:pointer;text-align:left;font-family:inherit;}
