@@ -232,10 +232,14 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   align-self: stretch;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  flex-shrink: 0;
+  /* Shares the strip with the tabs rather than stopping at 140px: the tabs
+     and groups cover the whole bar (2026-09-27). */
+  flex: 1 1 0;
+  min-width: 72px;
+  justify-content: center;
   cursor: pointer;
   transition: transform 0.12s, opacity 0.12s;
-  max-width: 140px;
+  max-width: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

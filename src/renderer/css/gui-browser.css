@@ -97,12 +97,15 @@ body[data-gui-family="browser"] .top-tab-bar {
    as in every mainstream browser; the leftover strip moves into the trailing
    area, which must stay a window-drag region or the window could no longer be
    dragged by its tab strip. Window controls are pushed to the far right. */
-body[data-gui-family="browser"] .top-tabs-list { flex: var(--b-tablist-flex, 0 1 auto); gap: var(--b-tab-gap); align-items: var(--b-tab-align, flex-end); }
-body[data-gui-family="browser"] .tab-bar-trailing { flex: 1 1 auto; align-self: stretch; -webkit-app-region: drag; color: var(--b-strip-fg, var(--b-icon)); }
+/* The tabs and groups cover the whole strip, in every look (asked for
+   2026-09-27): they used to stop at 240px each and leave the rest of the bar
+   empty. What remains draggable is the 40px before the window controls. */
+body[data-gui-family="browser"] .top-tabs-list { flex: var(--b-tablist-flex, 1 1 auto); gap: var(--b-tab-gap); align-items: var(--b-tab-align, flex-end); }
+body[data-gui-family="browser"] .tab-bar-trailing { flex: 0 0 auto; align-self: stretch; -webkit-app-region: drag; color: var(--b-strip-fg, var(--b-icon)); }
 body[data-gui-family="browser"] .tab-bar-trailing > * { -webkit-app-region: no-drag; }
-body[data-gui-family="browser"] .tab-bar-trailing #window-controls { margin-left: auto; }
+body[data-gui-family="browser"] .tab-bar-trailing #window-controls { margin-left: 40px; }
 body[data-gui-family="browser"] .top-tab {
-  flex: var(--b-tab-flex, 0 1 240px); max-width: var(--b-tab-max, 240px); height: var(--b-tab-h);
+  flex: var(--b-tab-flex, 1 1 0); max-width: var(--b-tab-max, none); height: var(--b-tab-h);
   background: var(--b-tab); border: var(--b-tab-border-w, 0) solid var(--b-tab-border, transparent); border-bottom: none;
   border-radius: var(--b-tab-radius); box-shadow: var(--b-tab-rest-shadow, none);
   color: var(--b-tab-text); font: var(--b-tab-font); padding: 0 10px; margin: 0;

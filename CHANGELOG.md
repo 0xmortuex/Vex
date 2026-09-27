@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.32.95 (2026-09-27) — The tabs and groups cover the whole top bar
+
+### Changes
+- **The tabs and group chips stretch across the whole top bar.** In the Chrome, Firefox and Edge looks each tab stopped at 240px and each group at 140px, and the rest of the bar stayed empty: with one tab and four collapsed groups, more than half the strip was blank. Tabs and groups now share the full width equally in every look, as the Safari look already did, and shrink as more are opened (titles hide on very narrow tabs as before). Measured with one tab and four groups: five equal items of about 224px in the Firefox look, reaching the + button.
+- The window can still be dragged: a 40px strip before the minimise / maximise / close buttons stays free for it. Without any, the window could not be moved or snapped by its top bar.
+
 ## v2.32.94 (2026-09-27) — "Near me" is measured from where you said you are
 
 ### Fixes
