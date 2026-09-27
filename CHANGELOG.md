@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.33.5 (2026-09-28) — Extensions that add right-click items start up
+
+### Fixes
+- **An extension that adds right-click menu items stopped while starting.** Electron gives extensions no context-menu API, and uBlock Origin read it as it started and threw partway. Extensions that ask for it now get calls that succeed and add nothing; Vex has no extension items in its right-click menu. Checked across all eleven installed extensions: each loads, Dark Reader themes Wikipedia, Hacker News and BBC News properly (and leaves GitHub, already dark, alone), and the command bar calculator answers "12*7", "2^10" and "20 cm to in" in the real window.
+
+### Known
+- **Return YouTube Dislike cannot register your votes.** Its background runs as a service worker, where Electron's "sync" storage still fails, and Vex's stand-in only reaches extension pages. Seeing dislike counts is unaffected.
+- **uBlock Origin still stops at another missing API** (`webNavigation`). It could not block requests in Vex anyway; Vex's own ad and tracker blocker does that (Settings › Privacy).
+
 ## v2.33.4 (2026-09-28) — The agent, round two: tabs, settings, and honest answers
 
 A second round of eight tasks on qwen3.5: comparing two open shops (passed), reading a chart that is only a picture (passed, by looking at it), finding one order in a table over three pages (passed), starting a Vex timer (passed), writing the three cheapest products into a note (the model ordered them wrongly), closing every tab but one, a vague "book a meeting room", and turning on streamer mode. The last three found bugs in Vex:

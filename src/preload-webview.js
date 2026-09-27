@@ -110,6 +110,19 @@ function runInMainWorld(src) {
   }
   if (manifest.browser_action && !c.browserAction) c.browserAction = stub();
   if (manifest.action && !c.action) c.action = stub();
+  // Nor are there extension items in Vex's right-click menu, and uBlock
+  // Origin read chrome.contextMenus.onClicked while starting and threw
+  // (2026-09-28). An extension that asks for the permission gets calls that
+  // succeed and add nothing.
+  var perms = manifest.permissions || [];
+  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && !c.contextMenus) {
+    var menuId = 0;
+    c.contextMenus = {
+      create: function (props, cb) { if (typeof cb === 'function') setTimeout(cb, 0); return (props && props.id) || ++menuId; },
+      update: done(undefined), remove: done(undefined), removeAll: done(undefined),
+      onClicked: { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } },
+    };
+  }
 })();
 
 // === chrome.storage.sync for extensions ===

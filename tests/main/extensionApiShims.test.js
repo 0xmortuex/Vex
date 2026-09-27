@@ -91,6 +91,14 @@ describe('chrome.* stand-ins for extensions', () => {
     expect(mv3.browserAction).toBeUndefined();
   });
 
+  it('contextMenus, for an extension that asked for it, accepts calls and adds nothing', async () => {
+    const withIt = run({ manifest: { permissions: ['contextMenus', 'storage'] } }).chrome;
+    expect(withIt.contextMenus.create({ id: 'block', title: 'Block element' })).toBe('block');
+    expect(await withIt.contextMenus.removeAll()).toBeUndefined();
+    expect(typeof withIt.contextMenus.onClicked.addListener).toBe('function');
+    expect(run({ manifest: { permissions: ['storage'] } }).chrome.contextMenus).toBeUndefined();
+  });
+
   it('only extension pages get them, and a real API is never replaced', () => {
     const site = run({ protocol: 'https:', manifest: { browser_action: {} } }).chrome;
     expect(site.permissions).toBeUndefined();
