@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.32.91 (2026-09-27) — No space above anything in the tab strip
+
+### Fixes
+- **There was still space at the top of the tab strip.** The earlier fixes made the *tabs* fill the strip, and measured only the tabs. Measured from a screenshot of the reporting screen, the tabs were flush (1px), but the **group chips** (GAMING PLATFORM, CLAUDE AI TOOLS…) were fixed 22px pills in a 36px strip: 7px of empty strip above and below every group. A strip that is mostly collapsed groups is mostly that gap.
+  - Group chips are now as tall as a tab and shaped like the look's tabs, so a group reads as part of the row. Hovering one no longer lifts it off the bottom.
+  - The **+** button had a 4px margin under it, which made the strip taller than the tabs in the Classic, Edge and Safari looks (32+4 over 34, 28+4 over 28) and left a gap above every tab there. It is centred with no margin now.
+  - The active tab was shifted down 1px to overlap the strip's border line, but the strip clips anything outside it, so the overlap never showed and only left a line of strip above the tab. It sits flush now.
+  - The Firefox look's strip is 34px, the height of its tabs (was 36).
+  - Measured in every look with groups present: 0px above the tabs and the group chips in Classic, Chrome, Chrome dark, Firefox, Firefox dark, Edge and Safari. Below them is 0px, or in Classic, Edge and Safari the strip's 1px dividing line against the toolbar.
+
 ## v2.32.90 (2026-09-27) — A right-click menu you can read at a glance
 
 ### Changes

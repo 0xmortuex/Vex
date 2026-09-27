@@ -95,7 +95,9 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   color: var(--vex-text-primary);
   font-weight: 500;
   z-index: 1;
-  margin-bottom: -1px;
+  /* No margin-bottom:-1px to overlap the strip's border: the strip clips
+     its overflow, so the overlap never showed and the shift only left 1px of
+     strip above the active tab. */
   /* Same flex as others — don't override so active tab can't shrink away */
 }
 .top-tab.active .tab-title { font-weight: 600; }
@@ -220,11 +222,14 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
      See --group-pill-* tokens in theme-tokens.css. */
   background: var(--group-pill-bg, var(--group-color, var(--primary)));
   color: var(--group-pill-fg, #fff);
-  border-radius: 12px;
+  /* As tall as a tab, not a 22px pill floating in the strip: the pill left
+     7px of empty strip above and below every group (measured on the user's
+     screen 2026-09-27, after the tabs themselves had been made to fill it).
+     Shaped like the look's tabs, so a group reads as part of the row. */
+  border-radius: var(--b-tab-radius, 8px);
   font-size: 10px;
   font-weight: 700;
-  height: 22px;
-  align-self: center;
+  align-self: stretch;
   text-transform: uppercase;
   letter-spacing: 0.3px;
   flex-shrink: 0;
@@ -237,7 +242,7 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   font-family: 'Outfit', sans-serif;
   -webkit-app-region: no-drag;
 }
-.top-group-label:hover { transform: translateY(-1px); opacity: 0.92; }
+.top-group-label:hover { opacity: 0.92; }   /* no lift: a lifted chip reopens a gap under it */
 
 /* Drag-to-reorder — dim the tab being dragged, show an insertion line on the
    edge of the tab it would land next to (inset so overflow:hidden can't clip it) */
@@ -256,7 +261,11 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   font-weight: 300;
   line-height: 1;
   cursor: pointer;
-  margin: 0 4px 4px 4px;
+  /* Centred, no bottom margin: the old 4px under a 32px button made the
+     strip 36px round 34px tabs, a gap above every tab in Classic, Edge and
+     (28+4 over 28) Safari. The strip is as tall as a tab. */
+  margin: 0 4px;
+  align-self: center;
   -webkit-app-region: no-drag;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
