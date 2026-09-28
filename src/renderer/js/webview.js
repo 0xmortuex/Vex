@@ -43,6 +43,10 @@ const WebviewManager = {
     webview.setAttribute('src', tab.url);
     webview.setAttribute('partition', tab.partition || 'persist:main');
     webview.setAttribute('allowpopups', '');
+    // Chromium's PDF viewer is the only plugin Electron has, and it runs only
+    // where plugins are on: without this a PDF opened as a blank page
+    // (found by a feature sweep, 2026-09-28).
+    webview.setAttribute('plugins', '');
     // A kept-awake ("never sleep") tab opts out of background throttling so its
     // page keeps running full-speed while it's not the foreground tab — Gmail
     // keeps receiving mail in the background, so the email-code autofill reads a

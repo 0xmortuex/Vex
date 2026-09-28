@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.33.8 (2026-09-28) — PDFs open in the tab
+
+### Fixes
+- **A PDF opened as a blank page.** Chromium's PDF viewer is a plugin and only runs where plugins are on, and Vex built its tabs without them. Tabs now have them, so a PDF shows in the tab with the viewer's own toolbar (zoom, print, download). Nothing else is enabled by it: the PDF viewer is the only plugin Electron has.
+
+### Checked
+A sweep of the installed app (the packaged build, not the source) in a fresh profile, with no AI: it starts and survives a restart; web pages, find in page (the bar's count too), reader mode, side-by-side translation, split view, bookmarks, history, notes, a timer that rings, game mode on and off, private and Tor tabs, putting a tab to sleep and waking it, reopening a closed tab, the command bar, the right-click menu, the memory panel and running tasks, every Settings section, all 37 themes and 9 looks, and the Discord, Spotify and WhatsApp panels all worked, with no errors in the window. Twenty-one open tabs used 3.2 GB; putting the background ones to sleep brought that to 661 MB.
+
 ## v2.33.7 (2026-09-28) — v2.33.6, with its checks passing on Windows
 
 ### Fixes
