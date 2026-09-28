@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.33.7 (2026-09-28) — v2.33.6, with its checks passing on Windows
+
+### Fixes
+- **v2.33.6's own check failed on the Windows build machine.** A test compares the two copies of the extension "sync" stand-in, and a Windows checkout gave one file CRLF line endings and not the other. It now compares them without regard to line endings. Nothing in the app changed.
+
 ## v2.33.6 (2026-09-28) — Return YouTube Dislike records votes, and the agent gets your best model
 
 ### Fixes

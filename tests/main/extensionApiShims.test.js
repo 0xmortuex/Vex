@@ -12,8 +12,11 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PAGE_SRC = fs.readFileSync(path.join(__dirname, '../../src/preload-webview.js'), 'utf8');
-const SW_SRC = fs.readFileSync(path.join(__dirname, '../../src/preload-extension-sw.js'), 'utf8');
+// A Windows checkout may turn one file's line endings into CRLF and not the
+// other's (git treats preload-webview.js as binary), so compare them as LF.
+const read = (f) => fs.readFileSync(path.join(__dirname, '../../src/' + f), 'utf8').replace(/\r\n/g, '\n');
+const PAGE_SRC = read('preload-webview.js');
+const SW_SRC = read('preload-extension-sw.js');
 const START = PAGE_SRC.indexOf('// === chrome.permissions for extensions ===');
 const END = PAGE_SRC.indexOf("(function () {\n  'use strict';\n  var ipcRenderer;");
 const PAGE_SHIMS = PAGE_SRC.slice(START, END);
