@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.33.13 (2026-09-29) — Extension popups open, and know which page you are on
+
+### Fixes
+- **Dark Reader's popup stayed on "Loading, please wait".** To fill it, Dark Reader asks its background for its settings, and the background also looks up the extension's keyboard shortcuts and whether it may read local files. Electron has neither of those, so the lookup failed and the popup never got an answer. Vex now answers both honestly: no keys are set for extension shortcuts in Vex, and local files are allowed, as Vex loads extensions that way.
+- **An extension's popup took itself for the page you were on.** Electron treats whichever page has the keyboard focus as the current tab, and a popup takes the focus when it opens. Dark Reader said "This page is protected by browser", and its switch for the site would have acted on the popup. Vex now tells the extension which tab the popup was opened over. It tells only that extension, and only while its popup is open.
+- **Popups opened too small, with scroll bars.** Vex sized a popup once, while it was still loading. It now resizes to fit whenever the popup's content changes, up to Chrome's 800×600 limit.
+
+This is also the way to fix a Google Doc that Dark Reader turns black: open Dark Reader from the extensions menu on the Doc, and click the site's name to turn it off there.
+
+Checked in a live Vex with Dark Reader: the popup opens complete with no scroll bars and names the page under it. Its site switch took Wikipedia from dark back to its normal light look.
+
 ## v2.33.12 (2026-09-28) — The window stays on the screen
 
 ### Fixes
