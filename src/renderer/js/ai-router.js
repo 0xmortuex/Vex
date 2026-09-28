@@ -64,6 +64,7 @@ const AIRouter = (() => {
     routingPrefs = { ...DEFAULT_ROUTING, ..._load('vex.aiRouting', {}) };
     preferLocal = _load('vex.preferLocalAI', false) === true;
     forceCloud = _load('vex.forceCloudAI', false) === true;
+    modelChosen = _load('vex.localAIModel', null) !== null;
     localModel = _load('vex.localAIModel', 'llama3.2:3b');
     smallModel = _load('vex.localSmallModel', '');
     await refreshOllamaStatus();
@@ -79,7 +80,33 @@ const AIRouter = (() => {
     try { ollamaAvailable = (await Ollama.ping()) === true; }
     catch { ollamaAvailable = false; }
     _dbg('[AIRouter] Ollama ping result:', ollamaAvailable);
+    if (ollamaAvailable) pickDefaultModel().catch(err => console.warn('[AIRouter] could not pick a model:', err.message));
     return ollamaAvailable;
+  }
+
+  // With no model ever chosen, the agent got llama3.2:3b, installed or not,
+  // and too small to trust with actions: in a test it liked ten posts when
+  // asked to like one (2026-09-27). It now gets the best installed model that
+  // can call tools: the largest up to 14B, so a giant one is not forced onto
+  // an ordinary graphics card. Not saved; choosing one in Settings wins.
+  let modelChosen = false;
+  let defaultPicked = false;
+  function bestInstalledModel(models) {
+    const billions = (s) => { const m = /([\d.]+)\s*([MB])/i.exec(String(s || '')); return m ? parseFloat(m[1]) * (m[2].toUpperCase() === 'M' ? 0.001 : 1) : 0; };
+    const fit = models.filter(m => (m.capabilities || []).includes('tools') && (m.capabilities || []).includes('completion') && billions(m.parameterSize) <= 14);
+    fit.sort((a, b) => billions(b.parameterSize) - billions(a.parameterSize));
+    return fit.length ? fit[0].name : null;
+  }
+  async function pickDefaultModel() {
+    if (modelChosen || defaultPicked) return;
+    defaultPicked = true;
+    const described = [];
+    for (const m of await Ollama.listModels()) {
+      try { described.push({ name: m.name, ...(await Ollama.show(m.name)) }); }
+      catch (err) { console.warn('[AIRouter] could not read ' + m.name + ':', err.message); }
+    }
+    const best = bestInstalledModel(described);
+    if (best && !modelChosen) { localModel = best; _dbg('[AIRouter] no model chosen; using', best); }
   }
 
   function isOllamaAvailable() { return ollamaAvailable === true; }
@@ -595,6 +622,7 @@ You were given an order, so carry it out. "thought" is one short sentence about 
   }
   function setModel(name) {
     localModel = name;
+    modelChosen = true;
     _save('vex.localAIModel', name);
   }
   function getSmallModel() { return smallModel; }
@@ -629,7 +657,7 @@ You were given an order, so carry it out. "thought" is one short sentence about 
     callAI, resolveBackend,
     getRoutingPrefs, setRoutingPrefs,
     getOllamaStatus, setPreferLocal, setForceCloud,
-    setModel, getModel, setSmallModel, getSmallModel, routineFeatures, modelFor, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
+    setModel, getModel, bestInstalledModel, setSmallModel, getSmallModel, routineFeatures, modelFor, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
     // Settings › AI "Test as agent": the local agent, on a named model.
     localAgent: (request, model) => callLocalAgent(request, model),
     // One named backend, with no routing and no falling back to another —

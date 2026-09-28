@@ -125,98 +125,147 @@ function runInMainWorld(src) {
   }
 })();
 
-// === chrome.storage.sync for extensions ===
+// === BEGIN vex-storage-sync-shim ===
+// Keep this block identical in src/preload-webview.js (extension pages) and
+// src/preload-extension-sw.js (extension service workers); a test compares them.
+//
 // Electron has chrome.storage.sync, but every call fails with '"sync" is not
-// available in this instance of Chrome'. Dark Reader then read its settings
-// as null and crashed; Stylus, Return YouTube Dislike and uBlock also use it.
-// There is no account to sync with here, so "sync" is kept on this machine:
-// in the extension's own localStorage, which its background page, popup and
-// options page share (the same origin). storage.local is left alone.
-(function () {
-  if (location.protocol !== 'chrome-extension:') return;
-  var c = window.chrome;
-  var ls = window.localStorage;
-  if (!c || !c.storage || !c.storage.local || !ls) return;
-  var P = 'vex.storage.sync:';
-  var listeners = [];
-  function all() {
-    var out = {};
-    for (var i = 0; i < ls.length; i++) {
-      var k = ls.key(i);
-      if (k && k.indexOf(P) === 0) out[k.slice(P.length)] = JSON.parse(ls.getItem(k));
-    }
-    return out;
-  }
-  function pick(keys) {
-    var items = all();
-    if (keys == null) return items;
-    if (typeof keys === 'string') keys = [keys];
-    var out = {};
-    if (Array.isArray(keys)) { keys.forEach(function (k) { if (k in items) out[k] = items[k]; }); return out; }
-    Object.keys(keys).forEach(function (k) { out[k] = k in items ? items[k] : keys[k]; });
-    return out;
-  }
-  function changed(changes) {
-    if (!Object.keys(changes).length) return;
-    listeners.slice().forEach(function (fn) { fn(changes, 'sync'); });
-  }
-  function write(set, removeKeys) {
-    var changes = {};
-    Object.keys(set || {}).forEach(function (k) {
-      var raw = ls.getItem(P + k);
-      changes[k] = { newValue: set[k] };
-      if (raw !== null) changes[k].oldValue = JSON.parse(raw);
-      ls.setItem(P + k, JSON.stringify(set[k]));
-    });
-    (removeKeys || []).forEach(function (k) {
-      var raw = ls.getItem(P + k);
-      if (raw === null) return;
-      changes[k] = { oldValue: JSON.parse(raw) };
-      ls.removeItem(P + k);
-    });
-    return changes;
-  }
-  function run(work, cb) {
-    var p = new Promise(function (resolve) { resolve(work()); });
+// available in this instance of Chrome'. Dark Reader read its settings as null
+// and crashed; Return YouTube Dislike could not record a vote; Stylus and
+// uBlock use it too. There is no account to sync with here, so "sync" is kept
+// on this machine, in one reserved entry of the extension's own
+// storage.local — the one place its background, service worker, popup and
+// options page all share. The entry is hidden from the extension's own local
+// reads, and its changes arrive as 'sync' changes everywhere.
+function vexStorageSyncShim(c) {
+  c = c || (typeof chrome !== 'undefined' ? chrome : null);
+  // Only an extension has a runtime id; a website's service worker is left alone.
+  if (!c || !c.runtime || !c.runtime.id || !c.storage || !c.storage.local || !c.storage.onChanged || c.storage.__vexSync) return false;
+  var KEY = '__vexStorageSync';
+  var local = c.storage.local;
+  var origGet = local.get.bind(local);
+  var origSet = local.set.bind(local);
+  var origClear = typeof local.clear === 'function' ? local.clear.bind(local) : null;
+  function answer(p, cb) {
     if (typeof cb === 'function') { p.then(function (v) { cb(v); }); return undefined; }
     return p;
   }
+  function load() { return new Promise(function (res) { origGet(KEY, function (o) { res((o && o[KEY]) || {}); }); }); }
+  function store(all) { return new Promise(function (res) { var o = {}; o[KEY] = all; origSet(o, function () { res(); }); }); }
+  // One change at a time, so two quick sets cannot overwrite each other.
+  var chain = Promise.resolve();
+  function edit(fn) {
+    var p = chain.then(load).then(function (all) { return store(fn(Object.assign({}, all))); });
+    chain = p.catch(function () {});
+    return p;
+  }
+  function pick(all, keys) {
+    if (keys == null) return Object.assign({}, all);
+    if (typeof keys === 'string') keys = [keys];
+    var out = {};
+    if (Array.isArray(keys)) { keys.forEach(function (k) { if (k in all) out[k] = all[k]; }); return out; }
+    Object.keys(keys).forEach(function (k) { out[k] = k in all ? all[k] : keys[k]; });
+    return out;
+  }
+  function diff(ch) {
+    var o = ch.oldValue || {}, n = ch.newValue || {}, out = {};
+    Object.keys(o).concat(Object.keys(n)).forEach(function (k) {
+      if (k in out || JSON.stringify(o[k]) === JSON.stringify(n[k])) return;
+      out[k] = {};
+      if (k in o) out[k].oldValue = o[k];
+      if (k in n) out[k].newValue = n[k];
+    });
+    return out;
+  }
+  // The reserved entry is not the extension's: keep it out of its local reads
+  // and survive its local.clear().
+  local.get = function (keys, cb) {
+    if (typeof keys === 'function') { cb = keys; keys = null; }
+    var everything = keys == null;
+    return answer(new Promise(function (res) {
+      origGet(keys, function (o) { o = Object.assign({}, o || {}); if (everything) delete o[KEY]; res(o); });
+    }), cb);
+  };
+  if (origClear) {
+    local.clear = function (cb) {
+      return answer(load().then(function (keep) {
+        return new Promise(function (res) { origClear(function () { res(); }); }).then(function () { return store(keep); });
+      }), cb);
+    };
+  }
+  var syncListeners = [];
+  var ev = c.storage.onChanged;
+  var nativeAdd = ev.addListener.bind(ev);
+  var nativeRemove = ev.removeListener.bind(ev);
+  var wrapped = [];
+  nativeAdd(function (ch, area) {
+    if (area !== 'local' || !ch[KEY]) return;
+    var s = diff(ch[KEY]);
+    if (Object.keys(s).length) syncListeners.slice().forEach(function (fn) { fn(s); });
+  });
+  ev.addListener = function (fn) {
+    var w = function (ch, area) {
+      if (area !== 'local' || !ch[KEY]) { fn(ch, area); return; }
+      var rest = {};
+      Object.keys(ch).forEach(function (k) { if (k !== KEY) rest[k] = ch[k]; });
+      if (Object.keys(rest).length) fn(rest, 'local');
+      var s = diff(ch[KEY]);
+      if (Object.keys(s).length) fn(s, 'sync');
+    };
+    wrapped.push([fn, w]);
+    nativeAdd(w);
+  };
+  ev.removeListener = function (fn) {
+    for (var i = 0; i < wrapped.length; i++) if (wrapped[i][0] === fn) { nativeRemove(wrapped[i][1]); wrapped.splice(i, 1); return; }
+    nativeRemove(fn);
+  };
+  ev.hasListener = function (fn) { return wrapped.some(function (p) { return p[0] === fn; }); };
   var sync = {
     QUOTA_BYTES: 102400, QUOTA_BYTES_PER_ITEM: 8192, MAX_ITEMS: 512,
     MAX_WRITE_OPERATIONS_PER_HOUR: 1800, MAX_WRITE_OPERATIONS_PER_MINUTE: 120,
-    get: function (keys, cb) { if (typeof keys === 'function') { cb = keys; keys = null; } return run(function () { return pick(keys); }, cb); },
-    set: function (items, cb) { return run(function () { changed(write(items, null)); }, cb); },
-    remove: function (keys, cb) { return run(function () { changed(write(null, [].concat(keys))); }, cb); },
-    clear: function (cb) { return run(function () { changed(write(null, Object.keys(all()))); }, cb); },
+    get: function (keys, cb) {
+      if (typeof keys === 'function') { cb = keys; keys = null; }
+      return answer(chain.then(load).then(function (all) { return pick(all, keys); }), cb);
+    },
+    set: function (items, cb) { return answer(edit(function (all) { Object.keys(items || {}).forEach(function (k) { all[k] = items[k]; }); return all; }), cb); },
+    remove: function (keys, cb) { return answer(edit(function (all) { [].concat(keys).forEach(function (k) { delete all[k]; }); return all; }), cb); },
+    clear: function (cb) { return answer(edit(function () { return {}; }), cb); },
     getBytesInUse: function (keys, cb) {
       if (typeof keys === 'function') { cb = keys; keys = null; }
-      return run(function () { return JSON.stringify(pick(keys)).length; }, cb);
+      return answer(chain.then(load).then(function (all) { return JSON.stringify(pick(all, keys)).length; }), cb);
     },
     onChanged: {
-      addListener: function (fn) { listeners.push(function (ch) { fn(ch); }); },
-      removeListener: function () {},
-      hasListener: function () { return false; },
+      addListener: function (fn) { syncListeners.push(fn); },
+      removeListener: function (fn) { var i = syncListeners.indexOf(fn); if (i >= 0) syncListeners.splice(i, 1); },
+      hasListener: function (fn) { return syncListeners.indexOf(fn) >= 0; },
     },
   };
-  // chrome.storage.onChanged also reports 'sync' changes, including ones made
-  // by the extension's other pages (the localStorage 'storage' event).
-  var globalListeners = [];
-  listeners.push(function (ch, area) { globalListeners.forEach(function (fn) { fn(ch, area); }); });
-  window.addEventListener('storage', function (e) {
-    if (!e.key || e.key.indexOf(P) !== 0) return;
-    var ch = {};
-    ch[e.key.slice(P.length)] = {};
-    if (e.oldValue !== null) ch[e.key.slice(P.length)].oldValue = JSON.parse(e.oldValue);
-    if (e.newValue !== null) ch[e.key.slice(P.length)].newValue = JSON.parse(e.newValue);
-    changed(ch);
-  });
-  var nativeOnChanged = c.storage.onChanged;
-  if (nativeOnChanged && typeof nativeOnChanged.addListener === 'function') {
-    var add = nativeOnChanged.addListener.bind(nativeOnChanged);
-    nativeOnChanged.addListener = function (fn) { globalListeners.push(fn); return add(fn); };
-  }
   Object.defineProperty(c.storage, 'sync', { value: sync, configurable: true, enumerable: true });
-})();
+  Object.defineProperty(c.storage, '__vexSync', { value: true });
+  return true;
+}
+// === END vex-storage-sync-shim ===
+if (location.protocol === 'chrome-extension:' && vexStorageSyncShim(window.chrome)) {
+  // v2.33.2 to v2.33.5 kept "sync" in the page's own localStorage, which an
+  // extension's service worker cannot read. Move anything saved there, once.
+  (function () {
+    var ls;
+    try { ls = window.localStorage; } catch (e) { return; }
+    var P = 'vex.storage.sync:', old = {}, keys = [];
+    for (var i = 0; i < ls.length; i++) {
+      var k = ls.key(i);
+      if (k && k.indexOf(P) === 0) { keys.push(k); old[k.slice(P.length)] = JSON.parse(ls.getItem(k)); }
+    }
+    if (!keys.length) return;
+    window.chrome.storage.sync.get(null).then(function (have) {
+      var add = {};
+      Object.keys(old).forEach(function (k) { if (!(k in have)) add[k] = old[k]; });
+      return window.chrome.storage.sync.set(add);
+    }).then(function () {
+      keys.forEach(function (k) { ls.removeItem(k); });
+    }, function (err) { console.warn('[Vex] moving saved extension settings failed:', err && err.message); });
+  })();
+}
 
 (function () {
   'use strict';

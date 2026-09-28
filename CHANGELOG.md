@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.33.6 (2026-09-28) — Return YouTube Dislike records votes, and the agent gets your best model
+
+### Fixes
+- **Return YouTube Dislike could not record a vote,** and other extensions whose background is a service worker could not save their settings. Their "sync" storage failed there, and Vex's stand-in only reached extension pages. Service workers now get it too, from a preload of their own, and pages and workers keep it in one place in the extension's own storage, so what one saves the other reads. Checked live: Return YouTube Dislike registers and saves all its settings with no errors, and Dark Reader still themes pages. Settings saved by the earlier stand-in (v2.33.2 to v2.33.5) are moved over once.
+- **Without a model chosen, the agent ran on llama3.2:3b,** whether you had it or not, and a model that small was not safe to act with: in a test it liked ten posts when asked to like one. It now uses the best model you have installed that can call tools, up to 14B (qwen3.5 on this machine). Choosing a model in Settings › AI always wins.
+
 ## v2.33.5 (2026-09-28) — Extensions that add right-click items start up
 
 ### Fixes

@@ -158,6 +158,17 @@ const GUEST_PRELOADS = [
   // registered by enableCosmeticFiltering() once the engine is ready.
   require.resolve('@ghostery/adblocker-electron-preload'),
 ];
+// Extension service workers never run the page preloads above, so the
+// chrome.storage.sync stand-in has its own preload for them
+// (preload-extension-sw.js). Registered on a session before an extension
+// loads into it; a later worker start picks it up.
+const EXT_SW_PRELOAD_ID = 'vex-extension-sw';
+function ensureExtensionSwPreload(ses) {
+  if (typeof ses.registerPreloadScript !== 'function') return;
+  if (ses.getPreloadScripts().some(s => s.id === EXT_SW_PRELOAD_ID)) return;
+  ses.registerPreloadScript({ type: 'service-worker', id: EXT_SW_PRELOAD_ID, filePath: path.join(__dirname, 'preload-extension-sw.js') });
+}
+
 function attachGuestPreloads(ses) {
   const existing = ses.getPreloads ? ses.getPreloads() : [];
   const missing = GUEST_PRELOADS.filter(p => !existing.includes(p));
@@ -963,7 +974,7 @@ ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
       if (_isLazySession(ses) && !_coveredSessions.has(ses)) continue;
       try {
         const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(entry.path));
-        if (wanted.has(ses) && !live) await ses.loadExtension(entry.path, { allowFileAccess: true });
+        if (wanted.has(ses) && !live) { ensureExtensionSwPreload(ses); await ses.loadExtension(entry.path, { allowFileAccess: true }); }
         else if (!wanted.has(ses) && live) ses.removeExtension(live.id);
       } catch (err) {
         return { ok: false, error: `Saved, but could not apply it to ${_partitionNameOf(ses) || 'a session'}: ${err.message}` };
@@ -2167,6 +2178,7 @@ async function _loadExtensionEverywhere(extPath, manifest) {
   const errors = [];
   for (const ses of sessions) {
     try {
+      ensureExtensionSwPreload(ses);
       const ext = await ses.loadExtension(extPath, { allowFileAccess: true });
       if (!loaded) loaded = ext;
     } catch (err) {
@@ -2249,6 +2261,7 @@ async function _coverNewSession(ses) {
     if (known && !_sessionsFor(entry.path, entry.manifest).includes(ses)) continue;
     try {
       if (ses.getAllExtensions().some(x => path.resolve(x.path) === path.resolve(entry.path))) continue;
+      ensureExtensionSwPreload(ses);
       await ses.loadExtension(entry.path, { allowFileAccess: true });
       _extraExtSessions.add(ses);
     } catch (err) {
