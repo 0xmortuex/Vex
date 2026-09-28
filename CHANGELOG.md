@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.33.12 (2026-09-28) — The window stays on the screen
+
+### Fixes
+- **After fullscreen, the window hung off the screen.** Leaving fullscreen (F11, or a video's fullscreen button) left the window the size of the whole screen, no longer maximized: it ran past the right edge and under the taskbar, and a nudge moved it further out. Vex's window is transparent and frameless (for the glass look), and for such windows Electron does not reliably put them back. Vex now remembers where the window was and whether it was maximized, and returns it there when fullscreen ends, always within the screen.
+- **The maximize button did not restore down.** On the same kind of window, maximizing fills the screen but neither Electron nor Windows then reports it as maximized, so every press maximized again. The button now restores the window to the size and place it had before.
+
+Checked by measuring the real window through Windows: maximize fills the screen above the taskbar, a second press goes back to 1400×900 where it was, and fullscreen on and off returns it exactly as before, maximized or not.
+
 ## v2.33.11 (2026-09-28) — "Check on VirusTotal" explains a file it has never seen
 
 ### Fixes

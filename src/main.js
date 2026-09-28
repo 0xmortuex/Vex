@@ -3987,7 +3987,43 @@ function createWindow() {
     isFullscreenTracked = false;
     console.log('[Vex F11] leave-full-screen event fired. tracked state:', isFullscreenTracked);
     mainWindow.webContents.send('fullscreen-changed', false);
+    restorePlacementAfterFullscreen();
   });
+
+  // Where the window was before fullscreen. On this transparent frameless
+  // window Electron does not reliably put it back: after F11 or a video going
+  // fullscreen, the window stayed screen-sized (1920x1080) but no longer
+  // maximized, spilling past the right edge and under the taskbar
+  // (2026-09-28). So the placement is remembered here, and restored.
+  let placement = null;
+  const rememberPlacement = () => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed() || isFullscreenTracked || mainWindow.isMinimized()) return;
+      const b = mainWindow.getBounds();
+      const display = require('electron').screen.getDisplayMatching(b);
+      // Mid-way into fullscreen the window is already screen-sized; that is
+      // not a place to come back to.
+      if (b.width >= display.bounds.width && b.height >= display.bounds.height) return;
+      placement = { maximized: mainWindow.isMaximized(), bounds: mainWindow.isMaximized() ? (placement && placement.bounds) || b : b };
+    } catch (err) { console.warn('[Vex window] could not note its place:', err.message); }
+  };
+  function restorePlacementAfterFullscreen() {
+    setTimeout(() => {
+      try {
+        if (!mainWindow || mainWindow.isDestroyed() || isFullscreenTracked) return;
+        if (placement && placement.maximized) { if (!mainWindow.isMaximized()) mainWindow.maximize(); return; }
+        const b = (placement && placement.bounds) || mainWindow.getBounds();
+        const wa = require('electron').screen.getDisplayMatching(b).workArea;
+        const width = Math.min(b.width, wa.width), height = Math.min(b.height, wa.height);
+        const x = Math.min(Math.max(b.x, wa.x), wa.x + wa.width - width);
+        const y = Math.min(Math.max(b.y, wa.y), wa.y + wa.height - height);
+        mainWindow.setBounds({ x, y, width, height });
+      } catch (err) { console.warn('[Vex window] could not put it back after fullscreen:', err.message); }
+    }, 60);
+  }
+  for (const ev of ['move', 'resize', 'maximize', 'unmaximize']) mainWindow.on(ev, rememberPlacement);
+  rememberPlacement();
+  mainWindow.once('ready-to-show', rememberPlacement);
 
   // Signal renderer to save session before quit
   mainWindow.on('closed', () => {
@@ -4351,12 +4387,31 @@ app.whenReady().then(async () => {
 
 // IPC handlers
 ipcMain.on('window-minimize', e => secureSessions.owner(e.sender)?.win.minimize());
+// On this transparent frameless window, maximize() makes it fill the work
+// area but neither Electron nor Windows then call it maximized, so the button
+// always maximized again and never restored down (2026-09-28). "Maximized"
+// is therefore judged by whether it fills the work area, and the size it had
+// before is kept to go back to.
 ipcMain.on('window-maximize', e => {
   const win = secureSessions.owner(e.sender)?.win;
-  if (win?.isMaximized()) {
+  if (!win) return;
+  const b = win.getBounds();
+  const wa = require('electron').screen.getDisplayMatching(b).workArea;
+  const near = (a, c) => Math.abs(a - c) <= 2;
+  const fills = near(b.x, wa.x) && near(b.y, wa.y) && near(b.width, wa.width) && near(b.height, wa.height);
+  if (win.isMaximized() || fills) {
     win.unmaximize();
+    const back = win._vexRestoreBounds;
+    const now = win.getBounds();
+    if (near(now.width, wa.width) && near(now.height, wa.height)) {
+      const width = Math.min(back ? back.width : 1400, wa.width - 80), height = Math.min(back ? back.height : 900, wa.height - 80);
+      win.setBounds(back && !(near(back.width, wa.width) && near(back.height, wa.height))
+        ? { x: back.x, y: back.y, width, height }
+        : { x: Math.round(wa.x + (wa.width - width) / 2), y: Math.round(wa.y + (wa.height - height) / 2), width, height });
+    }
   } else {
-    win?.maximize();
+    win._vexRestoreBounds = b;
+    win.maximize();
   }
 });
 ipcMain.on('window-close', e => secureSessions.owner(e.sender)?.win.close());
