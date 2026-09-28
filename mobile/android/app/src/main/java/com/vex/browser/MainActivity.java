@@ -13,6 +13,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.JSObject;
 import com.vex.browser.block.VexBlockPlugin;
 import com.vex.browser.tabs.VexTabsPlugin;
+import com.vex.browser.vault.VexVaultPlugin;
 
 /**
  * The single activity. It hosts two WebView layers:
@@ -37,6 +38,7 @@ public class MainActivity extends BridgeActivity {
         // Local plugins must be registered before the bridge is built.
         registerPlugin(VexTabsPlugin.class);
         registerPlugin(VexBlockPlugin.class);
+        registerPlugin(VexVaultPlugin.class);
         super.onCreate(savedInstanceState);
 
         // The chrome has a hole in it where the page goes; a solid background

@@ -105,13 +105,14 @@ describe('the session', () => {
     await VexTabStore.activate(first.id);
     VexTabStore.persist();
     await new Promise(resolve => setTimeout(resolve, 500));
-    expect(store['vex.openTabs']).toEqual([{ url: 'https://a.example/', title: '' }]);
+    expect(store['vex.openTabs']).toEqual([{ url: 'https://a.example/', title: '', icon: '', scrollY: 0 }]);
     expect(store['vex.activeTabUrl']).toBe('https://a.example/');
   });
 
-  it('brings the last session back and restores the front tab', async () => {
+  it('brings the last session back, with the front tab and where it was scrolled', async () => {
+    window.VexBridge.restoreScroll = vi.fn(async () => {});
     store['vex.openTabs'] = [
-      { url: 'https://a.example/', title: 'A' },
+      { url: 'https://a.example/', title: 'A', scrollY: 640 },
       { url: 'https://b.example/', title: 'B' }
     ];
     store['vex.activeTabUrl'] = 'https://b.example/';
@@ -119,6 +120,8 @@ describe('the session', () => {
     expect(count).toBe(2);
     expect(VexTabStore.all()).toHaveLength(2);
     expect(VexTabStore.active().url).toBe('https://b.example/');
+    // Where you were on the page is part of where you were.
+    expect(window.VexBridge.restoreScroll).toHaveBeenCalledWith(expect.any(String), 640);
   });
 
   it('restores nothing when there was nothing open', async () => {

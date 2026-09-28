@@ -40,12 +40,22 @@ for (const file of walk(www)) {
 // The Android side: every plugin the bridge calls must exist in Java, or the
 // chrome would ship calls into a plugin nobody registered.
 const bridge = fs.readFileSync(path.join(www, 'js', 'bridge.js'), 'utf8');
-for (const plugin of ['VexTabs', 'VexBlock']) {
+for (const plugin of ['VexTabs', 'VexBlock', 'VexVault']) {
   if (!bridge.includes(plugin)) continue;
   const java = walk(path.join(root, 'android', 'app', 'src', 'main', 'java'))
     .some(file => fs.readFileSync(file, 'utf8').includes('name = "' + plugin + '"'));
   checked++;
   if (!java) failures.push('bridge.js calls ' + plugin + ' but no @CapacitorPlugin declares it');
+}
+
+// Every method the bridge calls has to exist as a @PluginMethod, or the chrome
+// ships a call into native that rejects at runtime with "no such method".
+const javaSources = walk(path.join(root, 'android', 'app', 'src', 'main', 'java'))
+  .map(file => fs.readFileSync(file, 'utf8')).join('\n');
+const nativeMethods = new Set([...javaSources.matchAll(/@PluginMethod[\s\S]{0,120}?public void (\w+)\s*\(/g)].map(match => match[1]));
+for (const match of bridge.matchAll(/call\('(\w+)'/g)) {
+  checked++;
+  if (!nativeMethods.has(match[1])) failures.push("bridge.js calls VexTabs." + match[1] + '() but no @PluginMethod defines it');
 }
 
 if (failures.length) {

@@ -1,6 +1,8 @@
 package com.vex.browser.tabs;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.util.DisplayMetrics;
 import android.view.View;
@@ -44,6 +46,7 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     private int sequence;
     private boolean visible = true;
     private int textZoom = 100;
+    private String documentStartScript = "";
     private int[] bounds = new int[]{0, 0, 0, 0};    // left, top, width, height in px
 
     @Override
@@ -98,6 +101,7 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         getActivity().runOnUiThread(() -> {
             TabWebView tab = new TabWebView(getContext(), id, incognito, this);
             tab.setTextZoom(textZoom);
+            if (!documentStartScript.isEmpty()) tab.setDocumentStartScript(documentStartScript);
             tab.setVisibility(View.GONE);
             container.addView(tab, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -288,6 +292,106 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
             textZoom = percent;
             for (TabWebView tab : tabs.values()) tab.setTextZoom(percent);
             call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void setScriptsEnabled(PluginCall call) {
+        final boolean enabled = !Boolean.FALSE.equals(call.getBoolean("enabled", true));
+        withTab(call, tab -> tab.setScriptsEnabled(enabled));
+    }
+
+    @PluginMethod
+    public void setImagesEnabled(PluginCall call) {
+        final boolean enabled = !Boolean.FALSE.equals(call.getBoolean("enabled", true));
+        withTab(call, tab -> tab.setImagesEnabled(enabled));
+    }
+
+    @PluginMethod
+    public void setZoom(PluginCall call) {
+        final float factor = call.getFloat("factor", 1f);
+        withTab(call, tab -> tab.setZoom(factor));
+    }
+
+    @PluginMethod
+    public void setUserAgent(PluginCall call) {
+        final String userAgent = call.getString("userAgent", "");
+        withTab(call, tab -> tab.setUserAgent(userAgent));
+    }
+
+    @PluginMethod
+    public void print(PluginCall call) {
+        withTab(call, TabWebView::print);
+    }
+
+    @PluginMethod
+    public void download(PluginCall call) {
+        final String url = call.getString("url", "");
+        withTab(call, tab -> tab.download(url));
+    }
+
+    @PluginMethod
+    public void scrollPosition(PluginCall call) {
+        final String id = call.getString("id");
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            JSObject result = new JSObject();
+            result.put("y", tab == null ? 0 : tab.scrollY());
+            call.resolve(result);
+        });
+    }
+
+    @PluginMethod
+    public void restoreScroll(PluginCall call) {
+        final int y = call.getInt("y", 0);
+        withTab(call, tab -> tab.restoreScroll(y));
+    }
+
+    /**
+     * Install a script that runs before any page script, on every tab. The
+     * chrome owns what it says (js/shield.js); this only decides where it goes.
+     */
+    @PluginMethod
+    public void setDocumentStartScript(PluginCall call) {
+        final String script = call.getString("script", "");
+        getActivity().runOnUiThread(() -> {
+            documentStartScript = script;
+            boolean everyTab = true;
+            for (TabWebView tab : tabs.values()) everyTab &= tab.setDocumentStartScript(script);
+            JSObject result = new JSObject();
+            // false means the device's WebView is too old for a true
+            // document-start hook and the script runs at page-start instead.
+            result.put("atDocumentStart", everyTab);
+            call.resolve(result);
+        });
+    }
+
+    /**
+     * Paint the window and the system bars in the current theme. Without this
+     * the area behind the chrome and the gesture bar stay the launch colour,
+     * which is very visible on a dark theme and on rotation.
+     */
+    @PluginMethod
+    public void setWindowBackground(PluginCall call) {
+        final String color = call.getString("color", "#000000");
+        final boolean dark = Boolean.TRUE.equals(call.getBoolean("dark", true));
+        getActivity().runOnUiThread(() -> {
+            try {
+                int value = Color.parseColor(color);
+                getActivity().getWindow().setBackgroundDrawable(new ColorDrawable(value));
+                getActivity().getWindow().setNavigationBarColor(value);
+                getActivity().getWindow().setStatusBarColor(value);
+                View decor = getActivity().getWindow().getDecorView();
+                int flags = decor.getSystemUiVisibility();
+                // Light system bars need dark icons, and the other way round.
+                flags = dark
+                        ? flags & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                        : flags | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                decor.setSystemUiVisibility(flags);
+                call.resolve();
+            } catch (IllegalArgumentException ex) {
+                call.reject("Not a colour: " + color);
+            }
         });
     }
 

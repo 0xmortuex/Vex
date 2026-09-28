@@ -16,7 +16,8 @@
 
 const VexBridge = (() => {
   const listeners = new Map();          // event -> Set<fn>
-  let Tabs = null, Block = null;
+  const devSecrets = Object.create(null);   // fallback only; never persisted
+  let Tabs = null, Block = null, Vault = null;
   let native = false;
 
   function emit(event, payload) {
@@ -106,6 +107,7 @@ const VexBridge = (() => {
       if (native) {
         Tabs = cap.Plugins.VexTabs;
         Block = cap.Plugins.VexBlock || null;
+        Vault = cap.Plugins.VexVault || null;
         for (const event of ['loadStart', 'loadProgress', 'loadEnd', 'title', 'urlChange', 'icon',
           'newTab', 'download', 'error', 'blocked', 'findResult', 'permission', 'edgeSwipe', 'longPress']) {
           Tabs.addListener(event, data => emit(event, data));
@@ -139,6 +141,15 @@ const VexBridge = (() => {
     clearFind(id) { return call('clearFind', { id }); },
     setDesktopMode(id, enabled) { return call('setDesktopMode', { id, enabled: !!enabled }); },
     setDarkMode(id, enabled) { return call('setDarkMode', { id, enabled: !!enabled }); },
+    setScriptsEnabled(id, enabled) { return call('setScriptsEnabled', { id, enabled: enabled !== false }); },
+    setImagesEnabled(id, enabled) { return call('setImagesEnabled', { id, enabled: enabled !== false }); },
+    setZoom(id, factor) { return call('setZoom', { id, factor: Number(factor) || 1 }); },
+    setUserAgent(id, userAgent) { return call('setUserAgent', { id, userAgent: userAgent || '' }); },
+    print(id) { return call('print', { id }); },
+    download(id, url) { return call('download', { id, url }); },
+    scrollPosition(id) { return call('scrollPosition', { id }); },
+    restoreScroll(id, y) { return call('restoreScroll', { id, y: Math.round(y) || 0 }); },
+    setDocumentStartScript(script) { return call('setDocumentStartScript', { script: script || '' }); },
     setTextZoom(percent) { return call('setTextZoom', { percent }); },
     evaluate(id, code) { return call('evaluate', { id, code }); },
     clearData(opts = {}) { return call('clearData', opts); },
@@ -150,19 +161,45 @@ const VexBridge = (() => {
     async blockStats() { return Block ? Block.stats() : { blocked: 0, rules: 0 }; },
     async loadRules(payload) { return Block ? Block.loadRules(payload) : {}; },
 
+    // ── Secrets ────────────────────────────────────────────────────────────
+    // Backed by the Android Keystore (VexVault). In the browser fallback there
+    // is no keystore and no native layer, so a secret would have nowhere safe
+    // to live: it is kept in memory for the session and forgotten after it.
+    async vaultSet(key, value) {
+      if (Vault) { await Vault.set({ key, value: value || '' }); return; }
+      devSecrets[key] = value || '';
+    },
+    async vaultGet(key) {
+      if (Vault) {
+        const result = await Vault.get({ key }).catch(() => ({ value: '' }));
+        return (result && result.value) || '';
+      }
+      return devSecrets[key] || '';
+    },
+    async vaultClear() {
+      if (Vault) { await Vault.clear(); return; }
+      for (const key of Object.keys(devSecrets)) delete devSecrets[key];
+    },
+
     // ── Platform odds and ends ─────────────────────────────────────────────
     async share(url, title) {
       const plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Share;
       if (plugin) { try { await plugin.share({ title: title || url, url, dialogTitle: 'Share link' }); } catch {} return; }
       if (navigator.share) { try { await navigator.share({ title, url }); } catch {} }
     },
-    async setStatusBarStyle(dark) {
+    // `dark` describes the THEME, so the bar's icons have to be the opposite:
+    // a dark theme gets light icons, which Capacitor calls style DARK.
+    async setStatusBarStyle(dark, color) {
       const plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
       if (!plugin) return;
       try {
         await plugin.setStyle({ style: dark ? 'DARK' : 'LIGHT' });
-        await plugin.setBackgroundColor({ color: dark ? '#14161a' : '#faf6ee' });
+        if (color) await plugin.setBackgroundColor({ color });
       } catch {}
+    },
+    setWindowBackground(color, dark) {
+      if (!Tabs) return Promise.resolve({});
+      return call('setWindowBackground', { color, dark: dark !== false });
     },
     onAppEvent(name, fn) {
       const plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;

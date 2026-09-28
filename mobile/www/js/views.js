@@ -1,0 +1,199 @@
+// === Vex Mobile — reader and assistant ===
+//
+// The two full-screen views that render page content rather than chrome. Both
+// take text that came out of a web page or a worker, and both put it on screen
+// as text nodes only — no innerHTML path touches either. A page that could
+// inject markup into the reader would be reading its own script back into the
+// chrome's privileged context, which is the one thing this layer must not do.
+
+const VexViews = (() => {
+  const { $, el, icon, clear } = VexDom;
+
+  const READER_SIZES = [15, 17, 19, 21, 24, 27];
+  const SAFE_IMAGE = /^(https:|data:image\/)/i;
+
+  // ── Reader ───────────────────────────────────────────────────────────────
+  function readerSize() {
+    const stored = Number(VexStore.get('vex.readerSize', 19));
+    return READER_SIZES.includes(stored) ? stored : 19;
+  }
+
+  function applyReaderSize(size) {
+    document.documentElement.style.setProperty('--reader-size', size + 'px');
+  }
+
+  function renderArticle(article) {
+    const body = clear($('reader-body'));
+    body.appendChild(el('h1', null, article.title || 'Untitled'));
+
+    const bits = [];
+    if (article.byline) bits.push(article.byline);
+    if (article.published) {
+      const date = new Date(article.published);
+      if (!isNaN(date)) bits.push(date.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }));
+    }
+    bits.push(VexReader.estimateMinutes(article) + ' min read');
+    body.appendChild(el('p', 'reader-meta', bits.join(' · ')));
+
+    for (const block of article.blocks) {
+      if (block.type === 'img') {
+        if (!SAFE_IMAGE.test(String(block.src || ''))) continue;
+        body.appendChild(el('img', { src: block.src, alt: block.alt || '', loading: 'lazy' }));
+        continue;
+      }
+      const tag = ['h1', 'h2', 'h3', 'h4', 'p', 'li', 'blockquote', 'pre', 'figcaption'].includes(block.type)
+        ? (block.type === 'h1' ? 'h2' : block.type)     // the article's own h1 is the title
+        : 'p';
+      body.appendChild(el(tag, null, block.text));
+    }
+    body.scrollTop = 0;
+  }
+
+  // ── Assistant ────────────────────────────────────────────────────────────
+  function renderChat() {
+    const log = clear($('vex-chat-log'));
+    if (!VexAI.state.messages.length) {
+      const empty = el('div', 'list-empty');
+      empty.appendChild(document.createTextNode(
+        'Ask about the page you are on, or anything else. The question, and the page text with it, '
+        + 'go to the worker you configured — nothing else sees them.'));
+      log.appendChild(empty);
+    }
+    for (const message of VexAI.state.messages) {
+      log.appendChild(el('div', 'bubble ' + message.role, message.text));
+    }
+    if (VexAI.state.busy) log.appendChild(el('div', 'bubble assistant thinking', 'Thinking…'));
+
+    const last = VexAI.state.messages[VexAI.state.messages.length - 1];
+    const suggest = clear($('vex-chat-suggest'));
+    const followUps = last && last.role === 'assistant' ? (last.followUps || []) : [];
+    for (const followUp of followUps) {
+      suggest.appendChild(el('button', { class: 'chip', onclick: () => ask(followUp) }, followUp));
+    }
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function ask(text, options) {
+    const input = $('vex-chat-input');
+    if (input) input.value = '';
+    renderChat();
+    try {
+      await VexAI.ask(text, options);
+    } catch {
+      // The failure is already the last message in the log.
+    }
+    renderChat();
+  }
+
+  function chatLayout() {
+    const body = clear($('panel-body'));
+    const wrap = el('div', 'chat');
+    wrap.appendChild(el('div', { class: 'chat-log', id: 'vex-chat-log' }));
+
+    const context = VexAI.state.context;
+    if (context) wrap.appendChild(el('div', 'chat-context', 'About: ' + (context.title || context.url)));
+
+    wrap.appendChild(el('div', { class: 'chat-suggest', id: 'vex-chat-suggest' }));
+
+    const compose = el('div', 'chat-compose');
+    const input = el('textarea', {
+      id: 'vex-chat-input', rows: 1, placeholder: 'Ask about this page…',
+      enterkeyhint: 'send', autocapitalize: 'sentences'
+    });
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(120, input.scrollHeight) + 'px';
+    });
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        const value = input.value.trim();
+        if (value) ask(value);
+      }
+    });
+    compose.appendChild(input);
+    const send = el('button', { class: 'chat-send', 'aria-label': 'Send' });
+    send.appendChild(icon('send'));
+    send.onclick = () => { const value = input.value.trim(); if (value) ask(value); };
+    compose.appendChild(send);
+    wrap.appendChild(compose);
+    body.appendChild(wrap);
+  }
+
+  return {
+    // ── Reader ─────────────────────────────────────────────────────────────
+    async openReader() {
+      const tab = VexTabStore.active();
+      if (!tab || !tab.url || tab.url === 'about:blank') { VexUI.toast('Open a page first'); return; }
+      VexUI.toast('Reading…', 900);
+      let article = null;
+      try { article = await VexReader.extract(tab.id); } catch { article = null; }
+      if (!article || !article.ok) { VexUI.toast('No article found on this page'); return; }
+
+      applyReaderSize(readerSize());
+      renderArticle(article);
+      $('reader-meta').textContent = VexSearch.prettyHost(tab.url);
+      $('reader').hidden = false;
+      VexUI.cover(true);
+      this._article = article;
+    },
+
+    closeReader() {
+      if ($('reader').hidden) return;
+      $('reader').hidden = true;
+      VexUI.cover(false);
+    },
+
+    readerOpen() { return !$('reader').hidden; },
+
+    async stepReaderSize(direction) {
+      const index = READER_SIZES.indexOf(readerSize());
+      const next = READER_SIZES[Math.min(READER_SIZES.length - 1, Math.max(0, index + direction))];
+      await VexStore.set('vex.readerSize', next);
+      applyReaderSize(next);
+    },
+
+    // ── Assistant ──────────────────────────────────────────────────────────
+    async openAI(prefill) {
+      $('panel-title').textContent = 'Assistant';
+      $('panel-search').hidden = true;
+      const action = $('panel-action');
+      action.hidden = false;
+      action.textContent = 'Clear';
+      action.onclick = () => { VexAI.clear(); renderChat(); };
+      chatLayout();
+      renderChat();
+      $('panel').hidden = false;
+      VexUI.cover(true);
+      VexPanels.markOpen('ai');
+
+      if (!(await VexAI.configured())) {
+        VexAI.state.messages.push({
+          role: 'error',
+          text: 'No assistant configured yet. Settings → Assistant takes a worker URL and an access '
+            + 'token — the same Cloudflare Worker the desktop app uses (see SELF_HOSTING.md).',
+          at: Date.now()
+        });
+        renderChat();
+        return;
+      }
+      if (prefill) ask(prefill);
+    },
+
+    askAI: ask,
+    renderChat,
+
+    async summarisePage() {
+      await this.openAI();
+      if (!(await VexAI.configured())) return;
+      renderChat();
+      try { await VexAI.summarize(); } catch {}
+      renderChat();
+    },
+
+    anyOpen() { return this.readerOpen() || !$('panel').hidden; }
+  };
+})();
+
+if (typeof window !== 'undefined') window.VexViews = VexViews;
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexViews };

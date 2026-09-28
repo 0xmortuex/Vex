@@ -259,7 +259,9 @@ npm run dist:win   # build the signed Windows installer
 
 ## Vex for Android (in progress)
 
-`mobile/` holds an Android port in progress: the Vex chrome rendered by Capacitor, real pages rendered by Android's system WebView, and a native layer doing the work the desktop main process does — tabs, request blocking, downloads, find in page, edge‑swipe navigation. It is a working scaffold, not a release.
+`mobile/` holds an Android port: the Vex chrome rendered by Capacitor, real pages rendered by Android's system WebView, and a native layer doing what the desktop main process does.
+
+It already carries the parts that make Vex *Vex* — all eight themes (generated from the desktop's own token file), skins, the reader, the AI assistant against your own worker, per‑site rules, ad/tracker blocking with cosmetic filtering, and a fingerprint shield that runs before the page's first script — plus tabs with a snapshot switcher, private tabs, session restore, find, print/save‑as‑PDF, long‑press menus and edge‑swipe navigation.
 
 ```bash
 cd mobile
@@ -268,7 +270,7 @@ npx cap sync android
 cd android && ./gradlew assembleDebug
 ```
 
-What does and does not survive the move — DRM, extensions, Tor/ByeDPI and on‑device AI all have hard answers — is written down feature by feature in [`mobile/PORTING.md`](mobile/PORTING.md). Build and development notes are in [`mobile/README.md`](mobile/README.md).
+It has not been assembled by Gradle yet, though every Android source is type‑checked against the real framework on `npm run check`. What survives the move and what does not — DRM, extensions, Tor/ByeDPI and on‑device AI all have hard answers — is written down feature by feature in [`mobile/PORTING.md`](mobile/PORTING.md). Build and development notes: [`mobile/README.md`](mobile/README.md).
 
 ---
 

@@ -63,13 +63,13 @@ const VexSearch = (() => {
         if (rows.length >= limit) break;
         if (!match(bookmark)) continue;
         seen.add(bookmark.url);
-        rows.push({ kind: 'bookmark', title: bookmark.title || bookmark.url, url: bookmark.url });
+        rows.push({ kind: 'bookmark', title: bookmark.title || bookmark.url, url: bookmark.url, icon: bookmark.icon || '' });
       }
       for (const entry of VexStore.get('vex.history', [])) {
         if (rows.length >= limit) break;
         if (!match(entry)) continue;
         seen.add(entry.url);
-        rows.push({ kind: 'history', title: entry.title || entry.url, url: entry.url });
+        rows.push({ kind: 'history', title: entry.title || entry.url, url: entry.url, icon: entry.icon || '' });
       }
       return rows;
     },

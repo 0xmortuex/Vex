@@ -33,6 +33,9 @@ const VexTabStore = (() => {
       desktopMode: false,
       blocked: 0,
       snapshot: '',
+      icon: '',
+      themeColor: '',
+      scrollY: 0,
       createdAt: Date.now(),
       lastActiveAt: Date.now()
     };
@@ -119,7 +122,9 @@ const VexTabStore = (() => {
       if (!window.VexStore) return;
       clearTimeout(this._persistTimer);
       this._persistTimer = setTimeout(() => {
-        const open = this.normal().map(tab => ({ url: tab.url, title: tab.title }));
+        const open = this.normal().map(tab => ({
+          url: tab.url, title: tab.title, icon: tab.icon || '', scrollY: tab.scrollY || 0
+        }));
         VexStore.set('vex.openTabs', open);
         const active = this.active();
         VexStore.set('vex.activeTabUrl', active && !active.incognito ? active.url : '');
@@ -135,7 +140,15 @@ const VexTabStore = (() => {
       for (const entry of saved) {
         if (!entry || !entry.url) continue;
         const tab = await this.create(entry.url, { background: true });
-        if (tab) { tab.title = entry.title || ''; if (entry.url === wanted) restoredActive = tab.id; }
+        if (!tab) continue;
+        tab.title = entry.title || '';
+        tab.icon = entry.icon || '';
+        // Where you were on the page is part of where you were.
+        if (entry.scrollY > 0) {
+          tab.scrollY = entry.scrollY;
+          VexBridge.restoreScroll(tab.id, entry.scrollY);
+        }
+        if (entry.url === wanted) restoredActive = tab.id;
       }
       const first = this.all()[0];
       if (restoredActive) await this.activate(restoredActive);

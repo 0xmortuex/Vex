@@ -1,13 +1,35 @@
 # Vex for Android
 
 The Vex browser as a native Android app: the Vex chrome rendered by Capacitor,
-real pages rendered by Android's system WebView, and a native layer that does
-the jobs Electron's main process does on the desktop.
+real pages rendered by Android's system WebView, and a native layer doing the
+work Electron's main process does on the desktop.
 
-This is a working scaffold, not a shipped app. It has never been compiled
-against the Android SDK — see *Build and verification status* in
-[PORTING.md](PORTING.md), which also says feature by feature what the desktop
-browser can and cannot bring to a phone. Read that before planning work on it.
+It is not a release. It has never been assembled by Gradle — this machine has
+no Android SDK — though every Java source is type-checked against the real
+Android framework on each `npm run check` (see **Checks** below).
+[PORTING.md](PORTING.md) says, feature by feature, what the desktop browser can
+and cannot bring to a phone. Read that before planning work here.
+
+## What it does today
+
+**Browsing** — tabs with a snapshot switcher and tab search, private tabs (own
+WebView profile on WebView 116+), session restore down to the scroll position,
+find in page, edge-swipe back and forward, long-press menus on links and
+images, downloads through DownloadManager, file uploads, fullscreen video,
+print and save-as-PDF, share and open-from-other-apps, Android back that walks
+the UI the way the system expects.
+
+**Vex's own things** — the eight desktop themes, generated from the desktop's
+own token file; seven skins drawn in the theme's ink; the interface typefaces;
+a reader that pulls the article out of a page and sets it in Spectral; the
+assistant, talking to the Cloudflare Worker you deploy yourself; per-site rules
+(JavaScript, images, dark, desktop layout, text size, blocking); ad and tracker
+blocking with cosmetic filtering; a fingerprint shield that runs before the
+page's first script.
+
+**Privacy defaults** — third-party cookies off, HTTPS upgrades, DNT and GPC
+headers, SSL errors that refuse rather than offer a way past, private tabs that
+never reach history and never send page text to the assistant.
 
 ## How it fits together
 
@@ -17,7 +39,7 @@ browser can and cannot bring to a phone. Read that before planning work on it.
 │                                             │
 │  ┌───────────────────────────────────────┐  │
 │  │ chrome WebView  ← mobile/www          │  │  toolbar, omnibox, tab grid,
-│  │   window.VexBridge ──────────┐        │  │  sheets, panels
+│  │   window.VexBridge ──────────┐        │  │  sheets, reader, assistant
 │  └──────────────────────────────┼────────┘  │
 │  ┌──────────────────────────────▼────────┐  │
 │  │ EdgeSwipeLayout (the content rect)    │  │  positioned by setBounds()
@@ -34,8 +56,41 @@ whole codebase:
    with `VexBridge.setBounds()`, which `VexUI.scheduleBounds()` does on resize,
    rotation and keyboard show/hide.
 2. **A native view always paints above HTML.** Anything that covers the page —
-   the tab grid, a sheet, a panel — calls `VexBridge.setVisible(false)` first,
-   and `VexUI.cover()` refcounts that so two overlays do not uncover each other.
+   the tab grid, a sheet, a panel, the reader — calls `VexBridge.setVisible(false)`
+   through `VexUI.cover()`, which refcounts so two overlays cannot uncover
+   each other.
+
+### The chrome, file by file
+
+| File | Holds |
+|---|---|
+| `www/js/bridge.js` | `window.VexBridge` — the mobile answer to the desktop's `window.vex` |
+| `www/js/dom.js` | element helpers; nothing here has an innerHTML path for outside text |
+| `www/js/storage.js` | async key/value over Preferences, same key names as the desktop |
+| `www/js/theme.js` | themes, skins, fonts, the page's own theme colour |
+| `www/js/tabs.js` | the tab model (`VexTabStore`) — no views, only what the chrome draws |
+| `www/js/adblock.js` | filter lists: fetching, parsing, refresh |
+| `www/js/shield.js` | the fingerprint script that runs before page scripts |
+| `www/js/site-rules.js` | per-host switches, and pushing them into a tab |
+| `www/js/reader.js` | article extraction (runs in the page) and its parsing |
+| `www/js/ai.js` | the assistant client for your own worker |
+| `www/js/ui.js` | toolbar, omnibox, tab switcher, find, toasts, geometry |
+| `www/js/sheets.js` | the menu, the site sheet, long-press menus |
+| `www/js/views.js` | reader and assistant views |
+| `www/js/panels.js` | history, bookmarks, downloads, the settings tree |
+| `www/js/start.js` | the start page |
+
+### The native layer
+
+| File | Holds |
+|---|---|
+| `MainActivity.java` | plugin registration, the file chooser, browser intents |
+| `tabs/VexTabsPlugin.java` | creates, positions, shows and destroys page WebViews |
+| `tabs/TabWebView.java` | one tab: settings, clients, downloads, find, snapshot, print |
+| `tabs/EdgeSwipeLayout.java` | back/forward edge gestures over the page |
+| `block/BlockEngine.java` | request matching inside `shouldInterceptRequest` |
+| `block/VexBlockPlugin.java` | the JS control surface for it |
+| `vault/VexVaultPlugin.java` | AES/GCM secrets under an Android Keystore key |
 
 ## Build
 
@@ -52,67 +107,88 @@ cd android
 
 `npx cap sync` generates `android/capacitor.settings.gradle`,
 `android/app/capacitor.build.gradle` and `android/capacitor-cordova-android-plugins/`.
-None of them are in git, and the Gradle files guard against their absence — so
-**run sync before Gradle** on a fresh clone.
+None are in git, and the Gradle files guard against their absence — so **run
+sync before Gradle** on a fresh clone. There is no Gradle wrapper in the repo;
+generate one with `gradle wrapper --gradle-version 8.13`, or let Android Studio
+do it.
 
-There is no Gradle wrapper in the repo. Generate one once with
-`gradle wrapper --gradle-version 8.13` (or open the project in Android Studio,
-which does it for you).
+## Checks
+
+```bash
+npm run check        # chrome parse + references + bridge/native contract,
+                     # themes in step with the desktop, Java type-check
+npm run smoke        # drive the whole chrome in a phone-sized Chromium
+npm test             # (from the repo root) 80 vitest cases over the chrome logic
+```
+
+`npm run check:java` compiles every Android source with plain javac against the
+real Android framework — Robolectric's `android-all` jar, which carries the
+actual `android.webkit` classes — plus small androidx and Capacitor stubs in
+`tools/stubs`, because those live on Google's Maven. It catches what a compiler
+catches: wrong signatures, missing imports, unhandled exceptions. It is not a
+substitute for Gradle, and the stubs are the part to distrust — if one drifts
+from the real library, the check passes and the build still fails. The
+framework jar is fetched once (~210 MB) and cached in `~/.cache/vex-mobile`;
+set `ANDROID_JAR` or `ANDROID_HOME` to use your own, or pass `--offline` to
+skip rather than fail.
+
+`npm run themes` regenerates `www/css/themes.css` and `www/js/themes-data.js`
+from `src/renderer/css/theme-tokens.css`. `npm run check` fails if they are
+stale, so a desktop theme change cannot quietly leave the phone behind.
 
 ## Develop the chrome without a device
 
 `mobile/www/index.html` opens in a desktop browser. With no Capacitor present,
 `VexBridge` falls back to iframes, so layout, the omnibox, the tab grid,
-sheets, panels and gestures all work. What does not: real navigation to sites
-that refuse framing, blocking, snapshots, find-in-page, and downloads — those
-are native paths with no browser equivalent.
-
-```bash
-npm run check                 # parse every chrome script, check every reference
-npm run smoke                 # drive the chrome in a phone-sized Chromium
-```
-
-`npm run smoke` needs Playwright (`npm i -D playwright && npx playwright install
-chromium`); set `CHROMIUM_PATH` to reuse a Chromium that is already on the
-machine. It walks the paths a person actually takes — omnibox, menu, new tab,
-tab switcher, bookmarks, settings, find, private tab, Android back — and fails
-on any page error or wrong state.
+sheets, panels, the reader and the assistant all work. What does not: real
+navigation to sites that refuse framing, blocking, snapshots, find-in-page,
+downloads and the Keystore — those are native paths with no browser
+equivalent (in the fallback, a secret is kept in memory for the session and
+then forgotten, never written to disk).
 
 ## The plugin API
 
-`VexTabs` (`android/…/tabs/VexTabsPlugin.java`), called through
-`window.VexBridge`:
+`VexTabs` — page WebViews, called through `window.VexBridge`:
 
 | Method | Does |
 |---|---|
 | `create({url, incognito})` → `{id}` | New page WebView, hidden until activated |
-| `close({id})` / `activate({id})` | Destroy / bring to front |
+| `close` / `activate` | Destroy / bring to front |
 | `setBounds({x,y,width,height})` | Position the content rect, in CSS pixels |
 | `setVisible({visible})` | Hide the page so chrome can cover it |
 | `load` `back` `forward` `reload` `stop` `state` | Navigation |
 | `find` `findNext` `clearFind` | Find in page |
-| `snapshot({id})` → `{dataUrl}` | JPEG for the tab switcher |
-| `setDesktopMode` `setDarkMode` `setTextZoom` | Page presentation |
+| `snapshot` → `{dataUrl}` | JPEG for the tab switcher |
+| `setDesktopMode` `setDarkMode` `setTextZoom` `setZoom` `setUserAgent` | Presentation |
+| `setScriptsEnabled` `setImagesEnabled` | Per-site rules |
+| `setDocumentStartScript({script})` → `{atDocumentStart}` | The shield, before page scripts |
 | `setPrivacy({httpsOnly, doNotTrack})` | Applies to every tab |
-| `evaluate({id, code})` | Run script in a page (what an agent would use) |
+| `print` `download({url})` | System print dialog, DownloadManager |
+| `scrollPosition` `restoreScroll` | Session restore |
+| `evaluate({id, code})` | Run script in a page (the reader and the assistant use it) |
 | `clearData({cookies, cache, storage})` | Clear browsing data |
+| `setWindowBackground({color, dark})` | Theme the window and system bars |
 
-Events: `loadStart` `loadProgress` `loadEnd` `title` `urlChange` `newTab`
-`download` `blocked` `findResult` `error` `permission` `edgeSwipe`
-`fullscreen`.
+Events: `loadStart` `loadProgress` `loadEnd` `title` `urlChange` `icon`
+`newTab` `download` `blocked` `findResult` `error` `permission` `edgeSwipe`
+`longPress` `fullscreen`.
 
-`VexBlock` (`android/…/block/VexBlockPlugin.java`): `setEnabled`,
-`setSiteAllowed`, `loadRules({block, allow, hide})`, `stats`. Filter text is
-parsed in JS (`www/js/adblock.js`) and handed over already split; matching
-happens natively inside `shouldInterceptRequest`.
+`VexBlock`: `setEnabled`, `setSiteAllowed`, `loadRules({block, allow, hide})`,
+`stats`. Filter text is parsed in JS (`www/js/adblock.js`) and handed over
+already split; matching happens natively inside `shouldInterceptRequest`.
 
-## Known limits in this scaffold
+`VexVault`: `set`, `get`, `has`, `clear` — AES/GCM under a key that never
+leaves the Android Keystore. The assistant's token is the only thing using it
+so far.
 
-- Never compiled; first build will need fixing up.
-- Private tabs only get a separate cookie jar on WebView 116+.
+## Known limits
+
+- Never assembled by Gradle; the first real build will need fixing up.
+- Private tabs only get a separate cookie jar on WebView 116+ (multi-profile).
 - History and bookmarks live in SharedPreferences — fine for hundreds of rows,
-  not for thousands.
-- The blocker implements a subset of EasyList syntax (see PORTING.md).
+  not for thousands. SQLite before that becomes the slowest screen in the app.
+- The blocker implements a subset of EasyList syntax; see PORTING.md.
+- The fingerprint shield needs WebView 83+ to run before page scripts. Older
+  WebViews run it at page start, which a fast tracker can beat; the privacy
+  screen says so when that is the case.
 - Launcher icons are placeholder vectors.
-- No tests beyond `npm run check`; the desktop app's vitest suite does not
-  cover this tree.

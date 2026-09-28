@@ -1,6 +1,9 @@
 package com.vex.browser.tabs;
 
 import android.app.DownloadManager;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -30,12 +33,14 @@ import android.webkit.WebViewClient;
 
 import androidx.core.content.ContextCompat;
 import androidx.webkit.WebSettingsCompat;
+import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import com.getcapacitor.JSObject;
 import com.vex.browser.block.BlockEngine;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -75,6 +80,8 @@ public class TabWebView extends WebView {
     private final AtomicInteger blockedPending = new AtomicInteger();
 
     private String pageHost = "";
+    private String pendingStartScript = "";
+    private androidx.webkit.ScriptHandler documentStart;
     private boolean desktopMode;
     private boolean flushScheduled;
     private static boolean httpsOnly = true;
@@ -150,7 +157,36 @@ public class TabWebView extends WebView {
             host.emit("findResult", data);
         });
         setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) ->
-                startDownload(url, userAgent, contentDisposition, mimeType));
+                startDownload(url, userAgent, contentDisposition, mimeType, contentLength));
+
+        // Long-press on a link or an image. The chrome draws the sheet; all it
+        // needs from here is what was under the finger.
+        setOnLongClickListener(view -> {
+            HitTestResult hit = getHitTestResult();
+            if (hit == null) return false;
+            String link = null, image = null;
+            switch (hit.getType()) {
+                case HitTestResult.SRC_ANCHOR_TYPE:
+                    link = hit.getExtra();
+                    break;
+                case HitTestResult.SRC_IMAGE_ANCHOR_TYPE:
+                    image = hit.getExtra();
+                    // The anchor's href is not in the hit result; ask the page.
+                    requestLinkForImage();
+                    break;
+                case HitTestResult.IMAGE_TYPE:
+                    image = hit.getExtra();
+                    break;
+                default:
+                    return false;
+            }
+            JSObject data = new JSObject();
+            data.put("id", id);
+            data.put("link", link == null ? "" : link);
+            data.put("image", image == null ? "" : image);
+            host.emit("longPress", data);
+            return true;
+        });
     }
 
     public static final String PRIVATE_PROFILE = "vex-private";
@@ -257,6 +293,104 @@ public class TabWebView extends WebView {
         return "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
     }
 
+    public void setScriptsEnabled(boolean enabled) {
+        // A page cannot be un-run, so this takes effect on the next load. The
+        // chrome reloads after flipping it (js/site-rules.js).
+        getSettings().setJavaScriptEnabled(enabled);
+    }
+
+    public void setImagesEnabled(boolean enabled) {
+        getSettings().setLoadsImagesAutomatically(enabled);
+        getSettings().setBlockNetworkImage(!enabled);
+    }
+
+    public void setZoom(float factor) {
+        // WebView has no setZoomFactor; text zoom is the honest equivalent and
+        // does not break layouts the way a forced viewport scale does.
+        getSettings().setTextZoom(Math.max(50, Math.min(300, Math.round(factor * 100))));
+    }
+
+    public void setUserAgent(String userAgent) {
+        getSettings().setUserAgentString(userAgent == null || userAgent.isEmpty() ? null : userAgent);
+    }
+
+    /**
+     * Run a script before any page script on every future navigation. This is
+     * the hook the desktop build gets from a preload: fingerprint shims have to
+     * be in place before the page's first line runs, and anything injected at
+     * onPageStarted is already too late for a script in <head>.
+     *
+     * Needs WebView 83+ (DOCUMENT_START_SCRIPT). Without it the caller still
+     * gets the page-started injection, which covers most pages and not the
+     * fastest ones — see PORTING.md.
+     */
+    public boolean setDocumentStartScript(String script) {
+        if (documentStart != null) {
+            try { documentStart.remove(); } catch (Throwable ignored) { }
+            documentStart = null;
+        }
+        if (script == null || script.isEmpty()) return true;
+        pendingStartScript = script;
+        try {
+            if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return false;
+            documentStart = WebViewCompat.addDocumentStartJavaScript(this, script, Collections.singleton("*"));
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** The system print dialog, which is also how Android saves a page as PDF. */
+    public void print() {
+        PrintManager manager = (PrintManager) getContext().getSystemService(Context.PRINT_SERVICE);
+        if (manager == null) return;
+        String name = (getTitle() == null || getTitle().isEmpty() ? "Vex page" : getTitle()).replaceAll("[\\\\/:*?\"<>|]", "-");
+        PrintDocumentAdapter adapter = createPrintDocumentAdapter(name);
+        manager.print(name, adapter, new PrintAttributes.Builder().build());
+    }
+
+    /** Download a URL the user chose from the long-press sheet. */
+    public void download(String url) {
+        startDownload(url, getSettings().getUserAgentString(), null, null, 0);
+    }
+
+    public int scrollY() {
+        return getScrollY();
+    }
+
+    public void restoreScroll(int y) {
+        // The page is still laying out when a restored tab first paints; try a
+        // few times rather than scrolling into a document that has no height yet.
+        final int[] attempts = {0};
+        final Runnable[] retry = new Runnable[1];
+        retry[0] = () -> {
+            scrollTo(0, y);
+            if (++attempts[0] < 6 && getScrollY() < y) main.postDelayed(retry[0], 180);
+        };
+        main.postDelayed(retry[0], 180);
+    }
+
+    private void requestLinkForImage() {
+        // Best-effort: the chrome's sheet is happier with the enclosing link.
+        evaluateJavascript(
+                "(function(){var a=document.activeElement;return a&&a.closest?"
+                        + "(a.closest('a')||{}).href||'':'';})()",
+                value -> {
+                    if (value == null || value.length() < 3) return;
+                    JSObject data = new JSObject();
+                    data.put("id", id);
+                    data.put("link", value.replaceAll("^\"|\"$", ""));
+                    data.put("image", "");
+                    host.emit("longPress", data);
+                });
+    }
+
+    private static String encodeIcon(Bitmap icon) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        icon.compress(Bitmap.CompressFormat.PNG, 100, out);
+        return "data:image/png;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+    }
+
     // ── Events ───────────────────────────────────────────────────────────────
 
     private JSObject base() {
@@ -295,13 +429,14 @@ public class TabWebView extends WebView {
         evaluateJavascript(script, null);
     }
 
-    private void startDownload(String url, String userAgent, String contentDisposition, String mimeType) {
+    private void startDownload(String url, String userAgent, String contentDisposition, String mimeType, long size) {
         String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
         JSObject data = new JSObject();
         data.put("id", id);
         data.put("url", url);
         data.put("filename", filename);
         data.put("mimeType", mimeType);
+        data.put("size", size);
         host.emit("download", data);
         try {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
@@ -370,6 +505,10 @@ public class TabWebView extends WebView {
             data.put("id", id);
             data.put("url", url);
             host.emit("loadStart", data);
+            // Without DOCUMENT_START_SCRIPT this is the earliest we can be.
+            if (documentStart == null && !pendingStartScript.isEmpty()) {
+                evaluateJavascript(pendingStartScript, null);
+            }
             injectCosmetic();
         }
 
@@ -414,6 +553,15 @@ public class TabWebView extends WebView {
             data.put("id", id);
             data.put("progress", newProgress);
             host.emit("loadProgress", data);
+        }
+
+        @Override
+        public void onReceivedIcon(WebView view, Bitmap icon) {
+            if (icon == null) return;
+            JSObject data = new JSObject();
+            data.put("id", id);
+            data.put("icon", encodeIcon(icon));
+            host.emit("icon", data);
         }
 
         @Override
