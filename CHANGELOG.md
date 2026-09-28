@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.33.9 (2026-09-28) — The New Tab page keeps its own colours
+
+### Fixes
+- **With Dark Reader installed, the New Tab page turned flat grey.** Once Dark Reader started working in Vex (v2.33.2), it recoloured Vex's own New Tab page over Vex's theme, the way it does websites: the page is a local file, and extensions may read local files. Vex's own pages now carry the tag Dark Reader honours to leave a page alone, as Chrome keeps extensions off its own pages. Websites are still darkened as before.
+
 ## v2.33.8 (2026-09-28) — PDFs open in the tab
 
 ### Fixes
