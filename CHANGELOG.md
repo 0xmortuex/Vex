@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.33.11 (2026-09-28) — "Check on VirusTotal" explains a file it has never seen
+
+### Fixes
+- **"Check on VirusTotal" could land on "Item not found" and look broken.** Vex looks a download up on VirusTotal by its fingerprint, and VirusTotal only has a report for a file somebody has already sent it. A new or rare file, such as a program released an hour ago, has none. The fingerprint was right (checked against the file); VirusTotal had simply never seen it. Vex now says what that page means, and opens the file's folder so you can drag it onto virustotal.com to scan it. Vex cannot tell beforehand which files VirusTotal knows, because asking it that needs an API key.
+
 ## v2.33.10 (2026-09-28) — Six everyday snags, found by using Vex like a person
 
 Vex was driven the way a person uses it, with real clicks, typing and key presses, through five everyday routines: browsing; handling tabs with the mouse; the side panels; changing settings and restarting; and links, video, a download, the command bar and the AI. 37 of 39 steps worked first time or after the fixes below. The other two are shortcuts the test cannot press (see the end).
