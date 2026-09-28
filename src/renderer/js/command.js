@@ -603,7 +603,17 @@ const CommandBar = {
       // Jump to an already-open tab whose title/URL matches.
       this.results.push(...this._tabResults(q));
       this.results.push(...this._clipResults(q));
-      this.results.push(...this._toolResults(q));
+
+      // Vex's commands and the toolbox's tools in ONE list, best match first
+      // (a command wins a tie). The tools used to come first whatever their
+      // score, so "split" listed "Morse Code" and five other tools above
+      // Split Screen, eighth (found by a use-it-daily sweep, 2026-09-28).
+      // A strong match goes above "Search", a loose one below it.
+      const ranked = this._rankCommands(q, true);
+      const both = ranked.map(e => ({ item: e.c, score: e.score + 0.5 }))
+        .concat(this._toolResults(q, true).map(e => ({ item: e.r, score: e.score })))
+        .sort((a, b) => b.score - a.score);
+      this.results.push(...both.filter(e => e.score >= 80).map(e => e.item));
 
       // Search action
       this.results.push({
@@ -619,14 +629,12 @@ const CommandBar = {
 
       // (AI fallback removed — use Ctrl+J for Ask Vex AI)
 
-      // Matching commands — fuzzy-scored, best first.
-      const ranked = this._rankCommands(q);
-      this.results.push(...ranked);
+      this.results.push(...both.filter(e => e.score < 80).map(e => e.item));
       // And then what Vex can DO, which is not the same list. A command is
       // named after itself; the feature catalogue carries the words people
       // actually type. "make text bigger" and "hide my ip for one site" both
       // exist and neither matched a command name, so Ctrl+K said nothing.
-      this.results.push(...this._featureResults(q, ranked));
+      this.results.push(...this._featureResults(q, ranked.map(e => e.c)));
     }
 
     this.selectedIndex = 0;
@@ -666,7 +674,8 @@ const CommandBar = {
   // Toolbox tools as results. The catalogue is hundreds of tools, so typing
   // "bmi" or "subnet" here opens the tool itself instead of hunting for it in
   // the Toolbox window.
-  _toolResults(q) {
+  // withScores: [{ r, score }] instead of the results alone.
+  _toolResults(q, withScores) {
     if (!q || typeof Toolbox === 'undefined') return [];
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
     const scored = [];
@@ -688,7 +697,7 @@ const CommandBar = {
         },
       } });
     }
-    return scored.sort((a, b) => b.score - a.score).slice(0, 6).map(e => e.r);
+    return scored.sort((a, b) => b.score - a.score).slice(0, 6).map(e => (withScores ? e : e.r));
   },
 
   // Open tabs matching the query, as "switch to tab" results. Titles/URLs are
@@ -805,7 +814,8 @@ const CommandBar = {
       });
   },
 
-  _rankCommands(q) {
+  // withScores: [{ c, score }] instead of the commands alone.
+  _rankCommands(q, withScores) {
     const usage = this._usage();
     const now = Date.now();
     return this.commands
@@ -819,7 +829,7 @@ const CommandBar = {
       })
       .filter(e => e.score > 0)
       .sort((a, b) => b.score - a.score)
-      .map(e => e.c);
+      .map(e => (withScores ? e : e.c));
   },
 
   // Empty-query view: most recently used commands first, defaults fill the rest.

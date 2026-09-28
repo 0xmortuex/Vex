@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.33.10 (2026-09-28) — Six everyday snags, found by using Vex like a person
+
+Vex was driven the way a person uses it, with real clicks, typing and key presses, through five everyday routines: browsing; handling tabs with the mouse; the side panels; changing settings and restarting; and links, video, a download, the command bar and the AI. 37 of 39 steps worked first time or after the fixes below. The other two are shortcuts the test cannot press (see the end).
+
+### Fixes
+- **The first click after a download did nothing.** When a download finished, its little list opened under the toolbar together with an invisible layer over the whole window, so that clicking the page would close it. The next click anywhere, on the AI button, a tab or the command bar, only closed the list. The layer stays for clicks on the page, but a click on one of Vex's own buttons now also goes through to that button.
+- **Cancelling Split Screen with Escape left an invisible wall.** The "choose a tab" picker stayed on screen as a layer over the whole window, and swallowed the next click. Escape now cancels it, and turning split screen off closes it too.
+- **The tab menu ran off the bottom of the window.** It has about twenty items, and in a short window "Close Others" and "Close Tabs to the Right" could not be reached. It now scrolls, as do the other menus built the same way, including the page's right-click menu.
+- **The speaker on a tab did not mute it** in the top tab strip (the Firefox and Chrome looks); it only switched to the tab. It mutes and unmutes, as in the vertical tabs and in every other browser. With Shift, it chooses which speakers the tab plays through.
+- **"Split" in the command bar listed six toolbox tools, "Morse Code" among them, above Split Screen**, which was eighth. Vex's commands and the toolbox's tools are now ranked together, best match first, and a loose match comes after "Search".
+- **A finished download's card covered the AI panel's message box**, both being in the bottom-right corner. The card now moves beside the panel while it is open.
+
+### Checked and working
+Typing an address; suggestions as you type; clicking links; Back, Forward and Reload; find in page with its count; bookmarking with Ctrl+D; closing a tab and bringing it back; opening a link in a background tab with Ctrl+click; Ctrl+Tab and Ctrl+1 from the toolbar and from inside a page. Pinning, muting, duplicating, grouping, collapsing a group, sleeping, middle-click to close and dragging a tab to a new place. History and bookmark search, writing a note, a timer that rings, and the Downloads, Memory and Settings panels. Settings, open tabs, a pinned tab and a group all survive closing Vex with its X and opening it again, and a new search engine is used straight away. A right-clicked link opens in a new tab, a video plays, a download lands in Downloads, and the AI answers.
+
+### Could not be tested
+Ctrl+=, Ctrl+- and Ctrl+K are caught before they reach the window, where the test cannot send keys. They are worth one press each by hand.
+
 ## v2.33.9 (2026-09-28) — The New Tab page keeps its own colours
 
 ### Fixes

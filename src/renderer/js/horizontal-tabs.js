@@ -154,8 +154,8 @@ const HorizontalTabs = (() => {
       // First-party /favicon.ico — no Google s2/favicons leak.
       try { favicon = new URL(tab.url || '').origin + '/favicon.ico'; } catch {}
     }
-    const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing audio" aria-label="Playing audio"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
-                : tab.muted              ? '<span class="audio-indicator muted" title="Muted" aria-label="Muted"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.8 6.2l3.4 3.6M14.2 6.2l-3.4 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
+    const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing audio — click to mute" aria-label="Mute tab" role="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
+                : tab.muted              ? '<span class="audio-indicator muted" title="Muted — click to unmute" aria-label="Unmute tab" role="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.8 6.2l3.4 3.6M14.2 6.2l-3.4 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
                 : '';
     const sleep = tab.sleeping
       ? '<span class="sleep-indicator" title="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>'
@@ -187,6 +187,16 @@ const HorizontalTabs = (() => {
       // If click originated on or inside the close button (e.g. on the SVG),
       // skip the tab switch entirely.
       if (e.target.closest('.tab-close')) return;
+      // The speaker mutes and unmutes, as it does in the vertical tabs (and in
+      // Chrome and Firefox); here it only switched to the tab (2026-09-28).
+      // With Shift, choose which speakers the tab plays through.
+      const speaker = e.target.closest('.audio-indicator');
+      if (speaker) {
+        e.stopPropagation();
+        if (e.shiftKey && typeof AudioOutput !== 'undefined') TabManager.chooseAudioOutput(tab, speaker);
+        else TabManager.toggleMuteTab(tab.id);
+        return;
+      }
       TabManager.switchTab(tab.id);
     });
     el.addEventListener('auxclick', (e) => {

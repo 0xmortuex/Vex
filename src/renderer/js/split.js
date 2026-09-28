@@ -31,6 +31,12 @@ const SplitScreen = {
 
     const picker = document.getElementById('split-picker');
     if (picker) picker.addEventListener('click', (e) => { if (e.target === picker) this._cancelPicker(); });
+    // Escape cancels the pick, as it does every other chooser in Vex. Without
+    // it the picker (a layer over the whole window) stayed up after Escape and
+    // swallowed the next click, wherever it was aimed (2026-09-28).
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && picker && picker.classList.contains('visible')) { e.preventDefault(); this._cancelPicker(); }
+    }, true);
 
     // Any change to the tab set can invalidate a pane: closing a tab that was
     // in a pane, a workspace switch (bulk close), a sync apply. Before this the
@@ -130,6 +136,9 @@ const SplitScreen = {
 
   deactivate() {
     this.active = false;
+    // A pick still open for a split that has ended would stay over the window.
+    this._activeCancel = null;
+    this.closePicker();
     const container = document.getElementById('webviews-container');
     container.classList.remove('split-mode', 'split-2', 'split-3', 'split-4');
     container.style.gridTemplateColumns = '';

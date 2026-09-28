@@ -10,6 +10,8 @@ const { DownloadToast } = require('../../src/renderer/js/download-toast.js');
 beforeEach(() => {
   vi.useFakeTimers();
   document.body.innerHTML = '<button id="btn-downloads-top" class="nav-btn"></button>';
+  // jsdom has no layout; nothing is under any point unless a test says so.
+  document.elementFromPoint = () => null;
   globalThis.DownloadsPanel = {
     downloads: [], _okToOpen: vi.fn(async () => true),
     openWhenDone: new Set(),
@@ -237,5 +239,45 @@ describe('while something is downloading', () => {
     vi.advanceTimersByTime(250);                       // the drop repaints on a timer now
     expect(document.querySelector('.ddl-acts [data-do]').textContent).toBe('Resume');
     expect(document.querySelector('.downloads-drop-live').classList.contains('paused')).toBe(true);
+  });
+});
+
+// After a download the drop's click-catching layer sat over the whole window,
+// so the next click on the AI button, a tab or the command bar only closed the
+// drop (2026-09-28). The click now goes on to what was under it.
+describe('the click that closes the drop is not lost', () => {
+  const press = (x, y) => {
+    document.querySelector('.downloads-drop-shield').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: x, clientY: y }));
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, clientX: x, clientY: y }));
+  };
+  it('a Vex button under it is clicked', () => {
+    document.body.insertAdjacentHTML('beforeend', '<button id="btn-toggle-ai">AI</button>');
+    const ai = document.getElementById('btn-toggle-ai');
+    const clicked = vi.fn();
+    ai.addEventListener('click', clicked);
+    document.elementFromPoint = () => ai;
+    DownloadsButton.open({ auto: true });
+    press(10, 10);
+    expect(document.querySelector('.downloads-drop')).toBeNull();
+    expect(clicked).toHaveBeenCalledTimes(1);
+  });
+  it('a text box under it gets the focus', () => {
+    document.body.insertAdjacentHTML('beforeend', '<input id="url-input">');
+    const box = document.getElementById('url-input');
+    document.elementFromPoint = () => box;
+    DownloadsButton.open({ auto: true });
+    press(10, 10);
+    expect(document.activeElement).toBe(box);
+  });
+  it('a click on the page only closes the drop', () => {
+    const wv = document.createElement('webview');
+    document.body.appendChild(wv);
+    const clicked = vi.fn();
+    wv.addEventListener('click', clicked);
+    document.elementFromPoint = () => wv;
+    DownloadsButton.open({ auto: true });
+    press(10, 10);
+    expect(document.querySelector('.downloads-drop')).toBeNull();
+    expect(clicked).not.toHaveBeenCalled();
   });
 });

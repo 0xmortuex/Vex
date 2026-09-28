@@ -118,3 +118,29 @@ describe('a page title cannot inject markup into the chrome', () => {
     expect(el.querySelector('.command-result-title').textContent).toBe('');
   });
 });
+
+// "split" listed six toolbox tools, Morse Code among them, above Split Screen,
+// eighth (2026-09-28). Commands and tools are one list now, best match first.
+describe('commands and tools, ranked together', () => {
+  it('a command that starts with the words comes first; a loose tool match falls below Search', () => {
+    ToolboxPacks.specs = [];
+    ToolboxPacks.add([
+      spec('fin-split', 'Split shared expenses', 'finance', 'Who owes whom'),
+      spec('txt-morse', 'Morse Code', 'text', 'Encode or decode; split by spaces'),
+    ]);
+    const saved = CommandBar.commands;
+    CommandBar.commands = [
+      { id: 'split', label: 'Split Screen', hint: 'Two pages side by side', action() {} },
+      { id: 'clock', label: 'Clock', hint: 'Alarms and timers', action() {} },
+    ];
+    document.body.innerHTML = '<div id="command-results"></div>';
+    try { localStorage.clear(); } catch {}
+    CommandBar.search('split');
+    const order = CommandBar.results.map(r => r.label.replace(/<[^>]+>/g, ''));
+    CommandBar.commands = saved;
+    expect(order[0]).toBe('Split Screen');
+    expect(order.indexOf('Split shared expenses')).toBe(1);
+    expect(order.indexOf('Search "split"')).toBeGreaterThan(order.indexOf('Split shared expenses'));
+    expect(order.indexOf('Morse Code')).toBeGreaterThan(order.indexOf('Search "split"'));
+  });
+});

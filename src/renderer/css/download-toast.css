@@ -12,6 +12,12 @@
   z-index: 100050;
   pointer-events: none;
 }
+/* The card stays until you deal with it (download-toast.js), and it sat on
+   the AI panel's message box, docked in the same corner: a click meant for
+   the box closed nothing and typed nowhere (2026-09-28). It moves beside the
+   open panel, or above its composer when the panel fills the window. */
+body:has(#ai-panel.open:not(.expanded)) #download-toast-container { right: calc(min(420px, 100vw) + 24px); }
+body:has(#ai-panel.open.expanded) #download-toast-container { bottom: 150px; }
 
 .download-toast {
   pointer-events: auto;

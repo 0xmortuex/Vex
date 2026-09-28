@@ -173,7 +173,9 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 .top-tab.pinned .tab-close { display: none; }
 
 /* Audio / mute — inline SVG on currentColor, so it follows the theme. */
+.top-tab .audio-indicator:hover { color: var(--vex-accent, var(--primary)); }
 .top-tab .audio-indicator {
+  cursor: pointer;
   width: 12px; height: 12px;
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;

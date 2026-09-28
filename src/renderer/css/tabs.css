@@ -333,6 +333,13 @@
   padding: 6px;
   z-index: 1000;
   min-width: 180px;
+  /* Never taller than the window: the tab menu has ~20 items, and on a
+     600px window "Close Others" and "Close Tabs to the Right" ran off the
+     bottom out of reach (_clampMenuToViewport can move a menu up, not make
+     it fit). It scrolls instead (2026-09-28). */
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: 0 12px 40px var(--vex-shadow-color, rgba(0,0,0,0.5));
   animation: tab-ctx-in 0.14s ease;
 }
