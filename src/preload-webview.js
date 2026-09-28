@@ -123,6 +123,55 @@ function runInMainWorld(src) {
       onClicked: { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } },
     };
   }
+  // Dark Reader's background gathers the popup's data with
+  // chrome.commands.getAll and chrome.extension.isAllowedFileSchemeAccess.
+  // Electron has neither, so the gathering threw, the popup never got an
+  // answer and sat on "Loading, please wait" (2026-09-28). Vex binds no
+  // extension shortcuts, so each listed command has none; extensions are
+  // loaded with allowFileAccess, so file access is allowed.
+  if (!c.commands) {
+    var commands = manifest.commands || {};
+    c.commands = {
+      getAll: done(Object.keys(commands).map(function (name) {
+        return { name: name, description: (commands[name] && commands[name].description) || '', shortcut: '' };
+      })),
+      onCommand: { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } },
+    };
+  }
+  if (!c.extension) c.extension = {};
+  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') c.extension.isAllowedFileSchemeAccess = done(true);
+})();
+
+// === The active tab, under an extension's toolbar popup ===
+// Electron calls whichever page has the focus the active tab, and the popup
+// Vex opens takes the focus, so asked for the active tab the extension got its
+// own popup back. Dark Reader then said "This page is protected by browser"
+// and its site switch pointed at the popup (2026-09-28). When the answer is
+// this extension's own page, main says which popup that is and which tab it
+// was opened over, and that tab is answered instead.
+(function () {
+  if (location.protocol !== 'chrome-extension:') return;
+  var c = window.chrome;
+  if (!c || !c.tabs || typeof c.tabs.query !== 'function' || typeof c.tabs.get !== 'function' || !c.runtime || typeof c.runtime.getURL !== 'function') return;
+  var ipc = require('electron').ipcRenderer;
+  var own = c.runtime.getURL('');
+  var query = c.tabs.query.bind(c.tabs);
+  var get = c.tabs.get.bind(c.tabs);
+  c.tabs.query = function (q, cb) {
+    var p = query(q || {}).then(function (tabs) {
+      tabs = tabs || [];
+      if (!q || q.active !== true || !tabs.some(function (t) { return String(t.url || '').indexOf(own) === 0; })) return tabs;
+      return ipc.invoke('extensions:popup-tab').then(function (over) {
+        if (!over) return tabs;
+        var rest = tabs.filter(function (t) { return t.id !== over.popup; });
+        if (over.tab == null) return rest;
+        return get(over.tab).then(function (tab) { return tab ? [Object.assign({}, tab, { active: true })].concat(rest) : rest; });
+      });
+    });
+    if (typeof cb !== 'function') return p;
+    p.then(function (tabs) { cb(tabs); }, function (err) { setTimeout(function () { throw err; }, 0); });
+    return undefined;
+  };
 })();
 
 // === BEGIN vex-storage-sync-shim ===

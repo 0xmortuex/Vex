@@ -2722,6 +2722,15 @@ ipcMain.handle('extensions:set-enabled', async (_e, folderName, enabled) => {
 // loaded into (persist:main) and sized to its content the way Chrome does —
 // a fixed window clips every popup that isn't exactly the size we guessed.
 let _extPopupWindow = null;
+let _extPopupOver = null; // { extId, popup: webContents id, tab: webContents id | null }
+// Asked by the open popup's own extension (preload-webview.js wraps
+// chrome.tabs.query); any other extension gets nothing.
+ipcMain.handle('extensions:popup-tab', (event) => {
+  const over = _extPopupOver;
+  if (!over || !_extPopupWindow || _extPopupWindow.isDestroyed()) return null;
+  if (!String(event.senderFrame?.url || '').startsWith(`chrome-extension://${over.extId}/`)) return null;
+  return { popup: over.popup, tab: over.tab };
+});
 ipcMain.handle('extensions:open-popup', async (_e, request) => {
   try {
     const folderName = request && request.folder;
@@ -2746,11 +2755,44 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       width: 360, height: 480, show: false, frame: false, resizable: false,
       minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true,
       parent: (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined,
-      webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false }
+      webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false, enablePreferredSizeMode: true }
     });
     _extPopupWindow = win;
+    // A popup's content can change size after it loads: Dark Reader's is a
+    // "Loading, please wait" line until its data arrives, then 580px tall, and
+    // it showed in a 500px window with scroll bars (2026-09-28). Chrome resizes
+    // the popup to follow; so does this, keeping it centred under the button.
+    // The event only says "changed": the size it carries came out smaller than
+    // Dark Reader's page and clipped it, so the page is measured instead. And
+    // Windows keeps a border on this window that Electron does not count (a
+    // 280px window showed 264px of page), so the window grows by what the page
+    // is missing rather than being set to the page's size.
+    win.webContents.on('preferred-size-changed', async () => {
+      const size = await win.webContents.executeJavaScript(
+        '({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight), iw: innerWidth, ih: innerHeight })'
+      ).catch(err => { console.error('[Extensions] popup re-measure failed:', err.message); return null; });
+      if (!size || win.isDestroyed() || ![size.w, size.h, size.iw, size.ih].every(Number.isFinite)) return;
+      const [cw, ch] = win.getSize();
+      const w = Math.min(800, Math.max(160, cw + size.w - size.iw));
+      const h = Math.min(600, Math.max(100, ch + size.h - size.ih));
+      if (w === cw && h === ch) return;
+      const [x, y] = win.getPosition();
+      const [oldWidth] = win.getSize();
+      win.setSize(w, h);
+      const [newWidth] = win.getSize();
+      win.setPosition(Math.max(0, x + Math.round((oldWidth - newWidth) / 2)), y);
+    });
+    // Electron calls the focused page the active tab, and the popup takes the
+    // focus: Dark Reader's popup said "This page is protected by browser"
+    // about itself (2026-09-28). Remember the tab it was opened over.
+    let under = null;
+    if (Number.isInteger(request.tab)) {
+      const wc = webContents.fromId(request.tab);
+      if (wc && !wc.isDestroyed() && wc.getType() === 'webview' && wc.session === ses) under = wc.id;
+    }
+    _extPopupOver = { extId: live.id, popup: win.webContents.id, tab: under };
     win.on('blur', () => { if (!win.isDestroyed()) win.close(); });
-    win.on('closed', () => { if (_extPopupWindow === win) _extPopupWindow = null; });
+    win.on('closed', () => { if (_extPopupWindow === win) { _extPopupWindow = null; _extPopupOver = null; } });
 
     await win.loadURL(`chrome-extension://${live.id}/${String(pages.popup).replace(/^\/+/, '')}`);
     const size = await win.webContents.executeJavaScript(
@@ -2758,7 +2800,7 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     ).catch(err => { console.error('[Extensions] popup measure failed:', err.message); return null; });
     if (size && Number.isFinite(size.w) && Number.isFinite(size.h)) {
       // Chrome caps an action popup at 800x600; below ~160x100 it's unusable.
-      win.setContentSize(Math.min(800, Math.max(160, size.w)), Math.min(600, Math.max(100, size.h)));
+      win.setSize(Math.min(800, Math.max(160, size.w)), Math.min(600, Math.max(100, size.h)));
     }
     if (Number.isInteger(request.x) && Number.isInteger(request.y)) {
       const [width] = win.getSize();

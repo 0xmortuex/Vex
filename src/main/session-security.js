@@ -119,6 +119,9 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       // used to be recognised by its preload path — which this Electron does
       // not report any more, so every button in the pop-out was refused.
       if (channel.startsWith('pip:')) return !!(isPipContents && isPipContents(event.sender));
+      // An extension's own page asking which tab its toolbar popup was opened
+      // over (preload-webview.js). main.js answers only the popup's extension.
+      if (channel === 'extensions:popup-tab') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
       try { return channel === 'popup-chrome:action' && fileURLToPath(event.senderFrame.url) === path.join(root, 'renderer/popup-chrome.html'); }
       catch { return false; }
     },

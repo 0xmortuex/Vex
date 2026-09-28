@@ -151,10 +151,17 @@ const ExtensionsMenu = {
     try {
       if (ext.hasPopup) {
         const rect = btn.getBoundingClientRect();
+        // The tab you are on, so the popup's "this site" is that page and not
+        // the popup itself (main.js, extensions:popup-tab). A tab that has not
+        // attached yet has no id to give.
+        const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
+        let tab = null;
+        if (wv && typeof wv.getWebContentsId === 'function') { try { tab = wv.getWebContentsId(); } catch { /* not attached yet */ } }
         const res = await window.vex.extensionsOpenPopup({
           folder: ext.folder,
           x: Math.max(0, Math.round(window.screenX + rect.left)),
-          y: Math.max(0, Math.round(window.screenY + rect.bottom))
+          y: Math.max(0, Math.round(window.screenY + rect.bottom)),
+          tab: Number.isInteger(tab) && tab > 0 ? tab : null
         });
         if (!res || !res.ok) window.showToast?.('Could not open popup: ' + ((res && res.error) || 'unknown'));
         return;

@@ -71,8 +71,9 @@ function localStore(entries = {}) {
 }
 
 // An extension page: the page preload's shims, as it runs them.
-function page(chrome, { protocol = 'chrome-extension:', localStorage = localStore() } = {}) {
-  const ctx = vm.createContext({ window: { chrome, localStorage }, location: { protocol }, setTimeout, Promise, JSON, Object, Array, String, console });
+function page(chrome, { protocol = 'chrome-extension:', localStorage = localStore(), ipcRenderer = null } = {}) {
+  const require = (m) => { if (m !== 'electron' || !ipcRenderer) throw new Error('no ' + m); return { ipcRenderer }; };
+  const ctx = vm.createContext({ window: { chrome, localStorage }, location: { protocol }, require, setTimeout, Promise, JSON, Object, Array, String, console });
   vm.runInContext(PAGE_SHIMS, ctx);
   return chrome;
 }
@@ -192,5 +193,68 @@ describe('chrome.permissions, browserAction and contextMenus for extension pages
   it('a real API is never replaced', () => {
     const real = { contains: () => 'native' };
     expect(page(extension().chrome({ extra: { permissions: real } })).permissions).toBe(real);
+  });
+});
+
+describe('what Dark Reader needs to fill its popup', () => {
+  it('commands lists the manifest shortcuts with no key, and file access is allowed', async () => {
+    const c = page(extension().chrome({ manifest: { commands: { addSite: { description: 'Toggle current site' }, toggle: {} } } }));
+    expect(await c.commands.getAll()).toEqual([
+      { name: 'addSite', description: 'Toggle current site', shortcut: '' },
+      { name: 'toggle', description: '', shortcut: '' },
+    ]);
+    expect(typeof c.commands.onCommand.addListener).toBe('function');
+    // Dark Reader asks with a callback.
+    await new Promise((resolve) => c.extension.isAllowedFileSchemeAccess((v) => { expect(v).toBe(true); resolve(); }));
+  });
+
+  it('keeps a real chrome.extension and its other members', () => {
+    const extension_ = { getURL: () => 'x' };
+    const c = page(extension().chrome({ extra: { extension: extension_ } }));
+    expect(c.extension).toBe(extension_);
+    expect(c.extension.getURL()).toBe('x');
+  });
+});
+
+describe('the active tab under a toolbar popup', () => {
+  const OWN = 'chrome-extension://ext-id/';
+  const popupTab = { id: 6, active: true, url: OWN + 'ui/popup/index.html' };
+  const pageTab = { id: 5, active: false, url: 'https://docs.google.com/document/d/1' };
+  function setup(over) {
+    const asked = [];
+    const tabs = {
+      query: (q) => Promise.resolve([popupTab, pageTab].filter(t => q.active == null || t.active === q.active)),
+      get: (id) => Promise.resolve([popupTab, pageTab].find(t => t.id === id)),
+    };
+    const ipcRenderer = { invoke: (ch) => { asked.push(ch); return Promise.resolve(over); } };
+    const c = page(extension().chrome({ extra: { tabs, runtime: { id: 'ext-id', getManifest: () => ({}), getURL: (p) => OWN + p } } }), { ipcRenderer });
+    return { c, asked };
+  }
+
+  it('answers the tab the popup was opened over, not the popup', async () => {
+    const { c, asked } = setup({ popup: 6, tab: 5 });
+    const [tab] = await c.tabs.query({ active: true, lastFocusedWindow: true });
+    expect(tab.url).toBe(pageTab.url);
+    expect(tab.active).toBe(true);
+    expect(asked).toEqual(['extensions:popup-tab']);
+    // Dark Reader asks with a callback.
+    await new Promise((resolve) => c.tabs.query({ active: true }, (tabs) => { expect(tabs.map(t => t.id)).toEqual([5]); resolve(); }));
+  });
+
+  it('leaves every other question alone, and does not ask main', async () => {
+    const { c, asked } = setup({ popup: 6, tab: 5 });
+    expect((await c.tabs.query({})).map(t => t.id)).toEqual([6, 5]);
+    expect((await c.tabs.query({ active: false })).map(t => t.id)).toEqual([5]);
+    expect(asked).toEqual([]);
+  });
+
+  it('with no popup of its own open, the answer is what Electron said', async () => {
+    const { c } = setup(null);
+    expect((await c.tabs.query({ active: true })).map(t => t.id)).toEqual([6]);
+  });
+
+  it('a popup opened with no tab under it is simply left out', async () => {
+    const { c } = setup({ popup: 6, tab: null });
+    expect(await c.tabs.query({ active: true })).toEqual([]);
   });
 });
