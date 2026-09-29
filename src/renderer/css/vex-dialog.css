@@ -3,7 +3,11 @@
 .vex-dialog-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100050;
+  /* Above every other overlay (the highest is the look editor's, 2147483500):
+     at 100050 a Restore confirmation opened behind the backup screen and the
+     restore could not be finished (found 2026-09-29). Only the lock screen
+     and the agent cursor (2147483647) stay above it. */
+  z-index: 2147483600;
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;

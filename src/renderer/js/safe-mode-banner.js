@@ -7,6 +7,11 @@
 // they were before the last update, or restart normally now that whatever
 // broke has been left out once.
 const SafeModeBanner = {
+  // What safe mode really leaves out. It used to promise "no panels, no
+  // session restore" too, but main.js only skips extensions (_extEntries) —
+  // panels and the session come back as usual (found 2026-09-29).
+  LEFT_OUT: 'Extensions are not loaded this time. If one caused it, switch it off or uninstall it in Settings › Extensions, then restart normally.',
+
   async init() {
     if (!window.vex || typeof window.vex.safeMode !== 'function') return false;
     let info;
@@ -28,7 +33,7 @@ const SafeModeBanner = {
     el.innerHTML = `
       <div class="smb-text">
         <strong>Safe mode</strong>
-        <span>${this._esc(why)} No extensions, no panels, no session restore — so you can undo whatever caused it.${info.brokenSinceUpdateFrom ? ' This began with the update from ' + this._esc(info.brokenSinceUpdateFrom) + '.' : ''}</span>
+        <span>${this._esc(why)} ${this.LEFT_OUT}${info.brokenSinceUpdateFrom ? ' This began with the update from ' + this._esc(info.brokenSinceUpdateFrom) + '.' : ''}</span>
       </div>
       <div class="smb-actions">
         ${info.brokenSinceUpdateFrom ? `<button class="smb-btn" data-act="rollback">Go back to ${this._esc(info.brokenSinceUpdateFrom)}</button>` : ''}

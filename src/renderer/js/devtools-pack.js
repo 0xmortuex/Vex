@@ -119,6 +119,9 @@ const ResponsivePreview = {
     { name: 'Laptop', w: 1280, h: 800 },
     { name: 'Desktop', w: 1440, h: 900 },
   ],
+  // open() escapes the URL with this; it was only on JsonApiViewer, so opening
+  // failed with "this.esc is not a function" (found 2026-09-29).
+  esc(s) { return window.escapeHtml(s); },
 
   open(url) {
     const t = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;

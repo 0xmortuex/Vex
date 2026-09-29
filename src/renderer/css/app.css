@@ -678,7 +678,10 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
   border-radius: var(--vex-radius-md); padding: 10px 14px; display: flex; align-items: center; gap: 8px;
   min-width: 220px; max-width: 360px; box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
   transform: translateX(calc(100% + 40px)); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
-  pointer-events: auto; font-size: 13px; color: var(--vex-text-primary);
+  /* Clicks pass through: a toast is text only (app.js showToast has nothing
+     to click) and sits above every menu, so with auto it swallowed clicks on
+     the menu item under it (found 2026-09-29). */
+  pointer-events: none; font-size: 13px; color: var(--vex-text-primary);
 }
 .toast-item.show { transform: translateX(0); }
 .toast-item.success { border-left-color: var(--vex-success); }

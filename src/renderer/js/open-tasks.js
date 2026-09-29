@@ -16,6 +16,21 @@ const OpenTasks = {
   INBOX_TITLE: 'To-do',
   LINE: /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](.*)$/,
 
+  // The lines inside a ``` code block, found the way VexMarkdown finds them.
+  // A "- [ ]" line there is code, not a task, and counting it shifted every
+  // task after it by one (found 2026-09-29).
+  _fencedLines(content) {
+    const src = String(content || ''), out = new Set();
+    const re = /```([\w+-]*)[ \t]*\n?([\s\S]*?)```/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const first = src.slice(0, m.index).split('\n').length - 1;
+      const last = first + m[0].split('\n').length - 1;
+      for (let i = first; i <= last; i++) out.add(i);
+    }
+    return out;
+  },
+
   // Notes, fresh from storage (another window may have changed them).
   _notes() {
     if (typeof NotesPanel !== 'undefined' && NotesPanel.reloadSyncedState) {
@@ -45,7 +60,9 @@ const OpenTasks = {
     for (const note of notes || []) {
       if (!note || typeof note.content !== 'string') continue;
       let index = -1;
-      for (const line of note.content.split('\n')) {
+      const fenced = this._fencedLines(note.content);
+      for (const [i, line] of note.content.split('\n').entries()) {
+        if (fenced.has(i)) continue;
         const m = this.LINE.exec(line);
         if (!m) continue;
         index++;
@@ -81,8 +98,10 @@ const OpenTasks = {
 
   _toggle(content, index) {
     const lines = String(content || '').split('\n');
+    const fenced = this._fencedLines(content);
     let seen = -1;
     for (let i = 0; i < lines.length; i++) {
+      if (fenced.has(i)) continue;
       const m = this.LINE.exec(lines[i]);
       if (!m) continue;
       if (++seen !== index) continue;
@@ -103,8 +122,10 @@ const OpenTasks = {
   // Rewrite the nth task line of a note's text for a column.
   _setStatusIn(content, index, status) {
     const lines = String(content || '').split('\n');
+    const fenced = this._fencedLines(content);
     let seen = -1;
     for (let i = 0; i < lines.length; i++) {
+      if (fenced.has(i)) continue;
       const m = this.LINE.exec(lines[i]);
       if (!m) continue;
       if (++seen !== index) continue;

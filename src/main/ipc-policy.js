@@ -1,8 +1,10 @@
 const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
-  '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled']);
+  '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling']);
-const PRIVATE_DISABLED = /^(?:browsing:|cloud:|site:clear-data|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|install-update|app:restart)/;
+// siterules:set: a private window starts with an empty list, and saving it
+// wiped every per-site rule (found 2026-09-29).
+const PRIVATE_DISABLED = /^(?:siterules:set|browsing:|cloud:|site:clear-data|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|install-update|app:restart)/;
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');
@@ -54,7 +56,18 @@ function installIpcPolicy(ipcMain, security) {
     if (channel === 'app:tab-memory' && (!Array.isArray(args[0]) || args[0].some(id => !security.ownsTarget(event, id)))) throw new Error('Invalid tab ownership');
     return host;
   }
+  // The ad blocker's page preload runs in every page of a session, so it also
+  // runs in an extension's own pages and in Vex's Picture-in-Picture player,
+  // which are nobody's tab. Refusing it there raised "Untrusted IPC sender" in
+  // every popup, options page and background page (2026-09-29); there is
+  // nothing to hide in those pages, so it is told exactly that.
+  function adBlockerNotHere(channel, event) {
+    if (!channel.startsWith('@ghostery/adblocker/')) return false;
+    const url = String(event.senderFrame?.url || '');
+    return /^(chrome-extension|file):/i.test(url) && !security.isUiFrame(event) && !security.owner(event.sender);
+  }
   ipcMain.handle = (channel, callback) => handle(channel, async (event, ...args) => {
+    if (adBlockerNotHere(channel, event)) return channel.endsWith('/is-mutation-observer-enabled') ? false : undefined;
     const host = authorize(channel, event, args);
     if (host?.privatePartition) {
       if (channel === 'storage-load') return host.data[args[0]] ?? null;

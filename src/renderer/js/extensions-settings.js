@@ -120,6 +120,11 @@ const ExtensionsSettings = (() => {
     // this the user would silently get every extension back on after a restart.
     const stateError = extensions.length ? extensions[0].stateError : null;
 
+    // Every Install / toggle re-renders; the catalogue folded shut after each
+    // one, so installing three from it meant reopening it three times. It
+    // keeps whatever state the user left it in (found 2026-09-29).
+    const catalogWasOpen = !!container.querySelector('details[data-ext-catalog]')?.open;
+
     container.innerHTML = `
       <div class="extensions-panel">
         <p class="setting-info muted" style="margin-bottom:12px">Vex supports Chrome extensions loaded from a folder, <code>.zip</code>, or <code>.crx</code>. Extensions load into regular and container tabs, and into a sidebar panel (Discord, Spotify…) only when they name that site &mdash; or when set to run everywhere below. Private, Off-the-Record and Tor tabs never load extensions &mdash; Electron can't put them in a temporary session.</p>
@@ -158,7 +163,7 @@ const ExtensionsSettings = (() => {
         </div>
 
         <div class="extensions-help">
-          <details${extensions.length === 0 ? ' open' : ''}>
+          <details data-ext-catalog${extensions.length === 0 || catalogWasOpen ? ' open' : ''}>
             <summary>Extensions worth installing</summary>
             <div class="help-content">
               <p class="setting-info muted" style="margin:0 0 8px">Each of these was checked against what Electron actually supports. <strong>Install</strong> fetches the latest release from the publisher's own GitHub and installs it; press it again later to update.</p>
@@ -211,7 +216,7 @@ const ExtensionsSettings = (() => {
                   ${e.hasPopup && e.loaded ? `<button class="ext-open-btn" data-popup="${_esc(e.folder)}">Popup</button>` : ''}
                   ${e.optionsUrl ? `<button class="ext-open-btn" data-options="${_esc(e.optionsUrl)}">Options</button>` : ''}
                   <label class="ext-toggle"><input type="checkbox" data-toggle="${_esc(e.folder)}" ${e.enabled ? 'checked' : ''}> On</label>
-                  <button class="btn-danger-sm" data-folder="${_esc(e.folder)}">Uninstall</button>
+                  <button class="btn-danger-sm" data-folder="${_esc(e.folder)}" data-name="${_esc(e.name || e.folder)}">Uninstall</button>
                 </div>
               </div>
             `; }).join('')}
@@ -291,10 +296,17 @@ const ExtensionsSettings = (() => {
     container.querySelectorAll('[data-popup]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const rect = btn.getBoundingClientRect();
+        // The tab you are on, as the toolbar menu sends it (extensions-menu.js
+        // _runExtension) — without it the popup took itself for the page and
+        // said "This page is protected by browser" (found 2026-09-29).
+        const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
+        let tab = null;
+        if (wv && typeof wv.getWebContentsId === 'function') { try { tab = wv.getWebContentsId(); } catch { /* not attached yet */ } }
         const r = await window.vex.extensionsOpenPopup({
           folder: btn.dataset.popup,
           x: Math.max(0, Math.round(window.screenX + rect.left)),
-          y: Math.max(0, Math.round(window.screenY + rect.bottom))
+          y: Math.max(0, Math.round(window.screenY + rect.bottom)),
+          tab: Number.isInteger(tab) && tab > 0 ? tab : null
         });
         if (!r.ok) _toast('Could not open popup: ' + (r.error || 'unknown'), 'error');
       });
@@ -307,7 +319,9 @@ const ExtensionsSettings = (() => {
     container.querySelectorAll('[data-folder]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const folder = btn.dataset.folder;
-        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${folder}"? Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
+        // The extension's name, not its install folder ("devforum-plus-1790659315165")
+        // (found 2026-09-29).
+        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${btn.dataset.name || folder}"?Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
         const r = await window.vex.extensionsUninstall(folder);
         if (r.ok) { _toast('Uninstalled — restart Vex to fully remove', 'success'); render(container); }
         else _toast('Uninstall failed: ' + (r.error || 'unknown'), 'error');

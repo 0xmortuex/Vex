@@ -356,11 +356,26 @@ const HorizontalTabs = (() => {
     if (container.scrollLeft > maxScroll) container.scrollLeft = maxScroll;
   }
 
+  // With more tabs than fit, the strip scrolls sideways; nothing moved it to
+  // the active tab, so with 45 tabs the one you were on could sit off-screen
+  // with scrollLeft still 0 (found 2026-09-29). Only the strip scrolls —
+  // scrollIntoView would move the window's ancestors as well.
+  function revealActiveTab() {
+    const container = document.getElementById('top-tabs-list');
+    if (!container || container.scrollWidth <= container.clientWidth) return;
+    const el = container.querySelector('.top-tab.active');
+    if (!el) return;
+    const box = container.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.left < box.left) container.scrollLeft += r.left - box.left;
+    else if (r.right > box.right) container.scrollLeft += r.right - box.right;
+  }
+
   // Wrap render so size classes are re-applied on every refresh.
   const _origRender = render;
   render = function () {
     _origRender();
-    requestAnimationFrame(applyTabSizeClasses);
+    requestAnimationFrame(() => { applyTabSizeClasses(); revealActiveTab(); });
   };
 
   function init() {

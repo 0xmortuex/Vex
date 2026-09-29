@@ -6,6 +6,14 @@
 // Public API: CommandBar (singleton — open/close/toggle, search, executeSelected).
 // Depends on TabManager, WebviewManager, SidebarManager, AIPanel, etc.
 
+// Quick-command rows that are not an action: they go below good command matches.
+const QUICK_BELOW_COMMANDS = ['quick-error', 'quick-guide', 'quick-guide-none'];
+
+// js/typed-address.js: loaded before this file in Vex; required in tests.
+function _typedAddress() {
+  return (typeof window !== 'undefined' && window.VexTypedAddress) || require('./typed-address.js');
+}
+
 const CommandBar = {
   isOpen: false,
   selectedIndex: 0,
@@ -60,7 +68,7 @@ const CommandBar = {
       await window.vex.openCleanWindow(t.url, VexGuiStyle.get());
     } },
     { id: 'readlater-next', label: 'Next from Read Later', hint: 'The oldest link you saved, in this tab — read them one at a time', icon: 'book', action: () => ReadLater.next() },
-    { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) ReadLater.add(t.url, t.title); } },
+    { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } ReadLater.add(t.url, t.title); } },
     { id: 'library', label: 'Library', hint: 'What you saved — read later, archived tabs', icon: 'book', isPrimary: true, action: () => { try { ReadLater.showTab('saved'); } catch {} SidebarManager.openPanel('library'); } },
     { id: 'routing-all', label: 'Private Routing — All of Vex Through Tor or a Proxy', hint: 'Send everything through Tor or a proxy you name, and check that it is really working', icon: 'globe', isPrimary: true, action: () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.open(); } },
     { id: 'backup', label: 'Back Up Everything, or Put It Back', hint: 'One file with your notes, sessions, keybindings, site rules and the whole look — saved logins are never in it', icon: 'archive', action: () => { if (typeof VexBackup !== 'undefined') VexBackup.open(); } },
@@ -150,12 +158,14 @@ const CommandBar = {
     { id: 'shortcutsguide', label: 'Shortcuts & Gestures', hint: 'Cheat-sheet of every keyboard shortcut, mouse gesture, and right-click action', icon: 'keyboard', action: async () => { try { await VexLazy.ensure('js/shortcuts-guide.js'); ShortcutsGuide.open(); } catch {} } },
     { id: 'whatsnew', label: "What's New", hint: "Reopen this version's release notes", icon: 'gift', action: () => { try { window.VexWhatsNew?.open(); } catch {} } },
     { id: 'sendphone', label: 'Send to Phone', hint: 'Show a QR code of this page to open it on your phone', icon: 'phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(); } catch {} } },
-    { id: 'pasteandgo', label: 'Paste & Go', hint: 'Open the URL (or search) currently on your clipboard in a new tab', icon: 'clipboard', action: async () => { try { const text = ((await navigator.clipboard.readText()) || '').trim(); if (!text) { window.showToast?.('Clipboard is empty'); return; } let url; if (/^https?:\/\//i.test(text)) url = text; else if (/^[a-z0-9]([a-z0-9-]*\.)+[a-z]{2,}/i.test(text)) url = 'https://' + text; else url = 'https://www.google.com/search?q=' + encodeURIComponent(text); TabManager.createTab(url, true); } catch { window.showToast?.('Clipboard access blocked'); } } },
-    { id: 'duplicatetab', label: 'Duplicate Tab', hint: 'Open a copy of the current tab', icon: 'copy', action: () => { try { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true); } catch {} } },
-    { id: 'copyalltabs', label: 'Copy All Tab URLs', hint: 'Copy every open tab’s URL to the clipboard', icon: 'link', action: async () => { try { const urls = (TabManager.tabs || []).map(t => t.url).filter(u => /^https?:/i.test(u)); if (!urls.length) { window.showToast?.('No tabs to copy'); return; } await navigator.clipboard.writeText(urls.join('\n')); window.showToast?.(`Copied ${urls.length} tab URL${urls.length === 1 ? '' : 's'}`); } catch {} } },
+    { id: 'pasteandgo', label: 'Paste & Go', hint: 'Open the URL (or search) currently on your clipboard in a new tab', icon: 'clipboard', action: async () => { try { const text = ((await navigator.clipboard.readText()) || '').trim(); if (!text) { window.showToast?.('Clipboard is empty'); return; } TabManager.createTab(_typedAddress().addressFor(text) || _typedAddress().searchUrl(text), true); } catch (err) { window.showToast?.('Could not read the clipboard: ' + ((err && err.message) || err), 'error'); } } },
+    { id: 'print', label: 'Print…', hint: 'Print this page, or save it as a PDF', shortcut: 'Ctrl+P', icon: 'file', action: () => WebviewManager.printPage() },
+    { id: 'viewsource', label: 'View Page Source', hint: 'Show this page’s HTML in a new tab', shortcut: 'Ctrl+U', icon: 'code', action: () => WebviewManager.viewSource() },
+    { id: 'duplicatetab', label: 'Duplicate Tab', hint: 'Open a copy of the current tab', icon: 'copy', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true, t.groupId, { ...(window.VexTabPolicy?.serialize(t) || t), allowDuplicate: true }); } },
+    { id: 'copyalltabs', label: 'Copy All Tab URLs', hint: 'Copy every open tab’s URL to the clipboard', icon: 'link', action: async () => { try { const urls = (TabManager.tabs || []).map(t => t.url).filter(u => /^https?:/i.test(u)); if (!urls.length) { window.showToast?.('No tabs to copy'); return; } await navigator.clipboard.writeText(urls.join('\n')); window.showToast?.(`Copied ${urls.length} tab URL${urls.length === 1 ? '' : 's'}`); } catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || err), 'error'); } } },
     { id: 'autorefresh', label: 'Auto-refresh This Tab', hint: 'Reload this tab on an interval — dashboards, live scores, build logs', icon: 'refresh', action: () => { try { if (window.AutoReload) AutoReload.open(); } catch {} } },
     { id: 'openasapp', label: 'Open as App', hint: 'Open this site in its own clean, chromeless window — like a desktop app', icon: 'window', action: () => { try { const t = TabManager.getActiveTab(); if (t && /^https?:/i.test(t.url || '')) window.vex.openAsApp(t.url, t.title); else window.showToast?.('Open a web page first'); } catch {} } },
-    { id: 'copymarkdown', label: 'Copy Page as Markdown', hint: 'Copy this page as a Markdown link [Title](url)', icon: 'note', action: async () => { try { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } const md = `[${(t.title || t.url).replace(/[\[\]]/g, '')}](${t.url})`; await navigator.clipboard.writeText(md); window.showToast?.('Copied as Markdown'); } catch {} } },
+    { id: 'copymarkdown', label: 'Copy Page as Markdown', hint: 'Copy this page as a Markdown link [Title](url)', icon: 'note', action: async () => { try { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } const md = `[${(t.title || t.url).replace(/[\[\]]/g, '')}](${t.url})`; await navigator.clipboard.writeText(md); window.showToast?.('Copied as Markdown'); } catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || err), 'error'); } } },
     { id: 'closeduplicates', label: 'Close Duplicate Tabs', hint: 'Close tabs pointing to the same page, keeping one of each', icon: 'broom', action: () => { try { TabManager.closeDuplicateTabs(); } catch {} } },
     { id: 'toolbox', label: 'Toolbox', hint: 'Your built-in tools — regex, JSON, hashes, color, word count, and more', icon: 'toolbox', action: () => { try { if (window.Toolbox) Toolbox.open(); } catch {} } },
     { id: 'jobsetup', label: 'Personalize for Your Job', hint: 'Pick your profession — Vex applies a fitting theme + the tools you use daily', icon: 'briefcase', action: () => { try { if (window.JobSetup) JobSetup.open(); } catch {} } },
@@ -223,7 +233,7 @@ const CommandBar = {
     { id: 'container-work', label: 'New Work Container Tab', hint: 'Isolated cookies — log into a second account', icon: 'archive', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-work' }) },
     { id: 'container-personal', label: 'New Personal Container Tab', hint: 'Isolated cookies — log into a second account', icon: 'archive', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-personal' }) },
     { id: 'container-shopping', label: 'New Shopping Container Tab', hint: 'Isolated cookies — tracked separately from your main session', icon: 'cart', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-shopping' }) },
-    { id: 'sendphone', label: 'Send to Phone', hint: 'Hand this tab off to your other Vex devices (needs Vex Sync)', icon: 'phone', action: async () => {
+    { id: 'handoff', label: 'Send to My Devices', hint: 'Hand this tab off to your other Vex devices (needs Vex Sync)', icon: 'phone', action: async () => {
       const t = TabManager.getActiveTab();
       if (!t || !t.url) { window.showToast?.('No active page to send'); return; }
       try { await SyncEngine.dropSend(t.url, t.title || ''); window.showToast?.('Sent — it will appear on your other devices'); }
@@ -264,7 +274,7 @@ const CommandBar = {
     { id: 'history', label: 'History', hint: 'Browsing history', shortcut: 'Ctrl+H', icon: 'clock', isPrimary: true, action: () => SidebarManager.openPanel('history') },
     { id: 'memory', label: 'Memory', hint: 'Memory usage per tab', shortcut: 'Ctrl+Shift+M', icon: 'cpu', isPrimary: true, action: () => SidebarManager.openPanel('memory') },
     { id: 'tasks', label: 'Running Tasks', hint: 'Every process Vex is running and what it costs — with a way to end one', icon: 'activity', action: () => { if (typeof VexTasks !== 'undefined') VexTasks.open(); } },
-    { id: 'sleep', label: 'Sleep Tab', hint: 'Put current tab to sleep', shortcut: 'Ctrl+Shift+Z', icon: 'sleep', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.sleepTab(t.id); } },
+    { id: 'sleep', label: 'Sleep Tab', hint: 'Put current tab to sleep', shortcut: 'Ctrl+Shift+Z', icon: 'sleep', action: () => TabManager.sleepActiveTab() },
     { id: 'sleep-all', label: 'Sleep All Inactive', hint: 'Sleep all non-active tabs', icon: 'sleep', action: () => { TabManager.sleepAllInactive(); window.showToast?.('All inactive tabs sleeping'); } },
     { id: 'wake-all', label: 'Wake All Tabs', hint: 'Wake all sleeping tabs', icon: 'sun', action: () => { TabManager.wakeAllTabs(); window.showToast?.('All tabs awake'); } },
     // Phase 5 commands
@@ -342,7 +352,11 @@ const CommandBar = {
       }
       const how = await vexPrompt({ title: 'How often?', message: PageWatch.EVERY.map((e, i) => (i + 1) + '. ' + e.label).join('\n'), value: '2', okLabel: 'Watch it' });
       if (how == null) return;
-      const every = (PageWatch.EVERY[parseInt(how, 10) - 1] || PageWatch.EVERY[1]).ms;
+      // An answer that is not on the list was quietly taken as the second
+      // choice (found 2026-09-29).
+      const choice = PageWatch.EVERY[parseInt(how, 10) - 1];
+      if (!choice) { window.showToast?.(`Choose a number from 1 to ${PageWatch.EVERY.length}`, 'error'); return; }
+      const every = choice.ms;
       try {
         const w = PageWatch.add({ url: tab.url, title: tab.title || tab.url, selector: what.trim(), kind: asNumber ? 'number' : 'text', every, direction, target });
         window.showToast?.('Watching — Vex will say when it changes');
@@ -357,7 +371,7 @@ const CommandBar = {
         await GitHubWatch.checkDue();             // a finished run says so now; a release sets its baseline
       } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
     } },
-    { id: 'watches', label: 'Watched pages', hint: 'What Vex is keeping an eye on, and what it last saw', icon: 'alarm', action: async () => {
+    { id: 'pagewatches', label: 'Watched Pages (what changed)', hint: 'What Vex is keeping an eye on, and what it last saw', icon: 'alarm', action: async () => {
       if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
       // GitHub runs and releases are listed with the pages.
       const list = [...PageWatch.list(), ...GitHubWatch.list().map(w => ({ id: w.id, github: true, title: 'GitHub: ' + GitHubWatch.describe(w), lastCheckedAt: w.lastCheckedAt, lastValue: w.last, lastError: w.error }))];
@@ -450,7 +464,7 @@ const CommandBar = {
       const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
       if (!tab || !/^https?:/i.test(tab.url || '')) { window.showToast?.('Open a page first', 'error'); return; }
       const now = PageTools.speedFor(tab.url);
-      const answer = await vexPrompt({ title: 'Video speed', message: 'How fast should videos play on ' + new URL(tab.url).host + '? (0.5 to 3; 1 is normal)', value: String(now), okLabel: 'Set' });
+      const answer = await vexPrompt({ title: 'Video speed', message: 'How fast should videos play on ' + new URL(tab.url).host + '? (0.1 to 5; 1 is normal)', value: String(now), okLabel: 'Set' });
       if (answer == null) return;
       try {
         const rate = PageTools.setSpeedFor(tab.url, parseFloat(answer));
@@ -564,8 +578,16 @@ const CommandBar = {
 
       // Plain sentences: "remind me to call Dana tomorrow 9am", "timer 25 min",
       // "alarm 7am weekdays", "what time is it in Tokyo" (js/quick-commands.js).
+      // A sentence it could not read, or a guide card, waits below the
+      // commands that match well: "Remind me" selected the "could not read
+      // that" row and "Read Later" ran the Library guide (found 2026-09-29).
+      let quickAfter = [];
       if (typeof VexQuickCommands !== 'undefined') {
-        try { this.results.push(...VexQuickCommands.results(query)); }
+        try {
+          const quick = VexQuickCommands.results(query);
+          quickAfter = quick.filter(r => QUICK_BELOW_COMMANDS.includes(r.id));
+          this.results.push(...quick.filter(r => !quickAfter.includes(r)));
+        }
         catch (err) { console.error('[Command] quick commands failed:', err); }
       }
 
@@ -580,12 +602,14 @@ const CommandBar = {
         });
       }
 
-      // Check if it's a URL
-      if (/^https?:\/\//i.test(q) || /^[a-z0-9-]+\.[a-z]{2,}/i.test(q)) {
-        const url = q.startsWith('http') ? q : 'https://' + q;
+      // Is it an address? Read from what was typed, not the lower-cased copy
+      // used for matching: "…watch?v=dQw4w9WgXcQ" opened "…v=dqw4w9wgxcq".
+      const url = _typedAddress().addressFor(query);
+      if (url) {
+        const shown = window.escapeHtml ? window.escapeHtml(query.trim()) : query.trim();
         this.results.push({
           id: 'url',
-          label: `Go to ${q}`,
+          label: `Go to ${shown}`,
           hint: url,
           icon: 'arrow-right',
           isPrimary: true,
@@ -614,16 +638,16 @@ const CommandBar = {
         .concat(this._toolResults(q, true).map(e => ({ item: e.r, score: e.score })))
         .sort((a, b) => b.score - a.score);
       this.results.push(...both.filter(e => e.score >= 80).map(e => e.item));
+      this.results.push(...quickAfter);
 
       // Search action
       this.results.push({
         id: 'search',
-        label: `Search "${q}"`,
-        hint: 'Google Search',
+        label: `Search "${window.escapeHtml ? window.escapeHtml(query.trim()) : query.trim()}"`,
+        hint: _typedAddress().SEARCH_ENGINES[_typedAddress().currentEngine()].name + ' Search',
         icon: 'search',
         action: () => {
-          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
-          TabManager.createTab(searchUrl, true);
+          TabManager.createTab(_typedAddress().searchUrl(query), true);
         }
       });
 
@@ -637,6 +661,9 @@ const CommandBar = {
       this.results.push(...this._featureResults(q, ranked.map(e => e.c)));
     }
 
+    // A command named exactly what was typed is the one meant.
+    const exact = this.results.find(r => r && typeof r.label === 'string' && r.label.replace(/<[^>]+>/g, '').trim().toLowerCase() === q);
+    if (exact && this.results[0] !== exact) this.results = [exact, ...this.results.filter(r => r !== exact)];
     this.selectedIndex = 0;
     this.renderResults();
   },

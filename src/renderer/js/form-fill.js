@@ -51,8 +51,11 @@ const FormFill = {
     if (p.fullName && (!p.firstName || !p.lastName)) { const parts = p.fullName.trim().split(/\s+/); p.firstName = p.firstName || parts[0]; p.lastName = p.lastName || parts.slice(1).join(' '); }
     const js = `(function(){try{
       var P=${JSON.stringify(p)};
-      var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      function fire(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
+      // The value setter of the element's own kind: the input one throws on a
+      // <textarea>, which left it empty while still counted as filled (found
+      // 2026-09-29). fire() says whether the value really went in.
+      function setterOf(el){try{var proto=el.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype;return Object.getOwnPropertyDescriptor(proto,'value').set;}catch(e){return null;}}
+      function fire(el,val){try{var setter=setterOf(el);el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return el.value===String(val);}catch(e){return false;}}
       function vis(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}}
       function meta(el){try{var lab='';if(el.labels&&el.labels[0])lab=el.labels[0].textContent||'';return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')+' '+lab).toLowerCase();}catch(e){return '';}}
       var RULES=[
@@ -75,7 +78,7 @@ const FormFill = {
         var m=meta(el);
         for(var i=0;i<RULES.length;i++){ var val=RULES[i][2]; if(!val)continue; if(RULES[i][1].test(m)){
           if(el.tagName==='SELECT'){ var opt=Array.prototype.slice.call(el.options).find(function(o){return (o.textContent||'').toLowerCase().indexOf(String(val).toLowerCase())>=0;}); if(opt){el.value=opt.value;el.dispatchEvent(new Event('change',{bubbles:true}));filled++;} }
-          else { fire(el,val); filled++; }
+          else if (fire(el,val)) filled++;
           break;
         }}
       });

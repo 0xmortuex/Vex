@@ -51,6 +51,14 @@ const ReadingMode = {
     const tabId = TabManager.activeTabId;
     const currentUrl = wv.getURL();
 
+    // Already reading this tab: the second press exits. Running it again used
+    // to overwrite the remembered page with the reader's own data: URL, so the
+    // original page was lost (found 2026-09-29).
+    if (this._originalUrls.has(tabId) && /^data:text\/html/i.test(currentUrl)) {
+      this.exitReadingMode(tabId);
+      return;
+    }
+
     let article;
     try {
       // Extract STRUCTURE AND TEXT, not markup. innerHTML from the page would
@@ -60,11 +68,17 @@ const ReadingMode = {
         (() => {
           const main = document.querySelector('article') || document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
           const blocks = [];
+          // A block's text already includes what is nested in it (inline code
+          // in a paragraph, a paragraph in a list item), so nested picks are
+          // skipped; they were repeated before (found 2026-09-29).
+          const picked = new Set();
+          const insidePicked = (el) => { for (let a = el.parentElement; a && a !== main; a = a.parentElement) if (picked.has(a)) return true; return false; };
           for (const el of main.querySelectorAll('h1,h2,h3,h4,p,li,blockquote,pre,code,img')) {
             if (blocks.length >= 2000) break;
             if (el.tagName === 'IMG') { if (el.currentSrc || el.src) blocks.push({ tag: 'IMG', src: el.currentSrc || el.src }); continue; }
+            if (insidePicked(el)) continue;
             const text = (el.innerText || el.textContent || '').trim();
-            if (text) blocks.push({ tag: el.tagName, text: text.slice(0, 20000) });
+            if (text) { blocks.push({ tag: el.tagName, text: text.slice(0, 20000) }); picked.add(el); }
           }
           const text = main.innerText || '';
           return {

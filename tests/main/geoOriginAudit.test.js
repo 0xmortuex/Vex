@@ -13,7 +13,7 @@ function handler(decisions) {
   let fn;
   vm.runInNewContext(source.slice(start, end), {
     ipcMain: { handle: (_name, callback) => { fn = callback; } },
-    URL, decisionsFor: () => decisions, savedDecision, sessionDecisions: new Map(),
+    URL, decisionsFor: () => decisions, savedDecision, sessionDecisionsFor: () => new Map(),
     pendingPermissions: new Map(), sendPermissionRequest: vi.fn(), setTimeout: vi.fn(),
   });
   return fn;

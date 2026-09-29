@@ -161,7 +161,10 @@ const VexToday = {
     if (!facts.length) throw new Error('Nothing on today: no reminders, tasks, changed pages, saved links or new feed items to write about');
     const prompt = 'Write my morning brief: one short paragraph, 2 to 4 sentences, in plain words, no list and no greeting. Say what matters first. Use only these facts and invent nothing:\n\n' + facts.join('\n');
     const res = await AIRouter.callAI('chat', { message: prompt });
-    const text = String((res && (res.result || res.text || res.message)) || '').trim();
+    const raw = String((res && (res.result || res.text || res.message)) || '').trim();
+    // A local model answers the chat prompt as {"reply": "…"}, and the brief
+    // showed that JSON as it came (found 2026-09-29).
+    const text = String(AIPanel._parseResponse(raw).reply || raw).trim();
     if (!text) throw new Error('The AI returned nothing');
     localStorage.setItem(this.BRIEF_KEY, JSON.stringify({ day: this._day(now), text, at: now }));
     await this.refresh();

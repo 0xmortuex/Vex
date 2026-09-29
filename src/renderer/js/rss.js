@@ -37,8 +37,11 @@ const VexFeeds = {
     return parsed.href;
   },
 
-  parse(xml, sourceTitle) {
+  // `base` is the feed's own URL. A relative item link ("/posts/1") is read
+  // against it; it used to become "https://posts/1" (found 2026-09-29).
+  parse(xml, sourceTitle, base) {
     const out = [];
+    const abs = (href) => { if (!href || !base) return href; try { return new URL(href, base).href; } catch { return href; } };
     const doc = new DOMParser().parseFromString(String(xml || ''), 'text/xml');
     // DOMParser signals a malformed document with a <parsererror> node rather
     // than throwing, so an unchecked parse silently produced an empty feed.
@@ -47,7 +50,7 @@ const VexFeeds = {
     doc.querySelectorAll('item').forEach(it => {
       out.push({
         title: it.querySelector('title')?.textContent?.trim() || '(untitled)',
-        link: it.querySelector('link')?.textContent?.trim() || '',
+        link: abs(it.querySelector('link')?.textContent?.trim() || ''),
         at: Date.parse(it.querySelector('pubDate')?.textContent || '') || 0,
         src: sourceTitle || doc.querySelector('channel > title')?.textContent?.trim() || '',
       });
@@ -57,7 +60,7 @@ const VexFeeds = {
       const linkEl = it.querySelector('link[rel="alternate"]') || it.querySelector('link');
       out.push({
         title: it.querySelector('title')?.textContent?.trim() || '(untitled)',
-        link: linkEl?.getAttribute('href') || '',
+        link: abs(linkEl?.getAttribute('href') || ''),
         at: Date.parse(it.querySelector('updated, published')?.textContent || '') || 0,
         src: sourceTitle || doc.querySelector('feed > title')?.textContent?.trim() || '',
       });
@@ -75,7 +78,7 @@ const VexFeeds = {
         const xml = await window.vex.rssFetch(f.url);
         // main returns null for a non-200, an oversized body, or a network error.
         if (!xml) return { feed: f, items: [], error: 'could not be reached' };
-        return { feed: f, items: this.parse(xml, f.title) };
+        return { feed: f, items: this.parse(xml, f.title, f.url) };
       } catch (err) {
         return { feed: f, items: [], error: err.message || 'failed' };
       }
@@ -137,7 +140,7 @@ const VexFeeds = {
       try {
         const xml = await window.vex.rssFetch(url);
         if (!xml) { window.showToast?.("Couldn't fetch that feed — the server did not respond with a readable feed", 'error'); return; }
-        const items = this.parse(xml);
+        const items = this.parse(xml, '', url);
         if (!items.length) { window.showToast?.('No items found at that URL — is it really an RSS/Atom feed?', 'error'); return; }
         this.feeds.push({ url, title: (items[0] && items[0].src) || url.replace(/^https?:\/\//, '').slice(0, 40) });
         this.save();

@@ -85,8 +85,11 @@ const VexExtensionCatalog = {
       limited: true,
       name: 'Violentmonkey',
       what: 'Userscripts — small scripts that change how a site behaves.',
-      works: 'Scripts run. Most scripts that only touch the page work as written.',
-      caveat: 'A script whose @grant asks for downloads, notifications or context menus fails, because Electron has none of those.',
+      // Its service worker stops at chrome.windows while starting, and it runs
+      // scripts through chrome.userScripts; Electron has neither, so no script
+      // runs (found 2026-09-29, when "Scripts run" was shown here).
+      works: 'Does not work in Vex yet: it installs, but no script runs.',
+      caveat: 'It needs Chrome’s userScripts and windows extension APIs, which Electron does not have.',
       source: 'https://github.com/violentmonkey/violentmonkey/releases',
     },
     {

@@ -25,7 +25,7 @@ const FocusFlows = {
       m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
         <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 10px">
           <span style="font-size:15px;font-weight:700;color:var(--text);flex:1;display:inline-flex;align-items:center;gap:7px">${VexIcons.svg('target', { size: 16 })}Focus Flows</span>
-          <button id="ff-close" style="${this._chip()}">✕</button>
+          <button id="ff-close" style="${this._chip()}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
         </div>
         <div id="ff-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
       document.body.appendChild(m);
@@ -51,8 +51,8 @@ const FocusFlows = {
           <span style="display:block;font-size:11px;color:var(--text-muted)">${(f.openTabs || []).length} tab(s)${f.persona ? ' · persona' : ''}${f.dimUI ? ' · dim' : ''}${(f.blockSites || []).length ? ' · blocks ' + (f.blockSites || []).length : ''}</span>
         </span>
         <button data-act="go" style="${this._primary()}">Activate</button>
-        <button data-act="edit" style="${this._chip()}">✎</button>
-        <button data-act="del" style="${this._chip()}">✕</button>
+        <button data-act="edit" style="${this._chip()}" title="Edit" aria-label="Edit">${VexIcons.svg('edit', { size: 13 })}</button>
+        <button data-act="del" style="${this._chip()}" title="Delete" aria-label="Delete">${VexIcons.svg('x', { size: 13 })}</button>
       </div>`).join('');
     } else {
       html += `<div style="color:var(--text-muted);margin-bottom:8px">No flows yet — create one below.</div>`;

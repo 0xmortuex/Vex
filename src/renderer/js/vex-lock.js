@@ -14,6 +14,9 @@
 const VexLock = {
   PIN_KEY: 'vex.lockPin',
   IDLE_KEY: 'vex.lockIdleMin',
+  // Being locked is remembered: it was only in memory, so closing Vex and
+  // starting it again opened it unlocked (found 2026-09-29).
+  LOCKED_KEY: 'vex.locked',
   ITERATIONS: 150000,
   _locked: false,
   _fails: 0,
@@ -50,6 +53,9 @@ const VexLock = {
     if (this._locked) return true;
     if (!this.hasPin()) { window.showToast?.('Set a PIN first — Settings › Privacy & Security › Lock Vex', 'error'); return false; }
     this._locked = true;
+    localStorage.setItem(this.LOCKED_KEY, '1');
+    // Main refuses the vault and new private windows while this is set.
+    window.vex?.setLockState?.(true);
     document.body.classList.add('vex-locked');
     document.activeElement?.blur?.();
     const el = document.createElement('div');
@@ -65,6 +71,21 @@ const VexLock = {
         <div class="vex-lock-msg" aria-live="polite"></div>
       </form>`;
     document.body.appendChild(el);
+    // Everything but the PIN screen is inert: Tab walked the focus to the
+    // buttons behind it, and a panel opened by a shortcut sat there usable
+    // (found 2026-09-29). Anything added to the page while locked is made
+    // inert too.
+    this._inerted = [];
+    const shut = (node) => {
+      if (node === el || node.nodeType !== 1 || node.hasAttribute('inert')) return;
+      node.setAttribute('inert', '');
+      this._inerted.push(node);
+    };
+    for (const child of [...document.body.children]) shut(child);
+    this._watch = new MutationObserver((records) => {
+      for (const r of records) for (const n of r.addedNodes) shut(n);
+    });
+    this._watch.observe(document.body, { childList: true });
     const input = el.querySelector('input');
     const msg = el.querySelector('.vex-lock-msg');
     el.querySelector('form').addEventListener('submit', async (e) => {
@@ -85,6 +106,12 @@ const VexLock = {
   unlock() {
     this._locked = false;
     this._fails = 0;
+    localStorage.removeItem(this.LOCKED_KEY);
+    window.vex?.setLockState?.(false);
+    this._watch?.disconnect();
+    this._watch = null;
+    for (const node of this._inerted || []) node.removeAttribute('inert');
+    this._inerted = [];
     document.body.classList.remove('vex-locked');
     this._el?.remove();
     this._el = null;
@@ -97,6 +124,12 @@ const VexLock = {
   },
 
   init() {
+    // Locked when Vex was closed: start locked. Without a PIN there is
+    // nothing to unlock with, so the old flag is dropped instead.
+    if (localStorage.getItem(this.LOCKED_KEY) === '1') {
+      if (this.hasPin()) this.lock();
+      else localStorage.removeItem(this.LOCKED_KEY);
+    }
     window.vex?.onLockVex?.(() => this.lock());
     VexJobs.every('Lock when idle', 30000, () => this._idleCheck(), { when: 'background' });
   },

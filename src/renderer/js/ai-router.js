@@ -297,6 +297,7 @@ const AIRouter = (() => {
       userMessage += `Page title: ${pc.title || ''}\nURL: ${pc.url || ''}\n\nContent:\n${(pc.text || '').substring(0, 2000)}\n\n`;
     }
     if (request.selectedText) userMessage += `Selected text: "${request.selectedText}"\n\n`;
+    userMessage += localExtras(request);
     if (request.message) userMessage += request.message;
     if (!userMessage) userMessage = 'Hello';
 
@@ -410,6 +411,23 @@ const AIRouter = (() => {
     return (smallModel && ROUTINE_FEATURES.includes(feature)) ? smallModel : localModel;
   }
 
+  // What the cloud worker reads off the request and a local prompt used to
+  // leave out: Translate's target language (a local model translated into
+  // whatever it liked) and the tabs of a multi-tab question (it answered about
+  // no tabs at all) (found 2026-09-29). Tab text is capped: a local model's
+  // context is a fraction of the cloud's.
+  const LOCAL_TABS_BUDGET = 8000;
+  function localExtras(request) {
+    let out = '';
+    if (request.targetLanguage) out += `Target language: ${request.targetLanguage}\n\n`;
+    if (Array.isArray(request.tabContexts) && request.tabContexts.length) {
+      const per = Math.floor(LOCAL_TABS_BUDGET / request.tabContexts.length);
+      const tabs = request.tabContexts.map(c => ({ ...c, text: String((c && c.text) || '').slice(0, per) }));
+      out += 'Open tabs:\n' + MultiTabContext.formatForAI(tabs) + '\n\n';
+    }
+    return out;
+  }
+
   async function callLocal(feature, request) {
     if (feature === 'agent') return callLocalAgent(request);
     // A question about an image (right-click → "Ask Vex about this image").
@@ -433,6 +451,7 @@ const AIRouter = (() => {
     if (request.selectedText) {
       userMessage += `Selected text: "${request.selectedText}"\n\n`;
     }
+    userMessage += localExtras(request);
     if (request.message) userMessage += `User: ${request.message}`;
     if (!userMessage) userMessage = JSON.stringify(request);
 
@@ -453,7 +472,7 @@ const AIRouter = (() => {
       for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
       msgs.push({ role: 'user', content: userMessage });
       const model = modelFor(feature);
-      const text = await Ollama.chat(model, msgs, { temperature, maxTokens: 2000, format: 'json', onToken: request.onToken, ...thinkOpts(request) });
+      const text = await Ollama.chat(model, msgs, { temperature, maxTokens: 2000, format: 'json', signal: request.signal, onToken: request.onToken, ...thinkOpts(request) });
       return { result: text, backend: 'local', model };
     }
 
@@ -463,6 +482,8 @@ const AIRouter = (() => {
       temperature,
       maxTokens: 2000,
       format: expectsJson ? 'json' : null,
+      // Stop in the AI panel cancels the answer being written.
+      signal: request.signal,
       // Only the local backend streams; the cloud worker answers in one piece.
       onToken: request.onToken,
       ...thinkOpts(request),
@@ -499,7 +520,12 @@ const AIRouter = (() => {
 
     const url = cloudWorkerUrl();
     if (!url) {
-      throw new Error('Cloud AI is not configured. Add your AI Worker URL in Settings → AI (see SELF_HOSTING.md), or switch to local Ollama.');
+      // "…or switch to local Ollama" told someone already on local, with
+      // Ollama down, to do what they had done (found 2026-09-29). Say what is
+      // missing: with Ollama up, callAI falls back to it after this.
+      if (isOllamaAvailable()) throw new Error('Cloud AI is not configured: no AI Worker URL is set (Settings → AI, see SELF_HOSTING.md).');
+      const where = (typeof Ollama !== 'undefined' && Ollama.getBaseUrl) ? Ollama.getBaseUrl() : 'http://127.0.0.1:11434';
+      throw new Error(`No AI to answer: Ollama at ${where} is not running, and no cloud AI Worker is configured. Start Ollama, or add an AI Worker URL in Settings → AI (see SELF_HOSTING.md).`);
     }
     // The normal path (VexConfig.fetchAI → main's cloud:request) is already
     // bounded at 25s in main. The bare-fetch fallback had no bound at all, so a

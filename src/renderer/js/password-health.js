@@ -34,8 +34,16 @@ const PasswordHealth = {
     const body = m.querySelector('#pwh-body'); if (!body) return;
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
     let health = { total: 0, reused: [], weak: [] }, list = [], totp = [];
-    try { health = (await window.vex.vaultHealth()) || health; } catch {}
-    try { list = (await window.vex.vaultList()) || []; } catch {}
+    // A vault that cannot be read is said so, not reported as "0 passwords,
+    // none reused" — health.error was ignored (found 2026-09-29).
+    try {
+      health = await window.vex.vaultHealth();
+      if (!health || health.error) throw new Error((health && health.error) || 'no answer from the vault');
+      list = (await window.vex.vaultList()) || [];
+    } catch (err) {
+      body.textContent = 'Your saved passwords could not be checked: ' + String(err && err.message || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
+      return;
+    }
     try { totp = (await window.vex.totpList()) || []; } catch {}
 
     // Sites with a saved password but no matching authenticator entry.

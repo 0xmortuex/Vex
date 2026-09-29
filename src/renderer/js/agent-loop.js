@@ -350,6 +350,16 @@ const AgentLoop = {
   async start(goal, mode) {
     if (this._running) { window.showToast?.('Agent already running'); return; }
     this._running = true;
+    // Each run has its own token. A run stopped while it waited on something
+    // (an approval card, a model call) used to wake up after a new run had set
+    // _running again, and carry on as if it were that run — an Approve on the
+    // old card then did the stopped action (found 2026-09-29). `live()` is
+    // "this run, still running", checked after every wait.
+    const token = this._runToken = {};
+    const live = () => this._running && this._runToken === token;
+    // A run that a newer one has replaced writes nothing more: its lines would
+    // land on the new run's card.
+    const stopped = () => { if (this._runToken === token) this._renderStep('stopped', 'Stopped by you.', 'warn'); };
     this._mode = mode || 'ask';
     this._history = [];
     this._planApproved = false;
@@ -357,6 +367,7 @@ const AgentLoop = {
     // carried on, so with a local model "Stop" took 10-20 seconds to mean it.
     // This signal travels with every request and is aborted by stop().
     this._abort = new AbortController();
+    const signal = this._abort.signal;
     this._pendingImage = null;
     this._slowSaid = false;
     // Where this run may act without asking (see _offTask).
@@ -382,7 +393,7 @@ const AgentLoop = {
       let lastProgressMarker = null;
       const STALL_THRESHOLD = 3;
 
-      while (iteration < this._maxIter && this._running) {
+      while (iteration < this._maxIter && live()) {
         iteration++;
 
         // Paused by the user: the run stops between steps, never in the middle
@@ -392,7 +403,7 @@ const AgentLoop = {
         // paused or not, would change the timing of every run for nothing.
         if (this._paused) {
           await this._waitWhilePaused();
-          if (!this._running) break;
+          if (!live()) break;
         }
         this._flushNudges();
 
@@ -426,7 +437,7 @@ const AgentLoop = {
             conversationHistory: [{ role: 'user', content: agentGuide(this._mode, new Date()) }, ...this._history.slice(-18)],
             lastToolResult: lastResult,
             image,
-            signal: this._abort.signal,
+            signal,
             // The reply as it is written, and a word when it is going to be
             // slow: a minute of "Thinking…" is indistinguishable from a hang.
             onToken: (_piece, full) => this._streamStep(full),
@@ -454,7 +465,7 @@ const AgentLoop = {
           // One reply that is not a tool call used to end the whole run ("AI
           // did not return a valid tool call") — seen live from a local model
           // mid-task. It is told what was wrong and asked again, twice at most.
-          for (let repair = 0; repair < 2 && this._running && data && data.result != null && !parseAgentResponse(data.result)?.tool; repair++) {
+          for (let repair = 0; repair < 2 && live() && data && data.result != null && !parseAgentResponse(data.result)?.tool; repair++) {
             document.querySelector('.agent-step-thinking')?.remove();
             this._renderStep('repair', 'That reply was not a tool call — asking again.', 'warn');
             this._history.push({ role: 'assistant', content: String(data.result).slice(0, 1200) });
@@ -465,7 +476,7 @@ const AgentLoop = {
         } catch (err) {
           document.querySelector('.agent-step-thinking')?.remove();
           // Stop cancelled the call in flight: that is not an error.
-          if (!this._running || this._abort.signal.aborted) this._renderStep('stopped', 'Stopped by you.', 'warn');
+          if (!live() || signal.aborted) stopped();
           else this._renderStep('error', 'Error: ' + (err.message || 'Request failed'), 'error');
           break;
         }
@@ -481,7 +492,7 @@ const AgentLoop = {
         // Stop is only checked at the top of the loop, so a Stop pressed while
         // the model was thinking still let this iteration run its tool — the
         // agent took one more action AFTER the user said stop. Re-check here.
-        if (!this._running) { this._renderStep('stopped', 'Stopped by you.', 'warn'); break; }
+        if (!live()) { stopped(); break; }
 
         const decision = this._parseAgentResponse(data.result);
 
@@ -508,7 +519,7 @@ const AgentLoop = {
           if (this._mode === 'plan') approved = await this._confirmPlan(steps, decision.thought);
           else this._renderPlan(steps);
           if (!approved) { this._renderStep('denied', 'Plan not approved — nothing was done.', 'error'); break; }
-          if (!this._running) { this._renderStep('stopped', 'Stopped by you.', 'warn'); break; }
+          if (!live()) { stopped(); break; }
           this._planApproved = true;
           lastResult = { ok: true, result: 'The user approved the plan. Carry it out now, one tool call at a time.' };
           this._history.push({ role: 'user', content: JSON.stringify({ toolResult: lastResult }) });
@@ -540,13 +551,14 @@ const AgentLoop = {
 
         // Check permission
         const allowed = await this._checkPermission(decision);
+        // Approval can sit open for a long time; the user may have pressed Stop
+        // in the meantime (which answers the card "no" — that is a stop, not a
+        // denial).
+        if (!live()) { stopped(); break; }
         if (!allowed) {
           this._renderStep('denied', 'Action denied by user', 'error');
           break;
         }
-        // Approval can sit open for a long time; the user may have pressed Stop
-        // in the meantime.
-        if (!this._running) { this._renderStep('stopped', 'Stopped by you.', 'warn'); break; }
 
         // Its own reasoning says not to: do not do it, and say why.
         const notTo = ToolCallHistory.ACTS.includes(decision.tool) ? ToolCallHistory.saysNotTo(decision.thought) : null;
@@ -599,6 +611,8 @@ const AgentLoop = {
           show: true,
           caption: typeof AgentCursor !== 'undefined' ? AgentCursor.caption(decision.thought) : '',
         });
+        // Replaced by a newer run while the tool ran: what follows belongs to it.
+        if (this._runToken !== token) break;
         // A screenshot goes to the model as an image, once — never into the text.
         if (lastResult && lastResult.image) { this._pendingImage = lastResult.image; delete lastResult.image; }
         // What it made, so it can be unmade: an agent that acts on its own
@@ -643,7 +657,7 @@ const AgentLoop = {
         if (iteration >= this._maxIter) exhausted = true;
       }
 
-      if (exhausted && this._running) {
+      if (exhausted && live()) {
         // Running out of steps is not the same as having nothing to say.
         // A research run that read six sources and then printed "Couldn't
         // complete" threw away eight minutes of work and every word of it;
@@ -657,6 +671,8 @@ const AgentLoop = {
       this._renderStep('error', 'Agent error: ' + err.message, 'error');
     }
 
+    // A newer run owns the buttons, the card and the run record now.
+    if (this._runToken !== token) return;
     this._running = false;
     if (typeof AgentCursor !== 'undefined') AgentCursor.finish(WebviewManager.getActiveWebview());
     document.getElementById('ai-send')?.classList.remove('running');
@@ -885,6 +901,10 @@ const AgentLoop = {
     const macro = this.macros().find(m => m.id === id);
     if (!macro) throw new Error('That macro is gone');
     this._running = true;
+    // Its own token, as in start(): a stopped replay must not wake up inside
+    // a newer run (found 2026-09-29).
+    const token = this._runToken = {};
+    const live = () => this._running && this._runToken === token;
     this._mode = mode || this._mode || 'ask';
     // The same site rules as a real run: a recorded step that acts somewhere
     // the user did not point it is still asked about.
@@ -893,12 +913,17 @@ const AgentLoop = {
     try { const wv = WebviewManager.getActiveWebview(); if (wv && wv.getURL) this._allowSite(wv.getURL()); } catch {}
     for (const m of String(macro.goal || '').matchAll(/https?:\/\/[^\s)"']+/g)) this._allowSite(m[0]);
     document.getElementById('ai-send')?.classList.add('running');
+    // A replay from Ctrl+K "Repeat a task" had no Stop button: only a run sent
+    // from the panel showed one (found 2026-09-29).
+    document.getElementById('ai-stop-agent')?.classList.add('visible');
+    document.getElementById('ai-pause-agent')?.classList.add('visible');
     this._renderStep('agent-start', 'Repeating: ' + macro.name + ' (' + macro.calls.length + ' steps, no AI)', 'info');
 
     const done = [];
     let failed = null;
     for (const call of macro.calls) {
-      if (!this._running) { failed = { tool: call.tool, error: 'Stopped by you' }; break; }
+      if (this._paused) await this._waitWhilePaused();
+      if (!live()) { failed = { tool: call.tool, error: 'Stopped by you' }; break; }
       const decision = {
         tool: call.tool,
         parameters: call.parameters,
@@ -907,11 +932,13 @@ const AgentLoop = {
       };
       try { this._currentSite = this._originOf((WebviewManager.getActiveWebview() || {}).getURL?.()); } catch {}
       const allowed = await this._checkPermission(decision);
+      if (!live()) { failed = { tool: call.tool, error: 'Stopped by you' }; break; }
       if (!allowed) { failed = { tool: call.tool, error: 'You did not allow it' }; break; }
       this._renderStep('action', '→ ' + call.tool + '(' + JSON.stringify(call.parameters) + ')', 'action');
       let result;
       try { result = await AgentExecutor.executeTool(call.tool, call.parameters || {}, { show: true, caption: 'Repeating a saved task' }); }
       catch (err) { result = { ok: false, error: (err && err.message) || 'it threw' }; }
+      if (this._runToken !== token) return { done, failed: { tool: call.tool, error: 'Stopped by you' }, handedOver: false };
       if (result && result.undo) { (this._macroUndo = this._macroUndo || []).push(result.undo); delete result.undo; }
       if (!result || !result.ok) {
         failed = { tool: call.tool, error: (result && result.error) || 'failed' };
@@ -925,6 +952,8 @@ const AgentLoop = {
     // The page changed under the recording: the AI takes over from where the
     // saved steps stopped, instead of leaving the user to start again. Not when
     // the user stopped it or refused a step — that is an answer, not a failure.
+    // Replaced by a newer run while it waited: that run owns the panel now.
+    if (this._runToken !== token) return { done, failed, handedOver: false };
     const handOver = failed && failed.error !== 'Stopped by you' && failed.error !== 'You did not allow it' && macro.goal;
     if (failed) {
       this._renderStep('error', 'Stopped at ' + failed.tool + ': ' + failed.error, 'error');
@@ -1013,6 +1042,9 @@ const AgentLoop = {
   // plan can be corrected rather than restarted.
   _paused: false,
   _pauseWaiters: [],
+  // Cards waiting for the user (approve, plan, hand-over): a settle function
+  // each, so stop() can answer them.
+  _openCards: new Set(),
   _nudges: [],
 
   isPaused() { return !!this._paused; },
@@ -1075,6 +1107,10 @@ const AgentLoop = {
     for (const go of this._pauseWaiters.splice(0)) go();
     this._nudges = [];
     this._paintPause();
+    // An approval card left open used to keep the run waiting forever ("Working
+    // on it" never ended), and pressing Approve on it later did the stopped
+    // action (found 2026-09-29). Every open card is answered "no" and marked.
+    for (const settle of [...this._openCards]) settle(false, 'Stopped');
     // Cancel the model call already in flight, not just the next step.
     try { this._abort?.abort(new Error('Stopped by you')); } catch { /* nothing in flight */ }
     document.getElementById('ai-send')?.classList.remove('running');
@@ -1229,12 +1265,8 @@ const AgentLoop = {
         + '<div class="agent-btns"><button class="agent-approve">Approve plan</button><button class="agent-deny">Deny</button></div></div>';
       container.appendChild(el);
       container.scrollTop = container.scrollHeight;
-      const done = (ok) => {
-        el.querySelector('.agent-btns').innerHTML = ok
-          ? '<span style="color:var(--success,#22c55e);font-size:11px">Plan approved</span>'
-          : '<span style="color:var(--danger);font-size:11px">Denied</span>';
-        resolve(ok);
-      };
+      const settle = this._settleCard(el, resolve);
+      const done = (ok) => settle(ok, ok ? 'Plan approved' : 'Denied', ok ? 'var(--success,#22c55e)' : 'var(--danger)');
       el.querySelector('.agent-approve').addEventListener('click', () => done(true));
       el.querySelector('.agent-deny').addEventListener('click', () => done(false));
     });
@@ -1321,12 +1353,8 @@ const AgentLoop = {
       el.querySelector('.agent-thought').textContent = why + ' Vex will not type passwords, card numbers or one-time codes, and will not work around a "prove you are human" check.';
       container.appendChild(el);
       container.scrollTop = container.scrollHeight;
-      const done = (ok) => {
-        el.querySelector('.agent-btns').innerHTML = ok
-          ? '<span style="color:var(--success,#22c55e);font-size:11px">Carrying on</span>'
-          : '<span style="color:var(--danger);font-size:11px">Stopped</span>';
-        resolve(ok);
-      };
+      const settle = this._settleCard(el, resolve);
+      const done = (ok) => settle(ok, ok ? 'Carrying on' : 'Stopped', ok ? 'var(--success,#22c55e)' : 'var(--danger)');
       el.querySelector('.agent-approve').addEventListener('click', () => done(true));
       el.querySelector('.agent-deny').addEventListener('click', () => done(false));
     });
@@ -1343,6 +1371,20 @@ const AgentLoop = {
       message: decision.tool + '\n\n' + (decision.thought || ''),
       okLabel: 'Proceed', danger: true
     });
+  },
+
+  // Settles a waiting card once: writes what happened in place of its buttons
+  // and resolves its promise. Registered in _openCards until then.
+  _settleCard(el, resolve) {
+    const settle = (value, label, color) => {
+      if (!this._openCards.has(settle)) return;
+      this._openCards.delete(settle);
+      const btns = el.querySelector('.agent-btns');
+      if (btns) btns.innerHTML = '<span style="color:' + (color || 'var(--text-muted)') + ';font-size:11px">' + this._esc(label) + '</span>';
+      resolve(value);
+    };
+    this._openCards.add(settle);
+    return settle;
   },
 
   _confirmAction(decision, heading, { alwaysSite } = {}) {
@@ -1366,19 +1408,11 @@ const AgentLoop = {
       `;
       container.appendChild(el);
       container.scrollTop = container.scrollHeight;
+      const settle = this._settleCard(el, resolve);
 
-      el.querySelector('.agent-approve').addEventListener('click', () => {
-        el.querySelector('.agent-btns').innerHTML = '<span style="color:var(--success,#22c55e);font-size:11px">Approved</span>';
-        resolve(true);
-      });
-      el.querySelector('.agent-always')?.addEventListener('click', () => {
-        el.querySelector('.agent-btns').innerHTML = '<span style="color:var(--success,#22c55e);font-size:11px">Allowed on this site from now on — Settings › AI to change it</span>';
-        resolve('always');
-      });
-      el.querySelector('.agent-deny').addEventListener('click', () => {
-        el.querySelector('.agent-btns').innerHTML = '<span style="color:var(--danger);font-size:11px">Denied</span>';
-        resolve(false);
-      });
+      el.querySelector('.agent-approve').addEventListener('click', () => settle(true, 'Approved', 'var(--success,#22c55e)'));
+      el.querySelector('.agent-always')?.addEventListener('click', () => settle('always', 'Allowed on this site from now on — Settings › AI to change it', 'var(--success,#22c55e)'));
+      el.querySelector('.agent-deny').addEventListener('click', () => settle(false, 'Denied', 'var(--danger)'));
     });
   },
 

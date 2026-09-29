@@ -14,9 +14,24 @@ const PrivacyPack = {
     try { const c = await window.vex?.privacyGetConfig?.(); if (c) this.cfg = { ...this.cfg, ...c }; } catch {}
   },
 
+  // Main's answer is the truth. The error used to be swallowed, so a private
+  // window (where main refuses the change) said "HTTPS-Only mode on" while
+  // nothing had changed (found 2026-09-29).
   async setCfg(patch) {
-    this.cfg = { ...this.cfg, ...patch };
-    try { await window.vex?.privacySetConfig?.(patch); } catch {}
+    const saved = await window.vex.privacySetConfig(patch);
+    this.cfg = { ...this.cfg, ...(saved || patch) };
+  },
+
+  // Change a setting and say so; if main refused, put the control back and
+  // say why.
+  async _change(patch, said, control, previous) {
+    try {
+      await this.setCfg(patch);
+      window.showToast?.(said);
+    } catch (err) {
+      if (control) { if (control.type === 'checkbox') control.checked = previous; else control.value = previous; }
+      window.showToast?.('Not changed: ' + (err && err.message ? err.message.replace(/^Error invoking remote method '[^']*': (Error: )?/, '') : 'Vex did not accept it'), 'error');
+    }
   },
 
   renderSettings(container) {
@@ -53,21 +68,19 @@ const PrivacyPack = {
       <button id="priv-report" style="padding:8px 16px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Privacy Report</button>`;
 
     container.querySelector('#priv-farble').addEventListener('change', (e) => {
-      this.setCfg({ farble: e.target.checked });
-      window.showToast?.(e.target.checked ? 'Fingerprint protection on (new pages)' : 'Fingerprint protection off');
+      this._change({ farble: e.target.checked }, e.target.checked ? 'Fingerprint protection on (new pages)' : 'Fingerprint protection off', e.target, !e.target.checked);
     });
     container.querySelector('#priv-https-only').addEventListener('change', (e) => {
-      this.setCfg({ httpsOnly: e.target.checked });
-      window.showToast?.(e.target.checked ? 'HTTPS-Only mode on' : 'HTTPS-Only mode off');
+      this._change({ httpsOnly: e.target.checked }, e.target.checked ? 'HTTPS-Only mode on' : 'HTTPS-Only mode off', e.target, !e.target.checked);
     });
     const dohSel = container.querySelector('#priv-doh');
     const provSel = container.querySelector('#priv-doh-provider');
-    dohSel.addEventListener('change', (e) => {
+    dohSel.addEventListener('change', async (e) => {
+      const was = this.cfg.doh;
+      await this._change({ doh: e.target.value }, e.target.value === 'off' ? 'DNS-over-HTTPS off' : 'DNS-over-HTTPS ' + (e.target.value === 'strict' ? '(strict)' : '(opportunistic)'), e.target, was);
       provSel.disabled = e.target.value === 'off';
-      this.setCfg({ doh: e.target.value });
-      window.showToast?.(e.target.value === 'off' ? 'DNS-over-HTTPS off' : 'DNS-over-HTTPS ' + (e.target.value === 'strict' ? '(strict)' : '(opportunistic)'));
     });
-    provSel.addEventListener('change', (e) => { this.setCfg({ dohProvider: e.target.value }); window.showToast?.('DoH provider: ' + e.target.value); });
+    provSel.addEventListener('change', (e) => { this._change({ dohProvider: e.target.value }, 'DoH provider: ' + e.target.value, e.target, this.cfg.dohProvider); });
     container.querySelector('#priv-report').addEventListener('click', () => this.showReport());
   },
 

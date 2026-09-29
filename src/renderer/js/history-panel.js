@@ -100,7 +100,13 @@ const HistoryPanel = {
         this.save();
         this.lastAISearch = null;
         this.renderList();
-        window.showToast?.('History cleared');
+        try {
+          await this._forgetElsewhere(null);
+          window.showToast?.('History cleared');
+        } catch (err) {
+          console.error('[History] clear did not reach every copy:', err);
+          window.showToast?.('History list cleared, but not everywhere: ' + err.message, 'error');
+        }
       }
     });
 
@@ -228,13 +234,31 @@ const HistoryPanel = {
 
   // Clearing everything was the only way to remove anything in bulk. These two
   // are what people actually reach for: one site, or one day.
-  deleteSite(host) {
+  async deleteSite(host) {
     this._hydrate();
     const before = this.entries.length;
     this.entries = this.entries.filter(e => { try { return new URL(e.url).hostname !== host; } catch { return true; } });
     this.save();
     this.renderList();
-    window.showToast?.(`Removed ${before - this.entries.length} from ${host}`);
+    try {
+      await this._forgetElsewhere(host);
+      window.showToast?.(`Removed ${before - this.entries.length} from ${host}`);
+    } catch (err) {
+      console.error('[History] delete did not reach every copy:', err);
+      window.showToast?.(`Removed from the list, but not everywhere: ${err.message}`, 'error');
+    }
+  },
+
+  // History has two more copies: the file-store list (storage:history-add),
+  // which the command bar reads when this list is empty, and Recall's
+  // full-text index. Clearing only this list left visits in both (found
+  // 2026-09-29). `host` null means everything.
+  async _forgetElsewhere(host) {
+    if (typeof VexStorage === 'undefined') throw new Error('the saved history file could not be reached');
+    const file = host ? await VexStorage.loadHistory() : [];
+    await VexStorage.save('history', file.filter(e => { try { return new URL(e.url).hostname !== host; } catch { return true; } }));
+    const r = host ? await window.vex.recallForget({ host }) : await window.vex.recallClear();
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Recall still remembers these pages');
   },
 
   deleteDay(label) {

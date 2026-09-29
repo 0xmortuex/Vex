@@ -49,8 +49,15 @@ const MasterVolume = {
   _script(g) {
     return `(function(target){try{
       if(window.__vexMV){ window.__vexMV.set(target); return; }
+      // One AudioContext and one MediaElementSource per element, shared with
+      // Night mode (night-audio.js): an element can only be routed once, so a
+      // second createMediaElementSource threw and the two features broke each
+      // other (found 2026-09-29). Each element's route ends in a shared "out"
+      // gain, which is the gain this slider sets.
+      var A=window.__vexAudio||(window.__vexAudio={ctx:null,nodes:new WeakMap()});
       var ctx=null;
-      function getCtx(){ if(!ctx){ try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); ctx.onstatechange=function(){ if(ctx.state==='running') applyAll(); }; }catch(e){ return null; } } return ctx; }
+      function getCtx(){ if(!ctx){ try{ ctx=A.ctx||(A.ctx=new (window.AudioContext||window.webkitAudioContext)()); ctx.addEventListener('statechange',function(){ if(ctx.state==='running') applyAll(); }); }catch(e){ return null; } } return ctx; }
+      function shared(m){ var n=A.nodes.get(m); if(n) return n; var source=A.ctx.createMediaElementSource(m); var out=A.ctx.createGain(); source.connect(out); out.connect(A.ctx.destination); n={source:source,out:out}; A.nodes.set(m,n); return n; }
       function resume(){ try{ var c=getCtx(); if(c&&c.state==='suspended'){ c.resume().then(applyAll).catch(function(){}); } }catch(e){} }
       function sameOrigin(m){ try{ var s=m.currentSrc||m.src||''; if(!s) return true; if(s.lastIndexOf('blob:',0)===0||s.lastIndexOf('data:',0)===0||s.lastIndexOf('mediastream:',0)===0) return true; var u=new URL(s, location.href); if(u.origin===location.origin) return true; return m.crossOrigin==='anonymous'||m.crossOrigin==='use-credentials'; }catch(e){ return false; } }
       // DRM/EME media (Netflix/Disney+/Prime) can't be routed through Web Audio —
@@ -65,9 +72,7 @@ const MasterVolume = {
         if(c && c.state!=='running'){ resume(); }
         if(c && c.state==='running'){
           try{
-            var src=c.createMediaElementSource(m);
-            var gn=c.createGain(); gn.gain.value=st.g;
-            src.connect(gn); gn.connect(c.destination);
+            var gn=shared(m).out; gn.gain.value=st.g;
             map.set(m,{gain:gn});
             try{ m.volume=1; }catch(e){}
             return true;
@@ -107,8 +112,14 @@ const MasterVolume = {
             else if(!(rec&&rec.corsTried)){ if(makeCors(m)) return; }
           }
           // 0–100% (or boost couldn't engage): plain element.volume — reliable.
-          try{ m.volume=Math.min(1,st.g); }catch(e){}
-          if(!(rec&&rec.gain)) map.set(m,{gain:null, corsTried: !!(rec&&rec.corsTried)});
+          // At 100% the element is left alone, so the site's own slider and the
+          // per-site volume (site-volume.js) keep working; this ran on every DOM
+          // change and pinned every video at 1 (found 2026-09-29). An element we
+          // turned down earlier gets the per-site figure (or full) back.
+          var setVol=!!(rec&&rec.setVol);
+          if(st.g!==1){ try{ m.volume=Math.min(1,st.g); }catch(e){} setVol=true; }
+          else if(setVol){ try{ m.volume=(typeof window.__vexVolume==='number')?window.__vexVolume:1; }catch(e){} setVol=false; }
+          if(!(rec&&rec.gain)) map.set(m,{gain:null, corsTried: !!(rec&&rec.corsTried), setVol:setVol});
         }catch(e){}
       }
       function applyAll(){ try{ document.querySelectorAll('video,audio').forEach(hook); }catch(e){} }
@@ -152,7 +163,7 @@ const MasterVolume = {
         <button class="mastervol-mute" title="Mute / unmute">${VexIcons.svg(pct === 0 ? 'mute' : 'volume', { size: 18 })}</button>
         <input class="mastervol-slider" type="range" min="0" max="500" step="5" value="${pct}">
       </div>
-      <div class="mastervol-ticks"><span>0</span><span>100</span><span>250</span><span>500%</span></div>
+      <div class="mastervol-ticks"><span style="--at:0">0</span><span style="--at:0.2">100</span><span style="--at:0.5">250</span><span style="--at:1">500%</span></div>
       <div class="mastervol-sub">Applies to every tab &amp; panel · above 100% boosts louder than the source</div>
       <div class="mastervol-drm" hidden>${VexIcons.svg('lock', { size: 12 })} This site's audio is DRM‑protected (Netflix / Disney+ / Prime), so it can't be boosted past 100% here — that's a streaming restriction, not a Vex limit. To make those louder, use a Windows system booster like <b>Equalizer APO</b> (free).</div>`;
     document.body.appendChild(el);
@@ -164,7 +175,10 @@ const MasterVolume = {
     const drmNote = el.querySelector('.mastervol-drm');
     const isDrm = this._activeHostIsDrm();
     let lastNonZero = pct || 100;
-    const set = (p) => {
+    // Opening the panel only shows the level; nothing is applied to any page
+    // until the slider or mute actually moves (found 2026-09-29: opening it at
+    // 100% injected the script into every tab and pinned all media volume).
+    const set = (p, apply = true) => {
       p = Math.max(0, Math.min(500, Math.round(p)));
       slider.value = p; pctEl.textContent = p + '%';
       pctEl.style.color = p > 100 ? 'var(--warning, #e8b84a)' : 'var(--primary, #6366f1)';
@@ -172,11 +186,11 @@ const MasterVolume = {
       // On DRM streaming sites, explain why boost above 100% won't take effect.
       if (drmNote) drmNote.hidden = !(p > 100 && isDrm);
       if (p > 0) lastNonZero = p;
-      this.apply(p / 100);
+      if (apply) this.apply(p / 100);
     };
     slider.addEventListener('input', () => set(+slider.value));
     mute.addEventListener('click', () => set(+slider.value === 0 ? lastNonZero : 0));
-    set(pct); // colourise the % label on open
+    set(pct, false); // colourise the % label on open
 
     this._onKey = (e) => { if (e.key === 'Escape') this.close(); };
     this._onDoc = (e) => { if (this._el && !this._el.contains(e.target)) this.close(); };
@@ -215,7 +229,12 @@ const MasterVolume = {
       .mastervol-mute{flex:0 0 auto;border:none;background:transparent;color:inherit;cursor:pointer;line-height:0;padding:2px;border-radius:6px;}
       .mastervol-title{display:inline-flex;align-items:center;gap:7px;}
       .mastervol-slider{flex:1;accent-color:var(--primary,#6366f1);height:4px;cursor:pointer;}
-      .mastervol-ticks{display:flex;justify-content:space-between;font-size:9.5px;color:var(--text-muted,#9a9aa5);margin-top:4px;padding:0 28px 0 32px;}
+      /* Each label sits under its real slider position (value/500 of the track,
+         inset by half the thumb); space-between put 100 and 250 at 27%/56%
+         (found 2026-09-29). margin-left = mute button + gap. */
+      .mastervol-ticks{position:relative;height:12px;font-size:9.5px;color:var(--text-muted,#9a9aa5);margin:4px 0 0 32px;}
+      .mastervol-ticks span{position:absolute;top:0;left:calc(8px + (100% - 16px) * var(--at));transform:translateX(-50%);white-space:nowrap;}
+      .mastervol-ticks span:last-child{left:auto;right:0;transform:none;}
       .mastervol-sub{margin-top:10px;font-size:11px;color:var(--text-muted,#9a9aa5);line-height:1.4;}
       .mastervol-drm{margin-top:8px;padding:8px 10px;font-size:11px;line-height:1.45;border-radius:8px;
         color:var(--text,#e9e9ee);background:rgba(232,184,74,0.12);border:1px solid rgba(232,184,74,0.4);}

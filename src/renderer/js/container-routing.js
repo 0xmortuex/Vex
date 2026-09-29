@@ -43,13 +43,19 @@ const ContainerRouting = {
     const msg = (t, ok) => { const e = m.querySelector('#rt-msg'); if (e) { e.innerHTML = t; e.style.color = ok ? '#4caf50' : 'var(--text-muted)'; } };
 
     const apply = async (mode, custom) => {
+      // Checked the way Private routing checks it: any text used to be
+      // accepted, so "hello" reported "Now using your proxy" (found 2026-09-29).
+      if (mode === 'proxy' && !/^(socks5|socks4|http|https):\/\/[^\s]+$/i.test(String(custom || '').trim())) {
+        msg('A proxy address looks like socks5://127.0.0.1:1080 or http://host:port', false);
+        return;
+      }
       msg(mode === 'tor' ? 'Connecting to Tor…' : 'Applying…');
       try {
         const r = await window.vex.routingSet(part, mode, custom);
         if (!r || !r.ok) { msg('Failed: ' + ((r && r.error) || 'unknown'), false); return; }
         // Reload the active tab so the new route takes effect immediately.
         try { const wv = WebviewManager.getActiveWebview(); if (wv) wv.reload(); } catch {}
-        msg('✓ ' + (mode === 'tor' ? 'Now routing through Tor.' : mode === 'proxy' ? 'Now using your proxy.' : 'Back to direct.'), true);
+        msg(VexIcons.svg('check', { size: 12 }) + ' ' + (mode === 'tor' ? 'Now routing through Tor.' : mode === 'proxy' ? 'Now using your proxy.' : 'Back to direct.'), true);
         window.showToast?.(mode === 'tor' ? 'Session routed through Tor' : mode === 'proxy' ? 'Proxy applied' : 'Direct connection restored');
       } catch (e) { msg('Error: ' + e.message, false); }
     };

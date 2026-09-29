@@ -175,6 +175,10 @@ const Snippets = {
       // The editor sits on top. Escape closes that first and leaves the list
       // open — closing both at once would throw away what was being typed.
       if (document.querySelector('.vex-snip-editor')) return;
+      // The same for the delete confirmation: its Escape is only a "no", but
+      // this capture listener saw it first and closed the list too (found
+      // 2026-09-29).
+      if (document.querySelector('.vex-dialog-overlay')) return;
       e.preventDefault();
       close();
     };

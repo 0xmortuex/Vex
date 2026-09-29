@@ -293,11 +293,16 @@ const VexClock = {
     // takes a second or two — and the timer used to appear only then.
     this._pill(); this._rerender();
     // Anything a minute or longer also lives in the main process, so a
-    // reload cannot lose it and a desktop toast arrives regardless.
+    // reload cannot lose it and a desktop toast arrives regardless. That copy
+    // is only a backup: main keeps whole minutes and rounded the end down, so
+    // timers rang up to 59 s early and a 1-minute one was refused (found
+    // 2026-09-29). It is set on the minute after the end (a few seconds of
+    // slack so it is always a minute ahead), and this panel rings on time.
     const b = window.vex && window.vex.reminders;
     if (b && total >= 60000) {
+      const backupAt = Math.ceil((t.endAt + 5000) / 60000) * 60000;
       try {
-        const r = await b.create(t.label, t.endAt, { kind: 'timer', sound: true, urgent: true });
+        const r = await b.create(t.label, backupAt, { kind: 'timer', sound: true, urgent: true });
         if (this._timers.includes(t)) { t.reminderId = r.id; this._saveTimers(); }
         else await b.delete(r.id);                    // stopped while it was being registered
       } catch (err) { window.showToast?.('The timer runs, but only while Vex is open: ' + ((err && err.message) || ''), 'error'); }
@@ -324,10 +329,17 @@ const VexClock = {
     if (done.length) {
       this._timers = this._timers.filter(t => t.endAt > now);
       this._saveTimers();
+      const b = window.vex && window.vex.reminders;
       for (const t of done) {
-        // Short timers never reached the main process; they ring from here.
-        // Long ones ring through onFired, so do not ring twice.
-        if (!t.reminderId) this.ring({ id: null, title: 'Timer', message: t.label, kind: 'timer', snoozable: false });
+        // Every timer rings from here, on time. A long one's main-process
+        // backup is set for the minute after, so take it away before it
+        // rings a second time.
+        this.ring({ id: null, title: 'Timer', message: t.label, kind: 'timer', snoozable: false });
+        if (t.reminderId && b) {
+          Promise.resolve(b.delete(t.reminderId)).catch(err => {
+            if (!/no longer exists/i.test((err && err.message) || '')) window.showToast?.('The timer rang, but its desktop alert may still appear: ' + ((err && err.message) || ''), 'error');
+          });
+        }
       }
       this._pill(); this._rerender();
     }
@@ -449,7 +461,7 @@ const VexClock = {
         const d = new Date(r.at);
         const when = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
         const rep = Array.isArray(r.repeat) ? (r.repeat.length === 7 ? 'every day' : r.repeat.map(i => days[i]).join(' ')) : 'once';
-        row.innerHTML = `<span class="ck-item-big"></span><span class="ck-item-text"><span class="ck-item-label"></span><span class="ck-item-sub"></span></span><button class="ck-x" title="Remove">✕</button>`;
+        row.innerHTML = `<span class="ck-item-big"></span><span class="ck-item-text"><span class="ck-item-label"></span><span class="ck-item-sub"></span></span><button class="ck-x" title="Remove">${VexIcons.svg('x', { size: 13 })}</button>`;
         row.querySelector('.ck-item-big').textContent = when;
         row.querySelector('.ck-item-label').textContent = r.message;
         row.querySelector('.ck-item-sub').textContent = rep + ' · next ' + (window.VexQuickReminder ? VexQuickReminder.describe(d).split(' — ')[0].toLowerCase() : d.toLocaleString()) + (r.os && r.os.scheduled ? '' : ' · while Vex is open');
@@ -540,7 +552,7 @@ const VexClock = {
       const list = body.querySelector('#clock-timers'); list.innerHTML = this._timers.length ? '' : '<div class="ck-empty">No timers running.</div>';
       for (const t of this._timers.slice().sort((a, c) => a.endAt - c.endAt)) {
         const row = document.createElement('div'); row.className = 'ck-item'; row.dataset.timer = t.id;
-        row.innerHTML = `<span class="ck-item-big ck-timer-left"></span><span class="ck-item-text"><span class="ck-item-label"></span><span class="ck-item-sub"></span></span><button class="ck-x" title="Stop">✕</button>`;
+        row.innerHTML = `<span class="ck-item-big ck-timer-left"></span><span class="ck-item-text"><span class="ck-item-label"></span><span class="ck-item-sub"></span></span><button class="ck-x" title="Stop">${VexIcons.svg('x', { size: 13 })}</button>`;
         row.querySelector('.ck-timer-left').textContent = this.fmtLeft(t.endAt - Date.now());
         row.querySelector('.ck-item-label').textContent = t.label;
         row.querySelector('.ck-item-sub').textContent = 'ends ' + new Date(t.endAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + this.fmtLeft(t.total) + ' total';
@@ -600,7 +612,7 @@ const VexClock = {
         let p; try { p = this.partsIn(c.zone, base); } catch { continue; }
         const row = document.createElement('div'); row.className = 'ck-item ck-city' + (p.hour >= 7 && p.hour < 19 ? ' day' : ' night');
         const dayDiff = p.day === mine.day ? '' : (Date.UTC(p.year, p.month - 1, p.day) > Date.UTC(mine.year, mine.month - 1, mine.day) ? 'tomorrow' : 'yesterday');
-        row.innerHTML = `<span class="ck-item-big"></span><span class="ck-item-text"><span class="ck-item-label"></span><span class="ck-item-sub"></span></span><button class="ck-x" title="Remove">✕</button>`;
+        row.innerHTML = `<span class="ck-item-big"></span><span class="ck-item-text"><span class="ck-item-label"></span><span class="ck-item-sub"></span></span><button class="ck-x" title="Remove">${VexIcons.svg('x', { size: 13 })}</button>`;
         row.querySelector('.ck-item-big').textContent = String(p.hour).padStart(2, '0') + ':' + String(p.minute).padStart(2, '0');
         row.querySelector('.ck-item-label').textContent = c.name;
         row.querySelector('.ck-item-sub').textContent = [p.weekday, dayDiff, this.offsetLabel(c.zone, base), c.zone].filter(Boolean).join(' · ');
@@ -619,7 +631,15 @@ const VexClock = {
     slider.addEventListener('input', () => { offsetMin = +slider.value; paint(); });
     body.querySelector('#ck-slider-reset').addEventListener('click', () => { offsetMin = null; slider.value = -1; paint(); });
     paint();
-    this._clockTimer = setInterval(() => { if (offsetMin == null && body.isConnected) paint(); }, 1000);
+    // One repaint loop only. Each render used to start another and leave the
+    // old one running on its old city list and slider, so a removed city came
+    // back and the slider was undone a second later (found 2026-09-29). It
+    // also stops once the World tab is no longer showing.
+    clearInterval(this._clockTimer);
+    const timer = this._clockTimer = setInterval(() => {
+      if (!body.isConnected || !body.querySelector('#ck-world')) { clearInterval(timer); return; }
+      if (offsetMin == null) paint();
+    }, 1000);
   },
 };
 

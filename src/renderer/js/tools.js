@@ -116,7 +116,10 @@ const VexTools = {
 
   openToolById(id) {
     const tool = this.tools.find(t => t.id === id);
-    if (tool) this.openTool(tool);
+    // Ctrl+K names a few tools that are no longer shipped; without one in your
+    // tools bar the command did nothing at all (found 2026-09-29).
+    if (!tool) { window.showToast?.(`${id} is not in your tools bar — add it there with the + button`, 'warn'); return; }
+    this.openTool(tool);
   },
 
   addTool(name, url, desc) {

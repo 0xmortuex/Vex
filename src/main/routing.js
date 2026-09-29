@@ -37,6 +37,10 @@ async function restoreRoutes({ routes, getSession, applyRouting, report, allPart
       continue;
     }
     if (key.startsWith('__')) continue;   // reserved; never a partition
+    // A temporary session (a burner identity, an off-the-record tab) is gone
+    // once Vex closes. Restoring its Tor route started Tor on every launch
+    // for a session nothing can use again (found 2026-09-29).
+    if (key !== 'default' && !key.startsWith('persist:')) continue;
     await restoreOne(key === 'default' ? '' : key, config);
   }
 }

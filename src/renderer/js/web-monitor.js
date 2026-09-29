@@ -95,7 +95,7 @@ const PageMonitor = {
           <div style="font-size:11px;color:var(--text-muted)">${esc(host)} · every ${w.intervalMin}m · checked ${esc(when)}</div>
         </div>
         <button data-open style="padding:5px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">Open</button>
-        <button data-x title="Stop watching" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+        <button data-x title="Stop watching" aria-label="Stop watching" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Stop'}</button>
       </div>`;
     }).join('') : '<div style="color:var(--text-muted);font-size:12.5px;padding:14px 8px">Not watching any pages. Ctrl+K → “Watch This Page”.</div>';
     m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">

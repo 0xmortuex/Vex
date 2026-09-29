@@ -23,6 +23,8 @@ const ShortcutsRegistry = (() => {
     'next-tab':       { default: 'Ctrl+Tab',     label: 'Next Tab',                   category: 'Tabs' },
     'prev-tab':       { default: 'Ctrl+Shift+Tab', label: 'Previous Tab',             category: 'Tabs' },
     'bookmark':       { default: 'Ctrl+D',       label: 'Bookmark Page',              category: 'Tabs' },
+    'print-page':     { default: 'Ctrl+P',       label: 'Print Page',                 category: 'Tabs' },
+    'view-source':    { default: 'Ctrl+U',       label: 'View Page Source',           category: 'Tabs' },
     'sleep-tab':      { default: 'Ctrl+Shift+Z', label: 'Sleep Tab',                  category: 'Tabs' },
     'mute-tab':       { default: 'Ctrl+M',       label: 'Mute Tab',                   category: 'Tabs' },
     'split-screen':   { default: 'Ctrl+Shift+S', label: 'Split Screen',               category: 'Tabs' },
@@ -144,7 +146,8 @@ const ShortcutsRegistry = (() => {
   function _tellMain() {
     if (!window.vex || typeof window.vex.setGuestShortcutKeys !== 'function') return false;
     const all = getAllShortcuts();
-    const combos = Object.values(all).filter(d => d.current && d.hasHandler).map(d => d.current);
+    // A key saved before the rule in whyNotAKey is never handed to main.
+    const combos = Object.values(all).filter(d => d.current && d.hasHandler && !whyNotAKey(d.current)).map(d => d.current);
     try { window.vex.setGuestShortcutKeys([...new Set(combos)]); return true; }
     catch (err) { console.warn('[Shortcuts] could not hand the keys to the window:', err && err.message); return false; }
   }
@@ -195,7 +198,22 @@ const ShortcutsRegistry = (() => {
     return out;
   }
 
+  // A key a page or Windows needs can't become a Vex shortcut. A plain letter
+  // was accepted, and main then took that letter from every page: bind "X"
+  // and nobody could type an x anywhere (2026-09-29).
+  const RESERVED_KEYS = ['Alt+F4', 'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+Z', 'Ctrl+Y',
+    'Ctrl+Shift+I', 'Ctrl+Shift+J', 'Ctrl+Shift+C'];
+  function whyNotAKey(combo) {
+    if (typeof combo !== 'string' || !combo) return 'empty';
+    if (RESERVED_KEYS.includes(combo)) return 'reserved';
+    // Ctrl or Alt with a key, or a function key (F11), with or without more.
+    if (/(^|\+)(Ctrl|Alt)\+./.test(combo) || /(^|\+)F([1-9]|1[0-9]|2[0-4])$/.test(combo)) return null;
+    return 'needs-modifier';
+  }
+
   function setShortcut(id, combo) {
+    const why = whyNotAKey(combo);
+    if (why) return { invalid: why };
     // A key for any Ctrl+K command: 'cmd:<id>', made by the editor's "give
     // something else a key" box rather than shipped as a default.
     if (isCustomId(id)) {
@@ -274,6 +292,9 @@ const ShortcutsRegistry = (() => {
   }
 
   function _onKeyDown(e) {
+    // No shortcut works behind the lock screen: Ctrl+H opened History and
+    // Ctrl+Alt+N a private window while Vex was locked (found 2026-09-29).
+    if (typeof VexLock !== 'undefined' && VexLock.locked()) return;
     const target = e.target;
     const inInput = target && (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable);
     // If typing in an input and no modifier + not a function/F-key, do nothing

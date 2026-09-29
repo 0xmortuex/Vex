@@ -1,5 +1,82 @@
 # Changelog
 
+## v2.33.14 (2026-09-29) — About a hundred and twenty fixes from a sweep of every feature
+
+Seven testers used every part of Vex the way a person does: tabs and looks, the panels, the address and command bars and the Toolbox, page tools and media, privacy and your data, the AI, and extensions and the service panels. Each fix below was checked, and most were also seen working in a running Vex.
+
+### Security and privacy
+- **A downloaded file's name could run commands** when you opened it and Vex checked its signature: the name went into a PowerShell command, and a website chooses the name. It is now passed as data only.
+- **Lock Vex could be walked around.** A private window (Ctrl+Alt+N) opened unlocked and could read saved passwords, Tab reached the buttons behind the lock screen, Ctrl+H opened History behind it, and a restart unlocked Vex. While locked, nothing behind the lock screen can be reached, no shortcut works, the password vault and new private windows refuse, and Vex starts locked again after a restart.
+- **Opening a private window deleted every per-site rule**, and **turned the ad blocker back on** for every window. Neither happens now.
+- "Allow this visit" in a private window also allowed the site in your normal window. Each window's visit is its own now.
+- Clear History left every visit in the command bar's history and in Recall's full-text search. Both are cleared too.
+- Backups left out your notes, reading list, AI conversations, highlights and main settings, though the screen said they were included. They are in the backup now.
+- The Restore confirmation opened behind the backup screen, so a restore could not be finished. Vex's dialogs are now always on top.
+- A burner identity asked for Tor opened without Tor when Tor failed. It stops and says why. Its Tor route was also saved and started Tor at every launch.
+- A proxy of "hello" was accepted by container routing and reported as working. The address is checked now.
+- Changing a password on a site never offered to save the new one. It does now.
+
+### Keys and the address bar
+- **Vex took Ctrl+B, Ctrl+H, Ctrl+M and Ctrl+Shift+Z away from pages**: bold in an editor hid the tab sidebar, and redo put the tab to sleep. As in Chrome, the page now hears these keys first, and Vex acts only when the page does not use them. Ctrl+Shift+M in Discord mutes you again.
+- A shortcut could be set to a plain letter, which then could not be typed in any page. A shortcut needs Ctrl, Alt or a function key, and the keys for copy, paste, undo and the developer tools are refused.
+- **The search engine you chose was ignored**: Bing, Startpage and Ecosia all searched Google. The address bar, the command bar and "Search for …" on selected text now use your engine, and Settings lists all six.
+- localhost, 192.168.1.1, [::1]:3000, my-server:3000, about:blank and file:// addresses were searched instead of opened, and "node.js tutorial" opened a broken address. Both are right now.
+- "Go to" in the command bar lower-cased the address, which broke links like YouTube's.
+- **Print and View Page Source** are in the page's right-click menu and the command bar, with Ctrl+P and Ctrl+U. Vex had neither before.
+- Typing a command's exact name in Ctrl+K sometimes ran something else. The command you name comes first.
+- Plain sentences like "make me a timer for 10 minutes" work in Ctrl+K again.
+- "Duplicate Tab" (command bar, page menu, mouse gesture) switched to the original instead of copying it. The reopen gesture did nothing. "Sleep Tab" and Ctrl+Shift+Z never slept anything; they now move you to the next tab and put that one to sleep.
+
+### Tabs and looks
+- Pinned tabs were drawn full width in the Firefox, Chrome and other browser looks. They are icon-sized.
+- With many tabs, the tab you were on could sit off-screen in the top strip. It is scrolled into view.
+- **Text was invisible in the Firefox and Chrome looks** wherever accent text sat on the pale accent: the active Notes section, Schedules' "Active" tab, task toggles and more.
+- Tabs shown in split screen were put to sleep as if hidden.
+- "Close Tabs to the Right" worked on an internal order, not what you see.
+- Tabs were archived after a week even with auto-archive turned off in the Library.
+- Snoozed tabs are listed in the Library, where you can wake one early. One reopened by hand no longer comes back twice.
+- Workspaces can be renamed and deleted (the pencil in the workspace list, or right-click), and deleting asks first.
+- Restoring a session loads only the tab you are on, like workspaces.
+- Toasts no longer cover menu items and swallow the click.
+- Escape closes the group colour picker, the keep-awake chooser, Tab Health, the workspace list, the layout editor, the screenshot preview and editor, the Developer dashboard, Send to Phone, "Why is Vex slow" and the Setup Gallery.
+
+### Panels
+- **Text typed just before closing Vex was lost** from Notes and sticky notes.
+- Quick capture always ended in "Vex did not answer", though the note was saved.
+- Clock timers of a minute or more rang up to a minute early, and a one-minute timer showed an error. "In 1 minute" was refused as a reminder time. Site reminders showed "1 Jan at 02:00".
+- The world clock brought back cities you removed and undid the time slider.
+- Stopping a Focus session cancelled Meeting mode's hold on reminders.
+- Automations ran again every time you switched back to a tab, reported success for a command that did not exist, and never matched a time typed as "8:30".
+- Subscribed calendars dropped long-running daily events and moved monthly ones on the 31st to the wrong days.
+- "Play Read-Later as Podcast" never read anything. Ticking a task in a note could tick a line inside a code block. Relative links in feeds were broken. Meeting mode now opens its note. A sticky note saved off-screen comes back on screen.
+
+### Page tools and media
+- **Opening Master Volume locked every video at full volume**, overriding the site's own slider. Night mode and Master Volume can now be on together.
+- Reading mode's "Exit Reading Mode" button did nothing; running it twice lost the original page; code in paragraphs was repeated.
+- The Mark Up text tool's box could not be typed into. Tall full-page screenshots were too small to annotate.
+- Responsive Preview failed with an error. Citations split an organisation's name into initials. The media grabber showed the wrong file size. A saved PDF was named "dummy.pdf.pdf".
+- Right-clicking a video or a sound now offers Play/Pause, Loop, controls, Picture-in-Picture and its address.
+- The calculator: "5000 lbs to ton" works, the copied result matches the shown one, and kelvin has no degree sign. Base64 decodes padded input.
+
+### AI
+- **Stop while an approval card was open** left the task running for ever, and a later Approve still carried out the stopped action.
+- A chat answer could not be stopped, and typing "stop" was answered as a question. There is a Stop button while it answers.
+- With the local model, Translate ignored the language you chose, questions about several tabs ignored the tabs, Tab Command always said "Nothing to do", and Two Models answered without the page and made things up.
+- Summaries, translations and explanations vanished from the chat when the panel was redrawn. Retry asked the question twice. An answer starting with code lost its formatting. "/agent" and "/chat" were overridden by a help card.
+- An attached file stayed attached across New chat and every other tab. Remembered facts were dropped from long chats with a file.
+- Catch Me Up and the morning brief showed raw JSON. Teach mode recorded dropdowns as typing. The "running on the processor" warning showed when most of the model was on the graphics card.
+
+### Extensions and services
+- **Stylus's background stopped at start while Vex showed it On**, and popups and options pages got none of Vex's stand-ins for the parts of Chrome that Electron lacks. They all do now; Stylus starts and its popup works.
+- Violentmonkey is marked as not working: it needs two parts of Chrome that Electron does not have, so no script can run.
+- A popup opened from Settings › Extensions took itself for the page. Some popups opened clipped.
+- Every extension page, the PiP player and file:// pages raised errors from the ad blocker and from history.
+- Safe mode listed no extensions, so the one that broke the start could not be removed. It lists them, marked "not loaded".
+- The GitHub panel showed the previous user after a change of name, and "Loading…" for ever for an unknown user or offline.
+- The overlay window can be moved and closed with the mouse.
+
+Checked by the whole test suite (Node 22, as on the build server), the lint, type and source checks, both start-up checks, and live runs of Vex for each area, including all 25 sidebar panels in the default and Firefox looks with no errors.
+
 ## v2.33.13 (2026-09-29) — Extension popups open, and know which page you are on
 
 ### Fixes

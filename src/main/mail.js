@@ -55,6 +55,7 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId }) {
     }
     if (err && /ENOTFOUND|EAI_AGAIN/.test(err.code || text)) return new Error('Could not find the mail server ' + account.host, { cause: err });
     if (err && /ETIMEDOUT|timeout/i.test(err.code || text)) return new Error('The mail server did not answer in time', { cause: err });
+    if (err && /ECONNREFUSED/.test(err.code || text)) return new Error('The mail server refused the connection — check the server name and port', { cause: err });
     return new Error('Mail: ' + (text || 'the connection failed'), { cause: err });
   }
 

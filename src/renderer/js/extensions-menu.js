@@ -27,7 +27,9 @@ const ExtensionsMenu = {
     { icon: 'shield', label: 'Privacy Report', sub: 'Trackers blocked + protections', cmd: 'privacy' },
     { sep: true },
     { icon: 'puzzle', label: 'Manage Chrome extensions…', sub: 'Install .crx / .zip / unpacked',
-      fn: () => { try { (SidebarManager.openPanel || SidebarManager.showPanel).call(SidebarManager, 'settings'); } catch (_) {} } },
+      // Straight to the extensions list — opening Settings at the top left the
+      // user to hunt for it (found 2026-09-29).
+      fn: () => { SettingsUI.openSection('extensions-panel-content'); } },
   ],
 
   init() {

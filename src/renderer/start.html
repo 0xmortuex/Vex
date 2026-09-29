@@ -1858,8 +1858,11 @@
       modal.querySelector('#sc-cancel').addEventListener('click', () => modal.remove());
       modal.querySelector('#sc-save').addEventListener('click', () => {
         const name = modal.querySelector('#sc-name').value.trim();
-        const url = modal.querySelector('#sc-url').value.trim();
-        if (!name || !url) return;
+        const typed = modal.querySelector('#sc-url').value.trim();
+        if (!name || !typed) return;
+        // "example.com" saved as typed is not an address a tab can load
+        // (ERR_INVALID_URL, and the tile did nothing — found 2026-09-29).
+        const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(typed) || /^(about|mailto|vex):/i.test(typed) ? typed : 'https://' + typed;
         if (existing) { shortcuts[idx] = { ...existing, name, url }; }
         else { shortcuts.push({ name, url }); }
         saveShortcuts(shortcuts);

@@ -11,7 +11,10 @@ const VexQuickCommands = {
   DAY_WORDS: { sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, wednesday: 3, wed: 3, thursday: 4, thu: 4, friday: 5, fri: 5, saturday: 6, sat: 6 },
 
   results(raw) {
-    const q = String(raw || '').trim();
+    // The sentence is put into shorthand first, as intent() does: typed into
+    // Ctrl+K, "make me a timer for 10 minutes" reached the parsers whole and
+    // only an unrelated guide card came back (found 2026-09-29).
+    const q = this.plainly(raw) || String(raw || '').trim();
     if (!q) return [];
     const out = [];
     for (const fn of [this._remind, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory, this._setting, this._guide]) {
@@ -269,11 +272,16 @@ const VexQuickCommands = {
     if (!m || typeof VexClock === 'undefined') return null;
     // The duration is the leading part; anything after it is the label.
     const words = m[1].trim().split(/\s+/);
-    let ms = null, label = '';
+    let ms = null, label = '', tooLong = null;
     for (let k = Math.min(4, words.length); k >= 1; k--) {
-      try { ms = VexClock.parseDuration(words.slice(0, k).join(' ')); label = words.slice(k).join(' '); break; } catch { /* shorter */ }
+      try { ms = VexClock.parseDuration(words.slice(0, k).join(' ')); label = words.slice(k).join(' '); break; }
+      catch (err) {
+        // A length that was read but is out of range ("99999 hours") says
+        // so, rather than "Say how long" (found 2026-09-29).
+        if (!tooLong && /at most|at least/.test((err && err.message) || '')) tooLong = err;
+      }
     }
-    if (ms == null) throw new Error('Say how long — "timer 25 min", "timer 1h 30", "timer 90s"');
+    if (ms == null) throw tooLong || new Error('Say how long — "timer 25 min", "timer 1h 30", "timer 90s"');
     return {
       id: 'quick-timer', icon: 'timer', isPrimary: true,
       label: 'Timer: ' + VexClock.fmtLeft(ms) + (label ? ' — ' + label : ''),

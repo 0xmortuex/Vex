@@ -15,8 +15,17 @@ const VexMail = {
 
   async _call(p) {
     const r = await p;
-    if (!r || !r.ok) throw new Error((r && r.error) || 'Mail failed');
+    if (!r || !r.ok) throw new Error(this.humanError((r && r.error) || 'Mail failed'));
     return r.value;
+  },
+
+  // A refused or reset connection arrived as "Mail: connect ECONNREFUSED
+  // 127.0.0.1:1" (found 2026-09-29). Say what it means first and keep the
+  // technical detail after it for whoever has to look into it.
+  humanError(text) {
+    const s = String(text);
+    if (/ECONNREFUSED/.test(s)) return 'The mail server refused the connection — check the server name and port. (' + s.replace(/^Mail:\s*/, '') + ')';
+    return s;
   },
   accounts() { return this._call(window.vex.mail.accounts()); },
   inbox(id, limit) { return this._call(window.vex.mail.inbox(id, limit)); },
@@ -78,14 +87,17 @@ const VexMail = {
   _drawSetup(canCancel) {
     const { body } = this._ui;
     const field = 'font:inherit;font-size:13px;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)';
+    // The maxlengths are mail:add's limits (src/main/ipc-schemas.js): past them
+    // the call was refused with a raw "Error invoking remote method 'mail:add'"
+    // (found 2026-09-29).
     body.innerHTML = `
       <form data-setup style="display:grid;gap:10px;padding:16px;max-width:520px">
         <div style="font-size:13px;color:var(--text)">Read your newest mail here. Reading in Vex never marks anything read or changes your mailbox; to reply, open the message in your webmail.</div>
-        <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Email address<input data-email type="email" autocomplete="off" spellcheck="false" style="${field}"></label>
+        <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Email address<input data-email type="email" maxlength="320" autocomplete="off" spellcheck="false" style="${field}"></label>
         <div data-help style="font-size:11.5px;color:var(--text-muted);min-height:15px"></div>
-        <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">App password<input data-pass type="password" autocomplete="off" style="${field}"></label>
+        <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">App password<input data-pass type="password" maxlength="512" autocomplete="off" style="${field}"></label>
         <div data-custom hidden style="display:grid;grid-template-columns:1fr 90px;gap:8px">
-          <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">IMAP server<input data-host type="text" placeholder="imap.example.com" spellcheck="false" style="${field}"></label>
+          <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">IMAP server<input data-host type="text" maxlength="255" placeholder="imap.example.com" spellcheck="false" style="${field}"></label>
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Port<input data-port type="number" value="993" min="1" max="65535" style="${field}"></label>
         </div>
         <div style="display:flex;gap:8px;align-items:center">

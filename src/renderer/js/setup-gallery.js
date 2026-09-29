@@ -20,12 +20,20 @@ const SetupGallery = {
     m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Setup Gallery</span>
-        <button id="sg-close" style="${this._chip()}">✕</button>
+        <button id="sg-close" aria-label="Close" title="Close" style="${this._chip()};line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Close'}</button>
       </div>
       <div id="sg-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#sg-close').addEventListener('click', () => m.remove());
+    // Escape closes it, heard on the document (found 2026-09-29: it did
+    // nothing). A dialog on top keeps its own Escape.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#sg-close').addEventListener('click', close);
     this._paint(m);
   },
 

@@ -54,10 +54,11 @@ describe('AIRouter.resolveBackend — Ollama fallback when cloud is unconfigured
     expect(await AIRouter.resolveBackend('groupTabs')).toBe('cloud');
   });
 
-  it('callAI auto + no Worker URL + Ollama down → surfaces "not configured"', async () => {
+  it('callAI auto + no Worker URL + Ollama down → says neither backend is there', async () => {
     const AIRouter = await loadRouter();
     stubOllama(false);
-    await expect(AIRouter.callAI('groupTabs', { tabs: [] })).rejects.toThrow(/not configured/i);
+    // Not "switch to local Ollama": the user may be on local already (found 2026-09-29).
+    await expect(AIRouter.callAI('groupTabs', { tabs: [] })).rejects.toThrow(/Ollama at http:\/\/127\.0\.0\.1:11434 is not running, and no cloud AI Worker is configured/);
   });
 });
 

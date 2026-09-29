@@ -43,7 +43,9 @@ const BurnerIdentity = {
         if (useTor) {
           msg('Connecting to Tor…');
           const r = await window.vex.routingSet(part, 'tor');
-          if (!r || !r.ok) { msg('Tor unavailable — starting without it.'); }
+          // Asked for Tor and did not get it: stop. Opening it anyway showed
+          // the site your real address (found 2026-09-29).
+          if (!r || !r.ok) { msg('Tor could not start' + (r && r.error ? ' (' + r.error + ')' : '') + ' — nothing was opened. Try again, or untick Tor.'); return; }
         }
         TabManager.createTab(svc.url, true, null, { partition: part });
         window.showToast?.('Burner session opened' + (useTor ? ' over Tor' : '') + ' — grab a disposable address');

@@ -54,6 +54,16 @@ const TabHealth = {
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#th-close').addEventListener('click', () => m.remove());
+    // Escape closes it; it did nothing (found 2026-09-29). A keep-awake
+    // chooser opened from a row sits on top and takes that Escape itself.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.keepawake-ov')) return;
+      e.preventDefault();
+      m.remove();
+      document.removeEventListener('keydown', onKey, true);
+    };
+    document.addEventListener('keydown', onKey, true);
     m.querySelector('#th-refresh').addEventListener('click', () => this._paint(m));
     m.querySelector('#th-sleepothers').addEventListener('click', () => { try { TabManager.sleepAllInactive(); } catch {} setTimeout(() => this._paint(m), 200); });
     this._paint(m);

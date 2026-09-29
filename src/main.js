@@ -393,7 +393,7 @@ const { guestOwnsFind } = require('./main/find-policy');
 // works through this list.
 const BROWSING_SESSIONS = ['persist:main', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping'];
 
-const { shortcutFor } = require('./main/guest-shortcuts');
+const { shortcutFor, pageShortcut } = require('./main/guest-shortcuts');
 
 // The key combinations the renderer's shortcut registry currently answers to
 // (js/shortcuts-registry.js pushes them on start and on every rebind). Held
@@ -402,6 +402,14 @@ let _guestWantedKeys = new Set();
 ipcMain.on('shortcuts:guest-keys', (event, combos) => {
   if (!secureSessions.isUiFrame(event)) return;
   _guestWantedKeys = new Set((Array.isArray(combos) ? combos : []).filter(c => typeof c === 'string').slice(0, 300));
+});
+
+// A key the page had first and left alone (preload-webview.js): Ctrl+B,
+// Ctrl+Shift+Z and the rest of guest-shortcuts.js PAGE_FIRST.
+ipcMain.on('guest:page-shortcut', (_event, report) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const hit = pageShortcut(report);
+  if (hit) mainWindow.webContents.send(hit.channel);
 });
 
 function handleBrowserShortcut(event, input, contents) {
@@ -523,7 +531,7 @@ function _broadcastDownloadEvent(channel, data) {
   });
 }
 const { savedDecision } = require('./main/permissions');
-const { pendingPermissions, sessionDecisions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
+const { pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -772,7 +780,7 @@ app.whenReady().then(() => {
   // the executable is bare Electron and the entry would not start Vex.
   if (process.platform === 'win32' && app.isPackaged) {
     try {
-      app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'No extensions, no panels, no session restore' }]);
+      app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' }]);
     } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
   }
 });
@@ -955,7 +963,7 @@ ipcMain.handle('app:diagnostics', () => {
 
 ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
   if (scope !== 'auto' && scope !== 'everywhere') return { ok: false, error: 'Unknown scope: ' + scope };
-  const entry = _extEntries().find(x => x.folder === folderName);
+  const entry = _extEntriesOnDisk().find(x => x.folder === folderName);
   if (!entry) return { ok: false, error: 'No extension folder named ' + folderName };
   try {
     const scopes = extHelpers.readScopes(extensionsDir);
@@ -1385,7 +1393,16 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
   }
 });
 
-const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain });
+// Lock Vex, as main sees it. The lock screen lived only in the window, so a
+// private window (Ctrl+Alt+N) opened unlocked and could read saved passwords
+// (found 2026-09-29). The window says when it locks and unlocks; the vault and
+// new private windows refuse while it is locked.
+let _vexLocked = false;
+ipcMain.on('vex-lock:state', (e, locked) => {
+  if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
+  _vexLocked = locked === true;
+});
+const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 
 // === TOTP authenticator — 2FA codes (Discord/Roblox/GitHub/etc.) generated
 // locally per RFC 6238. Secrets are encrypted at rest with safeStorage
@@ -1859,10 +1876,19 @@ function wireMediaSnifferOnSession(ses) {
       if (!isMedia) return;
       let map = _mediaByWc.get(webContentsId);
       if (!map) { map = new Map(); _mediaByWc.set(webContentsId, map); }
-      if (!map.has(url)) {
-        const len = parseInt(_hdrVal(responseHeaders, 'content-length'), 10);
-        map.set(url, { url, kind: _mediaKind(url, ct), mime: ct, sizeKB: Number.isFinite(len) ? Math.round(len / 1024) : 0 });
+      // A video arrives in pieces (206 Partial Content): content-length is the
+      // size of one piece, and the first one was shown as the file's size —
+      // 34 KB for a 788 KB video (found 2026-09-29). The whole size is the
+      // figure after the slash in content-range.
+      const range = /\/(\d+)\s*$/.exec(_hdrVal(responseHeaders, 'content-range') || '');
+      const len = range ? parseInt(range[1], 10) : parseInt(_hdrVal(responseHeaders, 'content-length'), 10);
+      const sizeKB = Number.isFinite(len) ? Math.round(len / 1024) : 0;
+      const known = map.get(url);
+      if (!known) {
+        map.set(url, { url, kind: _mediaKind(url, ct), mime: ct, sizeKB });
         if (map.size > 80) map.delete(map.keys().next().value); // cap, drop oldest
+      } else if (sizeKB > known.sizeKB) {
+        known.sizeKB = sizeKB;
       }
     } catch { /* sniffing is best-effort */ }
   });
@@ -2054,6 +2080,13 @@ function _extEntries() {
   // Safe mode exists for exactly this: an extension that breaks the browser
   // cannot be removed from inside a browser that will not start.
   if (_boot.safeMode) return [];
+  return _extEntriesOnDisk();
+}
+
+// Every extension folder, safe mode or not. The manager lists these so that,
+// in safe mode, the one that broke the start can be switched off or removed:
+// it used to say "No extensions installed" there (found 2026-09-29).
+function _extEntriesOnDisk() {
   if (!fs.existsSync(extensionsDir)) return [];
   return fs.readdirSync(extensionsDir, { withFileTypes: true })
     .filter(e => e.isDirectory())
@@ -2308,7 +2341,7 @@ ipcMain.handle('extensions:list', () => {
     console.error('[Extensions] could not read the loaded extensions:', err.message);
   }
   const scopes = _readScopes();
-  return _extEntries().map(e => {
+  return _extEntriesOnDisk().map(e => {
     const live = loadedByPath.get(path.resolve(e.path)) || null;
     const manifest = e.manifest || {};
     const icon = e.manifest ? extHelpers.pickIcon(manifest) : null;
@@ -2337,7 +2370,7 @@ ipcMain.handle('extensions:list', () => {
       // What this extension can read, and what it is allowed to do, in words
       // (src/main/extension-audit.js).
       audit: require('./main/extension-audit').auditOne(e),
-      error: e.error || _extLoadErrors.get(e.folder) || null,
+      error: e.error || _extLoadErrors.get(e.folder) || (_boot.safeMode ? 'Not loaded: Vex started in safe mode' : null),
       stateError: _extStateError
     };
   });
@@ -2767,10 +2800,11 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     // Windows keeps a border on this window that Electron does not count (a
     // 280px window showed 264px of page), so the window grows by what the page
     // is missing rather than being set to the page's size.
-    win.webContents.on('preferred-size-changed', async () => {
+    const fitPopup = async () => {
+      if (win.isDestroyed()) return;
       const size = await win.webContents.executeJavaScript(
         '({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight), iw: innerWidth, ih: innerHeight })'
-      ).catch(err => { console.error('[Extensions] popup re-measure failed:', err.message); return null; });
+      ).catch(err => { if (!win.isDestroyed()) console.error('[Extensions] popup re-measure failed:', err.message); return null; });
       if (!size || win.isDestroyed() || ![size.w, size.h, size.iw, size.ih].every(Number.isFinite)) return;
       const [cw, ch] = win.getSize();
       const w = Math.min(800, Math.max(160, cw + size.w - size.iw));
@@ -2781,7 +2815,8 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       win.setSize(w, h);
       const [newWidth] = win.getSize();
       win.setPosition(Math.max(0, x + Math.round((oldWidth - newWidth) / 2)), y);
-    });
+    };
+    win.webContents.on('preferred-size-changed', fitPopup);
     // Electron calls the focused page the active tab, and the popup takes the
     // focus: Dark Reader's popup said "This page is protected by browser"
     // about itself (2026-09-28). Remember the tab it was opened over.
@@ -2808,6 +2843,9 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     }
     win.show();
     win.focus();
+    // Not every growth raises preferred-size-changed: Return YouTube Dislike's
+    // popup stayed 296px wide against its 339px page (found 2026-09-29).
+    for (const ms of [300, 1000]) setTimeout(() => { fitPopup().catch(err => console.error('[Extensions] popup fit failed:', err.message)); }, ms);
     return { ok: true, id: live.id };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -3478,7 +3516,7 @@ ipcMain.handle('geolocation:check-permission', async (_e) => {
   // at decisions.__until__. Reading decisions[key] alone ignored both, so a
   // site allowed for this visit asked again every time it wanted the
   // location, and one allowed for a day stayed allowed for good.
-  const saved = savedDecision(decisionsFor(_e.sender), origin, ['geolocation'], sessionDecisions);
+  const saved = savedDecision(decisionsFor(_e.sender), origin, ['geolocation'], sessionDecisionsFor(_e.sender));
   if (saved === 'allow') return 'allow';
   if (saved === 'deny') return 'deny';
 
@@ -4880,7 +4918,13 @@ async function detectTorPort() {
   for (const p of [9150, 9050]) { if (await _probeTcp(p)) return p; } // 9150 = Tor Browser, 9050 = tor service
   return null;
 }
+// Cancel in Tor's progress dialog only closed the dialog, and Tor went on
+// starting (found 2026-09-29). It cannot stop a download half-way, but it
+// stops Tor and the tab is not made.
+let _torCancelled = false;
+ipcMain.handle('tor:cancel', () => { _torCancelled = true; _torLauncher.stop(); return { ok: true }; });
 ipcMain.handle('tor:create', async (event) => {
+  _torCancelled = false;
   try {
     let port = await detectTorPort();
     let launched = false;
@@ -4895,8 +4939,10 @@ ipcMain.handle('tor:create', async (event) => {
         });
         launched = true;
       } catch (e) {
+        if (_torCancelled) return { ok: false, reason: 'cancelled' };
         return { ok: false, reason: 'launch-failed', error: e && e.message };
       }
+      if (_torCancelled) { _torLauncher.stop(); return { ok: false, reason: 'cancelled' }; }
     }
     const part = `tor-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
     const ses = secureSessions.fromPartition(part); // no persist: → in-memory, wiped on close
@@ -4982,7 +5028,9 @@ ipcMain.handle('routing:set', (event, partition, mode, custom) => {
   const operation = routingPending.catch(() => {}).then(async () => {
     const r = await applyRouting(partition, mode, custom, event && event.sender);
     if (mode === 'direct') await getRoutingStore().delete(partition || 'default');
-    else await getRoutingStore().set(partition || 'default', { mode, custom: custom || null });
+    // A temporary session (a burner identity) is gone at the next start; its
+    // saved Tor route started Tor on every launch for nothing (found 2026-09-29).
+    else if (!partition || String(partition).startsWith('persist:')) await getRoutingStore().set(partition || 'default', { mode, custom: custom || null });
     return { ok: true, ...r };
   });
   routingPending = operation;
@@ -5094,6 +5142,7 @@ async function applyStoredRoutings() {
 // clean: the window for sharing a screen — private, and showing only `url`
 // (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
 function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
+  if (_vexLocked) throw new Error('Vex is locked — unlock it first');
   const privatePartition = secureSessions.newPrivatePartition();
   const privSession = secureSessions.fromPartition(privatePartition);
   wireDownloadsOnSession(privSession, 'private');
@@ -5469,9 +5518,11 @@ ipcMain.handle('reminders:ack', async (_e, id) => {
   return reminders.ack(id);
 });
 // A focus session holds non-urgent reminders until it ends (0 clears).
-ipcMain.handle('reminders:hold', async (_e, untilMs) => {
+// Focus and Meeting mode each hold reminders; stopping one used to end the
+// other's hold too (found 2026-09-29).
+ipcMain.handle('reminders:hold', async (_e, untilMs, who) => {
   if (!reminders) throw new Error('Reminders have not started yet');
-  return reminders.hold(untilMs);
+  return reminders.hold(untilMs, who);
 });
 
 // Save a small text file where the user chooses. Used for calendar entries;

@@ -113,6 +113,8 @@ const AIPanel = {
 
     // Stop agent button
     document.getElementById('ai-stop-agent')?.addEventListener('click', () => {
+      // A chat answer being written stops too (see sendMessage).
+      this._stopChat();
       if (typeof AgentLoop !== 'undefined') AgentLoop.stop();
       document.getElementById('ai-stop-agent')?.classList.remove('visible');
       document.getElementById('ai-pause-agent')?.classList.remove('visible');
@@ -667,6 +669,9 @@ const AIPanel = {
     this._syncViewingBanner();
     const id = this._getTabId();
     if (id != null) { this._conversations[id] = []; this._persistConversations(); }
+    // A file attached to the old chat went out with every question in the
+    // new one (found 2026-09-29).
+    if (typeof ChatFile !== 'undefined') ChatFile.clear(id);
     this._renderMessages();
     this._syncStarters();
     this._renderPersonaQuickPrompts();
@@ -1064,6 +1069,15 @@ const AIPanel = {
       });
       act('refresh', 'Try this answer again', () => {
         const conv = this._getConv();
+        // A summary, translation or explanation has no question above it: it
+        // is asked again as what it was.
+        if (m.action && m.action !== 'chat') {
+          conv.splice(index, 1);
+          this._persistConversations();
+          this._renderMessages();
+          this.sendMessage(m.action, m.targetLanguage ? { targetLanguage: m.targetLanguage } : {});
+          return;
+        }
         // The prompt that produced this answer is the user turn before it.
         let ask = null;
         for (let i = index - 1; i >= 0; i--) if (conv[i].role === 'user') { ask = conv[i].content; break; }
@@ -1071,7 +1085,9 @@ const AIPanel = {
         conv.splice(index, 1);
         this._persistConversations();
         this._renderMessages();
-        this.sendMessage('chat', { message: ask });
+        // The question is still in the chat, right above: re-adding it showed
+        // it twice and sent it twice (found 2026-09-29).
+        this.sendMessage('chat', { message: ask, _noEcho: true });
       });
     } else {
       act('edit', 'Edit and ask again', () => {
@@ -1141,6 +1157,8 @@ const AIPanel = {
             role: m.role, content: m.content,
             ...((typeof m.thinking === 'string' && m.thinking) ? { thinking: m.thinking.slice(0, this.MAX_THINKING_CHARS) } : {}),
             ...((typeof m.agentRun === 'string' && m.agentRun) ? { agentRun: m.agentRun } : {}),
+            ...((typeof m.action === 'string' && m.action !== 'chat') ? { action: m.action } : {}),
+            ...((typeof m.targetLanguage === 'string' && m.targetLanguage) ? { targetLanguage: m.targetLanguage } : {}),
           }))
           .slice(-this.MAX_CONV_MESSAGES);
       }
@@ -1166,6 +1184,8 @@ const AIPanel = {
           role: m.role, content: m.content,
           ...(m.thinking ? { thinking: String(m.thinking).slice(0, this.MAX_THINKING_CHARS) } : {}),
           ...(m.agentRun ? { agentRun: String(m.agentRun) } : {}),
+          ...((m.action && m.action !== 'chat') ? { action: String(m.action) } : {}),
+          ...(m.targetLanguage ? { targetLanguage: String(m.targetLanguage) } : {}),
         }));
       }
       localStorage.setItem(this.CONV_KEY, JSON.stringify(out));
@@ -1180,6 +1200,8 @@ const AIPanel = {
     const tab = TabManager.getActiveTab();
     const el = document.getElementById('ai-current-tab');
     if (el && tab) el.textContent = tab.title || tab.url || 'New Tab';
+    // An attached file belongs to the tab it was dropped in: its chip shows there only.
+    if (typeof ChatFile !== 'undefined' && ChatFile.showFor) ChatFile.showFor(tab ? tab.id : null);
     // Phase 15: each tab can have its own persona — refresh the switcher
     this.updatePersonaSwitcher?.();
     this._renderPersonaQuickPrompts?.();
@@ -1225,8 +1247,14 @@ const AIPanel = {
     const withThinking = (obj) => { if (split.thinking) obj.thinking = split.thinking; return obj; };
     // A model that spent its whole budget thinking leaves no answer behind.
     if (!str) return withThinking({ reply: '', thinkingOnly: true });
-    // Strip ```json ... ``` fences
-    str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    // Strip ```json ... ``` fences — only round JSON. An answer that simply
+    // starts with a code block (```python …) lost its fence, and with it the
+    // formatting of the whole answer (found 2026-09-29). An unclosed fence
+    // (cut off mid-answer) still counts.
+    const fence = str.match(/^```(?:json)?[ \t]*\r?\n?/i);
+    if (fence && /^\s*[{[]/.test(str.slice(fence[0].length))) {
+      str = str.slice(fence[0].length).replace(/\s*```\s*$/i, '').trim();
+    }
     try {
       const parsed = JSON.parse(str);
       // Only a plain object carries the fields the renderers read. A scalar or
@@ -1260,11 +1288,20 @@ const AIPanel = {
     }
     this._sending = true;
     this._setComposerBusy(true);
+    // A chat answer could not be stopped: no Stop button, and typing "stop"
+    // said "There was nothing running to stop." while it was still being
+    // written (found 2026-09-29). This is what Stop cancels, and it settles
+    // once the send is over so a "stop, then …" can carry on after it.
+    const abort = new AbortController();
+    let finished;
+    this._chat = { abort, done: new Promise(r => { finished = r; }) };
+    document.getElementById('ai-stop-agent')?.classList.add('visible');
 
     // Everything runs inside the try so a throw in the pre-work (getConv,
     // renderMessages, addLoading) can't latch _sending=true forever and lock out
     // every future send. finally always clears it.
     let loadingEl = null;
+    let conv = null;
     try {
       const tabId = this._getTabId();
       const wv = WebviewManager.getActiveWebview();
@@ -1273,7 +1310,7 @@ const AIPanel = {
       // On a YouTube video: what was said in it, not the page around it.
       pageContext = await VideoChat.contextFor(pageContext);
 
-      const conv = this._getConv(tabId);
+      conv = this._getConv(tabId);
 
       // Add user message for chat. `_noEcho` is set when retrying a failed send:
       // the bubble is already in the transcript and must not be duplicated.
@@ -1299,22 +1336,30 @@ const AIPanel = {
       // Persistent AI memory: prepend remembered facts as a system message at the
       // FRONT of the history (kept ≤10 total so the worker's slice(-10) preserves
       // it). Additive — works on both local + cloud without changing the prompt.
-      let conversationHistory = conv.filter(m => m.role !== 'system').slice(-this.HISTORY_SENT);
-      if (feature === 'chat' && typeof AIMemory !== 'undefined') {
-        const memMsg = AIMemory.historyMessage();
-        if (memMsg) conversationHistory = [memMsg, ...conversationHistory.slice(-9)];
+      // The system messages are gathered first and the most recent turns fill
+      // what is left. Each one used to be put in front with slice(-9) of the
+      // rest, so with three of them the third cut dropped the first — the
+      // remembered facts went missing whenever a file was attached to a long
+      // chat (found 2026-09-29).
+      const system = [];
+      // A file dropped on the panel (js/chat-file.js) goes in front of the
+      // question, marked as material rather than instructions. Only in the
+      // tab it was dropped in.
+      if (feature === 'chat' && typeof ChatFile !== 'undefined') {
+        const fileMsg = ChatFile.historyMessage(tabId);
+        if (fileMsg) system.push(fileMsg);
       }
       // Questions about Vex get Vex's own feature list, not the open page.
       if (feature === 'chat') {
         const vexMsg = this._vexKnowledge(opts.message);
-        if (vexMsg) conversationHistory = [vexMsg, ...conversationHistory.slice(-9)];
+        if (vexMsg) system.push(vexMsg);
       }
-      // A file dropped on the panel (js/chat-file.js) goes in front of the
-      // question, marked as material rather than instructions.
-      if (feature === 'chat' && typeof ChatFile !== 'undefined') {
-        const fileMsg = ChatFile.historyMessage();
-        if (fileMsg) conversationHistory = [fileMsg, ...conversationHistory.slice(-9)];
+      if (feature === 'chat' && typeof AIMemory !== 'undefined') {
+        const memMsg = AIMemory.historyMessage();
+        if (memMsg) system.push(memMsg);
       }
+      const turns = conv.filter(m => m.role !== 'system').slice(-Math.max(1, this.HISTORY_SENT - system.length));
+      const conversationHistory = [...system, ...turns];
       // Only chat streams: the other actions render structured output that
       // means nothing until it is complete.
       const onToken = (feature === 'chat') ? this._liveRenderer(loadingEl) : null;
@@ -1339,6 +1384,7 @@ const AIPanel = {
         selectedText: opts.selectedText,
         targetLanguage: opts.targetLanguage,
         conversationHistory,
+        signal: abort.signal,
         persona: persona ? {
           id: persona.id,
           systemPrompt: persona.systemPrompt,
@@ -1361,11 +1407,15 @@ const AIPanel = {
       // as the last-resort text for every renderer below.
       if (!parsed.reply) parsed.reply = String(aiResult.result);
 
-      // Store assistant reply for chat history
-      if (action === 'chat') {
-        conv.push({ role: 'assistant', content: parsed.reply, action, at: Date.now(), thinking: parsed.thinking || undefined });
-        this._persistConversations();
-      }
+      // Store every answer. Summaries, translations and explanations used to
+      // be drawn and never kept, so the next redraw of the panel (reopening
+      // it, switching tab) took them away (found 2026-09-29).
+      conv.push({
+        role: 'assistant', content: action === 'chat' ? parsed.reply : this._answerText(action, parsed), action, at: Date.now(),
+        thinking: parsed.thinking || undefined,
+        ...(action === 'translate' && opts.targetLanguage ? { targetLanguage: opts.targetLanguage } : {}),
+      });
+      this._persistConversations();
 
       this._renderResponse(action, parsed, { backend: aiResult.backend, model: aiResult.model });
       // Answered while you were somewhere else: say so, rather than leaving it
@@ -1377,6 +1427,14 @@ const AIPanel = {
       return true;
     } catch (err) {
       loadingEl?.remove();
+      // Stopped by the user: said, not shown as an error. The question stays
+      // above it, so Retry on "Stopped." asks it again.
+      if (abort.signal.aborted && conv) {
+        conv.push({ role: 'assistant', content: 'Stopped.', at: Date.now(), didIt: true });
+        this._persistConversations();
+        this._renderMessages();
+        return true;
+      }
       // The prompt is never lost: it stays in the transcript and Retry re-sends
       // it verbatim once the backend is fixed, without a duplicate bubble.
       this._addError(err.message || 'Network error', () => this.sendMessage(action, { ...opts, _noEcho: true }));
@@ -1385,7 +1443,39 @@ const AIPanel = {
       this._live = null;
       this._sending = false;
       this._setComposerBusy(false);
+      this._chat = null;
+      // The agent may be running alongside; its Stop stays.
+      if (!(typeof AgentLoop !== 'undefined' && AgentLoop.isRunning?.())) document.getElementById('ai-stop-agent')?.classList.remove('visible');
+      finished();
     }
+  },
+
+  // Cancels the chat answer being written, if there is one. → true when there was.
+  _stopChat() {
+    if (!this._chat) return false;
+    try { this._chat.abort.abort(new Error('Stopped')); } catch { /* already over */ }
+    return true;
+  },
+
+  // A summary, translation or explanation as the text kept in the chat: what
+  // _renderResponse draws, as Markdown, so a redraw shows the same answer.
+  _answerText(action, parsed) {
+    if (action === 'summarize') {
+      let out = '**' + (parsed.title || 'Summary') + '**\n\n' + (parsed.summary || parsed.reply || '');
+      if (parsed.keyPoints?.length) out += '\n\n**Key Points:**\n' + parsed.keyPoints.map(p => '- ' + p).join('\n');
+      if (parsed.readingTime) out += '\n\n' + parsed.readingTime;
+      return out;
+    }
+    if (action === 'translate') {
+      return '**Translation' + (parsed.targetLanguage ? ' (' + parsed.targetLanguage + ')' : '') + '**\n\n' + (parsed.translation || parsed.reply || '')
+        + (parsed.notes ? '\n\nNote: ' + parsed.notes : '');
+    }
+    if (action === 'explain') {
+      let out = '**Explanation**\n\n' + (parsed.explanation || parsed.reply || '');
+      if (parsed.keyTerms?.length) out += '\n\n**Key Terms:**\n' + parsed.keyTerms.map(t => '- **' + (t && t.term) + ':** ' + (t && t.definition)).join('\n');
+      return out;
+    }
+    return parsed.reply || '';
   },
 
   // Visual "busy" state for the composer. Keeps a second Enter from looking
@@ -1554,6 +1644,17 @@ const AIPanel = {
     if (cancel) {
       const running = (typeof AgentLoop !== 'undefined' && AgentLoop.isRunning && AgentLoop.isRunning());
       const rest = typed.slice(cancel[0].length).replace(/^(?:and\s+|then\s+|now\s+)+/i, '').trim();
+      // A chat answer being written is what "stop" means. It is not a
+      // question, so it is not kept: it used to be, and Retry then sent
+      // "stop" (found 2026-09-29). The answer's own send writes "Stopped.".
+      if (this._chat && !running) {
+        const chat = this._chat;
+        input.value = '';
+        this._stopChat();
+        await chat.done;
+        if (rest) { input.value = rest; await this._sendChat(); }
+        return;
+      }
       {
         // Handled whether or not anything was running: "stop" sent to a chat
         // model with nothing to stop comes back as a confused paragraph.
@@ -1622,7 +1723,11 @@ const AIPanel = {
     // — it reads the sentence as being about Vex, which it is — and answered
     // an order with a card explaining a feature. An instruction Vex can carry
     // out beats an explanation of how to carry it out, every time.
-    if (typeof VexQuickCommands !== 'undefined') {
+    // "/agent …" and "/chat …" say where it goes; nothing below second-guesses
+    // that. The guide card answered "/agent …" whenever it held the word
+    // "agent" (found 2026-09-29).
+    const forced = /^\/(?:agent|chat)\s/i.test(typed);
+    if (!forced && typeof VexQuickCommands !== 'undefined') {
       let doable = null;
       try { doable = VexQuickCommands.intent(typed); }
       catch (err) { console.warn('[AI] quick intent failed:', err.message); }
@@ -1635,7 +1740,7 @@ const AIPanel = {
     }
     // "How do I …?" about Vex itself is answered from Vex's own feature list,
     // with the thing one press away — and without loading a model.
-    if (typeof VexGuide !== 'undefined' && VexGuide.isAbout(typed)) {
+    if (!forced && typeof VexGuide !== 'undefined' && VexGuide.isAbout(typed)) {
       const guided = VexGuide.answer(typed);
       if (guided.found) {
         input.value = '';
@@ -1935,6 +2040,7 @@ const AIPanel = {
   _clearChat() {
     const tabId = this._getTabId();
     if (tabId) this._conversations[tabId] = [];
+    if (typeof ChatFile !== 'undefined') ChatFile.clear(tabId);
     this._persistConversations();
     this._renderMessages();
   },

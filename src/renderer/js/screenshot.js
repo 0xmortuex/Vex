@@ -84,6 +84,10 @@ const ScreenshotTool = {
     `;
     overlay.classList.add('visible');
     overlay.addEventListener('click', (e) => { if (e.target === overlay) this.hidePreview(); });
+    // Escape closes it like every other panel (found 2026-09-29: it did nothing).
+    if (this._previewKey) document.removeEventListener('keydown', this._previewKey);
+    this._previewKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); this.hidePreview(); } };
+    document.addEventListener('keydown', this._previewKey);
 
     overlay.querySelector('.ss-annotate')?.addEventListener('click', () => {
       this.hidePreview();
@@ -121,6 +125,7 @@ const ScreenshotTool = {
 
   hidePreview() {
     document.getElementById('screenshot-overlay')?.classList.remove('visible');
+    if (this._previewKey) { document.removeEventListener('keydown', this._previewKey); this._previewKey = null; }
   },
 
   // Canvas annotation editor: pen / rectangle / arrow + color, then save/copy.
@@ -182,6 +187,7 @@ const ScreenshotTool = {
 
   annotate(dataUrl, { board = false } = {}) {
     document.getElementById('vex-annotate')?.remove();
+    if (this._annotateKey) { document.removeEventListener('keydown', this._annotateKey); this._annotateKey = null; }
     const icon = (name) => (window.VexIcons ? VexIcons.svg(name, { size: 14 }) : '');
     const btn = 'display:inline-flex;align-items:center;gap:5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12.5px';
     const wrap = document.createElement('div');
@@ -198,7 +204,9 @@ const ScreenshotTool = {
         <button id="an-close" type="button" aria-label="Close" style="${btn}">${icon('x')}</button>
       </div>
       <div id="an-hint" style="font-size:12px;color:#ddd;min-height:16px"></div>
-      <canvas id="an-canvas" style="max-width:92vw;max-height:78vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.6);cursor:crosshair"></canvas>`;
+      <div id="an-scroll" style="max-width:92vw;max-height:78vh;overflow:auto;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.6)">
+        <canvas id="an-canvas" style="display:block;max-width:92vw;max-height:78vh;cursor:crosshair"></canvas>
+      </div>`;
     document.body.appendChild(wrap);
 
     const canvas = wrap.querySelector('#an-canvas');
@@ -213,7 +221,14 @@ const ScreenshotTool = {
     let tool = 'pen', drawing = false, sx = 0, sy = 0;
     const history = [];
     const snapshot = () => { history.push(ctx.getImageData(0, 0, canvas.width, canvas.height)); if (history.length > 25) history.shift(); };
-    img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); snapshot(); };
+    img.onload = () => {
+      canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0); snapshot();
+      // A full-page capture (714x16000) was squeezed to 21x468 to fit the
+      // height (found 2026-09-29). A picture that would shrink to under half
+      // its width fits the width instead, and the area scrolls.
+      const fitW = Math.min(window.innerWidth * 0.92, img.width);
+      if (img.height * fitW / img.width > window.innerHeight * 0.78 * 2) canvas.style.maxHeight = 'none';
+    };
     img.src = dataUrl;
     const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * canvas.width / r.width, y: (e.clientY - r.top) * canvas.height / r.height }; };
     const setTool = (t) => {
@@ -255,6 +270,10 @@ const ScreenshotTool = {
     canvas.addEventListener('mousedown', async (e) => {
       const p = pos(e); sx = p.x; sy = p.y;
       if (tool === 'text') {
+        // The prompt focuses its input inside this handler; the mousedown's
+        // default action then took focus back, so typing went nowhere
+        // (found 2026-09-29).
+        e.preventDefault();
         const words = await vexPrompt({ title: 'Add text', label: 'Text', placeholder: 'This one', okLabel: 'Add' });
         if (!words) return;
         ctx.save();
@@ -305,24 +324,35 @@ const ScreenshotTool = {
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       a.download = `vex-${board ? 'whiteboard' : 'annotated'}-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`;
-      a.click(); wrap.remove(); window.showToast?.(board ? 'Whiteboard saved' : 'Marked-up picture saved');
+      a.click(); closeEditor(); window.showToast?.(board ? 'Whiteboard saved' : 'Marked-up picture saved');
     });
     wrap.querySelector('#an-copy').addEventListener('click', () => {
       canvas.toBlob(async (blob) => {
         // A failed copy used to be swallowed: the window closed and nothing
         // was on the clipboard. Say so, and keep the work open to save instead.
-        try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); window.showToast?.('Copied'); wrap.remove(); }
+        try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); window.showToast?.('Copied'); closeEditor(); }
         catch (err) { window.showToast?.('Could not copy the picture — use Save instead (' + ((err && err.message) || 'clipboard refused') + ')', 'error'); }
       });
     });
-    wrap.querySelector('#an-close').addEventListener('click', async () => {
+    const closeEditor = () => {
+      wrap.remove();
+      if (this._annotateKey === onKey) { document.removeEventListener('keydown', onKey); this._annotateKey = null; }
+    };
+    const askClose = async () => {
       // A whiteboard is work of its own, not a picture that can be taken again.
       if (board && history.length > 1) {
         const ok = await window.vexConfirm({ title: 'Close the whiteboard?', message: 'What you drew is not saved. Use Save or Copy first to keep it.', okLabel: 'Close without saving', danger: true });
         if (!ok) return;
       }
-      wrap.remove();
-    });
+      closeEditor();
+    };
+    wrap.querySelector('#an-close').addEventListener('click', askClose);
+    // Escape closes the editor the same way as its close button (found
+    // 2026-09-29: it did nothing). A dialog open on top handles its own Escape
+    // first and marks it handled.
+    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented && document.contains(wrap)) { e.preventDefault(); askClose(); } };
+    this._annotateKey = onKey;
+    document.addEventListener('keydown', onKey);
     return wrap;
   }
 };

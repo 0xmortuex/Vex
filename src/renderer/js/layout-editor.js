@@ -129,6 +129,9 @@ const LayoutEditor = {
       if (item && !(e.target.closest && e.target.closest('.le-ctl'))) { e.preventDefault(); e.stopPropagation(); }
     });
     document.addEventListener('click', this._clickBlocker, true);
+    // Escape leaves the editor like Done; it did nothing (found 2026-09-29).
+    this._onKey = this._onKey || ((e) => { if (e.key === 'Escape') { e.preventDefault(); this.exit(); } });
+    document.addEventListener('keydown', this._onKey, true);
     this.ZONES.forEach(id => { const z = document.getElementById(id); if (z) z.addEventListener('dragover', this._onZoneDragOver); });
     this._decorated = new Set();
     this._decorate();
@@ -142,6 +145,7 @@ const LayoutEditor = {
     this._editing = false;
     document.body.classList.remove('layout-editing');
     document.removeEventListener('click', this._clickBlocker, true);
+    document.removeEventListener('keydown', this._onKey, true);
     this.ZONES.forEach(id => { const z = document.getElementById(id); if (z) z.removeEventListener('dragover', this._onZoneDragOver); });
     const nodes = this._decorated ? Array.from(this._decorated) : Array.from(document.querySelectorAll('[data-layout-item]'));
     nodes.forEach(n => {

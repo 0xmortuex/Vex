@@ -279,7 +279,9 @@ const SchedulesPanel = {
       row.className = 'sched-reminder';
       row.innerHTML = `<span class="sched-reminder-when"></span><span class="sched-reminder-text"></span>
         <button class="sched-reminder-x" title="Remove this reminder" aria-label="Remove">${this._icon('trash', 12)}</button>`;
-      row.querySelector('.sched-reminder-when').textContent = when(r.at);
+      // A site reminder has no time; describing its null one read "1 Jan at
+      // 02:00" (found 2026-09-29).
+      row.querySelector('.sched-reminder-when').textContent = r.site ? 'When you open ' + r.site : when(r.at);
       row.querySelector('.sched-reminder-text').textContent = r.message;
       if (!r.os || !r.os.scheduled) row.title = 'Fires while Vex is running' + (r.os && r.os.error ? ' — ' + r.os.error : '');
       row.querySelector('.sched-reminder-x').addEventListener('click', async () => {

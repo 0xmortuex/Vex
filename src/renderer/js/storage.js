@@ -240,6 +240,12 @@ _storageMethods.clear = function () {
 
 window.PersistentStorage = PersistentStorage;
 window.vex?.onFlushRequested?.(async () => {
+  // Notes and sticky edits wait in a 600ms debounce, and their beforeunload
+  // flush runs after this one has already written the files, so the last
+  // words typed before closing were lost (found 2026-09-29). Push them into
+  // storage first.
+  if (typeof NotesPanel !== 'undefined') { NotesPanel.flush(); NotesPanel._flushSticky(); }
+  if (typeof StickyNotes !== 'undefined') StickyNotes.flush();
   if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.saveCurrentState();
   if (typeof TabManager !== 'undefined') await TabManager.persistTabs();
   await PersistentStorage._flush();

@@ -127,8 +127,20 @@ const Authenticator = {
       await this._refreshList();
       window.showToast?.('Account added');
     } else {
-      status.textContent = (r && r.error) ? r.error : 'Could not add — check the key.';
+      status.textContent = this._addError(secret, r && r.error);
     }
+  },
+
+  // Main answers a bad key with "Invalid authenticator parameters", which
+  // says nothing a person can act on (found 2026-09-29). Say what is wrong.
+  _addError(secret, error) {
+    const raw = String(error || '').replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
+    if (!/Invalid authenticator parameters|Invalid secret/i.test(raw)) return raw || 'Could not add — check the key.';
+    if (/^otpauth:/i.test(secret)) return 'That link asks for settings no authenticator uses (the code length must be 4–8 digits, the period 5–300 seconds). Check you copied the whole link.';
+    const key = secret.replace(/\s/g, '').replace(/=+$/, '');
+    const bad = [...new Set(key.toUpperCase().replace(/[A-Z2-7]/g, ''))];
+    if (bad.length) return 'A setup key uses only the letters A–Z and the digits 2–7. This one also has: ' + bad.join(' ') + '. Check for 0/O and 1/I mix-ups.';
+    return 'That key is too short to be a setup key. Copy the whole key the site shows.';
   },
 
   async _refreshList() {
@@ -160,7 +172,10 @@ const Authenticator = {
       const id = e.currentTarget.closest('.auth-item').dataset.id;
       const ok = await (window.vexConfirm ? window.vexConfirm({ title: 'Remove this account?', message: 'You will need the site’s setup key again to re-add it — make sure you still have another way to sign in.', okLabel: 'Remove', danger: true }) : Promise.resolve(true));
       if (!ok) return;
-      await window.vex.totpDelete(id);
+      // The answer is checked: a failed delete used to look like it worked
+      // until the account reappeared (found 2026-09-29).
+      const r = await window.vex.totpDelete(id).catch(e => ({ ok: false, error: String(e && e.message || e) }));
+      if (!r || !r.ok) window.showToast?.('Could not remove it: ' + ((r && r.error) || 'no answer'), 'error');
       await this._refreshList();
     }));
     // Click ANYWHERE on the row (or Enter/Space) to copy the code — no button hunt.

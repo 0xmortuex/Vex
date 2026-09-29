@@ -19,7 +19,12 @@ const Flashcards = {
   MAX: 2000,
 
   all() { try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
-  save(cards) { try { localStorage.setItem(this.KEY, JSON.stringify(cards.slice(0, this.MAX))); } catch {} },
+  // A failed write used to be dropped, so a card or an answer vanished at the
+  // next open with nothing said (found 2026-09-29).
+  save(cards) {
+    try { localStorage.setItem(this.KEY, JSON.stringify(cards.slice(0, this.MAX))); }
+    catch (err) { throw new Error('Your cards could not be saved: ' + ((err && err.message) || err), { cause: err }); }
+  },
 
   day() { return 24 * 60 * 60 * 1000; },
 
@@ -114,7 +119,7 @@ const Flashcards = {
     if (!fresh.length) throw new Error('Nothing new to make cards from — highlight something on this page first');
     let made = 0;
     for (const h of fresh) {
-      try { this.add({ ...h, url, title }); made++; } catch { /* already had one */ }
+      try { this.add({ ...h, url, title }); made++; } catch (err) { if (!/already has a card/.test(err.message)) throw err; }
     }
     window.showToast?.(made + ' card' + (made === 1 ? '' : 's') + ' made — the first are due now');
     return made;
@@ -179,8 +184,12 @@ const Flashcards = {
       }
       const wrong = button('Not yet');
       const right = button('Got it', true);
-      wrong.addEventListener('click', () => { this.answer(card.id, false); at++; showing = false; draw(); });
-      right.addEventListener('click', () => { this.answer(card.id, true); at++; showing = false; draw(); });
+      const mark = (ok) => {
+        try { this.answer(card.id, ok); } catch (err) { window.showToast?.(err.message, 'error'); return; }
+        at++; showing = false; draw();
+      };
+      wrong.addEventListener('click', () => mark(false));
+      right.addEventListener('click', () => mark(true));
       footEl.append(wrong, right);
     };
 

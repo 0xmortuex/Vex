@@ -17,7 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const read = (f) => fs.readFileSync(path.join(__dirname, '../../src/' + f), 'utf8').replace(/\r\n/g, '\n');
 const PAGE_SRC = read('preload-webview.js');
 const SW_SRC = read('preload-extension-sw.js');
-const START = PAGE_SRC.indexOf('// === chrome.permissions for extensions ===');
+const START = PAGE_SRC.indexOf('// === BEGIN vex-extension-stand-ins ===');
 const END = PAGE_SRC.indexOf("(function () {\n  'use strict';\n  var ipcRenderer;");
 const PAGE_SHIMS = PAGE_SRC.slice(START, END);
 const KEY = '__vexStorageSync';
@@ -82,15 +82,59 @@ function page(chrome, { protocol = 'chrome-extension:', localStorage = localStor
 // running the function in the worker's own world.
 function worker(chrome) {
   const ctx = vm.createContext({ chrome, setTimeout, Promise, JSON, Object, Array, String,
-    require: (m) => { if (m !== 'electron') throw new Error('only electron'); return { contextBridge: { executeInMainWorld: ({ func }) => vm.runInContext('(' + func.toString() + ')()', ctx) } }; } });
+    require: (m) => { if (m !== 'electron') throw new Error('only electron'); return { contextBridge: { executeInMainWorld: ({ func, args = [] }) => { ctx.__args = args; return vm.runInContext('(' + func.toString() + ').apply(null, __args)', ctx); } } }; } });
   vm.runInContext(SW_SRC, ctx);
   return chrome;
 }
+
+const STAND_INS_END = '// === END vex-extension-stand-ins ===';
+const standIns = (src) => src.slice(src.indexOf('// === BEGIN vex-extension-stand-ins ==='), src.indexOf(STAND_INS_END) + STAND_INS_END.length);
 
 describe('the sync stand-in is one function in two places', () => {
   it('the page preload and the worker preload carry the same copy', () => {
     expect(block(PAGE_SRC).length).toBeGreaterThan(1000);
     expect(block(SW_SRC)).toBe(block(PAGE_SRC));
+  });
+
+  it('and so do the other stand-ins', () => {
+    expect(standIns(PAGE_SRC).length).toBeGreaterThan(1000);
+    expect(standIns(SW_SRC)).toBe(standIns(PAGE_SRC));
+  });
+});
+
+// A popup, an options page and a service worker never got the stand-ins: they
+// were put into the preload's own world, which only a background page shares.
+// Stylus's and Violentmonkey's workers died on start while Vex showed them
+// "On", and Stylus's popup drew nothing (2026-09-29).
+describe('every extension context gets the stand-ins', () => {
+  it("a service worker: Stylus's permissions.contains and Violentmonkey's isAllowedIncognitoAccess", async () => {
+    const sw = worker(extension().chrome({ manifest: { permissions: ['storage', 'tabs'] } }));
+    expect(await sw.permissions.contains({ permissions: ['tabs'] })).toBe(true);
+    await new Promise((resolve) => sw.extension.isAllowedIncognitoAccess((v) => { expect(v).toBe(false); resolve(); }));
+    expect(sw.extension.inIncognitoContext).toBe(false);
+    expect(await sw.commands.getAll()).toEqual([]);
+  });
+
+  it('an isolated page (a popup, an options page) gets them in its own world', () => {
+    const pageChrome = extension().chrome({ manifest: { permissions: ['storage'] }, extra: { tabs: {} } });
+    const ran = [];
+    const ctx = vm.createContext({
+      window: { chrome: {} }, location: { protocol: 'chrome-extension:' }, process: { contextIsolated: true },
+      setTimeout, Promise, JSON, Object, Array, String, console,
+      require: (m) => { if (m !== 'electron') throw new Error('only electron'); return { ipcRenderer: { invoke: () => Promise.resolve(null) } }; },
+    });
+    // The preload's own world has an empty chrome; the page's world is pageChrome.
+    ctx.__vexCBStub = { executeInMainWorld: ({ func, args = [] }) => { ran.push(func.name); const a = args.slice(); if (a[0] == null) a[0] = pageChrome; return func.apply(null, a); } };
+    vm.runInContext(PAGE_SHIMS.replace(/__vexCB\./g, '__vexCBStub.'), ctx);
+    expect(ran).toEqual(['vexExtensionStandIns', 'vexStorageSyncShim']);
+    expect(typeof pageChrome.permissions.contains).toBe('function');
+    expect(pageChrome.storage.__vexSync).toBe(true);
+    expect(typeof pageChrome.tabs.getCurrent).toBe('function');
+  });
+
+  it('a popup asking for its own tab hears undefined, as in Chrome', async () => {
+    const c = page(extension().chrome({ extra: { tabs: {} } }));
+    expect(await c.tabs.getCurrent()).toBeUndefined();
   });
 });
 

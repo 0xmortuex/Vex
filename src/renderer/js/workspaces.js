@@ -225,14 +225,23 @@ const WorkspaceManager = {
         <span class="ws-dot" style="background:${w.color}"></span>
         <span class="ws-item-name">${this._esc(w.name)}</span>
         ${w.id === this.activeId ? '<span class="ws-item-check">&#10003;</span>' : ''}
+        <button class="ws-item-edit" data-edit="${w.id}" title="Rename or delete" aria-label="Edit ${this._esc(w.name)}" style="background:none;border:0;padding:2px;color:inherit;cursor:pointer;display:inline-flex;opacity:.7">${typeof VexIcons !== 'undefined' ? VexIcons.svg('edit', { size: 13 }) : ''}</button>
       </div>
     `).join('') + `
       <div class="ws-sep"></div>
       <div class="ws-add" id="ws-add-btn">+ Add Workspace</div>
     `;
 
+    // Rename/delete lived only in showModal(id), and nothing ever passed an
+    // id, so a workspace could be neither renamed nor deleted (found
+    // 2026-09-29). The pencil (or a right-click) opens it for that workspace.
+    const edit = (id) => { this.hideDropdown(); this.showModal(id); };
     dropdown.querySelectorAll('.ws-item').forEach(el => {
-      el.addEventListener('click', () => this.switchTo(el.dataset.id));
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.ws-item-edit')) { edit(el.dataset.id); return; }
+        this.switchTo(el.dataset.id);
+      });
+      el.addEventListener('contextmenu', (e) => { e.preventDefault(); edit(el.dataset.id); });
     });
 
     document.getElementById('ws-add-btn')?.addEventListener('click', () => {
@@ -244,6 +253,8 @@ const WorkspaceManager = {
   showDropdown() {
     document.getElementById('workspace-dropdown')?.classList.add('visible');
     const onBlur = () => close();
+    // Escape closes it like every other menu; it did nothing (found 2026-09-29).
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
     const close = (e) => {
       // No event = window blur (focus moved into the page's <webview>, whose
       // clicks never reach the host document) → always close.
@@ -251,11 +262,13 @@ const WorkspaceManager = {
         this.hideDropdown();
         document.removeEventListener('click', close);
         window.removeEventListener('blur', onBlur);
+        document.removeEventListener('keydown', onKey, true);
       }
     };
     setTimeout(() => {
       document.addEventListener('click', close);
       window.addEventListener('blur', onBlur);
+      document.addEventListener('keydown', onKey, true);
     }, 0);
   },
 
@@ -318,9 +331,13 @@ const WorkspaceManager = {
     });
 
     if (editing) {
-      modal.querySelector('#ws-modal-delete')?.addEventListener('click', () => {
-        this.deleteWorkspace(editing.id);
+      // A workspace holds its own tabs; deleting one went without a word
+      // (found 2026-09-29).
+      modal.querySelector('#ws-modal-delete')?.addEventListener('click', async () => {
+        if (this.workspaces.length <= 1) { window.showToast?.('The last workspace cannot be deleted'); return; }
+        if (!await vexConfirm({ title: 'Delete workspace', message: `Delete "${editing.name}" and the tabs saved in it?`, okLabel: 'Delete', danger: true })) return;
         this.hideModal();
+        await this.deleteWorkspace(editing.id);
       });
     }
 

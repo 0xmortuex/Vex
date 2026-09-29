@@ -11,6 +11,7 @@ const FocusMode = {
   KEY: 'vex.focusBlocklist',
   active: false,
   until: 0,
+  minutes: 0,
   _timer: null,
 
   // The sites Vex blocks until you have said otherwise. These are a starting
@@ -48,13 +49,18 @@ const FocusMode = {
     return !this.isCustom();
   },
 
+  // Running the same length again ends the session; a different length
+  // restarts with that length. "Focus 50" during a Focus 25 used to end focus
+  // without a word (found 2026-09-29).
   toggle(minutes) {
-    if (this.active) this.stop();
-    else this.start(minutes || 25);
+    minutes = minutes || 25;
+    if (this.active && minutes === this.minutes) { this.stop(); window.showToast?.('Focus ended'); }
+    else this.start(minutes);
   },
 
   start(minutes) {
     this.active = true;
+    this.minutes = minutes;
     this.until = Date.now() + minutes * 60 * 1000;
     document.body.classList.add('focus-mode');
     // Don't promise blocking we are not doing — an emptied blocklist blocks nothing.
@@ -83,7 +89,7 @@ const FocusMode = {
   _holdReminders(untilMs) {
     const b = window.vex && window.vex.reminders;
     if (!b || typeof b.hold !== 'function') return;
-    Promise.resolve(b.hold(untilMs)).catch(err => window.showToast?.('Could not hold reminders during focus: ' + ((err && err.message) || ''), 'error'));
+    Promise.resolve(b.hold(untilMs, 'focus')).catch(err => window.showToast?.('Could not hold reminders during focus: ' + ((err && err.message) || ''), 'error'));
   },
 
   // Called from webview will-navigate/did-navigate wiring. Returns true if blocked.

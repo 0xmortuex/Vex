@@ -125,7 +125,8 @@ const MeetingMode = {
   _holdReminders(untilMs) {
     const b = window.vex && window.vex.reminders;
     if (!b || typeof b.hold !== 'function') return Promise.resolve();
-    return Promise.resolve(b.hold(untilMs)).catch(err =>
+    // Named, so a focus session ending mid-meeting clears only its own hold.
+    return Promise.resolve(b.hold(untilMs, 'meeting')).catch(err =>
       window.VexProblems?.note('Meeting mode', 'Could not hold your reminders for the meeting', err));
   },
 
@@ -139,6 +140,8 @@ const MeetingMode = {
     this._save({ noteId: note.id, startedAt: at, muted });
     this._holdReminders(at + this.HOLD_MS);
     document.body.classList.add('meeting-mode');
+    // The toast says the note is open; nothing opened it (found 2026-09-29).
+    this.showNote();
     window.showToast?.('Meeting mode on — reminders held, other tabs muted, note open');
     return note;
   },

@@ -111,7 +111,12 @@ const TorSession = {
         const st = m.querySelector('#tor-bs-stage'); if (st) st.textContent = '✓ Connected — opening your Tor tab…';
       },
     };
-    m.querySelector('#tor-prog-cancel').addEventListener('click', () => { api.cancelled = true; api.close(); });
+    // Cancel stops the Tor Vex is launching, not just this dialog: closing it
+    // alone left the download and tor.exe running (found 2026-09-29).
+    m.querySelector('#tor-prog-cancel').addEventListener('click', () => {
+      api.cancelled = true; api.close();
+      Promise.resolve(window.vex?.cancelTor?.()).catch(err => window.showToast?.('Tor could not be stopped: ' + err.message, 'error'));
+    });
     return api;
   },
 

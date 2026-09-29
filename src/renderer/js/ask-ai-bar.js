@@ -93,9 +93,15 @@ const AskAIBar = (() => {
         if (typeof window.showToast === 'function') window.showToast('The AI panel is not available', 'error');
         return;
       }
+      // Something half-written in the panel is put back once the question has
+      // left the box: it used to be overwritten and lost (found 2026-09-29).
+      const draft = aiInput.value;
       aiInput.value = text;
       if (typeof AIPanel._sendChat === 'function') {
         AIPanel._sendChat();
+        // The box empties as the question is sent; when it did not (the
+        // question is waiting on something), the question stays in it.
+        if (draft.trim() && aiInput.value === '') aiInput.value = draft;
       } else {
         aiInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       }

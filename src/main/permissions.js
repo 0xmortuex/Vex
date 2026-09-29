@@ -61,8 +61,15 @@ function isVexUi(contents) {
 
 function createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive }) {
 // Answers that last until Vex closes. Never written to disk: "just this visit"
-// that survived a restart would be a lie.
+// that survived a restart would be a lie. Kept per partition: one map for
+// every window let "Allow this visit" in a private window allow the same site
+// in the normal one too (found 2026-09-29).
 const sessionDecisions = new Map();
+function sessionDecisionsFor(contents) {
+  const partition = (contents && secureSessions.partitionOf(contents)) || 'persist:main';
+  if (!sessionDecisions.has(partition)) sessionDecisions.set(partition, new Map());
+  return sessionDecisions.get(partition);
+}
 // === Site permission handler (geolocation, camera, mic, notifications, ...) ===
 const permissionsFile = path.join(userDataPath, 'permissions.json');
 let cachedDecisions = null, writes = Promise.resolve();
@@ -178,7 +185,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
 
     // Check persisted decisions — under what is really being asked for.
     const parts = mediaParts(permission, details);
-    const saved = savedDecision(decisionsFor(webContents), origin, parts, sessionDecisions);
+    const saved = savedDecision(decisionsFor(webContents), origin, parts, sessionDecisionsFor(webContents));
     if (saved === 'allow') return callback(true);
     if (saved === 'deny')  return callback(false);
     const asked = parts.length > 1 ? 'media' : parts[0];
@@ -225,7 +232,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     const kind = details && details.mediaType;
     if (isVexUi(_wc) && ((permission === 'media' && kind === 'audio') || permission === 'microphone')) return true;
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
-    return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisions) === 'allow';
+    return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisionsFor(_wc)) === 'allow';
   });
 }
 
@@ -243,7 +250,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
   if (remember && cb._origin && cb._permission) {
     const parts = cb._parts || [cb._permission];
     if (remember === 'session') {
-      for (const part of parts) sessionDecisions.set(`${cb._origin}::${part}`, decision);
+      for (const part of parts) sessionDecisionsFor(cb._contents).set(`${cb._origin}::${part}`, decision);
     } else {
       const d = decisionsFor(cb._contents);
       const until = { ...(d.__until__ || {}) };
@@ -262,6 +269,6 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 
 
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { sessionDecisions, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
+return { sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi };

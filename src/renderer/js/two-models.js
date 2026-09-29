@@ -52,13 +52,20 @@ const TwoModels = {
     } catch { return text; }
   },
 
-  // The page the question is about, when the AI panel would have sent it.
-  _context() {
-    try {
-      const tab = TabManager.getActiveTab();
-      if (!tab || !/^https?:/i.test(tab.url || '')) return null;
-      return { url: tab.url, title: tab.title || '' };
-    } catch { return null; }
+  // The page the question is about, when the AI panel would have sent it —
+  // with its text, as the chat sends it. Only the address and title went, so
+  // both models answered "about this page" from the title and made the rest
+  // up (found 2026-09-29).
+  async _context() {
+    const tab = TabManager.getActiveTab();
+    if (!tab || !/^https?:/i.test(tab.url || '')) return null;
+    const wv = WebviewManager.getActiveWebview();
+    let ctx = null;
+    if (wv) {
+      try { ctx = await PageContext.extractPageContext(wv); }
+      catch (err) { console.warn('[TwoModels] could not read the page:', err.message); }
+    }
+    return ctx || { url: tab.url, title: tab.title || '' };
   },
 
   _column(a, md) {
@@ -122,7 +129,7 @@ const TwoModels = {
     waiting.textContent = 'Asking both models…';
     container?.appendChild(waiting);
     try {
-      const answers = await this.ask(q, this._context());
+      const answers = await this.ask(q, await this._context());
       waiting.remove();
       this.render(q, answers);
       return answers;

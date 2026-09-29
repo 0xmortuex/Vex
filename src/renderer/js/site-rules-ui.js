@@ -102,7 +102,9 @@ const SiteRulesUI = {
 
   init() {
     // The stored rules are the truth; this only makes main agree with them.
-    this.push().catch(err => window.VexProblems?.note('Site switches', 'Could not tell Vex about your per-site switches', err));
+    // Not from a private window: its storage starts empty, and pushing that
+    // wiped every per-site rule in site-rules.json (found 2026-09-29).
+    if (!window.VexTabPolicy?.isPrivateWindow) this.push().catch(err => window.VexProblems?.note('Site switches', 'Could not tell Vex about your per-site switches', err));
     document.getElementById('btn-site-rules')?.addEventListener('click', () => {
       try { this.open(); } catch (err) { window.showToast?.(err.message, 'error'); }
     });

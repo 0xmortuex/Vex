@@ -42,6 +42,12 @@ const TeachMode = {
     if (step.kind === 'type') {
       return step.selector ? { tool: 'type_text', parameters: { selector: step.selector, text: step.value } } : null;
     }
+    // A dropdown choice. It came through as typing, and typing into a
+    // <select> on replay does not choose anything (found 2026-09-29). A
+    // checkbox or radio button is its click, recorded as one.
+    if (step.kind === 'select') {
+      return step.selector ? { tool: 'select_option', parameters: { selector: step.selector, value: step.value } } : null;
+    }
     if (step.kind === 'secret') {
       // The replay stops here and hands the page back: nobody's password is in
       // a macro, so nobody's password can be replayed out of one.
@@ -58,6 +64,7 @@ const TeachMode = {
     for (const step of steps) {
       const last = out[out.length - 1];
       if (last && step.kind === 'type' && last.kind === 'type' && last.selector === step.selector) { out[out.length - 1] = step; continue; }
+      if (last && step.kind === 'select' && last.kind === 'select' && last.selector === step.selector) { out[out.length - 1] = step; continue; }
       if (last && step.kind === 'click' && last.kind === 'click' && last.selector === step.selector && last.text === step.text) continue;
       out.push(step);
     }

@@ -151,7 +151,11 @@ const StickyNotes = {
 
     // Restore last position (per-session convenience), else default corner.
     let pos = null; try { pos = JSON.parse(localStorage.getItem('vex.stickyPos') || 'null'); } catch {}
-    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) { card.style.left = pos.x + 'px'; card.style.top = pos.y + 'px'; card.style.right = 'auto'; card.style.bottom = 'auto'; }
+    // Clamped like a drag: a spot saved in a bigger window opened the card
+    // off-screen (found 2026-09-29).
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+      pos = { x: Math.max(0, Math.min(window.innerWidth - 80, pos.x)), y: Math.max(0, Math.min(window.innerHeight - 40, pos.y)) };
+      card.style.left = pos.x + 'px'; card.style.top = pos.y + 'px'; card.style.right = 'auto'; card.style.bottom = 'auto'; }
 
     const ta = card.querySelector('.vsn-text');
     const status = card.querySelector('.vsn-status');

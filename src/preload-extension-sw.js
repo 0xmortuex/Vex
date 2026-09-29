@@ -9,6 +9,161 @@
 // worker is left alone (the function needs chrome.runtime.id).
 const { contextBridge } = require('electron');
 
+// === BEGIN vex-extension-stand-ins ===
+// Keep this block identical in src/preload-webview.js (extension pages) and
+// src/preload-extension-sw.js (extension service workers); a test compares them.
+//
+// Electron gives an extension no chrome.permissions, no browserAction/action,
+// no contextMenus, no commands and no chrome.extension.isAllowed*Access, and
+// an extension that reads one of them while starting up throws there:
+//   * Dark Reader's background read chrome.permissions.onRemoved and never
+//     answered a page again (2026-09-27), and set its badge through
+//     browserAction; its popup waited for ever on commands.getAll and
+//     isAllowedFileSchemeAccess ("Loading, please wait", 2026-09-28);
+//   * uBlock Origin stopped at contextMenus.onClicked (2026-09-28);
+//   * Stylus's service worker at permissions.contains and Violentmonkey's at
+//     extension.isAllowedIncognitoAccess, so both were dead while Vex showed
+//     them "On" (2026-09-29).
+// Each gets an honest stand-in: permissions reports what the manifest granted
+// and Vex provides and grants nothing new; the toolbar and menu calls succeed
+// and change nothing (Vex has no per-extension button, badge or menu items);
+// no keys are bound to extension shortcuts; file access is allowed (Vex loads
+// extensions with allowFileAccess) and there is no incognito here.
+//
+// It runs in the extension's own world: directly in a page without isolation
+// (a background page), through contextBridge.executeInMainWorld where the
+// page is isolated (a toolbar popup, an options page) and in a service worker.
+// Earlier, a popup's own chrome never got any of it (2026-09-29).
+//
+// askPopupTab, where given, asks main which tab the extension's toolbar popup
+// was opened over. Electron calls whichever page has the focus the active tab,
+// and the popup takes the focus, so asked for the active tab the extension got
+// its own popup back: Dark Reader said "This page is protected by browser" and
+// its site switch pointed at the popup (2026-09-28).
+function vexExtensionStandIns(c, askPopupTab) {
+  c = c || (typeof chrome !== 'undefined' ? chrome : null);
+  // Only an extension has a runtime id; a website is left alone.
+  if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
+  var manifest = c.runtime.getManifest() || {};
+  function done(value) {
+    return function () {
+      var cb = arguments[arguments.length - 1];
+      if (typeof cb === 'function') { setTimeout(function () { cb(value); }, 0); return undefined; }
+      return Promise.resolve(value);
+    };
+  }
+  function noEvent() { return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } }; }
+
+  if (!c.permissions) {
+    var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
+    var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
+    // Permissions that never come with a chrome.<name> namespace of their own.
+    var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
+    var apis = granted.filter(function (p) {
+      return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
+    });
+    var has = function (q) {
+      q = q || {};
+      return (q.permissions || []).every(function (p) { return apis.indexOf(p) !== -1; })
+        && (q.origins || []).every(function (o) { return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1; });
+    };
+    c.permissions = {
+      contains: function (q, cb) { return done(has(q))(cb); },
+      getAll: function (cb) { return done({ permissions: apis.slice(), origins: origins.slice() })(cb); },
+      // Already granted: true. Anything more cannot be granted here: false.
+      request: function (q, cb) { return done(has(q))(cb); },
+      remove: function (q, cb) { return done(false)(cb); },
+      onAdded: noEvent(),
+      onRemoved: noEvent(),
+    };
+  }
+
+  function actionStub() {
+    return {
+      setIcon: done(undefined), setBadgeText: done(undefined), setBadgeBackgroundColor: done(undefined),
+      setBadgeTextColor: done(undefined), setTitle: done(undefined), setPopup: done(undefined),
+      getBadgeText: done(''), getTitle: done(manifest.name || ''), getPopup: done(''),
+      enable: done(undefined), disable: done(undefined),
+      onClicked: noEvent(),
+    };
+  }
+  if (manifest.browser_action && !c.browserAction) c.browserAction = actionStub();
+  if (manifest.action && !c.action) c.action = actionStub();
+
+  var perms = manifest.permissions || [];
+  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && !c.contextMenus) {
+    var menuId = 0;
+    c.contextMenus = {
+      create: function (props, cb) { if (typeof cb === 'function') setTimeout(cb, 0); return (props && props.id) || ++menuId; },
+      update: done(undefined), remove: done(undefined), removeAll: done(undefined),
+      onClicked: noEvent(),
+    };
+  }
+
+  if (!c.commands) {
+    var commands = manifest.commands || {};
+    c.commands = {
+      getAll: done(Object.keys(commands).map(function (name) {
+        return { name: name, description: (commands[name] && commands[name].description) || '', shortcut: '' };
+      })),
+      onCommand: noEvent(),
+    };
+  }
+
+  if (!c.extension) c.extension = {};
+  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') c.extension.isAllowedFileSchemeAccess = done(true);
+  if (typeof c.extension.isAllowedIncognitoAccess !== 'function') c.extension.isAllowedIncognitoAccess = done(false);
+  if (typeof c.extension.inIncognitoContext === 'undefined') c.extension.inIncognitoContext = false;
+
+  // Stylus's worker read webNavigation.onCommitted and Violentmonkey's
+  // cookies.getAll while starting, and both died there (2026-09-29). Electron
+  // has neither. Here navigation events never fire, a tab's frames are not
+  // known, no cookies are readable, and changing one fails and says why.
+  if (perms.indexOf('webNavigation') !== -1 && !c.webNavigation) {
+    c.webNavigation = {
+      getFrame: done(null), getAllFrames: done(null),
+      onBeforeNavigate: noEvent(), onCommitted: noEvent(), onDOMContentLoaded: noEvent(), onCompleted: noEvent(),
+      onErrorOccurred: noEvent(), onCreatedNavigationTarget: noEvent(), onReferenceFragmentUpdated: noEvent(),
+      onTabReplaced: noEvent(), onHistoryStateUpdated: noEvent(),
+    };
+  }
+  if (perms.indexOf('cookies') !== -1 && !c.cookies) {
+    var noCookies = function () { return Promise.reject(new Error('chrome.cookies is not available in Vex')); };
+    c.cookies = {
+      get: done(null), getAll: done([]), getAllCookieStores: done([]),
+      set: noCookies, remove: noCookies,
+      onChanged: noEvent(),
+    };
+  }
+
+  // A toolbar popup is not a tab: Chrome answers undefined (Stylus's popup
+  // called it and drew nothing, 2026-09-29).
+  if (c.tabs && typeof c.tabs.getCurrent !== 'function') c.tabs.getCurrent = done(undefined);
+
+  if (typeof askPopupTab === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function' && typeof c.runtime.getURL === 'function') {
+    var own = c.runtime.getURL('');
+    var query = c.tabs.query.bind(c.tabs);
+    var get = c.tabs.get.bind(c.tabs);
+    c.tabs.query = function (q, cb) {
+      var p = query(q || {}).then(function (tabs) {
+        tabs = tabs || [];
+        if (!q || q.active !== true || !tabs.some(function (t) { return String(t.url || '').indexOf(own) === 0; })) return tabs;
+        return askPopupTab().then(function (over) {
+          if (!over) return tabs;
+          var rest = tabs.filter(function (t) { return t.id !== over.popup; });
+          if (over.tab == null) return rest;
+          return get(over.tab).then(function (tab) { return tab ? [Object.assign({}, tab, { active: true })].concat(rest) : rest; });
+        });
+      });
+      if (typeof cb !== 'function') return p;
+      p.then(function (tabs) { cb(tabs); }, function (err) { setTimeout(function () { throw err; }, 0); });
+      return undefined;
+    };
+  }
+  return true;
+}
+// === END vex-extension-stand-ins ===
+
 // === BEGIN vex-storage-sync-shim ===
 // Keep this block identical in src/preload-webview.js (extension pages) and
 // src/preload-extension-sw.js (extension service workers); a test compares them.
@@ -130,4 +285,5 @@ function vexStorageSyncShim(c) {
 }
 // === END vex-storage-sync-shim ===
 
+contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null] });
 contextBridge.executeInMainWorld({ func: vexStorageSyncShim });

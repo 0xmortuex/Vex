@@ -13,7 +13,7 @@ const JobSetup = {
     m.id = 'vex-jobsetup';
     m.style.cssText = 'position:fixed;inset:0;z-index:100061;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
     m.innerHTML = `<div style="width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
-      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px"><span style="font-size:16px;font-weight:800;color:var(--text);flex:1">A Vex built for your work</span><button id="jsx-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px"><span style="font-size:16px;font-weight:800;color:var(--text);flex:1">A Vex built for your work</span><button id="jsx-close" aria-label="Close" title="Close" style="display:inline-flex;padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div id="jsx-body" style="padding:6px 20px 20px;overflow:auto;flex:1"></div>
     </div>`;
     document.body.appendChild(m);

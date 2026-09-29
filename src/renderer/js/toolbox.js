@@ -1126,7 +1126,11 @@ const Toolbox = {
 
         // ---- decode ----
         let s = input;
-        if (opt.lenient) s = s.replace(/[\s"'`,]+/g, '');
+        // A comma is a stray character, except in an alphabet that uses it
+        // (IMAP's 63rd character), where stripping it changed the bytes.
+        const commaIsData = (alpha && (alpha.c62 === ',' || alpha.c63 === ','))
+          || (opt.variant === 'auto' && /,/.test(input) && !/\//.test(input));
+        if (opt.lenient) s = s.replace(commaIsData ? /[\s"'`]+/g : /[\s"'`,]+/g, '');
         if (!s) throw new Error('Nothing to decode once the stray characters were removed.');
 
         let used = alpha;
@@ -1147,7 +1151,10 @@ const Toolbox = {
         }
 
         // Unpadded is extremely common (JWTs, URLs). Put the padding back.
-        const padded = norm + '='.repeat((4 - (norm.replace(/=+$/, '').length % 4)) % 4);
+        // Padding already there counts (it used to be added on top: "aGk="
+        // became "aGk==" and was refused).
+        const bare = norm.replace(/=+$/, '');
+        const padded = bare + '='.repeat((4 - (bare.length % 4)) % 4);
         let bytes;
         try { bytes = b64ToBytes(padded); }
         catch { throw new Error('That is not valid Base64 — the length is wrong even after padding.'); }

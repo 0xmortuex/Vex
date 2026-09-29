@@ -15,32 +15,57 @@
 //
 // → { channel, args } for a key Vex answers, or null to let the page have it.
 
-// Ctrl+<key> → what Vex does about it.
+// Ctrl+<key> → what Vex does about it, before the page hears it.
 const PLAIN = {
   t: 'new-tab',
   w: 'close-tab',
   l: 'focus-address-bar',
-  d: 'bookmark-current',
-  b: 'toggle-tabs-sidebar',
-  h: 'toggle-history',
-  m: 'toggle-mute-tab',
   '=': 'zoom-in',
   '+': 'zoom-in',
   '-': 'zoom-out',
   0: 'zoom-reset',
 };
 
-// Ctrl+Shift+<key> → what Vex does about it.
+// Ctrl+Shift+<key> → what Vex does about it, before the page hears it.
 const SHIFTED = {
   t: 'reopen-last-closed',
-  o: 'toggle-sessions',
-  s: 'toggle-split',
-  z: 'sleep-current-tab',
-  a: 'toggle-ai-panel',
-  m: 'toggle-memory',
-  l: 'toggle-schedules',
-  h: 'toggle-history-ai',
 };
+
+// Keys a web app may well use for itself: Ctrl+B is bold in an editor,
+// Ctrl+Shift+Z is redo, Ctrl+Shift+M mutes you in Discord. Taking them
+// before the page (2026-09-20 to 2026-09-29) turned bold into "hide the tab
+// sidebar" and redo into "put this tab to sleep". As in Chrome, the page now
+// has them first: preload-webview.js watches for these keys and reports
+// only the ones the page left alone ('guest:page-shortcut'), and pageShortcut
+// below turns that report into what Vex does.
+const PAGE_FIRST = {
+  plain: {
+    b: 'toggle-tabs-sidebar',
+    h: 'toggle-history',
+    m: 'toggle-mute-tab',
+    d: 'bookmark-current',
+    p: 'print-page',
+    u: 'view-source',
+  },
+  shifted: {
+    o: 'toggle-sessions',
+    s: 'toggle-split',
+    z: 'sleep-current-tab',
+    a: 'toggle-ai-panel',
+    m: 'toggle-memory',
+    l: 'toggle-schedules',
+    h: 'toggle-history-ai',
+  },
+};
+
+// A report from the page preload → { channel }, or null. The action comes
+// from the table here, never from the page.
+function pageShortcut(report) {
+  if (!report || typeof report.key !== 'string' || report.key.length !== 1) return null;
+  const table = report.shift === true ? PAGE_FIRST.shifted : PAGE_FIRST.plain;
+  const lk = report.key.toLowerCase();
+  return Object.prototype.hasOwnProperty.call(table, lk) ? { channel: table[lk] } : null;
+}
 
 // Keys the renderer's own registry owns (and the user may have rebound): the
 // key travels, not a decision made here.
@@ -79,7 +104,10 @@ function shortcutFor(input, { ownsFind = false, wanted = null } = {}) {
   // registry refuses to bind one.
   if (wanted && wanted.size) {
     const combo = comboOf(input);
-    if (combo && wanted.has(combo) && !/^(Ctrl\+[A-Z]|Ctrl\+Shift\+[A-Z])$/.test(combo)) {
+    // A combination with neither Ctrl nor Alt (a plain letter) is the page's,
+    // whatever the registry sent (function keys aside).
+    const modified = !!ctrl || !!input.alt || /^(Shift\+)?F\d{1,2}$/.test(combo);
+    if (combo && modified && wanted.has(combo) && !/^(Ctrl\+[A-Z]|Ctrl\+Shift\+[A-Z])$/.test(combo)) {
       return { channel: 'guest-shortcut', args: [{ key: String(input.key || '').toLowerCase(), ctrl: !!ctrl, shift: !!input.shift, alt: !!input.alt }] };
     }
   }
@@ -104,4 +132,4 @@ function shortcutFor(input, { ownsFind = false, wanted = null } = {}) {
   return null;
 }
 
-module.exports = { shortcutFor, comboOf, PLAIN, SHIFTED, PASS_UP };
+module.exports = { shortcutFor, comboOf, pageShortcut, PLAIN, SHIFTED, PAGE_FIRST, PASS_UP };

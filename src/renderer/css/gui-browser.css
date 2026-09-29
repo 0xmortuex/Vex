@@ -65,7 +65,11 @@ body[data-gui-family="browser"]:not([data-gui-colors="theme"]) {
   --vex-text-primary: var(--b-text); --vex-text-secondary: var(--b-text-dim); --vex-text-muted: var(--b-text-dim); --vex-text-accent: var(--b-accent);
   --vex-border-subtle: var(--b-border); --vex-border-medium: var(--b-border); --vex-border-strong: var(--b-border);
   --vex-border-accent: var(--b-accent); --vex-border-accent-strong: var(--b-accent);
-  --vex-accent: var(--b-accent); --vex-accent-dim: var(--b-accent-ring); --vex-accent-glow: transparent;
+  /* The dim accent is a tint, not the focus ring: in the Firefox and Chrome
+     looks the ring is the solid accent, and every "accent text on dim accent"
+     (the active Notes tab, Schedules' Active tab, a task toggle) vanished
+     (found 2026-09-29). */
+  --vex-accent: var(--b-accent); --vex-accent-dim: color-mix(in srgb, var(--b-accent) 16%, transparent); --vex-accent-glow: transparent;
   --vex-blur-light: none; --vex-blur-medium: none; --vex-blur-strong: none;
   --vex-hover-fill: var(--b-btn-hover); --vex-shadow-color: rgba(0, 0, 0, 0.18);
   --bg: var(--b-page); --surface: var(--b-menu); --text: var(--b-text); --text-muted: var(--b-text-dim);
@@ -110,6 +114,10 @@ body[data-gui-family="browser"] .top-tab {
   border-radius: var(--b-tab-radius); box-shadow: var(--b-tab-rest-shadow, none);
   color: var(--b-tab-text); font: var(--b-tab-font); padding: 0 10px; margin: 0;
 }
+/* A pinned tab is its icon, as in horizontal-tabs.css; the rule above
+   out-ranks .top-tab.pinned there and drew pinned tabs full width in every
+   browser look (found 2026-09-29). */
+body[data-gui-family="browser"] .top-tab.pinned { flex: 0 0 36px; min-width: 36px; max-width: 36px; padding: 0; justify-content: center; }
 body[data-gui-family="browser"] .top-tab:hover { background: var(--b-tab-hover); color: var(--b-text); border-color: var(--b-tab-border, transparent); }
 body[data-gui-family="browser"] .top-tab.active {
   background: var(--b-tab-active); color: var(--b-text); border-color: var(--b-tab-active-border, transparent); margin-bottom: 0;

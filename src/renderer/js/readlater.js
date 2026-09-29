@@ -147,7 +147,7 @@ const ReadLater = {
       let host = it.url; try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch {}
       r.innerHTML = `<img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
         <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</div><div style="font-size:10.5px;color:var(--text-muted)">${esc(host)} · saved ${esc(this.describeAge(it.at))}${it.minutes ? ' · ' + it.minutes + ' min read' : ''}</div></div>
-        <button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px">✕</button>`;
+        <button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px" title="Remove" aria-label="Remove">${VexIcons.svg('x', { size: 13 })}</button>`;
       r.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) return; opts.open(it); });
       r.querySelector('[data-x]').addEventListener('click', (e) => { e.stopPropagation(); opts.remove(it); });
       body.appendChild(r);
@@ -191,6 +191,20 @@ const ReadLater = {
     if (read.length) {
       section('Done');
       read.forEach(it => row(it, { dim: true, open: (x) => this.open(x), remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
+    }
+
+    // Snoozed tabs could not be seen or woken early: nothing listed them
+    // (found 2026-09-29). A row wakes it now; its remove button forgets it.
+    const snoozed = typeof TabSnooze !== 'undefined' ? TabSnooze.list().slice().sort((a, b) => a.at - b.at) : [];
+    if (snoozed.length) {
+      section('Snoozed tabs');
+      snoozed.forEach(it => row({ ...it, at: it.snoozedAt || Date.now(), title: `${it.title || it.url} — back ${new Date(it.at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` }, {
+        open: (x) => {
+          try { SidebarManager.hideActivePanel?.(); TabSnooze.wake(x.id); }
+          catch (err) { window.showToast?.(err.message, 'error'); this.renderPanel(container); }
+        },
+        remove: (x) => { TabSnooze.forget(x.id); this.renderPanel(container); }
+      }));
     }
 
     const arch = TabArchiver.list();

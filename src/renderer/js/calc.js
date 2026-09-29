@@ -21,8 +21,14 @@ const VexCalc = {
     if (!q) return null;
 
     // Currency: "10 usd to eur"
+    // Three-letter units ("5000 lbs to ton") are not currencies: both codes
+    // being units skips this, and a code that is not a known currency falls
+    // through to units instead of answering nothing (found 2026-09-29).
     let m = q.match(/^([\d,.]+)\s*([a-z]{3})\s*(?:to|in|=>|->)\s*([a-z]{3})$/i);
-    if (m) return this._currency(this._num(m[1]), m[2].toUpperCase(), m[3].toUpperCase());
+    if (m && !(this._isUnit(m[2].toLowerCase()) && this._isUnit(m[3].toLowerCase()))) {
+      const r = this._currency(this._num(m[1]), m[2].toUpperCase(), m[3].toUpperCase());
+      if (r) return r;
+    }
 
     // Units: "20 cm to in", "100 f to c"
     m = q.match(/^([\d,.]+)\s*([a-z"'°]+)\s*(?:to|in)\s*([a-z"'°]+)$/i);
@@ -35,11 +41,15 @@ const VexCalc = {
   },
 
   _num(s) { return parseFloat(String(s).replace(/,/g, '')); },
+  _round(n) { return Math.round(n * 1e6) / 1e6; },
   _fmt(n) {
     if (!isFinite(n)) return String(n);
-    const r = Math.round(n * 1e6) / 1e6;
-    return r.toLocaleString('en-US', { maximumFractionDigits: 6 });
+    return this._round(n).toLocaleString('en-US', { maximumFractionDigits: 6 });
   },
+  // What is copied is the rounded figure that is shown: "0.1+0.2" showed 0.3
+  // and copied 0.30000000000000004 (found 2026-09-29).
+  _val(n) { return String(this._round(n)); },
+  _isUnit(u) { return !!(this._LEN[u] || this._MASS[u] || this._TEMP[u]); },
 
   // Worked out by a small parser, not Function(): the window's CSP has no
   // 'unsafe-eval', so Function() threw in the real app and every sum ("12*7",
@@ -78,7 +88,7 @@ const VexCalc = {
     try {
       const val = expr();
       if (i !== src.length || typeof val !== 'number' || !isFinite(val)) return null;
-      return { text: '= ' + this._fmt(val), value: String(val) };
+      return { text: '= ' + this._fmt(val), value: this._val(val) };
     } catch { return null; }
   },
 
@@ -86,11 +96,13 @@ const VexCalc = {
   _LEN: { mm: 0.001, cm: 0.01, m: 1, km: 1000, in: 0.0254, '"': 0.0254, inch: 0.0254, inches: 0.0254, ft: 0.3048, "'": 0.3048, feet: 0.3048, foot: 0.3048, yd: 0.9144, yard: 0.9144, mi: 1609.344, mile: 1609.344, miles: 1609.344 },
   _MASS: { mg: 0.001, g: 1, gram: 1, grams: 1, kg: 1000, oz: 28.349523, lb: 453.59237, lbs: 453.59237, pound: 453.59237, pounds: 453.59237, ton: 1e6, tonne: 1e6 },
 
+  _TEMP: { c: 'c', celsius: 'c', f: 'f', fahrenheit: 'f', k: 'k', kelvin: 'k' },
+
   _unit(v, from, to) {
     if (!isFinite(v)) return null;
-    if (this._LEN[from] && this._LEN[to]) return { text: this._fmt(v * this._LEN[from] / this._LEN[to]) + ' ' + to, value: String(v * this._LEN[from] / this._LEN[to]) };
-    if (this._MASS[from] && this._MASS[to]) return { text: this._fmt(v * this._MASS[from] / this._MASS[to]) + ' ' + to, value: String(v * this._MASS[from] / this._MASS[to]) };
-    const T = { c: 'c', celsius: 'c', f: 'f', fahrenheit: 'f', k: 'k', kelvin: 'k' };
+    if (this._LEN[from] && this._LEN[to]) return { text: this._fmt(v * this._LEN[from] / this._LEN[to]) + ' ' + to, value: this._val(v * this._LEN[from] / this._LEN[to]) };
+    if (this._MASS[from] && this._MASS[to]) return { text: this._fmt(v * this._MASS[from] / this._MASS[to]) + ' ' + to, value: this._val(v * this._MASS[from] / this._MASS[to]) };
+    const T = this._TEMP;
     if (T[from] && T[to]) return this._temp(v, T[from], T[to]);
     return null;
   },
@@ -100,7 +112,8 @@ const VexCalc = {
     if (from === 'c') c = v; else if (from === 'f') c = (v - 32) * 5 / 9; else c = v - 273.15;
     let out;
     if (to === 'c') out = c; else if (to === 'f') out = c * 9 / 5 + 32; else out = c + 273.15;
-    return { text: this._fmt(out) + '°' + to.toUpperCase(), value: String(out) };
+    // Kelvin takes no degree sign: "273.15 K", not "273.15°K" (found 2026-09-29).
+    return { text: this._fmt(out) + (to === 'k' ? ' K' : '°' + to.toUpperCase()), value: this._val(out) };
   },
 
   _currency(v, from, to) {
@@ -111,7 +124,7 @@ const VexCalc = {
     const rt = to === this._ratesBase ? 1 : R[to];
     if (!rf || !rt) return null; // unknown currency code
     const out = (v / rf) * rt;
-    return { text: this._fmt(out) + ' ' + to, value: String(out) };
+    return { text: this._fmt(out) + ' ' + to, value: this._val(out) };
   },
 };
 

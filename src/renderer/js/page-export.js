@@ -99,7 +99,10 @@ const PageExport = {
     try { wcId = wv.getWebContentsId(); } catch {}
     if (typeof wcId !== 'number' || wcId < 0) throw new Error('This page has not finished opening yet');
     const tab = this._tab();
-    const r = await window.vex.pageSave(wcId, format, (tab && tab.title) || '');
+    // A PDF tab is titled "dummy.pdf", which was saved as "dummy.pdf.pdf"
+    // (found 2026-09-29): drop a trailing document extension from the title.
+    const title = String((tab && tab.title) || '').replace(/\.(pdf|mhtml?|html?)\s*$/i, '');
+    const r = await window.vex.pageSave(wcId, format, title);
     if (!r || r.cancelled) return null;
     if (!r.ok) throw new Error(r.error || 'Could not save the page');
     window.showToast?.((format === 'pdf' ? 'Saved as PDF — ' : 'Saved as one file — ') + String(r.path).split(/[\\/]/).pop());
@@ -136,6 +139,8 @@ const PageExport = {
   },
 
   _fileName(title, ext) {
+    // "notes.md" must not become "notes.md.md" (found 2026-09-29).
+    title = String(title || '').replace(new RegExp('\\.' + ext + '\\s*$', 'i'), '');
     return (String(title || 'page').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100) || 'page') + '.' + ext;
   },
 
@@ -276,7 +281,10 @@ const PageExport = {
         if (j && /Article|Posting|Report|Scholarly|WebPage/i.test(String(j['@type']))) { ld = j; break; }
       } catch (e) {}
     }
-    const ldAuthors = [].concat(ld.author || []).map(a => typeof a === 'string' ? a : (a && a.name) || '').filter(Boolean);
+    // An Organization author (Wikipedia: "Contributors to Wikimedia projects")
+    // is kept whole, not split into a first and last name (found 2026-09-29).
+    const ldAuthors = [].concat(ld.author || []).map(a => typeof a === 'string' ? a
+      : a && a.name ? (/Organization/i.test(String(a['@type'])) ? { org: String(a.name) } : a.name) : '').filter(Boolean);
     return {
       title: meta('meta[name="citation_title"]') || meta('meta[property="og:title"]') || ld.headline || document.title,
       authors: metas('meta[name="citation_author"]').length ? metas('meta[name="citation_author"]')
@@ -295,6 +303,8 @@ const PageExport = {
 
   // "Jane Q. Smith" → { last: 'Smith', first: 'Jane Q.' }; "Smith, Jane" too.
   _name(full) {
+    // { org } is an organisation named by the page: one name, never split.
+    if (full && typeof full === 'object') { const org = String(full.org || '').replace(/\s+/g, ' ').trim(); return org ? { last: org, first: '' } : null; }
     const s = String(full || '').replace(/\s+/g, ' ').trim();
     if (!s) return null;
     if (s.includes(',')) { const [last, first] = s.split(',').map(x => x.trim()); return { last, first: first || '' }; }
@@ -323,6 +333,7 @@ const PageExport = {
     // An author list ends with a full stop — one, even when the name already
     // ends in an initial ("Smith, Jane Q." not "Smith, Jane Q..").
     const stop = (s) => s ? s.replace(/\.\s*$/, '') + '. ' : '';
+    // The same for the site: "Wikimedia Foundation, Inc." gave "Inc.." (found 2026-09-29).
 
     if (style === 'apa') {
       // Smith, J. Q., & Doe, A. (2024, March 3). Title. Site. URL
@@ -330,7 +341,7 @@ const PageExport = {
         : names.slice(0, -1).map(n => n.last + (n.first ? ', ' + this._initials(n.first) : '')).join(', ') + ', & ' + (n => n.last + (n.first ? ', ' + this._initials(n.first) : ''))(names[names.length - 1]);
       const when = d ? '(' + year + ', ' + months[d.getMonth()] + ' ' + d.getDate() + ')' : '(n.d.)';
       // With no author, APA moves the title to the front.
-      return who ? `${who} ${when}. ${title}. ${site ? site + '. ' : ''}${url}` : `${title}. ${when}. ${site ? site + '. ' : ''}${url}`;
+      return who ? `${who} ${when}. ${title}. ${stop(site)}${url}` : `${title}. ${when}. ${stop(site)}${url}`;
     }
     if (style === 'mla') {
       // Smith, Jane, and Alan Doe. "Title." Site, 3 Mar. 2024, URL. Accessed 19 Sept. 2026.
@@ -352,7 +363,7 @@ const PageExport = {
       const who = names.length === 0 ? '' : names.length === 1 ? stop(names[0].first ? names[0].last + ', ' + names[0].first : names[0].last)
         : stop((names[0].first ? names[0].last + ', ' + names[0].first : names[0].last) + ', ' + names.slice(1, -1).map(n => (n.first ? n.first + ' ' : '') + n.last).map(x => x + ', ').join('') + 'and ' + (names[names.length - 1].first ? names[names.length - 1].first + ' ' : '') + names[names.length - 1].last);
       const when = d ? months[d.getMonth()] + ' ' + d.getDate() + ', ' + year + '. ' : '';
-      return `${who}"${title}." ${site ? site + '. ' : ''}${when}${url}.`;
+      return `${who}"${title}." ${stop(site)}${when}${url}.`;
     }
     if (style === 'bibtex') {
       const key = ((names[0] && names[0].last) || site || 'web').toLowerCase().replace(/[^a-z0-9]/g, '') + (year || '');

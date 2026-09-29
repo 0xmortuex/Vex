@@ -118,26 +118,13 @@
     val = (val || '').trim();
     if (!val) return;
 
-    let url;
-    if (/^https?:\/\//i.test(val)) {
-      url = val;
-    } else if (/^[a-z0-9]([a-z0-9-]*\.)+[a-z]{2,}/i.test(val)) {
-      url = 'https://' + val;
-    } else {
-      // Keyword engines ("yt cats") and DDG bangs ("!w einstein") take
-      // precedence over the default engine.
+    // An address, or words for the chosen engine (js/typed-address.js).
+    // Keyword engines ("yt cats") and DDG bangs ("!w einstein") take
+    // precedence over the default engine.
+    let url = VexTypedAddress.addressFor(val);
+    if (!url) {
       const shortcut = (typeof SearchShortcuts !== 'undefined') ? SearchShortcuts.resolve(val) : null;
-      if (shortcut) {
-        url = shortcut;
-      } else {
-        const engines = {
-          google: 'https://www.google.com/search?q=',
-          duckduckgo: 'https://duckduckgo.com/?q=',
-          brave: 'https://search.brave.com/search?q='
-        };
-        const engine = engines[settings.searchEngine] || engines.google;
-        url = engine + encodeURIComponent(val);
-      }
+      url = shortcut || VexTypedAddress.searchUrl(val, settings.searchEngine);
     }
 
     // If sidebar panel is open, close it first
@@ -365,7 +352,14 @@
   // main starts every launch with the blocker ON, so the stored choice has to be
   // pushed at boot — otherwise "Block ads and trackers" reads OFF while main is
   // still blocking, and turning it off never survived a restart.
-  window.vex.setAdBlockerState(adBlockerToggle.checked);
+  // Not from a private window: its settings start at the defaults, and main
+  // keeps one switch, so opening one turned the blocker back on for every
+  // window while the normal window still said OFF (found 2026-09-29).
+  if (window.VexTabPolicy?.isPrivateWindow) {
+    window.vex.getAdBlockerState()
+      .then(on => { adBlockerToggle.checked = on === true; })
+      .catch(err => console.error('[AdBlocker] could not read the state:', err));
+  } else window.vex.setAdBlockerState(adBlockerToggle.checked);
 
   searchEngineSelect.addEventListener('change', () => {
     settings.searchEngine = searchEngineSelect.value;
@@ -873,10 +867,9 @@
   window.vex.onToggleHistory?.(() => SidebarManager.togglePanel('history'));
   window.vex.onToggleHistoryAi?.(() => HistoryPanel.openInAIMode?.());
   window.vex.onToggleMemory?.(() => SidebarManager.togglePanel('memory'));
-  window.vex.onSleepCurrentTab?.(() => {
-    const tab = TabManager.getActiveTab();
-    if (tab) { TabManager.sleepTab(tab.id); window.showToast?.('Tab sleeping'); }
-  });
+  window.vex.onSleepCurrentTab?.(() => TabManager.sleepActiveTab());
+  window.vex.onPrintPage?.(() => WebviewManager.printPage());
+  window.vex.onViewSource?.(() => WebviewManager.viewSource());
   // Final flush of the open tab set before quit. System 1 already persists on
   // every tab change, so this is just insurance that the latest state is on disk.
   window.vex.onSaveSessionBeforeQuit?.(() => TabManager.persistTabs?.());
@@ -1173,7 +1166,7 @@
       window.showToast?.(`Theme: ${next}`, 'info', 1500);
     });
     ShortcutsRegistry.register('mute-tab',       () => TabManager?.toggleMuteTab?.());
-    ShortcutsRegistry.register('sleep-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.sleepTab(t.id); });
+    ShortcutsRegistry.register('sleep-tab',      () => TabManager.sleepActiveTab());
     ShortcutsRegistry.register('reopen-tab',     () => TabManager?.reopenLastClosed?.());
     ShortcutsRegistry.register('new-tab',        () => TabManager?.createTab?.(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true));
     ShortcutsRegistry.register('close-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.closeTab(t.id); });
@@ -1187,6 +1180,8 @@
     ShortcutsRegistry.register('next-tab',       () => cycleTab(1));
     ShortcutsRegistry.register('prev-tab',       () => cycleTab(-1));
     ShortcutsRegistry.register('bookmark',       bookmarkCurrent);
+    ShortcutsRegistry.register('print-page',     () => WebviewManager.printPage());
+    ShortcutsRegistry.register('view-source',    () => WebviewManager.viewSource());
     ShortcutsRegistry.register('find-in-page',   () => { if (handFindToActivePage()) return; const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
   }
 

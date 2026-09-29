@@ -193,6 +193,11 @@ const SettingsUI = {
       search.addEventListener('input', () => SettingsUI._filter(root, search.value));
       // Keep the scroll area's top padding matched to the (variable-height) toolbar.
       window.addEventListener('resize', () => SettingsUI._syncPad(root));
+      // The toolbar is usually built while the panel is hidden, so it measured
+      // 0 and the fallback (88) stood in for a real ~220 in the Firefox look —
+      // section tops sat under the toolbar. Measure again whenever it
+      // changes size, including the moment it is first shown (found 2026-09-29).
+      if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => SettingsUI._syncPad(root)).observe(toolbar);
     } else {
       nav = toolbar.querySelector('.set-nav');
       search = toolbar.querySelector('.set-search');
@@ -255,7 +260,27 @@ const SettingsUI = {
     const attempt = () => {
       const el = document.getElementById(anchorId);
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Instantly, and again while the layout settles: a smooth scroll was
+        // cut short as the panels above rendered and pushed the section down,
+        // stopping well before it (found 2026-09-29). Any touch of the scroll
+        // area by the user ends the re-scrolling.
+        el.scrollIntoView({ block: 'start' });
+        const area = el.closest('.settings-content') || el.parentElement;
+        if (area && typeof ResizeObserver !== 'undefined') {
+          const again = new ResizeObserver(() => el.scrollIntoView({ block: 'start' }));
+          again.observe(area);
+          for (const child of area.children) again.observe(child);
+          const stop = () => {
+            again.disconnect();
+            area.removeEventListener('wheel', stop);
+            area.removeEventListener('pointerdown', stop);
+            area.removeEventListener('keydown', stop);
+          };
+          area.addEventListener('wheel', stop, { passive: true });
+          area.addEventListener('pointerdown', stop);
+          area.addEventListener('keydown', stop);
+          setTimeout(stop, 1500);
+        }
         el.classList.remove('settings-anchor-flash');
         void el.offsetWidth; // restart the animation if it was already running
         el.classList.add('settings-anchor-flash');

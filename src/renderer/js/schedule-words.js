@@ -91,7 +91,12 @@ const ScheduleWords = {
       const every = list.length === 5 && list.every((_, i) => (schedule.daysOfWeek || [])[i] === i + 1) ? 'every weekday' : list.join(', ');
       return every + ' at ' + schedule.time;
     }
-    if (schedule.type === 'monthly') return 'on the ' + schedule.dayOfMonth +(schedule.dayOfMonth === 1 ? 'st' : schedule.dayOfMonth === 2 ? 'nd' : schedule.dayOfMonth === 3 ? 'rd' : 'th') + ' at ' + schedule.time;
+    // Same rule as Scheduler._ordinal: only 1, 2 and 3 were handled, so the
+    // 21st read "21th" (found 2026-09-29).
+    if (schedule.type === 'monthly') {
+      const n = schedule.dayOfMonth, v = n % 100, suffix = ['th', 'st', 'nd', 'rd'];
+      return 'on the ' + n + (suffix[(v - 20) % 10] || suffix[v] || suffix[0]) + ' at ' + schedule.time;
+    }
     return 'every day at ' + schedule.time;
   },
 };

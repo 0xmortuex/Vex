@@ -108,7 +108,10 @@ const GuideTemplates = {
     },
     {
       id: 'agent',
-      ask: ['do it for me', 'automate', 'agent', 'can vex do things for me', 'fill this form for me', 'do this task'],
+      // No bare "agent" or "automate": one word matched any sentence holding
+      // it, so "/agent book a table" or "automate the export" got this card
+      // instead of the agent (found 2026-09-29).
+      ask: ['do it for me', 'automate things', 'automate my tasks', 'what is the agent', 'how does the agent work', 'what can the agent do', 'can vex do things for me', 'fill this form for me', 'do this task'],
       headline: 'The agent drives the page itself — it clicks, types and reads, asking before anything it cannot undo.',
       steps: [
         'Open the AI panel (Ctrl+Shift+A) and say the task the way you would to a person.',

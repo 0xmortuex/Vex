@@ -203,9 +203,13 @@ const QueuePanel = {
         buildQueueUrl(this.config.queueUrl, `/queue/${encodeURIComponent(id)}/done`,
           this.config.queueSecret),
         { method: 'POST' });
-      if (res.ok) await this.refresh();
+      // A refused or failed request used to vanish into console.warn, so the
+      // button just did nothing (found 2026-09-29).
+      if (!res.ok) throw new Error('the queue server answered ' + res.status);
+      await this.refresh();
     } catch (err) {
-      console.warn('[queue] markDone failed:', err && err.message);
+      console.error('[queue] markDone failed:', err);
+      window.showToast?.('Could not mark it done: ' + ((err && err.message) || err), 'error');
     }
   },
 
@@ -216,9 +220,11 @@ const QueuePanel = {
         buildQueueUrl(this.config.queueUrl, `/queue/${encodeURIComponent(id)}`,
           this.config.queueSecret),
         { method: 'DELETE' });
-      if (res.ok) await this.refresh();
+      if (!res.ok) throw new Error('the queue server answered ' + res.status);
+      await this.refresh();
     } catch (err) {
-      console.warn('[queue] deleteItem failed:', err && err.message);
+      console.error('[queue] deleteItem failed:', err);
+      window.showToast?.('Could not delete it: ' + ((err && err.message) || err), 'error');
     }
   },
 

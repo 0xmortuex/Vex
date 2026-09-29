@@ -10,13 +10,13 @@
 //   Snooze — the tab closes now and opens itself again when you said. It is
 //   kept in the same place a session is kept, so a restart does not lose it.
 //
-//   Archive — a tab untouched for a week is taken out of the strip and listed
+//   Archive — a tab untouched for the Library's auto-archive days (Off by
+//   default) is taken out of the strip and listed
 //   instead. Nothing is deleted, ever: closing a tab you might want is the
 //   thing this feature exists to avoid.
 const TabSnooze = {
   KEY: 'vex.snoozedTabs',
   ARCHIVE_KEY: 'vex.archivedTabs',
-  ARCHIVE_AFTER_MS: 7 * 24 * 3600 * 1000,
   MAX_ARCHIVE: 200,
 
   // "in 2 hours", "this evening", "tomorrow morning", "the weekend", "monday".
@@ -78,15 +78,25 @@ const TabSnooze = {
 
   forget(id) { this._write(this.KEY, this.list().filter(e => e.id !== id)); },
 
+  // A snoozed page brought back by hand (Reopen Closed Tab) is back already;
+  // left in the list it opened a second copy when it came due (found 2026-09-29).
+  forgetUrl(url) {
+    const list = this.list();
+    const rest = list.filter(e => e.url !== url);
+    if (rest.length !== list.length) this._write(this.KEY, rest);
+  },
+
   // Anything due comes back on its own, in the background, with one notice.
+  // A page that is already open again is not opened twice (found 2026-09-29).
   checkDue(now = Date.now()) {
     const list = this.list();
     const due = list.filter(e => e.at <= now);
     if (!due.length) return [];
     this._write(this.KEY, list.filter(e => e.at > now));
-    for (const e of due) { try { TabManager.createTab(e.url, false); } catch (err) { VexProblems?.note('Tabs', 'A snoozed tab could not be reopened: ' + e.url, err); } }
-    window.showToast?.(due.length === 1 ? 'Back as you asked: ' + due[0].title : due.length + ' snoozed tabs are back');
-    return due;
+    const back = due.filter(e => !TabManager.tabs.some(t => t.url === e.url));
+    for (const e of back) { try { TabManager.createTab(e.url, false); } catch (err) { VexProblems?.note('Tabs', 'A snoozed tab could not be reopened: ' + e.url, err); } }
+    if (back.length) window.showToast?.(back.length === 1 ? 'Back as you asked: ' + back[0].title : back.length + ' snoozed tabs are back');
+    return back;
   },
 
   start() {
@@ -101,12 +111,19 @@ const TabSnooze = {
   // A tab nobody has looked at for a week is listed rather than shown. It is
   // NOT closed data: the entry keeps the address and title, and one click has
   // it back.
+  //
+  // Follows the Library's auto-archive setting (TabArchiver, 0 = Off): this
+  // ran on its own fixed week even with that set to Off, and archived a tab
+  // left for eight days (found 2026-09-29).
   archiveIdle(now = Date.now()) {
     if (localStorage.getItem('vex.autoArchive') === 'off') return [];
+    const days = typeof TabArchiver !== 'undefined' ? TabArchiver.days() : 0;
+    if (!(days > 0)) return [];
+    const after = days * 24 * 3600 * 1000;
     const old = TabManager.tabs.filter(t =>
       t.id !== TabManager.activeTabId && !t.pinned && /^https?:/i.test(t.url || '')
       && !(t.audible && !t.muted) && !(TabManager.isCapturing && TabManager.isCapturing(t))
-      && now - (t.lastViewedAt || t.createdAt || now) >= this.ARCHIVE_AFTER_MS);
+      && now - (t.lastViewedAt || t.createdAt || now) >= after);
     if (!old.length) return [];
     const kept = this.archived();
     for (const t of old) {
@@ -114,7 +131,7 @@ const TabSnooze = {
       TabManager.closeTab(t.id);
     }
     this._write(this.ARCHIVE_KEY, kept.slice(0, this.MAX_ARCHIVE));
-    const note = old.length + ' tab' + (old.length === 1 ? '' : 's') + ' untouched for a week moved to the archive — nothing was lost';
+    const note = old.length + ' tab' + (old.length === 1 ? '' : 's') + ' untouched for ' + (days === 7 ? 'a week' : days + ' days') + ' moved to the archive — nothing was lost';
     window.showToast?.(note);
     document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note } }));
     return old;

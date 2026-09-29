@@ -28,7 +28,11 @@ define('rec:chunk', [string(80), value => value instanceof Uint8Array && value.b
 define('rec:finish', [string(80), optional(string(200))]);
 define('rec:cancel', [string(80)]);
 define('capture:submit', [shape({ kind: string(20), text: string(4000) })]);
-define('capture:close capture:done capture:open', []);
+define('capture:close capture:open', []);
+// The interface's answer to one captured line (js/quick-capture.js). It was
+// declared with no arguments, so every answer was refused and the box sat on
+// "Saving…" until "Vex did not answer" (found 2026-09-29).
+define('capture:done', [shape({ id: string(40), ok: boolean, said: optional(string(4000)), error: optional(string(4000)) })]);
 define('extensions:set-enabled', [string(160), boolean]);
 define('extensions:set-scope', [string(160), string(20)]);
 define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])]);
@@ -37,6 +41,9 @@ define('downloads:ask-where', [string(4 * 1024 * 1024 + 64)]);
 define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
 define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
 define('extensions:popup-tab', []);
+define('vex-lock:state', [boolean]);
+define('tor:cancel', []);
+define('guest:page-shortcut', [shape({ key: string(1), shift: boolean })]);
 define('rss:fetch open-external', [web]);
 define('mail:compose', [shape({ subject: string(300), body: string(8000) })]);
 // The second argument describes the video to float, and comes from the page,
@@ -87,7 +94,7 @@ define('reminders:import', [value => Array.isArray(value) && value.length <= 500
 define('reminders:list', []);
 define('reminders:delete', [value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)]);
 define('reminders:visited', [string(253)]);
-define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(value) && value >= 0]);
+define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(value) && value >= 0, optional(oneOf(['focus', 'meeting']))]);
 // Save a small text file where the user chooses — a calendar entry, an export.
 define('file:save-text', [shape({ name: string(200), text: string(1024 * 1024), kind: optional(string(40)) })]);
 define('calendar:fetch', [string(4096)]);

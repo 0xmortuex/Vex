@@ -49,10 +49,13 @@ function createFileCheck({ fs, crypto, execFile, platform = process.platform, lo
     if (platform !== 'win32') return Promise.resolve({ status: 'unknown', signer: '', why: 'signatures are only read on Windows' });
     return new Promise((resolve) => {
       const ps = `${process.env.SystemRoot || 'C:\\\\Windows'}\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe`;
-      const script = `$ErrorActionPreference='Stop'; $s = Get-AuthenticodeSignature -LiteralPath ${JSON.stringify(filePath)}; ` +
+      // The path travels in an environment variable, never in the script text:
+      // the site picks the file name, and PowerShell runs $(…) inside double
+      // quotes, so a name like "a$(calc).exe" would have run code (found 2026-09-29).
+      const script = `$ErrorActionPreference='Stop'; $s = Get-AuthenticodeSignature -LiteralPath $env:VEX_FILECHECK_PATH; ` +
         `[Console]::Out.Write($s.Status.ToString() + "\`n" + $s.SignerCertificate.Subject)`;
       execFile(ps, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-        { timeout: 15000, windowsHide: true, maxBuffer: 256 * 1024 },
+        { timeout: 15000, windowsHide: true, maxBuffer: 256 * 1024, env: { ...process.env, VEX_FILECHECK_PATH: String(filePath) } },
         (err, stdout) => {
           if (err) { resolve({ status: 'unknown', signer: '', why: 'the signature could not be read' }); return; }
           const [statusLine, subject = ''] = String(stdout || '').split('\n');

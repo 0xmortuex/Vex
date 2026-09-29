@@ -139,8 +139,21 @@ const IcsCalendar = {
     const days = r.FREQ === 'WEEKLY' && r.BYDAY ? r.BYDAY.split(',').map(d => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'].indexOf(d.slice(-2))) : null;
     // Step in local calendar terms, keeping the wall-clock time of the first.
     const at = (base, addDays, addMonths, addYears) => new Date(base.getFullYear() + addYears, base.getMonth() + addMonths, base.getDate() + addDays, first.getHours(), first.getMinutes(), first.getSeconds()).getTime();
+    // With no COUNT to keep, start near the viewed range: counting from the
+    // first occurrence, a daily event begun four years ago ran out of its
+    // MAX_OCCURRENCES before today and never showed (found 2026-09-29). One
+    // period of slack covers clock changes.
+    let i0 = 0;
+    if (count === Infinity) {
+      const f = new Date(from - length);
+      const span = r.FREQ === 'DAILY' ? (f.getTime() - ev.start) / 86400000
+        : r.FREQ === 'WEEKLY' ? (f.getTime() - ev.start) / (7 * 86400000)
+        : r.FREQ === 'MONTHLY' ? (f.getFullYear() - first.getFullYear()) * 12 + f.getMonth() - first.getMonth()
+        : f.getFullYear() - first.getFullYear();
+      i0 = Math.max(0, Math.floor(span / interval) - 1);
+    }
     let made = 0;
-    for (let i = 0; made < count && i < this.MAX_OCCURRENCES; i++) {
+    for (let i = i0; made < count && i < i0 + this.MAX_OCCURRENCES; i++) {
       let batch;
       if (r.FREQ === 'DAILY') batch = [at(first, i * interval, 0, 0)];
       else if (r.FREQ === 'WEEKLY') {
@@ -151,6 +164,10 @@ const IcsCalendar = {
         }
       } else if (r.FREQ === 'MONTHLY') batch = [at(first, 0, i * interval, 0)];
       else batch = [at(first, 0, 0, i * interval)];
+      // The 31st in a 30-day month (or 29 Feb in another year) rolled over
+      // into the next month (found 2026-09-29); such a month has no
+      // occurrence, as RFC 5545 says.
+      if (r.FREQ === 'MONTHLY' || r.FREQ === 'YEARLY') batch = batch.filter(t => new Date(t).getDate() === first.getDate());
       let past = false;
       for (const t of batch) {
         if (t > until || made >= count) { past = true; break; }

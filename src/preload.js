@@ -303,6 +303,10 @@ contextBridge.exposeInMainWorld('vex', {
   onToggleHistoryAi: (callback) => subscribe('toggle-history-ai', callback),
   onToggleMemory: (callback) => subscribe('toggle-memory', callback),
   onSleepCurrentTab: (callback) => subscribe('sleep-current-tab', callback),
+  onPrintPage: (callback) => subscribe('print-page', callback),
+  setLockState: (locked) => ipcRenderer.send('vex-lock:state', !!locked),
+  cancelTor: () => ipcRenderer.invoke('tor:cancel'),
+  onViewSource: (callback) => subscribe('view-source', callback),
   onSaveSessionBeforeQuit: (callback) => subscribe('save-session-before-quit', callback),
 
   // Phase 5
@@ -363,7 +367,8 @@ contextBridge.exposeInMainWorld('vex', {
     ack: (id) => ipcRenderer.invoke('reminders:ack', id),
     // Reminders that arrived through Vex Sync from another machine.
     import: (items) => ipcRenderer.invoke('reminders:import', items),
-    hold: (untilMs) => ipcRenderer.invoke('reminders:hold', untilMs),
+    // who: 'focus' or 'meeting' — each keeps its own hold (main/reminders.js).
+    hold: (untilMs, who) => ipcRenderer.invoke('reminders:hold', untilMs, who),
     onFired: (cb) => subscribe('reminders:fired', cb),
     onClicked: (cb) => subscribe('reminders:clicked', cb),
     // A Snooze button on the Windows toast was pressed (handled in main).

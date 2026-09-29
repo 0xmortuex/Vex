@@ -163,6 +163,10 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
   // While a focus session runs, reminders wait — unless marked urgent — and
   // fire as a batch when it ends. The renderer sets and clears this.
   let holdUntil = 0;
+  // One hold per caller ("focus", "meeting"): the hold is the latest of those
+  // still running. With a single value, ending a focus session inside a
+  // meeting cleared the meeting's hold too (found 2026-09-29).
+  const holds = new Map();
 
   // Which installation set a reminder. Vex Sync carries reminders between
   // machines; every machine fires them while it is open, but only the one
@@ -389,10 +393,15 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
       return { ok: true };
     },
 
-    // Hold non-urgent reminders until `untilMs` (0 clears). Anything that fell
-    // due meanwhile fires as a batch when the hold ends.
-    hold(untilMs) {
-      holdUntil = Math.max(0, Number(untilMs) || 0);
+    // Hold non-urgent reminders until `untilMs` (0 clears) for `who`. Anything
+    // that fell due meanwhile fires as a batch when the last hold ends.
+    hold(untilMs, who = 'focus') {
+      const key = String(who || 'focus');
+      const until = Math.max(0, Number(untilMs) || 0);
+      if (until) holds.set(key, until); else holds.delete(key);
+      const t = now();
+      for (const [k, v] of holds) if (v <= t) holds.delete(k);
+      holdUntil = holds.size ? Math.max(...holds.values()) : 0;
       arm();
       if (!holdUntil) { inflight = fireDue().catch(err => note(`[Reminders] fireDue after hold failed: ${err.message}`)); }
       return holdUntil;

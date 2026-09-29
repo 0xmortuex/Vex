@@ -170,9 +170,9 @@ const Onboarding = {
       { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
       { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' , secs: 30},
       { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' , secs: 40},
-      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the start page language — greeting, labels, and the daily verse. (Full interface translation is on the roadmap.)' , secs: 15},
+      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the language of Vex’s toolbar, menus, panels and setup, and of the start page and the daily verse. Some parts are still in English.' , secs: 15},
       { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' , secs: 20},
-      { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Leave blank for none.' , quick: true, secs: 15},
+      { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Press Skip for none.' , quick: true, secs: 15},
       { key: 'weather',        title: 'Weather location',         sub: 'Choose your country, then search for a city, district or postcode and pick it from the list.' , secs: 40},
       { key: 'github',         title: 'GitHub username',          sub: 'Optional — shows your repo/follower stats + activity on the start page.' , secs: 20},
       { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' , quick: true, secs: 15},
@@ -630,16 +630,18 @@ const Onboarding = {
       body.querySelector('#ob-job-open')?.addEventListener('click', () => { try { window.JobSetup && JobSetup.open(); } catch {} });
     } else if (key === 'language') {
       const LANGS = [
-        { id: 'en', name: 'English', glyph: '🇬🇧' },
-        { id: 'tr', name: 'Türkçe', glyph: '🇹🇷' },
+        { id: 'en', name: 'English' },
+        { id: 'tr', name: 'Türkçe' },
       ];
+      // No flags: Vex draws no emoji, and on Windows a flag shows as the two
+      // letters "GB"/"TR" anyway (found 2026-09-29).
       let cur = this._session.lang;
       if (cur == null) { try { cur = localStorage.getItem('vex.lang') || 'en'; } catch { cur = 'en'; } }
       this._pendingLang = cur;
       body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">${LANGS.map(l =>
         `<button data-lang="${l.id}" style="padding:16px 6px;border-radius:11px;border:2px solid ${l.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:8px">
-          <span style="font-size:22px">${l.glyph}</span>${this._esc(l.name)}</button>`).join('')}</div>
-        <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0">More languages are on the way — this currently covers the start page and the daily verse.</p>`;
+          ${this._esc(l.name)}</button>`).join('')}</div>
+        <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0">More languages are on the way. Some parts of Vex are still in English.</p>`;
       body.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => {
         this._pendingLang = b.dataset.lang;
         body.querySelectorAll('[data-lang]').forEach(x => x.style.borderColor = 'var(--border)');

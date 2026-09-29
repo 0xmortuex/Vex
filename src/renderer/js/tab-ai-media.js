@@ -2,8 +2,8 @@
 
 // ---- AI Tab Commands — natural language over your open tabs (Opera-style) ----
 // "close all youtube tabs", "group my shopping tabs", "keep only this one".
-// Uses the chat action with a personaSystemPrompt override so the worker
-// returns OUR strict JSON; the plan is confirmed before anything closes.
+// Uses the chat action with a persona system prompt so the model returns OUR
+// strict JSON; the plan is confirmed before anything closes.
 const TabAI = {
   PROMPT: `You are a browser tab manager. The user gives an instruction and a list of open tabs (id, title, url, active).
 Return ONLY JSON, no fences: {"close":["tab-ids"],"groups":[{"name":"Group name","color":"indigo|cyan|green|amber|red|violet|rose|teal","ids":["tab-ids"]}],"explanation":"one short sentence"}.
@@ -42,7 +42,11 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       const tabs = TabManager.tabs.map(t => ({ id: t.id, title: String(t.title || '').slice(0, 90), url: t.url, active: t.id === TabManager.activeTabId }));
       const data = await AIRouter.callAI('chat', {
         message: 'Instruction: ' + want + '\n\nOpen tabs:\n' + JSON.stringify(tabs),
-        personaSystemPrompt: this.PROMPT,
+        // As `persona`, the shape the router reads on every backend: a bare
+        // personaSystemPrompt reached the cloud worker only, so a local model
+        // got the chat prompt and every command came back "Nothing to do."
+        // (found 2026-09-29).
+        persona: { systemPrompt: this.PROMPT },
       });
       let plan = null;
       try { plan = JSON.parse(String(data.result).replace(/^```(json)?/i, '').replace(/```$/,'').trim()); } catch { const mm = String(data.result).match(/\{[\s\S]*\}/); if (mm) { try { plan = JSON.parse(mm[0]); } catch {} } }

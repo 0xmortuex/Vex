@@ -41,56 +41,41 @@ function runInMainWorld(src) {
   return false;
 }
 
-// === chrome.permissions for extensions ===
-// Electron gives extensions no chrome.permissions at all. Dark Reader's
-// background page reads chrome.permissions.onRemoved while starting up, threw,
-// and never answered a page again: every site stayed under its crude
-// "fallback" coat (a dark background on every element, icons as grey bars,
-// images blanked), 2026-09-27. This preload runs in extension pages without
-// isolation, so the page's own `chrome` gets an honest stand-in: it reports
-// what the manifest granted and Vex actually provides, and grants nothing new.
-(function () {
-  if (location.protocol !== 'chrome-extension:') return;
-  var c = window.chrome;
-  if (!c || !c.runtime || typeof c.runtime.getManifest !== 'function' || c.permissions) return;
-  var manifest = c.runtime.getManifest() || {};
-  var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
-  var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
-  // Permissions that never come with a chrome.<name> namespace of their own.
-  var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
-  var apis = granted.filter(function (p) {
-    return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
-  });
-  function has(q) {
-    q = q || {};
-    return (q.permissions || []).every(function (p) { return apis.indexOf(p) !== -1; })
-      && (q.origins || []).every(function (o) { return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1; });
-  }
-  function answer(value, cb) {
-    if (typeof cb === 'function') { setTimeout(function () { cb(value); }, 0); return undefined; }
-    return Promise.resolve(value);
-  }
-  function noEvent() { return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } }; }
-  c.permissions = {
-    contains: function (q, cb) { return answer(has(q), cb); },
-    getAll: function (cb) { return answer({ permissions: apis.slice(), origins: origins.slice() }, cb); },
-    // Already granted: true. Anything more cannot be granted here: false.
-    request: function (q, cb) { return answer(has(q), cb); },
-    remove: function (q, cb) { return answer(false, cb); },
-    onAdded: noEvent(),
-    onRemoved: noEvent(),
-  };
-})();
-
-// === chrome.browserAction / chrome.action for extensions ===
-// Vex has no per-extension toolbar button to put an icon or a badge on (the
-// extensions menu lists them and opens their popups), and Electron leaves the
-// API undefined, so an extension that sets its badge while starting up threw
-// there (Dark Reader, 2026-09-27). Its calls now succeed and change nothing.
-(function () {
-  if (location.protocol !== 'chrome-extension:') return;
-  var c = window.chrome;
-  if (!c || !c.runtime || typeof c.runtime.getManifest !== 'function') return;
+// === BEGIN vex-extension-stand-ins ===
+// Keep this block identical in src/preload-webview.js (extension pages) and
+// src/preload-extension-sw.js (extension service workers); a test compares them.
+//
+// Electron gives an extension no chrome.permissions, no browserAction/action,
+// no contextMenus, no commands and no chrome.extension.isAllowed*Access, and
+// an extension that reads one of them while starting up throws there:
+//   * Dark Reader's background read chrome.permissions.onRemoved and never
+//     answered a page again (2026-09-27), and set its badge through
+//     browserAction; its popup waited for ever on commands.getAll and
+//     isAllowedFileSchemeAccess ("Loading, please wait", 2026-09-28);
+//   * uBlock Origin stopped at contextMenus.onClicked (2026-09-28);
+//   * Stylus's service worker at permissions.contains and Violentmonkey's at
+//     extension.isAllowedIncognitoAccess, so both were dead while Vex showed
+//     them "On" (2026-09-29).
+// Each gets an honest stand-in: permissions reports what the manifest granted
+// and Vex provides and grants nothing new; the toolbar and menu calls succeed
+// and change nothing (Vex has no per-extension button, badge or menu items);
+// no keys are bound to extension shortcuts; file access is allowed (Vex loads
+// extensions with allowFileAccess) and there is no incognito here.
+//
+// It runs in the extension's own world: directly in a page without isolation
+// (a background page), through contextBridge.executeInMainWorld where the
+// page is isolated (a toolbar popup, an options page) and in a service worker.
+// Earlier, a popup's own chrome never got any of it (2026-09-29).
+//
+// askPopupTab, where given, asks main which tab the extension's toolbar popup
+// was opened over. Electron calls whichever page has the focus the active tab,
+// and the popup takes the focus, so asked for the active tab the extension got
+// its own popup back: Dark Reader said "This page is protected by browser" and
+// its site switch pointed at the popup (2026-09-28).
+function vexExtensionStandIns(c, askPopupTab) {
+  c = c || (typeof chrome !== 'undefined' ? chrome : null);
+  // Only an extension has a runtime id; a website is left alone.
+  if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
   var manifest = c.runtime.getManifest() || {};
   function done(value) {
     return function () {
@@ -99,80 +84,117 @@ function runInMainWorld(src) {
       return Promise.resolve(value);
     };
   }
-  function stub() {
+  function noEvent() { return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } }; }
+
+  if (!c.permissions) {
+    var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
+    var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
+    // Permissions that never come with a chrome.<name> namespace of their own.
+    var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
+    var apis = granted.filter(function (p) {
+      return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
+    });
+    var has = function (q) {
+      q = q || {};
+      return (q.permissions || []).every(function (p) { return apis.indexOf(p) !== -1; })
+        && (q.origins || []).every(function (o) { return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1; });
+    };
+    c.permissions = {
+      contains: function (q, cb) { return done(has(q))(cb); },
+      getAll: function (cb) { return done({ permissions: apis.slice(), origins: origins.slice() })(cb); },
+      // Already granted: true. Anything more cannot be granted here: false.
+      request: function (q, cb) { return done(has(q))(cb); },
+      remove: function (q, cb) { return done(false)(cb); },
+      onAdded: noEvent(),
+      onRemoved: noEvent(),
+    };
+  }
+
+  function actionStub() {
     return {
       setIcon: done(undefined), setBadgeText: done(undefined), setBadgeBackgroundColor: done(undefined),
       setBadgeTextColor: done(undefined), setTitle: done(undefined), setPopup: done(undefined),
       getBadgeText: done(''), getTitle: done(manifest.name || ''), getPopup: done(''),
       enable: done(undefined), disable: done(undefined),
-      onClicked: { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } },
+      onClicked: noEvent(),
     };
   }
-  if (manifest.browser_action && !c.browserAction) c.browserAction = stub();
-  if (manifest.action && !c.action) c.action = stub();
-  // Nor are there extension items in Vex's right-click menu, and uBlock
-  // Origin read chrome.contextMenus.onClicked while starting and threw
-  // (2026-09-28). An extension that asks for the permission gets calls that
-  // succeed and add nothing.
+  if (manifest.browser_action && !c.browserAction) c.browserAction = actionStub();
+  if (manifest.action && !c.action) c.action = actionStub();
+
   var perms = manifest.permissions || [];
   if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && !c.contextMenus) {
     var menuId = 0;
     c.contextMenus = {
       create: function (props, cb) { if (typeof cb === 'function') setTimeout(cb, 0); return (props && props.id) || ++menuId; },
       update: done(undefined), remove: done(undefined), removeAll: done(undefined),
-      onClicked: { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } },
+      onClicked: noEvent(),
     };
   }
-  // Dark Reader's background gathers the popup's data with
-  // chrome.commands.getAll and chrome.extension.isAllowedFileSchemeAccess.
-  // Electron has neither, so the gathering threw, the popup never got an
-  // answer and sat on "Loading, please wait" (2026-09-28). Vex binds no
-  // extension shortcuts, so each listed command has none; extensions are
-  // loaded with allowFileAccess, so file access is allowed.
+
   if (!c.commands) {
     var commands = manifest.commands || {};
     c.commands = {
       getAll: done(Object.keys(commands).map(function (name) {
         return { name: name, description: (commands[name] && commands[name].description) || '', shortcut: '' };
       })),
-      onCommand: { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } },
+      onCommand: noEvent(),
     };
   }
+
   if (!c.extension) c.extension = {};
   if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') c.extension.isAllowedFileSchemeAccess = done(true);
-})();
+  if (typeof c.extension.isAllowedIncognitoAccess !== 'function') c.extension.isAllowedIncognitoAccess = done(false);
+  if (typeof c.extension.inIncognitoContext === 'undefined') c.extension.inIncognitoContext = false;
 
-// === The active tab, under an extension's toolbar popup ===
-// Electron calls whichever page has the focus the active tab, and the popup
-// Vex opens takes the focus, so asked for the active tab the extension got its
-// own popup back. Dark Reader then said "This page is protected by browser"
-// and its site switch pointed at the popup (2026-09-28). When the answer is
-// this extension's own page, main says which popup that is and which tab it
-// was opened over, and that tab is answered instead.
-(function () {
-  if (location.protocol !== 'chrome-extension:') return;
-  var c = window.chrome;
-  if (!c || !c.tabs || typeof c.tabs.query !== 'function' || typeof c.tabs.get !== 'function' || !c.runtime || typeof c.runtime.getURL !== 'function') return;
-  var ipc = require('electron').ipcRenderer;
-  var own = c.runtime.getURL('');
-  var query = c.tabs.query.bind(c.tabs);
-  var get = c.tabs.get.bind(c.tabs);
-  c.tabs.query = function (q, cb) {
-    var p = query(q || {}).then(function (tabs) {
-      tabs = tabs || [];
-      if (!q || q.active !== true || !tabs.some(function (t) { return String(t.url || '').indexOf(own) === 0; })) return tabs;
-      return ipc.invoke('extensions:popup-tab').then(function (over) {
-        if (!over) return tabs;
-        var rest = tabs.filter(function (t) { return t.id !== over.popup; });
-        if (over.tab == null) return rest;
-        return get(over.tab).then(function (tab) { return tab ? [Object.assign({}, tab, { active: true })].concat(rest) : rest; });
+  // Stylus's worker read webNavigation.onCommitted and Violentmonkey's
+  // cookies.getAll while starting, and both died there (2026-09-29). Electron
+  // has neither. Here navigation events never fire, a tab's frames are not
+  // known, no cookies are readable, and changing one fails and says why.
+  if (perms.indexOf('webNavigation') !== -1 && !c.webNavigation) {
+    c.webNavigation = {
+      getFrame: done(null), getAllFrames: done(null),
+      onBeforeNavigate: noEvent(), onCommitted: noEvent(), onDOMContentLoaded: noEvent(), onCompleted: noEvent(),
+      onErrorOccurred: noEvent(), onCreatedNavigationTarget: noEvent(), onReferenceFragmentUpdated: noEvent(),
+      onTabReplaced: noEvent(), onHistoryStateUpdated: noEvent(),
+    };
+  }
+  if (perms.indexOf('cookies') !== -1 && !c.cookies) {
+    var noCookies = function () { return Promise.reject(new Error('chrome.cookies is not available in Vex')); };
+    c.cookies = {
+      get: done(null), getAll: done([]), getAllCookieStores: done([]),
+      set: noCookies, remove: noCookies,
+      onChanged: noEvent(),
+    };
+  }
+
+  // A toolbar popup is not a tab: Chrome answers undefined (Stylus's popup
+  // called it and drew nothing, 2026-09-29).
+  if (c.tabs && typeof c.tabs.getCurrent !== 'function') c.tabs.getCurrent = done(undefined);
+
+  if (typeof askPopupTab === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function' && typeof c.runtime.getURL === 'function') {
+    var own = c.runtime.getURL('');
+    var query = c.tabs.query.bind(c.tabs);
+    var get = c.tabs.get.bind(c.tabs);
+    c.tabs.query = function (q, cb) {
+      var p = query(q || {}).then(function (tabs) {
+        tabs = tabs || [];
+        if (!q || q.active !== true || !tabs.some(function (t) { return String(t.url || '').indexOf(own) === 0; })) return tabs;
+        return askPopupTab().then(function (over) {
+          if (!over) return tabs;
+          var rest = tabs.filter(function (t) { return t.id !== over.popup; });
+          if (over.tab == null) return rest;
+          return get(over.tab).then(function (tab) { return tab ? [Object.assign({}, tab, { active: true })].concat(rest) : rest; });
+        });
       });
-    });
-    if (typeof cb !== 'function') return p;
-    p.then(function (tabs) { cb(tabs); }, function (err) { setTimeout(function () { throw err; }, 0); });
-    return undefined;
-  };
-})();
+      if (typeof cb !== 'function') return p;
+      p.then(function (tabs) { cb(tabs); }, function (err) { setTimeout(function () { throw err; }, 0); });
+      return undefined;
+    };
+  }
+  return true;
+}
+// === END vex-extension-stand-ins ===
 
 // === BEGIN vex-storage-sync-shim ===
 // Keep this block identical in src/preload-webview.js (extension pages) and
@@ -294,7 +316,25 @@ function vexStorageSyncShim(c) {
   return true;
 }
 // === END vex-storage-sync-shim ===
-if (location.protocol === 'chrome-extension:' && vexStorageSyncShim(window.chrome)) {
+// Where the stand-ins run. A background page shares its world with this
+// preload; a toolbar popup or an options page is isolated from it, and there
+// they must be put into the page's own world.
+var __vexExtIsolated = false;
+if (location.protocol === 'chrome-extension:') {
+  var __vexAskPopupTab = function () { return require('electron').ipcRenderer.invoke('extensions:popup-tab'); };
+  __vexExtIsolated = typeof process !== 'undefined' && process.contextIsolated === true;
+  if (__vexExtIsolated) {
+    try {
+      __vexCB.executeInMainWorld({ func: vexExtensionStandIns, args: [null, __vexAskPopupTab] });
+      __vexCB.executeInMainWorld({ func: vexStorageSyncShim, args: [null] });
+    } catch (err) {
+      console.error('[Vex] extension stand-ins could not reach this page:', err && err.message);
+    }
+  } else {
+    vexExtensionStandIns(window.chrome, __vexAskPopupTab);
+  }
+}
+if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorageSyncShim(window.chrome)) {
   // v2.33.2 to v2.33.5 kept "sync" in the page's own localStorage, which an
   // extension's service worker cannot read. Move anything saved there, once.
   (function () {
@@ -1145,8 +1185,12 @@ function _isVexStartPage(href) {
   function tryCapture() {
     try {
       if (location.protocol !== "https:") return; // never capture over plain HTTP
-      const pw = document.querySelector("input[type=password]");
-      if (!pw || !pw.value) return;
+      // On a change-password form the first field is the OLD password, so the
+      // new one was never offered for saving (found 2026-09-29). Take the one
+      // marked new-password, else the last one filled in.
+      const filled = Array.prototype.filter.call(document.querySelectorAll("input[type=password]"), (p) => !!p.value);
+      const pw = filled.find((p) => /new-password/i.test(p.getAttribute("autocomplete") || "")) || filled[filled.length - 1];
+      if (!pw) return;
       let user = lastUser;
       if (!user) {
         // Scope to the password's own form so a search box elsewhere on the page
@@ -1240,10 +1284,14 @@ function _isVexStartPage(href) {
     const m = TOKEN.exec(before);
     if (!m) return null;
     const token = m[0];
-    // Longest abbreviation wins, so ";sig" and ";sig2" can both exist.
+    // Longest abbreviation wins, so ";sig" and ";sig2" can both exist. One
+    // that starts with a letter or digit must be the whole word: "ty" turned
+    // "party" into "parthank you" (found 2026-09-29). One that starts with
+    // punctuation (";sig") may follow a word directly.
     let best = null;
     for (const s of snippets) {
-      if (token.endsWith(s.abbr) && (!best || s.abbr.length > best.abbr.length)) best = s;
+      const fits = /^[A-Za-z0-9]/.test(s.abbr) ? token === s.abbr : token.endsWith(s.abbr);
+      if (fits && (!best || s.abbr.length > best.abbr.length)) best = s;
     }
     return best ? { snippet: best, start: m.index + (token.length - best.abbr.length) } : null;
   }
@@ -1853,11 +1901,44 @@ if (typeof module !== 'undefined' && module.exports) {
       if (!el || !/^(input|textarea|select)$/i.test(el.tagName)) return;
       const type = String(el.type || "").toLowerCase();
       if (type === "file") return;                       // a file picker is not replayable
+      // A tick box or a radio button is replayed from its click, recorded
+      // above; as a change it was also saved as typing "on" (found 2026-09-29).
+      if (type === "checkbox" || type === "radio") return;
       if (isSecret(el)) {
         ipcRenderer.sendToHost("vex-teach-step", { kind: "secret", selector: cssPath(el) });
+        return;
+      }
+      // A dropdown choice was saved as typing its text, and the replay then
+      // refused to type into a select (found 2026-09-29).
+      if (el.tagName === "SELECT") {
+        ipcRenderer.sendToHost("vex-teach-step", { kind: "select", selector: cssPath(el), value: String(el.value == null ? "" : el.value).slice(0, 500) });
         return;
       }
       ipcRenderer.sendToHost("vex-teach-step", { kind: "type", selector: cssPath(el), value: String(el.value == null ? "" : el.value).slice(0, 500) });
     } catch { /* as above */ }
   }, true);
+})();
+
+// === Vex's keys a page may use first ===
+// Ctrl+B is bold in an editor, Ctrl+Shift+Z is redo, Ctrl+Shift+M mutes you
+// in Discord. Main used to take these before the page heard them. Now the
+// page has them first, as in Chrome, and only a key the page left alone is
+// reported to main, which decides what it does (src/main/guest-shortcuts.js
+// PAGE_FIRST; a test keeps these two lists the same).
+(function () {
+  'use strict';
+  var ipc;
+  try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
+  if (!ipc || typeof ipc.send !== 'function') return;
+  var PAGE_FIRST_PLAIN = 'bhmdpu';
+  var PAGE_FIRST_SHIFTED = 'oszamlh';
+  window.addEventListener('keydown', function (e) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
+    var k = String(e.key || '').toLowerCase();
+    if (k.length !== 1 || (e.shiftKey ? PAGE_FIRST_SHIFTED : PAGE_FIRST_PLAIN).indexOf(k) === -1) return;
+    // Every listener of the page has run by the time this fires.
+    setTimeout(function () {
+      if (!e.defaultPrevented) ipc.send('guest:page-shortcut', { key: k, shift: !!e.shiftKey });
+    }, 0);
+  }, false);
 })();

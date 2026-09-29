@@ -81,6 +81,8 @@ describe('the morning brief', () => {
     globalThis.Scheduler = { getAllTasks: () => [] };
     globalThis.ReadLater = { items: [] };
     globalThis.VexFeeds = { feeds: [{ url: 'u' }], fetchAll: vi.fn(async () => ({ items: [{ title: 'Rust 2.0 is out', at: later(-60) }, { title: 'Old news', at: later(-3 * 24 * 60) }], errors: [] })) };
+    // The brief reads the answer through the panel's parser (a local model answers {"reply": …}).
+    globalThis.AIPanel = require('../../src/renderer/js/ai-panel.js').AIPanel;
   });
 
   it('is written from what Vex has, only when asked, and shown until the day ends', async () => {

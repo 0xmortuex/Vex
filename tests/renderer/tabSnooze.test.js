@@ -23,6 +23,8 @@ beforeEach(() => {
     isCapturing: () => false,
   };
   globalThis.VexProblems = { note: vi.fn() };
+  // The Library's auto-archive setting, which archiving follows: a week here.
+  globalThis.TabArchiver = { days: () => 7 };
   window.showToast = vi.fn();
 });
 afterEach(() => { vi.useRealTimers(); delete TabSnooze._timer; delete TabSnooze._archiveTimer; });

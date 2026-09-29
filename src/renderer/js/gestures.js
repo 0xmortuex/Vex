@@ -45,9 +45,14 @@ const MouseGestures = {
       'U': () => { try { wv.executeJavaScript('window.scrollTo({top:0,behavior:"smooth"})'); } catch {} return '↑ Top'; },
       'D': () => { try { wv.reload(); } catch {} return '↓ Reload'; },
       'DR': () => { if (t) TabManager.closeTab(t.id); return '↓→ Close tab'; },
-      'DL': () => { try { TabManager.reopenClosedTab?.(); } catch {} return '↓← Reopen tab'; },
+      // TabManager's method is reopenLastClosed; the old reopenClosedTab?.()
+      // named nothing, so the gesture did nothing (found 2026-09-29).
+      'DL': () => { try { TabManager.reopenLastClosed(); } catch {} return '↓← Reopen tab'; },
       'UR': () => { try { TabManager.createTab(null, true); } catch {} return '↑→ New tab'; },
-      'UL': () => { try { if (t) TabManager.createTab(t.url, true); } catch {} return '↑← Duplicate tab'; },
+      // A copy on purpose: without allowDuplicate createTab's already-open
+      // guard just switched to this same tab (found 2026-09-29). Same options
+      // as the tab menu's Duplicate.
+      'UL': () => { try { if (t) TabManager.createTab(t.url, true, t.groupId, { ...(window.VexTabPolicy?.serialize(t) || t), allowDuplicate: true }); } catch {} return '↑← Duplicate tab'; },
       'RD': () => { const id = this._adjacent(1); if (id) TabManager.switchTab(id); return '→↓ Next tab'; },
       'LD': () => { const id = this._adjacent(-1); if (id) TabManager.switchTab(id); return '←↓ Previous tab'; },
     }[dir];

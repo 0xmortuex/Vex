@@ -9,6 +9,16 @@ const SyncSettings = (() => {
 
   function escapeHtml(str) { return window.escapeHtml(str); }
 
+  // The browser's "Failed to fetch" is what an unreachable sync server looks
+  // like, and it was shown as is (found 2026-09-29). Say it in words.
+  function human(message) {
+    const m = String(message || '');
+    if (/failed to fetch|networkerror|load failed|network request failed|err_internet_disconnected|err_name_not_resolved/i.test(m)) {
+      return 'Could not reach the sync server — check your internet connection and try again';
+    }
+    return m;
+  }
+
   function getRelativeTime(iso) {
     if (!iso) return 'never';
     const d = new Date(iso);
@@ -91,7 +101,10 @@ const SyncSettings = (() => {
       </div>
     `;
     wireSignedOutHandlers(container);
-    setTimeout(() => document.getElementById('sync-email-input')?.focus(), 50);
+    // Without preventScroll this dragged Settings to the Sync section every
+    // time it opened, and undid SettingsUI.openSection's jump 50 ms after it
+    // landed (found 2026-09-29).
+    setTimeout(() => document.getElementById('sync-email-input')?.focus({ preventScroll: true }), 50);
   }
 
   function wireSignedOutHandlers(container) {
@@ -116,7 +129,7 @@ const SyncSettings = (() => {
         btn.textContent = 'Sent \u2713';
         setTimeout(() => { btn.textContent = 'Resend Code'; btn.disabled = false; }, 3000);
       } catch (err) {
-        errorEl.textContent = err.message; errorEl.hidden = false;
+        errorEl.textContent = human(err.message); errorEl.hidden = false;
         btn.textContent = 'Send Code'; btn.disabled = false;
       }
     });
@@ -149,7 +162,7 @@ const SyncSettings = (() => {
         }
         await renderSyncPanel(document.getElementById('sync-panel-content'));
       } catch (err) {
-        errorEl.textContent = err.message; errorEl.hidden = false;
+        errorEl.textContent = human(err.message); errorEl.hidden = false;
         btn.textContent = 'Verify'; btn.disabled = false;
       }
     });
@@ -185,7 +198,7 @@ const SyncSettings = (() => {
     // a revoked session, or an unreachable worker.
     let devices = null, devicesError = null;
     try { devices = await SyncEngine.listDevices(); }
-    catch (err) { devicesError = (err && err.message) ? err.message : 'Could not load your devices'; }
+    catch (err) { devicesError = (err && err.message) ? human(err.message) : 'Could not load your devices'; }
 
     const lastPush = getRelativeTime(state.lastPushAt);
     const lastPull = getRelativeTime(state.lastPullAt);
@@ -260,7 +273,7 @@ const SyncSettings = (() => {
       // "Failed" on its own tells the user nothing they can act on \u2014 name which
       // half failed and why.
       if (!ok) {
-        const why = [!pushR.ok ? `upload: ${pushR.reason}` : '', !pullR.ok ? `download: ${pullR.reason}` : '']
+        const why = [!pushR.ok ? `upload: ${human(pushR.reason)}` : '', !pullR.ok ? `download: ${human(pullR.reason)}` : '']
           .filter(Boolean).join(' \u00b7 ');
         toast('Sync failed \u2014 ' + why, 'error');
       }

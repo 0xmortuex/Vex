@@ -6,6 +6,10 @@
 const Automations = {
   KEY: 'vex.automations',
   _lastUrl: '', _started: false,
+  // Which URL each rule last ran for, by rule id. It used to be set on the
+  // copy _load() returns and thrown away, so a rule ran again every time you
+  // switched back to its tab (found 2026-09-29).
+  _firedUrl: {},
 
   _load() { try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
   _save(a) { try { localStorage.setItem(this.KEY, JSON.stringify(a)); } catch {} },
@@ -26,8 +30,8 @@ const Automations = {
     this._load().forEach((r) => {
       if (!r.enabled || !r.trigger || r.trigger.type !== 'url') return;
       const pat = (r.trigger.value || '').toLowerCase();
-      if (pat && url.toLowerCase().includes(pat) && r._firedUrl !== url) {
-        r._firedUrl = url;  // in-memory (avoid re-firing on the same page)
+      if (pat && url.toLowerCase().includes(pat) && this._firedUrl[r.id] !== url) {
+        this._firedUrl[r.id] = url;  // in-memory (avoid re-firing on the same page)
         this._runAction(r);
       }
     });
@@ -39,18 +43,36 @@ const Automations = {
     const rules = this._load(); let changed = false;
     rules.forEach((r) => {
       if (!r.enabled || !r.trigger || r.trigger.type !== 'time') return;
-      if (r.trigger.value === hhmm && r._firedDate !== today) { r._firedDate = today; changed = true; this._runAction(r); }
+      if (this._normTime(r.trigger.value) === hhmm && r._firedDate !== today) { r._firedDate = today; changed = true; this._runAction(r); }
     });
     if (changed) this._save(rules);
   },
+  // "8:30" and "08:30" are the same time; the clock is compared as "08:30",
+  // so a rule typed without the zero never ran (found 2026-09-29).
+  _normTime(v) {
+    const m = String(v || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return null;
+    return m[1].padStart(2, '0') + ':' + m[2];
+  },
   _runAction(r) {
+    // A rule whose panel or command no longer exists used to toast as if it
+    // had run (found 2026-09-29): say what is missing instead.
     try {
       const a = r.action || {};
       if (a.type === 'open' && a.value) TabManager.createTab(/^https?:/i.test(a.value) ? a.value : 'https://' + a.value, true);
-      else if (a.type === 'panel' && a.value) SidebarManager.openPanel(a.value);
-      else if (a.type === 'command' && a.value) { const c = (typeof CommandBar !== 'undefined' ? CommandBar.commands : []).find((x) => x.id === a.value); if (c && c.action) c.action(); }
+      else if (a.type === 'panel' && a.value) {
+        if (!document.getElementById('panel-' + a.value)) throw new Error('there is no "' + a.value + '" panel');
+        SidebarManager.openPanel(a.value);
+      } else if (a.type === 'command' && a.value) {
+        const c = (typeof CommandBar !== 'undefined' ? CommandBar.commands : []).find((x) => x.id === a.value);
+        if (!c || !c.action) throw new Error('there is no "' + a.value + '" command');
+        c.action();
+      }
       window.showToast?.('Automation: ' + (r.name || 'ran'));
-    } catch {}
+    } catch (err) {
+      console.error('[Automations] rule failed', r, err);
+      window.showToast?.('Automation "' + (r.name || 'Rule') + '" did not run: ' + ((err && err.message) || err), 'error');
+    }
   },
 
   // ---- UI ----
@@ -62,7 +84,7 @@ const Automations = {
     m.id = 'vex-automations';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:540px;max-width:95vw;max-height:86vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">Automations</span><button id="au-close" style="${this._chip()}">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">Automations</span><button id="au-close" style="${this._chip()}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div style="padding:0 18px 8px;font-size:11.5px;color:var(--text-muted)">Run an action automatically when a page opens, or at a set time each day.</div>
       <div id="au-list" style="overflow-y:auto;padding:4px 16px">${rules.length ? rules.map((r, i) => `
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;background:var(--bg)">
@@ -71,7 +93,7 @@ const Automations = {
             <span style="display:block;font-size:12.5px;font-weight:600;color:var(--text)">${esc(r.name || 'Rule')}</span>
             <span style="display:block;font-size:11px;color:var(--text-muted)">${esc(this._describe(r))}</span>
           </span>
-          <button data-del="${i}" style="${this._chip()}">✕</button>
+          <button data-del="${i}" style="${this._chip()}" title="Delete" aria-label="Delete">${VexIcons.svg('x', { size: 13 })}</button>
         </div>`).join('') : '<div style="color:var(--text-muted);padding:8px 2px;font-size:12px">No automations yet.</div>'}</div>
       <div id="au-builder" style="padding:12px 18px;border-top:1px solid var(--border)">
         <input id="au-name" placeholder="Name (e.g. Morning routine)" style="${this._inp()};margin-bottom:8px">
@@ -104,8 +126,11 @@ const Automations = {
       const tv = (m.querySelector('#au-trigval').value || '').trim();
       const av = (m.querySelector('#au-actval').value || '').trim();
       if (!tv || !av) { window.showToast?.('Fill in the trigger and action'); return; }
+      const time = trig.value === 'time' ? this._normTime(tv) : null;
+      if (trig.value === 'time' && !time) { window.showToast?.('"' + tv + '" is not a time — write it as 08:30 (24-hour).', 'error'); return; }
+      const val = time || tv;
       const list = this._load();
-      list.push({ id: vexId('a'), name: name || (trig.value === 'time' ? 'At ' + tv : 'On ' + tv), enabled: true, trigger: { type: trig.value, value: tv }, action: { type: act.value, value: av } });
+      list.push({ id: vexId('a'), name: name || (trig.value === 'time' ? 'At ' + val : 'On ' + val), enabled: true, trigger: { type: trig.value, value: val }, action: { type: act.value, value: av } });
       this._save(list); this.open();
     });
     m.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { const list = this._load(); list.splice(parseInt(b.dataset.del, 10), 1); this._save(list); this.open(); }));

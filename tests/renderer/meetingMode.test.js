@@ -36,7 +36,7 @@ describe('starting and ending', () => {
     expect(note.title).toMatch(/^Meeting \u2014 /);
     expect(note.content).toMatch(/^\d\d:\d\d {2}Started\./);
     expect(notes[0].id).toBe(note.id);
-    expect(window.vex.reminders.hold).toHaveBeenCalledWith(expect.any(Number));
+    expect(window.vex.reminders.hold).toHaveBeenCalledWith(expect.any(Number), 'meeting');
     expect(M.active()).toBe(true);
   });
 
@@ -49,7 +49,7 @@ describe('starting and ending', () => {
     M.start();
     const out = M.stop();
     expect(notes[0].content).toMatch(/Ended, after 1 minute\./);
-    expect(window.vex.reminders.hold).toHaveBeenLastCalledWith(0);
+    expect(window.vex.reminders.hold).toHaveBeenLastCalledWith(0, 'meeting');
     expect(M.active()).toBe(false);
     expect(out.items).toBe(0);
   });

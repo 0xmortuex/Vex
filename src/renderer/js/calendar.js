@@ -228,6 +228,9 @@ const Calendar = {
       const text = el.querySelector('[data-text]').value.trim();
       const [hh, mm] = el.querySelector('[data-time]').value.split(':').map(Number);
       if (!text) { window.showToast?.('Write what to be reminded of', 'error'); return; }
+      // An empty time went through as NaN and came back as "Invalid payload
+      // for reminders:create" (found 2026-09-29).
+      if (!Number.isInteger(hh) || !Number.isInteger(mm)) { window.showToast?.('Pick a time for the reminder', 'error'); return; }
       const at = new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
       if (at <= Date.now()) { window.showToast?.('That time has already passed', 'error'); return; }
       try { await window.vex.reminders.create(text, at); }

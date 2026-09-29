@@ -213,7 +213,13 @@ const SiteData = {
     };
 
     const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
-    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    // While a vexPrompt/vexConfirm is open over this, Escape is that dialog's
+    // to cancel: this capture-phase listener used to see it first and close
+    // the whole Site Data window too (found 2026-09-29).
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); close();
+    };
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
     overlay.querySelector('[data-clear]').addEventListener('click', async () => {
       if (!(await vexConfirm({

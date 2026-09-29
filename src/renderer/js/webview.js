@@ -370,9 +370,13 @@ const WebviewManager = {
 
       // Add to history (both legacy storage and new HistoryPanel) — but never
       // for Off-the-Record tabs (in-memory partition, no trace).
-      if (!isStartPage(url) && !/^about:/i.test(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
+      // Only web pages: history takes http(s), and an extension's page or a
+      // file:// one threw "Invalid payload for storage:history-add" on every
+      // visit (found 2026-09-29).
+      if (/^https?:/i.test(url) && !isStartPage(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
         const t = TabManager.tabs.find(t => t.id === tab.id);
-        VexStorage.addHistory({ url, title: t?.title || url });
+        Promise.resolve(VexStorage.addHistory({ url, title: t?.title || url }))
+          .catch(err => window.VexProblems?.note('History', 'Could not add a visit to history', err));
         if (typeof HistoryPanel !== 'undefined') {
           HistoryPanel.addEntry(url, t?.title || url, t?.favicon);
         }
@@ -407,6 +411,8 @@ const WebviewManager = {
         if (Date.now() - lastCrash > 120000) crashCount = 0;
         lastCrash = Date.now();
         if (++crashCount > 4) { window.showToast?.('This tab keeps crashing. Reload it manually to retry.'); return; }
+        // The first crash was put right without a word (found 2026-09-29).
+        if (crashCount === 1) window.showToast?.('This tab stopped working — Vex is reloading it', 'warn');
         const t = TabManager.tabs.find(t => t.id === tab.id);
         const real = webview.dataset.hibernatedUrl || (t && t.url);
         if (real && !/^about:blank\b/i.test(real)) {
@@ -461,6 +467,15 @@ const WebviewManager = {
         // Only honour it from the trusted Vex start page.
         let emitterUrl = '';
         try { emitterUrl = webview.getURL(); } catch {}
+        // Reading mode's own page (a data: page) may ask for one thing only:
+        // to leave reading mode, on a tab that is in it. Its "Exit Reading
+        // Mode" button did nothing (found 2026-09-29).
+        if (/^data:text\/html/i.test(emitterUrl) && typeof ReadingMode !== 'undefined' && ReadingMode._originalUrls.has(tab.id)) {
+          let asked = null;
+          try { asked = JSON.parse(e.message.slice(8)); } catch (err) { console.error('VEX_CMD parse error:', err); return; }
+          if (asked && asked.type === 'exit-reading') ReadingMode.exitReadingMode(tab.id);
+          return;
+        }
         if (!_isTrustedStartPage(emitterUrl)) return;
         try {
           const cmd = JSON.parse(e.message.slice(8));
@@ -472,7 +487,14 @@ const WebviewManager = {
             if (cmd.newTab) {
               TabManager.createTab(cmd.url, true);
             } else {
-              try { webview.loadURL(cmd.url); } catch { webview.src = cmd.url; }
+              // A shortcut saved as "example.com" failed with an uncaught
+              // ERR_INVALID_URL and the tile did nothing (found 2026-09-29).
+              try {
+                Promise.resolve(webview.loadURL(cmd.url)).catch(err => {
+                  const m = String((err && err.message) || err);
+                  if (!/ERR_ABORTED|\(-3\)/.test(m)) window.showToast?.('Could not open ' + cmd.url + ': ' + m, 'error');
+                });
+              } catch { webview.src = cmd.url; }
             }
           } else if (cmd.type === 'open-panel' && cmd.panel) {
             SidebarManager.openPanel(cmd.panel);
@@ -648,6 +670,20 @@ const WebviewManager = {
       wv.remove();
       this.webviews.delete(tabId);
     }
+  },
+
+  // Print and View Page Source: Vex had neither — no command, no menu row,
+  // and Ctrl+P / Ctrl+U did nothing (found 2026-09-29).
+  printPage(wv = this.getActiveWebview()) {
+    if (!wv || typeof wv.print !== 'function') { window.showToast?.('Open a page to print first'); return; }
+    Promise.resolve(wv.print()).catch(err => window.showToast?.('Could not print: ' + ((err && err.message) || err), 'error'));
+  },
+
+  viewSource(wv = this.getActiveWebview()) {
+    let url = '';
+    try { url = wv ? wv.getURL() : ''; } catch (err) { console.error('[Vex] view source: no page address', err); }
+    if (!/^(https?|file):/i.test(url)) { window.showToast?.('Open a web page first'); return; }
+    TabManager.createTab('view-source:' + url, true);
   },
 
   getActiveWebview() {
@@ -1122,8 +1158,10 @@ const WebviewManager = {
       // A tab's own rows. In a panel (Gemini, Claude, Discord...) "Duplicate
       // Tab" copied whatever TAB was active and Auto-refresh had no tab to
       // refresh, so a panel gets neither.
-      ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.createTab(t.url, true, null, { partition: t.partition }); } catch {} } }] : []),
+      ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.createTab(t.url, true, t.groupId, { ...(window.VexTabPolicy?.serialize(t) || t), allowDuplicate: true }); } catch (err) { window.showToast?.('Could not duplicate the tab: ' + err.message, 'error'); } } }] : []),
       { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
+      { label: 'Print…', action: () => this.printPage(webview) },
+      { label: 'View Page Source', action: () => this.viewSource(webview) },
       ...(isTab ? [{ label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? 'Auto-refresh: on…' : 'Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } }] : []),
     ];
     const siteItems = [
@@ -1167,8 +1205,7 @@ const WebviewManager = {
       textItems.push({
         label: `Search "${e.params.selectionText.substring(0, 20)}..."`,
         action: () => {
-          const q = encodeURIComponent(e.params.selectionText);
-          TabManager.createTab(`https://www.google.com/search?q=${q}`, true);
+          TabManager.createTab(VexTypedAddress.searchUrl(e.params.selectionText), true);
         }
       });
       // Editable contexts already got a Copy row in editItems above.
@@ -1317,6 +1354,30 @@ const WebviewManager = {
       if (web && typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) imageItems.push({ label: 'Ask Vex About This Image', action: () => AIPanel.askAboutImage(imageSrc) });
     }
     groups.push(() => this._pushGroup(items, imageItems, (it) => /^(Save Image|Save Image As…|Copy Image)$/.test(it.label), 'More for this image', 'image'));
+
+    // A right-clicked video or sound offered nothing for it (found 2026-09-29).
+    const media = (e.params.mediaType === 'video' || e.params.mediaType === 'audio') ? e.params : null;
+    if (media) {
+      const flags = media.mediaFlags || {};
+      const noun = media.mediaType === 'video' ? 'video' : 'sound';
+      // The element under the pointer, found again inside the page.
+      const act = (js) => webview.executeJavaScript(
+        `(() => { const hit = document.elementFromPoint(${Number(media.x) || 0}, ${Number(media.y) || 0}); const el = hit && (hit.closest('video,audio') || (hit.querySelector && hit.querySelector('video,audio'))); if (!el) return false; ${js}; return true; })()`, true
+      ).then(found => { if (!found) window.showToast?.(`Could not find that ${noun} on the page`, 'warn'); })
+        .catch(err => window.showToast?.('That did not work: ' + ((err && err.message) || err), 'error'));
+      const src = /^https?:/i.test(media.srcURL || '') ? media.srcURL : '';
+      const mediaItems = [
+        { label: flags.isPaused ? 'Play' : 'Pause', action: () => act(flags.isPaused ? 'el.play()' : 'el.pause()') },
+        { label: flags.isLooping ? 'Stop Looping' : 'Loop', action: () => act('el.loop = !el.loop') },
+        ...(flags.canToggleControls ? [{ label: flags.isControlsVisible ? 'Hide Controls' : 'Show Controls', action: () => act('el.controls = !el.controls') }] : []),
+        ...(media.mediaType === 'video' && typeof PiPManager !== 'undefined' ? [{ label: 'Picture-in-Picture', action: () => PiPManager.toggle() }] : []),
+        ...(src ? [
+          { label: `Open ${noun === 'video' ? 'Video' : 'Sound'} in New Tab`, action: () => TabManager.createTab(src, true, null, { partition: webview.getAttribute?.('partition') }) },
+          { label: `Copy ${noun === 'video' ? 'Video' : 'Sound'} Address`, action: () => navigator.clipboard.writeText(src).then(() => window.showToast?.('Address copied'), err => window.showToast?.('Could not copy: ' + err.message, 'error')) },
+        ] : []),
+      ];
+      groups.push(() => this._pushGroup(items, mediaItems, (it) => /^(Play|Pause)$/.test(it.label), 'More for this ' + noun, 'video'));
+    }
 
     // Inspect Element — opens DevTools detached for the right-clicked tab's
     // webContents. Round 5 silently failed because <webview>.getWebContentsId()

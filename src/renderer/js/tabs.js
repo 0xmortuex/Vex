@@ -625,6 +625,7 @@ const TabManager = {
     tab._lazy = false;
     tab.loading = true;
     WebviewManager.createWebview(tab);
+    this._applyMuted(tab);
   },
 
   // Favicons come straight off the page (page-favicon-updated). The saved-tab
@@ -1356,7 +1357,7 @@ const TabManager = {
         break;
       }
       case 'close-tabs': {
-        if (!await vexConfirm({ title: 'Close tabs', message: `Close ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} in "${group.name}"? The group itself stays.`, okLabel: 'Close tabs', danger: true })) return;
+        if (!await vexConfirm({ title: 'Close tabs', message: `Close ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} in "${group.name}"? The group closes with its last tab.`, okLabel: 'Close tabs', danger: true })) return;
         tabsInGroup.forEach(t => this.closeTab(t.id));
         break;
       }
@@ -1483,6 +1484,13 @@ const TabManager = {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) overlay.remove();
     });
+    // Escape closes it; it did nothing (found 2026-09-29). The listener goes
+    // with the overlay however that closes.
+    const onKey = (e) => {
+      if (!overlay.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape') { e.preventDefault(); overlay.remove(); document.removeEventListener('keydown', onKey, true); }
+    };
+    document.addEventListener('keydown', onKey, true);
   },
 
   showContextMenu(e, tab) {
@@ -1522,7 +1530,9 @@ const TabManager = {
           },
         }))
         : []),
-      { label: 'Play through…', action: () => this.chooseAudioOutput(tab, document.querySelector('.tab[data-tab-id="' + tab.id + '"]') || document.body) },
+      // Tabs are .top-tab / .tab-item / .pinned-tab — there is no .tab, so the
+      // menu opened at the window's left edge (found 2026-09-29).
+      { label: 'Play through…', action: () => this.chooseAudioOutput(tab, this._tabElement(tab.id) || document.body) },
       { label: 'Page volume…', action: async () => {
         // Electron's renderer disables window.prompt() — it returns null with
         // no error, so the old `: prompt(...)` fallback silently did nothing.
@@ -1531,8 +1541,10 @@ const TabManager = {
         // The figure this site is already kept at, if any (js/site-volume.js).
         const saved = SiteVolume.get(tab.url);
         const v = await vexPromptModal('Page volume (0–100%)', String(saved == null ? 100 : saved));
+        if (v == null) return;                     // cancelled
         const n = parseInt(v, 10);
-        if (isNaN(n)) return;
+        // "fifty" closed the dialog without a word (found 2026-09-29).
+        if (isNaN(n)) { window.showToast?.('Page volume needs a number from 0 to 100', 'warn'); return; }
         const wv = WebviewManager.webviews.get(tab.id);
         if (!wv) { window.showToast?.('This tab is not loaded — open it first', 'warn'); return; }
         let vol;
@@ -1560,7 +1572,11 @@ const TabManager = {
       { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => this.toggleMuteTab(tab.id) },
       { label: 'Mute All Others', action: () => this.muteAllOtherTabs(tab.id) },
       { sep: true },
-      { label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id, true) },
+      // The tab in front cannot sleep (sleepTab refuses it), so it is not
+      // offered one; the item used to do nothing at all (found 2026-09-29).
+      ...(tab.sleeping || tab.id !== this.activeTabId
+        ? [{ label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id, true) }]
+        : []),
       // "Why is Vex using 4 GB?" starts with one tab. This opens the task
       // list with this tab's process already picked out (js/tasks.js).
       { label: 'What is this using?…', action: () => { if (typeof VexTasks !== 'undefined') VexTasks.open({ tab: tab.id }); } },
@@ -1904,10 +1920,35 @@ const TabManager = {
     if (e) tab.memBeforeSleep = { mb: Math.round(e.memKB / 1024), shared: !!e.shared };
   },
 
+  // A tab shown in a split-screen pane is on screen like the active tab, but
+  // only the active tab was spared: "Sleep idle", auto-sleep and idle discard
+  // blanked the other visible panes (found 2026-09-29).
+  _inSplitPane(id) {
+    return typeof SplitScreen !== 'undefined' && !!SplitScreen.active && Array.isArray(SplitScreen.panes) && SplitScreen.panes.includes(id);
+  },
+
+  // "Sleep Tab" (Ctrl+Shift+Z, Ctrl+K) means the tab in front, which sleepTab
+  // never touches, so it did nothing at all (found 2026-09-29). Move to the
+  // tab beside it on screen, then put it to sleep.
+  async sleepActiveTab() {
+    const tab = this.getActiveTab();
+    if (!tab) return false;
+    if (this._isKeptAwake(tab)) { window.showToast?.('This tab is kept awake — turn that off first'); return false; }
+    const order = this.displayOrder();
+    const at = order.findIndex(t => t.id === tab.id);
+    const next = order[at + 1] || order[at - 1];
+    if (!next) { window.showToast?.('Open another tab first — the one in front cannot sleep'); return false; }
+    this.switchTab(next.id);
+    await this.sleepTab(tab.id);
+    const slept = !!this.tabs.find(t => t.id === tab.id && t.sleeping);
+    window.showToast?.(slept ? 'Tab sleeping' : 'That tab could not sleep', slept ? 'info' : 'warn');
+    return slept;
+  },
+
   async sleepTab(id, force) {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab || tab.sleeping || tab.id === this.activeTabId) return;
-    if (!force && this._isKeptAwake(tab)) return;
+    if (!force && (this._isKeptAwake(tab) || this._inSplitPane(id))) return;
 
     tab.originalUrl = tab.url;
 
@@ -1962,6 +2003,7 @@ const TabManager = {
 
     // Recreate webview
     WebviewManager.createWebview(tab);
+    this._applyMuted(tab);
 
     // Restore scroll position once the page has loaded. One-shot listener;
     // best-effort (cross-origin pages may ignore it, that's fine).
@@ -2051,7 +2093,10 @@ const TabManager = {
         ${active ? '<button class="ka-stop ka-btn">Allow sleeping again</button>' : ''}
         <button class="ka-cancel">Cancel</button>
       </div>`;
-    const close = () => ov.remove();
+    // Escape closes it like Cancel; it did nothing (found 2026-09-29).
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    const close = () => { ov.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
     ov.addEventListener('click', e => { if (e.target === ov) close(); });
     ov.querySelector('.ka-cancel').addEventListener('click', close);
     ov.querySelector('.ka-stop')?.addEventListener('click', () => { setKeep(0, 'Tab can sleep again'); close(); });
@@ -2081,7 +2126,7 @@ const TabManager = {
     const jobs = [];
     this.tabs.forEach(t => {
       // Skip the active tab, already-sleeping/lazy tabs, and tabs playing audio.
-      if (t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted)) {
+      if (t.id !== this.activeTabId && !this._inSplitPane(t.id) && !t.sleeping && !t._lazy && !(t.audible && !t.muted)) {
         jobs.push(this.sleepTab(t.id));
       }
     });
@@ -2102,7 +2147,7 @@ const TabManager = {
       const now = Date.now();
       const due = [];
       this.tabs.forEach(t => {
-        if (t.id === this.activeTabId) return;
+        if (t.id === this.activeTabId || this._inSplitPane(t.id)) return;
         if (t.sleeping || t._lazy) return;
         if (excludePinned && t.pinned) return;
         // Never auto-sleep a tab that's actively playing audio — that would
@@ -2181,7 +2226,7 @@ const TabManager = {
     if (typeof SleepConsent === 'undefined' || !SleepConsent.auto()) return;
     let slept = 0;
     this.tabs.forEach(t => {
-      if (t.id === this.activeTabId || t.sleeping || t._lazy || t.pinned) return;
+      if (t.id === this.activeTabId || this._inSplitPane(t.id) || t.sleeping || t._lazy || t.pinned) return;
       if (t.audible && !t.muted) return;
       // sleepTab is a no-op for kept-awake tabs, so never-sleep is respected.
       this.sleepTab(t.id); slept++;
@@ -2440,6 +2485,9 @@ const TabManager = {
     saveRecentlyClosed(list);
     if (window.VexTabPolicy && !window.VexTabPolicy.canRestore(last)) return;
     this.createTab(last.url, true, this.groups.some(group => group.id === last.groupId) ? last.groupId : null, { ...last, allowDuplicate: true });
+    // A snoozed tab is also a closed one; back now, it must not come back a
+    // second time when the snooze is due (found 2026-09-29).
+    if (typeof TabSnooze !== 'undefined') TabSnooze.forgetUrl(last.url);
   },
 
   // === Mute/Unmute ===
@@ -2452,9 +2500,34 @@ const TabManager = {
       const muted = wv.isAudioMuted();
       wv.setAudioMuted(!muted);
       tab.muted = !muted;
-      this.renderTabUpdate(tab);
-      window.showToast?.(tab.muted ? 'Tab muted' : 'Tab unmuted');
+    } else {
+      // Asleep or not loaded yet: there is no page to mute, and this used to
+      // do nothing. Record it; _applyMuted sets it when the page is made
+      // (found 2026-09-29).
+      tab.muted = !tab.muted;
     }
+    this.renderTabUpdate(tab);
+    window.showToast?.(tab.muted ? 'Tab muted' : 'Tab unmuted');
+  },
+
+  // A tab's page is made again when it wakes or first loads; a mute chosen
+  // while it had none has to be put on the new page.
+  _applyMuted(tab) {
+    if (!tab || !tab.muted) return;
+    const wv = WebviewManager.webviews.get(tab.id);
+    if (!wv) return;
+    wv.addEventListener('dom-ready', () => {
+      try { wv.setAudioMuted(true); }
+      catch (err) { console.error('[Tabs] could not mute the tab:', err.message); }
+    }, { once: true });
+  },
+
+  // The element that shows this tab in the layout on screen: the top strip's
+  // .top-tab, or the sidebar's .tab-item / .pinned-tab.
+  _tabElement(id) {
+    const sel = '[data-tab-id="' + ((window.CSS && CSS.escape) ? CSS.escape(id) : id) + '"]';
+    return Array.from(document.querySelectorAll('.top-tab' + sel + ', .tab-item' + sel + ', .pinned-tab' + sel))
+      .find(el => el.getClientRects().length) || null;
   },
 
   muteAllOtherTabs(keepId) {
@@ -2484,12 +2557,37 @@ const TabManager = {
     window.showToast?.(`Closed ${toClose.length} other tab${toClose.length === 1 ? '' : 's'}`, 'success');
   },
 
+  // The tabs in the order the strip draws them, which is not list order: both
+  // layouts put pinned tabs first and stacks last, but the top strip draws
+  // loose tabs before groups and the sidebar draws groups before loose tabs.
+  // A tab in no drawn section (a group that no longer exists) keeps its list
+  // place at the end.
+  displayOrder() {
+    const tabs = this.tabs;
+    const horizontal = typeof document !== 'undefined' && document.body && document.body.dataset.tabLayout === 'horizontal';
+    const pinned = tabs.filter(t => t.pinned);
+    const loose = tabs.filter(t => !t.pinned && !t.groupId && !t.stackId);
+    const grouped = [];
+    for (const g of this.groups || []) grouped.push(...tabs.filter(t => !t.pinned && t.groupId === g.id && (horizontal || !t.stackId)));
+    const stacked = [];
+    for (const s of this.stacks || []) stacked.push(...tabs.filter(t => !t.pinned && t.stackId === s.id));
+    const seen = new Set();
+    const out = [];
+    for (const t of [...pinned, ...(horizontal ? [...loose, ...grouped] : [...grouped, ...loose]), ...stacked, ...tabs]) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id); out.push(t);
+    }
+    return out;
+  },
+
   // Close tabs that appear *after* the given anchor in display order;
-  // pinned tabs are preserved.
+  // pinned tabs are preserved. "After" is what is on screen: slicing the list
+  // said "No tabs to the right" for a tab pinned to the front (found 2026-09-29).
   closeTabsToTheRight(anchorId) {
-    const idx = this.tabs.findIndex(t => t.id === anchorId);
+    const order = this.displayOrder();
+    const idx = order.findIndex(t => t.id === anchorId);
     if (idx < 0) return;
-    const toClose = this.tabs.slice(idx + 1).filter(t => !t.pinned).map(t => t.id);
+    const toClose = order.slice(idx + 1).filter(t => !t.pinned).map(t => t.id);
     if (!toClose.length) {
       window.showToast?.('No tabs to the right', 'info');
       return;

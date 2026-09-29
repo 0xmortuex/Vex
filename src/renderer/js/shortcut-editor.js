@@ -173,6 +173,11 @@ const ShortcutEditor = (() => {
       } else if (res && res.unknown) {
         _toast('That is no longer in Vex, so it cannot be given a key', 'warn');
         stop();
+      } else if (res && res.invalid) {
+        _toast(res.invalid === 'reserved'
+          ? `${combo} belongs to Windows or to the page (copy, paste, undo, developer tools), so it can't be a Vex shortcut`
+          : `${combo} on its own would stop you typing it in pages — use Ctrl or Alt with it, or a function key`, 'warn');
+        stop();
       } else if (res && res.system) {
         _toast('That shortcut is fixed at the system level and can’t be reassigned', 'warn');
         stop();

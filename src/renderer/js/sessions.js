@@ -71,14 +71,16 @@ const SessionManager = {
       }
     }
 
-    // Open all tabs from session
+    // Recreate the session's tabs LAZILY, as a workspace switch does: only the
+    // tab switched to below gets a page. Creating them with createTab loaded
+    // every page of the session at once (found 2026-09-29).
     const restored = [];
     let selected = null;
     for (const [index, t] of (Array.isArray(session.tabs) ? session.tabs : []).entries()) {
       if (!window.VexTabPolicy.canRestore(t)) continue;
-      const tab = TabManager.createTab(t.url, false, t.groupId, { partition: t.partition });
-      tab.pinned = !!t.pinned;
+      const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
       tab.keepAwakeUntil = t.keepAwakeUntil || 0;
+      tab.favicon = TabManager._persistableFavicon(t.favicon);
       TabManager.renderTabUpdate(tab);
       restored.push(tab);
       if (index === session.activeTabIndex) selected = tab;
