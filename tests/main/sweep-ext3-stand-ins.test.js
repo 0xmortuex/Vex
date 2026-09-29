@@ -31,7 +31,8 @@ function fakeChrome({ manifest = {}, tabs = [EXAMPLE], extraTabs = {} } = {}) {
 // The service-worker preload, with main's two answers stubbed.
 function worker(chrome, { over = null } = {}) {
   const calls = [];
-  const ipcRenderer = { invoke: (ch, ...args) => { calls.push([ch, ...args]); return Promise.resolve(ch === 'extensions:popup-tab' ? over : { ok: true }); } };
+  // extensions:open-tab answers with the tab main made (sweep fin4, 2026-09-29).
+  const ipcRenderer = { invoke: (ch, ...args) => { calls.push([ch, ...args]); return Promise.resolve(ch === 'extensions:popup-tab' ? over : { id: 5, url: args[0].url, active: args[0].active }); } };
   const ctx = vm.createContext({ chrome, setTimeout, Promise, JSON, Object, Array, String, Number, URL,
     require: (m) => {
       if (m !== 'electron') throw new Error('only electron');
@@ -88,7 +89,7 @@ describe('the active tab, asked by the service worker while the popup is open', 
 describe('tabs.create and runtime.openOptionsPage open a Vex tab through main', () => {
   it('tabs.create sends the full address; a relative one is the extension’s own page', async () => {
     const { c, calls } = worker(fakeChrome());
-    expect(await c.tabs.create({ url: 'https://github.com/x' })).toBeUndefined();
+    expect(await c.tabs.create({ url: 'https://github.com/x' })).toMatchObject({ id: 5, active: true, pendingUrl: 'https://github.com/x' });
     await c.tabs.create({ url: 'manage.html', active: false });
     expect(calls).toEqual([
       ['extensions:open-tab', { url: 'https://github.com/x', active: true }],

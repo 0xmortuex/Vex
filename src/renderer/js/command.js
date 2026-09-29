@@ -127,7 +127,7 @@ const CommandBar = {
     { id: 'wsnap', label: 'Workspace Time-Travel', hint: 'Restore a past set of open tabs for this workspace', icon: 'history', action: () => { if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.open(); } },
     { id: 'catchup', label: 'Catch Me Up', hint: 'AI digest of your RSS feeds + unread Read Later', icon: 'coffee', action: () => { if (typeof CatchMeUp !== 'undefined') CatchMeUp.open(); } },
     { id: 'otr', label: 'New Off-the-Record Tab', hint: 'Ephemeral tab: no history, cookies vanish when closed', icon: 'incognito', action: () => TabManager.createTab(START_URL, true, null, { partition: 'otr-' + Date.now() }) },
-    { id: 'tor', label: 'New Tor Tab', hint: 'Maximum-security private tab routed through Tor (needs Tor running)', icon: 'onion', action: () => { if (typeof TorSession !== 'undefined') TorSession.open(); } },
+    { id: 'tor', label: 'New Tor Tab', hint: 'Maximum-security private tab routed through Tor (Vex downloads and starts Tor the first time)', icon: 'onion', action: () => { if (typeof TorSession !== 'undefined') TorSession.open(); } },
     { id: 'identity', label: 'New Identity Tab', hint: 'Fresh isolated session + a new browser fingerprint — no carry-over from your logins', icon: 'mask', action: async () => {
       try {
         const r = await window.vex?.createIdentity?.();
@@ -252,7 +252,8 @@ const CommandBar = {
       const t = TabManager.getActiveTab();
       if (!t || !t.url) { window.showToast?.('No active page to send'); return; }
       try { await SyncEngine.dropSend(t.url, t.title || ''); window.showToast?.('Sent — it will appear on your other devices'); }
-      catch (err) { window.showToast?.(err.message || 'Send failed'); }
+      // A down server showed the browser's raw "Failed to fetch" (found 2026-09-29).
+      catch (err) { window.showToast?.(SyncSettings.human(err.message || 'Send failed'), 'error'); }
     } },
     { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: 'x', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.closeTab(t.id); } },
     { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: 'message', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },

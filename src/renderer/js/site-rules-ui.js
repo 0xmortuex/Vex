@@ -227,12 +227,18 @@ if (typeof window !== 'undefined' && SiteRulesUI._isPrivate()) {
   });
   reload();
   // Read once, the copy went stale: JavaScript switched off for a site in the
-  // normal window still ran in a private window that was already open (found
-  // 2026-09-29). Main sends no word of a change, so the copy is read again
-  // whenever this window is come back to, and every few seconds besides: a
-  // window Windows reports as covered still takes keys and opens tabs.
+  // normal window still ran in a private window that was already open. Main
+  // now sends the switches to every window the moment they change, so the
+  // copy is replaced at once; it used to be read again every three seconds,
+  // which left that long for a site to run (both found 2026-09-29). Coming
+  // back to the window reads it once more, for a word that was missed.
+  window.vex.onSiteRulesChanged((rules) => {
+    if (!rules || typeof rules !== 'object') {
+      console.error('[SiteRules] private window was sent switches it cannot read:', rules);
+      return;
+    }
+    SiteRulesUI._mirror = rules;
+  });
   window.addEventListener('focus', reload);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reload(); });
-  SiteRulesUI._mirrorTimer = setInterval(reload, 3000);
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { SiteRulesUI };

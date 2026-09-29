@@ -1,5 +1,44 @@
 # Changelog
 
+## v2.34.1 (2026-09-30) — Tor, sync, mail and the keyboard, tested for real
+
+The parts never tested before were driven for real this time: Tor started and checked at check.torproject.org, sync and mail against real servers run locally, updates against a local update server, and every shortcut and gesture sent as real keyboard and mouse input.
+
+### Privacy
+- **A link opened in a new tab from a Tor tab left Tor** and loaded over your real connection (target=_blank, middle-click, window.open). It now stays in the tab's own session; private, burner and container tabs too, and "Search for selection" and "Search Image with Lens" from such a tab.
+- **A burner identity or container routed through Tor leaked your real address through WebRTC.** It is now locked like a Tor tab; so is a window a Tor page opens.
+- Cancel while Tor is downloading really cancels; before, Tor started anyway a few seconds later.
+- Turning JavaScript off for a site now also works when you go to that site inside a tab already open.
+
+### Sync
+- **Joining sync on a device that already had bookmarks or notes deleted them.** They are now kept and uploaded; for anything the account already has, the account's copy wins. Notes merge one by one, like bookmarks.
+- Sync Now no longer fails with "Push returned 409" when another device synced first.
+- Failed sign-ins no longer leave extra devices in the device list.
+- A wrong recovery code says so, instead of "OperationError".
+- The "sync conflicts retained" message no longer comes back on every sync; of two edits to the same thing, the newer wins.
+- A sync server address ending in "/" works; a device the server signed out is told so.
+- Send to My Devices explains a failure in words; one unreadable item no longer loses the rest.
+
+### Mail
+- Inbox triage no longer sends a mail from your own server to Gmail, uses the account you have open, and opens the right Gmail account when you have several.
+- A local bridge (ProtonMail Bridge) with its own certificate can be added; certificate and TLS problems are explained in words; the setup form has a Security choice (TLS / STARTTLS).
+- A long inbox says it shows the newest 50 and can load more.
+- A phone number in an email is no longer taken for a verification code.
+
+### Keyboard and mouse
+- **Redo (Ctrl+Shift+Z) in a text box put the tab to sleep and lost what you typed.** Keys a text box or editor uses itself (redo, and bold and underline in editors) now stay with the page. Sleeping a tab that has text you typed asks first.
+- Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+R and Alt+Left/Right work while a page has focus; Ctrl+1–9 work from the address bar, and Ctrl+9 goes to the last tab.
+- Middle-click closes a grouped tab in the vertical list.
+- The update prompt is no longer covered by download notices ("Skip this one" clicked the download's Show).
+
+### Also
+- Peek: Escape that closes the site's own popup no longer closes Peek; Ctrl+Enter inside the page opens it as a tab.
+- A private window gets per-site switches the moment they change.
+- Questions about several tabs remember the conversation with the local AI too.
+- chrome.tabs.create gives the extension the tab it opened.
+- Restoring a backup says "Reminders restored", not "synced"; synced reminders keep their time across a clock change; extension updates leave no empty folder behind.
+- Update errors are short and plain; the New Tor Tab hint no longer says Tor must be running.
+
 ## v2.34.0 (2026-09-30) — 28 new themes and 5 new looks, after the popular Discord themes
 
 ### New

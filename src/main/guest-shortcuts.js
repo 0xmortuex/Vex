@@ -20,6 +20,9 @@ const PLAIN = {
   t: 'new-tab',
   w: 'close-tab',
   l: 'focus-address-bar',
+  // Reload: Electron has no menu to give a page Ctrl+R, so it did nothing
+  // while a page had the focus (found 2026-09-29).
+  r: 'reload-tab',
   '=': 'zoom-in',
   '+': 'zoom-in',
   '-': 'zoom-out',
@@ -108,8 +111,19 @@ function shortcutFor(input, { ownsFind = false, wanted = null } = {}) {
     // whatever the registry sent (function keys aside).
     const modified = !!ctrl || !!input.alt || /^(Shift\+)?F\d{1,2}$/.test(combo);
     if (combo && modified && wanted.has(combo) && !/^(Ctrl\+[A-Z]|Ctrl\+Shift\+[A-Z])$/.test(combo)) {
-      return { channel: 'guest-shortcut', args: [{ key: String(input.key || '').toLowerCase(), ctrl: !!ctrl, shift: !!input.shift, alt: !!input.alt }] };
+      // Only a letter is lowercased: the registry keeps a named key as it is,
+      // and 'tab' made Ctrl+Tab read "Ctrl+tab", which matches nothing, so
+      // Ctrl+Tab did nothing inside a page (found 2026-09-29).
+      const k = String(input.key || '');
+      return { channel: 'guest-shortcut', args: [{ key: k.length === 1 ? k.toLowerCase() : k, ctrl: !!ctrl, shift: !!input.shift, alt: !!input.alt }] };
     }
+  }
+
+  // Alt+Left / Alt+Right: Back and Forward, as in every browser. The main
+  // window answered them, a focused page did not (found 2026-09-29).
+  if (input.alt && !ctrl && !input.shift) {
+    if (input.key === 'ArrowLeft') return { channel: 'navigate-back' };
+    if (input.key === 'ArrowRight') return { channel: 'navigate-forward' };
   }
 
   if (!ctrl || input.alt) return null;                  // Ctrl+Alt is handled above

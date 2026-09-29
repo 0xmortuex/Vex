@@ -242,7 +242,14 @@
     if (i < 0) i = 0;
     TabManager.switchTab(tabs[(i + dir + tabs.length) % tabs.length].id);
   };
-  const jumpToTab = (n) => { const t = (TabManager.tabs || [])[n - 1]; if (t) TabManager.switchTab(t.id); };
+  // Counted the way the tabs stand on screen, and Ctrl+9 is the last tab, as
+  // in every browser: it took the ninth tab of the internal list (found
+  // 2026-09-29).
+  const jumpToTab = (n) => {
+    const order = TabManager.displayOrder();
+    const t = n === 9 ? order[order.length - 1] : order[n - 1];
+    if (t) TabManager.switchTab(t.id);
+  };
   const bookmarkCurrent = () => { const t = TabManager.getActiveTab && TabManager.getActiveTab(); if (t && t.url && window.Bookmarks) Bookmarks.toggle(t.url, t.title); };
   window.vex.onFocusAddressBar?.(focusAddressBar);
   // Ctrl+Alt+D pressed inside a page (main passes it up; the page has focus).
@@ -1114,9 +1121,45 @@
     // joins that tab's group automatically.
     const opener = TabManager.getActiveTab();
     const inheritGroup = (opener && opener.groupId) || null;
-    try { TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition }); }
-    catch (err) { console.error('[Tabs] createTab failed:', err.message); }
+    let created;
+    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition }); }
+    catch (err) {
+      console.error('[Tabs] createTab failed:', err.message);
+      if (data.requestId) window.vex.tabCreatedForExtension({ id: data.requestId, ok: false, error: err.message });
+      return;
+    }
+    if (data.requestId) answerExtensionTab(data.requestId, created);
   });
+  // An extension's tabs.create waits to hear which tab it got (main.js,
+  // _openTabForExtension; it answered undefined before, found 2026-09-29):
+  // the page's webContents id, the id Electron's tabs.get/update use. A page
+  // has one only once its webview is attached, a background tab's too.
+  // createTab hands back the tab it made, or the id of the open tab it went
+  // to instead.
+  function answerExtensionTab(requestId, created) {
+    const say = (payload) => window.vex.tabCreatedForExtension({ id: requestId, ...payload });
+    const tab = typeof created === 'string' ? TabManager.tabs.find(t => t.id === created) : created;
+    const wv = tab && WebviewManager.webviews.get(tab.id);
+    if (!wv) { say({ ok: false, error: 'The new tab has no page' }); return; }
+    const pageId = () => {
+      try { const id = wv.getWebContentsId(); return Number.isSafeInteger(id) && id > 0 ? id : null; }
+      catch { return null; } // not attached yet: the events below answer
+    };
+    const answer = () => {
+      const id = pageId();
+      if (id == null) return false;
+      say({ ok: true, tabId: id, url: tab.url, active: TabManager.activeTabId === tab.id });
+      return true;
+    };
+    if (answer()) return;
+    const onReady = () => {
+      if (!answer()) return;
+      wv.removeEventListener('did-attach', onReady);
+      wv.removeEventListener('dom-ready', onReady);
+    };
+    wv.addEventListener('did-attach', onReady);
+    wv.addEventListener('dom-ready', onReady);
+  }
 
   // === Phase 15: Personas ===
   if (typeof PersonasManager !== 'undefined') PersonasManager.init();
@@ -1395,11 +1438,15 @@
     }
   });
 
-  // Middle-click to close tabs
-  document.getElementById('tabs-list')?.addEventListener('mousedown', (e) => {
+  // Middle-click to close tabs. On the whole tab sidebar, not only
+  // #tabs-list: a tab in a group lives in #tab-groups-container beside it,
+  // and middle-clicking one did nothing (found 2026-09-29). One listener, so
+  // one close per click.
+  document.getElementById('tabs-sidebar')?.addEventListener('mousedown', (e) => {
     if (e.button === 1) {
       const item = e.target.closest('.tab-item');
-      if (item) { e.preventDefault(); TabManager.closeTab(item.dataset.tabId); }
+      // A stack header has no tab id of its own; closing undefined did nothing useful.
+      if (item && item.dataset.tabId) { e.preventDefault(); TabManager.closeTab(item.dataset.tabId); }
     }
   });
 

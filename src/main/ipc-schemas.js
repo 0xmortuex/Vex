@@ -42,6 +42,8 @@ define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
 define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
 define('extensions:popup-tab', []);
 define('extensions:open-tab', [shape({ url: string(8192), active: optional(boolean) })]);
+// The interface's answer to an extension's tabs.create: the tab it made.
+define('tab:created-for-extension', [shape({ id: string(40), ok: boolean, tabId: optional(integer), url: optional(string(8192)), active: optional(boolean), error: optional(string(4000)) })]);
 define('vex-lock:state', [boolean]);
 define('tor:cancel', []);
 define('guest:page-shortcut', [shape({ key: string(1), shift: boolean })]);

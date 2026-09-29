@@ -83,4 +83,34 @@ async function restoreRoutes({ routes, getSession, applyRouting, report, allPart
     await restoreOne(key === 'default' ? '' : key, config);
   }
 }
-module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY };
+/**
+ * Whether a tab opened from a page in this session has to stay in it: Tor,
+ * off-the-record (burner), a private window, a container, a routed site. A
+ * link opened in a new tab from a Tor tab used to land in persist:main and
+ * show the real address (found 2026-09-29). The app sessions (Discord,
+ * Spotify…) and persist:main open links in the ordinary session, as before.
+ * @param {unknown} partition
+ */
+function keepsOpenerSession(partition) {
+  return typeof partition === 'string' && /^(tor-|otr-|private:|persist:container-|persist:route-)/.test(partition);
+}
+
+/**
+ * Mark a session as going through Tor, or not, and set WebRTC to match on
+ * every page already open in it; web-contents-created reads the mark for the
+ * pages opened later. A burner or container routed through Tor had the proxy
+ * but not the mark, so WebRTC handed sites the real address (found 2026-09-29).
+ * @param {any} ses
+ * @param {boolean} tor
+ * @param {any[]} allContents
+ */
+function markTorSession(ses, tor, allContents) {
+  ses.__vexTor = !!tor;
+  const policy = tor ? 'disable_non_proxied_udp' : 'default';
+  for (const contents of allContents) {
+    if (contents.isDestroyed() || contents.session !== ses) continue;
+    contents.setWebRTCIPHandlingPolicy(policy);
+  }
+}
+
+module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY, keepsOpenerSession, markTorSession };

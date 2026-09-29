@@ -42,7 +42,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 // its site switch pointed at the popup (2026-09-28).
 //
 // openTab, where given, asks main to open a Vex tab: a web page or one of the
-// extension's own pages (tabs.create, runtime.openOptionsPage).
+// extension's own pages (tabs.create, runtime.openOptionsPage). It answers
+// with the tab made: { id, url, active }, id being the page's webContents id.
 function vexExtensionStandIns(c, askPopupTab, openTab) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
@@ -186,18 +187,29 @@ function vexExtensionStandIns(c, askPopupTab, openTab) {
   // popup's "Manage", "Options" and "Report a bug" did nothing (found
   // 2026-09-29). Both open a Vex tab through main, which opens only web pages
   // and this extension's own pages. A relative address is the extension's.
+  // tabs.create answered undefined, so an extension had no id to update or
+  // close the tab by (found 2026-09-29): it answers with the tab, as Electron's
+  // tabs.get describes it (window, index) where it knows the page yet.
   if (typeof openTab === 'function' && typeof c.runtime.getURL === 'function') {
     var base = c.runtime.getURL('');
     var openUrl = function (url, active) {
       if (!url) return Promise.reject(new Error('Vex opens a tab for an extension only with an address'));
-      return Promise.resolve(openTab({ url: new URL(String(url), base).href, active: active !== false })).then(function () { return undefined; });
+      return Promise.resolve(openTab({ url: new URL(String(url), base).href, active: active !== false }));
+    };
+    var asTab = function (made) {
+      var tab = { id: made.id, index: 0, windowId: 0, url: made.url, pendingUrl: made.url, active: made.active };
+      if (!c.tabs || typeof c.tabs.get !== 'function') return tab;
+      return Promise.resolve(c.tabs.get(made.id)).then(function (known) {
+        if (!known) return tab;
+        return Object.assign({}, known, { url: known.url || made.url, pendingUrl: made.url, active: made.active, highlighted: made.active });
+      });
     };
     if (c.tabs && typeof c.tabs.create !== 'function') {
-      c.tabs.create = function (props, cb) { return answerWith(openUrl(props && props.url, props && props.active), cb); };
+      c.tabs.create = function (props, cb) { return answerWith(openUrl(props && props.url, props && props.active).then(asTab), cb); };
     }
     var optionsPage = manifest.options_page || (manifest.options_ui && manifest.options_ui.page) || null;
     c.runtime.openOptionsPage = function (cb) {
-      return answerWith(optionsPage ? openUrl(optionsPage, true) : Promise.reject(new Error('This extension has no options page')), cb);
+      return answerWith(optionsPage ? openUrl(optionsPage, true).then(function () { return undefined; }) : Promise.reject(new Error('This extension has no options page')), cb);
     };
   }
   return true;

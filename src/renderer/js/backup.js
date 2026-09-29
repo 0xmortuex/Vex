@@ -181,7 +181,8 @@ const VexBackup = {
   // them read the restored values now, as they do after a sync.
   _reloadLive() {
     if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.reloadSyncedState();
-    window.dispatchEvent(new CustomEvent('vex-sync-data-applied'));
+    // Marked as a restore, so what is said about it is not "synced".
+    window.dispatchEvent(new CustomEvent('vex-sync-data-applied', { detail: { source: 'backup' } }));
   },
 
   fileName() {

@@ -11,6 +11,7 @@
     if (!doc || doc.schema !== 2 || !object(doc.records) || Object.keys(doc.records).length > 30000) throw new Error('Unsupported sync schema');
     for (const [key, r] of Object.entries(doc.records)) {
       if (!safeKey(key) || key.length > 4096 || !object(r) || !object(r.clock) || Object.keys(r.clock).length > 100 || typeof r.deleted !== 'boolean') throw new Error('Invalid sync record');
+      if (r.at !== undefined && (!Number.isSafeInteger(r.at) || r.at < 0)) throw new Error('Invalid sync record time');
       if (r.conflicts !== undefined && (!Array.isArray(r.conflicts) || r.conflicts.length > 100 || r.conflicts.some(v => !object(v) || typeof v.deleted !== 'boolean'))) throw new Error('Invalid sync conflicts');
       for (const [device, n] of Object.entries(r.clock)) if (!safeKey(device) || !/^[a-zA-Z0-9_-]{1,80}$/.test(device) || !Number.isSafeInteger(n) || n < 0) throw new Error('Invalid record revision');
     }
@@ -25,7 +26,11 @@
       const previous = records[key], deleted = !Object.hasOwn(values, key), value = deleted ? null : values[key];
       if (previous && previous.deleted === deleted && equal(previous.value, value)) continue;
       const clock = { ...(previous?.clock || {}) }; clock[device] = (clock[device] || 0) + 1;
-      records[key] = { clock, deleted, value, conflicts: previous?.conflicts || [] };
+      // A new local edit settles any conflict the record carried. Keeping the
+      // old variants made every later sync toast "N sync conflicts retained"
+      // forever (found 2026-09-29). `at` is when this device made the edit, so
+      // a later concurrent conflict can prefer the newer edit.
+      records[key] = { clock, deleted, value, at: Date.now(), conflicts: [] };
     }
     return { schema: 2, records };
   }
@@ -38,11 +43,21 @@
       if (aDominates && bDominates && equal(a, b)) continue;
       if (aDominates && !bDominates) continue;
       if (bDominates && !aDominates) { records[key] = b; continue; }
-      const variants = [...(a.conflicts || []), ...(b.conflicts || []), { deleted: a.deleted, value: a.value }, { deleted: b.deleted, value: b.value }];
-      const unique = [...new Map(variants.map(v => [JSON.stringify(v), v])).entries()].sort(([x], [y]) => x < y ? -1 : x > y ? 1 : 0);
+      const variants = [...(a.conflicts || []), ...(b.conflicts || []), { deleted: a.deleted, value: a.value, at: a.at }, { deleted: b.deleted, value: b.value, at: b.at }];
+      // Same content from two devices is one variant; keep its latest edit time.
+      const byContent = new Map();
+      for (const v of variants) {
+        const id = JSON.stringify({ deleted: v.deleted, value: v.value }), seen = byContent.get(id);
+        if (!seen || (v.at || 0) > (seen.at || 0)) byContent.set(id, v);
+      }
+      const unique = [...byContent.entries()].sort(([x], [y]) => x < y ? -1 : x > y ? 1 : 0).map(([, v]) => v);
       // Deletions win a concurrent delete/edit; the edit remains recoverable.
-      const winner = unique.find(([,v]) => v.deleted)?.[1] || unique[unique.length - 1][1];
-      records[key] = { ...winner, clock: join(a.clock, b.clock), conflicts: unique.map(([,v]) => v) };
+      // Between two edits the newer one wins. It used to be whichever sorted
+      // last as JSON text, so an older edit could beat a newer one (found
+      // 2026-09-29). Records from before edit times existed tie at 0 and fall
+      // back to that fixed order, which still converges on every device.
+      const winner = unique.find(v => v.deleted) || unique.reduce((best, v) => (v.at || 0) > (best.at || 0) ? v : best, unique[unique.length - 1]);
+      records[key] = { ...winner, clock: join(a.clock, b.clock), conflicts: unique };
     }
     return { schema: 2, records };
   }

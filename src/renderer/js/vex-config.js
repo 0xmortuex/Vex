@@ -22,14 +22,17 @@ const VexConfig = {
   aiWorkerUrl() {
     try { return (localStorage.getItem('vex.aiWorkerUrl') || '').trim(); } catch { return ''; }
   },
+  // A pasted URL ending in "/" made every call go to "//auth/..." and the
+  // worker answered "Not found" (found 2026-09-29). The Settings field writes
+  // localStorage directly, so the getter strips it as well as the setter.
   syncWorkerUrl() {
-    try { return (localStorage.getItem('vex.syncWorkerUrl') || '').trim(); } catch { return ''; }
+    try { return (localStorage.getItem('vex.syncWorkerUrl') || '').trim().replace(/\/+$/, ''); } catch { return ''; }
   },
   setAiWorkerUrl(url) {
     try { localStorage.setItem('vex.aiWorkerUrl', String(url || '').trim()); } catch {}
   },
   setSyncWorkerUrl(url) {
-    try { localStorage.setItem('vex.syncWorkerUrl', String(url || '').trim()); } catch {}
+    try { localStorage.setItem('vex.syncWorkerUrl', String(url || '').trim().replace(/\/+$/, '')); } catch {}
   },
 };
 

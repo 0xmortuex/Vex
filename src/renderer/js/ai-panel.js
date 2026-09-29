@@ -1953,7 +1953,8 @@ const AIPanel = {
       const persona = this.getActivePersona();
       const aiResult = await AIRouter.callAI('multiTab', {
         message, tabContexts,
-        conversationHistory: this._historyFor(conv, retry).filter(m => m.role !== 'system').slice(-6),
+        // The same number of turns as a one-page chat (found 2026-09-29).
+        conversationHistory: this._historyFor(conv, retry).filter(m => m.role !== 'system').slice(-this.HISTORY_SENT),
         signal: abort.signal,
         persona: persona ? { id: persona.id, systemPrompt: persona.systemPrompt, temperature: persona.temperature } : null
       });

@@ -25,12 +25,15 @@ describe('a private window follows switches changed in the normal window', () =>
   let rules;
   beforeEach(async () => {
     rules = {};
-    window.vex = { siteRulesGet: vi.fn(async () => ({ ok: true, rules: structuredClone(rules) })) };
+    window.vex = {
+      siteRulesGet: vi.fn(async () => ({ ok: true, rules: structuredClone(rules) })),
+      onSiteRulesChanged: vi.fn((cb) => { window.__siteRulesChanged = cb; return () => {}; }),
+    };
     window.VexTabPolicy = { isPrivateWindow: true };
     S = fresh('../../src/renderer/js/site-rules-ui.js').SiteRulesUI;
     await flush();
   });
-  afterEach(() => { clearInterval(S._mirrorTimer); window.VexTabPolicy = { isPrivateWindow: false }; });
+  afterEach(() => { window.VexTabPolicy = { isPrivateWindow: false }; });
 
   it('reads them again when the window is come back to', async () => {
     expect(S.scriptsOff('https://example.com/')).toBe(false);
@@ -40,16 +43,12 @@ describe('a private window follows switches changed in the normal window', () =>
     expect(S.scriptsOff('https://example.com/')).toBe(true);
   });
 
-  it('and every few seconds while it is on screen', async () => {
-    vi.useFakeTimers();
-    try {
-      clearInterval(S._mirrorTimer);
-      S = fresh('../../src/renderer/js/site-rules-ui.js').SiteRulesUI;
-      await vi.advanceTimersByTimeAsync(0);
-      rules = { 'example.com': { js: 'off' } };
-      await vi.advanceTimersByTimeAsync(3100);
-      expect(S.scriptsOff('https://example.com/')).toBe(true);
-    } finally { clearInterval(S._mirrorTimer); vi.useRealTimers(); }
+  it('takes a change the moment main sends it, with no polling', async () => {
+    const reads = window.vex.siteRulesGet.mock.calls.length;
+    window.__siteRulesChanged({ 'example.com': { js: 'off' } });
+    expect(S.scriptsOff('https://example.com/')).toBe(true);
+    expect(window.vex.siteRulesGet.mock.calls.length).toBe(reads);
+    expect(S._mirrorTimer).toBeUndefined();
   });
 });
 

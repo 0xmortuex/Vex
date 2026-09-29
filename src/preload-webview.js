@@ -74,7 +74,8 @@ function runInMainWorld(src) {
 // its site switch pointed at the popup (2026-09-28).
 //
 // openTab, where given, asks main to open a Vex tab: a web page or one of the
-// extension's own pages (tabs.create, runtime.openOptionsPage).
+// extension's own pages (tabs.create, runtime.openOptionsPage). It answers
+// with the tab made: { id, url, active }, id being the page's webContents id.
 function vexExtensionStandIns(c, askPopupTab, openTab) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
@@ -218,18 +219,29 @@ function vexExtensionStandIns(c, askPopupTab, openTab) {
   // popup's "Manage", "Options" and "Report a bug" did nothing (found
   // 2026-09-29). Both open a Vex tab through main, which opens only web pages
   // and this extension's own pages. A relative address is the extension's.
+  // tabs.create answered undefined, so an extension had no id to update or
+  // close the tab by (found 2026-09-29): it answers with the tab, as Electron's
+  // tabs.get describes it (window, index) where it knows the page yet.
   if (typeof openTab === 'function' && typeof c.runtime.getURL === 'function') {
     var base = c.runtime.getURL('');
     var openUrl = function (url, active) {
       if (!url) return Promise.reject(new Error('Vex opens a tab for an extension only with an address'));
-      return Promise.resolve(openTab({ url: new URL(String(url), base).href, active: active !== false })).then(function () { return undefined; });
+      return Promise.resolve(openTab({ url: new URL(String(url), base).href, active: active !== false }));
+    };
+    var asTab = function (made) {
+      var tab = { id: made.id, index: 0, windowId: 0, url: made.url, pendingUrl: made.url, active: made.active };
+      if (!c.tabs || typeof c.tabs.get !== 'function') return tab;
+      return Promise.resolve(c.tabs.get(made.id)).then(function (known) {
+        if (!known) return tab;
+        return Object.assign({}, known, { url: known.url || made.url, pendingUrl: made.url, active: made.active, highlighted: made.active });
+      });
     };
     if (c.tabs && typeof c.tabs.create !== 'function') {
-      c.tabs.create = function (props, cb) { return answerWith(openUrl(props && props.url, props && props.active), cb); };
+      c.tabs.create = function (props, cb) { return answerWith(openUrl(props && props.url, props && props.active).then(asTab), cb); };
     }
     var optionsPage = manifest.options_page || (manifest.options_ui && manifest.options_ui.page) || null;
     c.runtime.openOptionsPage = function (cb) {
-      return answerWith(optionsPage ? openUrl(optionsPage, true) : Promise.reject(new Error('This extension has no options page')), cb);
+      return answerWith(optionsPage ? openUrl(optionsPage, true).then(function () { return undefined; }) : Promise.reject(new Error('This extension has no options page')), cb);
     };
   }
   return true;
@@ -1978,6 +1990,22 @@ if (typeof module !== 'undefined' && module.exports) {
   if (!ipc || typeof ipc.send !== 'function') return;
   var PAGE_FIRST_PLAIN = 'bhmdpu';
   var PAGE_FIRST_SHIFTED = 'oszamlh';
+  // Chromium's own editing commands never call preventDefault, so a page
+  // with no key handler of its own looked as if it had left these alone:
+  // Ctrl+B in a plain contenteditable made the text bold AND hid the tab
+  // sidebar, Ctrl+U underlined AND opened view-source, and Ctrl+Shift+Z
+  // (redo) in a textarea put the tab to sleep, taking the typed text with it
+  // (found 2026-09-29). A key the focused field acts on itself stays its own.
+  // Keys editing does not use (Ctrl+H, Ctrl+D, ...) still reach Vex.
+  var TEXT_INPUT_TYPES = /^(text|search|url|tel|email|password|number)$/;
+  function nativeEditKey(el, k, shift) {
+    if (!el || el.nodeType !== 1) return false;
+    var rich = !!el.isContentEditable || document.designMode === 'on';
+    var field = !el.readOnly && !el.disabled && (el.tagName === 'TEXTAREA' ||
+      (el.tagName === 'INPUT' && TEXT_INPUT_TYPES.test(String(el.type || 'text').toLowerCase())));
+    if (shift) return (rich || field) && k === 'z';       // redo
+    return rich && (k === 'b' || k === 'u');              // bold, underline
+  }
   window.addEventListener('keydown', function (e) {
     // A key the page made up with dispatchEvent is not the user pressing it:
     // a page could close tabs and open panels that way, even from a
@@ -1986,6 +2014,9 @@ if (typeof module !== 'undefined' && module.exports) {
     if (!(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
     var k = String(e.key || '').toLowerCase();
     if (k.length !== 1 || (e.shiftKey ? PAGE_FIRST_SHIFTED : PAGE_FIRST_PLAIN).indexOf(k) === -1) return;
+    // The element really focused, inside a shadow root too.
+    var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    if (nativeEditKey(path[0] || e.target, k, !!e.shiftKey)) return;
     // Every listener of the page has run by the time this fires.
     setTimeout(function () {
       if (!e.defaultPrevented) ipc.send('guest:page-shortcut', { key: k, shift: !!e.shiftKey });
@@ -2005,10 +2036,42 @@ if (typeof module !== 'undefined' && module.exports) {
   var ipc;
   try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
   if (!ipc || typeof ipc.sendToHost !== 'function') return;
+  // Something of the page's own open when the key went down. Looked at before
+  // any of the page's listeners run (this capture listener is registered
+  // before the page's scripts): a site that closes its own popup on Escape
+  // without calling preventDefault had already removed it by the time the
+  // listener below ran, and Peek closed along with it (found 2026-09-29).
+  var shown = function (el) {
+    if (!el || !el.getClientRects().length) return false;
+    var cs = window.getComputedStyle(el);
+    return cs.visibility !== 'hidden' && cs.display !== 'none';
+  };
+  var pageHadOpen = function () {
+    if (document.fullscreenElement || document.querySelector('dialog[open]')) return true;
+    var els = document.querySelectorAll('[aria-modal="true"], [role="dialog"], [role="alertdialog"]');
+    for (var i = 0; i < els.length; i++) if (shown(els[i])) return true;
+    return false;
+  };
+  // Marked on this world's own view of the event, which the page cannot see.
   window.addEventListener('keydown', function (e) {
-    if (!e.isTrusted || e.key !== 'Escape' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    if (!e.isTrusted || e.key !== 'Escape') return;
+    e.__vexPageHadOpen = pageHadOpen();
+  }, true);
+  window.addEventListener('keydown', function (e) {
+    if (!e.isTrusted || e.repeat || e.metaKey || e.altKey || e.shiftKey) return;
+    // Ctrl+Enter opens a Peek as a tab; from inside the peeked page it went to
+    // the page and did nothing (found 2026-09-29). Only Peek acts on it.
+    if (e.key === 'Enter' && e.ctrlKey) {
+      setTimeout(function () {
+        if (!e.defaultPrevented) { try { ipc.sendToHost('vex-peek-promote'); } catch (err) { /* host gone */ } }
+      }, 0);
+      return;
+    }
+    if (e.key !== 'Escape' || e.ctrlKey) return;
     // Escape closes an open <dialog> and leaves full screen without the page
-    // calling preventDefault, so those count as the page's own.
+    // calling preventDefault, so those count as the page's own; so does any
+    // dialog of the page's that was showing when the key went down.
+    if (e.__vexPageHadOpen) return;
     if (document.fullscreenElement || document.querySelector('dialog:modal')) return;
     // Every listener of the page has run by the time this fires.
     setTimeout(function () {

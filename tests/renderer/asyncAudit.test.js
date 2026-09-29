@@ -44,7 +44,11 @@ it('failed recovery never starts auto-push and clears the failed enrollment', as
   expect(window.SyncEngine.isEnabled()).toBe(false);
   expect(window.vex.syncClearState).toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
-  expect(fetchMock).toHaveBeenCalledTimes(2);
+  // verify-code, pull, then removing the half-enrolled device from the server
+  // (2026-09-29: it used to stay behind as a ghost). No auto-push after that.
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(fetchMock.mock.calls[2][0]).toBe('https://sync.test/sync/devices/new');
+  expect(fetchMock.mock.calls[2][1].method).toBe('DELETE');
 });
 
 it('validates a recovery key before consuming an email verification code', async () => {

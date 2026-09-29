@@ -96,9 +96,10 @@ const VexMail = {
         <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Email address<input data-email type="email" maxlength="320" autocomplete="off" spellcheck="false" style="${field}"></label>
         <div data-help style="font-size:11.5px;color:var(--text-muted);min-height:15px"></div>
         <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">App password<input data-pass type="password" maxlength="512" autocomplete="off" style="${field}"></label>
-        <div data-custom hidden style="display:grid;grid-template-columns:1fr 90px;gap:8px">
+        <div data-custom hidden style="display:grid;grid-template-columns:1fr 90px 110px;gap:8px">
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">IMAP server<input data-host type="text" maxlength="255" placeholder="imap.example.com" spellcheck="false" style="${field}"></label>
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Port<input data-port type="number" value="993" min="1" max="65535" style="${field}"></label>
+          <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Security<select data-security style="${field}"><option value="tls" selected>TLS</option><option value="starttls">STARTTLS</option></select></label>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <button type="submit" style="font:inherit;font-size:12.5px;padding:7px 14px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Sign in</button>
@@ -113,6 +114,13 @@ const VexMail = {
       help.textContent = this.PROVIDER_HELP[domain] || (domain.includes('.') && !this.KNOWN.includes(domain) ? 'Enter your provider\'s IMAP server below, and an app password if it issues them.' : '');
       custom.hidden = !(domain.includes('.') && !this.KNOWN.includes(domain) && !this.PROVIDER_HELP[domain]);
     });
+    // The security followed the port (TLS only on 993), so a server with TLS on
+    // another port could not be added (found 2026-09-29). The port still picks
+    // it, until it is chosen by hand.
+    const port = body.querySelector('[data-port]'), security = body.querySelector('[data-security]');
+    let securityChosen = false;
+    security.addEventListener('change', () => { securityChosen = true; });
+    port.addEventListener('input', () => { if (!securityChosen) security.value = Number(port.value) === 993 ? 'tls' : 'starttls'; });
     body.querySelector('[data-back]')?.addEventListener('click', () => this.open());
     body.querySelector('[data-setup]').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -121,7 +129,7 @@ const VexMail = {
       btn.disabled = true; status.textContent = 'Signing in…';
       try {
         const account = { email: email.value.trim(), password: body.querySelector('[data-pass]').value };
-        if (!custom.hidden) { account.host = body.querySelector('[data-host]').value.trim(); account.port = Number(body.querySelector('[data-port]').value) || 993; account.secure = account.port === 993; }
+        if (!custom.hidden) { account.host = body.querySelector('[data-host]').value.trim(); account.port = Number(port.value) || 993; account.secure = security.value === 'tls'; }
         const added = await this._call(window.vex.mail.add(account));
         body.querySelector('[data-pass]').value = '';
         window.showToast?.('Signed in to ' + added.email);
@@ -135,7 +143,10 @@ const VexMail = {
     email.focus();
   },
 
-  async _drawInbox(accounts, accountId) {
+  // How many messages main hands over at most (MAX_LIST in src/main/mail.js).
+  MAX_LIST: 100,
+
+  async _drawInbox(accounts, accountId, limit = 50) {
     const { head, body } = this._ui;
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     this._state.accountId = accountId;
@@ -146,12 +157,12 @@ const VexMail = {
       <button data-mailhead data-refresh type="button" style="${btn}">Refresh</button>
       <button data-mailhead data-manage type="button" style="${btn}">Accounts</button>`);
     head.querySelector('[data-account]')?.addEventListener('change', (e) => this._drawInbox(accounts, e.target.value));
-    head.querySelector('[data-refresh]').addEventListener('click', () => this._drawInbox(accounts, accountId));
+    head.querySelector('[data-refresh]').addEventListener('click', () => this._drawInbox(accounts, accountId, limit));
     head.querySelector('[data-manage]').addEventListener('click', () => this._drawAccounts(accounts));
 
     body.innerHTML = `<div style="padding:26px;text-align:center;font-size:12.5px;color:var(--text-muted)">Reading the inbox…</div>`;
     let inbox;
-    try { inbox = await this.inbox(accountId, 50); }
+    try { inbox = await this.inbox(accountId, limit); }
     catch (err) { body.innerHTML = `<div style="padding:22px;font-size:12.5px;color:var(--danger,#e5534b)">${esc(err.message)}</div>`; return; }
     if (!this._ui.overlay.isConnected) return;
     this._state.inbox = inbox;
@@ -183,6 +194,13 @@ const VexMail = {
       });
       list.appendChild(row);
     }
+    // 50 of 501 were listed with nothing saying the rest exist (found
+    // 2026-09-29). Say so, and offer more up to what main will send.
+    if (inbox.total > inbox.messages.length && inbox.messages.length) {
+      const where = inbox.account.webmail ? 'in ' + esc(inbox.account.name) : 'in your mail program';
+      list.insertAdjacentHTML('beforeend', `<div data-more-note style="padding:10px 12px;font-size:11.5px;color:var(--text-muted)">Showing the newest ${inbox.messages.length} of ${inbox.total}.${limit < this.MAX_LIST ? ` <button data-more type="button" style="${btn}">Load more</button>` : ` The rest are ${where}.`}</div>`);
+      list.querySelector('[data-more]')?.addEventListener('click', () => this._drawInbox(accounts, accountId, this.MAX_LIST));
+    }
   },
 
   async _read(accountId, m) {
@@ -199,11 +217,13 @@ const VexMail = {
     }
     const text = msg.text || this.htmlToText(msg.html);
     const name = this._state.inbox ? this._state.inbox.account.name : 'webmail';
+    // A custom server has no webmail, and its name is its host: attachments
+    // said "download them from 127.0.0.1" (found 2026-09-29).
     reader.innerHTML = `
       <div style="font-size:15px;font-weight:650;color:var(--text);margin-bottom:6px">${esc(msg.subject || '(no subject)')}</div>
       <div style="font-size:11.5px;color:var(--text-muted);line-height:1.5">From ${esc(msg.from)}<br>To ${esc(msg.to)}${msg.cc ? '<br>Cc ' + esc(msg.cc) : ''}<br>${esc(msg.date ? new Date(msg.date).toLocaleString() : '')}</div>
       ${msg.webmail ? `<div style="margin:10px 0"><button data-reply type="button" style="font:inherit;font-size:12px;padding:5px 11px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Reply in ${esc(name)}</button></div>` : ''}
-      ${msg.attachments.length ? `<div style="font-size:11.5px;color:var(--text-muted);margin:8px 0">Attached: ${msg.attachments.map(a => esc(a.filename) + ' (' + esc(this.size(a.size)) + ')').join(', ')} — download them from ${esc(name)}.</div>` : ''}
+      ${msg.attachments.length ? `<div style="font-size:11.5px;color:var(--text-muted);margin:8px 0">Attached: ${msg.attachments.map(a => esc(a.filename) + ' (' + esc(this.size(a.size)) + ')').join(', ')} — ${msg.webmail ? 'download them from ' + esc(name) : 'download them in your mail program'}.</div>` : ''}
       <div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:var(--text);border-top:1px solid var(--border);padding-top:10px;margin-top:6px">${text ? this.linkify(text) : '<span style="color:var(--text-muted)">This message has no text.</span>'}</div>
       <div style="font-size:10.5px;color:var(--text-muted);margin-top:12px">Shown as text: pictures and other remote content are not loaded, so nothing reports that you opened it. Reading here did not mark it read.</div>`;
     reader.querySelector('[data-reply]')?.addEventListener('click', () => { TabManager.createTab(msg.webmail, true); this._ui.close(); });

@@ -59,6 +59,22 @@ const WebviewManager = {
       + (keptAwake ? ',backgroundThrottling=no' : '')
       + (noScripts ? ',javascript=no' : ''));
     webview.dataset.tabId = tab.id;
+    // Browsing on to such a site from here is held to it by main, on the
+    // page's own response (script-src 'none'). The other way round cannot be:
+    // a tab built without JavaScript keeps it off for every site after, so
+    // leaving for a site that has it is done in a tab built again for that
+    // site. Its back list does not survive that (found 2026-09-29).
+    if (noScripts) {
+      const leave = (event) => {
+        if (event.isMainFrame === false || event.isInPlace || !/^https?:/i.test(event.url || '')) return;
+        if (window.SiteRulesUI.scriptsOff(event.url)) return;
+        try { webview.stop(); } catch { /* going anyway */ }
+        tab.url = event.url;
+        TabManager.rebuildTab(tab.id);
+      };
+      onWebview('did-start-navigation', leave);
+      onWebview('did-redirect-navigation', leave);
+    }
 
     // Events
     onWebview('did-start-loading', () => {
@@ -1251,7 +1267,9 @@ const WebviewManager = {
       textItems.push({
         label: `Search "${e.params.selectionText.substring(0, 20)}..."`,
         action: () => {
-          TabManager.createTab(VexTypedAddress.searchUrl(e.params.selectionText), true);
+          // In the page's own session: from a Tor or burner tab this searched
+          // from the real address (found 2026-09-29).
+          TabManager.createTab(VexTypedAddress.searchUrl(e.params.selectionText), true, null, { partition: webview.getAttribute?.('partition') });
         }
       });
       // Editable contexts already got a Copy row in editItems above.
@@ -1395,7 +1413,7 @@ const WebviewManager = {
       imageItems.push({ label: 'Save Image As…', action: () => this.saveImage(webview, imageSrc, true) });
       imageItems.push({ label: 'Copy Image', action: () => this.copyImage(webview, imageSrc, e.params) });
       imageItems.push({ label: 'Copy Image Address', action: () => { navigator.clipboard.writeText(imageSrc); window.showToast?.('Image address copied'); } });
-      if (web) imageItems.push({ label: 'Search Image with Lens', action: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imageSrc), true) });
+      if (web) imageItems.push({ label: 'Search Image with Lens', action: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imageSrc), true, null, { partition }) });
       if (typeof ImageZoom !== 'undefined') imageItems.push({ label: 'Zoom Image', action: () => ImageZoom.open(imageSrc) });
       if (web && typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) imageItems.push({ label: 'Ask Vex About This Image', action: () => AIPanel.askAboutImage(imageSrc) });
     }

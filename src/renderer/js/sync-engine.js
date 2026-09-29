@@ -57,6 +57,11 @@ const SyncEngine = (() => {
     'vex-theme'
   ];
 
+  // Lists synced item by item, so two devices' entries merge instead of one
+  // whole list replacing the other. Notes were one value, so joining sync (or
+  // a concurrent edit) dropped every note one side had (found 2026-09-29).
+  const LIST_PREFERENCES = ['vex.bookmarks', 'vex.sessions', 'vex.history', 'vex.notes'];
+
   let state = {
     enabled: false,
     email: null,
@@ -107,7 +112,12 @@ const SyncEngine = (() => {
       throw new Error(err.error || 'Code verification failed');
     }
     const data = await r.json();
-    if (data.hasEncryptedData !== false) throw new Error('This account already has encrypted data, or the server needs updating. Enroll with your recovery code.');
+    if (data.hasEncryptedData !== false) {
+      // The server registered this device before answering; a refusal here
+      // left a ghost in the device list (found 2026-09-29).
+      await forgetDevice(data.sessionToken, data.deviceId);
+      throw new Error('This account already has encrypted data, or the server needs updating. Enroll with your recovery code.');
+    }
     const cryptoKey = await SyncCrypto.generateKey();
     const keyBytes = await SyncCrypto.exportKey(cryptoKey);
     const keyHex = SyncCrypto.keyToHex(keyBytes);
@@ -131,7 +141,7 @@ const SyncEngine = (() => {
     pullBlocked = false;
     // Do not advertise enrollment until the first encrypted document exists.
     const pushed = await pushNow();
-    if (!pushed.ok) { await signOut(); throw new Error('Initial sync failed: ' + pushed.reason); }
+    if (!pushed.ok) { await signOut(true); throw new Error('Initial sync failed: ' + pushed.reason); }
     startAutoSync();
 
     return { ok: true, recoveryCode: SyncCrypto.formatRecoveryCode(keyHex) };
@@ -171,11 +181,37 @@ const SyncEngine = (() => {
     // Pull cloud data first (it's authoritative when restoring on a new device)
     const pulled = await pullNow({ restore: true });
     if (!pulled.ok) {
-      await signOut();
+      // signOut(true) so a failed join does not leave a ghost device on the
+      // server (found 2026-09-29).
+      await signOut(true);
+      if (pulled.badKey) throw new Error('This recovery code doesn’t unlock this account’s data — check it and try again.');
       throw new Error('Could not restore sync data: ' + pulled.reason);
     }
+    // The restore kept what this device had that the cloud did not; upload it
+    // so the other devices get it too.
+    const pushed = await pushNow();
     startAutoSync();
-    return { ok: true };
+    return pushed.ok ? { ok: true } : { ok: true, pushError: pushed.reason };
+  }
+
+  // Removes a device the server registered during a sign-in that then failed.
+  async function forgetDevice(sessionToken, deviceId) {
+    if (!sessionToken || !deviceId) return;
+    try {
+      const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/devices/${deviceId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${sessionToken}` }
+      });
+      if (!r.ok) console.error('[Sync] Could not remove the half-enrolled device: server returned ' + r.status);
+    } catch (err) { console.error('[Sync] Could not remove the half-enrolled device:', err); }
+  }
+
+  // The server stopped recognising this device (removed from another device,
+  // or the cloud data was wiped). Signing out silently left the user with a
+  // sync that had just stopped (found 2026-09-29).
+  async function signedOutByServer() {
+    await signOut();
+    window.showToast?.('This device was signed out of Vex Sync — the server no longer recognises it (it was removed from another device, or the cloud data was wiped). Sign in again in Settings › Sync.', 'error');
   }
 
   async function signOut(removeFromServer = false) {
@@ -214,8 +250,8 @@ const SyncEngine = (() => {
       const raw = localStorage.getItem(key);
       if (raw === null || raw === undefined) continue;
       // Store the raw string so values round-trip byte-for-byte.
-      if (['vex.bookmarks','vex.sessions','vex.history'].includes(key)) {
-        try { data['preference:' + key] = JSON.parse(raw); } catch { throw new Error('Invalid bookmarks data'); }
+      if (LIST_PREFERENCES.includes(key)) {
+        try { data['preference:' + key] = JSON.parse(raw); } catch { throw new Error('Invalid ' + key.slice(4) + ' data'); }
       } else data['preference:' + key] = raw;
     }
     for (const key of STORE_KEYS) {
@@ -238,7 +274,7 @@ const SyncEngine = (() => {
       const sources = {};
       for (const key of preferenceKeys()) if (Object.hasOwn(data, key)) {
         let value = data[key];
-        if (['vex.bookmarks','vex.sessions','vex.history'].includes(key) && typeof value === 'string') value = JSON.parse(value);
+        if (LIST_PREFERENCES.includes(key) && typeof value === 'string') value = JSON.parse(value);
         sources['preference:' + key] = value;
       }
       for (const key of STORE_KEYS) if (Object.hasOwn(data, 'vex.' + key)) {
@@ -249,11 +285,29 @@ const SyncEngine = (() => {
       }
       data = records.capture(records.empty(), records.flatten(sources), 'legacy');
     }
-    const local = restore ? records.empty() : await collectSyncData();
-    const merged = records.merge(local, data);
+    const local = await collectSyncData();
+    let merged;
+    if (restore) {
+      // Joining used to start from an empty local side, so every bookmark,
+      // note and setting this device already had was overwritten or removed
+      // (found 2026-09-29). The cloud still wins for every record it has,
+      // tombstones included; records only this device has are kept, and
+      // enrollWithRecoveryCode pushes them up afterwards.
+      records.valid(data);
+      merged = { schema: 2, records: { ...data.records } };
+      const typeOf = (doc, key) => doc.records[JSON.stringify([JSON.parse(key)[0], 'type'])];
+      for (const [key, record] of Object.entries(local.records)) {
+        if (Object.hasOwn(merged.records, key) || record.deleted) continue;
+        // The cloud keeps this source in another shape (notes pushed as one
+        // value by an older Vex): its copy wins whole rather than mixing both.
+        const cloudType = typeOf(data, key);
+        if (cloudType && !cloudType.deleted && cloudType.value !== typeOf(local, key)?.value) continue;
+        merged.records[key] = record;
+      }
+    } else merged = records.merge(local, data);
     const sources = records.unflatten(records.values(merged));
     window.VexDataContracts?.sources(sources);
-    for (const key of ['vex.bookmarks', 'vex.history', 'vex.sessions']) {
+    for (const key of LIST_PREFERENCES) {
       const name = 'preference:' + key;
       if (!Object.hasOwn(sources, name)) continue;
       const value = typeof sources[name] === 'string' ? JSON.parse(sources[name]) : sources[name];
@@ -272,15 +326,36 @@ const SyncEngine = (() => {
     await VexStorage.save('sync-records', merged);
     if (typeof TabManager !== 'undefined' && Array.isArray(sources['storage:tabs'])) TabManager.applySyncedState(sources['storage:tabs'], sources['storage:groups'], sources['storage:stacks']);
     if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.reloadSyncedState?.();
-    const conflicts = Object.values(merged.records).filter(r => r.conflicts?.length > 1).length;
-    if (conflicts) window.showToast?.(`${conflicts} sync conflicts retained in recovery data`);
+    // Only conflicts this merge created. Counting every record that still
+    // carried old variants repeated the toast on every sync (found 2026-09-29).
+    // A restore copies records as they are and never creates one.
+    const conflicts = restore ? 0 : Object.entries(merged.records).filter(([key, r]) => r.conflicts?.length > 1
+      && JSON.stringify(r.conflicts) !== JSON.stringify(local.records[key]?.conflicts || [])).length;
+    if (conflicts) window.showToast?.(conflicts === 1 ? '1 sync conflict retained in recovery data' : `${conflicts} sync conflicts retained in recovery data`);
     // Tell panels to re-read their state.
     window.dispatchEvent(new CustomEvent('vex-sync-data-applied'));
   }
 
   // ===== PUSH/PULL =====
 
+  // A 409 means another device pushed since this one last pulled. The worker
+  // refuses the push until we merge, so pull and try once more instead of
+  // failing with "Push returned 409" (found 2026-09-29). Auto-push uses this too.
   async function pushNow() {
+    const first = await pushOnce();
+    if (!first.conflict) return first;
+    const pulled = await pullNow();
+    if (!pulled.ok) return { ok: false, reason: pulled.reason };
+    const second = await pushOnce();
+    if (second.conflict) {
+      state.lastError = second.reason;
+      window.dispatchEvent(new CustomEvent('vex-sync-status', { detail: { error: state.lastError } }));
+      return { ok: false, reason: second.reason };
+    }
+    return second;
+  }
+
+  async function pushOnce() {
     if (pullBlocked) return { ok: false, reason: 'Recover cloud data with a successful pull before uploading changes' };
     if (!syncWorkerUrl()) {
       console.log('[Sync] not configured — skipping push');
@@ -299,7 +374,8 @@ const SyncEngine = (() => {
         },
         body: JSON.stringify({ encryptedBlob, updatedAt: new Date().toISOString(), baseRevision: revision })
       });
-      if (r.status === 401) { await signOut(); return { ok: false, reason: 'unauthorized' }; }
+      if (r.status === 401) { await signedOutByServer(); return { ok: false, reason: 'unauthorized' }; }
+      if (r.status === 409) return { ok: false, conflict: true, reason: 'Another device synced at the same moment — try again' };
       if (!r.ok) throw new Error('Push returned ' + r.status);
       revision = (await r.json()).revision;
       state.lastPushAt = new Date().toISOString();
@@ -327,7 +403,7 @@ const SyncEngine = (() => {
       const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/pull`, {
         headers: { 'Authorization': `Bearer ${state.sessionToken}` }
       });
-      if (r.status === 401) { await signOut(); return { ok: false, reason: 'unauthorized' }; }
+      if (r.status === 401) { await signedOutByServer(); return { ok: false, reason: 'unauthorized' }; }
       if (!r.ok) throw new Error('Pull returned ' + r.status);
 
       const result = await r.json();
@@ -342,7 +418,18 @@ const SyncEngine = (() => {
         return { ok: true, empty: true };
       }
       pullBlocked = true;
-      const decrypted = await SyncCrypto.decrypt(blob, state.encryptionKey);
+      let decrypted;
+      try { decrypted = await SyncCrypto.decrypt(blob, state.encryptionKey); }
+      catch (err) {
+        // AES-GCM rejects a wrong key as a bare "OperationError", which is what
+        // a mistyped recovery code showed (found 2026-09-29).
+        if (err?.name === 'OperationError') {
+          console.error('[Sync] Pull failed: this key does not decrypt the cloud data');
+          state.lastError = 'This key doesn’t unlock this account’s data';
+          return { ok: false, badKey: true, reason: state.lastError };
+        }
+        throw err;
+      }
       await applySyncData(decrypted, restore);
       // Only acknowledge a revision after its contents were decrypted and applied.
       // Otherwise a stale or damaged local key could overwrite unreadable cloud data.
@@ -392,7 +479,7 @@ const SyncEngine = (() => {
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/devices`, {
       headers: { 'Authorization': `Bearer ${state.sessionToken}` }
     });
-    if (r.status === 401) { await signOut(); throw new Error('This device is no longer enrolled — sign in again'); }
+    if (r.status === 401) { await signedOutByServer(); throw new Error('This device is no longer enrolled — sign in again'); }
     if (!r.ok) throw new Error('Could not load your devices (server returned ' + r.status + ')');
     const data = await r.json().catch(() => null);
     if (!data || !Array.isArray(data.devices)) throw new Error('Could not load your devices (unexpected response)');
@@ -536,8 +623,13 @@ const SyncEngine = (() => {
       const items = [];
       for (const item of (d?.items || [])) {
         if (!item.encryptedBlob) continue;
-        const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
-        if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) items.push({ ...item, url: payload.url, title: String(payload.title || '') });
+        // One unreadable item used to throw out of the loop and lose every
+        // other handed-off tab with it (found 2026-09-29). The server already
+        // consumed them, so skip only the bad one and say so in the log.
+        try {
+          const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
+          if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) items.push({ ...item, url: payload.url, title: String(payload.title || '') });
+        } catch (err) { console.error('[Sync] Skipped a handed-off tab that could not be read:', err); }
       }
       return items;
     } catch { return []; }

@@ -189,7 +189,22 @@ function writeScopes(extensionsDir, scopes) {
   fs.writeFileSync(scopePath(extensionsDir), JSON.stringify(scopes, null, 2));
 }
 
+// An update sets the installed copy aside in extensions-replaced/<folder>-<ms>
+// until the new one has loaded. Once it has, every set-aside copy of that
+// folder goes — one left by an update that was cut short too — and so does
+// the folder itself when nothing else is left in it: an empty
+// extensions-replaced stayed behind after every update (found 2026-09-29).
+function tidyReplaced(backupDir, folder) {
+  if (!fs.existsSync(backupDir)) return;
+  const mine = new RegExp('^' + String(folder).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-\\d+$');
+  for (const n of fs.readdirSync(backupDir).filter(x => mine.test(x))) {
+    fs.rmSync(path.join(backupDir, n), { recursive: true, force: true });
+  }
+  if (!fs.readdirSync(backupDir).length) fs.rmdirSync(backupDir);
+}
+
 module.exports = {
+  tidyReplaced,
   DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS,
   readMessages, localize, slugFromName, pickIcon, pickPages, clampPopupSize,
   archiveProblem, disabledPath, readDisabled, writeDisabled,

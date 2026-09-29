@@ -478,8 +478,11 @@ const AIRouter = (() => {
 
     await warnIfSlow(request);
 
-    // Multi-turn chat: pass history when available
-    if (feature === 'chat' && Array.isArray(request.conversationHistory) && request.conversationHistory.length) {
+    // Multi-turn chat: pass history when available. A multi-tab question too:
+    // it went through generate with no earlier turns, so a follow-up ("and
+    // which one is taller?") lost the answer it followed (found 2026-09-29).
+    // The tabs stay in the last user message, as before.
+    if ((feature === 'chat' || feature === 'multiTab') && Array.isArray(request.conversationHistory) && request.conversationHistory.length) {
       const msgs = [{ role: 'system', content: systemPrompt }];
       // Same rule as the on-device path: never let the trim drop the AI-memory
       // system message that sits at the front of the history.

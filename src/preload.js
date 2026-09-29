@@ -116,6 +116,8 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Downloads (with progress tracking)
   onTabCreateFromExternal: (cb) => subscribe('tab:create-from-external', cb),
+  // Which tab an extension's tabs.create made (requestId from the request above).
+  tabCreatedForExtension: (payload) => ipcRenderer.send('tab:created-for-extension', payload),
 
   // Peek overlay (shift+click a link → floating preview)
   onPeekOpen: (cb) => subscribe('peek:open', cb),
@@ -189,6 +191,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Per-site switches: JavaScript, cookies, third-party content.
   siteRulesGet: () => ipcRenderer.invoke('siterules:get'),
   siteRulesSet: (rules) => ipcRenderer.invoke('siterules:set', rules),
+  // The switches as they are now, sent to every window whenever they change.
+  onSiteRulesChanged: (callback) => subscribe('siterules:changed', callback),
   // How long a few well-known services take to answer, and yours for comparison.
   netLatency: () => ipcRenderer.invoke('net:latency'),
   // What a word means, asked of a dictionary from the main process.

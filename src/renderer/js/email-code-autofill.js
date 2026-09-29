@@ -30,8 +30,10 @@ const EmailCodeAutofill = {
     m = /\bcode[^0-9\n]{0,12}\b(\d{4,8})\b/i.exec(s);
     if (m) return m[1];
     // Fallback: a standalone 6-digit run (the most common OTP length), not part
-    // of a longer number (avoids phone numbers / order ids).
-    m = /(?:^|[^0-9])(\d{6})(?:[^0-9]|$)/.exec(s);
+    // of a longer number (avoids phone numbers / order ids). A group joined to
+    // other digits by a hyphen, dot or space is a phone number too: "Call
+    // 555-123456 now" filled 123456 (found 2026-09-29).
+    m = /(?<!\d)(?<!\d\)?[-.  ])(\d{6})(?!\d)(?![-.  ]\(?\d)/.exec(s);
     if (m) return m[1];
     return null;
   },

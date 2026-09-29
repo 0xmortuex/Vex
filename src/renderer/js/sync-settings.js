@@ -154,8 +154,9 @@ const SyncSettings = (() => {
 
       try {
         if (hasRecovery) {
-          await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode);
-          toast('Signed in — pulled your data', 'success');
+          const joined = await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode);
+          if (joined.pushError) toast('Signed in and pulled your data, but this device’s own data could not be uploaded yet — ' + human(joined.pushError) + '. It will try again on the next sync.', 'error');
+          else toast('Signed in — pulled your data', 'success');
         } else {
           const result = await SyncEngine.verifyCode(email, code);
           showRecoveryCodeDialog(result.recoveryCode);
@@ -266,14 +267,16 @@ const SyncSettings = (() => {
     document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-sync-now');
       btn.disabled = true; btn.textContent = 'Syncing...';
-      const pushR = await SyncEngine.pushNow();
+      // Pull first: pushing first 409'd ("Push returned 409") whenever another
+      // device had synced since this one last pulled (found 2026-09-29).
       const pullR = await SyncEngine.pullNow();
+      const pushR = await SyncEngine.pushNow();
       const ok = pushR.ok && pullR.ok;
       btn.textContent = ok ? 'Done' : 'Failed';
       // "Failed" on its own tells the user nothing they can act on \u2014 name which
       // half failed and why.
       if (!ok) {
-        const why = [!pushR.ok ? `upload: ${human(pushR.reason)}` : '', !pullR.ok ? `download: ${human(pullR.reason)}` : '']
+        const why = [!pullR.ok ? `download: ${human(pullR.reason)}` : '', !pushR.ok ? `upload: ${human(pushR.reason)}` : '']
           .filter(Boolean).join(' \u00b7 ');
         toast('Sync failed \u2014 ' + why, 'error');
       }
@@ -327,7 +330,9 @@ const SyncSettings = (() => {
     });
   }
 
-  return { renderSyncPanel };
+  // human() is shared so every sync message (e.g. Send to My Devices in
+  // command.js) words an unreachable server the same way.
+  return { renderSyncPanel, human };
 })();
 
 window.SyncSettings = SyncSettings;

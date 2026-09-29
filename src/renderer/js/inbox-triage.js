@@ -15,6 +15,14 @@
 // EXAMINE and reads bodies with PEEK), so nothing here archives anything. What
 // it does is group the bulk by who sent it, so archiving a thousand of them in
 // your webmail is four clicks instead of four hundred.
+
+// The Gmail account picked by address, as the Mail sheet opens it: u/0 is
+// whichever account signed in first, the wrong one with several.
+function gmailBase(account) {
+  const email = account && account.email;
+  return 'https://mail.google.com/mail/u/' + (email ? '?authuser=' + encodeURIComponent(email) : '0/');
+}
+
 const InboxTriage = {
   // Addresses that exist so you cannot reply to them.
   NO_REPLY: /(^|[.\-_+])(no-?reply|do-?not-?reply|donotreply|notifications?|noreply|mailer-daemon|bounce|postmaster|automated|alerts?)([.\-_+]|@)/i,
@@ -121,7 +129,7 @@ const InboxTriage = {
           <div data-summary style="font-size:10.5px;color:var(--text-muted)">Reading the newest hundred…</div>
         </div>
         <div data-body style="overflow-y:auto;padding:6px;flex:1"></div>
-        <div style="padding:8px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)">
+        <div data-foot style="padding:8px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)">
           Vex's inbox is read-only, so nothing here is moved or archived — the bulk list opens your webmail with that sender searched, where you can clear it in one go.
         </div>
       </div>`;
@@ -143,9 +151,29 @@ const InboxTriage = {
       return overlay;
     }
 
+    // The first account was always read, whichever one the Mail sheet had
+    // open (found 2026-09-29): start from that one, and with several accounts
+    // offer the others.
+    const picked = typeof VexMail !== 'undefined' && VexMail._state && VexMail._state.accountId;
+    const start = accounts.find(a => a.id === picked) || accounts[0];
+    if (accounts.length > 1) {
+      summaryEl.insertAdjacentHTML('beforebegin', `<select data-account data-sensitive aria-label="Account" style="margin:4px 0;font-size:11.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 4px">${accounts.map(a => `<option value="${esc(a.id)}" ${a.id === start.id ? 'selected' : ''}>${esc(a.email)}</option>`).join('')}</select>`);
+      overlay.querySelector('[data-account]').addEventListener('change', (e) => this._show(overlay, accounts.find(a => a.id === e.target.value), close, esc));
+    }
+    await this._show(overlay, start, close, esc);
+    return overlay;
+  },
+
+  // One account's inbox, sorted into the dialog.
+  async _show(overlay, account, close, esc) {
+    const bodyEl = overlay.querySelector('[data-body]');
+    const summaryEl = overlay.querySelector('[data-summary]');
+    bodyEl.innerHTML = '';
+    summaryEl.textContent = 'Reading the newest hundred…';
     let inbox;
-    try { inbox = await this.inbox(accounts[0].id); }
-    catch (err) { summaryEl.textContent = err.message; return overlay; }
+    try { inbox = await this.inbox(account.id); }
+    catch (err) { summaryEl.textContent = err.message; return; }
+    if (overlay.querySelector('[data-account]') && overlay.querySelector('[data-account]').value !== account.id) return;
 
     const piles = this.sort(inbox.messages || []);
     summaryEl.textContent = this.summary(piles) + ' Of ' + (inbox.unseen || 0) + ' unread in all.';
@@ -160,11 +188,18 @@ const InboxTriage = {
           + bulkBy.map(s => `
             <div data-sender="${esc(s.sender)}" style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;cursor:pointer">
               <div style="flex:1;min-width:0;font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</div>
-              <div style="font-size:11px;color:var(--text-muted)">${s.count} unread → clear in webmail</div>
+              <div style="font-size:11px;color:var(--text-muted)">${s.count} unread → ${account.webmail ? 'clear in webmail' : 'clear it in your mail program'}</div>
             </div>`).join('')
         : '');
+    overlay.querySelector('[data-foot]').textContent = account.webmail
+      ? 'Vex\'s inbox is read-only, so nothing here is moved or archived — the bulk list opens your webmail with that sender searched, where you can clear it in one go.'
+      : 'Vex\'s inbox is read-only, so nothing here is moved or archived. This account has no webmail Vex knows — open these in your mail program.';
 
-    const account = accounts[0];
+    // No webmail (a custom server): the rows are not links.
+    if (!account.webmail) {
+      bodyEl.querySelectorAll('[data-uid], [data-sender]').forEach(row => { row.style.cursor = 'default'; row.title = 'Open this in your mail program'; });
+      return;
+    }
     const byUid = new Map((inbox.messages || []).map(m => [String(m.uid), m]));
     bodyEl.querySelectorAll('[data-uid]').forEach(row => {
       // Replying is the whole point of this pile, and Vex's inbox cannot
@@ -184,28 +219,33 @@ const InboxTriage = {
       row.addEventListener('mouseenter', () => { row.style.background = 'var(--vex-hover-fill,var(--surface))'; });
       row.addEventListener('mouseleave', () => { row.style.background = ''; });
     });
-    return overlay;
   },
 
   // That one message, in the webmail, by the id the mail itself carries —
   // exact, and it works however old the message is.
+  // Everything that was not Yahoo or iCloud went to Gmail — a custom server's
+  // mail too (found 2026-09-29). The provider main worked out says which
+  // webmail it is; an account without one (provider null) has none, and gets
+  // null here.
   webmailMessage(account, message) {
-    const address = String((account && account.email) || '');
+    const provider = account && account.provider;
     const id = String((message && message.messageId) || '').replace(/^<|>$/g, '');
-    if (/@(yahoo|ymail|rocketmail)\./i.test(address)) return 'https://mail.yahoo.com/d/search/keyword=' + encodeURIComponent(String(message.subject || ''));
-    if (/@(icloud|me|mac)\./i.test(address)) return 'https://www.icloud.com/mail/';
-    if (id) return 'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent('rfc822msgid:' + id);
-    return 'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent(String(message.subject || ''));
+    if (provider === 'yahoo') return 'https://mail.yahoo.com/d/search/keyword=' + encodeURIComponent(String(message.subject || ''));
+    if (provider === 'icloud') return 'https://www.icloud.com/mail/';
+    if (provider !== 'gmail') return null;
+    if (id) return gmailBase(account) + '#search/' + encodeURIComponent('rfc822msgid:' + id);
+    return gmailBase(account) + '#search/' + encodeURIComponent(String(message.subject || ''));
   },
 
   // The webmail search that shows everything from that sender, where it can be
   // selected and archived in one go.
   webmailSearch(account, sender) {
-    const address = String((account && account.email) || '');
+    const provider = account && account.provider;
     const query = 'from:' + sender + ' is:unread';
-    if (/@(yahoo|ymail|rocketmail)\./i.test(address)) return 'https://mail.yahoo.com/d/search/keyword=' + encodeURIComponent('from:' + sender);
-    if (/@(icloud|me|mac)\./i.test(address)) return 'https://www.icloud.com/mail/';
-    return 'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent(query);
+    if (provider === 'yahoo') return 'https://mail.yahoo.com/d/search/keyword=' + encodeURIComponent('from:' + sender);
+    if (provider === 'icloud') return 'https://www.icloud.com/mail/';
+    if (provider !== 'gmail') return null;
+    return gmailBase(account) + '#search/' + encodeURIComponent(query);
   },
 };
 

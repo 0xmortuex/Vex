@@ -10,7 +10,9 @@
 // off has no rule at all, and the whole thing stays a short list.
 //
 // What each switch does, and where:
-//   js           the tab is built with JavaScript disabled (renderer)
+//   js           a tab built on the site has JavaScript disabled
+//                (renderer); a page reached inside an open tab gets
+//                script-src 'none' (main)
 //   cookies      the Cookie header is not sent to the site, and Set-Cookie
 //                from it is dropped (main, per request)
 //   thirdParty   requests a page of that site makes to other hosts are

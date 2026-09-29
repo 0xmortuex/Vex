@@ -15,6 +15,9 @@
 // claim they were. Shared by master-volume.js and night-audio.js.
 async function vexGuestEvalFrames(wv, code, userGesture, timeoutMs) {
   if (window.vex && typeof window.vex.evalAllFrames === 'function') {
+    // A tab closed in the meantime has no page left: getWebContentsId throws
+    // "must be attached to the DOM" (found 2026-09-29).
+    if (wv.isConnected === false) throw new Error('The tab was closed');
     const r = await window.vex.evalAllFrames(wv.getWebContentsId(), code, !!userGesture);
     if (!r || !r.ok) throw new Error((r && r.error) || 'The page did not answer');
     return { all: true, results: r.results };
@@ -35,7 +38,7 @@ function vexOnLateFrame(fn, settleMs = 400) {
     const wv = e.target;
     if (e.isMainFrame || !wv || wv.tagName !== 'WEBVIEW') return;
     clearTimeout(timers.get(wv));
-    timers.set(wv, setTimeout(() => { timers.delete(wv); fn(wv); }, settleMs));
+    timers.set(wv, setTimeout(() => { timers.delete(wv); if (wv.isConnected !== false) fn(wv); }, settleMs));
   }, true);
 }
 

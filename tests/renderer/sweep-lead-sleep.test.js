@@ -67,3 +67,39 @@ describe('Sleep Tab on the tab in front', () => {
     expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/another tab/));
   });
 });
+describe('Sleep Tab on a page with typed text', () => {
+  async function setup(typed) {
+    const TabManager = await loadTabManager();
+    TabManager.tabs = [fakeTab('a'), fakeTab('b')];
+    for (const t of TabManager.tabs) WebviewManager.createWebview(t);
+    WebviewManager.webviews.get('a').executeJavaScript = vi.fn(async () => typed);
+    TabManager.activeTabId = 'a';
+    TabManager.switchTab = vi.fn((id) => { TabManager.activeTabId = id; });
+    TabManager.persistTabs = vi.fn();
+    TabManager.render = vi.fn();
+    TabManager.renderTabUpdate = vi.fn();
+    return TabManager;
+  }
+
+  it('asks first, and leaves the tab awake when told no', async () => {
+    const TabManager = await setup(true);
+    globalThis.vexConfirm = vi.fn(async () => false);
+    expect(await TabManager.sleepActiveTab()).toBe(false);
+    expect(globalThis.vexConfirm).toHaveBeenCalledWith(expect.objectContaining({ okLabel: 'Sleep anyway' }));
+    expect(TabManager.activeTabId).toBe('a');
+    expect(TabManager.tabs.find(t => t.id === 'a').sleeping).toBeFalsy();
+  });
+
+  it('sleeps it when told yes', async () => {
+    const TabManager = await setup(true);
+    globalThis.vexConfirm = vi.fn(async () => true);
+    expect(await TabManager.sleepActiveTab()).toBe(true);
+  });
+
+  it('does not ask when nothing was typed', async () => {
+    const TabManager = await setup(false);
+    globalThis.vexConfirm = vi.fn(async () => true);
+    expect(await TabManager.sleepActiveTab()).toBe(true);
+    expect(globalThis.vexConfirm).not.toHaveBeenCalled();
+  });
+});

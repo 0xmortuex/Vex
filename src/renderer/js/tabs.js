@@ -1982,6 +1982,19 @@ const TabManager = {
   // "Sleep Tab" (Ctrl+Shift+Z, Ctrl+K) means the tab in front, which sleepTab
   // never touches, so it did nothing at all (found 2026-09-29). Move to the
   // tab beside it on screen, then put it to sleep.
+  // Whether a field on the page holds text the person typed (differs from what
+  // the page loaded with). A page that cannot be read counts as none.
+  async _hasTypedText(tabId) {
+    const wv = typeof WebviewManager !== 'undefined' && WebviewManager.webviews && WebviewManager.webviews.get(tabId);
+    if (!wv || typeof wv.executeJavaScript !== 'function') return false;
+    try {
+      return !!(await window.vexGuestEval(wv, `[...document.querySelectorAll('textarea, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button])')].some(e => e.value !== e.defaultValue) || !!(document.activeElement && document.activeElement.isContentEditable && document.activeElement.textContent.trim())`));
+    } catch (err) {
+      console.warn('[Tabs] could not check the page for typed text:', err.message);
+      return false;
+    }
+  },
+
   async sleepActiveTab() {
     const tab = this.getActiveTab();
     if (!tab) return false;
@@ -1993,6 +2006,9 @@ const TabManager = {
     const at = order.findIndex(t => t.id === tab.id);
     const next = order[at + 1] || order[at - 1];
     if (!next) { window.showToast?.('Open another tab first — the one in front cannot sleep'); return false; }
+    // Sleeping throws the page away, and with it anything typed into it; a
+    // stray Ctrl+Shift+Z lost a half-written form (found 2026-09-29).
+    if (await this._hasTypedText(tab.id) && !await vexConfirm({ title: 'Sleep this tab?', message: 'This page has text you typed that is not sent yet. Sleeping the tab loses it.', okLabel: 'Sleep anyway', danger: true })) return false;
     this.switchTab(next.id);
     await this.sleepTab(tab.id);
     const slept = !!this.tabs.find(t => t.id === tab.id && t.sleeping);

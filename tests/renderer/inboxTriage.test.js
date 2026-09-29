@@ -83,9 +83,9 @@ describe('the whole inbox', () => {
 });
 
 describe('where a message opens', () => {
-  const gmail = { email: 'someone@gmail.com' };
+  const gmail = { email: 'someone@gmail.com', provider: 'gmail' };
   it('at that exact message, by the id the mail carries', () => {
-    expect(T.webmailMessage(gmail, mail())).toBe('https://mail.google.com/mail/u/0/#search/' + encodeURIComponent('rfc822msgid:abc@work.example'));
+    expect(T.webmailMessage(gmail, mail())).toBe('https://mail.google.com/mail/u/?authuser=someone%40gmail.com#search/' + encodeURIComponent('rfc822msgid:abc@work.example'));
   });
 
   it('by subject when the message has no id', () => {
@@ -93,11 +93,11 @@ describe('where a message opens', () => {
   });
 
   it('a sender\u2019s whole pile is one search', () => {
-    expect(T.webmailSearch(gmail, 'social.example')).toBe('https://mail.google.com/mail/u/0/#search/' + encodeURIComponent('from:social.example is:unread'));
+    expect(T.webmailSearch(gmail, 'social.example')).toBe('https://mail.google.com/mail/u/?authuser=someone%40gmail.com#search/' + encodeURIComponent('from:social.example is:unread'));
   });
 
   it('other providers go to their own mail', () => {
-    expect(T.webmailSearch({ email: 'me@yahoo.com' }, 'x.example')).toMatch(/yahoo/);
-    expect(T.webmailSearch({ email: 'me@icloud.com' }, 'x.example')).toMatch(/icloud/);
+    expect(T.webmailSearch({ email: 'me@yahoo.com', provider: 'yahoo' }, 'x.example')).toMatch(/yahoo/);
+    expect(T.webmailSearch({ email: 'me@icloud.com', provider: 'icloud' }, 'x.example')).toMatch(/icloud/);
   });
 });

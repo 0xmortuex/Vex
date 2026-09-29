@@ -396,7 +396,8 @@ const VexQuickReminder = {
     // process, which adds what it has not seen.
     this._mirror();
     setInterval(() => this._mirror(), 5 * 60000);
-    window.addEventListener('vex-sync-data-applied', () => this._applySynced());
+    // A backup being restored lands the same way, and says so.
+    window.addEventListener('vex-sync-data-applied', (e) => this._applySynced(e && e.detail && e.detail.source));
     return true;
   },
 
@@ -405,12 +406,15 @@ const VexQuickReminder = {
     const b = window.vex && window.vex.reminders;
     if (!b || typeof b.list !== 'function') return false;
     try {
-      const list = (await b.list()).map(r => ({ id: r.id, message: r.message, at: r.at, site: r.site, repeat: r.repeat, url: r.url, urgent: r.urgent, kind: r.kind, sound: r.sound, job: r.job, owner: r.owner, ackedAt: r.ackedAt, createdAt: r.createdAt, firedAt: r.firedAt, lastFiredAt: r.lastFiredAt }));
+      // `time` is the wall clock a repeating reminder keeps; without it a copy
+      // on another machine moved by an hour across a change of summer time
+      // (found 2026-09-29).
+      const list = (await b.list()).map(r => ({ id: r.id, message: r.message, at: r.at, site: r.site, repeat: r.repeat, time: r.time, url: r.url, urgent: r.urgent, kind: r.kind, sound: r.sound, job: r.job, owner: r.owner, ackedAt: r.ackedAt, createdAt: r.createdAt, firedAt: r.firedAt, lastFiredAt: r.lastFiredAt }));
       localStorage.setItem(this.MIRROR_KEY, JSON.stringify(list));
       return true;
     } catch (err) { console.error('[Reminders] could not mirror for sync:', err && err.message); return false; }
   },
-  async _applySynced() {
+  async _applySynced(source) {
     const b = window.vex && window.vex.reminders;
     if (!b || typeof b.import !== 'function') return null;
     let items;
@@ -418,7 +422,9 @@ const VexQuickReminder = {
     if (!Array.isArray(items) || !items.length) return null;
     try {
       const r = await b.import(items);
-      if (r && (r.added || r.updated)) window.showToast?.(`Reminders synced — ${r.added} new, ${r.updated} updated`);
+      // Restoring a backup said "Reminders synced" (found 2026-09-29).
+      const how = source === 'backup' ? 'restored' : 'synced';
+      if (r && (r.added || r.updated)) window.showToast?.(`Reminders ${how} — ${r.added} new, ${r.updated} updated`);
       this._hostsChanged();
       await this._mirror();
       return r;

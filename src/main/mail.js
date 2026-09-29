@@ -25,6 +25,9 @@ const MAX_LIST = 100;
 const MAX_MESSAGE_BYTES = 15 * 1024 * 1024;
 const TIMEOUT_MS = 20000;
 
+// A program on this computer, like ProtonMail Bridge.
+const LOOPBACK = /^(localhost|127\.0\.0\.1|::1)$/i;
+
 function providerFor(email) {
   const domain = String(email).split('@')[1] || '';
   return Object.keys(PROVIDERS).find(k => PROVIDERS[k].domains.includes(domain.toLowerCase())) || null;
@@ -53,6 +56,19 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId }) {
     if (err && (err.authenticationFailed || /AUTHENTICATIONFAILED|Invalid credentials|LOGIN failed|authentication failed/i.test(text))) {
       return new Error('The mail server refused the password. ' + (account.provider ? PROVIDERS[account.provider].help : 'Use an app password if your provider issues them.'), { cause: err });
     }
+    // Certificate and TLS failures arrived as OpenSSL's own words ("Mail:
+    // self-signed certificate", "... wrong version number"), and a plain
+    // connection to a TLS port as "did not answer in time" (found 2026-09-29).
+    const code = String((err && err.code) || '');
+    if (/^(DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT(_LOCALLY)?|CERT_|ERR_TLS_CERT_ALTNAME_INVALID)/.test(code)) {
+      return new Error('The mail server\'s security certificate is not trusted (' + code + '). Check the server name, or ask your provider which server to use.', { cause: err });
+    }
+    if (/^ERR_SSL_/.test(code) || /packet length too long|wrong version number/i.test(text)) {
+      return new Error('The secure connection failed — this port expects a plain connection, or TLS is set wrong. Try STARTTLS, or port 993 with TLS.', { cause: err });
+    }
+    if (code === 'GREETING_TIMEOUT' && account.secure === false) {
+      return new Error('The mail server did not greet Vex — this port expects an encrypted connection. Turn on TLS, or use port 993.', { cause: err });
+    }
     if (err && /ENOTFOUND|EAI_AGAIN/.test(err.code || text)) return new Error('Could not find the mail server ' + account.host, { cause: err });
     if (err && /ETIMEDOUT|timeout/i.test(err.code || text)) return new Error('The mail server did not answer in time', { cause: err });
     if (err && /ECONNREFUSED/.test(err.code || text)) return new Error('The mail server refused the connection — check the server name and port', { cause: err });
@@ -66,6 +82,11 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId }) {
       logger: false, connectionTimeout: TIMEOUT_MS, greetingTimeout: TIMEOUT_MS, socketTimeout: TIMEOUT_MS * 3,
       ...(account.requireTls ? { doSTARTTLS: true } : {}),
       ...(account.tls ? { tls: account.tls } : {}),
+      // A local bridge (ProtonMail Bridge) offers STARTTLS with a certificate
+      // it made itself, and imapflow upgrades and then refused it — so a bridge
+      // could not be added (found 2026-09-29). Nothing leaves this computer on
+      // a loopback connection, so its certificate is not checked.
+      ...(LOOPBACK.test(account.host) ? { tls: { ...(account.tls || {}), rejectUnauthorized: false } } : {}),
     });
     try {
       await client.connect();
@@ -99,11 +120,11 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId }) {
       const account = provider
         ? { email: addr, pass, provider, host: PROVIDERS[provider].host, port: PROVIDERS[provider].port, secure: true }
         : { email: addr, pass, provider: null, host: String(host || '').trim(), port: Number(port) || 993, secure: secure !== false };
-      if (!account.provider && !/^[a-z0-9.-]+$/i.test(account.host)) throw new Error('Enter your provider\'s IMAP server, like imap.example.com');
+      if (!account.provider && !/^[a-z0-9.-]+$/i.test(account.host) && !LOOPBACK.test(account.host)) throw new Error('Enter your provider\'s IMAP server, like imap.example.com');
       // Not port 993: the connection must be upgraded with STARTTLS before the
       // password is sent. Only a program on this computer (a local bridge such
       // as ProtonMail Bridge) may be spoken to without it.
-      if (!account.secure && !/^(localhost|127\.0\.0\.1)$/i.test(account.host)) account.requireTls = true;
+      if (!account.secure && !LOOPBACK.test(account.host)) account.requireTls = true;
       const accounts = await load();
       if (accounts.some(a => a.email === addr)) throw new Error(addr + ' is already set up');
       if (accounts.length >= MAX_ACCOUNTS) throw new Error('That is ' + MAX_ACCOUNTS + ' accounts already');

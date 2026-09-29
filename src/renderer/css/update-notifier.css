@@ -14,6 +14,10 @@
   transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
 }
 .update-notif.show { transform: translateX(0); }
+/* In the download cards' column (update-notifier.js _mount), so the two never
+   lie on top of each other. The column places it and lets clicks through
+   only where a card is. */
+#download-toast-container > .update-notif { position: static; pointer-events: auto; align-self: flex-end; }
 .update-notif-icon { font-size: 24px; flex-shrink: 0; color: var(--vex-accent); }
 .update-notif-body { flex: 1; min-width: 0; }
 .update-notif-title { color: var(--vex-text-primary); font-weight: 600; font-size: 13px; margin-bottom: 2px; }

@@ -43,6 +43,21 @@ const UpdateNotifier = {
     return true;
   },
 
+  // The update card and the download cards share the bottom-right corner,
+  // and a download card lay on top of the update card's buttons: "Skip this
+  // one" clicked the download's Show (found 2026-09-29). The update card goes
+  // in the download cards' own column (download-toast.js makes it the same
+  // way), at the bottom, and the download cards stack above it.
+  _mount(el) {
+    let c = document.getElementById('download-toast-container');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'download-toast-container';
+      document.body.appendChild(c);
+    }
+    c.prepend(el);
+  },
+
   _remember(key, value) {
     try { localStorage.setItem(key, String(value)); }
     catch (err) { VexProblems?.note('Updates', 'Could not remember the update choice', err); }
@@ -74,7 +89,7 @@ const UpdateNotifier = {
         <button class="update-btn-later" id="update-skip-btn">Later</button>
         <button class="update-btn-later" id="update-never-btn" title="Do not mention this version again">Skip this one</button>
       </div>`;
-    document.body.appendChild(el);
+    this._mount(el);
     requestAnimationFrame(() => el.classList.add('show'));
     const close = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); };
     document.getElementById('update-get-btn')?.addEventListener('click', () => {
@@ -122,7 +137,7 @@ const UpdateNotifier = {
         <button class="update-btn-later" id="update-later-btn">Later</button>
       </div>
     `;
-    document.body.appendChild(el);
+    this._mount(el);
     requestAnimationFrame(() => el.classList.add('show'));
 
     document.getElementById('update-dl-btn')?.addEventListener('click', () => {

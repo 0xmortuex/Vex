@@ -27,6 +27,13 @@ const TOR_URL = `https://archive.torproject.org/tor-package-archive/torbrowser/$
 
 let _proc = null;
 let _port = 0;
+// Cancel during the download did nothing: stop() only killed a process that
+// did not exist yet, and start() went on to download, then spawn Tor
+// (found 2026-09-29). stop() now aborts the download in flight and bumps the
+// token; a start() whose token changed gives up before it spawns anything.
+let _request = null;
+let _startToken = 0;
+let _starting = null;
 
 function getPort() { return _port; }
 function isRunning() { return !!_proc; }
@@ -47,6 +54,9 @@ function _downloadWithProgress(url, onProgress, depth = 0) {
     if (depth > 6) return reject(new Error('too many redirects'));
     const lib = url.startsWith('http:') ? http : https;
     const req = lib.get(url, { headers: { 'User-Agent': 'Vex' } }, (res) => {
+      // A response cut short is not a download (Cancel rejects first, with
+      // 'cancelled', through req's error).
+      res.on('close', () => { if (!res.complete) reject(new Error('Tor download was interrupted')); });
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         const next = new URL(res.headers.location, url).toString();
@@ -65,6 +75,7 @@ function _downloadWithProgress(url, onProgress, depth = 0) {
       res.on('end', () => resolve(Buffer.concat(chunks)));
       res.on('error', reject);
     });
+    _request = req;
     req.on('error', reject);
     req.setTimeout(120000, () => { req.destroy(new Error('download timed out')); });
   });
@@ -96,6 +107,9 @@ async function ensureBinary(userDataDir, onProgress) {
 }
 
 function stop() {
+  _startToken++;
+  _starting = null;
+  if (_request) { _request.destroy(new Error('cancelled')); _request = null; }
   if (_proc) { try { _proc.kill(); } catch {} try { _proc.kill('SIGKILL'); } catch {} _proc = null; }
   _port = 0;
 }
@@ -105,15 +119,32 @@ function stop() {
 //   phase 'download'  value = 0..1 download fraction
 //   phase 'bootstrap' value = 0..100 tor bootstrap percent, detail = tag
 // Resolves the SOCKS port. Rejects on failure/timeout.
-async function start(userDataDir, onProgress) {
-  if (_proc && _port) return _port; // already running
+// Everyone waiting on the start in flight hears its progress: a second caller
+// (a burner over Tor while a Tor tab is starting) joins it rather than
+// cancelling it.
+const _listeners = new Set();
+function start(userDataDir, onProgress) {
+  if (_proc && _port) return Promise.resolve(_port); // already running
+  if (!_starting) {
+    _listeners.clear();
+    const run = _starting = _start(userDataDir).finally(() => { if (_starting === run) _starting = null; });
+  }
+  if (onProgress) _listeners.add(onProgress);
+  return _starting;
+}
+
+async function _start(userDataDir) {
   stop();
-  const emit = (phase, value, detail) => { if (onProgress) { try { onProgress(phase, value, detail); } catch {} } };
+  const token = _startToken;
+  const cancelled = () => { if (token !== _startToken) throw new Error('cancelled'); };
+  const emit = (phase, value, detail) => { if (token !== _startToken) return; for (const fn of _listeners) { try { fn(phase, value, detail); } catch {} } };
 
   const { exe, geoip, geoip6 } = await ensureBinary(userDataDir, (frac) => emit('download', frac));
+  cancelled();
   emit('download', 1);
 
   const port = await _freePort();
+  cancelled();
   if (!port) throw new Error('no free local port for Tor');
   const dataDir = path.join(userDataDir, 'tor', 'tordata');
   try { fs.mkdirSync(dataDir, { recursive: true }); } catch {}
@@ -138,7 +169,9 @@ async function start(userDataDir, onProgress) {
     _port = port;
     let settled = false;
     const finishOk = () => { if (settled) return; settled = true; resolve(port); };
-    const finishErr = (msg) => { if (settled) return; settled = true; stop(); reject(new Error(msg)); };
+    // A cancelled start's Tor exits later; stopping then would cancel the
+    // start that came after it.
+    const finishErr = (msg) => { if (settled) return; settled = true; if (token === _startToken) stop(); reject(new Error(token === _startToken ? msg : 'cancelled')); };
 
     const onLine = (line) => {
       try { if (logFd) fs.writeSync(logFd, line + '\n'); } catch {}
@@ -154,7 +187,10 @@ async function start(userDataDir, onProgress) {
     if (_proc.stdout) _proc.stdout.on('data', feed);
     if (_proc.stderr) _proc.stderr.on('data', feed);
     _proc.on('error', (e) => finishErr('tor error: ' + (e && e.message)));
-    _proc.on('exit', (code) => { _proc = null; _port = 0; finishErr('tor exited (code ' + code + ') before bootstrap — see tor.log'); });
+    // A Tor stopped by Cancel exits after the next one may have started;
+    // only its own exit clears the running state.
+    const proc = _proc;
+    _proc.on('exit', (code) => { if (_proc === proc) { _proc = null; _port = 0; } finishErr('tor exited (code ' + code + ') before bootstrap — see tor.log'); });
     // Bootstrapping can be slow on some networks; give it up to 2 minutes.
     setTimeout(() => finishErr('Tor took too long to connect (timed out) — check your network'), 120000);
   });
