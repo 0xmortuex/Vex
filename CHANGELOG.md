@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.33.15 (2026-09-29) — The download check works from any shell
+
+Includes everything in v2.33.14, which was not published.
+
+### Fixes
+- **"Is this download signed?" could only say "unknown" when Vex had been started from a PowerShell 7 window.** Windows PowerShell, which reads the signature, inherited PowerShell 7's module list from Vex and could not load the part that reads signatures. The check now starts it with its own. Found by the build server, which runs that way.
+
 ## v2.33.14 (2026-09-29) — Two sweeps of every feature: about two hundred fixes
 
 Seven testers used every part of Vex the way a person does: tabs and looks, the panels, the address and command bars and the Toolbox, page tools and media, privacy and your data, the AI, and extensions and the service panels. Each fix below was checked, and most were also seen working in a running Vex.

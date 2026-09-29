@@ -47,6 +47,16 @@ function createFileCheck({ fs, crypto, execFile, platform = process.platform, lo
   // running the file, which is the whole point.
   function signature(filePath) {
     if (platform !== 'win32') return Promise.resolve({ status: 'unknown', signer: '', why: 'signatures are only read on Windows' });
+    // Windows PowerShell 5.1 started from a PowerShell 7 process inherits
+    // PowerShell 7's PSModulePath, cannot load the module that has
+    // Get-AuthenticodeSignature, and every check came back "unknown" — on the
+    // build server, and for a Vex started from a PowerShell 7 terminal (found
+    // 2026-09-29). Without it, PowerShell 5.1 builds its own.
+    const checkEnv = (file) => {
+      const env = { ...process.env, VEX_FILECHECK_PATH: String(file) };
+      for (const k of Object.keys(env)) if (k.toLowerCase() === 'psmodulepath') delete env[k];
+      return env;
+    };
     return new Promise((resolve) => {
       const ps = `${process.env.SystemRoot || 'C:\\\\Windows'}\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe`;
       // The path travels in an environment variable, never in the script text:
@@ -55,7 +65,7 @@ function createFileCheck({ fs, crypto, execFile, platform = process.platform, lo
       const script = `$ErrorActionPreference='Stop'; $s = Get-AuthenticodeSignature -LiteralPath $env:VEX_FILECHECK_PATH; ` +
         `[Console]::Out.Write($s.Status.ToString() + "\`n" + $s.SignerCertificate.Subject)`;
       execFile(ps, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-        { timeout: 15000, windowsHide: true, maxBuffer: 256 * 1024, env: { ...process.env, VEX_FILECHECK_PATH: String(filePath) } },
+        { timeout: 15000, windowsHide: true, maxBuffer: 256 * 1024, env: checkEnv(filePath) },
         (err, stdout) => {
           if (err) { resolve({ status: 'unknown', signer: '', why: 'the signature could not be read' }); return; }
           const [statusLine, subject = ''] = String(stdout || '').split('\n');
