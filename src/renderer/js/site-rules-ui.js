@@ -15,7 +15,21 @@ const SiteRulesUI = {
     { id: 'thirdParty', name: 'Content from other sites', note: 'Off refuses anything this page loads from another host: adverts, trackers, embeds, some fonts.' },
   ],
 
-  rules() { try { const o = JSON.parse(localStorage.getItem(this.KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } },
+  // A private window's storage starts empty, so it holds a copy of the rules
+  // main keeps (loaded below) — without it every switch did nothing there,
+  // JavaScript-off included (found 2026-09-29).
+  _mirror: null,
+  rules() {
+    if (this._mirror) return this._mirror;
+    try { const o = JSON.parse(localStorage.getItem(this.KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; }
+  },
+  _isPrivate() { return typeof window !== 'undefined' && !!window.VexTabPolicy?.isPrivateWindow; },
+  async loadMirror() {
+    const res = await window.vex.siteRulesGet();
+    if (!res || !res.ok || !res.rules || typeof res.rules !== 'object') throw new Error((res && res.error) || 'Could not read the per-site switches');
+    this._mirror = res.rules;
+    return this._mirror;
+  },
   save(rules) { try { localStorage.setItem(this.KEY, JSON.stringify(rules)); } catch {} },
 
   host(url) { try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; } },
@@ -44,6 +58,10 @@ const SiteRulesUI = {
   },
 
   async set(url, what, off) {
+    // The switches live in the normal window's storage; one changed here was
+    // pushed from this window's empty copy and wiped every other site's
+    // (found 2026-09-29). Same as the ad blocker switch in a private window.
+    if (this._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
     const h = this.host(url);
     if (!h) throw new Error('That is not a web page');
     const rules = this.rules();
@@ -177,7 +195,7 @@ const SiteRulesUI = {
             await this.set(t.url, what.id, !e.target.checked);
             changed = true;
             draw();
-          } catch (err) { window.showToast?.(err.message, 'error'); }
+          } catch (err) { window.showToast?.(err.message, 'error'); draw(); }
         });
         listEl.appendChild(row);
       }
@@ -200,4 +218,12 @@ const SiteRulesUI = {
 };
 
 if (typeof window !== 'undefined') window.SiteRulesUI = SiteRulesUI;
+// Asked for as soon as this file loads, before the window builds its tabs,
+// so a private tab opened at once is already built with JavaScript off.
+if (typeof window !== 'undefined' && SiteRulesUI._isPrivate()) {
+  SiteRulesUI.loadMirror().catch(err => {
+    console.error('[SiteRules] private window could not read the switches:', err);
+    window.VexProblems?.note('Site switches', 'This private window could not read your per-site switches', err);
+  });
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { SiteRulesUI };

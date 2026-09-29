@@ -1801,13 +1801,13 @@ const SidebarManager = {
       row.innerHTML =
         '<span style="width:22px;height:22px;display:grid;place-items:center;opacity:' + (hidden ? '0.4' : '1') + '">' + btn.innerHTML + '</span>' +
         '<span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (hidden ? 'opacity:0.5;text-decoration:line-through' : '') + '">' + this._esc(name) + '</span>' +
-        '<button data-act="up"     title="Move up"     style="' + btnCss + '">▲</button>' +
-        '<button data-act="down"   title="Move down"   style="' + btnCss + '">▼</button>' +
-        '<button data-act="rename" title="Rename"      style="' + btnCss + '">✎</button>' +
-        '<button data-act="icon"   title="Change icon" style="' + btnCss + '">★</button>' +
+        '<button data-act="up"     title="Move up"     aria-label="Move up"   style="' + btnCss + '">' + VexIcons.svg('chevron-up', { size: 12 }) + '</button>' +
+        '<button data-act="down"   title="Move down"   aria-label="Move down" style="' + btnCss + '">' + VexIcons.svg('chevron-down', { size: 12 }) + '</button>' +
+        '<button data-act="rename" title="Rename"      style="' + btnCss + '">' + VexIcons.svg('edit', { size: 13 }) + '</button>' +
+        '<button data-act="icon"   title="Change icon" style="' + btnCss + '">' + VexIcons.svg('star', { size: 13 }) + '</button>' +
         (isUrl ? '<button data-act="link" title="Change link" style="' + btnCss + '">' + VexIcons.svg('link', { size: 13 }) + '</button>' : '') +
-        '<button data-act="toggle" title="' + (hidden ? 'Show' : 'Hide') + '" style="' + btnCss + '">' + (hidden ? '+' : '−') + '</button>' +
-        (panel.startsWith('site_') ? '' : '<button data-act="reset" title="Reset to default" style="' + btnCss + '">↺</button>');
+        '<button data-act="toggle" title="' + (hidden ? 'Show' : 'Hide') + '" aria-label="' + (hidden ? 'Show' : 'Hide') + '" style="' + btnCss + '">' + VexIcons.svg(hidden ? 'plus' : 'minus', { size: 12 }) + '</button>' +
+        (panel.startsWith('site_') ? '' : '<button data-act="reset" title="Reset to default" aria-label="Reset to default" style="' + btnCss + '">' + VexIcons.svg('undo', { size: 12 }) + '</button>');
       row.querySelectorAll('button[data-act]').forEach(b => {
         b.addEventListener('click', (ev) => {
           const act = b.dataset.act;
@@ -2019,7 +2019,7 @@ const SidebarManager = {
     nav.dataset.panel = panelName;
     nav.innerHTML = '<button class="pnav-btn pnav-back" title="Back">‹</button>'
       + '<button class="pnav-btn pnav-fwd" title="Forward">›</button>'
-      + '<button class="pnav-btn pnav-reload" title="Reload">⟳</button>';
+      + '<button class="pnav-btn pnav-reload" title="Reload" aria-label="Reload">' + VexIcons.svg('refresh', { size: 13 }) + '</button>';
     const back = nav.querySelector('.pnav-back');
     const fwd = nav.querySelector('.pnav-fwd');
     const reload = nav.querySelector('.pnav-reload');

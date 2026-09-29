@@ -43,7 +43,7 @@
 <body>
   <div class="card">
     <div class="row"><span class="dot"></span><span class="title">Vex — quick capture</span></div>
-    <input id="q" autofocus autocomplete="off" spellcheck="false" placeholder="A note, or “remind me…”, or “/” for a command">
+    <input id="q" maxlength="4000" autofocus autocomplete="off" spellcheck="false" placeholder="A note, or “remind me…”, or “/” for a command">
     <div class="hint"><b>Enter</b> saves · <b>remind me…</b> sets a reminder · <b>timer 20 min</b> · <b>/</b> runs a command · <b>Esc</b> closes</div>
     <div class="said" id="said"></div>
   </div>
@@ -76,7 +76,10 @@
         input.value = '';
         setTimeout(() => window.vexCapture.close(), 700);
       } catch (err) {
-        said.textContent = (err && err.message) || 'That did not work';
+        // Electron wraps a refusal from the main process as "Error invoking
+        // remote method 'capture:submit': Error: …"; the person needs only the
+        // last part (found 2026-09-29).
+        said.textContent = String((err && err.message) || 'That did not work').replace(/^Error invoking remote method '[^']*': (?:\w*Error: )?/, '');
       }
     });
 

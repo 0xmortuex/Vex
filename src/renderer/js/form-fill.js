@@ -22,7 +22,7 @@ const FormFill = {
     m.id = 'vex-formfill';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     m.innerHTML = `<div style="width:460px;max-width:94vw;max-height:86vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">Form Fill profile</span><button id="ff-close" style="${this._chip()}">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">Form Fill profile</span><button id="ff-close" style="${this._chip()}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div style="padding:0 18px 6px;font-size:11.5px;color:var(--text-muted)">Saved locally. Used to fill signup/checkout forms — never card numbers, never sent anywhere.</div>
       <div style="overflow-y:auto;padding:10px 18px">${this.FIELDS.map(([k, label]) => `
         <label style="display:block;margin-bottom:8px">

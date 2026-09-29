@@ -5,6 +5,10 @@
 // (the proxy saw the traffic) and against Tor (the internet saw an exit node);
 // these are the parts worth pinning down without a network.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Close buttons and ticks are VexIcons SVGs (sweep 2026-09-29).
+require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = window.VexIcons;
 const { PrivateRouting } = require('../../src/renderer/js/private-routing.js');
 
 let calls;

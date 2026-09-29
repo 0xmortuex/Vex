@@ -5,6 +5,10 @@
 // tab or panel, what "end" does to each kind, and that a hold never does
 // anything worse than putting something back to sleep.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Close buttons and ticks are VexIcons SVGs (sweep 2026-09-29).
+require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = window.VexIcons;
 const { VexTasks } = require('../../src/renderer/js/tasks.js');
 const { MemoryPanel } = require('../../src/renderer/js/memory-panel.js');
 

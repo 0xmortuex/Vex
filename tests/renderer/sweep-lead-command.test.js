@@ -72,3 +72,18 @@ describe('the command list itself', () => {
     expect(go.hint).toBe('https://youtube.com/watch?v=dQw4w9WgXcQ');
   });
 });
+
+describe('commands that can only work sometimes', () => {
+  // FlashMind and four more open tools from the tools bar; without one there
+  // the command did nothing (found 2026-09-29). Listed only when it exists.
+  it('a tool command is listed only while that tool is in the tools bar', () => {
+    globalThis.VexTools = { tools: [], openToolById: vi.fn() };
+    try {
+      CommandBar.search('FlashMind');
+      expect(CommandBar.results.some(r => r.id === 'flashmind')).toBe(false);
+      VexTools.tools.push({ id: 'flashmind', url: 'https://x.test' });
+      CommandBar.search('FlashMind');
+      expect(CommandBar.results[0].id).toBe('flashmind');
+    } finally { delete globalThis.VexTools; }
+  });
+});

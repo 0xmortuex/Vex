@@ -168,6 +168,11 @@ function wirePermissionsOnSession(ses, tag, opts) {
     if (isVexUi(webContents)) {
       const asked = mediaParts(permission, details);
       if (asked.length === 1 && (asked[0] === 'display-capture' || asked[0] === 'microphone')) return callback(true);
+      // Vex's own Paste & Go, "Open a list of links" and the password copy that
+      // clears itself read the clipboard, and each asked "null wants to read what
+      // you last copied" (a file:// origin prints as null — found 2026-09-29).
+      // Only this interface: a web page is still asked, as above.
+      if (permission === 'clipboard-read') return callback(true);
     }
 
     // Dedicated Discord panel session: auto-grant mic/camera/output-device so
@@ -226,7 +231,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // DRM playback (EME) is auto-OK like a normal browser, so the sync check
     // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
     if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;
-    if (permission === 'display-capture' && isVexUi(_wc)) return true;
+    if ((permission === 'display-capture' || permission === 'clipboard-read') && isVexUi(_wc)) return true;
     if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return true;
     // The check names one device: details.mediaType is 'audio' or 'video'.
     const kind = details && details.mediaType;

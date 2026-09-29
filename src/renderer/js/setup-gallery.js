@@ -51,7 +51,7 @@ const SetupGallery = {
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>
           <button data-act="apply" style="${this._chip()}">Apply</button>
           <button data-act="copy" title="Copy its code" style="${this._chip()}">Copy</button>
-          <button data-act="del" title="Delete" style="${this._chip()}">✕</button>
+          <button data-act="del" title="Delete" aria-label="Delete" style="${this._chip()}">${VexIcons.svg('x', { size: 13 })}</button>
         </div>`).join('') : '<div style="color:var(--text-muted);margin-bottom:6px">No saved setups yet.</div>'}</div>
       <div style="display:flex;gap:8px;margin:8px 0 18px">
         <input id="sg-name" placeholder="Name this setup…" style="flex:1;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:'Outfit',sans-serif">
@@ -83,7 +83,7 @@ const SetupGallery = {
       const code = (body.querySelector('#sg-import').value || '').trim();
       const d = this._decode(code);
       if (!d) { msg('That is not a valid setup code (must start with VEXSETUP1.).'); return; }
-      if (this._apply(d)) msg('✓ Applied — your setup was updated.', true); else msg('Could not apply that setup.');
+      if (this._apply(d)) msg('Applied — your setup was updated.', true); else msg('Could not apply that setup.');
     });
     body.querySelector('#sg-copy-export').addEventListener('click', () => { try { navigator.clipboard.writeText(this._encode()); window.showToast?.('Setup code copied'); } catch {} });
     body.querySelectorAll('#sg-list [data-i]').forEach(row => {

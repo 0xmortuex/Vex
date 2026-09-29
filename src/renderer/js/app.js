@@ -124,7 +124,9 @@
     let url = VexTypedAddress.addressFor(val);
     if (!url) {
       const shortcut = (typeof SearchShortcuts !== 'undefined') ? SearchShortcuts.resolve(val) : null;
-      url = shortcut || VexTypedAddress.searchUrl(val, settings.searchEngine);
+      // The saved choice, read each time: an engine picked in the setup wizard
+      // or on the New Tab page was ignored until a restart (found 2026-09-29).
+      url = shortcut || VexTypedAddress.searchUrl(val);
     }
 
     // If sidebar panel is open, close it first
@@ -356,10 +358,23 @@
   // keeps one switch, so opening one turned the blocker back on for every
   // window while the normal window still said OFF (found 2026-09-29).
   if (window.VexTabPolicy?.isPrivateWindow) {
+    // One switch serves every window, so it is changed from the normal one.
+    adBlockerToggle.disabled = true;
+    adBlockerToggle.title = 'Change this in a normal window — it applies to every window';
     window.vex.getAdBlockerState()
       .then(on => { adBlockerToggle.checked = on === true; })
       .catch(err => console.error('[AdBlocker] could not read the state:', err));
   } else window.vex.setAdBlockerState(adBlockerToggle.checked);
+
+  // An engine chosen anywhere else (setup wizard, New Tab page) reaches the
+  // Settings list too (Onboarding._setStart announces it).
+  window.addEventListener('vex-search-engine-changed', (e) => {
+    const id = e.detail && e.detail.id;
+    if (!id || !VexTypedAddress.SEARCH_ENGINES[id] || settings.searchEngine === id) return;
+    settings.searchEngine = id;
+    searchEngineSelect.value = id;
+    VexStorage.saveSettings(settings);
+  });
 
   searchEngineSelect.addEventListener('change', () => {
     settings.searchEngine = searchEngineSelect.value;
@@ -404,9 +419,11 @@
     const applyAutoSave = (on) => {
       clearInterval(window._autoSaveInterval);
       window._autoSaveInterval = on
-        ? setInterval(() => {
+        // Not in a private window: its tabs are never saved, and the save
+        // refuses there (found 2026-09-29).
+        ? (window.VexTabPolicy?.isPrivateWindow ? null : setInterval(() => {
           SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString());
-        }, 10 * 60 * 1000)
+        }, 10 * 60 * 1000))
         : null;
     };
     autosaveToggle.checked = settings.autoSaveSessions || false;
@@ -484,7 +501,7 @@
         else { try { localStorage.setItem('vex.weatherLoc', JSON.stringify(loc)); } catch {} }
         if (typeof Onboarding !== 'undefined') Onboarding._reloadStartPages();
         if (results) results.innerHTML = '';
-        if (statusEl) statusEl.textContent = '✓ Saved ' + loc.city;
+        if (statusEl) statusEl.textContent = 'Saved ' + loc.city;
         showCurrent();
       };
       const search = async () => {
@@ -826,9 +843,15 @@
   const setRestartNeeded = (needed) => { if (restartRow) restartRow.style.display = needed ? '' : 'none'; };
   window.vexRestartNeeded = () => setRestartNeeded(true);
   restartBtn?.addEventListener('click', async () => {
-    restartBtn.disabled = true; restartBtn.textContent = '⟳ Restarting…';
-    try { await window.vex.restartApp(); }
-    catch { restartBtn.disabled = false; restartBtn.textContent = '⟳ Restart Vex to apply'; }
+    restartBtn.disabled = true; restartBtn.textContent = 'Restarting…';
+    try {
+      const r = await window.vex.restartApp();
+      if (r && r.ok === false) throw new Error(r.error || 'Vex could not restart');
+    } catch (err) {
+      // A failed restart was silent (found 2026-09-29).
+      restartBtn.disabled = false; restartBtn.textContent = 'Restart Vex to apply';
+      window.showToast?.('Could not restart: ' + ((err && err.message) || err), 'error');
+    }
   });
 
   const memSaverBoot = memorySaverOn();

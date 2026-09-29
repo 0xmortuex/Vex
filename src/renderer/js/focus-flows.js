@@ -31,7 +31,18 @@ const FocusFlows = {
       document.body.appendChild(m);
       m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
       m.querySelector('#ff-close').addEventListener('click', () => m.remove());
+      // Escape closes it like every other Vex window; it did nothing (found
+      // 2026-09-29). An Escape a vexConfirm on top already used is left alone,
+      // and the listener goes with the window however it was closed.
+      const onKey = (e) => {
+        if (!m.isConnected) { document.removeEventListener('keydown', onKey); return; }
+        if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); m.remove(); document.removeEventListener('keydown', onKey); }
+      };
+      document.addEventListener('keydown', onKey);
       this._paint(m);
+      // Focus moves in, so Escape reaches this even when it was opened from a
+      // page, which kept the key (found 2026-09-29).
+      m.querySelector('#ff-close')?.focus({ preventScroll: true });
     } catch (e) { try { window.showToast?.('Focus Flows failed to open'); } catch {} }
   },
 
@@ -92,7 +103,16 @@ const FocusFlows = {
       const i = parseInt(row.dataset.i, 10);
       row.querySelector('[data-act="go"]')?.addEventListener('click', () => { const f = this._load()[i]; if (f) { this.activate(f); m.remove(); } });
       row.querySelector('[data-act="edit"]')?.addEventListener('click', () => { const f = this._load()[i]; if (f) this._paint(m, f); });
-      row.querySelector('[data-act="del"]')?.addEventListener('click', () => { const a = this._load(); a.splice(i, 1); this._save(a); this._paint(m); });
+      // A flow went at one click, with no way back (found 2026-09-29).
+      row.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
+        const f = this._load()[i];
+        if (!f) return;
+        if (!await vexConfirm({ title: 'Delete flow', message: 'Delete the flow "' + (f.name || 'Flow') + '"? This cannot be undone.', okLabel: 'Delete', danger: true })) return;
+        const a = this._load();
+        const at = a.findIndex(x => JSON.stringify(x) === JSON.stringify(f));   // the list may have changed while asking
+        if (at >= 0) { a.splice(at, 1); this._save(a); }
+        this._paint(m);
+      });
     });
 
     // Wire editor

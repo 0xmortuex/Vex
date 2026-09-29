@@ -7,7 +7,7 @@
 // worker could not record a vote (2026-09-28). This runs the same function in
 // the worker's own world, before the extension's code. A website's service
 // worker is left alone (the function needs chrome.runtime.id).
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 // === BEGIN vex-extension-stand-ins ===
 // Keep this block identical in src/preload-webview.js (extension pages) and
@@ -40,7 +40,10 @@ const { contextBridge } = require('electron');
 // and the popup takes the focus, so asked for the active tab the extension got
 // its own popup back: Dark Reader said "This page is protected by browser" and
 // its site switch pointed at the popup (2026-09-28).
-function vexExtensionStandIns(c, askPopupTab) {
+//
+// openTab, where given, asks main to open a Vex tab: a web page or one of the
+// extension's own pages (tabs.create, runtime.openOptionsPage).
+function vexExtensionStandIns(c, askPopupTab, openTab) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
   if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
@@ -117,11 +120,26 @@ function vexExtensionStandIns(c, askPopupTab) {
 
   // Stylus's worker read webNavigation.onCommitted and Violentmonkey's
   // cookies.getAll while starting, and both died there (2026-09-29). Electron
-  // has neither. Here navigation events never fire, a tab's frames are not
+  // has neither. Here navigation events never fire, only a tab's top frame is
   // known, no cookies are readable, and changing one fails and says why.
+  // Stylus's popup maps over getAllFrames' answer, and null threw "reading
+  // 'length'" (found 2026-09-29): the top frame is the tab itself. A tab that
+  // does not exist has no frames, which Chrome answers with null.
+  function topFrame(details) {
+    if (!c.tabs || typeof c.tabs.get !== 'function' || !details || !Number.isInteger(details.tabId)) return Promise.resolve(null);
+    return Promise.resolve(c.tabs.get(details.tabId)).then(function (tab) {
+      return tab ? { frameId: 0, parentFrameId: -1, processId: -1, url: tab.url || '', errorOccurred: false } : null;
+    }, function () { return null; });
+  }
+  function answerWith(p, cb) {
+    if (typeof cb !== 'function') return p;
+    p.then(function (v) { cb(v); }, function (err) { setTimeout(function () { throw err; }, 0); });
+    return undefined;
+  }
   if (perms.indexOf('webNavigation') !== -1 && !c.webNavigation) {
     c.webNavigation = {
-      getFrame: done(null), getAllFrames: done(null),
+      getFrame: function (details, cb) { return answerWith(details && details.frameId === 0 ? topFrame(details) : Promise.resolve(null), cb); },
+      getAllFrames: function (details, cb) { return answerWith(topFrame(details).then(function (f) { return f ? [f] : null; }), cb); },
       onBeforeNavigate: noEvent(), onCommitted: noEvent(), onDOMContentLoaded: noEvent(), onCompleted: noEvent(),
       onErrorOccurred: noEvent(), onCreatedNavigationTarget: noEvent(), onReferenceFragmentUpdated: noEvent(),
       onTabReplaced: noEvent(), onHistoryStateUpdated: noEvent(),
@@ -140,24 +158,46 @@ function vexExtensionStandIns(c, askPopupTab) {
   // called it and drew nothing, 2026-09-29).
   if (c.tabs && typeof c.tabs.getCurrent !== 'function') c.tabs.getCurrent = done(undefined);
 
-  if (typeof askPopupTab === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function' && typeof c.runtime.getURL === 'function') {
-    var own = c.runtime.getURL('');
+  // While this extension's popup is open, a question for the active tab is
+  // about the tab under it, from whichever of its contexts asks: Stylus's
+  // popup asks its service worker, which heard [] and the popup drew nothing
+  // (found 2026-09-29). A question that also filters (url, title, …) is left
+  // to Electron.
+  var WINDOW_ONLY = ['active', 'currentWindow', 'lastFocusedWindow', 'windowId', 'windowType'];
+  if (typeof askPopupTab === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
     var query = c.tabs.query.bind(c.tabs);
     var get = c.tabs.get.bind(c.tabs);
     c.tabs.query = function (q, cb) {
       var p = query(q || {}).then(function (tabs) {
         tabs = tabs || [];
-        if (!q || q.active !== true || !tabs.some(function (t) { return String(t.url || '').indexOf(own) === 0; })) return tabs;
+        if (!q || q.active !== true || Object.keys(q).some(function (k) { return WINDOW_ONLY.indexOf(k) === -1; })) return tabs;
         return askPopupTab().then(function (over) {
           if (!over) return tabs;
-          var rest = tabs.filter(function (t) { return t.id !== over.popup; });
+          var rest = tabs.filter(function (t) { return t.id !== over.popup && t.id !== over.tab; });
           if (over.tab == null) return rest;
           return get(over.tab).then(function (tab) { return tab ? [Object.assign({}, tab, { active: true })].concat(rest) : rest; });
         });
       });
-      if (typeof cb !== 'function') return p;
-      p.then(function (tabs) { cb(tabs); }, function (err) { setTimeout(function () { throw err; }, 0); });
-      return undefined;
+      return answerWith(p, cb);
+    };
+  }
+
+  // Electron has no tabs.create, and its runtime.openOptionsPage fails: a
+  // popup's "Manage", "Options" and "Report a bug" did nothing (found
+  // 2026-09-29). Both open a Vex tab through main, which opens only web pages
+  // and this extension's own pages. A relative address is the extension's.
+  if (typeof openTab === 'function' && typeof c.runtime.getURL === 'function') {
+    var base = c.runtime.getURL('');
+    var openUrl = function (url, active) {
+      if (!url) return Promise.reject(new Error('Vex opens a tab for an extension only with an address'));
+      return Promise.resolve(openTab({ url: new URL(String(url), base).href, active: active !== false })).then(function () { return undefined; });
+    };
+    if (c.tabs && typeof c.tabs.create !== 'function') {
+      c.tabs.create = function (props, cb) { return answerWith(openUrl(props && props.url, props && props.active), cb); };
+    }
+    var optionsPage = manifest.options_page || (manifest.options_ui && manifest.options_ui.page) || null;
+    c.runtime.openOptionsPage = function (cb) {
+      return answerWith(optionsPage ? openUrl(optionsPage, true) : Promise.reject(new Error('This extension has no options page')), cb);
     };
   }
   return true;
@@ -285,5 +325,9 @@ function vexStorageSyncShim(c) {
 }
 // === END vex-storage-sync-shim ===
 
-contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null] });
+// A worker's IPC reaches its own ServiceWorkerMain in main (main.js,
+// _wireExtensionWorkerIpc), which answers only an extension's worker.
+const askPopupTab = () => ipcRenderer.invoke('extensions:popup-tab');
+const openTab = (request) => ipcRenderer.invoke('extensions:open-tab', request);
+contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab] });
 contextBridge.executeInMainWorld({ func: vexStorageSyncShim });

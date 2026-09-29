@@ -71,7 +71,7 @@ const KeysSheet = {
       + '<div><h2>What you can press</h2><p>'
       + (where.length ? esc(where[0]) + ' — those keys are first.' : 'Every key Vex answers to.')
       + '</p></div>'
-      + '<button class="vexkeys-x" aria-label="Close">×</button></div>'
+      + '<button class="vexkeys-x" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 18 }) + '</button></div>'
       + '<div class="vexkeys-body">'
       + (groups.length
         ? groups.map(g => '<div class="vexkeys-group' + (g.here ? ' here' : '') + '">'

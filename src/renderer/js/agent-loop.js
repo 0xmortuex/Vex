@@ -542,7 +542,12 @@ const AgentLoop = {
         if (decision.tool === 'ask_user') {
           // Native prompt() is disabled in Electron's renderer (always
           // returned null, so the agent never actually got an answer).
-          const answer = await vexPrompt({ title: 'The agent has a question', message: decision.parameters?.question || 'What should I do?', okLabel: 'Answer' });
+          const answer = await this._dialog(vexPrompt({ title: 'The agent has a question', message: decision.parameters?.question || 'What should I do?', okLabel: 'Answer' }));
+          // Stopped while the question was open, or the question cancelled:
+          // the run used to carry on with an empty answer and print "Asked: …"
+          // under "Stopped." (found 2026-09-29).
+          if (!live()) { stopped(); break; }
+          if (answer == null) { this._renderStep('stopped', 'Stopped — the question was cancelled.', 'warn'); break; }
           this._history.push({ role: 'user', content: answer || '' });
           lastResult = { userAnswer: answer || '' };
           this._renderStep('ask', 'Asked: ' + (decision.parameters?.question || ''), 'info');
@@ -1111,6 +1116,8 @@ const AgentLoop = {
     // on it" never ended), and pressing Approve on it later did the stopped
     // action (found 2026-09-29). Every open card is answered "no" and marked.
     for (const settle of [...this._openCards]) settle(false, 'Stopped');
+    // And the dialogs it opened (see _dialog): cancelled, as Escape would.
+    for (const overlay of [...this._openDialogs]) overlay._vexCancel?.();
     // Cancel the model call already in flight, not just the next step.
     try { this._abort?.abort(new Error('Stopped by you')); } catch { /* nothing in flight */ }
     document.getElementById('ai-send')?.classList.remove('running');
@@ -1366,11 +1373,23 @@ const AgentLoop = {
       this._renderStep('denied', 'Risky action blocked: the confirmation dialog is unavailable.', 'error');
       return false;
     }
-    return await vexConfirm({
+    return await this._dialog(vexConfirm({
       title: 'Risky agent action',
       message: decision.tool + '\n\n' + (decision.thought || ''),
       okLabel: 'Proceed', danger: true
-    });
+    }));
+  },
+
+  // A vexConfirm/vexPrompt the run is waiting on. Stop left "Risky agent
+  // action" open over a run that was already over (found 2026-09-29), so the
+  // dialog just opened is kept until it settles and stop() cancels it.
+  _openDialogs: new Set(),
+  _dialog(pending) {
+    const all = typeof document !== 'undefined' ? document.querySelectorAll('.vex-dialog-overlay') : [];
+    const overlay = all.length ? all[all.length - 1] : null;
+    if (!overlay) return pending;
+    this._openDialogs.add(overlay);
+    return Promise.resolve(pending).finally(() => this._openDialogs.delete(overlay));
   },
 
   // Settles a waiting card once: writes what happened in place of its buttons

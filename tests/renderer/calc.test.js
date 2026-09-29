@@ -12,6 +12,15 @@ describe('VexCalc.evaluate', () => {
     expect(VexCalc.evaluate('10/4').value).toBe('2.5');
   });
 
+  // "-5 c to f" gave nothing (found 2026-09-29).
+  it('converts negative numbers', () => {
+    expect(VexCalc.evaluate('-5 c to f').value).toBe('23');
+    expect(VexCalc.evaluate('-40 f to c').value).toBe('-40');
+    expect(VexCalc.evaluate('-3 km to m').value).toBe('-3000');
+    VexCalc._rates = { EUR: 0.5 };
+    expect(VexCalc.evaluate('-10 usd to eur').value).toBe('-5');
+  });
+
   it('ignores non-calc queries', () => {
     expect(VexCalc.evaluate('hello world')).toBeNull();
     expect(VexCalc.evaluate('github')).toBeNull();

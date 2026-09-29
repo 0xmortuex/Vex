@@ -50,7 +50,14 @@ const ScreenshotToCode = {
         </div>
       </div>`;
     document.body.appendChild(m);
-    const close = () => m.remove();
+    // Escape closes it, like every other Vex dialog — it did nothing here
+    // (found 2026-09-29). Not while a vexConfirm/vexPrompt sits on top.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); e.stopPropagation(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
     m.querySelector('#s2c-close').addEventListener('click', close);
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     const codeEl = m.querySelector('#s2c-code');
@@ -65,7 +72,7 @@ const ScreenshotToCode = {
       try {
         const code = await this.generate(dataUrl, framework);
         codeEl.value = code;
-        status.textContent = '✓ Generated — preview or tweak the code';
+        status.textContent = 'Generated — preview or tweak the code';
         previewBtn.disabled = copyBtn.disabled = false;
       } catch (err) {
         status.textContent = err.message || 'Generation failed';

@@ -267,7 +267,7 @@ const VexFonts = {
             <h2>Font</h2>
             <p>The typeface Vex itself wears \u2014 every panel, menu and button. Pages keep their own. Every face here is already on this machine, so nothing is downloaded.</p>
           </div>
-          <button class="vexfont-close" aria-label="Close">&times;</button>
+          <button class="vexfont-close" aria-label="Close" title="Close">${VexIcons.svg('x', { size: 18 })}</button>
         </div>
         <div class="vexfont-body" id="vexfont-body"></div>
         <div class="vexfont-foot">

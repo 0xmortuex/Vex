@@ -121,7 +121,9 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       if (channel.startsWith('pip:')) return !!(isPipContents && isPipContents(event.sender));
       // An extension's own page asking which tab its toolbar popup was opened
       // over (preload-webview.js). main.js answers only the popup's extension.
-      if (channel === 'extensions:popup-tab') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
+      // Or asking for a Vex tab (tabs.create, openOptionsPage); main.js opens
+      // only web pages and that extension's own pages.
+      if (channel === 'extensions:popup-tab' || channel === 'extensions:open-tab') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
       try { return channel === 'popup-chrome:action' && fileURLToPath(event.senderFrame.url) === path.join(root, 'renderer/popup-chrome.html'); }
       catch { return false; }
     },

@@ -29,9 +29,56 @@ describe('an address or words to search', () => {
       expect(T.addressFor(w), w).toBe(null);
     }
   });
+
+  // The tester's table (found 2026-09-29): IDN names and Windows paths were
+  // searched; bare file names and label:number words opened as broken addresses.
+  const OPENS = {
+    'münchen.de': 'https://münchen.de',
+    'www.bücher.de/katalog': 'https://www.bücher.de/katalog',
+    'пример.рф': 'https://пример.рф',
+    '例子.中国': 'https://例子.中国',
+    'xn--mnchen-3ya.de': 'https://xn--mnchen-3ya.de',
+    'example.xn--p1ai': 'https://example.xn--p1ai',
+    'C:\\x': 'file:///C:/x',
+    'C:\\Windows\\win.ini': 'file:///C:/Windows/win.ini',
+    'c:/x/y.html': 'file:///c:/x/y.html',
+    'C:\\Program Files\\a b.txt': 'file:///C:/Program Files/a b.txt',
+    '\\\\server\\share': 'file://server/share',
+    '\\\\server\\share\\dir\\f.txt': 'file://server/share/dir/f.txt',
+    'example.io': 'https://example.io',
+    'docs.rs': 'https://docs.rs',
+    'bun.sh': 'https://bun.sh',
+    'www.readme.md': 'https://www.readme.md',
+    'example.md/x': 'https://example.md/x',
+    'example.com/readme.md': 'https://example.com/readme.md',
+    'notes.md:8080': 'https://notes.md:8080',
+    'my-server:3000': 'http://my-server:3000',
+    'test:123': 'http://test:123',
+    'localhost:3000': 'http://localhost:3000',
+    'router.local': 'https://router.local',
+    'example.com.': 'https://example.com.',
+  };
+  it('opens IDN names, Windows paths and real sites', () => {
+    for (const [typed, want] of Object.entries(OPENS)) expect(T.addressFor(typed), typed).toBe(want);
+  });
+
+  const SEARCHES = ['index.html', 'readme.md', 'node.js', 'vue.js', 'script.py', 'report.final.pdf', 'photo.JPG',
+    'ISBN:12345', 'time:10', 'a:1', 'note:hello', 'Re: meeting', 'x.y', '10.5.3', 'v1.2.3', '-bad.com',
+    'exa_mple.com', 'my-server', 'example.com/search?q=a b'];
+  it('searches file names and label:number words', () => {
+    for (const w of SEARCHES) expect(T.addressFor(w), w).toBe(null);
+  });
 });
 
 describe('the chosen engine', () => {
+  it('the New Tab page offers the same engines and uses the same rules', () => {
+    const html = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/start.html'), 'utf8');
+    expect(html).toContain('<script src="js/typed-address.js"></script>');
+    const block = html.slice(html.indexOf('const ENGINE_LOOK = {'), html.indexOf('};', html.indexOf('const ENGINE_LOOK = {')));
+    const ids = [...block.matchAll(/^\s*(\w+):/gm)].map(m => m[1]).sort();
+    expect(ids).toEqual(Object.keys(T.SEARCH_ENGINES).sort());
+  });
+
   it('knows every engine setup and the New Tab page offer', () => {
     expect(Object.keys(T.SEARCH_ENGINES).sort()).toEqual(['bing', 'brave', 'duckduckgo', 'ecosia', 'google', 'startpage']);
     expect(T.searchUrl('a b', 'bing')).toBe('https://www.bing.com/search?q=a%20b');

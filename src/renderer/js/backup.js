@@ -28,12 +28,19 @@ const VexBackup = {
   // so a key added next year is covered before anyone remembers this file.
   NEVER: [
     /pass|secret|token|key\b|credential|vault|totp|otp|seed|auth/i,
+    // Lock Vex's PIN hash, and its lock state and wrong-PIN count: a 4-digit
+    // PIN is quick to try against a hash in a backup file (found 2026-09-29).
+    /^vex\.lock(Pin|ed|Fails|WaitUntil)$/i,
   ],
 
   // True of this machine, not of this person.
   LOCAL: [
     /^vex\.(installedAt|hasRunBefore|lastUpdateCheck|lastSeenVersion|notificationsChecked|defaultBrowserConfigured)$/,
-    /^vex\.(panelUsage|tabs|session|sleptAt|commandUsage|clipboard)/,
+    /^vex\.(panelUsage|tabs|sleptAt|commandUsage|clipboard)/,
+    // Only the bare key. As a prefix, `session` also caught `vex.sessions` —
+    // the named sessions you saved — so the backup that promised "sessions"
+    // left every one of them out (found 2026-09-29).
+    /^vex\.session$/,
     /^vex\.(aiConversations|aiChatMeta)$/,     // only with consent; added below
   ],
 
@@ -168,6 +175,15 @@ const VexBackup = {
     return true;
   },
 
+  // Panels that keep what they read in memory write it back later — the
+  // workspaces on every close of the window — so closing Vex after a restore
+  // wrote the old workspaces over the restored ones (found 2026-09-29). Have
+  // them read the restored values now, as they do after a sync.
+  _reloadLive() {
+    if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.reloadSyncedState();
+    window.dispatchEvent(new CustomEvent('vex-sync-data-applied'));
+  },
+
   fileName() {
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
@@ -212,7 +228,7 @@ const VexBackup = {
     const now = this.collect([]);
     m.innerHTML = '<div class="vexsr-card"><div class="vexsr-head">'
       + '<span class="vexsr-title">Back up everything, or put it back</span>'
-      + '<button class="vexsr-x" id="bk-close" aria-label="Close">✕</button></div>'
+      + '<button class="vexsr-x" id="bk-close" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 13 }) + '</button></div>'
       + '<div class="vexsr-sub">One file with everything Vex remembers about how you work — your notes, sessions, keybindings, site rules, panels, theme, skin and typeface. '
       + Object.keys(now.items).length + ' things right now.</div>'
       + '<div class="vexsr-row" style="margin-top:12px">'
@@ -230,9 +246,20 @@ const VexBackup = {
     document.body.appendChild(m);
 
     const msg = (t, bad) => { const e = m.querySelector('#bk-msg'); e.textContent = t || ''; e.style.color = bad ? 'var(--danger, #ef4444)' : 'var(--text-muted)'; };
-    const close = () => m.remove();
+    // Escape closes it the way the X does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for the restore vexConfirm on top is left to that dialog. Focus moves in,
+    // or with the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
     m.addEventListener('click', e => { if (e.target === m) close(); });
     m.querySelector('#bk-close').addEventListener('click', close);
+    m.querySelector('#bk-close').focus({ preventScroll: true });
 
     m.querySelector('#bk-save').addEventListener('click', async () => {
       try {
@@ -263,13 +290,14 @@ const VexBackup = {
         const r = this.apply(data);
         this._undoStores = null;
         r.written += await this.applyStores(data);
+        this._reloadLive();
         msg('Restored ' + r.written + ' things' + (r.failed ? ' — ' + r.failed + ' were skipped' : '') + '. Restart Vex for all of it to take.');
         const undo = document.createElement('button');
         undo.className = 'vexsr-x';
         undo.style.marginTop = '8px';
         undo.textContent = 'Undo the restore';
         undo.addEventListener('click', async () => {
-          try { this.undo(); await this.undoStores(); msg('Put back the way it was. Restart Vex.'); undo.remove(); }
+          try { this.undo(); await this.undoStores(); this._reloadLive(); msg('Put back the way it was. Restart Vex.'); undo.remove(); }
           catch (err) { msg(err.message, true); }
         });
         m.querySelector('#bk-msg').after(undo);

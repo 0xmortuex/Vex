@@ -77,6 +77,18 @@ const VexQuickCommands = {
     return out;
   },
 
+  // "open settings", "show history", "go to downloads": the opening word only
+  // says "take me there", and left on it made Ctrl+K rank "Search" above the
+  // Settings command (found 2026-09-29). Only a short name comes off it, so a
+  // real sentence ("open the file I downloaded yesterday", "show me how")
+  // stays as it was.
+  withoutOpener(text) {
+    const t = String(text || '').trim();
+    const m = t.match(/^(?:open|show|go to|goto)\s+(?:the\s+|my\s+)?(.+)$/i);
+    if (!m || /^(me|up|how|what|where|why)\b/i.test(m[1]) || m[1].split(/\s+/).length > 3) return t;
+    return m[1];
+  },
+
   plainly(raw) {
     let t = String(raw || '').trim();
     if (!t) return '';
@@ -92,7 +104,7 @@ const VexQuickCommands = {
     if (this.QUESTION.test(t)) return t;
 
     const thing = t.match(this.THINGS);
-    if (!thing || !this.ASKS.test(t)) return t;
+    if (!thing || !this.ASKS.test(t)) return this.withoutOpener(t);
     const noun = thing[1].toLowerCase().replace(/(es|s)$/, '');
 
     if (noun === 'stopwatch') return 'stopwatch';
@@ -187,7 +199,12 @@ const VexQuickCommands = {
       action: async () => {
         if (plan.same) return;
         try { const r = await VexSettingsControl.apply(req); window.showToast?.(r.message); }
-        catch (err) { window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); throw err; }
+        catch (err) {
+          // Saying no to the question is not a failure (settings-control.js
+          // marks it declined).
+          if (err && err.declined) { window.showToast?.('Left as it was', 'info'); return; }
+          window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); throw err;
+        }
       },
     };
   },

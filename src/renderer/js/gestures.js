@@ -23,6 +23,9 @@ const MouseGestures = {
     on('ipc-message', (e) => {
       if (e.channel !== 'vex-gesture') return;
       if (!this.enabled()) return;
+      // Only from the page you are looking at: a background tab's gesture
+      // acted on the tab in front, closing it (found 2026-09-29).
+      if (typeof WebviewManager !== 'undefined' && WebviewManager.getActiveWebview && WebviewManager.getActiveWebview() !== webview) return;
       const dir = (e.args && e.args[0]) || '';
       this.run(dir, webview);
     });

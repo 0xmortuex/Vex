@@ -121,6 +121,10 @@ const ShortcutsRegistry = (() => {
     'schedules', 'tabs-sidebar',
     // Passed up from inside pages by main.js (handleDictateShortcut).
     'dictate',
+    // Ctrl+P, Ctrl+U and Ctrl+D inside a page come from main/guest-shortcuts.js
+    // PAGE_FIRST, which does not follow a rebind: moving Print to F7 left
+    // Ctrl+P printing in every page (found 2026-09-29).
+    'print-page', 'view-source', 'bookmark',
   ]);
   for (const id of SYSTEM_SHORTCUTS) { if (DEFAULT_SHORTCUTS[id]) DEFAULT_SHORTCUTS[id].system = true; }
 
@@ -163,18 +167,25 @@ const ShortcutsRegistry = (() => {
     setTimeout(_tellMain, 1200);
   }
 
+  // A fixed shortcut keeps its default even if an older Vex saved a rebind
+  // for it (print, view source and bookmark could be moved until 2026-09-29).
+  function _userKey(id) {
+    return DEFAULT_SHORTCUTS[id]?.system ? null : userShortcuts[id];
+  }
+
   function getShortcut(id) {
-    return userShortcuts[id] || DEFAULT_SHORTCUTS[id]?.default || null;
+    return _userKey(id) || DEFAULT_SHORTCUTS[id]?.default || null;
   }
 
   function getAllShortcuts() {
     const out = {};
     for (const id in DEFAULT_SHORTCUTS) {
       const def = DEFAULT_SHORTCUTS[id];
+      const mine = _userKey(id);
       out[id] = {
         ...def,
-        current: userShortcuts[id] || def.default,
-        isCustom: !!userShortcuts[id] && userShortcuts[id] !== def.default,
+        current: mine || def.default,
+        isCustom: !!mine && mine !== def.default,
         // A key with nothing behind it does nothing, and the editor greys it
         // out rather than pretending. An entry that names a Ctrl+K command
         // counts as handled while that command exists.
@@ -211,6 +222,22 @@ const ShortcutsRegistry = (() => {
     return 'needs-modifier';
   }
 
+  // Keys Vex answers outside this registry (main.js before-input-event, its
+  // global boss key, main/guest-shortcuts.js) or that Windows owns. They were
+  // accepted with no warning, and then the key did both things or neither
+  // (found 2026-09-29). Keep in step with main.js.
+  const FIXED_KEYS = {
+    'Ctrl+Shift+N': 'Notes',
+    'Ctrl+=': 'Zoom in', 'Ctrl++': 'Zoom in', 'Ctrl+Shift++': 'Zoom in', 'Ctrl+-': 'Zoom out', 'Ctrl+0': 'Reset Zoom',
+    'Alt+Left': 'Back', 'Alt+Right': 'Forward',
+    'Ctrl+Tab': 'Next Tab', 'Ctrl+Shift+Tab': 'Previous Tab',
+    'Ctrl+Alt+H': 'Hide Vex (boss key)',
+    'Alt+Space': 'the Windows window menu',
+    'F12': 'Developer tools', 'Ctrl+Shift+F12': 'Developer tools',
+  };
+  for (let n = 1; n <= 8; n++) FIXED_KEYS['Ctrl+' + n] = 'Go to tab ' + n;
+  FIXED_KEYS['Ctrl+9'] = 'Go to the last tab';
+
   function setShortcut(id, combo) {
     const why = whyNotAKey(combo);
     if (why) return { invalid: why };
@@ -220,6 +247,10 @@ const ShortcutsRegistry = (() => {
       if (!_command(commandIdOf(id))) return { unknown: true };
     } else if (!DEFAULT_SHORTCUTS[id]) return false;
     else if (DEFAULT_SHORTCUTS[id].system) return { system: true }; // fixed at the main-process level
+    // Its own default is fine to keep (zoom-reset is Ctrl+0, next-tab Ctrl+Tab).
+    if (FIXED_KEYS[combo] && DEFAULT_SHORTCUTS[id]?.default !== combo) {
+      return { conflict: 'fixed', conflictLabel: FIXED_KEYS[combo] };
+    }
     const all = getAllShortcuts();
     for (const [otherId, data] of Object.entries(all)) {
       if (otherId !== id && data.current === combo) {
@@ -295,6 +326,10 @@ const ShortcutsRegistry = (() => {
     // No shortcut works behind the lock screen: Ctrl+H opened History and
     // Ctrl+Alt+N a private window while Vex was locked (found 2026-09-29).
     if (typeof VexLock !== 'undefined' && VexLock.locked()) return;
+    // While the shortcut editor is recording a key, the key is being chosen,
+    // not pressed: recording Ctrl+Alt+X warned it was taken AND opened the
+    // Toolbox, because this listener is attached first (found 2026-09-29).
+    if (typeof document !== 'undefined' && document.querySelector('.shortcut-key.capturing')) return;
     const target = e.target;
     const inInput = target && (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable);
     // If typing in an input and no modifier + not a function/F-key, do nothing

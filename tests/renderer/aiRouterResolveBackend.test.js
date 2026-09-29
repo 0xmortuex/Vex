@@ -27,11 +27,13 @@ beforeEach(() => { savedOllama = globalThis.Ollama; savedWebLLM = globalThis.Web
 afterEach(() => { globalThis.Ollama = savedOllama; globalThis.WebLLM = savedWebLLM; vi.restoreAllMocks(); });
 
 describe('AIRouter.resolveBackend — Ollama fallback when cloud is unconfigured', () => {
-  it('explicit cloud pref + no Worker URL → cloud (unchanged)', async () => {
+  // With no Worker URL there is no cloud to prefer: a cloud-preferring feature
+  // failed on it first and logged a problem before falling back (2026-09-29).
+  it('explicit cloud pref + no Worker URL + Ollama up → local', async () => {
     const AIRouter = await loadRouter();
     AIRouter.setRoutingPrefs({ groupTabs: 'cloud' });
-    stubOllama(true); // even with Ollama up, an explicit cloud pref stays cloud
-    expect(await AIRouter.resolveBackend('groupTabs')).toBe('cloud');
+    stubOllama(true);
+    expect(await AIRouter.resolveBackend('groupTabs')).toBe('local');
   });
 
   it('forced cloud + no Worker URL → cloud (unchanged)', async () => {

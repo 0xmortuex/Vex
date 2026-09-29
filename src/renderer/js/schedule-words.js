@@ -27,6 +27,15 @@ const ScheduleWords = {
       if (hour > 23 || mins > 59) return null;
       return String(hour).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
     }
+    // A bare hour after "at": "on the 21st at 9" was refused as saying no
+    // time at all (found 2026-09-29). "evening at 7" still means 19:00.
+    const bare = s.match(/\bat\s+(\d{1,2})\b(?![:.]\d)/);
+    if (bare) {
+      let hour = Number(bare[1]);
+      if (hour < 12 && /\b(afternoon|evening|night)\b/.test(s)) hour += 12;
+      if (hour > 23) return null;
+      return String(hour).padStart(2, '0') + ':00';
+    }
     // Longest first, or "midnight" is read as "night".
     for (const [word, at] of Object.entries(this.NAMED).sort((a, b) => b[0].length - a[0].length)) {
       if (s.includes(word)) return at;
@@ -64,7 +73,9 @@ const ScheduleWords = {
     if (!s) throw new Error('Say when it should run — "every weekday at 8:30", "every morning at 9", "every 30 minutes"');
 
     const minutes = this.everyMinutes(s);
-    if (minutes) return { type: 'interval', intervalMinutes: minutes };
+    // The engine reads `everyMinutes`; handing it `intervalMinutes` left every
+    // "every 30 minutes" running at its 60-minute default (found 2026-09-29).
+    if (minutes) return { type: 'interval', everyMinutes: minutes };
 
     const at = this.time(s);
     const days = this.days(s);
@@ -82,7 +93,7 @@ const ScheduleWords = {
   describe(schedule) {
     if (!schedule) return '';
     if (schedule.type === 'interval') {
-      const n = schedule.intervalMinutes;
+      const n = schedule.everyMinutes;
       return n % 60 === 0 && n >= 60 ? 'every ' + (n / 60) + ' hour' + (n === 60 ? '' : 's') : 'every ' + n + ' minutes';
     }
     const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

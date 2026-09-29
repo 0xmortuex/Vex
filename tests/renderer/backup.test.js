@@ -9,6 +9,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Close buttons and ticks are VexIcons SVGs (sweep 2026-09-29).
+require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = window.VexIcons;
+
 require('../../src/renderer/js/vex-utils.js');
 const { VexBackup } = require('../../src/renderer/js/backup.js');
 globalThis.VexBackup = VexBackup;

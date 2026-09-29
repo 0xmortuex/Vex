@@ -171,5 +171,7 @@
 }
 .vtp-card:hover .vtp-star { opacity: 1; }
 .vtp-star.on { opacity: 1; color: #fbbf24; }
+/* A favourite is a filled star, not just a yellow outline. */
+.vtp-star.on svg { fill: currentColor; }
 .vtp-star:hover { transform: scale(1.12); }
 

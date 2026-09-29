@@ -47,8 +47,8 @@ const ShortcutEditor = (() => {
                     ? `<span class="shortcut-key locked" title="Fixed shortcut \u2014 works, but can\u2019t be reassigned">${formatKeyCombo(s.current)}</span>`
                     : `<button class="shortcut-key ${s.isCustom ? 'custom' : ''}" data-id="${_esc(s.id)}">${formatKeyCombo(s.current)}</button>`}
                   ${s.removable
-                    ? `<button class="btn-reset-sm" data-remove="${_esc(s.id)}" title="Take this shortcut away">×</button>`
-                    : (!locked && s.isCustom) ? `<button class="btn-reset-sm" data-id="${_esc(s.id)}" title="Reset to default">↻</button>` : '<span></span>'}
+                    ? `<button class="btn-reset-sm" data-remove="${_esc(s.id)}" title="Take this shortcut away" aria-label="Take this shortcut away">${VexIcons.svg('x', { size: 12 })}</button>`
+                    : (!locked && s.isCustom) ? `<button class="btn-reset-sm" data-id="${_esc(s.id)}" title="Reset to default" aria-label="Reset to default">${VexIcons.svg('undo', { size: 12 })}</button>` : '<span></span>'}
                 </div>
               `; }).join('')}
             </div>

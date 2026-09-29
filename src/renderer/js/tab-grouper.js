@@ -555,7 +555,7 @@ const TabGrouper = (() => {
     const el = document.createElement('div');
     el.className = 'group-apply-toast';
     el.innerHTML = `
-      <span>\u2713 Created ${groupCount} group${groupCount === 1 ? '' : 's'}</span>
+      <span>${VexIcons.svg('check', { size: 13 })} Created ${groupCount} group${groupCount === 1 ? '' : 's'}</span>
       <button class="undo-btn" id="undo-grouping">Undo</button>
     `;
     document.body.appendChild(el);

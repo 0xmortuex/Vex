@@ -42,7 +42,8 @@ describe('shortcut editor: key capture is torn down with the panel', () => {
     // Only NON-system shortcuts with a registered handler render as rebindable
     // buttons; everything else is a locked row the editor never captures for.
     ShortcutsRegistry.register('ask-ai-bar', () => {});
-    ShortcutsRegistry.register('bookmark', () => {});
+    // Not 'bookmark': it is fixed now, like print and view source (2026-09-29).
+    ShortcutsRegistry.register('reading-mode', () => {});
   });
 
   function openPanel() {

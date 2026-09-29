@@ -67,6 +67,9 @@ const WorkspaceManager = {
   },
 
   async switchTo(id) {
+    // A private window's tabs are never saved, so switching closed every one
+    // of them for good (found 2026-09-29).
+    if (window.VexTabPolicy?.isPrivateWindow) { window.showToast?.('A private window has no workspaces — its tabs would be lost', 'warn'); return; }
     if (id === this.activeId || this._switching || !this.workspaces.some(w => w.id === id)) return;
     this._switching = true;
 
@@ -116,6 +119,9 @@ const WorkspaceManager = {
       for (const t of tabsToRestore) {
         const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
         tab.keepAwakeUntil = t.keepAwakeUntil || 0;
+        // The workspace keeps each tab's note (VexTabPolicy.serialize);
+        // switching back dropped it (found 2026-09-29).
+        if (t.note) tab.note = t.note;
         tab.favicon = TabManager._persistableFavicon(t.favicon);
         // createLazyTab always starts a tab unstacked; re-apply the saved
         // membership so a workspace's stacks survive the round-trip.
@@ -224,7 +230,7 @@ const WorkspaceManager = {
       <div class="ws-item${w.id === this.activeId ? ' active' : ''}" data-id="${w.id}">
         <span class="ws-dot" style="background:${w.color}"></span>
         <span class="ws-item-name">${this._esc(w.name)}</span>
-        ${w.id === this.activeId ? '<span class="ws-item-check">&#10003;</span>' : ''}
+        ${w.id === this.activeId ? '<span class="ws-item-check" style="display:inline-flex">' + VexIcons.svg('check', { size: 14 }) + '</span>' : ''}
         <button class="ws-item-edit" data-edit="${w.id}" title="Rename or delete" aria-label="Edit ${this._esc(w.name)}" style="background:none;border:0;padding:2px;color:inherit;cursor:pointer;display:inline-flex;opacity:.7">${typeof VexIcons !== 'undefined' ? VexIcons.svg('edit', { size: 13 }) : ''}</button>
       </div>
     `).join('') + `
@@ -277,6 +283,7 @@ const WorkspaceManager = {
   },
 
   toggleDropdown() {
+    if (window.VexTabPolicy?.isPrivateWindow) { window.showToast?.('A private window has no workspaces — its tabs would be lost', 'warn'); return; }
     const dd = document.getElementById('workspace-dropdown');
     if (dd?.classList.contains('visible')) this.hideDropdown();
     else this.showDropdown();
@@ -317,7 +324,8 @@ const WorkspaceManager = {
     modal.querySelector('#ws-modal-cancel').addEventListener('click', () => this.hideModal());
     modal.querySelector('#ws-modal-save').addEventListener('click', () => {
       const name = modal.querySelector('#ws-modal-name').value.trim();
-      if (!name) return;
+      // A blank name did nothing and said nothing (found 2026-09-29).
+      if (!name) { window.showToast?.('Give the workspace a name', 'warn'); modal.querySelector('#ws-modal-name').focus(); return; }
       if (editing) {
         editing.name = name;
         editing.color = selectedColor;
@@ -348,15 +356,24 @@ const WorkspaceManager = {
       modal.addEventListener('click', (e) => { if (e.target === modal) this.hideModal(); });
     }
     modal.querySelector('#ws-modal-name').addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.hideModal();
       if (e.key === 'Enter') modal.querySelector('#ws-modal-save').click();
     });
+    // Escape closes the dialog wherever focus is; it only worked from the name
+    // field (found 2026-09-29). One listener per open dialog.
+    if (this._modalKey) document.removeEventListener('keydown', this._modalKey, true);
+    this._modalKey = (e) => {
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation();
+      this.hideModal();
+    };
+    document.addEventListener('keydown', this._modalKey, true);
 
     modal.classList.add('visible');
     modal.querySelector('#ws-modal-name').focus();
   },
 
   hideModal() {
+    if (this._modalKey) { document.removeEventListener('keydown', this._modalKey, true); this._modalKey = null; }
     document.getElementById('workspace-modal')?.classList.remove('visible');
   },
 

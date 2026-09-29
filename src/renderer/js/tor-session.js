@@ -108,7 +108,7 @@ const TorSession = {
             const p = m.querySelector('#' + id + '-pct'); if (p) p.textContent = '100%';
           }
         });
-        const st = m.querySelector('#tor-bs-stage'); if (st) st.textContent = '✓ Connected — opening your Tor tab…';
+        const st = m.querySelector('#tor-bs-stage'); if (st) st.textContent = 'Connected — opening your Tor tab…';
       },
     };
     // Cancel stops the Tor Vex is launching, not just this dialog: closing it

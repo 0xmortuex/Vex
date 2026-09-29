@@ -69,39 +69,6 @@
     return (top.join('\n') + tables.join('\n')).trim();
   };
 
-  const HTTP = {
-    100: 'Continue — keep sending the body.',
-    101: 'Switching Protocols — usually a WebSocket upgrade.',
-    200: 'OK.',
-    201: 'Created — the Location header says where.',
-    202: 'Accepted — queued, not finished.',
-    204: 'No Content — success, and deliberately no body.',
-    206: 'Partial Content — a range request, as used by video seeking.',
-    301: 'Moved Permanently — caches and search engines will remember.',
-    302: 'Found — a temporary redirect. Method may change to GET.',
-    303: 'See Other — redirect and switch to GET. The POST-redirect-GET pattern.',
-    304: 'Not Modified — your cached copy is still good.',
-    307: 'Temporary Redirect — like 302 but the method is preserved.',
-    308: 'Permanent Redirect — like 301 but the method is preserved.',
-    400: 'Bad Request — malformed. The client cannot simply retry.',
-    401: 'Unauthorized — actually means unauthenticated. Send credentials.',
-    403: 'Forbidden — authenticated, but not allowed. Retrying will not help.',
-    404: 'Not Found.',
-    405: 'Method Not Allowed — the Allow header lists what is permitted.',
-    409: 'Conflict — state clash, such as an edit against a stale version.',
-    410: 'Gone — deliberately deleted, unlike 404 which may be temporary.',
-    413: 'Payload Too Large.',
-    415: 'Unsupported Media Type — the Content-Type was refused.',
-    418: "I'm a teapot — an April Fools joke from 1998, still implemented.",
-    422: 'Unprocessable Content — syntax fine, meaning wrong. Validation failures.',
-    429: 'Too Many Requests — check Retry-After before trying again.',
-    500: 'Internal Server Error — the catch-all for an unhandled fault.',
-    501: 'Not Implemented.',
-    502: 'Bad Gateway — a proxy got nonsense from upstream.',
-    503: 'Service Unavailable — overloaded or down for maintenance.',
-    504: 'Gateway Timeout — a proxy gave up waiting upstream.',
-  };
-
   packs.add([
     {
       id: 'fmt-json-yaml',
@@ -131,36 +98,6 @@
         { in: { json: '{"name":"vex","port":443}', to: 'yaml' }, out: 'name: vex\nport: 443' },
         { in: { json: '{"name":"vex","port":443}', to: 'toml' }, out: 'name = "vex"\nport = 443' },
         { in: { json: '{"version":"1.0"}', to: 'yaml' }, out: 'version: "1.0"' },
-      ],
-    },
-
-    {
-      id: 'web-http-status',
-      name: 'HTTP status codes',
-      icon: 'globe',
-      family: 'web',
-      desc: 'What a status code means in practice — including the ones routinely used wrongly.',
-      keywords: ['http', 'status', '404', '401', '403', '429', 'response code'],
-      fields: [{ id: 'code', label: 'Code or search', type: 'text', value: '401', placeholder: '404, or "redirect"' }],
-      run(v) {
-        const q = need(v.code, 'a status code or a word to search for').toLowerCase();
-        if (/^\d{3}$/.test(q)) {
-          const n = Number(q);
-          const known = HTTP[n];
-          const klass = n < 200 ? 'Informational' : n < 300 ? 'Success' : n < 400 ? 'Redirect' : n < 500 ? 'Client error' : 'Server error';
-          if (!known) return [['Code', q], ['Class', klass], ['Meaning', 'Not a registered code. The class still applies, and clients treat it as the generic x00 of its class.']];
-          const rows = [['Code', q], ['Class', klass], ['Meaning', known]];
-          if (n === 401) rows.push(['Note', 'If the user IS logged in and still may not do it, 403 is the correct code.']);
-          if (n === 302) rows.push(['Note', 'Use 307 to keep the method, or 303 to force GET. 302 is ambiguous by history.']);
-          return rows;
-        }
-        const hits = Object.entries(HTTP).filter(([c, t]) => t.toLowerCase().includes(q) || c.includes(q));
-        if (!hits.length) throw new Error(`Nothing matches "${v.code}". Try a code like 404, or a word like "redirect".`);
-        return hits.map(([c, t]) => [c, t]);
-      },
-      examples: [
-        { in: { code: '404' }, out: [['Code', '404'], ['Class', 'Client error'], ['Meaning', 'Not Found.']] },
-        { in: { code: '401' }, match: /unauthenticated[\s\S]*403 is the correct code/ },
       ],
     },
 

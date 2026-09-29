@@ -62,6 +62,14 @@ const AIRestyle = {
     return s.trim();
   },
 
+  // At least one rule with a declaration in it ("body { color: #eee }").
+  // Anything ten characters long used to pass, so a refusal ("I can't help
+  // restyle that site…") was saved as the site's CSS and reported as
+  // "Restyled" (found 2026-09-29).
+  _looksLikeCss(s) {
+    return /[^{}\s][^{}]*\{[^{}]*[a-z-]+\s*:\s*[^;{}\s][^{}]*\}/i.test(String(s || ''));
+  },
+
   open() {
     if (typeof VexBoosts === 'undefined') { window.showToast?.('Boosts unavailable'); return; }
     const host = this._host();
@@ -85,15 +93,23 @@ const AIRestyle = {
       </div>
     </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#ar-close').addEventListener('click', () => m.remove());
+    // Escape closes it, like every other Vex dialog — it did nothing here
+    // (found 2026-09-29). Not while a vexConfirm/vexPrompt sits on top.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); e.stopPropagation(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#ar-close').addEventListener('click', () => close());
     const text = m.querySelector('#ar-text');
     m.querySelectorAll('.ar-preset').forEach(b => b.addEventListener('click', () => { text.value = this.PRESETS[+b.dataset.i][1]; }));
     const msg = (t, err) => { const e = m.querySelector('#ar-msg'); if (e) { e.textContent = t; e.style.color = err ? 'var(--danger,#e5556a)' : 'var(--text-muted)'; } };
     m.querySelector('#ar-revert')?.addEventListener('click', () => {
       try { this._setAi(host, null); } catch (e) { msg('Could not remove the AI style: ' + (e && e.message || 'unknown'), true); return; }
       window.showToast?.('AI style removed from ' + host);
-      m.remove();
+      close();
     });
     const applyBtn = m.querySelector('#ar-apply');
     applyBtn.addEventListener('click', async () => {
@@ -109,10 +125,10 @@ const AIRestyle = {
       try {
         const reply = await AIRouter.callAI('chat', { message: prompt });
         const css = this._cleanCss(reply);
-        if (!css || css.length < 10) { msg('The AI did not return usable CSS — try rephrasing.', true); return; }
+        if (!this._looksLikeCss(css)) { msg('The AI did not return usable CSS — try rephrasing.', true); return; }
         this._setAi(host, css);
         window.showToast?.('Restyled ' + host + ' — reopen this to revert');
-        m.remove();
+        close();
       } catch (e) {
         msg((e && e.message) || 'The restyle failed.', true);
       } finally {

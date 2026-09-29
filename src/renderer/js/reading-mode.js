@@ -44,6 +44,23 @@ const ReadingMode = {
     return out.join('');
   },
 
+  // The page a Vex reader page was made from, read from the address of the
+  // reader page itself, or '' if it is not one. The reader carries it in
+  // <meta name="vex-reading-source">: after Exit and then Back the reader page
+  // comes back with nothing remembered for the tab, so its Exit did nothing
+  // and reading mode made a reader of the reader (found 2026-09-29). Only
+  // http(s) comes out, so a crafted data: page cannot send the tab to file:.
+  sourceOf(url) {
+    const s = String(url || '');
+    if (!/^data:text\/html/i.test(s)) return '';
+    let html;
+    try { html = decodeURIComponent(s.slice(s.indexOf(',') + 1)); } catch { return ''; }
+    const m = /<meta name="vex-reading-source" content="([^"]*)">/.exec(html);
+    if (!m) return '';
+    const src = m[1].replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }[e]));
+    return /^https?:\/\//i.test(src) ? src : '';
+  },
+
   async activate() {
     const wv = WebviewManager.getActiveWebview();
     if (!wv) { window.showToast?.('No active tab'); return; }
@@ -53,8 +70,9 @@ const ReadingMode = {
 
     // Already reading this tab: the second press exits. Running it again used
     // to overwrite the remembered page with the reader's own data: URL, so the
-    // original page was lost (found 2026-09-29).
-    if (this._originalUrls.has(tabId) && /^data:text\/html/i.test(currentUrl)) {
+    // original page was lost (found 2026-09-29). A reader page reached by
+    // Back has nothing remembered, so its own source line is used.
+    if ((this._originalUrls.has(tabId) && /^data:text\/html/i.test(currentUrl)) || this.sourceOf(currentUrl)) {
       this.exitReadingMode(tabId);
       return;
     }
@@ -106,7 +124,7 @@ const ReadingMode = {
     const readTime = Math.max(1, Math.ceil((article.wordCount || 0) / 250));
     const title = this._esc(article.title || 'Reading mode');
 
-    const readingHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>
+    const readingHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="vex-reading-source" content="${this._esc(currentUrl)}"><title>${title}</title><style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #fafaf7; color: #1a1a1a; font-family: Georgia, 'Times New Roman', serif;
           font-size: 19px; line-height: 1.8; padding: 48px 24px; max-width: 700px; margin: 0 auto; }
@@ -141,11 +159,14 @@ const ReadingMode = {
     this._prune();
     const id = tabId || (typeof TabManager !== 'undefined' ? TabManager.activeTabId : null);
     if (!id) return false;
-    const url = this._originalUrls.get(id);
-    if (!url) return false;
     const wv = (typeof WebviewManager !== 'undefined' && WebviewManager.webviews)
       ? WebviewManager.webviews.get(id)
       : null;
+    // Nothing remembered (the reader page came back through Back): the
+    // reader page names its own source.
+    let url = this._originalUrls.get(id);
+    if (!url && wv) { try { url = this.sourceOf(wv.getURL()); } catch { url = ''; } }
+    if (!url) return false;
     if (!wv) return false;          // tab is gone or asleep — keep the URL for when it is back
     this._originalUrls.delete(id);
     wv.loadURL(url);

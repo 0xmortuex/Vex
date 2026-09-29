@@ -63,22 +63,40 @@ const PermissionPrompts = (() => {
     document.body.appendChild(prompt);
     requestAnimationFrame(() => prompt.classList.add('show'));
 
+    const respond = async (decision, remember) => {
+      document.removeEventListener('keydown', onKey, true);
+      try {
+        await window.vex.permissionRespond({ id, decision, remember, origin, permission });
+      } catch (err) { console.error('[Permissions] respond failed:', err); }
+      prompt.classList.remove('show');
+      setTimeout(() => prompt.remove(), 250);
+      if (typeof window.showToast === 'function') {
+        const how = remember === 'session' ? ' for this visit' : remember === 'day' ? ' for a day' : remember === false ? ' this time' : '';
+        window.showToast(`${decision === 'allow' ? 'Allowed' : 'Blocked'}${how}: ${origin} \u2192 ${info.label}`, 'info', 3000);
+      }
+    };
     prompt.querySelectorAll('[data-decision]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const decision = btn.dataset.decision;
+      btn.addEventListener('click', () => {
         // 'session' lasts until Vex closes and is never written down.
         const remember = btn.dataset.remember === 'session' ? 'session' : btn.dataset.remember === 'day' ? 'day' : true;
-        try {
-          await window.vex.permissionRespond({ id, decision, remember, origin, permission });
-        } catch (err) { console.error('[Permissions] respond failed:', err); }
-        prompt.classList.remove('show');
-        setTimeout(() => prompt.remove(), 250);
-        if (typeof window.showToast === 'function') {
-          const how = remember === 'session' ? ' for this visit' : remember === 'day' ? ' for a day' : '';
-          window.showToast(`${decision === 'allow' ? '\u2713 Allowed' : '\u2717 Blocked'}${how}: ${origin} \u2192 ${info.label}`, 'info', 3000);
-        }
+        respond(btn.dataset.decision, remember);
       });
     });
+    // Escape answers "not now": blocked this once, nothing remembered (main's
+    // remember:false), so the site may ask again. Every button either allows
+    // or blocks for good, and Escape did nothing (found 2026-09-29). This is a
+    // banner, not a modal, so only an Escape with nothing else focused (or
+    // focus in the prompt) is taken: one typed in the command bar or a form is
+    // left to it, as is one meant for a Vex dialog.
+    const onKey = (e) => {
+      if (!prompt.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      const a = document.activeElement;
+      if (a && a !== document.body && !prompt.contains(a)) return;
+      e.preventDefault(); e.stopPropagation();
+      respond('deny', false);
+    };
+    document.addEventListener('keydown', onKey, true);
   }
 
   function init() {

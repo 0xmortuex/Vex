@@ -37,7 +37,9 @@ const SendToPhone = {
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelector('#sp-close').addEventListener('click', close);
     m.querySelector('#sp-copy').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(url); window.showToast?.('Link copied'); } catch {}
+      // A failed copy used to vanish in an empty catch — the button just did
+      // nothing (found 2026-09-29).
+      try { await navigator.clipboard.writeText(url); window.showToast?.('Link copied'); } catch (err) { window.showToast?.('Could not copy the link: ' + ((err && err.message) || err), 'error'); }
     });
 
     const qrBox = m.querySelector('#sp-qr');
@@ -45,7 +47,7 @@ const SendToPhone = {
       const dataUrl = await window.vex.qrGenerate(url);
       if (dataUrl) qrBox.innerHTML = `<img src="${esc(dataUrl)}" alt="QR code" style="width:264px;height:264px;image-rendering:pixelated">`;
       else qrBox.textContent = 'Could not generate a QR code.';
-    } catch { qrBox.textContent = 'Could not generate a QR code.'; }
+    } catch (err) { console.error('[SendToPhone] QR code failed:', err); qrBox.textContent = 'Could not generate a QR code.'; }
   },
 };
 

@@ -117,7 +117,18 @@ const PrivacyPack = {
         </div>
       </div>`;
     document.body.appendChild(m);
-    const close = () => m.remove();
+    // Escape closes it the way Done does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for a Vex dialog on top is left to that dialog. Focus moves in, or with
+    // the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.querySelector('#pr-close').focus({ preventScroll: true });
     m.querySelector('#pr-close').addEventListener('click', close);
     m.querySelector('#pr-reset').addEventListener('click', async () => { try { await window.vex?.privacyTrackerReset?.(); } catch {} close(); window.showToast?.('Tracker counters reset'); });
     m.addEventListener('click', (e) => { if (e.target === m) close(); });

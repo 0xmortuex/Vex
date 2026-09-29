@@ -20,7 +20,7 @@ const ContainerRouting = {
       ? 'This is an isolated container — routing only affects its tabs.'
       : 'Heads-up: this is your main session, so this routes <b>all</b> normal tabs. For an isolated one, use “New Tor container” below.';
     m.innerHTML = `<div style="width:480px;max-width:94vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,0.5);color:var(--text)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:15px;font-weight:700;flex:1;display:inline-flex;align-items:center;gap:7px">${VexIcons.svg('onion', { size: 16 })}Route through Tor / Proxy</span><button id="rt-close" style="${chip}">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:15px;font-weight:700;flex:1;display:inline-flex;align-items:center;gap:7px">${VexIcons.svg('onion', { size: 16 })}Route through Tor / Proxy</span><button id="rt-close" style="${chip}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:4px">Session: <code>${window.escapeHtml ? window.escapeHtml(part) : part}</code></div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:14px">${scopeNote}</div>
       <div style="display:flex;flex-direction:column;gap:8px">

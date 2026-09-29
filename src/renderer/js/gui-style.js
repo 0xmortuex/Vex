@@ -223,7 +223,9 @@
 
   // In Glass the tabs are on top, so the window controls (min/max/close) belong
   // on the tab-bar row (top-right) like Chrome — not buried on the toolbar row.
-  function moveWindowControls(toGlass) {
+  // Safari ('toolbar') keeps them at the end of the right cluster, which it
+  // sizes to match the left one so the address bar stays centred.
+  function moveWindowControls(toGlass, inRightCluster) {
     try {
       const wc = document.getElementById('window-controls');
       if (!wc) return;
@@ -231,7 +233,9 @@
         const trailing = document.querySelector('#top-tab-bar .tab-bar-trailing');
         if (trailing && wc.parentElement !== trailing) trailing.appendChild(wc);
       } else {
-        const home = document.getElementById('top-bar-right');
+        // Otherwise its home is the top bar itself, after #top-bar-right
+        // (index.html), so a narrow window cannot push it off screen.
+        const home = document.getElementById(inRightCluster ? 'top-bar-right' : 'top-bar');
         if (home && wc.parentElement !== home) home.appendChild(wc);
       }
     } catch {}
@@ -257,7 +261,7 @@
         document.body.removeAttribute('data-sb-launcher');
       }
       try { window.HorizontalTabs?.render?.(); } catch {}
-      moveWindowControls(def.controls === 'tabs');
+      moveWindowControls(def.controls === 'tabs', def.controls === 'toolbar');
     } else {
       document.body.removeAttribute('data-gui-style');
       document.body.removeAttribute('data-gui-family');

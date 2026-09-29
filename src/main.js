@@ -164,6 +164,7 @@ const GUEST_PRELOADS = [
 // loads into it; a later worker start picks it up.
 const EXT_SW_PRELOAD_ID = 'vex-extension-sw';
 function ensureExtensionSwPreload(ses) {
+  _wireExtensionWorkerIpc(ses);
   if (typeof ses.registerPreloadScript !== 'function') return;
   if (ses.getPreloadScripts().some(s => s.id === EXT_SW_PRELOAD_ID)) return;
   ses.registerPreloadScript({ type: 'service-worker', id: EXT_SW_PRELOAD_ID, filePath: path.join(__dirname, 'preload-extension-sw.js') });
@@ -406,19 +407,32 @@ ipcMain.on('shortcuts:guest-keys', (event, combos) => {
 
 // A key the page had first and left alone (preload-webview.js): Ctrl+B,
 // Ctrl+Shift+Z and the rest of guest-shortcuts.js PAGE_FIRST.
-ipcMain.on('guest:page-shortcut', (_event, report) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+ipcMain.on('guest:page-shortcut', (event, report) => {
+  const win = _shortcutWindow(event.sender);
+  if (!win) return;
   const hit = pageShortcut(report);
-  if (hit) mainWindow.webContents.send(hit.channel);
+  if (hit) win.webContents.send(hit.channel);
 });
 
+// The window a page's key belongs to: its own. Every key went to the main
+// window, so Ctrl+H in a private window opened History in the main one and
+// Ctrl+W would have closed a main-window tab (found 2026-09-29). None while
+// Vex is locked.
+function _shortcutWindow(contents) {
+  if (_vexLocked) return null;
+  const host = secureSessions.owner(contents);
+  const win = (host && host.win) || mainWindow;
+  return win && !win.isDestroyed() ? win : null;
+}
+
 function handleBrowserShortcut(event, input, contents) {
-  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const win = _shortcutWindow(contents);
+  if (!win) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
   const hit = shortcutFor(input, { ownsFind: guestOwnsFind(url), wanted: _guestWantedKeys });
   if (!hit) return false;
-  mainWindow.webContents.send(hit.channel, ...(hit.args || []));
+  win.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();
   return true;
 }
@@ -1398,9 +1412,24 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
 // (found 2026-09-29). The window says when it locks and unlocks; the vault and
 // new private windows refuse while it is locked.
 let _vexLocked = false;
+// Windows open when Vex locked (a private window, an app window, the overlay)
+// stayed usable behind the lock and could read 2FA codes (found 2026-09-29).
+// They are hidden while locked and come back on unlock. The video pop-out
+// stays: it shows only the video you were watching.
+let _hiddenByLock = [];
 ipcMain.on('vex-lock:state', (e, locked) => {
   if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
   _vexLocked = locked === true;
+  if (_vexLocked) {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (w === mainWindow || w.isDestroyed() || !w.isVisible() || isPipContents(w.webContents)) continue;
+      w.hide();
+      _hiddenByLock.push(w);
+    }
+  } else {
+    for (const w of _hiddenByLock) if (!w.isDestroyed()) w.show();
+    _hiddenByLock = [];
+  }
 });
 const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 
@@ -1470,8 +1499,10 @@ function _parseOtpauth(uri) {
     };
   } catch { return null; }
 }
-ipcMain.handle('totp:list', () => totpLoad().map(e => ({ id: e.id, label: e.label, issuer: e.issuer, digits: e.digits, period: e.period })));
+function _refuseWhileLocked() { if (_vexLocked) throw new Error('Vex is locked — unlock it first'); }
+ipcMain.handle('totp:list', () => (_refuseWhileLocked(), totpLoad()).map(e => ({ id: e.id, label: e.label, issuer: e.issuer, digits: e.digits, period: e.period })));
 ipcMain.handle('totp:codes', () => {
+  _refuseWhileLocked();
   const now = Date.now();
   return totpLoad().map(e => {
     try {
@@ -1967,6 +1998,23 @@ ipcMain.handle('page:capture-full', async (_e, wcId) => {
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not capture the page' }; }
 });
 
+// Run one script in every frame of a tab. webview.executeJavaScript runs in the
+// top frame only, so Master Volume, the per-site volume and Night mode never
+// reached a player embedded in an iframe (found 2026-09-29). Each frame answers
+// for itself; one that does not answer within 6 s is reported, not waited on.
+ipcMain.handle('page:eval-all-frames', async (_e, wcId, code, userGesture) => {
+  const wc = webContents.fromId(wcId);
+  if (!wc || wc.isDestroyed()) return { ok: false, error: 'That tab has closed' };
+  const frames = wc.mainFrame ? wc.mainFrame.framesInSubtree : [];
+  const results = await Promise.all(frames.map(f => new Promise(resolve => {
+    const timer = setTimeout(() => resolve({ ok: false, error: 'The frame did not answer within 6 s' }), 6000);
+    Promise.resolve().then(() => f.executeJavaScript(code, !!userGesture)).then(
+      value => { clearTimeout(timer); resolve({ ok: true, value }); },
+      err => { clearTimeout(timer); resolve({ ok: false, error: String((err && err.message) || err) }); });
+  })));
+  return { ok: true, results };
+});
+
 ipcMain.handle('media:list', (_e, wcId) => {
   const map = _mediaByWc.get(wcId);
   return map ? Array.from(map.values()) : [];
@@ -2225,7 +2273,32 @@ async function _loadExtensionEverywhere(extPath, manifest) {
     const unique = [...new Set(errors)];
     console.error(`[Extensions] ${path.basename(extPath)}: failed in ${errors.length}/${sessions.length} sessions — ${unique.join(' | ')}`);
   }
+  if (loaded) _checkBackgroundStarts(path.basename(extPath), extPath);
   return { extension: loaded, errors };
+}
+
+// loadExtension succeeds even when an MV3 extension's service worker cannot
+// register ("Service worker registration failed. Status code: 15"): Violentmonkey
+// showed "On" with no background at all (found 2026-09-29). A few seconds
+// after loading, persist:main is asked to start the worker; a refusal is
+// recorded, so the manager says why the extension does nothing.
+const BACKGROUND_CHECK_MS = 4000;
+function _checkBackgroundStarts(folder, extPath) {
+  setTimeout(() => {
+    const ses = secureSessions.fromPartition('persist:main');
+    const ext = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(extPath));
+    const worker = ext && ext.manifest && ext.manifest.background && ext.manifest.background.service_worker;
+    if (!worker) return;
+    ses.serviceWorkers.startWorkerForScope(`chrome-extension://${ext.id}/`).then(() => {
+      if (/^Its background did not start/.test(_extLoadErrors.get(folder) || '')) _extLoadErrors.delete(folder);
+    }, err => {
+      // Unloaded (switched off, uninstalled, updated) meanwhile: nothing to say.
+      if (!ses.getAllExtensions().some(x => x.id === ext.id)) return;
+      const why = `Its background did not start: ${err.message}`;
+      _extLoadErrors.set(folder, why);
+      console.error(`[Extensions] ${folder}: ${why}`);
+    });
+  }, BACKGROUND_CHECK_MS);
 }
 
 // Unload one installed folder from every session that could be holding it.
@@ -2259,10 +2332,86 @@ function _removeSupersededCopies(keepPath, name) {
   }
 }
 
+// The installed copy a freshly-placed folder updates: same (localized) name,
+// another folder. The one loaded in persist:main wins when there are several.
+function _installedCopyOf(newFolder) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(newFolder, 'manifest.json'), 'utf-8'));
+  const name = extHelpers.localize(manifest.name, extHelpers.readMessages(newFolder, manifest.default_locale));
+  if (!name) return null;
+  const copies = _extEntriesOnDisk().filter(e => e.manifest && path.resolve(e.path) !== path.resolve(newFolder)
+    && extHelpers.localize(e.manifest.name, e.messages) === name);
+  if (!copies.length) return null;
+  let loaded = [];
+  try { loaded = secureSessions.fromPartition('persist:main').getAllExtensions().map(x => path.resolve(x.path)); }
+  catch (err) { console.error('[Extensions] could not read the loaded extensions:', err.message); }
+  return copies.find(e => loaded.includes(path.resolve(e.path))) || copies[0];
+}
+
+// An update goes INTO the installed copy's folder. Electron names an unpacked
+// extension after its folder, so a new folder was a new extension to Chromium:
+// the id changed and chrome.storage came back empty — Dark Reader lost its
+// site lists on every update (found 2026-09-29). The same folder also keeps
+// its "where it runs" and on/off entries. The old files are set aside until
+// the new ones have loaded, and put back if they do not.
+async function _replaceInPlace(previous, staged) {
+  const backupDir = path.join(userDataPath, 'extensions-replaced');
+  const backup = path.join(backupDir, `${previous.folder}-${Date.now()}`);
+  fs.mkdirSync(backupDir, { recursive: true });
+  const wasDisabled = _readDisabledFolders().has(previous.folder);
+  const reloadOld = async () => {
+    if (wasDisabled) return;
+    const { extension, errors } = await _loadExtensionEverywhere(previous.path);
+    if (!extension) console.error(`[Extensions] ${previous.folder}: the old copy did not load again either — ${errors[0] || 'unknown'}`);
+  };
+  _unloadFromAllSessions(previous.path);
+  try {
+    fs.renameSync(previous.path, backup);
+  } catch (err) {
+    fs.rmSync(staged, { recursive: true, force: true });
+    await reloadOld();
+    return { ok: false, error: `Could not replace the installed copy: ${err.message}` };
+  }
+  try {
+    fs.renameSync(staged, previous.path);
+  } catch (err) {
+    fs.renameSync(backup, previous.path);
+    fs.rmSync(staged, { recursive: true, force: true });
+    await reloadOld();
+    return { ok: false, error: `Could not put the new version in place: ${err.message}` };
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(previous.path, 'manifest.json'), 'utf-8'));
+  const name = extHelpers.localize(manifest.name, extHelpers.readMessages(previous.path, manifest.default_locale));
+  if (wasDisabled) {
+    // Switched off, it stays off: the new files wait for the user to switch it on.
+    fs.rmSync(backup, { recursive: true, force: true });
+    _extLoadErrors.delete(previous.folder);
+    return { ok: true, id: null, name, version: manifest.version, disabled: true };
+  }
+  const { extension, errors } = await _loadExtensionEverywhere(previous.path);
+  if (!extension) {
+    _unloadFromAllSessions(previous.path);
+    fs.rmSync(previous.path, { recursive: true, force: true });
+    fs.renameSync(backup, previous.path);
+    await reloadOld();
+    return { ok: false, error: errors[0] || 'the extension did not load' };
+  }
+  fs.rmSync(backup, { recursive: true, force: true });
+  _extLoadErrors.delete(previous.folder);
+  _removeSupersededCopies(previous.path, extension.name);
+  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version };
+}
+
 // Load a freshly-placed install folder. If it can't load, the folder is REMOVED:
 // leaving it behind made it retry-and-fail on every boot and show up in the
 // manager as a nameless "v—" entry the user couldn't explain.
 async function _activateInstalledFolder(destFolder) {
+  let previous;
+  try { previous = _installedCopyOf(destFolder); }
+  catch (err) {
+    fs.rmSync(destFolder, { recursive: true, force: true });
+    return { ok: false, error: err.message };
+  }
+  if (previous) return _replaceInPlace(previous, destFolder);
   const { extension, errors } = await _loadExtensionEverywhere(destFolder);
   if (!extension) {
     try { fs.rmSync(destFolder, { recursive: true, force: true }); }
@@ -2732,6 +2881,10 @@ ipcMain.handle('extensions:set-enabled', async (_e, folderName, enabled) => {
     if (enabled) {
       disabled.delete(folderName);
       extHelpers.writeDisabled(extensionsDir, disabled);
+      // Safe mode loads no extensions; switching one back on loaded it anyway,
+      // perhaps the very one that stopped Vex starting (found 2026-09-29).
+      // The choice is saved and takes effect on a normal start.
+      if (_boot.safeMode) return { ok: true, enabled: true, afterRestart: true };
       const { extension, errors } = await _loadExtensionEverywhere(extPath);
       if (!extension) {
         const error = errors[0] || 'the extension did not load';
@@ -2752,18 +2905,85 @@ ipcMain.handle('extensions:set-enabled', async (_e, folderName, enabled) => {
 
 // Host an extension's toolbar popup. Electron has no built-in action UI, so the
 // popup is rendered in a frameless window on the SAME session the extension is
-// loaded into (persist:main) and sized to its content the way Chrome does —
-// a fixed window clips every popup that isn't exactly the size we guessed.
+// loaded into (persist:main, or the container of the tab under it) and sized
+// to its content the way Chrome does — a fixed window clips every popup that
+// isn't exactly the size we guessed.
 let _extPopupWindow = null;
-let _extPopupOver = null; // { extId, popup: webContents id, tab: webContents id | null }
-// Asked by the open popup's own extension (preload-webview.js wraps
-// chrome.tabs.query); any other extension gets nothing.
-ipcMain.handle('extensions:popup-tab', (event) => {
+let _extPopupOver = null; // { extId, session, popup: webContents id, tab: webContents id | null }
+// Asked by the open popup's own extension (the stand-ins wrap chrome.tabs.query
+// in its pages and its service worker); any other extension gets nothing.
+function _popupTabFor(senderUrl, ses) {
   const over = _extPopupOver;
   if (!over || !_extPopupWindow || _extPopupWindow.isDestroyed()) return null;
-  if (!String(event.senderFrame?.url || '').startsWith(`chrome-extension://${over.extId}/`)) return null;
+  if (!String(senderUrl || '').startsWith(`chrome-extension://${over.extId}/`)) return null;
+  if (ses !== over.session) return null;
   return { popup: over.popup, tab: over.tab };
-});
+}
+ipcMain.handle('extensions:popup-tab', (event) => _popupTabFor(event.senderFrame?.url, event.sender.session));
+
+// A Vex tab asked for by an extension: tabs.create, runtime.openOptionsPage, or
+// a link in its popup. Electron has no tabs.create and its openOptionsPage
+// fails, so a popup's "Manage", "Options" and "Report a bug" did nothing
+// (found 2026-09-29). Only web pages and the extension's own pages open; the
+// tab opens in the extension's session (a container stays a container).
+function _openTabForExtension(senderUrl, ses, request) {
+  const sender = /^chrome-extension:\/\/([a-p]{32})\//.exec(String(senderUrl || ''));
+  if (!sender) throw new Error('Only an extension page can open a tab this way');
+  let url;
+  try { url = new URL(String((request && request.url) || '')); }
+  catch { throw new Error('That is not a web address'); }
+  const ownPage = url.protocol === 'chrome-extension:' && url.host === sender[1];
+  if (!ownPage && url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(`Vex opens only web pages and the extension's own pages from an extension, not ${url.protocol}`);
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('There is no Vex window to open the tab in');
+  const partition = _partitionNameOf(ses);
+  mainWindow.webContents.send('tab:create-from-external', {
+    url: url.href,
+    background: !!(request && request.active === false),
+    partition: partition && partition !== 'default' && partition !== 'persist:main' ? partition : undefined,
+  });
+  // The new tab takes the focus, which in Chrome closes the extension's popup;
+  // here the popup stayed open over the tab it had just opened.
+  const popup = _extPopupWindow;
+  if (!(request && request.active === false) && popup && !popup.isDestroyed() && _extPopupOver && _extPopupOver.extId === sender[1]) popup.close();
+  return { ok: true };
+}
+ipcMain.handle('extensions:open-tab', (event, request) => _openTabForExtension(event.senderFrame?.url, event.sender.session, request));
+
+// An MV3 extension's service worker sends its IPC to its own ServiceWorkerMain,
+// not to ipcMain (so the IPC policy never sees it): Stylus's worker builds its
+// popup's data and asked for the active tab, heard [] and the popup drew
+// nothing (found 2026-09-29). Each extension worker gets the same two answers
+// as its pages, checked against the worker's own script URL.
+const _wiredWorkerSessions = new WeakSet();
+const _wiredWorkers = new WeakSet();
+function _wireExtensionWorkerIpc(ses) {
+  if (_wiredWorkerSessions.has(ses) || !ses.serviceWorkers || typeof ses.serviceWorkers.getWorkerFromVersionID !== 'function') return;
+  _wiredWorkerSessions.add(ses);
+  const wire = (versionId) => {
+    const worker = ses.serviceWorkers.getWorkerFromVersionID(versionId);
+    if (!worker || _wiredWorkers.has(worker) || !String(worker.scriptURL || '').startsWith('chrome-extension://')) return;
+    _wiredWorkers.add(worker);
+    worker.ipc.handle('extensions:popup-tab', () => _popupTabFor(worker.scriptURL, ses));
+    worker.ipc.handle('extensions:open-tab', (_event, request) => _openTabForExtension(worker.scriptURL, ses, request));
+  };
+  ses.serviceWorkers.on('running-status-changed', ({ versionId, runningStatus }) => {
+    if (runningStatus === 'starting' || runningStatus === 'running') wire(versionId);
+  });
+  for (const versionId of Object.keys(ses.serviceWorkers.getAllRunning())) wire(Number(versionId));
+}
+
+// Windows keeps a border on a frameless, non-resizable window that Electron
+// does not count, and ignores a size that would make it smaller: popups came
+// up 16x8 px short, with scroll bars, and never shrank again (found
+// 2026-09-29). Setting the CONTENT size while the window is briefly resizable
+// lands exactly on the page's size, both ways. It is moved first: Electron
+// still believes the smaller size, and a move after the resize put it back.
+function _setPopupContentSize(win, w, h, x, y) {
+  win.setPosition(x, y);
+  win.setResizable(true);
+  win.setContentSize(w, h);
+  win.setResizable(false);
+}
 ipcMain.handle('extensions:open-popup', async (_e, request) => {
   try {
     const folderName = request && request.folder;
@@ -2779,8 +2999,18 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     const pages = extHelpers.pickPages(entry.manifest);
     if (!pages.popup) return { ok: false, error: 'This extension has no toolbar popup' };
 
-    const ses = secureSessions.fromPartition('persist:main');
-    const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(extPath));
+    // Over a container tab the popup belongs in the container's session: from
+    // persist:main the extension cannot see that tab, and Dark Reader said
+    // "This page is protected by browser" about it (found 2026-09-29).
+    let tabUnder = null;
+    if (Number.isInteger(request.tab)) {
+      const wc = webContents.fromId(request.tab);
+      if (wc && !wc.isDestroyed() && wc.getType() === 'webview') tabUnder = wc;
+    }
+    const isThis = x => path.resolve(x.path) === path.resolve(extPath);
+    let ses = secureSessions.fromPartition('persist:main');
+    if (tabUnder && tabUnder.session !== ses && tabUnder.session.getAllExtensions().some(isThis)) ses = tabUnder.session;
+    const live = ses.getAllExtensions().find(isThis);
     if (!live) return { ok: false, error: 'That extension is not loaded — enable it first' };
 
     if (_extPopupWindow && !_extPopupWindow.isDestroyed()) _extPopupWindow.destroy();
@@ -2796,51 +3026,55 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     // it showed in a 500px window with scroll bars (2026-09-28). Chrome resizes
     // the popup to follow; so does this, keeping it centred under the button.
     // The event only says "changed": the size it carries came out smaller than
-    // Dark Reader's page and clipped it, so the page is measured instead. And
-    // Windows keeps a border on this window that Electron does not count (a
-    // 280px window showed 264px of page), so the window grows by what the page
-    // is missing rather than being set to the page's size.
+    // Dark Reader's page and clipped it, so the page is measured instead.
     const fitPopup = async () => {
       if (win.isDestroyed()) return;
       const size = await win.webContents.executeJavaScript(
         '({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight), iw: innerWidth, ih: innerHeight })'
       ).catch(err => { if (!win.isDestroyed()) console.error('[Extensions] popup re-measure failed:', err.message); return null; });
       if (!size || win.isDestroyed() || ![size.w, size.h, size.iw, size.ih].every(Number.isFinite)) return;
-      const [cw, ch] = win.getSize();
-      const w = Math.min(800, Math.max(160, cw + size.w - size.iw));
-      const h = Math.min(600, Math.max(100, ch + size.h - size.ih));
-      if (w === cw && h === ch) return;
+      const w = Math.min(800, Math.max(160, size.w));
+      const h = Math.min(600, Math.max(100, size.h));
+      if (w === size.iw && h === size.ih) return;
       const [x, y] = win.getPosition();
-      const [oldWidth] = win.getSize();
-      win.setSize(w, h);
-      const [newWidth] = win.getSize();
-      win.setPosition(Math.max(0, x + Math.round((oldWidth - newWidth) / 2)), y);
+      _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((size.iw - w) / 2)), y);
     };
     win.webContents.on('preferred-size-changed', fitPopup);
     // Electron calls the focused page the active tab, and the popup takes the
     // focus: Dark Reader's popup said "This page is protected by browser"
     // about itself (2026-09-28). Remember the tab it was opened over.
-    let under = null;
-    if (Number.isInteger(request.tab)) {
-      const wc = webContents.fromId(request.tab);
-      if (wc && !wc.isDestroyed() && wc.getType() === 'webview' && wc.session === ses) under = wc.id;
-    }
-    _extPopupOver = { extId: live.id, popup: win.webContents.id, tab: under };
+    const under = tabUnder && tabUnder.session === ses ? tabUnder.id : null;
+    _extPopupOver = { extId: live.id, session: ses, popup: win.webContents.id, tab: under };
     win.on('blur', () => { if (!win.isDestroyed()) win.close(); });
     win.on('closed', () => { if (_extPopupWindow === win) { _extPopupWindow = null; _extPopupOver = null; } });
+    // A link in the popup (target=_blank, window.open) closed the popup and
+    // opened nothing: RoSuite's GitHub and Report Bug links, Return YouTube
+    // Dislike's (found 2026-09-29). It opens as a Vex tab, the way Chrome does.
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      try { _openTabForExtension(`chrome-extension://${live.id}/`, ses, { url }); }
+      catch (err) {
+        console.error('[Extensions] popup link not opened:', err.message);
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', `Not opened: ${err.message}`);
+      }
+      if (!win.isDestroyed()) win.close();
+      return { action: 'deny' };
+    });
+    // Escape closes a popup in Chrome; here it did nothing (found 2026-09-29).
+    win.webContents.on('before-input-event', (event, input) => {
+      if (input.type === 'keyDown' && input.key === 'Escape') { event.preventDefault(); if (!win.isDestroyed()) win.close(); }
+    });
 
     await win.loadURL(`chrome-extension://${live.id}/${String(pages.popup).replace(/^\/+/, '')}`);
     const size = await win.webContents.executeJavaScript(
       '({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight) })'
     ).catch(err => { console.error('[Extensions] popup measure failed:', err.message); return null; });
-    if (size && Number.isFinite(size.w) && Number.isFinite(size.h)) {
-      // Chrome caps an action popup at 800x600; below ~160x100 it's unusable.
-      win.setSize(Math.min(800, Math.max(160, size.w)), Math.min(600, Math.max(100, size.h)));
-    }
-    if (Number.isInteger(request.x) && Number.isInteger(request.y)) {
-      const [width] = win.getSize();
-      win.setPosition(Math.max(0, request.x - Math.round(width / 2)), Math.max(0, request.y));
-    }
+    // Chrome caps an action popup at 800x600; below ~160x100 it's unusable.
+    const measured = size && Number.isFinite(size.w) && Number.isFinite(size.h);
+    const [w, h] = measured ? [Math.min(800, Math.max(160, size.w)), Math.min(600, Math.max(100, size.h))] : win.getContentSize();
+    const [x, y] = Number.isInteger(request.x) && Number.isInteger(request.y)
+      ? [Math.max(0, request.x - Math.round(w / 2)), Math.max(0, request.y)]
+      : win.getPosition();
+    _setPopupContentSize(win, w, h, x, y);
     win.show();
     win.focus();
     // Not every growth raises preferred-size-changed: Return YouTube Dislike's
@@ -4354,79 +4588,84 @@ app.whenReady().then(async () => {
     if (input && input.key === 'F11') {
       console.log('[Vex F11] before-input-event fired on MAIN window webContents. type:', input.type, 'defaultPrevented(before):', event.defaultPrevented);
     }
-    if (input.control && input.key === 'k') {
+    // Ctrl alone, on the key going down. Nothing checked that Alt was up, so
+    // Ctrl+Alt+W (Watch page) closed the tab, Ctrl+Alt+T opened one and
+    // Ctrl+Alt+M muted it (found 2026-09-29).
+    const down = input.type === 'keyDown';
+    const ctrlOnly = down && input.control && !input.alt;
+    if (ctrlOnly && input.key === 'k') {
       mainWindow.webContents.send('toggle-command-bar');
       event.preventDefault();
     }
-    if (input.control && input.key === 'f') {
+    if (ctrlOnly && input.key === 'f') {
       mainWindow.webContents.send('find-in-page');
       event.preventDefault();
     }
-    if (input.control && input.key === 't') {
+    if (ctrlOnly && input.key === 't') {
       mainWindow.webContents.send('new-tab');
       event.preventDefault();
     }
-    if (input.control && input.key === 'w') {
+    if (ctrlOnly && input.key === 'w') {
       mainWindow.webContents.send('close-tab');
       event.preventDefault();
     }
-    if (input.control && input.key === 'r') {
+    if (ctrlOnly && input.key === 'r') {
       mainWindow.webContents.send('reload-tab');
       event.preventDefault();
     }
-    if (input.control && (input.key === '=' || input.key === '+')) {
+    if (ctrlOnly && (input.key === '=' || input.key === '+')) {
       mainWindow.webContents.send('zoom-in');
       event.preventDefault();
     }
-    if (input.control && input.key === '-') {
+    if (ctrlOnly && input.key === '-') {
       mainWindow.webContents.send('zoom-out');
       event.preventDefault();
     }
-    if (input.control && input.key === '0') {
+    if (ctrlOnly && input.key === '0') {
       mainWindow.webContents.send('zoom-reset');
       event.preventDefault();
     }
-    if (input.alt && input.key === 'ArrowLeft') {
+    if (down && input.alt && !input.control && input.key === 'ArrowLeft') {
       mainWindow.webContents.send('navigate-back');
       event.preventDefault();
     }
-    if (input.alt && input.key === 'ArrowRight') {
+    if (down && input.alt && !input.control && input.key === 'ArrowRight') {
       mainWindow.webContents.send('navigate-forward');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'S') {
+    if (ctrlOnly && input.shift && input.key === 'S') {
       mainWindow.webContents.send('toggle-split');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'P') {
+    if (ctrlOnly && input.shift && input.key === 'P') {
       mainWindow.webContents.send('toggle-pip');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'N') {
+    if (ctrlOnly && input.shift && input.key === 'N') {
       mainWindow.webContents.send('toggle-notes');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'O') {
+    if (ctrlOnly && input.shift && input.key === 'O') {
       mainWindow.webContents.send('toggle-sessions');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'T') {
+    if (ctrlOnly && input.shift && input.key === 'T') {
       mainWindow.webContents.send('reopen-last-closed');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'H') {
+    if (ctrlOnly && input.shift && input.key === 'H') {
       // Ctrl+Shift+H — open history panel with AI search auto-selected
       mainWindow.webContents.send('toggle-history-ai');
       event.preventDefault();
-    } else if (input.control && input.key === 'h') {
+    } else if (ctrlOnly && input.key === 'h') {
       mainWindow.webContents.send('toggle-history');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'M') {
+    if (ctrlOnly && input.shift && input.key === 'M') {
       mainWindow.webContents.send('toggle-memory');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'Z') {
+    if (ctrlOnly && input.shift && input.key === 'Z') {
       mainWindow.webContents.send('sleep-current-tab');
       event.preventDefault();
     }
@@ -4434,28 +4673,28 @@ app.whenReady().then(async () => {
     // hijacked the renderer-side hard-reload shortcut. Reading mode is still
     // accessible via Ctrl+Alt+R through the renderer's ShortcutsRegistry; this
     // block intentionally stays out of the way so hard-reload can fire.
-    if (input.control && input.shift && (input.key === 'R' || input.key === 'r')) {
+    if (ctrlOnly && input.shift && (input.key === 'R' || input.key === 'r')) {
       console.log('[Vex] hard reload triggered — main process (Ctrl+Shift+R detected, passing to renderer)');
     }
-    if (input.control && input.alt && input.key === 's') {
+    if (down && input.control && input.alt && input.key === 's') {
       mainWindow.webContents.send('take-screenshot');
       event.preventDefault();
     }
     if (handleFullscreenShortcut(event, input)) return;
     if (handleDevToolsShortcut(event, input)) return;
-    if (input.control && input.key === 'm') {
+    if (ctrlOnly && input.key === 'm') {
       mainWindow.webContents.send('toggle-mute-tab');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'A') {
+    if (ctrlOnly && input.shift && input.key === 'A') {
       mainWindow.webContents.send('toggle-ai-panel');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'L') {
+    if (ctrlOnly && input.shift && input.key === 'L') {
       mainWindow.webContents.send('toggle-schedules');
       event.preventDefault();
     }
-    if (input.control && !input.shift && !input.alt && input.key === 'b') {
+    if (ctrlOnly && !input.shift && input.key === 'b') {
       mainWindow.webContents.send('toggle-tabs-sidebar');
       event.preventDefault();
     }
@@ -4598,6 +4837,16 @@ ipcMain.handle('browsing:clear-data', async () => {
   recallStore().clear();
   await recallFlush(true);
   await preferences.clearKeys(['vex.history','vex.sessions','vex.archivedTabs','vex.workspaceSnapshots','vex.downloads','vex.autofillLog']);
+  return true;
+});
+// History › Clear History. Saving an empty list left the whole history in
+// history.json.bak and vex-persist.json.bak until the next write, and the
+// closed-tab list still named every page (found 2026-09-29) — clear() and
+// clearKeys() erase the backups too, as browsing:clear-data does.
+ipcMain.handle('browsing:clear-history', async () => {
+  await dataStore.flush(); await preferences.flush();
+  await dataStore.clear('history', []);
+  await preferences.clearKeys(['vex.history', 'vex.recentlyClosed']);
   return true;
 });
 ipcMain.handle('open-pip-window', async (event, url, media) => {
@@ -5019,7 +5268,14 @@ async function applyRouting(partition, mode, custom, sender) {
     await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
     return { mode: 'tor', port };
   }
-  if (mode === 'proxy' && custom) { await ses.setProxy({ proxyRules: String(custom) }); return { mode: 'proxy', custom: String(custom) }; }
+  // Every way in (Private routing, a container, a site route, a restore) is
+  // checked here, so nothing but one scheme://host:port reaches setProxy; an
+  // empty proxy used to go direct without a word (found 2026-09-29).
+  if (mode === 'proxy') {
+    const address = require('./main/routing').proxyAddress(custom);
+    await ses.setProxy({ proxyRules: address });
+    return { mode: 'proxy', custom: address };
+  }
   await ses.setProxy({ mode: 'direct' });
   return { mode: 'direct' };
 }
@@ -5030,7 +5286,7 @@ ipcMain.handle('routing:set', (event, partition, mode, custom) => {
     if (mode === 'direct') await getRoutingStore().delete(partition || 'default');
     // A temporary session (a burner identity) is gone at the next start; its
     // saved Tor route started Tor on every launch for nothing (found 2026-09-29).
-    else if (!partition || String(partition).startsWith('persist:')) await getRoutingStore().set(partition || 'default', { mode, custom: custom || null });
+    else if (!partition || String(partition).startsWith('persist:')) await getRoutingStore().set(partition || 'default', { mode, custom: r.custom || null });
     return { ok: true, ...r };
   });
   routingPending = operation;
@@ -5053,6 +5309,9 @@ const _ALL_ROUTE_KEY = require('./main/routing').ALL_ROUTE_KEY;
 
 ipcMain.handle('routing:set-all', (event, mode, custom) => {
   const operation = routingPending.catch(() => {}).then(async () => {
+    // Checked once up front, so a bad address is refused in its own words
+    // rather than once per session (found 2026-09-29).
+    if (mode === 'proxy') custom = require('./main/routing').proxyAddress(custom);
     const targets = [null, ...BROWSING_SESSIONS];
     const failed = [];
     for (const partition of targets) {
@@ -5136,7 +5395,7 @@ async function applyStoredRoutings() {
     getSession: partition => partition ? secureSessions.fromPartition(partition) : session.defaultSession,
     // '__all__' means every browsing session, not a session of its own.
     allPartitions: BROWSING_SESSIONS,
-    applyRouting, report: err => console.warn('[Routing] Tor unavailable:', err.message) });
+    applyRouting, report: err => console.warn('[Routing] could not restore a route:', err.message) });
 }
 
 // clean: the window for sharing a screen — private, and showing only `url`
@@ -5151,9 +5410,22 @@ function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
   // Apply header stripping + ad blocker to private session
   privSession.webRequest.onHeadersReceived((details, callback) => {
     const rh = { ...details.responseHeaders };
+    // Per-site switches hold in a private window too: a site whose cookies
+    // are off may not set any here either — they were ignored in private
+    // windows before (found 2026-09-29). Sending none is done by
+    // wireClientHintsOnSession below.
+    if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
+      for (const k of Object.keys(rh)) if (k.toLowerCase() === 'set-cookie') delete rh[k];
+    }
     callback({ responseHeaders: rh });
   });
   privSession.webRequest.onBeforeRequest((details, callback) => {
+    // A site whose third-party content is switched off, as in
+    // wireAdblockerOnSession (found 2026-09-29).
+    if (Object.keys(_siteRules).length && SiteRules.blocksThirdParty(_siteRules, _pageUrlOf(details.webContentsId), details.url)) {
+      callback({ cancel: true });
+      return;
+    }
     const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
     if (blocked) _recordTracker(details.url, details.webContentsId);
     callback({ cancel: blocked });
@@ -5378,7 +5650,24 @@ ipcMain.handle('app:focus', () => {
 ipcMain.handle('app:restart', () => {
   // Without --safe-mode: "Restart normally" after a safe-mode start must not
   // start in safe mode again.
-  try { app.relaunch({ args: process.argv.slice(1).filter(a => a !== '--safe-mode') }); app.exit(0); return { ok: true }; }
+  const args = process.argv.slice(1).filter(a => a !== '--safe-mode');
+  try {
+    // Close the window the way its X does, which saves everything first, and
+    // start again once it has closed. app.exit(0) straight away dropped what
+    // was still waiting to be saved (found 2026-09-29). If saving fails the
+    // window stays open and says so, and Vex does not restart.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const win = mainWindow;
+      const relaunch = () => { app.relaunch({ args }); app.exit(0); };
+      win.once('closed', relaunch);
+      // Saving gives up after 8 s (session-security.js); a later ordinary
+      // close must then not restart.
+      setTimeout(() => { if (!win.isDestroyed()) win.removeListener('closed', relaunch); }, 9000);
+      win.close();
+      return { ok: true };
+    }
+    app.relaunch({ args }); app.exit(0); return { ok: true };
+  }
   catch (e) { return { ok: false, error: e && e.message }; }
 });
 

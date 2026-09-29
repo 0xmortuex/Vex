@@ -260,7 +260,7 @@ const SiteRoutes = {
     m.className = 'vexsr-ov';
     m.innerHTML = '<div class="vexsr-card">'
       + '<div class="vexsr-head"><span class="vexsr-title">Sites that always open a certain way</span>'
-      + '<button class="vexsr-x" id="sr-close" aria-label="Close">✕</button></div>'
+      + '<button class="vexsr-x" id="sr-close" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 13 }) + '</button></div>'
       + '<div class="vexsr-sub">Name a site and Vex opens it that way every time, without you remembering to — in a container of its own, or through Tor or a proxy. A rule for <code>example.com</code> also covers <code>mail.example.com</code>.</div>'
       + '<div id="sr-list" class="vexsr-list"></div>'
       + '<div class="vexsr-row">'

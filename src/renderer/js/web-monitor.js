@@ -103,13 +103,24 @@ const PageMonitor = {
         <div style="overflow-y:auto;padding:0 18px 16px">${rows}</div>
       </div>`;
     document.body.appendChild(m);
-    const close = () => m.remove();
+    // Escape closes it the way Done does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for a Vex dialog on top is left to that dialog. Focus moves in, or with
+    // the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
     m.querySelector('#wt-close').addEventListener('click', close);
+    m.querySelector('#wt-close').focus({ preventScroll: true });
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelectorAll('[data-id]').forEach(row => {
       const w = this.watches.find(x => x.id === row.dataset.id);
       row.querySelector('[data-open]').addEventListener('click', () => { w.changed = false; this.save(); TabManager.createTab(w.url, true); close(); });
-      row.querySelector('[data-x]').addEventListener('click', () => { this.remove(w.id); this.showManager(); });
+      row.querySelector('[data-x]').addEventListener('click', () => { this.remove(w.id); close(); this.showManager(); });
     });
     // No permission request: the renderer cannot be granted the Notification
     // API on file:// (it reads "denied" before asking), and the toast is sent by

@@ -22,13 +22,16 @@ const ScreenshotTool = {
     let wcId = null;
     try { wcId = wv.getWebContentsId(); } catch {}
     if (typeof wcId !== 'number' || wcId < 0) { window.showToast?.('This page has not finished opening yet', 'error'); return null; }
-    window.showToast?.('Capturing the whole page — it scrolls through once so every image loads');
+    window.showToast?.('Capturing the whole page — it scrolls through once so every image loads. A very long page takes a while, and only its top part is kept');
     const r = await window.vex.captureFullPage(wcId);
     if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not capture the page', 'error'); return null; }
     let out;
     try { out = await this.stitch(r); }
     catch (err) { window.showToast?.('Could not put the page together: ' + err.message, 'error'); return null; }
-    if (r.cut) window.showToast?.('The page is extremely long — this is the top of it, ' + out.width + '×' + out.height);
+    // Page lengths, not the picture's pixel size: "714×16000" did not say how
+    // much of the page was left out (found 2026-09-29).
+    const px = (n) => Math.round(Number(n) || 0).toLocaleString('en-US') + ' px';
+    if (r.cut) window.showToast?.('This page is ' + px(r.fullHeight) + ' long — the picture is its top ' + px(r.height));
     else if (out.scaled) window.showToast?.('The page is very long, so the image was scaled down to ' + out.width + '×' + out.height);
     this.showPreview(out.dataUrl);
     return out;

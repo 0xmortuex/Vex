@@ -123,7 +123,7 @@ const PermissionsSettings = (() => {
             // 'media' is an answer saved before requests were told apart: it covers
             // the camera and the microphone, never a screen share.
             const NAMES = { media: 'camera and microphone', camera: 'camera', microphone: 'microphone', 'display-capture': 'screen sharing', geolocation: 'location', notifications: 'notifications', 'clipboard-read': 'reading the clipboard', midi: 'MIDI devices', midiSysex: 'MIDI devices (SysEx)' };
-            const badge = decision === 'allow' ? '\u2713 Allowed' : '\u2717 Blocked';
+            const badge = decision === 'allow' ? VexIcons.svg('check', { size: 11 }) + ' Allowed' : VexIcons.svg('x', { size: 11 }) + ' Blocked';
             return `
               <div class="permission-row">
                 <div class="perm-row-info">

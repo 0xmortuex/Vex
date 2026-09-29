@@ -14,7 +14,8 @@
 
 const OpenTasks = {
   INBOX_TITLE: 'To-do',
-  LINE: /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](.*)$/,
+  // The bullets VexMarkdown draws as a list, "•" included (found 2026-09-29).
+  LINE: /^(\s*(?:[-*+•]|\d+[.)])\s+)\[([ xX])\](.*)$/,
 
   // The lines inside a ``` code block, found the way VexMarkdown finds them.
   // A "- [ ]" line there is code, not a task, and counting it shifted every

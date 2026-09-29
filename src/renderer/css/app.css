@@ -164,6 +164,11 @@ body {
 
 #url-input {
   flex: 1;
+  /* flex: 1 sizes it; the zero width only swaps the input's own intrinsic
+     width for this floor, so in a narrow window the address bar shrinks
+     instead of keeping the top bar wider than the window (found 2026-09-29). */
+  width: 0;
+  min-width: 60px;
   /* Fill the bar: the input was ~15px tall inside a 32px bar, so half of what
      looks like the address field was dead to clicks. */
   align-self: stretch;
@@ -180,15 +185,26 @@ body {
 }
 
 /* Window Controls */
+/* The right cluster gives way when the window is narrow (its last buttons are
+   cut off) so the window controls after it always stay on screen; it never
+   shrank, and in Classic min/max/close sat off the window below ~1130px
+   (found 2026-09-29). Clipped sideways only, so nothing above or below a
+   button is cut. */
 #top-bar-right {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  overflow-x: clip;
   -webkit-app-region: no-drag;
 }
 
+/* A top-bar item of its own: never shrinks, and order keeps it last even
+   after the layout editor re-appends the bar's regions. */
 #window-controls {
   display: flex;
+  flex: 0 0 auto;
+  order: 1;
   gap: 2px;
   margin-left: 8px;
   -webkit-app-region: no-drag;
@@ -1043,6 +1059,13 @@ body.private-mode #vex-logo::after {
 }
 .smb-btn:hover { color: var(--vex-text-primary, var(--text)); background: var(--vex-hover-fill, var(--bg)); }
 .smb-primary { border-color: var(--primary); color: var(--primary); }
+/* While the banner shows, Settings scrolls its rows clear of it: it covered the
+   Settings › Extensions toggles it tells you to use (found 2026-09-29).
+   --vex-smb-space is the banner's height plus its gap (js/safe-mode-banner.js). */
+body.vex-safe-mode-banner-shown #panel-settings .settings-content {
+  padding-bottom: calc(var(--vex-smb-space, 130px) + 24px);
+  scroll-padding-bottom: var(--vex-smb-space, 130px);
+}
 
 /* === A clean window, for sharing the screen ==============================
    Private, one page, and none of the chrome that says whose browser it is:

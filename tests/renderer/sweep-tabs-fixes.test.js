@@ -165,6 +165,7 @@ describe('restoring a session', () => {
       createLazyTab: vi.fn((url, groupId, title, opts) => { const t = { id: 't' + made.length, url, title, ...opts, _lazy: true }; made.push(t); TabManager.tabs.push(t); return t; }),
       _persistableFavicon: (f) => f || null,
       renderTabUpdate: vi.fn(), switchTab: vi.fn(), persistTabs: vi.fn(async () => {}),
+      _isKeptAwake: () => false, _materializeTab: vi.fn(),
     };
     window.VexTabPolicy = { canRestore: () => true };
     SessionManager.hideOverlay = vi.fn();

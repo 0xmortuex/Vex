@@ -202,7 +202,9 @@ const PasswordVault = {
       var ORIGIN=${JSON.stringify(new URL(url).origin)};
       var U=${JSON.stringify(c.username)},P=${JSON.stringify(c.password)};
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      var fire=function(el,val){try{if(!visible(el)||el.disabled||el.readOnly)return false;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return false;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true;}catch(e){}return false;};
+      // No el.focus(): a fill set off by focusing the password field moved the
+      // cursor back to the address field mid-sign-in (found 2026-09-29).
+      var fire=function(el,val){try{if(!visible(el)||el.disabled||el.readOnly)return false;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return false;setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true;}catch(e){}return false;};
       function visible(el){try{var r=el.getBoundingClientRect();var s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
       // Search / combobox / chat inputs are NOT login fields. This is what caused
@@ -216,7 +218,14 @@ const PasswordVault = {
       // Only fill the username when this is really a login: a password field is
       // present, OR the field itself carries a strong login signal (covers
       // email-first 2-step logins). Never fill a lone search box.
-      function fill(force){if(location.origin!==ORIGIN)return 0;var n=0;var pw=Array.from(document.querySelectorAll('input[type=password]')).find(visible);var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value)&&fire(user,U))n++;if(pw&&(force||!pw.value)&&fire(pw,P))n++;return n;}
+      // Once the person has typed into a login field themselves, the page is
+      // theirs: clearing the saved address to sign in with another account
+      // had it filled straight back on the next focus (found 2026-09-29).
+      // Only real key presses count — the fill's own events are not trusted.
+      if(!window.__vexLoginTypedWired){window.__vexLoginTypedWired=true;
+        document.addEventListener('input',function(e){try{var el=e.target;if(!e.isTrusted||!el||el.tagName!=='INPUT')return;var t=(el.type||'').toLowerCase();if(t==='password'||looksLikeUser(el))window.__vexLoginTyped=true;}catch(e){}},true);
+      }
+      function fill(force){if(location.origin!==ORIGIN||window.__vexLoginTyped)return 0;var n=0;var pw=Array.from(document.querySelectorAll('input[type=password]')).find(visible);var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value)&&fire(user,U))n++;if(pw&&(force||!pw.value)&&fire(pw,P))n++;return n;}
       var filled=fill(false);
       if(!window.__vexPwFocusWired){window.__vexPwFocusWired=true;
         document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT'||el.value)return;var t=(el.type||'').toLowerCase();if(t==='password'||(looksLikeUser(el)&&(loginSignal(el)||document.querySelector('input[type=password]')))){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
@@ -248,7 +257,9 @@ const PasswordVault = {
       if(location.origin!==ORIGIN)return;
       var U=${JSON.stringify(email)};
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      var fire=function(el,val){try{if(location.origin!==ORIGIN||!visible(el)||el.disabled||el.readOnly)return;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
+      // No el.focus(), and nothing once the person has typed: as in autofill()
+      // above (found 2026-09-29).
+      var fire=function(el,val){try{if(location.origin!==ORIGIN||!visible(el)||el.disabled||el.readOnly)return;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return;setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
       function visible(el){try{var r=el.getBoundingClientRect();var s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
       function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
       function isSearchy(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;if(el.getAttribute('aria-autocomplete'))return true;return /search|find|filter|query|recipient|channel|message|mention|invite|\\brole\\b|emoji|gif|jump to/.test(meta(el));}
@@ -256,7 +267,10 @@ const PasswordVault = {
       function looksLikeUser(el){if(!visible(el))return false;var t=(el.type||'').toLowerCase();if(!(t===''||t==='text'||t==='email'||t==='tel'))return false;return !isSearchy(el);}
       // Only a field that BOTH looks like a user field AND carries a login signal.
       function userField(){var cands=document.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');for(var i=0;i<cands.length;i++){var el=cands[i];if(looksLikeUser(el)&&loginSignal(el))return el;}return null;}
-      function fill(){var u=userField();if(u&&!u.value)fire(u,U);}
+      if(!window.__vexLoginTypedWired){window.__vexLoginTypedWired=true;
+        document.addEventListener('input',function(e){try{var el=e.target;if(!e.isTrusted||!el||el.tagName!=='INPUT')return;var t=(el.type||'').toLowerCase();if(t==='password'||looksLikeUser(el))window.__vexLoginTyped=true;}catch(e){}},true);
+      }
+      function fill(){if(window.__vexLoginTyped)return;var u=userField();if(u&&!u.value)fire(u,U);}
       fill();
       if(!window.__vexEmailFocusWired){window.__vexEmailFocusWired=true;
         document.addEventListener('focusin',function(e){try{var el=e.target;if(el&&el.tagName==='INPUT'&&!el.value&&looksLikeUser(el)&&loginSignal(el)){setTimeout(fill,0);}}catch(e){}},true);
@@ -289,7 +303,7 @@ const PasswordVault = {
           <div style="font-size:11.5px;color:var(--text-muted)">${esc(entry.username)}</div>
         </div>
         <button data-copy style="padding:5px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Copy</button>
-        <button data-del style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>`;
+        <button data-del style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" title="Delete" aria-label="Delete this password">${VexIcons.svg('x', { size: 13 })}</button>`;
       row.querySelector('[data-copy]').addEventListener('click', async () => {
         try {
           const full = await window.vex.vaultGet(entry.host);

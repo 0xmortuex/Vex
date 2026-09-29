@@ -112,6 +112,14 @@ const Scheduler = {
     }
   },
 
+  // Today's date where the user is. toISOString() gave the UTC date, so a
+  // once-task made in the evening east of Greenwich (or the morning west of
+  // it) defaulted to the wrong day (found 2026-09-29).
+  _today() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  },
+
   // v1 tasks stored the schedule as flat frequency/time/daysOfWeek/dayOfMonth/
   // customCron/startDate fields and had exactly one implicit action (run the
   // agent on `prompt`). Lift both into the v2 shape, in place, on read.
@@ -128,7 +136,7 @@ const Scheduler = {
       time: task.time || '09:00',
       daysOfWeek: Array.isArray(task.daysOfWeek) ? task.daysOfWeek.slice() : [],
       dayOfMonth: task.dayOfMonth || 1,
-      date: task.startDate || new Date().toISOString().slice(0, 10),
+      date: task.startDate || this._today(),
       cron: task.customCron || '',
       everyMinutes: 60,
       anchor: Date.parse(task.createdAt || '') || Date.now(),
@@ -169,7 +177,7 @@ const Scheduler = {
       dayOfMonth: raw.dayOfMonth === 'last'
         ? 'last'
         : Math.min(31, Math.max(1, Number(raw.dayOfMonth) || Number(base.dayOfMonth) || 1)),
-      date: /^\d{4}-\d{2}-\d{2}$/.test(raw.date || '') ? raw.date : (base.date || new Date().toISOString().slice(0, 10)),
+      date: /^\d{4}-\d{2}-\d{2}$/.test(raw.date || '') ? raw.date : (base.date || this._today()),
       cron: typeof raw.cron === 'string' ? raw.cron.trim() : (base.cron || ''),
       everyMinutes: Math.min(60 * 24 * 30, Math.max(1, Number(raw.everyMinutes) || Number(base.everyMinutes) || 60)),
       anchor: Number(raw.anchor) || Number(base.anchor) || Date.now(),

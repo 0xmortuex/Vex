@@ -10,9 +10,19 @@ const Automations = {
   // copy _load() returns and thrown away, so a rule ran again every time you
   // switched back to its tab (found 2026-09-29).
   _firedUrl: {},
+  // Which day each time rule last ran, by rule id. It was kept as _firedDate
+  // on the rules _load() returns and only held because the whole list was
+  // saved back afterwards: a failed save, or the list edited in between, and
+  // the rule ran again on the next tick (found 2026-09-29).
+  _firedDate: {},
 
   _load() { try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
-  _save(a) { try { localStorage.setItem(this.KEY, JSON.stringify(a)); } catch {} },
+  // A rule that could not be saved is gone at the next start; say so
+  // (it was swallowed, found 2026-09-29).
+  _save(a) {
+    try { localStorage.setItem(this.KEY, JSON.stringify(a)); return true; }
+    catch (err) { console.error('[Automations] could not save:', err); window.showToast?.('Your automations could not be saved: ' + err.message, 'error'); return false; }
+  },
 
   // ---- Background engine ----
   start() {
@@ -40,12 +50,10 @@ const Automations = {
     const now = new Date();
     const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
     const today = now.toDateString();
-    const rules = this._load(); let changed = false;
-    rules.forEach((r) => {
+    this._load().forEach((r) => {
       if (!r.enabled || !r.trigger || r.trigger.type !== 'time') return;
-      if (this._normTime(r.trigger.value) === hhmm && r._firedDate !== today) { r._firedDate = today; changed = true; this._runAction(r); }
+      if (this._normTime(r.trigger.value) === hhmm && this._firedDate[r.id] !== today) { this._firedDate[r.id] = today; this._runAction(r); }
     });
-    if (changed) this._save(rules);
   },
   // "8:30" and "08:30" are the same time; the clock is compared as "08:30",
   // so a rule typed without the zero never ran (found 2026-09-29).
@@ -118,6 +126,17 @@ const Automations = {
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#au-close').addEventListener('click', () => m.remove());
+    // Escape closes it like every other Vex window; it did nothing (found
+    // 2026-09-29). An Escape a vexConfirm on top already used is left alone,
+    // and the listener goes with the window however it was closed.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey); return; }
+      if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); m.remove(); document.removeEventListener('keydown', onKey); }
+    };
+    document.addEventListener('keydown', onKey);
+    // Focus moves in, so Escape reaches this even when it was opened from a
+    // page, which kept the key (found 2026-09-29).
+    m.querySelector('#au-close')?.focus({ preventScroll: true });
     const trig = m.querySelector('#au-trig'), act = m.querySelector('#au-act');
     trig.addEventListener('change', () => { m.querySelector('#au-trigval').placeholder = trig.value === 'time' ? '08:30 (24h)' : 'gmail.com'; });
     act.addEventListener('change', () => { m.querySelector('#au-actval').placeholder = act.value === 'panel' ? 'discord / spotify / notes…' : act.value === 'command' ? 'a command id (see suggestions)' : 'https://calendar.google.com'; });
@@ -133,7 +152,16 @@ const Automations = {
       list.push({ id: vexId('a'), name: name || (trig.value === 'time' ? 'At ' + val : 'On ' + val), enabled: true, trigger: { type: trig.value, value: val }, action: { type: act.value, value: av } });
       this._save(list); this.open();
     });
-    m.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { const list = this._load(); list.splice(parseInt(b.dataset.del, 10), 1); this._save(list); this.open(); }));
+    // A rule went at one click, with no way back (found 2026-09-29).
+    m.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+      const r = this._load()[parseInt(b.dataset.del, 10)];
+      if (!r) return;
+      if (!await vexConfirm({ title: 'Delete automation', message: 'Delete "' + (r.name || 'Rule') + '"? This cannot be undone.', okLabel: 'Delete', danger: true })) return;
+      const list = this._load();
+      const i = list.findIndex((x) => JSON.stringify(x) === JSON.stringify(r));   // the list may have changed while asking
+      if (i >= 0) { list.splice(i, 1); this._save(list); }
+      this.open();
+    }));
     m.querySelectorAll('[data-tog]').forEach((b) => b.addEventListener('change', () => { const list = this._load(); const i = parseInt(b.dataset.tog, 10); if (list[i]) { list[i].enabled = b.checked; this._save(list); } }));
   },
 
@@ -150,7 +178,7 @@ const Automations = {
 
 if (typeof window !== 'undefined') {
   window.Automations = Automations;
-  const boot = () => { try { Automations.start(); } catch {} };
+  const boot = () => { try { Automations.start(); } catch (err) { console.error('[Automations] could not start:', err); } };
   if (document.readyState !== 'loading') setTimeout(boot, 2000);
   else document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 2000));
 }

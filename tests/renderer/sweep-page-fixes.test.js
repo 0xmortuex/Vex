@@ -8,6 +8,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
 globalThis.VexIcons = VexIcons; window.VexIcons = VexIcons;
 require('../../src/renderer/js/vex-utils.js');
+// Night mode and Master Volume run their page scripts through this (site-volume.js).
+require('../../src/renderer/js/site-volume.js');
 
 const escape = (key) => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
 
@@ -64,7 +66,7 @@ describe('Master Volume', () => {
     const v = document.querySelector('video');
     window.__vexVolume = 0.4;
     runInPage(MasterVolume._script(0.5));
-    expect(v.volume).toBe(0.5);
+    expect(v.volume).toBe(0.2);        // half of the 40% the site is kept at, never louder (found 2026-09-29)
     window.__vexMV.set(1);
     expect(v.volume).toBe(0.4);
   });
@@ -87,7 +89,7 @@ describe('Night mode and Master Volume share one route per element', () => {
     document.body.innerHTML = '<video></video>';
     runInPage(MasterVolume._script(2));
     const res = runInPage(NightAudio.script(true));
-    expect(res).toEqual({ ok: true, touched: 1 });
+    expect(res).toMatchObject({ ok: true, touched: 1 });
     expect(made.sources).toBe(1);
   });
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.33.14 (2026-09-29) — About a hundred and twenty fixes from a sweep of every feature
+## v2.33.14 (2026-09-29) — Two sweeps of every feature: about two hundred fixes
 
 Seven testers used every part of Vex the way a person does: tabs and looks, the panels, the address and command bars and the Toolbox, page tools and media, privacy and your data, the AI, and extensions and the service panels. Each fix below was checked, and most were also seen working in a running Vex.
 
@@ -75,7 +75,25 @@ Seven testers used every part of Vex the way a person does: tabs and looks, the 
 - The GitHub panel showed the previous user after a change of name, and "Loading…" for ever for an unknown user or offline.
 - The overlay window can be moved and closed with the mouse.
 
-Checked by the whole test suite (Node 22, as on the build server), the lint, type and source checks, both start-up checks, and live runs of Vex for each area, including all 25 sidebar panels in the default and Firefox looks with no errors.
+### Second pass: every area again, and every fix above checked again
+The seven areas were tested a second time on top of the fixes, in the source and in the installed app, and each fix above was proved again. About ninety more were found and fixed:
+
+- **A web page could press Vex's keys and draw its mouse gestures** with made-up events, closing tabs and opening panels, even from a background tab. Only your own keyboard and mouse count now, and a gesture acts only on the tab in front.
+- **Ctrl+Alt shortcuts did the Ctrl one too** when Vex's own window had the focus: Ctrl+Alt+W (Watch page) closed the tab, Ctrl+Alt+T opened one, Ctrl+Alt+M muted.
+- **The page's right-click submenus could not be reached** (Page, This site, "More for this video/link/image/text"), so Print, View Page Source and the video rows were out of reach. The video rows now also work for videos in frames and shadow roots, and a refused Play says why.
+- **The window buttons were off-screen** below about 1130 px wide in the default look, a half-screen window included.
+- **Updating an extension erased its settings**: every update installed into a new folder, which gave it a new identity. Updates now replace the old copy in place. Stylus's popup works, popups are sized exactly, links and buttons in them open tabs, and a popup over a container tab knows the page.
+- **Lock Vex**: windows open before locking are hidden until you unlock, 2FA codes refuse while locked, keys from a private window act on that window only, and the wrong-PIN wait survives a restart. The lock PIN's hash is left out of backups.
+- **Private windows**: per-site switches (JavaScript, cookies, content from other sites) now apply there; the ad-blocker switch can't be changed from one; Switch Workspace no longer destroys its tabs; Snooze and Save Session say they can't work there instead of pretending.
+- **Autofill kept refilling** fields you had cleared, so another account could not be typed in. Clear History also erases the recently-closed list and the history's backup copies.
+- **The search engine you pick anywhere** (Settings, setup, the New Tab page) is used everywhere at once, and the New Tab page follows the same address rules as the address bar. Addresses in any script (münchen.de), Windows paths and C:\ files open; "readme.md" and "node.js" are searched. A failed address says why instead of a blank page.
+- **Restoring a backup lost the workspaces** at the restart it asks for, and Restart itself now saves everything first.
+- **Schedules "every 30 minutes" ran hourly**; calendar events in another time zone were an hour off for half the year; daily reminders drifted an hour after a clock change; checkboxes with + or • bullets ticked the wrong task.
+- **The AI**: questions with an ordinary "for" in them ("ideas for dinner") got a help card instead of an answer; Stop left a spinning bubble; stopping the agent then starting again broke the new run; Retry put its answer at the bottom; chats lost their times after a restart and the newest were deleted first; new answers had no Retry until redrawn; a custom persona answered "{}"; Restyle saved a refusal as CSS.
+- **Master Volume and the per-site volume** now work together and reach players in frames; Night mode can be turned off on any page.
+- **Escape closes every window and sheet in Vex**, also when it was opened from inside a page; icons drawn as text characters (✕ ✓ ✎ ⟳ ▲ ▼) are Vex's icons everywhere.
+
+Checked by the whole test suite (Node 22, as on the build server), the lint, type and source checks, both start-up checks, and live runs of Vex for each area in the source and in a freshly built installed app, including all 25 sidebar panels in the default and Firefox looks with no errors.
 
 ## v2.33.13 (2026-09-29) — Extension popups open, and know which page you are on
 

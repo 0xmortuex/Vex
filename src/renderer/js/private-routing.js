@@ -73,7 +73,7 @@ const PrivateRouting = {
             <h2>Private routing</h2>
             <p>Send everything Vex does through Tor or through a proxy of your own. This routes the browser — Vex is not a VPN service and does not run one, and anything outside Vex goes the way it always did.</p>
           </div>
-          <button class="vexroute-close" aria-label="Close">&times;</button>
+          <button class="vexroute-close" aria-label="Close" title="Close">${VexIcons.svg('x', { size: 18 })}</button>
         </div>
         <div class="vexroute-body">
           <button class="vexroute-opt${st.mode === 'direct' ? ' on' : ''}" data-mode="direct">

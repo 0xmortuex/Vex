@@ -46,6 +46,9 @@ const HorizontalTabs = (() => {
       label.textContent = group.name;
       label.title = `${group.name} \u00b7 ${groupTabs.length} tab${groupTabs.length === 1 ? '' : 's'} \u00b7 right-click for options`;
       label.addEventListener('click', () => {
+        // The tab in front would vanish with the group and nothing would be
+        // marked active (found 2026-09-29); move off it first, as Chrome does.
+        if (!group.collapsed) TabManager._leaveGroupBeforeCollapse(group.id);
         group.collapsed = !group.collapsed;
         if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups);
         // rebuildAllTabs repaints the vertical sidebar (which shows/hides the

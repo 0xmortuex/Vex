@@ -51,10 +51,16 @@ const Calendar = {
     const out = [];
     const d = new Date(r.at);
     const days = Array.isArray(r.repeat) ? r.repeat : null;
+    // Keep the wall-clock time it was set for, as nextRepeat does: a 02:30
+    // stepped through the skipped spring hour stayed 03:30 for good (found
+    // 2026-09-29).
+    const [h, m] = /^\d{2}:\d{2}$/.test(r.time || '') ? r.time.split(':').map(Number) : [d.getHours(), d.getMinutes()];
     const step = () => {
+      d.setHours(12, 0, 0, 0);
       d.setDate(d.getDate() + (r.repeat === 'weekly' ? 7 : 1));
       if (r.repeat === 'weekdays') while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
       if (days) while (!days.includes(d.getDay())) d.setDate(d.getDate() + 1);
+      d.setHours(h, m, 0, 0);
     };
     while (d.getTime() < to && out.length < this.MAX_REPEATS) {
       if (d.getTime() >= from) out.push(d.getTime());

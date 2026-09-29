@@ -45,18 +45,31 @@ const AutoReload = {
       return `<button data-ms="${c.ms}" style="display:block;width:100%;text-align:left;padding:10px 12px;margin:4px 0;background:${active ? 'var(--primary,var(--accent))' : 'var(--bg)'};color:${active ? '#fff' : 'var(--text)'};border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;font-family:'Outfit',sans-serif">${c.label}${active ? ' ·  current' : ''}</button>`;
     };
     m.innerHTML = `<div style="width:300px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);padding:18px">
-      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px">⟳ Auto-refresh this tab</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px">Auto-refresh this tab</div>
       ${this.CHOICES.map(btn).join('')}
     </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
+    // Escape closes it the way a click outside does, changing nothing; it did
+    // nothing (found 2026-09-29). Capture phase, so nothing underneath takes
+    // the same key; an Escape meant for a Vex dialog on top is left to it.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelectorAll('button[data-ms]').forEach(b => b.addEventListener('click', () => {
       const ms = parseInt(b.dataset.ms, 10) || 0;
       this.set(tabId, ms);
       const c = this.CHOICES.find(x => x.ms === ms);
-      window.showToast?.(ms ? `⟳ Auto-refresh every ${c.label.toLowerCase()}` : 'Auto-refresh off');
-      m.remove();
+      window.showToast?.(ms ? `Auto-refresh every ${c.label.toLowerCase()}` : 'Auto-refresh off');
+      close();
     }));
+    // Focus moves to the current choice (there is no X), or with the page
+    // focused the key never reached Vex at all.
+    (m.querySelector(`button[data-ms="${cur ? cur.ms : 0}"]`) || m.querySelector('button[data-ms]')).focus({ preventScroll: true });
   },
 };
 

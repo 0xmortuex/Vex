@@ -67,18 +67,46 @@ const IcsCalendar = {
     const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/.exec(String(value).trim());
     if (!m) return null;
     const [, y, mo, d, h, mi, s, z] = m;
-    if (h == null) return { at: new Date(+y, +mo - 1, +d).getTime(), allDay: true };
-    if (z) return { at: Date.UTC(+y, +mo - 1, +d, +h, +mi, +s), allDay: false };
+    // `tz` is the zone the event's clock runs in, so its repeats keep that
+    // clock (UTC for a Z time, null for a floating one or a whole day).
+    if (h == null) return { at: new Date(+y, +mo - 1, +d).getTime(), allDay: true, tz: null };
+    if (z) return { at: Date.UTC(+y, +mo - 1, +d, +h, +mi, +s), allDay: false, tz: 'UTC' };
     const tz = (/(?:^|;)TZID=([^;:]+)/.exec(params) || [])[1];
     if (tz) {
-      try { return { at: this._zoned(+y, +mo, +d, +h, +mi, +s, tz.replace(/^"|"$/g, '')), allDay: false }; }
+      const zone = tz.replace(/^"|"$/g, '');
+      try { return { at: this._zoned(+y, +mo, +d, +h, +mi, +s, zone), allDay: false, tz: zone }; }
       catch {
         // A zone this computer does not know by that name (Outlook writes
         // Windows names): read as local time, and say so once.
         this._note('Unknown time zone "' + tz + '" — its events are shown in your own time');
       }
     }
-    return { at: new Date(+y, +mo - 1, +d, +h, +mi, +s).getTime(), allDay: false };
+    return { at: new Date(+y, +mo - 1, +d, +h, +mi, +s).getTime(), allDay: false, tz: null };
+  },
+
+  // The wall clock at instant `t` in zone `tz` (the user's own when null).
+  _wallParts(t, tz) {
+    if (!tz) {
+      const d = new Date(t);
+      return { y: d.getFullYear(), mo: d.getMonth(), d: d.getDate(), h: d.getHours(), mi: d.getMinutes(), s: d.getSeconds(), dow: d.getDay() };
+    }
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(t));
+    const g = (k) => Number(parts.find(p => p.type === k).value);
+    const y = g('year'), mo = g('month') - 1, d = g('day');
+    return { y, mo, d, h: g('hour'), mi: g('minute'), s: g('second'), dow: new Date(Date.UTC(y, mo, d)).getUTCDay() };
+  },
+
+  // Where a content line's name and parameters end: the first ':' outside
+  // double quotes. A quoted parameter may hold one, and
+  // LOCATION;ALTREP="http://x":Room 1 was read as the location '//x":Room 1'
+  // (found 2026-09-29).
+  _colon(line) {
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') quoted = !quoted;
+      else if (line[i] === ':' && !quoted) return i;
+    }
+    return -1;
   },
 
   _note(message) {
@@ -94,7 +122,7 @@ const IcsCalendar = {
       if (line === 'BEGIN:VEVENT') { ev = { summary: '', location: '', exdates: [] }; continue; }
       if (line === 'END:VEVENT') { if (ev && ev.start) events.push(ev); ev = null; continue; }
       if (!ev) continue;
-      const colon = line.indexOf(':');
+      const colon = this._colon(line);
       if (colon < 0) continue;
       const head = line.slice(0, colon), value = line.slice(colon + 1);
       const name = head.split(';')[0].toUpperCase(), params = head.slice(name.length);
@@ -104,7 +132,7 @@ const IcsCalendar = {
       else if (name === 'STATUS') ev.cancelled = /CANCELLED/i.test(value);
       else if (name === 'RRULE') ev.rrule = value;
       else if (name === 'RECURRENCE-ID') ev.recurrenceId = (this._time(params, value) || {}).at;
-      else if (name === 'DTSTART') { const t = this._time(params, value); if (t) { ev.start = t.at; ev.allDay = t.allDay; } }
+      else if (name === 'DTSTART') { const t = this._time(params, value); if (t) { ev.start = t.at; ev.allDay = t.allDay; ev.tz = t.tz; } }
       else if (name === 'DTEND') { const t = this._time(params, value); if (t) ev.end = t.at; }
       else if (name === 'EXDATE') for (const v of value.split(',')) { const t = this._time(params, v); if (t) ev.exdates.push(t.at); }
     }
@@ -125,8 +153,17 @@ const IcsCalendar = {
     const keep = (at) => { if (at < to && at + length > from && !ev.exdates.includes(at)) out.push({ start: at, end: at + length }); };
     if (!ev.rrule) { keep(ev.start); return out; }
     const r = this._rule(ev.rrule);
+    // BYMONTH, and one BYMONTHDAY on a monthly or yearly repeat, are expanded
+    // below. Both used to be ignored, so "every month on the 5th" whose first
+    // time was on the 20th repeated on the 20th, and BYMONTH did nothing
+    // (found 2026-09-29). BYDAY outside a weekly repeat was ignored the same
+    // way; now it is shown once, like the rest Vex cannot expand.
+    const months = r.BYMONTH ? r.BYMONTH.split(',').map(Number) : null;
+    const monthDay = r.BYMONTHDAY ? Number(r.BYMONTHDAY) : null;
     const unsupported = ['BYSETPOS', 'BYYEARDAY', 'BYWEEKNO', 'BYHOUR', 'BYMINUTE'].some(k => r[k])
-      || (r.FREQ === 'MONTHLY' && r.BYDAY) || (r.BYMONTHDAY && r.BYMONTHDAY.includes(','));
+      || (r.BYDAY && r.FREQ !== 'WEEKLY')
+      || (months && !months.every(m => Number.isInteger(m) && m >= 1 && m <= 12))
+      || (r.BYMONTHDAY && (!Number.isInteger(monthDay) || monthDay < 1 || monthDay > 31 || (r.FREQ !== 'MONTHLY' && r.FREQ !== 'YEARLY')));
     if (!['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(r.FREQ) || unsupported) {
       this._note('A repeating event Vex cannot expand ("' + ev.summary + '": ' + ev.rrule + ') is shown only once');
       keep(ev.start);
@@ -137,8 +174,19 @@ const IcsCalendar = {
     const until = r.UNTIL ? (this._time('', r.UNTIL) || {}).at : Infinity;
     const first = new Date(ev.start);
     const days = r.FREQ === 'WEEKLY' && r.BYDAY ? r.BYDAY.split(',').map(d => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'].indexOf(d.slice(-2))) : null;
-    // Step in local calendar terms, keeping the wall-clock time of the first.
-    const at = (base, addDays, addMonths, addYears) => new Date(base.getFullYear() + addYears, base.getMonth() + addMonths, base.getDate() + addDays, first.getHours(), first.getMinutes(), first.getSeconds()).getTime();
+    // Step in the event's own calendar and zone, keeping the wall-clock time
+    // of the first. Stepping in the viewer's clock put a 09:00 New York
+    // meeting an hour off for the weeks the two zones change their clocks on
+    // different dates (found 2026-09-29). `strict` drops a day that does not
+    // exist (the 31st of a 30-day month) instead of rolling over.
+    const F = this._wallParts(ev.start, ev.tz);
+    const wall = (y, mo, d, strict) => {
+      const n = new Date(Date.UTC(y, mo, d));
+      if (strict && n.getUTCDate() !== d) return NaN;
+      const Y = n.getUTCFullYear(), M = n.getUTCMonth(), D = n.getUTCDate();
+      return ev.tz ? this._zoned(Y, M + 1, D, F.h, F.mi, F.s, ev.tz) : new Date(Y, M, D, F.h, F.mi, F.s).getTime();
+    };
+    const day = monthDay || F.d;
     // With no COUNT to keep, start near the viewed range: counting from the
     // first occurrence, a daily event begun four years ago ran out of its
     // MAX_OCCURRENCES before today and never showed (found 2026-09-29). One
@@ -155,19 +203,17 @@ const IcsCalendar = {
     let made = 0;
     for (let i = i0; made < count && i < i0 + this.MAX_OCCURRENCES; i++) {
       let batch;
-      if (r.FREQ === 'DAILY') batch = [at(first, i * interval, 0, 0)];
-      else if (r.FREQ === 'WEEKLY') {
-        if (!days) batch = [at(first, i * 7 * interval, 0, 0)];
-        else {
-          const weekStart = at(first, i * 7 * interval - first.getDay(), 0, 0);
-          batch = days.map(d => at(new Date(weekStart), d, 0, 0)).filter(t => t >= ev.start).sort((a, b) => a - b);
-        }
-      } else if (r.FREQ === 'MONTHLY') batch = [at(first, 0, i * interval, 0)];
-      else batch = [at(first, 0, 0, i * interval)];
       // The 31st in a 30-day month (or 29 Feb in another year) rolled over
       // into the next month (found 2026-09-29); such a month has no
-      // occurrence, as RFC 5545 says.
-      if (r.FREQ === 'MONTHLY' || r.FREQ === 'YEARLY') batch = batch.filter(t => new Date(t).getDate() === first.getDate());
+      // occurrence, as RFC 5545 says — hence `strict` for months and years.
+      if (r.FREQ === 'DAILY') batch = [wall(F.y, F.mo, F.d + i * interval)];
+      else if (r.FREQ === 'WEEKLY') {
+        batch = days ? days.map(d => wall(F.y, F.mo, F.d + i * 7 * interval - F.dow + d)) : [wall(F.y, F.mo, F.d + i * 7 * interval)];
+      } else if (r.FREQ === 'MONTHLY') batch = [wall(F.y, F.mo + i * interval, day, true)];
+      else batch = (months ? months.map(m => m - 1) : [F.mo]).map(m => wall(F.y + i * interval, m, day, true));
+      // BYMONTH on a daily, weekly or monthly repeat keeps only those months.
+      if (months && r.FREQ !== 'YEARLY') batch = batch.filter(t => months.includes(this._wallParts(t, ev.tz).mo + 1));
+      batch = batch.filter(t => Number.isFinite(t) && t >= ev.start).sort((a, b) => a - b);
       let past = false;
       for (const t of batch) {
         if (t > until || made >= count) { past = true; break; }

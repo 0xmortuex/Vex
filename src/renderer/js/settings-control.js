@@ -143,7 +143,14 @@ const VexSettingsControl = {
     const p = this.plan(req);
     if (p.same) return { changed: false, label: p.control.label, message: p.sentence };
     const ok = await vexConfirm({ title: 'Change a setting', message: p.sentence, okLabel: 'Change it' });
-    if (!ok) return { changed: false, label: p.control.label, message: 'Left as it was' };
+    // A no is a failure, said plainly. "Left as it was" read to the agent as
+    // a result to try again, so it asked the same question over and over
+    // (found 2026-09-29). `declined` lets a caller tell it from a real fault.
+    if (!ok) {
+      const err = new Error(`The user said no — "${p.control.label}" was left as it was. Do not ask again.`);
+      err.declined = true;
+      throw err;
+    }
     this._set(p.control, p.toValue);
     return { changed: true, label: p.control.label, id: p.control.el.id || null, from: p.from, to: p.toValue, message: p.sentence.replace(/\?$/, '') + ' — done' };
   },

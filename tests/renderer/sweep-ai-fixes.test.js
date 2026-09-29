@@ -244,7 +244,8 @@ describe('the local model is told everything the cloud is', () => {
   });
   it('the tab command prompt reaches the local model', async () => {
     await AIRouter.callOn('local', 'chat', { message: 'close youtube', persona: { systemPrompt: 'TAB MANAGER' } });
-    expect(globalThis.Ollama.generate.mock.calls[0][2].systemPrompt).toBe('TAB MANAGER');
+    // A prompt that asks for no JSON gets the reply format added (2026-09-29).
+    expect(globalThis.Ollama.generate.mock.calls[0][2].systemPrompt).toMatch(/^TAB MANAGER/);
   });
 });
 

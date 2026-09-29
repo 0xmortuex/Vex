@@ -64,19 +64,22 @@ const MasterVolume = {
       // tapping it silences the protected audio. Detect it and skip the tap, so
       // those fall back to element.volume (0–100% works, no boost, no silence).
       function canTap(m){ try{ if(m.mediaKeys) return false; }catch(e){} return sameOrigin(m); }
+      // Per element: rec.gain is its Web-Audio "out" gain once tapped; rec.base
+      // is the level the page itself wants (the per-site figure from
+      // site-volume.js, else what the site set), rec.wrote what we last put on
+      // the element. The element always plays min(1, g) x base, and a boost
+      // above 100% is the gain alone. Tapping used to force element.volume to
+      // 1 and never put it back, so a site kept at 40% came out of a boost at
+      // 100%; and turning an element down to the master level alone made a
+      // site kept at 40% louder at 50% (both found 2026-09-29).
       var map=new WeakMap();
       var st={g:target};
       function isDrm(m){ try{ return !!m.mediaKeys; }catch(e){ return false; } }
-      function tap(m){
+      function tap(m,rec){
         var c=getCtx();
         if(c && c.state!=='running'){ resume(); }
         if(c && c.state==='running'){
-          try{
-            var gn=shared(m).out; gn.gain.value=st.g;
-            map.set(m,{gain:gn});
-            try{ m.volume=1; }catch(e){}
-            return true;
-          }catch(e){}
+          try{ rec.gain=shared(m).out; return true; }catch(e){}
         }
         return false;
       }
@@ -85,13 +88,13 @@ const MasterVolume = {
       // media responses (main process), so we can flip the element to
       // crossOrigin="anonymous" and reload it (preserving position) to make it
       // tappable. On CORS failure we revert to plain volume. DRM is never touched.
-      function makeCors(m){
+      function makeCors(m,rec){
         try{
           var srcUrl=m.currentSrc||m.src||'';
           if(!srcUrl || srcUrl.lastIndexOf('blob:',0)===0 || srcUrl.lastIndexOf('data:',0)===0) return false;
           var t=0; try{ t=m.currentTime; }catch(e){}
           var wasPlaying=!m.paused;
-          map.set(m,{gain:null,corsTried:true});
+          rec.corsTried=true;
           m.crossOrigin='anonymous';
           var onErr=function(){ try{ m.removeEventListener('error',onErr); m.crossOrigin=null; m.load(); try{ m.currentTime=t; }catch(e){} if(wasPlaying) m.play().catch(function(){}); }catch(e){} };
           var onReady=function(){ try{ m.removeEventListener('canplay',onReady); m.currentTime=t; }catch(e){} if(wasPlaying) m.play().catch(function(){}); resume(); hook(m); };
@@ -102,24 +105,34 @@ const MasterVolume = {
           return true;
         }catch(e){ return false; }
       }
+      // A volume on the element that is not the one we wrote was set by the
+      // site (its own slider): that becomes the level it wants.
+      function level(m,rec){
+        var base=(typeof window.__vexVolume==='number') ? window.__vexVolume
+          : (rec.wrote==null || Math.abs(m.volume-rec.wrote)>0.001) ? m.volume : rec.base;
+        rec.base=base;
+        var v=Math.min(1,st.g)*base;
+        if(Math.abs(m.volume-v)>0.0001){ try{ m.volume=v; }catch(e){} }
+        rec.wrote=v;
+      }
       function hook(m){
         try{
           var rec=map.get(m);
-          if(rec&&rec.gain){ rec.gain.gain.value=st.g; return; }
-          if(st.g>1 && !isDrm(m)){
-            if(canTap(m)){ if(tap(m)) return; }
-            // Cross-origin, not yet tried: convert to CORS + reload, then re-hook.
-            else if(!(rec&&rec.corsTried)){ if(makeCors(m)) return; }
+          if(!rec){
+            // At 100% an element Vex never touched is left alone, so the
+            // site's own slider and the per-site volume keep working; this ran
+            // on every DOM change and pinned every video at 1 (found 2026-09-29).
+            if(st.g===1) return;
+            rec={gain:null,corsTried:false,base:null,wrote:null};
+            map.set(m,rec);
           }
-          // 0–100% (or boost couldn't engage): plain element.volume — reliable.
-          // At 100% the element is left alone, so the site's own slider and the
-          // per-site volume (site-volume.js) keep working; this ran on every DOM
-          // change and pinned every video at 1 (found 2026-09-29). An element we
-          // turned down earlier gets the per-site figure (or full) back.
-          var setVol=!!(rec&&rec.setVol);
-          if(st.g!==1){ try{ m.volume=Math.min(1,st.g); }catch(e){} setVol=true; }
-          else if(setVol){ try{ m.volume=(typeof window.__vexVolume==='number')?window.__vexVolume:1; }catch(e){} setVol=false; }
-          if(!(rec&&rec.gain)) map.set(m,{gain:null, corsTried: !!(rec&&rec.corsTried), setVol:setVol});
+          if(!rec.gain && st.g>1 && !isDrm(m)){
+            if(canTap(m)) tap(m,rec);
+            // Cross-origin, not yet tried: convert to CORS + reload, then re-hook.
+            else if(!rec.corsTried){ if(makeCors(m,rec)) return; }
+          }
+          if(rec.gain) rec.gain.gain.value=Math.max(1,st.g);
+          level(m,rec);
         }catch(e){}
       }
       function applyAll(){ try{ document.querySelectorAll('video,audio').forEach(hook); }catch(e){} }
@@ -133,9 +146,13 @@ const MasterVolume = {
     }catch(e){}})(${g});`;
   },
 
+  // In every frame of the page (vexGuestEvalFrames, site-volume.js): a player
+  // embedded in an iframe was never reached (found 2026-09-29).
   applyToWebview(wv) {
     if (!wv) return;
-    try { wv.executeJavaScript(this._script(this.level())).catch(() => {}); } catch {}
+    // A page that could not take it is said in the console, not swallowed.
+    try { window.vexGuestEvalFrames(wv, this._script(this.level())).catch(err => console.warn('[MasterVolume] could not apply to a page:', err && err.message)); }
+    catch (err) { console.warn('[MasterVolume] could not apply to a page:', err && err.message); }
   },
 
   _allWebviews() {
@@ -148,7 +165,10 @@ const MasterVolume = {
   apply(g) {
     this._setLevel(g);
     const script = this._script(g);
-    for (const wv of this._allWebviews()) { try { wv.executeJavaScript(script).catch(() => {}); } catch {} }
+    for (const wv of this._allWebviews()) {
+      try { window.vexGuestEvalFrames(wv, script).catch(err => console.warn('[MasterVolume] could not apply to a page:', err && err.message)); }
+      catch (err) { console.warn('[MasterVolume] could not apply to a page:', err && err.message); }
+    }
   },
 
   show() {

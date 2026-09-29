@@ -34,7 +34,9 @@ const openSub = (menu, label) => {
   const row = [...menu.children].find(c => c.textContent === label);
   if (!row) throw new Error('no row "' + label + '" — has: ' + top(menu).join(', '));
   row.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
-  return menu.querySelector('.ctx-submenu');
+  // The submenu is drawn in the page beside the menu, not inside it: the
+  // menu scrolls, and a submenu inside it was clipped away (2026-09-29).
+  return document.querySelector('.ctx-submenu');
 };
 const rows = (el) => [...el.querySelectorAll('.tab-context-item')].map(c => c.textContent);
 
@@ -119,7 +121,7 @@ describe('the page menu, grouped', () => {
     const menu = open({});
     openSub(menu, 'Page');
     openSub(menu, 'This site');
-    expect(menu.querySelectorAll('.ctx-submenu').length).toBe(1);
+    expect(document.querySelectorAll('.ctx-submenu').length).toBe(1);
   });
 
   it('no submenu is empty, and none follows a separator into nothing', () => {

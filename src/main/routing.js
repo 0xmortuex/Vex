@@ -8,6 +8,34 @@
 // real tab direct after a restart.
 const ALL_ROUTE_KEY = '__all__';
 
+const PROXY_HINT = 'A proxy address looks like socks5://127.0.0.1:1080 or http://host:port';
+
+/**
+ * One proxy, as scheme://host:port, or an error that says what one looks
+ * like. The old check was a loose pattern in the renderer only:
+ * socks5://hello, http://; and socks5://127.0.0.1:99999 all reported "Now
+ * using your proxy", and socks5://x:1080,direct:// quietly went direct when
+ * the proxy failed — Chromium reads "," as a fallback list and ";" as
+ * per-scheme rules (found 2026-09-29).
+ * @param {unknown} text
+ * @returns {string}
+ */
+function proxyAddress(text) {
+  const raw = typeof text === 'string' ? text.trim() : '';
+  if (!raw || /[,;\s]/.test(raw)) throw new Error(PROXY_HINT);
+  let url;
+  try { url = new URL(raw); } catch { throw new Error(PROXY_HINT); }
+  const scheme = url.protocol.replace(/:$/, '').toLowerCase();
+  if (!['http', 'https', 'socks4', 'socks5'].includes(scheme)) throw new Error(PROXY_HINT);
+  if (!url.hostname || url.username || url.password || url.search || url.hash || (url.pathname && url.pathname !== '/')) throw new Error(PROXY_HINT);
+  // The port has to be written out: URL drops a scheme's default one
+  // (http://h:80 has port ''), so it is read from the text itself.
+  const m = /:(\d{1,5})\/?$/.exec(raw);
+  const port = m ? Number(m[1]) : 0;
+  if (!(port >= 1 && port <= 65535)) throw new Error(PROXY_HINT);
+  return `${scheme}://${url.hostname}:${port}`;
+}
+
 /**
  * @param {{routes: Record<string, unknown>,
  * getSession: (partition: string) => {setProxy: (rules: {proxyRules: string, proxyBypassRules: string}) => Promise<void>},
@@ -26,7 +54,18 @@ async function restoreRoutes({ routes, getSession, applyRouting, report, allPart
       void applyRouting(partition, 'tor').catch(report);
     } else if (config.mode === 'proxy') {
       if (!('custom' in config) || typeof config.custom !== 'string' || !config.custom.trim()) throw new Error('Invalid saved proxy configuration');
-      await applyRouting(partition, 'proxy', config.custom);
+      // A proxy saved before the address was checked properly may no longer
+      // pass. Throwing here would stop Vex opening at all, and going direct
+      // would expose what the person meant to hide — so, like Tor above, the
+      // session gets a proxy that refuses everything, and it is said.
+      let address;
+      try { address = proxyAddress(config.custom); }
+      catch (err) {
+        await getSession(partition).setProxy({ proxyRules: 'socks5://127.0.0.1:9', proxyBypassRules: '<-loopback>' });
+        report(new Error(`The saved proxy "${config.custom}" is not a proxy address, so ${partition || 'the default session'} loads nothing until it is changed — ${err instanceof Error ? err.message : String(err)}`));
+        return;
+      }
+      await applyRouting(partition, 'proxy', address);
     }
   }
 
@@ -44,4 +83,4 @@ async function restoreRoutes({ routes, getSession, applyRouting, report, allPart
     await restoreOne(key === 'default' ? '' : key, config);
   }
 }
-module.exports = { restoreRoutes, ALL_ROUTE_KEY };
+module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY };

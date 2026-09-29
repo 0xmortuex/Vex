@@ -19,7 +19,18 @@ const VexLock = {
   LOCKED_KEY: 'vex.locked',
   ITERATIONS: 150000,
   _locked: false,
-  _fails: 0,
+  // Wrong tries and the wait they earn are stored too: kept in memory, a
+  // restart gave five fresh tries straight away, so the thirty-second wait
+  // was no brake on guessing (found 2026-09-29).
+  FAILS_KEY: 'vex.lockFails',
+  WAIT_KEY: 'vex.lockWaitUntil',
+  WAIT_MS: 30000,
+  get _fails() { const n = Number(localStorage.getItem(this.FAILS_KEY)); return Number.isFinite(n) && n > 0 ? n : 0; },
+  set _fails(n) { if (n > 0) localStorage.setItem(this.FAILS_KEY, String(n)); else localStorage.removeItem(this.FAILS_KEY); },
+  // Never more than one wait from now: a clock that jumped would otherwise
+  // leave Vex refusing the right PIN for as long as the jump.
+  get _waitUntil() { const t = Number(localStorage.getItem(this.WAIT_KEY)); return Number.isFinite(t) && t > 0 ? Math.min(t, Date.now() + this.WAIT_MS) : 0; },
+  set _waitUntil(t) { if (t > 0) localStorage.setItem(this.WAIT_KEY, String(t)); else localStorage.removeItem(this.WAIT_KEY); },
 
   hasPin() { try { return !!JSON.parse(localStorage.getItem(this.PIN_KEY) || 'null'); } catch { return false; } },
 
@@ -95,7 +106,7 @@ const VexLock = {
       this._fails++;
       input.value = '';
       // Five wrong in a row: thirty seconds before the next try.
-      if (this._fails >= 5) { this._waitUntil = Date.now() + 30000; this._fails = 0; msg.textContent = 'Too many tries — wait 30 s'; }
+      if (this._fails >= 5) { this._waitUntil = Date.now() + this.WAIT_MS; this._fails = 0; msg.textContent = 'Too many tries — wait 30 s'; }
       else msg.textContent = 'Wrong PIN';
     });
     input.focus();

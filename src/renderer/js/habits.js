@@ -111,7 +111,23 @@ const Habits = {
       const now = new Date();
       const days = this.days(now);
       const today = this.dayKey(now);
-      const habits = this.list();
+      let habits;
+      try { habits = this.list(); }
+      catch (err) {
+        // The error toast used to leave an empty sheet behind it, and no way
+        // past the unreadable data but to wait for it to fix itself (found
+        // 2026-09-29). Say so here, and offer to start again on a yes.
+        console.error('[Habits]', err);
+        body.innerHTML = `<div style="padding:22px 14px;font-size:12.5px;color:var(--text);text-align:center">${esc(err.message)} — what is saved is not something Vex can read.
+          <div style="margin-top:12px"><button data-reset type="button" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--danger, #ef4444);cursor:pointer">Start again with no habits</button></div></div>`;
+        body.querySelector('[data-reset]').addEventListener('click', async () => {
+          const ok = await window.vexConfirm({ title: 'Start again with no habits?', message: 'What is saved now cannot be read, and it is deleted for good.', okLabel: 'Start again', danger: true });
+          if (!ok) return;
+          this._save([]);
+          draw();
+        });
+        return;
+      }
       const cell = 'width:30px;text-align:center';
       body.innerHTML = `
         <form data-add style="display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)">

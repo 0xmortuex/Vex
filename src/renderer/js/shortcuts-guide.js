@@ -10,6 +10,7 @@ const ShortcutsGuide = {
     ['Focus address bar', 'Ctrl+L'], ['Toggle tabs sidebar', 'Ctrl+B'], ['Find in page', 'Ctrl+F'],
     ['Back / forward', 'Alt+← / Alt+→'], ['Reload / hard reload', 'Ctrl+R / Ctrl+Shift+R'],
     ['Zoom in / out / reset', 'Ctrl++ / Ctrl+- / Ctrl+0'], ['Bookmark page', 'Ctrl+D'],
+    ['Print page', 'Ctrl+P'], ['View page source', 'Ctrl+U'],
     ['Split screen', 'Ctrl+Shift+S'], ['Picture-in-Picture', 'Ctrl+Shift+P'], ['Sleep tab', 'Ctrl+Shift+Z'],
     ['Mute tab', 'Ctrl+M'], ['AI panel', 'Ctrl+Shift+A'], ['Quick ask AI', 'Ctrl+J'],
     ['Organize tabs with AI', 'Ctrl+Shift+G'], ['Remember / index page', 'Ctrl+Shift+H'],
@@ -49,12 +50,19 @@ const ShortcutsGuide = {
       <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 10px">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Shortcuts &amp; Gestures</span>
         <input id="sg-filter" placeholder="Filter…" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:12.5px;font-family:'Outfit',sans-serif;width:150px">
-        <button id="sg-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>
+        <button id="sg-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
       </div>
       <div id="sg-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#sg-close').addEventListener('click', () => m.remove());
+    // Escape did nothing here (found 2026-09-29); every other overlay closes on it.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#sg-close').addEventListener('click', close);
     const filter = m.querySelector('#sg-filter');
     filter.addEventListener('input', () => this._render(m, filter.value.trim().toLowerCase()));
     filter.focus();

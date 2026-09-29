@@ -170,6 +170,17 @@ const VexBoosts = {
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#bm-cancel').addEventListener('click', () => m.remove());
+    // Escape closes it like every other Vex window; it did nothing (found
+    // 2026-09-29). An Escape a vexConfirm on top already used is left alone,
+    // and the listener goes with the window however it was closed.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey); return; }
+      if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); m.remove(); document.removeEventListener('keydown', onKey); }
+    };
+    document.addEventListener('keydown', onKey);
+    // Focus moves in, so Escape reaches this even when it was opened from a
+    // page, which kept the key (found 2026-09-29).
+    m.querySelector('#bm-cancel').focus({ preventScroll: true });
     m.querySelector('#bm-clear-zaps').addEventListener('click', async () => {
       const n = (b.zaps || []).length;
       if (!await window.vexConfirm({

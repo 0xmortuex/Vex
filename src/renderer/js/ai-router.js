@@ -181,7 +181,10 @@ const AIRouter = (() => {
         // The agent prefers the cloud model. With no AI Worker configured it
         // used to be simply unavailable — "Cloud AI is not configured" — even
         // with a capable local model running. Now the local model drives it.
-        decision = (feature === 'agent' && !cloudWorkerUrl() && await ollamaUp()) ? 'local' : 'cloud';
+        // Every other cloud-preferring feature too: multi-tab, translate and
+        // history search failed on the cloud first and logged a problem before
+        // falling back (found 2026-09-29).
+        decision = (!cloudWorkerUrl() && await ollamaUp()) ? 'local' : 'cloud';
       } else if (pref === 'local') {
         // Local-only feature (e.g. history indexing runs on-device for privacy).
         // If Ollama isn't installed/running, skip quietly instead of failing on
@@ -313,7 +316,8 @@ const AIRouter = (() => {
     }
     msgs.push({ role: 'user', content: userMessage });
 
-    const text = await WebLLM.chat(msgs, { temperature, maxTokens: 800 });
+    // Stop in the AI panel cancels the on-device answer too.
+    const text = await WebLLM.chat(msgs, { temperature, maxTokens: 800, signal: request.signal });
     return { result: text, backend: 'ondevice', model: WebLLM.loadedModel() };
   }
 
@@ -438,9 +442,16 @@ const AIRouter = (() => {
     // Structured features (summarize/translate/etc.) keep their built-in
     // JSON-schema prompts — persona only overrides chat.
     const isStructured = ['summarize', 'translate', 'explain', 'historyIndex', 'historySearch'].includes(feature);
-    const systemPrompt = (!isStructured && request.persona?.systemPrompt)
-      ? request.persona.systemPrompt
-      : (LOCAL_SYSTEM_PROMPTS[feature] || LOCAL_SYSTEM_PROMPTS.chat);
+    const basePrompt = LOCAL_SYSTEM_PROMPTS[feature] || LOCAL_SYSTEM_PROMPTS.chat;
+    let systemPrompt = basePrompt;
+    if (!isStructured && request.persona?.systemPrompt) {
+      systemPrompt = request.persona.systemPrompt;
+      // format:'json' is still forced below, and a persona prompt that never
+      // asks for {"reply": …} made the model answer "{}" (found 2026-09-29):
+      // the reply format goes on the end unless the persona asks for JSON of
+      // its own (the tab command's {"close": …}, say).
+      if (basePrompt === LOCAL_SYSTEM_PROMPTS.chat && !/\bjson\b/i.test(systemPrompt)) systemPrompt += '\n\n' + LOCAL_REPLY_FORMAT;
+    }
     const temperature = request.persona?.temperature ?? 0.5;
 
     let userMessage = '';
@@ -575,6 +586,10 @@ const AIRouter = (() => {
   }
 
   // ---------- Local prompts (smaller models need tighter guidance) ----------
+  // The answer shape the chat prompt asks for, added to a persona's own prompt
+  // (see callLocal).
+  const LOCAL_REPLY_FORMAT = 'Respond with JSON: {"reply": "your response", "citations": [], "suggestedFollowUps": []}. Return ONLY JSON.';
+
   const LOCAL_SYSTEM_PROMPTS = {
     chat: `You are Vex AI, a helpful browser assistant. Answer the user's question concisely based on any provided page content. Match the user's language.
 An instruction is an order: carry it out and say what happened in one line, or say in one sentence that you cannot. Never explain what you are about to do, never describe how the user could do it themselves, and never add advice they did not ask for.

@@ -89,7 +89,7 @@ const Bookmarks = {
           const link = document.createElement('button'); link.style.cssText = 'flex:1;min-width:0;text-align:left;background:none;color:var(--text);border:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
           link.textContent = (item.folder || 'Unsorted') + ' · ' + (item.title || item.url); link.title = item.url;
           link.addEventListener('click', () => { SidebarManager.hideActivePanel?.(); TabManager.createTab(item.url, true); });
-          const remove = document.createElement('button'); remove.textContent = '×'; remove.setAttribute('aria-label', 'Delete bookmark');
+          const remove = document.createElement('button'); remove.innerHTML = VexIcons.svg('x', { size: 13 }); remove.title = 'Delete bookmark'; remove.setAttribute('aria-label', 'Delete bookmark');
           remove.addEventListener('click', () => { this.items = this.items.filter(b => b.id !== item.id); this.save(); paint(q); });
           row.append(link, remove); return row;
         });
@@ -113,7 +113,7 @@ const Bookmarks = {
           row.innerHTML = `
             <img src="https://${encodeURIComponent(hostTxt)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
             <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.title)}</div><div style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(hostTxt)}</div></div>
-            <button data-del style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px">✕</button>`;
+            <button data-del style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;display:inline-flex;align-items:center;justify-content:center" title="Delete bookmark" aria-label="Delete bookmark">${VexIcons.svg('x', { size: 13 })}</button>`;
           row.addEventListener('click', (e) => { if (e.target.closest('[data-del]')) return; SidebarManager.hideActivePanel?.(); TabManager.createTab(b.url, true); });
           row.querySelector('[data-del]').addEventListener('click', (e) => { e.stopPropagation(); this.items = this.items.filter(x => x.id !== b.id); this.save(); paint(q); });
           list.appendChild(row);

@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('vex', {
   saveData: (key, data) => ipcRenderer.invoke('storage-save', key, data),
   loadData: (key) => ipcRenderer.invoke('storage-load', key),
   clearBrowsingData: () => ipcRenderer.invoke('browsing:clear-data'),
+  clearHistory: () => ipcRenderer.invoke('browsing:clear-history'),
   addHistory: (entry) => ipcRenderer.invoke('storage:history-add', entry),
   flushStorage: () => ipcRenderer.invoke('storage:flush'),
   cloudRequest: body => ipcRenderer.invoke('cloud:request', body),
@@ -199,6 +200,8 @@ contextBridge.exposeInMainWorld('vex', {
   pageSave: (wcId, format, title) => ipcRenderer.invoke('page:save', wcId, format, title),
   // The whole page as one PNG, not just what is on screen.
   captureFullPage: (wcId) => ipcRenderer.invoke('page:capture-full', wcId),
+  // One script in every frame of a tab (a player inside an iframe included).
+  evalAllFrames: (wcId, code, userGesture) => ipcRenderer.invoke('page:eval-all-frames', wcId, code, !!userGesture),
   // Which of these links answer, from an empty session (no cookies sent).
   checkLinks: (urls) => ipcRenderer.invoke('links:check', urls),
   crawlFetch: (url, accept) => ipcRenderer.invoke('crawl:fetch', url, accept),

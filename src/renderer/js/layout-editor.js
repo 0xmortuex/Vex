@@ -137,7 +137,7 @@ const LayoutEditor = {
     this._decorate();
     this._decorateRegions();
     this._buildBar();
-    try { window.showToast?.('Edit layout — drag to reorder, ✕ to hide'); } catch {}
+    try { window.showToast?.('Edit layout — drag to reorder, the red X hides'); } catch {}
   },
 
   exit() {
@@ -212,7 +212,7 @@ const LayoutEditor = {
       if (!n.querySelector(':scope > .le-x')) {
         const x = document.createElement('span');
         x.className = 'le-x le-ctl';
-        x.textContent = '✕';
+        x.innerHTML = VexIcons.svg('x', { size: 9 });
         x.title = it.region === 'shortcuts' ? 'Remove this shortcut' : 'Hide';
         x.setAttribute('draggable', 'false');
         x.addEventListener('dragstart', e => { e.preventDefault(); e.stopPropagation(); });
@@ -466,7 +466,7 @@ const LayoutEditor = {
         '<button id="le-preset-essentials" class="le-btn" title="Hide the rarely-used extras">Essentials</button>' +
         '<button id="le-preset-minimal" class="le-btn" title="Strip the toolbar down to the basics">Minimal</button>' +
         '<button id="le-reset" class="le-btn" title="Reset the toolbar buttons to default (sidebar resets live in Settings → Sidebar)">Reset</button>' +
-        '<button id="le-done" class="le-btn le-primary">Done ✓</button>' +
+        '<button id="le-done" class="le-btn le-primary">Done</button>' +
       '</div>';
     document.body.appendChild(bar);
     this._bar = bar;
@@ -500,7 +500,7 @@ const LayoutEditor = {
       body.layout-editing [data-layout-item]{ position:relative; outline:1.5px dashed var(--accent,#d4a574); outline-offset:2px; border-radius:6px; cursor:grab; }
       body.layout-editing [data-layout-item].le-dragging{ opacity:.4; cursor:grabbing; }
       body.layout-editing #icon-sidebar [data-layout-item]{ outline-offset:-2px; }
-      .le-x{ position:absolute; top:-6px; right:-6px; width:15px; height:15px; border-radius:50%; background:#e5484d; color:#fff; font-size:9px; line-height:15px; text-align:center; cursor:pointer; z-index:6; box-shadow:0 1px 3px rgba(0,0,0,.45); }
+      .le-x{ position:absolute; top:-6px; right:-6px; width:15px; height:15px; border-radius:50%; background:#e5484d; color:#fff; font-size:9px; line-height:15px; text-align:center; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:6; box-shadow:0 1px 3px rgba(0,0,0,.45); }
       .le-x:hover{ transform:scale(1.15); }
       body.layout-editing .le-region{ position:relative; outline:2px solid var(--primary,var(--accent,#d4a574)); outline-offset:-2px; border-radius:8px; }
       body.layout-editing .le-region.le-region-dragging{ opacity:.5; }

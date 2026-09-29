@@ -9,6 +9,10 @@
 // ship with a default.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// Close buttons and ticks are VexIcons SVGs (sweep 2026-09-29).
+require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = window.VexIcons;
+
 const ShortcutsRegistry = require('../../src/renderer/js/shortcuts-registry.js');
 const ShortcutEditor = require('../../src/renderer/js/shortcut-editor.js');
 

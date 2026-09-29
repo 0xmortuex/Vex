@@ -143,10 +143,14 @@ describe('the sticky card', () => {
     const { StickyNotes } = await import('../../src/renderer/js/sticky-notes.js');
     globalThis.TabManager = { getActiveTab: () => ({ url: 'https://example.com/p', title: 'P' }) };
     localStorage.setItem('vex.stickyPos', JSON.stringify({ x: 5000, y: 4000 }));
-    StickyNotes.open();
+    // jsdom lays nothing out; give the card its real size. The whole card is
+    // clamped on screen now, not just 80px of it (found 2026-09-29).
+    const real = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function () { return this.id === 'vex-sticky' ? { left: 0, top: 0, width: 260, height: 220 } : real.call(this); };
+    try { StickyNotes.open(); } finally { Element.prototype.getBoundingClientRect = real; }
     const card = document.getElementById('vex-sticky');
-    expect(parseInt(card.style.left, 10)).toBeLessThanOrEqual(window.innerWidth - 80);
-    expect(parseInt(card.style.top, 10)).toBeLessThanOrEqual(window.innerHeight - 40);
+    expect(parseInt(card.style.left, 10)).toBeLessThanOrEqual(window.innerWidth - 260);
+    expect(parseInt(card.style.top, 10)).toBeLessThanOrEqual(window.innerHeight - 220);
     card.remove();
   });
 });

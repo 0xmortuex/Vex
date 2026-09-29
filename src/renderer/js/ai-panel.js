@@ -21,6 +21,21 @@ const AIPanel = {
     document.getElementById('ai-close')?.addEventListener('click', () => this.close());
     document.getElementById('ai-send')?.addEventListener('click', () => this._sendChat());
     document.getElementById('ai-clear')?.addEventListener('click', () => this._clearChat());
+    // The panel was only told which tab it is on when it opened: switching
+    // tab with it open left the other tab's chat, name and attached-file chip
+    // on screen (found 2026-09-29). Switching tabs announces itself as
+    // vex-tabs-changed, which also fires for every other tab-list change, so
+    // only a new active tab redraws.
+    this._shownTabId = null;
+    window.addEventListener('vex-tabs-changed', () => {
+      if (!this.isOpen()) return;
+      const id = this._getTabId();
+      if (id === this._shownTabId) return;
+      // A running agent's steps are drawn live and kept nowhere else; a
+      // redraw would wipe them, so they stay on screen until it ends.
+      if (!(typeof AgentLoop !== 'undefined' && AgentLoop.isRunning?.())) this._renderMessages();
+      this._updateTabIndicator();
+    });
 
     // Markdown links: a plain <a> click inside the chrome document would
     // navigate the whole app window — intercept once (delegated) and open
@@ -274,9 +289,15 @@ const AIPanel = {
     const tabId = this._getTabId();
     this._viewingId = null;
     const conv = this._getConv(tabId);
-    conv.push({ role: 'user', content: msg, at: Date.now() });
+    const asked = { role: 'user', content: msg, at: Date.now() };
+    conv.push(asked);
     this._persistConversations();
     this._agentTabId = tabId;
+    // Stopped and started again at once, the old run's end arrived after the
+    // new run began: it hid the new run's Stop, forgot which tab it was on and
+    // put its answer under the new question (found 2026-09-29). Each run has a
+    // token; only the current one touches the buttons.
+    const runToken = this._agentRun = {};
 
     // Clear empty state and add user message
     const container = document.getElementById('ai-messages');
@@ -297,11 +318,15 @@ const AIPanel = {
 
     // Start agent loop
     const done = () => {
-      document.getElementById('ai-stop-agent')?.classList.remove('visible');
+      const current = this._agentRun === runToken;
+      if (current) document.getElementById('ai-stop-agent')?.classList.remove('visible');
       // Keep the outcome with the chat; the steps stay with the saved run.
       const run = (typeof AgentLoop !== 'undefined' && AgentLoop.lastRun && AgentLoop.lastRun.goal === msg) ? AgentLoop.lastRun : null;
-      conv.push({ role: 'assistant', content: (run && run.final) || '*The agent stopped without an answer.*', at: Date.now(), ...(run ? { agentRun: run.id } : {}) });
-      this._agentTabId = null;
+      const answer = { role: 'assistant', content: (run && run.final) || '*The agent stopped without an answer.*', at: Date.now(), ...(run ? { agentRun: run.id } : {}) };
+      // Right after its own question, wherever that is now.
+      const at = conv.indexOf(asked);
+      if (at >= 0) conv.splice(at + 1, 0, answer); else conv.push(answer);
+      if (current) { this._agentTabId = null; this._agentRun = null; }
       this._persistConversations();
     };
     AgentLoop.start(msg, this._agentMode).then(done, (err) => {
@@ -1069,25 +1094,50 @@ const AIPanel = {
       });
       act('refresh', 'Try this answer again', () => {
         const conv = this._getConv();
+        // The new answer goes where the old one was, asked with only the chat
+        // up to that point. It used to land at the bottom, under answers to
+        // later questions (found 2026-09-29). `after` is the turn it follows.
+        const retry = { convId: this._viewingId || this._getTabId(), after: index > 0 ? conv[index - 1] : null };
         // A summary, translation or explanation has no question above it: it
-        // is asked again as what it was.
+        // is asked again as what it was — on the same selection, when it was
+        // about one, not on the whole page (found 2026-09-29).
         if (m.action && m.action !== 'chat') {
           conv.splice(index, 1);
           this._persistConversations();
           this._renderMessages();
-          this.sendMessage(m.action, m.targetLanguage ? { targetLanguage: m.targetLanguage } : {});
+          this.sendMessage(m.action, {
+            ...(m.targetLanguage ? { targetLanguage: m.targetLanguage } : {}),
+            ...(m.selectedText ? { selectedText: m.selectedText } : {}),
+            _retry: retry,
+          });
           return;
         }
-        // The prompt that produced this answer is the user turn before it.
-        let ask = null;
-        for (let i = index - 1; i >= 0; i--) if (conv[i].role === 'user') { ask = conv[i].content; break; }
-        if (!ask) { window.showToast?.('Nothing to retry — no question above this answer'); return; }
+        // An answer with no action (an older chat, or an agent run) was asked
+        // again as a one-page chat of whatever question came first above it:
+        // an agent's task was answered in words instead of done, a multi-tab
+        // answer was re-asked about one page, and "There was nothing running
+        // to stop." sent "stop" to the model (found 2026-09-29).
+        if (m.agentRun) { window.showToast?.('This answer came from the agent — give it the task again to retry it', 'info'); return; }
+        // The prompt that produced this answer is the user turn right before
+        // it; a question further up belongs to a different answer.
+        const prev = conv[index - 1];
+        const ask = (prev && prev.role === 'user') ? prev.content : null;
+        if (!ask || this.CANCEL.test(String(ask).trim())) { window.showToast?.('This answer cannot be retried — there is no question right above it', 'info'); return; }
+        if (Array.isArray(m.tabs)) {
+          const tabs = (TabManager.tabs || []).filter(t => m.tabs.includes(String(t.id)));
+          if (!tabs.length) { window.showToast?.('The tabs this answer was about are no longer open', 'info'); return; }
+          conv.splice(index, 1);
+          this._persistConversations();
+          this._renderMessages();
+          this._sendMultiTab(ask, tabs, { _noEcho: true, _retry: retry });
+          return;
+        }
         conv.splice(index, 1);
         this._persistConversations();
         this._renderMessages();
         // The question is still in the chat, right above: re-adding it showed
         // it twice and sent it twice (found 2026-09-29).
-        this.sendMessage('chat', { message: ask, _noEcho: true });
+        this.sendMessage('chat', { message: ask, _noEcho: true, _retry: retry });
       });
     } else {
       act('edit', 'Edit and ask again', () => {
@@ -1144,6 +1194,9 @@ const AIPanel = {
   MAX_CONV_MESSAGES: 40,
   MAX_THINKING_CHARS: 4000,
   MAX_CONV_TABS: 20,
+  // The selection an Explain or Translate was about, kept so Retry asks about
+  // it again; capped because this store is a localStorage budget.
+  MAX_SELECTION_CHARS: 4000,
 
   _loadConversations() {
     try {
@@ -1159,6 +1212,10 @@ const AIPanel = {
             ...((typeof m.agentRun === 'string' && m.agentRun) ? { agentRun: m.agentRun } : {}),
             ...((typeof m.action === 'string' && m.action !== 'chat') ? { action: m.action } : {}),
             ...((typeof m.targetLanguage === 'string' && m.targetLanguage) ? { targetLanguage: m.targetLanguage } : {}),
+            ...(Array.isArray(m.tabs) ? { tabs: m.tabs.map(String) } : {}),
+            ...((typeof m.selectedText === 'string' && m.selectedText) ? { selectedText: m.selectedText.slice(0, this.MAX_SELECTION_CHARS) } : {}),
+            ...(Number.isFinite(m.at) ? { at: m.at } : {}),
+            ...(m.didIt === true ? { didIt: true } : {}),
           }))
           .slice(-this.MAX_CONV_MESSAGES);
       }
@@ -1169,7 +1226,17 @@ const AIPanel = {
     try {
       const out = {};
       let kept = 0;
-      const ids = Object.keys(this._conversations).reverse(); // newest first
+      // Newest first, by when each chat last had a message. Key order was used
+      // before, and a load put the saved (newest-first) order back as key
+      // order, so every save flipped it and the cap deleted the NEWEST chats
+      // (found 2026-09-29).
+      const lastAt = (id) => {
+        const msgs = this._conversations[id];
+        let t = 0;
+        if (Array.isArray(msgs)) for (const m of msgs) if (m && Number.isFinite(m.at) && m.at > t) t = m.at;
+        return t;
+      };
+      const ids = Object.keys(this._conversations).sort((a, b) => lastAt(b) - lastAt(a));
       for (const id of ids) {
         // A chat about a private page must never reach disk. Privacy is
         // recorded when the conversation is created, because by the time it is
@@ -1186,6 +1253,13 @@ const AIPanel = {
           ...(m.agentRun ? { agentRun: String(m.agentRun) } : {}),
           ...((m.action && m.action !== 'chat') ? { action: String(m.action) } : {}),
           ...(m.targetLanguage ? { targetLanguage: String(m.targetLanguage) } : {}),
+          ...(Array.isArray(m.tabs) ? { tabs: m.tabs.map(String) } : {}),
+          // When it was said, and whether it was a thing done rather than an
+          // answer: both were dropped here, so after a restart Recent chats had
+          // no times and a "Done" line grew "Dig deeper" (found 2026-09-29).
+          ...(Number.isFinite(m.at) ? { at: m.at } : {}),
+          ...(m.didIt ? { didIt: true } : {}),
+          ...(m.selectedText ? { selectedText: String(m.selectedText).slice(0, this.MAX_SELECTION_CHARS) } : {}),
         }));
       }
       localStorage.setItem(this.CONV_KEY, JSON.stringify(out));
@@ -1198,6 +1272,7 @@ const AIPanel = {
 
   _updateTabIndicator() {
     const tab = TabManager.getActiveTab();
+    this._shownTabId = this._getTabId();
     const el = document.getElementById('ai-current-tab');
     if (el && tab) el.textContent = tab.title || tab.url || 'New Tab';
     // An attached file belongs to the tab it was dropped in: its chip shows there only.
@@ -1259,7 +1334,11 @@ const AIPanel = {
       const parsed = JSON.parse(str);
       // Only a plain object carries the fields the renderers read. A scalar or
       // an array is just the model's answer in JSON clothing.
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return withThinking(parsed);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (parsed.reply != null && typeof parsed.reply !== 'string') parsed.reply = this._asText(parsed.reply);
+        return withThinking(parsed);
+      }
+      if (Array.isArray(parsed)) return withThinking({ reply: this._asText(parsed) });
       return withThinking({ reply: typeof parsed === 'string' ? parsed : str });
     } catch {
       // Malformed/truncated JSON — recover the reply field if it started.
@@ -1269,6 +1348,19 @@ const AIPanel = {
       if (openReply) return withThinking({ reply: this._unescapeJsonString(openReply[1]), truncated: true });
       return withThinking({ reply: str });
     }
+  },
+
+  // A reply that is not a string, as text. An array was drawn joined with
+  // commas and, not being a string, was dropped from the saved chat on the
+  // next start (found 2026-09-29): a list becomes a bullet list, anything else
+  // its JSON.
+  _asText(value) {
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) {
+      return value.map(v => '- ' + (typeof v === 'string' ? v : (v && typeof v === 'object') ? JSON.stringify(v) : String(v))).join('\n');
+    }
+    if (value && typeof value === 'object') return JSON.stringify(value, null, 2);
+    return String(value);
   },
 
   // `s` is the body of a JSON string (escapes still escaped). Re-quoting and
@@ -1302,15 +1394,23 @@ const AIPanel = {
     // every future send. finally always clears it.
     let loadingEl = null;
     let conv = null;
+    let onToken = null;
+    // A Retry puts its answer back where the old one was (see _msgActions).
+    const retry = opts._retry || null;
     try {
       const tabId = this._getTabId();
+      // Sent while an earlier chat was on screen: the answer was saved to this
+      // tab's chat but drawn over the earlier one (found 2026-09-29). A new
+      // question belongs to this tab, so the panel goes back to it first.
+      if (!retry) this._backToThisTab();
       const wv = WebviewManager.getActiveWebview();
       let pageContext = null;
       if (wv) { try { pageContext = await PageContext.extractPageContext(wv); } catch {} }
       // On a YouTube video: what was said in it, not the page around it.
       pageContext = await VideoChat.contextFor(pageContext);
 
-      conv = this._getConv(tabId);
+      const convId = retry ? retry.convId : tabId;
+      conv = this._getConv(convId);
 
       // Add user message for chat. `_noEcho` is set when retrying a failed send:
       // the bubble is already in the transcript and must not be duplicated.
@@ -1327,7 +1427,8 @@ const AIPanel = {
       // tab, left the answer streaming into a node that was no longer on
       // screen — it looked exactly as though the answer had stopped. The
       // node is put back now instead of being abandoned (_restoreLive).
-      this._live = { tabId: this._viewingId || tabId, el: loadingEl };
+      this._live = { tabId: convId, el: loadingEl, after: retry ? retry.after : undefined, conv };
+      if (retry) this._restoreLive(document.getElementById('ai-messages'));
       // Phase 14: route through AIRouter for local/cloud selection.
       // Map action → feature name.
       const featureMap = { chat: 'chat', summarize: 'summarize', translate: 'translate', explain: 'explain' };
@@ -1358,11 +1459,11 @@ const AIPanel = {
         const memMsg = AIMemory.historyMessage();
         if (memMsg) system.push(memMsg);
       }
-      const turns = conv.filter(m => m.role !== 'system').slice(-Math.max(1, this.HISTORY_SENT - system.length));
+      const turns = this._historyFor(conv, retry).filter(m => m.role !== 'system').slice(-Math.max(1, this.HISTORY_SENT - system.length));
       const conversationHistory = [...system, ...turns];
       // Only chat streams: the other actions render structured output that
       // means nothing until it is complete.
-      const onToken = (feature === 'chat') ? this._liveRenderer(loadingEl) : null;
+      onToken = (feature === 'chat') ? this._liveRenderer(loadingEl) : null;
       const aiResult = await AIRouter.callAI(feature, {
         onToken,
         // A local answer about to be slow: say why above the reply, with a
@@ -1410,14 +1511,23 @@ const AIPanel = {
       // Store every answer. Summaries, translations and explanations used to
       // be drawn and never kept, so the next redraw of the panel (reopening
       // it, switching tab) took them away (found 2026-09-29).
-      conv.push({
+      const answer = {
         role: 'assistant', content: action === 'chat' ? parsed.reply : this._answerText(action, parsed), action, at: Date.now(),
         thinking: parsed.thinking || undefined,
         ...(action === 'translate' && opts.targetLanguage ? { targetLanguage: opts.targetLanguage } : {}),
-      });
+        // What a selection Explain/Translate was about, so Retry asks about the
+        // same words and not the whole page (found 2026-09-29).
+        ...(opts.selectedText ? { selectedText: String(opts.selectedText).slice(0, this.MAX_SELECTION_CHARS) } : {}),
+      };
+      this._placeAnswer(conv, answer, retry);
       this._persistConversations();
 
-      this._renderResponse(action, parsed, { backend: aiResult.backend, model: aiResult.model });
+      // Switched to another tab's chat while it was written: it is saved with
+      // its own chat and shows there, not under this one.
+      const shown = String(this._live.tabId) === String(this._viewingId || this._getTabId());
+      this._live = null;
+      if (shown && retry) this._renderMessages();
+      else if (shown) this._renderResponse(action, parsed, { backend: aiResult.backend, model: aiResult.model }, { msg: answer, index: conv.indexOf(answer) });
       // Answered while you were somewhere else: say so, rather than leaving it
       // sitting in a closed panel. The answer is already saved either way.
       if (!this.isOpen()) {
@@ -1430,7 +1540,12 @@ const AIPanel = {
       // Stopped by the user: said, not shown as an error. The question stays
       // above it, so Retry on "Stopped." asks it again.
       if (abort.signal.aborted && conv) {
-        conv.push({ role: 'assistant', content: 'Stopped.', at: Date.now(), didIt: true });
+        // The redraw below put the live bubble back (_restoreLive), so a
+        // spinning "Thinking" or a half answer with its caret stayed under
+        // "Stopped." (found 2026-09-29). What was already written is kept.
+        this._live = null;
+        const partial = (onToken && onToken.partial) ? onToken.partial() : '';
+        this._placeAnswer(conv, { role: 'assistant', content: partial ? partial + '\n\n*Stopped.*' : 'Stopped.', at: Date.now(), didIt: true }, retry);
         this._persistConversations();
         this._renderMessages();
         return true;
@@ -1797,8 +1912,21 @@ const AIPanel = {
     if (this._sending) { window.showToast?.('Vex is still answering — one moment', 'info'); return false; }
     this._sending = true;
     this._setComposerBusy(true);
+    // Compare Tabs, Summarize All Tabs and @-mentioned tabs had no Stop: the
+    // button and a typed "stop" only reached a single-page chat (found
+    // 2026-09-29). Same controller and button as sendMessage.
+    const abort = new AbortController();
+    let finished;
+    this._chat = { abort, done: new Promise(r => { finished = r; }) };
+    document.getElementById('ai-stop-agent')?.classList.add('visible');
 
-    const conv = this._getConv();
+    // A new question goes to this tab's chat, as in sendMessage: it used to be
+    // saved into an earlier chat that happened to be open (found 2026-09-29).
+    // A Retry stays in the chat it was pressed in.
+    const retry = opts._retry || null;
+    if (!retry) this._backToThisTab();
+    const shownIn = retry ? retry.convId : this._getTabId();
+    const conv = this._getConv(shownIn);
     if (!opts._noEcho) {
       conv.push({ role: 'user', content: message, at: Date.now() });
       this._persistConversations();
@@ -1806,16 +1934,24 @@ const AIPanel = {
     }
 
     const loadingEl = this._addLoading();
+    // Kept as the live bubble, so switching tab and back puts "Reading…" /
+    // "Thinking" back rather than leaving only Stop on screen (found
+    // 2026-09-29).
+    this._live = { tabId: shownIn, el: loadingEl, after: retry ? retry.after : undefined, conv };
+    if (retry) this._restoreLive(document.getElementById('ai-messages'));
     try {
       loadingEl.innerHTML = 'Reading ' + tabs.length + ' tabs <span class="ai-spinner"></span>';
       const tabContexts = await MultiTabContext.extractContextFromTabs(tabs);
+      // Stopped while the tabs were being read: nothing is sent.
+      if (abort.signal.aborted) throw new Error('Stopped');
       loadingEl.innerHTML = 'Thinking <span class="ai-spinner"></span>';
 
       // Phase 14/15: multi-tab is cloud-quality; still respects persona voice.
       const persona = this.getActivePersona();
       const aiResult = await AIRouter.callAI('multiTab', {
         message, tabContexts,
-        conversationHistory: conv.filter(m => m.role !== 'system').slice(-6),
+        conversationHistory: this._historyFor(conv, retry).filter(m => m.role !== 'system').slice(-6),
+        signal: abort.signal,
         persona: persona ? { id: persona.id, systemPrompt: persona.systemPrompt, temperature: persona.temperature } : null
       });
       loadingEl?.remove();
@@ -1824,21 +1960,40 @@ const AIPanel = {
         throw new Error('The AI backend returned an empty response. Try again, or pick a different backend in Settings → AI.');
       }
       const parsed = this._parseResponse(aiResult.result);
-      conv.push({ role: 'assistant', content: parsed.reply || String(aiResult.result), at: Date.now() });
+      // `tabs` marks it as a multi-tab answer, so Retry asks the same tabs
+      // again rather than sending the question as a one-page chat.
+      const answer = { role: 'assistant', content: parsed.reply || String(aiResult.result), at: Date.now(), tabs: tabs.map(t => String(t.id)) };
+      this._placeAnswer(conv, answer, retry);
       this._persistConversations();
-      this._renderMultiTabResponse(parsed, tabs, { backend: aiResult.backend, model: aiResult.model });
+      this._live = null;
+      if (String(shownIn) === String(this._viewingId || this._getTabId())) {
+        if (retry) this._renderMessages();
+        else this._renderMultiTabResponse(parsed, tabs, { backend: aiResult.backend, model: aiResult.model }, { msg: answer, index: conv.indexOf(answer) });
+      }
       return true;
     } catch (err) {
       loadingEl?.remove();
+      // Stopped by the user: said, not shown as an error (as in sendMessage).
+      if (abort.signal.aborted) {
+        this._live = null;
+        this._placeAnswer(conv, { role: 'assistant', content: 'Stopped.', at: Date.now(), didIt: true, tabs: tabs.map(t => String(t.id)) }, retry);
+        this._persistConversations();
+        this._renderMessages();
+        return true;
+      }
       this._addError(err.message || 'Network error', () => this._sendMultiTab(message, tabs, { _noEcho: true }));
       return false;
     } finally {
+      this._live = null;
       this._sending = false;
       this._setComposerBusy(false);
+      this._chat = null;
+      if (!(typeof AgentLoop !== 'undefined' && AgentLoop.isRunning?.())) document.getElementById('ai-stop-agent')?.classList.remove('visible');
+      finished();
     }
   },
 
-  _renderMultiTabResponse(parsed, tabs, backendInfo) {
+  _renderMultiTabResponse(parsed, tabs, backendInfo, stored) {
     const container = document.getElementById('ai-messages');
     if (!container) return;
     const el = document.createElement('div');
@@ -1889,9 +2044,10 @@ const AIPanel = {
     contentEl.className = 'ai-msg-content';
     contentEl.innerHTML = html;
     el.appendChild(contentEl);
-    el.appendChild(this._makeCopyBtn(contentEl));
+    this._storedActions(el, contentEl, stored);
 
-    el.querySelectorAll('.follow-up-btn').forEach(btn => {
+    // The model's follow-ups only: "Dig deeper" (_nextChips) has its own click.
+    contentEl.querySelectorAll('.follow-up-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.getElementById('ai-input').value = btn.textContent;
         this._sendChat();
@@ -2075,6 +2231,8 @@ const AIPanel = {
       }
       const el = document.createElement('div');
       el.className = `ai-msg ${m.role}`;
+      // Where a retried answer's live bubble goes back in (_restoreLive).
+      el.dataset.index = String(i);
       // Reasoning is kept with the turn, so reopening a chat still shows it.
       if (m.role === 'assistant' && m.thinking) {
         const think = this._thinkingBlock(m.thinking);
@@ -2117,8 +2275,40 @@ const AIPanel = {
     const live = this._live;
     if (!live || !live.el) return false;
     if (String(live.tabId) !== String(this._viewingId || this._getTabId())) return false;
+    // A retried answer is written where the old one was, not at the bottom.
+    if (live.after !== undefined && live.conv) {
+      if (live.after === null) { container.prepend(live.el); return true; }
+      const i = live.conv.indexOf(live.after);
+      const prev = i >= 0 ? container.querySelector('.ai-msg[data-index="' + i + '"]') : null;
+      if (prev) { prev.after(live.el); return true; }
+    }
     container.appendChild(live.el);
     return true;
+  },
+
+  // Where an answer goes in its chat: at the end, or — for a Retry — right
+  // after the turn it follows (`after`, null for the top).
+  _placeAnswer(conv, answer, retry) {
+    if (!retry) { conv.push(answer); return; }
+    const i = retry.after ? conv.indexOf(retry.after) + 1 : 0;
+    conv.splice(retry.after && i === 0 ? conv.length : i, 0, answer);
+  },
+
+  // The chat up to where a Retry's answer goes, so the model does not see the
+  // questions that came after it.
+  _historyFor(conv, retry) {
+    if (!retry) return conv;
+    if (!retry.after) return [];
+    const i = conv.indexOf(retry.after);
+    return i >= 0 ? conv.slice(0, i + 1) : conv;
+  },
+
+  // Leave an earlier chat opened from Recent chats and show this tab's again.
+  _backToThisTab() {
+    if (!this._viewingId) return;
+    this._viewingId = null;
+    this._syncViewingBanner();
+    this._renderMessages();
   },
 
   // === Live answers ========================================================
@@ -2246,6 +2436,8 @@ const AIPanel = {
       if (!timer) timer = setTimeout(paint, 50);
     };
     onToken.thinking = () => streamedThinking;
+    // The answer so far, for a Stop that keeps it.
+    onToken.partial = () => (pending && pending.body) || '';
     return onToken;
   },
 
@@ -2410,7 +2602,20 @@ const AIPanel = {
     return wrap;
   },
 
-  _renderResponse(action, parsed, backendInfo) {
+  // `stored` is the saved message and its place in the chat ({ msg, index }),
+  // so a new answer gets the same Copy / Save as note / Retry and next-step
+  // chips as a redrawn one — it used to show only Copy until the panel was
+  // redrawn (found 2026-09-29).
+  _storedActions(el, contentEl, stored) {
+    if (!stored || !stored.msg || stored.index < 0) { el.appendChild(this._makeCopyBtn(contentEl)); return; }
+    el.appendChild(this._msgActions(stored.msg, stored.index, contentEl));
+    // Only the latest answer carries the chips.
+    document.querySelectorAll('#ai-messages .ai-next-chips').forEach(c => c.remove());
+    const chips = this._nextChips(stored.msg);
+    if (chips) el.appendChild(chips);
+  },
+
+  _renderResponse(action, parsed, backendInfo, stored) {
     const container = document.getElementById('ai-messages');
     if (!container) return;
     this._clearEmptyState();
@@ -2454,7 +2659,7 @@ const AIPanel = {
 
     contentEl.innerHTML = html;
     el.appendChild(contentEl);
-    el.appendChild(this._makeCopyBtn(contentEl));
+    this._storedActions(el, contentEl, stored);
 
     const chips = this._featureChips(parsed.reply || parsed.summary || parsed.explanation || '');
     if (chips) el.appendChild(chips);

@@ -26,21 +26,6 @@
     return n;
   };
 
-  // CRC-32, table-driven. Same polynomial as zip, PNG and gzip.
-  const CRC_TABLE = (() => {
-    const t = new Uint32Array(256);
-    for (let n = 0; n < 256; n++) {
-      let c = n;
-      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-      t[n] = c >>> 0;
-    }
-    return t;
-  })();
-  const crc32 = (bytes) => {
-    let c = 0xFFFFFFFF;
-    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
-    return (c ^ 0xFFFFFFFF) >>> 0;
-  };
   const utf8 = (s) => new TextEncoder().encode(s);
 
   // Punycode, per RFC 3492. Written out rather than pulled in, because the
@@ -173,31 +158,6 @@
       examples: [
         { in: { text: 'münchen.de', dir: 'encode' }, out: [['Punycode', 'xn--mnchen-3ya.de'], ['Input', 'münchen.de']] },
         { in: { text: 'xn--mnchen-3ya.de', dir: 'decode' }, out: [['Unicode', 'münchen.de'], ['Input', 'xn--mnchen-3ya.de']] },
-      ],
-    },
-
-    {
-      id: 'enc-crc32',
-      name: 'CRC-32',
-      icon: 'fingerprint',
-      family: 'dev',
-      desc: 'The checksum used by zip, gzip and PNG — for spotting accidental corruption, never for security.',
-      keywords: ['checksum', 'crc', 'zip', 'png', 'gzip'],
-      fields: [
-        { id: 'text', label: 'Text', type: 'textarea', placeholder: 'anything' },
-      ],
-      run(v) {
-        const s = need(v.text, 'some text');
-        const n = crc32(utf8(s));
-        return [
-          ['Hex', n.toString(16).padStart(8, '0')],
-          ['Unsigned', String(n)],
-          ['Signed', String(n | 0)],
-          ['Bytes', String(utf8(s).length)],
-        ];
-      },
-      examples: [
-        { in: { text: 'hello' }, out: [['Hex', '3610a686'], ['Unsigned', '907060870'], ['Signed', '907060870'], ['Bytes', '5']] },
       ],
     },
 
@@ -509,43 +469,6 @@
       },
       examples: [
         { in: { curve: '0, 0, 1, 1', at: 0.5 }, out: [['CSS', 'cubic-bezier(0, 0, 1, 1)'], ['Same as', 'linear'], ['Output at 0.5', '0.5000'], ['Overshoots', 'no']] },
-      ],
-    },
-
-    {
-      id: 'css-shadow',
-      name: 'Box shadow',
-      icon: 'box',
-      family: 'design',
-      desc: 'Build a layered box-shadow, with the elevation presets that read as real depth rather than a grey smear.',
-      keywords: ['box-shadow', 'elevation', 'drop shadow', 'css', 'material'],
-      fields: [
-        { id: 'level', label: 'Elevation', type: 'select', value: '2', options: [['1', '1 — resting'], ['2', '2 — raised'], ['3', '3 — overlay'], ['4', '4 — modal'], ['5', '5 — popover']] },
-        { id: 'hue', label: 'Shadow colour', type: 'text', value: '0 0% 0%', placeholder: 'h s% l%' },
-        { id: 'strength', label: 'Opacity ×', type: 'number', value: 1, min: 0, max: 3, step: 0.1 },
-      ],
-      run(v) {
-        const lvl = Math.max(1, Math.min(5, parseInt(v.level, 10) || 2));
-        const hsl = need(v.hue, 'a colour like "220 40% 10%"');
-        const k = Number.isFinite(Number(v.strength)) ? Number(v.strength) : 1;
-        // Two layers per level: a tight contact shadow and a wider ambient one.
-        const LAYERS = {
-          1: [[0, 1, 2, 0.06], [0, 1, 3, 0.10]],
-          2: [[0, 2, 4, 0.06], [0, 4, 8, 0.10]],
-          3: [[0, 4, 8, 0.07], [0, 8, 16, 0.12]],
-          4: [[0, 8, 16, 0.08], [0, 16, 32, 0.14]],
-          5: [[0, 12, 24, 0.09], [0, 24, 48, 0.18]],
-        };
-        const css = LAYERS[lvl].map(([x, y, b, a]) =>
-          `${x}px ${y}px ${b}px hsl(${hsl} / ${Math.min(1, a * k).toFixed(3)})`).join(',\n            ');
-        return [
-          ['CSS', `box-shadow: ${css};`],
-          ['Layers', '2 — a tight contact shadow plus a wider ambient one'],
-          ['Why two', 'A single large blur reads as fog. Real shadows are sharp where the object meets the surface and diffuse further out.'],
-        ];
-      },
-      examples: [
-        { in: { level: '1', hue: '0 0% 0%', strength: 1 }, match: /box-shadow: 0px 1px 2px hsl\(0 0% 0% \/ 0\.060\)/ },
       ],
     },
 

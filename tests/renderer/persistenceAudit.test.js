@@ -52,7 +52,8 @@ describe('private tab persistence boundaries', () => {
     await import('../../src/renderer/js/tab-policy.js');
     TM.tabs = seedTabs();
     WM.workspaces = [{ id: 'a' }]; WM.activeId = 'a';
-    expect(SM.saveCurrentSession('Private').tabs).toEqual([]);
+    // Refused outright: it used to save an empty session under "Session saved".
+    expect(() => SM.saveCurrentSession('Private')).toThrow(/private window is never saved/);
     WM.saveCurrentState();
     expect(WM.getActive().tabs).toEqual([]);
     expect(snapshots._currentTabs()).toEqual([]);

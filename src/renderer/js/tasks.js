@@ -518,7 +518,7 @@ const VexTasks = {
             <div class="vextasks-sub" id="vextasks-sub">Measuring…</div>
           </div>
           <div class="vextasks-total" id="vextasks-total">…</div>
-          <button class="vextasks-close" aria-label="Close">&times;</button>
+          <button class="vextasks-close" aria-label="Close" title="Close">${VexIcons.svg('x', { size: 18 })}</button>
         </div>
         <div class="vextasks-held" id="vextasks-held" hidden></div>
         <div class="vextasks-body" id="vextasks-body"><div class="vextasks-empty">Measuring…</div></div>

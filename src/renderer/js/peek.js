@@ -108,6 +108,9 @@ const VexPeek = {
       else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.promote(); }
     };
     window.addEventListener('keydown', this._onKey, true);
+    // A peek opens from Shift+click in a page, so focus stayed in that page
+    // and Esc went to it, never reaching the handler above (found 2026-09-29).
+    E.root.querySelector('.peek-close').focus({ preventScroll: true });
   },
 
   // Replace the frame's contents with a readable failure state. Keeps the bar

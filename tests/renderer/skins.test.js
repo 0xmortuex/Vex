@@ -4,6 +4,10 @@
 // themes and every one of them was flat colour — this is the texture, the
 // geometry and the light, each one separate and each one optional.
 import { describe, it, expect, beforeEach } from 'vitest';
+
+// Close buttons and ticks are VexIcons SVGs (sweep 2026-09-29).
+require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = window.VexIcons;
 const { VexSkins } = require('../../src/renderer/js/skins.js');
 
 beforeEach(() => {

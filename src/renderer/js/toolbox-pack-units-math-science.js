@@ -1299,23 +1299,6 @@
         { in: { list: '1000 1000 1000' }, out: [['Series total', '3 kΩ'], ['Parallel total', '333.3333333 Ω']] }],
     },
     {
-      id: 'sci-energy-cost', name: 'Electricity cost', family: 'science', desc: 'Energy used and running cost of an appliance from its wattage and hours of use.',
-      keywords: ['kwh', 'electricity bill', 'power consumption', 'appliance', 'watts'],
-      fields: [
-        { id: 'w', label: 'Power (watts)', type: 'number', value: 100 },
-        { id: 'h', label: 'Hours per day', type: 'number', value: 5 },
-        { id: 'days', label: 'Days', type: 'number', value: 30 },
-        { id: 'price', label: 'Price per kWh (any currency)', type: 'number', value: 0.15 },
-      ],
-      run(v) {
-        const w = need(v.w, 'the power', { nonneg: true }), h = need(v.h, 'hours per day', { nonneg: true, max: 24 });
-        const days = need(v.days, 'the number of days', { nonneg: true }), price = need(v.price, 'the price', { nonneg: true });
-        const kwh = w * h * days / 1000;
-        return [['Energy used', `${fmt(kwh)} kWh`], ['Cost', fmt(kwh * price)], ['Cost per day', fmt(w * h / 1000 * price)]];
-      },
-      examples: [{ in: { w: 100, h: 5, days: 30, price: 0.15 }, out: [['Energy used', '15 kWh'], ['Cost', '2.25'], ['Cost per day', '0.075']] }],
-    },
-    {
       id: 'sci-kinetic-energy', name: 'Kinetic energy', family: 'science', desc: 'Kinetic energy (½mv²) and momentum of a moving mass.',
       keywords: ['kinetic', 'momentum', 'energy', 'velocity'],
       fields: [{ id: 'm', label: 'Mass (kg)', type: 'number', value: 2 }, { id: 'v', label: 'Speed (m/s)', type: 'number', value: 3 }],

@@ -247,17 +247,6 @@
       { title: 'Never commit one', text: 'Put .env in .gitignore and commit a .env.example with the keys and no values. If a secret has already been committed, rotate it — removing it from history does not un-leak it.' },
     ],
 
-    'dev-unicode': [
-      { title: 'Code point vs character', text: 'What a reader calls one character can be several code points: é may be U+00E9 or e + U+0301, and a family emoji is half a dozen joined with U+200D. Length depends on what you count — bytes, code units, code points, or grapheme clusters.' },
-      { title: 'Encodings', rows: [
-        ['UTF-8', '1–4 bytes; ASCII is unchanged. The web default.'],
-        ['UTF-16', '2 or 4 bytes; what JavaScript strings are made of.'],
-        ['Astral planes', 'Above U+FFFF: emoji, rare CJK, historic scripts.'],
-        ['BOM', 'U+FEFF at the start. Unnecessary in UTF-8, and it breaks shebangs.'],
-      ] },
-      { title: 'Invisible trouble', text: 'Zero-width spaces, right-to-left overrides and lookalike Cyrillic letters all survive a copy and paste. When a string compares unequal to one that looks identical, inspect the code points.' },
-    ],
-
     'dev-byte-length': [
       { title: 'Why the number differs', text: 'Database columns, HTTP headers and most APIs count bytes. JavaScript\'s .length counts UTF-16 code units. A user counts what they can see. For anything non-ASCII those are three different numbers.' },
       { title: 'UTF-8 sizes', rows: [
@@ -1599,18 +1588,6 @@
         ['Power rating', 'Series shares it; parallel shares the current'],
       ] },
       { title: 'Dividers', text: 'Two resistors in series divide voltage in proportion to their values: Vout = Vin × R₂/(R₁+R₂). It holds only while whatever you connect draws negligible current — a divider is a reference, not a power supply.' },
-    ],
-
-    'sci-energy-cost': [
-      { title: 'The arithmetic', text: 'Cost = power in kW × hours × price per kWh. A 2 kW heater for 5 hours at 30p is £3.00. Everything else is finding the real power, which is rarely the number on the label.' },
-      { title: 'Typical draws', rows: [
-        ['LED bulb', '8 W'],
-        ['Laptop', '30 – 65 W'],
-        ['Fridge', '100 W running, ~35 W averaged'],
-        ['Kettle', '2 – 3 kW, briefly'],
-        ['Electric shower', '8 – 10 kW'],
-      ] },
-      { title: 'Standby is smaller than you think', text: 'Modern standby is under a watt, so a year of it costs pennies. The real savings are in things that heat or cool — heating, hot water, the tumble dryer. Chasing standby while running a dryer daily is optimising the wrong number.' },
     ],
 
     'sci-kinetic-energy': [

@@ -24,14 +24,15 @@ const VexCalc = {
     // Three-letter units ("5000 lbs to ton") are not currencies: both codes
     // being units skips this, and a code that is not a known currency falls
     // through to units instead of answering nothing (found 2026-09-29).
-    let m = q.match(/^([\d,.]+)\s*([a-z]{3})\s*(?:to|in|=>|->)\s*([a-z]{3})$/i);
+    let m = q.match(/^(-?[\d,.]+)\s*([a-z]{3})\s*(?:to|in|=>|->)\s*([a-z]{3})$/i);
     if (m && !(this._isUnit(m[2].toLowerCase()) && this._isUnit(m[3].toLowerCase()))) {
       const r = this._currency(this._num(m[1]), m[2].toUpperCase(), m[3].toUpperCase());
       if (r) return r;
     }
 
-    // Units: "20 cm to in", "100 f to c"
-    m = q.match(/^([\d,.]+)\s*([a-z"'°]+)\s*(?:to|in)\s*([a-z"'°]+)$/i);
+    // Units: "20 cm to in", "100 f to c". A leading minus counts: "-5 c to f"
+    // gave nothing (found 2026-09-29).
+    m = q.match(/^(-?[\d,.]+)\s*([a-z"'°]+)\s*(?:to|in)\s*([a-z"'°]+)$/i);
     if (m) { const r = this._unit(this._num(m[1]), m[2].toLowerCase().replace('°', ''), m[3].toLowerCase().replace('°', '')); if (r) return r; }
 
     // Arithmetic: digits + operators only (no identifiers, so eval is injection-safe)

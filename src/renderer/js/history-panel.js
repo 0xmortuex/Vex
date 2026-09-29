@@ -100,8 +100,16 @@ const HistoryPanel = {
         this.save();
         this.lastAISearch = null;
         this.renderList();
+        // Closed tabs are history too: Reopen closed tab still went back
+        // through every page after a clear (found 2026-09-29). The list lives
+        // only in this key (js/tabs.js), so removing it is the reset.
+        localStorage.removeItem('vex.recentlyClosed');
         try {
           await this._forgetElsewhere(null);
+          // Last, so the backup copies that the saves above just made of the
+          // old history are erased as well (main.js browsing:clear-history).
+          if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
+          await window.vex.clearHistory();
           window.showToast?.('History cleared');
         } catch (err) {
           console.error('[History] clear did not reach every copy:', err);
@@ -220,11 +228,18 @@ const HistoryPanel = {
     this._refreshTimer = setTimeout(() => this.renderList(), 250);
   },
 
-  deleteEntry(id) {
+  async deleteEntry(id) {
     this._hydrate();
+    const removed = this.entries.filter(e => e.id === id);
     this.entries = this.entries.filter(e => e.id !== id);
     this.save();
     this.renderList();
+    try {
+      await this._forgetVisits(removed);
+    } catch (err) {
+      console.error('[History] delete did not reach every copy:', err);
+      window.showToast?.(`Removed from the list, but not everywhere: ${err.message}`, 'error');
+    }
   },
 
   // One day's heading, used both to group rows and to clear that group.
@@ -261,13 +276,45 @@ const HistoryPanel = {
     if (!r || !r.ok) throw new Error((r && r.error) || 'Recall still remembers these pages');
   },
 
-  deleteDay(label) {
+  // Deleting one row or one day left the same visits in the file copy and in
+  // Recall, like Clear History did before it was fixed (found 2026-09-29). A
+  // page no longer listed anywhere goes from every day of the file copy and
+  // from Recall; one still listed on another day only loses the removed
+  // days' visits, and Recall keeps it. `clearedDay` also takes every other
+  // visit the file copy holds for that day.
+  async _forgetVisits(removed, clearedDay) {
+    if (!removed.length && !clearedDay) return;
+    if (typeof VexStorage === 'undefined') throw new Error('the saved history file could not be reached');
+    const urls = new Set(removed.map(e => e.url));
+    const days = new Set(removed.map(e => this._dayLabel(this._when(e))));
+    const kept = new Set(this.entries.map(e => e.url));
+    const file = await VexStorage.loadHistory();
+    await VexStorage.save('history', file.filter(f => {
+      const day = this._dayLabel(this._when(f));
+      if (day === clearedDay) return false;
+      return !urls.has(f.url) || (kept.has(f.url) && !days.has(day));
+    }));
+    for (const url of urls) {
+      if (kept.has(url)) continue;
+      const r = await window.vex.recallForget({ url });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'Recall still remembers ' + url);
+    }
+  },
+
+  async deleteDay(label) {
     this._hydrate();
     const before = this.entries.length;
+    const removed = this.entries.filter(e => this._dayLabel(this._when(e)) === label);
     this.entries = this.entries.filter(e => this._dayLabel(this._when(e)) !== label);
     this.save();
     this.renderList();
-    window.showToast?.(`Cleared ${before - this.entries.length} from ${label}`);
+    try {
+      await this._forgetVisits(removed, label);
+      window.showToast?.(`Cleared ${before - this.entries.length} from ${label}`);
+    } catch (err) {
+      console.error('[History] clearing the day did not reach every copy:', err);
+      window.showToast?.(`Cleared from the list, but not everywhere: ${err.message}`, 'error');
+    }
   },
 
   _rowMenu(event, url) {
@@ -353,7 +400,7 @@ const HistoryPanel = {
         let favicon = this._safeFavicon(entry.favicon);
         if (!favicon) { try { favicon = new URL(entry.url).origin + '/favicon.ico'; } catch {} }
         icon.src = favicon;
-        const remove = document.createElement('button'); remove.textContent = '×'; remove.setAttribute('aria-label', 'Delete history entry');
+        const remove = document.createElement('button'); remove.innerHTML = VexIcons.svg('x', { size: 13 }); remove.title = 'Delete from history'; remove.setAttribute('aria-label', 'Delete history entry');
         remove.addEventListener('click', event => { event.stopPropagation(); this.deleteEntry(entry.id); });
         row.append(icon, text, remove);
         row.addEventListener('click', () => { SidebarManager.hideActivePanel(); TabManager.createTab(entry.url, true); });

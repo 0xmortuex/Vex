@@ -80,7 +80,12 @@ function vexReadablePage() {
   const xs = new XMLSerializer();
   const xhtml = Array.from(copy.childNodes).map(n => xs.serializeToString(n)).join('')
     .replace(/ xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '');
-  return { title: document.title || location.hostname, url: location.href, markdown, xhtml };
+  // A Vex reader page (reading-mode.js) is a data: page; its address is the
+  // whole article, which went into the file as the source (found 2026-09-29).
+  // It names the page it was made from.
+  const source = document.querySelector('meta[name="vex-reading-source"]');
+  const from = source && /^https?:\/\//i.test(source.content) ? source.content : location.href;
+  return { title: document.title || location.hostname, url: from, markdown, xhtml };
 }
 
 const PageExport = {
@@ -114,7 +119,13 @@ const PageExport = {
   // footers and forms around it — as Markdown (for notes and editors) or as an
   // EPUB (for an e-reader). Runs inside the page, on a copy of it.
   async readable() {
-    const r = await window.vexGuestEval(this._webview(), '(' + vexReadablePage.toString() + ')()');
+    const wv = this._webview();
+    // A source view runs no script, so this waited out the 8 s limit and then
+    // blamed the page (found 2026-09-29).
+    let url = '';
+    try { url = wv.getURL(); } catch { url = ''; }
+    if (/^view-source:/i.test(url)) throw new Error('This tab shows a page’s source code — open the page itself to save its words');
+    const r = await window.vexGuestEval(wv, '(' + vexReadablePage.toString() + ')()');
     if (!r || !r.markdown.trim()) throw new Error('There is no readable text on this page');
     return r;
   },
@@ -370,7 +381,10 @@ const PageExport = {
       const esc = (s) => String(s).replace(/([{}%&$#_])/g, '\\$1');
       const lines = [
         '@misc{' + (key || 'web') + ',',
-        names.length ? '  author = {' + esc(names.map(n => n.first ? n.last + ', ' + n.first : '{' + n.last + '}').join(' and ')) + '},' : null,
+        // Each name is escaped on its own; the braces that keep an
+        // organisation whole are BibTeX's, not text, and escaping them after
+        // wrapping gave {\{Contributors to Wikimedia projects\}} (found 2026-09-29).
+        names.length ? '  author = {' + names.map(n => n.first ? esc(n.last) + ', ' + esc(n.first) : '{' + esc(n.last) + '}').join(' and ') + '},' : null,
         '  title = {' + esc(title) + '},',
         site ? '  howpublished = {' + esc(site) + '},' : null,
         year ? '  year = {' + year + '},' : null,

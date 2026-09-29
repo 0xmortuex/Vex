@@ -150,7 +150,10 @@ const VexClock = {
   // The ringing card: what is ringing, Snooze, Dismiss. Keeps sounding until
   // one of them is pressed.
   ring({ id, title, message, kind, snoozable }) {
-    document.getElementById('vex-ringing')?.remove();
+    // A card rung over another took its place but left the old card's clock
+    // ticking every second for good (found 2026-09-29).
+    const old = document.getElementById('vex-ringing');
+    if (old) { if (old._stopClock) old._stopClock(); old.remove(); }
     const esc = (s) => (window.escapeHtml ? window.escapeHtml(String(s == null ? '' : s)) : String(s == null ? '' : s));
     const icon = (n, sz) => (window.VexIcons && VexIcons.has(n)) ? VexIcons.svg(n, { size: sz || 15 }) : '';
     const wrap = document.createElement('div');
@@ -172,6 +175,7 @@ const VexClock = {
     const clock = wrap.querySelector('#ck-ring-clock');
     const tick = () => { const d = new Date(); clock.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
     tick(); const clockTimer = setInterval(tick, 1000);
+    wrap._stopClock = () => clearInterval(clockTimer);
     this._ringing = { id, kind };
     const sounded = this.startSound(kind);
     if (!sounded) wrap.querySelector('.ck-ring-text').textContent += ' (sound unavailable)';
@@ -330,11 +334,13 @@ const VexClock = {
       this._timers = this._timers.filter(t => t.endAt > now);
       this._saveTimers();
       const b = window.vex && window.vex.reminders;
+      // Every timer rings from here, on time. Timers ending in the same tick
+      // ring as one card naming them all: one card each showed only the last
+      // (found 2026-09-29).
+      this.ring({ id: null, title: done.length > 1 ? done.length + ' timers' : 'Timer', message: done.map(t => t.label).join(' · '), kind: 'timer', snoozable: false });
       for (const t of done) {
-        // Every timer rings from here, on time. A long one's main-process
-        // backup is set for the minute after, so take it away before it
-        // rings a second time.
-        this.ring({ id: null, title: 'Timer', message: t.label, kind: 'timer', snoozable: false });
+        // A long one's main-process backup is set for the minute after, so
+        // take it away before it rings a second time.
         if (t.reminderId && b) {
           Promise.resolve(b.delete(t.reminderId)).catch(err => {
             if (!/no longer exists/i.test((err && err.message) || '')) window.showToast?.('The timer rang, but its desktop alert may still appear: ' + ((err && err.message) || ''), 'error');

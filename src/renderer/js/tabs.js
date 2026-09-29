@@ -337,7 +337,7 @@ const TabManager = {
       try {
         if (t.sleeping) this.wakeTab(t.id);
         else if (t._lazy) this._materializeTab(t);
-      } catch {}
+      } catch (err) { window.VexProblems?.note('Tabs', 'Could not load a kept-awake tab at start', err); }
     });
 
     this.setupNewTabButton();
@@ -455,6 +455,7 @@ const TabManager = {
     document.querySelectorAll('.tab-item').forEach(el => {
       el.classList.toggle('active', el.dataset.tabId === id);
     });
+    this._revealActiveInSidebar();
 
     // Show correct webview
     WebviewManager.showWebview(id);
@@ -484,6 +485,24 @@ const TabManager = {
         if (urlInput) { urlInput.focus(); urlInput.select(); }
       });
     }
+  },
+
+  // The side tab list never scrolled to the tab in front, so with 60 tabs the
+  // one you switched to (or just opened) sat out of sight (found 2026-09-29).
+  // Only the list that holds it scrolls; scrollIntoView would move the
+  // window's ancestors too. The top strip reveals its own (horizontal-tabs.js).
+  _revealActiveInSidebar() {
+    if (document.body.dataset.tabLayout === 'horizontal') return;
+    const sel = `[data-tab-id="${this.activeTabId}"]`;
+    const el = document.querySelector(`#tabs-sidebar .tab-item${sel}, #tabs-sidebar .pinned-tab${sel}`);
+    if (!el || !el.getClientRects().length) return;   // not drawn (collapsed group or stack)
+    let box = el.parentElement;
+    while (box && box.id !== 'tabs-sidebar' && !(box.scrollHeight > box.clientHeight && /auto|scroll/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+    if (!box || box.id === 'tabs-sidebar') return;
+    const b = box.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.top < b.top) box.scrollTop += r.top - b.top;
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
   },
 
   closeTab(id) {
@@ -968,6 +987,21 @@ const TabManager = {
     }
   },
 
+  // Collapsing a group hides its tabs, the one in front included, which left
+  // no tab marked active (found 2026-09-29). As in Chrome, move to the next
+  // tab on screen outside it (after it, else before it), or open a new tab
+  // when there is none.
+  _leaveGroupBeforeCollapse(groupId) {
+    const active = this.getActiveTab();
+    if (!active || active.pinned || active.groupId !== groupId) return;
+    const shown = (t) => t.pinned || !t.groupId || (t.groupId !== groupId && !(this.groups.find(g => g.id === t.groupId) || {}).collapsed);
+    const order = this.displayOrder();
+    const at = order.findIndex(t => t.id === active.id);
+    const next = order.slice(at + 1).find(shown) || order.slice(0, at).reverse().find(shown);
+    if (next) this.switchTab(next.id);
+    else this.createTab(START_URL, true);
+  },
+
   renderGroups() {
     const container = document.getElementById('tab-groups-container');
     container.innerHTML = '';
@@ -1002,6 +1036,7 @@ const TabManager = {
       el.querySelector('.tab-group-header').addEventListener('click', (e) => {
         // Don't toggle when clicking a button inside the header
         if (e.target.closest('button')) return;
+        if (!group.collapsed) this._leaveGroupBeforeCollapse(group.id);
         group.collapsed = !group.collapsed;
         el.classList.toggle('collapsed');
         const body = el.querySelector('.tab-group-tabs');
@@ -1395,7 +1430,10 @@ const TabManager = {
     // right-click.
     const defaultColor = (this._themeGroupPalette()[0] || {}).ref || GROUP_COLORS[0];
     this.groups.push({ id, name: name.trim(), color: defaultColor, collapsed: false });
-    this._setTabGroup(tab.id, id);
+    // Unpins it too (moveTabToGroup): a pinned tab stayed in the pinned row
+    // and the new group was never drawn, under a "Created group" toast
+    // (found 2026-09-29).
+    this.moveTabToGroup(tab.id, id);
     VexStorage.saveGroups(this.groups);
     this.rebuildAllTabs();
     this.persistTabs();
@@ -1521,7 +1559,7 @@ const TabManager = {
       { label: tab.note ? 'Edit the note on this tab…' : 'Add a note to this tab…', action: () => this.editTabNote(tab.id) },
       // A tab stays open because closing it loses it. Snoozing closes it now
       // and opens it again when you said (js/tab-snooze.js).
-      ...(typeof TabSnooze !== 'undefined' && /^https?:/i.test(tab.url || '')
+      ...(typeof TabSnooze !== 'undefined' && TabSnooze.canSnooze(tab)
         ? Object.entries(TabSnooze.WHEN).map(([key, rule], i) => ({
           label: (i === 0 ? 'Snooze — ' : '') + rule.label,
           action: () => {
@@ -1551,8 +1589,11 @@ const TabManager = {
         try { vol = SiteVolume.set(tab.url, n); }
         catch (err) { window.showToast?.(err.message, 'error'); return; }
         const host = SiteVolume.host(tab.url);
-        wv.executeJavaScript(SiteVolume.script(vol))
-          .then(() => window.showToast?.(vol === 100 ? 'Volume 100% — ' + host + ' is no longer kept quieter' : 'Volume ' + vol + '% — kept for ' + host))
+        // Every frame of the page, so a player in an embedded frame is reached
+        // too (SiteVolume.applyTo; found 2026-09-29).
+        SiteVolume.applyTo(wv, vol)
+          .then(r => window.showToast?.((vol === 100 ? 'Volume 100% — ' + host + ' is no longer kept quieter' : 'Volume ' + vol + '% — kept for ' + host)
+            + (r && r.unreachedFrames ? ' — not inside the ' + r.unreachedFrames + ' embedded frame' + (r.unreachedFrames === 1 ? '' : 's') + ', which Vex cannot reach' : '')))
           .catch(err => window.showToast?.('Could not set the volume: ' + err.message, 'error'));
       } },
       { sep: true },
@@ -1560,7 +1601,10 @@ const TabManager = {
         label: `Move to ${g.name}`,
         color: g.color,
         action: () => {
-          this._setTabGroup(tab.id, g.id);
+          // moveTabToGroup unpins it: a pinned tab only ever draws in the
+          // pinned row, so "Move to" on one changed nothing on screen and the
+          // group stayed invisible (found 2026-09-29).
+          this.moveTabToGroup(tab.id, g.id);
           this.rebuildAllTabs();
           this.persistTabs();
         }
@@ -1574,7 +1618,9 @@ const TabManager = {
       { sep: true },
       // The tab in front cannot sleep (sleepTab refuses it), so it is not
       // offered one; the item used to do nothing at all (found 2026-09-29).
-      ...(tab.sleeping || tab.id !== this.activeTabId
+      // Nor is a tab showing in a split pane: forced, it blanked the visible
+      // pane (found 2026-09-29).
+      ...(tab.sleeping || (tab.id !== this.activeTabId && !this._inSplitPane(tab.id))
         ? [{ label: tab.sleeping ? 'Wake Tab' : 'Sleep Tab', action: () => tab.sleeping ? this.wakeTab(tab.id) : this.sleepTab(tab.id, true) }]
         : []),
       // "Why is Vex using 4 GB?" starts with one tab. This opens the task
@@ -1643,8 +1689,13 @@ const TabManager = {
         el.addEventListener('contextmenu', (e) => { e.preventDefault(); this.showContextMenu(e, tab); });
         pinnedContainer.appendChild(el);
       });
+      // First on screen, above the groups, the way displayOrder() counts
+      // them: drawn between the groups and the loose tabs, "Close Tabs to the
+      // Right" on a pinned tab closed the group drawn above it (found 2026-09-29).
       const tabsList = document.getElementById('tabs-list');
-      tabsList.parentElement.insertBefore(pinnedContainer, tabsList);
+      const groupsContainer = document.getElementById('tab-groups-container');
+      const first = groupsContainer && groupsContainer.parentElement === tabsList.parentElement ? groupsContainer : tabsList;
+      tabsList.parentElement.insertBefore(pinnedContainer, first);
     }
 
     // Render unpinned, non-stacked tabs normally. Stacked tabs are
@@ -1669,6 +1720,7 @@ const TabManager = {
     document.querySelectorAll('.tab-item').forEach(el => {
       el.classList.toggle('active', el.dataset.tabId === this.activeTabId);
     });
+    this._revealActiveInSidebar();
 
     // Zero-padded sequential index per .tab-item, exposed as data-tab-index for
     // any theme/feature that wants a "[01] Title" prefix. The DOM order at this
@@ -1934,6 +1986,9 @@ const TabManager = {
     const tab = this.getActiveTab();
     if (!tab) return false;
     if (this._isKeptAwake(tab)) { window.showToast?.('This tab is kept awake — turn that off first'); return false; }
+    // sleepTab spares split panes, so this switched you to the other pane and
+    // then said it could not sleep (found 2026-09-29).
+    if (this._inSplitPane(tab.id)) { window.showToast?.('This tab is on screen in split view — close the split first'); return false; }
     const order = this.displayOrder();
     const at = order.findIndex(t => t.id === tab.id);
     const next = order[at + 1] || order[at - 1];

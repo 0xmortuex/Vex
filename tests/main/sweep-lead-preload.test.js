@@ -34,3 +34,22 @@ describe("keys a page may use first", () => {
     expect(block).toMatch(/setTimeout\(function \(\) \{\s*if \(!e\.defaultPrevented\) ipc\.send\('guest:page-shortcut'/);
   });
 });
+
+// A page could dispatch made-up keys and a fake right-drag and so close tabs
+// or open panels, even from a background tab (found 2026-09-29).
+describe('only the user\u2019s own keys and mouse reach Vex', () => {
+  it('the page-first keys ignore events the page made up', () => {
+    const block = SRC.slice(SRC.indexOf("// === Vex's keys a page may use first ==="));
+    expect(block).toMatch(/window\.addEventListener\('keydown', function \(e\) \{[\s\S]{0,300}if \(!e\.isTrusted\) return;/);
+  });
+
+  it('the gesture tracker ignores made-up mouse events', () => {
+    const start = SRC.indexOf('// === Mouse-gesture tracker');
+    const block = SRC.slice(start, SRC.indexOf('})();', start));
+    for (const ev of ['mousedown', 'mousemove', 'mouseup', 'contextmenu']) {
+      const at = block.indexOf(`document.addEventListener("${ev}"`);
+      expect(at, ev).toBeGreaterThan(-1);
+      expect(block.slice(at, at + 160), ev).toMatch(/isTrusted/);
+    }
+  });
+});

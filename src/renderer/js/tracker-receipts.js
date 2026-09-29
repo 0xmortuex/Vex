@@ -107,7 +107,7 @@ const TrackerReceipts = {
         <div style="font-size:11.5px;color:var(--text-muted);margin-top:8px">${esc(this._summary(weekTotal, topTrackers, topCross))}</div>`;
     }
     m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:85vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 8px"><span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Tracker Receipts</span><button id="tr-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 8px"><span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Tracker Receipts</span><button id="tr-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div style="overflow-y:auto;padding:4px 20px 20px;color:var(--text)">${body}</div></div>`;
     document.body.appendChild(m);
     // Escape closes it, like every other Vex overlay.

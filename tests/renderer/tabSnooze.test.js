@@ -26,6 +26,8 @@ beforeEach(() => {
   // The Library's auto-archive setting, which archiving follows: a week here.
   globalThis.TabArchiver = { days: () => 7 };
   window.showToast = vi.fn();
+  // A normal window: every tab here can be kept (snooze refuses private ones).
+  window.VexTabPolicy = { canPersist: () => true };
 });
 afterEach(() => { vi.useRealTimers(); delete TabSnooze._timer; delete TabSnooze._archiveTimer; });
 

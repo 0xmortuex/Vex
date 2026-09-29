@@ -122,8 +122,8 @@ const NotesPanel = {
     const flat = String(content || '')
       .replace(/```[\s\S]*?```/g, ' ')
       .replace(/^\s{0,3}#{1,6}\s+/gm, '')
-      .replace(/^\s*[-*+]\s+\[[ xX]\]\s+/gm, '')
-      .replace(/^\s*[-*+]\s+/gm, '')
+      .replace(/^\s*[-*+•]\s+\[[ xX]\]\s+/gm, '')
+      .replace(/^\s*[-*+•]\s+/gm, '')
       .replace(/^\s*>\s?/gm, '')
       .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/[*_`~]/g, '')
@@ -161,7 +161,10 @@ const NotesPanel = {
     let seen = -1;
     for (let i = 0; i < lines.length; i++) {
       if (fenced.has(i)) continue;
-      const m = lines[i].match(/^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](.*)$/);
+      // The bullets VexMarkdown draws as a list: "•" was drawn as a checkbox
+      // but not counted here, so ticks after it landed on the wrong task
+      // (found 2026-09-29).
+      const m = lines[i].match(/^(\s*(?:[-*+•]|\d+[.)])\s+)\[([ xX])\](.*)$/);
       if (!m) continue;
       seen++;
       if (seen !== index) continue;

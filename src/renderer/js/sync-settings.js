@@ -126,7 +126,7 @@ const SyncSettings = (() => {
           document.getElementById('sync-code-input').value = resp.devCode;
           window.showToast?.('Code filled in \u2014 click Verify');
         }
-        btn.textContent = 'Sent \u2713';
+        btn.textContent = 'Sent';
         setTimeout(() => { btn.textContent = 'Resend Code'; btn.disabled = false; }, 3000);
       } catch (err) {
         errorEl.textContent = human(err.message); errorEl.hidden = false;
@@ -269,7 +269,7 @@ const SyncSettings = (() => {
       const pushR = await SyncEngine.pushNow();
       const pullR = await SyncEngine.pullNow();
       const ok = pushR.ok && pullR.ok;
-      btn.textContent = ok ? 'Done \u2713' : 'Failed';
+      btn.textContent = ok ? 'Done' : 'Failed';
       // "Failed" on its own tells the user nothing they can act on \u2014 name which
       // half failed and why.
       if (!ok) {

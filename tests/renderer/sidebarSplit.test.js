@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 require('../../src/renderer/js/vex-utils.js');
+globalThis.VexIcons = require('../../src/renderer/js/vex-icons.js').VexIcons;
 const { SidebarManager } = require('../../src/renderer/js/sidebar.js');
 
 beforeEach(() => {

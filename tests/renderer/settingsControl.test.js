@@ -75,7 +75,8 @@ describe('changing it', () => {
     const el = document.getElementById('setting-search-engine');
     el.value = 'google';
     vexConfirm.mockResolvedValueOnce(false);
-    expect((await S.apply('set the search engine to duckduckgo')).changed).toBe(false);
+    // A no is a failure the agent cannot mistake for "try again".
+    await expect(S.apply('set the search engine to duckduckgo')).rejects.toMatchObject({ declined: true, message: expect.stringContaining('The user said no') });
     expect(el.value).toBe('google');
     vexConfirm.mockClear();
     expect(await S.apply('set search engine to google')).toMatchObject({ changed: false, message: '"Default Search Engine" is already "Google"' });

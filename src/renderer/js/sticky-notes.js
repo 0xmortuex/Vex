@@ -151,10 +151,13 @@ const StickyNotes = {
 
     // Restore last position (per-session convenience), else default corner.
     let pos = null; try { pos = JSON.parse(localStorage.getItem('vex.stickyPos') || 'null'); } catch {}
-    // Clamped like a drag: a spot saved in a bigger window opened the card
-    // off-screen (found 2026-09-29).
+    // A spot saved in a bigger window opened the card off-screen (found
+    // 2026-09-29). Clamped by the card's real size, now it is in the page: a
+    // drag-style 80px margin still left most of it, close button included,
+    // past the edge.
     if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
-      pos = { x: Math.max(0, Math.min(window.innerWidth - 80, pos.x)), y: Math.max(0, Math.min(window.innerHeight - 40, pos.y)) };
+      const size = card.getBoundingClientRect();
+      pos = { x: Math.max(0, Math.min(window.innerWidth - size.width, pos.x)), y: Math.max(0, Math.min(window.innerHeight - size.height, pos.y)) };
       card.style.left = pos.x + 'px'; card.style.top = pos.y + 'px'; card.style.right = 'auto'; card.style.bottom = 'auto'; }
 
     const ta = card.querySelector('.vsn-text');
@@ -172,6 +175,17 @@ const StickyNotes = {
 
     const closeCard = (then) => { persist(); this._pendingPersist = null; card.remove(); if (then) then(); };
     card.querySelector('.vsn-close').addEventListener('click', () => closeCard());
+    // Escape closes the card the way its X does (saving first); it did nothing
+    // (found 2026-09-29). Only while focus is in the card: it is a note left
+    // floating beside what you do, not a modal, so an Escape meant for the
+    // command bar or anything else must not throw it away. An Escape meant for
+    // a Vex dialog on top is left to that dialog. Removed in _cleanup below,
+    // which every way of removing the card runs.
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || !card.contains(document.activeElement) || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); closeCard();
+    };
+    document.addEventListener('keydown', onKey, true);
     card.querySelector('.vsn-list').addEventListener('click', () => closeCard(() => this.list()));
 
     // Drag by the title bar.
@@ -195,6 +209,7 @@ const StickyNotes = {
     card._cleanup = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('keydown', onKey, true);
       if (this._pendingPersist === persist) this._pendingPersist = null;
     };
     const origRemove = card.remove.bind(card);

@@ -42,7 +42,20 @@ const SafeModeBanner = {
         <button class="smb-btn smb-x" data-act="close" aria-label="Dismiss">Dismiss</button>
       </div>`;
     document.body.appendChild(el);
-    el.querySelector('[data-act="close"]').addEventListener('click', () => el.remove());
+    // Settings keeps its rows clear of the banner (app.css): it covered the
+    // Settings › Extensions toggles it tells you to use (found 2026-09-29).
+    const body = document.body;
+    const reserve = () => body.style.setProperty('--vex-smb-space', Math.ceil(el.offsetHeight + 18 + 12) + 'px');
+    const sizeWatch = typeof ResizeObserver === 'function' ? new ResizeObserver(reserve) : null;
+    body.classList.add('vex-safe-mode-banner-shown');
+    reserve();
+    if (sizeWatch) sizeWatch.observe(el);
+    el.querySelector('[data-act="close"]').addEventListener('click', () => {
+      if (sizeWatch) sizeWatch.disconnect();
+      body.classList.remove('vex-safe-mode-banner-shown');
+      body.style.removeProperty('--vex-smb-space');
+      el.remove();
+    });
     el.querySelector('[data-act="restart"]').addEventListener('click', () => {
       // The boot state was reset the moment this interface loaded, so a plain
       // restart is already a normal one.

@@ -51,11 +51,17 @@ const TabSnooze = {
   list() { return this._read(this.KEY); },
   archived() { return this._read(this.ARCHIVE_KEY); },
 
+  // A private tab (or any tab of a private window) is never kept, so a snooze
+  // closed it for good under "Back in an hour" (found 2026-09-29). The tab
+  // menu offers snoozing only where this is true.
+  canSnooze(tab) { return !!tab && /^https?:/i.test(tab.url || '') && window.VexTabPolicy.canPersist(tab); },
+
   // Close it now, bring it back then. Returns the entry.
   snooze(tabId, when) {
     const tab = TabManager.tabs.find(t => t.id === tabId);
     if (!tab) throw new Error('That tab is not open any more');
     if (!/^https?:/i.test(tab.url || '')) throw new Error('Only a web page can be snoozed');
+    if (!window.VexTabPolicy.canPersist(tab)) throw new Error('A private tab cannot be snoozed — it is forgotten once closed');
     const rule = this.WHEN[when];
     const at = rule ? rule.at() : Number(when);
     if (!Number.isFinite(at) || at <= Date.now()) throw new Error('Say when to bring it back');

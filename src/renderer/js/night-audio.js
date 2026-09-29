@@ -91,11 +91,22 @@ const NightAudio = {
       };
 
       state.on = ${on ? 'true' : 'false'};
-      let touched = 0;
+      // Off only puts back what was routed: attaching on the way off threw for
+      // another site's audio, so Night mode could not be switched off. On
+      // skips such media and carries on; one of them used to stop it for the
+      // whole page (both found 2026-09-29).
+      let touched = 0, skipped = 0, failed = null;
       for (const media of document.querySelectorAll('video,audio')) {
-        try { attach(media); route(media, state.on); touched++; } catch (e) { return { ok: false, name: e && e.name, error: String(e && e.message || e) }; }
+        if (!state.on) { if (state.nodes.has(media)) { route(media, false); touched++; } continue; }
+        try { attach(media); route(media, true); touched++; }
+        catch (e) {
+          if (e && e.name === 'CrossOrigin') skipped++;
+          else if (!failed) failed = { name: e && e.name, error: String(e && e.message || e) };
+        }
       }
       if (state.ctx && state.ctx.state === 'suspended') state.ctx.resume();
+      const frames = document.querySelectorAll('iframe,frame').length;
+      if (!touched && (skipped || failed)) return { ok: false, skipped, frames, name: failed ? failed.name : 'CrossOrigin', error: failed ? failed.error : 'the sound comes from another site' };
       if (!state.wired) {
         state.wired = true;
         // Anything that starts playing later — the next track, the next video.
@@ -105,7 +116,7 @@ const NightAudio = {
           try { attach(media); route(media, true); } catch (err) {}
         }, true);
       }
-      return { ok: true, touched };
+      return { ok: true, touched, skipped, frames };
     })()`;
   },
 
@@ -118,27 +129,48 @@ const NightAudio = {
     return { url, wv };
   },
 
+  // Runs in every frame the main process can reach (vexGuestEvalFrames in
+  // site-volume.js): a player embedded in an iframe was never evened out,
+  // and the toast said it would be (found 2026-09-29).
+  // → { touched, skipped, unreached }.
   async apply(wv, on) {
-    const res = await window.vexGuestEval(wv, this.script(on), true, 6000);
-    // Say what actually went wrong: every failure used to be reported as
-    // another site's audio (found 2026-09-29).
-    if (!res || !res.ok) {
-      const why = res && res.name === 'CrossOrigin' ? 'it comes from another site that does not allow it'
-        : res && res.name === 'InvalidStateError' ? 'the page already sends it through its own audio processing'
-        : 'the page refused (' + ((res && res.error) || 'no answer') + ')';
-      throw new Error('This page’s sound cannot be evened out — ' + why);
+    const r = await window.vexGuestEvalFrames(wv, this.script(on), true, 6000);
+    let touched = 0, skipped = 0, frames = 0, unreached = 0, refused = null;
+    for (const f of r.results) {
+      if (!f.ok) { unreached++; continue; }          // a frame that did not answer
+      const res = f.value;
+      if (!res) { refused = refused || { error: 'no answer' }; continue; }
+      touched += res.touched || 0; skipped += res.skipped || 0; frames += res.frames || 0;
+      if (!res.ok) refused = refused || res;
     }
-    return res.touched;
+    if (!r.all) unreached = frames;
+    // It fails only when nothing at all could be evened out. Say what actually
+    // went wrong: every failure used to be reported as another site's audio
+    // (found 2026-09-29).
+    if (!touched && refused) {
+      const why = refused.name === 'CrossOrigin' ? 'it comes from another site that does not allow it'
+        : refused.name === 'InvalidStateError' ? 'the page already sends it through its own audio processing'
+        : 'the page refused (' + (refused.error || 'no answer') + ')';
+      throw new Error('This page’s sound cannot be evened out — ' + why
+        + (skipped ? ' (' + skipped + (skipped === 1 ? ' player' : ' players') + ' from another site skipped)' : ''));
+    }
+    return { touched, skipped, unreached };
   },
 
   async toggle() {
     const t = this._tab();
     const on = !this.isOn(t.url);
-    const touched = await this.apply(t.wv, on);
+    const r = await this.apply(t.wv, on);
     this.remember(t.url, on);
-    window.showToast?.(on
-      ? (touched ? 'Night mode on for ' + this.host(t.url) + ' — quiet parts up, loud parts held down' : 'Night mode on for ' + this.host(t.url) + ' — it will apply when something plays')
-      : 'Night mode off for ' + this.host(t.url));
+    const host = this.host(t.url);
+    const skippedNote = r.skipped ? ' (' + r.skipped + (r.skipped === 1 ? ' player' : ' players') + ' from another site left as ' + (r.skipped === 1 ? 'it was)' : 'they were)') : '';
+    const framesNote = r.unreached ? ' — not inside the ' + (r.unreached === 1 ? 'embedded frame' : r.unreached + ' embedded frames') + ' on this page, which Vex cannot reach' : '';
+    if (!on) window.showToast?.('Night mode off for ' + host);
+    else if (r.touched) window.showToast?.('Night mode on for ' + host + ' — quiet parts up, loud parts held down' + skippedNote + framesNote);
+    // Nothing reached, but there are frames it could not look into: the
+    // player is probably in one, so "it will apply" would not be true.
+    else if (r.unreached) window.showToast?.('Night mode on for ' + host + framesNote, 'warn');
+    else window.showToast?.('Night mode on for ' + host + ' — it will apply when something plays');
     return on;
   },
 

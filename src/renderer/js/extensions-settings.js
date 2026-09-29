@@ -3,6 +3,8 @@
 const ExtensionsSettings = (() => {
   function _toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
   function _esc(s) { return window.escapeHtml(s); }
+  // An update of a switched-off extension replaces its files and leaves it off.
+  function _installedText(r) { return `Installed: ${r.name} v${r.version}` + (r.disabled ? ' — still switched off' : ''); }
 
   // Icons live inside the install folder, so the manager loads them straight off
   // disk. encodeURI (not encodeURIComponent) keeps the drive letter and the path
@@ -245,7 +247,7 @@ const ExtensionsSettings = (() => {
         btn.textContent = 'Installing…';
         try {
           const r = await window.vex.extensionsInstallCatalog(btn.dataset.installCatalog);
-          if (r && r.ok) { _toast(`Installed: ${r.name} v${r.version}`, 'success'); render(container); return; }
+          if (r && r.ok) { _toast(_installedText(r), 'success'); render(container); return; }
           _toast('Install failed: ' + ((r && r.error) || 'unknown'), 'error');
         } catch (err) {
           _toast('Install failed: ' + ((err && err.message) || 'unknown'), 'error');
@@ -257,13 +259,13 @@ const ExtensionsSettings = (() => {
     document.getElementById('btn-install-zip')?.addEventListener('click', async () => {
       const r = await window.vex.extensionsInstallZip();
       if (r.cancelled) return;
-      if (r.ok) { _toast(`Installed: ${r.name} v${r.version}`, 'success'); render(container); }
+      if (r.ok) { _toast(_installedText(r), 'success'); render(container); }
       else _toast('Install failed: ' + (r.error || 'unknown'), 'error');
     });
     document.getElementById('btn-install-folder')?.addEventListener('click', async () => {
       const r = await window.vex.extensionsInstallFolder();
       if (r.cancelled) return;
-      if (r.ok) { _toast(`Installed: ${r.name} v${r.version}`, 'success'); render(container); }
+      if (r.ok) { _toast(_installedText(r), 'success'); render(container); }
       else _toast('Install failed: ' + (r.error || 'unknown'), 'error');
     });
     document.getElementById('btn-open-ext-folder')?.addEventListener('click', () => {
@@ -277,6 +279,9 @@ const ExtensionsSettings = (() => {
         if (!r.ok) {
           box.checked = !wanted;                       // don't pretend it worked
           _toast((wanted ? 'Enable' : 'Disable') + ' failed: ' + (r.error || 'unknown'), 'error');
+        } else if (r.afterRestart) {
+          // Safe mode loads no extensions, so switching one on only saves it.
+          _toast('Saved — it loads when Vex restarts normally', 'info');
         } else {
           _toast(wanted ? 'Extension enabled' : 'Extension disabled', 'success');
         }
@@ -321,7 +326,7 @@ const ExtensionsSettings = (() => {
         const folder = btn.dataset.folder;
         // The extension's name, not its install folder ("devforum-plus-1790659315165")
         // (found 2026-09-29).
-        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${btn.dataset.name || folder}"?Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
+        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${btn.dataset.name || folder}"? Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
         const r = await window.vex.extensionsUninstall(folder);
         if (r.ok) { _toast('Uninstalled — restart Vex to fully remove', 'success'); render(container); }
         else _toast('Uninstall failed: ' + (r.error || 'unknown'), 'error');

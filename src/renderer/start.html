@@ -1321,6 +1321,7 @@
   <link rel="stylesheet" href="css/fonts.css">
   <script src="js/vex-icons.js"></script>
   <script src="js/geo-search.js"></script>
+  <script src="js/typed-address.js"></script>
 </head>
 <body>
   <button class="theme-toggle-btn" id="theme-toggle-btn" title="Change theme">
@@ -1889,17 +1890,24 @@
       const box = document.getElementById('start-suggestions');
 
       // --- Search engine selector ---
-      const ENGINES = {
-        google:     { name: 'Google',     q: 'https://www.google.com/search?q=%s',            glyph: 'G', color: '#4285F4' },
-        bing:       { name: 'Bing',       q: 'https://www.bing.com/search?q=%s',               glyph: 'b', color: '#0c8484' },
-        duckduckgo: { name: 'DuckDuckGo', q: 'https://duckduckgo.com/?q=%s',                   glyph: 'D', color: '#de5833' },
-        brave:      { name: 'Brave',      q: 'https://search.brave.com/search?q=%s',           glyph: 'B', color: '#fb542b' },
-        startpage:  { name: 'Startpage',  q: 'https://www.startpage.com/sp/search?query=%s',   glyph: 'S', color: '#6b4fbb' },
-        ecosia:     { name: 'Ecosia',     q: 'https://www.ecosia.org/search?q=%s',             glyph: 'E', color: '#2e8b57' },
-        youtube:    { name: 'YouTube',    q: 'https://www.youtube.com/results?search_query=%s', glyph: 'Y', color: '#ff0000' },
+      // The engines, their addresses and the address-or-search rule come from
+      // js/typed-address.js, the one the address bar uses. This page had its
+      // own copy: "node.js tutorial" opened https://node.js%20tutorial/,
+      // localhost:3000 and münchen.de were searched, and it offered YouTube,
+      // which the address bar and Settings did not know (found 2026-09-29).
+      const TA = window.VexTypedAddress;
+      if (!TA) throw new Error('New Tab search: js/typed-address.js did not load');
+      const ENGINE_LOOK = {
+        google:     { glyph: 'G', color: '#4285F4' },
+        bing:       { glyph: 'b', color: '#0c8484' },
+        duckduckgo: { glyph: 'D', color: '#de5833' },
+        brave:      { glyph: 'B', color: '#fb542b' },
+        startpage:  { glyph: 'S', color: '#6b4fbb' },
+        ecosia:     { glyph: 'E', color: '#2e8b57' },
       };
-      function getEngineId() { try { return ENGINES[localStorage.getItem('vex.searchEngine')] ? localStorage.getItem('vex.searchEngine') : 'google'; } catch { return 'google'; } }
-      let engineId = getEngineId();
+      const ENGINES = {};
+      for (const id of Object.keys(TA.SEARCH_ENGINES)) ENGINES[id] = { ...TA.SEARCH_ENGINES[id], ...ENGINE_LOOK[id] };
+      let engineId = TA.currentEngine();
       const engineBtn = document.getElementById('engine-btn');
       const engineGlyph = document.getElementById('engine-glyph');
       const engineMenu = document.getElementById('engine-menu');
@@ -1922,6 +1930,10 @@
           opt.addEventListener('click', () => {
             engineId = opt.dataset.engine;
             try { localStorage.setItem('vex.searchEngine', engineId); } catch {}
+            // This page keeps its own storage; the host's vex.searchEngine is what
+            // the address bar and Settings read, and it kept the old engine
+            // (found 2026-09-29). The host saves it and mirrors it back here.
+            console.log('VEX_CMD:' + JSON.stringify({ type: 'set-engine', id: engineId }));
             applyEngineUI();
             engineMenu.classList.add('hidden');
             input && input.focus();
@@ -1946,18 +1958,12 @@
 
       function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
-      // Resolve a query string to a URL exactly as the start page always has
-      // (URL vs Google search), then navigate via the VEX_CMD bridge.
+      // Resolve a query string to an address or a search with the address
+      // bar's rule, then navigate via the VEX_CMD bridge.
       function navigateQuery(query, newTab) {
         query = (query || '').trim();
         if (!query) return;
-        let url;
-        if (/^https?:\/\//i.test(query) || /^[a-z0-9-]+\.[a-z]{2,}/i.test(query)) {
-          url = query.startsWith('http') ? query : 'https://' + query;
-        } else {
-          const e = ENGINES[engineId] || ENGINES.google;
-          url = e.q.replace('%s', encodeURIComponent(query));
-        }
+        const url = TA.addressFor(query) || TA.searchUrl(query, engineId);
         console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url, newTab }));
       }
 

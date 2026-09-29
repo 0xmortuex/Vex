@@ -94,7 +94,9 @@ const WebviewManager = {
       //
       // A site the user really blocked keeps reading 'denied': requesting is
       // refused from the saved decision, so nothing is lost by letting it ask.
-      try { this._letSitesAsk(webview); } catch (err) { console.warn('[Vex] notification state:', err && err.message); }
+      // Async: a page with JavaScript switched off rejects it, which went
+      // uncaught into Problems on every load (found 2026-09-29).
+      this._letSitesAsk(webview).catch(err => console.warn('[Vex] notification state:', err && err.message));
 
       // === A base for a page that paints none ==============================
       //
@@ -358,6 +360,11 @@ const WebviewManager = {
       // multi-KB data: URL into history. Reading mode is a transient view, not a
       // destination — leave tab.url on the real page and keep it out of history.
       if (/^about:blank\b/i.test(url) || /^data:/i.test(url)) return;
+      // A view-source: tab reports the page's own address; kept as it was
+      // opened, or the tab, its restore and its copies showed the page
+      // instead of its source (found 2026-09-29).
+      const shown = TabManager.tabs.find(t => t.id === tab.id);
+      if (shown && /^view-source:/i.test(shown.url || '') && shown.url.slice(12) === url) return;
       TabManager.updateTab(tab.id, { url });
       this._updateFavicon(tab.id, url);
       if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
@@ -470,7 +477,7 @@ const WebviewManager = {
         // Reading mode's own page (a data: page) may ask for one thing only:
         // to leave reading mode, on a tab that is in it. Its "Exit Reading
         // Mode" button did nothing (found 2026-09-29).
-        if (/^data:text\/html/i.test(emitterUrl) && typeof ReadingMode !== 'undefined' && ReadingMode._originalUrls.has(tab.id)) {
+        if (/^data:text\/html/i.test(emitterUrl) && typeof ReadingMode !== 'undefined' && (ReadingMode._originalUrls.has(tab.id) || ReadingMode.sourceOf(emitterUrl))) {
           let asked = null;
           try { asked = JSON.parse(e.message.slice(8)); } catch (err) { console.error('VEX_CMD parse error:', err); return; }
           if (asked && asked.type === 'exit-reading') ReadingMode.exitReadingMode(tab.id);
@@ -500,6 +507,10 @@ const WebviewManager = {
             SidebarManager.openPanel(cmd.panel);
           } else if (cmd.type === 'open-theme-picker') {
             if (typeof ThemePicker !== 'undefined') ThemePicker.open();
+          } else if (cmd.type === 'set-engine' && typeof cmd.id === 'string') {
+            // The New Tab page's engine menu changed only its own storage, and
+            // the address bar kept the old engine (found 2026-09-29).
+            if (typeof VexTypedAddress !== 'undefined' && VexTypedAddress.SEARCH_ENGINES[cmd.id] && typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', cmd.id);
           } else if (cmd.type === 'exit-reading') {
             if (typeof ReadingMode !== 'undefined') ReadingMode.exitReadingMode(tab.id);
           }
@@ -690,6 +701,18 @@ const WebviewManager = {
     return this.webviews.get(TabManager.activeTabId);
   },
 
+  // Chromium's error code, in words.
+  _whyLoadFailed(message) {
+    const m = String(message || '');
+    if (/NAME_NOT_RESOLVED|NAME_RESOLUTION_FAILED/.test(m)) return 'no site has that address';
+    if (/CONNECTION_REFUSED/.test(m)) return 'nothing is answering at that address';
+    if (/INTERNET_DISCONNECTED/.test(m)) return 'you are offline';
+    if (/TIMED_OUT/.test(m)) return 'it took too long to answer';
+    if (/CERT|SSL/.test(m)) return 'its security certificate is not valid';
+    if (/INVALID_URL/.test(m)) return 'that is not a valid address';
+    return m;
+  },
+
   navigate(url) {
     // A site rule cannot move a tab that already exists — a webview's session
     // is fixed the moment it is attached — so the tab opens beside this one,
@@ -711,11 +734,19 @@ const WebviewManager = {
       // .loadURL() is the correct webview API method, but .src works as fallback
       if (typeof wv.loadURL === 'function') {
         // A navigation superseded by another rejects with ERR_ABORTED (-3);
-        // that's expected (and the webview shows its own error UI for real
-        // failures), so ignore the abort instead of leaking an uncaught rejection.
+        // that's expected. A real failure used to be only a console line: the
+        // page went blank while the address bar still showed the old site
+        // (found 2026-09-29). Show the address asked for, and say why.
+        const tabId = TabManager.activeTabId;
         wv.loadURL(url).catch(err => {
           const m = String((err && err.message) || err);
-          if (!/ERR_ABORTED|\(-3\)/.test(m)) console.warn('[Vex] navigate failed:', m);
+          if (/ERR_ABORTED|\(-3\)/.test(m)) return;
+          console.warn('[Vex] navigate failed:', m);
+          const tab = TabManager.tabs.find(t => t.id === tabId);
+          if (tab) { tab.url = url; TabManager.renderTabUpdate?.(tab); }
+          const input = document.getElementById('url-input');
+          if (input && TabManager.activeTabId === tabId && document.activeElement !== input) input.value = url;
+          window.showToast?.('Could not open ' + url + ' — ' + this._whyLoadFailed(m), 'error');
         });
       } else {
         wv.src = url;
@@ -908,13 +939,14 @@ const WebviewManager = {
   },
 
   // Draw the rows into the menu. A row with `sub` opens a submenu beside it on
-  // hover (or at once on a click), kept inside the menu element so the menu's
-  // own close takes it too; a row with `buttons` is a row of icon buttons.
+  // hover (or at once on a click), removed with the menu; a row with
+  // `buttons` is a row of icon buttons.
   // Every action closes the whole menu through the shared dismissal, which
   // also removes its click-catching overlay (a bare menu.remove() left that
   // overlay behind to eat the next click).
   _renderMenu(menu, items) {
     const closeAll = () => {
+      closeSub();
       if (typeof TabManager !== 'undefined' && TabManager._dismissMenu) TabManager._dismissMenu(menu);
       else menu.remove();
     };
@@ -933,18 +965,32 @@ const WebviewManager = {
       sub.className = 'tab-context-menu ctx-submenu';
       sub.setAttribute('role', 'menu');
       subItems.forEach(it => sub.appendChild(draw(it, true)));
-      menu.appendChild(sub);
+      // In the page, not in the menu: the menu scrolls when it is tall, and a
+      // submenu inside it was clipped away, so every submenu of the page's
+      // right-click menu (Page, This site, "More for this …") could not be
+      // reached (found 2026-09-29). Removed with the menu (see `gone` below).
+      sub.style.position = 'fixed';
+      sub.style.right = 'auto';
+      document.body.appendChild(sub);
       // Beside the row; flipped to the left, or lifted, to stay on screen.
-      sub.style.top = (row.offsetTop - 7) + 'px';
+      const rowBox = row.getBoundingClientRect(), menuBox = menu.getBoundingClientRect();
+      let left = menuBox.right - 4, top = rowBox.top - 7;
+      sub.style.left = left + 'px'; sub.style.top = top + 'px';
       const r = sub.getBoundingClientRect();
-      if (r.right > window.innerWidth - 4) { sub.style.left = 'auto'; sub.style.right = 'calc(100% - 4px)'; }
-      if (r.bottom > window.innerHeight - 4) sub.style.top = (row.offsetTop - 7 - (r.bottom - window.innerHeight + 8)) + 'px';
+      if (r.right > window.innerWidth - 4) left = Math.max(4, menuBox.left - r.width + 4);
+      if (r.bottom > window.innerHeight - 4) top = Math.max(4, window.innerHeight - r.height - 8);
+      sub.style.left = left + 'px'; sub.style.top = top + 'px';
       sub.addEventListener('mouseenter', () => clearTimeout(timer));
       sub.addEventListener('mouseleave', () => { clearTimeout(timer); timer = setTimeout(closeSub, 350); });
       openSub = sub; openRow = row;
       row.classList.add('open');
       row.setAttribute('aria-expanded', 'true');
     };
+    // The submenu lives beside the menu, so it goes when the menu goes, and
+    // is put away if the menu is scrolled under it.
+    const gone = new MutationObserver(() => { if (!menu.isConnected) { closeSub(); gone.disconnect(); } });
+    gone.observe(document.body, { childList: true, subtree: true });
+    menu.addEventListener('scroll', closeSub, { passive: true });
     const icon = (name) => (typeof VexIcons !== 'undefined' && name) ? VexIcons.svg(name, { size: 14, className: 'ctx-icon' }) : '';
     const draw = (item, inSub) => {
       if (item.sep) {
@@ -1361,10 +1407,43 @@ const WebviewManager = {
       const flags = media.mediaFlags || {};
       const noun = media.mediaType === 'video' ? 'video' : 'sound';
       // The element under the pointer, found again inside the page.
+      // The element under the pointer, found again inside the page: through
+      // shadow roots and same-origin frames, else by its address. A video in
+      // a frame or shadow root was "not found", and a refused play() was not
+      // reported (found 2026-09-29).
+      // Electron gives the point in the window, not in the page: measured
+      // at (612,183) for a click the page saw at (550,90). Into the page's
+      // own coordinates, zoom included.
+      const at = (() => {
+        let box = { left: 0, top: 0 }, zoom = 1;
+        try { box = webview.getBoundingClientRect(); } catch (err) { console.warn('[Vex] media menu: no webview box', err); }
+        try { zoom = webview.getZoomFactor() || 1; } catch (err) { console.warn('[Vex] media menu: no zoom factor', err); }
+        return { x: Math.round(((Number(media.x) || 0) - box.left) / zoom), y: Math.round(((Number(media.y) || 0) - box.top) / zoom) };
+      })();
       const act = (js) => webview.executeJavaScript(
-        `(() => { const hit = document.elementFromPoint(${Number(media.x) || 0}, ${Number(media.y) || 0}); const el = hit && (hit.closest('video,audio') || (hit.querySelector && hit.querySelector('video,audio'))); if (!el) return false; ${js}; return true; })()`, true
-      ).then(found => { if (!found) window.showToast?.(`Could not find that ${noun} on the page`, 'warn'); })
-        .catch(err => window.showToast?.('That did not work: ' + ((err && err.message) || err), 'error'));
+        `(async () => {
+          const find = (doc, x, y) => {
+            let hit = doc.elementFromPoint(x, y);
+            while (hit && hit.shadowRoot) { const inner = hit.shadowRoot.elementFromPoint(x, y); if (!inner || inner === hit) break; hit = inner; }
+            if (hit && hit.tagName === 'IFRAME') {
+              let d = null; try { d = hit.contentDocument; } catch (e) { d = null; }
+              if (!d) return 'frame';
+              const b = hit.getBoundingClientRect();
+              return find(d, x - b.left - hit.clientLeft, y - b.top - hit.clientTop);
+            }
+            return hit && ((hit.closest && hit.closest('video,audio')) || (hit.querySelector && hit.querySelector('video,audio')));
+          };
+          let el = find(document, ${at.x}, ${at.y});
+          if (!el || el === 'frame') { const src = ${JSON.stringify(media.srcURL || '')}; const same = src && [...document.querySelectorAll('video,audio')].find(m => m.currentSrc === src || m.src === src); if (same) el = same; }
+          if (el === 'frame') return 'frame';
+          if (!el) return 'none';
+          try { await (${js}); return 'ok'; } catch (e) { return 'error: ' + ((e && e.message) || e); }
+        })()`, true
+      ).then(res => {
+        if (res === 'none') window.showToast?.(`Could not find that ${noun} on the page`, 'warn');
+        else if (res === 'frame') window.showToast?.(`That ${noun} is inside another site's frame, which Vex cannot reach from here`, 'warn');
+        else if (typeof res === 'string' && res.startsWith('error: ')) window.showToast?.('That did not work: ' + res.slice(7), 'error');
+      }).catch(err => window.showToast?.('That did not work: ' + ((err && err.message) || err), 'error'));
       const src = /^https?:/i.test(media.srcURL || '') ? media.srcURL : '';
       const mediaItems = [
         { label: flags.isPaused ? 'Play' : 'Pause', action: () => act(flags.isPaused ? 'el.play()' : 'el.pause()') },
@@ -1445,6 +1524,8 @@ const WebviewManager = {
     let url = '';
     try { url = webview.getURL() || ''; } catch { return false; }
     if (!/^https?:/i.test(url)) return false;
+    // Nothing can be asked of a page whose scripts are switched off.
+    if (window.SiteRulesUI && typeof SiteRulesUI.scriptsOff === 'function' && SiteRulesUI.scriptsOff(url)) return false;
     let origin = '';
     try { origin = new URL(url).origin; } catch { return false; }
     let decisions = {};
