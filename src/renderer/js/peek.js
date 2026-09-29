@@ -97,6 +97,12 @@ const VexPeek = {
       this._showError(`${e.errorDescription || 'Load failed'} (${e.errorCode})`);
     });
     wv.addEventListener('crashed', () => this._showError('The preview process stopped responding'));
+    // Escape pressed inside the previewed page, which the page left alone
+    // (preload-webview.js). With focus in the page it never reached the key
+    // handler below, and the peek stayed open (found 2026-09-29).
+    wv.addEventListener('ipc-message', (e) => {
+      if (e.channel === 'vex-escape' && this._els.wv === wv && this.isOpen()) this.close();
+    });
     E.body.appendChild(wv);
     E.wv = wv;
 

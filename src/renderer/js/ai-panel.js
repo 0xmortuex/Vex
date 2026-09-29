@@ -287,7 +287,10 @@ const AIPanel = {
     // question, every step and the answer were gone — and Recent chats had
     // nothing to list.
     const tabId = this._getTabId();
-    this._viewingId = null;
+    // Started while a past chat was on screen, the question was drawn under
+    // that chat and its banner stayed up, though it was saved to this tab's
+    // (found 2026-09-29). As in sendMessage, the panel goes back to this tab.
+    this._backToThisTab();
     const conv = this._getConv(tabId);
     const asked = { role: 'user', content: msg, at: Date.now() };
     conv.push(asked);
@@ -2730,7 +2733,11 @@ const AIPanel = {
     const all = (window.HistoryPanel && Array.isArray(HistoryPanel.entries)) ? HistoryPanel.entries : [];
 
     if (!opts._noEcho) {
-      const conv = this._getConv();
+      // A search is a new question for this tab: it was saved into whichever
+      // past chat was on screen (found 2026-09-29). As in sendMessage, the
+      // panel goes back to this tab's chat first.
+      this._backToThisTab();
+      const conv = this._getConv(this._getTabId());
       conv.push({ role: 'user', content: query, at: Date.now() });
       this._persistConversations();
       this._renderMessages();
@@ -2772,6 +2779,15 @@ const AIPanel = {
       }
 
       this._renderHistorySearchResult(parsed, all);
+      // Kept with the chat as a plain answer, or it vanished at the next
+      // redraw — switching tab or reopening the panel (found 2026-09-29).
+      const found = (parsed.matches || []).slice(0, 5)
+        .map(m => all.find(e => e.id === m.id)).filter(Boolean)
+        .map(e => '- [' + String(e.title || e.url).replace(/[\[\]]/g, '') + '](' + e.url + ')');
+      const conv = this._getConv(this._getTabId());
+      conv.push({ role: 'assistant', action: 'historySearch', at: Date.now(),
+        content: [parsed.interpretation || 'History search', found.length ? found.join('\n') : 'No matching pages found in your history.'].join('\n\n') });
+      this._persistConversations();
       return true;
     } catch (err) {
       loadingEl?.remove();

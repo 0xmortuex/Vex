@@ -1992,3 +1992,27 @@ if (typeof module !== 'undefined' && module.exports) {
     }, 0);
   }, false);
 })();
+
+// === Escape the page left alone, told to the host ===
+// Peek and Responsive Preview close on Escape, but once you clicked into the
+// previewed page the key went to that page and the overlay stayed open (found
+// 2026-09-29). An Escape the page did not use is reported to the host; only
+// the webviews those overlays own act on it (peek.js, devtools-pack.js), a
+// tab ignores it. A page that takes Escape itself (its own menu, a <dialog>,
+// leaving full screen) keeps it.
+(function () {
+  'use strict';
+  var ipc;
+  try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
+  if (!ipc || typeof ipc.sendToHost !== 'function') return;
+  window.addEventListener('keydown', function (e) {
+    if (!e.isTrusted || e.key !== 'Escape' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    // Escape closes an open <dialog> and leaves full screen without the page
+    // calling preventDefault, so those count as the page's own.
+    if (document.fullscreenElement || document.querySelector('dialog:modal')) return;
+    // Every listener of the page has run by the time this fires.
+    setTimeout(function () {
+      if (!e.defaultPrevented) { try { ipc.sendToHost('vex-escape'); } catch (err) { /* host gone */ } }
+    }, 0);
+  }, false);
+})();

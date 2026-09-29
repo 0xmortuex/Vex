@@ -5,7 +5,8 @@
 // css/gui-glass.css under body[data-gui-style="glass"]; this module just toggles
 // the attribute, forces the horizontal tab strip in Glass, and builds the
 // shortcuts bar. Persisted in localStorage 'vex.guiStyle'. The browser looks
-// (Chrome, Firefox, Safari, XP, 98) live in css/gui-browser.css.
+// (Chrome, Firefox, Safari, XP, 98) and the styles (Fluent, Glossy, Neobrutal,
+// Terminal) live in css/gui-browser.css.
 (function () {
   const KEY = 'vex.guiStyle';
   let _prevTabLayout = null;
@@ -35,6 +36,15 @@
     safari:         { layout: 'top', family: 'browser', controls: 'toolbar', sidebar: { side: 'left', launcher: 'toolbar' } },
     xp:             { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'toolbar' } },
     win98:          { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
+    // Styles rather than browsers - the popular BetterDiscord UI themes worn by
+    // the whole window (asked for 2026-09-29): Fluent (Windows 11), Glossy
+    // (Aero-era gloss), Neobrutal and Terminal (a TUI, after system24). They
+    // share the browser family's base, so both colour modes work the same.
+    fluent:         { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'right', launcher: 'toolbar' } },
+    'fluent-dark':  { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'right', launcher: 'toolbar' } },
+    glossy:         { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'toolbar' } },
+    neobrutal:      { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
+    terminal:       { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
   };
   const isTopLayout = () => (STYLES[document.body.dataset.guiStyle] || {}).layout === 'top';
   const isBrowserLook = () => (STYLES[document.body.dataset.guiStyle] || {}).family === 'browser';

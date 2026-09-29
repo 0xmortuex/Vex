@@ -22,6 +22,23 @@ async function vexGuestEvalFrames(wv, code, userGesture, timeoutMs) {
   return { all: false, results: [{ ok: true, value: await window.vexGuestEval(wv, code, userGesture, timeoutMs) }] };
 }
 
+// Call fn(webview) when an embedded frame of a page finishes loading after
+// the page itself. The page volume, Master Volume and Night mode were run
+// once, at load, so a player iframe the page added later never got them
+// (found 2026-09-29). <webview> events do not bubble, but they do pass
+// through the document on the way down, so one capturing listener hears every
+// tab and panel. A page's ad and tracker frames land in bursts, so each
+// webview is answered once the burst has settled.
+function vexOnLateFrame(fn, settleMs = 400) {
+  const timers = new WeakMap();
+  document.addEventListener('did-frame-finish-load', (e) => {
+    const wv = e.target;
+    if (e.isMainFrame || !wv || wv.tagName !== 'WEBVIEW') return;
+    clearTimeout(timers.get(wv));
+    timers.set(wv, setTimeout(() => { timers.delete(wv); fn(wv); }, settleMs));
+  }, true);
+}
+
 const SiteVolume = {
   KEY: 'vex.siteVolume',
 
@@ -95,8 +112,15 @@ const SiteVolume = {
 
   init() {
     document.addEventListener('vex:tab-navigated', (e) => this.apply(e.detail.tabId, e.detail.url));
+    vexOnLateFrame((wv) => {
+      let url = '';
+      try { url = wv.getURL(); } catch { return; }       // closed while the frames settled
+      const v = this.get(url);
+      if (v == null) return;
+      this.applyTo(wv, v).catch(err => window.VexProblems?.note('Site volume', 'Could not set the volume on ' + this.host(url), err));
+    });
   },
 };
 
-if (typeof window !== 'undefined') { window.SiteVolume = SiteVolume; window.vexGuestEvalFrames = vexGuestEvalFrames; }
-if (typeof module !== 'undefined' && module.exports) module.exports = { SiteVolume, vexGuestEvalFrames };
+if (typeof window !== 'undefined') { window.SiteVolume = SiteVolume; window.vexGuestEvalFrames = vexGuestEvalFrames; window.vexOnLateFrame = vexOnLateFrame; }
+if (typeof module !== 'undefined' && module.exports) module.exports = { SiteVolume, vexGuestEvalFrames, vexOnLateFrame };

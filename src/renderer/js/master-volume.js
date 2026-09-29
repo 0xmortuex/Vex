@@ -155,6 +155,13 @@ const MasterVolume = {
     catch (err) { console.warn('[MasterVolume] could not apply to a page:', err && err.message); }
   },
 
+  // A player frame the page adds after it loaded gets the level too
+  // (site-volume.js); dom-ready covers only the page itself.
+  init() {
+    window.vexOnLateFrame((wv) => { if (this.level() !== 1) this.applyToWebview(wv); });
+    return this;
+  },
+
   _allWebviews() {
     const out = [];
     try { if (typeof WebviewManager !== 'undefined' && WebviewManager.webviews) for (const w of WebviewManager.webviews.values()) out.push(w); } catch {}
@@ -265,4 +272,6 @@ const MasterVolume = {
 };
 
 if (typeof window !== 'undefined') window.MasterVolume = MasterVolume;
+// site-volume.js loads first (index.html); in a unit test on its own it is absent.
+if (typeof window !== 'undefined' && typeof window.vexOnLateFrame === 'function') MasterVolume.init();
 if (typeof module !== 'undefined' && module.exports) module.exports = { MasterVolume };

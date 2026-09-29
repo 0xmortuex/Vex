@@ -91,6 +91,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Which key combinations the renderer's registry answers to, so a key
   // pressed while a page has the focus can be passed up to it.
   setGuestShortcutKeys: (combos) => ipcRenderer.send('shortcuts:guest-keys', combos),
+  // The shortcut editor is recording: main lets Ctrl+T, F11 and its other own
+  // keys through to the page instead of acting on them (clears after 15 s).
+  setShortcutCapturing: (on) => ipcRenderer.invoke('shortcuts:capturing', on),
   onNextTab: (callback) => subscribe('next-tab', callback),
   onPrevTab: (callback) => subscribe('prev-tab', callback),
   onJumpToTab: (callback) => subscribe('jump-to-tab', callback),
@@ -277,6 +280,7 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Permission prompts (geolocation, mic, camera, notifications, ...)
   onPermissionRequest:  (cb) => subscribe('permission:request', cb),
+  onPermissionExpired:  (cb) => subscribe('permission:expired', cb),
   permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),
   permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
   permissionsList:      () => ipcRenderer.invoke('permissions:list'),

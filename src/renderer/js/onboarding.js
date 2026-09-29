@@ -173,7 +173,7 @@ const Onboarding = {
       { key: 'welcome',        title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
-      { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, or a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
+      { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
       { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' , secs: 40},
       { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
       { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' , secs: 30},
@@ -885,6 +885,13 @@ const Onboarding = {
       { id: 'safari', name: 'Safari', desc: 'Quiet and grey, controls in the toolbar, a sidebar on the left.', borrowed: true },
       { id: 'xp', name: 'Internet Explorer · XP', desc: 'Luna blue, Tahoma, square edges. Yes, really.', borrowed: true },
       { id: 'win98', name: 'Netscape · Windows 98', desc: 'Raised grey bevels and a title bar from 1998.', borrowed: true },
+      // Styles, not browsers: they go in a group of their own, but like the
+      // browser looks they have their own colours or take the theme's.
+      { id: 'fluent', name: 'Fluent · Windows 11', desc: 'A Mica-tinted frame, soft 8px corners, an accent pill under your tab.', styled: true },
+      { id: 'fluent-dark', name: 'Fluent · Windows 11 dark', desc: 'The same, in Windows 11’s dark mode.', styled: true },
+      { id: 'glossy', name: 'Glossy · Aero', desc: 'Sky-glass title band, glossy bevelled buttons, a red glass close.', styled: true },
+      { id: 'neobrutal', name: 'Neobrutal', desc: 'Thick ink outlines, hard offset shadows, flat bold colour.', styled: true },
+      { id: 'terminal', name: 'Terminal', desc: 'Monospace, square boxes, text-mode tabs like [ 1: tab ].', styled: true },
     ];
   },
 
@@ -903,14 +910,19 @@ const Onboarding = {
       + '<span style="font-size:12.5px;font-weight:700">' + this._esc(l.name) + '</span>'
       + '<span style="font-size:11px;color:var(--text-muted);line-height:1.4">' + this._esc(l.desc) + '</span></button>';
 
-    const isBorrowed = (id) => !!(looks.find((l) => l.id === id) || {}).borrowed;
+    // Browser looks and styles both offer the look's own colours or the theme's.
+    const isBorrowed = (id) => { const l = looks.find((x) => x.id === id) || {}; return !!(l.borrowed || l.styled); };
 
     body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      + looks.filter((l) => !l.borrowed).map(card).join('') + '</div>'
+      + looks.filter((l) => !l.borrowed && !l.styled).map(card).join('') + '</div>'
       + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Wear another browser</div>'
       + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Vex, shaped like a browser you already know. Every Vex feature still works the same.</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
       + looks.filter((l) => l.borrowed).map(card).join('') + '</div>'
+      + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Or a style</div>'
+      + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Whole-window styles after the popular Discord themes.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
+      + looks.filter((l) => l.styled).map(card).join('') + '</div>'
       + '<div id="ob-look-tabs" style="margin-top:15px;display:' + (cur === 'classic' ? 'block' : 'none') + '">'
       + '<div style="font-size:12px;font-weight:700;color:var(--text)">Where your tabs go</div>'
       + '<div style="display:flex;gap:9px;margin-top:7px">'

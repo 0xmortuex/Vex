@@ -207,9 +207,19 @@ const ShortcutEditor = (() => {
       window.removeEventListener('blur', onWindowBlur);
       btn.classList.remove('capturing');
       btn.innerHTML = originalHTML;
+      clearInterval(keepCapturing);
+      window.vex?.setShortcutCapturing?.(false);
     }
 
     cancelActiveCapture = stop;
+    // Ctrl+T, Ctrl+W, Ctrl+K, Ctrl+F, Ctrl+R and zoom are taken by the main
+    // process before the page sees them, so pressing one here opened a tab
+    // instead of being recorded (found 2026-09-29). Main lets keys through
+    // while a capture runs, and the registry's own rules decide on them.
+    window.vex?.setShortcutCapturing?.(true);
+    // Main lets go by itself after 15 s; a capture left waiting longer got
+    // Ctrl+T back as a new tab (found 2026-09-29). Renewed while it lasts.
+    const keepCapturing = setInterval(() => window.vex?.setShortcutCapturing?.(true), 10000);
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('blur', onWindowBlur);

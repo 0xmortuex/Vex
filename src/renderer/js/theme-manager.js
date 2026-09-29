@@ -62,6 +62,36 @@ const ThemeManager = {
     // Light is the first light theme here.
     { id: 'firefox-light', label: 'Firefox Light', preview: 'firefox-light.png', accent: '#0061e0', mock: { bg: '#f9f9fb', side: '#f0f0f4', surf: '#ffffff', txt: '#15141a', acc: '#0061e0' } },
     { id: 'firefox-dark',  label: 'Firefox Dark',  preview: 'firefox-dark.png',  accent: '#00ddff', mock: { bg: '#1c1b22', side: '#18171e', surf: '#2b2a33', txt: '#fbfbfe', acc: '#00ddff' } },
+    // After the popular BetterDiscord themes: each one's own colour scheme,
+    // named without product brands. inspiredBy is the picker card's tooltip.
+    { id: 'clearvision',  label: 'ClearVision',    accent: '#2780e6', inspiredBy: 'ClearVision (BetterDiscord)', mock: { bg: '#15181e', side: '#101217', surf: '#1d2129', txt: '#d8d8db', acc: '#2780e6' } },
+    { id: 'darkmatter',   label: 'Dark Matter',    accent: '#25ace8', inspiredBy: 'Dark Matter (BetterDiscord)', mock: { bg: '#161921', side: '#101218', surf: '#1d2029', txt: '#e4e6eb', acc: '#25ace8' } },
+    { id: 'duskplus',     label: 'Dusk Plus',      accent: '#d147a3', inspiredBy: 'Discord+ (BetterDiscord)', mock: { bg: '#1c1219', side: '#160e13', surf: '#281b23', txt: '#e7ebef', acc: '#d147a3' } },
+    { id: 'darkplus',     label: 'Dark Plus',      accent: '#bb86fc', inspiredBy: 'Dark+ (BetterDiscord)', mock: { bg: '#212121', side: '#1a1a1a', surf: '#302f2f', txt: '#e6e6e6', acc: '#bb86fc' } },
+    { id: 'terminal',     label: 'Terminal Green', accent: '#4aef98', inspiredBy: 'Fallout 4 Terminal (BetterDiscord)', mock: { bg: '#000900', side: '#000500', surf: '#061a0c', txt: '#4aef98', acc: '#4aef98' } },
+    { id: 'amoled',       label: 'AMOLED',         accent: '#5865f2', inspiredBy: 'AMOLED-Cord (BetterDiscord)', mock: { bg: '#000000', side: '#000000', surf: '#0e0e10', txt: '#f2f3f5', acc: '#5865f2' } },
+    { id: 'recordgreen',  label: 'Record Green',   accent: '#1db954', inspiredBy: 'Spotify Discord (BetterDiscord)', mock: { bg: '#121212', side: '#000000', surf: '#1a1a1a', txt: '#d9d9d9', acc: '#1db954' } },
+    { id: 'darkneon',     label: 'Dark Neon',      accent: '#04d9ff', inspiredBy: 'Dark Neon (BetterDiscord)', mock: { bg: '#000000', side: '#000000', surf: '#07111a', txt: '#c5c8c6', acc: '#04d9ff' } },
+    { id: 'deepmidnight', label: 'Deep Midnight',  accent: '#46aec5', inspiredBy: 'midnight by refact0r (BetterDiscord)', mock: { bg: '#16181d', side: '#111317', surf: '#1c1f26', txt: '#edf0f8', acc: '#46aec5' } },
+    { id: 'softx',        label: 'SoftX',          accent: '#00e6a8', inspiredBy: 'SoftX (BetterDiscord)', mock: { bg: '#1a1a1a', side: '#131313', surf: '#222222', txt: '#e8e8e8', acc: '#00e6a8' } },
+    { id: 'neutron',      label: 'Neutron',        accent: '#7a5ae6', inspiredBy: 'Neutron (BetterDiscord)', mock: { bg: '#0f0c1a', side: '#0a0812', surf: '#18132b', txt: '#e6e1f5', acc: '#7a5ae6' } },
+    { id: 'nocturnal',    label: 'Nocturnal',      accent: '#2f86dc', inspiredBy: 'Nocturnal (BetterDiscord)', mock: { bg: '#12171d', side: '#0e1217', surf: '#1e2731', txt: '#dde6ef', acc: '#2f86dc' } },
+    { id: 'tokyonight',   label: 'Tokyo Night',    accent: '#7aa2f7', inspiredBy: 'Tokyo Night (BetterDiscord)', mock: { bg: '#1a1b26', side: '#16161e', surf: '#1f2030', txt: '#c0caf5', acc: '#7aa2f7' } },
+    { id: 'material',     label: 'Material',       accent: '#6682e5', inspiredBy: 'MaterialDiscord (BetterDiscord)', mock: { bg: '#161922', side: '#101219', surf: '#1e212f', txt: '#dbdde6', acc: '#6682e5' } },
+    { id: 'androidbeige', label: 'Android Beige',  accent: '#57544a', inspiredBy: 'NieR: Automata - YoRHa Menu UI (BetterDiscord)', mock: { bg: '#dad4bb', side: '#cdc7ad', surf: '#e4dfca', txt: '#3a3831', acc: '#57544a' } },
+    { id: 'kaleidoscope', label: 'Kaleidoscope',   accent: '#d129ff', inspiredBy: 'kaleidoscope (BetterDiscord)', mock: { bg: '#010b1e', side: '#00050f', surf: '#031028', txt: '#dcddde', acc: '#d129ff' } },
+    { id: 'codedark',     label: 'Code Dark',      accent: '#4a86c5', inspiredBy: 'Discord Dark (BetterDiscord)', mock: { bg: '#1a1a1a', side: '#141414', surf: '#222222', txt: '#e0e0e0', acc: '#4a86c5' } },
+    { id: 'synthesis',    label: 'Synthesis',      accent: '#ffa500', inspiredBy: 'Synthesis (BetterDiscord)', mock: { bg: '#140624', side: '#0e041a', surf: '#1f0c36', txt: '#ffffff', acc: '#ffa500' } },
+    { id: 'virtualred',   label: 'Virtual Red',    accent: '#ff0000', inspiredBy: 'Virtual Boy (BetterDiscord)', mock: { bg: '#000000', side: '#000000', surf: '#120000', txt: '#ff1a1a', acc: '#ff0000' } },
+    { id: 'paperred',     label: 'Paper Red',      accent: '#d40000', inspiredBy: 'piOS, light mode (BetterDiscord)', mock: { bg: '#ffffff', side: '#f2f2f2', surf: '#ffffff', txt: '#000000', acc: '#d40000' } },
+    { id: 'noctisviola',  label: 'Noctis Viola',   accent: '#bf8ef1', inspiredBy: 'Noctis Viola (BetterDiscord)', mock: { bg: '#30243d', side: '#2b2136', surf: '#3d2e4d', txt: '#ccbfd9', acc: '#bf8ef1' } },
+    { id: 'wildberry',    label: 'Wildberry',      accent: '#f40174', inspiredBy: 'Wildberry (BetterDiscord)', mock: { bg: '#170027', side: '#10001c', surf: '#25003f', txt: '#f3e6ff', acc: '#f40174' } },
+    { id: 'gxred',        label: 'GX Red',         accent: '#de4364', inspiredBy: 'OperaGX Theme (BetterDiscord)', mock: { bg: '#121019', side: '#08050e', surf: '#1b1824', txt: '#eeeff0', acc: '#de4364' } },
+    { id: 'gruvbox',      label: 'Gruvbox',        accent: '#83a598', inspiredBy: 'Gruvbox Sharp (BetterDiscord)', mock: { bg: '#282828', side: '#1d2021', surf: '#32302f', txt: '#ebdbb2', acc: '#83a598' } },
+    { id: 'rosynight',    label: 'RosyNight',      accent: '#fc8686', inspiredBy: 'RosyNight (BetterDiscord)', mock: { bg: '#181818', side: '#121212', surf: '#212121', txt: '#f3dcdc', acc: '#fc8686' } },
+    { id: 'azurite',      label: 'Azurite',        accent: '#24cc89', inspiredBy: 'Azurite (BetterDiscord)', mock: { bg: '#040429', side: '#020220', surf: '#121236', txt: '#e2e6ff', acc: '#24cc89' } },
+    { id: 'neptune',      label: 'Neptune',        accent: '#228bd1', inspiredBy: 'Neptune (BetterDiscord)', mock: { bg: '#1a2035', side: '#141a2c', surf: '#222a43', txt: '#e2e8f5', acc: '#228bd1' } },
+    { id: 'ezlight',      label: 'EzLight',        accent: '#735f1c', inspiredBy: 'EzLight (BetterDiscord)', mock: { bg: '#d0cec9', side: '#c9c6c0', surf: '#dfddda', txt: '#232221', acc: '#735f1c' } },
     { id: 'custom',     label: 'Custom Image', preview: 'custom.png',    accent: '#8b8bff', mock: { bg: '#0e0e12', side: '#141419', surf: '#1a1a22', txt: '#e6e6f0', acc: '#8b8bff' }, upload: true },
   ],
 
@@ -123,7 +153,9 @@ const ThemeManager = {
 
     try {
       if (typeof WebviewManager !== 'undefined' && WebviewManager.webviews) {
-        const safe = themeName.replace(/[^a-z]/g, '');
+        // Hyphens pass: stripping them sent 'firefoxlight' to the start page,
+        // which knows no such theme and fell back to Oxford (found 2026-09-29).
+        const safe = themeName.replace(/[^a-z-]/g, '');
         for (const wv of WebviewManager.webviews.values()) {
           let url;
           try { url = typeof wv.getURL === 'function' ? wv.getURL() : null; } catch { url = null; }

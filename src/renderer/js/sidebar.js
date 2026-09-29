@@ -2088,6 +2088,8 @@ const SidebarManager = {
             try {
               const r = await window.vex?.installVencord?.();
               if (r && r.ok) {
+                // In safe mode it is put in place, not loaded (found 2026-09-29).
+                if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return; }
                 window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
                 const wv = this.panelWebviews['discord'];
                 if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
@@ -2106,6 +2108,8 @@ const SidebarManager = {
             try {
               const r = await window.vex?.installVencordLocal?.();
               if (r && r.ok) {
+                // In safe mode it is put in place, not loaded (found 2026-09-29).
+                if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return; }
                 // Fully RECREATE the Discord panel webview (don't just reload it):
                 // a reloaded webContents can keep running the previously-loaded
                 // Vencord build, so an updated plugin wouldn't show up. A brand-new

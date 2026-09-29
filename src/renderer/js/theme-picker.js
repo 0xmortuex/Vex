@@ -138,6 +138,7 @@ const ThemePicker = {
     const card = document.createElement('button');
     card.className = 'vtp-card' + (t.id === current ? ' active' : '');
     card.dataset.theme = t.id;
+    if (t.inspiredBy) card.title = `Inspired by ${t.inspiredBy}`;
     const isCustom = !!t.upload;
     const fav = ThemeManager.isFavorite(t.id);
     // Live CSS preview — a mini Vex window rendered with the theme's own variables

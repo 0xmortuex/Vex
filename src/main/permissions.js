@@ -202,10 +202,15 @@ function wirePermissionsOnSession(ses, tag, opts) {
     sendPermissionRequest({ id, origin, permission: asked });
 
     // Safety timeout — if the user ignores the prompt for 2 minutes, deny.
+    // The window is told, so its prompt goes: it stayed on screen and only
+    // failed when answered (found 2026-09-29).
     setTimeout(() => {
       if (pendingPermissions.has(id)) {
         pendingPermissions.delete(id);
         try { callback(false); } catch {}
+        const win = callback._host && callback._host.win;
+        try { if (win && !win.isDestroyed()) win.webContents.send('permission:expired', { id }); }
+        catch (err) { console.warn('[Permissions] could not say a request ran out:', err.message); }
       }
     }, 120000);
   });

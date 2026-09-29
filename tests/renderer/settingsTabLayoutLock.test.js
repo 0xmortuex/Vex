@@ -2,7 +2,7 @@
 //
 // Settings › Tab Layout vs Settings › GUI Style.
 //
-// Glass and the seven browser looks put the tabs on top themselves. The Tab
+// Glass, the seven browser looks and the styles put the tabs on top themselves. The Tab
 // Layout picker predates them and wrote body[data-tab-layout] unconditionally,
 // so two things broke:
 //   - picking "Vertical" under Glass put the top tab strip AND the vertical rail
@@ -16,7 +16,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { SettingsUI } = await import('../../src/renderer/js/settings-ui.js');
 
-const TOP_LAYOUT_STYLES = ['glass', 'chrome', 'chrome-dark', 'firefox', 'firefox-dark', 'safari', 'xp', 'win98'];
+const TOP_LAYOUT_STYLES = ['glass', 'chrome', 'chrome-dark', 'firefox', 'firefox-dark', 'safari', 'xp', 'win98',
+  'fluent', 'fluent-dark', 'glossy', 'neobrutal', 'terminal'];
 
 describe('SettingsUI.resolveTabLayout', () => {
   it('honours the stored choice under Classic', () => {

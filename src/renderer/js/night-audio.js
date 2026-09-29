@@ -84,6 +84,10 @@ const NightAudio = {
       const route = (media, through) => {
         const n = state.nodes.get(media);
         if (!n) return;
+        // Already routed this way: a re-run for a frame that loaded later
+        // reconnected every player, a small blip in the sound (found 2026-09-29).
+        if (n.through === through) return;
+        n.through = through;
         try { n.source.disconnect(); } catch (e) {}
         try { n.makeup.disconnect(); } catch (e) {}
         if (through) { n.source.connect(n.comp); n.comp.connect(n.makeup); n.makeup.connect(n.out); }
@@ -182,6 +186,13 @@ const NightAudio = {
       if (!this.isOn(url || '')) return;
       const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.webviews.get(tabId) : null;
       if (!wv) return;
+      this.apply(wv, true).catch(err => window.VexProblems?.note('Night mode', 'Could not even out the sound on ' + this.host(url), err));
+    });
+    // A player frame the page adds after it loaded (site-volume.js).
+    window.vexOnLateFrame((wv) => {
+      let url = '';
+      try { url = wv.getURL(); } catch { return; }       // closed while the frames settled
+      if (!this.isOn(url)) return;
       this.apply(wv, true).catch(err => window.VexProblems?.note('Night mode', 'Could not even out the sound on ' + this.host(url), err));
     });
     return this;

@@ -4,7 +4,11 @@ const ExtensionsSettings = (() => {
   function _toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
   function _esc(s) { return window.escapeHtml(s); }
   // An update of a switched-off extension replaces its files and leaves it off.
-  function _installedText(r) { return `Installed: ${r.name} v${r.version}` + (r.disabled ? ' — still switched off' : ''); }
+  // In safe mode it is placed but not loaded (found 2026-09-29).
+  function _installedText(r) {
+    if (r.afterRestart) return `Installed ${r.name} v${r.version} — it loads when Vex restarts normally`;
+    return `Installed: ${r.name} v${r.version}` + (r.disabled ? ' — still switched off' : '');
+  }
 
   // Icons live inside the install folder, so the manager loads them straight off
   // disk. encodeURI (not encodeURIComponent) keeps the drive letter and the path

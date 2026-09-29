@@ -1028,7 +1028,7 @@ const TabManager = {
           <div class="tab-group-dot" style="background: ${group.color}"></div>
           <span class="tab-group-name">${this._escapeHtml(group.name)}</span>
           <span class="tab-group-count">${tabCount}</span>
-          <svg class="tab-group-chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M4 3L8 6L4 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <svg class="tab-group-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4 3L8 6L4 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </div>
         <div class="tab-group-tabs"></div>
       `;

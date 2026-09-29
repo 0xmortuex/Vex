@@ -172,6 +172,12 @@ const ResponsivePreview = {
     document.addEventListener('keydown', onKey, true);
     m.querySelector('#rp-close').addEventListener('click', close);
     m.querySelector('#rp-close').focus({ preventScroll: true });
+    // With focus in one of the previews the key goes to that page; one it left
+    // alone comes back from preload-webview.js, and closes this the same way
+    // (found 2026-09-29).
+    m.querySelectorAll('webview[data-rp]').forEach(w => w.addEventListener('ipc-message', (e) => {
+      if (e.channel === 'vex-escape' && m.isConnected && !document.querySelector('.vex-dialog-overlay')) close();
+    }));
     m.querySelector('#rp-reload').addEventListener('click', () => m.querySelectorAll('webview[data-rp]').forEach(w => { try { w.reload(); } catch {} }));
   },
 };

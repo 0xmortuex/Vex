@@ -39,11 +39,30 @@ const PermissionPrompts = (() => {
 
   function _esc(s) { return window.escapeHtml(s); }
 
-  function showPrompt(data) {
-    const { id, origin, permission } = data || {};
-    const info = LABELS[permission] || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
+  // One prompt on screen at a time; the rest wait their turn. A second request
+  // used to remove the first without answering it, and main then denied that
+  // one on its two-minute timeout: the site was refused and nobody had been
+  // asked (found 2026-09-29). A request for the same site and permission as
+  // one already open or waiting joins it, and one answer settles both.
+  const _queue = [];   // [{ data, ids: [id, ...] }]; _queue[0] is the one on screen
+  const _key = (d) => (d.origin || '') + '::' + (d.permission || '');
 
-    document.querySelectorAll('.permission-prompt').forEach(p => p.remove());
+  function showPrompt(data) {
+    const d = data || {};
+    const same = _queue.find(q => _key(q.data) === _key(d));
+    if (same) { same.ids.push(d.id); return; }
+    _queue.push({ data: d, ids: [d.id] });
+    if (_queue.length === 1) _show(_queue[0]);
+  }
+
+  function _next() {
+    _queue.shift();
+    if (_queue.length) _show(_queue[0]);
+  }
+
+  function _show(entry) {
+    const { origin, permission } = entry.data;
+    const info = LABELS[permission] || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
 
     const prompt = document.createElement('div');
     prompt.className = 'permission-prompt';
@@ -63,14 +82,37 @@ const PermissionPrompts = (() => {
     document.body.appendChild(prompt);
     requestAnimationFrame(() => prompt.classList.add('show'));
 
-    const respond = async (decision, remember) => {
+    let answered = false;
+    // Main blocked it after two minutes without an answer: take it away, say
+    // so, and bring up the next.
+    entry._expire = () => {
+      if (answered) return;
+      answered = true;
       document.removeEventListener('keydown', onKey, true);
-      try {
-        await window.vex.permissionRespond({ id, decision, remember, origin, permission });
-      } catch (err) { console.error('[Permissions] respond failed:', err); }
       prompt.classList.remove('show');
       setTimeout(() => prompt.remove(), 250);
+      _next();
+      window.showToast?.(`${origin} → ${info.label}: blocked after two minutes without an answer — the site can ask again`, 'info', 4000);
+    };
+    const respond = async (decision, remember) => {
+      if (answered) return;
+      answered = true;
+      document.removeEventListener('keydown', onKey, true);
+      prompt.classList.remove('show');
+      setTimeout(() => prompt.remove(), 250);
+      // The next one waiting comes up now, not after main has replied.
+      _next();
+      let failed = null;
+      for (const id of entry.ids) {
+        try {
+          const res = await window.vex.permissionRespond({ id, decision, remember, origin, permission });
+          if (res && res.ok === false) failed = res.error || 'Vex did not take the answer';
+        } catch (err) { console.error('[Permissions] respond failed:', err); failed = err.message; }
+      }
       if (typeof window.showToast === 'function') {
+        // One that waited past main's two-minute limit was already refused
+        // there, so "Allowed" would be untrue.
+        if (failed) { window.showToast(`Could not answer ${origin} → ${info.label}: ${failed}`, 'error', 4000); return; }
         const how = remember === 'session' ? ' for this visit' : remember === 'day' ? ' for a day' : remember === false ? ' this time' : '';
         window.showToast(`${decision === 'allow' ? 'Allowed' : 'Blocked'}${how}: ${origin} \u2192 ${info.label}`, 'info', 3000);
       }
@@ -99,15 +141,29 @@ const PermissionPrompts = (() => {
     document.addEventListener('keydown', onKey, true);
   }
 
+  // A request main gave up on. The prompt goes once none of its requests is
+  // still waiting.
+  function expired(data) {
+    const id = data && data.id;
+    const at = _queue.findIndex(q => q.ids.includes(id));
+    if (at < 0) return;
+    const entry = _queue[at];
+    entry.ids = entry.ids.filter(x => x !== id);
+    if (entry.ids.length) return;
+    if (at === 0 && typeof entry._expire === 'function') entry._expire();
+    else _queue.splice(at, 1);
+  }
+
   function init() {
     if (!window.vex?.onPermissionRequest) return;
     window.vex.onPermissionRequest(showPrompt);
+    window.vex.onPermissionExpired?.(expired);
     // Signal main we're ready so any permission requests that fired during
     // cold-start (before this listener was attached) get flushed to us now.
     try { window.vex.permissionsRendererReady?.(); } catch {}
   }
 
-  return { init, showPrompt };
+  return { init, showPrompt, expired, _queue };
 })();
 
 window.PermissionPrompts = PermissionPrompts;

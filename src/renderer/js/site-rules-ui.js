@@ -221,9 +221,18 @@ if (typeof window !== 'undefined') window.SiteRulesUI = SiteRulesUI;
 // Asked for as soon as this file loads, before the window builds its tabs,
 // so a private tab opened at once is already built with JavaScript off.
 if (typeof window !== 'undefined' && SiteRulesUI._isPrivate()) {
-  SiteRulesUI.loadMirror().catch(err => {
+  const reload = () => SiteRulesUI.loadMirror().catch(err => {
     console.error('[SiteRules] private window could not read the switches:', err);
     window.VexProblems?.note('Site switches', 'This private window could not read your per-site switches', err);
   });
+  reload();
+  // Read once, the copy went stale: JavaScript switched off for a site in the
+  // normal window still ran in a private window that was already open (found
+  // 2026-09-29). Main sends no word of a change, so the copy is read again
+  // whenever this window is come back to, and every few seconds besides: a
+  // window Windows reports as covered still takes keys and opens tabs.
+  window.addEventListener('focus', reload);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reload(); });
+  SiteRulesUI._mirrorTimer = setInterval(reload, 3000);
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { SiteRulesUI };

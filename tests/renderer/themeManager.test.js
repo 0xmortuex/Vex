@@ -38,7 +38,13 @@ describe('ThemeManager', () => {
       'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave',
       'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome',
       'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian',
-      'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'custom'
+      'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark',
+      // After the popular BetterDiscord themes (2026-09-29).
+      'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen',
+      'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material',
+      'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred',
+      'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight',
+      'custom'
     ]);
     expect(TM.DEFAULT_THEME).toBe('oxford');
   });

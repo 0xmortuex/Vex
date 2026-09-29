@@ -9,6 +9,17 @@
    whole block only applies when a font has actually been chosen: without
    [data-vex-font] nothing here matches and Vex looks exactly as it shipped. */
 
+/* The fonts Vex ships (src/renderer/fonts, OFL). These rules were lost when
+   the font picker rewrote this file, so none of them loaded and the window
+   fell back to whatever the system had (found 2026-09-29). */
+@font-face{font-family:Outfit;src:url('../fonts/Outfit[wght].ttf') format('truetype');font-weight:100 900;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('../fonts/JetBrainsMono[wght].ttf') format('truetype');font-weight:100 800;font-display:swap}
+@font-face{font-family:'Space Grotesk';src:url('../fonts/SpaceGrotesk[wght].ttf') format('truetype');font-weight:300 700;font-display:swap}
+@font-face{font-family:Fraunces;src:url('../fonts/Fraunces[SOFT,WONK,opsz,wght].ttf') format('truetype');font-weight:100 900;font-display:swap}
+@font-face{font-family:Spectral;src:url('../fonts/Spectral-Regular.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:Spectral;src:url('../fonts/Spectral-Medium.ttf') format('truetype');font-weight:500;font-display:swap}
+@font-face{font-family:Spectral;src:url('../fonts/Spectral-SemiBold.ttf') format('truetype');font-weight:600;font-display:swap}
+
 :root {
   --vex-font-base: 'Outfit', system-ui, -apple-system, sans-serif;
   --vex-font-display: 'Space Grotesk', 'Outfit', sans-serif;

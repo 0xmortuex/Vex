@@ -405,6 +405,29 @@ ipcMain.on('shortcuts:guest-keys', (event, combos) => {
   _guestWantedKeys = new Set((Array.isArray(combos) ? combos : []).filter(c => typeof c === 'string').slice(0, 300));
 });
 
+// The shortcut editor records a key in the main window's page, but the keys
+// main acts on there itself (Ctrl+T/W/K/F/R, zoom, F11, F12…) never reached
+// it: pressing Ctrl+T to record it opened a tab (found 2026-09-29). While the
+// editor listens, the main window's key handler stands aside. It clears
+// itself when the window loses focus and after 15 s, so a recorder that never
+// says it stopped cannot leave Vex's own shortcuts dead.
+const SHORTCUT_CAPTURE_MS = 15000;
+let _shortcutCapturing = false;
+let _shortcutCaptureTimer = null;
+function _setShortcutCapturing(on) {
+  clearTimeout(_shortcutCaptureTimer);
+  _shortcutCaptureTimer = null;
+  _shortcutCapturing = on;
+  if (on) _shortcutCaptureTimer = setTimeout(() => { _shortcutCapturing = false; _shortcutCaptureTimer = null; }, SHORTCUT_CAPTURE_MS);
+}
+ipcMain.handle('shortcuts:capturing', (event, on) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
+    throw new Error('Only the main Vex window records shortcuts');
+  }
+  _setShortcutCapturing(on);
+  return true;
+});
+
 // A key the page had first and left alone (preload-webview.js): Ctrl+B,
 // Ctrl+Shift+Z and the rest of guest-shortcuts.js PAGE_FIRST.
 ipcMain.on('guest:page-shortcut', (event, report) => {
@@ -2359,7 +2382,7 @@ async function _replaceInPlace(previous, staged) {
   fs.mkdirSync(backupDir, { recursive: true });
   const wasDisabled = _readDisabledFolders().has(previous.folder);
   const reloadOld = async () => {
-    if (wasDisabled) return;
+    if (wasDisabled || _boot.safeMode) return;
     const { extension, errors } = await _loadExtensionEverywhere(previous.path);
     if (!extension) console.error(`[Extensions] ${previous.folder}: the old copy did not load again either — ${errors[0] || 'unknown'}`);
   };
@@ -2387,6 +2410,13 @@ async function _replaceInPlace(previous, staged) {
     _extLoadErrors.delete(previous.folder);
     return { ok: true, id: null, name, version: manifest.version, disabled: true };
   }
+  if (_boot.safeMode) {
+    // Safe mode loads no extensions: an update went live anyway, perhaps the
+    // very one that stopped Vex starting (found 2026-09-29). The files are in
+    // place and it loads on a normal start.
+    fs.rmSync(backup, { recursive: true, force: true });
+    return { ok: true, id: null, name, version: manifest.version, afterRestart: true };
+  }
   const { extension, errors } = await _loadExtensionEverywhere(previous.path);
   if (!extension) {
     _unloadFromAllSessions(previous.path);
@@ -2404,14 +2434,20 @@ async function _replaceInPlace(previous, staged) {
 // Load a freshly-placed install folder. If it can't load, the folder is REMOVED:
 // leaving it behind made it retry-and-fail on every boot and show up in the
 // manager as a nameless "v—" entry the user couldn't explain.
-async function _activateInstalledFolder(destFolder) {
+async function _activateInstalledFolder(destFolder, copyToUpdate) {
   let previous;
-  try { previous = _installedCopyOf(destFolder); }
+  try { previous = copyToUpdate || _installedCopyOf(destFolder); }
   catch (err) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: err.message };
   }
   if (previous) return _replaceInPlace(previous, destFolder);
+  if (_boot.safeMode) {
+    // Placed but not loaded in safe mode, like an update (_replaceInPlace).
+    const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8'));
+    const name = extHelpers.localize(manifest.name, extHelpers.readMessages(destFolder, manifest.default_locale));
+    return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true };
+  }
   const { extension, errors } = await _loadExtensionEverywhere(destFolder);
   if (!extension) {
     try { fs.rmSync(destFolder, { recursive: true, force: true }); }
@@ -2668,7 +2704,7 @@ async function _downloadBuffer(url) {
 // every EXT_PARTITIONS session. Mirrors extensions:install-zip but works from a
 // buffer (used by the Vencord auto-installer). forceSlug pins the folder name so
 // a re-install can find + replace the old copy.
-async function _installExtFromZipBuffer(zipBuffer, forceSlug) {
+async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate) {
   let AdmZip;
   try { AdmZip = require('adm-zip'); } catch { return { ok: false, error: 'adm-zip missing' }; }
   if (zipBuffer.slice(0, 4).toString() === 'Cr24') {
@@ -2705,22 +2741,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: 'manifest not at root after extract' };
   }
-  return await _activateInstalledFolder(destFolder);
-}
-
-// Remove any previously-installed extension whose folder slug starts with prefix
-// (unload from every session + delete on disk), so re-installing doesn't stack.
-function _removeExtBySlugPrefix(prefix) {
-  try {
-    for (const e of _extEntries()) {
-      if (!path.basename(e.path).startsWith(prefix + '-')) continue;
-      for (const ses of [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))]) {
-        try { for (const ex of ses.getAllExtensions()) if (path.resolve(ex.path) === path.resolve(e.path)) ses.removeExtension(ex.id); } catch {}
-      }
-      try { fs.rmSync(e.path, { recursive: true, force: true }); if (prefix === 'vencord') _vlog(`removeOld: deleted ${e.folder}`); }
-      catch (err) { if (prefix === 'vencord') _vlog(`removeOld: FAILED to delete ${e.folder} (${err.message}) — unloaded from sessions, will be deduped next startup`); }
-    }
-  } catch {}
+  return await _activateInstalledFolder(destFolder, copyToUpdate);
 }
 
 // One-click install for the catalogue (main/extension-sources.js): the latest
@@ -2748,6 +2769,21 @@ ipcMain.handle('extensions:install-catalog', async (_e, id) => {
   }
 });
 
+// The installed Vencord a (re)install updates in place. Deleting it first gave
+// the new build a new folder, so a new extension id and empty storage: every
+// Vencord setting was lost on each reinstall (found 2026-09-29). Matched on
+// the folder rather than the name, since the official and local builds need
+// not share one. The copy loaded in the Discord panel wins, else the newest.
+function _installedVencord() {
+  const copies = _extEntriesOnDisk().filter(e => e.manifest && /^vencord-/.test(e.folder));
+  if (!copies.length) return null;
+  let loaded = [];
+  try { loaded = secureSessions.fromPartition('persist:discord').getAllExtensions().map(x => path.resolve(x.path)); }
+  catch (err) { console.error('[Extensions] could not read the Discord panel extensions:', err.message); }
+  const mtime = e => fs.statSync(e.path).mtimeMs;
+  return copies.find(e => loaded.includes(path.resolve(e.path))) || copies.sort((a, b) => mtime(b) - mtime(a))[0];
+}
+
 // One-click Vencord: download the official chromium browser extension and load
 // it into the Discord panel session (persist:discord, included in EXT_PARTITIONS).
 ipcMain.handle('discord:install-vencord', async () => {
@@ -2761,8 +2797,7 @@ ipcMain.handle('discord:install-vencord', async () => {
       const buf = fs.readFileSync(localZip);
       if (buf && buf.length >= 50000) {
         try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: localZip })); } catch {}
-        _removeExtBySlugPrefix('vencord');
-        const r = await _installExtFromZipBuffer(buf, 'vencord');
+        const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
         if (r.ok) return { ...r, source: 'local:' + localZip };
       }
     } catch { /* fall back to official */ }
@@ -2771,8 +2806,7 @@ ipcMain.handle('discord:install-vencord', async () => {
   try {
     const buf = await _downloadBuffer(URL_VENCORD);
     if (!buf || buf.length < 50000) return { ok: false, error: 'download too small / failed' };
-    _removeExtBySlugPrefix('vencord');
-    return await _installExtFromZipBuffer(buf, 'vencord');
+    return await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
   } catch (e) {
     return { ok: false, error: (e && e.message) || 'install failed' };
   }
@@ -2828,8 +2862,7 @@ ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
     if (!buf || buf.length < 50000) return { ok: false, error: 'build zip too small / not a real build' };
     try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
     _vlog(`install-local: before=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
-    _removeExtBySlugPrefix('vencord');
-    const r = await _installExtFromZipBuffer(buf, 'vencord');
+    const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
     _dedupeVencordFolders();
     _vlog(`install-local: result ok=${r.ok} ${r.ok ? 'v' + r.version : 'err=' + r.error} after=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
     return r.ok ? { ...r, source: zipPath } : r;
@@ -3025,21 +3058,43 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     // "Loading, please wait" line until its data arrives, then 580px tall, and
     // it showed in a 500px window with scroll bars (2026-09-28). Chrome resizes
     // the popup to follow; so does this, keeping it centred under the button.
-    // The event only says "changed": the size it carries came out smaller than
-    // Dark Reader's page and clipped it, so the page is measured instead.
+    // The page's scroll size never comes out below the window, so a popup could
+    // only grow: Stylus's 246x117 page sat in a 328x464 box (found 2026-09-29).
+    // The event's preferred size is the content's own size, and is the target;
+    // it can come out smaller than a page that lays out wider once it has room
+    // (Dark Reader's clipped), so the page is then measured and the window
+    // grows to whatever still overflows.
+    let preferred = null;
+    const measurePopup = (w, h) => win.webContents.executeJavaScript(
+      `new Promise(done => { const t0 = Date.now(); (function check() {
+        if ((innerWidth === ${w} && innerHeight === ${h}) || Date.now() - t0 > 300) done({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight), iw: innerWidth, ih: innerHeight });
+        else setTimeout(check, 16);
+      })(); })`
+    );
     const fitPopup = async () => {
       if (win.isDestroyed()) return;
-      const size = await win.webContents.executeJavaScript(
-        '({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight), iw: innerWidth, ih: innerHeight })'
-      ).catch(err => { if (!win.isDestroyed()) console.error('[Extensions] popup re-measure failed:', err.message); return null; });
+      let [cw, ch] = win.getContentSize();
+      if (preferred) {
+        const [w, h] = extHelpers.clampPopupSize(preferred.width, preferred.height);
+        if (w !== cw || h !== ch) {
+          const [x, y] = win.getPosition();
+          _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((cw - w) / 2)), y);
+          [cw, ch] = [w, h];
+        }
+      }
+      const size = await measurePopup(cw, ch)
+        .catch(err => { if (!win.isDestroyed()) console.error('[Extensions] popup re-measure failed:', err.message); return null; });
       if (!size || win.isDestroyed() || ![size.w, size.h, size.iw, size.ih].every(Number.isFinite)) return;
-      const w = Math.min(800, Math.max(160, size.w));
-      const h = Math.min(600, Math.max(100, size.h));
+      if (size.w <= size.iw && size.h <= size.ih) return;
+      const [w, h] = extHelpers.clampPopupSize(Math.max(size.w, size.iw), Math.max(size.h, size.ih));
       if (w === size.iw && h === size.ih) return;
       const [x, y] = win.getPosition();
       _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((size.iw - w) / 2)), y);
     };
-    win.webContents.on('preferred-size-changed', fitPopup);
+    win.webContents.on('preferred-size-changed', (_event, size) => {
+      preferred = size;
+      if (win.isVisible()) fitPopup().catch(err => console.error('[Extensions] popup fit failed:', err.message));
+    });
     // Electron calls the focused page the active tab, and the popup takes the
     // focus: Dark Reader's popup said "This page is protected by browser"
     // about itself (2026-09-28). Remember the tab it was opened over.
@@ -3065,12 +3120,13 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     });
 
     await win.loadURL(`chrome-extension://${live.id}/${String(pages.popup).replace(/^\/+/, '')}`);
-    const size = await win.webContents.executeJavaScript(
+    // The content's preferred size once it has laid out; a page that has not
+    // reported one yet is measured, and follows when it does.
+    let first = preferred ? { w: preferred.width, h: preferred.height } : await win.webContents.executeJavaScript(
       '({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight) })'
     ).catch(err => { console.error('[Extensions] popup measure failed:', err.message); return null; });
-    // Chrome caps an action popup at 800x600; below ~160x100 it's unusable.
-    const measured = size && Number.isFinite(size.w) && Number.isFinite(size.h);
-    const [w, h] = measured ? [Math.min(800, Math.max(160, size.w)), Math.min(600, Math.max(100, size.h))] : win.getContentSize();
+    if (first && !(Number.isFinite(first.w) && Number.isFinite(first.h))) first = null;
+    const [w, h] = first ? extHelpers.clampPopupSize(first.w, first.h) : win.getContentSize();
     const [x, y] = Number.isInteger(request.x) && Number.isInteger(request.y)
       ? [Math.max(0, request.x - Math.round(w / 2)), Math.max(0, request.y)]
       : win.getPosition();
@@ -3079,7 +3135,7 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     win.focus();
     // Not every growth raises preferred-size-changed: Return YouTube Dislike's
     // popup stayed 296px wide against its 339px page (found 2026-09-29).
-    for (const ms of [300, 1000]) setTimeout(() => { fitPopup().catch(err => console.error('[Extensions] popup fit failed:', err.message)); }, ms);
+    for (const ms of [0, 300, 1000]) setTimeout(() => { fitPopup().catch(err => console.error('[Extensions] popup fit failed:', err.message)); }, ms);
     return { ok: true, id: live.id };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -4443,7 +4499,9 @@ app.whenReady().then(async () => {
         // Default theme is Oxford Editorial. Any unknown/legacy value (e.g. an
         // old "blackops") falls back to oxford so the start page never renders
         // themeless.
-        const KNOWN = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin'];
+        // Any theme the page itself has colours for. A fixed list of the first
+        // eight left every later theme on Oxford here (found 2026-09-29).
+        const KNOWN = { includes: (t) => /^[a-z]+(-[a-z]+)?$/.test(t) && html.includes('[data-theme="' + t + '"]') };
         let theme = 'oxford';
         try {
           const themeFile = getStorageFile('theme');
@@ -4584,7 +4642,10 @@ app.whenReady().then(async () => {
   }
 
   // Register global shortcuts
+  mainWindow.on('blur', () => _setShortcutCapturing(false));
   mainWindow.webContents.on('before-input-event', (event, input) => {
+    // The shortcut editor is recording: every key goes to it, F11 and F12 too.
+    if (_shortcutCapturing) return;
     if (input && input.key === 'F11') {
       console.log('[Vex F11] before-input-event fired on MAIN window webContents. type:', input.type, 'defaultPrevented(before):', event.defaultPrevented);
     }
@@ -4847,6 +4908,20 @@ ipcMain.handle('browsing:clear-history', async () => {
   await dataStore.flush(); await preferences.flush();
   await dataStore.clear('history', []);
   await preferences.clearKeys(['vex.history', 'vex.recentlyClosed']);
+  // The open-tab list, and the groups and stacks that name tabs, keep their
+  // previous version in a .bak: tabs.json.bak still held a tab closed just
+  // before Clear History (found 2026-09-29). Each backup becomes a copy of
+  // the current file, so a bad write can still be recovered from.
+  for (const key of ['tabs', 'groups', 'stacks']) {
+    await dataStore.enqueue(key, async () => {
+      const file = dataStore.file(key);
+      try { await fs.promises.copyFile(file, file + '.bak'); }
+      catch (err) {
+        if (err.code !== 'ENOENT') throw err;
+        await fs.promises.rm(file + '.bak', { force: true });
+      }
+    });
+  }
   return true;
 });
 ipcMain.handle('open-pip-window', async (event, url, media) => {

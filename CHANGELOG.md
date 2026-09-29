@@ -1,5 +1,25 @@
 # Changelog
 
+## v2.34.0 (2026-09-30) — 28 new themes and 5 new looks, after the popular Discord themes
+
+### New
+- **28 colour themes** after the most popular themes for Discord (from BetterDiscord's list), with their colours taken from each theme's own stylesheet: ClearVision, Dark Matter, Dusk Plus, Dark Plus, Terminal Green, AMOLED, Record Green, Dark Neon, Deep Midnight, SoftX, Neutron, Nocturnal, Tokyo Night, Material, Android Beige, Kaleidoscope, Code Dark, Synthesis, Virtual Red, Paper Red, Noctis Viola, Wildberry, GX Red, Gruvbox, RosyNight, Azurite, Neptune and EzLight. Every one reads well (text contrast checked), covers the New Tab page, and works in every look; the picker says which theme inspired each.
+- **Five new looks** in Settings › GUI Style and in setup: **Fluent** and **Fluent dark** (Windows 11: a tinted frame, rounded tabs, the accent pill under the tab you are on), **Glossy** (Aero-era glass and highlights), **Neobrutal** (thick outlines, hard shadows) and **Terminal** (monospace, box borders, tabs written as `[ 1: title ]`). Each takes the colours of your theme too.
+
+### Fixes
+- **Vex's own fonts were not loading** (Outfit, JetBrains Mono, Space Grotesk, Fraunces, Spectral): the font picker's rewrite of the font stylesheet had dropped them, so every choice of those fell back to whatever Windows had.
+- Firefox Light and Firefox Dark never reached the New Tab page, and only the first eight themes reached it through vex://start.
+- Updating Vencord no longer loses its settings; installing or updating an extension in safe mode waits for a normal restart.
+- Extension popups are sized exactly, small ones included (Stylus's is 246×117, as in Chrome).
+- A private window picks up a per-site switch changed later in the normal window, within a few seconds.
+- Permission prompts wait their turn instead of the second removing the first; one that runs out after two minutes goes away and says so.
+- Escape inside a Peek or Responsive Preview page closes it, when the page does not use Escape itself.
+- Clear History also clears the backup copy of your tab list.
+- Master Volume, the page volume and Night mode reach a player in a frame that loads later; Night mode no longer re-routes players it already handles.
+- With a persona on, Group Tabs and questions about several tabs keep their own instructions; history search and agent tasks go into the chat of the tab you are on, and a history search's answer is kept with the chat.
+- The shortcut editor can record keys Vex itself answers (Ctrl+T, Ctrl+W, Ctrl+K), however long you wait.
+- Group arrows in the vertical tab list point the right way and are drawn as outlines; group chips are readable in the dark looks with Oxford.
+
 ## v2.33.15 (2026-09-29) — The download check works from any shell
 
 Includes everything in v2.33.14, which was not published.

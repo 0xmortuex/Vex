@@ -234,6 +234,10 @@ describe('permission prompt', () => {
     escape(other);
     expect(window.vex.permissionRespond).not.toHaveBeenCalled();
     expect(document.querySelector('.permission-prompt')).not.toBeNull();
+    // Answer it, so it is not still waiting in front of the next test's prompt.
+    other.remove();
+    escape(document.body);
+    expect(window.vex.permissionRespond).toHaveBeenCalledWith(expect.objectContaining({ id: 'p2', decision: 'deny', remember: false }));
   });
 
   it('a button still answers, and takes the Escape listener with it', async () => {

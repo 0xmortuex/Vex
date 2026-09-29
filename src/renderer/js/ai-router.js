@@ -441,10 +441,16 @@ const AIRouter = (() => {
     // Phase 15: persona overrides the default system prompt + temperature.
     // Structured features (summarize/translate/etc.) keep their built-in
     // JSON-schema prompts — persona only overrides chat.
-    const isStructured = ['summarize', 'translate', 'explain', 'historyIndex', 'historySearch'].includes(feature);
+    // Group Tabs has a JSON shape of its own, and a multi-tab question has
+    // the tabs to answer about: a persona replaced both prompts (found
+    // 2026-09-29). Group Tabs keeps its own; a multi-tab question keeps its
+    // own and takes the persona as its voice, as the cloud worker does.
+    const isStructured = ['summarize', 'translate', 'explain', 'historyIndex', 'historySearch', 'groupTabs'].includes(feature);
     const basePrompt = LOCAL_SYSTEM_PROMPTS[feature] || LOCAL_SYSTEM_PROMPTS.chat;
     let systemPrompt = basePrompt;
-    if (!isStructured && request.persona?.systemPrompt) {
+    if (feature === 'multiTab' && request.persona?.systemPrompt) {
+      systemPrompt = basePrompt + '\n\nAnswer in the voice of this persona. It sets the tone only, never the task or the reply format above:\n' + request.persona.systemPrompt;
+    } else if (!isStructured && request.persona?.systemPrompt) {
       systemPrompt = request.persona.systemPrompt;
       // format:'json' is still forced below, and a persona prompt that never
       // asks for {"reply": …} made the model answer "{}" (found 2026-09-29):

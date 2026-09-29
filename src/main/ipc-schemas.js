@@ -126,6 +126,8 @@ define('vex:set-bg-throttling', [integer, boolean]);
 define('app:tab-memory', [value => Array.isArray(value) && value.length <= 10000 && value.every(integer)]);
 // Every key the renderer's shortcut registry answers to, as written combos.
 define('shortcuts:guest-keys', [value => Array.isArray(value) && value.length <= 300 && value.every(v => string(64)(v))]);
+// The shortcut editor is (not) recording a key: main's own keys stand aside.
+define('shortcuts:capturing', [boolean]);
 define('app:open-as-app', [web, optional(string(4096))]);
 define('tor:verify routing:get', [optional(string(160))]);
 define('routing:set', [optional(string(160)), oneOf(['direct','tor','proxy']), optional(string(2048))]);
