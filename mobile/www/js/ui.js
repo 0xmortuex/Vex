@@ -173,8 +173,68 @@ const VexUI = (() => {
     renderToolbar();
   }
 
+  // ── The tab bar ───────────────────────────────────────────────────────────
+  // A phone has no room for it; a tablet, a split screen and a big phone in
+  // landscape do, which is exactly where Samsung Internet shows one. "auto"
+  // decides by how wide the window is right now, so it appears and goes away
+  // with a fold or a split rather than needing a restart.
+  const TAB_BAR_WIDTH = 600;
+
+  function tabBarWanted() {
+    const setting = VexStore.get('vex.tabBar', 'auto');
+    if (setting === 'off') return false;
+    if (setting === 'on') return true;
+    return window.innerWidth >= TAB_BAR_WIDTH;
+  }
+
+  let builtStrip = '';
+
+  function renderTabStrip() {
+    const strip = $('tabstrip');
+    const wanted = tabBarWanted();
+    if (strip.hidden !== !wanted) {
+      strip.hidden = !wanted;
+      scheduleBounds();                      // the content rect just changed size
+    }
+    if (!wanted) { builtStrip = ''; return; }
+
+    const active = VexTabStore.activeId();
+    const tabs = VexTabStore.active() && VexTabStore.active().incognito
+      ? VexTabStore.private()
+      : VexTabStore.normal();
+    // Same lesson as the toolbar: rebuilding under a finger loses the tap, so
+    // only rebuild when the row actually changes.
+    const signature = tabs.map(tab => tab.id + ':' + (tab.title || tab.url) + ':' + (tab.icon ? '1' : '0')).join('|')
+      + '#' + active;
+    if (signature === builtStrip) return;
+    builtStrip = signature;
+
+    const list = clear($('tabstrip-list'));
+    for (const tab of tabs) {
+      const chip = el('button', {
+        class: 'tabstrip-tab' + (tab.id === active ? ' active' : ''),
+        'aria-label': tab.title || VexSearch.prettyHost(tab.url) || 'New tab',
+        'aria-current': tab.id === active ? 'true' : 'false'
+      });
+      chip.appendChild(favicon(tab, 'tabstrip-icon'));
+      chip.appendChild(el('span', 'tabstrip-title',
+        tab.title || VexSearch.prettyHost(tab.url) || 'New tab'));
+      const close = el('button', { class: 'tabstrip-x', 'aria-label': 'Close tab' });
+      close.appendChild(icon('close'));
+      close.onclick = async event => {
+        event.stopPropagation();
+        await VexTabStore.close(tab.id);
+      };
+      chip.appendChild(close);
+      chip.onclick = () => { if (tab.id !== VexTabStore.activeId()) VexTabStore.activate(tab.id); };
+      VexGestures.longPress(chip, () => tabActions(tab));
+      list.appendChild(chip);
+    }
+  }
+
   function renderToolbar() {
     renderToolbarButtons();
+    renderTabStrip();
     const tab = VexTabStore.active();
     const url = tab ? (tab.loading && tab.pendingUrl ? tab.pendingUrl : tab.url) : '';
     const live = !!(url && url !== 'about:blank');
@@ -738,7 +798,7 @@ const VexUI = (() => {
 
     BUTTONS, DEFAULT_BUTTONS, buttonConfig, goHome,
     toast, cover, pushBounds, scheduleBounds, applyToolbarPosition, onPageScroll,
-    renderToolbar, renderProgress, renderTabGrid, renderSuggestions, refreshMediaBar,
+    renderToolbar, renderProgress, renderTabGrid, renderTabStrip, renderSuggestions, refreshMediaBar,
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind,
     openUrl, newTab, copy, toggleBookmark, reopenClosed, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage,
@@ -882,8 +942,10 @@ const VexUI = (() => {
       VexStart.bind();
       applyToolbarPosition();
 
-      window.addEventListener('resize', scheduleBounds);
-      window.addEventListener('orientationchange', scheduleBounds);
+      $('tabstrip-new').onclick = () => newTab();
+
+      window.addEventListener('resize', () => { scheduleBounds(); renderTabStrip(); });
+      window.addEventListener('orientationchange', () => { scheduleBounds(); renderTabStrip(); });
       if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleBounds);
 
       VexTabStore.onChange(() => { renderToolbar(); renderProgress(); });

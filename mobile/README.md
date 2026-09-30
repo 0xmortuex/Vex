@@ -4,9 +4,11 @@ The Vex browser as a native Android app: the Vex chrome rendered by Capacitor,
 real pages rendered by Android's system WebView, and a native layer doing the
 work Electron's main process does on the desktop.
 
-It is not a release. It has never been assembled by Gradle — this machine has
-no Android SDK — though every Java source is type-checked against the real
-Android framework on each `npm run check` (see **Checks** below).
+It is not a release, but it builds: CI assembles a debug APK on every push and
+leaves it as an artifact (4.4 MB, Gradle 8.14.3, AGP 8.13, compileSdk 36), with
+`lintDebug` clean. It has never been installed on a phone — that is the next
+thing that has to happen, and **The first run on a real device** below is the
+list to walk.
 [PORTING.md](PORTING.md) says, feature by feature, what the desktop browser can
 and cannot bring to a phone. Read that before planning work here.
 
@@ -46,7 +48,8 @@ rather than offering a way past.
 codes and form filling; personal details for sign-up forms; QR codes both
 ways (scan one, or hand this page to the machine next to you); dictation into
 the address bar; add a site to the home screen; a home-screen search widget
-that opens the address bar, dictation or the scanner in one tap.
+that opens the address bar, dictation or the scanner in one tap; and a tab bar
+when the window is wide enough to hold one.
 
 **Vex's own** — eight themes, seven skins and five typefaces generated from
 the desktop's token file; the assistant against a Cloudflare Worker you deploy
@@ -284,7 +287,8 @@ Nothing below can be settled without a phone, and all of it is cheap to check:
 
 ## Known limits
 
-- Never assembled by Gradle; the first real build will need fixing up.
+- Never installed on a phone. It assembles and lints clean, which is not the
+  same thing: nothing below the Java has run on a device yet.
 - Private tabs only get a separate cookie jar on WebView 116+ (multi-profile).
 - History and Recall are in IndexedDB and scale to tens of thousands of rows;
   bookmarks, sessions and settings stay in SharedPreferences because they are

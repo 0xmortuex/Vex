@@ -1044,6 +1044,20 @@ const VexPanels = (() => {
           VexUI.renderToolbar();
         }));
 
+      const tabBar = VexStore.get('vex.tabBar', 'auto');
+      body.appendChild(valueRow('Tab bar', 'A row of tabs above the page, where there is room for one',
+        tabBar === 'on' ? 'Always' : tabBar === 'off' ? 'Never' : 'When there is room',
+        () => VexSheets.choose('Tab bar', [
+          { id: 'auto', label: 'When there is room', note: 'A tablet, a split screen, a big phone turned sideways', selected: tabBar === 'auto' },
+          { id: 'on', label: 'Always', note: 'Even on a phone, where it costs you a line of page', selected: tabBar === 'on' },
+          { id: 'off', label: 'Never', note: 'The grid switcher only', selected: tabBar === 'off' }
+        ], async choice => {
+          await VexStore.set('vex.tabBar', choice);
+          VexUI.renderTabStrip();
+          VexSheets.close();
+          this.appearance();
+        })));
+
       body.appendChild(heading('Skin'));
       const skin = VexStore.get('vex.skin', 'none');
       body.appendChild(valueRow('Texture', 'Drawn in the theme’s own ink',

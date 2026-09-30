@@ -29,7 +29,7 @@ Everything else below is either matched or bettered.
 | Open links in new tab | ✅ | Settings → Tabs |
 | Block pop-ups | ✅ | A window you tapped for still opens |
 | Multi-window / split screen | ✅ | Android's own; Vex is a normal resizable activity |
-| Tab bar on tablets | ❌ | The grid switcher is the only tab UI |
+| Tab bar on tablets | ✅ | A chip per tab above the page, shown when the window is at least 600px wide — a tablet, a split screen, a big phone sideways. Settings → Appearance → Tab bar to force it on or off |
 
 ## Reading and media
 
@@ -124,4 +124,4 @@ The desktop features that came across, which Samsung Internet has no answer to:
 - Widevine-protected streaming (Netflix, Disney+ — see PORTING.md, blocker 1).
 - Tor and the DPI bypass (they are bundled executables on Windows).
 - On-device AI (WebView exposes no WebGPU).
-- A tablet tab bar.
+- Downloading a stream (HLS, DASH). A direct file link downloads.

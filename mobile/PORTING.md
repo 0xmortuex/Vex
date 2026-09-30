@@ -118,7 +118,8 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Skins | ✅ partial | Seven of the nineteen textures, drawn in the theme's ink at a strength you pick, plus corner and shadow |
 | Interface typeface | ✅ | Five faces, Spectral and Outfit bundled from the desktop's own font folder |
 | Page theme-colour tinting | ✅ | Only when the colour reads against the theme, so toolbar icons stay visible |
-| Toolbar/sidebar rearranging | ❌ | Four controls fit on a phone toolbar |
+| Toolbar/sidebar rearranging | ✅ partial | Up to three buttons either side of the address pill, and the menu's own order |
+| Tab strip | ✅ | Only where there is room: a tablet, a split screen, a big phone in landscape |
 | Command bar, keyboard shortcuts | ❌ | No keyboard; the menu sheet is the mobile answer |
 | Auto-update | 🔧 | Play Store, or an APK update check of your own |
 | Default browser | ✅ | The role dialog on Android 10+, the settings screen otherwise |
@@ -139,7 +140,7 @@ Everything in the comparison with Samsung Internet is in
 What is checked here, on every `npm run check`:
 
 - **The Java type-checks against the real Android framework.** `scripts/check-java.mjs`
-  compiles all seven Android sources with javac against Robolectric's
+  compiles all eleven Android sources with javac against Robolectric's
   `android-all` jar — the actual `android.webkit`, `android.print`,
   `android.security.keystore` classes — plus hand-written androidx and
   Capacitor stubs in `tools/stubs`. A wrong WebView signature fails here the
@@ -149,7 +150,7 @@ What is checked here, on every `npm run check`:
   cannot ship a call into a method nobody wrote.
 - **The chrome's modules agree with each other.** `check-api.mjs` loads all of
   them and checks every `VexThing.method(` against what that thing exports —
-  1,042 calls across 29 modules.
+  1,103 calls across 31 modules.
 - **The themes match the desktop.** `sync-themes.mjs --check`.
 - **The sync files match the desktop, byte for byte.** `sync-shared.mjs --check`
   over the AES-GCM primitives and the record merge — a drift there is two

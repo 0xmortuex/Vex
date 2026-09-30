@@ -196,6 +196,21 @@ await page.waitForTimeout(450);
 results.urlPill = (await page.textContent('#tb-url-text')).trim();
 results.startHidden = !(await page.isVisible('#start'));
 
+// ── The tab bar, which only a wide window gets ──────────────────────────────
+// A phone does not show one. Widen the window to a tablet and it should appear,
+// with a chip per tab; narrow it again and it should go away, because a fold or
+// a split screen changes the answer without restarting anything.
+results.tabBarOnPhone = await page.evaluate(() => !!document.getElementById('tabstrip').hidden);
+await page.setViewportSize({ width: 900, height: 700 });
+await page.waitForTimeout(300);
+results.tabBarOnTablet = await page.isVisible('#tabstrip');
+results.tabBarChips = await page.$$eval('#tabstrip .tabstrip-tab', chips => chips.length);
+results.tabBarActive = await page.$$eval('#tabstrip .tabstrip-tab.active', chips => chips.length);
+await shot('11-tabbar');
+await page.setViewportSize({ width: 412, height: 915 });
+await page.waitForTimeout(300);
+results.tabBarGoesAway = await page.evaluate(() => !!document.getElementById('tabstrip').hidden);
+
 // ── The home-screen widget's three taps ─────────────────────────────────────
 // A widget tap arrives the way a share does: as a window event carrying what
 // was tapped. Capacitor puts the payload's fields on the event itself, which is
@@ -689,7 +704,9 @@ const expected = {
   noteKept: true, notesPanelRows: 1,
   reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
   libraryOpens: true,
-  widgetOpensOmnibox: true, widgetDictates: true
+  widgetOpensOmnibox: true, widgetDictates: true,
+  tabBarOnPhone: true, tabBarOnTablet: true, tabBarChips: 1, tabBarActive: 1,
+  tabBarGoesAway: true
 };
 
 const failures = [];

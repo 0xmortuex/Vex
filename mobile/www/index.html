@@ -62,6 +62,14 @@
 
 <div id="progress" class="progress" aria-hidden="true"><i></i></div>
 
+<!-- The tab bar. Hidden on a phone, where there is no room for it and the grid
+     switcher is the better answer; shown on a tablet, in split screen, or in
+     landscape on a big phone — which is where Samsung Internet shows its own. -->
+<nav id="tabstrip" class="tabstrip" aria-label="Tabs" hidden>
+  <div class="tabstrip-list" id="tabstrip-list"></div>
+  <button class="tabstrip-new" id="tabstrip-new" aria-label="New tab"><svg><use href="#i-plus"/></svg></button>
+</nav>
+
 <!-- The content rect: never painted. The native tab WebView is placed over it. -->
 <main id="content" class="content" aria-label="Page"></main>
 
