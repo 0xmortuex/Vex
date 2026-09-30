@@ -152,12 +152,17 @@ cd android
 ./gradlew assembleDebug       # or: npx cap open android
 ```
 
-`npx cap sync` generates `android/capacitor.settings.gradle`,
-`android/app/capacitor.build.gradle` and `android/capacitor-cordova-android-plugins/`.
-None are in git, and the Gradle files guard against their absence — so **run
-sync before Gradle** on a fresh clone. There is no Gradle wrapper in the repo;
-generate one with `gradle wrapper --gradle-version 8.13`, or let Android Studio
-do it.
+`npx cap sync` writes `android/capacitor.settings.gradle` (the plugin module
+list), `android/app/capacitor.build.gradle` (their dependencies) and the
+contents of `android/capacitor-cordova-android-plugins/`. The first two are
+generated per machine and are not in git; the Cordova-plugins module is in git
+because `capacitor.build.gradle` applies a file from it unconditionally, so
+Gradle cannot even configure without the directory — Vex uses no Cordova
+plugins, but the module still has to exist. **Run sync before Gradle** on a
+fresh clone.
+
+There is no Gradle wrapper in the repo; generate one with
+`gradle wrapper --gradle-version 8.13`, or let Android Studio do it.
 
 ## Checks
 

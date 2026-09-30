@@ -616,6 +616,16 @@ public class TabWebView extends WebView {
                     || scheme.equals("data") || scheme.equals("file")) {
                 return false;
             }
+            // vex:// is the chrome talking to itself: the buttons on Vex's own
+            // error page are links, because a page cannot call the chrome.
+            if (scheme.equals("vex")) {
+                JSObject data = new JSObject();
+                data.put("id", id);
+                data.put("command", uri.getHost() == null ? "" : uri.getHost());
+                data.put("value", uri.getQuery() == null ? "" : uri.getQuery());
+                host.emit("command", data);
+                return true;
+            }
             // mailto:, tel:, intent:, market: … belong to other apps.
             try {
                 Intent intent = scheme.equals("intent")

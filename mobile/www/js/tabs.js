@@ -36,6 +36,7 @@ const VexTabStore = (() => {
       icon: '',
       themeColor: '',
       scrollY: 0,
+      errorUrl: '',
       createdAt: Date.now(),
       lastActiveAt: Date.now()
     };

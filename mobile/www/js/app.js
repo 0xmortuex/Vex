@@ -300,9 +300,20 @@
       document.body.classList.toggle('toolbar-hidden', !!(data && data.fullscreen));
     });
 
-    VexBridge.on('error', data => {
-      VexTabStore.update(data.id, { loading: false, progress: 100 });
-      if (data.description) VexUI.toast(String(data.description).slice(0, 110), 3500);
+    VexBridge.on('error', async data => {
+      const tab = VexTabStore.update(data.id, { loading: false, progress: 100 });
+      if (!tab) return;
+      // Vex's own error page, in your theme, offering the three things worth
+      // offering — including the copy it saved, if there is one.
+      const drawn = await VexErrors.show(tab, { code: data.code, description: data.description });
+      if (!drawn && data.description) VexUI.toast(String(data.description).slice(0, 110), 3500);
+    });
+
+    // The buttons on that page are vex:// links, because a page cannot call
+    // the chrome.
+    VexBridge.on('command', data => {
+      const tab = VexTabStore.get(data.id) || VexTabStore.active();
+      VexErrors.handle(tab, data.command, data.value);
     });
   }
 

@@ -121,7 +121,7 @@ const VexBridge = (() => {
       for (const name of Object.keys(plugins)) plugins[name] = capacitor.Plugins[name] || null;
       for (const event of ['loadStart', 'loadProgress', 'loadEnd', 'title', 'urlChange', 'icon',
         'newTab', 'download', 'error', 'blocked', 'findResult', 'permission', 'edgeSwipe',
-        'longPress', 'fullscreen', 'scroll', 'selection']) {
+        'longPress', 'fullscreen', 'scroll', 'selection', 'command']) {
         plugins.VexTabs.addListener(event, data => emit(event, data));
       }
       if (plugins.VexBlock) plugins.VexBlock.addListener('blocked', data => emit('blocked', data));

@@ -44,7 +44,7 @@ jobs:
 
       - name: Install the chrome's dependencies
         working-directory: mobile
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       # The checks that do not need a device: the chrome parses, every native
       # call the bridge makes exists, the themes and the shared sync files have
