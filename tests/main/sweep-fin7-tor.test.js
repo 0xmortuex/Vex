@@ -3,8 +3,7 @@
 // Fixes of 2026-09-29 around Tor (fin7): a link opened in a new tab from a
 // Tor / burner / private / container tab stays in that session, a session
 // routed through Tor (a burner over Tor, a Tor container) gets WebRTC locked
-// like a Tor tab, Cancel during Tor's download really cancels, updater errors
-// come through in plain words, and the New Tor Tab hint no longer says Tor
+// like a Tor tab, Cancel during Tor's download really cancels, and the New Tor Tab hint no longer says Tor
 // has to be running already. main.js cannot be loaded outside Electron, so it
 // is read as text where a module cannot stand in for it.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -15,7 +14,6 @@ import { PassThrough } from 'node:stream';
 const path = require('path');
 
 const { keepsOpenerSession, markRoutedSession } = require('../../src/main/routing.js');
-const { plainUpdateError, bindUpdater } = require('../../src/main/updates.js');
 
 const read = f => fs.readFileSync(path.resolve(f), 'utf8').replace(/\r\n/g, '\n');
 const MAIN = read('src/main.js');
@@ -243,38 +241,6 @@ describe('Cancel while Tor is downloading', () => {
 
   it('main still reports a cancelled start as cancelled', () => {
     expect(MAIN).toContain("ipcMain.handle('tor:cancel', () => { _torCancelled = true; _torLauncher.stop(); return { ok: true }; });");
-  });
-});
-
-describe('updater errors in plain words', () => {
-  it('a signature failure says so, without PowerShell JSON or the installer path', () => {
-    const raw = 'New version 9.9.9 is not signed by the application owner: publisherNames: 0xmortuex, raw info: { "SignerCertificate": null, "Status": 1, "Path": "C:\\\\Users\\\\USER\\\\AppData\\\\Local\\\\vex-updater\\\\pending\\\\temp-Vex-Setup-9.9.9.exe" }';
-    const out = plainUpdateError(Object.assign(new Error(raw), { code: 'ERR_UPDATER_INVALID_SIGNATURE' }));
-    expect(out).toMatch(/not signed/);
-    expect(out).not.toMatch(/Users|SignerCertificate|\{/);
-  });
-
-  it('a damaged download and a download before any check', () => {
-    expect(plainUpdateError(new Error('sha512 checksum mismatch, expected SoDN1K==, got 1yQj=='))).toMatch(/damaged/);
-    expect(plainUpdateError(new Error('sha512 checksum mismatch, expected SoDN1K==, got 1yQj=='))).not.toMatch(/SoDN1K/);
-    expect(plainUpdateError(new Error('Please check update first'))).toMatch(/Check for updates, then download/);
-  });
-
-  it('anything else: its first line, with Windows paths taken out, and short', () => {
-    expect(plainUpdateError(new Error('network is down'))).toBe('network is down');
-    expect(plainUpdateError(new Error('ENOENT: open C:\\Users\\USER\\x\\latest.yml\n    at stack'))).toBe('ENOENT: open (file)');
-    expect(plainUpdateError(new Error('x'.repeat(500))).length).toBe(200);
-    expect(plainUpdateError(null)).toBe('unknown');
-  });
-
-  it('reaches the window mapped, and the download IPC answers mapped too', () => {
-    const listeners = {};
-    const sent = [];
-    bindUpdater({ on: (e, fn) => { listeners[e] = fn; }, removeListener() {} },
-      () => ({ isDestroyed: () => false, webContents: { send: (c, p) => sent.push(p) } }));
-    listeners.error(new Error('Please check update first'));
-    expect(sent[0].message).toMatch(/has not checked/);
-    expect(MAIN).toContain("return { ok: false, error: require('./main/updates').plainUpdateError(e) };");
   });
 });
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.35.0 (2026-10-01) — Vex updates itself
+
+### New
+- **Updates from inside Vex.** When you open Vex and a newer version is out, a cover shows it with what is new since yours, and three choices: **Update now**, **Later** (asks again next time) and **Skip this version**. Update now downloads it with a progress bar, checks it against the checksum its release publishes (a damaged or changed file is refused and deleted), closes Vex with your tabs saved, installs quietly and opens Vex again. Settings › Check for Updates opens the same cover.
+- This version is the first that can do it: from here on, updates install themselves. If you are on an older version, install this one the usual way once.
+
+### Changed
+- The small update card in the corner is gone, and so is the old built-in updater that could close Vex on some PCs; the Stable/Latest channel choice still applies to the cover.
+
 ## v2.34.5 (2026-10-01) — Tor's small print, checked on the build server
 
 Includes everything in v2.34.4, which was not published: two of its tests raced the disk on the build server, where Tor's download starts a moment later. The app is the same.

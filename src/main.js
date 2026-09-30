@@ -131,10 +131,6 @@ console.log('[Vex URL] execPath:', process.execPath);
 console.log('[Vex URL] defaultApp:', !!process.defaultApp);
 console.log('[Vex URL] isPackaged:', app.isPackaged);
 
-// Auto-updater (graceful — works in dev, fails silently if not packaged)
-let autoUpdater = null;
-try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
-
 let mainWindow = null;
 // Main-process reminders (src/main/reminders.js); created in startReminders()
 // once the window exists, referenced by the second-instance handler above it.
@@ -4651,12 +4647,6 @@ function createWindow() {
   });
 }
 
-let disposeUpdater = null;
-function setupAutoUpdater() {
-  disposeUpdater?.();
-  disposeUpdater = require('./main/updates').bindUpdater(autoUpdater, () => mainWindow);
-}
-
 // v1.9.0 one-time cleanup: remove Phase 17A Memory Recorder artifacts
 app.whenReady().then(() => {
   try {
@@ -4814,7 +4804,12 @@ app.whenReady().then(async () => {
   secureSessions.onSessionCreated(_wireBrowsingSession);
   await applyStoredRoutings();
   createWindow();
-  setupAutoUpdater();
+  // Installers left in userData/updates by the last update (or a download cut
+  // short). Late, so the installer that just started this version has exited.
+  setTimeout(() => {
+    if (_updater.downloading) return;
+    try { _updater.cleanup(); } catch (err) { console.warn('[Updates] could not tidy the updates folder:', err.message); }
+  }, 60000).unref();
   startReminders();
 
   // === Boot smoke test (gated by VEX_SMOKE=1) ===
@@ -6056,50 +6051,67 @@ ipcMain.handle('overlay:close', () => { if (_overlay && !_overlay.isDestroyed())
 ipcMain.handle('open-private-window', (_e, look) => openPrivateWindow({ look: look || '' }));
 ipcMain.handle('open-clean-window', (_e, url, look) => openPrivateWindow({ clean: true, url, look: look || '' }));
 
-// Update IPC
-// Lightweight manual check: fetch latest.yml from the GitHub "latest" release and
-// compare versions ourselves. We deliberately do NOT call
-// autoUpdater.checkForUpdates() here — on this (castLabs, unsigned) build it can
-// spawn native helpers (7za/differential tooling) that crash the process on
-// machines missing the MSVC runtime, which made the app close on "Check for
-// updates". This path only does an HTTPS GET + a string compare, so it can't
-// take the app down; if an update exists we point the user at the release page.
-function _cmpVer(a, b) {
-  const pa = String(a).split(/[.\-+]/).map(n => parseInt(n, 10) || 0);
-  const pb = String(b).split(/[.\-+]/).map(n => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] || 0) - (pb[i] || 0);
-    if (d) return d > 0 ? 1 : -1;
-  }
-  return 0;
+// === Updates (src/main/updates.js; the cover is js/update-notifier.js) ======
+// The check is a plain HTTPS GET of latest.yml and a version compare. We
+// deliberately do NOT use electron-updater: on this (castLabs, unsigned) build
+// its native helpers (7za/differential tooling) crashed machines missing the
+// MSVC runtime, and publisherName in package.json made it refuse every update
+// of the unsigned installer. Download, checksum and install are Vex's own.
+// net.fetch follows GitHub's redirect to its file storage.
+const _updater = require('./main/updates').createUpdater({
+  fetch: (url, init) => net.fetch(url, init),
+  fs, dir: path.join(app.getPath('userData'), 'updates'), currentVersion: app.getVersion(),
+  spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList,
+});
+// Only Vex's own main window may download or install an update: not a private
+// window, not a page, not another window of Vex's.
+function _updatesFromMainWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can update Vex');
 }
-ipcMain.handle('check-for-updates', async () => {
-  const current = app.getVersion();
-  const RELEASES = 'https://github.com/0xmortuex/Vex/releases/latest';
-  // Direct link to the installer asset of whatever the latest release is — clicking
-  // it downloads Vex-Setup.exe straight away (no release-page hunting).
-  const DOWNLOAD = 'https://github.com/0xmortuex/Vex/releases/latest/download/Vex-Setup.exe';
+let _pendingInstall = null;
+// Vex has closed its windows (tabs saved) and is quitting: start the installer
+// now, detached, so it outlives Vex. With --updated it waits for Vex to exit.
+app.on('quit', () => {
+  if (!_pendingInstall) return;
+  const plan = _pendingInstall;
+  _pendingInstall = null;
   try {
-    const res = await boundedNetFetch('https://github.com/0xmortuex/Vex/releases/latest/download/latest.yml', { redirect: 'follow' });
-    if (!res.ok) return { ok: false, error: 'Could not reach the update server', current, url: RELEASES, downloadUrl: DOWNLOAD };
-    const text = await res.text();
-    const m = text.match(/version:\s*([0-9][0-9A-Za-z.\-+]*)/i);
-    const latest = m ? m[1].trim() : null;
-    if (!latest) return { ok: false, error: 'No version info found', current, url: RELEASES, downloadUrl: DOWNLOAD };
-    // When it was published, for the Stable channel (js/update-notifier.js).
-    const d = text.match(/releaseDate:\s*'?([0-9T:.\-Z]+)'?/);
-    const releasedAt = d ? Date.parse(d[1]) || null : null;
-    return { ok: true, current, latest, releasedAt, hasUpdate: _cmpVer(latest, current) > 0, url: RELEASES, downloadUrl: DOWNLOAD };
-  } catch (e) {
-    return { ok: false, error: e.message, current, url: RELEASES, downloadUrl: DOWNLOAD };
-  }
+    _updater.launch(plan);
+    console.log('[Updates] installer started:', plan.file, plan.args.join(' '));
+  } catch (err) { console.error('[Updates] the installer could not be started:', err.message); }
 });
-ipcMain.handle('download-update', async () => {
-  if (!autoUpdater) return { ok: false };
-  try { await autoUpdater.downloadUpdate(); return { ok: true }; }
-  catch (e) { return { ok: false, error: require('./main/updates').plainUpdateError(e) }; }
+ipcMain.handle('check-for-updates', () => _updater.check());
+ipcMain.handle('updates:upcoming-notes', async (_e, version) => {
+  try { return { ok: true, ...(await _updater.notes(version)) }; }
+  catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
+ipcMain.handle('updates:download', async (event, version) => {
+  _updatesFromMainWindow(event);
+  const sender = event.sender;
+  return _updater.download(version, progress => { if (!sender.isDestroyed()) sender.send('updates:progress', progress); });
+});
+ipcMain.handle('updates:cancel', (event) => { _updatesFromMainWindow(event); return { ok: _updater.cancel() }; });
+ipcMain.handle('updates:install', async (event, version) => {
+  _updatesFromMainWindow(event);
+  let plan;
+  try { plan = await _updater.prepareInstall(version); }
+  catch (err) { return { ok: false, error: err.message }; }
+  // Close the main window the way its X does, which saves the tabs first
+  // (session-security.js), then quit; the installer starts on 'quit' above.
+  // If saving fails the window stays open and says so, and nothing installs.
+  const win = mainWindow;
+  _pendingInstall = plan;
+  const quit = () => app.quit();
+  win.once('closed', quit);
+  setTimeout(() => {
+    if (win.isDestroyed()) return;
+    win.removeListener('closed', quit);
+    _pendingInstall = null;
+    win.webContents.send('updates:install-failed', { error: 'Vex could not save your tabs, so it did not close to install the update. Try again once the problem it reported is fixed.' });
+  }, 9000);
+  win.close();
+  return { ok: true };
+});
 ipcMain.handle('get-app-version', () => app.getVersion());
 // Open an http(s) URL in the system's default browser (used by the "What's New"
 // modal so GitHub renders properly instead of in an in-app window).

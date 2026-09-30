@@ -5,13 +5,14 @@
 // the theme and the browser looks entirely, and go missing on fonts that
 // don't carry them — so a glyph in the UI is a bug, not a style choice.
 //
-// Three things are deliberately exempt, and each one is listed by file here
+// A few things are deliberately exempt, and each one is listed by file here
 // rather than by a loose pattern, so a NEW emoji anywhere fails this test:
 //   * Toolbox tools that are ABOUT emoji (a codepoint inspector, an emoji
 //     stripper) — their inputs and expected outputs have to contain them;
 //   * the table mapping a pre-icons skill's emoji to the icon it became;
-//   * the party popper on the "Vex just updated" card, which the product
-//     deliberately keeps.
+//   * the AI panel's emoji remover, which has to name what it removes.
+// (The update card's party popper went with the card: the update cover
+// draws a VexIcons icon.)
 //
 // An emoji written as an HTML entity (&#128451;) is still an emoji on screen,
 // so entities are decoded before the check — that layer hid a dozen of them.
@@ -49,10 +50,6 @@ const ALLOWED = {
   'renderer/js/toolbox-pack-dev-data-web.js': Infinity,
   // VexSkills.LEGACY_ICONS — one line, the migration table.
   'renderer/js/skills.js': 1,
-  // The update card's party popper: the one emoji the product keeps.
-  'renderer/js/update-notifier.js': 2,
-  // ...and the toast that announces the same update.
-  'renderer/js/app.js': 1,
   // The AI panel strips emoji out of the model's replies, because a model does
   // not know Vex has none. The regex that removes them has to name the ranges
   // it removes — two lines, both inside _deEmoji.

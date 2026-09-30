@@ -376,8 +376,15 @@ contextBridge.exposeInMainWorld('vex', {
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   widevineStatus: () => ipcRenderer.invoke('widevine:status'),
   widevineRetry: () => ipcRenderer.invoke('widevine:retry'),
-  downloadUpdate: () => ipcRenderer.invoke('download-update'),
-  installUpdate: () => ipcRenderer.invoke('install-update'),
+  // The update cover (js/update-notifier.js, src/main/updates.js).
+  updates: {
+    upcomingNotes: (version) => ipcRenderer.invoke('updates:upcoming-notes', version),
+    download: (version) => ipcRenderer.invoke('updates:download', version),
+    cancel: () => ipcRenderer.invoke('updates:cancel'),
+    install: (version) => ipcRenderer.invoke('updates:install', version),
+    onProgress: (cb) => subscribe('updates:progress', cb),
+    onInstallFailed: (cb) => subscribe('updates:install-failed', cb),
+  },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   getReleaseList: () => ipcRenderer.invoke('updates:list'),
@@ -421,11 +428,6 @@ contextBridge.exposeInMainWorld('vex', {
   setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   composeMail: (subject, body) => ipcRenderer.invoke('mail:compose', { subject, body }),
-  onUpdateAvailable: (cb) => subscribe('update-available', cb),
-  onUpdateNotAvailable: (cb) => subscribe('update-not-available', cb),
-  onUpdateDownloadProgress: (cb) => subscribe('update-download-progress', cb),
-  onUpdateDownloaded: (cb) => subscribe('update-downloaded', cb),
-  onUpdateError: (cb) => subscribe('update-error', cb),
 
   // Default browser. Attaches the renderer's handler and immediately flushes any
   // URLs that arrived (and were buffered) before this point — see the early

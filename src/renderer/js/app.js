@@ -1376,19 +1376,13 @@ function vexOwnTextFocused(doc) {
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
     const status = document.getElementById('update-check-status');
     if (status) status.textContent = 'Checking\u2026';
-    let r = null;
-    try { r = await window.vex.checkForUpdates?.(); } catch (e) { r = { ok: false, error: e.message }; }
+    // An update opens the same full-screen cover the startup check shows.
+    const r = await UpdateNotifier.checkManually();
     localStorage.setItem('vex.lastUpdateCheck', Date.now().toString());
-    if (!status) return;
-    if (r?.ok && r.hasUpdate) {
-      status.textContent = '';
-      const a = document.createElement('a');
-      a.href = '#'; a.style.color = 'var(--primary)'; a.style.cursor = 'pointer';
-      a.textContent = `Update available: v${r.latest} \u2014 download`;
-      a.addEventListener('click', (e) => { e.preventDefault(); TabManager.createTab(r.url, true); SidebarManager.hideActivePanel?.(); });
-      status.appendChild(a);
-      window.showToast?.(`\ud83c\udf89 Vex v${r.latest} is available`);
-    } else if (r?.ok) {
+    if (!status || !r) { if (status) status.textContent = ''; return; }
+    if (r.ok && r.hasUpdate) {
+      status.textContent = `Vex ${r.latest} is available`;
+    } else if (r.ok) {
       status.textContent = `Up to date (v${r.current}) \u2014 checked just now`;
     } else {
       status.textContent = r?.error ? `Couldn't check: ${r.error}` : 'Update check failed';
