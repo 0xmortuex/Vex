@@ -74,10 +74,18 @@ jobs:
         working-directory: mobile
         run: npm test
 
-      - uses: android-actions/setup-android@v3
-
+      # The runner image already carries an Android SDK and command-line tools;
+      # android-actions/setup-android only added the long-obsolete "tools"
+      # package to it, which the repository no longer serves — so the action
+      # failed before Gradle was ever reached. Use the SDK that is there and add
+      # only the two packages Vex builds against.
       - name: Android platform and build tools
-        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+        run: |
+          set -euo pipefail
+          sdkmanager=$(ls "$ANDROID_SDK_ROOT"/cmdline-tools/*/bin/sdkmanager | tail -1)
+          yes | "$sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$sdkmanager" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
 
       - name: Copy the chrome into the app
         working-directory: mobile

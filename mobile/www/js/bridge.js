@@ -229,6 +229,13 @@ const VexBridge = (() => {
       const result = await system('requestPermission', { name });
       return !!(result && result.granted);
     },
+    // What the app was launched to do, when it was not a URL: text shared from
+    // another app, or a tap on the home-screen widget. Asked once on boot,
+    // because a cold start delivers the intent before the chrome exists.
+    async pendingIntent() {
+      const result = await system('pendingIntent', {});
+      return { text: (result && result.text) || '', widget: (result && result.widget) || '' };
+    },
     async isDefaultBrowser() {
       const result = await system('isDefaultBrowser', {});
       return !!(result && result.value);

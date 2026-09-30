@@ -226,6 +226,26 @@ public class VexSystemPlugin extends Plugin {
 
     // ── Being the browser ────────────────────────────────────────────────────
 
+    /**
+     * What Vex was launched to do, when the launch was not a URL: text shared
+     * from another app, or a tap on the home-screen widget.
+     *
+     * The chrome asks for this once on boot, because an intent that arrives
+     * during a cold start is delivered long before any JavaScript is listening.
+     * Asking is also the signal that it IS listening: everything after this
+     * arrives as a window event instead.
+     */
+    @PluginMethod
+    public void pendingIntent(PluginCall call) {
+        JSObject result = new JSObject();
+        JSObject pending = getActivity() instanceof MainActivity
+                ? ((MainActivity) getActivity()).takePendingLaunch()
+                : null;
+        result.put("text", pending == null ? null : pending.getString("text"));
+        result.put("widget", pending == null ? null : pending.getString("widget"));
+        call.resolve(result);
+    }
+
     @PluginMethod
     public void isDefaultBrowser(PluginCall call) {
         JSObject result = new JSObject();

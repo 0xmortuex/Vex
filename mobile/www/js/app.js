@@ -124,8 +124,25 @@
   // forwards those as a window event because they are not URL intents.
   window.addEventListener('vexOpenText', event => {
     const detail = (event && event.detail) || event || {};
-    if (detail.text) VexUI.openUrl(detail.text, { newTab: true });
+    if (detail.widget) runWidgetTap(detail.widget);
+    else if (detail.text) VexUI.openUrl(detail.text, { newTab: true });
   });
+
+  // A tap on the home-screen widget. Three targets, and each one lands where
+  // the same button in the chrome would.
+  function runWidgetTap(target) {
+    if (target === 'scan') { VexUI.openScanner(); return; }
+    VexUI.openOmnibox('');
+    if (target === 'voice') VexUI.dictateIntoOmnibox();
+  }
+
+  // A cold start hands the intent over before any of this was listening, so the
+  // first thing the chrome does is ask whether it was launched to do something.
+  (async () => {
+    const pending = await VexBridge.pendingIntent();
+    if (pending.widget) runWidgetTap(pending.widget);
+    else if (pending.text) VexUI.openUrl(pending.text, { newTab: true });
+  })();
 
   VexBridge.onAppEvent('appUrlOpen', data => {
     if (data && data.url) VexUI.openUrl(data.url, { newTab: true });

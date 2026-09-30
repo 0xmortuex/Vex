@@ -244,6 +244,15 @@ const VexUI = (() => {
     setTimeout(() => { input.focus(); input.select(); }, 40);
   }
 
+  // Also reached from the home-screen widget's microphone, which opens the
+  // omnibox and then starts listening — the same two steps, one tap earlier.
+  async function dictateIntoOmnibox() {
+    const spoken = await VexTools.dictate();
+    if (!spoken) { toast('Did not catch that'); return; }
+    $('omni-input').value = spoken;
+    renderSuggestions(spoken);
+  }
+
   function closeOmnibox() {
     if ($('omnibox').hidden) return;
     $('omnibox').hidden = true;
@@ -704,7 +713,7 @@ const VexUI = (() => {
     BUTTONS, DEFAULT_BUTTONS, buttonConfig, goHome,
     toast, cover, pushBounds, scheduleBounds, applyToolbarPosition, onPageScroll,
     renderToolbar, renderProgress, renderTabGrid, renderSuggestions, refreshMediaBar,
-    openOmnibox, closeOmnibox, openTabGrid, closeTabGrid, openFind, closeFind,
+    openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind,
     openUrl, newTab, copy, toggleBookmark, reopenClosed, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage,
     offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate,
@@ -749,12 +758,7 @@ const VexUI = (() => {
 
       // Omnibox
       $('omni-cancel').onclick = closeOmnibox;
-      $('omni-voice').onclick = async () => {
-        const spoken = await VexTools.dictate();
-        if (!spoken) { toast('Did not catch that'); return; }
-        $('omni-input').value = spoken;
-        renderSuggestions(spoken);
-      };
+      $('omni-voice').onclick = () => dictateIntoOmnibox();
       $('omni-scan').onclick = () => openScanner();
       $('omni-input').addEventListener('input', event => {
         clearTimeout(omniTimer);

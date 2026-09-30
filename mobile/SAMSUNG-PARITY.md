@@ -5,10 +5,9 @@ list, feature by feature, with what Vex does instead where it does something
 different. Samsung Internet 27 is the version compared against.
 
 **Where Vex is short: extensions (the Galaxy Store content-blocker API has no
-WebView equivalent — Vex's blocker is built in instead), Samsung Pass and
-Samsung Account (replaced by an on-device vault and your own sync worker),
-and the home-screen search widget.** Everything else below is either matched
-or bettered.
+WebView equivalent — Vex's blocker is built in instead), and Samsung Pass and
+Samsung Account (replaced by an on-device vault and your own sync worker).**
+Everything else below is either matched or bettered.
 
 ## Browsing
 
@@ -62,6 +61,7 @@ or bettered.
 | Quick access tiles | ✅ | Most-visited until you pin one, then yours to arrange |
 | Custom homepage | ✅ | Settings → Search |
 | Add page to home screen | ✅ | Pinned launcher shortcut with the site's own icon |
+| Home-screen search widget | ✅ | Resizable; the pill opens the address bar, and the microphone and the square go straight to voice and the QR scanner |
 | Share, QR share | ✅ | Samsung shares by QR too; Vex draws it locally |
 | Scan a QR code | ✅ | Camera + jsQR; an otpauth:// code goes to the vault |
 | Reading list | ✅ | Samsung has none; this is the desktop Vex feature |
@@ -124,4 +124,4 @@ The desktop features that came across, which Samsung Internet has no answer to:
 - Widevine-protected streaming (Netflix, Disney+ — see PORTING.md, blocker 1).
 - Tor and the DPI bypass (they are bundled executables on Windows).
 - On-device AI (WebView exposes no WebGPU).
-- A home-screen search widget, and a tablet tab bar.
+- A tablet tab bar.

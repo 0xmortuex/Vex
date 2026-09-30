@@ -5,4 +5,8 @@
     <string name="package_name">com.vex.browser</string>
     <string name="custom_url_scheme">com.vex.browser</string>
     <string name="file_chooser_title">Choose a file</string>
+    <string name="widget_hint">Search or type a URL</string>
+    <string name="widget_voice">Search by voice</string>
+    <string name="widget_scan">Scan a QR code</string>
+    <string name="widget_description">Search, speak or scan, straight from the home screen.</string>
 </resources>

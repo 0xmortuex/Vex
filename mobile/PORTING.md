@@ -123,6 +123,7 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Auto-update | 🔧 | Play Store, or an APK update check of your own |
 | Default browser | ✅ | The role dialog on Android 10+, the settings screen otherwise |
 | Home-screen shortcuts | ✅ | Pinned with the site's own icon |
+| Home-screen search widget | ✅ | Samsung's, not the desktop's: a resizable bar whose three targets are the address bar, dictation and the QR scanner |
 | Dictation, QR scan and share | ✅ | System recogniser; jsQR and qrcode-generator, both on-device |
 | Picture-in-picture, background audio | ✅ | Samsung's "video assistant", as Android's own PiP |
 | Crash log, safe mode | 🟡 | Worth rebuilding; `restart-smoke.js` has an Android analogue in instrumented tests |

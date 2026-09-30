@@ -18,6 +18,7 @@ import com.vex.browser.tabs.VexTabsPlugin;
 import com.vex.browser.remind.VexRemindPlugin;
 import com.vex.browser.system.VexSystemPlugin;
 import com.vex.browser.vault.VexSecretsPlugin;
+import com.vex.browser.widget.SearchWidget;
 
 /**
  * The single activity. It hosts two WebView layers:
@@ -44,6 +45,9 @@ public class MainActivity extends BridgeActivity {
     private ValueCallback<Uri[]> pendingFileCallback;
     private TextResult pendingVoiceCallback;
     private PermissionResult pendingPermissionCallback;
+    /** An intent that arrived before the chrome was listening. */
+    private JSObject pendingLaunch;
+    private boolean chromeListening;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -173,11 +177,38 @@ public class MainActivity extends BridgeActivity {
         } else if (Intent.ACTION_WEB_SEARCH.equals(action)) {
             text = intent.getStringExtra("query");
         }
-        if (text == null || text.trim().isEmpty()) return;
 
-        JSObject payload = new JSObject();
-        payload.put("text", text.trim());
+        JSObject payload = null;
+        String widget = intent.getStringExtra(SearchWidget.EXTRA_ACTION);
+        if (widget != null && !widget.isEmpty()) {
+            payload = new JSObject();
+            payload.put("widget", widget);
+        } else if (text != null && !text.trim().isEmpty()) {
+            payload = new JSObject();
+            payload.put("text", text.trim());
+        }
+        if (payload == null) return;
+
+        // A launcher or widget tap starts the activity, so this runs long before
+        // the chrome has parsed a line of JavaScript. Until the chrome has asked
+        // for it once, the intent waits rather than being shouted at nobody.
+        if (!chromeListening) {
+            pendingLaunch = payload;
+            return;
+        }
+        final String detail = payload.toString();
         getBridge().getWebView().post(() ->
-                getBridge().triggerWindowJSEvent("vexOpenText", payload.toString()));
+                getBridge().triggerWindowJSEvent("vexOpenText", detail));
+    }
+
+    /**
+     * Handed to the chrome on boot by VexSystem.pendingIntent(). Asking marks the
+     * chrome as listening, so everything after this point arrives as an event.
+     */
+    public JSObject takePendingLaunch() {
+        chromeListening = true;
+        JSObject payload = pendingLaunch;
+        pendingLaunch = null;
+        return payload;
     }
 }

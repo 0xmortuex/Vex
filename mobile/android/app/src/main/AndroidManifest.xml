@@ -56,6 +56,18 @@
             </intent-filter>
         </activity>
 
+        <!-- The home-screen search bar. -->
+        <receiver
+            android:name="com.vex.browser.widget.SearchWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_search_info" />
+        </receiver>
+
         <!-- Wakes for a reminder you set on a page. -->
         <receiver
             android:name="com.vex.browser.remind.ReminderReceiver"

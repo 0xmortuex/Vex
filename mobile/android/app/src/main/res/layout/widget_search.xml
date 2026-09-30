@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen search bar. Three targets: the pill opens the address bar
+     with the keyboard up, the microphone starts voice input, the square opens
+     the QR scanner. Everything a widget is allowed to be. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_pill"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_pill"
+    android:paddingStart="14dp"
+    android:paddingEnd="6dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <ImageView
+        android:id="@+id/widget_mark"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:src="@drawable/ic_widget_mark"
+        android:contentDescription="@string/app_name" />
+
+    <TextView
+        android:id="@+id/widget_hint"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="6dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="15sp"
+        android:textColor="@color/vex_ink"
+        android:text="@string/widget_hint" />
+
+    <ImageView
+        android:id="@+id/widget_voice"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="9dp"
+        android:src="@drawable/ic_widget_voice"
+        android:contentDescription="@string/widget_voice" />
+
+    <ImageView
+        android:id="@+id/widget_scan"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="9dp"
+        android:src="@drawable/ic_widget_scan"
+        android:contentDescription="@string/widget_scan" />
+</LinearLayout>

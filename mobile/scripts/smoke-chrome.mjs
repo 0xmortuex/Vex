@@ -185,6 +185,21 @@ await page.waitForTimeout(450);
 results.urlPill = (await page.textContent('#tb-url-text')).trim();
 results.startHidden = !(await page.isVisible('#start'));
 
+// ── The home-screen widget's three taps ─────────────────────────────────────
+// A widget tap arrives the way a share does: as a window event carrying what
+// was tapped. Capacitor puts the payload's fields on the event itself, which is
+// the shape this reproduces.
+await page.evaluate(() => {
+  const event = new Event('vexOpenText');
+  event.widget = 'search';
+  window.dispatchEvent(event);
+});
+await page.waitForTimeout(250);
+results.widgetOpensOmnibox = await page.isVisible('#omnibox');
+await page.evaluate(() => VexUI.closeOmnibox());
+await page.waitForTimeout(150);
+results.widgetDictates = await page.evaluate(() => typeof VexUI.dictateIntoOmnibox === 'function');
+
 // ── Menu sheet ──────────────────────────────────────────────────────────────
 await tap('#tb-menu');
 results.menuRows = await page.$$eval('#sheet-list .sheet-row', rows => rows.length);
@@ -662,7 +677,8 @@ const expected = {
   agentParses: true, agentRefusesJunk: true, agentPanel: 'Let it do things',
   noteKept: true, notesPanelRows: 1,
   reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
-  libraryOpens: true
+  libraryOpens: true,
+  widgetOpensOmnibox: true, widgetDictates: true
 };
 
 const failures = [];

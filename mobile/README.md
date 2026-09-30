@@ -45,7 +45,8 @@ rather than offering a way past.
 **Your things** — a password vault under an Android Keystore key with TOTP
 codes and form filling; personal details for sign-up forms; QR codes both
 ways (scan one, or hand this page to the machine next to you); dictation into
-the address bar; add a site to the home screen.
+the address bar; add a site to the home screen; a home-screen search widget
+that opens the address bar, dictation or the scanner in one tap.
 
 **Vex's own** — eight themes, seven skins and five typefaces generated from
 the desktop's token file; the assistant against a Cloudflare Worker you deploy
@@ -131,6 +132,7 @@ whole codebase:
 | `system/VexSystemPlugin.java` | Biometrics, shortcuts, dictation, PiP, permissions, default browser |
 | `remind/VexRemindPlugin.java` | Alarms for reminders |
 | `remind/ReminderReceiver.java` | The notification when one comes due |
+| `widget/SearchWidget.java` | The home-screen search bar: search, voice, QR |
 
 ## Build
 
@@ -183,8 +185,11 @@ somebody presses it, on a path the smoke run does not walk.
 `npm run check:java` compiles every Android source with plain javac against the
 real Android framework — Robolectric's `android-all` jar, which carries the
 actual `android.webkit` classes — plus small androidx and Capacitor stubs in
-`tools/stubs`, because those live on Google's Maven. It catches what a compiler
-catches: wrong signatures, missing imports, unhandled exceptions. It is not a
+`tools/stubs`, because those live on Google's Maven. It generates an `R.java`
+from the resources the app declares — the strings, every layout and drawable,
+and every `@+id` inside a layout — so a reference to a resource that is not
+there is a compile error here rather than a crash on a device. It catches what
+a compiler catches: wrong signatures, missing imports, unhandled exceptions. It is not a
 substitute for Gradle, and the stubs are the part to distrust — if one drifts
 from the real library, the check passes and the build still fails. The
 framework jar is fetched once (~210 MB) and cached in `~/.cache/vex-mobile`;
