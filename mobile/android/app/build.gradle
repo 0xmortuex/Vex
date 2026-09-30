@@ -42,6 +42,10 @@ dependencies {
     // androidx.webkit carries the modern WebView surface: algorithmic darkening,
     // multi-profile (private tabs), and the safe-browsing toggles.
     implementation "androidx.webkit:webkit:$androidxWebkitVersion"
+    // Pull to refresh, and the fingerprint prompt that guards private tabs and
+    // the password vault.
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:$androidxSwipeRefreshVersion"
+    implementation "androidx.biometric:biometric:$androidxBiometricVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
 }

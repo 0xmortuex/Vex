@@ -261,7 +261,7 @@ npm run dist:win   # build the signed Windows installer
 
 `mobile/` holds an Android port: the Vex chrome rendered by Capacitor, real pages rendered by Android's system WebView, and a native layer doing what the desktop main process does.
 
-It already carries the parts that make Vex *Vex* — all eight themes (generated from the desktop's own token file), skins, the reader, the AI assistant against your own worker, per‑site rules, ad/tracker blocking with cosmetic filtering, and a fingerprint shield that runs before the page's first script — plus tabs with a snapshot switcher, private tabs, session restore, find, print/save‑as‑PDF, long‑press menus and edge‑swipe navigation.
+It is built to clear Samsung Internet as a floor and then keep going — [`mobile/SAMSUNG-PARITY.md`](mobile/SAMSUNG-PARITY.md) is the feature‑by‑feature comparison. Tabs, groups and a snapshot switcher; private tabs behind a fingerprint; a toolbar that sits top or bottom, hides as you scroll and carries the buttons you pick; pull‑to‑refresh; reader; saved pages that open offline; reading list; bookmarks in folders with import/export; downloads with live progress; QR codes both ways; dictation; picture‑in‑picture and background audio; per‑site rules and permissions; ad/tracker blocking with a dashboard; a fingerprint shield before the page's first script; a Keystore‑backed password vault with 2FA codes; **Recall**, the full‑text index of everything you read; the AI assistant against your own worker; and **encrypted sync with the desktop**, using the same crypto and the same version‑vector records — your PC's open tabs show up on the phone's start page.
 
 ```bash
 cd mobile
@@ -270,7 +270,7 @@ npx cap sync android
 cd android && ./gradlew assembleDebug
 ```
 
-It has not been assembled by Gradle yet, though every Android source is type‑checked against the real framework on `npm run check`. What survives the move and what does not — DRM, extensions, Tor/ByeDPI and on‑device AI all have hard answers — is written down feature by feature in [`mobile/PORTING.md`](mobile/PORTING.md). Build and development notes: [`mobile/README.md`](mobile/README.md).
+It has not been assembled by Gradle yet, though every Android source is type‑checked against the real framework on `npm run check`, the chrome is driven end‑to‑end in a phone‑sized Chromium on `npm run smoke`, and 130 vitest cases cover its logic. What cannot survive the move — DRM, extensions, Tor/ByeDPI, on‑device AI — is written down in [`mobile/PORTING.md`](mobile/PORTING.md). Build and development notes: [`mobile/README.md`](mobile/README.md).
 
 ---
 

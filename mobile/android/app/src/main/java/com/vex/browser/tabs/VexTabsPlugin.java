@@ -1,5 +1,6 @@
 package com.vex.browser.tabs;
 
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -14,6 +15,9 @@ import android.webkit.WebView;
 import android.webkit.CookieManager;
 import android.widget.FrameLayout;
 
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -42,10 +46,15 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     private WebChromeClient.CustomViewCallback fullscreenCallback;
 
     private final Map<String, TabWebView> tabs = new LinkedHashMap<>();
+    // Each tab sits in its own pull-to-refresh frame; the frame is what gets
+    // added to the container, so hiding a tab hides its refresh spinner too.
+    private final Map<String, SwipeRefreshLayout> frames = new LinkedHashMap<>();
     private String activeId;
     private int sequence;
     private boolean visible = true;
     private int textZoom = 100;
+    private boolean pullToRefresh = true;
+    private boolean backgroundAudio = true;
     private String documentStartScript = "";
     private int[] bounds = new int[]{0, 0, 0, 0};    // left, top, width, height in px
 
@@ -102,10 +111,24 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
             TabWebView tab = new TabWebView(getContext(), id, incognito, this);
             tab.setTextZoom(textZoom);
             if (!documentStartScript.isEmpty()) tab.setDocumentStartScript(documentStartScript);
-            tab.setVisibility(View.GONE);
-            container.addView(tab, new FrameLayout.LayoutParams(
+
+            SwipeRefreshLayout frame = new SwipeRefreshLayout(getContext());
+            frame.addView(tab, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            frame.setEnabled(pullToRefresh);
+            frame.setOnRefreshListener(() -> {
+                tab.reload();
+                // The spinner is stopped by the load finishing, not by the
+                // gesture ending — see loadEnd below.
+            });
+            // Only pull from the very top: otherwise the gesture fights every
+            // scroll-up inside the page.
+            frame.setOnChildScrollUpCallback((parent, child) -> tab.getScrollY() > 0);
+            frame.setVisibility(View.GONE);
+            container.addView(frame, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             tabs.put(id, tab);
+            frames.put(id, frame);
             if (url != null && !url.equals("about:blank")) tab.navigate(url);
             JSObject result = new JSObject();
             result.put("id", id);
@@ -118,9 +141,11 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         final String id = call.getString("id");
         getActivity().runOnUiThread(() -> {
             TabWebView tab = tabs.remove(id);
+            SwipeRefreshLayout frame = frames.remove(id);
             if (tab != null) {
                 boolean wasPrivate = tab.isIncognito();
-                container.removeView(tab);
+                if (frame != null) { frame.removeView(tab); container.removeView(frame); }
+                else container.removeView(tab);
                 tab.stopLoading();
                 tab.loadUrl("about:blank");
                 tab.destroy();
@@ -140,11 +165,10 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     public void activate(PluginCall call) {
         final String id = call.getString("id");
         getActivity().runOnUiThread(() -> {
-            for (Map.Entry<String, TabWebView> entry : tabs.entrySet()) {
-                boolean on = entry.getKey().equals(id);
-                entry.getValue().setVisibility(on ? View.VISIBLE : View.GONE);
+            for (Map.Entry<String, SwipeRefreshLayout> entry : frames.entrySet()) {
                 // A background tab keeps running (audio, timers) but must not
                 // draw; onPause would also silence video in the active tab.
+                entry.getValue().setVisibility(entry.getKey().equals(id) ? View.VISIBLE : View.GONE);
             }
             activeId = tabs.containsKey(id) ? id : activeId;
             call.resolve();
@@ -396,6 +420,148 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     }
 
     @PluginMethod
+    public void setPullToRefresh(PluginCall call) {
+        final boolean enabled = !Boolean.FALSE.equals(call.getBoolean("enabled", true));
+        getActivity().runOnUiThread(() -> {
+            pullToRefresh = enabled;
+            for (SwipeRefreshLayout frame : frames.values()) frame.setEnabled(enabled);
+            call.resolve();
+        });
+    }
+
+    /**
+     * Whether a page keeps playing when Vex goes to the background. Off is the
+     * polite default for a browser; on is what you want for a podcast, and is
+     * why Samsung's media setting exists.
+     */
+    @PluginMethod
+    public void setBackgroundAudio(PluginCall call) {
+        backgroundAudio = !Boolean.FALSE.equals(call.getBoolean("enabled", true));
+        call.resolve();
+    }
+
+    /** Render a saved page from its stored HTML. */
+    @PluginMethod
+    public void loadHtml(PluginCall call) {
+        final String html = call.getString("html", "");
+        final String baseUrl = call.getString("baseUrl", "");
+        withTab(call, tab -> tab.loadHtml(html, baseUrl));
+    }
+
+    /**
+     * A PNG of the page, written to the cache directory and handed back as a
+     * path — a base64 image of a full page is many megabytes through the
+     * bridge, and the only thing the chrome does with it is share or save it.
+     */
+    @PluginMethod
+    public void capturePage(PluginCall call) {
+        final String id = call.getString("id");
+        final boolean full = Boolean.TRUE.equals(call.getBoolean("full", false));
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            if (tab == null) {
+                call.reject("No tab " + id);
+                return;
+            }
+            android.graphics.Bitmap bitmap = tab.capture(full);
+            if (bitmap == null) {
+                call.reject("Nothing to capture yet");
+                return;
+            }
+            try {
+                java.io.File directory = new java.io.File(getContext().getCacheDir(), "captures");
+                if (!directory.exists() && !directory.mkdirs()) throw new java.io.IOException("Could not make the capture folder");
+                java.io.File file = new java.io.File(directory, "vex-" + System.currentTimeMillis() + ".png");
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+                }
+                bitmap.recycle();
+                JSObject result = new JSObject();
+                result.put("path", file.getAbsolutePath());
+                result.put("width", tab.getWidth());
+                call.resolve(result);
+            } catch (Exception error) {
+                bitmap.recycle();
+                call.reject("Could not write the capture: " + error.getMessage());
+            }
+        });
+    }
+
+    /** What the system download queue is doing with our files. */
+    @PluginMethod
+    public void downloadStatus(PluginCall call) {
+        try {
+            android.app.DownloadManager manager =
+                    (android.app.DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+            JSArray rows = new JSArray();
+            if (manager == null) {
+                JSObject empty = new JSObject();
+                empty.put("downloads", rows);
+                call.resolve(empty);
+                return;
+            }
+            android.database.Cursor cursor = manager.query(new android.app.DownloadManager.Query());
+            while (cursor != null && cursor.moveToNext()) {
+                JSObject row = new JSObject();
+                row.put("id", cursor.getLong(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_ID)));
+                row.put("url", cursor.getString(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_URI)));
+                row.put("title", cursor.getString(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TITLE)));
+                row.put("status", cursor.getInt(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS)));
+                row.put("downloaded", cursor.getLong(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)));
+                row.put("total", cursor.getLong(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)));
+                row.put("localUri", cursor.getString(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_LOCAL_URI)));
+                rows.put(row);
+            }
+            if (cursor != null) cursor.close();
+            JSObject result = new JSObject();
+            result.put("downloads", rows);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Could not read the download queue: " + error.getMessage());
+        }
+    }
+
+    /** Hand a finished download to whatever app opens that kind of file. */
+    @PluginMethod
+    public void openDownload(PluginCall call) {
+        final String localUri = call.getString("localUri", "");
+        getActivity().runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setData(Uri.parse(localUri));
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                getActivity().startActivity(intent);
+                call.resolve();
+            } catch (Exception error) {
+                call.reject("No app can open that file");
+            }
+        });
+    }
+
+    /** Forget one site: its cookies, its storage, its cache entries. */
+    @PluginMethod
+    public void clearSiteData(PluginCall call) {
+        final String origin = call.getString("origin", "");
+        final String host = call.getString("host", "");
+        getActivity().runOnUiThread(() -> {
+            if (!origin.isEmpty()) WebStorage.getInstance().deleteOrigin(origin);
+            if (!host.isEmpty()) {
+                CookieManager cookies = CookieManager.getInstance();
+                String existing = cookies.getCookie("https://" + host);
+                if (existing != null) {
+                    for (String pair : existing.split(";")) {
+                        String name = pair.split("=")[0].trim();
+                        cookies.setCookie("https://" + host, name + "=; Max-Age=0; path=/");
+                        cookies.setCookie("https://" + host, name + "=; Max-Age=0; path=/; domain=." + host);
+                    }
+                    cookies.flush();
+                }
+            }
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
     public void setPrivacy(PluginCall call) {
         TabWebView.setPrivacy(
                 !Boolean.FALSE.equals(call.getBoolean("httpsOnly", true)),
@@ -447,7 +613,27 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
 
     @Override
     public void emit(String event, JSObject data) {
+        if ("loadEnd".equals(event) || "error".equals(event)) {
+            SwipeRefreshLayout frame = frames.get(data.getString("id"));
+            if (frame != null && frame.isRefreshing()) frame.setRefreshing(false);
+        }
         notifyListeners(event, data);
+    }
+
+    @Override
+    protected void handleOnPause() {
+        // Leaving the app stops timers and media unless the person asked for
+        // audio to keep going.
+        if (!backgroundAudio) {
+            for (TabWebView tab : tabs.values()) tab.onPause();
+        }
+        super.handleOnPause();
+    }
+
+    @Override
+    protected void handleOnResume() {
+        for (TabWebView tab : tabs.values()) tab.onResume();
+        super.handleOnResume();
     }
 
     @Override

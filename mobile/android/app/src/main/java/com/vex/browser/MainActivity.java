@@ -6,6 +6,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.ValueCallback;
 
+import android.speech.RecognizerIntent;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
@@ -13,6 +15,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.JSObject;
 import com.vex.browser.block.VexBlockPlugin;
 import com.vex.browser.tabs.VexTabsPlugin;
+import com.vex.browser.system.VexSystemPlugin;
 import com.vex.browser.vault.VexVaultPlugin;
 
 /**
@@ -30,8 +33,16 @@ import com.vex.browser.vault.VexVaultPlugin;
  */
 public class MainActivity extends BridgeActivity {
 
+    /** What a page's file input, dictation or a permission prompt is waiting on. */
+    public interface TextResult { void onText(String text); }
+    public interface PermissionResult { void onResult(boolean granted); }
+
     private ActivityResultLauncher<Intent> fileChooser;
+    private ActivityResultLauncher<Intent> voiceInput;
+    private ActivityResultLauncher<String> permissionRequest;
     private ValueCallback<Uri[]> pendingFileCallback;
+    private TextResult pendingVoiceCallback;
+    private PermissionResult pendingPermissionCallback;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -39,6 +50,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VexTabsPlugin.class);
         registerPlugin(VexBlockPlugin.class);
         registerPlugin(VexVaultPlugin.class);
+        registerPlugin(VexSystemPlugin.class);
         super.onCreate(savedInstanceState);
 
         // The chrome has a hole in it where the page goes; a solid background
@@ -59,7 +71,60 @@ public class MainActivity extends BridgeActivity {
                     callback.onReceiveValue(ok ? parseFileResult(result.getData()) : null);
                 });
 
+        voiceInput = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    TextResult callback = pendingVoiceCallback;
+                    pendingVoiceCallback = null;
+                    if (callback == null) return;
+                    String spoken = "";
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        java.util.ArrayList<String> heard =
+                                result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                        if (heard != null && !heard.isEmpty()) spoken = heard.get(0);
+                    }
+                    callback.onText(spoken);
+                });
+
+        permissionRequest = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                granted -> {
+                    PermissionResult callback = pendingPermissionCallback;
+                    pendingPermissionCallback = null;
+                    if (callback != null) callback.onResult(Boolean.TRUE.equals(granted));
+                });
+
         handleIntent(getIntent());
+    }
+
+    /** Dictation into the address bar — the system recogniser, not ours. */
+    public void startVoiceInput(TextResult callback) {
+        if (pendingVoiceCallback != null) pendingVoiceCallback.onText("");
+        pendingVoiceCallback = callback;
+        try {
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Say what you are looking for");
+            voiceInput.launch(intent);
+        } catch (Exception error) {
+            pendingVoiceCallback = null;
+            callback.onText("");
+        }
+    }
+
+    /**
+     * A page asked for the camera, the microphone or a location. Vex can only
+     * grant what the app itself holds, so the app has to ask Android first.
+     */
+    public void requestRuntimePermission(String permission, PermissionResult callback) {
+        if (pendingPermissionCallback != null) pendingPermissionCallback.onResult(false);
+        pendingPermissionCallback = callback;
+        try {
+            permissionRequest.launch(permission);
+        } catch (Exception error) {
+            pendingPermissionCallback = null;
+            callback.onResult(false);
+        }
     }
 
     private Uri[] parseFileResult(Intent data) {

@@ -15,10 +15,11 @@
     "run": "cap run android",
     "build:debug": "cap sync android && cd android && ./gradlew assembleDebug",
     "build:release": "cap sync android && cd android && ./gradlew assembleRelease",
-    "check": "node scripts/check-www.js && node scripts/sync-themes.mjs --check && node scripts/check-java.mjs",
+    "check": "node scripts/check-www.js && node scripts/sync-themes.mjs --check && node scripts/sync-shared.mjs --check && node scripts/check-java.mjs",
     "check:www": "node scripts/check-www.js",
     "check:java": "node scripts/check-java.mjs",
     "themes": "node scripts/sync-themes.mjs",
+    "shared": "node scripts/sync-shared.mjs",
     "smoke": "node scripts/smoke-chrome.mjs"
   },
   "dependencies": {

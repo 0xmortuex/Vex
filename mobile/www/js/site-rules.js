@@ -12,6 +12,37 @@
 // subdomain should not silently apply to another).
 
 const VexSiteRules = (() => {
+  // Injected after each load. Three things Samsung Internet has that a
+  // WebView does not give you for free: pinch zoom on sites that forbid it,
+  // a contrast lift for a page that is grey text on grey, and a warm shade
+  // for reading at night.
+  function presentationScript() {
+    const forceZoom = VexStore.get('vex.forceZoom', true) !== false;
+    const contrast = Number(VexStore.get('vex.pageContrast', 1)) || 1;
+    const shade = Number(VexStore.get('vex.nightShade', 0)) || 0;
+    if (!forceZoom && contrast === 1 && !shade) return '';
+    return `(function(){
+  if (${forceZoom}) {
+    var meta = document.querySelector('meta[name=viewport]');
+    if (meta) meta.setAttribute('content',
+      meta.content.replace(/user-scalable\\s*=\\s*(no|0)/gi, 'user-scalable=yes')
+                  .replace(/maximum-scale\\s*=\\s*[\\d.]+/gi, 'maximum-scale=10'));
+  }
+  var filters = [];
+  if (${contrast} !== 1) filters.push('contrast(${contrast})');
+  if (${shade} > 0) filters.push('sepia(${shade}) saturate(1.1) brightness(' + (1 - ${shade} * 0.15) + ')');
+  var id = 'vex-presentation';
+  var style = document.getElementById(id);
+  if (!filters.length) { if (style) style.remove(); return; }
+  if (!style) {
+    style = document.createElement('style');
+    style.id = id;
+    (document.head || document.documentElement).appendChild(style);
+  }
+  style.textContent = 'html{filter:' + filters.join(' ') + ' !important}';
+})()`;
+  }
+
   const DEFAULTS = {
     scripts: true,
     images: true,
@@ -33,6 +64,7 @@ const VexSiteRules = (() => {
   return {
     DEFAULTS,
     hostOf,
+    presentationScript,
 
     // What applies to this host, defaults filled in.
     for(host) {
@@ -86,6 +118,12 @@ const VexSiteRules = (() => {
       }
       if (rules.zoom !== 1) await VexBridge.setZoom(tab.id, rules.zoom);
       await VexBlock.setSiteAllowed(host, !rules.blocking);
+
+      const presentation = presentationScript();
+      if (presentation) {
+        try { await VexBridge.evaluate(tab.id, presentation); }
+        catch { /* a page with scripts off cannot be adjusted */ }
+      }
       return rules;
     },
 

@@ -118,7 +118,30 @@ const VexBlock = (() => {
       return merged;
     },
 
-    parse
+    parse,
+
+    // Which sites cost you the most requests. Kept small and local: a count
+    // per host, the top of which the privacy screen shows back to you.
+    async count(host, amount) {
+      if (!host || !amount) return;
+      const counts = VexStore.get('vex.blockedByHost', {});
+      counts[host] = (counts[host] || 0) + amount;
+      // Keep the map from growing without end — the tail is noise anyway.
+      const entries = Object.entries(counts);
+      if (entries.length > 400) {
+        const trimmed = entries.sort((a, b) => b[1] - a[1]).slice(0, 200);
+        await VexStore.set('vex.blockedByHost', Object.fromEntries(trimmed));
+        return;
+      }
+      await VexStore.set('vex.blockedByHost', counts);
+    },
+
+    worstSites(limit = 10) {
+      return Object.entries(VexStore.get('vex.blockedByHost', {}))
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([host, count]) => ({ host, count }));
+    }
   };
 })();
 

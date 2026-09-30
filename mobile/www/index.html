@@ -45,6 +45,19 @@
   <symbol id="i-tabs" viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="13" height="13" rx="2.5"/><path d="M7.5 6.5v-1A1.5 1.5 0 019 4h9.5A1.5 1.5 0 0120 5.5V15a1.5 1.5 0 01-1.5 1.5h-1"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M4.5 12L20 5l-6.2 14.5-2.4-6z"/></symbol>
   <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V5h14v2M12 5v14M9 19h6"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3.5M15.5 12v2.5"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0113.7-5.6M20 12a8 8 0 01-13.7 5.6"/><path d="M17 3v4h-4M7 21v-4h4"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 19z"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1.5 1.5 0 011.5 1.5v9A1.5 1.5 0 0120 20H4a1.5 1.5 0 01-1.5-1.5v-9A1.5 1.5 0 014 8z"/><circle cx="12" cy="13.5" r="3.5"/></symbol>
+  <symbol id="i-translate" viewBox="0 0 24 24"><path d="M4 6h10M9 4v2c0 4-2.5 7-5 8M7 11c1.5 3 4 4.5 6 5"/><path d="M13 20l4-10 4 10M14.5 17h5"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-lock-closed" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8 10.5V8a4 4 0 118 0v2.5"/><circle cx="12" cy="15" r="1.3"/></symbol>
 </svg>
 
 <div id="progress" class="progress" aria-hidden="true"><i></i></div>
@@ -63,15 +76,21 @@
   </button>
   <div class="start-section">
     <div class="quick-row">
-      <button class="quick-chip" id="start-private"><svg><use href="#i-private"/></svg>Private tab</button>
+      <button class="quick-chip" id="start-private"><svg><use href="#i-private"/></svg>Private</button>
       <button class="quick-chip" id="start-history"><svg><use href="#i-history"/></svg>History</button>
-      <button class="quick-chip" id="start-bookmarks"><svg><use href="#i-star"/></svg>Bookmarks</button>
-      <button class="quick-chip" id="start-ai"><svg><use href="#i-sparkle"/></svg>Assistant</button>
+      <button class="quick-chip" id="start-bookmarks"><svg><use href="#i-star"/></svg>Saved</button>
+      <button class="quick-chip" id="start-reading-btn"><svg><use href="#i-list"/></svg>Reading</button>
+      <button class="quick-chip" id="start-scan"><svg><use href="#i-qr"/></svg>Scan</button>
+      <button class="quick-chip" id="start-ai"><svg><use href="#i-sparkle"/></svg>Ask</button>
     </div>
   </div>
   <div class="start-section" id="start-top-wrap" hidden>
     <h2>Most visited</h2>
     <div class="tiles" id="start-tiles"></div>
+  </div>
+  <div class="start-section" id="start-reading-wrap" hidden>
+    <h2>Saved to read</h2>
+    <div class="rail" id="start-reading"></div>
   </div>
   <div class="start-section" id="start-recent-wrap" hidden>
     <h2>Pick up where you left off</h2>
@@ -81,18 +100,23 @@
     <h2>Bookmarks</h2>
     <div class="rail" id="start-marks"></div>
   </div>
+  <div class="start-section" id="start-remote-wrap" hidden>
+    <h2>Open on your PC</h2>
+    <div class="rail" id="start-remote"></div>
+  </div>
 </section>
 
 <!-- Bottom chrome. -->
 <nav id="toolbar" class="toolbar" aria-label="Browser toolbar">
-  <button class="tb-btn" id="tb-back" aria-label="Back" disabled><svg><use href="#i-back"/></svg></button>
+  <!-- The buttons either side of the pill are yours to choose (Settings →
+       Appearance → Toolbar buttons); the pill itself is always there. -->
+  <div class="tb-slot" id="tb-left"></div>
   <button class="urlpill" id="tb-url" aria-label="Address and search">
     <span class="urlpill-icon" id="tb-icon" aria-hidden="true"><svg><use href="#i-search"/></svg></span>
     <span class="urlpill-text muted" id="tb-url-text">Search or type a URL</span>
     <span class="urlpill-shield" id="tb-shield" hidden><svg><use href="#i-shield"/></svg><span id="tb-shield-count">0</span></span>
   </button>
-  <button class="tb-btn tb-tabs" id="tb-tabs" aria-label="Tabs"><span id="tb-tabcount">1</span></button>
-  <button class="tb-btn" id="tb-menu" aria-label="Menu"><svg><use href="#i-menu"/></svg></button>
+  <div class="tb-slot" id="tb-right"></div>
 </nav>
 
 <!-- Omnibox. -->
@@ -101,6 +125,8 @@
     <button class="tb-btn" id="omni-cancel" aria-label="Cancel"><svg><use href="#i-close"/></svg></button>
     <input id="omni-input" class="omnibox-input" type="text" inputmode="url" autocapitalize="off"
            autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Search or type a URL">
+    <button class="tb-btn" id="omni-voice" aria-label="Search by voice"><svg><use href="#i-mic"/></svg></button>
+    <button class="tb-btn" id="omni-scan" aria-label="Scan a QR code"><svg><use href="#i-qr"/></svg></button>
   </div>
   <div class="omnibox-chips" id="omni-chips"></div>
   <ul id="omni-results" class="omnibox-results" role="listbox"></ul>
@@ -170,20 +196,79 @@
   <div class="panel-body" id="panel-body"></div>
 </div>
 
+<!-- QR scanner: the camera, full screen, with a frame to aim through. -->
+<div id="scan" class="scan" hidden>
+  <video id="scan-video" class="scan-video" muted playsinline></video>
+  <div class="scan-frame"></div>
+  <p class="scan-hint">Point the camera at a QR code</p>
+  <button class="pill-btn ghost scan-cancel" id="scan-cancel">Cancel</button>
+</div>
+
+<!-- Hand this page to the device next to you. -->
+<div id="qrshare" class="qrshare" hidden>
+  <div class="sheet-scrim" id="qrshare-scrim"></div>
+  <div class="qrshare-card">
+    <h2 id="qrshare-title">Scan to open</h2>
+    <div id="qrshare-canvas" class="qrshare-canvas"></div>
+    <p id="qrshare-url" class="qrshare-url"></p>
+    <button class="pill-btn ghost" id="qrshare-close">Done</button>
+  </div>
+</div>
+
+<!-- Video controls, shown while something is playing. -->
+<div id="mediabar" class="mediabar" hidden>
+  <button class="tb-btn" id="media-playpause" aria-label="Play or pause"><svg><use href="#i-video"/></svg></button>
+  <button class="tb-btn" id="media-back10" aria-label="Back ten seconds"><svg><use href="#i-back"/></svg></button>
+  <button class="tb-btn" id="media-fwd10" aria-label="Forward ten seconds"><svg><use href="#i-forward"/></svg></button>
+  <span class="mediabar-label" id="media-label">Video</span>
+  <button class="tb-btn" id="media-pop" aria-label="Pop out"><svg><use href="#i-external"/></svg></button>
+  <button class="tb-btn" id="media-close" aria-label="Hide controls"><svg><use href="#i-close"/></svg></button>
+</div>
+
+<!-- One dialog for the three questions the chrome asks: a name, a yes/no, or
+     a code to write down. Android has no window.prompt in a WebView worth
+     using, and a browser that borrows the page's dialogs is a phishing kit. -->
+<div id="dialog" class="dialog" hidden>
+  <div class="sheet-scrim" id="dialog-scrim"></div>
+  <div class="dialog-card" role="dialog" aria-modal="true">
+    <h2 id="dialog-title">Vex</h2>
+    <p id="dialog-message" class="dialog-message" hidden></p>
+    <input id="dialog-input" class="dialog-input" type="text" hidden
+           autocapitalize="off" autocorrect="off" spellcheck="false">
+    <pre id="dialog-code" class="recovery-code" hidden></pre>
+    <div class="dialog-buttons">
+      <button class="pill-btn ghost" id="dialog-cancel">Cancel</button>
+      <button class="pill-btn" id="dialog-ok">OK</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
+<script src="vendor/jsqr.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="js/shared/sync-crypto.js"></script>
+<script src="js/shared/sync-records.js"></script>
 <script src="js/themes-data.js"></script>
 <script src="js/dom.js"></script>
+<script src="js/db.js"></script>
 <script src="js/bridge.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/theme.js"></script>
 <script src="js/search.js"></script>
 <script src="js/tabs.js"></script>
+<script src="js/history.js"></script>
+<script src="js/collections.js"></script>
 <script src="js/adblock.js"></script>
 <script src="js/shield.js"></script>
 <script src="js/site-rules.js"></script>
+<script src="js/permissions.js"></script>
 <script src="js/reader.js"></script>
 <script src="js/ai.js"></script>
+<script src="js/vault.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/media.js"></script>
 <script src="js/gestures.js"></script>
 <script src="js/sheets.js"></script>
 <script src="js/views.js"></script>

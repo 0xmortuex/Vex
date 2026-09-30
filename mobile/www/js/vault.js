@@ -1,0 +1,303 @@
+// === Vex Mobile — the vault ===
+//
+// Logins and two-factor codes, the desktop's two autofill features on a phone.
+// Three rules shape it:
+//
+//   1. Nothing is captured behind your back. The desktop watches form
+//      submissions; here you tap "Save this login", and what gets saved is
+//      read out of the fields you can see. A browser that quietly harvests
+//      passwords is a browser you cannot audit.
+//   2. The vault is one encrypted blob under an Android Keystore key
+//      (VexVault), never a preference file, and never synced — a phone is
+//      lost more often than a PC.
+//   3. Filling is always a tap, and never submits the form for you.
+//
+// Two-factor codes are RFC 6238 TOTP, computed with WebCrypto: the secret is
+// stored beside the login and the code is worked out on the device.
+
+const VexVault = (() => {
+  const KEY = 'vex.logins';
+  const LOCK_AFTER_MS = 5 * 60 * 1000;
+
+  let entries = null;          // decrypted, in memory only while unlocked
+  let unlockedAt = 0;
+
+  function hostOf(url) { return VexSearch.prettyHost(url); }
+
+  function locked() {
+    return entries === null || Date.now() - unlockedAt > LOCK_AFTER_MS;
+  }
+
+  async function read() {
+    const raw = await VexBridge.vaultGet(KEY);
+    if (!raw) return [];
+    try { return JSON.parse(raw); } catch { return []; }
+  }
+
+  async function write(next) {
+    entries = next;
+    unlockedAt = Date.now();
+    await VexBridge.vaultSet(KEY, JSON.stringify(next));
+  }
+
+  // ── TOTP ─────────────────────────────────────────────────────────────────
+  const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+  function base32Decode(secret) {
+    const clean = String(secret || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
+    let bits = 0, value = 0;
+    const bytes = [];
+    for (const character of clean) {
+      const index = BASE32.indexOf(character);
+      if (index < 0) continue;
+      value = (value << 5) | index;
+      bits += 5;
+      if (bits >= 8) {
+        bytes.push((value >>> (bits - 8)) & 0xff);
+        bits -= 8;
+      }
+    }
+    return new Uint8Array(bytes);
+  }
+
+  async function totp(secret, { digits = 6, period = 30, at = Date.now() } = {}) {
+    const keyBytes = base32Decode(secret);
+    if (!keyBytes.length) throw new Error('That does not look like a 2FA secret');
+    const counter = Math.floor(at / 1000 / period);
+    const message = new ArrayBuffer(8);
+    const view = new DataView(message);
+    view.setUint32(0, Math.floor(counter / 0x100000000));
+    view.setUint32(4, counter >>> 0);
+    const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, message));
+    const offset = signature[signature.length - 1] & 0x0f;
+    const binary = ((signature[offset] & 0x7f) << 24)
+      | ((signature[offset + 1] & 0xff) << 16)
+      | ((signature[offset + 2] & 0xff) << 8)
+      | (signature[offset + 3] & 0xff);
+    return String(binary % Math.pow(10, digits)).padStart(digits, '0');
+  }
+
+  function secondsLeft(period = 30) {
+    return period - Math.floor((Date.now() / 1000) % period);
+  }
+
+  // otpauth://totp/Label?secret=ABC&issuer=X — what a QR code carries.
+  function parseOtpAuth(uri) {
+    try {
+      const parsed = new URL(uri);
+      if (parsed.protocol !== 'otpauth:') return null;
+      const secret = parsed.searchParams.get('secret');
+      if (!secret) return null;
+      const label = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+      return {
+        secret,
+        issuer: parsed.searchParams.get('issuer') || label.split(':')[0] || '',
+        account: label.includes(':') ? label.split(':')[1] : label,
+        digits: Number(parsed.searchParams.get('digits')) || 6,
+        period: Number(parsed.searchParams.get('period')) || 30
+      };
+    } catch { return null; }
+  }
+
+  // ── Filling a page ───────────────────────────────────────────────────────
+  // Runs inside the page. It fills the fields and fires the events frameworks
+  // listen for, and it never submits: the last step stays yours.
+  const FILL = (username, password) => `(function(){
+  function setValue(field, value) {
+    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    setter.call(field, value);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  var password = document.querySelector('input[type=password]:not([disabled])');
+  if (!password) return 'no-password-field';
+  var form = password.form || document;
+  var user = form.querySelector('input[autocomplete="username"], input[type=email], input[name*=user i], input[name*=email i], input[id*=user i], input[id*=email i]');
+  if (user) setValue(user, ${JSON.stringify(username)});
+  setValue(password, ${JSON.stringify(password)});
+  password.focus();
+  return 'filled';
+})()`;
+
+  // Reads what is in the fields right now, for "save this login".
+  const READ_FIELDS = `(function(){
+  var password = document.querySelector('input[type=password]:not([disabled])');
+  if (!password) return JSON.stringify({ ok: false });
+  var form = password.form || document;
+  var user = form.querySelector('input[autocomplete="username"], input[type=email], input[name*=user i], input[name*=email i], input[id*=user i], input[id*=email i]');
+  return JSON.stringify({ ok: true, username: user ? user.value : '', password: password.value });
+})()`;
+
+  const HAS_PASSWORD_FIELD = "(function(){return !!document.querySelector('input[type=password]:not([disabled])')})()";
+
+  // The other half of autofill: the checkout and sign-up forms that want your
+  // name, your email, your address. Card numbers are deliberately not here —
+  // a browser that types a card number into a page it does not understand is
+  // a browser that will one day type it into the wrong one.
+  const PROFILE_FIELDS = [
+    ['name', 'Full name', ['name', 'fullname', 'full-name', 'your-name']],
+    ['email', 'Email', ['email', 'e-mail']],
+    ['phone', 'Phone', ['phone', 'tel', 'mobile']],
+    ['address', 'Street address', ['address', 'street', 'address-line1', 'addr']],
+    ['city', 'City', ['city', 'town', 'locality']],
+    ['postcode', 'Post code', ['zip', 'postal', 'postcode']],
+    ['country', 'Country', ['country']]
+  ];
+
+  const FILL_PROFILE = profile => `(function(){
+  var map = ${JSON.stringify(PROFILE_FIELDS.map(([key, , hints]) => [key, hints]))};
+  var values = ${JSON.stringify(profile)};
+  function setValue(field, value) {
+    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    setter.call(field, value);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  var filled = 0;
+  var inputs = document.querySelectorAll('input:not([type=hidden]):not([type=password]):not([disabled]), textarea');
+  for (var i = 0; i < inputs.length; i++) {
+    var field = inputs[i];
+    var marker = ((field.name || '') + ' ' + (field.id || '') + ' ' + (field.autocomplete || '')
+      + ' ' + (field.placeholder || '')).toLowerCase();
+    for (var j = 0; j < map.length; j++) {
+      var key = map[j][0], hints = map[j][1];
+      if (!values[key]) continue;
+      var matched = false;
+      for (var k = 0; k < hints.length; k++) if (marker.indexOf(hints[k]) >= 0) matched = true;
+      if (matched && !field.value) { setValue(field, values[key]); filled++; break; }
+    }
+  }
+  return String(filled);
+})()`;
+
+  return {
+    totp, secondsLeft, parseOtpAuth, base32Decode,
+
+    locked,
+
+    async count() { return (await read()).length; },
+
+    /** A fingerprint (or the device PIN) opens it, and it re-locks itself. */
+    async unlock(reason = 'Unlock your logins') {
+      if (!locked()) return true;
+      const check = await VexBridge.authenticate('Vex', reason);
+      if (!check.ok) return false;
+      entries = await read();
+      unlockedAt = Date.now();
+      return true;
+    },
+
+    lock() { entries = null; unlockedAt = 0; },
+
+    all() { return locked() ? [] : entries.slice(); },
+
+    forHost(host) {
+      if (locked() || !host) return [];
+      return entries.filter(entry => entry.host === host || host.endsWith('.' + entry.host));
+    },
+
+    // Is there anything for this page? Answerable while locked, because it
+    // only needs the hosts — which are kept unencrypted for exactly this, so
+    // the "fill" button can appear without a fingerprint prompt first.
+    knownHosts() { return VexStore.get('vex.loginHosts', []); },
+
+    hasFor(host) {
+      if (!host) return false;
+      return this.knownHosts().some(known => host === known || host.endsWith('.' + known));
+    },
+
+    async save({ host, username, password, secret, label }) {
+      if (!(await this.unlock('Save this login'))) throw new Error('Not unlocked');
+      const now = Date.now();
+      const existing = entries.find(entry => entry.host === host && entry.username === username);
+      if (existing) {
+        Object.assign(existing, {
+          password: password || existing.password,
+          secret: secret !== undefined ? secret : existing.secret,
+          label: label || existing.label,
+          at: now
+        });
+      } else {
+        entries.unshift({
+          id: VexCollections.id('lg_'), host, username: username || '', password: password || '',
+          secret: secret || '', label: label || host, at: now
+        });
+      }
+      await write(entries);
+      await VexStore.set('vex.loginHosts', [...new Set(entries.map(entry => entry.host))]);
+      return true;
+    },
+
+    async remove(entryId) {
+      if (locked()) return false;
+      await write(entries.filter(entry => entry.id !== entryId));
+      await VexStore.set('vex.loginHosts', [...new Set(entries.map(entry => entry.host))]);
+      return true;
+    },
+
+    async clear() {
+      await VexBridge.vaultSet(KEY, '');
+      await VexStore.set('vex.loginHosts', []);
+      entries = [];
+    },
+
+    // ── The page ───────────────────────────────────────────────────────────
+    async pageHasLoginForm(tabId) {
+      try {
+        const { result } = await VexBridge.evaluate(tabId, HAS_PASSWORD_FIELD);
+        return String(result) === 'true';
+      } catch { return false; }
+    },
+
+    async fill(tabId, entry) {
+      const { result } = await VexBridge.evaluate(tabId, FILL(entry.username || '', entry.password || ''));
+      return String(result).includes('filled');
+    },
+
+    async readFields(tabId) {
+      const { result } = await VexBridge.evaluate(tabId, READ_FIELDS);
+      try {
+        const parsed = JSON.parse(typeof result === 'string' ? JSON.parse(result) : result);
+        return parsed && parsed.ok ? parsed : null;
+      } catch {
+        try {
+          const parsed = JSON.parse(result);
+          return parsed && parsed.ok ? parsed : null;
+        } catch { return null; }
+      }
+    },
+
+    // ── Your details ───────────────────────────────────────────────────────
+    PROFILE_FIELDS,
+
+    profile() {
+      const stored = VexStore.get('vex.profile', null);
+      return stored && typeof stored === 'object' ? stored : {};
+    },
+
+    async saveProfile(profile) {
+      const clean = {};
+      for (const [key] of PROFILE_FIELDS) {
+        const value = String((profile || {})[key] || '').trim();
+        if (value) clean[key] = value.slice(0, 200);
+      }
+      await VexStore.set('vex.profile', Object.keys(clean).length ? clean : null);
+      return clean;
+    },
+
+    hasProfile() { return Object.keys(this.profile()).length > 0; },
+
+    async fillProfile(tabId) {
+      const profile = this.profile();
+      if (!Object.keys(profile).length) return 0;
+      const { result } = await VexBridge.evaluate(tabId, FILL_PROFILE(profile));
+      return Number(String(result).replace(/"/g, '')) || 0;
+    },
+
+    hostOf
+  };
+})();
+
+if (typeof window !== 'undefined') window.VexVault = VexVault;
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexVault };

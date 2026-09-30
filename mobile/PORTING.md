@@ -60,7 +60,7 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Downloads | ✅ basic | DownloadManager; the desktop's rename/foldering rules are not ported |
 | Long-press link and image menus | ✅ | `HitTestResult` → a bottom sheet |
 | Edge-swipe back/forward | ✅ | Detected natively; page touches never reach the chrome |
-| Tab groups, auto-grouping | 🟡 | The model ports; the phone UI for it has to be designed |
+| Tab groups | ✅ | Named, coloured, in the switcher; auto-grouping is not ported |
 | Tab sleep / hibernate / Tab Health | 🟡 | Android already freezes background WebViews; the ceiling logic needs Android memory APIs |
 | Vertical tabs, split screen, layout editor | ❌ | Phone-shaped; the tab grid replaces them |
 | Sidebar apps | 🟡 | Each is a partitioned webview — possible as tabs on their own profile, but a sidebar is not a phone pattern |
@@ -80,15 +80,17 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | DNS-over-HTTPS | ❌ | WebView uses the system resolver; Android's Private DNS is the only lever |
 | Tor routing, ByeDPI bypass | 🔧 | See blocker 3 |
 | Proxy / container routing | 🟡 | `Proxy.setProxyOverride` is process-wide, so per-container routing does not survive |
-| Password vault, 2FA, email-code autofill | 🔧 | The Keystore primitive is here; autofill itself needs the Android Autofill Service or document-start injection |
+| Password vault, 2FA | ✅ | Keystore-backed vault, RFC 6238 codes, fill-on-tap that never submits |
+| Personal-details autofill | ✅ | Name, email, address; card numbers deliberately not |
+| Email-code autofill | ❌ | Needs the IMAP panel, which needs a Java mail client |
 
 ### Content and media
 | Desktop | Status | Note |
 |---|---|---|
 | Widevine streaming | ❌ | Blocker 1 |
 | Codec fallbacks | 🟡 | Whatever the device's WebView ships; no swapping in your own |
-| Save page as single file | 🟡 | Needs its own implementation; PDF is done |
-| Full-page capture | 🟡 | Scroll-and-stitch in the native layer |
+| Save page as single file | ✅ | The whole document in IndexedDB, opened with no connection |
+| Full-page capture | ✅ | Scroll-and-stitch natively, capped at six screens, then shared |
 | EPUB reader, PDF text extraction | 🟡 | Pure JS in `src/main`; runs anywhere |
 | Screen recording, clips | ❌ | Desktop capture APIs; MediaProjection is a different feature |
 
@@ -96,12 +98,14 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Desktop | Status | Note |
 |---|---|---|
 | Cloud AI assistant | ✅ | Same request shape as the desktop, so one worker serves both. Page text comes from the reader's extraction; private tabs never send any |
+| Translate | ✅ | Through your own worker, with the web translator as the fallback it names |
 | Summarize / translate / explain | ✅ | The worker's own actions |
 | Local AI (Ollama, WebGPU) | ❌ | Blocker 4 |
 | Agent acting on tabs | 🟡 | `evaluate` per tab is already exposed; the tool loop is not ported |
-| Recall full-text index | 🟡 | Plain JS; storage moves to SQLite |
-| History, bookmarks, downloads | ✅ basic | Same record shapes, stored via Preferences. Thousands of rows want SQLite |
-| Encrypted sync | 🟡 | Network code is portable; key storage is solved (`VexVault`) |
+| Recall full-text index | ✅ | IndexedDB with a multiEntry word index — a lookup, not a scan |
+| History, bookmarks, downloads | ✅ | History and downloads in IndexedDB; bookmarks (with folders, import and export) in Preferences, because they sync |
+| Reading list, sessions | ✅ | Sessions use the desktop's own record shape, so one saved here opens there |
+| Encrypted sync | ✅ | The desktop's worker, its crypto and its version-vector records, copied verbatim and checked for drift. Bookmarks, reading list, sessions, quick access and site rules travel; history does not (5 MB blob) |
 | Mail panel (IMAP), reminders, calendar | 🔧 | `imapflow` is Node — needs a Java client or a server-side relay |
 
 ### Chrome and platform
@@ -114,12 +118,19 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Toolbar/sidebar rearranging | ❌ | Four controls fit on a phone toolbar |
 | Command bar, keyboard shortcuts | ❌ | No keyboard; the menu sheet is the mobile answer |
 | Auto-update | 🔧 | Play Store, or an APK update check of your own |
+| Default browser | ✅ | The role dialog on Android 10+, the settings screen otherwise |
+| Home-screen shortcuts | ✅ | Pinned with the site's own icon |
+| Dictation, QR scan and share | ✅ | System recogniser; jsQR and qrcode-generator, both on-device |
+| Picture-in-picture, background audio | ✅ | Samsung's "video assistant", as Android's own PiP |
 | Crash log, safe mode | 🟡 | Worth rebuilding; `restart-smoke.js` has an Android analogue in instrumented tests |
 | DevTools | 🟡 | `chrome://inspect` from desktop Chrome |
 
 ---
 
 ## Build and verification status
+
+Everything in the comparison with Samsung Internet is in
+[SAMSUNG-PARITY.md](SAMSUNG-PARITY.md).
 
 What is checked here, on every `npm run check`:
 
@@ -133,13 +144,21 @@ What is checked here, on every `npm run check`:
   `call('method')` in `bridge.js` has a matching `@PluginMethod`, so the chrome
   cannot ship a call into a method nobody wrote.
 - **The themes match the desktop.** `sync-themes.mjs --check`.
+- **The sync files match the desktop, byte for byte.** `sync-shared.mjs --check`
+  over the AES-GCM primitives and the record merge — a drift there is two
+  devices that quietly cannot read each other.
 - **The chrome runs.** `npm run smoke` drives it in a phone-sized Chromium:
   navigate, menu, per-site rules, reader, assistant, theme switch, skin,
-  privacy panel, tab search, private browsing, long-press sheet, find, and
-  Android back — 33 expectations, plus any page error fails the run.
-- **The logic has tests.** 80 vitest cases in `tests/mobile/` over the omnibox,
-  the filter parser, the tab model, site rules, the assistant client, themes,
-  the shield and reader parsing.
+  privacy panel, tab search, private browsing, long-press sheet, find, Recall,
+  reading list, bookmark folders and import/export, sessions, the password
+  vault and its TOTP codes, the sync merge and encryption, site permissions,
+  the menu editor, quick access, toolbar position and auto-hide, QR, dialogs,
+  saved pages, toolbar buttons, page presentation, pop-up blocking and the
+  blocking dashboard — 62 expectations, plus any page error fails the run.
+- **The logic has tests.** 130 vitest cases in `tests/mobile/` over the
+  omnibox, the filter parser, the tab model, site rules, the assistant client,
+  themes, the shield, reader parsing, collections, history and Recall, the
+  vault (including the RFC 6238 vectors) and sync.
 
 What is still unverified, and it matters:
 
@@ -155,13 +174,16 @@ What is still unverified, and it matters:
 ## Suggested order of work
 
 1. **Get it building and on a device.** `npm i && npx cap sync android`, fix
-   the first round of Gradle errors, confirm the content rect tracks the
-   keyboard and the insets.
-2. **Storage that scales.** Move history and the blocker's rule cache off
-   Preferences onto SQLite before the history panel is the slowest screen.
-3. **Sync.** The key storage is already solved; the desktop's encrypted sync
-   would give the phone the same bookmarks, tabs and history.
-4. **The agent loop.** `evaluate` is exposed; the desktop's tool loop is the
-   remaining piece, and it is the feature that makes mobile Vex feel like Vex.
-5. **Tab groups and sidebar apps**, if the phone UI for them earns its place.
+   the first round of Gradle errors, then walk the list in SAMSUNG-PARITY.md
+   on real hardware — geometry against the keyboard and the gesture insets is
+   what only a phone settles.
+2. **The agent loop.** `evaluate` is exposed per tab and the assistant is
+   wired; the desktop's tool loop ("close all the YouTube tabs") is the
+   remaining piece, and it is the one that makes this feel like Vex.
+3. **History in sync.** It is deliberately out today because the blob is
+   capped at 5 MB; a per-day chunked record would fix that.
+4. **The blocker's missing syntax** — `$redirect`, `$removeparam` and the
+   cosmetic exceptions — which is where the remaining breakage on stubborn
+   sites will come from.
+5. **A tablet layout**: a real tab bar, and two-pane panels.
 6. Only then Tor/ByeDPI as embedded libraries, knowing the size of it.

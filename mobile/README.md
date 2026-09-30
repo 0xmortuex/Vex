@@ -12,24 +12,46 @@ and cannot bring to a phone. Read that before planning work here.
 
 ## What it does today
 
-**Browsing** — tabs with a snapshot switcher and tab search, private tabs (own
-WebView profile on WebView 116+), session restore down to the scroll position,
-find in page, edge-swipe back and forward, long-press menus on links and
-images, downloads through DownloadManager, file uploads, fullscreen video,
-print and save-as-PDF, share and open-from-other-apps, Android back that walks
-the UI the way the system expects.
+The target was everything Samsung Internet does, as a floor, plus everything
+that could come across from the desktop. [SAMSUNG-PARITY.md](SAMSUNG-PARITY.md)
+is the feature-by-feature comparison; the short version:
 
-**Vex's own things** — the eight desktop themes, generated from the desktop's
-own token file; seven skins drawn in the theme's ink; the interface typefaces;
-a reader that pulls the article out of a page and sets it in Spectral; the
-assistant, talking to the Cloudflare Worker you deploy yourself; per-site rules
-(JavaScript, images, dark, desktop layout, text size, blocking); ad and tracker
-blocking with cosmetic filtering; a fingerprint shield that runs before the
-page's first script.
+**Browsing** — tabs with a snapshot switcher, tab search and tab groups;
+private tabs (own WebView profile on WebView 116+, optionally behind a
+fingerprint); session restore down to the scroll position; pull to refresh; a
+toolbar that sits at the top or the bottom, hides as you scroll, and carries
+the buttons you choose; find in page; edge-swipe back and forward; long-press
+menus on links and images; downloads with live progress; print and
+save-as-PDF; pop-up blocking; Android back that walks the UI the way the
+system expects.
 
-**Privacy defaults** — third-party cookies off, HTTPS upgrades, DNT and GPC
-headers, SSL errors that refuse rather than offer a way past, private tabs that
-never reach history and never send page text to the assistant.
+**Reading** — a reader that pulls the article out and sets it in Spectral;
+text size, forced pinch-zoom, contrast and a night shade for pages that fight
+you; saved pages that open with no connection at all; a reading list.
+
+**Finding things again** — history in IndexedDB with search, bookmarks in
+folders with import and export, and Recall: the readable text of every page
+you read, indexed on the device, searchable by what it said.
+
+**Media** — a floating video window (Android picture-in-picture), background
+audio, ±10 s controls, video brightness past what the site allows.
+
+**Privacy** — ad and tracker blocking with cosmetic filtering and a dashboard
+of what it cost the sites you visit; a fingerprint shield that runs before the
+page's first script; per-site rules and per-site permissions; third-party
+cookies off; HTTPS upgrades; DNT and GPC; certificate errors that refuse
+rather than offering a way past.
+
+**Your things** — a password vault under an Android Keystore key with TOTP
+codes and form filling; personal details for sign-up forms; QR codes both
+ways (scan one, or hand this page to the machine next to you); dictation into
+the address bar; add a site to the home screen.
+
+**Vex's own** — eight themes, seven skins and five typefaces generated from
+the desktop's token file; the assistant against a Cloudflare Worker you deploy
+yourself; and encrypted sync with the desktop — bookmarks, reading list,
+sessions and site rules, merged with the same version-vector records the PC
+uses, with your desktop's open tabs on the start page.
 
 ## How it fits together
 
@@ -65,6 +87,14 @@ whole codebase:
 | File | Holds |
 |---|---|
 | `www/js/bridge.js` | `window.VexBridge` — the mobile answer to the desktop's `window.vex` |
+| `www/js/db.js` | IndexedDB: history, the Recall index, saved pages, downloads |
+| `www/js/history.js` | The visit log and Recall, over that database |
+| `www/js/collections.js` | Bookmarks, reading list, sessions, start tiles, tab groups |
+| `www/js/vault.js` | Logins, TOTP, form filling, personal details |
+| `www/js/sync.js` | The encrypted sync client (with `www/js/shared/`, copied from the desktop) |
+| `www/js/tools.js` | QR both ways, dictation, saved pages, capture, translate |
+| `www/js/media.js` | Picture-in-picture, background audio, video controls |
+| `www/js/permissions.js` | What each site may ask for |
 | `www/js/dom.js` | element helpers; nothing here has an innerHTML path for outside text |
 | `www/js/storage.js` | async key/value over Preferences, same key names as the desktop |
 | `www/js/theme.js` | themes, skins, fonts, the page's own theme colour |
@@ -91,6 +121,7 @@ whole codebase:
 | `block/BlockEngine.java` | request matching inside `shouldInterceptRequest` |
 | `block/VexBlockPlugin.java` | the JS control surface for it |
 | `vault/VexVaultPlugin.java` | AES/GCM secrets under an Android Keystore key |
+| `system/VexSystemPlugin.java` | Biometrics, shortcuts, dictation, PiP, permissions, default browser |
 
 ## Build
 
@@ -116,9 +147,10 @@ do it.
 
 ```bash
 npm run check        # chrome parse + references + bridge/native contract,
-                     # themes in step with the desktop, Java type-check
+                     # themes and the shared sync files in step with the
+                     # desktop, and a Java type-check
 npm run smoke        # drive the whole chrome in a phone-sized Chromium
-npm test             # (from the repo root) 80 vitest cases over the chrome logic
+npm test             # (from the repo root) 130 vitest cases over the chrome logic
 ```
 
 `npm run check:java` compiles every Android source with plain javac against the
@@ -133,8 +165,11 @@ set `ANDROID_JAR` or `ANDROID_HOME` to use your own, or pass `--offline` to
 skip rather than fail.
 
 `npm run themes` regenerates `www/css/themes.css` and `www/js/themes-data.js`
-from `src/renderer/css/theme-tokens.css`. `npm run check` fails if they are
-stale, so a desktop theme change cannot quietly leave the phone behind.
+from `src/renderer/css/theme-tokens.css`. `npm run shared` re-copies the two
+files the phone and the desktop must agree on byte for byte — the sync crypto
+and the record merge. `npm run check` fails if either is stale, so a desktop
+change cannot quietly leave the phone behind, and a device cannot end up
+unable to read the other's synced data.
 
 ## Develop the chrome without a device
 
@@ -173,20 +208,32 @@ Events: `loadStart` `loadProgress` `loadEnd` `title` `urlChange` `icon`
 `newTab` `download` `blocked` `findResult` `error` `permission` `edgeSwipe`
 `longPress` `fullscreen`.
 
+Also on `VexTabs`: `setPullToRefresh`, `setBackgroundAudio`, `loadHtml` (saved
+pages), `capturePage`, `downloadStatus`, `openDownload`, `clearSiteData`,
+`setWindowBackground`, and `scroll` events for the auto-hiding toolbar.
+
 `VexBlock`: `setEnabled`, `setSiteAllowed`, `loadRules({block, allow, hide})`,
 `stats`. Filter text is parsed in JS (`www/js/adblock.js`) and handed over
 already split; matching happens natively inside `shouldInterceptRequest`.
 
 `VexVault`: `set`, `get`, `has`, `clear` — AES/GCM under a key that never
-leaves the Android Keystore. The assistant's token is the only thing using it
-so far.
+leaves the Android Keystore. The assistant's token, the sync key and the
+password vault all sit behind it.
+
+`VexSystem`: `biometricsAvailable`, `authenticate`, `addShortcut`,
+`voiceInput`, `enterPictureInPicture`, `hasPermission`, `requestPermission`,
+`isDefaultBrowser`, `openDefaultBrowserSettings`, `setFullscreen`,
+`setKeepAwake`, `shareFile`.
 
 ## Known limits
 
 - Never assembled by Gradle; the first real build will need fixing up.
 - Private tabs only get a separate cookie jar on WebView 116+ (multi-profile).
-- History and bookmarks live in SharedPreferences — fine for hundreds of rows,
-  not for thousands. SQLite before that becomes the slowest screen in the app.
+- History and Recall are in IndexedDB and scale to tens of thousands of rows;
+  bookmarks, sessions and settings stay in SharedPreferences because they are
+  small and they are what syncs.
+- Sync carries bookmarks, the reading list, sessions, quick access and site
+  rules. History does not travel — the encrypted blob is capped at 5 MB.
 - The blocker implements a subset of EasyList syntax; see PORTING.md.
 - The fingerprint shield needs WebView 83+ to run before page scripts. Older
   WebViews run it at page start, which a fast tracker can beat; the privacy

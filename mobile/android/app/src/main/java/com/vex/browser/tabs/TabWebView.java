@@ -80,6 +80,8 @@ public class TabWebView extends WebView {
     private final AtomicInteger blockedPending = new AtomicInteger();
 
     private String pageHost = "";
+    private int scrollPending;
+    private long lastScrollReport;
     private String pendingStartScript = "";
     private androidx.webkit.ScriptHandler documentStart;
     private boolean desktopMode;
@@ -356,6 +358,67 @@ public class TabWebView extends WebView {
 
     public int scrollY() {
         return getScrollY();
+    }
+
+    /**
+     * The toolbar gets out of the way as you read and comes back when you go
+     * up, the way Samsung Internet's does. The chrome cannot see the page's
+     * scrolling — the page is a native view on top of it — so the deltas are
+     * reported from here, throttled, because this fires on every frame of a
+     * fling.
+     */
+    @Override
+    protected void onScrollChanged(int left, int top, int oldLeft, int oldTop) {
+        super.onScrollChanged(left, top, oldLeft, oldTop);
+        int delta = top - oldTop;
+        if (delta == 0) return;
+        scrollPending += delta;
+        long now = System.currentTimeMillis();
+        if (now - lastScrollReport < 80) return;
+        lastScrollReport = now;
+        JSObject data = new JSObject();
+        data.put("id", id);
+        data.put("dy", scrollPending);
+        data.put("y", top);
+        data.put("atTop", top <= 0);
+        scrollPending = 0;
+        host.emit("scroll", data);
+    }
+
+    /** Render a saved page: its own HTML, under its own address. */
+    public void loadHtml(String html, String baseUrl) {
+        loadDataWithBaseURL(baseUrl == null || baseUrl.isEmpty() ? null : baseUrl,
+                html, "text/html", "utf-8", baseUrl);
+    }
+
+    /**
+     * A picture of the page. `full` scrolls through it and stitches, capped at
+     * six screens — past that the bitmap is bigger than the memory a phone
+     * will hand out for a screenshot.
+     */
+    public Bitmap capture(boolean full) {
+        int width = getWidth(), height = getHeight();
+        if (width <= 0 || height <= 0) return null;
+        if (!full) {
+            Bitmap single = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            draw(new Canvas(single));
+            return single;
+        }
+        int contentHeight = Math.round(getContentHeight() * getScale());
+        int total = Math.min(contentHeight, height * 6);
+        if (total <= 0) return null;
+        Bitmap stitched = Bitmap.createBitmap(width, total, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(stitched);
+        int originalScroll = getScrollY();
+        for (int offset = 0; offset < total; offset += height) {
+            scrollTo(0, offset);
+            canvas.save();
+            canvas.translate(0, offset);
+            draw(canvas);
+            canvas.restore();
+        }
+        scrollTo(0, originalScroll);
+        return stitched;
     }
 
     public void restoreScroll(int y) {

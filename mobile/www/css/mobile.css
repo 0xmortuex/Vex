@@ -507,3 +507,132 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ── Toolbar at the top ──────────────────────────────────────────────────────
+   Samsung lets you move the address bar to the top, and people who have had it
+   there for years want it there. The layout is a flex column, so this is an
+   order swap plus which edge the border and the safe-area padding sit on. */
+body[data-toolbar="top"] { flex-direction: column; }
+body[data-toolbar="top"] .toolbar {
+  order: -1;
+  border-top: 0;
+  border-bottom: 1px solid var(--vex-border-subtle);
+  padding-bottom: 0;
+  height: var(--tb-height);
+}
+body[data-toolbar="top"] #progress { order: -2; }
+body[data-toolbar="top"] .findbar { bottom: auto; top: calc(var(--tb-height) + env(safe-area-inset-top)); }
+body[data-toolbar="top"] .toasts { bottom: calc(20px + env(safe-area-inset-bottom)); }
+body[data-toolbar="top"] .start { inset: calc(env(safe-area-inset-top) + var(--tb-height)) 0 0 0; }
+
+/* The toolbar gets out of the way as you read. */
+.toolbar { transition: background-color .25s var(--ease), transform .22s var(--ease); }
+body.toolbar-hidden .toolbar { transform: translateY(100%); }
+body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%); }
+
+/* ── QR scanner ──────────────────────────────────────────────────────────── */
+.scan { position: fixed; inset: 0; z-index: 55; background: #000; display: flex;
+  align-items: center; justify-content: center; }
+.scan-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scan-frame {
+  position: relative; width: 62vw; height: 62vw; max-width: 300px; max-height: 300px;
+  border: 2px solid rgba(255, 255, 255, .9); border-radius: 18px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .55);
+}
+.scan-hint {
+  position: absolute; left: 0; right: 0; bottom: calc(110px + env(safe-area-inset-bottom));
+  text-align: center; color: #fff; font-size: var(--text-sm); margin: 0;
+}
+.scan-cancel {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(40px + env(safe-area-inset-bottom)); width: 160px;
+  background: rgba(255, 255, 255, .14); color: #fff; border-color: rgba(255, 255, 255, .4);
+}
+
+/* ── QR share ────────────────────────────────────────────────────────────── */
+.qrshare { position: fixed; inset: 0; z-index: 52; display: grid; place-items: center; }
+.qrshare-card {
+  position: relative; width: min(86vw, 340px); padding: 22px 20px 18px;
+  background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle);
+  border-radius: calc(var(--radius) + 6px); box-shadow: var(--elevation) var(--vex-shadow);
+  text-align: center; animation: sheet-up .2s var(--ease) both;
+}
+.qrshare-card h2 { margin: 0 0 14px; font: 500 var(--text-lg)/1.3 var(--font-read); }
+.qrshare-canvas { display: grid; place-items: center; }
+.qrshare-canvas canvas { width: 100%; max-width: 250px; height: auto; border-radius: 10px; }
+.qrshare-url { margin: 12px 0 16px; font-size: var(--text-xs); color: var(--vex-text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Video controls ──────────────────────────────────────────────────────── */
+.mediabar {
+  position: fixed; left: 8px; right: 8px; z-index: 29;
+  bottom: calc(var(--tb-height) + env(safe-area-inset-bottom) + 8px);
+  display: flex; align-items: center; gap: 2px; padding: 4px 6px;
+  background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle);
+  border-radius: 26px; box-shadow: var(--elevation) var(--vex-shadow);
+  animation: toast-in .2s var(--ease) both;
+}
+body[data-toolbar="top"] .mediabar { bottom: calc(14px + env(safe-area-inset-bottom)); }
+.mediabar-label { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--vex-text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; }
+
+/* ── Rows with a trailing pair of buttons (quick access, reorder) ─────────── */
+.row-actions { display: flex; gap: 2px; flex: 0 0 auto; }
+.row-actions button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--vex-text-muted); }
+.row-actions svg { width: 16px; height: 16px; }
+
+/* ── Password vault ──────────────────────────────────────────────────────── */
+.totp { display: flex; align-items: center; gap: 10px; }
+.totp-code { font: 600 var(--text-lg)/1 ui-monospace, "JetBrains Mono", monospace; letter-spacing: .12em; color: var(--vex-accent); }
+.totp-ring { width: 22px; height: 22px; flex: 0 0 auto; }
+.totp-ring circle { fill: none; stroke-width: 3; }
+.totp-ring .track { stroke: var(--vex-border-subtle); }
+.totp-ring .fill { stroke: var(--vex-accent); transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 1s linear; }
+.locked-note { padding: 40px 24px; text-align: center; color: var(--vex-text-muted); font-size: var(--text-sm); line-height: 1.6; }
+
+/* ── Sync ────────────────────────────────────────────────────────────────── */
+.recovery-code {
+  margin: 12px 16px; padding: 14px; border-radius: var(--radius); user-select: text;
+  background: var(--vex-bg-deep); border: 1px dashed var(--vex-border-strong);
+  font: 500 var(--text-md)/1.7 ui-monospace, "JetBrains Mono", monospace;
+  letter-spacing: .08em; text-align: center; word-break: break-all;
+}
+.status-line { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: var(--text-sm); color: var(--vex-text-muted); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vex-text-muted); flex: 0 0 auto; }
+.status-dot.on { background: var(--vex-success); }
+.status-dot.error { background: var(--vex-danger); }
+
+/* ── Progress rows (downloads) ───────────────────────────────────────────── */
+.progress-row { height: 3px; border-radius: 2px; background: var(--vex-bg-deep); overflow: hidden; margin-top: 6px; }
+.progress-row i { display: block; height: 100%; background: var(--vex-accent); transition: width .3s var(--ease); }
+
+/* ── Recall results ──────────────────────────────────────────────────────── */
+.recall-snippet {
+  display: block; margin-top: 4px; font-size: var(--text-xs); line-height: 1.45;
+  color: var(--vex-text-secondary); max-height: 2.9em; overflow: hidden;
+}
+
+/* ── Chips row inside a panel (reading list filters, language picker) ────── */
+.panel-chips { display: flex; gap: 8px; padding: 10px 16px 4px; overflow-x: auto; }
+.panel-chips::-webkit-scrollbar { display: none; }
+
+/* ── Dialogs ─────────────────────────────────────────────────────────────── */
+.dialog { position: fixed; inset: 0; z-index: 58; display: grid; place-items: center; padding: 20px; }
+.dialog-card {
+  position: relative; width: min(92vw, 400px); padding: 20px;
+  background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle);
+  border-radius: calc(var(--radius) + 6px); box-shadow: var(--elevation) var(--vex-shadow);
+  animation: sheet-up .18s var(--ease) both;
+}
+.dialog-card h2 { margin: 0 0 10px; font: 500 var(--text-lg)/1.3 var(--font-read); }
+.dialog-message { margin: 0 0 14px; font-size: var(--text-sm); color: var(--vex-text-secondary); line-height: 1.5; }
+.dialog-input {
+  width: 100%; height: 44px; padding: 0 14px; margin-bottom: 16px; user-select: text;
+  background: var(--vex-bg-base); border: 1px solid var(--vex-border-subtle);
+  border-radius: 12px; color: var(--vex-text-primary); font-size: 16px;
+}
+.dialog-buttons { display: flex; gap: 10px; }
+.dialog-buttons .pill-btn { min-height: 42px; }
+
+/* The configurable ends of the toolbar. */
+.tb-slot { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }

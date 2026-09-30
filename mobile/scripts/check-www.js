@@ -37,25 +37,36 @@ for (const file of walk(www)) {
   }
 }
 
-// The Android side: every plugin the bridge calls must exist in Java, or the
-// chrome would ship calls into a plugin nobody registered.
+// The Android side: every plugin method the bridge calls has to exist, in the
+// plugin it calls it on. A chrome that ships a call into a method nobody wrote
+// fails at runtime, on a device, with "no such method" — which is exactly the
+// class of mistake a check can catch for free.
 const bridge = fs.readFileSync(path.join(www, 'js', 'bridge.js'), 'utf8');
-for (const plugin of ['VexTabs', 'VexBlock', 'VexVault']) {
-  if (!bridge.includes(plugin)) continue;
-  const java = walk(path.join(root, 'android', 'app', 'src', 'main', 'java'))
-    .some(file => fs.readFileSync(file, 'utf8').includes('name = "' + plugin + '"'));
-  checked++;
-  if (!java) failures.push('bridge.js calls ' + plugin + ' but no @CapacitorPlugin declares it');
+const javaFiles = walk(path.join(root, 'android', 'app', 'src', 'main', 'java'))
+  .map(file => fs.readFileSync(file, 'utf8'));
+
+const nativeMethods = new Map();   // plugin name -> Set of @PluginMethod names
+for (const source of javaFiles) {
+  const plugin = source.match(/@CapacitorPlugin\(name = "(\w+)"\)/);
+  if (!plugin) continue;
+  const methods = new Set([...source.matchAll(/@PluginMethod[\s\S]{0,160}?public void (\w+)\s*\(/g)].map(match => match[1]));
+  nativeMethods.set(plugin[1], methods);
 }
 
-// Every method the bridge calls has to exist as a @PluginMethod, or the chrome
-// ships a call into native that rejects at runtime with "no such method".
-const javaSources = walk(path.join(root, 'android', 'app', 'src', 'main', 'java'))
-  .map(file => fs.readFileSync(file, 'utf8')).join('\n');
-const nativeMethods = new Set([...javaSources.matchAll(/@PluginMethod[\s\S]{0,120}?public void (\w+)\s*\(/g)].map(match => match[1]));
-for (const match of bridge.matchAll(/call\('(\w+)'/g)) {
+// call('VexBlock', 'setEnabled', …) and the tabs()/system() shorthands.
+const calls = [
+  ...[...bridge.matchAll(/call\('(\w+)',\s*'(\w+)'/g)].map(match => [match[1], match[2]]),
+  ...[...bridge.matchAll(/\btabs\('(\w+)'/g)].map(match => ['VexTabs', match[1]]),
+  ...[...bridge.matchAll(/\bsystem\('(\w+)'/g)].map(match => ['VexSystem', match[1]]),
+  ...[...bridge.matchAll(/plugins\.(\w+)\.(\w+)\(\{/g)].map(match => [match[1], match[2]])
+];
+
+for (const [plugin, method] of calls) {
+  if (['addListener', 'removeAllListeners'].includes(method)) continue;
   checked++;
-  if (!nativeMethods.has(match[1])) failures.push("bridge.js calls VexTabs." + match[1] + '() but no @PluginMethod defines it');
+  const methods = nativeMethods.get(plugin);
+  if (!methods) { failures.push('bridge.js calls ' + plugin + '.' + method + '() but no @CapacitorPlugin declares ' + plugin); continue; }
+  if (!methods.has(method)) failures.push('bridge.js calls ' + plugin + '.' + method + '() but ' + plugin + ' has no such @PluginMethod');
 }
 
 if (failures.length) {
