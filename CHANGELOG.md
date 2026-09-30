@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.34.4 (2026-10-01) — Tor's small print
+
+Includes everything in v2.34.3.
+
+### Fixes
+- **Stop Tor closes only your Tor tabs.** Tabs in a container, site rule or burner that go through Tor stay open; they stop loading until you use them again, and then Tor starts by itself. The Stop dialog says which is which.
+- Starting Tor again no longer shows "Downloading Tor 100%" when nothing is downloaded: it goes straight to "Starting Tor".
+- A site that does not answer inside a Tor tab now says so ("the site did not answer through Tor"), instead of blaming Tor; "Tor is not running" is said only when it is not.
+- Settings › Sync no longer names a device that is up to date as the one shortcut-tile sync is waiting for, after an older device synced.
+
 ## v2.34.3 (2026-10-01) — No more ways around Tor, and your New Tab tiles on every device
 
 ### Privacy

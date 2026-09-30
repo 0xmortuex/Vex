@@ -98,7 +98,11 @@ async function ensureBinary(userDataDir, onProgress) {
   if (fs.existsSync(exe)) {
     try { verifyDigest(await fs.promises.readFile(exe), TOR_EXE_SHA256); return { exe, geoip, geoip6 }; } catch {}
   }
-  fs.mkdirSync(dir, { recursive: true });
+  await fs.promises.mkdir(dir, { recursive: true });
+  // Said before the first byte, so a download is shown as one even when the
+  // server gives no size. After an await: start() adds its caller's listener
+  // once this has returned.
+  if (onProgress) onProgress(0);
   const buf = await _downloadWithProgress(TOR_URL, (got, total) => {
     if (onProgress && total) onProgress(got / total);
   });
@@ -148,9 +152,13 @@ async function _start(userDataDir) {
   const cancelled = () => { if (token !== _startToken) throw new Error('cancelled'); };
   const emit = (phase, value, detail) => { if (token !== _startToken) return; for (const fn of _listeners) { try { fn(phase, value, detail); } catch {} } };
 
-  const { exe, geoip, geoip6 } = await ensureBinary(userDataDir, (frac) => emit('download', frac));
+  // "Downloading Tor 100%" showed on every start, Tor already on disk
+  // included (found 2026-09-30): the download is said only when there is one.
+  let downloaded = false;
+  const { exe, geoip, geoip6 } = await ensureBinary(userDataDir, (frac) => { downloaded = true; emit('download', frac); });
   cancelled();
-  emit('download', 1);
+  if (downloaded) emit('download', 1);
+  emit('bootstrap', 0, 'starting');
 
   const port = await _freePort();
   cancelled();

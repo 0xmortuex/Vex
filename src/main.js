@@ -5621,23 +5621,26 @@ function _reviveTor(contents) {
 
 // Vex's own windows (the main one and any private ones). A window still
 // starting has no TorSession yet, and no tabs either.
-function _torTabsInWindows(pages, action) {
+function _torTabsInWindows(action) {
   const wins = [...secureSessions.hosts.values()].map(h => h.win).filter(w => w && !w.isDestroyed());
-  return Promise.all(wins.map(w => w.webContents.executeJavaScript(`typeof TorSession === 'undefined' ? 0 : TorSession.${action}(${JSON.stringify(pages)})`)));
+  return Promise.all(wins.map(w => w.webContents.executeJavaScript(`typeof TorSession === 'undefined' ? 0 : TorSession.${action}()`)));
 }
-function _torPages() {
-  return webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.session && wc.session.__vexTor).map(wc => wc.id);
+// The tab pages going through Tor that are not Tor tabs: a container, a
+// burner or a site rule routed through Tor. Stop leaves them open; their
+// session gets the refusing proxy (_torWentDown) and their next page starts
+// Tor again (_reviveTor). Stop closed them with the Tor tabs (found 2026-09-30).
+function _torRoutedPages() {
+  return webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.getType() === 'webview' && wc.session && wc.session.__vexTor && !wc.session.__vexTorTab).length;
 }
 // What the indicator shows, and the Tor tabs Stop closes. Stop closed them
 // only in the window it was clicked in; a Tor page in another window just
 // stopped loading (found 2026-09-30). Every window is counted and told.
 ipcMain.handle('tor:status', async () => {
-  const pages = _torPages();
-  const counts = await _torTabsInWindows(pages, 'countTorTabs');
-  return { running: _torLauncher.isRunning(), pages, tabs: counts.reduce((a, b) => a + b, 0), windows: counts.filter(Boolean).length };
+  const counts = await _torTabsInWindows('countTorTabs');
+  return { running: _torLauncher.isRunning(), tabs: counts.reduce((a, b) => a + b, 0), windows: counts.filter(Boolean).length, routed: _torRoutedPages() };
 });
 ipcMain.handle('tor:stop', async () => {
-  await _torTabsInWindows(_torPages(), 'closeTorTabs');
+  await _torTabsInWindows('closeTorTabs');
   _torLauncher.stop();
   return { ok: true };
 });
@@ -5665,6 +5668,7 @@ ipcMain.handle('tor:create', async (event) => {
     const part = `tor-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
     const ses = secureSessions.fromPartition(part); // no persist: → in-memory, wiped on close
     ses.__vexTor = true; // tag so web-contents-created disables WebRTC for it
+    ses.__vexTorTab = true; // a Tor tab's own session: Stop closes its tabs
     // Route EVERYTHING (incl. DNS) through Tor. socks5:// makes Chromium resolve
     // hostnames at the proxy, so there's no local DNS leak.
     await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });

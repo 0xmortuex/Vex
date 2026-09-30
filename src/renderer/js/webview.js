@@ -747,10 +747,18 @@ const WebviewManager = {
     });
   },
 
-  // Chromium's error code, in words.
-  _whyLoadFailed(message) {
+  // Chromium's error code, in words. The proxy itself not answering (its port
+  // refuses: Tor is not running) is PROXY_CONNECTION_FAILED; a site that
+  // fails through a working Tor (down, refusing, no such address, an onion
+  // service that is offline) is SOCKS_CONNECTION_FAILED, which said Tor was
+  // not answering (found 2026-09-30, both checked live). A Tor tab or a Tor
+  // site rule is known by its partition; a container or burner may go
+  // through Tor or another proxy.
+  _whyLoadFailed(message, partition) {
     const m = String(message || '');
-    if (/PROXY_CONNECTION_FAILED|SOCKS_CONNECTION_FAILED/.test(m)) return 'the proxy or Tor it goes through is not answering';
+    const tor = /^(tor-|persist:route-tor$)/.test(String(partition || ''));
+    if (/PROXY_CONNECTION_FAILED/.test(m)) return tor ? 'Tor is not running' : 'the proxy or Tor it goes through is not answering';
+    if (/SOCKS_CONNECTION_FAILED|SOCKS_CONNECTION_HOST_UNREACHABLE|TUNNEL_CONNECTION_FAILED/.test(m)) return tor ? 'the site did not answer through Tor' : 'the site did not answer through the proxy or Tor it goes through';
     if (/NAME_NOT_RESOLVED|NAME_RESOLUTION_FAILED/.test(m)) return 'no site has that address';
     if (/CONNECTION_REFUSED/.test(m)) return 'nothing is answering at that address';
     if (/INTERNET_DISCONNECTED/.test(m)) return 'you are offline';
@@ -903,7 +911,7 @@ const WebviewManager = {
           if (tab) { tab.url = url; TabManager.renderTabUpdate?.(tab); }
           const input = document.getElementById('url-input');
           if (input && TabManager.activeTabId === tabId && document.activeElement !== input) input.value = url;
-          window.showToast?.('Could not open ' + url + ' — ' + this._whyLoadFailed(m), 'error');
+          window.showToast?.('Could not open ' + url + ' — ' + this._whyLoadFailed(m, tab && tab.partition), 'error');
         });
         // An address typed the moment a tab opens, before its page is
         // attached: loadURL threw "The WebView must be attached…" out of the

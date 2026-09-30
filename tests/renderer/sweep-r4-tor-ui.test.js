@@ -31,33 +31,46 @@ describe('Stop, counted over every window', () => {
     window.vexConfirm = vi.fn(() => Promise.resolve(true));
   });
 
-  it('says how many tabs close, and in how many windows', () => {
+  // r7 (2026-09-30): Stop closed the tabs of containers, burners and site
+  // rules routed through Tor too. They stay open and say what happens to them.
+  it('says how many Tor tabs close, in how many windows, and what happens to the pages routed through Tor', () => {
     const T = loadTorSession({});
-    expect(T._stopMessage({ tabs: 1, windows: 1, pages: 1 })).toBe('The Tor tab will close.');
-    expect(T._stopMessage({ tabs: 3, windows: 1, pages: 3 })).toBe('The 3 Tor tabs will close.');
-    expect(T._stopMessage({ tabs: 4, windows: 2, pages: 4 })).toBe('The 4 Tor tabs will close in 2 windows.');
-    expect(T._stopMessage({ tabs: 0, windows: 0, pages: 2 })).toBe('Other pages going through Tor stop loading until Tor starts again.');
+    expect(T._stopMessage({ tabs: 1, windows: 1, routed: 0 })).toBe('The Tor tab will close.');
+    expect(T._stopMessage({ tabs: 3, windows: 1, routed: 0 })).toBe('The 3 Tor tabs will close.');
+    expect(T._stopMessage({ tabs: 4, windows: 2, routed: 0 })).toBe('The 4 Tor tabs will close in 2 windows.');
+    expect(T._stopMessage({ tabs: 2, windows: 1, routed: 3 })).toBe('The 2 Tor tabs will close. 3 pages going through Tor (containers, site rules, burners) stop loading until you use them again.');
+    expect(T._stopMessage({ tabs: 0, windows: 0, routed: 1 })).toBe('1 page going through Tor (a container, site rule or burner) stops loading until you use it again.');
+    expect(T._stopMessage({ tabs: 1, windows: 1, routed: 2 })).toBe('The Tor tab will close. 2 pages going through Tor (containers, site rules, burners) stop loading until you use them again.');
   });
 
   it('asks with the totals main gives, and leaves the closing to main (every window)', async () => {
-    const vex = { torStatus: vi.fn(() => Promise.resolve({ running: true, pages: [7, 9, 12], tabs: 3, windows: 2 })), stopTor: vi.fn(() => Promise.resolve({ ok: true })) };
+    const vex = { torStatus: vi.fn(() => Promise.resolve({ running: true, tabs: 3, windows: 2, routed: 1 })), stopTor: vi.fn(() => Promise.resolve({ ok: true })) };
     const T = loadTorSession(vex);
     TabManager.tabs = [{ id: 'a', partition: 'tor-x1' }];
     expect(await T.stop()).toBe(true);
-    expect(window.vexConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: 'The 3 Tor tabs will close in 2 windows.' }));
+    expect(window.vexConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: 'The 3 Tor tabs will close in 2 windows. 1 page going through Tor (a container, site rule or burner) stops loading until you use it again.' }));
     expect(TabManager.closeTab).not.toHaveBeenCalled();
     expect(vex.stopTor).toHaveBeenCalledTimes(1);
   });
 
-  it('each window counts and closes its own Tor tabs, asleep ones too, from the page ids main names', () => {
+  it('asks when only routed pages go through Tor, and stops at once when nothing does', async () => {
+    const vex = { torStatus: vi.fn(() => Promise.resolve({ running: true, tabs: 0, windows: 0, routed: 2 })), stopTor: vi.fn(() => Promise.resolve({ ok: true })) };
+    const T = loadTorSession(vex);
+    expect(await T.stop()).toBe(true);
+    expect(window.vexConfirm).toHaveBeenCalledTimes(1);
+    vex.torStatus = vi.fn(() => Promise.resolve({ running: true, tabs: 0, windows: 0, routed: 0 }));
+    expect(await T.stop()).toBe(true);
+    expect(window.vexConfirm).toHaveBeenCalledTimes(1);
+    expect(vex.stopTor).toHaveBeenCalledTimes(2);
+  });
+
+  it('each window counts and closes only its real Tor tabs, asleep ones too; routed tabs stay', () => {
     const T = loadTorSession({});
-    TabManager.tabs = [{ id: 'a', partition: 'tor-x1' }, { id: 'b', partition: 'persist:container-work' }, { id: 'c', partition: 'persist:main' }, { id: 'd', partition: 'persist:route-tor' }];
-    globalThis.WebviewManager.webviews.set('b', { getWebContentsId: () => 9 });   // a container routed through Tor
-    globalThis.WebviewManager.webviews.set('c', { getWebContentsId: () => 11 });
-    expect(T.countTorTabs([9])).toBe(3);
+    TabManager.tabs = [{ id: 'a', partition: 'tor-x1' }, { id: 'b', partition: 'persist:container-work' }, { id: 'c', partition: 'persist:main' }, { id: 'd', partition: 'persist:route-tor' }, { id: 'e', partition: 'otr-burner-1' }, { id: 'f', partition: 'tor-x2' }];
+    expect(T.countTorTabs()).toBe(2);
     expect(TabManager.closeTab).not.toHaveBeenCalled();
-    expect(T.closeTorTabs([9])).toBe(3);
-    expect(TabManager.closeTab.mock.calls.map(c => c[0])).toEqual(['a', 'b', 'd']);
+    expect(T.closeTorTabs()).toBe(2);
+    expect(TabManager.closeTab.mock.calls.map(c => c[0])).toEqual(['a', 'f']);
   });
 });
 
@@ -154,6 +167,38 @@ describe('a Tor page that cannot load says why', () => {
 
   it('a navigate toast names a proxy that is not answering', () => {
     expect(W._whyLoadFailed("Error: ERR_PROXY_CONNECTION_FAILED (-130) loading 'https://x/'")).toBe('the proxy or Tor it goes through is not answering');
+  });
+
+  // r7 (2026-09-30), codes checked live through a real Tor: a dead onion
+  // service, a closed port and a name that does not exist all give -120 with
+  // Tor working; Tor not running (its port refusing) gives -130.
+  it('through Tor: Tor not running is not the same as a site that did not answer', () => {
+    const socks = "Error invoking remote method 'GUEST_VIEW_MANAGER_CALL': Error: ERR_SOCKS_CONNECTION_FAILED (-120) loading 'http://x.onion/'";
+    const proxy = "Error: ERR_PROXY_CONNECTION_FAILED (-130) loading 'https://x/'";
+    for (const part of ['tor-mun3czzk-d6hc', 'persist:route-tor']) {
+      expect(W._whyLoadFailed(socks, part)).toBe('the site did not answer through Tor');
+      expect(W._whyLoadFailed(proxy, part)).toBe('Tor is not running');
+      expect(W._whyLoadFailed('ERR_TUNNEL_CONNECTION_FAILED (-111)', part)).toBe('the site did not answer through Tor');
+    }
+    // A container or burner goes through Tor or another proxy.
+    expect(W._whyLoadFailed(socks, 'persist:container-work')).toBe('the site did not answer through the proxy or Tor it goes through');
+    expect(W._whyLoadFailed(proxy, 'otr-burner-1')).toBe('the proxy or Tor it goes through is not answering');
+    expect(W._whyLoadFailed('ERR_CONNECTION_REFUSED (-102)', 'persist:main')).toBe('nothing is answering at that address');
+  });
+
+  it('the toast in a Tor tab says the site did not answer through Tor', async () => {
+    const wv = document.createElement('div');
+    wv._attached = true;
+    wv.loadURL = vi.fn(() => Promise.reject(new Error("Error: ERR_SOCKS_CONNECTION_FAILED (-120) loading 'http://x.onion/'")));
+    W.webviews = new Map([['t', wv]]);
+    const tab = { id: 't', partition: 'tor-x1', url: '' };
+    globalThis.TabManager = { activeTabId: 't', tabs: [tab], getActiveTab: () => tab };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    window.showToast = vi.fn();
+    W.navigate('http://x.onion/');
+    await tick();
+    expect(window.showToast).toHaveBeenCalledWith('Could not open http://x.onion/ — the site did not answer through Tor', 'error');
+    warn.mockRestore();
   });
 });
 

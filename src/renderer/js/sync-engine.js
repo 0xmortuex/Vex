@@ -107,6 +107,7 @@ const SyncEngine = (() => {
 
   let pushTimer = null;
   let pullTimer = null;
+  let markerTimer = null;   // the push that puts this device's marker back (pullNow)
   let revision = 0;
   let recordDocument = null;
   const STORE_KEYS = ['tabs', 'groups', 'stacks', 'history', 'settings', 'shortcuts', 'theme'];
@@ -489,6 +490,12 @@ const SyncEngine = (() => {
     }
     recordDocument = merged;
     await VexStorage.save('sync-records', merged);
+    // An older Vex marks this device's marker deleted on its push. This device
+    // put it back only on its own next push, up to two minutes later, and
+    // meanwhile the other devices named it as the one tiles wait on
+    // (found 2026-09-30). The account lacking it, it is pushed right away.
+    const own = data.records[JSON.stringify([DEVICE_SOURCE + state.deviceId, 'value'])];
+    const markerMissing = !(own && !own.deleted && own.value?.level >= SYNC_LEVEL);
     if (typeof TabManager !== 'undefined' && Array.isArray(sources['storage:tabs'])) TabManager.applySyncedState(sources['storage:tabs'], sources['storage:groups'], sources['storage:stacks']);
     if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.reloadSyncedState?.();
     // Only conflicts this merge created. Counting every record that still
@@ -499,6 +506,7 @@ const SyncEngine = (() => {
     if (conflicts) window.showToast?.(conflicts === 1 ? '1 sync conflict retained in recovery data' : `${conflicts} sync conflicts retained in recovery data`);
     // Tell panels to re-read their state.
     window.dispatchEvent(new CustomEvent('vex-sync-data-applied'));
+    return { markerMissing };
   }
 
   // ===== PUSH/PULL =====
@@ -528,6 +536,8 @@ const SyncEngine = (() => {
     }
     if (!state.enabled || state.syncing) return { ok: false, reason: 'not-ready' };
     state.syncing = true;
+    // This push carries the marker; the one pullNow scheduled is not needed.
+    if (markerTimer) { clearTimeout(markerTimer); markerTimer = null; }
     try {
       if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || window.VexSyncRecords.empty();
       const data = await collectSyncData(await checkTileGate(recordDocument));
@@ -596,7 +606,7 @@ const SyncEngine = (() => {
         }
         throw err;
       }
-      await applySyncData(decrypted, restore);
+      const applied = await applySyncData(decrypted, restore);
       // Only acknowledge a revision after its contents were decrypted and applied.
       // Otherwise a stale or damaged local key could overwrite unreadable cloud data.
       revision = receivedRevision;
@@ -604,6 +614,15 @@ const SyncEngine = (() => {
       state.lastPullAt = new Date().toISOString();
       state.lastError = null;
       await saveMetaToDisk();
+      // Once this pull has finished (state.syncing is cleared in finally).
+      // A push already under way (joining with a recovery code) carries the
+      // marker too, and this one is then not needed.
+      if (applied?.markerMissing) markerTimer = setTimeout(() => {
+        markerTimer = null;
+        pushNow().then((r) => {
+          if (!r.ok && r.reason !== 'not-ready') console.error('[Sync] Could not tell the account this device is up to date again: ' + r.reason);
+        });
+      }, 0);
       return { ok: true };
     } catch (err) {
       console.error('[Sync] Pull failed:', err);
@@ -630,7 +649,8 @@ const SyncEngine = (() => {
   function stopAutoSync() {
     if (pushTimer) clearInterval(pushTimer);
     if (pullTimer) clearInterval(pullTimer);
-    pushTimer = pullTimer = null;
+    if (markerTimer) clearTimeout(markerTimer);
+    pushTimer = pullTimer = markerTimer = null;
   }
 
   // ===== DEVICES =====

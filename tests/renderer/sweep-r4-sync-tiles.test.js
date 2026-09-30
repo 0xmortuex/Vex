@@ -209,6 +209,9 @@ describe('an older Vex on the account', () => {
     expect((await accountValues(server, key))[TILES]).toBeUndefined();
     expect((await engine.pullNow()).ok).toBe(true);
     expect(names(tiles())).toEqual(['a', 'b']);
+    // The pull found this device's marker deleted and pushes it back (r7).
+    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:dev1']).toEqual({ level: 1 }));
+    expect((await accountValues(server, key))[TILES]).toBeUndefined();
     // A tile added meanwhile stays here, and this device leaves the account's
     // tile records exactly as it found them.
     setTiles([...tiles(), tile('c')]);
@@ -222,6 +225,33 @@ describe('an older Vex on the account', () => {
     expect((await engine.pushNow()).ok).toBe(true);
     expect(names((await accountValues(server, key))[TILES])).toEqual(['a', 'b', 'c']);
     expect(names(tiles())).toEqual(['a', 'b', 'c']);
+    engine.signOut();
+  });
+
+  // r7 (2026-09-30): after an older Vex's push wiped the markers, a current
+  // device that had only pulled since was named as the one tiles wait on,
+  // until its own next push up to two minutes later.
+  it('a current device puts back the marker an older Vex wiped as soon as its pull sees it gone', async () => {
+    const server = fakeWorker();
+    const engine = freshEngine();
+    await engine.verifyCode('a@b.test', '123456');
+    await engine.pushNow();
+    const key = await accountKey();
+    await newDevice(server, key, 'devB');
+    await oldDevice(server, key, 'devOld');
+    expect((await accountValues(server, key))['sync:device:dev1']).toBeUndefined();
+    const pushes = server.revision;
+    expect((await engine.pullNow()).ok).toBe(true);
+    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:dev1']).toEqual({ level: 1 }));
+    expect(server.revision).toBe(pushes + 1);
+    // What devB would see once devOld is gone: only devB itself has yet to sync.
+    const doc = await accountDoc(server, key);
+    expect(doc.records[JSON.stringify(['sync:device:dev1', 'value'])].deleted).toBe(false);
+    expect(doc.records[JSON.stringify(['sync:device:devB', 'value'])].deleted).toBe(true);
+    // A pull that finds the marker in place pushes nothing.
+    expect((await engine.pullNow()).ok).toBe(true);
+    await new Promise(r => setTimeout(r, 20));
+    expect(server.revision).toBe(pushes + 1);
     engine.signOut();
   });
 

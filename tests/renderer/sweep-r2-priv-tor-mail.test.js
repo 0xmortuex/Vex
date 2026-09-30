@@ -36,7 +36,7 @@ describe('the Tor indicator', () => {
   });
 
   it('shows while Vex\'s own Tor runs, with an icon and no emoji, and follows start and stop', async () => {
-    load({ running: true, pages: [] });
+    load({ running: true, tabs: 0, windows: 0, routed: 0 });
     const el = document.getElementById('tor-running');
     await tick();
     expect(el.hidden).toBe(false);
@@ -49,32 +49,33 @@ describe('the Tor indicator', () => {
   });
 
   // Main now closes the Tor tabs in every window (tor:stop asks each window's
-  // closeTorTabs) and counts them for the question (r4-tor, 2026-09-30).
-  it('Stop asks first when Tor tabs are open, then stops Tor; each window closes its own (asleep ones too)', async () => {
-    const TorSession = load({ running: true, pages: [7, 9], tabs: 3, windows: 1 });
+  // closeTorTabs) and counts them for the question (r4-tor, 2026-09-30). A
+  // burner routed through Tor stays open (r7, 2026-09-30).
+  it('Stop asks first when Tor tabs are open, then stops Tor; each window closes its own Tor tabs (asleep ones too)', async () => {
+    const TorSession = load({ running: true, tabs: 2, windows: 1, routed: 1 });
     TabManager.tabs = [{ id: 'a', partition: 'tor-x1' }, { id: 'b', partition: 'otr-burner-1' }, { id: 'c', partition: null }, { id: 'd', partition: 'tor-x2' }];
     WebviewManager.webviews.set('a', { getWebContentsId: () => 7 });
     WebviewManager.webviews.set('b', { getWebContentsId: () => 9 });   // a burner routed through Tor
     WebviewManager.webviews.set('c', { getWebContentsId: () => 11 });
     document.getElementById('tor-running-stop').click();
     await tick(); await tick(); await tick();
-    expect(window.vexConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Stop Tor?', message: 'The 3 Tor tabs will close.', danger: true }));
+    expect(window.vexConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Stop Tor?', message: 'The 2 Tor tabs will close. 1 page going through Tor (a container, site rule or burner) stops loading until you use it again.', danger: true }));
     expect(vex.stopTor).toHaveBeenCalled();
-    expect(TorSession.countTorTabs([7, 9])).toBe(3);
-    expect(TorSession.closeTorTabs([7, 9])).toBe(3);
-    expect(TabManager.closeTab.mock.calls.map(c => c[0])).toEqual(['a', 'b', 'd']);
+    expect(TorSession.countTorTabs()).toBe(2);
+    expect(TorSession.closeTorTabs()).toBe(2);
+    expect(TabManager.closeTab.mock.calls.map(c => c[0])).toEqual(['a', 'd']);
     expect(window.showToast).toHaveBeenCalledWith('Tor stopped');
   });
 
   it('Cancel leaves the tabs and Tor alone; with no Tor pages it stops at once', async () => {
-    const TorSession = load({ running: true, pages: [7], tabs: 1, windows: 1 });
+    const TorSession = load({ running: true, tabs: 1, windows: 1, routed: 0 });
     TabManager.tabs = [{ id: 'a', partition: 'tor-x1' }];
     window.vexConfirm = vi.fn(() => Promise.resolve(false));
     expect(await TorSession.stop()).toBe(false);
     expect(TabManager.closeTab).not.toHaveBeenCalled();
     expect(vex.stopTor).not.toHaveBeenCalled();
 
-    vex.torStatus = vi.fn(() => Promise.resolve({ running: true, pages: [], tabs: 0, windows: 0 }));
+    vex.torStatus = vi.fn(() => Promise.resolve({ running: true, tabs: 0, windows: 0, routed: 0 }));
     TabManager.tabs = [];
     expect(await TorSession.stop()).toBe(true);
     expect(window.vexConfirm).toHaveBeenCalledTimes(1);
@@ -82,7 +83,7 @@ describe('the Tor indicator', () => {
   });
 
   it('a Stop main refuses is said, not swallowed', async () => {
-    load({ running: true, pages: [] });
+    load({ running: true, tabs: 0, windows: 0, routed: 0 });
     vex.stopTor = vi.fn(() => Promise.resolve({ ok: false, error: 'Untrusted IPC sender' }));
     document.getElementById('tor-running-stop').click();
     await tick(); await tick(); await tick();

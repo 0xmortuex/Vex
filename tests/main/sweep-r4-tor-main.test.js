@@ -89,10 +89,21 @@ describe('a Tor route starting Tor again', () => {
 describe('Stop, in every window', () => {
   it('counts the Tor tabs of every Vex window for the question, and closes them in each before Tor stops', () => {
     const status = between("ipcMain.handle('tor:status', async () => {", "ipcMain.handle('tor:stop'");
-    expect(status).toContain("_torTabsInWindows(pages, 'countTorTabs')");
-    expect(status).toContain('tabs: counts.reduce((a, b) => a + b, 0), windows: counts.filter(Boolean).length');
-    expect(MAIN).toContain("ipcMain.handle('tor:stop', async () => {\n  await _torTabsInWindows(_torPages(), 'closeTorTabs');\n  _torLauncher.stop();");
+    expect(status).toContain("_torTabsInWindows('countTorTabs')");
+    expect(status).toContain('tabs: counts.reduce((a, b) => a + b, 0), windows: counts.filter(Boolean).length, routed: _torRoutedPages()');
+    expect(MAIN).toContain("ipcMain.handle('tor:stop', async () => {\n  await _torTabsInWindows('closeTorTabs');\n  _torLauncher.stop();");
     expect(MAIN).toContain('[...secureSessions.hosts.values()].map(h => h.win)');
+  });
+
+  // r7 (2026-09-30): Stop closed the tabs of Tor-routed containers, burners
+  // and site rules too. Only a Tor tab's own session is marked as one; the
+  // routed pages are counted (tab pages only) for the question, not closed.
+  it('tells Tor tabs from pages routed through Tor', () => {
+    const create = between("ipcMain.handle('tor:create', async (event) => {", "ipcMain.handle('tor:verify'");
+    expect(create).toContain('ses.__vexTorTab = true;');
+    const routed = between('function _torRoutedPages() {', '}\n');
+    expect(routed).toContain("wc.getType() === 'webview' && wc.session && wc.session.__vexTor && !wc.session.__vexTorTab");
+    expect(MAIN).not.toContain('function _torPages(');
   });
 });
 

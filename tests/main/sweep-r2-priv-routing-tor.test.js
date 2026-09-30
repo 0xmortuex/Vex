@@ -72,7 +72,7 @@ describe('main stops its own Tor when nothing uses it', () => {
     expect(block).toContain('if (_torLauncher.isRunning() && !_torStillNeeded()) _torLauncher.stop();');
     expect(block).toContain("w.webContents.send('tor:state', { running })");
     // Stop closes the Tor tabs in every window first (r4-tor, 2026-09-30).
-    expect(block).toContain("ipcMain.handle('tor:stop', async () => {\n  await _torTabsInWindows(_torPages(), 'closeTorTabs');\n  _torLauncher.stop();\n  return { ok: true };");
+    expect(block).toContain("ipcMain.handle('tor:stop', async () => {\n  await _torTabsInWindows('closeTorTabs');\n  _torLauncher.stop();\n  return { ok: true };");
     expect(block).toContain("ipcMain.handle('tor:status'");
   });
 

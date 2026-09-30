@@ -196,42 +196,40 @@ const TorSession = {
     if (!ui.cancelled && !(r && r.cancelled)) window.showToast?.('Tor could not start: ' + ((r && r.error) || 'no answer from Vex'), 'error');
   },
 
-  // The tabs in this window that go through Tor: the pages main names, and a
-  // Tor tab whose page is asleep (it has none).
-  _torTabs(pageIds) {
-    const ids = new Set(pageIds || []);
-    return TabManager.tabs.filter((t) => {
-      if (/^(tor-|persist:route-tor$)/.test(String(t.partition || ''))) return true;
-      const wv = WebviewManager.webviews.get(t.id);
-      if (!wv || typeof wv.getWebContentsId !== 'function') return false;
-      try { return ids.has(wv.getWebContentsId()); } catch { return false; } // not attached yet
-    });
+  // The Tor tabs in this window, asleep ones too (they have no page). Only
+  // real Tor tabs: a container, burner or site rule routed through Tor was
+  // closed with them (found 2026-09-30); it stays open, and its next page
+  // starts Tor again (main, _reviveTor).
+  _torTabs() {
+    return TabManager.tabs.filter(t => /^tor-/.test(String(t.partition || '')));
   },
 
   // Main asks every Vex window these when Tor stops (tor:status, tor:stop).
-  countTorTabs(pageIds) { return this._torTabs(pageIds).length; },
-  closeTorTabs(pageIds) {
-    const tabs = this._torTabs(pageIds);
+  countTorTabs() { return this._torTabs().length; },
+  closeTorTabs() {
+    const tabs = this._torTabs();
     tabs.forEach(t => TabManager.closeTab(t.id));
     return tabs.length;
   },
 
   // What Stop says it will do, counted over every window: it closed the Tor
-  // tabs of the window it was clicked in only (found 2026-09-30).
-  _stopMessage({ tabs, windows, pages }) {
+  // tabs of the window it was clicked in only (found 2026-09-30). The pages
+  // going through Tor that are not Tor tabs stay open, and it says so.
+  _stopMessage({ tabs, windows, routed }) {
     const where = windows > 1 ? ` in ${windows} windows` : '';
     const closing = tabs === 1 ? 'The Tor tab will close.' : tabs ? `The ${tabs} Tor tabs will close${where}.` : '';
-    const others = pages > tabs ? ' Other pages going through Tor stop loading until Tor starts again.' : '';
-    return (closing + others).trim();
+    const others = routed === 1 ? '1 page going through Tor (a container, site rule or burner) stops loading until you use it again.'
+      : routed ? `${routed} pages going through Tor (containers, site rules, burners) stop loading until you use them again.` : '';
+    return [closing, others].filter(Boolean).join(' ');
   },
 
-  // Stop asks first when Tor tabs are open; main closes them in every window,
-  // then stops Tor: a Tor tab left open after Tor stops loads nothing.
+  // Stop asks first when Tor pages are open; main closes the Tor tabs in
+  // every window, then stops Tor: a Tor tab left open after Tor stops loads
+  // nothing.
   async stop() {
     const status = await window.vex.torStatus();
-    const pages = (status && status.pages || []).length;
-    if (status.tabs || pages) {
-      const message = this._stopMessage({ tabs: status.tabs, windows: status.windows, pages });
+    if (status.tabs || status.routed) {
+      const message = this._stopMessage(status);
       const ok = await window.vexConfirm({ title: 'Stop Tor?', message, okLabel: 'Stop Tor', danger: true });
       if (!ok) return false;
     }
