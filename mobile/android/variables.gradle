@@ -11,7 +11,10 @@ ext {
     androidxFragmentVersion = '1.8.9'
     androidxWebkitVersion = '1.14.0'
     androidxSwipeRefreshVersion = '1.1.0'
-    androidxBiometricVersion = '1.4.0'
+    // 1.1.0 is the newest STABLE biometric; everything after it is alpha, and
+    // 1.4.0 does not exist at all — Gradle said so, having searched for it.
+    // BiometricPrompt, PromptInfo and Authenticators are all here.
+    androidxBiometricVersion = '1.1.0'
     junitVersion = '4.13.2'
     androidxJunitVersion = '1.3.0'
     androidxEspressoCoreVersion = '3.7.0'

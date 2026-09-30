@@ -109,31 +109,57 @@ const VexUI = (() => {
     return { left, right: right.length ? right : ['menu'] };
   }
 
+  // The buttons are rebuilt only when which buttons they are changes. Anything
+  // else — a tab opening, a page starting to load — updates them in place.
+  //
+  // This is not only cheaper: renderToolbar() runs on every state change, and a
+  // rebuild between your finger going down and coming up loses the tap, because
+  // the element the touch started on is no longer in the document.
+  let builtButtons = '';
+
   function renderToolbarButtons() {
     const config = buttonConfig();
+    const signature = config.left.join(',') + '|' + config.right.join(',');
     const tab = VexTabStore.active();
+
+    if (signature !== builtButtons) {
+      builtButtons = signature;
+      for (const side of ['left', 'right']) {
+        const slot = clear($('tb-' + side));
+        for (const id of config[side]) {
+          const spec = BUTTONS[id];
+          if (!spec) continue;
+          // Stable ids (tb-back, tb-tabs, tb-menu…) so the rest of the chrome —
+          // and the smoke run — can still point at a button by name.
+          const button = el('button', {
+            class: 'tb-btn' + (spec.counter ? ' tb-tabs' : ''),
+            'aria-label': spec.label,
+            id: 'tb-' + id
+          });
+          if (spec.counter) {
+            button.appendChild(el('span', { id: 'tb-tabcount' }, '0'));
+            VexGestures.longPress(button, () => newTab());
+          } else {
+            button.appendChild(icon(spec.icon));
+          }
+          button.onclick = () => spec.run(VexTabStore.active());
+          if (id === 'back') VexGestures.longPress(button, () => VexPanels.history());
+          slot.appendChild(button);
+        }
+      }
+    }
+
     for (const side of ['left', 'right']) {
-      const slot = clear($('tb-' + side));
       for (const id of config[side]) {
         const spec = BUTTONS[id];
-        if (!spec) continue;
-        // Stable ids (tb-back, tb-tabs, tb-menu…) so the rest of the chrome —
-        // and the smoke run — can still point at a button by name.
-        const button = el('button', {
-          class: 'tb-btn' + (spec.counter ? ' tb-tabs' : ''),
-          'aria-label': spec.label,
-          id: 'tb-' + id
-        });
-        if (spec.counter) {
-          button.appendChild(el('span', { id: 'tb-tabcount' }, String(VexTabStore.all().length || 0)));
-          VexGestures.longPress(button, () => newTab());
-        } else {
-          button.appendChild(icon(spec.icon));
-        }
+        const button = $('tb-' + id);
+        if (!spec || !button) continue;
         if (spec.enabled) button.disabled = !spec.enabled(tab);
-        button.onclick = () => spec.run(VexTabStore.active());
-        if (id === 'back') VexGestures.longPress(button, () => VexPanels.history());
-        slot.appendChild(button);
+        if (spec.counter) {
+          const count = String(VexTabStore.all().length || 0);
+          const label = $('tb-tabcount');
+          if (label && label.textContent !== count) label.textContent = count;
+        }
       }
     }
   }

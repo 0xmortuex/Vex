@@ -86,12 +86,23 @@ const describe = async selector => page.evaluate(sel => {
     + '\n    ' + chain.join('\n    ');
 }, selector);
 
+// A forced click does not wait for anything: Playwright resolves the element and
+// clicks that node. If the chrome re-renders in between — which it does, on every
+// state change — the node it resolved is gone from the document and has no box,
+// which is what run 3 hit. So aim again rather than give up on the first miss.
 const tap = async (selector, wait = 200) => {
-  try {
-    await page.click(selector, { force: true, timeout: 8000 });
-  } catch (error) {
-    const state = await describe(selector).catch(() => 'could not inspect');
-    throw new Error('tap ' + selector + ' failed: ' + error.message.split('\n')[0] + '\n  ' + state);
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await page.click(selector, { force: true, timeout: 8000 });
+      break;
+    } catch (error) {
+      if (attempt >= 8) {
+        const state = await describe(selector).catch(() => 'could not inspect');
+        throw new Error('tap ' + selector + ' failed ' + attempt + ' times: '
+          + error.message.split('\n')[0] + '\n  ' + state);
+      }
+      await page.waitForTimeout(150);
+    }
   }
   await page.waitForTimeout(wait);
 };

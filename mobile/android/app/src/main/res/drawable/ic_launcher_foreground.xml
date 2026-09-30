@@ -1,12 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder mark: a Vex "V" in Oxford navy. Replace with the real icon
-     (assets/icon.svg rasterised) before shipping a release build. -->
+<!-- The Vex mark, the desktop's own: a faceted diamond in sand over Midnight,
+     with the V cut through it. Traced from assets/icon.svg — its 80-unit art
+     scaled by 0.9 and centred in the 108-unit adaptive icon, which keeps every
+     point inside the safe zone a round or squircle mask leaves. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- The body. -->
     <path
-        android:fillColor="#1E3A5F"
-        android:pathData="M34,34 L54,74 L74,34 L66,34 L54,58 L42,34 Z" />
+        android:pathData="M54,28.8 L79.2,54 L54,79.2 L28.8,54 Z"
+        android:fillColor="#D4A574"
+        android:fillAlpha="0.34"
+        android:strokeColor="#D4A574"
+        android:strokeAlpha="0.75"
+        android:strokeWidth="1.08" />
+    <!-- The two lit facets, the brighter one to the left, as on the desktop. -->
+    <path
+        android:pathData="M54,28.8 L79.2,54 L54,54 Z"
+        android:fillColor="#D4A574"
+        android:fillAlpha="0.38" />
+    <path
+        android:pathData="M54,28.8 L28.8,54 L54,54 Z"
+        android:fillColor="#D4A574"
+        android:fillAlpha="0.52" />
+    <!-- The V. -->
+    <path
+        android:pathData="M41.4,52.2 L54,68.4 L66.6,52.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.24"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
 </vector>
