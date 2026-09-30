@@ -17,7 +17,7 @@ import com.vex.browser.block.VexBlockPlugin;
 import com.vex.browser.tabs.VexTabsPlugin;
 import com.vex.browser.remind.VexRemindPlugin;
 import com.vex.browser.system.VexSystemPlugin;
-import com.vex.browser.vault.VexVaultPlugin;
+import com.vex.browser.vault.VexSecretsPlugin;
 
 /**
  * The single activity. It hosts two WebView layers:
@@ -50,7 +50,7 @@ public class MainActivity extends BridgeActivity {
         // Local plugins must be registered before the bridge is built.
         registerPlugin(VexTabsPlugin.class);
         registerPlugin(VexBlockPlugin.class);
-        registerPlugin(VexVaultPlugin.class);
+        registerPlugin(VexSecretsPlugin.class);
         registerPlugin(VexSystemPlugin.class);
         registerPlugin(VexRemindPlugin.class);
         super.onCreate(savedInstanceState);

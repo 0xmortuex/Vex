@@ -3,7 +3,7 @@
 // One object between the chrome and the four native plugins:
 //   VexTabs   — the Android WebViews that render pages, one per tab
 //   VexBlock  — request blocking, inside shouldInterceptRequest
-//   VexVault  — secrets under an Android Keystore key
+//   VexSecrets— secrets under an Android Keystore key
 //   VexSystem — the device: biometrics, shortcuts, dictation, PiP, permissions
 //
 // The desktop chrome talks to Electron through window.vex (src/preload.js);
@@ -19,7 +19,7 @@
 const VexBridge = (() => {
   const listeners = new Map();              // event -> Set<fn>
   const devSecrets = Object.create(null);   // fallback only; never persisted
-  const plugins = { VexTabs: null, VexBlock: null, VexVault: null, VexSystem: null, VexRemind: null };
+  const plugins = { VexTabs: null, VexBlock: null, VexSecrets: null, VexSystem: null, VexRemind: null };
   let native = false;
 
   function emit(event, payload) {
@@ -187,18 +187,18 @@ const VexBridge = (() => {
     // In the browser fallback there is no keystore, so a secret is kept in
     // memory for the session and forgotten after it.
     async vaultSet(key, value) {
-      if (plugins.VexVault) { await plugins.VexVault.set({ key, value: value || '' }); return; }
+      if (plugins.VexSecrets) { await plugins.VexSecrets.set({ key, value: value || '' }); return; }
       devSecrets[key] = value || '';
     },
     async vaultGet(key) {
-      if (plugins.VexVault) {
-        const result = await plugins.VexVault.get({ key }).catch(() => ({ value: '' }));
+      if (plugins.VexSecrets) {
+        const result = await plugins.VexSecrets.get({ key }).catch(() => ({ value: '' }));
         return (result && result.value) || '';
       }
       return devSecrets[key] || '';
     },
     async vaultClear() {
-      if (plugins.VexVault) { await plugins.VexVault.clear(); return; }
+      if (plugins.VexSecrets) { await plugins.VexSecrets.clear(); return; }
       for (const key of Object.keys(devSecrets)) delete devSecrets[key];
     },
 

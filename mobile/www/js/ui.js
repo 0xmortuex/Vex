@@ -82,6 +82,8 @@ const VexUI = (() => {
     if (on) showToolbar();
   }
 
+  function startVisible() { return !$('start').hidden; }
+
   // ── Toolbar ──────────────────────────────────────────────────────────────
   // Which buttons sit either side of the address pill. Samsung lets you pick
   // yours; so does this, and the defaults are the four a browser needs.
@@ -632,11 +634,20 @@ const VexUI = (() => {
   }
 
   // ── Logins ───────────────────────────────────────────────────────────────
-  // Offered, never automatic: the sheet appears, and filling is a tap.
+  // Offered, never automatic — and the offer itself costs nothing. Landing on
+  // a page you have a login for must not put a fingerprint prompt in your way;
+  // it shows a line you can ignore, and only a tap on it opens the vault.
   async function offerAutofill(tab, { manual = false } = {}) {
     const host = VexSearch.prettyHost(tab.url);
     if (!manual && !VexVault.hasFor(host)) return;
     if (!manual && !(await VexVault.pageHasLoginForm(tab.id))) return;
+    if (!manual && VexVault.locked()) {
+      toast('Saved login for ' + host, 6000, {
+        label: 'Fill it',
+        run: () => offerAutofill(tab, { manual: true })
+      });
+      return;
+    }
     if (!(await VexVault.unlock('Fill a saved login'))) return;
     const matches = VexVault.forHost(host);
     if (!matches.length) { if (manual) toast('Nothing saved for ' + host); return; }
@@ -694,7 +705,7 @@ const VexUI = (() => {
     toast, cover, pushBounds, scheduleBounds, applyToolbarPosition, onPageScroll,
     renderToolbar, renderProgress, renderTabGrid, renderSuggestions, refreshMediaBar,
     openOmnibox, closeOmnibox, openTabGrid, closeTabGrid, openFind, closeFind,
-    openUrl, newTab, copy, toggleBookmark, reopenClosed, setStartVisible,
+    openUrl, newTab, copy, toggleBookmark, reopenClosed, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage,
     offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate,
 

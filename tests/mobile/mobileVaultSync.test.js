@@ -192,3 +192,23 @@ describe('sync encryption', () => {
     expect(() => SyncCrypto.hexToKey('nope')).toThrow(/Invalid recovery code/);
   });
 });
+
+describe('reading a login form', () => {
+  it('takes the fields whether the WebView encodes once or twice', async () => {
+    const payload = { ok: true, username: 'me@example.com', password: 'hunter2' };
+    window.VexBridge.evaluate.mockResolvedValueOnce({ result: JSON.stringify(payload) });
+    expect(await VexVault.readFields('t1')).toMatchObject(payload);
+
+    window.VexBridge.evaluate.mockResolvedValueOnce({ result: JSON.stringify(JSON.stringify(payload)) });
+    expect(await VexVault.readFields('t1')).toMatchObject(payload);
+  });
+
+  it('is null when the page has no form, or answers with rubbish', async () => {
+    window.VexBridge.evaluate.mockResolvedValueOnce({ result: JSON.stringify({ ok: false }) });
+    expect(await VexVault.readFields('t1')).toBe(null);
+    window.VexBridge.evaluate.mockResolvedValueOnce({ result: 'undefined' });
+    expect(await VexVault.readFields('t1')).toBe(null);
+    window.VexBridge.evaluate.mockResolvedValueOnce({ result: null });
+    expect(await VexVault.readFields('t1')).toBe(null);
+  });
+});

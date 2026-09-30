@@ -322,7 +322,9 @@
   async function recordHistory(tab) {
     if (tab.incognito || !tab.url || tab.url === 'about:blank') return;
     await VexHistory.add({ url: tab.url, title: tab.title, icon: tab.icon });
-    VexStart.render();
+    // Only worth redrawing when it is on screen; otherwise this runs on every
+    // page load for a page nobody is looking at.
+    if (VexUI.startVisible()) VexStart.render();
   }
 
   // Recall: the page's readable text, kept on the device so it can be found

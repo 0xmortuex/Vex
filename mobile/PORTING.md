@@ -146,6 +146,9 @@ What is checked here, on every `npm run check`:
 - **The bridge and the plugins agree.** `check-www.js` asserts that every
   `call('method')` in `bridge.js` has a matching `@PluginMethod`, so the chrome
   cannot ship a call into a method nobody wrote.
+- **The chrome's modules agree with each other.** `check-api.mjs` loads all of
+  them and checks every `VexThing.method(` against what that thing exports —
+  1,042 calls across 29 modules.
 - **The themes match the desktop.** `sync-themes.mjs --check`.
 - **The sync files match the desktop, byte for byte.** `sync-shared.mjs --check`
   over the AES-GCM primitives and the record merge — a drift there is two
@@ -160,17 +163,23 @@ What is checked here, on every `npm run check`:
   blocking dashboard, the agent closing tabs through its tool loop, notes kept
   from a selection, reminders and the library — 71 expectations, plus any page
   error fails the run.
-- **The logic has tests.** 142 vitest cases in `tests/mobile/` over the
+- **The logic has tests.** 144 vitest cases in `tests/mobile/` over the
   omnibox, the filter parser, the tab model, site rules, the assistant client,
   themes, the shield, reader parsing, collections, history and Recall, the
   vault (including the RFC 6238 vectors), sync, and the agent — what it will
   accept as a tool call, that it asks before a risky step, and that it stops.
 
+And on a machine that has the SDK — which this one does not —
+`.github/workflows/mobile.yml` runs `cap sync` and `./gradlew assembleDebug`
+on every push, and publishes the APK. That workflow is where "it builds" is
+established; everything above is what can be established without it.
+
 What is still unverified, and it matters:
 
-- **Gradle has never run.** No Android SDK and no access to Google's Maven
-  here. The stubs check our calls, not the libraries: if a stub has drifted
-  from the real androidx signature, the check passes and the build fails.
+- **Gradle has never run here.** No Android SDK and no access to Google's
+  Maven in this environment. The stubs check our calls, not the libraries: if
+  a stub has drifted from the real androidx signature, the check passes and
+  the build fails — which is exactly what the CI workflow is for.
 - **No device testing at all.** Geometry — the content rect against the
   keyboard and the gesture insets — is exactly what only a real phone settles.
 - The multi-profile calls for private tabs are made by reflection, because

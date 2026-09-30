@@ -255,17 +255,15 @@ const VexVault = (() => {
       return String(result).includes('filled');
     },
 
+    // evaluate() hands back a JSON string, and some WebViews encode it twice.
+    // Unwrap up to twice and take whatever turns into the object we asked for.
     async readFields(tabId) {
       const { result } = await VexBridge.evaluate(tabId, READ_FIELDS);
-      try {
-        const parsed = JSON.parse(typeof result === 'string' ? JSON.parse(result) : result);
-        return parsed && parsed.ok ? parsed : null;
-      } catch {
-        try {
-          const parsed = JSON.parse(result);
-          return parsed && parsed.ok ? parsed : null;
-        } catch { return null; }
+      let value = result;
+      for (let attempt = 0; attempt < 2 && typeof value === 'string'; attempt++) {
+        try { value = JSON.parse(value); } catch { return null; }
       }
+      return value && typeof value === 'object' && value.ok ? value : null;
     },
 
     // ── Your details ───────────────────────────────────────────────────────

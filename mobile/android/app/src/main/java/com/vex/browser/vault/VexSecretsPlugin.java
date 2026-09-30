@@ -21,7 +21,9 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
 /**
- * Secrets at rest, the way the desktop build stores them.
+ * Secrets at rest, the way the desktop build stores them. Named for what it
+ * does rather than for one of its callers: the chrome's password vault is a
+ * different thing that happens to sit on top of this.
  *
  * On Windows the AI token goes through Electron's safeStorage, which is DPAPI.
  * The Android equivalent is a key that never leaves the Keystore: this
@@ -32,12 +34,12 @@ import javax.crypto.spec.GCMParameterSpec;
  * The AI worker token is the only thing that uses it today. Password-vault
  * parity would build on the same primitive — see PORTING.md.
  */
-@CapacitorPlugin(name = "VexVault")
-public class VexVaultPlugin extends Plugin {
+@CapacitorPlugin(name = "VexSecrets")
+public class VexSecretsPlugin extends Plugin {
 
     private static final String KEYSTORE = "AndroidKeyStore";
     private static final String KEY_ALIAS = "vex-vault-key";
-    private static final String PREFS = "vex-vault";
+    private static final String PREFS = "vex-vault";   // the file name is left alone, so an upgrade keeps its secrets
     private static final int IV_LENGTH = 12;
     private static final int TAG_BITS = 128;
 

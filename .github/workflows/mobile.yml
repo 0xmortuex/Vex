@@ -1,0 +1,94 @@
+# Build Vex for Android, for real.
+#
+# The desktop checks run on Windows; this one exists because the Android half
+# cannot be built where it is written — Google's Maven is not always reachable,
+# and an SDK is a large thing to assume. A GitHub runner has both, so this is
+# the first place the app is actually assembled, and it leaves a debug APK you
+# can install behind every push.
+name: Verify Vex for Android
+
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - 'tests/mobile/**'
+      - 'src/renderer/css/theme-tokens.css'
+      - 'src/renderer/js/sync-crypto.js'
+      - 'src/renderer/js/sync-records.js'
+      - '.github/workflows/mobile.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'tests/mobile/**'
+      - '.github/workflows/mobile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install the chrome's dependencies
+        working-directory: mobile
+        run: npm install --no-audit --no-fund
+
+      # The checks that do not need a device: the chrome parses, every native
+      # call the bridge makes exists, the themes and the shared sync files have
+      # not drifted from the desktop's, and the Java type-checks.
+      - name: Check
+        working-directory: mobile
+        run: npm run check
+
+      - name: Drive the chrome in a phone-sized Chromium
+        working-directory: mobile
+        run: |
+          npx playwright install --with-deps chromium
+          npm run smoke
+
+      # Run from mobile/ so building the Android app never waits on the
+      # desktop's Electron download.
+      - name: The chrome's unit tests
+        working-directory: mobile
+        run: npm test
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Android platform and build tools
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Copy the chrome into the app
+        working-directory: mobile
+        run: npx cap sync android
+
+      - name: Gradle wrapper
+        working-directory: mobile/android
+        run: gradle wrapper --gradle-version 8.13
+
+      - name: Assemble the debug APK
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Lint the Android sources
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon lintDebug
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vex-android-debug
+          path: mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

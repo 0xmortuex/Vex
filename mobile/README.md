@@ -134,8 +134,15 @@ whole codebase:
 
 ## Build
 
-Requirements: Node 22+, JDK 21, Android SDK with platform 36, and either
-Android Studio or a local `gradlew`.
+**CI builds it for real.** `.github/workflows/mobile.yml` runs on every push
+that touches `mobile/`: the checks, the Chromium walkthrough, the unit tests,
+then `cap sync`, a Gradle wrapper and `assembleDebug` on a runner that has the
+Android SDK — and it leaves a debug APK as an artifact you can install. That
+workflow is the first place this app is actually assembled, because it cannot
+be assembled where it is written.
+
+Locally, the requirements are Node 22+, JDK 21, an Android SDK with platform
+36, and either Android Studio or a local `gradlew`.
 
 ```bash
 cd mobile
@@ -155,12 +162,18 @@ do it.
 ## Checks
 
 ```bash
-npm run check        # chrome parse + references + bridge/native contract,
-                     # themes and the shared sync files in step with the
-                     # desktop, and a Java type-check
+npm run check        # chrome parse + references, every cross-module call,
+                     # the bridge/native contract, themes and the shared sync
+                     # files in step with the desktop, and a Java type-check
 npm run smoke        # drive the whole chrome in a phone-sized Chromium
-npm test             # (from the repo root) 142 vitest cases over the chrome logic
+npm test             # 144 vitest cases over the chrome's logic
 ```
+
+`npm run check:api` is the one worth knowing about: it loads every chrome
+module in a sandbox and then checks that each `VexThing.method(` in the source
+is a method that thing actually has. Two dozen modules call each other by
+name, and a typo there is not a parse error — it is a button that throws when
+somebody presses it, on a path the smoke run does not walk.
 
 `npm run check:java` compiles every Android source with plain javac against the
 real Android framework — Robolectric's `android-all` jar, which carries the
@@ -233,6 +246,30 @@ password vault all sit behind it.
 `voiceInput`, `enterPictureInPicture`, `hasPermission`, `requestPermission`,
 `isDefaultBrowser`, `openDefaultBrowserSettings`, `setFullscreen`,
 `setKeepAwake`, `shareFile`.
+
+## The first run on a real device
+
+Nothing below can be settled without a phone, and all of it is cheap to check:
+
+1. **The content rect.** Rotate, open the keyboard in a page's search field,
+   open and close the find bar, switch the toolbar to the top. The page should
+   stay exactly under the hole in the chrome through all of it.
+2. **The toolbar hiding.** Scroll a long article: it should go on the way down
+   and come back on the way up, and never strand you with no address bar.
+3. **Pull to refresh** at the very top of a page, and *not* when you are
+   scrolling up in the middle of one.
+4. **Private tabs.** Check `WebViewFeature.MULTI_PROFILE` is on this device:
+   open a private tab, sign in to something, close it, and see whether the
+   normal tabs know you.
+5. **The fingerprint prompts** — private tabs, the vault — and that refusing
+   one leaves you where you were.
+6. **Downloads**, then the notification, then opening the file from the panel.
+7. **The QR scanner** (a camera permission Vex has never asked for before),
+   **dictation**, and **picture-in-picture** on a video.
+8. **A reminder** set five minutes out, with Vex swiped away.
+9. **Sync**: sign in on the phone, enter the recovery code from the desktop,
+   and check a bookmark made on one appears on the other.
+10. **The agent**: "close every tab about X" on a handful of tabs.
 
 ## Known limits
 
