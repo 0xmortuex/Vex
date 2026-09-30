@@ -70,7 +70,10 @@
     VexStore.prime('vex.nightShade', 0),
     VexStore.prime('vex.blockPopups', true),
     VexStore.prime('vex.toolbarButtons', null),
-    VexStore.prime('vex.profile', null)
+    VexStore.prime('vex.profile', null),
+    VexStore.prime('vex.reminders', []),
+    VexStore.prime('vex.noteCount', 0),
+    VexStore.prime('vex.aiMemory', [])
   ]);
 
   const native = await VexBridge.init();
@@ -104,6 +107,9 @@
   setTimeout(async () => {
     await VexHistory.prune({ historyDays: VexStore.get('vex.historyDays', 365) });
     await closeStaleTabs();
+    // Alarms do not survive a reboot; re-arming the ones still ahead is
+    // cheaper than a boot receiver and does the same job.
+    await VexRemind.rearm();
     if (await VexSync.restore()) {
       const result = await VexSync.syncNow();
       if (result.ok) { VexStart.render(); VexUI.renderToolbar(); }
@@ -232,6 +238,33 @@
     });
 
     VexBridge.on('scroll', data => VexUI.onPageScroll(data));
+
+    // "Ask Vex", "Translate", "Keep as a note" on selected text — the menu
+    // Android shows when you select something, with Vex's own items added.
+    VexBridge.on('selection', async data => {
+      const text = String(data.text || '').trim();
+      const tab = VexTabStore.get(data.id) || VexTabStore.active();
+      if (!text || !tab) return;
+      if (data.action === 'note') {
+        await VexNotes.add({ url: tab.url, title: tab.title, text, kind: 'quote' });
+        await VexStore.set('vex.noteCount', Number(VexStore.get('vex.noteCount', 0)) + 1);
+        VexUI.toast('Kept', 3000, { label: 'Notes', run: () => VexPanels.notes() });
+        return;
+      }
+      if (!(await VexAI.configured())) {
+        VexUI.toast('Set up the assistant first (Settings → Assistant)', 3500);
+        return;
+      }
+      VexViews.openAI('ask');
+      const question = data.action === 'translate'
+        ? 'Translate this into ' + VexStore.get('vex.translateTo', 'en') + '.'
+        : 'What does this mean?';
+      VexViews.askAI(question, {
+        action: data.action === 'translate' ? 'translate' : 'explain',
+        selectedText: text.slice(0, 4000),
+        targetLanguage: VexStore.get('vex.translateTo', 'en')
+      });
+    });
 
     VexBridge.on('edgeSwipe', data => {
       const tab = VexTabStore.active();

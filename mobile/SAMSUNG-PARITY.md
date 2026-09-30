@@ -87,6 +87,14 @@ or bettered.
 | Autofill addresses | ✅ | "Your details" — deliberately no card numbers |
 | Autofill cards | ❌ | Not a thing a browser should type for you |
 
+## Selection, notes and reminders
+
+| Samsung Internet | Vex | Notes |
+|---|---|---|
+| Text selection: copy, share, web search | ✅ | Android's own, plus Vex's: ask the assistant, translate, keep as a note |
+| — | ✅ Notes | A line about a page, or a passage kept from one |
+| — | ✅ Reminders | "Bring this back this evening" — an Android alarm, so it fires whether or not Vex is running |
+
 ## Beyond Samsung Internet
 
 The desktop features that came across, which Samsung Internet has no answer to:
@@ -104,6 +112,11 @@ The desktop features that came across, which Samsung Internet has no answer to:
 - **Per-site rules** — JavaScript, images, dark, desktop layout, text size and
   blocking, per host.
 - **A menu you can rearrange**, and toolbar buttons you choose.
+- **An agent** — "close every YouTube tab", "search this site and open the
+  first result". It works one step at a time, shows every step, and stops to
+  ask before anything it marks risky.
+- **The library** — all of it on named shelves, searchable, with "ask Vex what
+  you don't know" for when you know the job but not the feature.
 
 ## What is not here yet
 

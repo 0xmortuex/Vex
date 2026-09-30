@@ -636,3 +636,15 @@ body[data-toolbar="top"] .mediabar { bottom: calc(14px + env(safe-area-inset-bot
 
 /* The configurable ends of the toolbar. */
 .tb-slot { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+
+/* ── The agent's working ─────────────────────────────────────────────────── */
+.agent-thought { display: block; font-size: var(--text-sm); color: var(--vex-text-secondary); margin-bottom: 6px; }
+.agent-call {
+  display: block; font: 500 var(--text-xs)/1.4 ui-monospace, "JetBrains Mono", monospace;
+  color: var(--vex-accent); word-break: break-word;
+}
+.agent-result {
+  margin: -6px 0 12px 12px; padding: 8px 12px; border-left: 2px solid var(--vex-border-strong);
+  font-size: var(--text-xs); line-height: 1.5; color: var(--vex-text-muted);
+  max-height: 5.4em; overflow: hidden;
+}

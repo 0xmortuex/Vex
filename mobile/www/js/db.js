@@ -14,6 +14,7 @@
 //   recall   { url, title, at, text, words[] }     — the page's readable text
 //   pages    { id, url, title, html, at, size }    — saved for offline
 //   downloads{ url, filename, at, size, localUri }
+//   notes    { id, url, host, title, text, kind, at }
 //
 // `words` is a multiEntry index, which is what makes Recall a lookup rather
 // than a scan: the terms of a query hit the index, and only the rows that came
@@ -21,7 +22,7 @@
 
 const VexDB = (() => {
   const NAME = 'vex';
-  const VERSION = 1;
+  const VERSION = 2;
   let database = null;
   let broken = false;
 
@@ -50,6 +51,11 @@ const VexDB = (() => {
           const pages = db.createObjectStore('pages', { keyPath: 'id', autoIncrement: true });
           pages.createIndex('at', 'at');
           pages.createIndex('url', 'url');
+        }
+        if (!db.objectStoreNames.contains('notes')) {
+          const notes = db.createObjectStore('notes', { keyPath: 'id', autoIncrement: true });
+          notes.createIndex('at', 'at');
+          notes.createIndex('host', 'host');
         }
         if (!db.objectStoreNames.contains('downloads')) {
           const downloads = db.createObjectStore('downloads', { keyPath: 'id', autoIncrement: true });

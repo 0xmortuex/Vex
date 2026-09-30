@@ -50,6 +50,54 @@ const VexViews = (() => {
   }
 
   // ── Assistant ────────────────────────────────────────────────────────────
+  let mode = 'ask';                 // 'ask' talks; 'agent' does things
+  const agentSteps = [];
+
+  function renderAgent() {
+    const log = clear($('vex-chat-log'));
+    if (!agentSteps.length) {
+      const empty = el('div', 'list-empty');
+      empty.appendChild(document.createTextNode(
+        'Say what you want done — "close every YouTube tab", "find the cheapest one and open it". '
+        + 'It works one step at a time, you watch each one, and anything it marks risky stops and asks.'));
+      log.appendChild(empty);
+    }
+    for (const step of agentSteps) {
+      if (step.kind === 'goal') {
+        log.appendChild(el('div', 'bubble user', step.text));
+      } else if (step.kind === 'step') {
+        const node = el('div', 'bubble assistant');
+        if (step.thought) node.appendChild(el('span', 'agent-thought', step.thought));
+        node.appendChild(el('span', 'agent-call', step.tool
+          + (step.parameters && Object.keys(step.parameters).length
+            ? ' ' + JSON.stringify(step.parameters).slice(0, 120) : '')));
+        log.appendChild(node);
+      } else if (step.kind === 'result') {
+        log.appendChild(el('div', 'agent-result', step.text));
+      } else if (step.kind === 'note') {
+        log.appendChild(el('div', 'agent-result', step.text));
+      } else if (step.kind === 'done') {
+        log.appendChild(el('div', 'bubble assistant', step.text));
+      } else if (step.kind === 'error') {
+        log.appendChild(el('div', 'bubble error', step.text));
+      }
+    }
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function pursue(goal) {
+    const input = $('vex-chat-input');
+    if (input) input.value = '';
+    agentSteps.push({ kind: 'goal', text: goal });
+    renderAgent();
+    try {
+      await VexAgent.pursue(goal, step => { agentSteps.push(step); renderAgent(); });
+    } catch (error) {
+      agentSteps.push({ kind: 'error', text: error.message });
+      renderAgent();
+    }
+  }
+
   function renderChat() {
     const log = clear($('vex-chat-log'));
     if (!VexAI.state.messages.length) {
@@ -76,9 +124,17 @@ const VexViews = (() => {
   async function ask(text, options) {
     const input = $('vex-chat-input');
     if (input) input.value = '';
+    // A question about a selection shows the selection, not just the prompt.
+    if (options && options.selectedText) {
+      VexAI.state.messages.push({
+        role: 'user',
+        text: '“' + String(options.selectedText).slice(0, 300) + '”\n\n' + text,
+        at: Date.now()
+      });
+    }
     renderChat();
     try {
-      await VexAI.ask(text, options);
+      await VexAI.ask(text, Object.assign({ skipUserMessage: !!(options && options.selectedText) }, options));
     } catch {
       // The failure is already the last message in the log.
     }
@@ -88,6 +144,25 @@ const VexViews = (() => {
   function chatLayout() {
     const body = clear($('panel-body'));
     const wrap = el('div', 'chat');
+
+    // Two things the assistant can be asked for, and they behave differently
+    // enough to be a choice rather than a guess: answer me, or do it.
+    const modes = el('div', 'panel-chips');
+    for (const [id, label] of [['ask', 'Ask'], ['agent', 'Do it']]) {
+      modes.appendChild(el('button', {
+        class: 'chip' + (mode === id ? ' on' : ''),
+        onclick: () => {
+          if (VexAgent.running()) { VexUI.toast('It is working — stop it first'); return; }
+          mode = id;
+          chatLayout();
+          if (mode === 'agent') renderAgent(); else renderChat();
+        }
+      }, label));
+    }
+    if (mode === 'agent' && VexAgent.running()) {
+      modes.appendChild(el('button', { class: 'chip', onclick: () => VexAgent.stop() }, 'Stop'));
+    }
+    wrap.appendChild(modes);
     wrap.appendChild(el('div', { class: 'chat-log', id: 'vex-chat-log' }));
 
     const context = VexAI.state.context;
@@ -97,7 +172,8 @@ const VexViews = (() => {
 
     const compose = el('div', 'chat-compose');
     const input = el('textarea', {
-      id: 'vex-chat-input', rows: 1, placeholder: 'Ask about this page…',
+      id: 'vex-chat-input', rows: 1,
+      placeholder: mode === 'agent' ? 'What shall it do?' : 'Ask about this page…',
       enterkeyhint: 'send', autocapitalize: 'sentences'
     });
     input.addEventListener('input', () => {
@@ -108,13 +184,13 @@ const VexViews = (() => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         const value = input.value.trim();
-        if (value) ask(value);
+        if (value) (mode === 'agent' ? pursue : ask)(value);
       }
     });
     compose.appendChild(input);
     const send = el('button', { class: 'chat-send', 'aria-label': 'Send' });
     send.appendChild(icon('send'));
-    send.onclick = () => { const value = input.value.trim(); if (value) ask(value); };
+    send.onclick = () => { const value = input.value.trim(); if (value) (mode === 'agent' ? pursue : ask)(value); };
     compose.appendChild(send);
     wrap.appendChild(compose);
     body.appendChild(wrap);
@@ -154,20 +230,31 @@ const VexViews = (() => {
     },
 
     // ── Assistant ──────────────────────────────────────────────────────────
-    async openAI(prefill) {
-      $('panel-title').textContent = 'Assistant';
+    async openAI(wanted, prefill) {
+      if (wanted === 'agent' || wanted === 'ask') mode = wanted;
+      else if (typeof wanted === 'string') prefill = wanted;
+      $('panel-title').textContent = mode === 'agent' ? 'Let it do things' : 'Assistant';
       $('panel-search').hidden = true;
       const action = $('panel-action');
       action.hidden = false;
       action.textContent = 'Clear';
-      action.onclick = () => { VexAI.clear(); renderChat(); };
+      action.onclick = () => {
+        if (mode === 'agent') { agentSteps.length = 0; renderAgent(); }
+        else { VexAI.clear(); renderChat(); }
+      };
       chatLayout();
-      renderChat();
+      if (mode === 'agent') renderAgent(); else renderChat();
       $('panel').hidden = false;
       VexUI.cover(true);
       VexPanels.markOpen('ai');
 
       if (!(await VexAI.configured())) {
+        if (mode === 'agent') {
+          agentSteps.push({ kind: 'error', text: 'No assistant configured yet. Settings → Assistant takes a '
+            + 'worker URL and an access token.' });
+          renderAgent();
+          return;
+        }
         VexAI.state.messages.push({
           role: 'error',
           text: 'No assistant configured yet. Settings → Assistant takes a worker URL and an access '
@@ -181,7 +268,10 @@ const VexViews = (() => {
     },
 
     askAI: ask,
+    pursue,
     renderChat,
+    renderAgent,
+    mode() { return mode; },
 
     async summarisePage() {
       await this.openAI();

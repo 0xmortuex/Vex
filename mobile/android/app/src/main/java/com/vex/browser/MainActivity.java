@@ -15,6 +15,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.JSObject;
 import com.vex.browser.block.VexBlockPlugin;
 import com.vex.browser.tabs.VexTabsPlugin;
+import com.vex.browser.remind.VexRemindPlugin;
 import com.vex.browser.system.VexSystemPlugin;
 import com.vex.browser.vault.VexVaultPlugin;
 
@@ -51,6 +52,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VexBlockPlugin.class);
         registerPlugin(VexVaultPlugin.class);
         registerPlugin(VexSystemPlugin.class);
+        registerPlugin(VexRemindPlugin.class);
         super.onCreate(savedInstanceState);
 
         // The chrome has a hole in it where the page goes; a solid background

@@ -101,8 +101,11 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Translate | ✅ | Through your own worker, with the web translator as the fallback it names |
 | Summarize / translate / explain | ✅ | The worker's own actions |
 | Local AI (Ollama, WebGPU) | ❌ | Blocker 4 |
-| Agent acting on tabs | 🟡 | `evaluate` per tab is already exposed; the tool loop is not ported |
+| Agent acting on tabs | ✅ | The desktop's own agent protocol and tool loop: navigate, click, type, read, list and close tabs. Every step is shown, `risky` steps ask first, ten steps and it stops |
 | Recall full-text index | ✅ | IndexedDB with a multiEntry word index — a lookup, not a scan |
+| Notes | ✅ | A line about a page, or a passage kept from a selection |
+| Reminders | ✅ | Android alarms and a notification, so they fire with Vex closed |
+| AI memory, feature library | ✅ | Facts that travel with every question; every feature on a searchable shelf |
 | History, bookmarks, downloads | ✅ | History and downloads in IndexedDB; bookmarks (with folders, import and export) in Preferences, because they sync |
 | Reading list, sessions | ✅ | Sessions use the desktop's own record shape, so one saved here opens there |
 | Encrypted sync | ✅ | The desktop's worker, its crypto and its version-vector records, copied verbatim and checked for drift. Bookmarks, reading list, sessions, quick access and site rules travel; history does not (5 MB blob) |
@@ -153,12 +156,15 @@ What is checked here, on every `npm run check`:
   reading list, bookmark folders and import/export, sessions, the password
   vault and its TOTP codes, the sync merge and encryption, site permissions,
   the menu editor, quick access, toolbar position and auto-hide, QR, dialogs,
-  saved pages, toolbar buttons, page presentation, pop-up blocking and the
-  blocking dashboard — 62 expectations, plus any page error fails the run.
-- **The logic has tests.** 130 vitest cases in `tests/mobile/` over the
+  saved pages, toolbar buttons, page presentation, pop-up blocking, the
+  blocking dashboard, the agent closing tabs through its tool loop, notes kept
+  from a selection, reminders and the library — 71 expectations, plus any page
+  error fails the run.
+- **The logic has tests.** 142 vitest cases in `tests/mobile/` over the
   omnibox, the filter parser, the tab model, site rules, the assistant client,
   themes, the shield, reader parsing, collections, history and Recall, the
-  vault (including the RFC 6238 vectors) and sync.
+  vault (including the RFC 6238 vectors), sync, and the agent — what it will
+  accept as a tool call, that it asks before a risky step, and that it stops.
 
 What is still unverified, and it matters:
 
@@ -177,13 +183,10 @@ What is still unverified, and it matters:
    the first round of Gradle errors, then walk the list in SAMSUNG-PARITY.md
    on real hardware — geometry against the keyboard and the gesture insets is
    what only a phone settles.
-2. **The agent loop.** `evaluate` is exposed per tab and the assistant is
-   wired; the desktop's tool loop ("close all the YouTube tabs") is the
-   remaining piece, and it is the one that makes this feel like Vex.
-3. **History in sync.** It is deliberately out today because the blob is
+2. **History in sync.** It is deliberately out today because the blob is
    capped at 5 MB; a per-day chunked record would fix that.
-4. **The blocker's missing syntax** — `$redirect`, `$removeparam` and the
+3. **The blocker's missing syntax** — `$redirect`, `$removeparam` and the
    cosmetic exceptions — which is where the remaining breakage on stubborn
    sites will come from.
-5. **A tablet layout**: a real tab bar, and two-pane panels.
-6. Only then Tor/ByeDPI as embedded libraries, knowing the size of it.
+4. **A tablet layout**: a real tab bar, and two-pane panels.
+5. Only then Tor/ByeDPI as embedded libraries, knowing the size of it.

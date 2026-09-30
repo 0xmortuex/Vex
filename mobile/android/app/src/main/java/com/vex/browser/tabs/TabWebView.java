@@ -17,6 +17,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Base64;
+import android.view.ActionMode;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
@@ -384,6 +387,75 @@ public class TabWebView extends WebView {
         scrollPending = 0;
         host.emit("scroll", data);
     }
+
+    /**
+     * The menu that appears when you select text. Android gives a page's
+     * selection Copy/Share/Web search; Vex adds its own — ask the assistant
+     * about the selection, translate it, keep it as a note — because the
+     * selection is the one moment the browser knows exactly what you mean.
+     */
+    @Override
+    public ActionMode startActionMode(ActionMode.Callback callback, int type) {
+        return super.startActionMode(wrapSelectionMenu(callback), type);
+    }
+
+    @Override
+    public ActionMode startActionMode(ActionMode.Callback callback) {
+        return super.startActionMode(wrapSelectionMenu(callback));
+    }
+
+    private static final String[] SELECTION_ACTIONS = { "Ask Vex", "Translate", "Keep as a note" };
+
+    private ActionMode.Callback wrapSelectionMenu(final ActionMode.Callback inner) {
+        return new ActionMode.Callback() {
+            @Override
+            public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+                return inner.onCreateActionMode(mode, menu);
+            }
+
+            @Override
+            public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+                boolean changed = inner.onPrepareActionMode(mode, menu);
+                for (int index = 0; index < SELECTION_ACTIONS.length; index++) {
+                    if (menu.findItem(SELECTION_MENU_BASE + index) == null) {
+                        menu.add(Menu.NONE, SELECTION_MENU_BASE + index, Menu.CATEGORY_SECONDARY + index,
+                                SELECTION_ACTIONS[index]);
+                    }
+                }
+                return true;
+            }
+
+            @Override
+            public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+                int index = item.getItemId() - SELECTION_MENU_BASE;
+                if (index < 0 || index >= SELECTION_ACTIONS.length) return inner.onActionItemClicked(mode, item);
+                final String action = index == 0 ? "ask" : index == 1 ? "translate" : "note";
+                // The text lives in the page, so ask the page for it.
+                evaluateJavascript("(function(){return window.getSelection?String(window.getSelection()):''})()",
+                        value -> {
+                            String text = value == null ? "" : value;
+                            if (text.startsWith("\"") && text.endsWith("\"")) {
+                                text = text.substring(1, text.length() - 1)
+                                        .replace("\\n", "\n").replace("\\\"", "\"").replace("\\\\", "\\");
+                            }
+                            JSObject data = new JSObject();
+                            data.put("id", id);
+                            data.put("action", action);
+                            data.put("text", text);
+                            host.emit("selection", data);
+                        });
+                mode.finish();
+                return true;
+            }
+
+            @Override
+            public void onDestroyActionMode(ActionMode mode) {
+                inner.onDestroyActionMode(mode);
+            }
+        };
+    }
+
+    private static final int SELECTION_MENU_BASE = 0x7e10;
 
     /** Render a saved page: its own HTML, under its own address. */
     public void loadHtml(String html, String baseUrl) {

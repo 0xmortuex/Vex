@@ -121,18 +121,29 @@ const VexAI = (() => {
       // question itself, and sending it twice makes the model answer the
       // echo instead of the page.
       const history = this.history();
-      if (question) state.messages.push({ role: 'user', text: question, at: Date.now() });
+      // An agent step is machinery, not conversation: it does not belong in
+      // the chat log, and its history is the tool results, not the messages.
+      const silent = options.action === 'agent';
+      // The panel has already shown the question when it carries a selection.
+      if (question && !silent && !options.skipUserMessage) {
+        state.messages.push({ role: 'user', text: question, at: Date.now() });
+      }
       try {
         const context = options.context === null ? null : (options.context || await this.captureContext());
         state.context = context;
-        const result = await call({
+        const result = await call(Object.assign({
           action: options.action || 'chat',
           message: question,
           pageContext: context ? context.text : '',
           selectedText: options.selectedText || '',
           targetLanguage: options.targetLanguage || '',
-          conversationHistory: history
-        });
+          conversationHistory: history,
+          // Facts you have told the assistant to remember, the way the desktop
+          // carries vex.aiMemory.
+          memory: VexStore.get('vex.aiMemory', [])
+        }, options.extra || {}));
+        // An agent step is a whole tool call, not prose: hand it back as it is.
+        if (silent) return result;
         const reply = typeof result === 'string' ? result
           : (result.reply || result.summary || result.translation || result.explanation || '');
         const answer = String(reply || '').trim() || 'The worker answered with nothing.';
@@ -144,7 +155,7 @@ const VexAI = (() => {
         });
         return answer;
       } catch (err) {
-        state.messages.push({ role: 'error', text: err.message, at: Date.now() });
+        if (!silent) state.messages.push({ role: 'error', text: err.message, at: Date.now() });
         throw err;
       } finally {
         state.busy = false;
@@ -161,6 +172,26 @@ const VexAI = (() => {
 
     translate(language) {
       return this.ask('Translate this page.', { action: 'translate', targetLanguage: language });
+    },
+
+    // Facts the assistant keeps across conversations — the desktop's AI memory.
+    memory() {
+      const stored = VexStore.get('vex.aiMemory', []);
+      return Array.isArray(stored) ? stored : [];
+    },
+
+    async remember(fact) {
+      const clean = String(fact || '').trim().slice(0, 300);
+      if (!clean) return this.memory();
+      const next = [...this.memory().filter(entry => entry !== clean), clean].slice(-40);
+      await VexStore.set('vex.aiMemory', next);
+      return next;
+    },
+
+    async forget(fact) {
+      const next = this.memory().filter(entry => entry !== fact);
+      await VexStore.set('vex.aiMemory', next);
+      return next;
     }
   };
 })();

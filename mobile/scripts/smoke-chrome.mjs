@@ -477,6 +477,84 @@ results.blockedByHost = await page.evaluate(async () => {
   return VexBlock.worstSites(2).map(site => site.host + ':' + site.count).join(',');
 });
 
+// ── The agent ───────────────────────────────────────────────────────────────
+results.agentParses = await page.evaluate(() => {
+  const call = VexAgent.parseCall('Here you go:\n{"thought":"close them","tool":"close_tabs","parameters":{"match":"youtube"},"intent":"action"}');
+  return call && call.tool === 'close_tabs' && call.parameters.match === 'youtube';
+});
+results.agentRefusesJunk = await page.evaluate(() => VexAgent.parseCall('I cannot do that') === null);
+results.agentClosesTabs = await page.evaluate(async () => {
+  await VexTabStore.create('https://www.youtube.com/watch?v=1', { background: true });
+  await VexTabStore.create('https://www.youtube.com/watch?v=2', { background: true });
+  const before = VexTabStore.all().length;
+  // Drive one tool directly: the loop itself needs a worker, the tools do not.
+  let worker = null;
+  window.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    worker = body;
+    return {
+      ok: true,
+      json: async () => ({ result: body.lastToolResult
+        ? { thought: 'done', tool: 'finish', parameters: { summary: 'Closed them' }, intent: 'safe' }
+        : { thought: 'close the youtube tabs', tool: 'close_tabs', parameters: { match: 'youtube' }, intent: 'action' } })
+    };
+  };
+  const outcome = await VexAgent.pursue('close every youtube tab');
+  return {
+    summary: outcome.summary,
+    closed: before - VexTabStore.all().length,
+    sentTools: Array.isArray(worker.availableTools) && worker.availableTools.some(tool => tool.name === 'close_tabs'),
+    action: worker.action
+  };
+});
+await page.evaluate(() => VexViews.openAI('agent'));
+await page.waitForTimeout(300);
+results.agentPanel = await page.textContent('#panel-title');
+await shot('21-agent');
+
+// ── Notes, from a selection ─────────────────────────────────────────────────
+results.noteKept = await page.evaluate(async () => {
+  window.__vexEmit('selection', {
+    id: VexTabStore.activeId(), action: 'note',
+    text: 'The halyard parted at the masthead.'
+  });
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const notes = await VexNotes.all();
+  return notes.length === 1 && notes[0].kind === 'quote' && notes[0].text.includes('halyard');
+});
+await page.evaluate(() => VexPanels.notes());
+await page.waitForTimeout(300);
+results.notesPanelRows = await page.$$eval('#panel-body .list-row', rows => rows.length);
+
+// ── Reminders ───────────────────────────────────────────────────────────────
+results.reminderScheduled = await page.evaluate(async () => {
+  const at = Date.now() + 3600000;
+  const entry = await VexRemind.add({ url: 'https://example.com/later', title: 'Later', note: 'read this', at });
+  return !!entry && VexRemind.pending().length === 1 && VexRemind.describe(at).length > 3;
+});
+results.reminderRemoved = await page.evaluate(async () => {
+  const entry = VexRemind.pending()[0];
+  await VexRemind.remove(entry.id);
+  return VexRemind.pending().length === 0;
+});
+results.reminderDropsPast = await page.evaluate(async () => {
+  await VexStore.set('vex.reminders', [{ id: 'old', url: 'https://a', at: Date.now() - 1000 }]);
+  await VexRemind.rearm();
+  return VexRemind.all().length === 0;
+});
+
+// ── The library ─────────────────────────────────────────────────────────────
+await page.evaluate(() => VexPanels.library());
+await page.waitForTimeout(300);
+results.libraryRows = await page.$$eval('#panel-body .sheet-row', rows => rows.length);
+results.libraryShelves = await page.$$eval('#panel-body .list-head', heads => heads.length);
+await shot('22-library');
+results.librarySearch = await page.evaluate(() => VexLibrary.search('offline').map(entry => entry.id));
+results.libraryOpens = await page.evaluate(() => {
+  // Every entry has to point at something that exists.
+  return VexLibrary.flat().every(entry => typeof entry.run === 'function' && entry.name && entry.description);
+});
+
 console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
@@ -505,7 +583,11 @@ const expected = {
   promptReturns: 'Named', confirmCancels: false, pageSaved: true,
   toolbarButtonsChosen: '3:2', presentationScript: true, presentationEmptyWhenOff: true,
   profileSaved: true, popupBlocked: true, popupToast: true,
-  blockedByHost: 'shop.example:40,news.example:12'
+  blockedByHost: 'shop.example:40,news.example:12',
+  agentParses: true, agentRefusesJunk: true, agentPanel: 'Let it do things',
+  noteKept: true, notesPanelRows: 1,
+  reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
+  libraryOpens: true
 };
 
 const failures = [];
@@ -524,6 +606,14 @@ if (!(results.bookmarkFolders || []).includes('Work')) failures.push('bookmarkFo
 if (results.menuEditorRows < 20) failures.push('menuEditorRows: ' + results.menuEditorRows);
 if (results.syncPanelFields < 2) failures.push('syncPanelFields: the sync panel did not render its fields');
 if (!(results.menuHides < results.menuRows)) failures.push('menuHides: hiding entries did not shorten the menu');
+if (!results.agentClosesTabs || results.agentClosesTabs.closed !== 2) {
+  failures.push('agentClosesTabs: ' + JSON.stringify(results.agentClosesTabs));
+}
+if (results.agentClosesTabs && results.agentClosesTabs.action !== 'agent') failures.push('the agent did not use the agent action');
+if (results.agentClosesTabs && !results.agentClosesTabs.sentTools) failures.push('the agent did not send its tool list');
+if (results.libraryRows < 25) failures.push('libraryRows: ' + results.libraryRows);
+if (results.libraryShelves < 5) failures.push('libraryShelves: ' + results.libraryShelves);
+if (!(results.librarySearch || []).includes('saved')) failures.push('librarySearch: ' + JSON.stringify(results.librarySearch));
 if (!String(results.privateEmptyCopy).startsWith('No private tabs')) failures.push('privateEmptyCopy: ' + results.privateEmptyCopy);
 failures.push(...errors);
 

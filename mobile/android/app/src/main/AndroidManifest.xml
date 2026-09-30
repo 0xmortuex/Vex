@@ -56,6 +56,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Wakes for a reminder you set on a page. -->
+        <receiver
+            android:name="com.vex.browser.remind.ReminderReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -72,6 +77,10 @@
     <!-- Downloads land in the public Downloads folder; only pre-Q needs the write bit. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Reminders survive a reboot-less idle; the exact variant is asked for
+         and quietly done without when the system says no. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- Sites asking for camera/microphone (video calls) and location. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

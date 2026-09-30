@@ -19,7 +19,7 @@
 const VexBridge = (() => {
   const listeners = new Map();              // event -> Set<fn>
   const devSecrets = Object.create(null);   // fallback only; never persisted
-  const plugins = { VexTabs: null, VexBlock: null, VexVault: null, VexSystem: null };
+  const plugins = { VexTabs: null, VexBlock: null, VexVault: null, VexSystem: null, VexRemind: null };
   let native = false;
 
   function emit(event, payload) {
@@ -121,7 +121,7 @@ const VexBridge = (() => {
       for (const name of Object.keys(plugins)) plugins[name] = capacitor.Plugins[name] || null;
       for (const event of ['loadStart', 'loadProgress', 'loadEnd', 'title', 'urlChange', 'icon',
         'newTab', 'download', 'error', 'blocked', 'findResult', 'permission', 'edgeSwipe',
-        'longPress', 'fullscreen', 'scroll']) {
+        'longPress', 'fullscreen', 'scroll', 'selection']) {
         plugins.VexTabs.addListener(event, data => emit(event, data));
       }
       if (plugins.VexBlock) plugins.VexBlock.addListener('blocked', data => emit('blocked', data));
@@ -237,6 +237,17 @@ const VexBridge = (() => {
     setFullscreen(value) { return system('setFullscreen', { value: !!value }); },
     setKeepAwake(value) { return system('setKeepAwake', { value: !!value }); },
     shareFile(path, mimeType, title) { return system('shareFile', { path, mimeType, title }); },
+
+    // ── Reminders ──────────────────────────────────────────────────────────
+    // The time goes over as a string: a millisecond timestamp does not fit in
+    // the int the bridge would otherwise make of it.
+    scheduleReminder(entry) {
+      return call('VexRemind', 'schedule', {
+        id: entry.id, atMillis: String(entry.at), url: entry.url,
+        title: entry.title || '', note: entry.note || ''
+      });
+    },
+    cancelReminder(id) { return call('VexRemind', 'cancel', { id }); },
 
     // ── Platform odds and ends ─────────────────────────────────────────────
     async share(url, title) {

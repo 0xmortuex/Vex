@@ -49,9 +49,12 @@ the address bar; add a site to the home screen.
 
 **Vex's own** — eight themes, seven skins and five typefaces generated from
 the desktop's token file; the assistant against a Cloudflare Worker you deploy
-yourself; and encrypted sync with the desktop — bookmarks, reading list,
-sessions and site rules, merged with the same version-vector records the PC
-uses, with your desktop's open tabs on the start page.
+yourself, in two modes (ask about the page, or let it do things with a tool
+loop that shows every step); notes and reminders; the feature library with
+"ask Vex what you don't know"; and encrypted sync with the desktop —
+bookmarks, reading list, sessions and site rules, merged with the same
+version-vector records the PC uses, with your desktop's open tabs on the start
+page.
 
 ## How it fits together
 
@@ -95,6 +98,10 @@ whole codebase:
 | `www/js/tools.js` | QR both ways, dictation, saved pages, capture, translate |
 | `www/js/media.js` | Picture-in-picture, background audio, video controls |
 | `www/js/permissions.js` | What each site may ask for |
+| `www/js/agent.js` | The tool loop: what the assistant may do, and the rules it does it under |
+| `www/js/notes.js` | Notes and kept passages |
+| `www/js/remind.js` | Reminders, over Android's alarms |
+| `www/js/library.js` | Every feature, on a shelf, searchable |
 | `www/js/dom.js` | element helpers; nothing here has an innerHTML path for outside text |
 | `www/js/storage.js` | async key/value over Preferences, same key names as the desktop |
 | `www/js/theme.js` | themes, skins, fonts, the page's own theme colour |
@@ -122,6 +129,8 @@ whole codebase:
 | `block/VexBlockPlugin.java` | the JS control surface for it |
 | `vault/VexVaultPlugin.java` | AES/GCM secrets under an Android Keystore key |
 | `system/VexSystemPlugin.java` | Biometrics, shortcuts, dictation, PiP, permissions, default browser |
+| `remind/VexRemindPlugin.java` | Alarms for reminders |
+| `remind/ReminderReceiver.java` | The notification when one comes due |
 
 ## Build
 
@@ -150,7 +159,7 @@ npm run check        # chrome parse + references + bridge/native contract,
                      # themes and the shared sync files in step with the
                      # desktop, and a Java type-check
 npm run smoke        # drive the whole chrome in a phone-sized Chromium
-npm test             # (from the repo root) 130 vitest cases over the chrome logic
+npm test             # (from the repo root) 142 vitest cases over the chrome logic
 ```
 
 `npm run check:java` compiles every Android source with plain javac against the

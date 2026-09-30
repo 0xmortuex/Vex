@@ -58,6 +58,9 @@ const VexPanels = (() => {
     passwords: () => VexPanels.passwords(),
     sync: () => VexPanels.sync(),
     permissions: () => VexPanels.permissions(),
+    notes: () => VexPanels.notes(),
+    reminders: () => VexPanels.reminders(),
+    library: () => VexPanels.library(),
     settings: () => VexPanels.settings(),
     appearance: () => VexPanels.appearance(),
     toolbarButtons: () => VexPanels.toolbarButtons(),
@@ -330,6 +333,138 @@ const VexPanels = (() => {
           sub: item => VexSearch.prettyHost(item.url) + ' · ' + bytes(item.size) + ' · ' + when(item.at),
           onOpen: async item => { close(); await VexTools.openSaved(item); },
           onRemove: async item => { await VexTools.deleteSaved(item.id); this.savedPages(); }
+        }));
+      }
+    },
+
+    // ── Notes ──────────────────────────────────────────────────────────────
+    async notes(query = '') {
+      const body = openShell('notes', 'Notes', {
+        search: { value: query, placeholder: 'Search your notes', onInput: value => this.notes(value) },
+        action: {
+          label: 'Add',
+          run: async () => {
+            const tab = VexTabStore.active();
+            const text = await VexUI.prompt('A note', tab && tab.url !== 'about:blank'
+              ? 'About ' + VexSearch.prettyHost(tab.url) : 'Anything you want to keep');
+            if (!text) return;
+            await VexNotes.add({ url: tab ? tab.url : '', title: tab ? tab.title : '', text });
+            this.notes(query);
+          }
+        }
+      });
+      const notes = await VexNotes.search(query);
+      if (!notes.length) {
+        body.appendChild(empty(query
+          ? 'Nothing matches “' + query + '”.'
+          : 'Select text on a page and choose "Keep as a note", or add one here. Notes stay on the phone.'));
+        return;
+      }
+      for (const note of notes) {
+        const row = el('div', 'list-row');
+        row.appendChild(favicon({ url: note.url }));
+        const lines = el('div', 'lines');
+        lines.appendChild(el('span', 't', note.text.slice(0, 120)));
+        lines.appendChild(el('span', 'u', [note.host, note.kind === 'quote' ? 'kept from the page' : null, when(note.at)]
+          .filter(Boolean).join(' · ')));
+        row.appendChild(lines);
+        if (note.url) row.onclick = () => { close(); VexUI.openUrl(note.url); };
+        const remove = el('button', { class: 'x', 'aria-label': 'Delete' });
+        remove.appendChild(icon('trash'));
+        remove.onclick = async event => { event.stopPropagation(); await VexNotes.remove(note.id); this.notes(query); };
+        row.appendChild(remove);
+        body.appendChild(row);
+      }
+    },
+
+    // ── Reminders ──────────────────────────────────────────────────────────
+    reminders() {
+      const body = openShell('reminders', 'Reminders', {
+        action: {
+          label: 'Add',
+          run: () => {
+            const tab = VexTabStore.active();
+            if (!tab || !tab.url || tab.url === 'about:blank') { VexUI.toast('Open a page first'); return; }
+            this.addReminder(tab);
+          }
+        }
+      });
+      const pending = VexRemind.pending();
+      if (!pending.length) {
+        body.appendChild(empty('A reminder brings a page back — this evening, tomorrow, at the weekend. '
+          + 'Android wakes for it whether or not Vex is running.'));
+        return;
+      }
+      for (const entry of pending) {
+        body.appendChild(listRow({ url: entry.url, title: entry.title, icon: '' }, {
+          sub: () => VexRemind.describe(entry.at) + (entry.note ? ' · ' + entry.note : '')
+            + (entry.exact === false ? ' · approximate' : ''),
+          onOpen: () => { close(); VexUI.openUrl(entry.url); },
+          onRemove: async () => { await VexRemind.remove(entry.id); this.reminders(); }
+        }));
+      }
+    },
+
+    addReminder(tab) {
+      VexSheets.choose('Bring this back', VexRemind.PRESETS.map(preset => ({
+        id: preset.id,
+        label: preset.label,
+        note: VexRemind.describe(preset.at ? preset.at() : Date.now() + preset.minutes * 60000)
+      })), async choice => {
+        VexSheets.close();
+        const preset = VexRemind.PRESETS.find(entry => entry.id === choice);
+        if (!preset) return;
+        const at = preset.at ? preset.at() : Date.now() + preset.minutes * 60000;
+        const note = await VexUI.prompt('What about it?', 'Optional — what you want to remember', '');
+        if (note === null) return;
+        const granted = await VexBridge.requestPermission('notifications');
+        if (!granted) VexUI.toast('Android will not show the notification until Vex may notify you', 4000);
+        await VexRemind.add({ url: tab.url, title: tab.title, note, at });
+        VexUI.toast('Set for ' + VexRemind.describe(at), 3500, { label: 'Reminders', run: () => this.reminders() });
+      }, VexSearch.prettyHost(tab.url));
+    },
+
+    // ── The library ────────────────────────────────────────────────────────
+    library(query = '') {
+      const body = openShell('library', 'Everything Vex can do', {
+        search: {
+          value: query, placeholder: 'What are you trying to do?',
+          onInput: value => this.library(value)
+        }
+      });
+
+      if (!query) {
+        const ask = el('div', 'field stack');
+        ask.appendChild(el('div', 'field-note',
+          VexLibrary.count() + ' features, on named shelves. Or describe what you are trying to do and '
+          + 'the assistant will name the ones for it.'));
+        const askButton = el('button', { class: 'pill-btn', style: 'margin: 0 16px 8px; width: calc(100% - 32px)' },
+          'Ask Vex what you don’t know');
+        askButton.onclick = async () => {
+          const question = await VexUI.prompt('Ask Vex', 'What are you trying to do?');
+          if (!question) return;
+          if (!(await VexAI.configured())) { VexUI.toast('Set up the assistant first (Settings → Assistant)'); return; }
+          VexUI.toast('Asking…', 1500);
+          try {
+            await VexLibrary.ask(question);
+            VexViews.openAI();
+          } catch (error) { VexUI.toast(error.message, 4000); }
+        };
+        body.appendChild(askButton);
+      }
+
+      const matches = VexLibrary.search(query);
+      if (!matches.length) {
+        body.appendChild(empty('Nothing here matches “' + query + '”.'));
+        return;
+      }
+      let shelf = '';
+      for (const entry of matches) {
+        if (entry.shelf !== shelf) { shelf = entry.shelf; body.appendChild(heading(shelf)); }
+        body.appendChild(VexSheets.row({
+          label: entry.name,
+          note: entry.description,
+          run: () => { close(); entry.run(); }
         }));
       }
     },
@@ -716,6 +851,8 @@ const VexPanels = (() => {
       body.appendChild(valueRow('Tabs', 'How tabs open, sleep and close', null, () => this.tabsSettings()));
       body.appendChild(valueRow('Menu', 'What is in it, and in what order', null, () => this.menuEditor()));
       body.appendChild(valueRow('Start page', 'The tiles and what they point at', null, () => this.quickAccess()));
+      body.appendChild(valueRow('Everything Vex can do', 'The library, with search', String(VexLibrary.count()),
+        () => this.library()));
 
       body.appendChild(heading('Search'));
       body.appendChild(valueRow('Search engine', null,
@@ -1295,6 +1432,29 @@ const VexPanels = (() => {
           run: async () => { await VexAI.setToken(''); this.assistantSettings(); return true; }
         }));
       }
+
+      body.appendChild(heading('What it remembers'));
+      const memory = VexAI.memory();
+      if (!memory.length) {
+        body.appendChild(el('div', 'field-note',
+          'Nothing yet. Tell it something worth keeping — "I read in Turkish", "I prefer short answers" — '
+          + 'and it goes with every question from then on.'));
+      }
+      for (const fact of memory) {
+        body.appendChild(VexSheets.row({
+          label: fact,
+          run: async () => {
+            if (await VexUI.confirm('Forget that?')) { await VexAI.forget(fact); this.assistantSettings(); }
+            return true;
+          }
+        }));
+      }
+      body.appendChild(valueRow('Remember something', null, '', async () => {
+        const fact = await VexUI.prompt('Remember this', 'One line the assistant should always know');
+        if (!fact) return;
+        await VexAI.remember(fact);
+        this.assistantSettings();
+      }));
 
       body.appendChild(heading('Checks'));
       body.appendChild(valueRow('Test the connection', null, '', async () => {

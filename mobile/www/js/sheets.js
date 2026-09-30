@@ -129,6 +129,22 @@ const VexSheets = (() => {
       }
     },
     sessions: { icon: 'layers', label: 'Sessions', run: () => VexPanels.sessions() },
+    notes: {
+      icon: 'text', label: 'Notes',
+      note: () => { const count = VexStore.get('vex.noteCount', 0); return count ? count + ' kept' : null; },
+      run: () => VexPanels.notes()
+    },
+    'remind-me': {
+      icon: 'history', label: 'Remind me about this', needsPage: true,
+      run: tab => VexPanels.addReminder(tab)
+    },
+    reminders: { icon: 'history', label: 'Reminders', run: () => VexPanels.reminders() },
+    agent: {
+      icon: 'sparkle', label: 'Let the assistant do it',
+      note: 'Close tabs, search, fill things in',
+      run: () => VexViews.openAI('agent')
+    },
+    library: { icon: 'grid', label: 'Everything Vex can do', run: () => VexPanels.library() },
     passwords: { icon: 'key', label: 'Passwords and 2FA', run: () => VexPanels.passwords() },
     fill: {
       icon: 'key', label: 'Fill a saved login', needsPage: true,
@@ -183,11 +199,12 @@ const VexSheets = (() => {
   };
 
   const DEFAULT_ORDER = [
-    'new-tab', 'new-private', 'assistant', 'reader', 'translate', 'find', 'site',
+    'new-tab', 'new-private', 'assistant', 'agent', 'reader', 'translate', 'find', 'site',
     'add-reading', 'reading-list', 'bookmarks', 'history', 'recall', 'downloads',
-    'save-page', 'saved-pages', 'sessions', 'fill', 'fill-details', 'save-login', 'passwords',
+    'save-page', 'saved-pages', 'notes', 'remind-me', 'reminders', 'sessions',
+    'fill', 'fill-details', 'save-login', 'passwords',
     'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'share',
-    'reopen', 'settings'
+    'reopen', 'library', 'settings'
   ];
 
   function menuOrder() {
