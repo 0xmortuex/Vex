@@ -2050,9 +2050,24 @@
       try { const s = localStorage.getItem(SHORTCUTS_KEY); if (s) return JSON.parse(s); } catch {}
       return defaultShortcuts;
     }
+    // The grid lives in this page's own storage, which Vex's window cannot
+    // read, so it never synced (found 2026-09-30). Every change is handed to
+    // the window, which keeps and syncs it (js/webview.js, saveStartTiles)
+    // and hands the synced grid back through __vexSetStartTiles.
+    const HANDED_KEY = 'vex.startTilesHanded';
     function saveShortcuts(shortcuts) {
       localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts));
+      console.log('VEX_CMD:' + JSON.stringify({ type: 'start-tiles', tiles: shortcuts }));
     }
+    window.__vexSetStartTiles = (list) => {
+      if (!Array.isArray(list)) throw new Error('The New Tab grid Vex sent is not a list');
+      localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(list));
+      // From now on this page shows the window's grid; its own was merged in.
+      localStorage.setItem(HANDED_KEY, '1');
+      shortcuts = list;
+      renderShortcuts();
+      return true;
+    };
     function getFavicon(url) {
       try { return 'https://' + new URL(url).hostname + '/favicon.ico'; } catch { return ''; }
     }
@@ -2302,6 +2317,13 @@
     }
 
     renderShortcuts();
+    // Opened: the window hands back its grid. The first time, the grid saved
+    // here (null: never changed, the built-in tiles) is merged into it.
+    (function helloStartTiles() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(SHORTCUTS_KEY) || 'null'); } catch { saved = null; }
+      console.log('VEX_CMD:' + JSON.stringify({ type: 'start-tiles', loading: true, handed: localStorage.getItem(HANDED_KEY) === '1', tiles: Array.isArray(saved) ? saved : null }));
+    })();
 
     // Search — with Google Suggest predictions (pure web suggest; no local
     // history/tab/bookmark blending here). Suggestions come from the main

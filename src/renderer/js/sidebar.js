@@ -246,7 +246,7 @@ const SidebarManager = {
       btn.className = 'sidebar-icon';
       btn.dataset.panel = p.id;
       btn.title = p.name + ' (pinned site — right-click for options)';
-      btn.innerHTML = '<img src="https://' + encodeURIComponent(host) + '/favicon.ico" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">';
+      btn.innerHTML = '<img src="' + (typeof TabManager === 'undefined' || TabManager.mayAskSiteForIcon(p.url) ? 'https://' + encodeURIComponent(host) + '/favicon.ico' : '') + '" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">';
       btn.addEventListener('click', (e) => {
         if (e.shiftKey && this._besideOnShift(p.id)) return;
         this.togglePanel(p.id);

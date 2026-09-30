@@ -30,6 +30,7 @@ const ContainerRouting = {
           <input id="rt-proxy" placeholder="socks5://127.0.0.1:1080 or http://host:port" value="${cur.mode === 'proxy' ? (window.escapeHtml ? window.escapeHtml(cur.custom || '') : (cur.custom || '')) : ''}" style="flex:1;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:monospace">
           <button id="rt-proxy-go" style="${chip}">Use proxy</button>
         </div>
+        <div style="font-size:11px;color:var(--text-muted)">Calls in Discord, Meet and similar may not connect: WebRTC is limited to the proxy so it can't show your real address.</div>
       </div>
       <div id="rt-msg" style="font-size:11.5px;color:var(--text-muted);min-height:16px;margin:12px 0"></div>
       <div style="border-top:1px solid var(--border);margin-top:6px;padding-top:12px;display:flex;align-items:center;gap:8px">
@@ -53,6 +54,9 @@ const ContainerRouting = {
       try {
         const r = await window.vex.routingSet(part, mode, custom);
         if (!r || !r.ok) { msg('Failed: ' + ((r && r.error) || 'unknown'), false); return; }
+        // The main session routed or not decides whether Vex's window may ask
+        // normal tabs' sites for their icons (TabManager.windowMayAsk).
+        if (part === 'persist:main') await TabManager.mainRoutingChanged();
         // Reload the active tab so the new route takes effect immediately.
         try { const wv = WebviewManager.getActiveWebview(); if (wv) wv.reload(); } catch {}
         msg(VexIcons.svg('check', { size: 12 }) + ' ' + (mode === 'tor' ? 'Now routing through Tor.' : mode === 'proxy' ? 'Now using your proxy.' : 'Back to direct.'), true);

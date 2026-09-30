@@ -269,6 +269,8 @@ describe('favicon screening', () => {
   it('keeps the schemes the saved-tab contract accepts', async () => {
     installGlobals();
     const TM = await loadTabManager();
+    // Once the main session is known to be direct (TabManager.refreshMainRouting).
+    TM._mainRouted = false;
     for (const ok of [
       'https://x.test/favicon.ico',
       'http://x.test/favicon.ico',

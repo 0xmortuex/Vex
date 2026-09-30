@@ -17,6 +17,13 @@ const TorSession = {
   _busy: false,
 
   async open() {
+    // Every tab in a private window is in that window's own session, so a
+    // "Tor tab" opened there went direct while Vex said "Connected to Tor"
+    // (found 2026-09-30: check.torproject.org said IsTor false).
+    if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) {
+      window.showToast?.('Open a Tor tab from a normal Vex window — every tab in a private window uses the private window’s own connection', 'error');
+      return;
+    }
     if (this._busy) return;
     this._busy = true;
     const ui = this._showProgress();
@@ -100,7 +107,7 @@ const TorSession = {
         const pctEl = m.querySelector('#' + id + '-pct'); if (pctEl) pctEl.textContent = pct + '%';
         if (p.phase === 'bootstrap') { const st = m.querySelector('#tor-bs-stage'); if (st) st.textContent = TorSession._stageText(p.detail); }
       },
-      finish: () => {
+      finish: (said = 'Connected — opening your Tor tab…') => {
         ['tor-dl', 'tor-bs'].forEach(id => {
           const row = m.querySelector('#' + id + '-row');
           if (row && row.style.display !== 'none') {
@@ -108,7 +115,7 @@ const TorSession = {
             const p = m.querySelector('#' + id + '-pct'); if (p) p.textContent = '100%';
           }
         });
-        const st = m.querySelector('#tor-bs-stage'); if (st) st.textContent = 'Connected — opening your Tor tab…';
+        const st = m.querySelector('#tor-bs-stage'); if (st) st.textContent = said;
       },
     };
     // Cancel stops the Tor Vex is launching, not just this dialog: closing it
@@ -164,6 +171,29 @@ const TorSession = {
     window.vex.torStatus()
       .then((s) => { el.hidden = !(s && s.running); })
       .catch(err => console.error('[tor] could not read whether Tor is running:', err));
+    window.vex.onTorReviving(() => this._reviving());
+    window.vex.onTorRevived((r) => this._revived(r));
+    window.vex.onTorPageDown((p) => WebviewManager.showTorDown(p.id, p.state, p.error));
+  },
+
+  // A Tor route (a container, a burner, a site rule) whose Tor had stopped
+  // starts it again when one of its pages loads (main, _reviveTor): the same
+  // progress as opening a Tor tab, and Cancel stops it the same way.
+  _reviveUi: null,
+  _reviving() {
+    if (this._reviveUi || this._busy) return;   // a Tor tab opening shows the same start already
+    const ui = this._showProgress();
+    ui.unsub = window.vex.onTorProgress((p) => ui.update(p));
+    this._reviveUi = ui;
+  },
+  _revived(r) {
+    const ui = this._reviveUi;
+    if (!ui) return;
+    this._reviveUi = null;
+    ui.unsub();
+    if (r && r.ok) { ui.finish('Connected — loading your page…'); setTimeout(() => ui.close(), 500); return; }
+    ui.close();
+    if (!ui.cancelled && !(r && r.cancelled)) window.showToast?.('Tor could not start: ' + ((r && r.error) || 'no answer from Vex'), 'error');
   },
 
   // The tabs in this window that go through Tor: the pages main names, and a
@@ -178,18 +208,32 @@ const TorSession = {
     });
   },
 
-  // Stop asks first when Tor tabs are open, and closes them: a Tor tab left
-  // open after Tor stops loads nothing.
+  // Main asks every Vex window these when Tor stops (tor:status, tor:stop).
+  countTorTabs(pageIds) { return this._torTabs(pageIds).length; },
+  closeTorTabs(pageIds) {
+    const tabs = this._torTabs(pageIds);
+    tabs.forEach(t => TabManager.closeTab(t.id));
+    return tabs.length;
+  },
+
+  // What Stop says it will do, counted over every window: it closed the Tor
+  // tabs of the window it was clicked in only (found 2026-09-30).
+  _stopMessage({ tabs, windows, pages }) {
+    const where = windows > 1 ? ` in ${windows} windows` : '';
+    const closing = tabs === 1 ? 'The Tor tab will close.' : tabs ? `The ${tabs} Tor tabs will close${where}.` : '';
+    const others = pages > tabs ? ' Other pages going through Tor stop loading until Tor starts again.' : '';
+    return (closing + others).trim();
+  },
+
+  // Stop asks first when Tor tabs are open; main closes them in every window,
+  // then stops Tor: a Tor tab left open after Tor stops loads nothing.
   async stop() {
     const status = await window.vex.torStatus();
-    const tabs = this._torTabs(status && status.pages);
     const pages = (status && status.pages || []).length;
-    if (tabs.length || pages) {
-      const closing = tabs.length === 1 ? 'The Tor tab will close.' : tabs.length ? `The ${tabs.length} Tor tabs will close.` : '';
-      const others = pages > tabs.length ? ' Other pages going through Tor stop loading until Tor starts again.' : '';
-      const ok = await window.vexConfirm({ title: 'Stop Tor?', message: (closing + others).trim(), okLabel: 'Stop Tor', danger: true });
+    if (status.tabs || pages) {
+      const message = this._stopMessage({ tabs: status.tabs, windows: status.windows, pages });
+      const ok = await window.vexConfirm({ title: 'Stop Tor?', message, okLabel: 'Stop Tor', danger: true });
       if (!ok) return false;
-      tabs.forEach(t => TabManager.closeTab(t.id));
     }
     const r = await window.vex.stopTor();
     if (!r || !r.ok) throw new Error((r && r.error) || 'no answer from Vex');

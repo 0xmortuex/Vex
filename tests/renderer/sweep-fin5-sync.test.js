@@ -176,7 +176,9 @@ describe('S2: a push that 409s pulls, merges and retries once', () => {
     const res = await engine.pushNow();
     expect(res.ok).toBe(true);
     expect(server.revision).toBe(4);
-    const paths = server.calls.map(c => c.path).slice(-3);
+    // Each push and pull also reads the device list, to decide whether
+    // shortcut tiles may sync (sync-engine.js checkTileGate).
+    const paths = server.calls.map(c => c.path).filter(p => p !== '/sync/devices').slice(-3);
     expect(paths).toEqual(['/sync/push', '/sync/pull', '/sync/push']);
     engine.signOut();
   });

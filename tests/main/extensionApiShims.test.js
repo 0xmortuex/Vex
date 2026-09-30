@@ -264,13 +264,14 @@ describe('the active tab under a toolbar popup', () => {
   const OWN = 'chrome-extension://ext-id/';
   const popupTab = { id: 6, active: true, url: OWN + 'ui/popup/index.html' };
   const pageTab = { id: 5, active: false, url: 'https://docs.google.com/document/d/1' };
-  function setup(over) {
+  // front: the pages main says are in front (extensions:active-tabs).
+  function setup(over, front = { ids: [5], current: 5 }) {
     const asked = [];
     const tabs = {
       query: (q) => Promise.resolve([popupTab, pageTab].filter(t => q.active == null || t.active === q.active)),
       get: (id) => Promise.resolve([popupTab, pageTab].find(t => t.id === id)),
     };
-    const ipcRenderer = { invoke: (ch) => { asked.push(ch); return Promise.resolve(over); } };
+    const ipcRenderer = { invoke: (ch) => { asked.push(ch); return Promise.resolve(ch === 'extensions:active-tabs' ? front : over); } };
     const c = page(extension().chrome({ extra: { tabs, runtime: { id: 'ext-id', getManifest: () => ({}), getURL: (p) => OWN + p } } }), { ipcRenderer });
     return { c, asked };
   }
@@ -280,25 +281,25 @@ describe('the active tab under a toolbar popup', () => {
     const [tab] = await c.tabs.query({ active: true, lastFocusedWindow: true });
     expect(tab.url).toBe(pageTab.url);
     expect(tab.active).toBe(true);
-    expect(asked).toEqual(['extensions:popup-tab']);
+    expect(asked.filter(ch => ch === 'extensions:popup-tab')).toEqual(['extensions:popup-tab']);
     // Dark Reader asks with a callback.
     await new Promise((resolve) => c.tabs.query({ active: true }, (tabs) => { expect(tabs.map(t => t.id)).toEqual([5]); resolve(); }));
   });
 
-  it('leaves every other question alone, and does not ask main', async () => {
+  it('a question that is not for the active tab is not taken to the popup', async () => {
     const { c, asked } = setup({ popup: 6, tab: 5 });
-    expect((await c.tabs.query({})).map(t => t.id)).toEqual([6, 5]);
-    expect((await c.tabs.query({ active: false })).map(t => t.id)).toEqual([5]);
-    expect(asked).toEqual([]);
+    expect((await c.tabs.query({})).map(t => [t.id, t.active])).toEqual([[6, false], [5, true]]);
+    expect((await c.tabs.query({ active: false })).map(t => t.id)).toEqual([6]);
+    expect(asked).not.toContain('extensions:popup-tab');
   });
 
-  it('with no popup of its own open, the answer is what Electron said', async () => {
+  it('with no popup of its own open, the answer is the tab main says is in front', async () => {
     const { c } = setup(null);
-    expect((await c.tabs.query({ active: true })).map(t => t.id)).toEqual([6]);
+    expect((await c.tabs.query({ active: true })).map(t => t.id)).toEqual([5]);
   });
 
   it('a popup opened with no tab under it is simply left out', async () => {
-    const { c } = setup({ popup: 6, tab: null });
+    const { c } = setup({ popup: 6, tab: null }, { ids: [], current: null });
     expect(await c.tabs.query({ active: true })).toEqual([]);
   });
 });

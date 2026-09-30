@@ -158,7 +158,7 @@ describe('app.js: the interface says which tab it made', () => {
 // tabs.get where it knows the page.
 function worker(chrome, answer) {
   const calls = [];
-  const ipcRenderer = { invoke: (ch, ...args) => { calls.push([ch, ...args]); return Promise.resolve(ch === 'extensions:open-tab' ? answer(args[0]) : null); } };
+  const ipcRenderer = { invoke: (ch, ...args) => { calls.push([ch, ...args]); return Promise.resolve(ch === 'extensions:open-tab' ? answer(args[0]) : ch === 'extensions:active-tabs' ? { ids: [], current: null } : null); } };
   const ctx = vm.createContext({ chrome, setTimeout, Promise, JSON, Object, Array, String, Number, URL,
     require: (m) => {
       if (m !== 'electron') throw new Error('only electron');
@@ -180,7 +180,7 @@ describe('stand-in: tabs.create resolves a Tab', () => {
   it('Electron’s view of the page, with the address it is going to and whether it is in front', async () => {
     const { c } = worker(fakeChrome({ 4: { id: 4, windowId: 0, index: 0, url: '', active: false, title: '' } }), made);
     const tab = await c.tabs.create({ url: 'https://example.com/', active: false });
-    expect(tab).toEqual({ id: 4, windowId: 0, index: 0, url: 'https://example.com/', pendingUrl: 'https://example.com/', active: false, highlighted: false, title: '' });
+    expect(tab).toEqual({ id: 4, windowId: 0, index: 0, url: 'https://example.com/', pendingUrl: 'https://example.com/', active: false, highlighted: false, selected: false, title: '' });
   });
 
   it('the callback form gets the same Tab', async () => {

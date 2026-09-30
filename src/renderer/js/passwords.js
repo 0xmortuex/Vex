@@ -297,7 +297,7 @@ const PasswordVault = {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)';
       row.innerHTML = `
-        <img src="https://${encodeURIComponent(entry.host)}/favicon.ico" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">
+        <img src="${typeof TabManager === 'undefined' || TabManager.mayAskSiteForIcon('https://' + entry.host + '/') ? `https://${encodeURIComponent(entry.host)}/favicon.ico` : ''}" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">
         <div style="flex:1;min-width:0">
           <div style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(entry.host)}</div>
           <div style="font-size:11.5px;color:var(--text-muted)">${esc(entry.username)}</div>

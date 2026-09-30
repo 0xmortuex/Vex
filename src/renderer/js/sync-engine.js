@@ -68,6 +68,30 @@ const SyncEngine = (() => {
   const LIST_PREFERENCES = ['vex.bookmarks', 'vex.sessions', 'vex.history', 'vex.notes',
     'vex.tools', 'vex.schedules', 'vex.personas', 'vex.reminders', 'vex.forceDarkHosts'];
 
+  // Shortcut tiles (vex.shortcuts) never synced: preferenceKeys() dropped the
+  // key because the unused storage key 'shortcuts' has the same name (found
+  // 2026-09-30). Vex 2.34.2 and older mark every record they do not know as
+  // deleted on each push, so tiles in the account would vanish from the newer
+  // devices the moment an older one synced. Tiles therefore sync, item by item,
+  // only while every device on the account says it understands them: each
+  // device writes a marker record of its own ('sync:device:<id>'), and the
+  // device list the worker already keeps says who is on the account. Until then
+  // (or again, once an older device joins) tiles stay on each device as before,
+  // and this device leaves the account's tile records exactly as it found them.
+  // The New Tab page's grid is a list of its own (vex.startTiles): the page
+  // keeps it in its own storage, hands it to this window on every change and
+  // is handed the synced list back (js/webview.js, saveStartTiles). It synced nowhere
+  // (found 2026-09-30); it now waits for the same devices, the same way.
+  const TILE_LISTS = ['vex.shortcuts', 'vex.startTiles'];
+  const TILE_SOURCES = TILE_LISTS.map(key => 'preference:' + key);
+  const DEVICE_SOURCE = 'sync:device:';
+  // 1 = shortcut tiles and the New Tab grid (Vex 2.34.3). Raise it for the
+  // next feature that must wait for every device, and compare against the
+  // level that feature needs.
+  const SYNC_LEVEL = 1;
+  const TILES_LEVEL = 1;
+  let tileGate = { open: false, waitingOn: [] };
+
   let state = {
     enabled: false,
     email: null,
@@ -238,7 +262,8 @@ const SyncEngine = (() => {
     revision = 0;
     pullBlocked = false;
     recordDocument = null;
-    if (typeof VexStorage !== 'undefined') await VexStorage.save('sync-records', null);
+    tileGate = { open: false, waitingOn: [] };
+    if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); }
     try { await window.vex.syncClearState(); } catch {}
     state = {
       enabled: false, email: null, sessionToken: null, deviceId: null,
@@ -247,9 +272,83 @@ const SyncEngine = (() => {
     };
   }
 
+  // ===== SHORTCUT TILES =====
+
+  const sourceOf = key => JSON.parse(key)[0];
+  const tileRecords = doc => ({ schema: 2, records: Object.fromEntries(Object.entries(doc.records).filter(([key]) => TILE_SOURCES.includes(sourceOf(key)))) });
+
+  // Tiles carry no id, so the id comes from the address: the same tile made on
+  // two devices is one tile, and a second tile with the same address (Duplicate)
+  // gets "-2" instead of overwriting the first. The id exists only in the
+  // account; it is taken off again before the tiles are saved here.
+  function withTileIds(list) {
+    const seen = new Map();
+    return list.map(tile => {
+      let hash = 0x811c9dc5;
+      for (const ch of String(tile.url)) hash = Math.imul(hash ^ ch.codePointAt(0), 0x01000193) >>> 0;
+      const base = 'tile-' + hash.toString(16).padStart(8, '0');
+      const n = (seen.get(base) || 0) + 1;
+      seen.set(base, n);
+      return { ...tile, id: n > 1 ? base + '-' + n : base };
+    });
+  }
+  const withoutTileIds = list => list.map(tile => { const copy = { ...tile }; delete copy.id; return copy; });
+
+  // This device's tiles: those the account can carry, and those it cannot. A
+  // tile every device would refuse on arrival (a mailto: address) stays here
+  // rather than stopping sync for the whole account. null: no tiles saved (the
+  // bar shows its defaults), which this device then takes from the account.
+  function localTiles(key) {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return null;
+    let list;
+    try { list = JSON.parse(raw); } catch { throw new Error('Invalid ' + key.slice(4) + ' data'); }
+    if (!Array.isArray(list)) throw new Error('Invalid ' + key.slice(4) + ' data');
+    const synced = [], kept = [];
+    for (const tile of list) {
+      let ok = !!tile && typeof tile === 'object' && typeof tile.url === 'string';
+      if (ok && window.VexDataContracts) { try { window.VexDataContracts.storage(key.slice(4), [tile]); } catch { ok = false; } }
+      (ok ? synced : kept).push(tile);
+    }
+    return { synced, kept };
+  }
+
+  // Whether tiles may sync on this round. It is asked after a pull has been
+  // read: a device is in the server's list from its first pull, before it can
+  // push, so tile records an older device marked deleted never arrive without
+  // that device already listed here. A device that has not synced yet has no
+  // list (403) and keeps its tiles to itself until the next round.
+  async function checkTileGate(doc) {
+    let devices = null;
+    try {
+      const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/devices`, {
+        headers: { 'Authorization': `Bearer ${state.sessionToken}` }
+      });
+      if (r.ok) {
+        devices = (await r.json().catch(() => null))?.devices;
+        if (!Array.isArray(devices)) { devices = null; console.error('[Sync] The device list came back unreadable; shortcut tiles stay on this device for now'); }
+      } else if (r.status !== 403) console.error('[Sync] Could not read the device list (server returned ' + r.status + '); shortcut tiles stay on this device for now');
+    } catch (err) { console.error('[Sync] Could not read the device list; shortcut tiles stay on this device for now:', err); }
+    let open = false, waitingOn = [];
+    if (devices) {
+      waitingOn = devices.filter(d => {
+        if (!d || d.deviceId === state.deviceId) return false;
+        const marker = doc.records[JSON.stringify([DEVICE_SOURCE + d.deviceId, 'value'])];
+        return !(marker && !marker.deleted && marker.value?.level >= TILES_LEVEL);
+      }).map(d => d.deviceId);
+      open = !waitingOn.length;
+    }
+    tileGate = { open, waitingOn };
+    const joined = await VexStorage.load('sync-tiles-joined') === state.deviceId;
+    // Shut again (an older device joined): the next time it opens, this
+    // device's tiles are added to the account's once more.
+    if (!open && joined) await VexStorage.save('sync-tiles-joined', null);
+    return { open, join: open && !joined, cloud: doc };
+  }
+
   // ===== DATA COLLECTION =====
 
-  async function collectSyncData() {
+  async function collectSyncData(gate = { open: false }) {
     if (typeof TabManager !== 'undefined') await TabManager.persistTabs();
     if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
     const data = {};
@@ -273,8 +372,39 @@ const SyncEngine = (() => {
     }
     const records = window.VexSyncRecords;
     if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || records.empty();
-    recordDocument = records.capture(recordDocument, records.flatten(data), state.deviceId);
+    let before = recordDocument;
+    data[DEVICE_SOURCE + state.deviceId] = { level: SYNC_LEVEL };
+    if (gate.open) {
+      // First tile sync on this device, or the first since an older device
+      // left: start from the account's tile records and add this device's
+      // tiles to them, so neither side loses one. Tiles an older device
+      // marked deleted come back.
+      if (gate.join) before = { schema: 2, records: { ...before.records, ...tileRecords(gate.cloud).records } };
+      const cloudLists = gate.join ? records.unflatten(records.values(tileRecords(gate.cloud))) : {};
+      for (const key of TILE_LISTS) {
+        const source = 'preference:' + key;
+        let tiles = localTiles(key);
+        const cloud = cloudLists[source];
+        if (gate.join && (Array.isArray(cloud) || tiles)) {
+          const have = Array.isArray(cloud) ? cloud : [];
+          const ids = new Set(have.map(tile => tile.id));
+          const union = withoutTileIds([...have, ...withTileIds(tiles ? tiles.synced : []).filter(tile => !ids.has(tile.id))]);
+          const kept = tiles ? tiles.kept : [];
+          localStorage.setItem(key, JSON.stringify([...union, ...kept]));
+          tiles = { synced: union, kept };
+        }
+        if (tiles) data[source] = withTileIds(tiles.synced);
+      }
+    }
+    recordDocument = records.capture(before, records.flatten(data), state.deviceId);
+    // Records this device leaves exactly as it found them: the other devices'
+    // markers, and the tiles while they wait for every device to understand them.
+    for (const key of Object.keys(recordDocument.records)) {
+      const source = sourceOf(key);
+      if ((source.startsWith(DEVICE_SOURCE) && source !== DEVICE_SOURCE + state.deviceId) || (!gate.open && TILE_SOURCES.includes(source))) recordDocument.records[key] = before.records[key];
+    }
     await VexStorage.save('sync-records', recordDocument);
+    if (gate.join) await VexStorage.save('sync-tiles-joined', state.deviceId);
     return recordDocument;
   }
 
@@ -297,7 +427,9 @@ const SyncEngine = (() => {
       }
       data = records.capture(records.empty(), records.flatten(sources), 'legacy');
     }
-    const local = await collectSyncData();
+    records.valid(data);
+    const gate = await checkTileGate(data);
+    const local = await collectSyncData(gate);
     let merged;
     if (restore) {
       // Joining used to start from an empty local side, so every bookmark,
@@ -316,6 +448,9 @@ const SyncEngine = (() => {
         if (cloudType && !cloudType.deleted && cloudType.value !== typeOf(local, key)?.value) continue;
         merged.records[key] = record;
       }
+      // This device's tiles were just added on top of the account's (see
+      // collectSyncData), so its tile records are the newer ones.
+      if (gate.open) Object.assign(merged.records, records.merge(tileRecords(local), tileRecords(data)).records);
     } else merged = records.merge(local, data);
     const sources = records.unflatten(records.values(merged));
     window.VexDataContracts?.sources(sources);
@@ -330,6 +465,24 @@ const SyncEngine = (() => {
       const name = 'preference:' + key;
       if (Object.hasOwn(sources, name)) localStorage.setItem(key, typeof sources[name] === 'string' ? sources[name] : JSON.stringify(sources[name]));
       else localStorage.removeItem(key);
+    }
+    // Tiles only while every device understands them; otherwise this device's
+    // own tiles stay as they are, whatever the account holds.
+    if (gate.open) {
+      for (const key of TILE_LISTS) {
+        const source = 'preference:' + key;
+        if (Object.hasOwn(sources, source) && !Array.isArray(sources[source])) throw new Error('Invalid synced list: ' + key);
+      }
+      for (const key of TILE_LISTS) {
+        const source = 'preference:' + key;
+        const kept = localTiles(key)?.kept || [];
+        if (Object.hasOwn(sources, source)) localStorage.setItem(key, JSON.stringify([...withoutTileIds(sources[source]), ...kept]));
+        else if (kept.length) localStorage.setItem(key, JSON.stringify(kept));
+        else localStorage.removeItem(key);
+      }
+      window.VexGuiStyle?.render?.();
+      // The open New Tab pages are handed the grid (js/webview.js).
+      if (typeof WebviewManager !== 'undefined') WebviewManager.pushStartTiles?.();
     }
     for (const key of STORE_KEYS) {
       if (Object.hasOwn(sources, 'storage:' + key)) await VexStorage.save(key, sources['storage:' + key]);
@@ -376,7 +529,8 @@ const SyncEngine = (() => {
     if (!state.enabled || state.syncing) return { ok: false, reason: 'not-ready' };
     state.syncing = true;
     try {
-      const data = await collectSyncData();
+      if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || window.VexSyncRecords.empty();
+      const data = await collectSyncData(await checkTileGate(recordDocument));
       const encryptedBlob = await SyncCrypto.encrypt(data, state.encryptionKey);
       const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/push`, {
         method: 'POST',
@@ -668,6 +822,9 @@ const SyncEngine = (() => {
     dropFetch,
     getState,
     getRecoveryCode,
+    // Whether shortcut tiles synced on the last round, and which devices they
+    // are waiting on (too old to understand them).
+    tileSyncState: () => ({ open: tileGate.open, waitingOn: [...tileGate.waitingOn] }),
     isEnabled: () => state.enabled,
     SYNC_KEYS
   };

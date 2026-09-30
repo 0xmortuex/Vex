@@ -75,13 +75,35 @@ const permissionsFile = path.join(userDataPath, 'permissions.json');
 let cachedDecisions = null, writes = Promise.resolve();
 const pendingPermissions = new Map();
 const ephemeralPermissions = new WeakMap();
+// Every persist: session read and wrote the one store, so blocking a site's
+// location in a container blocked it in the main window too, and allowing it
+// there allowed it in every container (found 2026-09-30). A container
+// (persist:container-*) and a site route (persist:route-*) now keep their own,
+// in permissions-containers.json; persist:main and the app panels keep
+// permissions.json, so every decision saved before stays with persist:main.
+const containersFile = path.join(userDataPath, 'permissions-containers.json');
+let cachedContainers = null;
+const hasOwnStore = (partition) => /^persist:(?:container|route)-/.test(partition || '');
 function decisionsFor(contents) {
   const partition = contents ? secureSessions.partitionOf(contents) : 'persist:main';
   if (partition && !partition.startsWith('persist:')) {
     if (!ephemeralPermissions.has(contents.session)) ephemeralPermissions.set(contents.session, Object.create(null));
     return ephemeralPermissions.get(contents.session);
   }
-  return loadPermissionDecisions();
+  if (hasOwnStore(partition)) return { ...(loadContainerDecisions()[partition] || {}) };
+  return loadMainDecisions();
+}
+// Writes what decisionsFor(contents) handed out, back where it came from. A
+// private window's decisions were changed in place and are never written.
+function saveDecisionsFor(contents, data) {
+  const partition = contents ? secureSessions.partitionOf(contents) : 'persist:main';
+  if (partition && !partition.startsWith('persist:')) return writes;
+  if (hasOwnStore(partition)) {
+    const all = { ...loadContainerDecisions() };
+    if (Object.keys(data).length) all[partition] = { ...data }; else delete all[partition];
+    return saveContainerDecisions(all);
+  }
+  return saveMainDecisions(data);
 }
 
 // On cold start the renderer may not have registered its 'permission:request'
@@ -117,7 +139,7 @@ ipcMain.on('permissions:renderer-ready', () => {
   _flushPermissionQueue('renderer signalled ready');
 });
 
-function loadPermissionDecisions() {
+function loadMainDecisions() {
   if (cachedDecisions) return { ...cachedDecisions };
   try {
     if (fs.existsSync(permissionsFile)) {
@@ -127,11 +149,70 @@ function loadPermissionDecisions() {
   } catch {}
   return {};
 }
-function savePermissionDecisions(data) {
+function saveMainDecisions(data) {
   cachedDecisions = { ...data };
   const bytes = JSON.stringify(data);
   writes = writes.catch(() => {}).then(() => atomicWrite(permissionsFile, bytes));
   return writes;
+}
+// { partition: decisions } for the containers and site routes.
+function loadContainerDecisions() {
+  if (cachedContainers) return cachedContainers;
+  try {
+    cachedContainers = fs.existsSync(containersFile) ? (JSON.parse(fs.readFileSync(containersFile, 'utf-8')) || {}) : {};
+  } catch (err) {
+    console.error('[Permissions] could not read the containers\' site permissions:', err.message);
+    cachedContainers = {};
+  }
+  return cachedContainers;
+}
+function saveContainerDecisions(all) {
+  cachedContainers = all;
+  const bytes = JSON.stringify(all);
+  writes = writes.catch(() => {}).then(() => atomicWrite(containersFile, bytes));
+  return writes;
+}
+
+// Settings → Site permissions lists, revokes and clears through these two
+// (main.js, permissions:*). They show every store as one: a container's or a
+// route's decision is keyed "origin (in the work container)::permission", so
+// the list names where it applies, Revoke finds it, and Clear all clears the
+// containers too — a Block set in a container could not be undone otherwise.
+function storeLabel(partition) {
+  if (partition.startsWith('persist:container-')) return `in the ${partition.slice('persist:container-'.length)} container`;
+  if (partition === 'persist:route-tor') return 'through Tor';
+  return `through proxy ${partition.slice('persist:route-proxy-'.length)}`;
+}
+function loadPermissionDecisions() {
+  const out = loadMainDecisions();
+  const until = { ...(out.__until__ || {}) };
+  for (const [partition, d] of Object.entries(loadContainerDecisions())) {
+    const label = storeLabel(partition);
+    const named = (key) => { const at = key.indexOf('::'); return `${key.slice(0, at)} (${label})${key.slice(at)}`; };
+    for (const [key, value] of Object.entries(d)) if (key !== '__until__') out[named(key)] = value;
+    for (const [key, end] of Object.entries(d.__until__ || {})) until[named(key)] = end;
+  }
+  if (Object.keys(until).length) out.__until__ = until; else delete out.__until__;
+  return out;
+}
+function savePermissionDecisions(data) {
+  const byLabel = new Map(Object.keys(loadContainerDecisions()).map(p => [storeLabel(p), p]));
+  const main = {}, containers = {};
+  const place = (key, value, field) => {
+    const m = /^(.*?) \(([^()]+)\)(::.*)$/.exec(key);
+    let target = main, own = key;
+    if (m) {
+      const partition = byLabel.get(m[2]);
+      if (!partition) throw new Error(`No container's site permissions are called "${m[2]}"`);
+      target = containers[partition] = containers[partition] || {};
+      own = m[1] + m[3];
+    }
+    if (field) (target.__until__ = target.__until__ || {})[own] = value; else target[own] = value;
+  };
+  for (const [key, value] of Object.entries(data || {})) if (key !== '__until__') place(key, value, false);
+  for (const [key, end] of Object.entries((data && data.__until__) || {})) place(key, end, true);
+  // Both writes are waited on: the queue behind them forgets a failure.
+  return Promise.all([saveContainerDecisions(containers), saveMainDecisions(main)]);
 }
 
 function wirePermissionsOnSession(ses, tag, opts) {
@@ -270,8 +351,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
         if (remember === 'day') until[key] = Date.now() + DAY_MS; else delete until[key];
       }
       if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
-      const partition = secureSessions.partitionOf(cb._contents);
-      if (!partition || partition.startsWith('persist:')) await savePermissionDecisions(d);
+      await saveDecisionsFor(cb._contents, d);
     }
   }
   return { ok: true };

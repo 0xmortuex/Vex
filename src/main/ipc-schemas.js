@@ -41,6 +41,8 @@ define('downloads:ask-where', [string(4 * 1024 * 1024 + 64)]);
 define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
 define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
 define('extensions:popup-tab', []);
+// An extension's tabs.query/get: which page is the tab in front (main.js, _activeTabsFor).
+define('extensions:active-tabs', []);
 define('extensions:open-tab', [shape({ url: string(8192), active: optional(boolean) })]);
 // An extension's tabs.remove: the tabs' page ids (main.js, _closeTabsForExtension).
 define('extensions:close-tab', [shape({ ids: value => Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every(Number.isSafeInteger) })]);
@@ -169,6 +171,16 @@ define('clips:list', [optional(string(4096))]);
 define('doc:text', [value => value instanceof Uint8Array && value.byteLength <= 32 * 1024 * 1024, string(300)]);
 define('siterules:get', []);
 define('siterules:set', [object]);
+// The saved decisions one tab's page is held to, by the page's id (main.js).
+define('permissions:list-for-page', [integer]);
+// The pages of a tab just closed, whose saved back lists go (session-security.js).
+define('tabs:closed', [value => Array.isArray(value) && value.length <= 10 && value.every(integer)]);
+// A tab's icon fetched through the tab's own session, by its page's id
+// (src/main/favicon-fetch.js).
+define('tabs:favicon', [integer, web]);
+// A private window asking which sites the main window's Tor and proxy rules
+// name, to say they do not apply there (js/site-routes.js).
+define('siteroutes:routed-hosts', []);
 define('cookies:remove', [shape(cookieRef)]);
 define('cookies:set', [shape({ ...cookieRef, value: string(16384), httpOnly: optional(boolean), expires: timestamp })]);
 define('translate:text', [shape({ text: string(100000), tl: value => typeof value === 'string' && /^[a-z-]{2,16}$/i.test(value) })]);

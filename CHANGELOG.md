@@ -1,5 +1,30 @@
 # Changelog
 
+## v2.34.3 (2026-10-01) — No more ways around Tor, and your New Tab tiles on every device
+
+### Privacy
+- **Tab icons showed a Tor or proxy tab's site your real address.** Vex's own window fetched the icon, and it goes out directly. Icons of Tor, proxy, container, burner and private tabs are now fetched through the tab's own connection, and the lists (history, bookmarks, Read Later and the rest) never ask such a site for one.
+- **Switching a container, burner or site to Tor while Vex runs let pages load directly until Tor was up.** They now wait for Tor.
+- A "Tor tab" opened from a private window was not on Tor at all, while Vex said it was. Tor tabs now open from normal windows only, and say so.
+- Read Later's reading time, Page Watch and the AI's "read this address" no longer fetch a site you route through Tor, a proxy or a container from your real connection.
+- Site permissions (location, camera, notifications…) are kept per container, and Settings shows which container each belongs to.
+
+### Tor
+- Stop closes Tor tabs in every window.
+- A Tor container, burner or site rule starts Tor again by itself when you use it after Tor stopped; a Tor page that cannot load says why instead of staying blank.
+- Tor that fails to start at launch is retried when you open a page that needs it.
+
+### Sync
+- **Your New Tab page tiles and the shortcuts bar now sync between devices**, one by one. They start once every device on the account runs this version or newer (Settings › Sync names a device it is waiting on), so an older one can never wipe them.
+
+### Also
+- Calls under a proxy: the routing settings now say that Discord and Meet calls may not connect, because WebRTC is kept to the proxy to hide your address.
+- The Discord connection fix keeps working when a container is set back to a direct connection.
+- Peek: a cookie banner that appears late no longer stops Escape from closing it.
+- A tab with JavaScript off keeps its Back list however long it waited in the background.
+- Extensions are told which tab is really in front.
+- Typing an address the instant a new tab opens no longer loses it.
+
 ## v2.34.2 (2026-09-30) — Tor stops when you are done with it, and the rest of the list
 
 ### Privacy

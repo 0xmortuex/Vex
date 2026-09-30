@@ -78,7 +78,10 @@ function runInMainWorld(src) {
 // with the tab made: { id, url, active }, id being the page's webContents id.
 //
 // closeTab, where given, asks main to close Vex tabs by those ids ({ ids }).
-function vexExtensionStandIns(c, askPopupTab, openTab, closeTab) {
+//
+// askActiveTabs, where given, asks main which page is the tab in front in each
+// Vex window ({ ids }) and in the Vex window used last ({ current }).
+function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
   if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
@@ -192,6 +195,50 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab) {
   // A toolbar popup is not a tab: Chrome answers undefined (Stylus's popup
   // called it and drew nothing, 2026-09-29).
   if (c.tabs && typeof c.tabs.getCurrent !== 'function') c.tabs.getCurrent = done(undefined);
+
+  // Electron calls a tab active when its page has the focus. It cannot know
+  // which Vex tab is in front, so with Vex's own bar focused no tab was
+  // active, or every one was, and {active: true} named the wrong tabs (found
+  // 2026-09-30). Main says which pages are in front; tabs.query and tabs.get
+  // answer with that, and {active: true} with currentWindow or
+  // lastFocusedWindow is the one tab in front of the Vex window used last.
+  // Electron puts every tab in one window, so currentWindow alone narrows
+  // nothing.
+  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow'];
+  if (typeof askActiveTabs === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
+    var nativeQuery = c.tabs.query.bind(c.tabs);
+    var nativeGet = c.tabs.get.bind(c.tabs);
+    var inFront = function (tab, front) {
+      if (!tab) return tab;
+      var on = front.ids.indexOf(tab.id) !== -1;
+      return Object.assign({}, tab, { active: on, highlighted: on, selected: on });
+    };
+    c.tabs.query = function (q, cb) {
+      q = q || {};
+      var rest = {};
+      Object.keys(q).forEach(function (k) { if (FRONT_KEYS.indexOf(k) === -1) rest[k] = q[k]; });
+      var oneWindow = q.currentWindow === true || q.lastFocusedWindow === true;
+      var p = Promise.all([nativeQuery(rest), askActiveTabs()]).then(function (r) {
+        var front = r[1];
+        return (r[0] || []).map(function (t) { return inFront(t, front); }).filter(function (t) {
+          if (typeof q.active === 'boolean' && t.active !== q.active) return false;
+          if (typeof q.highlighted === 'boolean' && t.highlighted !== q.highlighted) return false;
+          if ((q.active === true || q.highlighted === true) && oneWindow && t.id !== front.current) return false;
+          return true;
+        });
+      });
+      return answerWith(p, cb);
+    };
+    // A tab that is not there fails in Electron's own words (with the
+    // callback, through chrome.runtime.lastError), as before.
+    c.tabs.get = function (id, cb) {
+      if (typeof cb !== 'function') return Promise.all([nativeGet(id), askActiveTabs()]).then(function (r) { return inFront(r[0], r[1]); });
+      return nativeGet(id, function (tab) {
+        if (!tab) return cb(tab);
+        answerWith(askActiveTabs().then(function (front) { return inFront(tab, front); }), cb);
+      });
+    };
+  }
 
   // While this extension's popup is open, a question for the active tab is
   // about the tab under it, from whichever of its contexts asks: Stylus's
@@ -391,16 +438,17 @@ if (location.protocol === 'chrome-extension:') {
   var __vexAskPopupTab = function () { return require('electron').ipcRenderer.invoke('extensions:popup-tab'); };
   var __vexOpenTab = function (request) { return require('electron').ipcRenderer.invoke('extensions:open-tab', request); };
   var __vexCloseTab = function (request) { return require('electron').ipcRenderer.invoke('extensions:close-tab', request); };
+  var __vexAskActiveTabs = function () { return require('electron').ipcRenderer.invoke('extensions:active-tabs'); };
   __vexExtIsolated = typeof process !== 'undefined' && process.contextIsolated === true;
   if (__vexExtIsolated) {
     try {
-      __vexCB.executeInMainWorld({ func: vexExtensionStandIns, args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab] });
+      __vexCB.executeInMainWorld({ func: vexExtensionStandIns, args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs] });
       __vexCB.executeInMainWorld({ func: vexStorageSyncShim, args: [null] });
     } catch (err) {
       console.error('[Vex] extension stand-ins could not reach this page:', err && err.message);
     }
   } else {
-    vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab);
+    vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs);
   }
 }
 if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorageSyncShim(window.chrome)) {
@@ -2065,10 +2113,13 @@ if (typeof module !== 'undefined' && module.exports) {
   // A plain role="dialog" counted too, so a cookie banner that stays on
   // screen (many are marked so, non-modal) kept Escape from ever closing Peek
   // (found 2026-09-30). A modal one still counts; a non-modal one only when
-  // the focus is in it, the last click was in it, or it came up after the
-  // last click or key: a popup the person just opened, not one that was
-  // there all along.
-  var beforeInput = null, lastTarget = null;
+  // the focus is in it, the last click was in it, or it came up within a
+  // second of the last click or key: a popup the person just opened, not one
+  // that was there all along. "Any time after the last input" also caught a
+  // consent banner a late script put up seconds later, which then kept Peek
+  // open until the next click (found 2026-09-30).
+  var OPENED_WITHIN_MS = 1000;
+  var beforeInput = null, openedByInput = null, inputAt = 0, lastTarget = null, settle = null;
   var dialogsShown = function () {
     var out = [], els = document.querySelectorAll('[role="dialog"], dialog[open]');
     for (var i = 0; i < els.length; i++) if (shown(els[i])) out.push(els[i]);
@@ -2076,8 +2127,19 @@ if (typeof module !== 'undefined' && module.exports) {
   };
   var noteInput = function (e) {
     if (!e.isTrusted || e.key === 'Escape') return;
-    beforeInput = dialogsShown();
+    var before = beforeInput = dialogsShown();
+    openedByInput = null;
+    inputAt = Date.now();
     lastTarget = e.target;
+    // What that input opened, as it stood a second later.
+    clearTimeout(settle);
+    settle = setTimeout(function () {
+      openedByInput = dialogsShown().filter(function (d) { return before.indexOf(d) < 0; });
+    }, OPENED_WITHIN_MS);
+  };
+  var openedByUser = function (d) {
+    if (!beforeInput || beforeInput.indexOf(d) >= 0) return false;
+    return openedByInput ? openedByInput.indexOf(d) >= 0 : Date.now() - inputAt <= OPENED_WITHIN_MS;
   };
   window.addEventListener('pointerdown', noteInput, true);
   window.addEventListener('keydown', noteInput, true);
@@ -2090,7 +2152,7 @@ if (typeof module !== 'undefined' && module.exports) {
       var d = open[j];
       if (focused && focused !== document.body && d.contains(focused)) return true;
       if (lastTarget && lastTarget.nodeType === 1 && d.contains(lastTarget)) return true;
-      if (beforeInput && beforeInput.indexOf(d) < 0) return true;
+      if (openedByUser(d)) return true;
     }
     return false;
   };

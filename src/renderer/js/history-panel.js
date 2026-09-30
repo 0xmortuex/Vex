@@ -148,6 +148,7 @@ const HistoryPanel = {
       url: e.url,
       title: typeof e.title === 'string' && e.title ? e.title : e.url,
       favicon: this._safeFavicon(e.favicon),
+      ...(e.ownSession === true ? { ownSession: true } : {}),
       visitedAt: when || new Date().toISOString(),
       summary: e.summary, tags: e.tags, contentType: e.contentType, indexed: !!e.indexed,
     };
@@ -157,6 +158,18 @@ const HistoryPanel = {
   // trusted — only real http(s) images get through.
   _safeFavicon(value) {
     return typeof value === 'string' && /^https?:\/\//i.test(value) ? value : '';
+  },
+
+  // The icon a row shows. Vex's window is direct, so a visit made in a
+  // session of its own (a container, a Tor or proxy route) never has its
+  // site asked for an icon from here, nor does a site a rule sends elsewhere
+  // (TabManager.mayAskSiteForIcon; found 2026-09-30).
+  _iconFor(e) {
+    if (!e || e.ownSession) return '';
+    if (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(e.url)) return '';
+    const saved = this._safeFavicon(e.favicon);
+    if (saved) return saved;
+    try { return new URL(e.url).origin + '/favicon.ico'; } catch { return ''; }
   },
 
   // When a visit happened, whichever writer recorded it.
@@ -182,7 +195,7 @@ const HistoryPanel = {
     return !title || title === url || /^loading[.…\s]*$/i.test(String(title).trim());
   },
 
-  addEntry(url, title, favicon) {
+  addEntry(url, title, favicon, { ownSession = false } = {}) {
     if (!url || !/^https?:\/\//i.test(url)) return;   // file://, about:, vex://, data:
     // Always read what is saved first. The stored list can arrive AFTER this
     // module loads — PersistentStorage restores localStorage from its own file
@@ -200,7 +213,9 @@ const HistoryPanel = {
       id: existing?.id || 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       url,
       title: this._isPlaceholder(title, url) ? (existing?.title || url) : title,
-      favicon: this._safeFavicon(favicon) || existing?.favicon || '',
+      // A visit from a tab in its own session keeps no icon address at all.
+      favicon: ownSession ? '' : (this._safeFavicon(favicon) || existing?.favicon || ''),
+      ...(ownSession ? { ownSession: true } : {}),
       visitedAt: new Date().toISOString(),
       summary: existing?.summary, tags: existing?.tags, indexed: existing?.indexed || false,
     });
@@ -397,9 +412,7 @@ const HistoryPanel = {
         // lose its icons.
         const icon = document.createElement('img');
         icon.loading = 'lazy'; icon.alt = ''; icon.dataset.imageFallback = 'hide';
-        let favicon = this._safeFavicon(entry.favicon);
-        if (!favicon) { try { favicon = new URL(entry.url).origin + '/favicon.ico'; } catch {} }
-        icon.src = favicon;
+        icon.src = this._iconFor(entry);
         const remove = document.createElement('button'); remove.innerHTML = VexIcons.svg('x', { size: 13 }); remove.title = 'Delete from history'; remove.setAttribute('aria-label', 'Delete history entry');
         remove.addEventListener('click', event => { event.stopPropagation(); this.deleteEntry(entry.id); });
         row.append(icon, text, remove);
@@ -428,8 +441,7 @@ const HistoryPanel = {
         <div class="history-date-label">${date}<button class="history-day-clear" data-day="${this._esc(date)}" title="Remove every entry from this day">Clear day</button></div>
         ${items.slice(0, 100).map(e => {
           const time = this._when(e).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          let favicon = this._safeFavicon(e.favicon);
-          if (!favicon) { try { favicon = new URL(e.url).origin + '/favicon.ico'; } catch {} } // first-party, no Google leak
+          const favicon = this._iconFor(e);
           return `
             <div class="history-item" data-id="${this._esc(e.id)}" data-url="${this._esc(e.url)}" tabindex="0" role="link">
               <img src="${this._esc(favicon || '')}" alt="" loading="lazy" data-image-fallback="hide">
@@ -535,10 +547,9 @@ const HistoryPanel = {
       if (!entry) continue;
       const relevancePct = Math.round((match.relevanceScore || 0) * 100);
       const timeAgo = this._relativeTime(entry.visitedAt);
-      let host = ''; try { host = new URL(entry.url).hostname; } catch {}
       html += `
         <div class="history-item ai-result" data-url="${this._esc(entry.url)}" tabindex="0" role="link">
-          <img src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" width="20" height="20" loading="lazy" data-image-fallback="hide">
+          <img src="${this._esc(this._iconFor(entry))}" width="20" height="20" loading="lazy" data-image-fallback="hide">
           <div class="history-item-info item-content">
             <div class="history-item-title item-title">${this._esc(entry.title || 'Untitled')}</div>
             <div class="history-item-url item-url">${this._esc(entry.url)}</div>

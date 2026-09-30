@@ -122,7 +122,7 @@ const WorkspaceManager = {
         // The workspace keeps each tab's note (VexTabPolicy.serialize);
         // switching back dropped it (found 2026-09-29).
         if (t.note) tab.note = t.note;
-        tab.favicon = TabManager._persistableFavicon(t.favicon);
+        tab.favicon = TabManager._persistableFavicon(t.favicon, tab.partition);
         // createLazyTab always starts a tab unstacked; re-apply the saved
         // membership so a workspace's stacks survive the round-trip.
         if (t.stackId && TabManager.stacks.some(s => s.id === t.stackId)) {

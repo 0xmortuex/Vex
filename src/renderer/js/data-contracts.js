@@ -51,8 +51,9 @@
     json(value); if (value == null) return value;
     if (key === 'tabs') tabs(value);
     if (['groups', 'stacks'].includes(key)) groups(value);
-    if (['history', 'bookmarks', 'shortcuts'].includes(key)) {
-      array(value); for (const item of value) { record(item); if (!url(item.url, key !== 'shortcuts')) throw new Error('Invalid saved URL'); }
+    // startTiles: the New Tab page's grid, the same shape as the shortcut tiles.
+    if (['history', 'bookmarks', 'shortcuts', 'startTiles'].includes(key)) {
+      array(value); for (const item of value) { record(item); if (!url(item.url, key !== 'shortcuts' && key !== 'startTiles')) throw new Error('Invalid saved URL'); }
     }
     if (key === 'sessions') sessions(value);
     if (key === 'workspaces') {
@@ -68,7 +69,7 @@
       if (source.startsWith('storage:')) storage(source.slice(8), value);
       else if (source.startsWith('preference:vex.')) {
         const key = source.slice(15);
-        if (['bookmarks','sessions','history','workspaces','shortcuts','groups','stacks'].includes(key)) storage(key, typeof value === 'string' ? JSON.parse(value) : value);
+        if (['bookmarks','sessions','history','workspaces','shortcuts','startTiles','groups','stacks'].includes(key)) storage(key, typeof value === 'string' ? JSON.parse(value) : value);
       }
     }
   }

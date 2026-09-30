@@ -39,6 +39,7 @@ const WebviewManager = {
       : (event, handler, options) => webview.addEventListener(event, handler, options);
     let crashCount = 0, lastCrash = 0, cancelRecovery = null;
     webview._navigationGeneration = 0;
+    onWebview('did-attach', () => { webview._attached = true; });
     onWebview('did-start-navigation', event => { if (event.isMainFrame !== false) webview._navigationGeneration++; });
     webview.setAttribute('src', tab.url);
     webview.setAttribute('partition', tab.partition || 'persist:main');
@@ -411,7 +412,10 @@ const WebviewManager = {
         Promise.resolve(VexStorage.addHistory({ url, title: t?.title || url }))
           .catch(err => window.VexProblems?.note('History', 'Could not add a visit to history', err));
         if (typeof HistoryPanel !== 'undefined') {
-          HistoryPanel.addEntry(url, t?.title || url, t?.favicon);
+          // A visit from a tab in its own session (a container, a Tor or proxy
+          // route) is marked, so no history list asks its site for an icon
+          // through Vex's direct window (found 2026-09-30).
+          HistoryPanel.addEntry(url, t?.title || url, t?.favicon, { ownSession: !TabManager.windowMayAsk(tab.partition) });
         }
         // Phase 16 auto-grouping: try to match against remembered patterns.
         // The call internally waits for the title to settle and uses purely
@@ -477,7 +481,7 @@ const WebviewManager = {
 
     onWebview('page-favicon-updated', (e) => {
       if (e.favicons && e.favicons.length > 0) {
-        TabManager.updateTab(tab.id, { favicon: e.favicons[0] });
+        this._setFavicon(tab.id, e.favicons[0]);
       }
     });
 
@@ -539,6 +543,8 @@ const WebviewManager = {
             if (typeof VexTypedAddress !== 'undefined' && VexTypedAddress.SEARCH_ENGINES[cmd.id] && typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', cmd.id);
           } else if (cmd.type === 'exit-reading') {
             if (typeof ReadingMode !== 'undefined') ReadingMode.exitReadingMode(tab.id);
+          } else if (cmd.type === 'start-tiles') {
+            this.saveStartTiles(cmd, webview);
           }
         } catch (err) {
           console.error('VEX_CMD parse error:', err);
@@ -614,7 +620,7 @@ const WebviewManager = {
         if (cur && !/^about:blank\b/i.test(cur)) return; // still has real content
         const tab = TabManager.tabs.find(t => t.id === id);
         const real = (wv.dataset && wv.dataset.hibernatedUrl) || (tab && tab.url);
-        if (real && !/^about:blank\b/i.test(real)) { try { delete wv.dataset.hibernated; wv.loadURL(real); } catch { try { wv.src = real; } catch {} } }
+        if (real && !/^about:blank\b/i.test(real)) { try { delete wv.dataset.hibernated; this._loadUnwatched(wv, real, 'waking a blanked tab'); } catch { try { wv.src = real; } catch {} } }
       } catch {}
     });
   },
@@ -623,7 +629,7 @@ const WebviewManager = {
       if (wv.dataset.hibernated !== '1') return;
       const url = wv.dataset.hibernatedUrl;
       delete wv.dataset.hibernated;
-      if (url) { try { wv.loadURL(url); } catch { wv.src = url; } }
+      if (url) { try { this._loadUnwatched(wv, url, 'waking a sleeping tab'); } catch { wv.src = url; } }
     } catch {}
   },
   _hibernateSweep() {
@@ -644,7 +650,7 @@ const WebviewManager = {
         if (!url || /^about:/i.test(url) || url.startsWith('file:') || isStartPage(url)) return;
         wv.dataset.hibernatedUrl = url;
         wv.dataset.hibernated = '1';
-        try { wv.loadURL('about:blank'); } catch { wv.src = 'about:blank'; }
+        try { this._loadUnwatched(wv, 'about:blank', 'putting a tab to sleep'); } catch { wv.src = 'about:blank'; }
       });
     } catch {}
   },
@@ -727,9 +733,24 @@ const WebviewManager = {
     return this.webviews.get(TabManager.activeTabId);
   },
 
+  // A load nobody waits for (a tab woken, put to sleep, or reloaded from its
+  // remembered address). Its promise went unhandled, so a navigation that
+  // superseded it put an uncaught "GUEST_VIEW_MANAGER_CALL … ERR_ABORTED (-3)"
+  // into Problems (found 2026-09-30). Superseded is expected; anything else is
+  // logged. A webview not attached yet still throws, for the caller's own
+  // fallback.
+  _loadUnwatched(wv, url, why) {
+    wv.loadURL(url).catch((err) => {
+      const m = String((err && err.message) || err);
+      if (/ERR_ABORTED|\(-3\)/.test(m)) return;
+      console.warn(`[Vex] ${why}: could not load ${url} —`, m);
+    });
+  },
+
   // Chromium's error code, in words.
   _whyLoadFailed(message) {
     const m = String(message || '');
+    if (/PROXY_CONNECTION_FAILED|SOCKS_CONNECTION_FAILED/.test(m)) return 'the proxy or Tor it goes through is not answering';
     if (/NAME_NOT_RESOLVED|NAME_RESOLUTION_FAILED/.test(m)) return 'no site has that address';
     if (/CONNECTION_REFUSED/.test(m)) return 'nothing is answering at that address';
     if (/INTERNET_DISCONNECTED/.test(m)) return 'you are offline';
@@ -737,6 +758,116 @@ const WebviewManager = {
     if (/CERT|SSL/.test(m)) return 'its security certificate is not valid';
     if (/INVALID_URL/.test(m)) return 'that is not a valid address';
     return m;
+  },
+
+  // A Tor page that could not load because Tor is not running was a blank
+  // page (found 2026-09-30). Main says which page and why (tor:page-down);
+  // the words go into the page's empty error document.
+  TOR_DOWN_TEXT: {
+    starting: ['Tor is not running — starting it…', 'This page loads as soon as Tor is connected.'],
+    failed: ['Tor could not start', 'Reload the page to try again.'],
+    stopped: ['Tor stopped — reopen to start it again', 'Open a new Tor tab from the onion button. This one stays cut off from the internet.'],
+  },
+  showTorDown(pageId, state, error) {
+    const text = this.TOR_DOWN_TEXT[state];
+    if (!text) throw new Error(`Unknown Tor page state "${state}"`);
+    const wv = [...this.webviews.values()].find((w) => {
+      try { return w.getWebContentsId() === pageId; } catch { return false; } // not attached: not that page
+    });
+    if (!wv) return false;   // a page that is not a tab here
+    wv.executeJavaScript(this._torDownScript(text[0], error ? `${text[1]} (${error})` : text[1]))
+      .catch(err => console.error('[tor] could not say why the page is blank:', err));
+    return true;
+  },
+  _torDownScript(title, detail) {
+    const icon = VexIcons.svg('onion', { size: 40 });
+    return `(() => {
+      const d = document;
+      const style = d.createElement('style');
+      style.textContent = 'html,body{height:100%;margin:0}body{display:flex;align-items:center;justify-content:center;font:15px/1.5 system-ui,sans-serif;background:#f6f6f7;color:#222}@media (prefers-color-scheme:dark){body{background:#1b1b1f;color:#e8e8ea}}.vex-tor-down{max-width:460px;padding:24px;text-align:center}.vex-tor-down h1{font-size:20px;margin:12px 0 6px}.vex-tor-down p{margin:0;opacity:.75}';
+      const box = d.createElement('div');
+      box.className = 'vex-tor-down';
+      box.innerHTML = ${JSON.stringify(icon)};
+      const h = d.createElement('h1'); h.textContent = ${JSON.stringify(title)};
+      const p = d.createElement('p'); p.textContent = ${JSON.stringify(detail)};
+      box.append(h, p);
+      d.head.replaceChildren(style);
+      d.body.replaceChildren(box);
+      return true;
+    })()`;
+  },
+
+  // === The New Tab page's grid ============================================
+  // The page keeps its tiles in its own storage, which this window cannot
+  // read, so the grid synced nowhere (found 2026-09-30). The page hands its
+  // list over on every change and when it opens (VEX_CMD start-tiles); the
+  // window keeps it as vex.startTiles, which SyncEngine syncs item by item,
+  // and hands the grid back to every open New Tab page after a sync.
+  START_TILES: 'vex.startTiles',
+  _startTilesValid(list) {
+    return Array.isArray(list) && list.length <= 500
+      && list.every(t => !!t && typeof t === 'object' && !Array.isArray(t) && typeof t.url === 'string' && typeof t.name === 'string');
+  },
+  startTiles() {
+    const raw = localStorage.getItem(this.START_TILES);
+    if (raw === null) return null;
+    let list;
+    try { list = JSON.parse(raw); } catch { list = null; }
+    if (!this._startTilesValid(list)) throw new Error('The New Tab grid kept by Vex is unreadable');
+    return list;
+  },
+  // A page's own tiles added to the window's, none lost: a tile is the same
+  // tile by its address, and a second one with that address (Duplicate)
+  // is a second tile, as sync counts them.
+  _mergeStartTiles(have, own) {
+    const count = new Map();
+    for (const t of have) count.set(t.url, (count.get(t.url) || 0) + 1);
+    const out = [...have];
+    for (const t of own) {
+      const n = count.get(t.url) || 0;
+      if (n > 0) count.set(t.url, n - 1); else out.push(t);
+    }
+    return out;
+  },
+  saveStartTiles(cmd, from) {
+    try {
+      const tiles = cmd.tiles == null ? null : cmd.tiles;
+      if (tiles !== null && !this._startTilesValid(tiles)) throw new Error('The New Tab page sent a grid Vex cannot read');
+      const have = this.startTiles();
+      let next;
+      if (cmd.loading) {
+        // A page opening shows the window's grid. The first time a page
+        // opens, the grid it saved is added to the window's; a page that never
+        // changed its built-in tiles takes the window's as they are.
+        if (!have) { if (!tiles) return; next = tiles; }
+        else next = !cmd.handed && tiles ? this._mergeStartTiles(have, tiles) : have;
+      } else {
+        if (!tiles) return;
+        next = tiles;
+      }
+      if (!have || JSON.stringify(have) !== JSON.stringify(next)) localStorage.setItem(this.START_TILES, JSON.stringify(next));
+      // The page itself too when opening, so it is marked handed over.
+      this.pushStartTiles(cmd.loading ? null : from);
+    } catch (err) {
+      console.error('[New Tab] the grid could not be kept:', err);
+      window.showToast?.('Your New Tab tiles could not be saved for sync — ' + err.message, 'error');
+    }
+  },
+  // Every open New Tab page (but `except`) is handed the window's grid.
+  pushStartTiles(except = null) {
+    const list = this.startTiles();
+    if (!list) return 0;
+    let handed = 0;
+    for (const wv of this.webviews.values()) {
+      if (wv === except) continue;
+      let url = '';
+      try { url = wv.getURL(); } catch { continue; }   // not attached yet: it asks when it opens
+      if (!_isTrustedStartPage(url)) continue;
+      wv.executeJavaScript(`window.__vexSetStartTiles ? window.__vexSetStartTiles(${JSON.stringify(list)}) : false`)
+        .catch(err => console.error('[New Tab] could not hand a New Tab page its tiles:', err));
+      handed++;
+    }
+    return handed;
   },
 
   navigate(url) {
@@ -764,7 +895,7 @@ const WebviewManager = {
         // page went blank while the address bar still showed the old site
         // (found 2026-09-29). Show the address asked for, and say why.
         const tabId = TabManager.activeTabId;
-        wv.loadURL(url).catch(err => {
+        const load = () => wv.loadURL(url).catch(err => {
           const m = String((err && err.message) || err);
           if (/ERR_ABORTED|\(-3\)/.test(m)) return;
           console.warn('[Vex] navigate failed:', m);
@@ -774,6 +905,12 @@ const WebviewManager = {
           if (input && TabManager.activeTabId === tabId && document.activeElement !== input) input.value = url;
           window.showToast?.('Could not open ' + url + ' — ' + this._whyLoadFailed(m), 'error');
         });
+        // An address typed the moment a tab opens, before its page is
+        // attached: loadURL threw "The WebView must be attached…" out of the
+        // address bar and the address was dropped (found 2026-09-30). It is
+        // loaded once the page is there; a changed src is not read then.
+        if (!wv._attached) { wv.addEventListener('did-attach', load, { once: true }); return; }
+        load();
       } else {
         wv.src = url;
       }
@@ -807,7 +944,7 @@ const WebviewManager = {
     // never comes back. Restore the real URL instead — this is the fix for
     // "tabs stuck on about:blank after wake, won't come back even on refresh".
     const real = this._blankRecoveryUrl(wv);
-    if (real) { try { if (wv.dataset) delete wv.dataset.hibernated; wv.loadURL(real); } catch { try { wv.src = real; } catch {} } return; }
+    if (real) { try { if (wv.dataset) delete wv.dataset.hibernated; this._loadUnwatched(wv, real, 'reload'); } catch { try { wv.src = real; } catch {} } return; }
     wv.reload();
   },
 
@@ -821,7 +958,7 @@ const WebviewManager = {
     // Blanked tab (hibernated/crashed/OS-sleep) → restore its real URL rather
     // than hard-reloading about:blank.
     const _real = this._blankRecoveryUrl(wv);
-    if (_real) { try { if (wv.dataset) delete wv.dataset.hibernated; wv.loadURL(_real); } catch { try { wv.src = _real; } catch {} } return; }
+    if (_real) { try { if (wv.dataset) delete wv.dataset.hibernated; this._loadUnwatched(wv, _real, 'hard reload'); } catch { try { wv.src = _real; } catch {} } return; }
     try {
       const id = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null;
       if (id != null && window.vex?.hardReloadWebview) {
@@ -1558,7 +1695,7 @@ const WebviewManager = {
   },
 
   async _letSitesAsk(webview) {
-    if (!window.vex || typeof window.vex.permissionsList !== 'function') return false;
+    if (!window.vex || typeof window.vex.permissionsListForPage !== 'function') return false;
     let url = '';
     try { url = webview.getURL() || ''; } catch { return false; }
     if (!/^https?:/i.test(url)) return false;
@@ -1567,7 +1704,9 @@ const WebviewManager = {
     let origin = '';
     try { origin = new URL(url).origin; } catch { return false; }
     let decisions = {};
-    try { decisions = (await window.vex.permissionsList()) || {}; } catch { return false; }
+    // The page's own session's decisions: a container keeps its own, and a
+    // container tab was told what persist:main had decided (found 2026-09-30).
+    try { decisions = (await window.vex.permissionsListForPage(webview.getWebContentsId())) || {}; } catch { return false; }
     const states = {
       notifications: this.shouldOfferNotificationPrompt(decisions, origin) ? 'prompt' : null,
       geolocation: this.permissionStateFor(decisions, origin, 'geolocation'),
@@ -1638,6 +1777,15 @@ const WebviewManager = {
         // arrives via the 'page-favicon-updated' event and overwrites it. The tab
         // UI's <img> onerror handles sites with no /favicon.ico.
         const guess = `${u.origin}/favicon.ico`;
+        // A tab in a session of its own: the icon it wore belongs to the page
+        // it left, so it goes now, and the new one comes through the tab's
+        // own session (_setFavicon).
+        const tab = TabManager.tabs.find(t => t.id === tabId);
+        if (tab && !TabManager.windowMayAsk(tab.partition)) {
+          if (!this._ownIcons.has(tab.partition + ' ' + guess)) TabManager.updateTab(tabId, { favicon: null });
+          this._setFavicon(tabId, guess);
+          return;
+        }
         // One that has already failed this session is not worth asking for
         // again (js/tabs.js). The real icon still arrives from the page's own
         // <link rel=icon> through page-favicon-updated.
@@ -1645,6 +1793,63 @@ const WebviewManager = {
         TabManager.updateTab(tabId, { favicon: guess });
       }
     } catch {}
+  },
+
+  // Icons of tabs in a session of their own — a container, a Tor or proxy
+  // route, a private or Tor tab. Vex's window draws every tab's icon through
+  // its own session, which is direct, so a Tor tab's site was shown the real
+  // address on every redraw (found 2026-09-30). These are fetched through the
+  // tab's own session instead (src/main/favicon-fetch.js) and worn as a data:
+  // URL. If that session refuses (Tor down), the tab has no icon. Kept for
+  // the run, by session and address.
+  _ownIcons: new Map(),
+  _ownIconMisses: new Set(),
+  _ownIconPending: new Map(),
+  _ownIconAsked: new Map(),
+  OWN_ICONS_KEPT: 300,
+
+  _setFavicon(tabId, url) {
+    const tab = TabManager.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+    if (TabManager.windowMayAsk(tab.partition) || !/^https?:/i.test(String(url))) {
+      TabManager.updateTab(tabId, { favicon: url });
+      return;
+    }
+    const key = tab.partition + ' ' + url;
+    this._ownIconAsked.set(tabId, url);
+    const wear = (dataUrl) => {
+      // Only the latest address asked for this tab: it may have moved on.
+      if (this._ownIconAsked.get(tabId) !== url) return;
+      TabManager.updateTab(tabId, { favicon: dataUrl });
+    };
+    if (this._ownIcons.has(key)) { wear(this._ownIcons.get(key)); return; }
+    if (this._ownIconMisses.has(key)) return;
+    let pending = this._ownIconPending.get(key);
+    if (!pending) {
+      const wv = this.webviews.get(tabId);
+      let pageId = 0;
+      try { pageId = wv ? wv.getWebContentsId() : 0; } catch (err) {
+        console.warn('[Vex] the favicon of a tab in its own session waits for its page:', err.message);
+        return;
+      }
+      if (!pageId) return;
+      pending = Promise.resolve(window.vex.tabFavicon(pageId, url)).then((r) => {
+        if (r && r.ok) {
+          if (this._ownIcons.size >= this.OWN_ICONS_KEPT) this._ownIcons.delete(this._ownIcons.keys().next().value);
+          this._ownIcons.set(key, r.dataUrl);
+          return r.dataUrl;
+        }
+        // The site said there is none: not asked again this run. A request
+        // that never got through (Tor starting or down) is asked again on
+        // the next page.
+        if (r && r.answered) this._ownIconMisses.add(key);
+        console.warn('[Vex] no favicon for a tab in its own session (' + url.slice(0, 120) + '):', (r && r.error) || 'no answer');
+        return null;
+      }).finally(() => this._ownIconPending.delete(key));
+      this._ownIconPending.set(key, pending);
+    }
+    pending.then((dataUrl) => { if (dataUrl) wear(dataUrl); })
+      .catch(err => console.error('[Vex] the favicon of a tab in its own session could not be fetched:', err.message));
   }
 };
 

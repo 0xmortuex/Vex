@@ -29,10 +29,10 @@ function fakeChrome({ manifest = {}, tabs = [EXAMPLE], extraTabs = {} } = {}) {
 }
 
 // The service-worker preload, with main's two answers stubbed.
-function worker(chrome, { over = null } = {}) {
+function worker(chrome, { over = null, front = { ids: [], current: null } } = {}) {
   const calls = [];
   // extensions:open-tab answers with the tab main made (sweep fin4, 2026-09-29).
-  const ipcRenderer = { invoke: (ch, ...args) => { calls.push([ch, ...args]); return Promise.resolve(ch === 'extensions:popup-tab' ? over : { id: 5, url: args[0].url, active: args[0].active }); } };
+  const ipcRenderer = { invoke: (ch, ...args) => { calls.push([ch, ...args]); return Promise.resolve(ch === 'extensions:popup-tab' ? over : ch === 'extensions:active-tabs' ? front : { id: 5, url: args[0].url, active: args[0].active }); } };
   const ctx = vm.createContext({ chrome, setTimeout, Promise, JSON, Object, Array, String, Number, URL,
     require: (m) => {
       if (m !== 'electron') throw new Error('only electron');
@@ -65,7 +65,7 @@ describe('the active tab, asked by the service worker while the popup is open', 
     const { c, calls } = worker(fakeChrome(), { over: { popup: 9, tab: 5 } });
     const tabs = await c.tabs.query({ active: true, currentWindow: true });
     expect(tabs.map(t => [t.id, t.active])).toEqual([[5, true]]);
-    expect(calls).toEqual([['extensions:popup-tab']]);
+    expect(calls.filter(c => c[0] === 'extensions:popup-tab')).toEqual([['extensions:popup-tab']]);
   });
 
   it('with no popup open, Electron’s answer stands', async () => {
@@ -76,7 +76,7 @@ describe('the active tab, asked by the service worker while the popup is open', 
   it('a question that also filters by address is not rewritten', async () => {
     const { c, calls } = worker(fakeChrome(), { over: { popup: 9, tab: 5 } });
     expect(await c.tabs.query({ active: true, url: 'https://other.example/*' })).toEqual([]);
-    expect(calls).toEqual([]);
+    expect(calls.filter(c => c[0] === 'extensions:popup-tab')).toEqual([]);
   });
 
   it('the tab under the popup is not listed twice', async () => {
@@ -91,7 +91,7 @@ describe('tabs.create and runtime.openOptionsPage open a Vex tab through main', 
     const { c, calls } = worker(fakeChrome());
     expect(await c.tabs.create({ url: 'https://github.com/x' })).toMatchObject({ id: 5, active: true, pendingUrl: 'https://github.com/x' });
     await c.tabs.create({ url: 'manage.html', active: false });
-    expect(calls).toEqual([
+    expect(calls.filter(c => c[0] === 'extensions:open-tab')).toEqual([
       ['extensions:open-tab', { url: 'https://github.com/x', active: true }],
       ['extensions:open-tab', { url: OWN + 'manage.html', active: false }],
     ]);
@@ -118,7 +118,7 @@ describe('tabs.create and runtime.openOptionsPage open a Vex tab through main', 
 describe('extension pages get the same two channels', () => {
   it('the page preload hands the stand-ins both main calls', () => {
     expect(PAGE_SRC).toContain("ipcRenderer.invoke('extensions:open-tab', request)");
-    expect(PAGE_SRC).toContain('args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab]');
-    expect(PAGE_SRC).toContain('vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab)');
+    expect(PAGE_SRC).toContain('args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs]');
+    expect(PAGE_SRC).toContain('vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs)');
   });
 });

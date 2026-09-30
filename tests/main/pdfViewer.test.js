@@ -17,7 +17,10 @@ describe('PDFs show in tabs', () => {
   });
   it('the webview security policy does not take plugins away', () => {
     const src = read('main/session-security.js');
-    const attach = src.slice(src.indexOf("'will-attach-webview'"), src.indexOf("'did-attach-webview'"));
+    // The handler itself, from its .on( to the next one's: a comment above it
+    // names 'did-attach-webview' too, which made the old slice empty.
+    const from = src.indexOf("on('will-attach-webview'");
+    const attach = src.slice(from, src.indexOf("on('did-attach-webview'", from));
     expect(attach.length).toBeGreaterThan(100);
     expect(attach).not.toMatch(/plugins/);
   });

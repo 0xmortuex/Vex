@@ -1,12 +1,12 @@
 require('./diagnostics').install(process.env.VEX_VERBOSE_DIAGNOSTICS === '1');
 const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents, safeStorage, clipboard, Notification, nativeImage } = require('electron');
 
-// Enable Chromium's rich print preview UI (Save as PDF, margin controls,
-// pages-per-sheet, background graphics, etc.). Without these flags Electron
-// falls back to the Windows OS print dialog, which only exposes
-// "Microsoft Print to PDF" with no preview. Both switches are idempotent;
-// some Electron builds key off the feature flag, others off the dedicated
-// switch, so apply both. MUST run before any other app.* access — Chromium
+// The PrintPreview flag and --enable-print-preview were meant to turn on
+// Chromium's rich print preview (Save as PDF, margins, background graphics).
+// They do not: that preview is part of Chrome's own UI, which Electron does
+// not ship, so window.print() and Print (Ctrl+P) open the Windows system print
+// dialog (found 2026-09-30). The switches are left as they were; they change
+// nothing. MUST run before any other app.* access — Chromium
 // initializes its feature list on first app touch, and reading e.g.
 // app.isPackaged in a console.log was previously happening above this block.
 // NB: Chromium keeps only the LAST --enable-features occurrence (it does not
@@ -14,8 +14,8 @@ const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, ne
 // feature we enable must live in this ONE comma-separated list, never a second
 // appendSwitch('enable-features', …) call.
 //
-// PrintPreview: rich print UI (Save as PDF, margins, background graphics);
-// without it Electron falls back to the bare Windows print dialog.
+// PrintPreview: see above — Electron has no print preview to turn on, so
+// printing shows the Windows system print dialog either way.
 //
 // HardwareSecureDecryption: use the MediaFoundation-based Widevine CDM (the
 // "Google Widevine Windows CDM" component, installed but idle by default in
@@ -114,6 +114,13 @@ ipcMain.on('storage:flush-failed', event => {
   clearTimeout(host.flushTimer);
   host.flushing = false;
   host.win.webContents.send('vex:toast', 'Changes could not be saved. Retry closing after the storage error is resolved.');
+});
+// A tab closed (js/tabs.js, closeTab): the back lists kept for its
+// JavaScript-off pages go now (session-security.js, forgetHistories).
+ipcMain.on('tabs:closed', (event, pageIds) => {
+  const host = secureSessions.owner(event.sender);
+  if (!host) return;
+  secureSessions.forgetHistories(host.win.webContents.id, pageIds);
 });
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
@@ -1583,11 +1590,21 @@ ipcMain.handle('totp:delete', async (_e, id) => {
 
 // Only decisions still in force: an "Allow for a day" that has run out is as
 // if never made (savedDecision), so it is not listed as allowed either.
-ipcMain.handle('permissions:list',     () => {
-  const { __until__, ...d } = loadPermissionDecisions();
+function _decisionsInForce(decisions) {
+  const { __until__, ...d } = decisions;
   const now = Date.now();
   for (const [key, end] of Object.entries(__until__ || {})) if (end < now) delete d[key];
   return d;
+}
+ipcMain.handle('permissions:list',     () => _decisionsInForce(loadPermissionDecisions()));
+// The decisions one tab's page is held to: its own container's, a private
+// window's, or persist:main's. What a container tab's page was told it may
+// ask came from persist:main's list (found 2026-09-30). The page is one this
+// window owns (ipc-policy.js, TARGET_CHANNELS).
+ipcMain.handle('permissions:list-for-page', (_e, id) => {
+  const page = webContents.fromId(id);
+  if (!page || page.isDestroyed()) throw new Error('That page is gone');
+  return _decisionsInForce(decisionsFor(page));
 });
 ipcMain.handle('permissions:revoke',   async (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; await savePermissionDecisions(d); return { ok: true }; });
 ipcMain.handle('permissions:clear-all', async () => { await savePermissionDecisions({}); return { ok: true }; });
@@ -3114,6 +3131,35 @@ async function _closeTabsForExtension(senderUrl, ses, request) {
 }
 ipcMain.handle('extensions:close-tab', (event, request) => _closeTabsForExtension(event.senderFrame?.url, event.sender.session, request));
 
+// An extension's tabs.query and tabs.get: which page is the tab in front.
+// Electron calls a page active when it has the focus, and cannot know which
+// Vex tab is in front: with Vex's own bar focused no tab was active, or every
+// one was (found 2026-09-30). Each Vex window's interface says which of its
+// tabs is in front; only pages in the extension's own session are named.
+// `current` is the one in front of the Vex window used last (a toolbar popup
+// is not one, so while it is open that is the window it was opened over).
+let _lastFocusedHostWin = null;
+app.on('browser-window-focus', (_event, win) => { if (secureSessions.hosts.has(win.webContents.id)) _lastFocusedHostWin = win; });
+async function _activeTabsFor(senderUrl, ses) {
+  if (!/^chrome-extension:\/\/[a-p]{32}\//.test(String(senderUrl || ''))) throw new Error('Only an extension page can ask which tab is in front');
+  const ids = [];
+  let current = null;
+  // No Vex window focused yet (or that one closed): the main window.
+  const used = _lastFocusedHostWin && !_lastFocusedHostWin.isDestroyed() ? _lastFocusedHostWin : mainWindow;
+  for (const host of secureSessions.hosts.values()) {
+    const win = host.win;
+    if (!win || win.isDestroyed()) continue;
+    // A tab whose page is not made yet (not attached) has no page id.
+    const id = await win.webContents.executeJavaScript('(() => { const wv = WebviewManager.webviews.get(TabManager.activeTabId); try { return wv ? wv.getWebContentsId() : null; } catch { return null; } })()');
+    const page = Number.isInteger(id) ? webContents.fromId(id) : null;
+    if (!page || page.isDestroyed() || page.session !== ses) continue;
+    ids.push(id);
+    if (win === used) current = id;
+  }
+  return { ids, current };
+}
+ipcMain.handle('extensions:active-tabs', (event) => _activeTabsFor(event.senderFrame?.url, event.sender.session));
+
 // An MV3 extension's service worker sends its IPC to its own ServiceWorkerMain,
 // not to ipcMain (so the IPC policy never sees it): Stylus's worker builds its
 // popup's data and asked for the active tab, heard [] and the popup drew
@@ -3131,6 +3177,7 @@ function _wireExtensionWorkerIpc(ses) {
     worker.ipc.handle('extensions:popup-tab', () => _popupTabFor(worker.scriptURL, ses));
     worker.ipc.handle('extensions:open-tab', (_event, request) => _openTabForExtension(worker.scriptURL, ses, request));
     worker.ipc.handle('extensions:close-tab', (_event, request) => _closeTabsForExtension(worker.scriptURL, ses, request));
+    worker.ipc.handle('extensions:active-tabs', () => _activeTabsFor(worker.scriptURL, ses));
   };
   ses.serviceWorkers.on('running-status-changed', ({ versionId, runningStatus }) => {
     if (runningStatus === 'starting' || runningStatus === 'running') wire(versionId);
@@ -3330,6 +3377,19 @@ app.on('web-contents-created', (_event, contents) => {
   // its tab is already open.
   if (contents.session && contents.session.__vexTor) _torIdleCheck();
   contents.once('destroyed', () => { if (_torLauncher.isRunning()) setImmediate(_torIdleCheck); });
+  // A page in a Tor route whose Tor has stopped starts it again (a tab opened
+  // in it starts with a navigation too); a page that cannot load because Tor
+  // is down says so in its tab instead of staying blank (found 2026-09-30).
+  contents.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
+    const ses = contents.session;
+    if (isMainFrame && !isInPlace && ses && ses.__vexTorDown && ses.__vexTorRevive && /^https?:/i.test(url)) _reviveTor(contents);
+  });
+  contents.on('did-fail-load', (_e, errorCode, _desc, _url, isMainFrame) => {
+    const ses = contents.session;
+    if (!isMainFrame || errorCode === -3 || !ses || !ses.__vexTorDown) return;
+    if (ses.__vexTorRevive && _torRevival.running) { _torRevival.waiting.add(contents); _torPageDown(contents, 'starting'); }
+    else _torPageDown(contents, ses.__vexTorRevive ? 'failed' : 'stopped');
+  });
 
   // Only intercept for webviews hosting tabs — never for the main window or
   // for extension background pages (those need their own window.open semantics).
@@ -3364,7 +3424,13 @@ app.on('web-contents-created', (_event, contents) => {
     s.delete(bare);
     _httpsOnlyFailed.add(bare);
     const httpUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
-    try { contents.loadURL(httpUrl); } catch {}
+    // loadURL rejects when the load fails, and that went unhandled (found
+    // 2026-09-30). ERR_ABORTED (-3) is the page going somewhere else first;
+    // any other failure is shown in the tab by Chromium, and logged here.
+    contents.loadURL(httpUrl).catch(err => {
+      if (err && (err.errno === -3 || /ERR_ABORTED/.test(err.message))) return;
+      console.warn('[HTTPS-Only] could not load ' + httpUrl + ' over http:', err && err.message);
+    });
     try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', bare + ' has no HTTPS — loaded over an unencrypted connection'); } catch {}
   });
   // A clean main-frame load means there's no pending upgrade left to fall back
@@ -4188,6 +4254,8 @@ function createWindow() {
         + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + port + "';return 'DIRECT';}";
       cfg = { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
     }
+    // What a covered session set back to direct gets (applyRouting).
+    _discordBrowsingProxy = cfg;
     // A session with a saved route (a container through Tor or a proxy, or
     // all of Vex) keeps it. This ran at every start, after the routes were
     // restored, and put each of them back to direct (found 2026-09-30).
@@ -5086,6 +5154,10 @@ ipcMain.handle('browsing:clear-data', async () => {
   for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) { await ses.clearStorageData(); await ses.clearCache(); }
   await dataStore.clear('history', []);
   await dataStore.clear('sync-records', null);
+  // Without the records, the next tile sync has to add this device's tiles
+  // to the account's again, which only happens while this flag is unset
+  // (js/sync-engine.js, checkTileGate).
+  await dataStore.clear('sync-tiles-joined', null);
   recallStore().clear();
   await recallFlush(true);
   await preferences.clearKeys(['vex.history','vex.sessions','vex.archivedTabs','vex.workspaceSnapshots','vex.downloads','vex.autofillLog']);
@@ -5467,19 +5539,108 @@ function _torIdleCheck() {
     if (_torLauncher.isRunning() && !_torStillNeeded()) _torLauncher.stop();
   }, TOR_IDLE_GRACE_MS);
 }
+// The sessions going through Tor, each with the port it uses. When the Tor
+// Vex runs stops (Stop, the idle stop, or Tor exiting), every session on its
+// port is given the refusing proxy and marked down: a Tor container, a burner
+// over Tor or a Tor site rule stayed pointed at the dead port and loaded
+// nothing until its route was set again or Vex restarted (found 2026-09-30),
+// and a later program listening on that port would have been used as Tor.
+// A route's session (revive) starts Tor again on its next page load; a Tor
+// tab's own session does not — its tab is closed by Stop, and it says so.
+const _torSessions = new Set();
+let _ownTorPort = 0;
+function _useTor(ses, port, revive) {
+  ses.__vexTorPort = port;
+  ses.__vexTorDown = false;
+  ses.__vexTorRevive = revive;
+  _torSessions.add(ses);
+}
+function _leaveTor(ses) {
+  _torSessions.delete(ses);
+  ses.__vexTorDown = false;
+}
+function _torWentDown(port) {
+  if (!port) return;
+  for (const ses of _torSessions) {
+    if (ses.__vexTorPort !== port) continue;
+    ses.__vexTorDown = true;
+    ses.setProxy(require('./main/routing').REFUSED_PROXY)
+      .catch(err => console.error('[tor] a session could not be closed off after Tor stopped:', err));
+  }
+}
 // Every window's "Tor is running" indicator follows Vex's own Tor.
 _torLauncher.onStateChange((running) => {
   if (!running && _torIdleTimer) { clearTimeout(_torIdleTimer); _torIdleTimer = null; }
+  if (running) _ownTorPort = _torLauncher.getPort();
+  else { _torWentDown(_ownTorPort); _ownTorPort = 0; }
   BrowserWindow.getAllWindows().forEach(w => {
     if (!w.isDestroyed()) w.webContents.send('tor:state', { running });
   });
 });
-// What the indicator shows, and the Tor pages it offers to close before Stop.
-ipcMain.handle('tor:status', () => ({
-  running: _torLauncher.isRunning(),
-  pages: webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.session && wc.session.__vexTor).map(wc => wc.id),
-}));
-ipcMain.handle('tor:stop', () => { _torLauncher.stop(); return { ok: true }; });
+
+// A page in a Tor route's session that is down starts Tor again, with the
+// progress dialog in its window, and every such session is put on the new
+// port; until then the refusing proxy stays, so nothing goes direct. The
+// pages that failed meanwhile load again once Tor is up (found 2026-09-30).
+const _torRevival = { running: null, windows: new Set(), waiting: new Set() };
+function _torPageDown(contents, state, error) {
+  const host = secureSessions.owner(contents);
+  if (!host || !host.win || host.win.isDestroyed()) return;   // a popup window: no tab to say it in
+  host.win.webContents.send('tor:page-down', { id: contents.id, state, error: error || null });
+}
+function _reviveTor(contents) {
+  const host = secureSessions.owner(contents);
+  const win = host && host.win && !host.win.isDestroyed() ? host.win : null;
+  if (win && !_torRevival.windows.has(win)) { _torRevival.windows.add(win); win.webContents.send('tor:reviving'); }
+  if (_torRevival.running) return;
+  const send = (channel, payload) => { for (const w of _torRevival.windows) if (!w.isDestroyed()) w.webContents.send(channel, payload); };
+  _torCancelled = false;
+  _torRevival.running = (async () => {
+    let port = await detectTorPort();
+    if (!port) port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => send('tor:progress', { phase, value, detail }));
+    for (const ses of _torSessions) {
+      if (!ses.__vexTorDown || !ses.__vexTorRevive) continue;
+      await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
+      _useTor(ses, port, true);
+    }
+    return port;
+  })().then((port) => {
+    send('tor:revived', { ok: true, port });
+    for (const wc of _torRevival.waiting) if (!wc.isDestroyed() && !wc.session.__vexTorDown) wc.reload();
+  }, (err) => {
+    const cancelled = _torCancelled || err.message === 'cancelled';
+    if (!cancelled) console.error('[tor] could not start Tor again for a Tor route:', err);
+    send('tor:revived', { ok: false, cancelled, error: err.message });
+    for (const wc of _torRevival.waiting) if (!wc.isDestroyed()) _torPageDown(wc, 'failed', cancelled ? null : err.message);
+  }).finally(() => {
+    _torRevival.running = null;
+    _torRevival.windows.clear();
+    _torRevival.waiting.clear();
+  });
+}
+
+// Vex's own windows (the main one and any private ones). A window still
+// starting has no TorSession yet, and no tabs either.
+function _torTabsInWindows(pages, action) {
+  const wins = [...secureSessions.hosts.values()].map(h => h.win).filter(w => w && !w.isDestroyed());
+  return Promise.all(wins.map(w => w.webContents.executeJavaScript(`typeof TorSession === 'undefined' ? 0 : TorSession.${action}(${JSON.stringify(pages)})`)));
+}
+function _torPages() {
+  return webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.session && wc.session.__vexTor).map(wc => wc.id);
+}
+// What the indicator shows, and the Tor tabs Stop closes. Stop closed them
+// only in the window it was clicked in; a Tor page in another window just
+// stopped loading (found 2026-09-30). Every window is counted and told.
+ipcMain.handle('tor:status', async () => {
+  const pages = _torPages();
+  const counts = await _torTabsInWindows(pages, 'countTorTabs');
+  return { running: _torLauncher.isRunning(), pages, tabs: counts.reduce((a, b) => a + b, 0), windows: counts.filter(Boolean).length };
+});
+ipcMain.handle('tor:stop', async () => {
+  await _torTabsInWindows(_torPages(), 'closeTorTabs');
+  _torLauncher.stop();
+  return { ok: true };
+});
 ipcMain.handle('tor:create', async (event) => {
   _torCancelled = false;
   try {
@@ -5507,6 +5668,7 @@ ipcMain.handle('tor:create', async (event) => {
     // Route EVERYTHING (incl. DNS) through Tor. socks5:// makes Chromium resolve
     // hostnames at the proxy, so there's no local DNS leak.
     await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
+    _useTor(ses, port, false);
     // Consistent masked desktop identity + client hints (less unique than the
     // raw Electron UA), adblock, header strip, and the hardening preload.
     const idn = buildIdentity('124');
@@ -5556,6 +5718,9 @@ ipcMain.handle('tor:verify', async (_e, partition) => {
 // through Tor or a custom SOCKS/HTTP proxy — persistently. Choices are saved and
 // re-applied on next launch so a "Tor container" stays a Tor container.
 const ROUTING_FILE = () => path.join(app.getPath('userData'), 'session-routing.json');
+// The proxy the Discord bypass gives the browsing sessions: direct, or a PAC
+// that sends only Discord through ByeDPI (_routeBrowsingDiscord).
+let _discordBrowsingProxy = { mode: 'direct' };
 let routingStore;
 let routingPending = Promise.resolve();
 const routingGeneration = new Map();
@@ -5571,15 +5736,31 @@ async function applyRouting(partition, mode, custom, sender) {
     // Marked before Tor is up, so no page in it can use WebRTC around the
     // proxy while it starts (a restored Tor route has a refusing proxy then).
     require('./main/routing').markRoutedSession(ses, 'tor', webContents.getAllWebContents());
-    let port = await detectTorPort();
-    if (!port && _torLauncher) {
-      port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => {
-        try { if (sender && !sender.isDestroyed()) sender.send('tor:progress', { phase, value, detail }); } catch {}
-      });
+    // The session kept its old proxy (often direct) until Tor had started, so
+    // a page loaded in it meanwhile went direct (found 2026-09-30). It loads
+    // nothing until Tor is up. A session already on a live Tor keeps it.
+    if (!(_torSessions.has(ses) && ses.__vexTorPort && !ses.__vexTorDown)) await ses.setProxy(require('./main/routing').REFUSED_PROXY);
+    let port;
+    try {
+      port = await detectTorPort();
+      if (!port && _torLauncher) {
+        port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => {
+          try { if (sender && !sender.isDestroyed()) sender.send('tor:progress', { phase, value, detail }); } catch {}
+        });
+      }
+      if (!port) throw new Error('Tor unavailable');
+    } catch (err) {
+      // A Tor route whose Tor did not start (at launch, or a site rule armed)
+      // loaded nothing, said nothing and never tried again (found
+      // 2026-09-30). Marked down, its next page starts Tor again and a page
+      // that fails says why (_reviveTor, tor:page-down). A newer route for
+      // the session has put its own proxy on it.
+      if (routingGeneration.get(key) === generation) { _useTor(ses, 0, true); ses.__vexTorDown = true; }
+      throw err;
     }
-    if (!port) throw new Error('Tor unavailable');
     if (routingGeneration.get(key) !== generation) throw new Error('Routing changed while Tor was starting');
     await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
+    _useTor(ses, port, true);
     return { mode: 'tor', port };
   }
   // Every way in (Private routing, a container, a site route, a restore) is
@@ -5588,10 +5769,16 @@ async function applyRouting(partition, mode, custom, sender) {
   if (mode === 'proxy') {
     const address = require('./main/routing').proxyAddress(custom);
     await ses.setProxy({ proxyRules: address });
+    _leaveTor(ses);
     require('./main/routing').markRoutedSession(ses, 'proxy', webContents.getAllWebContents());
     return { mode: 'proxy', custom: address };
   }
-  await ses.setProxy({ mode: 'direct' });
+  // Direct is direct plus the Discord bypass for the sessions it covers, as
+  // at startup: a session set back to direct lost the Discord rule until the
+  // bypass mode changed again, and setting all of Vex (or persist:main) to
+  // direct overrode it (found 2026-09-30).
+  await ses.setProxy(!partition || BROWSING_SESSIONS.includes(partition) ? _discordBrowsingProxy : { mode: 'direct' });
+  _leaveTor(ses);
   require('./main/routing').markRoutedSession(ses, 'direct', webContents.getAllWebContents());
   return { mode: 'direct' };
 }
@@ -5638,6 +5825,16 @@ ipcMain.handle('routing:prune', (_e, used) => {
   });
   routingPending = operation;
   return operation.catch(e => ({ ok: false, error: e && e.message }));
+});
+
+// The hosts the main window's Tor and proxy rules name, for a private window
+// to say they do not apply there (js/site-routes.js, _notePrivate). The rules
+// live in the main window's storage; a private window's starts empty.
+ipcMain.handle('siteroutes:routed-hosts', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The main window is closed, so its site rules cannot be read');
+  const rules = await mainWindow.webContents.executeJavaScript(`typeof SiteRoutes === 'undefined' ? [] : SiteRoutes.rules().filter(r => r.mode === 'tor' || r.mode === 'proxy').map(r => ({ host: r.host, mode: r.mode }))`);
+  if (!Array.isArray(rules)) throw new Error('The site rules came back unreadable');
+  return rules.filter(r => r && typeof r.host === 'string' && (r.mode === 'tor' || r.mode === 'proxy')).map(r => ({ host: r.host, mode: r.mode }));
 });
 
 // === All of Vex through one route ==========================================
@@ -6245,6 +6442,14 @@ ipcMain.handle('image:copy', async (_e, url, partition) => {
     return { ok: true };
   } catch (err) { return { ok: false, error: err.message }; }
 });
+
+// A tab's icon for a tab in a session of its own, fetched through that
+// session and handed back as a data: URL (src/main/favicon-fetch.js). Vex's
+// window drawing the icon itself loaded it direct, so a Tor or proxy tab's
+// site saw the real address (found 2026-09-30). ipc-policy.js checks the
+// page belongs to the asking window.
+const _faviconFetch = require('./main/favicon-fetch').createFaviconFetch({ webContents });
+ipcMain.handle('tabs:favicon', (_e, guestId, url) => _faviconFetch.fetchIcon(guestId, url));
 
 // The readable part of a page as an e-book (renderer: PageExport.saveEpub).
 ipcMain.handle('page:save-epub', async (_e, { title, url, xhtml }) => {

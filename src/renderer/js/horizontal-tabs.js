@@ -91,7 +91,9 @@ const HorizontalTabs = (() => {
       chip.title = `${stack.name} · ${members.length} tab${members.length === 1 ? '' : 's'} · click to ${expanded ? 'collapse' : 'expand'}, right-click for options`;
 
       let favicon = topTab.favicon;
-      if (!favicon) {
+      // Never for a tab whose sites Vex's direct window must not ask (a Tor,
+      // proxy or container tab: its icon comes through its own session).
+      if (!favicon && TabManager.mayAskSiteForIcon(topTab.url, { partition: topTab.partition })) {
         // First-party /favicon.ico — no Google s2/favicons leak (matches the
         // tabs.js sidebar path; the delegated tab-favicon error handler swaps a
         // 404 for the neutral placeholder).
@@ -153,7 +155,7 @@ const HorizontalTabs = (() => {
     el.draggable = true;
 
     let favicon = tab.favicon;
-    if (!favicon) {
+    if (!favicon && TabManager.mayAskSiteForIcon(tab.url, { partition: tab.partition })) {
       // First-party /favicon.ico — no Google s2/favicons leak.
       try { favicon = new URL(tab.url || '').origin + '/favicon.ico'; } catch {}
     }

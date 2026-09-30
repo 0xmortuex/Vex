@@ -33,7 +33,11 @@ const Bookmarks = {
       // null here, silently skipping the folder question) — use the in-app
       // prompt. Cancel still bookmarks, just into Unsorted.
       const folder = await vexPrompt({ title: 'Bookmark this page', label: 'Folder (blank = Unsorted)', okLabel: 'Bookmark' }) || '';
-      this.items.unshift({ id: vexId('bm'), url, title: title || url, folder: folder.trim(), at: Date.now() });
+      // Saved from a tab in a session of its own (a container, a Tor or proxy
+      // route): no list here asks its site for an icon (found 2026-09-30).
+      const from = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
+      const own = !!from && from.url === url && !TabManager.windowMayAsk(from.partition);
+      this.items.unshift({ id: vexId('bm'), url, title: title || url, folder: folder.trim(), at: Date.now(), ...(own ? { ownSession: true } : {}) });
       window.showToast?.('Bookmarked');
     }
     this.save();
@@ -111,7 +115,7 @@ const Bookmarks = {
           row.addEventListener('mouseleave', () => row.style.background = '');
           let hostTxt = b.url; try { hostTxt = new URL(b.url).hostname.replace(/^www\./, ''); } catch {}
           row.innerHTML = `
-            <img src="https://${encodeURIComponent(hostTxt)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
+            <img src="${b.ownSession || (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(b.url)) ? '' : `https://${encodeURIComponent(hostTxt)}/favicon.ico`}" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
             <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.title)}</div><div style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(hostTxt)}</div></div>
             <button data-del style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;display:inline-flex;align-items:center;justify-content:center" title="Delete bookmark" aria-label="Delete bookmark">${VexIcons.svg('x', { size: 13 })}</button>`;
           row.addEventListener('click', (e) => { if (e.target.closest('[data-del]')) return; SidebarManager.hideActivePanel?.(); TabManager.createTab(b.url, true); });

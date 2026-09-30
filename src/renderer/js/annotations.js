@@ -182,7 +182,7 @@ const Annotations = {
       let host = k; try { host = new URL(list[0].url || k).hostname.replace(/^www\./, ''); } catch { try { host = new URL(k).hostname.replace(/^www\./, ''); } catch {} }
       const h = document.createElement('div');
       h.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 6px 4px;cursor:pointer';
-      h.innerHTML = `<img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:15px;height:15px;border-radius:3px" data-image-fallback="hide"><div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div><span style="font-size:10.5px;color:var(--text-muted)">${list.length}</span>`;
+      h.innerHTML = `<img src="${typeof TabManager === 'undefined' || TabManager.mayAskSiteForIcon(list[0].url || k) ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" style="width:15px;height:15px;border-radius:3px" data-image-fallback="hide"><div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</div><span style="font-size:10.5px;color:var(--text-muted)">${list.length}</span>`;
       h.addEventListener('click', () => { SidebarManager.hideActivePanel?.(); TabManager.createTab(k, true); });
       body.appendChild(h);
       list.forEach(a => {

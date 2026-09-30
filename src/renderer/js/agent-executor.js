@@ -340,6 +340,12 @@ const AgentExecutor = {
           return { ok: true, result: await AgentTools.webSearch(params.query, params.count) };
 
         case 'read_url':
+          // Read from Vex's window, which goes out directly: a site you route
+          // through Tor, a proxy or a container would see your real address
+          // (found 2026-09-30).
+          if (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(params.url)) {
+            return { ok: false, error: 'That site goes through Tor, a proxy or a container; reading it here would use your real connection, so it was not read' };
+          }
           return { ok: true, result: await AgentTools.readUrl(params.url) };
 
         // ---- Vex's own features ------------------------------------------

@@ -48,18 +48,28 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
   // leaving for a site that has it is done in a tab built again, and its back
   // list went with the old one (found 2026-09-29). A guest's history cannot
   // be read once it is gone, so such a guest's list is noted as it navigates
-  // and kept a minute after it closes, for the tab that replaces it.
+  // and kept after it closes, for the tab that replaces it.
+  // A background tab is built again only when it is next shown, so a minute
+  // was too short: one shown later came back with no back list (found
+  // 2026-09-30). A list is kept until a tab takes it, its window closes, or
+  // it is HISTORY_KEEP_MS old; and never more than HISTORY_MAX of them.
+  const HISTORY_KEEP_MS = 30 * 60 * 1000, HISTORY_MAX = 50;
   const histories = new Map();
   function keepHistory(guest, hostId) {
     const id = guest.id;
     const note = () => {
       if (guest.isDestroyed()) return;
       const nav = guest.navigationHistory;
+      histories.delete(id);   // the newest last, for the cap below
       histories.set(id, { hostId, partition: partitionOf(guest), entries: nav.getAllEntries(), index: nav.getActiveIndex() });
+      while (histories.size > HISTORY_MAX) histories.delete(histories.keys().next().value);
     };
     guest.on('did-navigate', note);
     guest.on('did-navigate-in-page', note);
-    guest.once('destroyed', () => { setTimeout(() => histories.delete(id), 60000).unref?.(); });
+    guest.once('destroyed', () => {
+      const kept = histories.get(id);
+      if (kept) setTimeout(() => { if (histories.get(id) === kept) histories.delete(id); }, HISTORY_KEEP_MS).unref?.();
+    });
   }
   // Done as the new guest attaches, before its first page commits: a used
   // webContents refuses a restore. The guest's own first load (the site it
@@ -103,8 +113,18 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       }, 8000);
     });
     hosts.set(win.webContents.id, host);
-    // The back list a tab built again is to keep (see keepHistory above).
-    let carry = null;
+    // The back list a tab built again is to keep (see keepHistory above), by
+    // the id of the guest made for it. It went to whichever webview attached
+    // next within 5 s, and webviews attach in the background too: a tab
+    // restored by another could get the wrong tab's list (found 2026-09-30).
+    // Electron makes the guest straight after this event returns, before any
+    // other code runs, and here says it attached in that same run (measured
+    // 2026-09-30): a 'did-attach-webview' before this run ends is that guest's.
+    // Should it come later, a microtask queued here finds the guest instead:
+    // the newest webview of this window, made after the event. A refused
+    // attach makes none, and its list goes to nobody.
+    let expecting = null;
+    const carries = new Map();
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.on('will-redirect', event => event.preventDefault());
     win.webContents.on('will-attach-webview', (event, prefs, params) => {
@@ -119,8 +139,18 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
         const from = Number(prefs.vexHistoryFrom);
         delete prefs.vexHistoryFrom;
         const saved = Number.isInteger(from) ? histories.get(from) : null;
-        carry = saved && saved.hostId === hostId && saved.partition === partition ? { ...saved, at: Date.now() } : null;
         if (saved) histories.delete(from);
+        if (saved && saved.hostId === hostId && saved.partition === partition) {
+          const entry = expecting = { saved, before: Math.max(0, ...webContents.getAllWebContents().map(c => c.id)) };
+          queueMicrotask(() => {
+            if (expecting !== entry) return;   // taken, or another attach began
+            expecting = null;
+            const guest = webContents.getAllWebContents().find(c => c.id > entry.before && !c.isDestroyed() && c.getType() === 'webview' && c.hostWebContents === win.webContents);
+            if (!guest) return;
+            carries.set(guest.id, saved);
+            guest.once('destroyed', () => carries.delete(guest.id));
+          });
+        } else expecting = null;
         delete prefs.preload;
         delete prefs.preloadURL;
         prefs.nodeIntegration = false;
@@ -135,8 +165,9 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     });
     win.webContents.on('did-attach-webview', (_event, guest) => {
       trackGuest(guest, hostId);
-      const take = carry && Date.now() - carry.at < 5000 ? carry : null;
-      carry = null;
+      let take = carries.get(guest.id);
+      carries.delete(guest.id);
+      if (!take && expecting && guest.id > expecting.before) { take = expecting.saved; expecting = null; }
       if (take) restoreHistory(guest, take);
       if (guest.getLastWebPreferences?.()?.javascript === false) keepHistory(guest, hostId);
     });
@@ -144,6 +175,7 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       clearTimeout(host.flushTimer);
       hosts.delete(hostId);
       host.data = host.persist = null;
+      for (const [id, saved] of histories) if (saved.hostId === hostId) histories.delete(id);
       for (const [id, ownerId] of guestOwners) if (ownerId === hostId) {
         const guest = webContents.fromId(id);
         try { guest?.close(); } catch {}
@@ -168,7 +200,12 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     const target = webContents.fromId(id);
     return !!target && owner(target) === owner(event.sender) && !!owner(target);
   }
-  return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget,
+  // A tab closed: the back lists kept for its pages go now, not HISTORY_KEEP_MS
+  // later (found 2026-09-30). Only lists this window noted.
+  function forgetHistories(hostId, ids) {
+    for (const id of ids) if (histories.get(id)?.hostId === hostId) histories.delete(id);
+  }
+  return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories,
     isAuxiliary(event, channel) {
       if (event.senderFrame !== event.sender.mainFrame) return false;
       // The Picture-in-Picture pop-out, asked of the module that owns it. It
@@ -180,7 +217,9 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       // Or asking for a Vex tab (tabs.create, openOptionsPage); main.js opens
       // only web pages and that extension's own pages. Or closing a tab
       // (tabs.remove); main.js closes only a Vex tab in its own session.
-      if (channel === 'extensions:popup-tab' || channel === 'extensions:open-tab' || channel === 'extensions:close-tab') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
+      // Or which tab is in front (tabs.query/get); main.js answers only with
+      // pages in the extension's own session.
+      if (channel === 'extensions:popup-tab' || channel === 'extensions:open-tab' || channel === 'extensions:close-tab' || channel === 'extensions:active-tabs') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
       try { return channel === 'popup-chrome:action' && fileURLToPath(event.senderFrame.url) === path.join(root, 'renderer/popup-chrome.html'); }
       catch { return false; }
     },

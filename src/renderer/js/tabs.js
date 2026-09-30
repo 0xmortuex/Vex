@@ -173,6 +173,10 @@ const TabManager = {
       }, true);
     }
 
+    // Before any tab is restored: whether the window may ask ordinary tabs'
+    // sites for their icons (windowMayAsk).
+    await this.refreshMainRouting();
+
     this.groups = (await VexStorage.loadGroups()) || [];
     this.stacks = (typeof VexStorage.loadStacks === 'function')
       ? ((await VexStorage.loadStacks()) || [])
@@ -261,7 +265,7 @@ const TabManager = {
             partition: t.partition || null,
             url: tabUrl,
             title: t.title || (isStartPage(t.url) ? 'New Tab' : (t.url || 'Tab')),
-            favicon: this._persistableFavicon(t.favicon),
+            favicon: this._persistableFavicon(t.favicon, t.partition),
             loading: false,
             pinned: !!t.pinned,
             unread: false,
@@ -361,7 +365,7 @@ const TabManager = {
       id,
       url: resolvedUrl,
       title: isStartPage(target) ? 'New Tab' : (opts?.title || 'Loading...'),
-      favicon: this._persistableFavicon(opts?.favicon),
+      favicon: null,
       loading: true,
       pinned: !!opts?.pinned,
       scrollPosition: opts?.scrollPosition || null,
@@ -376,6 +380,8 @@ const TabManager = {
       partition: (typeof SiteRoutes !== 'undefined' ? SiteRoutes.reroute(resolvedUrl, window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null) : null)
         || window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null
     };
+    // Screened once its session is known: a routed tab never wears a web address.
+    tab.favicon = this._persistableFavicon(opts?.favicon, tab.partition);
 
     // Where this tab came from: the page that was in front when it opened
     // (js/tab-trail.js). A tab opened from nothing records nothing.
@@ -533,6 +539,15 @@ const TabManager = {
       this.removeTabFromStack(id);
     }
 
+    // Main keeps a JavaScript-off page's back list for the tab built again in
+    // its place, up to half an hour; a closed tab's goes at once (found
+    // 2026-09-30). Its page, and one it is still waiting to be built from.
+    const closing = this.tabs[idx];
+    const pageIds = [];
+    try { const wv = WebviewManager.webviews.get(id); if (wv) pageIds.push(wv.getWebContentsId()); } catch { /* never attached: no page */ }
+    if (Number.isInteger(closing._historyFrom)) pageIds.push(closing._historyFrom);
+    if (pageIds.length && typeof window.vex?.tabClosed === 'function') window.vex.tabClosed(pageIds);
+
     WebviewManager.destroyWebview(id);
 
     // Remove tab element
@@ -654,12 +669,71 @@ const TabManager = {
   // on the next launch. Screen the value here, the single point where a page
   // gets to set it, and say so rather than keeping an unsavable icon.
   PERSISTABLE_FAVICON: /^(https?:|data:image\/|file:|vex:)/i,
-  _persistableFavicon(value) {
+  _persistableFavicon(value, partition) {
     if (value == null || value === '') return null;
     const str = String(value);
+    // A tab in a session of its own never wears a web address for its icon:
+    // the strip draws it through Vex's window, whose session is direct, so a
+    // Tor or proxy tab's site saw the real address (found 2026-09-30).
+    // WebviewManager fetches such icons through the tab's own session and
+    // hands over a data: URL; a saved web address from before is dropped.
+    if (!this.windowMayAsk(partition) && /^https?:/i.test(str)) {
+      console.warn('[Tabs] not showing a web address as the icon of a tab in its own session:', str.slice(0, 120));
+      return null;
+    }
     if (this.PERSISTABLE_FAVICON.test(str) && str.length <= 1048576) return str;
     console.warn('[Tabs] ignoring a favicon Vex cannot persist:', str.slice(0, 120));
     return null;
+  },
+
+  // A tab outside the ordinary session: a container, a Tor or proxy route, a
+  // private or Tor tab. Vex's own window must not ask its sites for anything.
+  hasOwnSession(tab) {
+    const part = tab && tab.partition;
+    return !!part && part !== 'persist:main';
+  },
+
+  // The main session can be routed on its own ("Route through Tor / Proxy" on
+  // a normal tab) while Vex's window stays direct, so then ordinary tabs are
+  // routed tabs too. Read at start and after that dialog changes it
+  // (refreshMainRouting); until read, taken as routed.
+  _mainRouted: true,
+  async refreshMainRouting() {
+    try {
+      const r = await window.vex.routingGet('persist:main');
+      this._mainRouted = !!r && r.mode !== 'direct';
+    } catch (err) {
+      this._mainRouted = true;
+      console.error('[Tabs] could not read how the main session is routed; its icons come through it:', err);
+    }
+    return this._mainRouted;
+  },
+  // The main session's route was changed: once routed, a tab wearing its
+  // site's web address for an icon has it taken off and asked for again
+  // through its own session.
+  async mainRoutingChanged() {
+    await this.refreshMainRouting();
+    for (const tab of this.tabs) {
+      if (this.windowMayAsk(tab.partition) || !/^https?:/i.test(String(tab.favicon || ''))) continue;
+      this.updateTab(tab.id, { favicon: null });
+      if (tab.url && typeof WebviewManager !== 'undefined') WebviewManager._updateFavicon(tab.id, tab.url);
+    }
+  },
+
+  // May Vex's window, which is direct, ask a tab's sites for anything (its
+  // icon)? Only for the main session, and only while that is not routed.
+  windowMayAsk(partition) {
+    return (!partition || partition === 'persist:main') && !this._mainRouted;
+  },
+
+  // May Vex's window load `url`'s /favicon.ico itself, for a list of pages
+  // (history, bookmarks, the top strip's guess…)? Not for an entry recorded
+  // from a tab in a session of its own (own), not for a tab that is (partition),
+  // and not for a site a Tor, proxy or container rule sends elsewhere.
+  mayAskSiteForIcon(url, { partition = null, own = false } = {}) {
+    if (own || !this.windowMayAsk(partition)) return false;
+    if (typeof SiteRoutes !== 'undefined' && SiteRoutes.match(url)) return false;
+    return true;
   },
 
   updateTab(id, data) {
@@ -668,7 +742,7 @@ const TabManager = {
 
     if (data.title !== undefined) tab.title = data.title;
     if (data.url !== undefined) tab.url = data.url;
-    if (data.favicon !== undefined) tab.favicon = this._persistableFavicon(data.favicon);
+    if (data.favicon !== undefined) tab.favicon = this._persistableFavicon(data.favicon, tab.partition);
     if (data.loading !== undefined) tab.loading = data.loading;
 
     // A page that never loads never fires page-title-updated, so the tab kept

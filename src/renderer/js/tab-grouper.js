@@ -424,7 +424,7 @@ const TabGrouper = (() => {
               return `
                 <div class="preview-tab">
                   <input type="checkbox" checked data-tab-id="${_esc(t.id)}">
-                  <img src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}" width="14" height="14" data-image-fallback="hide">
+                  <img src="${_esc(/^data:image\//i.test(t.favicon || '') ? t.favicon : (host && TabManager.mayAskSiteForIcon(t.url, { partition: t.partition }) ? `https://${encodeURIComponent(host)}/favicon.ico` : ''))}" width="14" height="14" data-image-fallback="hide">
                   <span>${_esc(title)}</span>
                 </div>
               `;

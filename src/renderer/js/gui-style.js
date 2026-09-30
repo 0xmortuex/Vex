@@ -95,6 +95,9 @@
     try { return new URL(s.url).hostname.replace(/^www\./, ''); } catch { return s.url; }
   }
   function faviconUrl(url) {
+    // Not for a site a Tor, proxy or container rule sends elsewhere, nor while
+    // the main session is routed: this window is direct (TabManager.mayAskSiteForIcon).
+    if (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(url)) return '';
     try { return 'https://' + encodeURIComponent(new URL(url).hostname) + '/favicon.ico'; } catch { return ''; }
   }
   function normalizeUrl(u) {

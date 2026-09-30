@@ -66,12 +66,13 @@ describe('main stops its own Tor when nothing uses it', () => {
   it('after a 30 s grace, re-checked when the timer fires, and only Vex\'s own Tor', () => {
     const at = MAIN.indexOf('const TOR_IDLE_GRACE_MS = 30000;');
     expect(at).toBeGreaterThan(0);
-    const block = MAIN.slice(at, at + 2400);
+    const block = MAIN.slice(at, at + 7000);
     expect(block).toContain("require('./main/routing').torInUse(webContents.getAllWebContents(), readRouting())");
     expect(block).toContain('if (!_torLauncher.isRunning() || _torStillNeeded()) {');
     expect(block).toContain('if (_torLauncher.isRunning() && !_torStillNeeded()) _torLauncher.stop();');
     expect(block).toContain("w.webContents.send('tor:state', { running })");
-    expect(block).toContain("ipcMain.handle('tor:stop', () => { _torLauncher.stop(); return { ok: true }; });");
+    // Stop closes the Tor tabs in every window first (r4-tor, 2026-09-30).
+    expect(block).toContain("ipcMain.handle('tor:stop', async () => {\n  await _torTabsInWindows(_torPages(), 'closeTorTabs');\n  _torLauncher.stop();\n  return { ok: true };");
     expect(block).toContain("ipcMain.handle('tor:status'");
   });
 

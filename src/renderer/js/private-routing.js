@@ -91,6 +91,7 @@ const PrivateRouting = {
               <input id="vexroute-proxy" type="text" spellcheck="false" placeholder="socks5://127.0.0.1:1080" value="${this._esc(st.mode === 'proxy' ? (st.custom || '') : '')}">
               <button data-mode="proxy" class="vexroute-go">Use it</button>
             </div>
+            <span class="vexroute-note">Calls in Discord, Meet and similar may not connect: WebRTC is limited to the proxy so it can't show your real address.</span>
           </div>
         </div>
         <div class="vexroute-check">

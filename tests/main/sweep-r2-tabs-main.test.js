@@ -19,14 +19,16 @@ function harness() {
   const session = { fromPartition: (p) => { if (!sessions.has(p)) sessions.set(p, { partition: p }); return sessions.get(p); } };
   const handlers = {};
   const win = { on: vi.fn(), once: vi.fn(), webContents: { id: 1, on: (ev, fn) => { handlers[ev] = fn; }, send: vi.fn(), isDestroyed: () => false } };
-  const security = createSessionSecurity({ session, webContents: { getAllWebContents: () => [], fromId: () => null }, root: process.cwd() + '/src' });
+  // Every webContents made so far: the window's own page, then its guests.
+  const all = [{ id: 1, isDestroyed: () => false, getType: () => 'window' }];
+  const security = createSessionSecurity({ session, webContents: { getAllWebContents: () => all, fromId: () => null }, root: process.cwd() + '/src' });
   security.registerHost(win);
   let nextId = 10;
   const guest = ({ javascript = true, entries = [], index = -1, partition = 'persist:main' } = {}) => {
     const on = {};
     const g = {
       id: nextId++, session: session.fromPartition(partition),
-      isDestroyed: () => false,
+      isDestroyed: () => false, getType: () => 'webview', hostWebContents: win.webContents,
       getLastWebPreferences: () => ({ javascript }),
       on: (ev, fn) => { (on[ev] = on[ev] || []).push(fn); },
       once: (ev, fn) => { (on[ev] = on[ev] || []).push(fn); },
@@ -40,50 +42,66 @@ function harness() {
     };
     return g;
   };
-  const attach = (prefs, g, params = { partition: 'persist:main' }) => {
+  // As Electron does it: the guest is made as soon as 'will-attach-webview'
+  // returns, and 'did-attach-webview' comes later, after other code has run.
+  const attach = async (prefs, g, params = { partition: 'persist:main' }) => {
     const event = { preventDefault: vi.fn() };
     handlers['will-attach-webview'](event, prefs, params);
+    if (!event.preventDefault.mock.calls.length) all.push(g);
+    await Promise.resolve();
     handlers['did-attach-webview']({}, g);
     return event;
   };
-  return { attach, guest };
+  // Two webviews attaching at once: both made before either says it attached.
+  const attachBoth = async ([prefsA, a], [prefsB, b]) => {
+    const params = { partition: 'persist:main' };
+    handlers['will-attach-webview']({ preventDefault: vi.fn() }, prefsA, params);
+    all.push(a);
+    await Promise.resolve();
+    handlers['will-attach-webview']({ preventDefault: vi.fn() }, prefsB, params);
+    all.push(b);
+    await Promise.resolve();
+    handlers['did-attach-webview']({}, b);
+    handlers['did-attach-webview']({}, a);
+  };
+  return { attach, attachBoth, guest, win };
 }
 
 describe('a tab built again on leaving a JavaScript-off site keeps its back list', () => {
-  it('the new guest takes the old guest\'s entries before its first load', () => {
+  it('the new guest takes the old guest\'s entries before its first load', async () => {
     const h = harness();
     const old = h.guest({ javascript: false });
-    h.attach({ javascript: false }, old);
+    await h.attach({ javascript: false }, old);
     old.navigationHistory.entries = [{ url: 'https://off.example/1' }, { url: 'https://off.example/2' }];
     old.navigationHistory.index = 1;
     old.emit('did-navigate');
     old.emit('destroyed');
     const next = h.guest();
     const prefs = { vexHistoryFrom: String(old.id) };
-    h.attach(prefs, next);
+    await h.attach(prefs, next);
     expect(prefs.vexHistoryFrom).toBeUndefined();       // never reaches the guest's preferences
     expect(next.navigationHistory.restore).toHaveBeenCalledWith({ index: 1, entries: old.navigationHistory.entries });
   });
 
-  it('only once, only for a guest that was built without JavaScript, and not across partitions', () => {
+  it('only once, only for a guest that was built without JavaScript, and not across partitions', async () => {
     const h = harness();
     const on = h.guest({ javascript: true });
-    h.attach({}, on);
+    await h.attach({}, on);
     on.navigationHistory.entries = [{ url: 'https://on.example/' }]; on.navigationHistory.index = 0;
     on.emit('did-navigate');
     const a = h.guest();
-    h.attach({ vexHistoryFrom: String(on.id) }, a);
+    await h.attach({ vexHistoryFrom: String(on.id) }, a);
     expect(a.navigationHistory.restore).not.toHaveBeenCalled();
 
     const off = h.guest({ javascript: false });
-    h.attach({}, off);
+    await h.attach({}, off);
     off.navigationHistory.entries = [{ url: 'https://off.example/' }]; off.navigationHistory.index = 0;
     off.emit('did-navigate');
     const other = h.guest({ partition: 'persist:work' });
-    h.attach({ vexHistoryFrom: String(off.id) }, other, { partition: 'persist:work' });
+    await h.attach({ vexHistoryFrom: String(off.id) }, other, { partition: 'persist:work' });
     expect(other.navigationHistory.restore).not.toHaveBeenCalled();
     const again = h.guest();
-    h.attach({ vexHistoryFrom: String(off.id) }, again);
+    await h.attach({ vexHistoryFrom: String(off.id) }, again);
     expect(again.navigationHistory.restore).not.toHaveBeenCalled();   // the list was taken (and refused) once
   });
 
@@ -91,18 +109,18 @@ describe('a tab built again on leaving a JavaScript-off site keeps its back list
     const h = harness();
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const off = h.guest({ javascript: false });
-    h.attach({}, off);
+    await h.attach({}, off);
     off.navigationHistory.entries = [{ url: 'https://off.example/' }]; off.navigationHistory.index = 0;
     off.emit('did-navigate');
     const next = h.guest();
-    h.attach({ vexHistoryFrom: String(off.id) }, next);
+    await h.attach({ vexHistoryFrom: String(off.id) }, next);
     await Promise.resolve(); await Promise.resolve();
     expect(err).not.toHaveBeenCalled();
 
     off.emit('did-navigate');
     const broken = h.guest();
     broken.navigationHistory.restore = vi.fn(() => { throw new Error('Cannot restore'); });
-    h.attach({ vexHistoryFrom: String(off.id) }, broken);
+    await h.attach({ vexHistoryFrom: String(off.id) }, broken);
     expect(err).toHaveBeenCalledWith(expect.stringContaining('back list'), 'Cannot restore');
     err.mockRestore();
   });

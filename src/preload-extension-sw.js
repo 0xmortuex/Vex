@@ -46,7 +46,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 // with the tab made: { id, url, active }, id being the page's webContents id.
 //
 // closeTab, where given, asks main to close Vex tabs by those ids ({ ids }).
-function vexExtensionStandIns(c, askPopupTab, openTab, closeTab) {
+//
+// askActiveTabs, where given, asks main which page is the tab in front in each
+// Vex window ({ ids }) and in the Vex window used last ({ current }).
+function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
   if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
@@ -160,6 +163,50 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab) {
   // A toolbar popup is not a tab: Chrome answers undefined (Stylus's popup
   // called it and drew nothing, 2026-09-29).
   if (c.tabs && typeof c.tabs.getCurrent !== 'function') c.tabs.getCurrent = done(undefined);
+
+  // Electron calls a tab active when its page has the focus. It cannot know
+  // which Vex tab is in front, so with Vex's own bar focused no tab was
+  // active, or every one was, and {active: true} named the wrong tabs (found
+  // 2026-09-30). Main says which pages are in front; tabs.query and tabs.get
+  // answer with that, and {active: true} with currentWindow or
+  // lastFocusedWindow is the one tab in front of the Vex window used last.
+  // Electron puts every tab in one window, so currentWindow alone narrows
+  // nothing.
+  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow'];
+  if (typeof askActiveTabs === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
+    var nativeQuery = c.tabs.query.bind(c.tabs);
+    var nativeGet = c.tabs.get.bind(c.tabs);
+    var inFront = function (tab, front) {
+      if (!tab) return tab;
+      var on = front.ids.indexOf(tab.id) !== -1;
+      return Object.assign({}, tab, { active: on, highlighted: on, selected: on });
+    };
+    c.tabs.query = function (q, cb) {
+      q = q || {};
+      var rest = {};
+      Object.keys(q).forEach(function (k) { if (FRONT_KEYS.indexOf(k) === -1) rest[k] = q[k]; });
+      var oneWindow = q.currentWindow === true || q.lastFocusedWindow === true;
+      var p = Promise.all([nativeQuery(rest), askActiveTabs()]).then(function (r) {
+        var front = r[1];
+        return (r[0] || []).map(function (t) { return inFront(t, front); }).filter(function (t) {
+          if (typeof q.active === 'boolean' && t.active !== q.active) return false;
+          if (typeof q.highlighted === 'boolean' && t.highlighted !== q.highlighted) return false;
+          if ((q.active === true || q.highlighted === true) && oneWindow && t.id !== front.current) return false;
+          return true;
+        });
+      });
+      return answerWith(p, cb);
+    };
+    // A tab that is not there fails in Electron's own words (with the
+    // callback, through chrome.runtime.lastError), as before.
+    c.tabs.get = function (id, cb) {
+      if (typeof cb !== 'function') return Promise.all([nativeGet(id), askActiveTabs()]).then(function (r) { return inFront(r[0], r[1]); });
+      return nativeGet(id, function (tab) {
+        if (!tab) return cb(tab);
+        answerWith(askActiveTabs().then(function (front) { return inFront(tab, front); }), cb);
+      });
+    };
+  }
 
   // While this extension's popup is open, a question for the active tab is
   // about the tab under it, from whichever of its contexts asks: Stylus's
@@ -357,5 +404,6 @@ function vexStorageSyncShim(c) {
 const askPopupTab = () => ipcRenderer.invoke('extensions:popup-tab');
 const openTab = (request) => ipcRenderer.invoke('extensions:open-tab', request);
 const closeTab = (request) => ipcRenderer.invoke('extensions:close-tab', request);
-contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab, closeTab] });
+const askActiveTabs = () => ipcRenderer.invoke('extensions:active-tabs');
+contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab, closeTab, askActiveTabs] });
 contextBridge.executeInMainWorld({ func: vexStorageSyncShim });

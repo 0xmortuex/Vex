@@ -1,7 +1,7 @@
 const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
   '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
-  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames']);
+  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon']);
 // siterules:set: a private window starts with an empty list, and saving it
 // wiped every per-site rule. adblocker-set-state: main keeps one switch, so a
 // private window turned blocking off for every window (both found 2026-09-29).

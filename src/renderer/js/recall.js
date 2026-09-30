@@ -294,7 +294,7 @@ const Recall = {
       const snippet = this.snippetHtml(h.snippet);
       row.innerHTML = `
         <div class="recall-hit-top">
-          <img class="recall-hit-icon" src="${host ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}"
+          <img class="recall-hit-icon" src="${host && (typeof TabManager === 'undefined' || TabManager.mayAskSiteForIcon(h.url)) ? `https://${encodeURIComponent(host)}/favicon.ico` : ''}"
             alt="" width="15" height="15" loading="lazy" data-image-fallback="hide">
           <span class="recall-hit-title">${esc(h.title || h.url)}</span>
           <span class="recall-hit-when" title="${esc(h.at ? new Date(h.at).toLocaleString() : '')}">${esc(this.relativeTime(h.at))}</span>

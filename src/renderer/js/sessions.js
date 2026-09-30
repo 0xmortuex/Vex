@@ -86,7 +86,7 @@ const SessionManager = {
       // The session keeps each tab's note (VexTabPolicy.serialize); restoring
       // dropped it (found 2026-09-29).
       if (t.note) tab.note = t.note;
-      tab.favicon = TabManager._persistableFavicon(t.favicon);
+      tab.favicon = TabManager._persistableFavicon(t.favicon, tab.partition);
       TabManager.renderTabUpdate(tab);
       restored.push(tab);
       if (index === session.activeTabIndex) selected = tab;

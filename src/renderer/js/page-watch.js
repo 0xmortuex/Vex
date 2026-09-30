@@ -132,6 +132,10 @@ const PageWatch = {
   // the page is fetched, not opened.
   async readValue(watch) {
     if (typeof AgentTools === 'undefined') throw new Error('Page reading is not available');
+    // The check is fetched from Vex's window, which goes out directly; a site
+    // you route through Tor, a proxy or a container would see your real
+    // address (found 2026-09-30).
+    if (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(watch.url)) throw new Error('This site goes through Tor, a proxy or a container, and a watch would check it from your real connection — so it is not checked');
     const page = await AgentTools.readUrl(watch.url);
     let text = String(page.text || '');
     if (watch.selector) {

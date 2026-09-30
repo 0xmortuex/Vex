@@ -10,7 +10,7 @@ beforeEach(() => {
   localStorage.clear();
   navigated = []; created = [];
   active = { id: 't1', url: 'https://reading.example/article' };
-  globalThis.TabManager = { getActiveTab: () => active, createTab: (u) => created.push(u) };
+  globalThis.TabManager = { getActiveTab: () => active, createTab: (u) => created.push(u), windowMayAsk: () => true, mayAskSiteForIcon: () => true };
   globalThis.WebviewManager = { navigate: (u) => navigated.push(u) };
   window.showToast = vi.fn();
 });

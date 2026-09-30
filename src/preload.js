@@ -292,6 +292,15 @@ contextBridge.exposeInMainWorld('vex', {
   permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),
   permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
   permissionsList:      () => ipcRenderer.invoke('permissions:list'),
+  // The decisions one tab's page is held to (its container's own, or a
+  // private window's), by the page's webContents id.
+  permissionsListForPage: (id) => ipcRenderer.invoke('permissions:list-for-page', id),
+  // A tab closed: its pages' saved back lists are dropped at once.
+  tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),
+  // A tab's icon fetched through the tab's own session, as a data: URL.
+  tabFavicon:           (pageId, url) => ipcRenderer.invoke('tabs:favicon', pageId, url),
+  // Which sites the main window's Tor and proxy rules name (for a private window).
+  siteRoutesRoutedHosts: () => ipcRenderer.invoke('siteroutes:routed-hosts'),
   permissionsRevoke:    (key) => ipcRenderer.invoke('permissions:revoke', key),
   permissionsClearAll:  () => ipcRenderer.invoke('permissions:clear-all'),
 
@@ -347,6 +356,11 @@ contextBridge.exposeInMainWorld('vex', {
   torStatus: () => ipcRenderer.invoke('tor:status'),
   stopTor: () => ipcRenderer.invoke('tor:stop'),
   onTorState: (cb) => { const h = (_e, s) => cb(s); ipcRenderer.on('tor:state', h); return () => ipcRenderer.removeListener('tor:state', h); },
+  // A Tor route's page starting Tor again after it stopped, and a Tor page
+  // that cannot load because Tor is not running.
+  onTorReviving: (callback) => subscribe('tor:reviving', callback),
+  onTorRevived: (callback) => subscribe('tor:revived', callback),
+  onTorPageDown: (callback) => subscribe('tor:page-down', callback),
   onToggleMuteTab: (callback) => subscribe('toggle-mute-tab', callback),
 
   // Tabs sidebar toggle
