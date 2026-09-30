@@ -65,19 +65,21 @@ describe('M5 and M6: a custom server\'s inbox', () => {
     expect(reader).not.toContain('127.0.0.1');
   });
 
-  it('says only the newest are shown, and loads more up to main\'s limit', async () => {
-    const inbox = vi.fn((_id, limit) => ok({ account: CUSTOM, total: 501, unseen: 300, messages: msgs(limit) }));
+  // Load more used to stop at 100, main's limit for one answer; it now pages
+  // on past it (2026-09-30, tests/renderer/sweep-r2-priv-mail.test.js).
+  it('says only the newest are shown, and Load more adds the next page below', async () => {
+    const all = msgs(501);
+    const inbox = vi.fn((_id, limit, before) => ok({ account: CUSTOM, total: 501, unseen: 300, messages: all.filter(m => before == null || m.uid < before).slice(0, limit) }));
     window.vex = { mail: { accounts: () => ok([CUSTOM]), inbox } };
     await VexMail.open();
     const o = document.querySelector('.vex-mail-overlay');
     expect(o.querySelector('[data-more-note]').textContent).toContain('Showing the newest 50 of 501');
     o.querySelector('[data-more]').click();
     await tick(); await tick();
-    expect(inbox).toHaveBeenLastCalledWith('c1', 100);
+    expect(inbox).toHaveBeenLastCalledWith('c1', 50, 452);
     expect(o.querySelectorAll('[data-uid]')).toHaveLength(100);
-    const note = o.querySelector('[data-more-note]');
-    expect(note.textContent).toContain('Showing the newest 100 of 501. The rest are in your mail program.');
-    expect(note.querySelector('[data-more]')).toBeNull();
+    expect(o.querySelector('[data-more-note]').textContent).toContain('Showing the newest 100 of 501.');
+    expect(o.querySelector('[data-more]')).not.toBeNull();
   });
 
   it('no note when everything is shown', async () => {

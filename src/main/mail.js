@@ -24,6 +24,10 @@ const MAX_ACCOUNTS = 10;
 const MAX_LIST = 100;
 const MAX_MESSAGE_BYTES = 15 * 1024 * 1024;
 const TIMEOUT_MS = 20000;
+// A server greets as soon as the connection is up. A plain connection to a
+// TLS port never gets a greeting, and waited the whole 20 s connect timeout
+// before saying so (found 2026-09-30); a slow server's connect still has 20 s.
+const GREETING_TIMEOUT_MS = 8000;
 
 // A program on this computer, like ProtonMail Bridge.
 const LOOPBACK = /^(localhost|127\.0\.0\.1|::1)$/i;
@@ -79,7 +83,7 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId }) {
     const client = new ImapFlow({
       host: account.host, port: account.port, secure: account.secure !== false,
       auth: { user: account.user || account.email, pass: account.pass },
-      logger: false, connectionTimeout: TIMEOUT_MS, greetingTimeout: TIMEOUT_MS, socketTimeout: TIMEOUT_MS * 3,
+      logger: false, connectionTimeout: TIMEOUT_MS, greetingTimeout: GREETING_TIMEOUT_MS, socketTimeout: TIMEOUT_MS * 3,
       ...(account.requireTls ? { doSTARTTLS: true } : {}),
       ...(account.tls ? { tls: account.tls } : {}),
       // A local bridge (ProtonMail Bridge) offers STARTTLS with a certificate
@@ -144,16 +148,28 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId }) {
     },
 
     // The newest messages in the inbox, newest first, and how many are unread.
-    async inbox(id, limit = 50) {
+    // With `before` (a UID), the newest of the messages older than it: the
+    // next page. Load more stopped at 100 of 501 (found 2026-09-30).
+    async inbox(id, limit = 50, before = null) {
       const account = await find(id);
       const n = Math.max(1, Math.min(MAX_LIST, Number(limit) || 50));
+      if (before != null && !(Number.isSafeInteger(before) && before >= 1)) throw new Error('Not a message');
       return withClient(account, async (client) => {
         const status = await client.status('INBOX', { messages: true, unseen: true });
         await client.mailboxOpen('INBOX', { readOnly: true });
         const messages = [];
-        if (status.messages) {
-          const from = Math.max(1, status.messages - n + 1);
-          for await (const m of client.fetch(from + ':*', { uid: true, envelope: true, flags: true, size: true })) {
+        let range = null;
+        if (before == null) {
+          if (status.messages) range = { set: Math.max(1, status.messages - n + 1) + ':*', uid: false };
+        } else if (before > 1) {
+          // Every UID older than `before`, ascending; the last n are the page.
+          // They are all the UIDs in their span, so the span is the fetch.
+          const uids = await client.search({ uid: '1:' + (before - 1) }, { uid: true });
+          const page = (uids || []).slice(-n);
+          if (page.length) range = { set: page[0] + ':' + page[page.length - 1], uid: true };
+        }
+        if (range) {
+          for await (const m of client.fetch(range.set, { uid: true, envelope: true, flags: true, size: true }, { uid: range.uid })) {
             const e = m.envelope || {};
             const f = (e.from && e.from[0]) || {};
             messages.push({ uid: m.uid, subject: e.subject || '', from: { name: f.name || '', address: f.address || '' }, date: e.date ? new Date(e.date).getTime() : null, seen: m.flags ? m.flags.has('\\Seen') : false, flagged: m.flags ? m.flags.has('\\Flagged') : false, size: m.size || 0, messageId: e.messageId || '' });

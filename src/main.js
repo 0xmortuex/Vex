@@ -176,6 +176,17 @@ function attachGuestPreloads(ses) {
   if (missing.length) ses.setPreloads([...existing, ...missing]);
 }
 
+// About's DRM line, in plain words. components.status() is keyed by
+// component id ({"oimompecagnajdejgnnjijobebaeigek": {status, title,
+// version}}), so looking Widevine up by its name never matched and About
+// printed that raw JSON (found 2026-09-30).
+function widevineStatusText(st, id) {
+  const cdm = st && typeof st === 'object' ? st[id] : null;
+  if (!cdm) return 'not available — the Widevine component is not registered';
+  if (!cdm.version) return 'not available — Widevine is not installed' + (cdm.status ? ` (${cdm.status})` : '');
+  return `Widevine ready (version ${cdm.version})`;
+}
+
 // Initialize the castLabs Widevine CDM "component". First run downloads it from
 // Google's component server (a few seconds), cached afterwards. Made robust:
 //   - fire-and-forget (never blocks window creation — playback happens later);
@@ -188,7 +199,7 @@ async function initWidevine(attempts = 2) {
   let components;
   try { ({ components } = require('electron')); } catch {}
   if (!components || typeof components.whenReady !== 'function') {
-    _widevineStatus = 'unavailable (this Electron build has no Widevine)';
+    _widevineStatus = 'not available — this Electron build has no Widevine';
     return;
   }
   for (let i = 1; i <= attempts; i++) {
@@ -199,9 +210,8 @@ async function initWidevine(attempts = 2) {
       ]);
       const st = typeof components.status === 'function' ? components.status() : null;
       console.log('[Widevine] components ready:', st);
-      const wv = st && (st['Widevine Content Decryption Module'] || st.WIDEVINE || JSON.stringify(st));
       _widevineStatus = app.isPackaged
-        ? (wv ? ('ready (' + wv + ')') : 'loaded')
+        ? widevineStatusText(st, components.WIDEVINE_CDM_ID)
         : 'dev mode — protected playback needs the installed build';
       return;
     } catch (e) {
@@ -1988,7 +1998,7 @@ const _mailCall = (fn) => async (...args) => { try { return { ok: true, value: a
 ipcMain.handle('mail:accounts', _mailCall(() => _mail.accounts()));
 ipcMain.handle('mail:add', _mailCall((_e, account) => _mail.add(account)));
 ipcMain.handle('mail:remove', _mailCall((_e, id) => _mail.remove(id)));
-ipcMain.handle('mail:inbox', _mailCall((_e, id, limit) => _mail.inbox(id, limit)));
+ipcMain.handle('mail:inbox', _mailCall((_e, id, limit, before) => _mail.inbox(id, limit, before)));
 ipcMain.handle('mail:message', _mailCall((_e, id, uid) => _mail.message(id, uid)));
 
 // One page for the site crawler (src/main/page-fetch.js): the same empty
@@ -3078,10 +3088,36 @@ function _openTabForExtension(senderUrl, ses, request) {
 }
 ipcMain.handle('extensions:open-tab', (event, request) => _openTabForExtension(event.senderFrame?.url, event.sender.session, request));
 
+// An extension's tabs.remove. Electron has none, so an extension that closed
+// a tab it had opened threw there (found 2026-09-30). The id is the tab's page
+// (its webContents id, as tabs.create answers). Only a Vex tab in the
+// extension's own session closes; anything else — Vex's own pages, a peek, a
+// private window's tab — is "No tab with id", as Chrome says of an id it does
+// not know. Every id is checked before any tab closes, as in Chrome.
+async function _closeTabsForExtension(senderUrl, ses, request) {
+  if (!/^chrome-extension:\/\/[a-p]{32}\//.test(String(senderUrl || ''))) throw new Error('Only an extension page can close a tab this way');
+  const ids = request && request.ids;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 500 || !ids.every(Number.isSafeInteger)) throw new Error('tabs.remove takes a tab id or a list of them');
+  const byWindow = new Map();
+  for (const id of ids) {
+    const page = id > 0 ? webContents.fromId(id) : null;
+    const host = page && !page.isDestroyed() && page.getType() === 'webview' && page.session === ses ? secureSessions.owner(page) : null;
+    if (!host || !host.win || host.win.isDestroyed()) throw new Error(`No tab with id: ${id}.`);
+    if (!byWindow.has(host.win)) byWindow.set(host.win, []);
+    byWindow.get(host.win).push(id);
+  }
+  for (const [win, own] of byWindow) {
+    const missing = await win.webContents.executeJavaScript(`TabManager.tabsByPageId(${JSON.stringify(own)}).missing`);
+    if (missing != null) throw new Error(`No tab with id: ${missing}.`);
+  }
+  for (const [win, own] of byWindow) await win.webContents.executeJavaScript(`TabManager.closeTabsByPageId(${JSON.stringify(own)})`);
+}
+ipcMain.handle('extensions:close-tab', (event, request) => _closeTabsForExtension(event.senderFrame?.url, event.sender.session, request));
+
 // An MV3 extension's service worker sends its IPC to its own ServiceWorkerMain,
 // not to ipcMain (so the IPC policy never sees it): Stylus's worker builds its
 // popup's data and asked for the active tab, heard [] and the popup drew
-// nothing (found 2026-09-29). Each extension worker gets the same two answers
+// nothing (found 2026-09-29). Each extension worker gets the same answers
 // as its pages, checked against the worker's own script URL.
 const _wiredWorkerSessions = new WeakSet();
 const _wiredWorkers = new WeakSet();
@@ -3094,6 +3130,7 @@ function _wireExtensionWorkerIpc(ses) {
     _wiredWorkers.add(worker);
     worker.ipc.handle('extensions:popup-tab', () => _popupTabFor(worker.scriptURL, ses));
     worker.ipc.handle('extensions:open-tab', (_event, request) => _openTabForExtension(worker.scriptURL, ses, request));
+    worker.ipc.handle('extensions:close-tab', (_event, request) => _closeTabsForExtension(worker.scriptURL, ses, request));
   };
   ses.serviceWorkers.on('running-status-changed', ({ versionId, runningStatus }) => {
     if (runningStatus === 'starting' || runningStatus === 'running') wire(versionId);
@@ -3284,8 +3321,15 @@ app.on('web-contents-created', (_event, contents) => {
   // can't carry UDP, so it's effectively disabled — exactly what we want).
   // Before the webview check: a popup window a Tor page opens (window.open
   // with features) has the Tor session too, and was left unlocked
-  // (found 2026-09-29).
-  try { if (contents.session && contents.session.__vexTor) contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); } catch {}
+  // (found 2026-09-29). A session routed through a proxy gets the same lock
+  // (found 2026-09-30).
+  try { if (contents.session && (contents.session.__vexTor || contents.session.__vexRouted)) contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); } catch {}
+  // A page opening in a Tor session keeps Tor running; any page closing may
+  // be the last use, which starts the idle countdown (found 2026-09-30). Every
+  // page is watched: a burner or container can be routed through Tor after
+  // its tab is already open.
+  if (contents.session && contents.session.__vexTor) _torIdleCheck();
+  contents.once('destroyed', () => { if (_torLauncher.isRunning()) setImmediate(_torIdleCheck); });
 
   // Only intercept for webviews hosting tabs — never for the main window or
   // for extension background pages (those need their own window.open semantics).
@@ -3870,7 +3914,20 @@ function _readPersistString(key, fallback) {
   try { return JSON.parse(raw); }
   catch { return typeof raw === 'string' ? raw : fallback; }
 }
-ipcMain.handle('geolocation:get', () => {
+// Tor pages never learn where you are. Vex's own geolocation stand-in asks
+// here, not through the session's permission handler, so the deny-all given
+// to Tor sessions never saw it: a Tor tab showed the prompt and, when
+// allowed, got the saved location (found 2026-09-30).
+function _locationRefused(contents) {
+  const ses = contents && contents.session;
+  if (ses && ses.__vexTor) return true;
+  let partition;
+  try { partition = secureSessions.partitionOf(contents); } catch (err) { console.error('[Geolocation] could not read the page session:', err.message); return true; }
+  return typeof partition === 'string' && (partition.startsWith('tor-') || partition.startsWith('persist:route-tor'));
+}
+
+ipcMain.handle('geolocation:get', (_e) => {
+  if (_locationRefused(_e && _e.sender)) return { mode: 'off' };
   const mode = _readPersistString('vex.locationMode', 'manual');
   if (mode === 'off') return { mode: 'off' };
   if (mode === 'manual') {
@@ -3899,6 +3956,7 @@ ipcMain.handle('geolocation:get', () => {
 // setPermissionRequestHandler because it has replaced navigator.geolocation,
 // so it asks us here. We reuse the existing permission prompt + decision store.
 ipcMain.handle('geolocation:check-permission', async (_e) => {
+  if (_locationRefused(_e.sender)) return 'deny';
   // A page can call the public bridge with any argument. Only Electron's
   // sending frame identifies the origin whose permission we may grant.
   let origin;
@@ -4130,8 +4188,15 @@ function createWindow() {
         + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + port + "';return 'DIRECT';}";
       cfg = { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
     }
-    for (const p of _BROWSING_SESSIONS) { try { secureSessions.fromPartition(p).setProxy(cfg); } catch {} }
-    try { session.defaultSession.setProxy(cfg); } catch {}
+    // A session with a saved route (a container through Tor or a proxy, or
+    // all of Vex) keeps it. This ran at every start, after the routes were
+    // restored, and put each of them back to direct (found 2026-09-30).
+    let saved;
+    try { saved = readRouting(); }
+    catch (err) { console.error('[DPI-bypass] the saved routes could not be read, so no session was changed:', err); return; }
+    const routed = p => !!(saved[_ALL_ROUTE_KEY] || saved[p || 'default']);
+    for (const p of _BROWSING_SESSIONS) { if (routed(p)) continue; try { secureSessions.fromPartition(p).setProxy(cfg); } catch {} }
+    if (!routed(null)) { try { session.defaultSession.setProxy(cfg); } catch {} }
   }
   // Voice (RTC) must NOT ride the desync proxy. ByeDPI is TCP-only, so the media
   // stream (UDP) never goes through it anyway - but its TLS-record splitting
@@ -4676,6 +4741,9 @@ app.whenReady().then(async () => {
   // blocks window creation (playback happens later); see initWidevine() above.
   initWidevine();
 
+  // Before any route is restored: a site route's session made by the restore
+  // is given its refusing proxy first (see _wireBrowsingSession).
+  secureSessions.onSessionCreated(_wireBrowsingSession);
   await applyStoredRoutings();
   createWindow();
   setupAutoUpdater();
@@ -5371,6 +5439,47 @@ async function detectTorPort() {
 // stops Tor and the tab is not made.
 let _torCancelled = false;
 ipcMain.handle('tor:cancel', () => { _torCancelled = true; _torLauncher.stop(); return { ok: true }; });
+
+// The Tor Vex started itself went on running after the last Tor tab closed,
+// with nothing on screen to say so (found 2026-09-30). It now stops once
+// nothing uses it (routing.torInUse), after a grace so that closing one Tor
+// tab and opening the next does not restart Tor; any new Tor page cancels the
+// countdown. Tor Browser or a tor service Vex only borrowed is never stopped.
+const TOR_IDLE_GRACE_MS = 30000;
+let _torIdleTimer = null;
+function _torStillNeeded() {
+  try { return require('./main/routing').torInUse(webContents.getAllWebContents(), readRouting()); }
+  catch (err) {
+    // The saved routes could not be read: keep Tor rather than cut off a
+    // Tor route, and say why.
+    console.error('[tor] could not tell whether Tor is still in use:', err);
+    return true;
+  }
+}
+function _torIdleCheck() {
+  if (!_torLauncher.isRunning() || _torStillNeeded()) {
+    if (_torIdleTimer) { clearTimeout(_torIdleTimer); _torIdleTimer = null; }
+    return;
+  }
+  if (_torIdleTimer) return;
+  _torIdleTimer = setTimeout(() => {
+    _torIdleTimer = null;
+    if (_torLauncher.isRunning() && !_torStillNeeded()) _torLauncher.stop();
+  }, TOR_IDLE_GRACE_MS);
+}
+// Every window's "Tor is running" indicator follows Vex's own Tor.
+_torLauncher.onStateChange((running) => {
+  if (!running && _torIdleTimer) { clearTimeout(_torIdleTimer); _torIdleTimer = null; }
+  BrowserWindow.getAllWindows().forEach(w => {
+    if (!w.isDestroyed()) w.webContents.send('tor:state', { running });
+  });
+});
+// What the indicator shows, and the Tor pages it offers to close before Stop.
+ipcMain.handle('tor:status', () => ({
+  running: _torLauncher.isRunning(),
+  pages: webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.session && wc.session.__vexTor).map(wc => wc.id),
+}));
+ipcMain.handle('tor:stop', () => { _torLauncher.stop(); return { ok: true }; });
 ipcMain.handle('tor:create', async (event) => {
   _torCancelled = false;
   try {
@@ -5420,6 +5529,8 @@ ipcMain.handle('tor:create', async (event) => {
       callback({ cancel: blocked });
     });
     try { attachGuestPreloads(ses); } catch {}
+    // Armed now in case the tab is never made; the tab's page cancels it.
+    _torIdleCheck();
     return { ok: true, partition: part, port, launched };
   } catch (err) { return { ok: false, reason: 'error', error: err.message }; }
 });
@@ -5459,7 +5570,7 @@ async function applyRouting(partition, mode, custom, sender) {
   if (mode === 'tor') {
     // Marked before Tor is up, so no page in it can use WebRTC around the
     // proxy while it starts (a restored Tor route has a refusing proxy then).
-    require('./main/routing').markTorSession(ses, true, webContents.getAllWebContents());
+    require('./main/routing').markRoutedSession(ses, 'tor', webContents.getAllWebContents());
     let port = await detectTorPort();
     if (!port && _torLauncher) {
       port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => {
@@ -5477,11 +5588,11 @@ async function applyRouting(partition, mode, custom, sender) {
   if (mode === 'proxy') {
     const address = require('./main/routing').proxyAddress(custom);
     await ses.setProxy({ proxyRules: address });
-    require('./main/routing').markTorSession(ses, false, webContents.getAllWebContents());
+    require('./main/routing').markRoutedSession(ses, 'proxy', webContents.getAllWebContents());
     return { mode: 'proxy', custom: address };
   }
   await ses.setProxy({ mode: 'direct' });
-  require('./main/routing').markTorSession(ses, false, webContents.getAllWebContents());
+  require('./main/routing').markRoutedSession(ses, 'direct', webContents.getAllWebContents());
   return { mode: 'direct' };
 }
 
@@ -5492,12 +5603,42 @@ ipcMain.handle('routing:set', (event, partition, mode, custom) => {
     // A temporary session (a burner identity) is gone at the next start; its
     // saved Tor route started Tor on every launch for nothing (found 2026-09-29).
     else if (!partition || String(partition).startsWith('persist:')) await getRoutingStore().set(partition || 'default', { mode, custom: r.custom || null });
+    _torIdleCheck();
     return { ok: true, ...r };
   });
   routingPending = operation;
   return operation.catch(e => ({ ok: false, error: e && e.message }));
 });
 ipcMain.handle('routing:get', (_e, partition) => { try { return readRouting()[partition || 'default'] || { mode: 'direct' }; } catch { return { mode: 'direct' }; } });
+
+// A site rule removed or replaced left its route saved: Tor never stopped,
+// and started again on every launch (found 2026-09-30). The window forgets
+// the route of a partition no rule uses any more. The session keeps the proxy
+// it has — a tab still open in it stays on Tor, never direct — and loads
+// nothing after the next start (see _wireBrowsingSession).
+ipcMain.handle('routing:forget', (_e, partition) => {
+  const operation = routingPending.catch(() => {}).then(async () => {
+    if (!require('./main/routing').isSiteRoutePartition(partition)) throw new Error(`"${partition}" is not a site route's session`);
+    await getRoutingStore().delete(partition);
+    _torIdleCheck();
+    return { ok: true };
+  });
+  routingPending = operation;
+  return operation.catch(e => ({ ok: false, error: e && e.message }));
+});
+// The partitions the window's site rules use, once it has loaded them: any
+// other saved site route (left by a rule removed before routing:forget
+// existed) is forgotten.
+ipcMain.handle('routing:prune', (_e, used) => {
+  const operation = routingPending.catch(() => {}).then(async () => {
+    const stale = require('./main/routing').staleSiteRoutes(readRouting(), used);
+    for (const partition of stale) await getRoutingStore().delete(partition);
+    _torIdleCheck();
+    return { ok: true, forgot: stale };
+  });
+  routingPending = operation;
+  return operation.catch(e => ({ ok: false, error: e && e.message }));
+});
 
 // === All of Vex through one route ==========================================
 //
@@ -5526,6 +5667,7 @@ ipcMain.handle('routing:set-all', (event, mode, custom) => {
     if (failed.length === targets.length) throw new Error(failed[0] || 'Could not apply that route');
     if (mode === 'direct') await getRoutingStore().delete(_ALL_ROUTE_KEY);
     else await getRoutingStore().set(_ALL_ROUTE_KEY, { mode, custom: custom || null, at: Date.now() });
+    _torIdleCheck();
     return { ok: true, mode, custom: custom || null, partial: failed.length ? failed : null };
   });
   routingPending = operation;
@@ -5591,6 +5733,49 @@ ipcMain.handle('routing:check', async (_e, partition) => {
     service: _IP_SERVICE,
   };
 });
+
+// A container named by hand (persist:container-<name>) and a site route's
+// session (persist:route-*) are made when their first tab opens, and got none
+// of what persist:main has: no permission handler, so Electron granted camera,
+// microphone and notifications without asking, and WebRTC gave sites the raw
+// LAN address; no downloads panel, ad blocker or Chrome identity either
+// (found 2026-09-30). Each is wired the first time it is made. The three
+// built-in containers were missing the same, and get it here too.
+function _wireBrowsingSession(ses, partition) {
+  if (!/^persist:(?:container-|route-)/.test(partition)) return;
+  const routing = require('./main/routing');
+  if (routing.isSiteRoutePartition(partition)) {
+    // A site route's session loads nothing until its route is put on it: its
+    // rule may be gone (routing:forget), and direct is what it exists to
+    // avoid. The saved route, or the rule's arm(), replaces this proxy.
+    ses.setProxy(routing.REFUSED_PROXY).catch(err => console.error(`[Routing] ${partition} could not be closed off:`, err));
+    routing.markRoutedSession(ses, partition === 'persist:route-tor' ? 'tor' : 'proxy', webContents.getAllWebContents());
+  }
+  ses.setUserAgent(CHROME_UA);
+  wireClientHintsOnSession(ses);
+  wireAdblockerOnSession(ses, partition);
+  wireDownloadsOnSession(ses, partition);
+  if (partition === 'persist:route-tor') {
+    // Like a Tor tab (tor:create): every site permission denied.
+    ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+    ses.setPermissionCheckHandler(() => false);
+  } else {
+    wirePermissionsOnSession(ses, partition);
+    wireWebHidOnSession(ses, partition);
+    wireDisplayMediaOnSession(ses);
+  }
+  // The built-in containers get theirs in createWindow.
+  if (!BROWSING_SESSIONS.includes(partition)) {
+    ses.webRequest.onHeadersReceived((details, callback) => {
+      const responseHeaders = { ...details.responseHeaders };
+      _addMediaCorsHeaders(details, responseHeaders);
+      _scriptsOffCsp(details, responseHeaders);
+      callback({ responseHeaders });
+    });
+  }
+  attachGuestPreloads(ses);
+  wireSpellcheckOnSession(ses);
+}
 
 // Re-apply saved routings at startup (Tor ones lazily — starting Tor for every
 // container on boot would be heavy, so a Tor container reconnects on first use;

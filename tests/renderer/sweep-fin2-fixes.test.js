@@ -27,7 +27,7 @@ describe('the page preload: Escape and Ctrl+Enter', () => {
   // which the page's handler takes away before the bubbling listener runs.
   function load() {
     const sendToHost = vi.fn();
-    const capture = [], bubble = [];
+    const capture = [], bubble = [], pointer = [];
     const page = { open: null };
     const doc = {
       fullscreenElement: null,
@@ -35,7 +35,7 @@ describe('the page preload: Escape and Ctrl+Enter', () => {
       querySelectorAll: (sel) => (page.open && /role="dialog"/.test(sel) ? [page.open] : []),
     };
     const win = {
-      addEventListener: (t, fn, cap) => { if (t === 'keydown') (cap ? capture : bubble).push(fn); },
+      addEventListener: (t, fn, cap) => { if (t === 'keydown') (cap ? capture : bubble).push(fn); if (t === 'pointerdown') pointer.push(fn); },
       getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
     };
     new Function('require', 'window', 'document', block)(() => ({ ipcRenderer: { sendToHost } }), win, doc);
@@ -45,14 +45,17 @@ describe('the page preload: Escape and Ctrl+Enter', () => {
       if (pageHandler) pageHandler(e);
       bubble.forEach(fn => fn(e));
     };
-    return { sendToHost, press, page };
+    // A click in the page (the one that opens a popup, say), seen before the page's own handler.
+    const click = (target = null) => pointer.forEach(fn => fn({ isTrusted: true, target }));
+    return { sendToHost, press, page, click };
   }
 
   it('is in the file', () => { expect(start).toBeGreaterThan(-1); });
 
   it('an Escape that closed the page\'s own popup (no preventDefault) is not sent', async () => {
     const t = load();
-    t.page.open = { getClientRects: () => [{}] };
+    t.click();                                     // the click that opens it (found 2026-09-30: only a popup that came up after one counts)
+    t.page.open = { getClientRects: () => [{}], contains: () => false };
     t.press({}, () => { t.page.open = null; });   // the site closes its popup itself
     await flush();
     expect(t.sendToHost).not.toHaveBeenCalled();

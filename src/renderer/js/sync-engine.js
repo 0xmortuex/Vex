@@ -60,7 +60,13 @@ const SyncEngine = (() => {
   // Lists synced item by item, so two devices' entries merge instead of one
   // whole list replacing the other. Notes were one value, so joining sync (or
   // a concurrent edit) dropped every note one side had (found 2026-09-29).
-  const LIST_PREFERENCES = ['vex.bookmarks', 'vex.sessions', 'vex.history', 'vex.notes'];
+  // Tools, scheduled tasks, personas, reminders and force-dark sites were still
+  // one value each, so the same thing happened to them (found 2026-09-30).
+  // Their items carry ids already (a force-dark site is a plain host name,
+  // which is its own id: sync-records.js flatten). A device on an older Vex
+  // still sends these whole; its copy then wins whole, as notes did.
+  const LIST_PREFERENCES = ['vex.bookmarks', 'vex.sessions', 'vex.history', 'vex.notes',
+    'vex.tools', 'vex.schedules', 'vex.personas', 'vex.reminders', 'vex.forceDarkHosts'];
 
   let state = {
     enabled: false,
@@ -113,8 +119,9 @@ const SyncEngine = (() => {
     }
     const data = await r.json();
     if (data.hasEncryptedData !== false) {
-      // The server registered this device before answering; a refusal here
-      // left a ghost in the device list (found 2026-09-29).
+      // An older server registered this device before answering; a refusal
+      // here left a ghost in the device list (found 2026-09-29). A current
+      // one registers it on its first push or pull, and this drops the session.
       await forgetDevice(data.sessionToken, data.deviceId);
       throw new Error('This account already has encrypted data, or the server needs updating. Enroll with your recovery code.');
     }
@@ -251,7 +258,12 @@ const SyncEngine = (() => {
       if (raw === null || raw === undefined) continue;
       // Store the raw string so values round-trip byte-for-byte.
       if (LIST_PREFERENCES.includes(key)) {
-        try { data['preference:' + key] = JSON.parse(raw); } catch { throw new Error('Invalid ' + key.slice(4) + ' data'); }
+        let list;
+        try { list = JSON.parse(raw); } catch { throw new Error('Invalid ' + key.slice(4) + ' data'); }
+        // Sent as anything but a list, every other device would refuse it
+        // ("Invalid synced list"); refuse it here, on the device that has it.
+        if (!Array.isArray(list)) throw new Error('Invalid ' + key.slice(4) + ' data');
+        data['preference:' + key] = list;
       } else data['preference:' + key] = raw;
     }
     for (const key of STORE_KEYS) {

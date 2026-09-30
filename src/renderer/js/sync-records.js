@@ -75,19 +75,25 @@
     return flat;
   }
   function unflatten(flat) {
-    const sources = {}, rows = {};
+    // A source an older Vex still sends as one value (a list it does not yet
+    // sync item by item) can meet item rows a newer device added at the same
+    // time. The rows used to replace the value, so the older device's whole
+    // list shrank to the newer device's additions (found 2026-09-30). The
+    // whole value wins instead, as it does when joining (sync-engine.js).
+    const sources = {}, rows = {}, whole = new Set();
     for (const [key, value] of Object.entries(flat)) {
       const parts = JSON.parse(key);
       if (!Array.isArray(parts) || typeof parts[0] !== 'string' || !safeKey(parts[0])) throw new Error('Unsafe sync source');
       const [source, kind] = parts;
       if (kind === 'type' && value === 'array') sources[source] = [];
+      if (kind === 'type' && value !== 'array') whole.add(source);
       if (kind === 'value') sources[source] = value;
       if (kind === 'item') {
         if (!object(value) || !Number.isSafeInteger(value.index) || value.index < 0) throw new Error('Invalid sync array item');
         (rows[source] ||= []).push({ ...value, key });
       }
     }
-    for (const [source, items] of Object.entries(rows)) sources[source] = items.sort((a,b) => a.index - b.index || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)).map(x => x.item);
+    for (const [source, items] of Object.entries(rows)) if (!(whole.has(source) && Object.hasOwn(sources, source))) sources[source] = items.sort((a,b) => a.index - b.index || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)).map(x => x.item);
     return sources;
   }
   const api = { empty, valid, capture, merge, values, flatten, unflatten };

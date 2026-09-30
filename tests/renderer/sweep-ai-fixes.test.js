@@ -165,7 +165,8 @@ describe('a chat answer', () => {
     expect(history.length).toBeLessThanOrEqual(AIPanel.HISTORY_SENT);
     expect(history.some(m => m.content === 'MEMORY')).toBe(true);
     expect(history.some(m => /FILE/.test(m.content))).toBe(true);
-    expect(history[history.length - 1].content).toBe('q');
+    // The question rides as the message itself, not in the history too.
+    expect(history[history.length - 1].content).toBe('m11');
   });
 });
 

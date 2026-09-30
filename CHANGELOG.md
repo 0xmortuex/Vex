@@ -1,5 +1,36 @@
 # Changelog
 
+## v2.34.2 (2026-09-30) — Tor stops when you are done with it, and the rest of the list
+
+### Privacy
+- **Tabs in a container or opened by a site rule got camera, microphone and notifications without asking**, and showed your local network address to WebRTC. They now ask like every other tab (Tor site rules refuse), and get the same ad blocker, downloads and browser identity as your normal tabs.
+- A site or container routed through a proxy no longer shows your real address through WebRTC.
+- Removing or changing a "Through Tor" site rule really lets it go: before, Tor kept running and started again at every launch. A tab from a removed rule that is still open stays on Tor until you close it, and never loads outside it.
+- A container's proxy or Tor route is no longer reset to a direct connection at startup by the Discord connection fix.
+- **A Tor tab could be given your location**: Vex's own location feature asked you, and when allowed, gave the page your saved position. Tor tabs and Tor site rules now never get it.
+
+### Tor
+- **Tor stops by itself** half a minute after the last page using it closes.
+- **A "Tor is running" sign with a Stop button** sits in the top bar while Tor runs, from the moment it starts.
+- Tor now ends with Vex even when Vex crashes; before, it kept running in the background.
+
+### Sync
+- Personas, tools, scheduled tasks, reminders and forced-dark sites now merge one by one between devices, instead of one device's whole list replacing the other's; tools and personas also show a synced change at once.
+- On the sync server: removing a device or wiping ends its sign-ins; email addresses are keyed with a secret; a sign-in that is abandoned no longer adds a device. Existing accounts move over by themselves the next time they sign in.
+
+### Tabs and keys
+- Ctrl+Shift+Z in Vex's own boxes (address bar, AI, notes) redoes instead of putting the page to sleep.
+- Ctrl+Tab goes through tabs in the order you see them and skips collapsed groups.
+- A tab that moves from a site with JavaScript off to a normal site keeps its Back list.
+- In Peek, a cookie banner no longer stops Escape from closing it.
+
+### Also
+- Settings › About says "Widevine ready (version …)" instead of raw code.
+- Mail: a wrong port is reported in 8 seconds, not 20; Load more goes on past 100 messages to the whole inbox.
+- The AI no longer receives your question twice; the cloud AI remembers as many turns for several tabs as for one.
+- Extensions can close a tab they opened (chrome.tabs.remove).
+- Pages with JavaScript off no longer fill the console with warnings.
+
 ## v2.34.1 (2026-09-30) — Tor, sync, mail and the keyboard, tested for real
 
 The parts never tested before were driven for real this time: Tor started and checked at check.torproject.org, sync and mail against real servers run locally, updates against a local update server, and every shortcut and gesture sent as real keyboard and mouse input.

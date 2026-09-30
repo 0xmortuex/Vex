@@ -14,7 +14,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 const path = require('path');
 
-const { keepsOpenerSession, markTorSession } = require('../../src/main/routing.js');
+const { keepsOpenerSession, markRoutedSession } = require('../../src/main/routing.js');
 const { plainUpdateError, bindUpdater } = require('../../src/main/updates.js');
 
 const read = f => fs.readFileSync(path.resolve(f), 'utf8').replace(/\r\n/g, '\n');
@@ -51,7 +51,7 @@ describe('WebRTC in a session routed through Tor', () => {
   it('marks the session and locks the pages already open in it, and only those', () => {
     const ses = {}, other = {};
     const mine = page(ses), gone = page(ses, true), elsewhere = page(other);
-    markTorSession(ses, true, [mine, gone, elsewhere]);
+    markRoutedSession(ses, 'tor', [mine, gone, elsewhere]);
     expect(ses.__vexTor).toBe(true);
     expect(mine.setWebRTCIPHandlingPolicy).toHaveBeenCalledWith('disable_non_proxied_udp');
     expect(gone.setWebRTCIPHandlingPolicy).not.toHaveBeenCalled();
@@ -61,22 +61,24 @@ describe('WebRTC in a session routed through Tor', () => {
   it('going direct again undoes both', () => {
     const ses = { __vexTor: true };
     const mine = page(ses);
-    markTorSession(ses, false, [mine]);
+    markRoutedSession(ses, 'direct', [mine]);
     expect(ses.__vexTor).toBe(false);
     expect(mine.setWebRTCIPHandlingPolicy).toHaveBeenCalledWith('default');
   });
 
   it('applyRouting marks for Tor before Tor starts, and unmarks for a proxy or direct', () => {
     const fn = MAIN.slice(MAIN.indexOf('async function applyRouting('), MAIN.indexOf("ipcMain.handle('routing:set'"));
-    const tor = fn.indexOf("markTorSession(ses, true");
+    const tor = fn.indexOf("markRoutedSession(ses, 'tor'");
     expect(tor).toBeGreaterThan(0);
     expect(tor).toBeLessThan(fn.indexOf('await detectTorPort()'));
-    expect(fn.match(/markTorSession\(ses, false/g)).toHaveLength(2);
+    expect(fn).toContain("markRoutedSession(ses, 'proxy'");
+    expect(fn).toContain("markRoutedSession(ses, 'direct'");
   });
 
   it('the lock is applied before the webview-only part, so a popup window of a Tor page gets it', () => {
     const handler = MAIN.slice(MAIN.indexOf("app.on('web-contents-created', (_event, contents) => {\n  // Tor tabs"));
     expect(handler.indexOf("setWebRTCIPHandlingPolicy('disable_non_proxied_udp')")).toBeGreaterThan(0);
+    expect(handler).toContain('contents.session.__vexTor || contents.session.__vexRouted');
     expect(handler.indexOf("setWebRTCIPHandlingPolicy('disable_non_proxied_udp')")).toBeLessThan(handler.indexOf("if (type !== 'webview') return;"));
   });
 });

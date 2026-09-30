@@ -55,21 +55,28 @@ const WebviewManager = {
     // A site whose JavaScript is switched off (js/site-rules-ui.js): the tab
     // is built without it, because a page cannot be un-run once it has run.
     const noScripts = !!(window.SiteRulesUI && window.SiteRulesUI.scriptsOff(tab.url));
+    webview._noScripts = noScripts;
+    // A tab built again on leaving such a site names the guest it replaces,
+    // and main gives the new one that guest's back list (session-security.js).
+    const historyFrom = tab._historyFrom;
+    delete tab._historyFrom;
     webview.setAttribute('webpreferences', 'contextIsolation=yes'
       + (keptAwake ? ',backgroundThrottling=no' : '')
-      + (noScripts ? ',javascript=no' : ''));
+      + (noScripts ? ',javascript=no' : '')
+      + (Number.isInteger(historyFrom) ? ',vexHistoryFrom=' + historyFrom : ''));
     webview.dataset.tabId = tab.id;
     // Browsing on to such a site from here is held to it by main, on the
     // page's own response (script-src 'none'). The other way round cannot be:
     // a tab built without JavaScript keeps it off for every site after, so
     // leaving for a site that has it is done in a tab built again for that
-    // site. Its back list does not survive that (found 2026-09-29).
+    // site, which keeps the back list (it lost it until 2026-09-30).
     if (noScripts) {
       const leave = (event) => {
         if (event.isMainFrame === false || event.isInPlace || !/^https?:/i.test(event.url || '')) return;
         if (window.SiteRulesUI.scriptsOff(event.url)) return;
         try { webview.stop(); } catch { /* going anyway */ }
         tab.url = event.url;
+        tab._historyFrom = webview.getWebContentsId();
         TabManager.rebuildTab(tab.id);
       };
       onWebview('did-start-navigation', leave);
@@ -129,7 +136,10 @@ const WebviewManager = {
       // only its body would get our colour showing through its margins —
       // which is why this is decided per page rather than applied to all of
       // them, and why `:where()` (zero specificity) is used even then.
-      try {
+      //
+      // A page with JavaScript switched off refuses the question, and said so
+      // in the console on every load (found 2026-09-30).
+      if (!this.scriptsOffIn(webview)) try {
         webview.executeJavaScript(`(() => {
           const solid = (c) => {
             const flat = String(c || '').split(' ').join('');
@@ -1537,6 +1547,16 @@ const WebviewManager = {
   // So an undecided permission reads 'prompt', one allowed in Vex reads
   // 'granted', and one blocked still reads 'denied'. Injected into the page's
   // own world, where the site's own check will see it.
+  // Whether this webview's page runs no scripts of its own: built without
+  // JavaScript, or on a site whose JavaScript is switched off. Vex's own
+  // reads of such a page (executeJavaScript) are refused there.
+  scriptsOffIn(webview) {
+    if (webview && webview._noScripts) return true;
+    let url = '';
+    try { url = webview.getURL() || ''; } catch { return false; }
+    return !!(window.SiteRulesUI && typeof SiteRulesUI.scriptsOff === 'function' && SiteRulesUI.scriptsOff(url));
+  },
+
   async _letSitesAsk(webview) {
     if (!window.vex || typeof window.vex.permissionsList !== 'function') return false;
     let url = '';

@@ -1,5 +1,14 @@
 // === Vex App — Main Entry Point ===
 
+// Whether one of Vex's own text boxes (address bar, a note, the AI box) has
+// the keys. A page that has them shows here as its <webview>, not a text box.
+function vexOwnTextFocused(doc) {
+  const el = doc.activeElement;
+  if (!el || el.tagName === 'WEBVIEW') return false;
+  if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+  return el.tagName === 'INPUT' && /^(text|search|url|email|password|tel|number)$/i.test(el.type || 'text');
+}
+
 (async function () {
   // What each part of starting the interface cost, for Memory › Health.
   const startup = window.VexStartup = { began: performance.now(), parts: {} };
@@ -235,13 +244,7 @@
   // the guest <webview> to these channels; the same functions are bound to the
   // host-focus ShortcutsRegistry below so both focus states behave identically.
   const focusAddressBar = () => { const u = document.getElementById('url-input'); if (u) { u.focus(); u.select(); } };
-  const cycleTab = (dir) => {
-    const tabs = TabManager.tabs || [];
-    if (!tabs.length) return;
-    let i = tabs.findIndex(t => t.id === TabManager.activeTabId);
-    if (i < 0) i = 0;
-    TabManager.switchTab(tabs[(i + dir + tabs.length) % tabs.length].id);
-  };
+  const cycleTab = (dir) => TabManager.cycleTab(dir);
   // Counted the way the tabs stand on screen, and Ctrl+9 is the last tab, as
   // in every browser: it took the ninth tab of the internal list (found
   // 2026-09-29).
@@ -897,7 +900,15 @@
   window.vex.onToggleHistory?.(() => SidebarManager.togglePanel('history'));
   window.vex.onToggleHistoryAi?.(() => HistoryPanel.openInAIMode?.());
   window.vex.onToggleMemory?.(() => SidebarManager.togglePanel('memory'));
-  window.vex.onSleepCurrentTab?.(() => TabManager.sleepActiveTab());
+  // Ctrl+Shift+Z is also redo. Main takes it on the way into Vex's window
+  // without knowing what has the focus, so redo in the address bar, a note or
+  // the AI box put the page to sleep instead (found 2026-09-30). A text box
+  // of Vex's own gets its redo; a page's key arrives with the <webview> as
+  // the focused element here, and still sleeps the tab.
+  window.vex.onSleepCurrentTab?.(() => {
+    if (vexOwnTextFocused(document)) { document.execCommand('redo'); return; }
+    TabManager.sleepActiveTab();
+  });
   window.vex.onPrintPage?.(() => WebviewManager.printPage());
   window.vex.onViewSource?.(() => WebviewManager.viewSource());
   // Final flush of the open tab set before quit. System 1 already persists on

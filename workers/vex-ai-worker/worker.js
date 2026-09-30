@@ -374,7 +374,9 @@ const aiHandler = {
           ? `${body.personaSystemPrompt}\n\n---\n\nYou are also operating in multi-tab mode. ${mtBase}`
           : mtBase;
         const msgs = [{ role: "system", content: mtSystem }];
-        if (Array.isArray(conversationHistory)) msgs.push(...conversationHistory.slice(-6));
+        // Ten turns, as a one-page chat keeps; six dropped the start of a
+        // conversation the client had sent in full (found 2026-09-30).
+        if (Array.isArray(conversationHistory)) msgs.push(...conversationHistory.slice(-10));
         msgs.push({ role: "user", content: `[${(tabContexts || []).length} TABS]\n\n${contextsText}\n\n---\n\nUser: ${message}` });
         const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           signal: AbortSignal.timeout(20000),

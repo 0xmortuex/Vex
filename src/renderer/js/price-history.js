@@ -142,6 +142,9 @@ const PriceHistory = {
         // closed, slept or navigated away, and a detached webview throws
         // rather than answering. A page that has gone is not one to read.
         if (window.vexGuestUrl(webview) !== url) return;
+        // A page with JavaScript switched off refuses to be read, and said so
+        // in the console on every load (found 2026-09-30).
+        if (typeof WebviewManager !== 'undefined' && WebviewManager.scriptsOffIn(webview)) return;
         window.vexGuestEval(webview, this.READ_SCRIPT)
           .then(found => { if (found) this.record({ url, ...found }); })
           // Background work on every page load: a failure is logged, not shown

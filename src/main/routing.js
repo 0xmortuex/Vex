@@ -8,7 +8,34 @@
 // real tab direct after a restart.
 const ALL_ROUTE_KEY = '__all__';
 
-const PROXY_HINT = 'A proxy address looks like socks5://127.0.0.1:1080 or http://host:port';
+// The proxy a session is given when it must load nothing: nothing listens on
+// port 9, so every request fails rather than going direct.
+const REFUSED_PROXY = { proxyRules: 'socks5://127.0.0.1:9', proxyBypassRules: '<-loopback>' };
+
+/**
+ * Whether a partition is a site route's session (js/site-routes.js,
+ * partitionFor): persist:route-tor, or persist:route-proxy-<slug>.
+ * @param {unknown} partition
+ */
+function isSiteRoutePartition(partition) {
+  return typeof partition === 'string' && /^persist:route-(?:tor|proxy-[a-z0-9]+)$/.test(partition);
+}
+
+/**
+ * The saved site routes no rule uses any more. A removed or replaced rule
+ * left its route saved, so Tor never stopped and started again on every
+ * launch (found 2026-09-30). The window says which partitions its rules use;
+ * every other saved site route is stale. Other saved routes (a container, the
+ * default session, all of Vex) are not the window's rules and are kept.
+ * @param {Record<string, unknown>} routes
+ * @param {string[]} used
+ */
+function staleSiteRoutes(routes, used) {
+  const keep = new Set(used);
+  return Object.keys(routes).filter(key => isSiteRoutePartition(key) && !keep.has(key));
+}
+
+const PROXY_HINT ='A proxy address looks like socks5://127.0.0.1:1080 or http://host:port';
 
 /**
  * One proxy, as scheme://host:port, or an error that says what one looks
@@ -51,6 +78,10 @@ async function restoreRoutes({ routes, getSession, applyRouting, report, allPart
   async function restoreOne(partition, config) {
     if (config.mode === 'tor') {
       await getSession(partition).setProxy({ proxyRules: 'socks5://127.0.0.1:9', proxyBypassRules: '<-loopback>' });
+      // A site route's Tor is started by the window, and only for a rule it
+      // still has (SiteRoutes.armAll). Started here, a route whose rule was
+      // removed started Tor on every launch (found 2026-09-30).
+      if (isSiteRoutePartition(partition)) return;
       void applyRouting(partition, 'tor').catch(report);
     } else if (config.mode === 'proxy') {
       if (!('custom' in config) || typeof config.custom !== 'string' || !config.custom.trim()) throw new Error('Invalid saved proxy configuration');
@@ -96,21 +127,39 @@ function keepsOpenerSession(partition) {
 }
 
 /**
- * Mark a session as going through Tor, or not, and set WebRTC to match on
- * every page already open in it; web-contents-created reads the mark for the
- * pages opened later. A burner or container routed through Tor had the proxy
- * but not the mark, so WebRTC handed sites the real address (found 2026-09-29).
+ * Mark a session as going through Tor, through a proxy, or direct, and set
+ * WebRTC to match on every page already open in it; web-contents-created
+ * reads the marks for the pages opened later. A burner or container routed
+ * through Tor had the proxy but not the mark, so WebRTC handed sites the real
+ * address (found 2026-09-29); a session routed through an ordinary proxy (a
+ * site route, a container, a burner) did the same (found 2026-09-30).
  * @param {any} ses
- * @param {boolean} tor
+ * @param {'tor'|'proxy'|'direct'} route
  * @param {any[]} allContents
  */
-function markTorSession(ses, tor, allContents) {
-  ses.__vexTor = !!tor;
-  const policy = tor ? 'disable_non_proxied_udp' : 'default';
+function markRoutedSession(ses, route, allContents) {
+  if (!['tor', 'proxy', 'direct'].includes(route)) throw new Error(`Unknown route "${route}"`);
+  ses.__vexTor = route === 'tor';
+  ses.__vexRouted = route !== 'direct';
+  const policy = ses.__vexRouted ? 'disable_non_proxied_udp' : 'default';
   for (const contents of allContents) {
     if (contents.isDestroyed() || contents.session !== ses) continue;
     contents.setWebRTCIPHandlingPolicy(policy);
   }
 }
 
-module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY, keepsOpenerSession, markTorSession };
+/**
+ * Whether anything still needs the Tor Vex started: a page (tab, popup,
+ * burner, container or site-route tab) in a session going through Tor, or a
+ * saved Tor route, which Vex puts back on the next start anyway. Tor used to
+ * keep running after the last Tor tab closed, with nothing to say so
+ * (found 2026-09-30).
+ * @param {any[]} allContents
+ * @param {Record<string, unknown>} routes
+ */
+function torInUse(allContents, routes) {
+  if (allContents.some(contents => !contents.isDestroyed() && contents.session && contents.session.__vexTor)) return true;
+  return Object.values(routes).some(config => !!config && typeof config === 'object' && /** @type {any} */ (config).mode === 'tor');
+}
+
+module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY, REFUSED_PROXY, isSiteRoutePartition, staleSiteRoutes, keepsOpenerSession, markRoutedSession, torInUse };

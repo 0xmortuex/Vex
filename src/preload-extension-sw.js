@@ -44,7 +44,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 // openTab, where given, asks main to open a Vex tab: a web page or one of the
 // extension's own pages (tabs.create, runtime.openOptionsPage). It answers
 // with the tab made: { id, url, active }, id being the page's webContents id.
-function vexExtensionStandIns(c, askPopupTab, openTab) {
+//
+// closeTab, where given, asks main to close Vex tabs by those ids ({ ids }).
+function vexExtensionStandIns(c, askPopupTab, openTab, closeTab) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
   if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
@@ -212,6 +214,19 @@ function vexExtensionStandIns(c, askPopupTab, openTab) {
       return answerWith(optionsPage ? openUrl(optionsPage, true).then(function () { return undefined; }) : Promise.reject(new Error('This extension has no options page')), cb);
     };
   }
+
+  // Electron has no tabs.remove either, so an extension that closed a tab it
+  // had opened threw there (found 2026-09-30). Main closes only a Vex tab in
+  // this extension's session; an id that is none fails as in Chrome, "No tab
+  // with id: N." (without the wrapping Electron puts round an IPC failure).
+  if (typeof closeTab === 'function' && c.tabs && typeof c.tabs.remove !== 'function') {
+    c.tabs.remove = function (ids, cb) {
+      var p = Promise.resolve(closeTab({ ids: [].concat(ids) })).then(function () { return undefined; }, function (err) {
+        throw new Error(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ''));
+      });
+      return answerWith(p, cb);
+    };
+  }
   return true;
 }
 // === END vex-extension-stand-ins ===
@@ -341,5 +356,6 @@ function vexStorageSyncShim(c) {
 // _wireExtensionWorkerIpc), which answers only an extension's worker.
 const askPopupTab = () => ipcRenderer.invoke('extensions:popup-tab');
 const openTab = (request) => ipcRenderer.invoke('extensions:open-tab', request);
-contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab] });
+const closeTab = (request) => ipcRenderer.invoke('extensions:close-tab', request);
+contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab, closeTab] });
 contextBridge.executeInMainWorld({ func: vexStorageSyncShim });

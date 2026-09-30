@@ -5,7 +5,8 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // siterules:set: a private window starts with an empty list, and saving it
 // wiped every per-site rule. adblocker-set-state: main keeps one switch, so a
 // private window turned blocking off for every window (both found 2026-09-29).
-const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|site:clear-data|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|install-update|app:restart)/;
+// routing:forget/prune follow the main window's site rules, as routing:set does.
+const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|site:clear-data|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|install-update|app:restart)/;
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

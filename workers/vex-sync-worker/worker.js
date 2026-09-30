@@ -66,10 +66,95 @@ async function rateLimited(env, bucket, limit, windowSec) {
   }
 }
 
-async function hashEmail(email) {
-  const normalized = email.trim().toLowerCase();
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+const hex = buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+// Accounts are keyed by an HMAC of the address with a secret only the worker
+// has. A plain SHA-256 of an address is reversed by hashing candidate
+// addresses, so anyone who could read the storage learned who syncs (found
+// 2026-09-30). Without the secret there is no key to look an account up by,
+// and falling back to the unsalted hash would undo the fix unseen.
+function hashSecretMissing(env) {
+  return typeof env.EMAIL_HASH_SECRET !== 'string' || env.EMAIL_HASH_SECRET.length < 32;
+}
+
+async function hashEmail(email, secret) {
+  if (typeof secret !== 'string' || secret.length < 32) throw new Error('EMAIL_HASH_SECRET is not configured');
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return hex(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(email.trim().toLowerCase())));
+}
+
+// The key accounts were stored under before the HMAC. Read only to move them.
+async function legacyHashEmail(email) {
+  return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase())));
+}
+
+const SESSION_TTL = 60 * 60 * 24 * 365; // 1 year
+const DROP_TTL = 60 * 60 * 24 * 7;
+
+// What is left of a session's year, for rewriting it without extending it.
+function sessionTtl(session) {
+  const left = Math.floor((Date.parse(session.createdAt) + SESSION_TTL * 1000 - Date.now()) / 1000);
+  return Number.isFinite(left) ? Math.max(60, left) : SESSION_TTL;
+}
+
+// Every session token an account has, so removing a device or wiping the
+// account deletes them. DELETE /sync/devices/:id and DELETE /sync/all used to
+// leave each sess:<token> in VEX_AUTH_KV for its whole year (found
+// 2026-09-30). Sessions from before this list join it when next seen.
+async function accountSessions(env, emailHash) {
+  const raw = await env.VEX_AUTH_KV.get(`sessions:${emailHash}`);
+  return raw ? JSON.parse(raw) : [];
+}
+
+async function rememberSession(env, emailHash, token, deviceId) {
+  const list = await accountSessions(env, emailHash);
+  if (list.some(s => s.token === token)) return;
+  // Entries whose session has since expired are dropped as a new one joins.
+  const live = [];
+  for (const s of list) if (await env.VEX_AUTH_KV.get(`sess:${s.token}`)) live.push(s);
+  live.push({ token, deviceId });
+  await env.VEX_AUTH_KV.put(`sessions:${emailHash}`, JSON.stringify(live));
+}
+
+// Deletes the account's sessions that `keep` rejects.
+async function forgetSessions(env, emailHash, keep) {
+  const list = await accountSessions(env, emailHash);
+  const kept = [];
+  for (const s of list) {
+    if (keep(s)) kept.push(s);
+    else await env.VEX_AUTH_KV.delete(`sess:${s.token}`);
+  }
+  if (kept.length === list.length) return;
+  if (kept.length) await env.VEX_AUTH_KV.put(`sessions:${emailHash}`, JSON.stringify(kept));
+  else await env.VEX_AUTH_KV.delete(`sessions:${emailHash}`);
+}
+
+// An account made before the HMAC key lives under the unsalted hash. The first
+// sign-in after the change moves it — the encrypted data, the device list and
+// the handoff mailbox — and leaves each of its devices a pointer, so a session
+// that still names the old key follows it instead of being signed out.
+async function moveLegacyAccount(env, oldHash, newHash) {
+  const S = env.VEX_SYNC_KV;
+  if (await S.get(`blob:${newHash}`) || await S.get(`devices:${newHash}`)) return;
+  const blob = await S.get(`blob:${oldHash}`);
+  const devices = await S.get(`devices:${oldHash}`);
+  if (!blob && !devices) return;
+  const drop = await S.get(`drop:${oldHash}`);
+  if (blob) await S.put(`blob:${newHash}`, blob);
+  if (devices) await S.put(`devices:${newHash}`, devices);
+  if (drop) await S.put(`drop:${newHash}`, drop, { expirationTtl: DROP_TTL });
+  for (const d of devices ? JSON.parse(devices) : []) {
+    await env.VEX_AUTH_KV.put(`moved:${d.deviceId}`, newHash, { expirationTtl: SESSION_TTL });
+  }
+  // Sessions seen on the old key since this worker was deployed.
+  const oldSessions = await accountSessions(env, oldHash);
+  if (oldSessions.length) {
+    await env.VEX_AUTH_KV.put(`sessions:${newHash}`, JSON.stringify([...await accountSessions(env, newHash), ...oldSessions]));
+    await env.VEX_AUTH_KV.delete(`sessions:${oldHash}`);
+  }
+  await S.delete(`blob:${oldHash}`);
+  await S.delete(`devices:${oldHash}`);
+  if (drop) await S.delete(`drop:${oldHash}`);
 }
 
 async function sendMagicCode(email, code, env) {
@@ -113,6 +198,11 @@ const syncHandler = {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
+    if (hashSecretMissing(env)) {
+      console.error('[vex-sync] EMAIL_HASH_SECRET is not set (32+ characters). Refusing every request: run `wrangler secret put EMAIL_HASH_SECRET` (see wrangler.toml).');
+      return json({ error: 'Sync server is misconfigured: EMAIL_HASH_SECRET is not set' }, 503);
+    }
+
     const url = new URL(request.url);
     const path = url.pathname;
     if (path.startsWith('/auth/') && !env.RESEND_API_KEY && !isDevelopment(request, env)) return json({ error: 'Email delivery is not configured' }, 503);
@@ -126,7 +216,7 @@ const syncHandler = {
           return json({ error: 'Invalid email' }, 400);
         }
 
-        const emailHash = await hashEmail(email);
+        const emailHash = await hashEmail(email, env.EMAIL_HASH_SECRET);
 
         // Rate limit issuance per-email and per-IP. Without this, /auth/request-code
         // is an open relay for magic-code email bombing (via Resend) and KV-write
@@ -158,7 +248,7 @@ const syncHandler = {
         const { email, code, deviceName } = await boundedJson(request);
         if (!email || !code) return json({ error: 'Missing email or code' }, 400);
 
-        const emailHash = await hashEmail(email);
+        const emailHash = await hashEmail(email, env.EMAIL_HASH_SECRET);
 
         // Per-IP throttle blunts distributed brute force before the per-code
         // attempt cap below even applies.
@@ -191,28 +281,26 @@ const syncHandler = {
         await env.VEX_AUTH_KV.delete(`code:${emailHash}`);
         await env.VEX_AUTH_KV.delete(attemptsKey);
 
+        await moveLegacyAccount(env, await legacyHashEmail(email), emailHash);
+
+        // The device joins the account's list on its first successful push or
+        // pull, not here. Registering it before the app had decided anything
+        // left a ghost device whenever the sign-in was then refused (an
+        // account with data but no recovery code, a wrong recovery code)
+        // and the app could not remove it (found 2026-09-30).
         const sessionToken = randomId(32);
         const deviceId = randomId(16);
         const session = {
           emailHash,
           deviceId,
           deviceName: deviceName || 'Unknown device',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          pending: true
         };
         await env.VEX_AUTH_KV.put(`sess:${sessionToken}`, JSON.stringify(session), {
-          expirationTtl: 60 * 60 * 24 * 365 // 1 year
+          expirationTtl: SESSION_TTL
         });
-
-        const devicesKey = `devices:${emailHash}`;
-        const existing = await env.VEX_SYNC_KV.get(devicesKey);
-        const devices = existing ? JSON.parse(existing) : [];
-        devices.push({
-          deviceId,
-          deviceName: session.deviceName,
-          createdAt: session.createdAt,
-          lastSeenAt: session.createdAt
-        });
-        await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
+        await rememberSession(env, emailHash, sessionToken, deviceId);
 
         const hasEncryptedData = !!(await env.VEX_SYNC_KV.get(`blob:${emailHash}`));
         return json({ ok: true, sessionToken, deviceId, emailHash, hasEncryptedData });
@@ -226,24 +314,59 @@ const syncHandler = {
 
         const sessionRaw = await env.VEX_AUTH_KV.get(`sess:${token}`);
         if (!sessionRaw) return json({ error: 'Invalid session' }, 401);
-        const session = JSON.parse(sessionRaw);
+        let session = JSON.parse(sessionRaw);
+        let devicesKey = `devices:${session.emailHash}`;
+        let existingDevices = await env.VEX_SYNC_KV.get(devicesKey);
+        const listed = () => !!existingDevices && JSON.parse(existingDevices).some(x => x.deviceId === session.deviceId);
 
-        // Touch lastSeenAt
-        const devicesKey = `devices:${session.emailHash}`;
-        const existingDevices = await env.VEX_SYNC_KV.get(devicesKey);
-        if (!existingDevices) return json({ error: 'Device revoked' }, 401);
-        if (existingDevices) {
-          const devices = JSON.parse(existingDevices);
-          const d = devices.find(x => x.deviceId === session.deviceId);
-          if (d) {
-            d.lastSeenAt = new Date().toISOString();
-            await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
-          } else {
-            // Device was removed — invalidate session
-            await env.VEX_AUTH_KV.delete(`sess:${token}`);
-            return json({ error: 'Device revoked' }, 401);
+        // A session that still names the account's old unsalted key, after a
+        // sign-in elsewhere moved the account (moveLegacyAccount).
+        if (!session.pending && !listed()) {
+          const moved = await env.VEX_AUTH_KV.get(`moved:${session.deviceId}`);
+          if (moved) {
+            session = { ...session, emailHash: moved };
+            await env.VEX_AUTH_KV.put(`sess:${token}`, JSON.stringify(session), { expirationTtl: sessionTtl(session) });
+            await env.VEX_AUTH_KV.delete(`moved:${session.deviceId}`);
+            devicesKey = `devices:${session.emailHash}`;
+            existingDevices = await env.VEX_SYNC_KV.get(devicesKey);
           }
         }
+
+        // Not yet in the device list (see verify-code): it may push or pull,
+        // which registers it, or remove itself when the app gives up on the
+        // sign-in. Nothing else until then.
+        const pendingOk = (request.method === 'POST' && path === '/sync/push') || (request.method === 'GET' && path === '/sync/pull');
+        if (session.pending) {
+          if (request.method === 'DELETE' && path === `/sync/devices/${session.deviceId}`) {
+            await env.VEX_AUTH_KV.delete(`sess:${token}`);
+            await forgetSessions(env, session.emailHash, s => s.token !== token);
+            return json({ ok: true });
+          }
+          if (!pendingOk) return json({ error: 'This device has not synced yet' }, 403);
+        } else if (!listed()) {
+          // Removed from another device, or the account was wiped: the
+          // session goes too. It used to stay when the whole list was gone.
+          await env.VEX_AUTH_KV.delete(`sess:${token}`);
+          await forgetSessions(env, session.emailHash, s => s.token !== token);
+          return json({ error: 'Device revoked' }, 401);
+        } else {
+          // Touch lastSeenAt
+          const devices = JSON.parse(existingDevices);
+          devices.find(x => x.deviceId === session.deviceId).lastSeenAt = new Date().toISOString();
+          await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
+          await rememberSession(env, session.emailHash, token, session.deviceId);
+        }
+
+        // A pending device's first successful push or pull puts it in the list.
+        const registerPending = async () => {
+          if (!session.pending) return;
+          const devices = existingDevices ? JSON.parse(existingDevices) : [];
+          devices.push({ deviceId: session.deviceId, deviceName: session.deviceName, createdAt: session.createdAt, lastSeenAt: new Date().toISOString() });
+          await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
+          const settled = { ...session };
+          delete settled.pending;
+          await env.VEX_AUTH_KV.put(`sess:${token}`, JSON.stringify(settled), { expirationTtl: sessionTtl(settled) });
+        };
 
         if (path === '/sync/push' && request.method === 'POST') {
           const { encryptedBlob, updatedAt, baseRevision } = await boundedJson(request);
@@ -265,12 +388,14 @@ const syncHandler = {
             pushedAt: new Date().toISOString()
           };
           await env.VEX_SYNC_KV.put(blobKey, JSON.stringify(data));
+          await registerPending();
           return json({ ok: true, savedAt: data.pushedAt, revision: data.revision });
         }
 
         if (path === '/sync/pull' && request.method === 'GET') {
           const blobKey = `blob:${session.emailHash}`;
           const existing = await env.VEX_SYNC_KV.get(blobKey);
+          await registerPending();
           if (!existing) return json({ ok: true, blob: null });
           const data = JSON.parse(existing);
           return json({ ok: true, ...data });
@@ -291,6 +416,7 @@ const syncHandler = {
             const filtered = devices.filter(d => d.deviceId !== targetDeviceId);
             await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(filtered));
           }
+          await forgetSessions(env, session.emailHash, s => s.deviceId !== targetDeviceId);
           return json({ ok: true });
         }
 
@@ -299,6 +425,7 @@ const syncHandler = {
           await env.VEX_SYNC_KV.delete(blobKey);
           await env.VEX_SYNC_KV.delete(devicesKey);
           await env.VEX_SYNC_KV.delete(`drop:${session.emailHash}`);
+          await forgetSessions(env, session.emailHash, () => false);
           return json({ ok: true });
         }
 
@@ -323,7 +450,7 @@ const syncHandler = {
             at: new Date().toISOString()
           });
           if (items.length > 20) items = items.slice(-20);
-          await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(items), { expirationTtl: 60 * 60 * 24 * 7 });
+          await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(items), { expirationTtl: DROP_TTL });
           return json({ ok: true });
         }
 
@@ -335,7 +462,7 @@ const syncHandler = {
           const mine = items.filter(i => i.fromDeviceId !== session.deviceId);
           const rest = items.filter(i => i.fromDeviceId === session.deviceId);
           if (mine.length) {
-            if (rest.length) await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(rest), { expirationTtl: 60 * 60 * 24 * 7 });
+            if (rest.length) await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(rest), { expirationTtl: DROP_TTL });
             else await env.VEX_SYNC_KV.delete(dropKey);
           }
           return json({ ok: true, items: mine });
@@ -351,7 +478,7 @@ const syncHandler = {
 
 // Named exports for unit tests (no effect on the Worker runtime, which only
 // uses the default export's fetch()).
-export { genNumericCode, timingSafeEqual, rateLimited, hashEmail };
+export { genNumericCode, timingSafeEqual, rateLimited, hashEmail, legacyHashEmail };
 
 export { syncHandler };
 export class VexSyncState {

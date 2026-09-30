@@ -62,6 +62,7 @@
   <link rel="stylesheet" href="css/work-panel.css">
   <link rel="stylesheet" href="css/quick-reminder.css">
   <link rel="stylesheet" href="css/clock-panel.css">
+  <link rel="stylesheet" href="css/tor-indicator.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -132,6 +133,11 @@
     </div>
 
     <div id="top-bar-right">
+      <!-- Shown while Vex's own Tor runs, in every look (#btn-tor is hidden in the browser looks); tor-session.js fills the icon. -->
+      <div id="tor-running" role="status" hidden>
+        <span class="tor-running-icon" aria-hidden="true"></span><span class="tor-running-label">Tor is running</span>
+        <button id="tor-running-stop" type="button" title="Stop Tor">Stop</button>
+      </div>
       <button id="btn-tor" class="nav-btn" title="New Tor tab — maximum-security private browsing over Tor">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>
       </button>

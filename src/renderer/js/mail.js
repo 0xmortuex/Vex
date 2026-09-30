@@ -28,7 +28,7 @@ const VexMail = {
     return s;
   },
   accounts() { return this._call(window.vex.mail.accounts()); },
-  inbox(id, limit) { return this._call(window.vex.mail.inbox(id, limit)); },
+  inbox(id, limit, before) { return this._call(window.vex.mail.inbox(id, limit, before)); },
   message(id, uid) { return this._call(window.vex.mail.message(id, uid)); },
 
   // Which provider an address belongs to, for the sign-in help. Mirrors main.
@@ -143,8 +143,9 @@ const VexMail = {
     email.focus();
   },
 
-  // How many messages main hands over at most (MAX_LIST in src/main/mail.js).
-  MAX_LIST: 100,
+  // How many messages Load more asks for at a time (main sends 100 at most,
+  // MAX_LIST in src/main/mail.js).
+  PAGE: 50,
 
   async _drawInbox(accounts, accountId, limit = 50) {
     const { head, body } = this._ui;
@@ -175,7 +176,7 @@ const VexMail = {
     body.querySelector('[data-webmail]')?.addEventListener('click', (e) => { e.preventDefault(); TabManager.createTab(inbox.account.webmail, true); this._ui.close(); });
     const list = body.querySelector('[data-list]');
     if (!inbox.messages.length) list.innerHTML = '<div style="padding:16px;font-size:12.5px;color:var(--text-muted)">The inbox is empty.</div>';
-    for (const m of inbox.messages) {
+    const addRows = (messages) => { for (const m of messages) {
       const row = document.createElement('button');
       row.type = 'button';
       row.setAttribute('role', 'listitem');
@@ -193,14 +194,41 @@ const VexMail = {
         this._read(accountId, m);
       });
       list.appendChild(row);
-    }
+    } };
+    addRows(inbox.messages);
     // 50 of 501 were listed with nothing saying the rest exist (found
-    // 2026-09-29). Say so, and offer more up to what main will send.
-    if (inbox.total > inbox.messages.length && inbox.messages.length) {
-      const where = inbox.account.webmail ? 'in ' + esc(inbox.account.name) : 'in your mail program';
-      list.insertAdjacentHTML('beforeend', `<div data-more-note style="padding:10px 12px;font-size:11.5px;color:var(--text-muted)">Showing the newest ${inbox.messages.length} of ${inbox.total}.${limit < this.MAX_LIST ? ` <button data-more type="button" style="${btn}">Load more</button>` : ` The rest are ${where}.`}</div>`);
-      list.querySelector('[data-more]')?.addEventListener('click', () => this._drawInbox(accounts, accountId, this.MAX_LIST));
-    }
+    // 2026-09-29). Say so, and offer more. Load more then stopped at 100, all
+    // main sends at once (found 2026-09-30): each click now asks for the page
+    // older than the oldest message listed and adds it below.
+    const where = inbox.account.webmail ? 'in ' + esc(inbox.account.name) : 'in your mail program';
+    let shown = inbox.messages.length;
+    let oldest = Math.min(...inbox.messages.map(m => m.uid));
+    const note = (end) => {
+      list.querySelector('[data-more-note]')?.remove();
+      if (!(inbox.total > shown && shown)) return;
+      list.insertAdjacentHTML('beforeend', `<div data-more-note style="padding:10px 12px;font-size:11.5px;color:var(--text-muted)">Showing the newest ${shown} of ${inbox.total}.${end ? ` The rest are ${where}.` : ` <button data-more type="button" style="${btn}">Load more</button>`}</div>`);
+      const more = list.querySelector('[data-more]');
+      more?.addEventListener('click', async () => {
+        more.disabled = true;
+        more.textContent = 'Loading…';
+        let page;
+        try { page = await this.inbox(accountId, this.PAGE, oldest); }
+        catch (err) {
+          more.disabled = false;
+          more.textContent = 'Load more';
+          window.showToast?.(err.message, 'error');
+          return;
+        }
+        if (!list.isConnected) return;
+        // The inbox changed under us (mail deleted elsewhere): nothing older.
+        if (!page.messages.length) { note(true); return; }
+        addRows(page.messages);
+        shown += page.messages.length;
+        oldest = Math.min(oldest, ...page.messages.map(m => m.uid));
+        note(false);
+      });
+    };
+    note(false);
   },
 
   async _read(accountId, m) {

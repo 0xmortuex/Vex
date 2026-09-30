@@ -126,7 +126,9 @@ describe('Retry on an older answer', () => {
     msgs().querySelector('.ai-msg[data-index="1"] .ai-msg-act[title="Try this answer again"]').click();
     await settle();
     expect(texts('tab-1')).toEqual(['q one', 'better one', 'q two', 'a two']);
-    expect(hist.map(m => m.content)).toEqual(['q one']);
+    // 'q one' itself is the message being asked, so it is not in the history
+    // as well (found 2026-09-30).
+    expect(hist.map(m => m.content)).toEqual([]);
     expect([...msgs().querySelectorAll('.ai-msg')].map(e => e.textContent)).toEqual(expect.arrayContaining([expect.stringContaining('better one')]));
     expect(msgs().querySelectorAll('.ai-msg')[1].textContent).toContain('better one');
   });

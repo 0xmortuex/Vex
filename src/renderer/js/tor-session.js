@@ -148,7 +148,56 @@ const TorSession = {
   },
 
   _esc(s) { return window.escapeHtml(s); },
+
+  // "Tor is running" in the top bar, with Stop. Vex's own Tor kept running
+  // after the last Tor tab closed, with nothing on screen to say so
+  // (found 2026-09-30); main now stops it by itself once nothing uses it,
+  // and this shows it while it runs.
+  initIndicator() {
+    const el = document.getElementById('tor-running');
+    if (!el) throw new Error('The Tor indicator is missing from the window');
+    el.querySelector('.tor-running-icon').innerHTML = VexIcons.svg('onion', { size: 14 });
+    el.querySelector('#tor-running-stop').addEventListener('click', () => {
+      this.stop().catch(err => window.showToast?.('Tor could not be stopped: ' + err.message, 'error'));
+    });
+    window.vex.onTorState((s) => { el.hidden = !(s && s.running); });
+    window.vex.torStatus()
+      .then((s) => { el.hidden = !(s && s.running); })
+      .catch(err => console.error('[tor] could not read whether Tor is running:', err));
+  },
+
+  // The tabs in this window that go through Tor: the pages main names, and a
+  // Tor tab whose page is asleep (it has none).
+  _torTabs(pageIds) {
+    const ids = new Set(pageIds || []);
+    return TabManager.tabs.filter((t) => {
+      if (/^(tor-|persist:route-tor$)/.test(String(t.partition || ''))) return true;
+      const wv = WebviewManager.webviews.get(t.id);
+      if (!wv || typeof wv.getWebContentsId !== 'function') return false;
+      try { return ids.has(wv.getWebContentsId()); } catch { return false; } // not attached yet
+    });
+  },
+
+  // Stop asks first when Tor tabs are open, and closes them: a Tor tab left
+  // open after Tor stops loads nothing.
+  async stop() {
+    const status = await window.vex.torStatus();
+    const tabs = this._torTabs(status && status.pages);
+    const pages = (status && status.pages || []).length;
+    if (tabs.length || pages) {
+      const closing = tabs.length === 1 ? 'The Tor tab will close.' : tabs.length ? `The ${tabs.length} Tor tabs will close.` : '';
+      const others = pages > tabs.length ? ' Other pages going through Tor stop loading until Tor starts again.' : '';
+      const ok = await window.vexConfirm({ title: 'Stop Tor?', message: (closing + others).trim(), okLabel: 'Stop Tor', danger: true });
+      if (!ok) return false;
+      tabs.forEach(t => TabManager.closeTab(t.id));
+    }
+    const r = await window.vex.stopTor();
+    if (!r || !r.ok) throw new Error((r && r.error) || 'no answer from Vex');
+    window.showToast?.('Tor stopped');
+    return true;
+  },
 };
 
 if (typeof window !== 'undefined') window.TorSession = TorSession;
+if (typeof document !== 'undefined' && document.getElementById('tor-running')) TorSession.initIndicator();
 if (typeof module !== 'undefined' && module.exports) module.exports = { TorSession };

@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Per-container routing (Tor / custom proxy / direct) for a session partition.
   routingSet: (partition, mode, custom) => ipcRenderer.invoke('routing:set', partition, mode, custom),
   routingGet: (partition) => ipcRenderer.invoke('routing:get', partition),
+  // A site route no rule uses any more, and the partitions the rules do use.
+  routingForget: (partition) => ipcRenderer.invoke('routing:forget', partition),
+  routingPrune: (used) => ipcRenderer.invoke('routing:prune', used),
   // All of Vex through one route, and a real check of whether it is working.
   routingSetAll: (mode, custom) => ipcRenderer.invoke('routing:set-all', mode, custom),
   routingGetAll: () => ipcRenderer.invoke('routing:get-all'),
@@ -217,7 +220,8 @@ contextBridge.exposeInMainWorld('vex', {
     accounts: () => ipcRenderer.invoke('mail:accounts'),
     add: (account) => ipcRenderer.invoke('mail:add', account),
     remove: (id) => ipcRenderer.invoke('mail:remove', id),
-    inbox: (id, limit) => ipcRenderer.invoke('mail:inbox', id, limit),
+    // before: a UID — the page of messages older than it (Load more).
+    inbox: (id, limit, before) => ipcRenderer.invoke('mail:inbox', id, limit, before),
     message: (id, uid) => ipcRenderer.invoke('mail:message', id, uid),
   },
   // Screen recording: start a file, append chunks as they arrive, then save.
@@ -338,6 +342,11 @@ contextBridge.exposeInMainWorld('vex', {
   // Progress while Vex downloads + bootstraps its own Tor (no Tor Browser needed).
   // cb({ phase:'download'|'bootstrap', value, detail }). Returns an unsubscribe fn.
   onTorProgress: (cb) => { const h = (_e, p) => { try { cb(p); } catch {} }; ipcRenderer.on('tor:progress', h); return () => { try { ipcRenderer.removeListener('tor:progress', h); } catch {} }; },
+  // Vex's own Tor: whether it runs (and which pages use it), stopping it, and
+  // hearing when it starts or stops — for the "Tor is running" indicator.
+  torStatus: () => ipcRenderer.invoke('tor:status'),
+  stopTor: () => ipcRenderer.invoke('tor:stop'),
+  onTorState: (cb) => { const h = (_e, s) => cb(s); ipcRenderer.on('tor:state', h); return () => ipcRenderer.removeListener('tor:state', h); },
   onToggleMuteTab: (callback) => subscribe('toggle-mute-tab', callback),
 
   // Tabs sidebar toggle

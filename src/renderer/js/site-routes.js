@@ -162,15 +162,49 @@ const SiteRoutes = {
       .catch(err => { this._armed.delete(part); console.warn('[SiteRoutes] ' + rule.host + ':', err.message); return null; });
   },
 
+  // The route of a rule that was removed or replaced, let go of once no rule
+  // uses its partition. Only the saved route was ever rewritten, so Tor never
+  // stopped and started again on every launch (found 2026-09-30). Main keeps
+  // the session's proxy, so a tab still open in it stays on Tor until closed.
+  _release(rules) {
+    const inUse = new Set(this.rules().map(r => this.partitionFor(r)));
+    const parts = new Set();
+    for (const rule of rules) {
+      if (!rule || rule.mode === 'container') continue;
+      const part = this.partitionFor(rule);
+      if (part && !inUse.has(part)) parts.add(part);
+    }
+    for (const part of parts) {
+      this._armed.delete(part);
+      if (!window.vex || typeof window.vex.routingForget !== 'function') continue;
+      Promise.resolve(window.vex.routingForget(part))
+        .then(r => { if (!r || !r.ok) console.error('[SiteRoutes] the route of ' + part + ' could not be forgotten:', (r && r.error) || 'unknown'); })
+        .catch(err => console.error('[SiteRoutes] the route of ' + part + ' could not be forgotten:', err.message));
+    }
+  },
+
   // Every distinct route, armed at startup, so the first tab through a rule
-  // does not wait for Tor to start.
+  // does not wait for Tor to start. First, main forgets any saved site route
+  // no rule uses (one left by a rule removed before _release existed).
   armAll() {
     const seen = new Set();
     for (const rule of this.rules()) {
       if (rule.mode === 'container') continue;
       const part = this.partitionFor(rule);
-      if (!part || seen.has(part)) continue;
-      seen.add(part);
+      if (part) seen.add(part);
+    }
+    // A private window may not change routes (ipc-policy.js); the main one does it.
+    if (window.vex && typeof window.vex.routingPrune === 'function' && !window.VexTabPolicy?.isPrivateWindow) {
+      Promise.resolve(window.vex.routingPrune([...seen]))
+        .then(r => { if (!r || !r.ok) console.error('[SiteRoutes] old routes could not be forgotten:', (r && r.error) || 'unknown'); })
+        .catch(err => console.error('[SiteRoutes] old routes could not be forgotten:', err.message));
+    }
+    const armed = new Set();
+    for (const rule of this.rules()) {
+      if (rule.mode === 'container') continue;
+      const part = this.partitionFor(rule);
+      if (!part || armed.has(part)) continue;
+      armed.add(part);
       this.arm(rule);
     }
   },
@@ -191,10 +225,12 @@ const SiteRoutes = {
       muted: !!opts.muted,
       awake: !!opts.awake,
     };
+    const replaced = this.rules().filter(r => r.host === h);
     const list = this.rules().filter(r => r.host !== h);
     list.push(rule);
     this._save(list);
     this.arm(rule, true);
+    this._release(replaced);
     return rule;
   },
 
@@ -221,8 +257,10 @@ const SiteRoutes = {
 
   remove(host) {
     const h = this.normalizeHost(host) || String(host || '').toLowerCase();
+    const removed = this.rules().filter(r => r.host === h);
     const list = this.rules().filter(r => r.host !== h);
     this._save(list);
+    this._release(removed);
     return list;
   },
 

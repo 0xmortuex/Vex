@@ -1,0 +1,35 @@
+/* "Tor is running": shown in the top bar while Vex's own Tor runs, with a
+   Stop button (tor-session.js). Tor used to keep running after the last Tor
+   tab closed with nothing on screen to say so (found 2026-09-30). A div, not
+   a button, so the looks' `#top-bar-right > button` sizing leaves it alone. */
+#tor-running {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 3px 0 8px;
+  border: 1px solid color-mix(in srgb, #a855f7 45%, var(--border));
+  border-radius: 13px;
+  background: color-mix(in srgb, #a855f7 12%, transparent);
+  color: var(--text);
+  font-size: 11.5px;
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+#tor-running .tor-running-icon { display: inline-flex; color: #a855f7; }
+#tor-running .tor-running-icon svg { width: 14px; height: 14px; }
+#tor-running-stop {
+  height: 20px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+#tor-running-stop:hover { background: var(--vex-hover-fill, var(--bg)); }
+#tor-running-stop:focus-visible { outline: 2px solid #a855f7; outline-offset: 1px; }

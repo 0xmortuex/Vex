@@ -2651,6 +2651,41 @@ const TabManager = {
     return out;
   },
 
+  // Ctrl+Tab / Ctrl+Shift+Tab: the next or previous tab on screen, round the
+  // end. It walked the internal list, which is not the order the strip draws,
+  // and stopped on tabs hidden in a collapsed group (found 2026-09-30); like
+  // Chrome, a collapsed group's tabs are passed over.
+  cycleTab(dir) {
+    const order = this.displayOrder();
+    const shown = (t) => t.pinned || !t.groupId || !(this.groups.find(g => g.id === t.groupId) || {}).collapsed;
+    const at = order.findIndex(t => t.id === this.activeTabId);
+    for (let step = 1; step <= order.length; step++) {
+      const t = order[((at < 0 ? 0 : at) + dir * step + order.length * step) % order.length];
+      if (t && t.id !== this.activeTabId && shown(t)) { this.switchTab(t.id); return t; }
+    }
+    return null;
+  },
+
+  // An extension's tabs.remove (main.js, _closeTabsForExtension) names tabs
+  // by their page's webContents id. Only a tab of this window answers to one;
+  // `missing` is the first id that is none of them.
+  tabsByPageId(ids) {
+    const pageId = (t) => {
+      const wv = WebviewManager.webviews.get(t.id);
+      try { return wv ? wv.getWebContentsId() : null; } catch { return null; } // not attached: no page yet
+    };
+    const tabs = ids.map(id => this.tabs.find(t => pageId(t) === id) || null);
+    const at = tabs.indexOf(null);
+    return { tabs, missing: at < 0 ? null : ids[at] };
+  },
+
+  closeTabsByPageId(ids) {
+    const { tabs, missing } = this.tabsByPageId(ids);
+    if (missing != null) throw new Error(`No tab with id: ${missing}.`);
+    tabs.forEach(t => this.closeTab(t.id));
+    return tabs.length;
+  },
+
   // Close tabs that appear *after* the given anchor in display order;
   // pinned tabs are preserved. "After" is what is on screen: slicing the list
   // said "No tabs to the right" for a tab pinned to the front (found 2026-09-29).

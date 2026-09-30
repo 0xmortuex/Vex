@@ -27,7 +27,7 @@ function makeKV() {
 }
 
 function makeEnv() {
-  return { VEX_AUTH_KV: makeKV(), VEX_SYNC_KV: makeKV(), DEVELOPMENT_MODE: 'true' };
+  return { VEX_AUTH_KV: makeKV(), VEX_SYNC_KV: makeKV(), DEVELOPMENT_MODE: 'true', EMAIL_HASH_SECRET: 'test-email-hash-secret-0123456789abcdef' };
 }
 
 function post(path, body, ip = '10.0.0.1') {

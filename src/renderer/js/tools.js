@@ -15,6 +15,14 @@ const VexTools = {
     if (!Array.isArray(this.tools)) this.tools = [];
     await this.applySidebarConfig();
     this.renderToolsBar();
+    // Sync merges the list in storage; the copy held here would otherwise be
+    // saved back over it on the next change (found 2026-09-30).
+    window.addEventListener('vex-sync-data-applied', () => {
+      try {
+        const t = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]');
+        if (Array.isArray(t)) { this.tools = t; this.renderToolsBar(); }
+      } catch (err) { console.error('[Tools] the synced list could not be read:', err); }
+    });
   },
 
   // Optional personalization via the LOCAL, gitignored sidebar-config.json

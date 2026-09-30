@@ -82,7 +82,9 @@ describe('the panel', () => {
     await AIPanel._sendMultiTab('and which one is taller?', TabManager.tabs);
     const hist = globalThis.AIRouter.callAI.mock.calls[0][1].conversationHistory;
     expect(hist.length).toBe(AIPanel.HISTORY_SENT);
-    expect(hist[hist.length - 1].content).toBe('and which one is taller?');
-    expect(hist[hist.length - 2].content).toBe('turn 11');
+    // The question itself goes in the last message with the tabs, not in the
+    // history as well (found 2026-09-30).
+    expect(hist.some(m => m.content === 'and which one is taller?')).toBe(false);
+    expect(hist[hist.length - 1].content).toBe('turn 11');
   });
 });

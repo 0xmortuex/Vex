@@ -76,7 +76,9 @@ function runInMainWorld(src) {
 // openTab, where given, asks main to open a Vex tab: a web page or one of the
 // extension's own pages (tabs.create, runtime.openOptionsPage). It answers
 // with the tab made: { id, url, active }, id being the page's webContents id.
-function vexExtensionStandIns(c, askPopupTab, openTab) {
+//
+// closeTab, where given, asks main to close Vex tabs by those ids ({ ids }).
+function vexExtensionStandIns(c, askPopupTab, openTab, closeTab) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
   if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
@@ -244,6 +246,19 @@ function vexExtensionStandIns(c, askPopupTab, openTab) {
       return answerWith(optionsPage ? openUrl(optionsPage, true).then(function () { return undefined; }) : Promise.reject(new Error('This extension has no options page')), cb);
     };
   }
+
+  // Electron has no tabs.remove either, so an extension that closed a tab it
+  // had opened threw there (found 2026-09-30). Main closes only a Vex tab in
+  // this extension's session; an id that is none fails as in Chrome, "No tab
+  // with id: N." (without the wrapping Electron puts round an IPC failure).
+  if (typeof closeTab === 'function' && c.tabs && typeof c.tabs.remove !== 'function') {
+    c.tabs.remove = function (ids, cb) {
+      var p = Promise.resolve(closeTab({ ids: [].concat(ids) })).then(function () { return undefined; }, function (err) {
+        throw new Error(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ''));
+      });
+      return answerWith(p, cb);
+    };
+  }
   return true;
 }
 // === END vex-extension-stand-ins ===
@@ -375,16 +390,17 @@ var __vexExtIsolated = false;
 if (location.protocol === 'chrome-extension:') {
   var __vexAskPopupTab = function () { return require('electron').ipcRenderer.invoke('extensions:popup-tab'); };
   var __vexOpenTab = function (request) { return require('electron').ipcRenderer.invoke('extensions:open-tab', request); };
+  var __vexCloseTab = function (request) { return require('electron').ipcRenderer.invoke('extensions:close-tab', request); };
   __vexExtIsolated = typeof process !== 'undefined' && process.contextIsolated === true;
   if (__vexExtIsolated) {
     try {
-      __vexCB.executeInMainWorld({ func: vexExtensionStandIns, args: [null, __vexAskPopupTab, __vexOpenTab] });
+      __vexCB.executeInMainWorld({ func: vexExtensionStandIns, args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab] });
       __vexCB.executeInMainWorld({ func: vexStorageSyncShim, args: [null] });
     } catch (err) {
       console.error('[Vex] extension stand-ins could not reach this page:', err && err.message);
     }
   } else {
-    vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab);
+    vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab);
   }
 }
 if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorageSyncShim(window.chrome)) {
@@ -2046,10 +2062,36 @@ if (typeof module !== 'undefined' && module.exports) {
     var cs = window.getComputedStyle(el);
     return cs.visibility !== 'hidden' && cs.display !== 'none';
   };
+  // A plain role="dialog" counted too, so a cookie banner that stays on
+  // screen (many are marked so, non-modal) kept Escape from ever closing Peek
+  // (found 2026-09-30). A modal one still counts; a non-modal one only when
+  // the focus is in it, the last click was in it, or it came up after the
+  // last click or key: a popup the person just opened, not one that was
+  // there all along.
+  var beforeInput = null, lastTarget = null;
+  var dialogsShown = function () {
+    var out = [], els = document.querySelectorAll('[role="dialog"], dialog[open]');
+    for (var i = 0; i < els.length; i++) if (shown(els[i])) out.push(els[i]);
+    return out;
+  };
+  var noteInput = function (e) {
+    if (!e.isTrusted || e.key === 'Escape') return;
+    beforeInput = dialogsShown();
+    lastTarget = e.target;
+  };
+  window.addEventListener('pointerdown', noteInput, true);
+  window.addEventListener('keydown', noteInput, true);
   var pageHadOpen = function () {
-    if (document.fullscreenElement || document.querySelector('dialog[open]')) return true;
-    var els = document.querySelectorAll('[aria-modal="true"], [role="dialog"], [role="alertdialog"]');
+    if (document.fullscreenElement || document.querySelector('dialog:modal')) return true;
+    var els = document.querySelectorAll('[aria-modal="true"], [role="alertdialog"]');
     for (var i = 0; i < els.length; i++) if (shown(els[i])) return true;
+    var open = dialogsShown(), focused = document.activeElement;
+    for (var j = 0; j < open.length; j++) {
+      var d = open[j];
+      if (focused && focused !== document.body && d.contains(focused)) return true;
+      if (lastTarget && lastTarget.nodeType === 1 && d.contains(lastTarget)) return true;
+      if (beforeInput && beforeInput.indexOf(d) < 0) return true;
+    }
     return false;
   };
   // Marked on this world's own view of the event, which the page cannot see.

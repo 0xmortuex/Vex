@@ -38,6 +38,13 @@ let _starting = null;
 function getPort() { return _port; }
 function isRunning() { return !!_proc; }
 
+// Told whenever Tor starts or stops, including a Tor that exits on its own,
+// so the "Tor is running" indicator never shows a Tor that is gone
+// (found 2026-09-30).
+const _stateListeners = new Set();
+function onStateChange(fn) { _stateListeners.add(fn); return () => _stateListeners.delete(fn); }
+function _stateChanged() { for (const fn of _stateListeners) fn(isRunning()); }
+
 function _freePort() {
   return new Promise((resolve) => {
     const s = net.createServer();
@@ -110,8 +117,10 @@ function stop() {
   _startToken++;
   _starting = null;
   if (_request) { _request.destroy(new Error('cancelled')); _request = null; }
+  const was = !!_proc;
   if (_proc) { try { _proc.kill(); } catch {} try { _proc.kill('SIGKILL'); } catch {} _proc = null; }
   _port = 0;
+  if (was) _stateChanged();
 }
 
 // Download (if needed) + launch tor.exe as a SOCKS client and wait until it's
@@ -158,6 +167,9 @@ async function _start(userDataDir) {
     '--Log', 'notice stdout',
     '--ClientOnly', '1',
     '--AvoidDiskWrites', '1',
+    // Tor exits when Vex does, a crash included: only will-quit stopped it,
+    // so tor.exe outlived a Vex that died (found 2026-09-30).
+    '__OwningControllerProcess', String(process.pid),
   ];
   if (fs.existsSync(geoip)) args.push('--GeoIPFile', geoip);
   if (fs.existsSync(geoip6)) args.push('--GeoIPv6File', geoip6);
@@ -167,6 +179,10 @@ async function _start(userDataDir) {
       _proc = spawn(exe, args, { windowsHide: true });
     } catch (e) { return reject(new Error('spawn tor: ' + (e && e.message))); }
     _port = port;
+    // Said as soon as tor.exe runs, not when it has connected: bootstrapping
+    // can take minutes, and the "Tor is running" indicator (and its Stop)
+    // stayed hidden all that time (found 2026-09-30).
+    _stateChanged();
     let settled = false;
     const finishOk = () => { if (settled) return; settled = true; resolve(port); };
     // A cancelled start's Tor exits later; stopping then would cancel the
@@ -190,10 +206,10 @@ async function _start(userDataDir) {
     // A Tor stopped by Cancel exits after the next one may have started;
     // only its own exit clears the running state.
     const proc = _proc;
-    _proc.on('exit', (code) => { if (_proc === proc) { _proc = null; _port = 0; } finishErr('tor exited (code ' + code + ') before bootstrap — see tor.log'); });
+    _proc.on('exit', (code) => { if (_proc === proc) { _proc = null; _port = 0; _stateChanged(); } finishErr('tor exited (code ' + code + ') before bootstrap — see tor.log'); });
     // Bootstrapping can be slow on some networks; give it up to 2 minutes.
     setTimeout(() => finishErr('Tor took too long to connect (timed out) — check your network'), 120000);
   });
 }
 
-module.exports = { start, stop, ensureBinary, getPort, isRunning, TOR_URL, TOR_VERSION };
+module.exports = { start, stop, ensureBinary, getPort, isRunning, onStateChange, TOR_URL, TOR_VERSION };

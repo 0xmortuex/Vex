@@ -118,7 +118,7 @@ describe('tabs.create and runtime.openOptionsPage open a Vex tab through main', 
 describe('extension pages get the same two channels', () => {
   it('the page preload hands the stand-ins both main calls', () => {
     expect(PAGE_SRC).toContain("ipcRenderer.invoke('extensions:open-tab', request)");
-    expect(PAGE_SRC).toContain('args: [null, __vexAskPopupTab, __vexOpenTab]');
-    expect(PAGE_SRC).toContain('vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab)');
+    expect(PAGE_SRC).toContain('args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab]');
+    expect(PAGE_SRC).toContain('vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab)');
   });
 });

@@ -21,7 +21,7 @@ describe('production worker boundaries', () => {
     expect(await response.text()).not.toContain('devCode');
   });
   it('serializes concurrent issuance so exactly three requests succeed', async () => {
-    const object = new VexSyncState(state(), { DEVELOPMENT_MODE: 'true' });
+    const object = new VexSyncState(state(), { DEVELOPMENT_MODE: 'true', EMAIL_HASH_SECRET: 'test-email-hash-secret-0123456789abcdef' });
     const responses = await Promise.all(Array.from({ length: 8 }, () => object.fetch(post('http://localhost/auth/request-code', { email: 'a@example.com' }))));
     expect(responses.filter(r => r.status === 200)).toHaveLength(3);
     expect(responses.filter(r => r.status === 429)).toHaveLength(5);

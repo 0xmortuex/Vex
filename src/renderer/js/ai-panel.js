@@ -1462,7 +1462,7 @@ const AIPanel = {
         const memMsg = AIMemory.historyMessage();
         if (memMsg) system.push(memMsg);
       }
-      const turns = this._historyFor(conv, retry).filter(m => m.role !== 'system').slice(-Math.max(1, this.HISTORY_SENT - system.length));
+      const turns = this._historyBefore(conv, retry, opts.message).filter(m => m.role !== 'system').slice(-Math.max(1, this.HISTORY_SENT - system.length));
       const conversationHistory = [...system, ...turns];
       // Only chat streams: the other actions render structured output that
       // means nothing until it is complete.
@@ -1954,7 +1954,7 @@ const AIPanel = {
       const aiResult = await AIRouter.callAI('multiTab', {
         message, tabContexts,
         // The same number of turns as a one-page chat (found 2026-09-29).
-        conversationHistory: this._historyFor(conv, retry).filter(m => m.role !== 'system').slice(-this.HISTORY_SENT),
+        conversationHistory: this._historyBefore(conv, retry, message).filter(m => m.role !== 'system').slice(-this.HISTORY_SENT),
         signal: abort.signal,
         persona: persona ? { id: persona.id, systemPrompt: persona.systemPrompt, temperature: persona.temperature } : null
       });
@@ -2305,6 +2305,16 @@ const AIPanel = {
     if (!retry.after) return [];
     const i = conv.indexOf(retry.after);
     return i >= 0 ? conv.slice(0, i + 1) : conv;
+  },
+
+  // The chat sent along with a question, without the question itself. It is
+  // already the last turn (pushed just before, or the turn a Retry follows),
+  // and the router sends it again with the page or the tabs, so the model
+  // read every question twice (found 2026-09-30).
+  _historyBefore(conv, retry, message) {
+    const history = this._historyFor(conv, retry);
+    const last = history[history.length - 1];
+    return (last && last.role === 'user' && last.content === message) ? history.slice(0, -1) : history;
   },
 
   // Leave an earlier chat opened from Recent chats and show this tab's again.

@@ -42,10 +42,13 @@ define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
 define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
 define('extensions:popup-tab', []);
 define('extensions:open-tab', [shape({ url: string(8192), active: optional(boolean) })]);
+// An extension's tabs.remove: the tabs' page ids (main.js, _closeTabsForExtension).
+define('extensions:close-tab', [shape({ ids: value => Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every(Number.isSafeInteger) })]);
 // The interface's answer to an extension's tabs.create: the tab it made.
 define('tab:created-for-extension', [shape({ id: string(40), ok: boolean, tabId: optional(integer), url: optional(string(8192)), active: optional(boolean), error: optional(string(4000)) })]);
 define('vex-lock:state', [boolean]);
 define('tor:cancel', []);
+define('tor:status tor:stop', []);
 define('guest:page-shortcut', [shape({ key: string(1), shift: boolean })]);
 define('rss:fetch open-external', [web]);
 define('mail:compose', [shape({ subject: string(300), body: string(8000) })]);
@@ -110,7 +113,7 @@ define('page:eval-all-frames', [integer, string(256 * 1024), optional(boolean)])
 define('mail:accounts', []);
 define('mail:add', [shape({ email: string(320), password: string(512), host: optional(string(255)), port: optional(integer), secure: optional(boolean) })]);
 define('mail:remove', [string(64)]);
-define('mail:inbox', [string(64), optional(integer)]);
+define('mail:inbox', [string(64), optional(integer), optional(integer)]);
 define('mail:message', [string(64), integer]);
 // The tag is optional: with none, the notes are for the running version —
 // which is how "What's new" asks after an update. Requiring it rejected that
@@ -136,6 +139,9 @@ define('routing:set', [optional(string(160)), oneOf(['direct','tor','proxy']), o
 // All of Vex at once, and the check that says whether it is really working.
 define('routing:set-all', [oneOf(['direct', 'tor', 'proxy']), optional(string(2048))]);
 define('routing:check', [optional(string(160))]);
+// A site route no rule uses, and the partitions the site rules use (js/site-routes.js).
+define('routing:forget', [string(160)]);
+define('routing:prune', [value => Array.isArray(value) && value.length <= 500 && value.every(string(160))]);
 define('discord:set-bypass-mode', [oneOf(['off','light','strong']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
 define('discord:install-vencord-local', [optional(string())]);
 define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value))]);
