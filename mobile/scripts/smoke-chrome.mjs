@@ -28,11 +28,23 @@ const results = {};
 const executablePath = process.env.CHROMIUM_PATH || undefined;
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const context = await browser.newContext({ ...devices['Pixel 7'] });
+
+// Hermetic: the run must behave the same on a laptop, in a sandbox with no
+// network, and on a CI runner with a fast one. Nothing here should reach a
+// real site — the fallback's iframes would otherwise load news.ycombinator.com
+// and fail on its framing policy, which says nothing about Vex.
+await context.route('**', route => {
+  const url = route.request().url();
+  if (url.startsWith('file:') || url.startsWith('data:') || url.startsWith('blob:')) return route.continue();
+  return route.abort();
+});
 const page = await context.newPage();
 page.on('pageerror', error => errors.push('pageerror: ' + error.message));
 page.on('console', message => {
   if (message.type() !== 'error') return;
-  if (/ERR_|Failed to load resource/.test(message.text())) return;    // no network in a sandbox
+  // Requests are aborted on purpose (above), and a site that refuses to be
+  // framed is the fallback's problem, not the chrome's.
+  if (/ERR_|Failed to load resource|frame-ancestors|Content Security Policy|Refused to (display|frame)/.test(message.text())) return;
   errors.push('console: ' + message.text());
 });
 
@@ -47,7 +59,23 @@ const sheetRow = async label => {
 };
 
 await page.goto('file://' + indexPath);
-await page.waitForTimeout(800);
+await page.waitForTimeout(900);
+
+// ── The first run, which is what a person actually meets first ──────────────
+results.welcomeShown = await page.isVisible('#panel') && (await page.textContent('#panel-title')) === 'Welcome to Vex';
+results.welcomeSteps = 0;
+for (let step = 0; step < 6; step++) {
+  const next = await page.$('#panel-body .welcome-nav .pill-btn:not(.ghost)');
+  if (!next) break;
+  results.welcomeSteps++;
+  const label = (await next.textContent()).trim();
+  await next.click({ force: true });
+  await page.waitForTimeout(220);
+  if (label === 'Start browsing') break;
+}
+results.welcomeDismissed = !(await page.isVisible('#panel'));
+results.welcomeRemembered = await page.evaluate(() => VexStore.get('vex.onboarded', false));
+await shot('00-welcome');
 
 // Stand in for the parts of native the chrome asks real questions of.
 await page.evaluate(() => {
@@ -559,6 +587,7 @@ console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
 const expected = {
+  welcomeShown: true, welcomeSteps: 4, welcomeDismissed: true, welcomeRemembered: true,
   startTiles: 4, startRail: 4,
   omniOpen: true, suggestions: 2, suggestionHighlight: 1,
   urlPill: 'example.com', startHidden: true,

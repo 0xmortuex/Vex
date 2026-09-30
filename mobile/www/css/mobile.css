@@ -648,3 +648,15 @@ body[data-toolbar="top"] .mediabar { bottom: calc(14px + env(safe-area-inset-bot
   font-size: var(--text-xs); line-height: 1.5; color: var(--vex-text-muted);
   max-height: 5.4em; overflow: hidden;
 }
+
+/* ── The first run ───────────────────────────────────────────────────────── */
+.welcome-step { padding: 20px 16px 8px; }
+.welcome-step h2 { margin: 0 0 8px; font: 500 var(--text-xl)/1.25 var(--font-read); }
+.welcome-sub { margin: 0 0 18px; font-size: var(--text-sm); line-height: 1.55; color: var(--vex-text-muted); }
+.welcome-step .theme-grid { padding: 0; }
+.welcome-buttons { display: flex; gap: 10px; }
+.welcome-list { margin: 0 -16px; }
+.welcome-nav { display: flex; gap: 10px; padding: 18px 16px 8px; }
+.welcome-dots { display: flex; justify-content: center; gap: 7px; padding: 8px 0 24px; }
+.welcome-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--vex-border-strong); }
+.welcome-dots i.on { background: var(--vex-accent); }

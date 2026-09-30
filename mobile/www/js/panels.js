@@ -61,6 +61,7 @@ const VexPanels = (() => {
     notes: () => VexPanels.notes(),
     reminders: () => VexPanels.reminders(),
     library: () => VexPanels.library(),
+    welcome: () => VexWelcome.show(0),
     settings: () => VexPanels.settings(),
     appearance: () => VexPanels.appearance(),
     toolbarButtons: () => VexPanels.toolbarButtons(),
@@ -139,6 +140,11 @@ const VexPanels = (() => {
   }
 
   return {
+    // Anything that wants the panel shell — the first-run flow does — goes
+    // through here rather than opening #panel itself: the page-cover refcount
+    // must be touched exactly once per open, and this is the only place that
+    // knows whether it is already open.
+    shell: openShell,
     close,
     back,
     isOpen() { return !$('panel').hidden; },

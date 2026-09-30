@@ -73,7 +73,8 @@
     VexStore.prime('vex.profile', null),
     VexStore.prime('vex.reminders', []),
     VexStore.prime('vex.noteCount', 0),
-    VexStore.prime('vex.aiMemory', [])
+    VexStore.prime('vex.aiMemory', []),
+    VexStore.prime('vex.onboarded', false)
   ]);
 
   const native = await VexBridge.init();
@@ -102,6 +103,9 @@
   const restored = VexStore.get('vex.restoreTabs', true) === false ? 0 : await VexTabStore.restore();
   if (!restored) await VexTabStore.create('about:blank');
   VexUI.renderToolbar();
+
+  // Four questions, once, all of them skippable.
+  await VexWelcome.maybeShow();
 
   // Things that can wait until the first page is on screen.
   setTimeout(async () => {
