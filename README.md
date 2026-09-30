@@ -9,7 +9,7 @@ A fast, private, deeply customizable desktop browser built on Electron + Chromiu
 [![Latest release](https://img.shields.io/github/v/release/0xmortuex/Vex?label=download&style=flat-square)](https://github.com/0xmortuex/Vex/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![Electron](https://img.shields.io/badge/Electron-42.5.2%20(castLabs)-47848F?style=flat-square)
+![Electron](https://img.shields.io/badge/Electron-42.11.0%20(castLabs)-47848F?style=flat-square)
 ![Chromium](https://img.shields.io/badge/Chromium-148-4285F4?style=flat-square)
 
 **[⬇ Download the latest release](https://github.com/0xmortuex/Vex/releases/latest)** · **[🌐 Website](https://0xmortuex.github.io/vex-website/)**
@@ -259,7 +259,7 @@ npm run dist:win   # build the signed Windows installer
 
 ## Under the hood
 
-- **Runtime:** Electron `42.5.2` (castLabs `+wvcus` — enables Widevine), **Chromium 148**, bundled Node. The exact versions are shown live in **Settings → About**.
+- **Runtime:** Electron `42.11.0` (castLabs `+wvcus` — enables Widevine), **Chromium 148**, bundled Node. The exact versions are shown live in **Settings → About**.
 - **Ad blocking:** `@ghostery/adblocker-electron` with the full EasyList filter set, network + cosmetic.
 - **Privacy engine:** in‑process DoH resolver, SNI/DPI‑bypass CONNECT proxy, ByeDPI SOCKS5, Tor Expert Bundle launcher.
 - **Security:** password vault and TOTP seeds are encrypted at rest through Electron safeStorage. Authorized autofill sends selected passwords or generated codes through the trusted renderer into the destination form; this is not a guarantee that secrets never reach renderer memory.

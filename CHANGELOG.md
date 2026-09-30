@@ -4,6 +4,9 @@
 
 The parts never tested before were driven for real this time: Tor started and checked at check.torproject.org, sync and mail against real servers run locally, updates against a local update server, and every shortcut and gesture sent as real keyboard and mouse input.
 
+### Security
+- **Electron 42.11** (castLabs, still Chromium 148), for four Electron security advisories: sandbox flags not passed to windows a sandboxed page opens, cross-origin reads through file and HTTP handlers, Node in a webview's web workers, and a poisonable preload code cache.
+
 ### Privacy
 - **A link opened in a new tab from a Tor tab left Tor** and loaded over your real connection (target=_blank, middle-click, window.open). It now stays in the tab's own session; private, burner and container tabs too, and "Search for selection" and "Search Image with Lens" from such a tab.
 - **A burner identity or container routed through Tor leaked your real address through WebRTC.** It is now locked like a Tor tab; so is a window a Tor page opens.
@@ -37,7 +40,7 @@ The parts never tested before were driven for real this time: Tor started and ch
 - Questions about several tabs remember the conversation with the local AI too.
 - chrome.tabs.create gives the extension the tab it opened.
 - Restoring a backup says "Reminders restored", not "synced"; synced reminders keep their time across a clock change; extension updates leave no empty folder behind.
-- Update errors are short and plain; the New Tor Tab hint no longer says Tor must be running.
+- Update errors are short and plain; the New Tor Tab hint no longer says Tor must be running; the Update channel row in Settings › About is laid out properly.
 
 ## v2.34.0 (2026-09-30) — 28 new themes and 5 new looks, after the popular Discord themes
 
