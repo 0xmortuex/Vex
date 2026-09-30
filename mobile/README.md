@@ -138,8 +138,7 @@ whole codebase:
 
 **CI builds it for real.** `.github/workflows/mobile.yml` runs on every push
 that touches `mobile/`: the checks, the Chromium walkthrough, the unit tests,
-then `cap sync`, a Gradle wrapper and `assembleDebug` on a runner that has the
-Android SDK — and it leaves a debug APK as an artifact you can install. That
+then `cap sync` and `assembleDebug` on a runner that has the Android SDK — and it leaves a debug APK as an artifact you can install. That
 workflow is the first place this app is actually assembled, because it cannot
 be assembled where it is written.
 
@@ -163,8 +162,10 @@ Gradle cannot even configure without the directory — Vex uses no Cordova
 plugins, but the module still has to exist. **Run sync before Gradle** on a
 fresh clone.
 
-There is no Gradle wrapper in the repo; generate one with
-`gradle wrapper --gradle-version 8.13`, or let Android Studio do it.
+The Gradle wrapper **is** in the repo, and it is the Gradle to build with:
+AGP 8.13 uses a Gradle internal API that Gradle 9.6 removed, so a modern
+system-wide `gradle` — 9.8 on a GitHub runner — cannot even configure this
+project, let alone build it. Use `./gradlew`, not `gradle`.
 
 ## Checks
 

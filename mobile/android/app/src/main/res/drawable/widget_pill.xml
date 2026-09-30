@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The widget's own surface. A widget cannot read the chrome's theme, so it
-     wears Vex's default paper and hairline instead of guessing. -->
+<!-- The widget's own surface: Vex's paper by day, Midnight's by night, chosen
+     by the launcher's configuration rather than by the chrome. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/vex_cream" />
-    <stroke android:width="1dp" android:color="#22000000" />
+    <solid android:color="@color/widget_surface" />
+    <stroke android:width="1dp" android:color="@color/widget_stroke" />
     <corners android:radius="26dp" />
 </shape>

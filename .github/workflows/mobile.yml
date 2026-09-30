@@ -91,10 +91,21 @@ jobs:
         working-directory: mobile
         run: npx cap sync android
 
-      - name: Gradle wrapper
-        working-directory: mobile/android
-        run: gradle wrapper --gradle-version 8.13
+      # AGP, the androidx libraries and the Gradle distribution itself are the
+      # same on every run; only the sources change.
+      - name: Gradle's caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle', 'mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
 
+      # The wrapper is in git, and it is the only Gradle that may build this: the
+      # runner's own is 9.8, and AGP 8.x reaches for a Gradle internal API that
+      # 9.6 removed — `gradle wrapper` alone was enough to fail, because any task
+      # configures :app first.
       - name: Assemble the debug APK
         working-directory: mobile/android
         run: ./gradlew --no-daemon assembleDebug

@@ -31,7 +31,7 @@
         android:maxLines="1"
         android:ellipsize="end"
         android:textSize="15sp"
-        android:textColor="@color/vex_ink"
+        android:textColor="@color/widget_ink"
         android:text="@string/widget_hint" />
 
     <ImageView
