@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.34.5 (2026-10-01) — Tor's small print, checked on the build server
+
+Includes everything in v2.34.4, which was not published: two of its tests raced the disk on the build server, where Tor's download starts a moment later. The app is the same.
+
 ## v2.34.4 (2026-10-01) — Tor's small print
 
 Includes everything in v2.34.3.

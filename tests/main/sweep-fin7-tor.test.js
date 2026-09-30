@@ -130,6 +130,12 @@ describe('Cancel while Tor is downloading', () => {
     if (g.sent >= g.size) { g.res.complete = true; g.res.end(); }
   }
   const tick = () => new Promise(r => setTimeout(r, 5));
+  // The launcher makes its folder before it asks for the archive; on a slow
+  // disk (CI) one tick is not enough for the request to exist yet.
+  const started = async (n) => {
+    for (let i = 0; i < 400 && gets.length < n; i++) await tick();
+    if (gets.length < n) throw new Error('the download never started');
+  };
 
   function fakeTor() {
     const proc = new EventEmitter();
@@ -154,7 +160,7 @@ describe('Cancel while Tor is downloading', () => {
     const tor = load();
     const progress = [];
     const first = tor.start(dir, (phase, v) => progress.push([phase, v]));
-    await tick();
+    await started(1);
     pump(gets[0], 500000);
     await tick();
     expect(progress.some(([p, v]) => p === 'download' && v > 0 && v < 1)).toBe(true);
@@ -166,7 +172,7 @@ describe('Cancel while Tor is downloading', () => {
     expect(fs.existsSync(path.join(dir, 'tor', 'tor', 'tor.exe'))).toBe(false);
 
     const second = tor.start(dir);
-    await tick();
+    await started(2);
     expect(gets).toHaveLength(2);
     pump(gets[1], 2000000);
     for (let i = 0; i < 50 && !spawned.length; i++) await tick();
@@ -181,7 +187,7 @@ describe('Cancel while Tor is downloading', () => {
     const tor = load();
     let open; extractGate = { promise: new Promise(r => { open = r; }) };
     const run = tor.start(dir);
-    await tick();
+    await started(1);
     pump(gets[0], 2000000);
     await tick(); await tick();
     tor.stop();
@@ -193,7 +199,7 @@ describe('Cancel while Tor is downloading', () => {
   it('a download cut short fails the integrity check rather than being used', async () => {
     const tor = load({ fakeDigest: false });
     const run = tor.start(dir);
-    await tick();
+    await started(1);
     pump(gets[0], 2000000); // the right size, the wrong bytes
     await expect(run).rejects.toThrow('Artifact integrity verification failed');
     expect(cp.spawn).not.toHaveBeenCalled();
@@ -205,7 +211,7 @@ describe('Cancel while Tor is downloading', () => {
     const one = tor.start(dir, (p, v) => a.push(v));
     const two = tor.start(dir, (p, v) => b.push(v));
     expect(two).toBe(one);
-    await tick();
+    await started(1);
     expect(gets).toHaveLength(1);
     pump(gets[0], 1000000);
     await tick();

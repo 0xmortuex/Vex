@@ -41,6 +41,12 @@ function fakeTor() {
   return proc;
 }
 const tick = () => new Promise(r => setTimeout(r, 5));
+// The launcher makes its folder before it asks for the archive; on a slow
+// disk (CI) one tick is not enough for the request to exist yet.
+const started = async (n) => {
+  for (let i = 0; i < 400 && gets.length < n; i++) await tick();
+  if (gets.length < n) throw new Error('the download never started');
+};
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-r7-tor-'));
@@ -83,7 +89,7 @@ describe('the phases a Tor start reports', () => {
     const tor = load();
     const progress = [];
     const run = tor.start(dir, (phase, value, detail) => progress.push([phase, value, detail]));
-    await tick();
+    await started(1);
     expect(progress).toEqual([['download', 0, undefined]]);
     gets[0].res.write(Buffer.alloc(1000000));
     await tick();
