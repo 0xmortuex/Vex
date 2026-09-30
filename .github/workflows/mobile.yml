@@ -53,6 +53,15 @@ jobs:
         working-directory: mobile
         run: npm run check
 
+      # Playwright's Chromium is ~300 MB and the same for every run on a given
+      # Playwright version; downloading it each time costs more than the smoke
+      # run itself.
+      - name: Playwright's Chromium, cached
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}
+
       - name: Drive the chrome in a phone-sized Chromium
         working-directory: mobile
         run: |

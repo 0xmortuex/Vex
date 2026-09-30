@@ -25,6 +25,17 @@ if (shotDir) fs.mkdirSync(shotDir, { recursive: true });
 
 const errors = [];
 const results = {};
+
+// A crash halfway through says nothing about how far the walkthrough got. This
+// writes what was collected before the throw — synchronously, because stderr
+// to a CI pipe does not always flush before exit.
+process.on('uncaughtException', error => {
+  fs.writeSync(2, 'CRASH ' + ((error && error.stack) || error) + '\n\nreached:\n');
+  for (const [key, value] of Object.entries(results)) {
+    fs.writeSync(2, '  ' + key + ' = ' + JSON.stringify(value) + '\n');
+  }
+  process.exit(1);
+});
 const executablePath = process.env.CHROMIUM_PATH || undefined;
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const context = await browser.newContext({ ...devices['Pixel 7'] });
@@ -48,7 +59,42 @@ page.on('console', message => {
   errors.push('console: ' + message.text());
 });
 
-const tap = async (selector, wait = 200) => { await page.click(selector, { force: true }); await page.waitForTimeout(wait); };
+// Why a tap failed matters more than that it did: a chrome that lays out
+// differently in a newer Chromium looks, from here, exactly like a chrome with
+// the wrong selector. So a failed tap reports the element's box, the styles
+// that could have hidden it, and which overlays were open at the time.
+const describe = async selector => page.evaluate(sel => {
+  const node = document.querySelector(sel);
+  if (!node) return 'no such element';
+  const box = node.getBoundingClientRect();
+  const chain = [];
+  for (let at = node; at && at !== document.documentElement; at = at.parentElement) {
+    const style = getComputedStyle(at);
+    chain.push((at.id ? '#' + at.id : at.tagName.toLowerCase())
+      + ' [' + style.display + '/' + style.visibility + '/opacity ' + style.opacity
+      + (at.hidden ? '/hidden attr' : '')
+      + (style.transform !== 'none' ? '/' + style.transform : '')
+      + ' ' + Math.round(at.getBoundingClientRect().width) + '×' + Math.round(at.getBoundingClientRect().height) + ']');
+  }
+  const open = ['panel', 'omnibox', 'tabgrid', 'findbar', 'scan', 'qrshare', 'dialog', 'sheet']
+    .filter(id => document.getElementById(id) && !document.getElementById(id).hidden);
+  return 'box ' + Math.round(box.width) + '×' + Math.round(box.height)
+    + ' at ' + Math.round(box.x) + ',' + Math.round(box.y)
+    + ' · viewport ' + innerWidth + '×' + innerHeight
+    + ' · body "' + document.body.className + '" toolbar=' + document.body.dataset.toolbar
+    + ' · open: ' + (open.join(', ') || 'nothing')
+    + '\n    ' + chain.join('\n    ');
+}, selector);
+
+const tap = async (selector, wait = 200) => {
+  try {
+    await page.click(selector, { force: true, timeout: 8000 });
+  } catch (error) {
+    const state = await describe(selector).catch(() => 'could not inspect');
+    throw new Error('tap ' + selector + ' failed: ' + error.message.split('\n')[0] + '\n  ' + state);
+  }
+  await page.waitForTimeout(wait);
+};
 const shot = async name => { if (shotDir) await page.screenshot({ path: path.join(shotDir, name + '.png') }); };
 const sheetRow = async label => {
   const rows = await page.$$('#sheet-list .sheet-row');
