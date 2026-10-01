@@ -91,7 +91,7 @@ Everything else below is either matched or bettered.
 
 | Samsung Internet | Vex | Notes |
 |---|---|---|
-| Text selection: copy, share, web search | ✅ | Android's own, plus Vex's: ask the assistant, translate, keep as a note |
+| Text selection: copy, share, web search | ✅ | Android's own, plus Vex's: ask the assistant, translate, polish (Gemini Nano, on the phone), keep as a note |
 | — | ✅ Notes | A line about a page, or a passage kept from one |
 | — | ✅ Reminders | "Bring this back this evening" — an Android alarm, so it fires whether or not Vex is running |
 

@@ -806,6 +806,11 @@ const VexUI = (() => {
 
     prompt(title, message, value = '') { return dialog({ title, message, input: value }); },
     confirm(message, title = 'Vex') { return dialog({ title, message, okLabel: 'Yes', cancelLabel: 'No' }).then(Boolean); },
+    // Something to read, with one thing you might do about it: a result to copy,
+    // a piece of text to keep. Yes/No is the wrong pair of words for that.
+    offer(message, okLabel, title = 'Vex') {
+      return dialog({ title, message, okLabel, cancelLabel: 'Close' }).then(Boolean);
+    },
     showRecoveryCode(code) {
       return dialog({
         title: 'Your recovery code',

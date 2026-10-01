@@ -138,6 +138,33 @@ const VexViews = (() => {
     log.scrollTop = log.scrollHeight;
   }
 
+  // Put a polished selection back where it came from, if that is possible at all:
+  // only an editable field can be written to, and a page's article text cannot.
+  const REPLACE = text => '(function(replacement){'
+    + 'var node = document.activeElement;'
+    + 'var editable = node && (node.isContentEditable || /^(input|textarea)$/i.test(node.tagName));'
+    + 'if (!editable) return "not-editable";'
+    + 'try { return document.execCommand("insertText", false, replacement) ? "ok" : "failed"; }'
+    + 'catch (error) { return "failed"; }'
+    + '})(' + JSON.stringify(text) + ')';
+
+  async function offerResult(tab, result) {
+    let where = 'not-editable';
+    if (tab) {
+      try {
+        const answer = await VexBridge.evaluate(tab.id, REPLACE(result));
+        where = String((answer && answer.result) || '').replace(/"/g, '');
+      } catch { where = 'not-editable'; }
+    }
+    if (where === 'ok') {
+      VexUI.toast('Replaced', 2500);
+      return;
+    }
+    // Not a field, so there is nowhere to put it: show it, and let it be copied.
+    const keep = await VexUI.offer(result, 'Copy', 'Polished');
+    if (keep) await VexUI.copy(result);
+  }
+
   async function ask(text, options) {
     const input = $('vex-chat-input');
     if (input) input.value = '';
@@ -312,16 +339,72 @@ const VexViews = (() => {
 
     askAI: ask,
     pursue,
+    offerResult,
     renderChat,
     renderAgent,
     mode() { return mode; },
 
     async summarisePage() {
       await this.openAI();
-      if (!(await VexAI.configured())) return;
+      // On-device can answer this without a worker, so the worker is only
+      // required when nothing local will take it.
+      if (!VexAI.staysHere('summarize') && !(await VexAI.configured())) {
+        VexUI.toast('Set up the assistant, or turn on on-device AI');
+        return;
+      }
       renderChat();
       try { await VexAI.summarize(); } catch {}
       renderChat();
+    },
+
+    /**
+     * Polish a selection — Gemini Nano's three jobs, on the text you picked.
+     *
+     * It happens on the phone, so it is offered beside Copy rather than behind
+     * the assistant, and the result can go straight back into the field it came
+     * from when that field is editable. Where there is no Nano, the worker is
+     * asked to do the same thing, and where there is neither, it says so.
+     */
+    async polish(tab, text) {
+      const selection = String(text || '').trim();
+      if (!selection) return;
+      const nano = typeof VexLocalAI !== 'undefined' && VexLocalAI.state.nano === 'available';
+      const choices = [
+        { id: 'proofread', label: 'Fix spelling and grammar', note: nano ? 'On the phone' : 'Through your worker' },
+        { id: 'shorten', label: 'Shorter' },
+        { id: 'rephrase', label: 'Say it differently' },
+        { id: 'professional', label: 'More formal' },
+        { id: 'friendly', label: 'Warmer' }
+      ];
+      VexSheets.choose(selection.length > 60 ? selection.slice(0, 57) + '…' : selection, choices,
+        async choice => {
+          VexSheets.close();
+          VexUI.toast(nano ? 'On it, on the phone…' : 'Asking your worker…', 2000);
+          let result = '';
+          try {
+            if (nano) {
+              result = choice === 'proofread'
+                ? await VexLocalAI.nanoProofread(selection)
+                : await VexLocalAI.nanoRewrite(selection, choice);
+            } else if (await VexAI.configured()) {
+              const how = choice === 'proofread' ? 'Correct the spelling and grammar'
+                : choice === 'shorten' ? 'Say this more briefly'
+                : choice === 'professional' ? 'Rewrite this more formally'
+                : choice === 'friendly' ? 'Rewrite this more warmly'
+                : 'Rewrite this differently';
+              result = await VexAI.ask(how + ', and give only the result:\n\n' + selection,
+                { action: 'chat', context: null, skipUserMessage: true });
+            } else {
+              VexUI.toast('This needs Gemini Nano or your own worker', 4000);
+              return;
+            }
+          } catch (error) {
+            VexUI.toast(error.message || 'It could not do that', 4000);
+            return;
+          }
+          if (!result) { VexUI.toast('Nothing came back'); return; }
+          await offerResult(tab, result);
+        });
     },
 
     anyOpen() { return this.readerOpen() || !$('panel').hidden; }

@@ -289,8 +289,17 @@
         VexUI.toast('Kept', 3000, { label: 'Notes', run: () => VexPanels.notes() });
         return;
       }
-      if (!(await VexAI.configured())) {
-        VexUI.toast('Set up the assistant first (Settings → Assistant)', 3500);
+      // Nano's three jobs, on the phone, with the result going back into the
+      // field it came from where that is possible.
+      if (data.action === 'polish') {
+        await VexViews.polish(tab, text.slice(0, 4000));
+        return;
+      }
+      // On-device can answer an explanation or a translation with no worker at
+      // all, so the worker is only required when nothing local will take it.
+      const action = data.action === 'translate' ? 'translate' : 'explain';
+      if (!VexAI.staysHere(action) && !(await VexAI.configured())) {
+        VexUI.toast('Set up the assistant, or turn on on-device AI', 3500);
         return;
       }
       VexViews.openAI('ask');
@@ -298,7 +307,7 @@
         ? 'Translate this into ' + VexStore.get('vex.translateTo', 'en') + '.'
         : 'What does this mean?';
       VexViews.askAI(question, {
-        action: data.action === 'translate' ? 'translate' : 'explain',
+        action,
         selectedText: text.slice(0, 4000),
         targetLanguage: VexStore.get('vex.translateTo', 'en')
       });

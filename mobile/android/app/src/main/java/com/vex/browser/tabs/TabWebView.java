@@ -404,7 +404,9 @@ public class TabWebView extends WebView {
         return super.startActionMode(wrapSelectionMenu(callback));
     }
 
-    private static final String[] SELECTION_ACTIONS = { "Ask Vex", "Translate", "Keep as a note" };
+    // "Polish" is Gemini Nano's: proofreading and rewriting happen on the phone,
+    // which is why it sits beside Copy rather than behind the assistant.
+    private static final String[] SELECTION_ACTIONS = { "Ask Vex", "Translate", "Polish", "Keep as a note" };
 
     private ActionMode.Callback wrapSelectionMenu(final ActionMode.Callback inner) {
         return new ActionMode.Callback() {
@@ -429,7 +431,8 @@ public class TabWebView extends WebView {
             public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
                 int index = item.getItemId() - SELECTION_MENU_BASE;
                 if (index < 0 || index >= SELECTION_ACTIONS.length) return inner.onActionItemClicked(mode, item);
-                final String action = index == 0 ? "ask" : index == 1 ? "translate" : "note";
+                final String action = index == 0 ? "ask" : index == 1 ? "translate"
+                        : index == 2 ? "polish" : "note";
                 // The text lives in the page, so ask the page for it.
                 evaluateJavascript("(function(){return window.getSelection?String(window.getSelection()):''})()",
                         value -> {

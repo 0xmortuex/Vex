@@ -252,6 +252,18 @@ await page.evaluate(async () => {
   VexPanels.close();
 });
 
+// ── Polishing a selection ───────────────────────────────────────────────────
+// The sheet Nano's three jobs are offered through, and the fallback when there
+// is no Nano: a worker answer, shown with something to do about it.
+await page.evaluate(() => window.__vexEmit('selection', {
+  id: VexTabStore.activeId(), action: 'polish', text: 'this sentance has a typo in it'
+}));
+await page.waitForTimeout(350);
+results.polishSheet = await page.$$eval('#sheet-list .sheet-row', rows => rows.length);
+results.polishOffersGrammar = ((await page.textContent('#sheet-list')) || '').includes('grammar');
+await shot('14-polish');
+await page.evaluate(() => VexSheets.close());
+
 // ── The tab bar, which only a wide window gets ──────────────────────────────
 // A phone does not show one. Widen the window to a tablet and it should appear,
 // with a chip per tab; narrow it again and it should go away, because a fold or
@@ -766,7 +778,8 @@ const expected = {
   localAiHonest: true, localAiRoutesNothing: false, localAiNeverAgent: false,
   localAiPrompt: true, localAiImported: true, localAiLoads: true,
   localAiHandlesNow: true, localAiStreamed: true,
-  chatOnDeviceTag: true, chatOnDeviceAnswer: true
+  chatOnDeviceTag: true, chatOnDeviceAnswer: true,
+  polishSheet: 5, polishOffersGrammar: true
 };
 
 const failures = [];
