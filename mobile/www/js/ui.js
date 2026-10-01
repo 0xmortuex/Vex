@@ -955,6 +955,10 @@ const VexUI = (() => {
   async function openUrl(input, options = {}) {
     const url = VexSearch.toUrl(input);
     if (!url) return;
+    // Every road into a private tab passes the lock — "open in private tab"
+    // on a link went straight past it, and the switcher then opened on the
+    // private side because that was the tab in front.
+    if (options.incognito && !(await unlockPrivate())) return;
     const tab = VexTabStore.active();
     const newTab = options.newTab || (!tab) || (VexStore.get('vex.linksInNewTab', false) && options.fromLink);
     if (newTab) {
@@ -988,6 +992,10 @@ const VexUI = (() => {
   async function unlockPrivate() {
     if (!VexStore.get('vex.lockPrivate', false)) return true;
     if (Date.now() - privateUnlockedAt < 3 * 60 * 1000) return true;
+    // Already in a private tab you unlocked since you last came back to Vex:
+    // a link opened from it is not a new way in.
+    const active = VexTabStore.active();
+    if (active && active.incognito && privateUnlockedAt) return true;
     const check = await VexBridge.authenticate('Private tabs', 'Unlock to open private browsing');
     if (!check.ok) { toast('Not unlocked'); return false; }
     privateUnlockedAt = Date.now();
@@ -1002,6 +1010,33 @@ const VexUI = (() => {
    * browsing. The vault relocks when Vex goes to the background; this is the
    * same rule for the same reason.
    */
+  /**
+   * Coming back to Vex with a private tab in front asks again before showing
+   * it. The lock relocked when you left; without this the page was simply
+   * there on return, which is the one moment the lock exists for — the phone
+   * handed to someone else, Vex opened from the recents list.
+   */
+  async function guardPrivateOnReturn() {
+    if (!VexStore.get('vex.lockPrivate', false)) return true;
+    const active = VexTabStore.active();
+    const privateGrid = !$('tabgrid').hidden && tabGridScope === 'private';
+    if (!(active && active.incognito) && !privateGrid) return true;
+    cover(true);
+    let ok = false;
+    try { ok = await unlockPrivate(); } finally { cover(false); }
+    if (ok) return true;
+    if (privateGrid) { tabGridScope = 'normal'; renderTabGrid(); }
+    if (active && active.incognito) {
+      const normal = VexTabStore.normal()
+        .sort((a, b) => (b.lastActiveAt || 0) - (a.lastActiveAt || 0))[0];
+      if (normal) await VexTabStore.activate(normal.id);
+      else await VexTabStore.create('about:blank');
+      renderToolbar();
+    }
+    applyPrivacyScreen();
+    return false;
+  }
+
   function relockPrivate() {
     privateUnlockedAt = 0;
     // And the private side of the switcher is not where somebody else comes back
@@ -1240,7 +1275,7 @@ const VexUI = (() => {
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind, findOnPage,
     openUrl, newTab, copy, toggleBookmark, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage,
-    offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, relockPrivate, forgetSite,
+    offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, relockPrivate, guardPrivateOnReturn, forgetSite,
 
     prompt(title, message, value = '') { return dialog({ title, message, input: value }); },
     confirm(message, title = 'Vex') { return dialog({ title, message, okLabel: 'Yes', cancelLabel: 'No' }).then(Boolean); },

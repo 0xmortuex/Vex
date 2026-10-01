@@ -663,6 +663,34 @@ results.privateRelocks = await page.evaluate(async () => {
   return [first, grace, after, asked].join(',');
 });
 
+// ── Every way into private browsing passes the lock ──────────────────────────
+// "Open in private tab" on a link used to skip it, and coming back to Vex with
+// a private tab in front showed the page without asking.
+results.privateLockEverywhere = await page.evaluate(async () => {
+  await VexStore.set('vex.lockPrivate', true);
+  let answer = false;
+  const realAuthenticate = VexBridge.authenticate;
+  VexBridge.authenticate = async () => ({ ok: answer });
+  VexUI.relockPrivate();
+  const before = VexTabStore.private().length;
+  await VexUI.openUrl('https://secret.example/', { newTab: true, incognito: true });
+  const refused = VexTabStore.private().length === before;
+
+  answer = true;
+  await VexUI.openUrl('https://secret.example/', { newTab: true, incognito: true });
+  const opened = !!(VexTabStore.active() && VexTabStore.active().incognito);
+
+  VexUI.relockPrivate();                              // left Vex
+  answer = false;
+  const shown = await VexUI.guardPrivateOnReturn();   // came back, wrong finger
+  const hidden = !!(VexTabStore.active() && !VexTabStore.active().incognito);
+
+  for (const tab of VexTabStore.private()) await VexTabStore.close(tab.id);
+  await VexStore.set('vex.lockPrivate', false);
+  VexBridge.authenticate = realAuthenticate;
+  return [refused, opened, shown, hidden].join(' ');
+});
+
 // ── The video bar's own sheet ───────────────────────────────────────────────
 // Speed, brightness and sound all existed in js/media.js with nothing in the
 // chrome reaching any of them. This drives the sheet and checks the page was
@@ -1476,6 +1504,7 @@ const expected = {
   reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
   libraryOpens: true,
   downloadsLive: '30% 70% 0',
+  privateLockEverywhere: 'true true false true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,

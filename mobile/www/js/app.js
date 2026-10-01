@@ -207,6 +207,7 @@
     if (plugin) plugin.minimizeApp();
   });
   VexBridge.onAppEvent('appStateChange', async state => {
+    if (state && state.isActive === true) { await VexUI.guardPrivateOnReturn(); return; }
     if (state && state.isActive === false) {
       await rememberScroll();
       VexVault.lock();                 // leaving the app re-locks the logins

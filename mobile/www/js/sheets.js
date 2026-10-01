@@ -412,10 +412,13 @@ const VexSheets = (() => {
       const tab = VexTabStore.active();
 
       if (link) {
-        list.appendChild(row({ icon: 'plus', label: 'Open in new tab', run: () => VexUI.openUrl(link, { newTab: true, background: true }) }));
+        list.appendChild(row({ icon: 'plus', label: 'Open in new tab', run: () => VexUI.openUrl(link, {
+          newTab: true, background: true, incognito: !!(tab && tab.incognito), opener: tab && tab.id
+        }) }));
         list.appendChild(row({ icon: 'private', label: 'Open in private tab', run: () => VexUI.openUrl(link, { newTab: true, incognito: true }) }));
         list.appendChild(row({ icon: 'list', label: 'Add to reading list', run: async () => {
           await VexCollections.reading.add({ url: link, title: link });
+          VexSync.schedulePush();
           VexUI.toast('Saved for later');
         } }));
         list.appendChild(row({ icon: 'copy', label: 'Copy link', run: () => VexUI.copy(link) }));
