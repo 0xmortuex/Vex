@@ -665,10 +665,20 @@ public class TabWebView extends WebView {
     private void injectCosmetic() {
         String css = BlockEngine.get().cosmeticCss(pageHost);
         if (css.isEmpty()) return;
-        String script = "(function(){var s=document.getElementById('vex-cosmetic');"
+        // A constructed stylesheet first: a page whose Content-Security-Policy
+        // forbids inline styles refuses a <style> element, and its ads stayed
+        // in view. adoptedStyleSheets is not subject to that rule. The element
+        // is the fallback for a WebView too old to construct one.
+        String script = "(function(){var css=" + org.json.JSONObject.quote(css) + ";"
+                + "try{if(document.adoptedStyleSheets!==undefined&&window.CSSStyleSheet){"
+                + "var sheet=document.__vexCosmetic;if(!sheet){sheet=new CSSStyleSheet();document.__vexCosmetic=sheet;}"
+                + "sheet.replaceSync(css);"
+                + "if(document.adoptedStyleSheets.indexOf(sheet)<0)document.adoptedStyleSheets=document.adoptedStyleSheets.concat([sheet]);"
+                + "return;}}catch(e){}"
+                + "var s=document.getElementById('vex-cosmetic');"
                 + "if(!s){s=document.createElement('style');s.id='vex-cosmetic';"
                 + "(document.head||document.documentElement).appendChild(s);}"
-                + "s.textContent=" + org.json.JSONObject.quote(css) + ";})();";
+                + "s.textContent=css;})();";
         evaluateJavascript(script, null);
     }
 
