@@ -277,6 +277,9 @@ results.localAiImported = await page.evaluate(async () => {
   await VexLocalAI.refresh();
   return VexLocalAI.installed().includes('Gemma3-1B-IT.litertlm');
 });
+// The panel was open the whole time; it has to have noticed the model land.
+await page.waitForTimeout(700);
+results.localAiPanelFollows = ((await page.textContent('#panel-body')) || '').includes('MB on disk');
 results.localAiLoads = await page.evaluate(async () => {
   await VexLocalAI.setModel('Gemma3-1B-IT.litertlm');
   await VexLocalAI.setMode('prefer');
@@ -1334,6 +1337,36 @@ results.addLoginBack = await page.evaluate(async () => {
   return saved + ' | ' + backTo;
 });
 
+// A panel drawn again in place keeps its place: change something at the
+// bottom of Appearance and you are still at the bottom.
+results.panelKeepsPlace = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  VexPanels.appearance();
+  await wait(150);
+  const body = document.getElementById('panel-body');
+  body.scrollTop = 300;
+  const before = body.scrollTop;
+  VexPanels.appearance();
+  await wait(250);
+  const after = body.scrollTop;
+  VexPanels.close();
+  return before > 0 && Math.abs(after - before) <= 1;
+});
+
+// History is pruned by its index, and "Never" means never.
+results.historyPrune = await page.evaluate(async () => {
+  const day = 86400000;
+  const old = { url: 'https://prune.example/old', title: 'old', host: 'prune.example', at: Date.now() - 400 * day };
+  const ancient = { url: 'https://prune.example/ancient', title: 'ancient', host: 'prune.example', at: Date.now() - 2000 * day };
+  const fresh = { url: 'https://prune.example/fresh', title: 'fresh', host: 'prune.example', at: Date.now() - day };
+  for (const row of [old, ancient, fresh]) await VexDB.add('history', row);
+  const kept = await VexDB.prune({ historyDays: VexDB.NEVER });
+  const removed = await VexDB.prune({ historyDays: 365 });
+  const left = (await VexDB.scan('history', { limit: 5000 })).filter(row => row.host === 'prune.example').map(row => row.title);
+  await VexDB.deleteWhere('history', row => row.host === 'prune.example');
+  return kept + ' ' + removed + ' ' + left.join(',');
+});
+
 console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
@@ -1371,6 +1404,7 @@ const expected = {
   reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
   libraryOpens: true,
   downloadsLive: '30% 70% 0',
+  panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,
   addLoginBack: 'Passwords and 2FA | Settings',
   speakBarShown: true,
   speakBarGone: true,

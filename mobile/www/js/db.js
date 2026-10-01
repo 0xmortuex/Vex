@@ -32,6 +32,8 @@ const VexDB = (() => {
   const VERSION = 5;
   let database = null;
   let broken = false;
+  // History kept this many days or more is history kept for good.
+  const NEVER = 1000;
 
   function open() {
     if (database) return Promise.resolve(database);
@@ -163,6 +165,7 @@ const VexDB = (() => {
   }
 
   return {
+    NEVER,
     open,
     tokenize,
 
@@ -214,6 +217,32 @@ const VexDB = (() => {
       });
     },
 
+    /**
+     * Delete every row whose indexed value is below `bound`. It walks the index
+     * from the oldest end and stops at the first row that stays, so pruning a
+     * year of history on every launch reads the few rows that go rather than
+     * deserialising every visit there is.
+     */
+    async deleteBefore(store, index, bound) {
+      const db = await open();
+      if (!db) return 0;
+      return new Promise(resolve => {
+        let removed = 0;
+        const transaction = db.transaction(store, 'readwrite');
+        const cursor = transaction.objectStore(store).index(index)
+          .openCursor(IDBKeyRange.upperBound(bound, true));
+        cursor.onsuccess = event => {
+          const at = event.target.result;
+          if (!at) return;
+          at.delete();
+          removed++;
+          at.continue();
+        };
+        transaction.oncomplete = () => resolve(removed);
+        transaction.onerror = () => resolve(removed);
+      });
+    },
+
     // Full-text: look the query's terms up in the multiEntry index, keep the
     // pages that carry all of them, then rank by how recent they are.
     async search(query, limit = 40) {
@@ -253,9 +282,12 @@ const VexDB = (() => {
     // Keep the stores from growing without end: history by age, recall and the
     // error log by count — recall's rows carry whole pages of text, and a page
     // stuck in a reload loop can write errors faster than anyone reads them.
+    //
+    // A historyDays of NEVER or more keeps history for good — the setting's
+    // "Never" used to be 1000 days, which is not never.
     async prune({ historyDays = 365, recallRows = 4000, errorRows = 200 } = {}) {
-      const cutoff = Date.now() - historyDays * 86400000;
-      const removed = await this.deleteWhere('history', row => (row.at || 0) < cutoff);
+      const removed = Number(historyDays) >= NEVER ? 0
+        : await this.deleteBefore('history', 'at', Date.now() - historyDays * 86400000);
       await this.trim('recall', recallRows, 'url');
       await this.trim('errors', errorRows, 'id');
       return removed;

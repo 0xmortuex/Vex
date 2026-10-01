@@ -18,10 +18,18 @@ const VexPanels = (() => {
   // later one — two sets of rows in one list, the stale ones underneath.
   // Each draw takes a number and stops if the number has moved on.
   let drawn = 0;
+  let localAIFollowed = false;
 
   function openShell(name, title, { search, action } = {}) {
     drawn++;
     stopTicker();
+    // Drawn again in place — a toggle flipped, a choice made at the bottom of
+    // Appearance — keeps its place. Every redraw used to put you back at the
+    // top, a long way from the row you had just changed. Typing in the search
+    // field is the exception: new results start at the top.
+    const redraw = !$('panel').hidden && stack[stack.length - 1] === name
+      && document.activeElement !== $('panel-search-input');
+    const keep = redraw ? $('panel-body').scrollTop : 0;
     $('panel-title').textContent = title;
     const searchWrap = $('panel-search');
     searchWrap.hidden = !search;
@@ -49,7 +57,21 @@ const VexPanels = (() => {
       $('panel').hidden = false;
       VexUI.cover(true);
     }
+    if (keep > 0) holdScroll($('panel-body'), keep, drawn);
     return $('panel-body');
+  }
+
+  // The rows arrive after this returns — at once for most panels, after an
+  // IndexedDB read for some — so the place is put back once there is enough
+  // page under it, giving up after a third of a second or a newer drawing.
+  function holdScroll(node, top, mine) {
+    let tries = 0;
+    const put = () => {
+      if (mine !== drawn) return;
+      node.scrollTop = top;
+      if (node.scrollTop < top - 1 && ++tries < 10) setTimeout(put, 35);
+    };
+    requestAnimationFrame(put);
   }
 
   /**
@@ -1191,6 +1213,10 @@ const VexPanels = (() => {
     // ── Settings ───────────────────────────────────────────────────────────
     async settings() {
       const body = openShell('settings', 'Settings');
+      // Two answers below are awaited — history's size, and whether Vex is the
+      // default — and a tap on Appearance meanwhile used to get the rest of
+      // Settings appended underneath it.
+      const mine = drawn;
 
       body.appendChild(heading('Look and feel'));
       body.appendChild(valueRow('Appearance', 'Theme, skin, typeface, toolbar', VexTheme.current().id, () => this.appearance()));
@@ -1325,13 +1351,16 @@ const VexPanels = (() => {
       body.appendChild(valueRow('Assistant', 'Your own worker',
         VexAI.workerUrl() ? 'Configured' : 'Not set', () => this.assistantSettings()));
       const stats = await VexHistory.stats();
+      if (mine !== drawn) return;
       body.appendChild(valueRow('Storage', stats.visits.toLocaleString() + ' visits · '
         + stats.pages.toLocaleString() + ' pages searchable · ' + stats.saved + ' saved', null,
         () => this.storage()));
 
+      const isDefault = await VexBridge.isDefaultBrowser().catch(() => false);
+      if (mine !== drawn) return;
       body.appendChild(heading('Vex on this phone'));
       body.appendChild(valueRow('Make Vex the default browser',
-        (await VexBridge.isDefaultBrowser()) ? 'Vex is the default' : 'Opens Android settings', null,
+        isDefault ? 'Vex is the default' : 'Opens Android settings', null,
         () => VexBridge.openDefaultBrowserSettings()));
       body.appendChild(valueRow('Backup',
         'Everything in one encrypted file, for moving to another phone', '',
@@ -1481,10 +1510,10 @@ const VexPanels = (() => {
       body.appendChild(toggleRow('Keep page text for Recall', 'Off means history only remembers titles',
         VexStore.get('vex.recall', true), value => VexStore.set('vex.recall', value)));
       body.appendChild(valueRow('Forget history older than', null,
-        VexStore.get('vex.historyDays', 365) + ' days',
+        VexStore.get('vex.historyDays', 365) >= VexDB.NEVER ? 'Never' : VexStore.get('vex.historyDays', 365) + ' days',
         () => VexSheets.choose('Forget history older than',
-          [30, 90, 180, 365, 1000].map(days => ({
-            id: days, label: days >= 1000 ? 'Never' : days + ' days',
+          [30, 90, 180, 365, VexDB.NEVER].map(days => ({
+            id: days, label: days >= VexDB.NEVER ? 'Never' : days + ' days',
             selected: days === VexStore.get('vex.historyDays', 365)
           })),
           async days => {
@@ -1887,8 +1916,8 @@ const VexPanels = (() => {
         body.appendChild(listRow(entry, {
           sub: item => item.url,
           actions: [
-            { icon: 'up', label: 'Move up', run: async item => { await VexCollections.quick.move(item.url, -1); this.quickAccess(); } },
-            { icon: 'down', label: 'Move down', run: async item => { await VexCollections.quick.move(item.url, 1); this.quickAccess(); } }
+            { icon: 'up', label: 'Move up', run: async item => { await VexCollections.quick.move(item.url, -1); VexSync.schedulePush(); this.quickAccess(); } },
+            { icon: 'down', label: 'Move down', run: async item => { await VexCollections.quick.move(item.url, 1); VexSync.schedulePush(); this.quickAccess(); } }
           ],
           onRemove: async item => {
             await VexCollections.quick.remove(item.url);
@@ -1983,7 +2012,9 @@ const VexPanels = (() => {
     // ── Assistant settings ─────────────────────────────────────────────────
     async assistantSettings() {
       const body = openShell('assistant', 'Assistant');
+      const mine = drawn;
       const hasToken = await VexAI.hasToken();
+      if (mine !== drawn) return;
 
       body.appendChild(el('div', 'field-note',
         'Vex AI talks to a Cloudflare Worker you deploy yourself (SELF_HOSTING.md in the repo). Nothing '
@@ -2206,6 +2237,7 @@ const VexPanels = (() => {
 
       body.appendChild(heading('Storage'));
       const stats = await VexHistory.stats();
+      if (mine !== drawn) return;
       body.appendChild(VexSheets.row({
         icon: 'history', label: stats.visits.toLocaleString() + ' visits',
         note: stats.pages.toLocaleString() + ' pages searchable · ' + stats.saved + ' saved offline',
@@ -2214,6 +2246,7 @@ const VexPanels = (() => {
 
       body.appendChild(heading('The last problems'));
       const errors = await VexReport.all(40);
+      if (mine !== drawn) return;
       if (!errors.length) {
         body.appendChild(el('div', 'field-note',
           'Nothing has gone wrong since this was last cleared. Errors are kept on the phone and sent '
@@ -2250,7 +2283,24 @@ const VexPanels = (() => {
      */
     async localAI() {
       const body = openShell('localai', 'On-device AI');
+      const mine = drawn;
+      // The model's download reports progress, and finishes, while this page
+      // is open. Nothing was listening, so the row said "0 MB so far" until
+      // you left and came back. Redrawn at most twice a second, and only
+      // while this page is the one showing.
+      if (!localAIFollowed) {
+        localAIFollowed = true;
+        let pending = null;
+        VexLocalAI.onChange(() => {
+          if (pending) return;
+          pending = setTimeout(() => {
+            pending = null;
+            if (!$('panel').hidden && stack[stack.length - 1] === 'localai') this.localAI();
+          }, 500);
+        });
+      }
       await VexLocalAI.refresh();
+      if (mine !== drawn) return;
       const state = VexLocalAI.state;
       const installed = VexLocalAI.installed();
       const chosen = VexLocalAI.chosenModel();
@@ -2369,6 +2419,7 @@ const VexPanels = (() => {
 
       body.appendChild(heading('Gemini Nano'));
       const nano = await VexLocalAI.refreshNano();
+      if (mine !== drawn) return;
       body.appendChild(el('div', 'field-note',
         nano === 'available'
           ? 'This phone has Nano, and it is ready. Nothing to download, nothing stored by Vex: the weights '
