@@ -1293,8 +1293,8 @@ const VexPanels = (() => {
 
       body.appendChild(heading('Every time you leave'));
       body.appendChild(toggleRow('Clear when I leave Vex',
-        'The same list, minus the open tabs — coming back to an empty browser because you took a '
-        + 'phone call is nobody’s idea of privacy',
+        'An app is not closed, it is left — so this happens every time Vex goes to the background, '
+        + 'including when you take a phone call. The open tabs are never in it, for the same reason.',
         VexClear.onExit(), value => VexStore.set('vex.clearOnExit', value)));
 
       body.appendChild(VexSheets.row({

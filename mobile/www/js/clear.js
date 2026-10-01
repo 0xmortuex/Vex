@@ -135,6 +135,9 @@ const VexClear = (() => {
       if (items.tabs) {
         await VexTabStore.closeAll(false);
         await VexTabStore.closeAll(true);
+        // A browser with no tabs in it is a blank shell with no way out, so the
+        // last thing this does is open the one you are left looking at.
+        if (!VexTabStore.all().length) await VexTabStore.create('about:blank');
         done.push('tabs');
       }
       return done;
@@ -143,8 +146,8 @@ const VexClear = (() => {
     /**
      * Called when Vex goes to the background, and only then: "on exit" on a
      * phone means the moment you leave, because an app is not closed, it is
-     * left. Open tabs are never closed from here — coming back to an empty
-     * browser because you took a phone call is not what anybody asked for.
+     * left — including when you take a phone call and come straight back. Open
+     * tabs are never closed from here for exactly that reason.
      */
     async onLeaving() {
       if (!this.onExit()) return [];

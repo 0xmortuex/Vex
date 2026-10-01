@@ -52,10 +52,18 @@ const VexTranslate = (() => {
   return JSON.stringify(window.__vexTranslate.original);
 })()`;
 
+  // JSON.stringify leaves U+2028 and U+2029 raw, and those two are line
+  // terminators in JavaScript source: a page containing one would have ended the
+  // statement this is built into. Every translated string came out of a page, so
+  // every one of them goes through here.
+  function literal(value) {
+    return JSON.stringify(value).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  }
+
   const apply = (at, texts) => `(function(){
   var held = window.__vexTranslate;
   if (!held) return 'none';
-  var next = ${JSON.stringify(texts)};
+  var next = ${literal(texts)};
   for (var index = 0; index < next.length; index++) {
     var node = held.nodes[${at} + index];
     // An empty answer means that one string did not translate; the original

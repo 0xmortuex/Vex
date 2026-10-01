@@ -26,7 +26,9 @@ window.VexHistory = {
 let tabs = [{ id: 't1' }, { id: 't2' }];
 window.VexTabStore = {
   normal: () => tabs,
-  closeAll: vi.fn(async () => { cleared.push('tabs'); tabs = []; })
+  closeAll: vi.fn(async () => { cleared.push('tabs'); tabs = []; }),
+  all: () => tabs,
+  create: vi.fn(async url => { tabs.push({ id: 'fresh', url }); return tabs.at(-1); })
 };
 
 const { VexClear } = require('../../mobile/www/js/clear.js');
@@ -109,6 +111,12 @@ describe('clearing', () => {
     expect(cleared[0]).toBe('native:cookies+storage');
     expect(cleared.at(-1)).toBe('tabs');
     expect(window.VexTabStore.closeAll).toHaveBeenCalledTimes(2);   // normal and private
+  });
+
+  it('leaves one tab open, because a browser with none is a blank shell', async () => {
+    await VexClear.run({ tabs: true });
+    expect(window.VexTabStore.create).toHaveBeenCalledWith('about:blank');
+    expect(tabs.length).toBe(1);
   });
 });
 

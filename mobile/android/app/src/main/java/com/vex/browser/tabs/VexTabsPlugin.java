@@ -653,7 +653,9 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
                 for (TabWebView tab : tabs.values()) {
                     tab.clearCache(true);
                     tab.clearFormData();
-                    tab.clearHistory();
+                    // NOT clearHistory(): that is the back button, not a cache.
+                    // "Clear cached files" taking away every tab's way back was
+                    // a side effect nobody asked for and nobody would guess.
                 }
             }
             call.resolve();

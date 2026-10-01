@@ -105,6 +105,19 @@ describe('translating the page', () => {
     expect(applied).toContain('if (node && next[index]) node.nodeValue = next[index];');
   });
 
+  it('escapes the two characters that would end the script it builds', async () => {
+    // U+2028 and U+2029 are line terminators in JavaScript source and
+    // JSON.stringify leaves them raw. A page containing one would otherwise have
+    // broken the write-back statement in half.
+    window.VexBridge.translateTexts.mockResolvedValueOnce(['one\u2028two', 'three\u2029four', 'five']);
+    await VexTranslate.page(tab(), 'en');
+    const applied = evaluated.find(code => code.includes('var next = '));
+    expect(applied).not.toMatch(/[\u2028\u2029]/);
+    expect(applied).toContain('\\u2028');
+    // And it is still valid JavaScript.
+    expect(() => new Function(applied)).not.toThrow();
+  });
+
   it('puts the original back', async () => {
     await VexTranslate.page(tab(), 'en');
     expect(await VexTranslate.original(tab())).toBe(true);
