@@ -391,6 +391,116 @@ describe('the server’s answers', () => {
   });
 });
 
+describe('the spec’s §6 rules, case by case', () => {
+  it('§5.4: rejoining with an old local list does not bring back what a desktop deleted meanwhile', async () => {
+    await desktopWithAccount();
+    const first = await joinedPhone();
+    await first.sync.signOut();                                   // keeps the phone's bookmarks
+    expect(first.bookmarks.all().some(item => item.id === 'bmdesk2')).toBe(true);
+    await pc.engine.pullNow();
+    pc.local.set('vex.bookmarks', JSON.stringify(JSON.parse(pc.local.get('vex.bookmarks')).filter(item => item.id !== 'bmdesk2')));
+    expect((await pc.engine.pushNow()).ok).toBe(true);
+    // The same phone signs in again.
+    expect((await first.sync.signIn(EMAIL, await codeFor(first, EMAIL), recovery)).ok).toBe(true);
+    const { doc } = await accountDocument(stand, recovery);
+    expect(doc.records['["preference:vex.bookmarks","item","bmdesk2"]'].deleted).toBe(true);
+    expect(first.bookmarks.all().some(item => item.id === 'bmdesk2')).toBe(false);
+  });
+
+  it('…nor does a stale local copy in an ordinary round, but an undo does', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    const entry = mobile.bookmarks.all().find(item => item.id === 'bmdesk1');
+    await mobile.bookmarks.remove(entry.url);
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    expect((await accountDocument(stand, recovery)).doc.records['["preference:vex.bookmarks","item","bmdesk1"]'].deleted).toBe(true);
+    // A stale copy (a backup restored, say) is not a reason to revive it…
+    await mobile.context.VexStore.set('vex.bookmarks', [...mobile.bookmarks.all(), entry]);
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    expect((await accountDocument(stand, recovery)).doc.records['["preference:vex.bookmarks","item","bmdesk1"]'].deleted).toBe(true);
+    // …but Undo is.
+    await mobile.bookmarks.restore(entry);
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    expect((await accountDocument(stand, recovery)).doc.records['["preference:vex.bookmarks","item","bmdesk1"]'].deleted).toBe(false);
+    await pc.engine.pullNow();
+    expect(JSON.parse(pc.local.get('vex.bookmarks')).some(item => item.id === 'bmdesk1')).toBe(true);
+  });
+
+  it('§5.3 step 2, rule 3: an account found empty gets the phone’s own part, never a stale stored document', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    // The blob gone, the sessions and devices still there.
+    for (const key of [...stand.env.VEX_SYNC_KV.map.keys()]) if (key.startsWith('blob:')) stand.env.VEX_SYNC_KV.map.delete(key);
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    const after = await accountDocument(stand, recovery);
+    expect(after.revision).toBe(1);
+    const sources = new Set(Object.keys(after.doc.records).map(sourceOf));
+    expect([...sources].sort()).toEqual(['preference:vex.bookmarks', 'preference:vex.notes', 'sync:device:' + mobile.sync.state.deviceId].sort());
+  });
+
+  it('rule 15: a 401 anywhere signs the phone out, without a DELETE and without touching its bookmarks', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    const kept = mobile.bookmarks.all().length;
+    await pc.engine.removeDevice(mobile.sync.state.deviceId);
+    const deletesBefore = stand.log.filter(entry => entry.method === 'DELETE').length;
+    expect(await mobile.sync.receiveFromDevices()).toEqual([]);
+    expect(mobile.sync.state.enabled).toBe(false);
+    expect(stand.log.filter(entry => entry.method === 'DELETE').length).toBe(deletesBefore);
+    expect(mobile.bookmarks.all().length).toBe(kept);
+  });
+
+  it('§2.4: a mistyped recovery code is refused before the emailed code is spent', async () => {
+    await desktopWithAccount();
+    const mobile = phone(stand);
+    await mobile.sync.setWorkerUrl(stand.base);
+    const code = await codeFor(mobile, EMAIL);
+    const verifies = () => stand.log.filter(entry => entry.path === '/auth/verify-code').length;
+    const before = verifies();
+    await expect(mobile.sync.signIn(EMAIL, code, '1234-not-a-code')).rejects.toThrow(/isn’t a recovery code/);
+    expect(verifies()).toBe(before);
+    expect((await mobile.sync.signIn(EMAIL, code, recovery)).ok).toBe(true);
+  });
+
+  it('rule 17: a 503 keeps the session and says the server is not set up', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    const secret = stand.env.EMAIL_HASH_SECRET;
+    stand.env.EMAIL_HASH_SECRET = 'short';
+    const result = await mobile.sync.syncNow();
+    stand.env.EMAIL_HASH_SECRET = secret;
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/not set up/);
+    expect(mobile.sync.state.enabled).toBe(true);
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+  });
+
+  it('rule 5: every document the phone pushes carries its marker at level 1, and only level 1', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    for (let round = 0; round < 3; round++) {
+      await mobile.bookmarks.add({ url: 'https://phone.example/r' + round, title: 'r' + round });
+      expect((await mobile.sync.syncNow()).ok).toBe(true);
+      const { doc } = await accountDocument(stand, recovery);
+      const marker = doc.records[JSON.stringify(['sync:device:' + mobile.sync.state.deviceId, 'value'])];
+      expect(marker.deleted).toBe(false);
+      expect(marker.value).toEqual({ level: 1 });
+    }
+  });
+
+  it('rule 11: everything the phone wrote passes the desktop’s contracts and record validation', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    await mobile.bookmarks.add({ url: 'https://phone.example/ü/😀?q=a"b', title: 'Odd "title" \\ ü 😀', folder: 'F/G' });
+    mobile.setNotes([...mobile.notes(), { id: 'note_1_x', title: 't', content: 'c', pinned: false, tags: [], sourceUrl: '', sourceTitle: '', createdAt: '', updatedAt: '' }]);
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    const { doc } = await accountDocument(stand, recovery);
+    expect(() => pc.records.valid(doc)).not.toThrow();
+    expect(() => pc.context.VexDataContracts.sources(pc.records.unflatten(pc.records.values(doc)))).not.toThrow();
+    expect((await pc.engine.pullNow()).ok).toBe(true);
+  });
+});
+
 describe('an account this phone’s key cannot open', () => {
   it('takes nothing, sends nothing, and carries on once the right key reads it again', async () => {
     await desktopWithAccount();

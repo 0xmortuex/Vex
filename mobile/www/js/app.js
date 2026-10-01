@@ -18,6 +18,7 @@
     VexStore.prime('vex.syncNotes', []),
     VexStore.prime('vex.syncEmail', ''),
     VexStore.prime('vex.syncDeletions', {}),
+    VexStore.prime('vex.syncRevivals', {}),
     VexStore.prime('vex.bookmarkFolders', []),
     VexStore.prime('vex.readingList', []),
     VexStore.prime('vex.sessions', []),

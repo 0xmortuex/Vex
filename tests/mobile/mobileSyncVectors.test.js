@@ -127,3 +127,115 @@ describe('record keys are JSON arrays, byte for byte', () => {
     expect(() => records.valid(document)).not.toThrow();
   });
 });
+
+// ── The spec's own vectors (docs/SYNC_PROTOCOL.md §3.6 and §4.6) ─────────────
+// Read out of the spec itself, so these are its bytes, not a retyping of them.
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+
+const SPEC = fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'SYNC_PROTOCOL.md'), 'utf8');
+const SECTION = SPEC.slice(SPEC.indexOf('### 3.6 Test vector'), SPEC.indexOf('## 4. Document'));
+const BLOCKS = [...SECTION.matchAll(/```[a-z]*\n([\s\S]*?)\n```/g)].map(match => match[1]);
+const SPEC_SOURCES = JSON.parse(BLOCKS[1]);
+const SPEC_PLAINTEXT = BLOCKS[2];
+const SPEC_BLOB = BLOCKS[3];
+const SPEC_HANDOFF = BLOCKS[4];
+const SPEC_DEVICE = '0123456789abcdef0123456789abcdef';
+const SPEC_NOW = 1767225600000;
+
+describe('spec §3.6 — the document vector', () => {
+  it('is the vector the spec states: 808 bytes, 836 before base64, tag cd449705…', () => {
+    expect(Buffer.byteLength(SPEC_PLAINTEXT, 'utf8')).toBe(808);
+    const bytes = Buffer.from(SPEC_BLOB, 'base64');
+    expect(bytes.length).toBe(836);
+    expect(bytes.subarray(0, 12).toString('hex')).toBe('a0a1a2a3a4a5a6a7a8a9aaab');
+    expect(bytes.subarray(-16).toString('hex')).toBe('cd449705d23588dceb36f06f9d4beb40');
+    expect(BLOCKS[0]).toContain(RECOVERY);
+    expect(BLOCKS[0]).toContain(KEY_HEX);
+  });
+
+  it('1. decrypts to the plaintext byte for byte', async () => {
+    const document = await SyncCrypto.decrypt(SPEC_BLOB, key);
+    expect(JSON.stringify(document)).toBe(SPEC_PLAINTEXT);
+    // And the raw bytes, not only the round trip through JSON.
+    const bytes = Buffer.from(SPEC_BLOB, 'base64');
+    const raw = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.subarray(0, 12) }, key, bytes.subarray(12));
+    expect(Buffer.from(raw).toString('utf8')).toBe(SPEC_PLAINTEXT);
+  });
+
+  it('2. encrypts the plaintext, with the fixed IV, to the blob byte for byte', async () => {
+    vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(array => { array.set(IV); return array; });
+    expect(await SyncCrypto.encrypt(JSON.parse(SPEC_PLAINTEXT), key)).toBe(SPEC_BLOB);
+  });
+
+  it('3. the desktop’s flatten and capture rebuild the plaintext from the spec’s sources', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(SPEC_NOW);
+    const document = records.capture(records.empty(), records.flatten(SPEC_SOURCES), SPEC_DEVICE);
+    expect(JSON.stringify(document)).toBe(SPEC_PLAINTEXT);
+  });
+
+  it('3′. so does the phone’s own pipeline, from a phone holding that one bookmark', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(SPEC_NOW);
+    // The phone's sync.js and bookmark store, with the spec's bookmark in it
+    // (plus the icon the phone keeps for itself, which must not travel).
+    const store = new Map([['vex.bookmarks', [{ ...SPEC_SOURCES['preference:vex.bookmarks'][0], icon: 'https://example.com/favicon.ico' }]]]);
+    const context = {
+      console, crypto: globalThis.crypto, TextEncoder, TextDecoder, atob, btoa, URL, AbortController,
+      setTimeout, clearTimeout, setInterval: () => 0, clearInterval: () => {},
+      VexStore: { get: (k, f) => (store.has(k) ? store.get(k) : f), set: async (k, v) => store.set(k, v) },
+      VexBridge: { vaultGet: async () => null, vaultSet: async () => {} },
+      VexDB: { get: async () => undefined, put: async () => {}, delete: async () => {} }
+    };
+    context.window = context;
+    vm.createContext(context);
+    for (const file of ['shared/sync-crypto.js', 'shared/sync-records.js', 'shared/data-contracts.js', 'collections.js', 'sync.js']) {
+      vm.runInContext(fs.readFileSync(path.join(__dirname, '..', '..', 'mobile', 'www', 'js', file), 'utf8'), context);
+    }
+    context.Date = Date;
+    context.VexSync.state.deviceId = SPEC_DEVICE;
+    const document = context.VexSync._captureOwned({ schema: 2, records: {} });
+    expect(JSON.stringify(document)).toBe(SPEC_PLAINTEXT);
+  });
+
+  it('the handoff vector: {url, title} with the same key and IV', async () => {
+    vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(array => { array.set(IV); return array; });
+    expect(await SyncCrypto.encrypt({ url: 'https://example.com/', title: 'Example' }, key)).toBe(SPEC_HANDOFF);
+    vi.restoreAllMocks();
+    expect(await SyncCrypto.decrypt(SPEC_HANDOFF, key)).toEqual({ url: 'https://example.com/', title: 'Example' });
+  });
+
+  it('the first blob with key ff…ff fails authentication (OperationError)', async () => {
+    const wrong = await SyncCrypto.importKey(new Uint8Array(32).fill(0xff));
+    await expect(SyncCrypto.decrypt(SPEC_BLOB, wrong)).rejects.toHaveProperty('name', 'OperationError');
+  });
+});
+
+describe('spec §4.6 — tile ids', () => {
+  // The table in §4.6, read from the spec.
+  const table = SPEC.slice(SPEC.indexOf('Vectors (from running the real `withTileIds`)'), SPEC.indexOf('Because it hashes code points'));
+  const rows = [...table.matchAll(/^\| `([^`]+)`(?: \([^)]*\))? \| `([^`]+)` \|$/gm)].map(match => [match[1], match[2]]);
+
+  it('has the six rows the spec lists', () => {
+    expect(rows.length).toBe(6);
+  });
+
+  it('the phone’s tileIds gives every id in the table, in list order', () => {
+    const context = { console, window: null };
+    context.window = context;
+    context.VexStore = { get: (k, f) => f, set: async () => {} };
+    vm.createContext(context);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', '..', 'mobile', 'www', 'js', 'sync.js'), 'utf8'), context);
+    const ids = context.VexSync.tileIds(rows.map(([url]) => ({ url })));
+    expect(ids).toEqual(rows.map(([, id]) => id));
+  });
+
+  it('agrees with the desktop’s own withTileIds on the same list', () => {
+    // sync-engine.js keeps withTileIds private; its text is the reference.
+    const engine = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'renderer', 'js', 'sync-engine.js'), 'utf8');
+    const source = engine.slice(engine.indexOf('function withTileIds'), engine.indexOf('const withoutTileIds'));
+    const withTileIds = vm.runInNewContext('(' + source + ')');
+    const desktopIds = withTileIds(rows.map(([url]) => ({ url }))).map(tile => tile.id);
+    expect(desktopIds).toEqual(rows.map(([, id]) => id));
+  });
+});

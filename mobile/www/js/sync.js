@@ -120,6 +120,11 @@ const VexSync = (() => {
   }
 
   function failure(response, fallback) {
+    // 503 is the server's set-up, not this phone's session: say so, and keep
+    // the session (spec §1.3, rule 17).
+    if (response.status === 503) {
+      return new Error('The sync server is not set up: ' + ((response.body && response.body.error) || 'it answered 503'));
+    }
     return new Error((response.body && response.body.error) || (fallback + ' (the worker returned ' + response.status + ')'));
   }
 
@@ -157,6 +162,21 @@ const VexSync = (() => {
     await VexStore.set('vex.syncDeletions', all);
   }
 
+  // Undo of a deletion this phone already sent: the item's key is a tombstone
+  // now, and only this says the phone means to bring it back.
+  function revivals(source) {
+    const all = VexStore.get('vex.syncRevivals', {});
+    const list = all && typeof all === 'object' && Array.isArray(all[source]) ? all[source] : [];
+    return new Set(list.map(String));
+  }
+
+  async function setRevivals(source, ids) {
+    const all = Object.assign({}, VexStore.get('vex.syncRevivals', {}) || {});
+    if (ids.size) all[source] = [...ids].slice(-5000);
+    else delete all[source];
+    await VexStore.set('vex.syncRevivals', all);
+  }
+
   /** Forget deletions the document already carries out (tombstoned or gone). */
   async function pruneDeletions(doc) {
     for (const source of OWNED) {
@@ -165,6 +185,14 @@ const VexSync = (() => {
       const live = new Set(accountList(doc, source).filter(hasId).map(itemId));
       const still = new Set([...ids].filter(id => live.has(id)));
       if (still.size !== ids.size) await setDeletions(source, still);
+    }
+    // A revival is done once the item is live in the document again.
+    for (const source of OWNED) {
+      const ids = revivals(source);
+      if (!ids.size) continue;
+      const live = new Set(accountList(doc, source).filter(hasId).map(itemId));
+      const still = new Set([...ids].filter(id => !live.has(id)));
+      if (still.size !== ids.size) await setRevivals(source, still);
     }
   }
 
@@ -207,6 +235,25 @@ const VexSync = (() => {
     }
   };
   const OWNED = Object.keys(ADAPTERS);
+
+  /**
+   * The account-only ids the desktop gives shortcut tiles (spec §4.6,
+   * sync-engine.js withTileIds): an FNV-style hash over the URL's Unicode
+   * code points — not its UTF-8 bytes — and "-n" for the n-th tile with the
+   * same base. The phone never writes tiles (spec rule 20); this is for
+   * reading them, and pinned to the spec's vectors so it cannot drift.
+   */
+  function tileIds(list) {
+    const seen = new Map();
+    return list.map(tile => {
+      let hash = 0x811c9dc5;
+      for (const ch of String(tile && tile.url)) hash = Math.imul(hash ^ ch.codePointAt(0), 0x01000193) >>> 0;
+      const base = 'tile-' + hash.toString(16).padStart(8, '0');
+      const n = (seen.get(base) || 0) + 1;
+      seen.set(base, n);
+      return n > 1 ? base + '-' + n : base;
+    });
+  }
   const marker = () => DEVICE_SOURCE + deviceId();
   const sourceOf = key => { try { return JSON.parse(key)[0]; } catch { return null; } };
 
@@ -249,6 +296,16 @@ const VexSync = (() => {
     const locals = all.filter(item => adapter.syncable(item));
     const byId = new Map(locals.map(item => [itemId(item), item]));
     const deleted = joining ? new Set() : deletions(source);
+    // A key the account holds as a tombstone was deleted somewhere: a local
+    // copy of it (a backup restored, a crash before the deletion reached this
+    // list, the phone's list from before it last signed out) does not bring
+    // it back — joining, the cloud wins every record it has, tombstones
+    // included (spec §5.4). Only an undo here revives one.
+    const revived = joining ? new Set() : revivals(source);
+    const tombstoned = id => {
+      const record = doc.records[JSON.stringify([source, 'item', id])];
+      return !!record && record.deleted && !revived.has(id);
+    };
     const out = [];
     const seen = new Set();
     for (const item of account) {
@@ -272,6 +329,7 @@ const VexSync = (() => {
     for (const local of locals) {
       const id = itemId(local);
       if (seen.has(id)) continue;
+      if (tombstoned(id)) continue;
       if (accountUrls && accountUrls.has(local.url)) continue;
       seen.add(id);
       out.push(adapter.toAccount(local, null));
@@ -497,7 +555,11 @@ const VexSync = (() => {
     // Without the document this phone last read, it cannot tell what it
     // changed from what it never had: the account's copy wins, as on joining,
     // and only what the phone has on top is added.
-    const stored = joining ? null : await loadDocument();
+    // An empty account has nothing to keep and nothing to merge with: what
+    // goes up is the phone's own part, from an empty document, as for a new
+    // account (spec §5.3 step 2, rule 3) — never a stale stored document.
+    const empty = !response.body.encryptedBlob;
+    const stored = joining || empty ? null : await loadDocument();
     const base = stored || pulled;
     const local = captureOwned(base, { joining: joining || !stored });
     const merged = mergeIntoPulled(local, pulled);
@@ -537,6 +599,11 @@ const VexSync = (() => {
     const doc = captureOwned(base);
     check(doc);
     const blob = await SyncCrypto.encrypt(doc, state.key);
+    // The worker takes a body of at most 4 MiB (spec §1.2); past that it
+    // answers 413 and nothing is stored. Said here, before anything is sent.
+    if (blob.length + 200 > 4 * 1024 * 1024) {
+      throw new Error('Your synced data is larger than the sync server accepts (4 MB) — nothing was sent');
+    }
     const response = await request('/sync/push', {
       method: 'POST',
       body: { encryptedBlob: blob, updatedAt: new Date().toISOString(), baseRevision: state.revision }
@@ -702,7 +769,9 @@ const VexSync = (() => {
       state.token = token;
       state.deviceId = meta.deviceId;
       state.deviceName = meta.deviceName || null;
-      state.revision = meta.revision || 0;
+      // Only ever a safe integer (rule 4); anything else is 0, which the
+      // worker answers with 409 and a pull puts right.
+      state.revision = Number.isSafeInteger(meta.revision) && meta.revision >= 0 ? meta.revision : 0;
       state.lastPullAt = meta.lastPullAt || null;
       state.lastPushAt = meta.lastPushAt || null;
       state.enabled = true;
@@ -730,6 +799,12 @@ const VexSync = (() => {
      */
     async signIn(email, code, recoveryCode = '') {
       const clean = String(email || '').trim();
+      // A mistyped recovery code is refused before the emailed code is spent
+      // on it (the desktop parses it first too).
+      if (recoveryCode) {
+        try { SyncCrypto.hexToKey(SyncCrypto.parseRecoveryCode(recoveryCode)); }
+        catch { throw new Error('That isn’t a recovery code — it is 64 characters, in 8 groups of 8'); }
+      }
       const response = await request('/auth/verify-code', {
         method: 'POST', token: null,
         body: { email: clean, code: String(code || '').trim(), deviceName: deviceName() }
@@ -764,6 +839,7 @@ const VexSync = (() => {
       if (pending) await deleteDevice(pending.token, pending.deviceId);
       await forget();
       await VexStore.set('vex.syncDeletions', {});
+      await VexStore.set('vex.syncRevivals', {});
     },
 
     async recoveryCode() {
@@ -802,6 +878,7 @@ const VexSync = (() => {
 
     async forgetDevice(id) {
       const response = await request('/sync/devices/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (response.status === 401) { await signedOutByServer(); throw new Error('This phone is no longer signed in'); }
       if (!response.ok) throw failure(response, 'Could not remove that device');
       if (id === state.deviceId) await forget();
       return true;
@@ -810,6 +887,7 @@ const VexSync = (() => {
     /** Wipe the account for every device; this phone is signed out with it. */
     async deleteEverything() {
       const response = await request('/sync/all', { method: 'DELETE' });
+      if (response.status === 401) { await signedOutByServer(); throw new Error('This phone is no longer signed in'); }
       if (!response.ok) throw failure(response, 'Could not delete the synced data');
       await forget();
     },
@@ -833,6 +911,7 @@ const VexSync = (() => {
       if (!state.enabled || !state.key) return [];
       let response;
       try { response = await request('/sync/drop'); } catch { return []; }
+      if (response.status === 401) { await signedOutByServer(); return []; }
       if (!response.ok) return [];
       const items = [];
       for (const item of response.body.items || []) {
@@ -855,20 +934,31 @@ const VexSync = (() => {
     async noteDeleted(source, ids) {
       if (!OWNED.includes(source)) return;
       const set = deletions(source);
-      for (const id of ids) if (id) set.add(String(id));
+      const revived = revivals(source);
+      for (const id of ids) if (id) { set.add(String(id)); revived.delete(String(id)); }
       await setDeletions(source, set);
+      await setRevivals(source, revived);
     },
 
-    /** Undo of a deletion that has not been sent yet. */
+    /** Undo of a deletion — sent already or not. */
     async noteRestored(source, ids) {
       if (!OWNED.includes(source)) return;
       const set = deletions(source);
-      for (const id of ids) set.delete(String(id));
+      const revived = revivals(source);
+      for (const id of ids) {
+        if (!id) continue;
+        set.delete(String(id));
+        revived.add(String(id));
+      }
       await setDeletions(source, set);
+      await setRevivals(source, revived);
     },
 
+    tileIds,
+
     // For tests and the diagnostics page.
-    _document: () => recordDocument
+    _document: () => recordDocument,
+    _captureOwned: (doc, options) => captureOwned(doc, options)
   };
 })();
 
