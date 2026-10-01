@@ -266,3 +266,47 @@ describe('reading a login form', () => {
   });
 });
 
+
+describe('2FA codes as the QR code describes them', () => {
+  // RFC 6238 appendix B, T = 59 s, eight digits.
+  it('does SHA-256 and SHA-512 when asked', async () => {
+    const sha256 = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA';
+    const sha512 = 'GEZDGNBVGY3TQOJQ'.repeat(6) + 'GEZDGNA';
+    expect(await VexVault.totp(sha256, { digits: 8, algorithm: 'SHA256', at: 59000 })).toBe('46119246');
+    expect(await VexVault.totp(sha512, { digits: 8, algorithm: 'SHA512', at: 59000 })).toBe('90693936');
+  });
+
+  it('keeps the digits, period and algorithm of a scanned code', async () => {
+    await VexVault.save({
+      host: 'bank.example', username: 'me',
+      secret: 'otpauth://totp/Bank:me?secret=JBSWY3DPEHPK3PXP&issuer=Bank&digits=8&period=60&algorithm=SHA256'
+    });
+    const entry = VexVault.forHost('bank.example')[0];
+    expect(entry.secret).toBe('JBSWY3DPEHPK3PXP');
+    expect(VexVault.codeOptions(entry)).toEqual({ digits: 8, period: 60, algorithm: 'SHA256' });
+    expect(await VexVault.totp(entry.secret, VexVault.codeOptions(entry))).toMatch(/^\d{8}$/);
+  });
+});
+
+describe('filling only where a login belongs', () => {
+  it('knows a subdomain from another site', () => {
+    const entry = { host: 'example.com' };
+    expect(VexVault.belongsOn(entry, 'example.com')).toBe(true);
+    expect(VexVault.belongsOn(entry, 'login.example.com')).toBe(true);
+    expect(VexVault.belongsOn(entry, 'example.com.evil.net')).toBe(false);
+    expect(VexVault.belongsOn(entry, 'notexample.com')).toBe(false);
+  });
+
+  it('refuses in the page itself when the page is another site', async () => {
+    let script = '';
+    window.VexBridge.evaluate = async (id, code) => { script = code; return { result: '"wrong-host"' }; };
+    expect(await VexVault.fill('t1', { host: 'example.com', username: 'a', password: 'b' })).toBe('wrong-host');
+    expect(script).toContain('"example.com"');
+    // And the check is real: run it against a page on another host.
+    document.body.innerHTML = '<form><input type="email"><input type="password"></form>';
+    // jsdom's location is about:blank / localhost — not example.com.
+    // eslint-disable-next-line no-eval
+    expect((0, eval)(script)).toBe('wrong-host');
+    expect(document.querySelector('input[type=password]').value).toBe('');
+  });
+});

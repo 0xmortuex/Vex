@@ -60,15 +60,21 @@ const VexVault = (() => {
     return new Uint8Array(bytes);
   }
 
-  async function totp(secret, { digits = 6, period = 30, at = Date.now() } = {}) {
+  // SHA-1 is what nearly every site uses; a QR code can ask for the others.
+  const HASHES = { SHA1: 'SHA-1', SHA256: 'SHA-256', SHA512: 'SHA-512' };
+
+  async function totp(secret, { digits = 6, period = 30, algorithm = 'SHA1', at = Date.now() } = {}) {
     const keyBytes = base32Decode(secret);
     if (!keyBytes.length) throw new Error('That does not look like a 2FA secret');
+    digits = [6, 7, 8].includes(Number(digits)) ? Number(digits) : 6;
+    period = Number(period) > 0 ? Number(period) : 30;
+    const hash = HASHES[String(algorithm || 'SHA1').toUpperCase().replace('-', '')] || 'SHA-1';
     const counter = Math.floor(at / 1000 / period);
     const message = new ArrayBuffer(8);
     const view = new DataView(message);
     view.setUint32(0, Math.floor(counter / 0x100000000));
     view.setUint32(4, counter >>> 0);
-    const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash }, false, ['sign']);
     const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, message));
     const offset = signature[signature.length - 1] & 0x0f;
     const binary = ((signature[offset] & 0x7f) << 24)
@@ -118,10 +124,14 @@ const VexVault = (() => {
     // otherwise the classes are always in the same order at the front.
     const out = wanted.map(name => pick(CLASSES[name]));
     while (out.length < size) out.push(pick(alphabet));
+    // Fisher-Yates, with the same rejection sampling: a byte modulo (index + 1)
+    // would favour the low positions just as it favoured the low characters.
     for (let index = out.length - 1; index > 0; index--) {
+      const span = index + 1;
+      const limit = 256 - (256 % span);
       const swap = new Uint8Array(1);
-      crypto.getRandomValues(swap);
-      const other = swap[0] % (index + 1);
+      do { crypto.getRandomValues(swap); } while (swap[0] >= limit);
+      const other = swap[0] % span;
       [out[index], out[other]] = [out[other], out[index]];
     }
     return out.join('');
@@ -139,7 +149,8 @@ const VexVault = (() => {
         issuer: parsed.searchParams.get('issuer') || label.split(':')[0] || '',
         account: label.includes(':') ? label.split(':')[1] : label,
         digits: Number(parsed.searchParams.get('digits')) || 6,
-        period: Number(parsed.searchParams.get('period')) || 30
+        period: Number(parsed.searchParams.get('period')) || 30,
+        algorithm: (parsed.searchParams.get('algorithm') || 'SHA1').toUpperCase()
       };
     } catch { return null; }
   }
@@ -147,7 +158,14 @@ const VexVault = (() => {
   // ── Filling a page ───────────────────────────────────────────────────────
   // Runs inside the page. It fills the fields and fires the events frameworks
   // listen for, and it never submits: the last step stays yours.
-  const FILL = (username, password) => `(function(){
+  // The host is checked again in the page, at the moment of filling: the tab
+  // can have moved on between the sheet being opened and the tap on it, and a
+  // password typed into whatever page happens to be there by then is the
+  // whole of phishing.
+  const FILL = (username, password, host) => `(function(){
+  var expected = ${JSON.stringify(host || '')};
+  var here = location.hostname.replace(/^www\\./, '');
+  if (expected && here !== expected && here.slice(-(expected.length + 1)) !== '.' + expected) return 'wrong-host';
   function setValue(field, value) {
     var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
     setter.call(field, value);
@@ -252,9 +270,18 @@ const VexVault = (() => {
       return this.knownHosts().some(known => host === known || host.endsWith('.' + known));
     },
 
-    async save({ host, username, password, secret, label }) {
+    async save({ host, username, password, secret, label, digits, period, algorithm }) {
       if (!(await this.unlock('Save this login'))) throw new Error('Not unlocked');
       const now = Date.now();
+      // The whole otpauth:// address (what a QR code carries) is accepted in
+      // the secret field, so its digits, period and algorithm come with it.
+      if (secret && /^otpauth:/i.test(secret)) {
+        const parsed = parseOtpAuth(secret);
+        if (!parsed) throw new Error('That 2FA code could not be read');
+        secret = parsed.secret;
+        digits = parsed.digits; period = parsed.period; algorithm = parsed.algorithm;
+      }
+      const code = secret ? { digits: digits || 6, period: period || 30, algorithm: algorithm || 'SHA1' } : {};
       const existing = entries.find(entry => entry.host === host && entry.username === username);
       if (existing) {
         Object.assign(existing, {
@@ -262,12 +289,12 @@ const VexVault = (() => {
           secret: secret !== undefined ? secret : existing.secret,
           label: label || existing.label,
           at: now
-        });
+        }, secret ? code : {});
       } else {
-        entries.unshift({
+        entries.unshift(Object.assign({
           id: VexCollections.id('lg_'), host, username: username || '', password: password || '',
           secret: secret || '', label: label || host, at: now
-        });
+        }, code));
       }
       await write(entries);
       await VexStore.set('vex.loginHosts', [...new Set(entries.map(entry => entry.host))]);
@@ -295,9 +322,34 @@ const VexVault = (() => {
       } catch { return false; }
     },
 
-    async fill(tabId, entry) {
-      const { result } = await VexBridge.evaluate(tabId, FILL(entry.username || '', entry.password || ''));
-      return String(result).includes('filled');
+    /**
+     * Fill a login into the page. Only on its own site (or a subdomain of it)
+     * unless `anyHost` says the person was asked and said yes; the check runs
+     * in the page itself, so a tab that navigated in the meantime gets
+     * nothing. Returns 'filled', 'wrong-host' or 'no-form'.
+     */
+    async fill(tabId, entry, { anyHost = false } = {}) {
+      const { result } = await VexBridge.evaluate(tabId,
+        FILL(entry.username || '', entry.password || '', anyHost ? '' : entry.host));
+      const said = String(result || '');
+      if (said.includes('wrong-host')) return 'wrong-host';
+      return said.includes('filled') ? 'filled' : 'no-form';
+    },
+
+    /** Whether a login belongs on this host: the same site or a subdomain of it. */
+    belongsOn(entry, host) {
+      if (!entry || !host) return false;
+      const clean = String(host).replace(/^www\./, '');
+      return clean === entry.host || clean.endsWith('.' + entry.host);
+    },
+
+    /** The 2FA settings an entry was saved with, for totp(). */
+    codeOptions(entry) {
+      return {
+        digits: (entry && entry.digits) || 6,
+        period: (entry && entry.period) || 30,
+        algorithm: (entry && entry.algorithm) || 'SHA1'
+      };
     },
 
     // evaluate() hands back a JSON string, and some WebViews encode it twice.

@@ -829,7 +829,9 @@ const VexUI = (() => {
         // the vault instead, and when it is neither it becomes a search.
         const otp = VexVault.parseOtpAuth(text);
         if (otp) {
-          VexPanels.addLogin({ host: otp.issuer || otp.account, username: otp.account, secret: otp.secret });
+          // The whole otpauth:// address goes in, so the code's digits, period
+          // and algorithm are kept with its secret.
+          VexPanels.addLogin({ host: otp.issuer || otp.account, username: otp.account, secret: text });
           return;
         }
         closeOmnibox();
@@ -1218,10 +1220,11 @@ const VexUI = (() => {
     })), async entryId => {
       VexSheets.close();
       const entry = matches.find(candidate => candidate.id === entryId);
-      const filled = await VexVault.fill(tab.id, entry);
-      toast(filled ? 'Filled — you press the button' : 'No login form on this page');
+      const said = await VexVault.fill(tab.id, entry);
+      if (said === 'wrong-host') { toast('The page changed — nothing was filled'); return; }
+      toast(said === 'filled' ? 'Filled — you press the button' : 'No login form on this page');
       if (entry.secret) {
-        const code = await VexVault.totp(entry.secret);
+        const code = await VexVault.totp(entry.secret, VexVault.codeOptions(entry));
         toast('2FA code ' + code, 6000, { label: 'Copy', run: () => copy(code) });
       }
     }, host);

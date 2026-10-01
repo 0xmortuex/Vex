@@ -982,9 +982,21 @@ const VexPanels = (() => {
           if (VexVault.locked() && !(await VexVault.unlock('Fill this login'))) { relock(); return; }
           const fresh = current(entry.id);
           if (!fresh) { relock(); return; }
+          // This list holds every login, so the page in front may not be the
+          // one this login is for — and a password typed into the wrong site
+          // is exactly what phishing is waiting for. Asked, plainly, first.
+          const pageHost = VexSearch.prettyHost(tab.url);
+          let anyHost = false;
+          if (!VexVault.belongsOn(fresh, pageHost)) {
+            anyHost = await VexUI.confirm('This login is for ' + fresh.host + ', and the page is '
+              + (pageHost || 'not a website') + '. Type the password into it anyway?', 'A different site');
+            if (!anyHost) return;
+          }
           close();
-          const filled = await VexVault.fill(tab.id, fresh);
-          VexUI.toast(filled ? 'Filled — you press the button' : 'No login form on this page');
+          const said = await VexVault.fill(tab.id, fresh, { anyHost });
+          VexUI.toast(said === 'filled' ? 'Filled — you press the button'
+            : said === 'wrong-host' ? 'The page changed — nothing was filled'
+            : 'No login form on this page');
         };
         actions.appendChild(fill);
         const copy = el('button', { 'aria-label': 'Copy password' });
@@ -1018,9 +1030,10 @@ const VexPanels = (() => {
           try {
             const fresh = current(item.entry.id);
             if (!fresh || !fresh.secret) { item.code.textContent = '······'; continue; }
-            item.code.textContent = await VexVault.totp(fresh.secret);
-            const left = VexVault.secondsLeft();
-            item.ring.querySelector('.fill').setAttribute('stroke-dashoffset', String(56.5 * (1 - left / 30)));
+            const options = VexVault.codeOptions(fresh);
+            item.code.textContent = await VexVault.totp(fresh.secret, options);
+            const left = VexVault.secondsLeft(options.period);
+            item.ring.querySelector('.fill').setAttribute('stroke-dashoffset', String(56.5 * (1 - left / options.period)));
           } catch {
             item.code.textContent = 'bad secret';
           }
