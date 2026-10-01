@@ -95,15 +95,33 @@ const VexAI = (() => {
       return !!(await token());
     },
 
-    // The page the question is about. Captured per question rather than kept,
-    // so an answer is never about a tab you have since navigated away from.
-    async captureContext() {
+    /**
+     * The page the question is about. Captured per question rather than kept, so
+     * an answer is never about a tab you have since navigated away from.
+     *
+     * A private tab's text never goes to the worker. It can go to the model on
+     * this phone, because "on-device" is not a promise about the backend — it is
+     * a promise about the text, and on-device the text does not move. Without
+     * this, asking about a page in a private tab got an answer about nothing,
+     * which is worse than useless: it looks like the assistant is lying.
+     */
+    async captureContext(options = {}) {
       const tab = VexTabStore.active();
       if (!tab || !tab.url || tab.url === 'about:blank') return null;
-      if (tab.incognito) return null;     // a private tab is not sent anywhere
+      if (tab.incognito && !options.staysHere) return null;
       let text = '';
       try { text = await VexReader.pageText(tab.id, 6000); } catch { text = ''; }
-      return { url: tab.url, title: tab.title || '', text };
+      return { url: tab.url, title: tab.title || '', text, private: !!tab.incognito };
+    },
+
+    /**
+     * Will this question be answered without leaving the phone? Asked before the
+     * page is read, because the answer decides whether a private tab may be read
+     * at all.
+     */
+    staysHere(action) {
+      if (typeof VexLocalAI === 'undefined') return false;
+      return VexLocalAI.nanoHandles(action) || VexLocalAI.handles(action);
     },
 
     history() {
@@ -136,13 +154,18 @@ const VexAI = (() => {
         state.messages.push({ role: 'user', text: question, at: Date.now() });
       }
       try {
-        const context = options.context === null ? null : (options.context || await this.captureContext());
+        const action = options.action || 'chat';
+        // Whether the page may be read at all depends on where the answer is
+        // coming from, so that question is settled first.
+        const staysHere = !silent && this.staysHere(action);
+        const context = options.context === null
+          ? null
+          : (options.context || await this.captureContext({ staysHere }));
         state.context = context;
 
         // On-device first, when it is wanted and able. The agent never comes
         // here: it needs valid JSON out of a tool loop, which a 1B model on a
         // phone does not reliably produce.
-        const action = options.action || 'chat';
         const local = !silent ? await this.locally(action, question, context, options) : null;
         if (local !== null) {
           state.messages.push({ role: 'assistant', text: local, at: Date.now(), followUps: [], onDevice: true });
@@ -152,7 +175,11 @@ const VexAI = (() => {
         const result = await call(Object.assign({
           action: options.action || 'chat',
           message: question,
-          pageContext: context ? context.text : '',
+          // The invariant, stated where it would be violated: a private tab's
+          // text never reaches the worker. Upstream already avoids reading it
+          // unless the answer is staying on the phone; this is the line that
+          // holds even if upstream is wrong.
+          pageContext: context && !context.private ? context.text : '',
           selectedText: options.selectedText || '',
           targetLanguage: options.targetLanguage || '',
           conversationHistory: history,
@@ -209,6 +236,13 @@ const VexAI = (() => {
         return await VexLocalAI.generate(prompt, { onToken: options.onToken });
       } catch (error) {
         if (VexLocalAI.insists()) throw error;
+        // The page was read on the understanding that it was staying here. If the
+        // model failed and the worker is about to be asked instead, a private
+        // tab's text must not go with the question.
+        if (context && context.private) {
+          state.context = null;
+          context.text = '';
+        }
         return null;
       }
     },

@@ -166,6 +166,34 @@ describe('what the assistant does with it', () => {
     expect(window.fetch).not.toHaveBeenCalled();
   });
 
+  it('reads a private tab for the model, because the text does not move', async () => {
+    window.VexTabStore = { active: () => ({ id: 't1', url: 'https://secret.example/', title: 'Secret', incognito: true }) };
+    await VexLocalAI.setMode('prefer');
+    expect(await VexAI.ask('What is this?')).toBe('Answered on the phone.');
+    expect(window.VexReader.pageText).toHaveBeenCalled();
+    expect(window.fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not read a private tab for the worker', async () => {
+    window.VexTabStore = { active: () => ({ id: 't1', url: 'https://secret.example/', title: 'Secret', incognito: true }) };
+    await VexLocalAI.setMode('off');
+    await VexAI.ask('What is this?');
+    expect(window.VexReader.pageText).not.toHaveBeenCalled();
+    const body = JSON.parse(window.fetch.mock.calls[0][1].body);
+    expect(body.pageContext).toBe('');
+  });
+
+  it('never sends a private page to the worker, even after the model fails', async () => {
+    window.VexTabStore = { active: () => ({ id: 't1', url: 'https://secret.example/', title: 'Secret', incognito: true }) };
+    await VexLocalAI.setMode('prefer');
+    generateThrows = 'out of memory';
+    expect(await VexAI.ask('What is this?')).toBe('From the worker.');
+    // The page WAS read — on-device was going to answer — and must not travel.
+    expect(window.VexReader.pageText).toHaveBeenCalled();
+    const body = JSON.parse(window.fetch.mock.calls[0][1].body);
+    expect(body.pageContext).toBe('');
+  });
+
   it('keeps the agent on the worker even in on-device only', async () => {
     await VexLocalAI.setMode('only');
     await VexAI.ask('step', { action: 'agent' });
