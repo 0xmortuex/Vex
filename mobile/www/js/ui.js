@@ -111,6 +111,39 @@ const VexUI = (() => {
 
   function startVisible() { return !$('start').hidden; }
 
+  /**
+   * Long-press Back (or Forward): where this tab has been, so a page five
+   * steps ago is one tap rather than five. Nearest first, the way the button
+   * would take you; the whole history is the last row.
+   */
+  async function tabHistory(direction) {
+    const tab = VexTabStore.active();
+    const list = tab && !tab.lazy ? await VexBridge.navList(tab.id).catch(() => null) : null;
+    const entries = (list && list.entries) || [];
+    const current = list ? list.current : -1;
+    const rows = [];
+    if (current >= 0) {
+      for (let index = current + direction; index >= 0 && index < entries.length; index += direction) {
+        const entry = entries[index] || {};
+        if (!entry.url || entry.url === 'about:blank') continue;
+        rows.push({
+          id: String(index - current),
+          label: entry.title || VexSearch.prettyHost(entry.url),
+          note: VexSearch.prettyHost(entry.url)
+        });
+        if (rows.length >= 15) break;
+      }
+    }
+    // Nothing in this tab to go to: the button's old long press, all history.
+    if (!rows.length) { VexPanels.history(); return; }
+    rows.push({ id: 'all', label: 'All history', note: 'Every page, in every tab' });
+    VexSheets.choose(direction < 0 ? 'Back to' : 'Forward to', rows, choice => {
+      VexSheets.close();
+      if (choice === 'all') { VexPanels.history(); return; }
+      VexBridge.go(tab.id, Number(choice));
+    });
+  }
+
   // ── Toolbar ──────────────────────────────────────────────────────────────
   // Which buttons sit either side of the address pill. Samsung lets you pick
   // yours; so does this, and the defaults are the four a browser needs.
@@ -170,7 +203,8 @@ const VexUI = (() => {
             button.appendChild(icon(spec.icon));
           }
           button.onclick = () => spec.run(VexTabStore.active());
-          if (id === 'back') VexGestures.longPress(button, () => VexPanels.history());
+          if (id === 'back') VexGestures.longPress(button, () => tabHistory(-1));
+          if (id === 'forward') VexGestures.longPress(button, () => tabHistory(1));
           slot.appendChild(button);
         }
       }
@@ -1333,7 +1367,7 @@ const VexUI = (() => {
     renderSpeakBar, readAloud, speakSettings,
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind, findOnPage,
     openUrl, newTab, copy, toggleBookmark, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
-    showQr, closeQr, openScanner, closeScanner, translatePage,
+    showQr, closeQr, openScanner, closeScanner, translatePage, tabHistory,
     offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, relockPrivate, guardPrivateOnReturn, forgetSite,
 
     prompt(title, message, value = '') { return dialog({ title, message, input: value }); },

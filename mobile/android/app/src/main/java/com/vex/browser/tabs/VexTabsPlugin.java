@@ -303,6 +303,44 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         });
     }
 
+    /**
+     * This tab's own back/forward list, for a long press on Back: where you
+     * have been in this tab, newest first, and which of them you are on.
+     */
+    @PluginMethod
+    public void navList(PluginCall call) {
+        final String id = call.getString("id");
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            JSArray entries = new JSArray();
+            int current = -1;
+            if (tab != null) {
+                android.webkit.WebBackForwardList list = tab.copyBackForwardList();
+                current = list.getCurrentIndex();
+                for (int index = 0; index < list.getSize(); index++) {
+                    android.webkit.WebHistoryItem item = list.getItemAtIndex(index);
+                    JSObject row = new JSObject();
+                    row.put("url", item == null || item.getUrl() == null ? "" : item.getUrl());
+                    row.put("title", item == null || item.getTitle() == null ? "" : item.getTitle());
+                    entries.put(row);
+                }
+            }
+            JSObject result = new JSObject();
+            result.put("entries", entries);
+            result.put("current", current);
+            call.resolve(result);
+        });
+    }
+
+    /** Jump `steps` through the list: negative is back. */
+    @PluginMethod
+    public void go(PluginCall call) {
+        final int steps = call.getInt("steps", 0);
+        withTab(call, tab -> {
+            if (steps != 0 && tab.canGoBackOrForward(steps)) tab.goBackOrForward(steps);
+        });
+    }
+
     @PluginMethod
     public void reload(PluginCall call) {
         final boolean bypassCache = Boolean.TRUE.equals(call.getBoolean("bypassCache", false));

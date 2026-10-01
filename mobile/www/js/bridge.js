@@ -86,6 +86,9 @@ const VexBridge = (() => {
       },
       back({ id }) { try { frames.get(id).contentWindow.history.back(); } catch { /* cross-origin */ } return {}; },
       forward({ id }) { try { frames.get(id).contentWindow.history.forward(); } catch { /* cross-origin */ } return {}; },
+      // A frame's history cannot be listed, only walked.
+      navList() { return { entries: [], current: -1 }; },
+      go({ id, steps }) { try { frames.get(id).contentWindow.history.go(steps); } catch { /* cross-origin */ } return {}; },
       reload({ id }) { const frame = frames.get(id); if (frame) frame.src = frame.src; return {}; },
       state({ id }) { const frame = frames.get(id); return { url: frame ? frame.src : '', title: '', canGoBack: false, canGoForward: false }; },
       loadHtml({ id, html }) {
@@ -333,6 +336,15 @@ const VexBridge = (() => {
     loadHtml(id, html, baseUrl) { return tabs('loadHtml', { id, html, baseUrl: baseUrl || '' }); },
     back(id) { return tabs('back', { id }); },
     forward(id) { return tabs('forward', { id }); },
+    // The tab's own back/forward list: { entries: [{ url, title }], current }.
+    async navList(id) {
+      const result = await tabs('navList', { id });
+      return {
+        entries: Array.isArray(result && result.entries) ? result.entries : [],
+        current: Number.isInteger(result && result.current) ? result.current : -1
+      };
+    },
+    go(id, steps) { return tabs('go', { id, steps }); },
     reload(id, options = {}) { return tabs('reload', { id, bypassCache: !!options.bypassCache }); },
     stop(id) { return tabs('stop', { id }); },
     state(id) { return tabs('state', { id }); },

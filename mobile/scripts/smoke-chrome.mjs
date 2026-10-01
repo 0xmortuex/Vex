@@ -1626,6 +1626,40 @@ results.readingOffline = await page.evaluate(async () => {
   return [says, opened === url].join(' ');
 });
 
+// Long-press Back lists where this tab has been, nearest first, and a row
+// jumps straight there; a tab with nowhere to go gets all history instead.
+results.tabHistory = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const realList = VexBridge.navList;
+  const realGo = VexBridge.go;
+  let went = null;
+  VexBridge.navList = async () => ({
+    current: 3,
+    entries: [
+      { url: 'https://one.example/', title: 'One' },
+      { url: 'about:blank', title: '' },
+      { url: 'https://three.example/', title: 'Three' },
+      { url: 'https://four.example/', title: 'Four' }
+    ]
+  });
+  VexBridge.go = async (id, steps) => { went = steps; };
+  await VexUI.tabHistory(-1);
+  await wait(100);
+  const labels = [...document.querySelectorAll('#sheet-list .sheet-row, #sheet-list > *')]
+    .map(node => node.textContent.trim()).filter(Boolean);
+  const titles = labels.map(text => text.split(/three\.example|one\.example|Every page/)[0].trim());
+  [...document.querySelectorAll('#sheet-list > *')].find(node => node.textContent.includes('One')).click();
+  await wait(100);
+  VexBridge.navList = async () => ({ current: 0, entries: [{ url: 'https://only.example/', title: 'Only' }] });
+  await VexUI.tabHistory(-1);
+  await wait(300);
+  const fellBack = /History/i.test((document.querySelector('#panel-title') || {}).textContent || '');
+  VexPanels.close && VexPanels.close();
+  VexBridge.navList = realList;
+  VexBridge.go = realGo;
+  return [titles.join(','), went, fellBack].join(' ');
+});
+
 // ── Saving a video ──────────────────────────────────────────────────────────
 // A plain file goes to the download queue; a player built on a blob: URL is
 // found through the playlist its page requested, saved as a stream job whose
@@ -1717,6 +1751,7 @@ const expected = {
   switchToTab: 'true true',
   readerIcon: 'true false true true',
   readingOffline: 'true true',
+  tabHistory: 'Three,One,All history -3 true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,
