@@ -50,8 +50,8 @@ public class EdgeSwipeLayout extends FrameLayout {
             case MotionEvent.ACTION_DOWN:
                 startX = event.getX();
                 startY = event.getY();
-                fromLeft = startX <= edgePx;
-                fromRight = startX >= getWidth() - edgePx;
+                fromLeft = startX <= edgePx && !systemOwnsEdge(true);
+                fromRight = startX >= getWidth() - edgePx && !systemOwnsEdge(false);
                 armed = fromLeft || fromRight;
                 return false;
             case MotionEvent.ACTION_MOVE:
@@ -83,6 +83,21 @@ public class EdgeSwipeLayout extends FrameLayout {
             default:
                 return false;
         }
+    }
+
+    /**
+     * With gesture navigation, a swipe in from either edge is Android's own
+     * Back, and the strip it watches is where this one would be. Two
+     * meanings for one gesture is a page that goes back twice or not at all,
+     * so the system's wins: this listens only where Android is not (three-
+     * button navigation, or an edge the system has left alone).
+     */
+    private boolean systemOwnsEdge(boolean left) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) return false;
+        android.view.WindowInsets insets = getRootWindowInsets();
+        if (insets == null) return false;
+        android.graphics.Insets gestures = insets.getSystemGestureInsets();
+        return left ? gestures.left > 0 : gestures.right > 0;
     }
 
     @Override

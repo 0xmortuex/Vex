@@ -26,7 +26,7 @@ Everything else below is either matched or bettered.
 | Scroll buttons | ✅ | Settings → Pages → Scroll buttons: two arrows at the page's edge while you scroll; a tap is a screenful, a long press the top or bottom. Native, so they sit over the page |
 | Hide the status bar | ✅ | Settings → Appearance → Show the status bar; a swipe from the top shows it for a moment |
 | Swipe the address bar to change tabs | ✅ | Plus swipe up for the switcher, down to reload |
-| Back/forward edge gestures | ✅ | Detected natively — page touches never reach the chrome |
+| Back/forward edge gestures | ✅ | Detected natively — page touches never reach the chrome. With Android gesture navigation the edges are the system's Back, and Vex stands aside rather than fighting it |
 | Find on page | ✅ | |
 | Search suggestions as you type | ✅ | From the engine you chose, fetched natively because no suggestion endpoint allows a cross-origin request. Never in a private tab; Settings → Search to turn them off |
 | Choose a search engine | ✅ better | Six built in, plus one of your own — SearXNG on a box in the hall, Kagi, anything with a `%s` — with its own suggestions endpoint |
