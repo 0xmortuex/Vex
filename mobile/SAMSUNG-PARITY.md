@@ -77,7 +77,7 @@ Everything else below is either matched or bettered.
 | Shortcuts on the launcher icon | ✅ | Long-press Vex: new tab, private tab, voice, scan |
 | Share, QR share | ✅ | Samsung shares by QR too; Vex draws it locally |
 | Scan a QR code | ✅ | Camera + jsQR; an otpauth:// code goes to the vault |
-| Reading list | ✅ | Samsung has none; this is the desktop Vex feature |
+| Reading list | ✅ | Samsung has none; this is the desktop Vex feature. Pages you add keep an offline copy, opened when there is no connection |
 | Full-text search of pages you read | ✅ | Recall — nothing in Samsung Internet matches it |
 | Sessions | ✅ | Named sets of tabs, and they open on the desktop |
 | Backup and restore | ✅ better | Samsung backs up through a Samsung Account; Vex writes one encrypted file you hold, and says plainly what it cannot carry |

@@ -1602,6 +1602,30 @@ results.readerIcon = await page.evaluate(async () => {
   return [article, menu, shown, hidden].join(' ');
 });
 
+// A reading-list entry with a copy on the phone says so, and with no signal
+// opens the copy instead of a page that cannot load.
+results.readingOffline = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const url = 'https://offline.example/long-read';
+  await VexCollections.reading.add({ url, title: 'A long read' });
+  const id = await VexDB.add('pages', { url, title: 'A long read', at: Date.now(), size: 300 });
+  await VexDB.put('pagehtml', { id, html: '<!DOCTYPE html><p>' + 'kept '.repeat(60) + '</p>' });
+  await VexPanels.readingList();
+  await wait(200);
+  const row = [...document.querySelectorAll('#panel-body .list-row')].find(node => node.textContent.includes('A long read'));
+  const says = !!row && row.textContent.includes('offline');
+  const realOpen = VexTools.openSaved;
+  let opened = null;
+  VexTools.openSaved = async page => { opened = page.url; };
+  Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+  row.click();
+  await wait(200);
+  delete navigator.onLine;
+  VexTools.openSaved = realOpen;
+  await VexCollections.reading.remove(url);
+  return [says, opened === url].join(' ');
+});
+
 // ── Saving a video ──────────────────────────────────────────────────────────
 // A plain file goes to the download queue; a player built on a blob: URL is
 // found through the playlist its page requested, saved as a stream job whose
@@ -1692,6 +1716,7 @@ const expected = {
   rowSwipeRemoves: '1 true',
   switchToTab: 'true true',
   readerIcon: 'true false true true',
+  readingOffline: 'true true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,

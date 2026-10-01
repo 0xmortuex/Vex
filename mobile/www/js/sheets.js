@@ -137,8 +137,13 @@ const VexSheets = (() => {
       icon: 'list', label: 'Add to reading list', needsPage: true,
       run: async tab => {
         await VexCollections.reading.add({ url: tab.url, title: tab.title, icon: tab.icon });
-        VexUI.toast('Saved for later');
         VexSync.schedulePush();
+        // A copy of the page goes with it, so "later" can be on a train with no
+        // signal — Chrome's reading list does the same. Not from a private tab,
+        // which keeps nothing.
+        if (tab.incognito) { VexUI.toast('Saved for later'); return; }
+        VexUI.toast('Saved for later — with a copy to read offline');
+        VexTools.savePage(tab).catch(() => { /* the link alone is still on the list */ });
       }
     },
     history: { icon: 'history', label: 'History', run: () => VexPanels.history() },

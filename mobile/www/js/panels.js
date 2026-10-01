@@ -483,7 +483,7 @@ const VexPanels = (() => {
     },
 
     // ── Reading list ───────────────────────────────────────────────────────
-    readingList(filter = 'unread') {
+    async readingList(filter = 'unread') {
       const body = openShell('reading', 'Reading list');
       const chips = el('div', 'panel-chips');
       for (const [id, label] of [['unread', 'Unread'], ['all', 'Everything']]) {
@@ -501,12 +501,30 @@ const VexPanels = (() => {
           : 'Your reading list is empty.'));
         return;
       }
+      // Which of them have a copy on the phone: those open with no signal.
+      const mine = drawn;
+      const copies = await VexTools.savedPages(500).catch(() => []);
+      if (mine !== drawn) return;
+      const offline = new Map();
+      for (const page of copies) {
+        const known = offline.get(page.url);
+        if (!known || (page.at || 0) > (known.at || 0)) offline.set(page.url, page);
+      }
       for (const entry of entries) {
         body.appendChild(listRow(entry, {
-          sub: item => VexSearch.prettyHost(item.url) + ' · ' + when(item.at) + (item.read ? ' · read' : ''),
+          sub: item => VexSearch.prettyHost(item.url) + ' · ' + when(item.at) + (item.read ? ' · read' : '')
+            + (offline.has(item.url) ? ' · offline' : ''),
           onOpen: async item => {
             await VexCollections.reading.markRead(item.url, true);
             close();
+            // With no connection, the copy it was saved with; otherwise the
+            // page itself, which may have moved on.
+            const copy = offline.get(item.url);
+            if (copy && typeof navigator !== 'undefined' && navigator.onLine === false) {
+              await VexTools.openSaved(copy);
+              VexUI.toast('Offline — this is the copy saved with it');
+              return;
+            }
             VexUI.openUrl(item.url);
           },
           actions: [{
