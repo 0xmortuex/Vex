@@ -14,11 +14,12 @@
 // default: an on-device model is a gigabyte of someone else's weights and a
 // deliberate choice.
 //
-// Why there is no catalogue of download URLs: the models worth running are
-// Gemma's, and Gemma is behind a licence you have to accept in a browser. Vex IS
-// a browser. So the flow is: open the model's page, accept, download the
-// .litertlm, and import the file — or paste a direct URL if you have one, which
-// is resumed properly if the connection drops.
+// The catalogue is the Google AI Edge Gallery's own (model_allowlists, 1.0.19):
+// the same files, pinned to the same commits, so a download is byte-for-byte
+// what the Gallery would fetch. Hugging Face serves them directly. Gemma 3 and
+// FunctionGemma are behind a licence you accept once on the model's page; for
+// those Vex asks for a Hugging Face read token (kept on this phone, sent only
+// to huggingface.co). The rest download with no account at all.
 
 const VexLocalAI = (() => {
   // The system prompt for on-device chat. A 1B model does not need telling what
@@ -30,28 +31,108 @@ const VexLocalAI = (() => {
   // characters the worker gets would push the question out of the window.
   const PAGE_LIMIT = 2400;
 
+  const HF = 'https://huggingface.co/';
+  const hf = (repo, commit, file) => HF + repo + '/resolve/' + commit + '/' + file + '?download=true';
+
+  // tasks: which of the AI Lab's features a model can do — the Gallery's
+  // taskTypes, renamed. config: the Gallery's defaults for it.
   const MODELS = [
     {
-      id: 'gemma3-1b', name: 'Gemma3-1B-IT.litertlm', label: 'Gemma 3 1B',
-      size: '~0.6 GB', note: 'Quick on any phone. Good for short questions.',
-      page: 'https://huggingface.co/litert-community/Gemma3-1B-IT'
+      id: 'gemma4-e2b', name: 'gemma-4-E2B-it.litertlm', label: 'Gemma 4 E2B',
+      repo: 'litert-community/gemma-4-E2B-it-litert-lm', commit: '6e5c4f1e395deb959c494953478fa5cec4b8008f',
+      bytes: 2588147712, ram: 8, family: 'Gemma 4', image: true, audio: true,
+      tasks: ['chat', 'prompt', 'agent', 'image', 'audio'],
+      config: { topK: 64, topP: 0.95, temperature: 1.0, maxTokens: 4000 },
+      note: 'Sees, hears and uses tools. The one to start with on a flagship.'
     },
     {
-      id: 'gemma3-4b', name: 'Gemma3-4B-IT.litertlm', label: 'Gemma 3 4B',
-      size: '~2.6 GB', note: 'The best answers a phone can give. Wants a recent flagship.',
-      page: 'https://huggingface.co/litert-community/Gemma3-4B-IT'
+      id: 'gemma4-e4b', name: 'gemma-4-E4B-it.litertlm', label: 'Gemma 4 E4B',
+      repo: 'litert-community/gemma-4-E4B-it-litert-lm', commit: '28299f30ee4d43294517a4ac93abd6163412f07f',
+      bytes: 3659530240, ram: 12, family: 'Gemma 4', image: true, audio: true,
+      tasks: ['chat', 'prompt', 'agent', 'image', 'audio'],
+      config: { topK: 64, topP: 0.95, temperature: 1.0, maxTokens: 4000 },
+      note: 'The strongest Gemma a phone runs. Wants 12 GB of memory.'
     },
     {
-      id: 'gemma3n-e2b', name: 'Gemma3n-E2B-it.litertlm', label: 'Gemma 3n E2B',
-      size: '~3.0 GB', note: 'Reads images as well as text.',
-      page: 'https://huggingface.co/google/gemma-3n-E2B-it-litert-lm'
+      id: 'gemma3n-e2b', name: 'gemma-3n-E2B-it-int4.litertlm', label: 'Gemma 3n E2B',
+      aliases: ['Gemma3n-E2B-it.litertlm'],
+      repo: 'google/gemma-3n-E2B-it-litert-lm', commit: 'ba9ca88da013b537b6ed38108be609b8db1c3a16',
+      bytes: 3655827456, ram: 8, family: 'Gemma 3n', image: true, audio: true, gated: true,
+      tasks: ['chat', 'prompt', 'image', 'audio'],
+      config: { topK: 64, topP: 0.95, temperature: 1.0, maxTokens: 4096 },
+      note: 'Reads pictures and listens to audio.'
     },
     {
-      id: 'qwen2.5-1.5b', name: 'Qwen2.5-1.5B-Instruct.litertlm', label: 'Qwen 2.5 1.5B',
-      size: '~1.1 GB', note: 'A middle option, and not gated behind a licence.',
-      page: 'https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct'
+      id: 'gemma3n-e4b', name: 'gemma-3n-E4B-it-int4.litertlm', label: 'Gemma 3n E4B',
+      repo: 'google/gemma-3n-E4B-it-litert-lm', commit: '297ed75955702dec3503e00c2c2ecbbf475300bc',
+      bytes: 4919541760, ram: 12, family: 'Gemma 3n', image: true, audio: true, gated: true,
+      tasks: ['chat', 'prompt', 'image', 'audio'],
+      config: { topK: 64, topP: 0.95, temperature: 1.0, maxTokens: 4096 },
+      note: 'Gemma 3n at its larger size: better answers, slower.'
+    },
+    {
+      id: 'gemma3-1b', name: 'gemma3-1b-it-int4.litertlm', label: 'Gemma 3 1B',
+      aliases: ['Gemma3-1B-IT.litertlm'],
+      repo: 'litert-community/Gemma3-1B-IT', commit: '42d538a932e8d5b12e6b3b455f5572560bd60b2c',
+      bytes: 584417280, ram: 6, family: 'Gemma 3', gated: true,
+      tasks: ['chat', 'prompt'],
+      config: { topK: 64, topP: 0.95, temperature: 1.0, maxTokens: 1024 },
+      note: 'Small and quick on any phone. Text only.'
+    },
+    {
+      id: 'tiny-garden', name: 'tiny_garden_q8_ekv1024.litertlm', label: 'FunctionGemma 270M · Tiny Garden',
+      repo: 'litert-community/functiongemma-270m-ft-tiny-garden', commit: 'c205853ff82da86141a1105faa2344a8b176dfe7',
+      bytes: 288964608, ram: 6, family: 'FunctionGemma', gated: true, cpuOnly: true,
+      tasks: ['garden'],
+      config: { topK: 64, topP: 0.95, temperature: 0, maxTokens: 1024 },
+      note: 'Trained for one thing: turning what you say into garden moves.'
+    },
+    {
+      id: 'mobile-actions', name: 'mobile_actions_q8_ekv1024.litertlm', label: 'FunctionGemma 270M · Mobile Actions',
+      repo: 'litert-community/functiongemma-270m-ft-mobile-actions', commit: '38942192c9b723af836d489074823ff33d4a3e7a',
+      bytes: 288964608, ram: 6, family: 'FunctionGemma', gated: true, cpuOnly: true,
+      tasks: ['actions'],
+      config: { topK: 64, topP: 0.95, temperature: 0, maxTokens: 1024 },
+      note: 'Trained to turn a request into a phone action: torch, contact, email, map, Wi-Fi, calendar.'
+    },
+    {
+      id: 'qwen2.5-1.5b', name: 'Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm', label: 'Qwen 2.5 1.5B',
+      aliases: ['Qwen2.5-1.5B-Instruct.litertlm'],
+      repo: 'litert-community/Qwen2.5-1.5B-Instruct', commit: '19edb84c69a0212f29a6ef17ba0d6f278b6a1614',
+      bytes: 1597931520, ram: 6, family: 'Other',
+      tasks: ['chat', 'prompt'],
+      config: { topK: 20, topP: 0.8, temperature: 0.7, maxTokens: 4096 },
+      note: 'A capable middle option. No licence to accept.'
+    },
+    {
+      id: 'deepseek-r1-1.5b', name: 'DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_q8_ekv4096.litertlm', label: 'DeepSeek R1 Distill 1.5B',
+      repo: 'litert-community/DeepSeek-R1-Distill-Qwen-1.5B', commit: 'e34bb88632342d1f9640bad579a45134eb1cf988',
+      bytes: 1833451520, ram: 6, family: 'Other',
+      tasks: ['chat', 'prompt'],
+      config: { topK: 64, topP: 0.95, temperature: 1.0, maxTokens: 4096 },
+      note: 'Thinks out loud before it answers. No licence to accept.'
+    },
+    {
+      id: 'phi4-mini', name: 'Phi-4-mini-instruct_multi-prefill-seq_q8_ekv4096.litertlm', label: 'Phi-4 mini',
+      repo: 'litert-community/Phi-4-mini-instruct', commit: '054f4e2694a86f81a129a40596e08b8d74770a9d',
+      bytes: 3910090752, ram: 6, family: 'Other',
+      tasks: ['chat', 'prompt'],
+      config: { topK: 64, topP: 0.95, temperature: 1.0, maxTokens: 4096 },
+      note: 'Microsoft\u2019s small model, from an older Gallery list. No licence to accept.'
+    },
+    {
+      id: 'magic-touch', name: 'interactive_segmentation.task', label: 'Magic Touch (cut-outs)',
+      url: 'https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/latest/interactive_segmentation.task',
+      bytes: 30525312, family: 'Tools', kind: 'segmenter',
+      tasks: ['scrapbook'],
+      note: 'Not a language model: MediaPipe\u2019s segmenter, which Scrapbook cuts photos with.'
     }
-  ];
+  ].map(entry => Object.assign({
+    size: '~' + (entry.bytes >= 1e9 ? (entry.bytes / 1073741824).toFixed(1) + ' GB' : Math.round(entry.bytes / 1048576) + ' MB'),
+    page: entry.repo ? HF + entry.repo : '',
+    url: entry.repo ? hf(entry.repo, entry.commit, entry.name) : '',
+    kind: 'llm'
+  }, entry));
 
   const BACKENDS = [
     { id: 'gpu', label: 'GPU', note: 'Fastest where it works. Falls back on its own if it does not.' },
@@ -63,6 +144,7 @@ const VexLocalAI = (() => {
   const state = {
     supported: false, loaded: false, busy: false,
     model: '', backend: '', models: {}, nano: 'unknown',
+    vision: false, audio: false, recording: false, clipMillis: 0,
     downloading: null,        // { name, received, total }
     lastError: ''
   };
@@ -94,7 +176,20 @@ const VexLocalAI = (() => {
   }
 
   function model(name) {
-    return MODELS.find(entry => entry.name === name || entry.id === name) || null;
+    return MODELS.find(entry => entry.name === name || entry.id === name
+      || (entry.aliases || []).includes(name)) || null;
+  }
+
+  /** The file on the phone for a catalogue entry — its own name, or an older one. */
+  function fileOf(entry) {
+    if (!entry) return '';
+    const here = state.models || {};
+    if (here[entry.name] !== undefined) return entry.name;
+    return (entry.aliases || []).find(name => here[name] !== undefined) || '';
+  }
+
+  function modelsFor(task) {
+    return MODELS.filter(entry => entry.tasks.includes(task));
   }
 
   function page(text) {
@@ -127,14 +222,21 @@ const VexLocalAI = (() => {
   async function refresh() {
     // Asking is not an operation that can fail usefully: no answer is "nothing".
     const status = await VexBridge.localAI('status', {}).catch(() => ({}));
-    const before = JSON.stringify([state.supported, state.loaded, state.busy, state.model, state.backend, state.models]);
+    const seen = () => JSON.stringify([state.supported, state.loaded, state.busy, state.model, state.backend,
+      state.models, state.vision, state.audio, state.recording, state.clipMillis]);
+    const before = seen();
     state.supported = !!(status && status.supported);
     state.loaded = !!(status && status.loaded);
     state.busy = !!(status && status.busy);
     state.model = (status && status.model) || '';
     state.backend = (status && status.backend) || '';
     state.models = (status && status.models) || {};
-    if (JSON.stringify([state.supported, state.loaded, state.busy, state.model, state.backend, state.models]) !== before) changed();
+    state.vision = !!(status && status.vision);
+    state.audio = !!(status && status.audio);
+    state.recording = !!(status && status.recording);
+    state.clipMillis = Number(status && status.clipMillis) || 0;
+    if (!state.loaded) purpose = '';
+    if (seen() !== before) changed();
     return state;
   }
 
@@ -147,52 +249,141 @@ const VexLocalAI = (() => {
   }
 
   // ── Generation ───────────────────────────────────────────────────────────
+  //
+  // One engine, many uses. The engine holds the weights and is slow to build;
+  // a conversation on it is cheap. Every feature — the assistant, Ask Image,
+  // Tiny Garden — says what it wants with use(): which model, whether it needs
+  // the image or audio reader, its system prompt, sampling and tools. Asking
+  // for the same again is free; a different purpose on the same engine is a
+  // new conversation; a different model, backend or reader is a reload.
 
   let nextId = 1;
+  let purpose = '';            // what the conversation on the engine is for
+  let toolHandler = null;      // who runs the tools that conversation declared
+  let loading = null;          // one use() at a time
 
-  async function ensureLoaded() {
-    if (state.loaded) return true;
-    const name = chosenModel();
-    if (!name) return false;
+  function samplerOf(entry, override) {
+    const config = Object.assign({}, (entry && entry.config) || {}, override || {});
+    return config.topK
+      ? { topK: Math.max(1, Math.round(config.topK)), topP: Number(config.topP), temperature: Number(config.temperature) }
+      : {};
+  }
+
+  function backendFor(entry) {
+    // The Gallery runs FunctionGemma on the CPU only; it is 270M parameters,
+    // and the GPU path costs more to set up than it saves.
+    return entry && entry.cpuOnly ? 'cpu' : chosenBackend();
+  }
+
+  async function use(key, options = {}) {
+    while (loading) await loading.catch(() => {});
+    const job = useNow(key, options);
+    loading = job;
+    try { return await job; } finally { if (loading === job) loading = null; }
+  }
+
+  async function useNow(key, options) {
+    const name = options.model || chosenModel();
+    if (!name) throw new Error('Choose a model first — AI Lab → Models.');
     if (!state.models || state.models[name] === undefined) {
       await refresh();
-      if (!state.models || state.models[name] === undefined) return false;
+      if (!state.models || state.models[name] === undefined) {
+        throw new Error((model(name) ? model(name).label : name) + ' is not on this phone yet.');
+      }
     }
+    const entry = model(name);
+    const backend = options.backend || backendFor(entry);
+    const vision = !!options.vision;
+    const audio = !!options.audio;
+    const chat = Object.assign({ system: options.system || '' }, samplerOf(entry, options.sampler),
+      { tools: options.tools && options.tools.length ? JSON.stringify(options.tools) : '' });
+    // An engine with readers this use does not need still serves it: the
+    // assistant can talk to a model Ask Image loaded with its eyes open.
+    const engineFits = state.loaded && state.model === name
+      && (options.backend ? state.backend === backend : true)
+      && (!vision || state.vision) && (!audio || state.audio);
+    const fresh = options.fresh || purpose !== key || !engineFits;
+    toolHandler = options.onTool || null;
+    if (!fresh) return state;
     try {
-      const result = await VexBridge.localAI('load', {
-        name, backend: chosenBackend(), system: SYSTEM
-      });
-      state.loaded = !!(result && result.loaded);
-      state.model = (result && result.model) || name;
-      state.backend = (result && result.backend) || chosenBackend();
-      state.lastError = '';
-      changed();
-      return state.loaded;
+      const result = engineFits
+        ? await VexBridge.localAI('reset', chat)
+        : await VexBridge.localAI('load', Object.assign({
+          name, backend, vision, audio,
+          maxTokens: (entry && entry.config && entry.config.maxTokens) || 0
+        }, chat));
+      adopt(result, name, backend);
+      purpose = key;
+      return state;
     } catch (error) {
       state.lastError = error.message || String(error);
-      // A GPU that cannot take this model is the common failure, and the answer
-      // is the CPU — try it once rather than reporting defeat.
-      if (chosenBackend() !== 'cpu') {
+      // A GPU that cannot take this model is the common failure, and the
+      // answer is the CPU — try it once rather than reporting defeat.
+      if (!engineFits && backend !== 'cpu') {
         try {
-          const result = await VexBridge.localAI('load', { name, backend: 'cpu', system: SYSTEM });
-          state.loaded = !!(result && result.loaded);
-          state.model = name;
-          state.backend = 'cpu';
-          await VexStore.set('vex.localBackend', 'cpu');
-          changed();
-          return state.loaded;
+          const result = await VexBridge.localAI('load', Object.assign({
+            name, backend: 'cpu', vision, audio,
+            maxTokens: (entry && entry.config && entry.config.maxTokens) || 0
+          }, chat));
+          adopt(result, name, 'cpu');
+          purpose = key;
+          // Remembered, so the next load does not fail on the GPU first.
+          if (!options.backend && backend === chosenBackend()) await VexStore.set('vex.localBackend', 'cpu');
+          return state;
         } catch (second) {
           state.lastError = second.message || String(second);
         }
       }
+      purpose = '';
       changed();
+      throw new Error(state.lastError);
+    }
+  }
+
+  function adopt(result, name, backend) {
+    state.loaded = !!(result && result.loaded);
+    state.model = (result && result.model) || name;
+    state.backend = (result && result.backend) || backend;
+    state.vision = !!(result && result.vision);
+    state.audio = !!(result && result.audio);
+    state.lastError = '';
+    changed();
+  }
+
+  // The assistant's own conversation: its prompt, the model's own sampling.
+  async function ensureLoaded() {
+    const name = chosenModel();
+    if (!name) return false;
+    try {
+      await use('assistant', { model: name, system: SYSTEM });
+      return state.loaded;
+    } catch {
       return false;
     }
   }
 
+  async function runTool(data) {
+    let result;
+    try {
+      let args = {};
+      try { args = JSON.parse((data && data.args) || '{}') || {}; } catch { args = {}; }
+      result = toolHandler
+        ? await toolHandler(String(data.name || ''), args)
+        : { error: 'Nothing is listening for ' + data.name };
+    } catch (error) {
+      result = { error: error.message || String(error) };
+    }
+    await VexBridge.localAI('toolResult', {
+      callId: data.callId,
+      result: JSON.stringify(result === undefined ? { result: 'success' } : result)
+    }).catch(() => {});
+  }
+
   return {
     SYSTEM, MODELS, BACKENDS, CHAT_ACTIONS, state,
-    mode, nanoMode, chosenModel, chosenBackend, model, promptFor, refresh, refreshNano,
+    mode, nanoMode, chosenModel, chosenBackend, model, fileOf, modelsFor, promptFor, refresh, refreshNano,
+    use,
+    purpose() { return purpose; },
 
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
@@ -238,6 +429,9 @@ const VexLocalAI = (() => {
       state.loaded = false;
       state.model = '';
       state.backend = '';
+      state.vision = false;
+      state.audio = false;
+      purpose = '';
       changed();
     },
 
@@ -246,8 +440,13 @@ const VexLocalAI = (() => {
      * twenty seconds of nothing reads as a hang.
      */
     async generate(prompt, options = {}) {
-      if (!await ensureLoaded()) {
-        throw new Error(state.lastError || 'No on-device model is loaded.');
+      const key = options.purpose || 'assistant';
+      if (key === 'assistant') {
+        if (!await ensureLoaded()) {
+          throw new Error(state.lastError || 'No on-device model is loaded.');
+        }
+      } else if (purpose !== key || !state.loaded) {
+        throw new Error('Another feature took the model in the meantime — try again.');
       }
       const id = 'gen-' + (nextId++);
       let stop = null;
@@ -257,7 +456,11 @@ const VexLocalAI = (() => {
         });
       }
       try {
-        const result = await VexBridge.localAI('generate', { id, prompt });
+        const result = await VexBridge.localAI('generate', {
+          id, prompt: String(prompt || ''),
+          images: options.images || [],
+          withClip: !!options.withClip
+        });
         return String((result && result.text) || '').trim();
       } finally {
         if (stop) stop();
@@ -277,6 +480,60 @@ const VexLocalAI = (() => {
       state.downloading = { name, received: 0, total: -1 };
       changed();
       return VexBridge.localAI('download', { name, url, headers });
+    },
+
+    /** Download a catalogue entry from where the Gallery gets it. */
+    async downloadModel(entry) {
+      const token = entry.gated ? String(VexStore.get('vex.hfToken', '') || '') : '';
+      return this.download(entry.name, entry.url, token);
+    },
+
+    hfToken() { return String(VexStore.get('vex.hfToken', '') || ''); },
+    async setHfToken(value) { await VexStore.set('vex.hfToken', String(value || '').trim()); },
+
+    // ── Pictures and sound ─────────────────────────────────────────────────
+
+    async pickImage(capture = false) {
+      const result = await VexBridge.localAI('pickImage', { capture, maxSide: 1024 });
+      return result && result.picked ? result : null;
+    },
+
+    async recordAudio(onLevel) {
+      if (!await VexBridge.requestPermission('microphone')) {
+        throw new Error('Vex needs the microphone for this — allow it in Android settings.');
+      }
+      const stop = onLevel ? VexBridge.onLocalAI('audioLevel', data => onLevel(data || {})) : null;
+      state.recording = true;
+      changed();
+      try {
+        const result = await VexBridge.localAI('recordAudio', {});
+        state.clipMillis = Number(result && result.millis) || 0;
+        return state.clipMillis;
+      } finally {
+        if (stop) stop();
+        state.recording = false;
+        changed();
+      }
+    },
+
+    stopAudio() { return VexBridge.localAI('stopAudio', {}).catch(() => ({})); },
+
+    async importAudio() {
+      const result = await VexBridge.localAI('importAudio', {});
+      if (!result || !result.picked) return 0;
+      state.clipMillis = Number(result.millis) || 0;
+      changed();
+      return state.clipMillis;
+    },
+
+    async clearAudio() {
+      await VexBridge.localAI('clearAudio', {}).catch(() => ({}));
+      state.clipMillis = 0;
+      changed();
+    },
+
+    deviceAction(name, args) {
+      return VexBridge.localAI('deviceAction', { name, args: JSON.stringify(args || {}) });
     },
 
     cancelDownload() {
@@ -320,8 +577,9 @@ const VexLocalAI = (() => {
       return String((result && result.text) || '').trim();
     },
 
-    /** Wired once at boot: the download's progress and outcome. */
+    /** Wired once at boot: the download's progress and outcome, and tool calls. */
     bind() {
+      VexBridge.onLocalAI('toolCall', data => { if (data && data.callId) runTool(data); });
       VexBridge.onLocalAI('modelProgress', data => {
         if (!data || !data.name) return;
         state.downloading = { name: data.name, received: Number(data.received) || 0, total: Number(data.total) || -1 };
@@ -331,7 +589,10 @@ const VexLocalAI = (() => {
         state.downloading = null;
         state.lastError = '';
         await refresh();
-        if (!chosenModel() && data && data.name) await VexStore.set('vex.localModel', data.name);
+        // The first chat model to arrive becomes the assistant's; the cut-out
+        // model and the two FunctionGemmas cannot chat.
+        const arrived = data && data.name ? model(data.name) : null;
+        if (!chosenModel() && arrived && arrived.tasks.includes('chat')) await VexStore.set('vex.localModel', data.name);
         VexUI.toast('The model is on your phone');
         changed();
       });

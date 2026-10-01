@@ -115,8 +115,31 @@ const VexBridge = (() => {
   // be driven in a desktop browser and in the walkthrough. On a device the
   // plugin is there and none of this runs.
   const localFallback = (() => {
-    const state = { models: {}, loaded: false, busy: false, model: '', backend: '' };
+    const state = { models: {}, loaded: false, busy: false, model: '', backend: '', vision: false, audio: false, clip: 0 };
     let cancelled = false;
+    let tools = [];                 // what the conversation declared
+    let nextCall = 1;
+    const waiting = new Map();      // callId -> resolve
+
+    // A model that "decides" to call a tool: the first declared tool whose name
+    // shares a word with the prompt, with arguments read off the prompt as
+    // plainly as possible — plot numbers, a flower, a quoted string. Enough to
+    // drive a tool loop end to end without a phone.
+    function pickTool(prompt) {
+      const text = String(prompt || '').toLowerCase();
+      const tool = tools.find(entry => String(entry.name).split('_').some(word => word.length > 3 && text.includes(word)))
+        || null;
+      if (!tool) return null;
+      const args = {};
+      const properties = (tool.parameters && tool.parameters.properties) || {};
+      for (const [key, spec] of Object.entries(properties)) {
+        if (spec.type === 'array') args[key] = (text.match(/\d+/g) || []).map(Number);
+        else if (key === 'seed') args[key] = (text.match(/sunflower|daisy|rose|secret/) || ['sunflower'])[0];
+        else if (key === 'skill_name') args[key] = (text.match(/[a-z]+-[a-z-]+/) || [''])[0];
+        else args[key] = (String(prompt).match(/"([^"]*)"/) || [, ''])[1];
+      }
+      return { name: tool.name, args };
+    }
 
     const ANSWER = 'This is the development stand-in for the on-device model. '
       + 'It streams a few words so the chrome can be driven without a phone.';
@@ -126,7 +149,8 @@ const VexBridge = (() => {
     return {
       status: () => ({
         supported: true, loaded: state.loaded, busy: state.busy,
-        model: state.model, backend: state.backend,
+        model: state.model, backend: state.backend, vision: state.vision, audio: state.audio,
+        recording: false, clipMillis: state.clip,
         models: state.models, directory: '(development)'
       }),
       nanoStatus: () => ({ status: 'unavailable' }),
@@ -150,20 +174,60 @@ const VexBridge = (() => {
       },
       cancelDownload: () => ({}),
       deleteModel: ({ name }) => { delete state.models[name]; return { deleted: true }; },
-      load: ({ name, backend }) => {
+      load: ({ name, backend, vision, audio, tools: declared }) => {
         if (state.models[name] === undefined) throw new Error('That model is not on this device');
         state.loaded = true;
         state.model = name;
         state.backend = backend || 'cpu';
-        return { loaded: true, model: name, backend: state.backend };
+        state.vision = !!vision;
+        state.audio = !!audio;
+        tools = declared ? JSON.parse(declared) : [];
+        return { loaded: true, model: name, backend: state.backend, vision: state.vision, audio: state.audio };
       },
-      unload: () => { state.loaded = false; state.model = ''; state.backend = ''; return {}; },
+      reset: ({ tools: declared }) => {
+        if (!state.loaded) throw new Error('No model is loaded');
+        tools = declared ? JSON.parse(declared) : [];
+        return { loaded: true, model: state.model, backend: state.backend, vision: state.vision, audio: state.audio };
+      },
+      toolResult: ({ callId, result }) => {
+        const resolve = waiting.get(callId);
+        if (resolve) { waiting.delete(callId); resolve(result); }
+        return {};
+      },
+      unload: () => { state.loaded = false; state.model = ''; state.backend = ''; state.vision = false; state.audio = false; return {}; },
+      // A grey square stands in for a photo.
+      pickImage: () => ({
+        picked: true, width: 1, height: 1,
+        base64: '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA='
+      }),
+      recordAudio: () => new Promise(resolve => setTimeout(() => { state.clip = 2000; resolve({ millis: 2000 }); }, 50)),
+      stopAudio: () => ({}),
+      clearAudio: () => { state.clip = 0; return {}; },
+      importAudio: () => { state.clip = 3000; return { picked: true, millis: 3000 }; },
+      scrapOpen: ({ model }) => {
+        if (state.models[model] === undefined) throw new Error('The cut-out model is not on this phone yet');
+        return { picked: true, width: 4, height: 3, base64: '' };
+      },
+      scrapCut: () => ({
+        found: true, x: 1, y: 1, w: 1, h: 1,
+        png: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
+      }),
+      scrapClose: () => ({}),
+      deviceAction: ({ name }) => ({ text: 'Did ' + String(name).replace(/_/g, ' ') }),
       stop: () => { cancelled = true; return {}; },
-      generate: ({ id }) => {
+      generate: async ({ id, prompt }) => {
         if (!state.loaded) throw new Error('No model is loaded');
         cancelled = false;
         state.busy = true;
-        const words = ANSWER.split(' ');
+        const call = tools.length ? pickTool(prompt) : null;
+        let words = ANSWER.split(' ');
+        if (call) {
+          const callId = 'tool-' + (nextCall++);
+          const answer = new Promise(resolve => waiting.set(callId, resolve));
+          emitLocal('toolCall', { callId, name: call.name, args: JSON.stringify(call.args) });
+          const result = await answer;
+          words = ('Called ' + call.name + ': ' + result).split(' ');
+        }
         return new Promise(resolve => {
           let at = 0;
           const tick = () => {

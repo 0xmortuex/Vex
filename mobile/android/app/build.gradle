@@ -72,6 +72,9 @@ dependencies {
     // every entry point Vex uses is @JvmOverloads or a callback interface, so no
     // Kotlin toolchain is needed here — only the stdlib it brings with it.
     implementation "com.google.ai.edge.litertlm:litertlm-android:$litertLmVersion"
+    // Scrapbook: MediaPipe's interactive segmenter cuts things out of photos
+    // with a 30 MB model downloaded on request, like the language models.
+    implementation "com.google.mediapipe:tasks-vision:$mediapipeTasksVersion"
     // Part two: Gemini Nano, whose weights belong to the system rather than to
     // Vex. Three fixed jobs, no download, only on a phone with AICore.
     implementation "com.google.mlkit:genai-summarization:$mlkitGenAiVersion"

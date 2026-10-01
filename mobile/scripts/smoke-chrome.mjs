@@ -539,6 +539,138 @@ results.aiPanelsSteady = await page.evaluate(async () => {
   return [redraws, bubbles, /Get a model/.test(offers) && /Add a worker/.test(offers)].join(' ');
 });
 
+// ── AI Lab ──────────────────────────────────────────────────────────────────
+// Every Gallery feature, walked against the development stand-in: it streams a
+// canned answer and, when the conversation declared tools, "decides" to call
+// the one whose name matches the prompt — so the tool loop runs end to end.
+results.labHome = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  for (const name of ['gemma-4-E2B-it.litertlm', 'tiny_garden_q8_ekv1024.litertlm',
+    'mobile_actions_q8_ekv1024.litertlm', 'interactive_segmentation.task']) {
+    await VexBridge.localAI('download', { name, url: 'https://example.invalid/' + name });
+  }
+  await wait(200);
+  await VexLocalAI.refresh();
+  await VexLab.home();
+  await wait(100);
+  const tiles = [...document.querySelectorAll('.lab-tile .lab-tile-title')].map(node => node.textContent);
+  const missing = document.querySelectorAll('.lab-tile-model.missing').length;
+  return tiles.length + ' ' + missing + ' ' + tiles.join(',');
+});
+await shot('40-ai-lab');
+
+results.labGarden = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexLab.open('garden');
+  await wait(50);
+  const chip = [...document.querySelectorAll('#panel-body .chip')].find(node => node.textContent === 'Plant a daisy in plot 5');
+  chip.click();
+  for (let i = 0; i < 60 && !/Called/.test(document.querySelector('.lab-reply').textContent); i++) await wait(50);
+  const plots = [...document.querySelectorAll('.lab-plot-plant')].map(node => node.textContent);
+  return plots.filter(Boolean).length + ' ' + plots[4] + ' ' + /plant_seed/.test(document.querySelector('.lab-reply').textContent);
+});
+await shot('41-tiny-garden');
+
+results.labActions = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexLab.open('actions');
+  await wait(50);
+  const chip = [...document.querySelectorAll('#panel-body .chip')].find(node => node.textContent === 'Turn on the flashlight');
+  chip.click();
+  for (let i = 0; i < 60 && !document.querySelector('#lab-actions .sheet-row'); i++) await wait(50);
+  return [...document.querySelectorAll('#lab-actions .sheet-row')].map(node => node.textContent).join('|');
+});
+await shot('42-mobile-actions');
+
+results.labImage = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexLab.open('image');
+  await wait(50);
+  document.querySelector('.lab-attach').click();
+  await wait(100);
+  const pick = [...document.querySelectorAll('#sheet-list .sheet-row')].find(node => /Choose from the phone/.test(node.textContent));
+  pick.click();
+  for (let i = 0; i < 20 && !document.querySelector('.lab-thumb'); i++) await wait(50);
+  const thumbs = document.querySelectorAll('.lab-thumb').length;
+  const input = document.getElementById('lab-chat-input');
+  input.value = 'What is in this picture?';
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  for (let i = 0; i < 80 && !document.querySelector('#lab-chat-log .bubble.assistant:not([data-streaming])'); i++) await wait(50);
+  const pictures = document.querySelectorAll('#lab-chat-log .bubble.user img').length;
+  const answer = document.querySelector('#lab-chat-log .bubble.assistant:not([data-streaming])');
+  return thumbs + ' ' + pictures + ' ' + !!(answer && /stand-in/.test(answer.textContent)) + ' ' + VexLocalAI.state.vision;
+});
+await shot('43-ask-image');
+
+results.labPromptAudio = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexLab.open('prompt');
+  await wait(50);
+  [...document.querySelectorAll('#panel-body .chip')].find(node => node.textContent === 'Rewrite tone').click();
+  await wait(50);
+  document.querySelector('.lab-input').value = 'hey send it';
+  document.querySelector('.lab-input').dispatchEvent(new Event('input'));
+  [...document.querySelectorAll('#panel-body .lab-big')].find(node => node.textContent === 'Run').click();
+  for (let i = 0; i < 80 && !/stand-in/.test(document.querySelector('.lab-output').textContent); i++) await wait(50);
+  const prompt = /stand-in/.test(document.querySelector('.lab-output').textContent);
+  // Finished, not merely started: one model, one answer at a time.
+  for (let i = 0; i < 80 && [...document.querySelectorAll('#panel-body .lab-big')].some(node => node.textContent === 'Stop'); i++) await wait(50);
+  await VexLab.open('audio');
+  await wait(50);
+  await VexLocalAI.recordAudio();
+  await VexLab.open('audio');
+  await wait(50);
+  const clip = document.querySelector('.lab-clip').textContent;
+  [...document.querySelectorAll('#panel-body .chip')].find(node => node.textContent === 'Transcribe').click();
+  for (let i = 0; i < 80 && !/stand-in/.test(document.querySelector('.lab-output').textContent); i++) await wait(50);
+  const scribed = /stand-in/.test(document.querySelector('.lab-output').textContent);
+  // The scribe's answer streams on after the first words; let it finish
+  // before the next feature asks the model for anything.
+  await wait(600);
+  return prompt + ' ' + clip + ' ' + scribed + ' ' + VexLocalAI.state.audio;
+});
+await shot('44-audio-scribe');
+
+results.labScrapbook = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexLab.open('scrapbook');
+  await wait(50);
+  [...document.querySelectorAll('#panel-body .chip')].find(node => node.textContent === 'Add a photo').click();
+  for (let i = 0; i < 20 && !document.querySelector('.lab-cut-overlay'); i++) await wait(50);
+  const overlay = document.querySelector('.lab-cut-overlay');
+  const rect = overlay.getBoundingClientRect();
+  const at = (type, x, y) => overlay.dispatchEvent(new PointerEvent(type, {
+    bubbles: true, pointerId: 1, clientX: rect.left + x, clientY: rect.top + y
+  }));
+  overlay.setPointerCapture = () => {};
+  at('pointerdown', 10, 10);
+  at('pointermove', 30, 20);
+  at('pointerup', 30, 20);
+  for (let i = 0; i < 20 && !/Cut out/.test(document.querySelector('#panel-body').textContent); i++) await wait(50);
+  [...document.querySelectorAll('#panel-body .chip')].find(node => node.textContent === 'Add to page').click();
+  await wait(50);
+  [...document.querySelectorAll('#panel-body .chip')].find(node => node.textContent === 'Back to the page').click();
+  await wait(50);
+  return document.querySelectorAll('#lab-page .lab-sticker').length + ' ' + !!document.querySelector('.lab-page');
+});
+await shot('45-scrapbook');
+
+results.labAgent = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexLab.open('agent');
+  await wait(50);
+  const input = document.getElementById('lab-chat-input');
+  input.value = 'please load_skill "calculate-hash"';
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  for (let i = 0; i < 80 && !document.querySelector('#lab-chat-log .bubble.assistant:not([data-streaming]):not(.lab-tool)'); i++) await wait(50);
+  const tool = [...document.querySelectorAll('#lab-chat-log .lab-tool')].map(node => node.textContent).join('|');
+  const answer = document.querySelector('#lab-chat-log .bubble.assistant:not([data-streaming]):not(.lab-tool)');
+  const skills = [...document.querySelectorAll('.lab-bar .chip')].some(node => /Skills · 14/.test(node.textContent));
+  VexPanels.close();
+  return tool + ' ' + /Called load_skill/.test(answer ? answer.textContent : '') + ' ' + skills;
+});
+await shot('46-agent-skills');
+
 // ── Vex Sync's screens ──────────────────────────────────────────────────────
 // Signed out, the panel asks for the worker, an email and a code; the
 // desktop's notes can be read, edited (the edit keeps every other field and
@@ -1982,6 +2114,13 @@ const expected = {
   readingOffline: 'true true',
   syncScreens: 'true From the PC true true true true',
   aiPanelsSteady: '0 1 true',
+  labHome: '8 0 AI Chat,Ask Image,Audio Scribe,Prompt Lab,Agent Skills,Tiny Garden,Mobile Actions,Scrapbook',
+  labGarden: '1 🌱 true',
+  labActions: 'Did turn on flashlightturn on flashlight',
+  labImage: '1 1 true true',
+  labPromptAudio: 'true A clip of 2 s is ready true true',
+  labScrapbook: '1 true',
+  labAgent: 'Loaded the “calculate-hash” skill true true',
   looks: 'chrome:light:true:n/a:#i-menu:true chrome:dark:true:n/a:#i-menu:true '
     + 'firefox:light:true:n/a:#i-menu:false firefox:dark:true:n/a:#i-menu:false '
     + 'safari:light:true:navbar:#i-more:false safari:dark:true:navbar:#i-more:false '

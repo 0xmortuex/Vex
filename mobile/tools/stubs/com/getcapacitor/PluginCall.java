@@ -11,6 +11,8 @@ public class PluginCall {
     public Boolean getBoolean(String name, Boolean defaultValue) { return defaultValue; }
     public JSObject getObject(String name) { return null; }
     public JSObject getObject(String name, JSObject defaultValue) { return defaultValue; }
+    public Double getDouble(String name) { return null; }
+    public Double getDouble(String name, Double defaultValue) { return defaultValue; }
     public JSArray getArray(String name) { return null; }
     public JSArray getArray(String name, JSArray defaultValue) { return defaultValue; }
     public void resolve() { }

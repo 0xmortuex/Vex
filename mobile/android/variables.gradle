@@ -31,6 +31,9 @@ ext {
     // which does not exist, once reached a build; a dynamic version is how two
     // machines build different apps from the same commit.
     litertLmVersion = '0.17.1'
+    // Scrapbook's cut-outs: MediaPipe's interactive segmenter, the version the
+    // AI Edge Gallery builds against (setImage, then segment by strokes).
+    mediapipeTasksVersion = '1.0.0'
     mlkitGenAiVersion = '1.0.0-beta1'
     // On-device translation and language identification. Same story as above:
     // in as latest.release for exactly one build, and these are what run 35's

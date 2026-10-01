@@ -105,6 +105,12 @@
     VexStore.prime('vex.localAI', 'off'),
     VexStore.prime('vex.localModel', ''),
     VexStore.prime('vex.localBackend', 'gpu'),
+    // AI Lab: which model each feature uses, its sampling, the agent's skills.
+    VexStore.prime('vex.labModels', {}),
+    VexStore.prime('vex.labSettings', {}),
+    VexStore.prime('vex.labSkillsOff', []),
+    VexStore.prime('vex.moodLog', []),
+    VexStore.prime('vex.hfToken', ''),
     VexStore.prime('vex.nanoAI', 'off'),
     VexStore.prime('vex.tabBar', 'auto'),
     VexStore.prime('vex.backupHistory', false),

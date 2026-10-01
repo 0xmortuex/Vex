@@ -100,6 +100,11 @@ const VexSheets = (() => {
       note: tab => (tab ? 'About ' + VexSearch.prettyHost(tab.url) : 'Chat'),
       run: () => VexViews.openAI()
     },
+    'ai-lab': {
+      icon: 'sparkle', label: 'AI Lab',
+      note: () => 'Chat, images, audio, agents — on the phone',
+      run: () => VexLab.home()
+    },
     reader: { icon: 'book', label: 'Reader', needsPage: true, run: () => VexViews.openReader() },
     'read-aloud': {
       icon: 'speaker', label: 'Read aloud', needsPage: true,
@@ -265,7 +270,7 @@ const VexSheets = (() => {
   }
 
   const DEFAULT_ORDER = [
-    'new-tab', 'new-private', 'assistant', 'agent', 'reader', 'read-aloud', 'translate', 'find', 'site',
+    'new-tab', 'new-private', 'assistant', 'agent', 'ai-lab', 'reader', 'read-aloud', 'translate', 'find', 'site',
     'add-reading', 'reading-list', 'bookmarks', 'history', 'recall', 'downloads',
     'save-page', 'save-video', 'saved-pages', 'notes', 'synced-notes', 'remind-me', 'reminders', 'sessions',
     'fill', 'fill-details', 'save-login', 'passwords',

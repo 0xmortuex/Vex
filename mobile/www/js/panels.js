@@ -131,6 +131,15 @@ const VexPanels = (() => {
     quickAccess: () => VexPanels.quickAccess(),
     assistant: () => VexPanels.assistantSettings(),
     localai: () => VexPanels.localAI(),
+    aiLab: () => VexLab.home(),
+    labChat: () => VexLab.open('chat'),
+    labImage: () => VexLab.open('image'),
+    labAudio: () => VexLab.open('audio'),
+    labPrompt: () => VexLab.open('prompt'),
+    labAgent: () => VexLab.open('agent'),
+    labGarden: () => VexLab.open('garden'),
+    labActions: () => VexLab.open('actions'),
+    labScrap: () => VexLab.open('scrapbook'),
     diagnostics: () => VexPanels.diagnostics(),
     backup: () => VexPanels.backup(),
     privacy: () => VexPanels.privacy(),
@@ -297,6 +306,8 @@ const VexPanels = (() => {
     close,
     back,
     isOpen() { return !$('panel').hidden; },
+    /** The name of the panel showing, or '' when none is. */
+    top() { return $('panel').hidden ? '' : (stack[stack.length - 1] || ''); },
     markOpen(name) { if (stack[stack.length - 1] !== name) stack.push(name); },
 
     // ── History ────────────────────────────────────────────────────────────
@@ -2404,6 +2415,9 @@ const VexPanels = (() => {
         'A model that runs inside Vex, and Gemini Nano where the phone has it',
         localMode === 'off' ? 'Off' : localMode === 'only' ? 'On-device only' : 'Preferred',
         () => this.localAI()));
+      body.appendChild(valueRow('AI Lab',
+        'Ask Image, Audio Scribe, Prompt Lab, Agent Skills, Tiny Garden, Mobile Actions, Scrapbook', '',
+        () => VexLab.home()));
     },
 
     /**
@@ -2618,10 +2632,11 @@ const VexPanels = (() => {
 
       body.appendChild(heading('A model of your own'));
       body.appendChild(el('div', 'field-note',
-        'LiteRT-LM runs a .litertlm model in Vex’s own process — no network, no account, and it keeps '
-        + 'working with the aeroplane mode on. The models worth running are Gemma’s, which are behind a '
-        + 'licence you accept in a browser; Vex is a browser, so: open the model’s page, accept, download '
-        + 'the .litertlm, then tap Import. Vex offers to import any .litertlm it downloads.'));
+        'LiteRT-LM runs a model in Vex’s own process — no network, no account, and it keeps working with the '
+        + 'aeroplane mode on. These are the Google AI Edge Gallery’s models, the same files: tap one to download '
+        + 'it. Gemma 3 and FunctionGemma ask you to accept Google’s licence on Hugging Face once.'));
+      body.appendChild(valueRow('AI Lab', 'What these models can do: chat, pictures, audio, agents, games', '',
+        () => VexLab.home()));
 
       const mode = VexLocalAI.mode();
       body.appendChild(valueRow('Use it',
@@ -2654,43 +2669,101 @@ const VexPanels = (() => {
         }));
       }
 
+      let family = '';
       for (const entry of VexLocalAI.MODELS) {
-        const here = installed.includes(entry.name);
-        const size = here ? ((Number(state.models[entry.name]) || 0) / 1048576).toFixed(0) + ' MB on disk' : entry.size;
+        if (entry.family !== family) { family = entry.family; body.appendChild(heading(family)); }
+        const file = VexLocalAI.fileOf(entry);
+        const here = !!file;
+        const busy = state.downloading && state.downloading.name === entry.name;
+        const llm = entry.kind === 'llm';
+        const size = here ? ((Number(state.models[file]) || 0) / 1048576).toFixed(0) + ' MB on disk' : entry.size;
+        const what = [entry.image ? 'images' : '', entry.audio ? 'audio' : '', entry.tasks.includes('agent') ? 'tools' : '']
+          .filter(Boolean);
         body.appendChild(VexSheets.row({
-          icon: here ? 'check' : 'download',
-          label: entry.label + (chosen === entry.name ? ' · in use' : ''),
-          note: entry.note + ' · ' + size,
+          icon: busy ? 'sync' : here ? 'check' : 'download',
+          label: entry.label + (llm && chosen === file && file ? ' · assistant' : ''),
+          note: entry.note + (what.length ? ' Reads ' + what.join(' and ') + '.' : '')
+            + ' · ' + size + (entry.ram ? ' · ' + entry.ram + ' GB RAM' : '') + (entry.gated && !here ? ' · licence' : ''),
           run: async () => {
             VexSheets.choose(entry.label, [
-              here ? { id: 'use', label: 'Use this model', note: chosen === entry.name ? 'Already chosen' : '' } : null,
-              { id: 'page', label: here ? 'Open its page' : 'Open its page to download it',
-                note: 'Accept the licence, download the .litertlm, then come back and import' },
-              { id: 'import', label: 'Import a .litertlm file', note: 'From your downloads' },
-              { id: 'url', label: 'Download from a URL', note: 'A direct link; resumes if it drops' },
+              !here && !busy ? { id: 'get', label: 'Download · ' + entry.size,
+                note: entry.gated
+                  ? (VexLocalAI.hfToken() ? 'With your Hugging Face token' : 'Needs the licence accepted and a Hugging Face token')
+                  : 'Straight from ' + (entry.repo ? 'Hugging Face' : 'Google') + '; resumes if it drops' } : null,
+              here && llm ? { id: 'use', label: 'Use it for the assistant', note: chosen === file ? 'Already in use' : '' } : null,
+              { id: 'lab', label: 'Open in AI Lab', note: entry.tasks.map(task => (VexLab.FEATURES.find(item => item.id === task) || {}).label).filter(Boolean).join(', ') },
+              entry.page ? { id: 'page', label: 'Open its page', note: entry.gated ? 'Accept the licence here' : '' } : null,
+              { id: 'import', label: 'Import a file', note: 'One you already downloaded' },
+              { id: 'url', label: 'Download from another link' },
               here ? { id: 'delete', label: 'Delete it from this phone', danger: true } : null
             ].filter(Boolean), async choice => {
               VexSheets.close();
-              if (choice === 'use') { await VexLocalAI.setModel(entry.name); this.localAI(); }
+              if (choice === 'get') {
+                if (entry.gated && !VexLocalAI.hfToken()) {
+                  const token = await VexUI.prompt('Hugging Face token',
+                    'Accept the licence on the model’s page first (Open its page), then paste a read token from huggingface.co/settings/tokens. It stays on this phone.');
+                  if (!token) return;
+                  await VexLocalAI.setHfToken(token);
+                }
+                try { await VexLocalAI.downloadModel(entry); } catch (error) { VexUI.toast(error.message, 4000); }
+                this.localAI();
+              }
+              if (choice === 'use') { await VexLocalAI.setModel(file); this.localAI(); }
+              if (choice === 'lab') VexLab.open(entry.tasks[0]);
               if (choice === 'page') { VexPanels.close(); VexUI.openUrl(entry.page, { newTab: true }); }
               if (choice === 'import') {
                 if (await VexLocalAI.importFile(entry.name)) VexUI.toast('Copying it in…');
               }
               if (choice === 'url') {
-                const url = await VexUI.prompt('Download ' + entry.label, 'A direct link to the .litertlm file');
+                const url = await VexUI.prompt('Download ' + entry.label, 'A direct link to the file');
                 if (!url) return;
                 const token = await VexUI.prompt('Access token', 'Only if the link needs one — leave empty otherwise');
                 await VexLocalAI.download(entry.name, url, token || '');
                 this.localAI();
               }
               if (choice === 'delete') {
-                if (await VexUI.confirm('Delete ' + entry.label + '?')) { await VexLocalAI.remove(entry.name); this.localAI(); }
+                if (await VexUI.confirm('Delete ' + entry.label + '?')) { await VexLocalAI.remove(file); this.localAI(); }
               }
             });
             return true;
           }
         }));
       }
+
+      // Files that are not in the catalogue: an older Vex's names, or a model
+      // imported under its own name.
+      const known = new Set(VexLocalAI.MODELS.map(entry => VexLocalAI.fileOf(entry)).filter(Boolean));
+      const others = installed.filter(name => !known.has(name));
+      if (others.length) {
+        body.appendChild(heading('Other files on this phone'));
+        for (const name of others) {
+          body.appendChild(VexSheets.row({
+            icon: 'check', label: name + (chosen === name ? ' · assistant' : ''),
+            note: ((Number(state.models[name]) || 0) / 1048576).toFixed(0) + ' MB on disk',
+            run: async () => {
+              VexSheets.choose(name, [
+                { id: 'use', label: 'Use it for the assistant' },
+                { id: 'delete', label: 'Delete it from this phone', danger: true }
+              ], async choice => {
+                VexSheets.close();
+                if (choice === 'use') { await VexLocalAI.setModel(name); this.localAI(); }
+                if (choice === 'delete' && await VexUI.confirm('Delete ' + name + '?')) { await VexLocalAI.remove(name); this.localAI(); }
+              });
+              return true;
+            }
+          }));
+        }
+      }
+
+      body.appendChild(valueRow('Hugging Face token',
+        'For the models behind a licence. Kept on this phone; sent only to huggingface.co',
+        VexLocalAI.hfToken() ? 'Set' : 'None', async () => {
+          const token = await VexUI.prompt('Hugging Face token', 'A read token from huggingface.co/settings/tokens — empty to remove it',
+            VexLocalAI.hfToken());
+          if (token === null || token === undefined) return;
+          await VexLocalAI.setHfToken(token);
+          this.localAI();
+        }));
 
       const backend = VexLocalAI.chosenBackend();
       const backendSpec = VexLocalAI.BACKENDS.find(entry => entry.id === backend);
