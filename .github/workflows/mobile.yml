@@ -24,7 +24,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # write, because the debug APK is also attached to a draft release: the Actions
+  # artifact store is served from a host some networks refuse, and a release
+  # asset comes from GitHub's own.
+  contents: write
 
 jobs:
   android:
@@ -120,3 +123,26 @@ jobs:
           name: vex-android-debug
           path: mobile/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # The same APK on a draft release, under one tag that is reused, so the
+      # download link never changes between builds. Draft means no tag is
+      # created, nothing is announced, and only people who can write to this
+      # repository can see it.
+      - name: Attach the APK to the draft release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cp "$(ls mobile/android/app/build/outputs/apk/debug/*.apk | head -1)" vex-debug.apk
+          notes="Debug build of mobile/ at ${{ github.sha }}, built by run ${{ github.run_number }}.
+          Debug-signed, so Android will ask you to allow installs from whichever app opens it."
+          if gh release view android-debug > /dev/null 2>&1; then
+            gh release edit android-debug --notes "$notes"
+            gh release upload android-debug vex-debug.apk --clobber
+          else
+            gh release create android-debug vex-debug.apk \
+              --draft --prerelease --title "Vex for Android (debug)" --notes "$notes"
+          fi
+          echo "vex-debug.apk ($(du -h vex-debug.apk | cut -f1)) is on the draft release"
+
