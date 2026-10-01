@@ -284,6 +284,18 @@ Nothing below can be settled without a phone, and all of it is cheap to check:
 9. **Sync**: sign in on the phone, enter the recovery code from the desktop,
    and check a bookmark made on one appears on the other.
 10. **The agent**: "close every tab about X" on a handful of tabs.
+11. **Gemini Nano**, which is the cheapest of these to try and needs no download:
+    Settings → Assistant → On-device AI. A Galaxy S25 or a Pixel 9 should report
+    *available* or *downloadable*; tap **Try it** on any article. If it says the
+    phone has no Nano, that is AICore's answer, not a bug in Vex.
+12. **A model of your own**, which is the expensive one. Open
+    [litert-community](https://huggingface.co/litert-community) in Vex, accept
+    Gemma's licence, download a `.litertlm` — Vex offers to import it the moment
+    the download finishes — then set **Prefer on-device** and ask something.
+    Watch for: the GPU backend failing and falling back to the CPU (expected on
+    some phones, and it says so), the first load taking ten seconds, and how warm
+    the phone gets on a long answer. Start with Gemma 3 1B even on a flagship:
+    if 1B works, 4B is a storage decision rather than an unknown.
 
 ## Known limits
 
