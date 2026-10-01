@@ -1553,7 +1553,7 @@ const VexUI = (() => {
       if (!$('scan').hidden) { closeScanner(); return true; }
       // A PDF is read over everything else, so Back closes it before anything
       // underneath — and before the page that never navigated anywhere.
-      if (typeof VexPdf !== 'undefined' && VexPdf.isOpen()) { VexPdf.close(); return true; }
+      if (typeof VexPdf !== 'undefined' && VexPdf.isOpen()) return VexPdf.back();
       if (!$('qrshare').hidden) { closeQr(); return true; }
       if (!$('omnibox').hidden) { closeOmnibox(); return true; }
       if (VexSheets.isOpen()) { VexSheets.close(); return true; }

@@ -412,11 +412,37 @@ results.pdfLong = await page.evaluate(async base64 => {
   const stretched = box.style.transform;
   fire('touchend', []);
   const pinched = Math.round(VexPdf.state.scale / pinchFrom * 10) / 10;
-  VexPdf.close();
+  // Find: "page 4" is on page 4 and on 40–49, the first is marked and in view,
+  // the next is page 40, and Back closes the find bar before the document.
+  document.getElementById('pdf-find').click();
+  const found = await VexPdf.find('Page 4');
+  await wait(300);
+  const firstHit = box.querySelector('.pdf-hit.now');
+  const firstOn = firstHit ? firstHit.parentElement.dataset.page : '-';
+  const inView = firstHit ? (() => {
+    const hit = firstHit.getBoundingClientRect();
+    const frame = box.getBoundingClientRect();
+    return hit.top >= frame.top && hit.bottom <= frame.bottom;
+  })() : false;
+  document.getElementById('pdf-find-next').click();
+  await wait(400);
+  const nextHit = box.querySelector('.pdf-hit.now');
+  const nextOn = nextHit ? nextHit.parentElement.dataset.page : '-';
+  const counted = document.getElementById('pdf-find-count').textContent;
+  const backFind = await VexUI.handleBack();
+  const stillOpen = VexPdf.isOpen() && document.getElementById('pdf-findbar').hidden && !box.querySelector('.pdf-hit');
+  const findNote = [found, firstOn, inView, nextOn, counted, backFind && stillOpen].join(',');
+  // Left open, found, for the screenshot below.
+  document.getElementById('pdf-findbar').hidden = false;
+  document.getElementById('pdf-find-input').value = 'Page 4';
+  await VexPdf.find('Page 4');
+  await wait(600);
   VexBridge.fetchFile = realFetch;
   return [slots, nearTop > 0 && nearTop < 15, firstDrawn, lastDrawn, firstGiven, atBottom < 15,
-    Math.round(after / before * 10) / 10, !!sharp, stretched, pinched, box.style.transform === ''].join(' ');
+    Math.round(after / before * 10) / 10, !!sharp, stretched, pinched, box.style.transform === '', findNote].join(' ');
 }, manyPagePdf(60));
+await shot('17b-pdf-find');
+await page.evaluate(() => VexPdf.close());
 
 // ── Backup ──────────────────────────────────────────────────────────────────
 // The panel says what it carries before it carries it, and the file itself is
@@ -1814,7 +1840,7 @@ const expected = {
   switchToTab: 'true true',
   readerIcon: 'true false true true',
   readingOffline: 'true true',
-  pdfLong: '60 true true true true true 1.5 true scale(2) 2 true',
+  pdfLong: '60 true true true true true 1.5 true scale(2) 2 true 11,4,true,40,2 / 11,true',
   tabHistory: 'Three,One,All history -3 true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',

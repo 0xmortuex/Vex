@@ -232,11 +232,20 @@
       <span id="pdf-name" class="pdf-name"></span>
       <span id="pdf-count" class="pdf-count"></span>
     </div>
+    <button class="tb-btn" id="pdf-find" aria-label="Find in this PDF"><svg><use href="#i-search"/></svg></button>
     <button class="tb-btn" id="pdf-out" aria-label="Smaller"><svg><use href="#i-minus"/></svg></button>
     <button class="tb-btn" id="pdf-in" aria-label="Bigger"><svg><use href="#i-plus"/></svg></button>
     <button class="tb-btn" id="pdf-share" aria-label="Share"><svg><use href="#i-share"/></svg></button>
     <button class="tb-btn" id="pdf-download" aria-label="Download"><svg><use href="#i-download"/></svg></button>
   </header>
+  <div id="pdf-findbar" class="findbar pdf-findbar" hidden>
+    <input id="pdf-find-input" class="find-input" type="text" placeholder="Find in this PDF" enterkeyhint="search"
+           autocapitalize="off" autocorrect="off" spellcheck="false">
+    <span class="find-count" id="pdf-find-count"></span>
+    <button class="tb-btn" id="pdf-find-prev" aria-label="Previous match"><svg><use href="#i-up"/></svg></button>
+    <button class="tb-btn" id="pdf-find-next" aria-label="Next match"><svg><use href="#i-down"/></svg></button>
+    <button class="tb-btn" id="pdf-find-close" aria-label="Close find"><svg><use href="#i-close"/></svg></button>
+  </div>
   <div id="pdf-pages" class="pdf-pages"></div>
 </div>
 

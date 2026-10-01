@@ -44,7 +44,7 @@ Everything else below is either matched or bettered.
 | Samsung Internet | Vex | Notes |
 |---|---|---|
 | Camera in a page's file upload | ✅ | An input that takes photos or video offers the camera beside the files; `capture` opens it straight away |
-| Built-in PDF viewer | ✅ | Android's WebView cannot render one; Vex draws them with pdf.js, with pinch and button zoom, page count, share and download. Pages are drawn as they come near the screen, so a 500-page textbook opens as fast as a menu |
+| Built-in PDF viewer | ✅ | Android's WebView cannot render one; Vex draws them with pdf.js, with pinch and button zoom, find with every match marked, page count, share and download. Pages are drawn as they come near the screen, so a 500-page textbook opens as fast as a menu |
 | Reader view | ✅ | Extraction in the page, rendered by the chrome in Spectral; a book icon in the address bar when the page has an article, as Samsung shows |
 | Reader font size | ✅ | Six steps |
 | Text size / page zoom | ✅ | Global, and per site |

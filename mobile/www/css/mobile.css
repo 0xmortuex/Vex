@@ -156,6 +156,14 @@ input, select, textarea { font: inherit; }
   box-shadow: 0 1px 6px var(--vex-shadow);
 }
 .pdf-canvas { display: block; width: 100%; height: 100%; border-radius: 2px; }
+/* Find in a PDF: under the header rather than over the pages, and the
+   matches marked on the page the way the find bar marks them on a site. */
+.pdf-findbar { border-top: none; border-bottom: 1px solid var(--vex-border-subtle); }
+.pdf-hit {
+  position: absolute; pointer-events: none; border-radius: 2px;
+  background: rgba(255, 213, 0, 0.38);
+}
+.pdf-hit.now { background: rgba(255, 140, 0, 0.55); box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.8); }
 .pdf-waiting { padding: 40px 0; color: var(--vex-text-muted); font-size: var(--text-sm); }
 
 /* ── The tab bar ─────────────────────────────────────────────────────────────

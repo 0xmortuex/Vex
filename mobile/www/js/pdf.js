@@ -171,6 +171,11 @@ const VexPdf = (() => {
     box.scrollLeft = Math.max(0, content.x * factor - at.x);
     box.scrollTop = Math.max(0, content.y * factor - at.y);
     watch();
+    // Marks were placed in the old scale's pixels.
+    if (find.matches[find.index]) {
+      const keep = { left: box.scrollLeft, top: box.scrollTop };
+      showMatch().then(() => { box.scrollLeft = keep.left; box.scrollTop = keep.top; });
+    }
   }
 
   const MIN_SCALE = 0.5;
@@ -218,6 +223,142 @@ const VexPdf = (() => {
     };
     box.addEventListener('touchend', end);
     box.addEventListener('touchcancel', end);
+  }
+
+  // ── Find in this PDF ─────────────────────────────────────────────────────
+  // pdf.js gives each page's text as runs with a position; the runs are
+  // joined into one lower-case string per page for matching, with where each
+  // run starts, so a match can be turned back into rectangles on the page.
+  const texts = new Map();             // page → { text, runs: [{ at, length, item }] }
+  const find = { query: '', matches: [], index: -1, run: 0 };
+
+  async function textOf(number) {
+    if (texts.has(number)) return texts.get(number);
+    const page = await state.document.getPage(number);
+    const content = await page.getTextContent();
+    let text = '';
+    const runs = [];
+    for (const item of content.items) {
+      if (typeof item.str !== 'string') continue;
+      runs.push({ at: text.length, length: item.str.length, item });
+      text += item.str.toLowerCase();
+      // A line break is a space to a reader, and must be one to the search,
+      // or "end of line" never matches across the break.
+      if (item.hasEOL) text += ' ';
+    }
+    const entry = { text: text.replace(/\s/g, ' '), runs };
+    texts.set(number, entry);
+    return entry;
+  }
+
+  function findCount() {
+    const count = $('pdf-find-count');
+    if (!find.query) { count.textContent = ''; return; }
+    count.textContent = find.matches.length
+      ? (find.index + 1) + ' / ' + find.matches.length + (find.searching ? '…' : '')
+      : (find.searching ? '…' : 'None');
+  }
+
+  async function search(query) {
+    const run = ++find.run;
+    find.query = String(query || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    find.matches = [];
+    find.index = -1;
+    clearHits();
+    if (!find.query || !state.document) { find.searching = false; findCount(); return 0; }
+    find.searching = true;
+    findCount();
+    for (let number = 1; number <= state.pages; number++) {
+      const { text } = await textOf(number);
+      if (run !== find.run || !state.open) return find.matches.length;
+      let from = 0;
+      while (find.matches.length < 1000) {
+        const at = text.indexOf(find.query, from);
+        if (at < 0) break;
+        find.matches.push({ page: number, start: at, end: at + find.query.length });
+        from = at + 1;
+      }
+      // The first match is shown as soon as it is found, not after page 500.
+      if (find.index < 0 && find.matches.length) { find.index = 0; await showMatch(); }
+      else findCount();
+    }
+    find.searching = false;
+    findCount();
+    return find.matches.length;
+  }
+
+  function clearHits() {
+    for (const hit of [...$('pdf-pages').querySelectorAll('.pdf-hit')]) hit.remove();
+  }
+
+  /** Mark every match on the current match's page, and scroll the current one into view. */
+  async function showMatch() {
+    findCount();
+    const match = find.matches[find.index];
+    clearHits();
+    if (!match) return;
+    const slot = $('pdf-pages').querySelector('.pdf-page[data-page="' + match.page + '"]');
+    if (!slot) return;
+    const page = await state.document.getPage(match.page);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: (cssWidth() / base.width) * state.scale });
+    const { runs } = await textOf(match.page);
+    let current = null;
+    for (const other of find.matches) {
+      if (other.page !== match.page) continue;
+      for (const run of runs) {
+        const from = Math.max(other.start, run.at);
+        const to = Math.min(other.end, run.at + run.length);
+        if (from >= to || !run.length) continue;
+        const [a, b, c, d, x, y] = run.item.transform;
+        const height = run.item.height || Math.hypot(c, d) || Math.hypot(a, b);
+        const width = run.item.width || 0;
+        // Characters are not all one width, but in proportion is close enough
+        // to land the mark on the word.
+        const left = x + width * ((from - run.at) / run.length);
+        const right = x + width * ((to - run.at) / run.length);
+        // Two corners, through the page's own transform (pdf.js 5 has no
+        // rectangle helper any more): PDF space counts y up from the bottom.
+        const [x1, y1] = viewport.convertToViewportPoint(left, y - height * 0.2);
+        const [x2, y2] = viewport.convertToViewportPoint(right, y + height * 0.95);
+        const hit = el('div', 'pdf-hit' + (other === match ? ' now' : ''));
+        hit.style.left = Math.min(x1, x2) + 'px';
+        hit.style.top = Math.min(y1, y2) + 'px';
+        hit.style.width = Math.max(2, Math.abs(x2 - x1)) + 'px';
+        hit.style.height = Math.max(4, Math.abs(y2 - y1)) + 'px';
+        slot.appendChild(hit);
+        if (other === match && !current) current = hit;
+      }
+    }
+    const box = $('pdf-pages');
+    const target = slot.offsetTop + (current ? current.offsetTop : 0) - box.clientHeight / 3;
+    box.scrollTop = Math.max(0, target);
+    if (current) box.scrollLeft = Math.max(0, slot.offsetLeft + current.offsetLeft - box.clientWidth / 3);
+  }
+
+  function step(by) {
+    if (!find.matches.length) return;
+    find.index = (find.index + by + find.matches.length) % find.matches.length;
+    showMatch();
+  }
+
+  function openFind() {
+    $('pdf-findbar').hidden = false;
+    const input = $('pdf-find-input');
+    input.focus();
+    input.select();
+  }
+
+  function closeFind() {
+    find.run++;
+    find.query = '';
+    find.matches = [];
+    find.index = -1;
+    find.searching = false;
+    clearHits();
+    $('pdf-findbar').hidden = true;
+    $('pdf-find-input').value = '';
+    findCount();
   }
 
   function setCount() {
@@ -274,8 +415,21 @@ const VexPdf = (() => {
       }
     },
 
+    /** Back: a find bar closes before the document does. */
+    back() {
+      if (!state.open) return false;
+      if (!$('pdf-findbar').hidden) { closeFind(); return true; }
+      this.close();
+      return true;
+    },
+
+    find: search,
+    findState: find,
+
     close() {
       if (!state.open) return;
+      closeFind();
+      texts.clear();
       state.open = false;
       generation++;
       if (observer) { observer.disconnect(); observer = null; }
@@ -307,6 +461,21 @@ const VexPdf = (() => {
       $('pdf-download').onclick = () => this.download();
       $('pdf-share').onclick = () => this.share();
       bindPinch($('pdf-pages'));
+      $('pdf-find').onclick = () => ($('pdf-findbar').hidden ? openFind() : closeFind());
+      $('pdf-find-close').onclick = () => closeFind();
+      $('pdf-find-next').onclick = () => step(1);
+      $('pdf-find-prev').onclick = () => step(-1);
+      let typing = null;
+      $('pdf-find-input').addEventListener('input', event => {
+        clearTimeout(typing);
+        typing = setTimeout(() => search(event.target.value), 250);
+      });
+      $('pdf-find-input').addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        if (find.query === event.target.value.trim().toLowerCase().replace(/\s+/g, ' ')) step(event.shiftKey ? -1 : 1);
+        else { clearTimeout(typing); search(event.target.value); }
+      });
       // Which page you are on, from where you have scrolled to.
       $('pdf-pages').addEventListener('scroll', () => {
         const pages = [...$('pdf-pages').children];
