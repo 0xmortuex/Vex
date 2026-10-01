@@ -295,6 +295,19 @@ await page.evaluate(() => VexPanels.close());
 
 // Through the assistant, with the view rendering it: the answer must come from
 // the phone and say so, and nothing may reach the network.
+// With no worker at all, a phone running its own model still opens the
+// assistant ready to chat rather than on a "not configured" error.
+results.chatNeedsNoWorker = await page.evaluate(async () => {
+  const real = VexAI.configured;
+  VexAI.configured = async () => false;
+  VexAI.clear();
+  await VexViews.openAI('ask');
+  await new Promise(resolve => setTimeout(resolve, 150));
+  const errors = document.querySelectorAll('#vex-chat-log .bubble.error').length;
+  VexAI.configured = real;
+  VexPanels.close();
+  return errors;
+});
 await page.evaluate(() => VexViews.openAI());
 await page.waitForTimeout(250);
 await page.fill('#vex-chat-input', 'What is this page about?');
@@ -1537,7 +1550,7 @@ const expected = {
   localAiHonest: true, localAiRoutesNothing: false, localAiNeverAgent: false,
   localAiPrompt: true, localAiImported: true, localAiLoads: true,
   localAiHandlesNow: true, localAiStreamed: true,
-  chatOnDeviceTag: true, chatOnDeviceAnswer: true,
+  chatNeedsNoWorker: 0, chatOnDeviceTag: true, chatOnDeviceAnswer: true,
   polishSheet: 5, polishOffersGrammar: true,
   pdfOpens: true, pdfNames: true, pdfBackCloses: true, pdfRendered: 1, pdfCounts: '1 / 1',
   backupSaysWhatItCannot: true, backupCounts: true, backupSealed: true, backupOpens: true,

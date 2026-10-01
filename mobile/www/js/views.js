@@ -411,7 +411,11 @@ const VexViews = (() => {
       // page twice and uncovered it once, leaving every later page invisible.
       VexPanels.openAIShell();
 
-      if (!(await VexAI.configured())) {
+      // A phone running its own model needs no worker to chat: only the agent
+      // (which the model is not trusted with) does. The error used to greet
+      // everyone without a worker, on-device AI or not.
+      const local = mode !== 'agent' && VexAI.staysHere('chat');
+      if (!local && !(await VexAI.configured())) {
         if (mode === 'agent') {
           agentSteps.push({ kind: 'error', text: 'No assistant configured yet. Settings → Assistant takes a '
             + 'worker URL and an access token.' });
