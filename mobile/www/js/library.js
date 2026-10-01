@@ -52,7 +52,7 @@ const VexLibrary = (() => {
         if (tab && tab.url) VexSheets.site(VexSearch.prettyHost(tab.url)); else VexPanels.privacy();
       }],
       ['permissions', 'Site permissions', 'Which sites may use the camera, the microphone, your location.', () => VexPanels.permissions()],
-      ['clear', 'Clear data', 'Everything, or one site.', () => VexPanels.storage()]
+      ['clear', 'Clear browsing data', 'A list with tick boxes — cookies, cache, history, the Recall index, saved pages — and the same list every time you leave Vex, if you want it.', () => VexPanels.clearData()]
     ]],
     ['Your things', [
       ['passwords', 'Passwords and 2FA', 'Under a key that stays in the phone’s keystore. Filling is always a tap.', () => VexPanels.passwords()],

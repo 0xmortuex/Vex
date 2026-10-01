@@ -94,6 +94,8 @@
     VexStore.prime('vex.backupHistory', false),
     VexStore.prime('vex.speakRate', 1),
     VexStore.prime('vex.speakVoice', ''),
+    VexStore.prime('vex.clearItems', null),
+    VexStore.prime('vex.clearOnExit', false),
   ]);
 
   const native = await VexBridge.init();
@@ -189,6 +191,11 @@
       // have left; the bar has to say so, and offer to carry on.
       VexSpeak.noteStopped();
       VexSync.schedulePush(500);
+      // "Clear when I leave Vex", if that is switched on. After the sync push
+      // is scheduled, because what syncs is bookmarks and sessions rather than
+      // anything on that list.
+      const cleared = await VexClear.onLeaving();
+      if (cleared.length) VexUI.renderToolbar();
     }
   });
 

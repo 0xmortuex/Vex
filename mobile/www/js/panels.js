@@ -100,6 +100,7 @@ const VexPanels = (() => {
     // Two panels used to open under their parent's name, which left Back with
     // nothing to pop and closed the whole panel instead of stepping up one.
     storage: () => VexPanels.storage(),
+    clearData: () => VexPanels.clearData(),
     addLogin: () => VexPanels.addLogin(),
     ai: () => VexViews.openAI()
   };
@@ -1066,14 +1067,47 @@ const VexPanels = (() => {
           })));
 
       body.appendChild(heading('Clearing'));
+      body.appendChild(valueRow('Clear browsing data', VexClear.describe(),
+        VexClear.onExit() ? 'On exit' : '', () => this.clearData()));
+    },
+
+    // ── What goes, and when ────────────────────────────────────────────────
+    async clearData() {
+      const body = openShell('clearData', 'Clear browsing data');
+      const mine = drawn;
+      const counts = await VexClear.counts();
+      if (mine !== drawn) return;
+
+      body.appendChild(el('div', 'field-note',
+        'Tick what should go. Your saved logins are not on this list: they are sealed by a key inside '
+        + 'this phone’s Keystore and are removed one at a time, from the panel that shows them.'));
+
+      const picked = VexClear.chosen();
+      for (const item of VexClear.ITEMS) {
+        const count = item.count(counts);
+        body.appendChild(toggleRow(item.label,
+          item.note + (count ? ' · ' + count.toLocaleString() : ''),
+          picked[item.id],
+          async value => { await VexClear.setChosen(item.id, value); }));
+      }
+
+      body.appendChild(heading('Every time you leave'));
+      body.appendChild(toggleRow('Clear when I leave Vex',
+        'The same list, minus the open tabs — coming back to an empty browser because you took a '
+        + 'phone call is nobody’s idea of privacy',
+        VexClear.onExit(), value => VexStore.set('vex.clearOnExit', value)));
+
       body.appendChild(VexSheets.row({
-        label: 'Clear browsing data', note: 'Cookies, cache, history and the Recall index', danger: true,
+        label: 'Clear it now', danger: true,
         run: async () => {
-          if (!(await VexUI.confirm('Clear cookies, cache, history and saved page text?'))) return true;
-          await VexBridge.clearData({ cookies: true, cache: true, storage: true });
-          await VexHistory.clear();
-          VexUI.toast('Cleared');
-          this.storage();
+          const chosen = VexClear.chosen();
+          const names = VexClear.ITEMS.filter(item => chosen[item.id]).map(item => item.label.toLowerCase());
+          if (!names.length) { VexUI.toast('Nothing is ticked'); return true; }
+          if (!(await VexUI.confirm('Clear ' + names.join(', ') + '?'))) return true;
+          const done = await VexClear.run();
+          VexUI.toast(done.length ? 'Cleared ' + done.length + ' things' : 'Nothing to clear');
+          VexUI.renderToolbar();
+          this.clearData();
           return true;
         }
       }));

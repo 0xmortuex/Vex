@@ -570,6 +570,35 @@ results.contentAfterSpeakBar = await contentHeight();
 results.speakInMenu = await page.evaluate(() =>
   VexSheets.DEFAULT_ORDER.includes('read-aloud') && !!VexSheets.ACTIONS['read-aloud']);
 
+// ── Clearing browsing data ──────────────────────────────────────────────────
+// What matters is that it clears what was ticked and nothing else, so the test
+// is: tick one thing, clear, and see that the others were left alone.
+results.clearDefaults = await page.evaluate(() => {
+  const picked = VexClear.chosen();
+  return [picked.cookies, picked.cache, picked.history, picked.recall, picked.saved, picked.tabs];
+});
+// Through Storage, which is how you get here, so Back has somewhere to go.
+await page.evaluate(() => VexPanels.storage());
+await page.waitForTimeout(300);
+await page.evaluate(() => VexPanels.clearData());
+await page.waitForTimeout(350);
+results.clearPanelTitle = await page.textContent('#panel-title');
+results.clearRows = await page.$$eval('#panel-body .sheet-row', rows => rows.length);
+await shot('12c-clear');
+results.clearCleared = await page.evaluate(async () => {
+  // History only: the Recall index and the saved pages must survive it.
+  await VexHistory.add({ url: 'https://cleared.example/', title: 'Gone' });
+  const before = await VexHistory.stats();
+  const done = await VexClear.run({ history: true });
+  const after = await VexHistory.stats();
+  return { done, visitsBefore: before.visits, visitsAfter: after.visits };
+});
+// Back from here steps up to Storage rather than closing the panel.
+await page.evaluate(() => VexPanels.back());
+await page.waitForTimeout(300);
+results.clearBackGoesUp = await page.textContent('#panel-title');
+await page.evaluate(() => VexPanels.close());
+
 // ── Find, and the page layer's cover refcount ───────────────────────────────
 await page.evaluate(() => VexUI.openFind());
 await page.waitForTimeout(200);
@@ -944,6 +973,8 @@ const expected = {
   speakSkipped: 2,
   speakRate: 1.25,
   speakRateShown: '1.25×',
+  clearPanelTitle: 'Clear browsing data',
+  clearBackGoesUp: 'Storage',
   widgetOpensOmnibox: true, widgetDictates: true,
   tabBarOnPhone: true, tabBarOnTablet: true, tabBarChips: 1, tabBarActive: 1,
   tabBarGoesAway: true,
@@ -965,6 +996,17 @@ for (const [key, want] of Object.entries(expected)) {
 if (!String(results.chatAnswer).includes('shipwreck')) failures.push('chatAnswer: the worker reply did not reach the log');
 if (results.siteRows < 8) failures.push('siteRows: the site sheet is missing rules');
 if (results.menuRows < 20) failures.push('menuRows: the menu lost entries (' + results.menuRows + ')');
+if (String(results.clearDefaults) !== 'true,true,true,false,false,false') {
+  failures.push('clearDefaults: the tick boxes do not start where they should (' + results.clearDefaults + ')');
+}
+if (results.clearRows < 9) failures.push('clearRows: the clear panel lost rows (' + results.clearRows + ')');
+if (String(results.clearCleared.done) !== 'history') {
+  failures.push('clearCleared: asking for history cleared ' + results.clearCleared.done);
+}
+if (!(results.clearCleared.visitsAfter < results.clearCleared.visitsBefore)) {
+  failures.push('clearCleared: history was not cleared (' + results.clearCleared.visitsBefore
+    + ' → ' + results.clearCleared.visitsAfter + ')');
+}
 if (!(results.speakLines > 2)) failures.push('speakLines: the article did not turn into lines to read ('
   + results.speakLines + ')');
 // The bar is a flex item precisely so the page moves up to make room for it.

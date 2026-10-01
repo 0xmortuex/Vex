@@ -112,11 +112,20 @@ const VexHistory = (() => {
     },
 
     async clear() {
+      await this.clearVisits();
+      await this.clearPageText();
+    },
+
+    // The two halves, because "clear browsing data" lets you ask for one
+    // without the other: the list of what you opened, and the text behind
+    // Recall. They are separate stores and separate decisions.
+    async clearVisits() {
       cache = [];
       await VexDB.clear('history');
-      await VexDB.clear('recall');
       await VexStore.set('vex.history', []);
     },
+
+    clearPageText() { return VexDB.clear('recall'); },
 
     // The panel's search: the database, not the in-memory slice, so a page
     // from last year is findable.
