@@ -13,12 +13,17 @@
 //   preference:vex.bookmarks    both ways
 //   preference:vex.sessions     both ways
 //   preference:vex.readingList  both ways
+//   preference:vex.history      the recent slice, both ways (Settings → Sync)
 //   preference:vex.mobile       phone settings — the desktop keeps it untouched
 //   storage:tabs                read only, to list what is open on the PC
 //
-// History does not travel yet: on the phone it lives in IndexedDB and can be
-// tens of thousands of rows, and the blob is capped at 5 MB. The desktop's
-// history record is read so "open on my PC" can find it, never written.
+// History travels as a slice, not whole. On the phone it lives in IndexedDB and
+// runs to tens of thousands of rows, and the blob is capped at 5 MB — so what
+// goes is the most recent few hundred, in the desktop's own entry shape
+// (id, url, title, favicon, visitedAt), which is the part that answers "what was
+// that page I had open this morning" from the other device. Incoming history is
+// merged into what is here rather than replacing it: two devices both browsing
+// is the normal case, and whoever pushed last should not win.
 
 const VexSync = (() => {
   const state = {
@@ -70,8 +75,61 @@ const VexSync = (() => {
   }
 
   // ── What the phone contributes ──────────────────────────────────────────
+  // Few enough to leave room for everything else inside the 5 MB blob: roughly
+  // 150 bytes an entry, so 400 is about 60 KB before compression.
+  const HISTORY_SLICE = 400;
+
+  function historyForSync() {
+    if (VexStore.get('vex.syncHistory', true) === false) return undefined;
+    return VexHistory.recent(HISTORY_SLICE).map(entry => ({
+      // The desktop's shape, exactly, so its own history panel can read these.
+      id: 'h_' + (entry.at || 0) + '_' + Math.abs(hashOf(entry.url || '')).toString(36),
+      url: entry.url,
+      title: entry.title || entry.url,
+      favicon: entry.icon || '',
+      visitedAt: new Date(entry.at || Date.now()).toISOString()
+    }));
+  }
+
+  // A stable id per (url, time) so the same visit keeps the same identity on
+  // both devices and the merge does not see it as two.
+  function hashOf(text) {
+    let hash = 0;
+    for (let at = 0; at < text.length; at++) hash = ((hash << 5) - hash + text.charCodeAt(at)) | 0;
+    return hash;
+  }
+
+  /**
+   * Fold another device's history into this one's.
+   *
+   * Merged, never replaced: two devices both browsing is the normal case, and
+   * whoever pushed last should not win. A visit is "already here" if the same
+   * url was visited in the same hour — which is what the desktop does when it
+   * folds a repeat visit into an existing row.
+   */
+  async function mergeHistory(entries) {
+    if (!Array.isArray(entries)) return 0;
+    if (VexStore.get('vex.syncHistory', true) === false) return 0;
+    const seen = new Set(VexHistory.recent(1000)
+      .map(entry => entry.url + '|' + Math.round((entry.at || 0) / 3600000)));
+    let added = 0;
+    for (const entry of entries.slice(0, HISTORY_SLICE)) {
+      if (!entry || !entry.url) continue;
+      const at = Date.parse(entry.visitedAt || '') || 0;
+      if (!at) continue;
+      const key = entry.url + '|' + Math.round(at / 3600000);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await VexHistory.addRaw({ url: entry.url, title: entry.title || '', at, icon: entry.favicon || '' });
+      added++;
+    }
+    return added;
+  }
+
   function collect() {
+    const history = historyForSync();
     return {
+      ...(history ? { 'preference:vex.history': history } : {}),
       'preference:vex.bookmarks': VexCollections.bookmarks.all(),
       'preference:vex.sessions': VexCollections.sessions.all(),
       'preference:vex.readingList': VexCollections.reading.all(),
@@ -118,6 +176,9 @@ const VexSync = (() => {
       }
     }
 
+    const merged = await mergeHistory(values['preference:vex.history']);
+    if (merged) state.historyMerged = merged;
+
     // The desktop's open tabs, for "open on my PC". Read, never written.
     const desktopTabs = values['storage:tabs'];
     state.remoteTabs = Array.isArray(desktopTabs)
@@ -149,6 +210,11 @@ const VexSync = (() => {
 
   return {
     state,
+    HISTORY_SLICE,
+    // Exposed because they are the two halves of the only record that is merged
+    // rather than overwritten, and both deserve a test of their own.
+    historyForSync,
+    mergeHistory,
     configured,
 
     async setWorkerUrl(value) {

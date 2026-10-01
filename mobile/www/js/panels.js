@@ -788,6 +788,12 @@ const VexPanels = (() => {
       body.appendChild(valueRow('Show the recovery code', 'What another device needs', '', async () => {
         await VexUI.showRecoveryCode(await VexSync.recoveryCode());
       }));
+      body.appendChild(toggleRow('Sync history',
+        'The last ' + VexSync.HISTORY_SLICE + ' pages, so the other device can find what you had open. '
+        + 'It is the most personal thing that travels, and it is merged with what is already there '
+        + 'rather than replacing it.',
+        VexStore.get('vex.syncHistory', true) !== false,
+        async value => { await VexStore.set('vex.syncHistory', value); }));
       body.appendChild(valueRow('Devices', 'Which machines are signed in', '', async () => {
         try {
           const devices = await VexSync.devices();

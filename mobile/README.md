@@ -311,8 +311,9 @@ Nothing below can be settled without a phone, and all of it is cheap to check:
 - History and Recall are in IndexedDB and scale to tens of thousands of rows;
   bookmarks, sessions and settings stay in SharedPreferences because they are
   small and they are what syncs.
-- Sync carries bookmarks, the reading list, sessions, quick access and site
-  rules. History does not travel — the encrypted blob is capped at 5 MB.
+- Sync carries bookmarks, the reading list, sessions, quick access, site rules
+  and the most recent 400 visits (Settings → Sync → Sync history, on by
+  default). Older history does not travel: the encrypted blob is capped at 5 MB.
 - The blocker implements a subset of EasyList syntax; see PORTING.md.
 - The fingerprint shield needs WebView 83+ to run before page scripts. Older
   WebViews run it at page start, which a fast tracker can beat; the privacy

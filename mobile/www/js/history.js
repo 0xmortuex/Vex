@@ -41,6 +41,31 @@ const VexHistory = (() => {
       return cache;
     },
 
+    /**
+     * A visit that happened somewhere else — the desktop, the other phone —
+     * arriving through sync.
+     *
+     * Not add(): that one treats what it is given as happening now, folds a
+     * repeat of the current page into the last row, and puts the result at the
+     * front. A visit from yesterday on another device is none of those things,
+     * so this one keeps the cache in time order instead.
+     */
+    async addRaw(entry) {
+      if (!entry || !entry.url || entry.url === 'about:blank') return null;
+      const record = {
+        url: entry.url,
+        title: entry.title || '',
+        at: entry.at || Date.now(),
+        icon: entry.icon || '',
+        host: hostOf(entry.url)
+      };
+      record.id = await VexDB.add('history', record);
+      const at = cache.findIndex(row => (row.at || 0) < record.at);
+      if (at === -1) cache.push(record); else cache.splice(at, 0, record);
+      if (cache.length > CACHE_SIZE) cache.length = CACHE_SIZE;
+      return record;
+    },
+
     // What the omnibox and start page read — no await, no database.
     recent(limit = CACHE_SIZE) { return cache.slice(0, limit); },
 

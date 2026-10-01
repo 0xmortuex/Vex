@@ -212,3 +212,4 @@ describe('reading a login form', () => {
     expect(await VexVault.readFields('t1')).toBe(null);
   });
 });
+

@@ -112,7 +112,9 @@ The desktop features that came across, which Samsung Internet has no answer to:
   searchable by what they said.
 - **Encrypted sync with the desktop** — bookmarks, reading list, sessions,
   site rules and settings, end-to-end encrypted with a key that never leaves
-  your devices, merged with the same version-vector records the desktop uses.
+  your devices, merged with the same version-vector records the desktop uses —
+  and the recent slice of your history, in the desktop's own entry shape, merged
+  rather than overwritten so two devices browsing at once do not fight.
   Your PC's open tabs appear on the start page.
 - **Eight themes, seven skins, five typefaces** — generated from the desktop's
   own token file, so a theme is the same colour on both.
