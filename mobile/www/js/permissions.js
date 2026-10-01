@@ -66,7 +66,17 @@ const VexPermissions = (() => {
 
     async clearSite(host) {
       const permissions = all();
+      const was = permissions[host];
       delete permissions[host];
+      await VexStore.set('vex.sitePermissions', permissions);
+      return was || null;
+    },
+
+    /** What clearSite took, put back. */
+    async restoreSite(host, entry) {
+      if (!host || !entry) return;
+      const permissions = all();
+      permissions[host] = entry;
       await VexStore.set('vex.sitePermissions', permissions);
     }
   };

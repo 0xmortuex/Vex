@@ -106,6 +106,15 @@ const VexHistory = (() => {
       if (entry.id != null) await VexDB.delete('history', entry.id);
     },
 
+    /** Put back a visit removed a moment ago, in its place in time. */
+    async restore(entry) {
+      if (!entry || !entry.url) return;
+      if (entry.id != null) await VexDB.put('history', entry);
+      const at = cache.findIndex(row => (row.at || 0) < (entry.at || 0));
+      if (at === -1) cache.push(entry); else cache.splice(at, 0, entry);
+      if (cache.length > CACHE_SIZE) cache.length = CACHE_SIZE;
+    },
+
     async removeSite(host) {
       cache = cache.filter(row => row.host !== host);
       return VexDB.deleteWhere('history', row => row.host === host);

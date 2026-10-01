@@ -1500,6 +1500,32 @@ results.swipeCloses = await page.evaluate(async () => {
   return [afterNudge, afterScroll, afterSwipe, undo].join(' ');
 });
 
+// A list row swiped aside is removed, with Undo, like its ×.
+results.rowSwipeRemoves = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexCollections.reading.add({ url: 'https://swipe.example/a', title: 'Swipe me' });
+  await VexPanels.readingList();
+  await wait(200);
+  const before = VexCollections.reading.all().length;
+  const row = [...document.querySelectorAll('#panel-body .list-row')].find(node => node.textContent.includes('Swipe me'));
+  const box = row.getBoundingClientRect();
+  const x = box.left + box.width / 2, y = box.top + box.height / 2;
+  const touch = (cx, cy) => new Touch({ identifier: 2, target: row, clientX: cx, clientY: cy });
+  row.dispatchEvent(new TouchEvent('touchstart', { touches: [touch(x, y)], changedTouches: [touch(x, y)], bubbles: true, cancelable: true }));
+  for (let step = 1; step <= 6; step++) {
+    const p = touch(x + (220 * step) / 6, y);
+    row.dispatchEvent(new TouchEvent('touchmove', { touches: [p], changedTouches: [p], bubbles: true, cancelable: true }));
+    await wait(16);
+  }
+  const end = touch(x + 220, y);
+  row.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [end], bubbles: true, cancelable: true }));
+  await wait(500);
+  const after = VexCollections.reading.all().length;
+  const undo = [...document.querySelectorAll('#toasts .toast button')].some(button => button.textContent === 'Undo');
+  VexPanels.close();
+  return [before - after, undo].join(' ');
+});
+
 // ── Saving a video ──────────────────────────────────────────────────────────
 // A plain file goes to the download queue; a player built on a blob: URL is
 // found through the playlist its page requested, saved as a stream job whose
@@ -1587,6 +1613,7 @@ const expected = {
   privateStartPage: 'true false true',
   promptEnter: 'Typed',
   swipeCloses: '2 2 1 true',
+  rowSwipeRemoves: '1 true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,

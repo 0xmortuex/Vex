@@ -172,6 +172,8 @@ const VexPanels = (() => {
       remove.appendChild(icon('close'));
       remove.onclick = event => { event.stopPropagation(); onRemove(entry); };
       node.appendChild(remove);
+      // Swiped aside does what the × does — the same Undo follows.
+      VexGestures.dismiss(node, () => onRemove(entry));
     }
     if (entry.url) {
       VexGestures.longPress(node, () => VexSheets.link({ link: entry.url, forget: options.forget }));
@@ -180,6 +182,9 @@ const VexPanels = (() => {
   }
 
   const empty = text => el('div', 'list-empty', text);
+  // Every removal from a list can be taken back for a few seconds — a swipe is
+  // easier to do by accident than a tap on the ×, and both are one gesture.
+  const undo = (message, restore) => VexUI.toast(message, 4500, { label: 'Undo', run: restore });
   const heading = text => el('div', 'list-head', text);
 
   function toggleRow(label, note, value, onFlip) {
@@ -312,7 +317,11 @@ const VexPanels = (() => {
         body.appendChild(listRow(entry, {
           sub: item => (item.host || VexSearch.prettyHost(item.url)) + ' · ' + when(item.at),
           onOpen: item => { close(); VexUI.openUrl(item.url); },
-          onRemove: async item => { await VexHistory.remove(item); this.history(query); },
+          onRemove: async item => {
+            await VexHistory.remove(item);
+            this.history(query);
+            undo('Removed from history', async () => { await VexHistory.restore(item); this.history(query); });
+          },
           // Long-pressing a row in a list of where you have been is where
           // "I would rather this site were not here" belongs.
           forget: () => this.history(query)
@@ -541,7 +550,17 @@ const VexPanels = (() => {
         body.appendChild(listRow(page, {
           sub: item => VexSearch.prettyHost(item.url) + ' · ' + bytes(item.size) + ' · ' + when(item.at),
           onOpen: async item => { close(); await VexTools.openSaved(item); },
-          onRemove: async item => { await VexTools.deleteSaved(item.id); this.savedPages(); }
+          onRemove: async item => {
+            // The document is read out first: it is the half worth undoing.
+            const kept = await VexDB.get('pagehtml', item.id);
+            await VexTools.deleteSaved(item.id);
+            this.savedPages();
+            undo('Deleted the saved copy', async () => {
+              await VexDB.put('pages', item);
+              if (kept) await VexDB.put('pagehtml', kept);
+              this.savedPages();
+            });
+          }
         }));
       }
     },
@@ -632,7 +651,16 @@ const VexPanels = (() => {
           sub: () => VexRemind.describe(entry.at) + (entry.note ? ' · ' + entry.note : '')
             + (entry.exact === false ? ' · approximate' : ''),
           onOpen: () => { close(); VexUI.openUrl(entry.url); },
-          onRemove: async () => { await VexRemind.remove(entry.id); this.reminders(); }
+          onRemove: async () => {
+            await VexRemind.remove(entry.id);
+            this.reminders();
+            // Put back as a reminder again — which asks Android for the alarm
+            // again, the part that matters.
+            undo('Reminder cancelled', async () => {
+              await VexRemind.add({ url: entry.url, title: entry.title, note: entry.note, at: entry.at });
+              this.reminders();
+            });
+          }
         }));
       }
     },
@@ -847,7 +875,14 @@ const VexPanels = (() => {
             if (/^https?:/i.test(entry.url)) { close(); VexUI.openUrl(entry.url); }
             else VexUI.toast('It is in the Downloads folder');
           },
-          onRemove: async () => { await VexDB.delete('downloads', entry.id); this.downloads(); }
+          onRemove: async () => {
+            await VexDB.delete('downloads', entry.id);
+            this.downloads();
+            undo('Removed from the list — the file is still in Downloads', async () => {
+              await VexDB.put('downloads', entry);
+              this.downloads();
+            });
+          }
         });
         if (now.state === 'running') {
           const bar = el('div', 'progress-row');
@@ -1234,7 +1269,14 @@ const VexPanels = (() => {
         body.appendChild(listRow({ url: 'https://' + host, title: host, icon: '' }, {
           sub: () => VexPermissions.describe(host),
           onOpen: () => VexSheets.permissions(host),
-          onRemove: async () => { await VexPermissions.clearSite(host); this.permissions(); }
+          onRemove: async () => {
+            const was = await VexPermissions.clearSite(host);
+            this.permissions();
+            undo('Forgot what ' + host + ' may use', async () => {
+              await VexPermissions.restoreSite(host, was);
+              this.permissions();
+            });
+          }
         }));
       }
     },
@@ -1949,9 +1991,15 @@ const VexPanels = (() => {
             { icon: 'down', label: 'Move down', run: async item => { await VexCollections.quick.move(item.url, 1); VexSync.schedulePush(); this.quickAccess(); } }
           ],
           onRemove: async item => {
+            const index = VexCollections.quick.all().findIndex(other => other.url === item.url);
             await VexCollections.quick.remove(item.url);
             VexSync.schedulePush();
             this.quickAccess();
+            undo('Tile removed', async () => {
+              await VexCollections.quick.restore(item, index);
+              VexSync.schedulePush();
+              this.quickAccess();
+            });
           }
         }));
       }

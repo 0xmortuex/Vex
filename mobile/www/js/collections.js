@@ -239,6 +239,14 @@ const VexCollections = (() => {
       await VexStore.set('vex.quickAccess', this.all().filter(entry => entry.url !== url));
     },
 
+    /** A tile removed a moment ago, back where it was. */
+    async restore(entry, index) {
+      if (!entry || !entry.url || this.all().some(other => other.url === entry.url)) return;
+      const entries = this.all();
+      entries.splice(Math.max(0, Math.min(index == null ? entries.length : index, entries.length)), 0, entry);
+      await VexStore.set('vex.quickAccess', entries.slice(0, 24));
+    },
+
     async move(url, direction) {
       const entries = this.all();
       const index = entries.findIndex(entry => entry.url === url);

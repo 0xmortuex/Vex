@@ -124,6 +124,15 @@ describe('the start page’s tiles', () => {
     await quick.move('https://a.example/', -1);
     expect(quick.all()).toHaveLength(1);
   });
+
+  it('puts a removed tile back where it was, once', async () => {
+    for (const url of ['https://a.example/', 'https://b.example/', 'https://c.example/']) await quick.add({ url });
+    const tile = quick.all()[1];
+    await quick.remove(tile.url);
+    await quick.restore(tile, 1);
+    await quick.restore(tile, 1);
+    expect(quick.all().map(entry => entry.url)).toEqual(['https://a.example/', 'https://b.example/', 'https://c.example/']);
+  });
 });
 
 describe('putting things back', () => {

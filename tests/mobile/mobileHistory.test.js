@@ -204,3 +204,17 @@ describe('most visited', () => {
     expect(VexHistory.topSites(2)[0].host).toBe('new.example');
   });
 });
+
+describe('taking a removal back', () => {
+  it('puts a removed visit back in its place in time', async () => {
+    await VexHistory.add({ url: 'https://old.example/', title: 'Old' });
+    const old = VexHistory.recent()[0];
+    old.at -= 3600000;
+    await VexHistory.add({ url: 'https://new.example/', title: 'New' });
+    await VexHistory.remove(old);
+    expect(VexHistory.recent().map(row => row.url)).toEqual(['https://new.example/']);
+    await VexHistory.restore(old);
+    expect(VexHistory.recent().map(row => row.url)).toEqual(['https://new.example/', 'https://old.example/']);
+    expect(rows.history.some(row => row.url === 'https://old.example/')).toBe(true);
+  });
+});
