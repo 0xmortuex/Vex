@@ -274,9 +274,19 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         final String id = call.getString("id");
         getActivity().runOnUiThread(() -> {
             TabWebView tab = tabs.get(id);
-            JSObject result = new JSObject();
-            result.put("dataUrl", tab == null ? "" : tab.snapshot());
-            call.resolve(result);
+            if (tab == null) {
+                JSObject result = new JSObject();
+                result.put("dataUrl", "");
+                call.resolve(result);
+                return;
+            }
+            // Drawn on this thread, encoded on another; the call resolves when
+            // the encoding is done rather than holding the UI thread for it.
+            tab.snapshot(dataUrl -> {
+                JSObject result = new JSObject();
+                result.put("dataUrl", dataUrl);
+                call.resolve(result);
+            });
         });
     }
 

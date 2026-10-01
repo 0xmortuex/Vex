@@ -283,20 +283,46 @@ public class TabWebView extends WebView {
         getSettings().setTextZoom(Math.max(50, Math.min(300, percent)));
     }
 
-    /** A scaled JPEG of the current page, for the tab switcher's cards. */
-    public String snapshot() {
+    /**
+     * A scaled JPEG of the current page, for the tab switcher's cards.
+     *
+     * Drawing the view has to happen on the UI thread; encoding it does not, and
+     * should not — a JPEG and a base64 string of a phone-sized bitmap is tens of
+     * milliseconds of jank every time you open the switcher, which is exactly the
+     * moment an animation is running. So: draw here, encode on a worker, answer
+     * through the callback.
+     */
+    public interface Snapshot {
+        void onSnapshot(String dataUrl);
+    }
+
+    public void snapshot(final Snapshot callback) {
         int width = getWidth(), height = getHeight();
-        if (width <= 0 || height <= 0) return "";
+        if (width <= 0 || height <= 0) { callback.onSnapshot(""); return; }
         float scale = Math.min(1f, 480f / width);
-        Bitmap bitmap = Bitmap.createBitmap(Math.round(width * scale), Math.round(height * scale), Bitmap.Config.RGB_565);
+        final Bitmap bitmap = Bitmap.createBitmap(Math.round(width * scale), Math.round(height * scale),
+                Bitmap.Config.RGB_565);
         Canvas canvas = new Canvas(bitmap);
         canvas.scale(scale, scale);
         draw(canvas);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 55, out);
-        bitmap.recycle();
-        return "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+        SNAPSHOTS.execute(() -> {
+            String dataUrl = "";
+            try {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 55, out);
+                dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+            } catch (Throwable ignored) {
+                // A snapshot nobody can take is a card without a picture.
+            } finally {
+                bitmap.recycle();
+            }
+            callback.onSnapshot(dataUrl);
+        });
     }
+
+    /** One thread: snapshots are never urgent and never want to be parallel. */
+    private static final java.util.concurrent.ExecutorService SNAPSHOTS =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
 
     public void setScriptsEnabled(boolean enabled) {
         // A page cannot be un-run, so this takes effect on the next load. The

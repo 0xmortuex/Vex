@@ -10,6 +10,13 @@ android {
         versionCode 1
         versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // LiteRT-LM ships native libraries for arm64-v8a and x86_64, and the
+        // x86_64 pair is twenty-odd megabytes for a phone that does not exist:
+        // every Android device this will ever run on is 64-bit ARM, and the
+        // emulator is not something Vex is tested in. 53 MB → half that.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
         aaptOptions {
             // cap sync copies www/ into assets/public; leave its dotfiles alone.
             ignoreAssetsPattern '!.svn:!.git:!.DS_Store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'

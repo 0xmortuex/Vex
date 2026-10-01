@@ -116,16 +116,23 @@ jobs:
       # The two on-device AI libraries live on Google's Maven, which the machine
       # this is written on cannot reach, so they are declared as latest.release
       # until a build says what that is. This prints it, to be pinned.
+      # Which versions latest.release actually resolved to. They go into the
+      # release notes as well as the log, because an APK without the versions it
+      # was built against is an APK nobody can reason about later.
       - name: On-device AI versions
         working-directory: mobile/android
         run: |
-          ./gradlew --no-daemon --quiet :app:dependencies --configuration debugRuntimeClasspath \
-            | grep -E "litertlm|genai-|kotlin-stdlib" | sort -u || true
+          versions=$(./gradlew --no-daemon --quiet :app:dependencies --configuration debugRuntimeClasspath \
+            | grep -Eo "(com\.google\.ai\.edge\.litertlm:litertlm-android|com\.google\.mlkit:genai-[a-z]+):[0-9][^ ]*" \
+            | sed 's/[^0-9a-zA-Z.:_-]//g' | sort -u | tr '\n' ' ')
+          echo "$versions"
+          echo "AI_VERSIONS=$versions" >> "$GITHUB_ENV"
 
+      # No longer allowed to fail: it found a real one — a JPEG encode on the UI
+      # thread — and a check whose failures are ignored is not a check.
       - name: Lint the Android sources
         working-directory: mobile/android
         run: ./gradlew --no-daemon lintDebug
-        continue-on-error: true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -145,6 +152,7 @@ jobs:
           set -euo pipefail
           cp "$(ls mobile/android/app/build/outputs/apk/debug/*.apk | head -1)" vex-debug.apk
           notes="Debug build of mobile/ at ${{ github.sha }}, built by run ${{ github.run_number }}.
+          On-device AI built against: ${AI_VERSIONS:-not recorded}.
           Debug-signed, so Android will ask you to allow installs from whichever app opens it."
           if gh release view android-debug > /dev/null 2>&1; then
             gh release edit android-debug --notes "$notes"
