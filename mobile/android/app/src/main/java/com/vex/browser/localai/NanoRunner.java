@@ -249,7 +249,17 @@ public class NanoRunner {
         }
     }
 
-    private static void close(AutoCloseable client) {
-        try { client.close(); } catch (Exception ignored) { }
+    // One per type, because ML Kit's clients declare close() without implementing
+    // AutoCloseable: there is no common supertype to write this against.
+    private static void close(Summarizer client) {
+        try { client.close(); } catch (Throwable ignored) { }
+    }
+
+    private static void close(Proofreader client) {
+        try { client.close(); } catch (Throwable ignored) { }
+    }
+
+    private static void close(Rewriter client) {
+        try { client.close(); } catch (Throwable ignored) { }
     }
 }
