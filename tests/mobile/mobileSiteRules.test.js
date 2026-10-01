@@ -77,6 +77,12 @@ describe('applying rules to a tab', () => {
     expect(window.VexBlock.setSiteAllowed).toHaveBeenCalledWith('example.com', false);
   });
 
+  it('sets a site without a size back to 100%, so a zoomed one does not follow you', async () => {
+    window.VexBridge.setZoom.mockClear();
+    await VexSiteRules.applyTo({ id: 't1', url: 'https://plain.example/', desktopMode: false });
+    expect(window.VexBridge.setZoom).toHaveBeenCalledWith('t1', 1);
+  });
+
   it('follows the global dark setting until the site overrides it', async () => {
     store['vex.darkPages'] = true;
     await VexSiteRules.applyTo(tab());

@@ -358,8 +358,19 @@ public class TabWebView extends WebView {
         }
     }
 
+    // Text size is two things multiplied: the size you chose for every page
+    // (Settings) and the one you chose for this site. Each used to overwrite
+    // the other, so a site at 150% made the next site 150% too.
+    private int baseTextZoom = 100;
+    private float siteZoom = 1f;
+
+    private void applyTextZoom() {
+        getSettings().setTextZoom(Math.max(50, Math.min(300, Math.round(baseTextZoom * siteZoom))));
+    }
+
     public void setTextZoom(int percent) {
-        getSettings().setTextZoom(Math.max(50, Math.min(300, percent)));
+        baseTextZoom = Math.max(50, Math.min(300, percent));
+        applyTextZoom();
     }
 
     /**
@@ -426,7 +437,8 @@ public class TabWebView extends WebView {
     public void setZoom(float factor) {
         // WebView has no setZoomFactor; text zoom is the honest equivalent and
         // does not break layouts the way a forced viewport scale does.
-        getSettings().setTextZoom(Math.max(50, Math.min(300, Math.round(factor * 100))));
+        siteZoom = factor > 0 ? factor : 1f;
+        applyTextZoom();
     }
 
     public void setUserAgent(String userAgent) {

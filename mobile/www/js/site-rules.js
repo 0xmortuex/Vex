@@ -183,7 +183,9 @@ const VexSiteRules = (() => {
         await VexBridge.setDesktopMode(tab.id, desktop);
         tab.desktopMode = desktop;
       }
-      if (rules.zoom !== 1) await VexBridge.setZoom(tab.id, rules.zoom);
+      // Always, 100% included: the tab may have just come from a site you
+      // zoomed, and its size must not follow you here.
+      await VexBridge.setZoom(tab.id, rules.zoom || 1);
       await VexBlock.setSiteAllowed(host, !rules.blocking);
 
       const presentation = presentationScript();
