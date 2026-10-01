@@ -14,4 +14,7 @@ public class JSObject extends JSONObject {
     public JSObject put(String key, Object value) { return this; }
     public JSObject put(String key, String value) { return this; }
     public String getString(String key) { return null; }
+    // Both overloads exist in @capacitor/android's own JSObject.java, which
+    // ships as source inside the npm package — checked there, not guessed.
+    public String getString(String key, String defaultValue) { return defaultValue; }
 }

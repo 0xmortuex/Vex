@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.JSObject;
 import com.vex.browser.block.VexBlockPlugin;
+import com.vex.browser.localai.VexLocalAIPlugin;
 import com.vex.browser.tabs.VexTabsPlugin;
 import com.vex.browser.remind.VexRemindPlugin;
 import com.vex.browser.system.VexSystemPlugin;
@@ -57,6 +58,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VexSecretsPlugin.class);
         registerPlugin(VexSystemPlugin.class);
         registerPlugin(VexRemindPlugin.class);
+        registerPlugin(VexLocalAIPlugin.class);
         super.onCreate(savedInstanceState);
 
         // The chrome has a hole in it where the page goes; a solid background

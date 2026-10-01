@@ -56,6 +56,15 @@
             </intent-filter>
         </activity>
 
+        <!-- LiteRT-LM's GPU backend loads these at runtime; without the
+             declarations Android refuses the dlopen on API 30+ and the engine
+             quietly falls back to the CPU. Neither is required: a phone without
+             OpenCL still runs the model, slower. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+
         <!-- The home-screen search bar. -->
         <receiver
             android:name="com.vex.browser.widget.SearchWidget"

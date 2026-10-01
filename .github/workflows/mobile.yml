@@ -113,6 +113,15 @@ jobs:
         working-directory: mobile/android
         run: ./gradlew --no-daemon assembleDebug
 
+      # The two on-device AI libraries live on Google's Maven, which the machine
+      # this is written on cannot reach, so they are declared as latest.release
+      # until a build says what that is. This prints it, to be pinned.
+      - name: On-device AI versions
+        working-directory: mobile/android
+        run: |
+          ./gradlew --no-daemon --quiet :app:dependencies --configuration debugRuntimeClasspath \
+            | grep -E "litertlm|genai-|kotlin-stdlib" | sort -u || true
+
       - name: Lint the Android sources
         working-directory: mobile/android
         run: ./gradlew --no-daemon lintDebug

@@ -46,6 +46,16 @@ dependencies {
     // the password vault.
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:$androidxSwipeRefreshVersion"
     implementation "androidx.biometric:biometric:$androidxBiometricVersion"
+    // On-device AI, part one: LiteRT-LM runs a .litertlm model in this process,
+    // on the CPU, the GPU (ML Drift) or a Qualcomm NPU. Kotlin library, but
+    // every entry point Vex uses is @JvmOverloads or a callback interface, so no
+    // Kotlin toolchain is needed here — only the stdlib it brings with it.
+    implementation "com.google.ai.edge.litertlm:litertlm-android:$litertLmVersion"
+    // Part two: Gemini Nano, whose weights belong to the system rather than to
+    // Vex. Three fixed jobs, no download, only on a phone with AICore.
+    implementation "com.google.mlkit:genai-summarization:$mlkitGenAiVersion"
+    implementation "com.google.mlkit:genai-proofreading:$mlkitGenAiVersion"
+    implementation "com.google.mlkit:genai-rewriting:$mlkitGenAiVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
 }
