@@ -1,7 +1,11 @@
 package com.vex.browser;
 
+import android.Manifest;
+import android.content.ClipData;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.provider.MediaStore;
 import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.ValueCallback;
@@ -10,6 +14,12 @@ import android.speech.RecognizerIntent;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.JSObject;
@@ -46,6 +56,9 @@ public class MainActivity extends BridgeActivity {
     private ActivityResultLauncher<Intent> voiceInput;
     private ActivityResultLauncher<String> permissionRequest;
     private ValueCallback<Uri[]> pendingFileCallback;
+    /** Where the camera was asked to put a photo for a page's file input. */
+    private Uri pendingPhoto;
+    private File pendingPhotoFile;
     private TextResult pendingVoiceCallback;
     private PermissionResult pendingPermissionCallback;
     /** An intent that arrived before the chrome was listening. */
@@ -75,12 +88,24 @@ public class MainActivity extends BridgeActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     ValueCallback<Uri[]> callback = pendingFileCallback;
+                    Uri photo = pendingPhoto;
+                    File photoFile = pendingPhotoFile;
                     pendingFileCallback = null;
+                    pendingPhoto = null;
+                    pendingPhotoFile = null;
                     if (callback == null) return;
-                    boolean ok = result.getResultCode() == RESULT_OK && result.getData() != null;
+                    Uri[] chosen = null;
+                    if (result.getResultCode() == RESULT_OK) {
+                        if (result.getData() != null) chosen = parseFileResult(result.getData());
+                        // The camera writes where it was told and often hands
+                        // back no data at all; an empty file means it did not.
+                        if (chosen == null && photo != null && photoFile != null && photoFile.length() > 0) {
+                            chosen = new Uri[] { photo };
+                        }
+                    }
                     // A null value is required when the user cancels, or the
                     // page's file input stays stuck waiting forever.
-                    callback.onReceiveValue(ok ? parseFileResult(result.getData()) : null);
+                    callback.onReceiveValue(chosen);
                 });
 
         voiceInput = registerForActivityResult(
@@ -149,16 +174,118 @@ public class MainActivity extends BridgeActivity {
         return data.getData() != null ? new Uri[]{data.getData()} : null;
     }
 
-    /** Called by the tab layer when a page opens a file picker. */
-    public void openFileChooser(Intent intent, ValueCallback<Uri[]> callback) {
+    /**
+     * Called by the tab layer when a page opens a file picker.
+     *
+     * An input that takes images or video gets the camera beside the files, as
+     * in Chrome and Samsung Internet — a form asking for a photo of a receipt
+     * should not need the photo taken in another app first. With `capture` on
+     * the input, the camera opens straight away.
+     */
+    public void openFileChooser(Intent content, String[] accept, boolean capture, ValueCallback<Uri[]> callback) {
         if (pendingFileCallback != null) pendingFileCallback.onReceiveValue(null);
         pendingFileCallback = callback;
+        pendingPhoto = null;
+        pendingPhotoFile = null;
+        boolean images = wants(accept, "image/", ".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".gif");
+        boolean videos = wants(accept, "video/", ".mp4", ".mov", ".webm", ".3gp", ".mkv");
+        if ((!images && !videos) || !getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)) {
+            launchChooser(content, new ArrayList<>(), false);
+            return;
+        }
+        // Vex declares the camera permission (for sites' video calls), and an
+        // app that declares it may not send ACTION_IMAGE_CAPTURE without it:
+        // the camera app refuses. So it is asked for here, once; a no leaves
+        // the files.
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchChooser(content, cameraIntents(images, videos), capture);
+        } else {
+            requestRuntimePermission(Manifest.permission.CAMERA, granted -> {
+                if (pendingFileCallback != callback) return;
+                launchChooser(content, granted ? cameraIntents(images, videos) : new ArrayList<>(), capture && granted);
+            });
+        }
+    }
+
+    /** A plain file picker, for Vex's own imports (a model file, a backup). */
+    public void openFileChooser(Intent content, ValueCallback<Uri[]> callback) {
+        if (pendingFileCallback != null) pendingFileCallback.onReceiveValue(null);
+        pendingFileCallback = callback;
+        pendingPhoto = null;
+        pendingPhotoFile = null;
+        launchChooser(content, new ArrayList<>(), false);
+    }
+
+    private void launchChooser(Intent content, List<Intent> cameras, boolean capture) {
+        ValueCallback<Uri[]> callback = pendingFileCallback;
         try {
-            fileChooser.launch(Intent.createChooser(intent, getString(R.string.file_chooser_title)));
+            Intent launch;
+            if (capture && !cameras.isEmpty()) {
+                launch = cameras.get(0);
+            } else {
+                launch = Intent.createChooser(content, getString(R.string.file_chooser_title));
+                if (!cameras.isEmpty()) {
+                    launch.putExtra(Intent.EXTRA_INITIAL_INTENTS, cameras.toArray(new Intent[0]));
+                }
+            }
+            fileChooser.launch(launch);
         } catch (Exception ex) {
             pendingFileCallback = null;
-            callback.onReceiveValue(null);
+            pendingPhoto = null;
+            pendingPhotoFile = null;
+            if (callback != null) callback.onReceiveValue(null);
         }
+    }
+
+    /** Does the accept list take this kind? No list, or a wildcard, takes everything. */
+    static boolean wants(String[] accept, String mimePrefix, String... extensions) {
+        boolean any = true;
+        if (accept != null) {
+            for (String raw : accept) {
+                if (raw == null) continue;
+                for (String part : raw.split(",")) {
+                    String type = part.trim().toLowerCase(Locale.ROOT);
+                    if (type.isEmpty()) continue;
+                    any = false;
+                    if (type.equals("*/*") || type.startsWith(mimePrefix)) return true;
+                    for (String extension : extensions) if (type.equals(extension)) return true;
+                }
+            }
+        }
+        return any;
+    }
+
+    private List<Intent> cameraIntents(boolean images, boolean videos) {
+        List<Intent> intents = new ArrayList<>();
+        if (images) {
+            try {
+                File dir = new File(getCacheDir(), "camera");
+                if (!dir.exists()) dir.mkdirs();
+                // Yesterday's photos have been uploaded or abandoned.
+                File[] old = dir.listFiles();
+                long dayAgo = System.currentTimeMillis() - 24L * 60 * 60 * 1000;
+                if (old != null) for (File file : old) if (file.lastModified() < dayAgo) file.delete();
+                File file = new File(dir, "photo-" + System.currentTimeMillis() + ".jpg");
+                Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
+                Intent photo = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                photo.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+                // The grant has to ride on ClipData to survive the chooser.
+                photo.setClipData(ClipData.newRawUri("", uri));
+                photo.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                if (photo.resolveActivity(getPackageManager()) != null) {
+                    intents.add(photo);
+                    pendingPhoto = uri;
+                    pendingPhotoFile = file;
+                }
+            } catch (Exception ignored) {
+                // No camera app, or nowhere to put the photo: files only.
+            }
+        }
+        if (videos) {
+            Intent video = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
+            if (video.resolveActivity(getPackageManager()) != null) intents.add(video);
+        }
+        return intents;
     }
 
     @Override

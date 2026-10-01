@@ -64,7 +64,8 @@ public class TabWebView extends WebView {
 
         void openInNewTab(String url, boolean background);
 
-        void chooseFile(Intent intent, ValueCallback<Uri[]> callback);
+        /** A page's file input: the picker, with the camera beside it when it wants images or video. */
+        void chooseFile(Intent intent, String[] accept, boolean capture, ValueCallback<Uri[]> callback);
 
         void showFullscreen(View view, WebChromeClient.CustomViewCallback callback);
 
@@ -1084,7 +1085,7 @@ public class TabWebView extends WebView {
         @Override
         public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
             try {
-                host.chooseFile(params.createIntent(), callback);
+                host.chooseFile(params.createIntent(), params.getAcceptTypes(), params.isCaptureEnabled(), callback);
                 return true;
             } catch (Exception ex) {
                 return false;

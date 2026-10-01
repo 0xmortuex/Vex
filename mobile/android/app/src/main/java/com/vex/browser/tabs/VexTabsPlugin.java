@@ -1066,9 +1066,9 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     }
 
     @Override
-    public void chooseFile(Intent intent, ValueCallback<Uri[]> callback) {
+    public void chooseFile(Intent intent, String[] accept, boolean capture, ValueCallback<Uri[]> callback) {
         if (getActivity() instanceof MainActivity) {
-            ((MainActivity) getActivity()).openFileChooser(intent, callback);
+            ((MainActivity) getActivity()).openFileChooser(intent, accept, capture, callback);
         } else {
             callback.onReceiveValue(null);
         }
