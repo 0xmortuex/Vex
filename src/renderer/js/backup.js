@@ -28,12 +28,19 @@ const VexBackup = {
   // so a key added next year is covered before anyone remembers this file.
   NEVER: [
     /pass|secret|token|key\b|credential|vault|totp|otp|seed|auth/i,
+    // Lock Vex's PIN hash, and its lock state and wrong-PIN count: a 4-digit
+    // PIN is quick to try against a hash in a backup file (found 2026-09-29).
+    /^vex\.lock(Pin|ed|Fails|WaitUntil)$/i,
   ],
 
   // True of this machine, not of this person.
   LOCAL: [
     /^vex\.(installedAt|hasRunBefore|lastUpdateCheck|lastSeenVersion|notificationsChecked|defaultBrowserConfigured)$/,
-    /^vex\.(panelUsage|tabs|session|sleptAt|commandUsage|clipboard)/,
+    /^vex\.(panelUsage|tabs|sleptAt|commandUsage|clipboard)/,
+    // Only the bare key. As a prefix, `session` also caught `vex.sessions` —
+    // the named sessions you saved — so the backup that promised "sessions"
+    // left every one of them out (found 2026-09-29).
+    /^vex\.session$/,
     /^vex\.(aiConversations|aiChatMeta)$/,     // only with consent; added below
   ],
 
@@ -51,7 +58,47 @@ const VexBackup = {
         if (k && k.startsWith('vex.')) out.push(k);
       }
     } catch (err) { console.error('[Backup] could not read the settings:', err.message); }
+    // Notes, the reading list, annotations and AI conversations are kept in
+    // the file store, not in browser storage, so the loop above never saw
+    // them and the backup left them out (found 2026-09-29). localStorage's
+    // getItem/setItem already reach them (js/storage.js).
+    if (typeof PersistentStorage !== 'undefined') {
+      for (const [k] of PersistentStorage.fileOnlyEntries()) if (k.startsWith('vex.') && !out.includes(k)) out.push(k);
+    }
     return out.sort();
+  },
+
+  // Settings kept by VexStorage as their own file (settings.json: the ad
+  // blocker, sleeping tabs, the memory ceiling …) — not in browser storage at
+  // all, so they were not in the backup either (found 2026-09-29).
+  STORES: ['settings'],
+
+  async collectStores() {
+    if (typeof VexStorage === 'undefined') throw new Error('Vex settings could not be read for the backup');
+    const stores = {};
+    for (const name of this.STORES) {
+      const value = await VexStorage.load(name);
+      if (value && typeof value === 'object' && !Array.isArray(value)) stores[name] = value;
+    }
+    return stores;
+  },
+
+  // Put the settings files back. What was there is kept first, for undo.
+  async applyStores(data) {
+    const stores = data && data.stores && typeof data.stores === 'object' ? data.stores : {};
+    const names = this.STORES.filter(n => stores[n] && typeof stores[n] === 'object' && !Array.isArray(stores[n]));
+    if (!names.length) return 0;
+    if (typeof VexStorage === 'undefined') throw new Error('Vex settings could not be restored');
+    this._undoStores = {};
+    for (const name of names) this._undoStores[name] = await VexStorage.load(name);
+    for (const name of names) await VexStorage.save(name, stores[name]);
+    return names.length;
+  },
+
+  async undoStores() {
+    if (!this._undoStores) return;
+    for (const [name, value] of Object.entries(this._undoStores)) await VexStorage.save(name, value);
+    this._undoStores = null;
   },
 
   _blocked(key) { return this.NEVER.some(re => re.test(key)); },
@@ -85,8 +132,9 @@ const VexBackup = {
   describe(data) {
     if (!data || typeof data !== 'object' || data.v !== this.VERSION || !data.items || typeof data.items !== 'object') return null;
     const keys = Object.keys(data.items).filter(k => k.startsWith('vex.') && !this._blocked(k));
+    const stores = data.stores && typeof data.stores === 'object' ? this.STORES.filter(n => data.stores[n] && typeof data.stores[n] === 'object') : [];
     return {
-      count: keys.length,
+      count: keys.length + stores.length,
       when: data.at ? new Date(data.at) : null,
       app: data.app || '',
       chats: keys.some(k => this._isOptional(k, 'chats')),
@@ -127,6 +175,16 @@ const VexBackup = {
     return true;
   },
 
+  // Panels that keep what they read in memory write it back later — the
+  // workspaces on every close of the window — so closing Vex after a restore
+  // wrote the old workspaces over the restored ones (found 2026-09-29). Have
+  // them read the restored values now, as they do after a sync.
+  _reloadLive() {
+    if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.reloadSyncedState();
+    // Marked as a restore, so what is said about it is not "synced".
+    window.dispatchEvent(new CustomEvent('vex-sync-data-applied', { detail: { source: 'backup' } }));
+  },
+
   fileName() {
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
@@ -135,8 +193,9 @@ const VexBackup = {
 
   // Written through the browser's own download, so it lands in Downloads with
   // the rest and needs no new privilege.
-  save(include = []) {
+  async save(include = []) {
     const data = this.collect(include);
+    data.stores = await this.collectStores();
     const text = JSON.stringify(data, null, 2);
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const a = document.createElement('a');
@@ -170,7 +229,7 @@ const VexBackup = {
     const now = this.collect([]);
     m.innerHTML = '<div class="vexsr-card"><div class="vexsr-head">'
       + '<span class="vexsr-title">Back up everything, or put it back</span>'
-      + '<button class="vexsr-x" id="bk-close" aria-label="Close">✕</button></div>'
+      + '<button class="vexsr-x" id="bk-close" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 13 }) + '</button></div>'
       + '<div class="vexsr-sub">One file with everything Vex remembers about how you work — your notes, sessions, keybindings, site rules, panels, theme, skin and typeface. '
       + Object.keys(now.items).length + ' things right now.</div>'
       + '<div class="vexsr-row" style="margin-top:12px">'
@@ -188,15 +247,26 @@ const VexBackup = {
     document.body.appendChild(m);
 
     const msg = (t, bad) => { const e = m.querySelector('#bk-msg'); e.textContent = t || ''; e.style.color = bad ? 'var(--danger, #ef4444)' : 'var(--text-muted)'; };
-    const close = () => m.remove();
+    // Escape closes it the way the X does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for the restore vexConfirm on top is left to that dialog. Focus moves in,
+    // or with the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
     m.addEventListener('click', e => { if (e.target === m) close(); });
     m.querySelector('#bk-close').addEventListener('click', close);
+    m.querySelector('#bk-close').focus({ preventScroll: true });
 
-    m.querySelector('#bk-save').addEventListener('click', () => {
+    m.querySelector('#bk-save').addEventListener('click', async () => {
       try {
         const include = m.querySelector('#bk-chats').checked ? ['chats'] : [];
-        const d = this.save(include);
-        msg('Saved ' + Object.keys(d.items).length + ' things to your Downloads folder');
+        const d = await this.save(include);
+        msg('Saved ' + (Object.keys(d.items).length + Object.keys(d.stores).length) + ' things to your Downloads folder');
       } catch (err) { msg(err.message, true); }
     });
 
@@ -219,13 +289,16 @@ const VexBackup = {
       if (!ok) return;
       try {
         const r = this.apply(data);
+        this._undoStores = null;
+        r.written += await this.applyStores(data);
+        this._reloadLive();
         msg('Restored ' + r.written + ' things' + (r.failed ? ' — ' + r.failed + ' were skipped' : '') + '. Restart Vex for all of it to take.');
         const undo = document.createElement('button');
         undo.className = 'vexsr-x';
         undo.style.marginTop = '8px';
         undo.textContent = 'Undo the restore';
-        undo.addEventListener('click', () => {
-          try { this.undo(); msg('Put back the way it was. Restart Vex.'); undo.remove(); }
+        undo.addEventListener('click', async () => {
+          try { this.undo(); await this.undoStores(); this._reloadLive(); msg('Put back the way it was. Restart Vex.'); undo.remove(); }
           catch (err) { msg(err.message, true); }
         });
         m.querySelector('#bk-msg').after(undo);

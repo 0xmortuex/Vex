@@ -100,7 +100,10 @@ const WorkspaceSnapshots = {
     this._save(all); this._repaint();
   },
 
-  _close() { document.getElementById('vex-wsnap')?.remove(); },
+  _close() {
+    if (this._onKey) { document.removeEventListener('keydown', this._onKey, true); this._onKey = null; }
+    document.getElementById('vex-wsnap')?.remove();
+  },
 
   _repaint() {
     const body = document.getElementById('vex-wsnap-body');
@@ -139,6 +142,15 @@ const WorkspaceSnapshots = {
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) this._close(); });
     m.querySelector('#wsnap-close').addEventListener('click', () => this._close());
+    // Escape closes it like every other window of Vex; it did nothing (found 2026-09-29).
+    if (this._onKey) document.removeEventListener('keydown', this._onKey, true);
+    this._onKey = (e) => {
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); this._close();
+    };
+    document.addEventListener('keydown', this._onKey, true);
+    m.querySelector('#wsnap-close').setAttribute('aria-label', 'Close');
+    m.querySelector('#wsnap-close').focus({ preventScroll: true });
     m.querySelector('#wsnap-now').addEventListener('click', () => this.snapshot(false));
     this._repaint();
   },

@@ -7,6 +7,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Close buttons and ticks are VexIcons SVGs (sweep 2026-09-29).
+require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = window.VexIcons;
+
 require('../../src/renderer/js/vex-utils.js');
 const { KeysSheet } = require('../../src/renderer/js/keys-sheet.js');
 globalThis.KeysSheet = KeysSheet;

@@ -44,8 +44,9 @@ const GitHubPanel = {
           </div>
         </div>
       `;
+      // Straight to the username field, not the top of Settings (found 2026-09-29).
       panel.querySelector('#gh-open-settings')?.addEventListener('click', () => {
-        SidebarManager.openPanel('settings');
+        SettingsUI.openSection('setting-github-username');
       });
       return;
     }
@@ -106,7 +107,9 @@ const GitHubPanel = {
       const cached = localStorage.getItem('vex-github-cache');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < this.CACHE_TTL) {
+        // The cache names whose it is: after the username changed in Settings
+        // the panel went on showing the previous user (found 2026-09-29).
+        if (parsed.user === this.username && Date.now() - parsed.timestamp < this.CACHE_TTL) {
           this.cache = parsed;
           this.renderProfile(parsed.profile);
           this.renderRepos(parsed.repos, parsed.ci || {});
@@ -117,9 +120,10 @@ const GitHubPanel = {
     } catch {}
 
     try {
+      const user = encodeURIComponent(this.username);
       const [profileRes, reposRes] = await Promise.all([
-        (window.VexNet?.fetch || fetch)(`https://api.github.com/users/${this.username}`),
-        (window.VexNet?.fetch || fetch)(`https://api.github.com/users/${this.username}/repos?sort=updated&per_page=10`)
+        (window.VexNet?.fetch || fetch)(`https://api.github.com/users/${user}`),
+        (window.VexNet?.fetch || fetch)(`https://api.github.com/users/${user}/repos?sort=updated&per_page=10`)
       ]);
 
       if (profileRes.ok && reposRes.ok) {
@@ -127,19 +131,32 @@ const GitHubPanel = {
         const repos = await reposRes.json();
         const [work, ci] = await Promise.all([this._work(), this._ci(repos)]);
 
-        this.cache = { profile, repos, ci, work: work.items, workError: work.error, timestamp: Date.now() };
+        this.cache = { user: this.username, profile, repos, ci, work: work.items, workError: work.error, timestamp: Date.now() };
         try { localStorage.setItem('vex-github-cache', JSON.stringify(this.cache)); } catch {}
 
         this.renderProfile(profile);
         this.renderRepos(repos, ci);
         this.renderWork(work.items, work.error);
       } else {
-        const why = profileRes.status === 404 ? 'GitHub has no user called "' + this.username + '"' : profileRes.status === 403 ? 'GitHub asked Vex to slow down — try again in a while' : 'GitHub answered ' + profileRes.status;
-        this.renderWork(null, why);
+        const bad = profileRes.ok ? reposRes : profileRes;
+        const why = bad.status === 404 ? 'GitHub has no user called "' + this.username + '"' : bad.status === 403 ? 'GitHub asked Vex to slow down — try again in a while' : 'GitHub answered ' + bad.status;
+        this.renderFailure(why);
       }
     } catch (e) {
       console.error('GitHub API error:', e);
+      this.renderFailure('GitHub could not be reached: ' + ((e && e.message) || String(e)));
     }
+  },
+
+  // Unknown user, rate limit or offline: say so in every "Loading…" spot —
+  // before, only the pull-request list changed and a network failure changed
+  // nothing, so the panel said "Loading..." forever (found 2026-09-29).
+  renderFailure(why) {
+    const name = document.getElementById('gh-panel-name');
+    if (name) name.textContent = why;
+    const repos = document.getElementById('gh-panel-repos');
+    if (repos) repos.innerHTML = `<div class="panel-placeholder"><p>${this._escapeHtml(why)}</p></div>`;
+    this.renderWork(null, why);
   },
 
   // Open pull requests and issues you wrote, anywhere on GitHub (public only:
@@ -209,9 +226,14 @@ const GitHubPanel = {
   },
 
   renderRepos(repos, ci = {}) {
-    if (!repos || !repos.length) return;
-
     const container = document.getElementById('gh-panel-repos');
+    // A user with no public repositories was left on "Loading repositories..."
+    // (found 2026-09-29).
+    if (!repos || !repos.length) {
+      if (container) container.innerHTML = '<div class="panel-placeholder"><p>No public repositories.</p></div>';
+      return;
+    }
+
     container.innerHTML = '';
 
     // Sort by stars descending for pinned section, then show all

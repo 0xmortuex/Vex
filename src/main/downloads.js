@@ -5,6 +5,27 @@ const _broadcastDownloadEvent = broadcast;
 // can pause/resume/cancel a transfer that is still running. An item is dropped
 // the moment it finishes — a stale handle throws on every call.
 const _liveDownloads = new Map();
+// "Save Image As..." (js/webview.js saveImage): the next download of this
+// address asks where to go instead of landing in Downloads. Marked for a few
+// seconds only, so an unrelated later download of the same file is not asked.
+const ASK_FOR_MS = 15000;
+const _askWhere = new Map();                       // url -> until
+function askWhere(url, now = Date.now()) {
+  if (typeof url !== 'string' || !url) throw new Error('Nothing to save');
+  _askWhere.set(url, now + ASK_FOR_MS);
+  return true;
+}
+function _takeAsk(urls, now = Date.now()) {
+  let asked = false;
+  for (const u of urls) {
+    const until = _askWhere.get(u);
+    if (until == null) continue;
+    _askWhere.delete(u);
+    if (until >= now) asked = true;
+  }
+  for (const [u, until] of _askWhere) if (until < now) _askWhere.delete(u);
+  return asked;
+}
 function _uniqueDownloadPath(dir, filename) {
   const fs = require('fs');
   let candidate = path.join(dir, filename);
@@ -37,8 +58,13 @@ function wireDownloadsOnSession(ses, tag) {
       try { require('fs').mkdirSync(wanted, { recursive: true }); dir = wanted; }
       catch (err) { console.warn('[Downloads] could not make ' + wanted + ', using the Downloads folder:', err.message); }
     }
-    const savePath = _uniqueDownloadPath(dir, placed.filename || item.getFilename());
-    item.setSavePath(savePath);
+    const chain = [item.getURL(), ...safeCall(item, 'getURLChain', [])];
+    const ask = _takeAsk(chain);
+    let savePath = _uniqueDownloadPath(dir, placed.filename || item.getFilename());
+    // Not setting a save path is what makes Electron show the Save dialog;
+    // where the user puts it is read back from the item once it is chosen.
+    if (ask) item.setSaveDialogOptions({ title: 'Save image as', defaultPath: savePath, buttonLabel: 'Save' });
+    else item.setSavePath(savePath);
     const info = {
       id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       fileName: path.basename(savePath),
@@ -51,6 +77,7 @@ function wireDownloadsOnSession(ses, tag) {
     console.log(`[Downloads] (${tag || 'session'}) start:`, info.fileName, info.totalBytes, 'bytes');
     emit('download-started', info);
     item.on('updated', (_e, state) => {
+      if (ask) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.path = chosen; info.fileName = path.basename(chosen); } }
       emit('download-progress', {
         id: info.id,
         receivedBytes: item.getReceivedBytes(),
@@ -64,6 +91,7 @@ function wireDownloadsOnSession(ses, tag) {
     });
     item.once('done', (_e, state) => {
       _liveDownloads.delete(info.id);
+      if (ask) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.fileName = path.basename(chosen); } }
       console.log(`[Downloads] (${tag || 'session'}) done:`, info.fileName, state);
       // Report the real byte counts: a server that sent no Content-Length leaves
       // totalBytes at 0, and the panel used to copy that 0 over the received
@@ -115,6 +143,10 @@ if (ipcMain) {
   // Re-request a URL that failed or was cancelled. Routed through the calling
   // window's own webContents so it uses that window's session (proxy/routing,
   // cookies) exactly like the original attempt.
+  ipcMain.handle('downloads:ask-where', (_e, url) => {
+    try { return { ok: askWhere(url) }; }
+    catch (err) { return { ok: false, error: err.message }; }
+  });
   ipcMain.handle('downloads:retry', (event, url) => {
     try {
       if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { ok: false, error: 'Only http(s) downloads can be retried' };
@@ -126,6 +158,6 @@ if (ipcMain) {
   });
 }
 
-return { wireDownloadsOnSession, control, _liveDownloads };
+return { wireDownloadsOnSession, control, askWhere, _takeAsk, _liveDownloads };
 }
 module.exports = { createDownloadService };

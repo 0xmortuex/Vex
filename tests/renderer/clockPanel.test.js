@@ -75,7 +75,7 @@ describe('timers and ringing', () => {
   it('a timer of a minute or more also lives in the main process; a shorter one does not', async () => {
     const long = await VexClock.addTimer('5 min', 'Tea');
     expect(long.reminderId).toBeTruthy();
-    expect(bridge.create).toHaveBeenCalledWith('Tea', long.endAt, { kind: 'timer', sound: true, urgent: true });
+    expect(bridge.create).toHaveBeenCalledWith('Tea', Math.ceil((long.endAt + 5000) / 60000) * 60000, { kind: 'timer', sound: true, urgent: true });
     const short = await VexClock.addTimer('30s');
     expect(short.reminderId).toBe(null);
     expect(bridge.create).toHaveBeenCalledTimes(1);

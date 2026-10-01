@@ -76,9 +76,12 @@ const Onboarding = {
   // "about two minutes left", from what each remaining step actually asks for.
   _timeLeft(steps) {
     const secs = steps.slice(this.step + 1).reduce((n, step) => n + (step.secs || 25), 0);
-    if (secs <= 45) return 'nearly done';
+    // Through VexI18n like the rest of the header: it stayed English in
+    // Turkish (found 2026-09-29).
+    const t = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    if (secs <= 45) return t('nearlyDone', 'nearly done');
     const mins = Math.max(1, Math.round(secs / 60));
-    return 'about ' + mins + (mins === 1 ? ' minute' : ' minutes') + ' left';
+    return mins === 1 ? t('minuteLeft', 'about 1 minute left') : t('minutesLeft', 'about {n} minutes left').replace('{n}', mins);
   },
 
   start() { this._returnFocus = document.activeElement; this._pace = this.pace(); this.activeSteps = this._stepsForPace(); this.step = 0; this._pendingLoc = null; this._session = {}; this._wantTour = false; this._perf = null; this._weatherCountry = null; this._weatherHits = null; this._render(); },
@@ -137,6 +140,11 @@ const Onboarding = {
   // --- write a value to host localStorage AND the live start-page webview(s) ---
   _setStart(key, value) {
     try { value == null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch {}
+    // The Settings dropdown and settings.searchEngine follow a pick made in the
+    // wizard or on the New Tab page; they kept the old engine (found 2026-09-29).
+    if (key === 'vex.searchEngine' && value != null) {
+      window.dispatchEvent(new CustomEvent('vex-search-engine-changed', { detail: { id: value } }));
+    }
     if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) return;
     const js = value == null
       ? `try{localStorage.removeItem(${JSON.stringify(key)})}catch(e){}`
@@ -162,17 +170,17 @@ const Onboarding = {
 
   STEPS() {
     return [
-      { key: 'welcome',        title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the ✦ button by reload brings this back whenever you want it.', quick: true, secs: 20 },
+      { key: 'welcome',        title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
-      { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, or a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
+      { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
       { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' , secs: 40},
       { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
       { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' , secs: 30},
       { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' , secs: 40},
-      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the start page language — greeting, labels, and the daily verse. (Full interface translation is on the roadmap.)' , secs: 15},
+      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the language of Vex’s toolbar, menus, panels and setup, and of the start page and the daily verse. Some parts are still in English.' , secs: 15},
       { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' , secs: 20},
-      { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Leave blank for none.' , quick: true, secs: 15},
+      { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Press Skip for none.' , quick: true, secs: 15},
       { key: 'weather',        title: 'Weather location',         sub: 'Choose your country, then search for a city, district or postcode and pick it from the list.' , secs: 40},
       { key: 'github',         title: 'GitHub username',          sub: 'Optional — shows your repo/follower stats + activity on the start page.' , secs: 20},
       { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' , quick: true, secs: 15},
@@ -225,7 +233,7 @@ const Onboarding = {
           <div style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:21px;font-weight:700;color:var(--text)">${this._esc(s.title)}</span>
-            ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);padding:3px 9px;border-radius:999px;white-space:nowrap">✓ already set</span>' : ''}
+            ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">' + VexIcons.svg('check', { size: 11 }) + ' already set</span>' : ''}
           </div>
           <div style="font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.5">${this._esc(s.sub)}</div>
         </div>
@@ -521,12 +529,12 @@ const Onboarding = {
       if (!st) return;
       if (!raw) { st.textContent = 'Paste a code that starts with VEXSETUP1.'; st.style.color = 'var(--text-muted)'; return; }
       const d = this._decodeSetupCode(raw);
-      if (!d) { st.textContent = '✗ Not a valid setup code — check it copied completely.'; st.style.color = 'var(--danger, #ef4444)'; return; }
+      if (!d) { st.textContent = 'Not a valid setup code — check it copied completely.'; st.style.color = 'var(--danger, #ef4444)'; return; }
       const sc = d.shortcuts == null ? 'stock shortcuts' : `${d.shortcuts.length} shortcut${d.shortcuts.length === 1 ? '' : 's'}`;
       const look = [];
       if (d.skin && d.skin.pattern && d.skin.pattern !== 'none') { try { look.push(VexSkins.PATTERNS.find(x => x.id === d.skin.pattern).name.toLowerCase() + ' skin'); } catch { /* named below anyway */ } }
       if (d.font && d.font.ui) { try { look.push(VexFonts.get(d.font.ui).name); } catch { /* named below anyway */ } }
-      st.textContent = `✓ Valid — ${APP.length - d.hidden.length} of ${APP.length} panels, ${sc}, ${d.glass ? 'Glass' : 'Classic'} look${d.theme ? `, “${d.theme}” theme` : ''}${look.length ? ', ' + look.join(', ') : ''}.`;
+      st.textContent = `Valid — ${APP.length - d.hidden.length} of ${APP.length} panels, ${sc}, ${d.glass ? 'Glass' : 'Classic'} look${d.theme ? `, “${d.theme}” theme` : ''}${look.length ? ', ' + look.join(', ') : ''}.`;
       st.style.color = 'var(--text)';
     };
     updateCount();
@@ -545,7 +553,7 @@ const Onboarding = {
     body.querySelector('#ob-setup-export')?.addEventListener('click', async (e) => {
       const code = this._encodeSetupCode();
       try { await navigator.clipboard.writeText(code); } catch {}
-      e.target.textContent = '✓ Copied — send it to anyone; they paste it under “Use a shared setup”.';
+      e.target.textContent = 'Copied — send it to anyone; they paste it under “Use a shared setup”.';
       window.showToast?.('Setup code copied to clipboard');
     });
   },
@@ -630,16 +638,18 @@ const Onboarding = {
       body.querySelector('#ob-job-open')?.addEventListener('click', () => { try { window.JobSetup && JobSetup.open(); } catch {} });
     } else if (key === 'language') {
       const LANGS = [
-        { id: 'en', name: 'English', glyph: '🇬🇧' },
-        { id: 'tr', name: 'Türkçe', glyph: '🇹🇷' },
+        { id: 'en', name: 'English' },
+        { id: 'tr', name: 'Türkçe' },
       ];
+      // No flags: Vex draws no emoji, and on Windows a flag shows as the two
+      // letters "GB"/"TR" anyway (found 2026-09-29).
       let cur = this._session.lang;
       if (cur == null) { try { cur = localStorage.getItem('vex.lang') || 'en'; } catch { cur = 'en'; } }
       this._pendingLang = cur;
       body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">${LANGS.map(l =>
         `<button data-lang="${l.id}" style="padding:16px 6px;border-radius:11px;border:2px solid ${l.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:8px">
-          <span style="font-size:22px">${l.glyph}</span>${this._esc(l.name)}</button>`).join('')}</div>
-        <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0">More languages are on the way — this currently covers the start page and the daily verse.</p>`;
+          ${this._esc(l.name)}</button>`).join('')}</div>
+        <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0">More languages are on the way. Some parts of Vex are still in English.</p>`;
       body.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => {
         this._pendingLang = b.dataset.lang;
         body.querySelectorAll('[data-lang]').forEach(x => x.style.borderColor = 'var(--border)');
@@ -659,7 +669,7 @@ const Onboarding = {
       body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">${SOURCES.map(s =>
         `<button data-wisdom="${s.id}" style="padding:14px 6px;border-radius:11px;border:2px solid ${s.id === cur ? 'var(--primary)' : 'var(--border)'};background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12.5px;display:flex;flex-direction:column;align-items:center;gap:5px">
           <span style="font-weight:700">${this._esc(s.name)}</span><span style="font-size:11px;color:var(--text-muted)">${this._esc(s.desc)}</span></button>`).join('')}</div>
-        <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0">Shown in the language you picked. Change it anytime by re-running this wizard (✦ button).</p>`;
+        <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0">Shown in the language you picked. Change it anytime by re-running this wizard (the sparkles button by reload).</p>`;
       body.querySelectorAll('[data-wisdom]').forEach(b => b.addEventListener('click', () => {
         this._pendingWisdom = b.dataset.wisdom;
         body.querySelectorAll('[data-wisdom]').forEach(x => x.style.borderColor = 'var(--border)');
@@ -696,7 +706,7 @@ const Onboarding = {
           <p style="font-size:11.5px;color:var(--text-muted);margin:0">Windows opens its Default Apps screen — choose Vex under “Web browser”, then come back here.</p>
         </div>`;
       const st = body.querySelector('#ob-db-status');
-      window.vex.isDefaultBrowser?.().then(is => { if (st) st.textContent = is ? '✓ Vex is already your default browser.' : 'Vex is not your default browser yet.'; }).catch(() => {});
+      window.vex.isDefaultBrowser?.().then(is => { if (st) st.textContent = is ? 'Vex is already your default browser.' : 'Vex is not your default browser yet.'; }).catch(() => {});
       body.querySelector('#ob-db-btn')?.addEventListener('click', async () => {
         try { await window.vex.setAsDefaultBrowser?.(); } catch {}
         try { localStorage.setItem('vex.defaultBrowserConfigured', 'true'); } catch {}
@@ -736,7 +746,7 @@ const Onboarding = {
         st.textContent = 'Checking for Ollama…';
         let up = false;
         try { up = (typeof AIRouter !== 'undefined') ? await AIRouter.refreshOllamaStatus() : false; } catch {}
-        if (up) { st.textContent = '✓ Ollama detected — local AI ready'; try { AIRouter.setPreferLocal(true); } catch {} }
+        if (up) { st.textContent = 'Ollama detected — local AI ready'; try { AIRouter.setPreferLocal(true); } catch {} }
         else { st.textContent = 'Not found — opening the install guide…'; try { TabManager.createTab('https://ollama.com/download', true); } catch {} }
       });
     } else if (key === 'ondevice') {
@@ -784,7 +794,7 @@ const Onboarding = {
         try {
           await window.vex.vaultSave?.({ host, username, password });
           try { localStorage.setItem('vex.vaultSeeded', 'true'); } catch {}
-          if (st) st.textContent = '✓ Saved to your encrypted vault.';
+          if (st) st.textContent = 'Saved to your encrypted vault.';
           body.querySelector('#ob-pw-pass').value = '';
         } catch (e) { if (st) st.textContent = 'Could not save: ' + (e.message || 'error'); }
       });
@@ -810,7 +820,7 @@ const Onboarding = {
       btn?.addEventListener('click', () => {
         this._wantTour = !this._wantTour;
         btn.style.borderColor = this._wantTour ? 'var(--primary)' : 'var(--border)';
-        btn.querySelector('span:last-child span:first-child').textContent = this._wantTour ? '✓ Tour queued — starts when you finish' : 'Take a tour';
+        btn.querySelector('span:last-child span:first-child').textContent = this._wantTour ? 'Tour queued — starts when you finish' : 'Take a tour';
       });
     } else if (key === 'browsing') {
       this._renderSwitches(body, this.BROWSING_FIELDS(), 'browsing');
@@ -832,7 +842,7 @@ const Onboarding = {
         btn.disabled = true; st.textContent = 'Sending…'; st.style.color = 'var(--text-muted)';
         try {
           await window.vex.notify('Vex', 'This is a test notification. If you can read this, they work.');
-          st.textContent = '✓ Windows showed it. Reminders and alarms will reach you the same way.';
+          st.textContent = 'Windows showed it. Reminders and alarms will reach you the same way.';
           st.style.color = 'var(--primary)';
           this._session.notified = true;
         } catch (err) {
@@ -875,6 +885,13 @@ const Onboarding = {
       { id: 'safari', name: 'Safari', desc: 'Quiet and grey, controls in the toolbar, a sidebar on the left.', borrowed: true },
       { id: 'xp', name: 'Internet Explorer · XP', desc: 'Luna blue, Tahoma, square edges. Yes, really.', borrowed: true },
       { id: 'win98', name: 'Netscape · Windows 98', desc: 'Raised grey bevels and a title bar from 1998.', borrowed: true },
+      // Styles, not browsers: they go in a group of their own, but like the
+      // browser looks they have their own colours or take the theme's.
+      { id: 'fluent', name: 'Fluent · Windows 11', desc: 'A Mica-tinted frame, soft 8px corners, an accent pill under your tab.', styled: true },
+      { id: 'fluent-dark', name: 'Fluent · Windows 11 dark', desc: 'The same, in Windows 11’s dark mode.', styled: true },
+      { id: 'glossy', name: 'Glossy · Aero', desc: 'Sky-glass title band, glossy bevelled buttons, a red glass close.', styled: true },
+      { id: 'neobrutal', name: 'Neobrutal', desc: 'Thick ink outlines, hard offset shadows, flat bold colour.', styled: true },
+      { id: 'terminal', name: 'Terminal', desc: 'Monospace, square boxes, text-mode tabs like [ 1: tab ].', styled: true },
     ];
   },
 
@@ -893,14 +910,19 @@ const Onboarding = {
       + '<span style="font-size:12.5px;font-weight:700">' + this._esc(l.name) + '</span>'
       + '<span style="font-size:11px;color:var(--text-muted);line-height:1.4">' + this._esc(l.desc) + '</span></button>';
 
-    const isBorrowed = (id) => !!(looks.find((l) => l.id === id) || {}).borrowed;
+    // Browser looks and styles both offer the look's own colours or the theme's.
+    const isBorrowed = (id) => { const l = looks.find((x) => x.id === id) || {}; return !!(l.borrowed || l.styled); };
 
     body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      + looks.filter((l) => !l.borrowed).map(card).join('') + '</div>'
+      + looks.filter((l) => !l.borrowed && !l.styled).map(card).join('') + '</div>'
       + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Wear another browser</div>'
       + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Vex, shaped like a browser you already know. Every Vex feature still works the same.</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
       + looks.filter((l) => l.borrowed).map(card).join('') + '</div>'
+      + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Or a style</div>'
+      + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Whole-window styles after the popular Discord themes.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
+      + looks.filter((l) => l.styled).map(card).join('') + '</div>'
       + '<div id="ob-look-tabs" style="margin-top:15px;display:' + (cur === 'classic' ? 'block' : 'none') + '">'
       + '<div style="font-size:12px;font-weight:700;color:var(--text)">Where your tabs go</div>'
       + '<div style="display:flex;gap:9px;margin-top:7px">'
@@ -1318,7 +1340,7 @@ const Onboarding = {
       try {
         await WebLLM.load(id);
         WebLLM.setPreferred(true);
-        dl.textContent = '✓ Ready';
+        dl.textContent = 'Ready';
         window.showToast?.('On-device model ready');
       } catch (e) {
         dl.disabled = false; dl.textContent = 'Download now';
@@ -1421,7 +1443,7 @@ const Onboarding = {
         if (!d) {
           // Don't advance past a bad code — surface why, right where they typed.
           const st = overlay.querySelector('#ob-setup-code-status');
-          if (st) { st.textContent = '✗ That’s not a valid setup code — paste the full code (starts with VEXSETUP1.), or pick another option.'; st.style.color = 'var(--danger, #ef4444)'; }
+          if (st) { st.textContent = 'That’s not a valid setup code — paste the full code (starts with VEXSETUP1.), or pick another option.'; st.style.color = 'var(--danger, #ef4444)'; }
           return;
         }
         this._applySetupCode(d);

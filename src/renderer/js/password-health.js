@@ -13,12 +13,24 @@ const PasswordHealth = {
     m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Password Health</span>
-        <button id="pwh-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>
+        <button id="pwh-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
       </div>
       <div id="pwh-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)">Analyzing…</div></div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#pwh-close').addEventListener('click', () => m.remove());
+    // Escape closes it the way the X does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for a Vex dialog on top is left to that dialog. Focus moves in, or with
+    // the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#pwh-close').addEventListener('click', close);
+    m.querySelector('#pwh-close').focus({ preventScroll: true });
     this._paint(m);
   },
 
@@ -34,8 +46,16 @@ const PasswordHealth = {
     const body = m.querySelector('#pwh-body'); if (!body) return;
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
     let health = { total: 0, reused: [], weak: [] }, list = [], totp = [];
-    try { health = (await window.vex.vaultHealth()) || health; } catch {}
-    try { list = (await window.vex.vaultList()) || []; } catch {}
+    // A vault that cannot be read is said so, not reported as "0 passwords,
+    // none reused" — health.error was ignored (found 2026-09-29).
+    try {
+      health = await window.vex.vaultHealth();
+      if (!health || health.error) throw new Error((health && health.error) || 'no answer from the vault');
+      list = (await window.vex.vaultList()) || [];
+    } catch (err) {
+      body.textContent = 'Your saved passwords could not be checked: ' + String(err && err.message || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
+      return;
+    }
     try { totp = (await window.vex.totpList()) || []; } catch {}
 
     // Sites with a saved password but no matching authenticator entry.

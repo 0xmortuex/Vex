@@ -304,3 +304,21 @@ describe('how long an answer lasts', () => {
     expect(savedDecision({ 'https://a.example::microphone': 'allow' }, 'https://a.example', ['microphone'], null, now + 9e12)).toBe('allow');   // "Always" never ends
   });
 });
+
+// The location check read decisions[key] directly, so "Allow this visit"
+// (kept in the session map) asked again every time, and "Allow for a day"
+// never ran out (2026-09-27). It now reads through savedDecision like every
+// other permission; these pin what that reading gives for a location.
+describe('location answers read like every other permission', () => {
+  const { savedDecision: read } = require('../../src/main/permissions.js');
+  const o = 'https://www.paribucineverse.com';
+  it('"Allow this visit" counts until Vex closes', () => {
+    const session = new Map([[o + '::geolocation', 'allow']]);
+    expect(read({}, o, ['geolocation'], session)).toBe('allow');
+  });
+  it('"Allow for a day" runs out', () => {
+    const d = { [o + '::geolocation']: 'allow', __until__: { [o + '::geolocation']: 1000 } };
+    expect(read(d, o, ['geolocation'], new Map(), 500)).toBe('allow');
+    expect(read(d, o, ['geolocation'], new Map(), 2000)).toBe(null);
+  });
+});

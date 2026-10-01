@@ -1417,26 +1417,6 @@
       ],
     },
     {
-      id: 'dev-unicode', name: 'Unicode Inspector', icon: 'U+', family: 'dev',
-      desc: 'Show each character\'s code point, UTF-8 bytes, UTF-16 units and HTML entity', keywords: 'unicode codepoint utf8 utf16 emoji character',
-      fields: [{ id: 'text', label: 'Text', type: 'text', value: 'A€😀' }],
-      run: (v) => {
-        const chars = [...need(v.text, 'some text')];
-        if (chars.length > 256) fail('Paste at most 256 characters');
-        return chars.map(ch => {
-          const cp = ch.codePointAt(0);
-          const u16 = [];
-          for (let i = 0; i < ch.length; i++) u16.push(ch.charCodeAt(i).toString(16).toUpperCase().padStart(4, '0'));
-          const label = cp < 0x21 || (cp >= 0x7f && cp < 0xa1) ? JSON.stringify(ch) : ch;
-          return [label, `U+${cp.toString(16).toUpperCase().padStart(4, '0')} · UTF-8 ${utf8(ch).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ')} · UTF-16 ${u16.join(' ')} · &#${cp};`];
-        });
-      },
-      examples: [
-        { in: {}, out: [['A', 'U+0041 · UTF-8 41 · UTF-16 0041 · &#65;'], ['€', 'U+20AC · UTF-8 E2 82 AC · UTF-16 20AC · &#8364;'], ['😀', 'U+1F600 · UTF-8 F0 9F 98 80 · UTF-16 D83D DE00 · &#128512;']] },
-        { in: { text: 'é\t' }, out: [['é', 'U+00E9 · UTF-8 C3 A9 · UTF-16 00E9 · &#233;'], ['"\\t"', 'U+0009 · UTF-8 09 · UTF-16 0009 · &#9;']] },
-      ],
-    },
-    {
       id: 'dev-byte-length', name: 'String Byte Length', icon: 'B', family: 'dev',
       desc: 'Count code points, UTF-16 units and UTF-8 / UTF-32 bytes of text', keywords: 'bytes size length utf8 characters',
       fields: [{ id: 'text', label: 'Text', type: 'textarea', value: 'héllo 😀' }],

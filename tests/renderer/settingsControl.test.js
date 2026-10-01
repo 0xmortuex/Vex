@@ -38,6 +38,24 @@ describe('finding the control', () => {
   });
 });
 
+describe('on and off for a dropdown', () => {
+  // The agent's own example. Streamer mode is a dropdown, and "turn on" only
+  // ever looked at switches, so it could not be reached (2026-09-28).
+  it('"turn on streamer mode" picks its Always on, and "turn off" its Off', async () => {
+    const el = document.getElementById('setting-streamer-mode');
+    el.value = 'auto';
+    const r = await S.apply('turn on streamer mode');
+    expect(r.changed).toBe(true);
+    expect(el.value).toBe('on');
+    expect(globalThis.vexConfirm.mock.calls[0][0].message).toBe('Change "Streamer mode" from "While you share your screen (not during calls)" to "Always on"?');
+    await S.apply('turn streamer mode off');
+    expect(el.value).toBe('off');
+  });
+  it('a dropdown with no on or off says what its choices are', () => {
+    expect(() => S.plan({ query: 'search engine', want: true })).toThrow(/"Default Search Engine" is a choice, not a switch: .*Say "set Default Search Engine to …"/);
+  });
+});
+
 describe('changing it', () => {
   it('asks first, then sets the control and fires its change event', async () => {
     const el = document.getElementById('setting-gestures');
@@ -57,7 +75,8 @@ describe('changing it', () => {
     const el = document.getElementById('setting-search-engine');
     el.value = 'google';
     vexConfirm.mockResolvedValueOnce(false);
-    expect((await S.apply('set the search engine to duckduckgo')).changed).toBe(false);
+    // A no is a failure the agent cannot mistake for "try again".
+    await expect(S.apply('set the search engine to duckduckgo')).rejects.toMatchObject({ declined: true, message: expect.stringContaining('The user said no') });
     expect(el.value).toBe('google');
     vexConfirm.mockClear();
     expect(await S.apply('set search engine to google')).toMatchObject({ changed: false, message: '"Default Search Engine" is already "Google"' });

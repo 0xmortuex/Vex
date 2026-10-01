@@ -200,7 +200,9 @@ const ClipboardHistory = {
     };
 
     const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
-    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    // An open confirmation (Clear) owns its Escape: this capture listener saw
+    // it first and closed the history along with the dialog (found 2026-09-29).
+    const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); close(); } };
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
     overlay.querySelector('[data-clear]').addEventListener('click', async () => {
       if (!(await vexConfirm({

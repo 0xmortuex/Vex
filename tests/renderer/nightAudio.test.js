@@ -3,6 +3,9 @@
 // only remembered once it actually worked.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { NightAudio: N } = require('../../src/renderer/js/night-audio.js');
+// The page scripts go through this (site-volume.js); with no main-process
+// all-frames call it falls back to window.vexGuestEval, which these tests stub.
+const { vexGuestEvalFrames } = require('../../src/renderer/js/site-volume.js');
 
 const store = {};
 beforeEach(() => {
@@ -11,7 +14,7 @@ beforeEach(() => {
     getItem: (k) => (k in store ? store[k] : null),
     setItem: (k, v) => { store[k] = String(v); },
   };
-  globalThis.window = { vexGuestEval: vi.fn(async () => ({ ok: true, touched: 1 })), showToast: vi.fn() };
+  globalThis.window = { vexGuestEval: vi.fn(async () => ({ ok: true, touched: 1 })), showToast: vi.fn(), vexGuestEvalFrames };
   globalThis.TabManager = { getActiveTab: () => ({ url: 'https://example.com/film' }), activeTabId: 1 };
   globalThis.WebviewManager = { webviews: new Map([[1, { getURL: () => 'https://example.com/film' }]]) };
 });

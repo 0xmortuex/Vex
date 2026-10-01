@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Vex colours its own pages; Dark Reader (and extensions that honour this) must not recolour them over it. -->
+  <meta name="darkreader-lock">
   <link rel="icon" type="image/svg+xml" href="assets/vex-logo.svg">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self'; connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -60,6 +62,7 @@
   <link rel="stylesheet" href="css/work-panel.css">
   <link rel="stylesheet" href="css/quick-reminder.css">
   <link rel="stylesheet" href="css/clock-panel.css">
+  <link rel="stylesheet" href="css/tor-indicator.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -130,6 +133,11 @@
     </div>
 
     <div id="top-bar-right">
+      <!-- Shown while Vex's own Tor runs, in every look (#btn-tor is hidden in the browser looks); tor-session.js fills the icon. -->
+      <div id="tor-running" role="status" hidden>
+        <span class="tor-running-icon" aria-hidden="true"></span><span class="tor-running-label">Tor is running</span>
+        <button id="tor-running-stop" type="button" title="Stop Tor">Stop</button>
+      </div>
       <button id="btn-tor" class="nav-btn" title="New Tor tab — maximum-security private browsing over Tor">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>
       </button>
@@ -171,17 +179,21 @@
       <button id="btn-command" class="nav-btn" title="Command Bar (Ctrl+K)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
-      <div id="window-controls">
-        <button id="btn-minimize" class="win-btn" title="Minimize">
-          <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="5.5" width="8" height="1" fill="currentColor"/></svg>
-        </button>
-        <button id="btn-maximize" class="win-btn" title="Maximize">
-          <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1" fill="none"/></svg>
-        </button>
-        <button id="btn-close" class="win-btn win-btn-close" title="Close">
-          <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-        </button>
-      </div>
+    </div>
+
+    <!-- Its own item of the top bar, not the last button of #top-bar-right:
+         that cluster never shrank, so below ~1130px the minimise/maximise/close
+         buttons were pushed off the window in Classic (found 2026-09-29). -->
+    <div id="window-controls">
+      <button id="btn-minimize" class="win-btn" title="Minimize">
+        <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="5.5" width="8" height="1" fill="currentColor"/></svg>
+      </button>
+      <button id="btn-maximize" class="win-btn" title="Maximize">
+        <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1" fill="none"/></svg>
+      </button>
+      <button id="btn-close" class="win-btn win-btn-close" title="Close">
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
     </div>
   </div>
 
@@ -338,6 +350,8 @@
                 <option value="duckduckgo">DuckDuckGo</option>
                 <option value="brave">Brave Search</option>
                 <option value="bing">Bing</option>
+                <option value="startpage">Startpage</option>
+                <option value="ecosia">Ecosia</option>
               </select>
             </div>
 
@@ -475,7 +489,7 @@
                 </label>
               </div>
               <div id="restart-needed-row" style="display:none;margin-top:8px">
-                <button id="btn-restart-vex" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px">⟳ Restart Vex to apply</button>
+                <button id="btn-restart-vex" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px">Restart Vex to apply</button>
                 <span style="color:var(--text-muted);font-size:11px;margin-left:8px">Your tabs are saved and will come back.</span>
               </div>
               <div class="setting-toggle-row">
@@ -501,6 +515,14 @@
                   <input type="checkbox" id="setting-autosleep-exclude-pinned" checked>
                   <span class="toggle-slider"></span>
                 </label>
+              </div>
+              <div class="setting-toggle-row" style="margin-top:8px">
+                <span>Before Vex puts anything to sleep on its own<br><span style="font-size:11.5px;color:var(--text-muted)">A tab or panel that sleeps behind your back has reloaded by the time you come back to it. This covers every unattended one — idle tabs, idle panels, Discord’s memory watch, gaming mode, the memory ceiling, and the one that fired whenever Vex sat behind another app. Vex still tells you when something has grown; buttons you press yourself always act at once.</span></span>
+                <select id="setting-sleep-consent" aria-label="Before Vex puts anything to sleep on its own">
+                  <option value="never">never do it</option>
+                  <option value="ask">ask me first</option>
+                  <option value="auto">just do it</option>
+                </select>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Sleep hidden sidebar panels too <span style="color:var(--text-muted);font-size:11px">· Claude, Spotify, GitHub… after the same idle time; never one playing audio</span></span>
@@ -615,6 +637,14 @@
                 </select>
               </div>
 
+              <div class="setting-row" style="margin-top:14px">
+                <div class="setting-label">
+                  <strong>Show the AI working</strong>
+                  <span class="setting-hint">A cursor moves to what it clicks and types, with a caption saying what it is doing. About half a second slower per step.</span>
+                </div>
+                <label class="toggle"><input type="checkbox" id="setting-agent-cursor" checked aria-label="Show the AI working"><span class="toggle-slider"></span></label>
+              </div>
+
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
                 <button class="btn-secondary" id="btn-refresh-ollama">Refresh Ollama Status</button>
                 <button class="btn-secondary" id="btn-install-ollama">Ollama Install Guide</button>
@@ -679,6 +709,13 @@
                     <option value="safari">Safari</option>
                     <option value="xp">Internet Explorer · Windows XP</option>
                     <option value="win98">Netscape · Windows 98</option>
+                  </optgroup>
+                  <optgroup label="Styles">
+                    <option value="fluent">Fluent · Windows 11</option>
+                    <option value="fluent-dark">Fluent · Windows 11 dark</option>
+                    <option value="glossy">Glossy · Aero</option>
+                    <option value="neobrutal">Neobrutal</option>
+                    <option value="terminal">Terminal</option>
                   </optgroup>
                 </select>
               </div>
@@ -754,7 +791,7 @@
                 <span>Rearrange or hide the toolbar buttons and sidebar icons, right where they live</span>
                 <button id="btn-edit-layout" style="background:var(--primary,var(--accent));border:1px solid transparent;color:#111;padding:8px 14px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Edit layout</button>
               </div>
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Turns on customize mode: drag any toolbar button or sidebar icon to reorder it, or hit ✕ to hide it. Hidden items can be restored from the bar at the bottom. Sidebar per-item resets stay in the Sidebar Buttons section.</div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Turns on customize mode: drag any toolbar button or sidebar icon to reorder it, or hit its red X to hide it. Hidden items can be restored from the bar at the bottom. Sidebar per-item resets stay in the Sidebar Buttons section.</div>
             </div>
 
             <!-- Site Permissions (geolocation, mic, camera, notifications) -->
@@ -1006,9 +1043,9 @@
                 <span id="update-check-status" style="font-size:11px;color:var(--text-muted)"></span>
               </div>
               <div class="setting-row" style="margin-bottom:16px">
-                <div class="setting-label"><strong>Update channel</strong>
+                <div class="setting-label" style="display:block"><strong>Update channel</strong>
                   <span class="setting-hint">Latest tells you about every release. Stable waits until the newest has been out two days, so a busy day of releases is one prompt, not several.</span></div>
-                <select id="setting-update-channel" aria-label="Update channel"><option value="latest">Latest</option><option value="stable">Stable</option></select>
+                <select id="setting-update-channel" aria-label="Update channel" style="width:auto;flex:0 0 auto"><option value="latest">Latest</option><option value="stable">Stable</option></select>
               </div>
               <div style="background:var(--bg);border-radius:8px;padding:10px 14px;margin-bottom:16px">
                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:var(--text-muted)">Electron</span><span style="color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px" id="about-electron-ver">-</span></div>
@@ -1394,7 +1431,9 @@
   <script src="js/dom-extractor.js"></script>
   <script src="js/agent-tools.js"></script>
   <script src="js/video-chat.js"></script>
+  <script src="js/agent-cursor.js"></script>
   <script src="js/agent-executor.js"></script>
+  <script src="js/agent-run-card.js"></script>
   <script src="js/agent-loop.js"></script>
   <script src="js/agent-model-test.js"></script>
   <script src="js/scheduler.js"></script>
@@ -1422,6 +1461,7 @@
   <script src="js/job-profiles.js"></script>
   <script src="js/job-setup.js"></script>
   <script src="js/job-work-panel.js"></script>
+  <script src="js/typed-address.js"></script>
   <script src="js/command.js"></script>
   <script src="js/ask-ai-bar.js"></script>
   <script src="js/smart-searchbar.js"></script>
@@ -1434,6 +1474,7 @@
   <script src="js/skins.js"></script>
   <script src="js/private-routing.js"></script>
   <script src="js/site-routes.js"></script>
+  <script src="js/sleep-consent.js"></script>
   <script src="js/why-slow.js"></script>
   <script src="js/keys-sheet.js"></script>
   <script src="js/backup.js"></script>

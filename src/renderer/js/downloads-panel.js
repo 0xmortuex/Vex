@@ -377,8 +377,19 @@ const DownloadsPanel = {
       // fingerprint check, which is what matters for a program.
       ...(info.verdict === 'archive' && /\.zip$/i.test(filePath)
         ? { extra: { label: 'Look inside', run: () => this.peekArchive(filePath) } }
-        : /^[a-f0-9]{64}$/i.test(info.sha256 || '') ? { extra: { label: 'Check on VirusTotal', run: () => TabManager.createTab('https://www.virustotal.com/gui/file/' + info.sha256.toLowerCase(), true) } } : {}),
+        : /^[a-f0-9]{64}$/i.test(info.sha256 || '') ? { extra: { label: 'Check on VirusTotal', run: () => this.checkOnVirusTotal(filePath, info.sha256) } } : {}),
     });
+  },
+
+  // VirusTotal only has a report for a file somebody has already sent it, so
+  // a new or rare one (a program released an hour ago) opens on "Item not
+  // found", which read as Vex being broken (2026-09-28). Say what that page
+  // means, and open the file's folder so it can be dragged onto VirusTotal.
+  // Vex cannot tell beforehand: asking VirusTotal needs an API key.
+  checkOnVirusTotal(filePath, sha256) {
+    TabManager.createTab('https://www.virustotal.com/gui/file/' + String(sha256).toLowerCase(), true);
+    window.showToast?.('If VirusTotal says "Item not found", nobody has scanned this exact file yet. To scan it, drag it from the folder that just opened onto virustotal.com.', 'info', 12000);
+    window.vex?.downloadsShowInFolder?.(filePath);
   },
 
   // The names and sizes inside a .zip, listed. Nothing is unpacked.

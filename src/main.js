@@ -1,12 +1,12 @@
 require('./diagnostics').install(process.env.VEX_VERBOSE_DIAGNOSTICS === '1');
 const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, net, shell, dialog, webContents, safeStorage, clipboard, Notification, nativeImage } = require('electron');
 
-// Enable Chromium's rich print preview UI (Save as PDF, margin controls,
-// pages-per-sheet, background graphics, etc.). Without these flags Electron
-// falls back to the Windows OS print dialog, which only exposes
-// "Microsoft Print to PDF" with no preview. Both switches are idempotent;
-// some Electron builds key off the feature flag, others off the dedicated
-// switch, so apply both. MUST run before any other app.* access — Chromium
+// The PrintPreview flag and --enable-print-preview were meant to turn on
+// Chromium's rich print preview (Save as PDF, margins, background graphics).
+// They do not: that preview is part of Chrome's own UI, which Electron does
+// not ship, so window.print() and Print (Ctrl+P) open the Windows system print
+// dialog (found 2026-09-30). The switches are left as they were; they change
+// nothing. MUST run before any other app.* access — Chromium
 // initializes its feature list on first app touch, and reading e.g.
 // app.isPackaged in a console.log was previously happening above this block.
 // NB: Chromium keeps only the LAST --enable-features occurrence (it does not
@@ -14,8 +14,8 @@ const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, ne
 // feature we enable must live in this ONE comma-separated list, never a second
 // appendSwitch('enable-features', …) call.
 //
-// PrintPreview: rich print UI (Save as PDF, margins, background graphics);
-// without it Electron falls back to the bare Windows print dialog.
+// PrintPreview: see above — Electron has no print preview to turn on, so
+// printing shows the Windows system print dialog either way.
 //
 // HardwareSecureDecryption: use the MediaFoundation-based Widevine CDM (the
 // "Google Widevine Windows CDM" component, installed but idle by default in
@@ -90,7 +90,7 @@ app.setAppUserModelId('com.vex.browser');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { shouldBlock } = require('./adblocker');
+const { shouldBlock, repairAllows } = require('./adblocker');
 const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
 const _torLauncher = require('./tor-launcher');
 const { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents } = require('./pip');
@@ -115,6 +115,13 @@ ipcMain.on('storage:flush-failed', event => {
   host.flushing = false;
   host.win.webContents.send('vex:toast', 'Changes could not be saved. Retry closing after the storage error is resolved.');
 });
+// A tab closed (js/tabs.js, closeTab): the back lists kept for its
+// JavaScript-off pages go now (session-security.js, forgetHistories).
+ipcMain.on('tabs:closed', (event, pageIds) => {
+  const host = secureSessions.owner(event.sender);
+  if (!host) return;
+  secureSessions.forgetHistories(host.win.webContents.id, pageIds);
+});
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
 console.log('[Vex URL] ====== Vex process boot ======');
@@ -123,10 +130,6 @@ console.log('[Vex URL] cwd:', process.cwd());
 console.log('[Vex URL] execPath:', process.execPath);
 console.log('[Vex URL] defaultApp:', !!process.defaultApp);
 console.log('[Vex URL] isPackaged:', app.isPackaged);
-
-// Auto-updater (graceful — works in dev, fails silently if not packaged)
-let autoUpdater = null;
-try { autoUpdater = require('electron-updater').autoUpdater; } catch {}
 
 let mainWindow = null;
 // Main-process reminders (src/main/reminders.js); created in startReminders()
@@ -158,10 +161,33 @@ const GUEST_PRELOADS = [
   // registered by enableCosmeticFiltering() once the engine is ready.
   require.resolve('@ghostery/adblocker-electron-preload'),
 ];
+// Extension service workers never run the page preloads above, so the
+// chrome.storage.sync stand-in has its own preload for them
+// (preload-extension-sw.js). Registered on a session before an extension
+// loads into it; a later worker start picks it up.
+const EXT_SW_PRELOAD_ID = 'vex-extension-sw';
+function ensureExtensionSwPreload(ses) {
+  _wireExtensionWorkerIpc(ses);
+  if (typeof ses.registerPreloadScript !== 'function') return;
+  if (ses.getPreloadScripts().some(s => s.id === EXT_SW_PRELOAD_ID)) return;
+  ses.registerPreloadScript({ type: 'service-worker', id: EXT_SW_PRELOAD_ID, filePath: path.join(__dirname, 'preload-extension-sw.js') });
+}
+
 function attachGuestPreloads(ses) {
   const existing = ses.getPreloads ? ses.getPreloads() : [];
   const missing = GUEST_PRELOADS.filter(p => !existing.includes(p));
   if (missing.length) ses.setPreloads([...existing, ...missing]);
+}
+
+// About's DRM line, in plain words. components.status() is keyed by
+// component id ({"oimompecagnajdejgnnjijobebaeigek": {status, title,
+// version}}), so looking Widevine up by its name never matched and About
+// printed that raw JSON (found 2026-09-30).
+function widevineStatusText(st, id) {
+  const cdm = st && typeof st === 'object' ? st[id] : null;
+  if (!cdm) return 'not available — the Widevine component is not registered';
+  if (!cdm.version) return 'not available — Widevine is not installed' + (cdm.status ? ` (${cdm.status})` : '');
+  return `Widevine ready (version ${cdm.version})`;
 }
 
 // Initialize the castLabs Widevine CDM "component". First run downloads it from
@@ -176,7 +202,7 @@ async function initWidevine(attempts = 2) {
   let components;
   try { ({ components } = require('electron')); } catch {}
   if (!components || typeof components.whenReady !== 'function') {
-    _widevineStatus = 'unavailable (this Electron build has no Widevine)';
+    _widevineStatus = 'not available — this Electron build has no Widevine';
     return;
   }
   for (let i = 1; i <= attempts; i++) {
@@ -187,9 +213,8 @@ async function initWidevine(attempts = 2) {
       ]);
       const st = typeof components.status === 'function' ? components.status() : null;
       console.log('[Widevine] components ready:', st);
-      const wv = st && (st['Widevine Content Decryption Module'] || st.WIDEVINE || JSON.stringify(st));
       _widevineStatus = app.isPackaged
-        ? (wv ? ('ready (' + wv + ')') : 'loaded')
+        ? widevineStatusText(st, components.WIDEVINE_CDM_ID)
         : 'dev mode — protected playback needs the installed build';
       return;
     } catch (e) {
@@ -382,7 +407,7 @@ const { guestOwnsFind } = require('./main/find-policy');
 // works through this list.
 const BROWSING_SESSIONS = ['persist:main', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping'];
 
-const { shortcutFor } = require('./main/guest-shortcuts');
+const { shortcutFor, pageShortcut } = require('./main/guest-shortcuts');
 
 // The key combinations the renderer's shortcut registry currently answers to
 // (js/shortcuts-registry.js pushes them on start and on every rebind). Held
@@ -393,13 +418,57 @@ ipcMain.on('shortcuts:guest-keys', (event, combos) => {
   _guestWantedKeys = new Set((Array.isArray(combos) ? combos : []).filter(c => typeof c === 'string').slice(0, 300));
 });
 
+// The shortcut editor records a key in the main window's page, but the keys
+// main acts on there itself (Ctrl+T/W/K/F/R, zoom, F11, F12…) never reached
+// it: pressing Ctrl+T to record it opened a tab (found 2026-09-29). While the
+// editor listens, the main window's key handler stands aside. It clears
+// itself when the window loses focus and after 15 s, so a recorder that never
+// says it stopped cannot leave Vex's own shortcuts dead.
+const SHORTCUT_CAPTURE_MS = 15000;
+let _shortcutCapturing = false;
+let _shortcutCaptureTimer = null;
+function _setShortcutCapturing(on) {
+  clearTimeout(_shortcutCaptureTimer);
+  _shortcutCaptureTimer = null;
+  _shortcutCapturing = on;
+  if (on) _shortcutCaptureTimer = setTimeout(() => { _shortcutCapturing = false; _shortcutCaptureTimer = null; }, SHORTCUT_CAPTURE_MS);
+}
+ipcMain.handle('shortcuts:capturing', (event, on) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
+    throw new Error('Only the main Vex window records shortcuts');
+  }
+  _setShortcutCapturing(on);
+  return true;
+});
+
+// A key the page had first and left alone (preload-webview.js): Ctrl+B,
+// Ctrl+Shift+Z and the rest of guest-shortcuts.js PAGE_FIRST.
+ipcMain.on('guest:page-shortcut', (event, report) => {
+  const win = _shortcutWindow(event.sender);
+  if (!win) return;
+  const hit = pageShortcut(report);
+  if (hit) win.webContents.send(hit.channel);
+});
+
+// The window a page's key belongs to: its own. Every key went to the main
+// window, so Ctrl+H in a private window opened History in the main one and
+// Ctrl+W would have closed a main-window tab (found 2026-09-29). None while
+// Vex is locked.
+function _shortcutWindow(contents) {
+  if (_vexLocked) return null;
+  const host = secureSessions.owner(contents);
+  const win = (host && host.win) || mainWindow;
+  return win && !win.isDestroyed() ? win : null;
+}
+
 function handleBrowserShortcut(event, input, contents) {
-  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const win = _shortcutWindow(contents);
+  if (!win) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
   const hit = shortcutFor(input, { ownsFind: guestOwnsFind(url), wanted: _guestWantedKeys });
   if (!hit) return false;
-  mainWindow.webContents.send(hit.channel, ...(hit.args || []));
+  win.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();
   return true;
 }
@@ -511,7 +580,8 @@ function _broadcastDownloadEvent(channel, data) {
     if (!w.isDestroyed()) { try { w.webContents.send(channel, data); } catch {} }
   });
 }
-const { pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
+const { savedDecision } = require('./main/permissions');
+const { pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -760,7 +830,7 @@ app.whenReady().then(() => {
   // the executable is bare Electron and the entry would not start Vex.
   if (process.platform === 'win32' && app.isPackaged) {
     try {
-      app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'No extensions, no panels, no session restore' }]);
+      app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' }]);
     } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
   }
 });
@@ -900,21 +970,26 @@ ipcMain.on('capture:close', (e) => {
 });
 // The line goes to the interface, which already knows how to make a note, set
 // a reminder or run a command — there is no second implementation of any of it.
+// One listener for every answer: the IPC policy wraps ipcMain.on, so an
+// ipcMain.off with the original callback removed nothing and each capture
+// leaked a listener (found 2026-09-29).
+const _capturePending = new Map();
+ipcMain.on('capture:done', (_ev, payload) => {
+  const p = payload && _capturePending.get(payload.id);
+  if (!p) return;
+  _capturePending.delete(payload.id);
+  clearTimeout(p.timer);
+  payload.ok ? p.resolve({ said: payload.said }) : p.reject(new Error(payload.error || 'That did not work'));
+});
 ipcMain.handle('capture:submit', async (_e, entry) => {
   const kind = String((entry && entry.kind) || 'note');
   const text = String((entry && entry.text) || '').slice(0, 4000);
   if (!text) throw new Error('There is nothing to save');
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Vex is not running');
   return new Promise((resolve, reject) => {
-    const id = 'cap_' + Date.now().toString(36);
-    const done = (_ev, payload) => {
-      if (!payload || payload.id !== id) return;
-      ipcMain.off('capture:done', done);
-      clearTimeout(timer);
-      payload.ok ? resolve({ said: payload.said }) : reject(new Error(payload.error || 'That did not work'));
-    };
-    const timer = setTimeout(() => { ipcMain.off('capture:done', done); reject(new Error('Vex did not answer')); }, 15000);
-    ipcMain.on('capture:done', done);
+    const id = 'cap_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const timer = setTimeout(() => { _capturePending.delete(id); reject(new Error('Vex did not answer')); }, 15000);
+    _capturePending.set(id, { resolve, reject, timer });
     mainWindow.webContents.send('capture:take', { id, kind, text });
   });
 });
@@ -943,7 +1018,7 @@ ipcMain.handle('app:diagnostics', () => {
 
 ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
   if (scope !== 'auto' && scope !== 'everywhere') return { ok: false, error: 'Unknown scope: ' + scope };
-  const entry = _extEntries().find(x => x.folder === folderName);
+  const entry = _extEntriesOnDisk().find(x => x.folder === folderName);
   if (!entry) return { ok: false, error: 'No extension folder named ' + folderName };
   try {
     const scopes = extHelpers.readScopes(extensionsDir);
@@ -962,7 +1037,7 @@ ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
       if (_isLazySession(ses) && !_coveredSessions.has(ses)) continue;
       try {
         const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(entry.path));
-        if (wanted.has(ses) && !live) await ses.loadExtension(entry.path, { allowFileAccess: true });
+        if (wanted.has(ses) && !live) { ensureExtensionSwPreload(ses); await ses.loadExtension(entry.path, { allowFileAccess: true }); }
         else if (!wanted.has(ses) && live) ses.removeExtension(live.id);
       } catch (err) {
         return { ok: false, error: `Saved, but could not apply it to ${_partitionNameOf(ses) || 'a session'}: ${err.message}` };
@@ -1373,7 +1448,31 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
   }
 });
 
-const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain });
+// Lock Vex, as main sees it. The lock screen lived only in the window, so a
+// private window (Ctrl+Alt+N) opened unlocked and could read saved passwords
+// (found 2026-09-29). The window says when it locks and unlocks; the vault and
+// new private windows refuse while it is locked.
+let _vexLocked = false;
+// Windows open when Vex locked (a private window, an app window, the overlay)
+// stayed usable behind the lock and could read 2FA codes (found 2026-09-29).
+// They are hidden while locked and come back on unlock. The video pop-out
+// stays: it shows only the video you were watching.
+let _hiddenByLock = [];
+ipcMain.on('vex-lock:state', (e, locked) => {
+  if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
+  _vexLocked = locked === true;
+  if (_vexLocked) {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (w === mainWindow || w.isDestroyed() || !w.isVisible() || isPipContents(w.webContents)) continue;
+      w.hide();
+      _hiddenByLock.push(w);
+    }
+  } else {
+    for (const w of _hiddenByLock) if (!w.isDestroyed()) w.show();
+    _hiddenByLock = [];
+  }
+});
+const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 
 // === TOTP authenticator — 2FA codes (Discord/Roblox/GitHub/etc.) generated
 // locally per RFC 6238. Secrets are encrypted at rest with safeStorage
@@ -1441,8 +1540,10 @@ function _parseOtpauth(uri) {
     };
   } catch { return null; }
 }
-ipcMain.handle('totp:list', () => totpLoad().map(e => ({ id: e.id, label: e.label, issuer: e.issuer, digits: e.digits, period: e.period })));
+function _refuseWhileLocked() { if (_vexLocked) throw new Error('Vex is locked — unlock it first'); }
+ipcMain.handle('totp:list', () => (_refuseWhileLocked(), totpLoad()).map(e => ({ id: e.id, label: e.label, issuer: e.issuer, digits: e.digits, period: e.period })));
 ipcMain.handle('totp:codes', () => {
+  _refuseWhileLocked();
   const now = Date.now();
   return totpLoad().map(e => {
     try {
@@ -1483,7 +1584,24 @@ ipcMain.handle('totp:delete', async (_e, id) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('permissions:list',     () => { const { __until__, ...d } = loadPermissionDecisions(); return d; });
+// Only decisions still in force: an "Allow for a day" that has run out is as
+// if never made (savedDecision), so it is not listed as allowed either.
+function _decisionsInForce(decisions) {
+  const { __until__, ...d } = decisions;
+  const now = Date.now();
+  for (const [key, end] of Object.entries(__until__ || {})) if (end < now) delete d[key];
+  return d;
+}
+ipcMain.handle('permissions:list',     () => _decisionsInForce(loadPermissionDecisions()));
+// The decisions one tab's page is held to: its own container's, a private
+// window's, or persist:main's. What a container tab's page was told it may
+// ask came from persist:main's list (found 2026-09-30). The page is one this
+// window owns (ipc-policy.js, TARGET_CHANNELS).
+ipcMain.handle('permissions:list-for-page', (_e, id) => {
+  const page = webContents.fromId(id);
+  if (!page || page.isDestroyed()) throw new Error('That page is gone');
+  return _decisionsInForce(decisionsFor(page));
+});
 ipcMain.handle('permissions:revoke',   async (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; await savePermissionDecisions(d); return { ok: true }; });
 ipcMain.handle('permissions:clear-all', async () => { await savePermissionDecisions({}); return { ok: true }; });
 
@@ -1662,7 +1780,8 @@ function wireAdblockerOnSession(ses, tag) {
       callback({ cancel: true });
       return;
     }
-    if (adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))) {
+    if (adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
+        && !repairAllows(details.url, _pageUrlOf(details.webContentsId))) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
@@ -1839,10 +1958,19 @@ function wireMediaSnifferOnSession(ses) {
       if (!isMedia) return;
       let map = _mediaByWc.get(webContentsId);
       if (!map) { map = new Map(); _mediaByWc.set(webContentsId, map); }
-      if (!map.has(url)) {
-        const len = parseInt(_hdrVal(responseHeaders, 'content-length'), 10);
-        map.set(url, { url, kind: _mediaKind(url, ct), mime: ct, sizeKB: Number.isFinite(len) ? Math.round(len / 1024) : 0 });
+      // A video arrives in pieces (206 Partial Content): content-length is the
+      // size of one piece, and the first one was shown as the file's size —
+      // 34 KB for a 788 KB video (found 2026-09-29). The whole size is the
+      // figure after the slash in content-range.
+      const range = /\/(\d+)\s*$/.exec(_hdrVal(responseHeaders, 'content-range') || '');
+      const len = range ? parseInt(range[1], 10) : parseInt(_hdrVal(responseHeaders, 'content-length'), 10);
+      const sizeKB = Number.isFinite(len) ? Math.round(len / 1024) : 0;
+      const known = map.get(url);
+      if (!known) {
+        map.set(url, { url, kind: _mediaKind(url, ct), mime: ct, sizeKB });
         if (map.size > 80) map.delete(map.keys().next().value); // cap, drop oldest
+      } else if (sizeKB > known.sizeKB) {
+        known.sizeKB = sizeKB;
       }
     } catch { /* sniffing is best-effort */ }
   });
@@ -1883,7 +2011,7 @@ const _mailCall = (fn) => async (...args) => { try { return { ok: true, value: a
 ipcMain.handle('mail:accounts', _mailCall(() => _mail.accounts()));
 ipcMain.handle('mail:add', _mailCall((_e, account) => _mail.add(account)));
 ipcMain.handle('mail:remove', _mailCall((_e, id) => _mail.remove(id)));
-ipcMain.handle('mail:inbox', _mailCall((_e, id, limit) => _mail.inbox(id, limit)));
+ipcMain.handle('mail:inbox', _mailCall((_e, id, limit, before) => _mail.inbox(id, limit, before)));
 ipcMain.handle('mail:message', _mailCall((_e, id, uid) => _mail.message(id, uid)));
 
 // One page for the site crawler (src/main/page-fetch.js): the same empty
@@ -1921,6 +2049,23 @@ ipcMain.handle('page:capture-full', async (_e, wcId) => {
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not capture the page' }; }
 });
 
+// Run one script in every frame of a tab. webview.executeJavaScript runs in the
+// top frame only, so Master Volume, the per-site volume and Night mode never
+// reached a player embedded in an iframe (found 2026-09-29). Each frame answers
+// for itself; one that does not answer within 6 s is reported, not waited on.
+ipcMain.handle('page:eval-all-frames', async (_e, wcId, code, userGesture) => {
+  const wc = webContents.fromId(wcId);
+  if (!wc || wc.isDestroyed()) return { ok: false, error: 'That tab has closed' };
+  const frames = wc.mainFrame ? wc.mainFrame.framesInSubtree : [];
+  const results = await Promise.all(frames.map(f => new Promise(resolve => {
+    const timer = setTimeout(() => resolve({ ok: false, error: 'The frame did not answer within 6 s' }), 6000);
+    Promise.resolve().then(() => f.executeJavaScript(code, !!userGesture)).then(
+      value => { clearTimeout(timer); resolve({ ok: true, value }); },
+      err => { clearTimeout(timer); resolve({ ok: false, error: String((err && err.message) || err) }); });
+  })));
+  return { ok: true, results };
+});
+
 ipcMain.handle('media:list', (_e, wcId) => {
   const map = _mediaByWc.get(wcId);
   return map ? Array.from(map.values()) : [];
@@ -1956,11 +2101,62 @@ const _siteRulesFile = path.join(userDataPath, 'site-rules.json');
 let _siteRules = {};
 try { _siteRules = SiteRules.clean(JSON.parse(fs.readFileSync(_siteRulesFile, 'utf8'))); } catch { _siteRules = {}; }
 ipcMain.handle('siterules:set', (_e, rules) => {
+  const before = _siteRules;
   _siteRules = SiteRules.clean(rules);
-  try { fs.writeFileSync(_siteRulesFile, JSON.stringify(_siteRules)); return { ok: true, rules: _siteRules }; }
+  try { fs.writeFileSync(_siteRulesFile, JSON.stringify(_siteRules)); }
   catch (err) { return { ok: false, error: err.message }; }
+  // Every window hears of the change at once. A private window keeps a copy
+  // of these and used to re-read it every three seconds, so a site switched
+  // off here still ran its JavaScript there for up to that long (found
+  // 2026-09-29).
+  _broadcastDownloadEvent('siterules:changed', _siteRules);
+  _dropServiceWorkersOfScriptsOff(before, _siteRules);
+  return { ok: true, rules: _siteRules };
 });
 ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
+
+// JavaScript switched off for a site is enforced on the page's own response
+// (a Content-Security-Policy of script-src 'none', below). A page answered by
+// the site's service worker never passes through that response, so the
+// worker the site registered while it still had JavaScript is taken away when
+// the switch goes off; with scripts refused the site cannot register another
+// (found 2026-09-29). Only the host itself and its www. name are cleared: a
+// worker belongs to one exact origin.
+function _dropServiceWorkersOfScriptsOff(before, after) {
+  const hosts = Object.keys(after).filter(h => after[h].js === 'off' && !(before[h] && before[h].js === 'off'));
+  if (!hosts.length) return;
+  const sessions = [session.defaultSession, ...BROWSING_SESSIONS.map(p => secureSessions.fromPartition(p))];
+  for (const h of hosts) {
+    for (const origin of [`https://${h}`, `https://www.${h}`, `http://${h}`, `http://www.${h}`]) {
+      for (const ses of sessions) {
+        ses.clearStorageData({ origin, storages: ['serviceworkers'] })
+          .catch(err => console.error('[SiteRules] could not remove the service worker of', origin, err && err.message));
+      }
+    }
+  }
+}
+
+// The page of a site whose JavaScript is off is answered with a policy that
+// runs no script at all — its own, inline ones, event attributes, workers.
+// The switch used to be read only when a tab was built, so a site you browsed
+// to inside a tab already open ran its scripts regardless (found 2026-09-29).
+// A frame inside such a page is held to it too: a policy does not reach into
+// a frame from another host by itself.
+function _scriptsOffCsp(details, responseHeaders) {
+  if (!Object.keys(_siteRules).length) return;
+  if (details.resourceType !== 'mainFrame' && details.resourceType !== 'subFrame') return;
+  let off = SiteRules.blocksScripts(_siteRules, details.url);
+  if (!off && details.resourceType === 'subFrame') {
+    let top;
+    try { top = (details.frame && details.frame.top && details.frame.top.url) || ''; } catch { top = ''; }
+    off = !!top && SiteRules.blocksScripts(_siteRules, top);
+  }
+  if (!off) return;
+  const key = Object.keys(responseHeaders).find(k => k.toLowerCase() === 'content-security-policy');
+  // A second policy is enforced alongside the site's own, never instead of it.
+  if (key) responseHeaders[key] = [].concat(responseHeaders[key], "script-src 'none'");
+  else responseHeaders['Content-Security-Policy'] = ["script-src 'none'"];
+}
 
 // Which page made a request: asked of the webContents, and remembered for a
 // moment, because this is on the path of every request a page makes.
@@ -2034,6 +2230,13 @@ function _extEntries() {
   // Safe mode exists for exactly this: an extension that breaks the browser
   // cannot be removed from inside a browser that will not start.
   if (_boot.safeMode) return [];
+  return _extEntriesOnDisk();
+}
+
+// Every extension folder, safe mode or not. The manager lists these so that,
+// in safe mode, the one that broke the start can be switched off or removed:
+// it used to say "No extensions installed" there (found 2026-09-29).
+function _extEntriesOnDisk() {
   if (!fs.existsSync(extensionsDir)) return [];
   return fs.readdirSync(extensionsDir, { withFileTypes: true })
     .filter(e => e.isDirectory())
@@ -2158,6 +2361,7 @@ async function _loadExtensionEverywhere(extPath, manifest) {
   const errors = [];
   for (const ses of sessions) {
     try {
+      ensureExtensionSwPreload(ses);
       const ext = await ses.loadExtension(extPath, { allowFileAccess: true });
       if (!loaded) loaded = ext;
     } catch (err) {
@@ -2171,7 +2375,32 @@ async function _loadExtensionEverywhere(extPath, manifest) {
     const unique = [...new Set(errors)];
     console.error(`[Extensions] ${path.basename(extPath)}: failed in ${errors.length}/${sessions.length} sessions — ${unique.join(' | ')}`);
   }
+  if (loaded) _checkBackgroundStarts(path.basename(extPath), extPath);
   return { extension: loaded, errors };
+}
+
+// loadExtension succeeds even when an MV3 extension's service worker cannot
+// register ("Service worker registration failed. Status code: 15"): Violentmonkey
+// showed "On" with no background at all (found 2026-09-29). A few seconds
+// after loading, persist:main is asked to start the worker; a refusal is
+// recorded, so the manager says why the extension does nothing.
+const BACKGROUND_CHECK_MS = 4000;
+function _checkBackgroundStarts(folder, extPath) {
+  setTimeout(() => {
+    const ses = secureSessions.fromPartition('persist:main');
+    const ext = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(extPath));
+    const worker = ext && ext.manifest && ext.manifest.background && ext.manifest.background.service_worker;
+    if (!worker) return;
+    ses.serviceWorkers.startWorkerForScope(`chrome-extension://${ext.id}/`).then(() => {
+      if (/^Its background did not start/.test(_extLoadErrors.get(folder) || '')) _extLoadErrors.delete(folder);
+    }, err => {
+      // Unloaded (switched off, uninstalled, updated) meanwhile: nothing to say.
+      if (!ses.getAllExtensions().some(x => x.id === ext.id)) return;
+      const why = `Its background did not start: ${err.message}`;
+      _extLoadErrors.set(folder, why);
+      console.error(`[Extensions] ${folder}: ${why}`);
+    });
+  }, BACKGROUND_CHECK_MS);
 }
 
 // Unload one installed folder from every session that could be holding it.
@@ -2205,10 +2434,110 @@ function _removeSupersededCopies(keepPath, name) {
   }
 }
 
+// The installed copy a freshly-placed folder updates: same (localized) name,
+// another folder. The one loaded in persist:main wins when there are several.
+function _installedCopyOf(newFolder) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(newFolder, 'manifest.json'), 'utf-8'));
+  const name = extHelpers.localize(manifest.name, extHelpers.readMessages(newFolder, manifest.default_locale));
+  if (!name) return null;
+  const copies = _extEntriesOnDisk().filter(e => e.manifest && path.resolve(e.path) !== path.resolve(newFolder)
+    && extHelpers.localize(e.manifest.name, e.messages) === name);
+  if (!copies.length) return null;
+  let loaded = [];
+  try { loaded = secureSessions.fromPartition('persist:main').getAllExtensions().map(x => path.resolve(x.path)); }
+  catch (err) { console.error('[Extensions] could not read the loaded extensions:', err.message); }
+  return copies.find(e => loaded.includes(path.resolve(e.path))) || copies[0];
+}
+
+// An update goes INTO the installed copy's folder. Electron names an unpacked
+// extension after its folder, so a new folder was a new extension to Chromium:
+// the id changed and chrome.storage came back empty — Dark Reader lost its
+// site lists on every update (found 2026-09-29). The same folder also keeps
+// its "where it runs" and on/off entries. The old files are set aside until
+// the new ones have loaded, and put back if they do not.
+// Once the new files are in place for good, the set-aside copies go
+// (extensions.js tidyReplaced). A failure there leaves files, not a broken
+// extension, so it is said in the log rather than failing the update.
+function _tidyReplaced(backupDir, folder) {
+  try { extHelpers.tidyReplaced(backupDir, folder); }
+  catch (err) { console.error('[Extensions] could not tidy', backupDir + ':', err.message); }
+}
+
+async function _replaceInPlace(previous, staged) {
+  const backupDir = path.join(userDataPath, 'extensions-replaced');
+  const backup = path.join(backupDir, `${previous.folder}-${Date.now()}`);
+  fs.mkdirSync(backupDir, { recursive: true });
+  const wasDisabled = _readDisabledFolders().has(previous.folder);
+  const reloadOld = async () => {
+    if (wasDisabled || _boot.safeMode) return;
+    const { extension, errors } = await _loadExtensionEverywhere(previous.path);
+    if (!extension) console.error(`[Extensions] ${previous.folder}: the old copy did not load again either — ${errors[0] || 'unknown'}`);
+  };
+  _unloadFromAllSessions(previous.path);
+  try {
+    fs.renameSync(previous.path, backup);
+  } catch (err) {
+    fs.rmSync(staged, { recursive: true, force: true });
+    await reloadOld();
+    return { ok: false, error: `Could not replace the installed copy: ${err.message}` };
+  }
+  try {
+    fs.renameSync(staged, previous.path);
+  } catch (err) {
+    fs.renameSync(backup, previous.path);
+    fs.rmSync(staged, { recursive: true, force: true });
+    await reloadOld();
+    return { ok: false, error: `Could not put the new version in place: ${err.message}` };
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(previous.path, 'manifest.json'), 'utf-8'));
+  const name = extHelpers.localize(manifest.name, extHelpers.readMessages(previous.path, manifest.default_locale));
+  if (wasDisabled) {
+    // Switched off, it stays off: the new files wait for the user to switch it on.
+    fs.rmSync(backup, { recursive: true, force: true });
+    _tidyReplaced(backupDir, previous.folder);
+    _extLoadErrors.delete(previous.folder);
+    return { ok: true, id: null, name, version: manifest.version, disabled: true };
+  }
+  if (_boot.safeMode) {
+    // Safe mode loads no extensions: an update went live anyway, perhaps the
+    // very one that stopped Vex starting (found 2026-09-29). The files are in
+    // place and it loads on a normal start.
+    fs.rmSync(backup, { recursive: true, force: true });
+    _tidyReplaced(backupDir, previous.folder);
+    return { ok: true, id: null, name, version: manifest.version, afterRestart: true };
+  }
+  const { extension, errors } = await _loadExtensionEverywhere(previous.path);
+  if (!extension) {
+    _unloadFromAllSessions(previous.path);
+    fs.rmSync(previous.path, { recursive: true, force: true });
+    fs.renameSync(backup, previous.path);
+    await reloadOld();
+    return { ok: false, error: errors[0] || 'the extension did not load' };
+  }
+  fs.rmSync(backup, { recursive: true, force: true });
+  _tidyReplaced(backupDir, previous.folder);
+  _extLoadErrors.delete(previous.folder);
+  _removeSupersededCopies(previous.path, extension.name);
+  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version };
+}
+
 // Load a freshly-placed install folder. If it can't load, the folder is REMOVED:
 // leaving it behind made it retry-and-fail on every boot and show up in the
 // manager as a nameless "v—" entry the user couldn't explain.
-async function _activateInstalledFolder(destFolder) {
+async function _activateInstalledFolder(destFolder, copyToUpdate) {
+  let previous;
+  try { previous = copyToUpdate || _installedCopyOf(destFolder); }
+  catch (err) {
+    fs.rmSync(destFolder, { recursive: true, force: true });
+    return { ok: false, error: err.message };
+  }
+  if (previous) return _replaceInPlace(previous, destFolder);
+  if (_boot.safeMode) {
+    // Placed but not loaded in safe mode, like an update (_replaceInPlace).
+    const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8'));
+    const name = extHelpers.localize(manifest.name, extHelpers.readMessages(destFolder, manifest.default_locale));
+    return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true };
+  }
   const { extension, errors } = await _loadExtensionEverywhere(destFolder);
   if (!extension) {
     try { fs.rmSync(destFolder, { recursive: true, force: true }); }
@@ -2240,6 +2569,7 @@ async function _coverNewSession(ses) {
     if (known && !_sessionsFor(entry.path, entry.manifest).includes(ses)) continue;
     try {
       if (ses.getAllExtensions().some(x => path.resolve(x.path) === path.resolve(entry.path))) continue;
+      ensureExtensionSwPreload(ses);
       await ses.loadExtension(entry.path, { allowFileAccess: true });
       _extraExtSessions.add(ses);
     } catch (err) {
@@ -2286,7 +2616,7 @@ ipcMain.handle('extensions:list', () => {
     console.error('[Extensions] could not read the loaded extensions:', err.message);
   }
   const scopes = _readScopes();
-  return _extEntries().map(e => {
+  return _extEntriesOnDisk().map(e => {
     const live = loadedByPath.get(path.resolve(e.path)) || null;
     const manifest = e.manifest || {};
     const icon = e.manifest ? extHelpers.pickIcon(manifest) : null;
@@ -2315,7 +2645,7 @@ ipcMain.handle('extensions:list', () => {
       // What this extension can read, and what it is allowed to do, in words
       // (src/main/extension-audit.js).
       audit: require('./main/extension-audit').auditOne(e),
-      error: e.error || _extLoadErrors.get(e.folder) || null,
+      error: e.error || _extLoadErrors.get(e.folder) || (_boot.safeMode ? 'Not loaded: Vex started in safe mode' : null),
       stateError: _extStateError
     };
   });
@@ -2464,7 +2794,7 @@ async function _downloadBuffer(url) {
 // every EXT_PARTITIONS session. Mirrors extensions:install-zip but works from a
 // buffer (used by the Vencord auto-installer). forceSlug pins the folder name so
 // a re-install can find + replace the old copy.
-async function _installExtFromZipBuffer(zipBuffer, forceSlug) {
+async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate) {
   let AdmZip;
   try { AdmZip = require('adm-zip'); } catch { return { ok: false, error: 'adm-zip missing' }; }
   if (zipBuffer.slice(0, 4).toString() === 'Cr24') {
@@ -2501,22 +2831,47 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: 'manifest not at root after extract' };
   }
-  return await _activateInstalledFolder(destFolder);
+  return await _activateInstalledFolder(destFolder, copyToUpdate);
 }
 
-// Remove any previously-installed extension whose folder slug starts with prefix
-// (unload from every session + delete on disk), so re-installing doesn't stack.
-function _removeExtBySlugPrefix(prefix) {
+// One-click install for the catalogue (main/extension-sources.js): the latest
+// GitHub release of an extension Vex knows, installed through the same checked
+// path as a zip picked by hand. An update replaces the old copy only once the
+// new one has loaded (_activateInstalledFolder → _removeSupersededCopies).
+const _extSources = require('./main/extension-sources');
+ipcMain.handle('extensions:install-catalog', async (_e, id) => {
   try {
-    for (const e of _extEntries()) {
-      if (!path.basename(e.path).startsWith(prefix + '-')) continue;
-      for (const ses of [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p))]) {
-        try { for (const ex of ses.getAllExtensions()) if (path.resolve(ex.path) === path.resolve(e.path)) ses.removeExtension(ex.id); } catch {}
-      }
-      try { fs.rmSync(e.path, { recursive: true, force: true }); if (prefix === 'vencord') _vlog(`removeOld: deleted ${e.folder}`); }
-      catch (err) { if (prefix === 'vencord') _vlog(`removeOld: FAILED to delete ${e.folder} (${err.message}) — unloaded from sessions, will be deduped next startup`); }
-    }
-  } catch {}
+    if (!Object.prototype.hasOwnProperty.call(_extSources.SOURCES, id)) return { ok: false, error: 'Vex does not install that extension by itself' };
+    const src = _extSources.SOURCES[id];
+    const res = await boundedNetFetch(_extSources.latestReleaseUrl(id), {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Vex' }, maxBytes: 2 * 1024 * 1024, timeoutMs: 20000,
+    });
+    if (res.status === 404) return { ok: false, error: 'There is no release to install yet' };
+    if (!res.ok) return { ok: false, error: 'GitHub answered ' + res.status };
+    const release = await res.json();
+    const asset = _extSources.pickAsset(release, src.asset);
+    if (!asset) return { ok: false, error: 'The latest release (' + (release.tag_name || '?') + ') has no Chrome build to install' };
+    const buffer = await _downloadBuffer(asset.browser_download_url);
+    const done = await _installExtFromZipBuffer(buffer, id);
+    return done.ok ? { ...done, release: release.tag_name || '', file: asset.name } : done;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// The installed Vencord a (re)install updates in place. Deleting it first gave
+// the new build a new folder, so a new extension id and empty storage: every
+// Vencord setting was lost on each reinstall (found 2026-09-29). Matched on
+// the folder rather than the name, since the official and local builds need
+// not share one. The copy loaded in the Discord panel wins, else the newest.
+function _installedVencord() {
+  const copies = _extEntriesOnDisk().filter(e => e.manifest && /^vencord-/.test(e.folder));
+  if (!copies.length) return null;
+  let loaded = [];
+  try { loaded = secureSessions.fromPartition('persist:discord').getAllExtensions().map(x => path.resolve(x.path)); }
+  catch (err) { console.error('[Extensions] could not read the Discord panel extensions:', err.message); }
+  const mtime = e => fs.statSync(e.path).mtimeMs;
+  return copies.find(e => loaded.includes(path.resolve(e.path))) || copies.sort((a, b) => mtime(b) - mtime(a))[0];
 }
 
 // One-click Vencord: download the official chromium browser extension and load
@@ -2532,8 +2887,7 @@ ipcMain.handle('discord:install-vencord', async () => {
       const buf = fs.readFileSync(localZip);
       if (buf && buf.length >= 50000) {
         try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: localZip })); } catch {}
-        _removeExtBySlugPrefix('vencord');
-        const r = await _installExtFromZipBuffer(buf, 'vencord');
+        const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
         if (r.ok) return { ...r, source: 'local:' + localZip };
       }
     } catch { /* fall back to official */ }
@@ -2542,8 +2896,7 @@ ipcMain.handle('discord:install-vencord', async () => {
   try {
     const buf = await _downloadBuffer(URL_VENCORD);
     if (!buf || buf.length < 50000) return { ok: false, error: 'download too small / failed' };
-    _removeExtBySlugPrefix('vencord');
-    return await _installExtFromZipBuffer(buf, 'vencord');
+    return await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
   } catch (e) {
     return { ok: false, error: (e && e.message) || 'install failed' };
   }
@@ -2599,8 +2952,7 @@ ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
     if (!buf || buf.length < 50000) return { ok: false, error: 'build zip too small / not a real build' };
     try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
     _vlog(`install-local: before=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
-    _removeExtBySlugPrefix('vencord');
-    const r = await _installExtFromZipBuffer(buf, 'vencord');
+    const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
     _dedupeVencordFolders();
     _vlog(`install-local: result ok=${r.ok} ${r.ok ? 'v' + r.version : 'err=' + r.error} after=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
     return r.ok ? { ...r, source: zipPath } : r;
@@ -2652,6 +3004,10 @@ ipcMain.handle('extensions:set-enabled', async (_e, folderName, enabled) => {
     if (enabled) {
       disabled.delete(folderName);
       extHelpers.writeDisabled(extensionsDir, disabled);
+      // Safe mode loads no extensions; switching one back on loaded it anyway,
+      // perhaps the very one that stopped Vex starting (found 2026-09-29).
+      // The choice is saved and takes effect on a normal start.
+      if (_boot.safeMode) return { ok: true, enabled: true, afterRestart: true };
       const { extension, errors } = await _loadExtensionEverywhere(extPath);
       if (!extension) {
         const error = errors[0] || 'the extension did not load';
@@ -2672,9 +3028,171 @@ ipcMain.handle('extensions:set-enabled', async (_e, folderName, enabled) => {
 
 // Host an extension's toolbar popup. Electron has no built-in action UI, so the
 // popup is rendered in a frameless window on the SAME session the extension is
-// loaded into (persist:main) and sized to its content the way Chrome does —
-// a fixed window clips every popup that isn't exactly the size we guessed.
+// loaded into (persist:main, or the container of the tab under it) and sized
+// to its content the way Chrome does — a fixed window clips every popup that
+// isn't exactly the size we guessed.
 let _extPopupWindow = null;
+let _extPopupOver = null; // { extId, session, popup: webContents id, tab: webContents id | null }
+// Asked by the open popup's own extension (the stand-ins wrap chrome.tabs.query
+// in its pages and its service worker); any other extension gets nothing.
+function _popupTabFor(senderUrl, ses) {
+  const over = _extPopupOver;
+  if (!over || !_extPopupWindow || _extPopupWindow.isDestroyed()) return null;
+  if (!String(senderUrl || '').startsWith(`chrome-extension://${over.extId}/`)) return null;
+  if (ses !== over.session) return null;
+  return { popup: over.popup, tab: over.tab };
+}
+ipcMain.handle('extensions:popup-tab', (event) => _popupTabFor(event.senderFrame?.url, event.sender.session));
+
+// A Vex tab asked for by an extension: tabs.create, runtime.openOptionsPage, or
+// a link in its popup. Electron has no tabs.create and its openOptionsPage
+// fails, so a popup's "Manage", "Options" and "Report a bug" did nothing
+// (found 2026-09-29). Only web pages and the extension's own pages open; the
+// tab opens in the extension's session (a container stays a container).
+//
+// The tab is made by the interface, and tabs.create answered undefined: an
+// extension that keeps the new tab's id to update or close it later had
+// nothing (found 2026-09-29). The interface now says which tab it made — its
+// page's webContents id, the id Electron's own tabs.get/query/update use — and
+// the answer is that tab. No answer in 10 s is an error, not a hang.
+const _extTabRequests = new Map(); // request id -> { resolve, reject, timer }
+let _extTabRequestSeq = 0;
+ipcMain.on('tab:created-for-extension', (event, reply) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+    console.warn('[Extensions] a tab answer came from a window that was not asked');
+    return;
+  }
+  const pending = _extTabRequests.get(reply.id);
+  if (!pending) return; // already timed out
+  _extTabRequests.delete(reply.id);
+  clearTimeout(pending.timer);
+  if (reply.ok) pending.resolve({ id: reply.tabId, url: reply.url, active: !!reply.active });
+  else pending.reject(new Error(reply.error || 'Vex did not open the tab'));
+});
+function _openTabForExtension(senderUrl, ses, request) {
+  const sender = /^chrome-extension:\/\/([a-p]{32})\//.exec(String(senderUrl || ''));
+  if (!sender) throw new Error('Only an extension page can open a tab this way');
+  let url;
+  try { url = new URL(String((request && request.url) || '')); }
+  catch { throw new Error('That is not a web address'); }
+  const ownPage = url.protocol === 'chrome-extension:' && url.host === sender[1];
+  if (!ownPage && url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(`Vex opens only web pages and the extension's own pages from an extension, not ${url.protocol}`);
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('There is no Vex window to open the tab in');
+  const partition = _partitionNameOf(ses);
+  const requestId = 'ext-tab-' + (++_extTabRequestSeq);
+  const created = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      _extTabRequests.delete(requestId);
+      reject(new Error('Vex did not say which tab it opened'));
+    }, 10000);
+    _extTabRequests.set(requestId, { resolve, reject, timer });
+  });
+  mainWindow.webContents.send('tab:create-from-external', {
+    url: url.href,
+    background: !!(request && request.active === false),
+    partition: partition && partition !== 'default' && partition !== 'persist:main' ? partition : undefined,
+    requestId,
+  });
+  // The new tab takes the focus, which in Chrome closes the extension's popup;
+  // here the popup stayed open over the tab it had just opened.
+  const popup = _extPopupWindow;
+  if (!(request && request.active === false) && popup && !popup.isDestroyed() && _extPopupOver && _extPopupOver.extId === sender[1]) popup.close();
+  return created;
+}
+ipcMain.handle('extensions:open-tab', (event, request) => _openTabForExtension(event.senderFrame?.url, event.sender.session, request));
+
+// An extension's tabs.remove. Electron has none, so an extension that closed
+// a tab it had opened threw there (found 2026-09-30). The id is the tab's page
+// (its webContents id, as tabs.create answers). Only a Vex tab in the
+// extension's own session closes; anything else — Vex's own pages, a peek, a
+// private window's tab — is "No tab with id", as Chrome says of an id it does
+// not know. Every id is checked before any tab closes, as in Chrome.
+async function _closeTabsForExtension(senderUrl, ses, request) {
+  if (!/^chrome-extension:\/\/[a-p]{32}\//.test(String(senderUrl || ''))) throw new Error('Only an extension page can close a tab this way');
+  const ids = request && request.ids;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 500 || !ids.every(Number.isSafeInteger)) throw new Error('tabs.remove takes a tab id or a list of them');
+  const byWindow = new Map();
+  for (const id of ids) {
+    const page = id > 0 ? webContents.fromId(id) : null;
+    const host = page && !page.isDestroyed() && page.getType() === 'webview' && page.session === ses ? secureSessions.owner(page) : null;
+    if (!host || !host.win || host.win.isDestroyed()) throw new Error(`No tab with id: ${id}.`);
+    if (!byWindow.has(host.win)) byWindow.set(host.win, []);
+    byWindow.get(host.win).push(id);
+  }
+  for (const [win, own] of byWindow) {
+    const missing = await win.webContents.executeJavaScript(`TabManager.tabsByPageId(${JSON.stringify(own)}).missing`);
+    if (missing != null) throw new Error(`No tab with id: ${missing}.`);
+  }
+  for (const [win, own] of byWindow) await win.webContents.executeJavaScript(`TabManager.closeTabsByPageId(${JSON.stringify(own)})`);
+}
+ipcMain.handle('extensions:close-tab', (event, request) => _closeTabsForExtension(event.senderFrame?.url, event.sender.session, request));
+
+// An extension's tabs.query and tabs.get: which page is the tab in front.
+// Electron calls a page active when it has the focus, and cannot know which
+// Vex tab is in front: with Vex's own bar focused no tab was active, or every
+// one was (found 2026-09-30). Each Vex window's interface says which of its
+// tabs is in front; only pages in the extension's own session are named.
+// `current` is the one in front of the Vex window used last (a toolbar popup
+// is not one, so while it is open that is the window it was opened over).
+let _lastFocusedHostWin = null;
+app.on('browser-window-focus', (_event, win) => { if (secureSessions.hosts.has(win.webContents.id)) _lastFocusedHostWin = win; });
+async function _activeTabsFor(senderUrl, ses) {
+  if (!/^chrome-extension:\/\/[a-p]{32}\//.test(String(senderUrl || ''))) throw new Error('Only an extension page can ask which tab is in front');
+  const ids = [];
+  let current = null;
+  // No Vex window focused yet (or that one closed): the main window.
+  const used = _lastFocusedHostWin && !_lastFocusedHostWin.isDestroyed() ? _lastFocusedHostWin : mainWindow;
+  for (const host of secureSessions.hosts.values()) {
+    const win = host.win;
+    if (!win || win.isDestroyed()) continue;
+    // A tab whose page is not made yet (not attached) has no page id.
+    const id = await win.webContents.executeJavaScript('(() => { const wv = WebviewManager.webviews.get(TabManager.activeTabId); try { return wv ? wv.getWebContentsId() : null; } catch { return null; } })()');
+    const page = Number.isInteger(id) ? webContents.fromId(id) : null;
+    if (!page || page.isDestroyed() || page.session !== ses) continue;
+    ids.push(id);
+    if (win === used) current = id;
+  }
+  return { ids, current };
+}
+ipcMain.handle('extensions:active-tabs', (event) => _activeTabsFor(event.senderFrame?.url, event.sender.session));
+
+// An MV3 extension's service worker sends its IPC to its own ServiceWorkerMain,
+// not to ipcMain (so the IPC policy never sees it): Stylus's worker builds its
+// popup's data and asked for the active tab, heard [] and the popup drew
+// nothing (found 2026-09-29). Each extension worker gets the same answers
+// as its pages, checked against the worker's own script URL.
+const _wiredWorkerSessions = new WeakSet();
+const _wiredWorkers = new WeakSet();
+function _wireExtensionWorkerIpc(ses) {
+  if (_wiredWorkerSessions.has(ses) || !ses.serviceWorkers || typeof ses.serviceWorkers.getWorkerFromVersionID !== 'function') return;
+  _wiredWorkerSessions.add(ses);
+  const wire = (versionId) => {
+    const worker = ses.serviceWorkers.getWorkerFromVersionID(versionId);
+    if (!worker || _wiredWorkers.has(worker) || !String(worker.scriptURL || '').startsWith('chrome-extension://')) return;
+    _wiredWorkers.add(worker);
+    worker.ipc.handle('extensions:popup-tab', () => _popupTabFor(worker.scriptURL, ses));
+    worker.ipc.handle('extensions:open-tab', (_event, request) => _openTabForExtension(worker.scriptURL, ses, request));
+    worker.ipc.handle('extensions:close-tab', (_event, request) => _closeTabsForExtension(worker.scriptURL, ses, request));
+    worker.ipc.handle('extensions:active-tabs', () => _activeTabsFor(worker.scriptURL, ses));
+  };
+  ses.serviceWorkers.on('running-status-changed', ({ versionId, runningStatus }) => {
+    if (runningStatus === 'starting' || runningStatus === 'running') wire(versionId);
+  });
+  for (const versionId of Object.keys(ses.serviceWorkers.getAllRunning())) wire(Number(versionId));
+}
+
+// Windows keeps a border on a frameless, non-resizable window that Electron
+// does not count, and ignores a size that would make it smaller: popups came
+// up 16x8 px short, with scroll bars, and never shrank again (found
+// 2026-09-29). Setting the CONTENT size while the window is briefly resizable
+// lands exactly on the page's size, both ways. It is moved first: Electron
+// still believes the smaller size, and a move after the resize put it back.
+function _setPopupContentSize(win, w, h, x, y) {
+  win.setPosition(x, y);
+  win.setResizable(true);
+  win.setContentSize(w, h);
+  win.setResizable(false);
+}
 ipcMain.handle('extensions:open-popup', async (_e, request) => {
   try {
     const folderName = request && request.folder;
@@ -2690,8 +3208,18 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     const pages = extHelpers.pickPages(entry.manifest);
     if (!pages.popup) return { ok: false, error: 'This extension has no toolbar popup' };
 
-    const ses = secureSessions.fromPartition('persist:main');
-    const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(extPath));
+    // Over a container tab the popup belongs in the container's session: from
+    // persist:main the extension cannot see that tab, and Dark Reader said
+    // "This page is protected by browser" about it (found 2026-09-29).
+    let tabUnder = null;
+    if (Number.isInteger(request.tab)) {
+      const wc = webContents.fromId(request.tab);
+      if (wc && !wc.isDestroyed() && wc.getType() === 'webview') tabUnder = wc;
+    }
+    const isThis = x => path.resolve(x.path) === path.resolve(extPath);
+    let ses = secureSessions.fromPartition('persist:main');
+    if (tabUnder && tabUnder.session !== ses && tabUnder.session.getAllExtensions().some(isThis)) ses = tabUnder.session;
+    const live = ses.getAllExtensions().find(isThis);
     if (!live) return { ok: false, error: 'That extension is not loaded — enable it first' };
 
     if (_extPopupWindow && !_extPopupWindow.isDestroyed()) _extPopupWindow.destroy();
@@ -2699,26 +3227,92 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       width: 360, height: 480, show: false, frame: false, resizable: false,
       minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true,
       parent: (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined,
-      webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false }
+      webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false, enablePreferredSizeMode: true }
     });
     _extPopupWindow = win;
+    // A popup's content can change size after it loads: Dark Reader's is a
+    // "Loading, please wait" line until its data arrives, then 580px tall, and
+    // it showed in a 500px window with scroll bars (2026-09-28). Chrome resizes
+    // the popup to follow; so does this, keeping it centred under the button.
+    // The page's scroll size never comes out below the window, so a popup could
+    // only grow: Stylus's 246x117 page sat in a 328x464 box (found 2026-09-29).
+    // The event's preferred size is the content's own size, and is the target;
+    // it can come out smaller than a page that lays out wider once it has room
+    // (Dark Reader's clipped), so the page is then measured and the window
+    // grows to whatever still overflows.
+    let preferred = null;
+    const measurePopup = (w, h) => win.webContents.executeJavaScript(
+      `new Promise(done => { const t0 = Date.now(); (function check() {
+        if ((innerWidth === ${w} && innerHeight === ${h}) || Date.now() - t0 > 300) done({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight), iw: innerWidth, ih: innerHeight });
+        else setTimeout(check, 16);
+      })(); })`
+    );
+    const fitPopup = async () => {
+      if (win.isDestroyed()) return;
+      let [cw, ch] = win.getContentSize();
+      if (preferred) {
+        const [w, h] = extHelpers.clampPopupSize(preferred.width, preferred.height);
+        if (w !== cw || h !== ch) {
+          const [x, y] = win.getPosition();
+          _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((cw - w) / 2)), y);
+          [cw, ch] = [w, h];
+        }
+      }
+      const size = await measurePopup(cw, ch)
+        .catch(err => { if (!win.isDestroyed()) console.error('[Extensions] popup re-measure failed:', err.message); return null; });
+      if (!size || win.isDestroyed() || ![size.w, size.h, size.iw, size.ih].every(Number.isFinite)) return;
+      if (size.w <= size.iw && size.h <= size.ih) return;
+      const [w, h] = extHelpers.clampPopupSize(Math.max(size.w, size.iw), Math.max(size.h, size.ih));
+      if (w === size.iw && h === size.ih) return;
+      const [x, y] = win.getPosition();
+      _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((size.iw - w) / 2)), y);
+    };
+    win.webContents.on('preferred-size-changed', (_event, size) => {
+      preferred = size;
+      if (win.isVisible()) fitPopup().catch(err => console.error('[Extensions] popup fit failed:', err.message));
+    });
+    // Electron calls the focused page the active tab, and the popup takes the
+    // focus: Dark Reader's popup said "This page is protected by browser"
+    // about itself (2026-09-28). Remember the tab it was opened over.
+    const under = tabUnder && tabUnder.session === ses ? tabUnder.id : null;
+    _extPopupOver = { extId: live.id, session: ses, popup: win.webContents.id, tab: under };
     win.on('blur', () => { if (!win.isDestroyed()) win.close(); });
-    win.on('closed', () => { if (_extPopupWindow === win) _extPopupWindow = null; });
+    win.on('closed', () => { if (_extPopupWindow === win) { _extPopupWindow = null; _extPopupOver = null; } });
+    // A link in the popup (target=_blank, window.open) closed the popup and
+    // opened nothing: RoSuite's GitHub and Report Bug links, Return YouTube
+    // Dislike's (found 2026-09-29). It opens as a Vex tab, the way Chrome does.
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      const notOpened = (err) => {
+        console.error('[Extensions] popup link not opened:', err.message);
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', `Not opened: ${err.message}`);
+      };
+      try { _openTabForExtension(`chrome-extension://${live.id}/`, ses, { url }).catch(notOpened); }
+      catch (err) { notOpened(err); }
+      if (!win.isDestroyed()) win.close();
+      return { action: 'deny' };
+    });
+    // Escape closes a popup in Chrome; here it did nothing (found 2026-09-29).
+    win.webContents.on('before-input-event', (event, input) => {
+      if (input.type === 'keyDown' && input.key === 'Escape') { event.preventDefault(); if (!win.isDestroyed()) win.close(); }
+    });
 
     await win.loadURL(`chrome-extension://${live.id}/${String(pages.popup).replace(/^\/+/, '')}`);
-    const size = await win.webContents.executeJavaScript(
+    // The content's preferred size once it has laid out; a page that has not
+    // reported one yet is measured, and follows when it does.
+    let first = preferred ? { w: preferred.width, h: preferred.height } : await win.webContents.executeJavaScript(
       '({ w: Math.ceil(document.documentElement.scrollWidth), h: Math.ceil(document.documentElement.scrollHeight) })'
     ).catch(err => { console.error('[Extensions] popup measure failed:', err.message); return null; });
-    if (size && Number.isFinite(size.w) && Number.isFinite(size.h)) {
-      // Chrome caps an action popup at 800x600; below ~160x100 it's unusable.
-      win.setContentSize(Math.min(800, Math.max(160, size.w)), Math.min(600, Math.max(100, size.h)));
-    }
-    if (Number.isInteger(request.x) && Number.isInteger(request.y)) {
-      const [width] = win.getSize();
-      win.setPosition(Math.max(0, request.x - Math.round(width / 2)), Math.max(0, request.y));
-    }
+    if (first && !(Number.isFinite(first.w) && Number.isFinite(first.h))) first = null;
+    const [w, h] = first ? extHelpers.clampPopupSize(first.w, first.h) : win.getContentSize();
+    const [x, y] = Number.isInteger(request.x) && Number.isInteger(request.y)
+      ? [Math.max(0, request.x - Math.round(w / 2)), Math.max(0, request.y)]
+      : win.getPosition();
+    _setPopupContentSize(win, w, h, x, y);
     win.show();
     win.focus();
+    // Not every growth raises preferred-size-changed: Return YouTube Dislike's
+    // popup stayed 296px wide against its 339px page (found 2026-09-29).
+    for (const ms of [0, 300, 1000]) setTimeout(() => { fitPopup().catch(err => console.error('[Extensions] popup fit failed:', err.message)); }, ms);
     return { ok: true, id: live.id };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -2765,15 +3359,38 @@ const _claudeGoogleClick = new Map();
 // The renderer's webview 'new-window' DOM event is legacy and unreliable in
 // Electron 30+. setWindowOpenHandler in main is the supported path.
 app.on('web-contents-created', (_event, contents) => {
+  // Tor tabs: stop WebRTC from leaking the real IP around the SOCKS proxy.
+  // disable_non_proxied_udp forces any WebRTC traffic through the proxy (Tor
+  // can't carry UDP, so it's effectively disabled — exactly what we want).
+  // Before the webview check: a popup window a Tor page opens (window.open
+  // with features) has the Tor session too, and was left unlocked
+  // (found 2026-09-29). A session routed through a proxy gets the same lock
+  // (found 2026-09-30).
+  try { if (contents.session && (contents.session.__vexTor || contents.session.__vexRouted)) contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); } catch {}
+  // A page opening in a Tor session keeps Tor running; any page closing may
+  // be the last use, which starts the idle countdown (found 2026-09-30). Every
+  // page is watched: a burner or container can be routed through Tor after
+  // its tab is already open.
+  if (contents.session && contents.session.__vexTor) _torIdleCheck();
+  contents.once('destroyed', () => { if (_torLauncher.isRunning()) setImmediate(_torIdleCheck); });
+  // A page in a Tor route whose Tor has stopped starts it again (a tab opened
+  // in it starts with a navigation too); a page that cannot load because Tor
+  // is down says so in its tab instead of staying blank (found 2026-09-30).
+  contents.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
+    const ses = contents.session;
+    if (isMainFrame && !isInPlace && ses && ses.__vexTorDown && ses.__vexTorRevive && /^https?:/i.test(url)) _reviveTor(contents);
+  });
+  contents.on('did-fail-load', (_e, errorCode, _desc, _url, isMainFrame) => {
+    const ses = contents.session;
+    if (!isMainFrame || errorCode === -3 || !ses || !ses.__vexTorDown) return;
+    if (ses.__vexTorRevive && _torRevival.running) { _torRevival.waiting.add(contents); _torPageDown(contents, 'starting'); }
+    else _torPageDown(contents, ses.__vexTorRevive ? 'failed' : 'stopped');
+  });
+
   // Only intercept for webviews hosting tabs — never for the main window or
   // for extension background pages (those need their own window.open semantics).
   const type = contents.getType();
   if (type !== 'webview') return;
-
-  // Tor tabs: stop WebRTC from leaking the real IP around the SOCKS proxy.
-  // disable_non_proxied_udp forces any WebRTC traffic through the proxy (Tor
-  // can't carry UDP, so it's effectively disabled — exactly what we want).
-  try { if (contents.session && contents.session.__vexTor) contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); } catch {}
 
   // Media grabber: hook this guest's session (once) to record media URLs, and
   // reset the tab's list on a real navigation / when the tab goes away.
@@ -2803,7 +3420,13 @@ app.on('web-contents-created', (_event, contents) => {
     s.delete(bare);
     _httpsOnlyFailed.add(bare);
     const httpUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
-    try { contents.loadURL(httpUrl); } catch {}
+    // loadURL rejects when the load fails, and that went unhandled (found
+    // 2026-09-30). ERR_ABORTED (-3) is the page going somewhere else first;
+    // any other failure is shown in the tab by Chromium, and logged here.
+    contents.loadURL(httpUrl).catch(err => {
+      if (err && (err.errno === -3 || /ERR_ABORTED/.test(err.message))) return;
+      console.warn('[HTTPS-Only] could not load ' + httpUrl + ' over http:', err && err.message);
+    });
     try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', bare + ' has no HTTPS — loaded over an unencrypted connection'); } catch {}
   });
   // A clean main-frame load means there's no pending upgrade left to fall back
@@ -3199,17 +3822,24 @@ app.on('web-contents-created', (_event, contents) => {
     }
     console.log(`[new-window] ${disposition} -> ${url}`);
     try {
-      const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+      // The window the page is in: a link from a private window's tab went to
+      // the first window found, which could be the main one (found 2026-09-29).
+      const host = secureSessions.owner(contents);
+      const win = host && !host.win.isDestroyed() ? host.win : BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
       if (win && url) {
+        const openerPartition = secureSessions.partitionOf(contents);
         // Shift+click (and window.open popups that survived the filters above)
         // arrive as 'new-window' — open those in the Peek overlay instead of a
         // full tab. Plain target=_blank / middle-click stay tabs.
         if (disposition === 'new-window') {
-          win.webContents.send('peek:open', { url, partition: secureSessions.partitionOf(contents) });
+          win.webContents.send('peek:open', { url, partition: openerPartition });
         } else {
           win.webContents.send('tab:create-from-external', {
             url,
-            background: disposition === 'background-tab' || disposition === 'save-to-disk'
+            background: disposition === 'background-tab' || disposition === 'save-to-disk',
+            // A Tor / burner / private / container tab's link stays in that
+            // session; it opened in persist:main before (found 2026-09-29).
+            partition: require('./main/routing').keepsOpenerSession(openerPartition) ? openerPartition : undefined,
           });
         }
       }
@@ -3346,7 +3976,20 @@ function _readPersistString(key, fallback) {
   try { return JSON.parse(raw); }
   catch { return typeof raw === 'string' ? raw : fallback; }
 }
-ipcMain.handle('geolocation:get', () => {
+// Tor pages never learn where you are. Vex's own geolocation stand-in asks
+// here, not through the session's permission handler, so the deny-all given
+// to Tor sessions never saw it: a Tor tab showed the prompt and, when
+// allowed, got the saved location (found 2026-09-30).
+function _locationRefused(contents) {
+  const ses = contents && contents.session;
+  if (ses && ses.__vexTor) return true;
+  let partition;
+  try { partition = secureSessions.partitionOf(contents); } catch (err) { console.error('[Geolocation] could not read the page session:', err.message); return true; }
+  return typeof partition === 'string' && (partition.startsWith('tor-') || partition.startsWith('persist:route-tor'));
+}
+
+ipcMain.handle('geolocation:get', (_e) => {
+  if (_locationRefused(_e && _e.sender)) return { mode: 'off' };
   const mode = _readPersistString('vex.locationMode', 'manual');
   if (mode === 'off') return { mode: 'off' };
   if (mode === 'manual') {
@@ -3375,6 +4018,7 @@ ipcMain.handle('geolocation:get', () => {
 // setPermissionRequestHandler because it has replaced navigator.geolocation,
 // so it asks us here. We reuse the existing permission prompt + decision store.
 ipcMain.handle('geolocation:check-permission', async (_e) => {
+  if (_locationRefused(_e.sender)) return 'deny';
   // A page can call the public bridge with any argument. Only Electron's
   // sending frame identifies the origin whose permission we may grant.
   let origin;
@@ -3384,10 +4028,14 @@ ipcMain.handle('geolocation:check-permission', async (_e) => {
     origin = url.origin;
   } catch { return 'deny'; }
 
-  const decisions = decisionsFor(_e.sender);
-  const key = `${origin}::geolocation`;
-  if (decisions[key] === 'allow') return 'allow';
-  if (decisions[key] === 'deny') return 'deny';
+  // The same reading every other permission gets (main/permissions.js):
+  // "Allow this visit" lives in sessionDecisions, and "Allow for a day" ends
+  // at decisions.__until__. Reading decisions[key] alone ignored both, so a
+  // site allowed for this visit asked again every time it wanted the
+  // location, and one allowed for a day stayed allowed for good.
+  const saved = savedDecision(decisionsFor(_e.sender), origin, ['geolocation'], sessionDecisionsFor(_e.sender));
+  if (saved === 'allow') return 'allow';
+  if (saved === 'deny') return 'deny';
 
   return await new Promise((resolve) => {
     const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -3525,6 +4173,7 @@ function createWindow() {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
     _addMediaCorsHeaders(details, responseHeaders);
+    _scriptsOffCsp(details, responseHeaders);
     callback({ responseHeaders });
   });
 
@@ -3601,8 +4250,17 @@ function createWindow() {
         + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + port + "';return 'DIRECT';}";
       cfg = { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
     }
-    for (const p of _BROWSING_SESSIONS) { try { secureSessions.fromPartition(p).setProxy(cfg); } catch {} }
-    try { session.defaultSession.setProxy(cfg); } catch {}
+    // What a covered session set back to direct gets (applyRouting).
+    _discordBrowsingProxy = cfg;
+    // A session with a saved route (a container through Tor or a proxy, or
+    // all of Vex) keeps it. This ran at every start, after the routes were
+    // restored, and put each of them back to direct (found 2026-09-30).
+    let saved;
+    try { saved = readRouting(); }
+    catch (err) { console.error('[DPI-bypass] the saved routes could not be read, so no session was changed:', err); return; }
+    const routed = p => !!(saved[_ALL_ROUTE_KEY] || saved[p || 'default']);
+    for (const p of _BROWSING_SESSIONS) { if (routed(p)) continue; try { secureSessions.fromPartition(p).setProxy(cfg); } catch {} }
+    if (!routed(null)) { try { session.defaultSession.setProxy(cfg); } catch {} }
   }
   // Voice (RTC) must NOT ride the desync proxy. ByeDPI is TCP-only, so the media
   // stream (UDP) never goes through it anyway - but its TLS-record splitting
@@ -3831,13 +4489,18 @@ function createWindow() {
   wireAdblockerOnSession(session.defaultSession, 'default');
   wireAdblockerOnSession(secureSessions.fromPartition('persist:main'), 'persist:main');
   // Media CORS for Master Volume boost on the tabs session (no other
-  // onHeadersReceived is registered on persist:main).
+  // onHeadersReceived is registered on persist:main), and JavaScript held off
+  // for a site that has it switched off — in the container tabs too, which
+  // had no handler of their own (found 2026-09-29).
   try {
-    secureSessions.fromPartition('persist:main').webRequest.onHeadersReceived((details, callback) => {
-      const responseHeaders = { ...details.responseHeaders };
-      _addMediaCorsHeaders(details, responseHeaders);
-      callback({ responseHeaders });
-    });
+    for (const p of BROWSING_SESSIONS) {
+      secureSessions.fromPartition(p).webRequest.onHeadersReceived((details, callback) => {
+        const responseHeaders = { ...details.responseHeaders };
+        _addMediaCorsHeaders(details, responseHeaders);
+        _scriptsOffCsp(details, responseHeaders);
+        callback({ responseHeaders });
+      });
+    }
   } catch {}
   partitions.forEach(p => wireAdblockerOnSession(secureSessions.fromPartition(p), p));
 
@@ -3936,7 +4599,43 @@ function createWindow() {
     isFullscreenTracked = false;
     console.log('[Vex F11] leave-full-screen event fired. tracked state:', isFullscreenTracked);
     mainWindow.webContents.send('fullscreen-changed', false);
+    restorePlacementAfterFullscreen();
   });
+
+  // Where the window was before fullscreen. On this transparent frameless
+  // window Electron does not reliably put it back: after F11 or a video going
+  // fullscreen, the window stayed screen-sized (1920x1080) but no longer
+  // maximized, spilling past the right edge and under the taskbar
+  // (2026-09-28). So the placement is remembered here, and restored.
+  let placement = null;
+  const rememberPlacement = () => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed() || isFullscreenTracked || mainWindow.isMinimized()) return;
+      const b = mainWindow.getBounds();
+      const display = require('electron').screen.getDisplayMatching(b);
+      // Mid-way into fullscreen the window is already screen-sized; that is
+      // not a place to come back to.
+      if (b.width >= display.bounds.width && b.height >= display.bounds.height) return;
+      placement = { maximized: mainWindow.isMaximized(), bounds: mainWindow.isMaximized() ? (placement && placement.bounds) || b : b };
+    } catch (err) { console.warn('[Vex window] could not note its place:', err.message); }
+  };
+  function restorePlacementAfterFullscreen() {
+    setTimeout(() => {
+      try {
+        if (!mainWindow || mainWindow.isDestroyed() || isFullscreenTracked) return;
+        if (placement && placement.maximized) { if (!mainWindow.isMaximized()) mainWindow.maximize(); return; }
+        const b = (placement && placement.bounds) || mainWindow.getBounds();
+        const wa = require('electron').screen.getDisplayMatching(b).workArea;
+        const width = Math.min(b.width, wa.width), height = Math.min(b.height, wa.height);
+        const x = Math.min(Math.max(b.x, wa.x), wa.x + wa.width - width);
+        const y = Math.min(Math.max(b.y, wa.y), wa.y + wa.height - height);
+        mainWindow.setBounds({ x, y, width, height });
+      } catch (err) { console.warn('[Vex window] could not put it back after fullscreen:', err.message); }
+    }, 60);
+  }
+  for (const ev of ['move', 'resize', 'maximize', 'unmaximize']) mainWindow.on(ev, rememberPlacement);
+  rememberPlacement();
+  mainWindow.once('ready-to-show', rememberPlacement);
 
   // Signal renderer to save session before quit
   mainWindow.on('closed', () => {
@@ -3946,12 +4645,6 @@ function createWindow() {
     // app open past window-all-closed.
     closePipWindow();
   });
-}
-
-let disposeUpdater = null;
-function setupAutoUpdater() {
-  disposeUpdater?.();
-  disposeUpdater = require('./main/updates').bindUpdater(autoUpdater, () => mainWindow);
 }
 
 // v1.9.0 one-time cleanup: remove Phase 17A Memory Recorder artifacts
@@ -4042,7 +4735,9 @@ app.whenReady().then(async () => {
         // Default theme is Oxford Editorial. Any unknown/legacy value (e.g. an
         // old "blackops") falls back to oxford so the start page never renders
         // themeless.
-        const KNOWN = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin'];
+        // Any theme the page itself has colours for. A fixed list of the first
+        // eight left every later theme on Oxford here (found 2026-09-29).
+        const KNOWN = { includes: (t) => /^[a-z]+(-[a-z]+)?$/.test(t) && html.includes('[data-theme="' + t + '"]') };
         let theme = 'oxford';
         try {
           const themeFile = getStorageFile('theme');
@@ -4104,9 +4799,17 @@ app.whenReady().then(async () => {
   // blocks window creation (playback happens later); see initWidevine() above.
   initWidevine();
 
+  // Before any route is restored: a site route's session made by the restore
+  // is given its refusing proxy first (see _wireBrowsingSession).
+  secureSessions.onSessionCreated(_wireBrowsingSession);
   await applyStoredRoutings();
   createWindow();
-  setupAutoUpdater();
+  // Installers left in userData/updates by the last update (or a download cut
+  // short). Late, so the installer that just started this version has exited.
+  setTimeout(() => {
+    if (_updater.downloading) return;
+    try { _updater.cleanup(); } catch (err) { console.warn('[Updates] could not tidy the updates folder:', err.message); }
+  }, 60000).unref();
   startReminders();
 
   // === Boot smoke test (gated by VEX_SMOKE=1) ===
@@ -4183,83 +4886,97 @@ app.whenReady().then(async () => {
   }
 
   // Register global shortcuts
+  mainWindow.on('blur', () => _setShortcutCapturing(false));
   mainWindow.webContents.on('before-input-event', (event, input) => {
+    // The shortcut editor is recording: every key goes to it, F11 and F12 too.
+    if (_shortcutCapturing) return;
     if (input && input.key === 'F11') {
       console.log('[Vex F11] before-input-event fired on MAIN window webContents. type:', input.type, 'defaultPrevented(before):', event.defaultPrevented);
     }
-    if (input.control && input.key === 'k') {
+    // Ctrl alone, on the key going down. Nothing checked that Alt was up, so
+    // Ctrl+Alt+W (Watch page) closed the tab, Ctrl+Alt+T opened one and
+    // Ctrl+Alt+M muted it (found 2026-09-29).
+    const down = input.type === 'keyDown';
+    const ctrlOnly = down && input.control && !input.alt;
+    if (ctrlOnly && input.key === 'k') {
       mainWindow.webContents.send('toggle-command-bar');
       event.preventDefault();
     }
-    if (input.control && input.key === 'f') {
+    if (ctrlOnly && input.key === 'f') {
       mainWindow.webContents.send('find-in-page');
       event.preventDefault();
     }
-    if (input.control && input.key === 't') {
+    if (ctrlOnly && input.key === 't') {
       mainWindow.webContents.send('new-tab');
       event.preventDefault();
     }
-    if (input.control && input.key === 'w') {
+    if (ctrlOnly && input.key === 'w') {
       mainWindow.webContents.send('close-tab');
       event.preventDefault();
     }
-    if (input.control && input.key === 'r') {
+    if (ctrlOnly && input.key === 'r') {
       mainWindow.webContents.send('reload-tab');
       event.preventDefault();
     }
-    if (input.control && (input.key === '=' || input.key === '+')) {
+    if (ctrlOnly && (input.key === '=' || input.key === '+')) {
       mainWindow.webContents.send('zoom-in');
       event.preventDefault();
     }
-    if (input.control && input.key === '-') {
+    if (ctrlOnly && input.key === '-') {
       mainWindow.webContents.send('zoom-out');
       event.preventDefault();
     }
-    if (input.control && input.key === '0') {
+    if (ctrlOnly && input.key === '0') {
       mainWindow.webContents.send('zoom-reset');
       event.preventDefault();
     }
-    if (input.alt && input.key === 'ArrowLeft') {
+    // Ctrl+1…9: go to that tab (Ctrl+9 the last). Only a page passed them on,
+    // so with Vex's own interface focused they did nothing (found 2026-09-29).
+    if (ctrlOnly && !input.shift && /^[1-9]$/.test(input.key)) {
+      mainWindow.webContents.send('jump-to-tab', Number(input.key));
+      event.preventDefault();
+    }
+    if (down && input.alt && !input.control && input.key === 'ArrowLeft') {
       mainWindow.webContents.send('navigate-back');
       event.preventDefault();
     }
-    if (input.alt && input.key === 'ArrowRight') {
+    if (down && input.alt && !input.control && input.key === 'ArrowRight') {
       mainWindow.webContents.send('navigate-forward');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'S') {
+    if (ctrlOnly && input.shift && input.key === 'S') {
       mainWindow.webContents.send('toggle-split');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'P') {
+    if (ctrlOnly && input.shift && input.key === 'P') {
       mainWindow.webContents.send('toggle-pip');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'N') {
+    if (ctrlOnly && input.shift && input.key === 'N') {
       mainWindow.webContents.send('toggle-notes');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'O') {
+    if (ctrlOnly && input.shift && input.key === 'O') {
       mainWindow.webContents.send('toggle-sessions');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'T') {
+    if (ctrlOnly && input.shift && input.key === 'T') {
       mainWindow.webContents.send('reopen-last-closed');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'H') {
+    if (ctrlOnly && input.shift && input.key === 'H') {
       // Ctrl+Shift+H — open history panel with AI search auto-selected
       mainWindow.webContents.send('toggle-history-ai');
       event.preventDefault();
-    } else if (input.control && input.key === 'h') {
+    } else if (ctrlOnly && input.key === 'h') {
       mainWindow.webContents.send('toggle-history');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'M') {
+    if (ctrlOnly && input.shift && input.key === 'M') {
       mainWindow.webContents.send('toggle-memory');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'Z') {
+    if (ctrlOnly && input.shift && input.key === 'Z') {
       mainWindow.webContents.send('sleep-current-tab');
       event.preventDefault();
     }
@@ -4267,28 +4984,28 @@ app.whenReady().then(async () => {
     // hijacked the renderer-side hard-reload shortcut. Reading mode is still
     // accessible via Ctrl+Alt+R through the renderer's ShortcutsRegistry; this
     // block intentionally stays out of the way so hard-reload can fire.
-    if (input.control && input.shift && (input.key === 'R' || input.key === 'r')) {
+    if (ctrlOnly && input.shift && (input.key === 'R' || input.key === 'r')) {
       console.log('[Vex] hard reload triggered — main process (Ctrl+Shift+R detected, passing to renderer)');
     }
-    if (input.control && input.alt && input.key === 's') {
+    if (down && input.control && input.alt && input.key === 's') {
       mainWindow.webContents.send('take-screenshot');
       event.preventDefault();
     }
     if (handleFullscreenShortcut(event, input)) return;
     if (handleDevToolsShortcut(event, input)) return;
-    if (input.control && input.key === 'm') {
+    if (ctrlOnly && input.key === 'm') {
       mainWindow.webContents.send('toggle-mute-tab');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'A') {
+    if (ctrlOnly && input.shift && input.key === 'A') {
       mainWindow.webContents.send('toggle-ai-panel');
       event.preventDefault();
     }
-    if (input.control && input.shift && input.key === 'L') {
+    if (ctrlOnly && input.shift && input.key === 'L') {
       mainWindow.webContents.send('toggle-schedules');
       event.preventDefault();
     }
-    if (input.control && !input.shift && !input.alt && input.key === 'b') {
+    if (ctrlOnly && !input.shift && input.key === 'b') {
       mainWindow.webContents.send('toggle-tabs-sidebar');
       event.preventDefault();
     }
@@ -4300,12 +5017,31 @@ app.whenReady().then(async () => {
 
 // IPC handlers
 ipcMain.on('window-minimize', e => secureSessions.owner(e.sender)?.win.minimize());
+// On this transparent frameless window, maximize() makes it fill the work
+// area but neither Electron nor Windows then call it maximized, so the button
+// always maximized again and never restored down (2026-09-28). "Maximized"
+// is therefore judged by whether it fills the work area, and the size it had
+// before is kept to go back to.
 ipcMain.on('window-maximize', e => {
   const win = secureSessions.owner(e.sender)?.win;
-  if (win?.isMaximized()) {
+  if (!win) return;
+  const b = win.getBounds();
+  const wa = require('electron').screen.getDisplayMatching(b).workArea;
+  const near = (a, c) => Math.abs(a - c) <= 2;
+  const fills = near(b.x, wa.x) && near(b.y, wa.y) && near(b.width, wa.width) && near(b.height, wa.height);
+  if (win.isMaximized() || fills) {
     win.unmaximize();
+    const back = win._vexRestoreBounds;
+    const now = win.getBounds();
+    if (near(now.width, wa.width) && near(now.height, wa.height)) {
+      const width = Math.min(back ? back.width : 1400, wa.width - 80), height = Math.min(back ? back.height : 900, wa.height - 80);
+      win.setBounds(back && !(near(back.width, wa.width) && near(back.height, wa.height))
+        ? { x: back.x, y: back.y, width, height }
+        : { x: Math.round(wa.x + (wa.width - width) / 2), y: Math.round(wa.y + (wa.height - height) / 2), width, height });
+    }
   } else {
-    win?.maximize();
+    win._vexRestoreBounds = b;
+    win.maximize();
   }
 });
 ipcMain.on('window-close', e => secureSessions.owner(e.sender)?.win.close());
@@ -4333,7 +5069,11 @@ ipcMain.on('popup-chrome:action', (e, payload) => {
     else if (action === 'open-as-tab') {
       const url = wc.getURL();
       if (url && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('tab:create-from-external', { url, background: false });
+        // The popup has its opener tab's session; a Tor tab's popup opened as
+        // a persist:main tab (found 2026-09-29).
+        const partition = secureSessions.partitionOf(wc);
+        mainWindow.webContents.send('tab:create-from-external', { url, background: false,
+          partition: require('./main/routing').keepsOpenerSession(partition) ? partition : undefined });
       }
       win.close();
     }
@@ -4409,9 +5149,37 @@ ipcMain.handle('browsing:clear-data', async () => {
   for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) { await ses.clearStorageData(); await ses.clearCache(); }
   await dataStore.clear('history', []);
   await dataStore.clear('sync-records', null);
+  // Without the records, the next tile sync has to add this device's tiles
+  // to the account's again, which only happens while this flag is unset
+  // (js/sync-engine.js, checkTileGate).
+  await dataStore.clear('sync-tiles-joined', null);
   recallStore().clear();
   await recallFlush(true);
   await preferences.clearKeys(['vex.history','vex.sessions','vex.archivedTabs','vex.workspaceSnapshots','vex.downloads','vex.autofillLog']);
+  return true;
+});
+// History › Clear History. Saving an empty list left the whole history in
+// history.json.bak and vex-persist.json.bak until the next write, and the
+// closed-tab list still named every page (found 2026-09-29) — clear() and
+// clearKeys() erase the backups too, as browsing:clear-data does.
+ipcMain.handle('browsing:clear-history', async () => {
+  await dataStore.flush(); await preferences.flush();
+  await dataStore.clear('history', []);
+  await preferences.clearKeys(['vex.history', 'vex.recentlyClosed']);
+  // The open-tab list, and the groups and stacks that name tabs, keep their
+  // previous version in a .bak: tabs.json.bak still held a tab closed just
+  // before Clear History (found 2026-09-29). Each backup becomes a copy of
+  // the current file, so a bad write can still be recovered from.
+  for (const key of ['tabs', 'groups', 'stacks']) {
+    await dataStore.enqueue(key, async () => {
+      const file = dataStore.file(key);
+      try { await fs.promises.copyFile(file, file + '.bak'); }
+      catch (err) {
+        if (err.code !== 'ENOENT') throw err;
+        await fs.promises.rm(file + '.bak', { force: true });
+      }
+    });
+  }
   return true;
 });
 ipcMain.handle('open-pip-window', async (event, url, media) => {
@@ -4695,6 +5463,7 @@ ipcMain.handle('identity:create', () => {
     // Header stripping + ad blocker, mirroring the private-window session.
     ses.webRequest.onHeadersReceived((details, callback) => {
       const rh = { ...details.responseHeaders };
+      _scriptsOffCsp(details, rh);
       callback({ responseHeaders: rh });
     });
     ses.webRequest.onBeforeRequest((details, callback) => {
@@ -4732,7 +5501,146 @@ async function detectTorPort() {
   for (const p of [9150, 9050]) { if (await _probeTcp(p)) return p; } // 9150 = Tor Browser, 9050 = tor service
   return null;
 }
+// Cancel in Tor's progress dialog only closed the dialog, and Tor went on
+// starting (found 2026-09-29). It cannot stop a download half-way, but it
+// stops Tor and the tab is not made.
+let _torCancelled = false;
+ipcMain.handle('tor:cancel', () => { _torCancelled = true; _torLauncher.stop(); return { ok: true }; });
+
+// The Tor Vex started itself went on running after the last Tor tab closed,
+// with nothing on screen to say so (found 2026-09-30). It now stops once
+// nothing uses it (routing.torInUse), after a grace so that closing one Tor
+// tab and opening the next does not restart Tor; any new Tor page cancels the
+// countdown. Tor Browser or a tor service Vex only borrowed is never stopped.
+const TOR_IDLE_GRACE_MS = 30000;
+let _torIdleTimer = null;
+function _torStillNeeded() {
+  try { return require('./main/routing').torInUse(webContents.getAllWebContents(), readRouting()); }
+  catch (err) {
+    // The saved routes could not be read: keep Tor rather than cut off a
+    // Tor route, and say why.
+    console.error('[tor] could not tell whether Tor is still in use:', err);
+    return true;
+  }
+}
+function _torIdleCheck() {
+  if (!_torLauncher.isRunning() || _torStillNeeded()) {
+    if (_torIdleTimer) { clearTimeout(_torIdleTimer); _torIdleTimer = null; }
+    return;
+  }
+  if (_torIdleTimer) return;
+  _torIdleTimer = setTimeout(() => {
+    _torIdleTimer = null;
+    if (_torLauncher.isRunning() && !_torStillNeeded()) _torLauncher.stop();
+  }, TOR_IDLE_GRACE_MS);
+}
+// The sessions going through Tor, each with the port it uses. When the Tor
+// Vex runs stops (Stop, the idle stop, or Tor exiting), every session on its
+// port is given the refusing proxy and marked down: a Tor container, a burner
+// over Tor or a Tor site rule stayed pointed at the dead port and loaded
+// nothing until its route was set again or Vex restarted (found 2026-09-30),
+// and a later program listening on that port would have been used as Tor.
+// A route's session (revive) starts Tor again on its next page load; a Tor
+// tab's own session does not — its tab is closed by Stop, and it says so.
+const _torSessions = new Set();
+let _ownTorPort = 0;
+function _useTor(ses, port, revive) {
+  ses.__vexTorPort = port;
+  ses.__vexTorDown = false;
+  ses.__vexTorRevive = revive;
+  _torSessions.add(ses);
+}
+function _leaveTor(ses) {
+  _torSessions.delete(ses);
+  ses.__vexTorDown = false;
+}
+function _torWentDown(port) {
+  if (!port) return;
+  for (const ses of _torSessions) {
+    if (ses.__vexTorPort !== port) continue;
+    ses.__vexTorDown = true;
+    ses.setProxy(require('./main/routing').REFUSED_PROXY)
+      .catch(err => console.error('[tor] a session could not be closed off after Tor stopped:', err));
+  }
+}
+// Every window's "Tor is running" indicator follows Vex's own Tor.
+_torLauncher.onStateChange((running) => {
+  if (!running && _torIdleTimer) { clearTimeout(_torIdleTimer); _torIdleTimer = null; }
+  if (running) _ownTorPort = _torLauncher.getPort();
+  else { _torWentDown(_ownTorPort); _ownTorPort = 0; }
+  BrowserWindow.getAllWindows().forEach(w => {
+    if (!w.isDestroyed()) w.webContents.send('tor:state', { running });
+  });
+});
+
+// A page in a Tor route's session that is down starts Tor again, with the
+// progress dialog in its window, and every such session is put on the new
+// port; until then the refusing proxy stays, so nothing goes direct. The
+// pages that failed meanwhile load again once Tor is up (found 2026-09-30).
+const _torRevival = { running: null, windows: new Set(), waiting: new Set() };
+function _torPageDown(contents, state, error) {
+  const host = secureSessions.owner(contents);
+  if (!host || !host.win || host.win.isDestroyed()) return;   // a popup window: no tab to say it in
+  host.win.webContents.send('tor:page-down', { id: contents.id, state, error: error || null });
+}
+function _reviveTor(contents) {
+  const host = secureSessions.owner(contents);
+  const win = host && host.win && !host.win.isDestroyed() ? host.win : null;
+  if (win && !_torRevival.windows.has(win)) { _torRevival.windows.add(win); win.webContents.send('tor:reviving'); }
+  if (_torRevival.running) return;
+  const send = (channel, payload) => { for (const w of _torRevival.windows) if (!w.isDestroyed()) w.webContents.send(channel, payload); };
+  _torCancelled = false;
+  _torRevival.running = (async () => {
+    let port = await detectTorPort();
+    if (!port) port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => send('tor:progress', { phase, value, detail }));
+    for (const ses of _torSessions) {
+      if (!ses.__vexTorDown || !ses.__vexTorRevive) continue;
+      await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
+      _useTor(ses, port, true);
+    }
+    return port;
+  })().then((port) => {
+    send('tor:revived', { ok: true, port });
+    for (const wc of _torRevival.waiting) if (!wc.isDestroyed() && !wc.session.__vexTorDown) wc.reload();
+  }, (err) => {
+    const cancelled = _torCancelled || err.message === 'cancelled';
+    if (!cancelled) console.error('[tor] could not start Tor again for a Tor route:', err);
+    send('tor:revived', { ok: false, cancelled, error: err.message });
+    for (const wc of _torRevival.waiting) if (!wc.isDestroyed()) _torPageDown(wc, 'failed', cancelled ? null : err.message);
+  }).finally(() => {
+    _torRevival.running = null;
+    _torRevival.windows.clear();
+    _torRevival.waiting.clear();
+  });
+}
+
+// Vex's own windows (the main one and any private ones). A window still
+// starting has no TorSession yet, and no tabs either.
+function _torTabsInWindows(action) {
+  const wins = [...secureSessions.hosts.values()].map(h => h.win).filter(w => w && !w.isDestroyed());
+  return Promise.all(wins.map(w => w.webContents.executeJavaScript(`typeof TorSession === 'undefined' ? 0 : TorSession.${action}()`)));
+}
+// The tab pages going through Tor that are not Tor tabs: a container, a
+// burner or a site rule routed through Tor. Stop leaves them open; their
+// session gets the refusing proxy (_torWentDown) and their next page starts
+// Tor again (_reviveTor). Stop closed them with the Tor tabs (found 2026-09-30).
+function _torRoutedPages() {
+  return webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.getType() === 'webview' && wc.session && wc.session.__vexTor && !wc.session.__vexTorTab).length;
+}
+// What the indicator shows, and the Tor tabs Stop closes. Stop closed them
+// only in the window it was clicked in; a Tor page in another window just
+// stopped loading (found 2026-09-30). Every window is counted and told.
+ipcMain.handle('tor:status', async () => {
+  const counts = await _torTabsInWindows('countTorTabs');
+  return { running: _torLauncher.isRunning(), tabs: counts.reduce((a, b) => a + b, 0), windows: counts.filter(Boolean).length, routed: _torRoutedPages() };
+});
+ipcMain.handle('tor:stop', async () => {
+  await _torTabsInWindows('closeTorTabs');
+  _torLauncher.stop();
+  return { ok: true };
+});
 ipcMain.handle('tor:create', async (event) => {
+  _torCancelled = false;
   try {
     let port = await detectTorPort();
     let launched = false;
@@ -4747,15 +5655,19 @@ ipcMain.handle('tor:create', async (event) => {
         });
         launched = true;
       } catch (e) {
+        if (_torCancelled) return { ok: false, reason: 'cancelled' };
         return { ok: false, reason: 'launch-failed', error: e && e.message };
       }
+      if (_torCancelled) { _torLauncher.stop(); return { ok: false, reason: 'cancelled' }; }
     }
     const part = `tor-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
     const ses = secureSessions.fromPartition(part); // no persist: → in-memory, wiped on close
     ses.__vexTor = true; // tag so web-contents-created disables WebRTC for it
+    ses.__vexTorTab = true; // a Tor tab's own session: Stop closes its tabs
     // Route EVERYTHING (incl. DNS) through Tor. socks5:// makes Chromium resolve
     // hostnames at the proxy, so there's no local DNS leak.
     await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
+    _useTor(ses, port, false);
     // Consistent masked desktop identity + client hints (less unique than the
     // raw Electron UA), adblock, header strip, and the hardening preload.
     const idn = buildIdentity('124');
@@ -4769,6 +5681,7 @@ ipcMain.handle('tor:create', async (event) => {
     try { ses.setPermissionCheckHandler(() => false); } catch {}
     ses.webRequest.onHeadersReceived((details, callback) => {
       const rh = { ...details.responseHeaders };
+      _scriptsOffCsp(details, rh);
       callback({ responseHeaders: rh });
     });
     ses.webRequest.onBeforeRequest((details, callback) => {
@@ -4777,6 +5690,8 @@ ipcMain.handle('tor:create', async (event) => {
       callback({ cancel: blocked });
     });
     try { attachGuestPreloads(ses); } catch {}
+    // Armed now in case the tab is never made; the tab's page cancels it.
+    _torIdleCheck();
     return { ok: true, partition: part, port, launched };
   } catch (err) { return { ok: false, reason: 'error', error: err.message }; }
 });
@@ -4802,6 +5717,9 @@ ipcMain.handle('tor:verify', async (_e, partition) => {
 // through Tor or a custom SOCKS/HTTP proxy — persistently. Choices are saved and
 // re-applied on next launch so a "Tor container" stays a Tor container.
 const ROUTING_FILE = () => path.join(app.getPath('userData'), 'session-routing.json');
+// The proxy the Discord bypass gives the browsing sessions: direct, or a PAC
+// that sends only Discord through ByeDPI (_routeBrowsingDiscord).
+let _discordBrowsingProxy = { mode: 'direct' };
 let routingStore;
 let routingPending = Promise.resolve();
 const routingGeneration = new Map();
@@ -4814,19 +5732,53 @@ async function applyRouting(partition, mode, custom, sender) {
   routingGeneration.set(key, generation);
   const ses = partition ? secureSessions.fromPartition(partition) : session.defaultSession;
   if (mode === 'tor') {
-    let port = await detectTorPort();
-    if (!port && _torLauncher) {
-      port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => {
-        try { if (sender && !sender.isDestroyed()) sender.send('tor:progress', { phase, value, detail }); } catch {}
-      });
+    // Marked before Tor is up, so no page in it can use WebRTC around the
+    // proxy while it starts (a restored Tor route has a refusing proxy then).
+    require('./main/routing').markRoutedSession(ses, 'tor', webContents.getAllWebContents());
+    // The session kept its old proxy (often direct) until Tor had started, so
+    // a page loaded in it meanwhile went direct (found 2026-09-30). It loads
+    // nothing until Tor is up. A session already on a live Tor keeps it.
+    if (!(_torSessions.has(ses) && ses.__vexTorPort && !ses.__vexTorDown)) await ses.setProxy(require('./main/routing').REFUSED_PROXY);
+    let port;
+    try {
+      port = await detectTorPort();
+      if (!port && _torLauncher) {
+        port = await _torLauncher.start(app.getPath('userData'), (phase, value, detail) => {
+          try { if (sender && !sender.isDestroyed()) sender.send('tor:progress', { phase, value, detail }); } catch {}
+        });
+      }
+      if (!port) throw new Error('Tor unavailable');
+    } catch (err) {
+      // A Tor route whose Tor did not start (at launch, or a site rule armed)
+      // loaded nothing, said nothing and never tried again (found
+      // 2026-09-30). Marked down, its next page starts Tor again and a page
+      // that fails says why (_reviveTor, tor:page-down). A newer route for
+      // the session has put its own proxy on it.
+      if (routingGeneration.get(key) === generation) { _useTor(ses, 0, true); ses.__vexTorDown = true; }
+      throw err;
     }
-    if (!port) throw new Error('Tor unavailable');
     if (routingGeneration.get(key) !== generation) throw new Error('Routing changed while Tor was starting');
     await ses.setProxy({ proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
+    _useTor(ses, port, true);
     return { mode: 'tor', port };
   }
-  if (mode === 'proxy' && custom) { await ses.setProxy({ proxyRules: String(custom) }); return { mode: 'proxy', custom: String(custom) }; }
-  await ses.setProxy({ mode: 'direct' });
+  // Every way in (Private routing, a container, a site route, a restore) is
+  // checked here, so nothing but one scheme://host:port reaches setProxy; an
+  // empty proxy used to go direct without a word (found 2026-09-29).
+  if (mode === 'proxy') {
+    const address = require('./main/routing').proxyAddress(custom);
+    await ses.setProxy({ proxyRules: address });
+    _leaveTor(ses);
+    require('./main/routing').markRoutedSession(ses, 'proxy', webContents.getAllWebContents());
+    return { mode: 'proxy', custom: address };
+  }
+  // Direct is direct plus the Discord bypass for the sessions it covers, as
+  // at startup: a session set back to direct lost the Discord rule until the
+  // bypass mode changed again, and setting all of Vex (or persist:main) to
+  // direct overrode it (found 2026-09-30).
+  await ses.setProxy(!partition || BROWSING_SESSIONS.includes(partition) ? _discordBrowsingProxy : { mode: 'direct' });
+  _leaveTor(ses);
+  require('./main/routing').markRoutedSession(ses, 'direct', webContents.getAllWebContents());
   return { mode: 'direct' };
 }
 
@@ -4834,13 +5786,55 @@ ipcMain.handle('routing:set', (event, partition, mode, custom) => {
   const operation = routingPending.catch(() => {}).then(async () => {
     const r = await applyRouting(partition, mode, custom, event && event.sender);
     if (mode === 'direct') await getRoutingStore().delete(partition || 'default');
-    else await getRoutingStore().set(partition || 'default', { mode, custom: custom || null });
+    // A temporary session (a burner identity) is gone at the next start; its
+    // saved Tor route started Tor on every launch for nothing (found 2026-09-29).
+    else if (!partition || String(partition).startsWith('persist:')) await getRoutingStore().set(partition || 'default', { mode, custom: r.custom || null });
+    _torIdleCheck();
     return { ok: true, ...r };
   });
   routingPending = operation;
   return operation.catch(e => ({ ok: false, error: e && e.message }));
 });
 ipcMain.handle('routing:get', (_e, partition) => { try { return readRouting()[partition || 'default'] || { mode: 'direct' }; } catch { return { mode: 'direct' }; } });
+
+// A site rule removed or replaced left its route saved: Tor never stopped,
+// and started again on every launch (found 2026-09-30). The window forgets
+// the route of a partition no rule uses any more. The session keeps the proxy
+// it has — a tab still open in it stays on Tor, never direct — and loads
+// nothing after the next start (see _wireBrowsingSession).
+ipcMain.handle('routing:forget', (_e, partition) => {
+  const operation = routingPending.catch(() => {}).then(async () => {
+    if (!require('./main/routing').isSiteRoutePartition(partition)) throw new Error(`"${partition}" is not a site route's session`);
+    await getRoutingStore().delete(partition);
+    _torIdleCheck();
+    return { ok: true };
+  });
+  routingPending = operation;
+  return operation.catch(e => ({ ok: false, error: e && e.message }));
+});
+// The partitions the window's site rules use, once it has loaded them: any
+// other saved site route (left by a rule removed before routing:forget
+// existed) is forgotten.
+ipcMain.handle('routing:prune', (_e, used) => {
+  const operation = routingPending.catch(() => {}).then(async () => {
+    const stale = require('./main/routing').staleSiteRoutes(readRouting(), used);
+    for (const partition of stale) await getRoutingStore().delete(partition);
+    _torIdleCheck();
+    return { ok: true, forgot: stale };
+  });
+  routingPending = operation;
+  return operation.catch(e => ({ ok: false, error: e && e.message }));
+});
+
+// The hosts the main window's Tor and proxy rules name, for a private window
+// to say they do not apply there (js/site-routes.js, _notePrivate). The rules
+// live in the main window's storage; a private window's starts empty.
+ipcMain.handle('siteroutes:routed-hosts', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The main window is closed, so its site rules cannot be read');
+  const rules = await mainWindow.webContents.executeJavaScript(`typeof SiteRoutes === 'undefined' ? [] : SiteRoutes.rules().filter(r => r.mode === 'tor' || r.mode === 'proxy').map(r => ({ host: r.host, mode: r.mode }))`);
+  if (!Array.isArray(rules)) throw new Error('The site rules came back unreadable');
+  return rules.filter(r => r && typeof r.host === 'string' && (r.mode === 'tor' || r.mode === 'proxy')).map(r => ({ host: r.host, mode: r.mode }));
+});
 
 // === All of Vex through one route ==========================================
 //
@@ -4857,6 +5851,9 @@ const _ALL_ROUTE_KEY = require('./main/routing').ALL_ROUTE_KEY;
 
 ipcMain.handle('routing:set-all', (event, mode, custom) => {
   const operation = routingPending.catch(() => {}).then(async () => {
+    // Checked once up front, so a bad address is refused in its own words
+    // rather than once per session (found 2026-09-29).
+    if (mode === 'proxy') custom = require('./main/routing').proxyAddress(custom);
     const targets = [null, ...BROWSING_SESSIONS];
     const failed = [];
     for (const partition of targets) {
@@ -4866,6 +5863,7 @@ ipcMain.handle('routing:set-all', (event, mode, custom) => {
     if (failed.length === targets.length) throw new Error(failed[0] || 'Could not apply that route');
     if (mode === 'direct') await getRoutingStore().delete(_ALL_ROUTE_KEY);
     else await getRoutingStore().set(_ALL_ROUTE_KEY, { mode, custom: custom || null, at: Date.now() });
+    _torIdleCheck();
     return { ok: true, mode, custom: custom || null, partial: failed.length ? failed : null };
   });
   routingPending = operation;
@@ -4932,6 +5930,49 @@ ipcMain.handle('routing:check', async (_e, partition) => {
   };
 });
 
+// A container named by hand (persist:container-<name>) and a site route's
+// session (persist:route-*) are made when their first tab opens, and got none
+// of what persist:main has: no permission handler, so Electron granted camera,
+// microphone and notifications without asking, and WebRTC gave sites the raw
+// LAN address; no downloads panel, ad blocker or Chrome identity either
+// (found 2026-09-30). Each is wired the first time it is made. The three
+// built-in containers were missing the same, and get it here too.
+function _wireBrowsingSession(ses, partition) {
+  if (!/^persist:(?:container-|route-)/.test(partition)) return;
+  const routing = require('./main/routing');
+  if (routing.isSiteRoutePartition(partition)) {
+    // A site route's session loads nothing until its route is put on it: its
+    // rule may be gone (routing:forget), and direct is what it exists to
+    // avoid. The saved route, or the rule's arm(), replaces this proxy.
+    ses.setProxy(routing.REFUSED_PROXY).catch(err => console.error(`[Routing] ${partition} could not be closed off:`, err));
+    routing.markRoutedSession(ses, partition === 'persist:route-tor' ? 'tor' : 'proxy', webContents.getAllWebContents());
+  }
+  ses.setUserAgent(CHROME_UA);
+  wireClientHintsOnSession(ses);
+  wireAdblockerOnSession(ses, partition);
+  wireDownloadsOnSession(ses, partition);
+  if (partition === 'persist:route-tor') {
+    // Like a Tor tab (tor:create): every site permission denied.
+    ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+    ses.setPermissionCheckHandler(() => false);
+  } else {
+    wirePermissionsOnSession(ses, partition);
+    wireWebHidOnSession(ses, partition);
+    wireDisplayMediaOnSession(ses);
+  }
+  // The built-in containers get theirs in createWindow.
+  if (!BROWSING_SESSIONS.includes(partition)) {
+    ses.webRequest.onHeadersReceived((details, callback) => {
+      const responseHeaders = { ...details.responseHeaders };
+      _addMediaCorsHeaders(details, responseHeaders);
+      _scriptsOffCsp(details, responseHeaders);
+      callback({ responseHeaders });
+    });
+  }
+  attachGuestPreloads(ses);
+  wireSpellcheckOnSession(ses);
+}
+
 // Re-apply saved routings at startup (Tor ones lazily — starting Tor for every
 // container on boot would be heavy, so a Tor container reconnects on first use;
 // custom proxies are cheap and applied immediately).
@@ -4940,12 +5981,13 @@ async function applyStoredRoutings() {
     getSession: partition => partition ? secureSessions.fromPartition(partition) : session.defaultSession,
     // '__all__' means every browsing session, not a session of its own.
     allPartitions: BROWSING_SESSIONS,
-    applyRouting, report: err => console.warn('[Routing] Tor unavailable:', err.message) });
+    applyRouting, report: err => console.warn('[Routing] could not restore a route:', err.message) });
 }
 
 // clean: the window for sharing a screen — private, and showing only `url`
 // (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
 function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
+  if (_vexLocked) throw new Error('Vex is locked — unlock it first');
   const privatePartition = secureSessions.newPrivatePartition();
   const privSession = secureSessions.fromPartition(privatePartition);
   wireDownloadsOnSession(privSession, 'private');
@@ -4954,9 +5996,23 @@ function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
   // Apply header stripping + ad blocker to private session
   privSession.webRequest.onHeadersReceived((details, callback) => {
     const rh = { ...details.responseHeaders };
+    // Per-site switches hold in a private window too: a site whose cookies
+    // are off may not set any here either — they were ignored in private
+    // windows before (found 2026-09-29). Sending none is done by
+    // wireClientHintsOnSession below.
+    if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
+      for (const k of Object.keys(rh)) if (k.toLowerCase() === 'set-cookie') delete rh[k];
+    }
+    _scriptsOffCsp(details, rh);
     callback({ responseHeaders: rh });
   });
   privSession.webRequest.onBeforeRequest((details, callback) => {
+    // A site whose third-party content is switched off, as in
+    // wireAdblockerOnSession (found 2026-09-29).
+    if (Object.keys(_siteRules).length && SiteRules.blocksThirdParty(_siteRules, _pageUrlOf(details.webContentsId), details.url)) {
+      callback({ cancel: true });
+      return;
+    }
     const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
     if (blocked) _recordTracker(details.url, details.webContentsId);
     callback({ cancel: blocked });
@@ -4995,50 +6051,67 @@ ipcMain.handle('overlay:close', () => { if (_overlay && !_overlay.isDestroyed())
 ipcMain.handle('open-private-window', (_e, look) => openPrivateWindow({ look: look || '' }));
 ipcMain.handle('open-clean-window', (_e, url, look) => openPrivateWindow({ clean: true, url, look: look || '' }));
 
-// Update IPC
-// Lightweight manual check: fetch latest.yml from the GitHub "latest" release and
-// compare versions ourselves. We deliberately do NOT call
-// autoUpdater.checkForUpdates() here — on this (castLabs, unsigned) build it can
-// spawn native helpers (7za/differential tooling) that crash the process on
-// machines missing the MSVC runtime, which made the app close on "Check for
-// updates". This path only does an HTTPS GET + a string compare, so it can't
-// take the app down; if an update exists we point the user at the release page.
-function _cmpVer(a, b) {
-  const pa = String(a).split(/[.\-+]/).map(n => parseInt(n, 10) || 0);
-  const pb = String(b).split(/[.\-+]/).map(n => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] || 0) - (pb[i] || 0);
-    if (d) return d > 0 ? 1 : -1;
-  }
-  return 0;
+// === Updates (src/main/updates.js; the cover is js/update-notifier.js) ======
+// The check is a plain HTTPS GET of latest.yml and a version compare. We
+// deliberately do NOT use electron-updater: on this (castLabs, unsigned) build
+// its native helpers (7za/differential tooling) crashed machines missing the
+// MSVC runtime, and publisherName in package.json made it refuse every update
+// of the unsigned installer. Download, checksum and install are Vex's own.
+// net.fetch follows GitHub's redirect to its file storage.
+const _updater = require('./main/updates').createUpdater({
+  fetch: (url, init) => net.fetch(url, init),
+  fs, dir: path.join(app.getPath('userData'), 'updates'), currentVersion: app.getVersion(),
+  spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList,
+});
+// Only Vex's own main window may download or install an update: not a private
+// window, not a page, not another window of Vex's.
+function _updatesFromMainWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can update Vex');
 }
-ipcMain.handle('check-for-updates', async () => {
-  const current = app.getVersion();
-  const RELEASES = 'https://github.com/0xmortuex/Vex/releases/latest';
-  // Direct link to the installer asset of whatever the latest release is — clicking
-  // it downloads Vex-Setup.exe straight away (no release-page hunting).
-  const DOWNLOAD = 'https://github.com/0xmortuex/Vex/releases/latest/download/Vex-Setup.exe';
+let _pendingInstall = null;
+// Vex has closed its windows (tabs saved) and is quitting: start the installer
+// now, detached, so it outlives Vex. With --updated it waits for Vex to exit.
+app.on('quit', () => {
+  if (!_pendingInstall) return;
+  const plan = _pendingInstall;
+  _pendingInstall = null;
   try {
-    const res = await boundedNetFetch('https://github.com/0xmortuex/Vex/releases/latest/download/latest.yml', { redirect: 'follow' });
-    if (!res.ok) return { ok: false, error: 'Could not reach the update server', current, url: RELEASES, downloadUrl: DOWNLOAD };
-    const text = await res.text();
-    const m = text.match(/version:\s*([0-9][0-9A-Za-z.\-+]*)/i);
-    const latest = m ? m[1].trim() : null;
-    if (!latest) return { ok: false, error: 'No version info found', current, url: RELEASES, downloadUrl: DOWNLOAD };
-    // When it was published, for the Stable channel (js/update-notifier.js).
-    const d = text.match(/releaseDate:\s*'?([0-9T:.\-Z]+)'?/);
-    const releasedAt = d ? Date.parse(d[1]) || null : null;
-    return { ok: true, current, latest, releasedAt, hasUpdate: _cmpVer(latest, current) > 0, url: RELEASES, downloadUrl: DOWNLOAD };
-  } catch (e) {
-    return { ok: false, error: e.message, current, url: RELEASES, downloadUrl: DOWNLOAD };
-  }
+    _updater.launch(plan);
+    console.log('[Updates] installer started:', plan.file, plan.args.join(' '));
+  } catch (err) { console.error('[Updates] the installer could not be started:', err.message); }
 });
-ipcMain.handle('download-update', async () => {
-  if (!autoUpdater) return { ok: false };
-  try { await autoUpdater.downloadUpdate(); return { ok: true }; }
-  catch (e) { return { ok: false, error: e.message }; }
+ipcMain.handle('check-for-updates', () => _updater.check());
+ipcMain.handle('updates:upcoming-notes', async (_e, version) => {
+  try { return { ok: true, ...(await _updater.notes(version)) }; }
+  catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('install-update', () => { autoUpdater?.quitAndInstall(false, true); });
+ipcMain.handle('updates:download', async (event, version) => {
+  _updatesFromMainWindow(event);
+  const sender = event.sender;
+  return _updater.download(version, progress => { if (!sender.isDestroyed()) sender.send('updates:progress', progress); });
+});
+ipcMain.handle('updates:cancel', (event) => { _updatesFromMainWindow(event); return { ok: _updater.cancel() }; });
+ipcMain.handle('updates:install', async (event, version) => {
+  _updatesFromMainWindow(event);
+  let plan;
+  try { plan = await _updater.prepareInstall(version); }
+  catch (err) { return { ok: false, error: err.message }; }
+  // Close the main window the way its X does, which saves the tabs first
+  // (session-security.js), then quit; the installer starts on 'quit' above.
+  // If saving fails the window stays open and says so, and nothing installs.
+  const win = mainWindow;
+  _pendingInstall = plan;
+  const quit = () => app.quit();
+  win.once('closed', quit);
+  setTimeout(() => {
+    if (win.isDestroyed()) return;
+    win.removeListener('closed', quit);
+    _pendingInstall = null;
+    win.webContents.send('updates:install-failed', { error: 'Vex could not save your tabs, so it did not close to install the update. Try again once the problem it reported is fixed.' });
+  }, 9000);
+  win.close();
+  return { ok: true };
+});
 ipcMain.handle('get-app-version', () => app.getVersion());
 // Open an http(s) URL in the system's default browser (used by the "What's New"
 // modal so GitHub renders properly instead of in an in-app window).
@@ -5181,7 +6254,24 @@ ipcMain.handle('app:focus', () => {
 ipcMain.handle('app:restart', () => {
   // Without --safe-mode: "Restart normally" after a safe-mode start must not
   // start in safe mode again.
-  try { app.relaunch({ args: process.argv.slice(1).filter(a => a !== '--safe-mode') }); app.exit(0); return { ok: true }; }
+  const args = process.argv.slice(1).filter(a => a !== '--safe-mode');
+  try {
+    // Close the window the way its X does, which saves everything first, and
+    // start again once it has closed. app.exit(0) straight away dropped what
+    // was still waiting to be saved (found 2026-09-29). If saving fails the
+    // window stays open and says so, and Vex does not restart.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const win = mainWindow;
+      const relaunch = () => { app.relaunch({ args }); app.exit(0); };
+      win.once('closed', relaunch);
+      // Saving gives up after 8 s (session-security.js); a later ordinary
+      // close must then not restart.
+      setTimeout(() => { if (!win.isDestroyed()) win.removeListener('closed', relaunch); }, 9000);
+      win.close();
+      return { ok: true };
+    }
+    app.relaunch({ args }); app.exit(0); return { ok: true };
+  }
   catch (e) { return { ok: false, error: e && e.message }; }
 });
 
@@ -5321,9 +6411,11 @@ ipcMain.handle('reminders:ack', async (_e, id) => {
   return reminders.ack(id);
 });
 // A focus session holds non-urgent reminders until it ends (0 clears).
-ipcMain.handle('reminders:hold', async (_e, untilMs) => {
+// Focus and Meeting mode each hold reminders; stopping one used to end the
+// other's hold too (found 2026-09-29).
+ipcMain.handle('reminders:hold', async (_e, untilMs, who) => {
   if (!reminders) throw new Error('Reminders have not started yet');
-  return reminders.hold(untilMs);
+  return reminders.hold(untilMs, who);
 });
 
 // Save a small text file where the user chooses. Used for calendar entries;
@@ -5342,6 +6434,38 @@ ipcMain.handle('file:save-text', async (_e, { name, text, kind } = {}) => {
   await fs.promises.writeFile(r.filePath, String(text || ''), 'utf8');
   return { ok: true, path: r.filePath };
 });
+
+// Copy a picture onto the clipboard (renderer: WebviewManager.copyImage).
+// For the pictures a right-click finds under a link or an overlay, where
+// Chromium's own copyImageAt has nothing at that point to copy. Fetched in the
+// page's own session, so a signed-in picture is fetched signed in. PNG and
+// JPEG are asked for first, because the clipboard image cannot be made from
+// WebP or AVIF.
+ipcMain.handle('image:copy', async (_e, url, partition) => {
+  try {
+    const { nativeImage, clipboard, session } = require('electron');
+    let img;
+    if (/^data:image\//i.test(url)) img = nativeImage.createFromDataURL(url);
+    else if (/^https?:\/\//i.test(url)) {
+      if (partition && !/^(persist:)?[\w.-]{1,120}$/.test(partition)) throw new Error('Unknown page session');
+      const ses = partition ? session.fromPartition(partition) : session.defaultSession;
+      const res = await ses.fetch(url, { headers: { Accept: 'image/png,image/jpeg;q=0.9,image/gif;q=0.8,image/*;q=0.5' } });
+      if (!res.ok) throw new Error('the site answered ' + res.status);
+      img = nativeImage.createFromBuffer(Buffer.from(await res.arrayBuffer()));
+    } else throw new Error('that picture cannot be fetched from here \u2014 Save Image works');
+    if (!img || img.isEmpty()) throw new Error('this picture\u2019s format cannot go on the clipboard \u2014 Save Image works');
+    clipboard.writeImage(img);
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// A tab's icon for a tab in a session of its own, fetched through that
+// session and handed back as a data: URL (src/main/favicon-fetch.js). Vex's
+// window drawing the icon itself loaded it direct, so a Tor or proxy tab's
+// site saw the real address (found 2026-09-30). ipc-policy.js checks the
+// page belongs to the asking window.
+const _faviconFetch = require('./main/favicon-fetch').createFaviconFetch({ webContents });
+ipcMain.handle('tabs:favicon', (_e, guestId, url) => _faviconFetch.fetchIcon(guestId, url));
 
 // The readable part of a page as an e-book (renderer: PageExport.saveEpub).
 ipcMain.handle('page:save-epub', async (_e, { title, url, xhtml }) => {

@@ -12,6 +12,15 @@ describe('VexCalc.evaluate', () => {
     expect(VexCalc.evaluate('10/4').value).toBe('2.5');
   });
 
+  // "-5 c to f" gave nothing (found 2026-09-29).
+  it('converts negative numbers', () => {
+    expect(VexCalc.evaluate('-5 c to f').value).toBe('23');
+    expect(VexCalc.evaluate('-40 f to c').value).toBe('-40');
+    expect(VexCalc.evaluate('-3 km to m').value).toBe('-3000');
+    VexCalc._rates = { EUR: 0.5 };
+    expect(VexCalc.evaluate('-10 usd to eur').value).toBe('-5');
+  });
+
   it('ignores non-calc queries', () => {
     expect(VexCalc.evaluate('hello world')).toBeNull();
     expect(VexCalc.evaluate('github')).toBeNull();
@@ -54,5 +63,20 @@ describe('VexCalc.evaluate', () => {
   it('currency: unknown code returns null', () => {
     VexCalc._rates = { USD: 1, EUR: 0.9 };
     expect(VexCalc.evaluate('10 usd to zzz')).toBeNull();
+  });
+
+  // The window's CSP has no 'unsafe-eval'. Function() used to do the sums,
+  // threw there, and every calculation in the real app came back empty.
+  it('works where eval is forbidden, as it is in the Vex window', () => {
+    const real = globalThis.Function;
+    globalThis.Function = function () { throw new EvalError('Refused to evaluate a string as JavaScript (CSP)'); };
+    try {
+      expect(VexCalc.evaluate('12.5 + 48.2 + 7.3 + 31').text).toBe('= 99');
+      expect(VexCalc.evaluate('2^3^2').value).toBe('512');
+      expect(VexCalc.evaluate('-2^2').value).toBe('-4');
+      expect(VexCalc.evaluate('(1 + 2) * 3 % 4').value).toBe('1');
+      expect(VexCalc.evaluate('2 ** 3').value).toBe('8');
+      for (const bad of ['2+', '(1+2', '1/0', '1 2 + 3']) expect(VexCalc.evaluate(bad), bad).toBeNull();
+    } finally { globalThis.Function = real; }
   });
 });

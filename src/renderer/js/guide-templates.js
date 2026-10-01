@@ -108,7 +108,10 @@ const GuideTemplates = {
     },
     {
       id: 'agent',
-      ask: ['do it for me', 'automate', 'agent', 'can vex do things for me', 'fill this form for me', 'do this task'],
+      // No bare "agent" or "automate": one word matched any sentence holding
+      // it, so "/agent book a table" or "automate the export" got this card
+      // instead of the agent (found 2026-09-29).
+      ask: ['do it for me', 'automate things', 'automate my tasks', 'what is the agent', 'how does the agent work', 'what can the agent do', 'can vex do things for me', 'fill this form for me', 'do this task'],
       headline: 'The agent drives the page itself — it clicks, types and reads, asking before anything it cannot undo.',
       steps: [
         'Open the AI panel (Ctrl+Shift+A) and say the task the way you would to a person.',
@@ -185,24 +188,66 @@ const GuideTemplates = {
     },
   ],
 
-  // Loose matching on purpose: people type "its using all my ram", not the
-  // phrasing in the list. Every word of the phrase has to be in the question
-  // (in any order), which is strict enough to avoid a wrong answer and loose
-  // enough to catch how people actually write.
+  // Words that say nothing about WHICH question it is. Dropping every word of
+  // two letters or fewer instead turned "do it for me" into just "for", so
+  // "Give me three ideas for dinner" got the agent card, and "theme", "font",
+  // "sync" or "netflix" alone matched any sentence holding them (found
+  // 2026-09-29).
+  STOP: new Set([
+    'a', 'an', 'the', 'and', 'or', 'but', 'if', 'so', 'of', 'to', 'in', 'on', 'off', 'at', 'by', 'for', 'from',
+    'with', 'into', 'onto', 'about', 'up', 'out', 'as', 'than', 'then', 'is', 'are', 'was', 'were', 'be', 'been',
+    'being', 'am', 'do', 'does', 'did', 'doing', 'done', 'have', 'has', 'had', 'i', 'im', 'ive', 'me', 'my',
+    'mine', 'myself', 'you', 'your', 'youre', 'yours', 'it', 'its', 'itself', 'this', 'that', 'these', 'those',
+    'there', 'here', 'we', 'us', 'our', 'he', 'him', 'his', 'she', 'her', 'they', 'them', 'their', 'what',
+    'whats', 'which', 'who', 'whom', 'whose', 'how', 'why', 'when', 'where', 'can', 'could', 'would', 'should',
+    'will', 'shall', 'may', 'might', 'must', 'please', 'just', 'very', 'really', 'too', 'all', 'any', 'some',
+    'not', 'even', 'also', 'exactly', 'actually', 'anyway', 's', 't', 'd', 'll', 're', 've', 'm',
+  ]),
+
+  // Asking-words around a one-word subject: "change the theme" is still just
+  // "theme", "explain the theme" is not.
+  FILLER: new Set(['change', 'set', 'turn', 'switch', 'open', 'use', 'want', 'need', 'get', 'like', 'try']),
+
+  // Apostrophes go before splitting, so "can't" is "cant" as in the phrases.
   _words(text) {
-    return String(text || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+    return String(text || '').toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
   },
 
+  _keys(words) { return words.filter(w => !this.STOP.has(w)); },
+
+  // Is `part` a contiguous run inside `whole`?
+  _run(whole, part) {
+    if (!part.length || part.length > whole.length) return false;
+    for (let i = 0; i + part.length <= whole.length; i++) {
+      if (part.every((w, j) => whole[i + j] === w)) return true;
+    }
+    return false;
+  },
+
+  // Loose where it is safe, strict where it is not. People type "its using
+  // all my ram", so the stop words between the words that matter are ignored,
+  // but those words must come together as the phrase does. A phrase that
+  // comes down to one word ("theme", "sync") — or to none ("do it for me") —
+  // only answers when that is the whole question, so it never fires because
+  // a common word happened to be in an ordinary sentence.
   match(question) {
-    const asked = new Set(this._words(question));
-    if (!asked.size) return null;
+    const words = this._words(question);
+    if (!words.length) return null;
+    const keys = this._keys(words);
+    const subject = keys.filter(w => !this.FILLER.has(w));
     let best = null;
     for (const item of this.ITEMS) {
       for (const phrase of item.ask) {
-        const words = this._words(phrase).filter(w => w.length > 2);
-        if (!words.length || !words.every(w => asked.has(w))) continue;
+        const pWords = this._words(phrase);
+        const pKeys = this._keys(pWords);
+        let fits;
+        if (pKeys.length >= 2) fits = this._run(keys, pKeys);
+        else if (pKeys.length === 1) fits = subject.length === 1 && subject[0] === pKeys[0];
+        else fits = !subject.length && this._run(words, pWords);
+        if (!fits) continue;
         // The longest phrase that fits wins: "two accounts" beats "accounts".
-        if (!best || words.length > best.score) best = { item, score: words.length };
+        const score = pKeys.length * 100 + pWords.length;
+        if (!best || score > best.score) best = { item, score };
       }
     }
     return best ? best.item : null;

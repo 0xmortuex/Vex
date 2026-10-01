@@ -74,7 +74,13 @@ wrangler secret put RESEND_API_KEY
 # Set your provider-authorized sender, e.g. Vex Sync <sync@your-domain.example>
 wrangler secret put RESEND_FROM
 
-# 3. Deploy
+# 3. The key accounts are stored under (an HMAC of the email address). Set it
+# BEFORE deploying: without it every sync request returns 503. Never change it
+# afterwards — a new value loses every account. Accounts made before this
+# secret existed move to it the next time they sign in.
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" | wrangler secret put EMAIL_HASH_SECRET
+
+# 4. Deploy
 wrangler deploy
 ```
 

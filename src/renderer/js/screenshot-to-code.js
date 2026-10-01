@@ -32,7 +32,7 @@ const ScreenshotToCode = {
           <span style="flex:1"></span>
           <select id="s2c-fw" style="font-size:12.5px"><option value="html">Plain HTML + CSS</option><option value="tailwind">HTML + Tailwind</option><option value="react">React (CDN)</option></select>
           <button id="s2c-gen" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Generate</button>
-          <button id="s2c-close" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">✕</button>
+          <button id="s2c-close" aria-label="Close" title="Close" style="display:inline-flex;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">${VexIcons.svg('x', { size: 14 })}</button>
         </div>
         <div style="display:flex;flex:1;min-height:0">
           <div style="width:230px;flex:none;border-right:1px solid var(--border);padding:12px;overflow:auto;background:var(--bg)">
@@ -50,7 +50,14 @@ const ScreenshotToCode = {
         </div>
       </div>`;
     document.body.appendChild(m);
-    const close = () => m.remove();
+    // Escape closes it, like every other Vex dialog — it did nothing here
+    // (found 2026-09-29). Not while a vexConfirm/vexPrompt sits on top.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); e.stopPropagation(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
     m.querySelector('#s2c-close').addEventListener('click', close);
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     const codeEl = m.querySelector('#s2c-code');
@@ -65,10 +72,10 @@ const ScreenshotToCode = {
       try {
         const code = await this.generate(dataUrl, framework);
         codeEl.value = code;
-        status.textContent = '✓ Generated — preview or tweak the code';
+        status.textContent = 'Generated — preview or tweak the code';
         previewBtn.disabled = copyBtn.disabled = false;
       } catch (err) {
-        status.textContent = '✕ ' + (err.message || 'Generation failed');
+        status.textContent = err.message || 'Generation failed';
       }
     });
     previewBtn.addEventListener('click', () => {

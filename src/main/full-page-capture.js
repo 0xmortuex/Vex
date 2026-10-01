@@ -30,7 +30,11 @@
 //   - size           past MAX_HEIGHT the top of the page is captured and the
 //                    caller is told it was cut, rather than exhausting memory.
 
-const MAX_HEIGHT = 30000;      // css px of page captured at most
+// The stitched image is at most 16,000 px tall (ScreenshotTool.MAX_EDGE, under
+// Chromium's canvas limit), so capturing 30,000 px only to shrink it to half
+// made a 79,000 px page take over a minute with nothing to show for it
+// (found 2026-09-29). Capture what the image can hold.
+const MAX_HEIGHT = 16000;      // css px of page captured at most
 const MAX_STEPS = 60;          // lazy-load scroll-through, at most
 
 // Runs in the page. Hides everything pinned to the viewport and remembers how
@@ -86,9 +90,10 @@ function createFullPageCapture({ webContents, sleep = (ms) => new Promise(r => s
     if (!start || !start.vh || !start.vw) throw new Error('The page did not say how big it is');
     const vh = start.vh;
 
-    // Walk down once so lazy images start loading.
+    // Walk down once so lazy images start loading — only as far as will be
+    // captured.
     if (start.h > vh) {
-      const steps = Math.min(MAX_STEPS, Math.ceil(start.h / Math.max(200, vh)));
+      const steps = Math.min(MAX_STEPS, Math.ceil(Math.min(start.h, MAX_HEIGHT) / Math.max(200, vh)));
       for (let i = 1; i <= steps; i++) { await run('window.scrollTo(0, ' + Math.round(i * vh) + ')'); await sleep(120); }
       await sleep(400);
     }
@@ -115,7 +120,7 @@ function createFullPageCapture({ webContents, sleep = (ms) => new Promise(r => s
       try { await run('window.scrollTo(' + start.x + ', ' + start.y + ')'); } catch { /* tab gone */ }
     }
 
-    return { tiles, width: start.vw, viewportHeight: vh, height, cut: fullHeight > height };
+    return { tiles, width: start.vw, viewportHeight: vh, height, fullHeight, cut: fullHeight > height };
   }
 
   return { capture };

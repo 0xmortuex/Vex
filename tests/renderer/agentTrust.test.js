@@ -137,7 +137,7 @@ describe('staying on the site you asked about', () => {
   it('the page it started on is not "another site" — that is what you pointed it at', async () => {
     script([{ tool: 'click', parameters: { selector: '#x' }, intent: 'action' }, { tool: 'finish', parameters: { summary: 'done' } }]);
     await AgentLoop.start('click the button for me', 'auto');               // no site named at all
-    expect(exec.executeTool).toHaveBeenCalledWith('click', { selector: '#x' });
+    expect(exec.executeTool).toHaveBeenCalledWith('click', { selector: '#x' }, expect.objectContaining({ show: true }));
     expect(document.querySelectorAll('.agent-approve').length).toBe(0);
   });
 

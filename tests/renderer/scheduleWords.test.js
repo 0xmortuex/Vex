@@ -60,7 +60,7 @@ describe('the whole thing', () => {
   });
 
   it('every 30 minutes', () => {
-    expect(W.parse('every 30 minutes')).toEqual({ type: 'interval', intervalMinutes: 30 });
+    expect(W.parse('every 30 minutes')).toEqual({ type: 'interval', everyMinutes: 30 });
   });
 
   it('says what is missing rather than picking an hour', () => {
@@ -75,8 +75,8 @@ describe('read back in words', () => {
     expect(W.describe({ type: 'daily', time: '09:00' })).toBe('every day at 09:00');
     expect(W.describe({ type: 'weekly', time: '08:30', daysOfWeek: [1, 2, 3, 4, 5] })).toBe('every weekday at 08:30');
     expect(W.describe({ type: 'weekly', time: '20:00', daysOfWeek: [0] })).toBe('Sunday at 20:00');
-    expect(W.describe({ type: 'interval', intervalMinutes: 30 })).toBe('every 30 minutes');
-    expect(W.describe({ type: 'interval', intervalMinutes: 120 })).toBe('every 2 hours');
+    expect(W.describe({ type: 'interval', everyMinutes: 30 })).toBe('every 30 minutes');
+    expect(W.describe({ type: 'interval', everyMinutes: 120 })).toBe('every 2 hours');
     expect(W.describe({ type: 'monthly', time: '10:00', dayOfMonth: 1 })).toBe('on the 1st at 10:00');
   });
 });

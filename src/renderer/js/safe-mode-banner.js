@@ -7,6 +7,11 @@
 // they were before the last update, or restart normally now that whatever
 // broke has been left out once.
 const SafeModeBanner = {
+  // What safe mode really leaves out. It used to promise "no panels, no
+  // session restore" too, but main.js only skips extensions (_extEntries) —
+  // panels and the session come back as usual (found 2026-09-29).
+  LEFT_OUT: 'Extensions are not loaded this time. If one caused it, switch it off or uninstall it in Settings › Extensions, then restart normally.',
+
   async init() {
     if (!window.vex || typeof window.vex.safeMode !== 'function') return false;
     let info;
@@ -28,7 +33,7 @@ const SafeModeBanner = {
     el.innerHTML = `
       <div class="smb-text">
         <strong>Safe mode</strong>
-        <span>${this._esc(why)} No extensions, no panels, no session restore — so you can undo whatever caused it.${info.brokenSinceUpdateFrom ? ' This began with the update from ' + this._esc(info.brokenSinceUpdateFrom) + '.' : ''}</span>
+        <span>${this._esc(why)} ${this.LEFT_OUT}${info.brokenSinceUpdateFrom ? ' This began with the update from ' + this._esc(info.brokenSinceUpdateFrom) + '.' : ''}</span>
       </div>
       <div class="smb-actions">
         ${info.brokenSinceUpdateFrom ? `<button class="smb-btn" data-act="rollback">Go back to ${this._esc(info.brokenSinceUpdateFrom)}</button>` : ''}
@@ -37,7 +42,20 @@ const SafeModeBanner = {
         <button class="smb-btn smb-x" data-act="close" aria-label="Dismiss">Dismiss</button>
       </div>`;
     document.body.appendChild(el);
-    el.querySelector('[data-act="close"]').addEventListener('click', () => el.remove());
+    // Settings keeps its rows clear of the banner (app.css): it covered the
+    // Settings › Extensions toggles it tells you to use (found 2026-09-29).
+    const body = document.body;
+    const reserve = () => body.style.setProperty('--vex-smb-space', Math.ceil(el.offsetHeight + 18 + 12) + 'px');
+    const sizeWatch = typeof ResizeObserver === 'function' ? new ResizeObserver(reserve) : null;
+    body.classList.add('vex-safe-mode-banner-shown');
+    reserve();
+    if (sizeWatch) sizeWatch.observe(el);
+    el.querySelector('[data-act="close"]').addEventListener('click', () => {
+      if (sizeWatch) sizeWatch.disconnect();
+      body.classList.remove('vex-safe-mode-banner-shown');
+      body.style.removeProperty('--vex-smb-space');
+      el.remove();
+    });
     el.querySelector('[data-act="restart"]').addEventListener('click', () => {
       // The boot state was reset the moment this interface loaded, so a plain
       // restart is already a normal one.

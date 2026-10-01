@@ -1,84 +1,93 @@
 // @vitest-environment jsdom
 //
-// "Later" meant "ask me again next launch", and Vex ships several times a day —
-// so the popup was relentless, and a relentless popup is one that gets clicked
-// away without being read. (The Discord memory notice had exactly this problem
-// and was fixed the same way in v2.31.82.)
+// When the update cover comes up by itself. Later means "ask me at the next
+// start" (nothing is remembered); Skip means "not until something newer than
+// this one"; Stable waits until a release has stood two days; and the
+// safe-mode roll-back's one-day pause is still honoured.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-require('../../src/renderer/js/vex-utils.js');       // window.escapeHtml, which the popup uses
+require('../../src/renderer/js/vex-utils.js');
 const { UpdateNotifier } = require('../../src/renderer/js/update-notifier.js');
 
-const update = (latest = '2.31.99') => ({ ok: true, hasUpdate: true, latest, current: '2.31.98', downloadUrl: 'https://example.com/Vex-Setup.exe' });
+const update = (latest = '2.31.99') => ({ ok: true, hasUpdate: true, latest, current: '2.31.98' });
 
 beforeEach(() => {
+  UpdateNotifier.close();
   localStorage.clear();
   document.body.innerHTML = '';
   window.showToast = vi.fn();
   globalThis.VexProblems = { note: vi.fn() };
+  window.vex = { checkForUpdates: vi.fn(async () => update()), updates: { upcomingNotes: vi.fn(async () => ({ ok: true, entries: [] })) } };
 });
 
-describe('when an update is announced', () => {
-  it('a real update is announced', () => {
+describe('when the cover comes up by itself', () => {
+  it('a real update is announced; nothing else is', () => {
     expect(UpdateNotifier.shouldAnnounce(update())).toBe(true);
-  });
-
-  it('nothing is announced when there is nothing to announce', () => {
     expect(UpdateNotifier.shouldAnnounce({ ok: true, hasUpdate: false })).toBe(false);
     expect(UpdateNotifier.shouldAnnounce({ ok: false })).toBe(false);
     expect(UpdateNotifier.shouldAnnounce(null)).toBe(false);
   });
 
-  it('"Later" buys a day, not until the next launch', () => {
+  it('a skipped version stays quiet, and so does anything older; a newer one does not', () => {
+    localStorage.setItem(UpdateNotifier.SKIP_KEY, '2.31.99');
+    expect(UpdateNotifier.shouldAnnounce(update('2.31.99'))).toBe(false);
+    expect(UpdateNotifier.shouldAnnounce(update('2.31.50'))).toBe(false);
+    expect(UpdateNotifier.shouldAnnounce(update('2.31.100'))).toBe(true);
+    expect(UpdateNotifier.shouldAnnounce(update('2.32.0'))).toBe(true);
+  });
+
+  it('the roll-back pause (safe mode) still holds it back for a day', () => {
     const now = Date.now();
     localStorage.setItem(UpdateNotifier.SNOOZE_KEY, String(now + UpdateNotifier.SNOOZE_MS));
     expect(UpdateNotifier.shouldAnnounce(update(), now + 3600 * 1000)).toBe(false);
     expect(UpdateNotifier.shouldAnnounce(update(), now + 25 * 3600 * 1000)).toBe(true);
   });
 
-  it('a skipped version is never mentioned again — but the next one is', () => {
+  it('the startup check respects Skip, and shows the cover otherwise', async () => {
     localStorage.setItem(UpdateNotifier.SKIP_KEY, '2.31.99');
-    expect(UpdateNotifier.shouldAnnounce(update('2.31.99'))).toBe(false);
-    expect(UpdateNotifier.shouldAnnounce(update('2.32.0'))).toBe(true);
+    await UpdateNotifier.checkOnStartup();
+    expect(document.getElementById('update-cover')).toBe(null);
+    localStorage.clear();
+    await UpdateNotifier.checkOnStartup();
+    expect(document.getElementById('update-cover')).not.toBe(null);
+  });
+
+  it('a startup check that throws is noted, not shown and not swallowed', async () => {
+    window.vex.checkForUpdates = vi.fn(async () => { throw new Error('boom'); });
+    await UpdateNotifier.checkOnStartup();
+    expect(document.getElementById('update-cover')).toBe(null);
+    expect(VexProblems.note).toHaveBeenCalledWith('Updates', 'Could not check for updates', expect.any(Error));
   });
 });
 
-describe('the popup', () => {
-  it('offers Download, Later and Skip this one, and each does what it says', () => {
-    UpdateNotifier._showDownloadPrompt(update());
-    expect(document.getElementById('update-get-btn')).not.toBe(null);
-
-    document.getElementById('update-skip-btn').click();
-    expect(Number(localStorage.getItem(UpdateNotifier.SNOOZE_KEY))).toBeGreaterThan(Date.now() + 23 * 3600 * 1000);
-    expect(window.showToast).toHaveBeenCalledWith(expect.stringContaining('Not again until tomorrow'));
-
-    UpdateNotifier._showDownloadPrompt(update());
-    document.getElementById('update-never-btn').click();
-    expect(localStorage.getItem(UpdateNotifier.SKIP_KEY)).toBe('2.31.99');
-    expect(window.showToast).toHaveBeenLastCalledWith('Vex 2.31.99 will not be mentioned again');
+describe('Later and Skip', () => {
+  it('Later closes and remembers nothing, so the next start asks again', async () => {
+    UpdateNotifier.showCover(update());
+    document.querySelector('#update-cover [data-act="later"]').click();
+    await Promise.resolve();
+    expect(document.getElementById('update-cover')).toBe(null);
+    expect(localStorage.length).toBe(0);
+    expect(UpdateNotifier.shouldAnnounce(update())).toBe(true);
   });
 
-  it('a store that cannot be written is recorded rather than silently forgotten', () => {
-    // Assigning setItem on the INSTANCE stores a key called 'setItem'; the
-    // method lives on the prototype (the same trap js/storage.js documents).
+  it('Skip this version remembers the version', async () => {
+    UpdateNotifier.showCover(update());
+    document.querySelector('#update-cover [data-act="skip"]').click();
+    await Promise.resolve();
+    expect(document.getElementById('update-cover')).toBe(null);
+    expect(localStorage.getItem(UpdateNotifier.SKIP_KEY)).toBe('2.31.99');
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringContaining('Vex 2.31.99 will not be offered again'), 'info', 6000);
+  });
+
+  it('a store that cannot be written is recorded rather than silently forgotten', async () => {
     const real = Storage.prototype.setItem;
     Storage.prototype.setItem = () => { throw new Error('full'); };
     try {
-      UpdateNotifier._showDownloadPrompt(update());
-      document.getElementById('update-skip-btn').click();
+      UpdateNotifier.showCover(update());
+      document.querySelector('#update-cover [data-act="skip"]').click();
+      await Promise.resolve();
       expect(VexProblems.note).toHaveBeenCalledWith('Updates', 'Could not remember the update choice', expect.any(Error));
     } finally { Storage.prototype.setItem = real; }
-  });
-
-  it('the startup check respects both, so a quiet Vex stays quiet', async () => {
-    window.vex = { checkForUpdates: vi.fn(async () => update()) };
-    localStorage.setItem(UpdateNotifier.SKIP_KEY, '2.31.99');
-    await UpdateNotifier.checkOnStartup();
-    expect(document.getElementById('update-notification')).toBe(null);
-
-    localStorage.clear();
-    await UpdateNotifier.checkOnStartup();
-    expect(document.getElementById('update-notification')).not.toBe(null);
   });
 });
 

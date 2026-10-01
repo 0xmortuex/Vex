@@ -113,7 +113,24 @@ const DownloadsButton = {
     const shield = document.createElement('div');
     shield.className = 'downloads-drop-shield';
     document.body.appendChild(shield);
-    shield.addEventListener('mousedown', () => this.close());
+    shield.addEventListener('mousedown', (e) => {
+      this.close();
+      // The shield also sat over Vex's own buttons, so after a download the
+      // next click anywhere only closed this: the AI button, a tab, the
+      // command bar each needed a second click (2026-09-28). Once the shield
+      // is gone, the rest of that click goes to what was under it. A click on
+      // the page (a <webview>) only closes the drop, as before.
+      if (e.button !== 0) return;
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      if (!under || under.tagName === 'WEBVIEW') return;
+      if (under.matches('input, textarea, [contenteditable="true"]')) { under.focus(); return; }
+      const up = (ev) => {
+        document.removeEventListener('mouseup', up, true);
+        const at = document.elementFromPoint(ev.clientX, ev.clientY);
+        if (at && (at === under || under.contains(at) || at.contains(under))) under.click();
+      };
+      document.addEventListener('mouseup', up, true);
+    });
     this._shield = shield;
 
     const menu = document.createElement('div');

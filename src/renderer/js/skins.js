@@ -184,7 +184,7 @@ const VexSkins = {
             <h2>Skin</h2>
             <p>What Vex is made of, on top of whatever theme and look you are using: a texture on its own surfaces, the shape of its corners, and how it catches the light. Web pages are never touched.</p>
           </div>
-          <button class="vexskin-close" aria-label="Close">&times;</button>
+          <button class="vexskin-close" aria-label="Close" title="Close">${VexIcons.svg('x', { size: 18 })}</button>
         </div>
         <div class="vexskin-body" id="vexskin-body"></div>
         <div class="vexskin-foot">

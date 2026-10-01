@@ -307,10 +307,17 @@ const VexDevMode = {
       </div>`;
     document.body.appendChild(m);
 
-    const close = () => m.remove();
+    // Escape is heard on the document: the overlay itself never has focus, so
+    // a listener on it never fired (found 2026-09-29). A dialog on top (a
+    // danger action's confirm) keeps its own Escape.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); e.stopPropagation(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
     m.addEventListener('mousedown', (e) => { if (e.target === m) close(); });
     m.querySelector('#dd-close').addEventListener('click', close);
-    m.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+    document.addEventListener('keydown', onKey, true);
 
     const wrap = m.querySelector('#dd-actions');
     for (const a of this.actions()) {

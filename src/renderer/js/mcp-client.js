@@ -147,8 +147,13 @@ const McpClient = (() => {
         r.style.cssText = 'display:flex;align-items:center;gap:9px;padding:8px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px';
         r.innerHTML = `<div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);font-weight:600">${esc(s.name)}</div><div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.url)}</div>${sess && sess.tools ? `<div style="font-size:10.5px;color:#22c55e;margin-top:2px">● connected · ${sess.tools.length} tools</div>` : ''}</div>
           <button data-explore style="padding:6px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">${sess && sess.tools ? 'Tools' : 'Connect'}</button>
-          <button data-x title="Remove" style="width:24px;height:24px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:13px">✕</button>`;
-        r.querySelector('[data-x]').addEventListener('click', () => { removeServer(s.id); renderList(); });
+          <button data-x title="Remove" aria-label="Remove" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:none;background:none;color:var(--text-muted);cursor:pointer">${VexIcons.svg('x', { size: 13 })}</button>`;
+        // One click used to remove it, with its sign-in, and no way back (found 2026-09-29).
+        r.querySelector('[data-x]').addEventListener('click', async () => {
+          const ok = await vexConfirm({ title: 'Remove this MCP server?', message: s.name + ' (' + s.url + ') and its sign-in are removed from Vex.', okLabel: 'Remove', danger: true });
+          if (!ok) return;
+          removeServer(s.id); renderList();
+        });
         r.querySelector('[data-explore]').addEventListener('click', async (e) => {
           const btn = e.target; btn.disabled = true; btn.textContent = '…';
           try { if (!_sessions[s.id]?.tools) await connect(s); openExplorer(s); }
@@ -177,7 +182,7 @@ const McpClient = (() => {
         <div style="display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border)">
           <strong style="font-size:15px;color:var(--text)">${VexIcons.svg('plug', { size: 15 })} ${esc(server.name)}</strong>
           <span style="flex:1;font-size:11px;color:var(--text-muted)">${tools.length} tools${sess.info ? ' · ' + esc(sess.info.name || '') : ''}</span>
-          <button id="mcp-close" style="padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">✕</button>
+          <button id="mcp-close" aria-label="Close" title="Close" style="display:inline-flex;padding:7px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">${VexIcons.svg('x', { size: 14 })}</button>
         </div>
         <div style="padding:10px 16px;border-bottom:1px solid var(--border)">
           <div style="display:flex;gap:8px;align-items:center">
@@ -214,7 +219,7 @@ const McpClient = (() => {
       if (!t) return;
       const out = m.querySelector('#mcp-result');
       let args = {};
-      try { args = argsEl.value.trim() ? JSON.parse(argsEl.value) : {}; } catch { out.textContent = '✕ Arguments are not valid JSON'; return; }
+      try { args = argsEl.value.trim() ? JSON.parse(argsEl.value) : {}; } catch { out.textContent = 'Arguments are not valid JSON'; return; }
       out.innerHTML = '<span style="color:var(--text-muted)">Running…</span>';
       try {
         const r = await callTool(server, t.name, args);
@@ -222,7 +227,7 @@ const McpClient = (() => {
         const textOut = parts.map(p => p.type === 'text' ? p.text : (p.type === 'resource' ? JSON.stringify(p.resource, null, 2) : JSON.stringify(p, null, 2))).join('\n\n');
         out.textContent = textOut || JSON.stringify(r, null, 2);
         if (r && r.isError) out.style.color = '#fca5a5'; else out.style.color = 'var(--text)';
-      } catch (err) { out.textContent = '✕ ' + (err.message || 'Tool call failed'); out.style.color = '#fca5a5'; }
+      } catch (err) { out.textContent = err.message || 'Tool call failed'; out.style.color = '#fca5a5'; }
     });
   }
 

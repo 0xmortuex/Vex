@@ -30,14 +30,21 @@ const hhmm = (ms) => { const d = new Date(ms); return `${pad(d.getHours())}:${pa
 // so 09:00 stays 09:00 across a clock change. Always strictly after `after`.
 // `repeat` is daily | weekdays | weekly, or an array of weekdays (0 = Sunday)
 // — the alarm-clock form, "Mon Wed Fri".
-function nextRepeat(atMs, repeat, after) {
+// `time` ('HH:MM') is the wall-clock time the reminder was set for. It is put
+// back after every step: a 02:30 that fell into the hour skipped in spring
+// became 03:30, and every day after it stayed 03:30 for good (found
+// 2026-09-29).
+function nextRepeat(atMs, repeat, after, time) {
   const d = new Date(atMs);
   const days = Array.isArray(repeat) ? repeat : null;
   if (days && !days.length) throw new Error('An alarm needs at least one day.');
+  const [h, m] = /^\d{2}:\d{2}$/.test(time || '') ? time.split(':').map(Number) : [d.getHours(), d.getMinutes()];
   const step = () => {
+    d.setHours(12, 0, 0, 0);   // step from midday, so no step lands in a skipped hour
     d.setDate(d.getDate() + (repeat === 'weekly' ? 7 : 1));
     if (repeat === 'weekdays') while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
     if (days) while (!days.includes(d.getDay())) d.setDate(d.getDate() + 1);
+    d.setHours(h, m, 0, 0);
   };
   step();
   while (d.getTime() <= after) step();
@@ -130,7 +137,8 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
     const wasDueAt = r.at;
     if (r.repeat && r.at != null) {
       r.lastFiredAt = firedAt;
-      r.at = nextRepeat(r.at, r.repeat, firedAt);
+      if (!r.time) r.time = hhmm(r.at);   // made before `time` was kept
+      r.at = nextRepeat(r.at, r.repeat, firedAt, r.time);
       r.ackedAt = null;   // a repeating alarm rings again until dismissed again
     } else {
       r.firedAt = firedAt;
@@ -163,6 +171,10 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
   // While a focus session runs, reminders wait — unless marked urgent — and
   // fire as a batch when it ends. The renderer sets and clears this.
   let holdUntil = 0;
+  // One hold per caller ("focus", "meeting"): the hold is the latest of those
+  // still running. With a single value, ending a focus session inside a
+  // meeting cleared the meeting's hold too (found 2026-09-29).
+  const holds = new Map();
 
   // Which installation set a reminder. Vex Sync carries reminders between
   // machines; every machine fires them while it is open, but only the one
@@ -259,6 +271,7 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
         at: when,
         site: host || null,
         repeat: repeat || null,
+        time: repeat ? hhmm(when) : null,   // the wall clock it repeats at
         url: link || null,
         urgent: !!urgent,
         kind: kind || 'reminder',
@@ -343,6 +356,7 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
             id: x.id, message: String(x.message).slice(0, MAX_MESSAGE),
             at: Number.isFinite(x.at) ? x.at : null, site: x.site ? siteKey(x.site) : null,
             repeat: Array.isArray(x.repeat) ? x.repeat.filter(d => Number.isInteger(d) && d >= 0 && d <= 6) : (REPEATS.includes(x.repeat) ? x.repeat : null),
+            time: typeof x.time === 'string' && /^\d{2}:\d{2}$/.test(x.time) ? x.time : null,
             url: typeof x.url === 'string' && /^https?:\/\//.test(x.url) ? x.url : null,
             urgent: !!x.urgent, kind: KINDS.includes(x.kind) ? x.kind : 'reminder', sound: !!x.sound,
             job: x.job ? String(x.job).slice(0, 64) : null, owner: x.owner || 'unknown',
@@ -389,10 +403,15 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
       return { ok: true };
     },
 
-    // Hold non-urgent reminders until `untilMs` (0 clears). Anything that fell
-    // due meanwhile fires as a batch when the hold ends.
-    hold(untilMs) {
-      holdUntil = Math.max(0, Number(untilMs) || 0);
+    // Hold non-urgent reminders until `untilMs` (0 clears) for `who`. Anything
+    // that fell due meanwhile fires as a batch when the last hold ends.
+    hold(untilMs, who = 'focus') {
+      const key = String(who || 'focus');
+      const until = Math.max(0, Number(untilMs) || 0);
+      if (until) holds.set(key, until); else holds.delete(key);
+      const t = now();
+      for (const [k, v] of holds) if (v <= t) holds.delete(k);
+      holdUntil = holds.size ? Math.max(...holds.values()) : 0;
       arm();
       if (!holdUntil) { inflight = fireDue().catch(err => note(`[Reminders] fireDue after hold failed: ${err.message}`)); }
       return holdUntil;

@@ -101,4 +101,23 @@ function shouldBlock(url) {
   return false;
 }
 
-module.exports = { shouldBlock, AD_DOMAINS };
+// Blocked everywhere except on the site that cannot work without it. A
+// filter-list rule is right about a host in general and wrong on the one site
+// whose app waits on it:
+//   bzr.openai.com  ChatGPT signed in showed "Content failed to load" in a
+//                   tab and in the panel (2026-09-27). ||bzr.openai.com^ from
+//                   the privacy list was the one new block on the day it
+//                   broke; signed out, ChatGPT never asks for it.
+// Each entry is the request's host and the sites (the page's host, or a
+// subdomain of it) where it is let through.
+const SITE_REPAIRS = [
+  { host: 'bzr.openai.com', on: ['chatgpt.com', 'openai.com'] },
+];
+function _hostOf(u) { try { return new URL(u).hostname.toLowerCase(); } catch { return ''; } }
+function repairAllows(url, pageUrl) {
+  const host = _hostOf(url), page = _hostOf(pageUrl);
+  if (!host || !page) return false;
+  return SITE_REPAIRS.some(r => _hostMatchesDomain(host, r.host) && r.on.some(d => _hostMatchesDomain(page, d)));
+}
+
+module.exports = { shouldBlock, repairAllows, SITE_REPAIRS, AD_DOMAINS };

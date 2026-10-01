@@ -20,12 +20,20 @@ const SetupGallery = {
     m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Setup Gallery</span>
-        <button id="sg-close" style="${this._chip()}">✕</button>
+        <button id="sg-close" aria-label="Close" title="Close" style="${this._chip()};line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Close'}</button>
       </div>
       <div id="sg-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#sg-close').addEventListener('click', () => m.remove());
+    // Escape closes it, heard on the document (found 2026-09-29: it did
+    // nothing). A dialog on top keeps its own Escape.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#sg-close').addEventListener('click', close);
     this._paint(m);
   },
 
@@ -43,7 +51,7 @@ const SetupGallery = {
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span>
           <button data-act="apply" style="${this._chip()}">Apply</button>
           <button data-act="copy" title="Copy its code" style="${this._chip()}">Copy</button>
-          <button data-act="del" title="Delete" style="${this._chip()}">✕</button>
+          <button data-act="del" title="Delete" aria-label="Delete" style="${this._chip()}">${VexIcons.svg('x', { size: 13 })}</button>
         </div>`).join('') : '<div style="color:var(--text-muted);margin-bottom:6px">No saved setups yet.</div>'}</div>
       <div style="display:flex;gap:8px;margin:8px 0 18px">
         <input id="sg-name" placeholder="Name this setup…" style="flex:1;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-family:'Outfit',sans-serif">
@@ -75,7 +83,7 @@ const SetupGallery = {
       const code = (body.querySelector('#sg-import').value || '').trim();
       const d = this._decode(code);
       if (!d) { msg('That is not a valid setup code (must start with VEXSETUP1.).'); return; }
-      if (this._apply(d)) msg('✓ Applied — your setup was updated.', true); else msg('Could not apply that setup.');
+      if (this._apply(d)) msg('Applied — your setup was updated.', true); else msg('Could not apply that setup.');
     });
     body.querySelector('#sg-copy-export').addEventListener('click', () => { try { navigator.clipboard.writeText(this._encode()); window.showToast?.('Setup code copied'); } catch {} });
     body.querySelectorAll('#sg-list [data-i]').forEach(row => {

@@ -15,7 +15,21 @@ const SiteRulesUI = {
     { id: 'thirdParty', name: 'Content from other sites', note: 'Off refuses anything this page loads from another host: adverts, trackers, embeds, some fonts.' },
   ],
 
-  rules() { try { const o = JSON.parse(localStorage.getItem(this.KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } },
+  // A private window's storage starts empty, so it holds a copy of the rules
+  // main keeps (loaded below) — without it every switch did nothing there,
+  // JavaScript-off included (found 2026-09-29).
+  _mirror: null,
+  rules() {
+    if (this._mirror) return this._mirror;
+    try { const o = JSON.parse(localStorage.getItem(this.KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; }
+  },
+  _isPrivate() { return typeof window !== 'undefined' && !!window.VexTabPolicy?.isPrivateWindow; },
+  async loadMirror() {
+    const res = await window.vex.siteRulesGet();
+    if (!res || !res.ok || !res.rules || typeof res.rules !== 'object') throw new Error((res && res.error) || 'Could not read the per-site switches');
+    this._mirror = res.rules;
+    return this._mirror;
+  },
   save(rules) { try { localStorage.setItem(this.KEY, JSON.stringify(rules)); } catch {} },
 
   host(url) { try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; } },
@@ -44,6 +58,10 @@ const SiteRulesUI = {
   },
 
   async set(url, what, off) {
+    // The switches live in the normal window's storage; one changed here was
+    // pushed from this window's empty copy and wiped every other site's
+    // (found 2026-09-29). Same as the ad blocker switch in a private window.
+    if (this._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
     const h = this.host(url);
     if (!h) throw new Error('That is not a web page');
     const rules = this.rules();
@@ -102,7 +120,9 @@ const SiteRulesUI = {
 
   init() {
     // The stored rules are the truth; this only makes main agree with them.
-    this.push().catch(err => window.VexProblems?.note('Site switches', 'Could not tell Vex about your per-site switches', err));
+    // Not from a private window: its storage starts empty, and pushing that
+    // wiped every per-site rule in site-rules.json (found 2026-09-29).
+    if (!window.VexTabPolicy?.isPrivateWindow) this.push().catch(err => window.VexProblems?.note('Site switches', 'Could not tell Vex about your per-site switches', err));
     document.getElementById('btn-site-rules')?.addEventListener('click', () => {
       try { this.open(); } catch (err) { window.showToast?.(err.message, 'error'); }
     });
@@ -175,7 +195,7 @@ const SiteRulesUI = {
             await this.set(t.url, what.id, !e.target.checked);
             changed = true;
             draw();
-          } catch (err) { window.showToast?.(err.message, 'error'); }
+          } catch (err) { window.showToast?.(err.message, 'error'); draw(); }
         });
         listEl.appendChild(row);
       }
@@ -198,4 +218,27 @@ const SiteRulesUI = {
 };
 
 if (typeof window !== 'undefined') window.SiteRulesUI = SiteRulesUI;
+// Asked for as soon as this file loads, before the window builds its tabs,
+// so a private tab opened at once is already built with JavaScript off.
+if (typeof window !== 'undefined' && SiteRulesUI._isPrivate()) {
+  const reload = () => SiteRulesUI.loadMirror().catch(err => {
+    console.error('[SiteRules] private window could not read the switches:', err);
+    window.VexProblems?.note('Site switches', 'This private window could not read your per-site switches', err);
+  });
+  reload();
+  // Read once, the copy went stale: JavaScript switched off for a site in the
+  // normal window still ran in a private window that was already open. Main
+  // now sends the switches to every window the moment they change, so the
+  // copy is replaced at once; it used to be read again every three seconds,
+  // which left that long for a site to run (both found 2026-09-29). Coming
+  // back to the window reads it once more, for a word that was missed.
+  window.vex.onSiteRulesChanged((rules) => {
+    if (!rules || typeof rules !== 'object') {
+      console.error('[SiteRules] private window was sent switches it cannot read:', rules);
+      return;
+    }
+    SiteRulesUI._mirror = rules;
+  });
+  window.addEventListener('focus', reload);
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { SiteRulesUI };

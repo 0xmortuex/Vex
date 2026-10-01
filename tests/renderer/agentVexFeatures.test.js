@@ -76,6 +76,14 @@ describe('what Vex can do by itself', () => {
     expect((await AgentExecutor.executeTool('vex_features', { query: '' })).error).toMatch(/needs a query/);
   });
 
+  it('vex_features says when the words name a setting, and how to change it', async () => {
+    const html = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/index.html'), 'utf8');
+    document.body.innerHTML = html.slice(html.indexOf('<div class="panel" id="panel-settings"'));
+    const r = await AgentExecutor.executeTool('vex_features', { query: 'streamer mode' });
+    expect(r.result.setting).toMatch(/^Streamer mode is a SETTING, not a feature: change it with change_setting, "set Streamer mode to …" \(While you share your screen \(not during calls\), Always on, Off\)$/);
+    expect(Array.isArray(r.result.features)).toBe(true);
+  });
+
   it('the digest names every category and the features in it', () => {
     const d = AgentTools.featureDigest();
     for (const c of VexFeatures.CATS) expect(d).toContain(c.name + ': ');

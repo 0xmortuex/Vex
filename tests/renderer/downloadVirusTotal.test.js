@@ -36,6 +36,20 @@ describe('the download check', () => {
     expect(TabManager.createTab).toHaveBeenCalledWith('https://www.virustotal.com/gui/file/' + SHA, true);
   });
 
+  // A new file (Vex's own installer, an hour old) opens on "Item not found",
+  // which looked like Vex had broken (2026-09-28).
+  it('says what "Item not found" means and opens the folder to drag the file from', async () => {
+    const toast = vi.fn();
+    window.showToast = toast;
+    window.vex = { fileInspect: vi.fn(async () => ({ ok: true, verdict: 'unsigned', name: 'setup.exe', sha256: SHA, lines: [] })), downloadsShowInFolder: vi.fn() };
+    const answer = DownloadsPanel._okToOpen('C:/Downloads/setup.exe', '');
+    await new Promise(r => setTimeout(r, 0));
+    document.querySelector('.vex-dialog [data-extra]').click();
+    await answer;
+    expect(toast.mock.calls[0][0]).toMatch(/Item not found", nobody has scanned this exact file yet/);
+    expect(window.vex.downloadsShowInFolder).toHaveBeenCalledWith('C:/Downloads/setup.exe');
+  });
+
   it('no VirusTotal button without a real fingerprint', async () => {
     window.vex = { fileInspect: vi.fn(async () => ({ ok: true, verdict: 'unsigned', name: 'setup.exe', sha256: '', lines: [] })) };
     const answer = DownloadsPanel._okToOpen('C:/Downloads/setup.exe', '');

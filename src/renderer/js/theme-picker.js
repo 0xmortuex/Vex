@@ -28,7 +28,7 @@ const ThemePicker = {
     modal.innerHTML = `
       <div class="vtp-header">
         <h2>Choose a Theme</h2>
-        <button class="vtp-close" aria-label="Close">&times;</button>
+        <button class="vtp-close" aria-label="Close" title="Close">${VexIcons.svg('x', { size: 20 })}</button>
       </div>
       <div class="vtp-sections"></div>
     `;
@@ -38,12 +38,18 @@ const ThemePicker = {
     modal.querySelector('.vtp-close').addEventListener('click', () => this.close());
     overlay.addEventListener('click', (e) => { if (e.target === overlay) this.close(); });
 
-    this._keyHandler = (e) => { if (e.key === 'Escape') { e.preventDefault(); this.close(); } };
+    this._keyHandler = (e) => {
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); this.close();
+    };
     document.addEventListener('keydown', this._keyHandler, true);
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
     this._overlay = overlay;
+    // Opened with Ctrl+Shift+Y from a page, focus stayed in the page, so Esc
+    // went to the page and never reached this handler (found 2026-09-29).
+    modal.querySelector('.vtp-close').focus({ preventScroll: true });
     requestAnimationFrame(() => overlay.classList.add('visible'));
   },
 
@@ -83,7 +89,7 @@ const ThemePicker = {
       grid.appendChild(look);
       container.append(h, grid);
     }
-    section('★ Favorites', favThemes);
+    section('Favorites', favThemes);
     section(favThemes.length || look ? 'All themes' : '', ThemeManager.THEMES);
   },
 
@@ -100,7 +106,7 @@ const ThemePicker = {
       <div class="vtp-thumb">${this._livePreview({ id: 'look-own' }, this._lookColors())}</div>
       <div class="vtp-label">
         <span class="vtp-label-text"></span>
-        <span class="vtp-check" aria-hidden="true">&#10003;</span>
+        <span class="vtp-check" aria-hidden="true">${VexIcons.svg('check', { size: 14 })}</span>
       </div>`;
     card.querySelector('.vtp-label-text').textContent = `${name} — original colours`;
     card.addEventListener('click', () => {
@@ -132,6 +138,7 @@ const ThemePicker = {
     const card = document.createElement('button');
     card.className = 'vtp-card' + (t.id === current ? ' active' : '');
     card.dataset.theme = t.id;
+    if (t.inspiredBy) card.title = `Inspired by ${t.inspiredBy}`;
     const isCustom = !!t.upload;
     const fav = ThemeManager.isFavorite(t.id);
     // Live CSS preview — a mini Vex window rendered with the theme's own variables
@@ -140,11 +147,11 @@ const ThemePicker = {
     const upload = isCustom ? '<span class="vtp-thumb-upload">' + VexIcons.svg('upload', { size: 13 }) + ' Upload image</span>' : '';
     card.innerHTML = `
       <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t)}${upload}
-        <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</span>
+        <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${VexIcons.svg('star', { size: 15 })}</span>
       </div>
       <div class="vtp-label">
         <span class="vtp-label-text">${t.label}</span>
-        <span class="vtp-check" aria-hidden="true">&#10003;</span>
+        <span class="vtp-check" aria-hidden="true">${VexIcons.svg('check', { size: 14 })}</span>
       </div>
     `;
     card.querySelector('.vtp-star').addEventListener('click', (e) => {

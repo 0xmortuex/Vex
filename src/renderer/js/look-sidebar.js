@@ -101,8 +101,11 @@
     // With a second panel beside it (SidebarManager.openBeside): "Discord + Claude".
     const beside = typeof SidebarManager !== 'undefined' ? SidebarManager.sidePanel : null;
     const other = beside ? choices.find(c => c.panel === beside) : null;
-    const besideLabel = beside ? (other ? other.label : beside) : '';
-    title.textContent = (cur ? cur.label : panel) + (beside ? ' + ' + besideLabel : '');
+    // A panel whose icon is hidden is not among the choices; its header showed
+    // the raw id ("schedules") instead of its name (found 2026-09-29).
+    const labelOf = (p) => (typeof SidebarManager !== 'undefined' && SidebarManager.panelLabel) ? SidebarManager.panelLabel(p) : p;
+    const besideLabel = beside ? (other ? other.label : labelOf(beside)) : '';
+    title.textContent = (cur ? cur.label : labelOf(panel)) + (beside ? ' + ' + besideLabel : '');
     const chip = document.getElementById('look-sb-beside');
     const add = document.getElementById('look-sb-add');
     if (chip) {

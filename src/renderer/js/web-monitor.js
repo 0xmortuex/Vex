@@ -95,7 +95,7 @@ const PageMonitor = {
           <div style="font-size:11px;color:var(--text-muted)">${esc(host)} · every ${w.intervalMin}m · checked ${esc(when)}</div>
         </div>
         <button data-open style="padding:5px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">Open</button>
-        <button data-x title="Stop watching" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:14px">✕</button>
+        <button data-x title="Stop watching" aria-label="Stop watching" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Stop'}</button>
       </div>`;
     }).join('') : '<div style="color:var(--text-muted);font-size:12.5px;padding:14px 8px">Not watching any pages. Ctrl+K → “Watch This Page”.</div>';
     m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
@@ -103,13 +103,24 @@ const PageMonitor = {
         <div style="overflow-y:auto;padding:0 18px 16px">${rows}</div>
       </div>`;
     document.body.appendChild(m);
-    const close = () => m.remove();
+    // Escape closes it the way Done does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for a Vex dialog on top is left to that dialog. Focus moves in, or with
+    // the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
     m.querySelector('#wt-close').addEventListener('click', close);
+    m.querySelector('#wt-close').focus({ preventScroll: true });
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelectorAll('[data-id]').forEach(row => {
       const w = this.watches.find(x => x.id === row.dataset.id);
       row.querySelector('[data-open]').addEventListener('click', () => { w.changed = false; this.save(); TabManager.createTab(w.url, true); close(); });
-      row.querySelector('[data-x]').addEventListener('click', () => { this.remove(w.id); this.showManager(); });
+      row.querySelector('[data-x]').addEventListener('click', () => { this.remove(w.id); close(); this.showManager(); });
     });
     // No permission request: the renderer cannot be granted the Notification
     // API on file:// (it reads "denied" before asking), and the toast is sent by

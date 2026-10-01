@@ -9,6 +9,16 @@ const SyncSettings = (() => {
 
   function escapeHtml(str) { return window.escapeHtml(str); }
 
+  // The browser's "Failed to fetch" is what an unreachable sync server looks
+  // like, and it was shown as is (found 2026-09-29). Say it in words.
+  function human(message) {
+    const m = String(message || '');
+    if (/failed to fetch|networkerror|load failed|network request failed|err_internet_disconnected|err_name_not_resolved/i.test(m)) {
+      return 'Could not reach the sync server — check your internet connection and try again';
+    }
+    return m;
+  }
+
   function getRelativeTime(iso) {
     if (!iso) return 'never';
     const d = new Date(iso);
@@ -91,7 +101,10 @@ const SyncSettings = (() => {
       </div>
     `;
     wireSignedOutHandlers(container);
-    setTimeout(() => document.getElementById('sync-email-input')?.focus(), 50);
+    // Without preventScroll this dragged Settings to the Sync section every
+    // time it opened, and undid SettingsUI.openSection's jump 50 ms after it
+    // landed (found 2026-09-29).
+    setTimeout(() => document.getElementById('sync-email-input')?.focus({ preventScroll: true }), 50);
   }
 
   function wireSignedOutHandlers(container) {
@@ -113,10 +126,10 @@ const SyncSettings = (() => {
           document.getElementById('sync-code-input').value = resp.devCode;
           window.showToast?.('Code filled in \u2014 click Verify');
         }
-        btn.textContent = 'Sent \u2713';
+        btn.textContent = 'Sent';
         setTimeout(() => { btn.textContent = 'Resend Code'; btn.disabled = false; }, 3000);
       } catch (err) {
-        errorEl.textContent = err.message; errorEl.hidden = false;
+        errorEl.textContent = human(err.message); errorEl.hidden = false;
         btn.textContent = 'Send Code'; btn.disabled = false;
       }
     });
@@ -141,15 +154,16 @@ const SyncSettings = (() => {
 
       try {
         if (hasRecovery) {
-          await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode);
-          toast('Signed in — pulled your data', 'success');
+          const joined = await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode);
+          if (joined.pushError) toast('Signed in and pulled your data, but this device’s own data could not be uploaded yet — ' + human(joined.pushError) + '. It will try again on the next sync.', 'error');
+          else toast('Signed in — pulled your data', 'success');
         } else {
           const result = await SyncEngine.verifyCode(email, code);
           showRecoveryCodeDialog(result.recoveryCode);
         }
         await renderSyncPanel(document.getElementById('sync-panel-content'));
       } catch (err) {
-        errorEl.textContent = err.message; errorEl.hidden = false;
+        errorEl.textContent = human(err.message); errorEl.hidden = false;
         btn.textContent = 'Verify'; btn.disabled = false;
       }
     });
@@ -185,10 +199,13 @@ const SyncSettings = (() => {
     // a revoked session, or an unreachable worker.
     let devices = null, devicesError = null;
     try { devices = await SyncEngine.listDevices(); }
-    catch (err) { devicesError = (err && err.message) ? err.message : 'Could not load your devices'; }
+    catch (err) { devicesError = (err && err.message) ? human(err.message) : 'Could not load your devices'; }
 
     const lastPush = getRelativeTime(state.lastPushAt);
     const lastPull = getRelativeTime(state.lastPullAt);
+    // Shortcut tiles sync only once every device understands them (sync-engine.js
+    // checkTileGate); name the devices they are waiting on.
+    const tilesWaitOn = new Set(SyncEngine.tileSyncState?.().waitingOn || []);
     const deviceBody = devicesError
       ? `<div class="sync-devices-error" role="alert" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--danger,#e5484d);font-size:12px">
            <span>${escapeHtml(devicesError)}</span>
@@ -198,7 +215,7 @@ const SyncSettings = (() => {
               <div class="device-item ${d.deviceId === state.deviceId ? 'current' : ''}">
                 <div class="device-info">
                   <div class="device-name">${VexIcons.svg('monitor', { size: 14 })} ${escapeHtml(d.deviceName)} ${d.deviceId === state.deviceId ? '<span class="this-device">(This device)</span>' : ''}</div>
-                  <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}</div>
+                  <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}${tilesWaitOn.has(d.deviceId) ? ' &middot; Shortcut tiles sync once this device has synced with Vex 2.34.3 or newer' : ''}</div>
                 </div>
                 ${d.deviceId !== state.deviceId ? `<button class="btn-danger-sm" data-device-id="${escapeHtml(d.deviceId)}">Remove</button>` : ''}
               </div>
@@ -253,14 +270,16 @@ const SyncSettings = (() => {
     document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-sync-now');
       btn.disabled = true; btn.textContent = 'Syncing...';
-      const pushR = await SyncEngine.pushNow();
+      // Pull first: pushing first 409'd ("Push returned 409") whenever another
+      // device had synced since this one last pulled (found 2026-09-29).
       const pullR = await SyncEngine.pullNow();
+      const pushR = await SyncEngine.pushNow();
       const ok = pushR.ok && pullR.ok;
-      btn.textContent = ok ? 'Done \u2713' : 'Failed';
+      btn.textContent = ok ? 'Done' : 'Failed';
       // "Failed" on its own tells the user nothing they can act on \u2014 name which
       // half failed and why.
       if (!ok) {
-        const why = [!pushR.ok ? `upload: ${pushR.reason}` : '', !pullR.ok ? `download: ${pullR.reason}` : '']
+        const why = [!pullR.ok ? `download: ${human(pullR.reason)}` : '', !pushR.ok ? `upload: ${human(pushR.reason)}` : '']
           .filter(Boolean).join(' \u00b7 ');
         toast('Sync failed \u2014 ' + why, 'error');
       }
@@ -314,7 +333,9 @@ const SyncSettings = (() => {
     });
   }
 
-  return { renderSyncPanel };
+  // human() is shared so every sync message (e.g. Send to My Devices in
+  // command.js) words an unreachable server the same way.
+  return { renderSyncPanel, human };
 })();
 
 window.SyncSettings = SyncSettings;

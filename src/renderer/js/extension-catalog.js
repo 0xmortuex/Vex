@@ -18,6 +18,51 @@
 const VexExtensionCatalog = {
   ENTRIES: [
     {
+      id: 'rosuite',
+      limited: false,
+      name: 'RoSuite',
+      what: 'Roblox, improved: a server browser (busiest or emptiest first, filters, join a server), live game stats, profile value and activity, and a trade calculator.',
+      works: 'Fully. Content scripts and Roblox’s public APIs, with your existing Roblox sign-in. Runs in tabs and in the Roblox panel.',
+      caveat: 'Trades and friends-in-server need you signed in to Roblox. Made for Vex, open source.',
+      source: 'https://github.com/0xmortuex/RoSuite',
+    },
+    {
+      id: 'github-pulse',
+      limited: false,
+      name: 'GitHub Pulse',
+      what: 'A bar at the top of every GitHub repository: its latest workflow runs, deployment and release, and when its Cloudflare Worker was last deployed.',
+      works: 'Fully. A content script and GitHub’s public API.',
+      caveat: 'The Cloudflare part is optional and needs a read-only API token in its options. Made for Vex, open source.',
+      source: 'https://github.com/0xmortuex/GitHub-Pulse',
+    },
+    {
+      id: 'devforum-plus',
+      limited: false,
+      name: 'DevForum+',
+      what: 'The Roblox Developer Forum for developers: API names in code link to their docs, a docs search on Alt+D, and a Copy button on code.',
+      works: 'Fully. A content script and a weekly list of API names.',
+      caveat: 'Made for Vex, open source.',
+      source: 'https://github.com/0xmortuex/DevForum-Plus',
+    },
+    {
+      id: 'chatkeep',
+      limited: false,
+      name: 'ChatKeep',
+      what: 'Export a ChatGPT, Claude or Gemini conversation as Markdown, and keep one prompt library for all three.',
+      works: 'Fully, in tabs. A content script; it sends nothing anywhere.',
+      caveat: 'The chat sites change their pages often, so an export can come out empty until ChatKeep is updated. Made for Vex, open source.',
+      source: 'https://github.com/0xmortuex/ChatKeep',
+    },
+    {
+      id: 'cineverse-plus',
+      limited: false,
+      name: 'Cineverse+',
+      what: 'Paribu Cineverse with IMDb ratings on every film, and the soonest showings at the cinemas nearest you.',
+      works: 'Fully. Your location comes from Settings › Location.',
+      caveat: 'IMDb ratings need a free OMDb key, pasted once in its options. Made for Vex, open source.',
+      source: 'https://github.com/0xmortuex/Cineverse-Plus',
+    },
+    {
       id: 'dark-reader',
       limited: false,
       name: 'Dark Reader',
@@ -40,8 +85,11 @@ const VexExtensionCatalog = {
       limited: true,
       name: 'Violentmonkey',
       what: 'Userscripts — small scripts that change how a site behaves.',
-      works: 'Scripts run. Most scripts that only touch the page work as written.',
-      caveat: 'A script whose @grant asks for downloads, notifications or context menus fails, because Electron has none of those.',
+      // Its service worker stops at chrome.windows while starting, and it runs
+      // scripts through chrome.userScripts; Electron has neither, so no script
+      // runs (found 2026-09-29, when "Scripts run" was shown here).
+      works: 'Does not work in Vex yet: it installs, but no script runs.',
+      caveat: 'It needs Chrome’s userScripts and windows extension APIs, which Electron does not have.',
       source: 'https://github.com/violentmonkey/violentmonkey/releases',
     },
     {

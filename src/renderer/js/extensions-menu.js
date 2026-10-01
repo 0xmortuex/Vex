@@ -27,7 +27,9 @@ const ExtensionsMenu = {
     { icon: 'shield', label: 'Privacy Report', sub: 'Trackers blocked + protections', cmd: 'privacy' },
     { sep: true },
     { icon: 'puzzle', label: 'Manage Chrome extensions…', sub: 'Install .crx / .zip / unpacked',
-      fn: () => { try { (SidebarManager.openPanel || SidebarManager.showPanel).call(SidebarManager, 'settings'); } catch (_) {} } },
+      // Straight to the extensions list — opening Settings at the top left the
+      // user to hunt for it (found 2026-09-29).
+      fn: () => { SettingsUI.openSection('extensions-panel-content'); } },
   ],
 
   init() {
@@ -65,6 +67,9 @@ const ExtensionsMenu = {
     left = Math.max(8, left);
     menu.style.top = (r.bottom + 6) + 'px';
     menu.style.left = left + 'px';
+    // With a dozen extensions above the built-in tools the list ran off the
+    // bottom of the window with no way to reach the rest; it scrolls instead.
+    menu.style.maxHeight = Math.max(160, window.innerHeight - r.bottom - 14) + 'px';
     this._menu = menu;
     btn.classList.add('active');
 
@@ -148,10 +153,17 @@ const ExtensionsMenu = {
     try {
       if (ext.hasPopup) {
         const rect = btn.getBoundingClientRect();
+        // The tab you are on, so the popup's "this site" is that page and not
+        // the popup itself (main.js, extensions:popup-tab). A tab that has not
+        // attached yet has no id to give.
+        const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
+        let tab = null;
+        if (wv && typeof wv.getWebContentsId === 'function') { try { tab = wv.getWebContentsId(); } catch { /* not attached yet */ } }
         const res = await window.vex.extensionsOpenPopup({
           folder: ext.folder,
           x: Math.max(0, Math.round(window.screenX + rect.left)),
-          y: Math.max(0, Math.round(window.screenY + rect.bottom))
+          y: Math.max(0, Math.round(window.screenY + rect.bottom)),
+          tab: Number.isInteger(tab) && tab > 0 ? tab : null
         });
         if (!res || !res.ok) window.showToast?.('Could not open popup: ' + ((res && res.error) || 'unknown'));
         return;
@@ -185,7 +197,7 @@ const ExtensionsMenu = {
       .ext-menu{position:fixed;z-index:100000;min-width:252px;max-width:300px;padding:6px;border-radius:12px;
         background:var(--surface,#1b1b24);border:1px solid var(--border,rgba(255,255,255,0.10));
         box-shadow:0 14px 44px rgba(0,0,0,0.40);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-        animation:extMenuIn .12s ease;}
+        animation:extMenuIn .12s ease;overflow-y:auto;overscroll-behavior:contain;}
       @keyframes extMenuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
       .ext-menu-item{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border:none;border-radius:8px;
         background:transparent;color:var(--text,#e9e9ee);cursor:pointer;text-align:left;font-family:inherit;}

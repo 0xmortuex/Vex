@@ -35,7 +35,8 @@ describe('AIPanel._parseResponse', () => {
   });
 
   it('wraps a JSON array as the reply rather than treating it as fields', () => {
-    expect(AIPanel._parseResponse('[1,2]').reply).toBe('[1,2]');
+    // As a bullet list, so it reads as one and is saved as text (2026-09-29).
+    expect(AIPanel._parseResponse('[1,2]').reply).toBe('- 1\n- 2');
   });
 
   it('recovers the reply from truncated JSON instead of showing raw JSON', () => {

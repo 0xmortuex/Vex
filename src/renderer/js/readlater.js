@@ -30,7 +30,11 @@ const ReadLater = {
   add(url, title) {
     if (!url) return;
     if (this.items.some(i => i.url === url && !i.read)) { window.showToast?.('Already in Read Later'); return; }
-    const item = { id: vexId('rl'), url, title: title || url, at: Date.now(), read: false };
+    // Saved from a tab in a session of its own (a container, a Tor or proxy
+    // route): no list here asks its site for an icon (found 2026-09-30).
+    const from = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
+    const own = !!from && from.url === url && !TabManager.windowMayAsk(from.partition);
+    const item = { id: vexId('rl'), url, title: title || url, at: Date.now(), read: false, ...(own ? { ownSession: true } : {}) };
     this.items.unshift(item);
     this.save();
     window.showToast?.('Saved for later (' + this.unread() + ' unread)');
@@ -42,6 +46,10 @@ const ReadLater = {
   async measure(id) {
     const item = this.items.find(i => i.id === id);
     if (!item || item.minutes != null || typeof AgentTools === 'undefined') return null;
+    // The page is read from Vex's window, which goes out directly: a page
+    // saved from a Tor or proxy tab, or of a site with a site rule, was
+    // fetched from the real address (found 2026-09-30). Those stay unmeasured.
+    if (item.ownSession || (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(item.url))) return null;
     try {
       const page = await AgentTools.readUrl(item.url);
       const words = String(page.text || '').split(/\s+/).filter(Boolean).length;
@@ -145,9 +153,9 @@ const ReadLater = {
       r.addEventListener('mouseenter', () => r.style.background = 'var(--surface)');
       r.addEventListener('mouseleave', () => r.style.background = '');
       let host = it.url; try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch {}
-      r.innerHTML = `<img src="https://${encodeURIComponent(host)}/favicon.ico" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
+      r.innerHTML = `<img src="${it.ownSession || (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(it.url, { partition: it.partition })) ? '' : `https://${encodeURIComponent(host)}/favicon.ico`}" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
         <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</div><div style="font-size:10.5px;color:var(--text-muted)">${esc(host)} · saved ${esc(this.describeAge(it.at))}${it.minutes ? ' · ' + it.minutes + ' min read' : ''}</div></div>
-        <button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px">✕</button>`;
+        <button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px" title="Remove" aria-label="Remove">${VexIcons.svg('x', { size: 13 })}</button>`;
       r.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) return; opts.open(it); });
       r.querySelector('[data-x]').addEventListener('click', (e) => { e.stopPropagation(); opts.remove(it); });
       body.appendChild(r);
@@ -191,6 +199,20 @@ const ReadLater = {
     if (read.length) {
       section('Done');
       read.forEach(it => row(it, { dim: true, open: (x) => this.open(x), remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
+    }
+
+    // Snoozed tabs could not be seen or woken early: nothing listed them
+    // (found 2026-09-29). A row wakes it now; its remove button forgets it.
+    const snoozed = typeof TabSnooze !== 'undefined' ? TabSnooze.list().slice().sort((a, b) => a.at - b.at) : [];
+    if (snoozed.length) {
+      section('Snoozed tabs');
+      snoozed.forEach(it => row({ ...it, at: it.snoozedAt || Date.now(), title: `${it.title || it.url} — back ${new Date(it.at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` }, {
+        open: (x) => {
+          try { SidebarManager.hideActivePanel?.(); TabSnooze.wake(x.id); }
+          catch (err) { window.showToast?.(err.message, 'error'); this.renderPanel(container); }
+        },
+        remove: (x) => { TabSnooze.forget(x.id); this.renderPanel(container); }
+      }));
     }
 
     const arch = TabArchiver.list();

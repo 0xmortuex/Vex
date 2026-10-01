@@ -22,12 +22,24 @@ const SiteProfiles = {
     m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">${VexIcons.svg('globe', { size: 15 })} Site Settings</span>
-        <button id="sp-close" style="${this._chip()}">✕</button>
+        <button id="sp-close" style="${this._chip()}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
       </div>
       <div id="sp-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#sp-close').addEventListener('click', () => m.remove());
+    // Escape closes it the way the X does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for the Reset vexConfirm on top is left to that dialog. Focus moves in,
+    // or with the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#sp-close').addEventListener('click', close);
+    m.querySelector('#sp-close').focus({ preventScroll: true });
     this._paint(m);
   },
 
@@ -54,11 +66,11 @@ const SiteProfiles = {
         </div>
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
           <span style="flex:1">Force dark mode</span>
-          <button id="sp-dark" style="${this._chip()}">${dark.has(host) ? '✓ On' : 'Off'}</button>
+          <button id="sp-dark" style="${this._chip()}">${dark.has(host) ? 'On' : 'Off'}</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
           <span style="flex:1">Never let this site sleep<br><span style="font-size:10.5px;color:var(--text-muted)">Keep it loaded in the background — skips Memory Saver &amp; auto-sleep</span></span>
-          <button id="sp-nosleep" style="${this._chip()}">${never.has(host) ? '✓ On' : 'Off'}</button>
+          <button id="sp-nosleep" style="${this._chip()}">${never.has(host) ? 'On' : 'Off'}</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:16px">
           <span style="flex:1">Custom CSS / JS ${boosts[host] ? '<span style="color:var(--primary,var(--accent))">· active</span>' : ''}</span>
@@ -87,7 +99,7 @@ const SiteProfiles = {
           return `<div data-host="${esc(h)}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border)">
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" data-act="go">${esc(h)}</span>
             <span style="color:var(--text-muted);font-size:11px">${badges.join(' ')}</span>
-            <button data-act="reset" title="Reset this site" style="${this._chip()}">↺</button>
+            <button data-act="reset" title="Reset this site" aria-label="Reset this site" style="${this._chip()}">${VexIcons.svg('undo', { size: 12 })}</button>
           </div>`;
         }).join('') + '</div>';
     } else html += `<div style="color:var(--text-muted);font-size:12px">Nothing customized yet.</div>`;

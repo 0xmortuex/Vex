@@ -109,7 +109,10 @@ const ClipsInbox = {
         // like any other video in Vex.
         row.addEventListener('click', () => {
           overlay.remove();
-          TabManager.createTab('file:///' + String(clip.path).replace(/\\/g, '/'), true);
+          // Encoded: "Replay #3.mp4" opened "Replay " with "#3.mp4" as a
+          // fragment (found 2026-09-29). encodeURI keeps the drive letter and
+          // separators but leaves # and ? alone, so those are done by hand.
+          TabManager.createTab(encodeURI('file:///' + String(clip.path).replace(/\\/g, '/')).replace(/#/g, '%23').replace(/\?/g, '%3F'), true);
         });
         listEl.appendChild(row);
       }

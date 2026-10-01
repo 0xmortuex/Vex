@@ -5,6 +5,10 @@
 // accessibility pack could only change the font of a page, never of the
 // browser around it.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Close buttons and ticks are VexIcons SVGs (sweep 2026-09-29).
+require('../../src/renderer/js/vex-icons.js');
+globalThis.VexIcons = window.VexIcons;
 const { VexFonts } = require('../../src/renderer/js/fonts.js');
 
 beforeEach(() => {

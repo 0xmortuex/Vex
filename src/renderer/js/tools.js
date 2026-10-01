@@ -15,6 +15,14 @@ const VexTools = {
     if (!Array.isArray(this.tools)) this.tools = [];
     await this.applySidebarConfig();
     this.renderToolsBar();
+    // Sync merges the list in storage; the copy held here would otherwise be
+    // saved back over it on the next change (found 2026-09-30).
+    window.addEventListener('vex-sync-data-applied', () => {
+      try {
+        const t = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]');
+        if (Array.isArray(t)) { this.tools = t; this.renderToolsBar(); }
+      } catch (err) { console.error('[Tools] the synced list could not be read:', err); }
+    });
   },
 
   // Optional personalization via the LOCAL, gitignored sidebar-config.json
@@ -116,7 +124,10 @@ const VexTools = {
 
   openToolById(id) {
     const tool = this.tools.find(t => t.id === id);
-    if (tool) this.openTool(tool);
+    // Ctrl+K names a few tools that are no longer shipped; without one in your
+    // tools bar the command did nothing at all (found 2026-09-29).
+    if (!tool) { window.showToast?.(`${id} is not in your tools bar — add it there with the + button`, 'warn'); return; }
+    this.openTool(tool);
   },
 
   addTool(name, url, desc) {

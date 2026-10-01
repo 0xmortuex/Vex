@@ -56,7 +56,7 @@ const JsonApiViewer = {
           </select>
           <input id="api-url" type="text" placeholder="https://api.example.com/v1/…" value="${this.esc(url)}" spellcheck="false" style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none">
           <button id="api-send" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Send</button>
-          <button id="api-close" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">✕</button>
+          <button id="api-close" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
         </div>
         <div style="display:flex;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border)">
           <textarea id="api-headers" placeholder="Headers — one per line:&#10;Authorization: Bearer …&#10;Content-Type: application/json" spellcheck="false" style="flex:1;height:54px;resize:vertical;padding:6px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11.5px;outline:none"></textarea>
@@ -68,7 +68,16 @@ const JsonApiViewer = {
         </div>
       </div>`;
     document.body.appendChild(m);
-    const close = () => m.remove();
+    // Escape closes it the way the X does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for a Vex dialog on top is left to that dialog.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
     m.querySelector('#api-close').addEventListener('click', close);
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     const urlEl = m.querySelector('#api-url');
@@ -97,7 +106,7 @@ const JsonApiViewer = {
     statusEl.textContent = 'Sending…';
     out.innerHTML = '';
     const res = await window.vex.apiRequest({ url, method, headers, body }).catch(() => null);
-    if (!res || !res.ok) { statusEl.innerHTML = `<span style="color:#fca5a5">✕ ${this.esc((res && res.error) || 'Request failed')}</span>`; return; }
+    if (!res || !res.ok) { statusEl.innerHTML = `<span style="color:#fca5a5">${VexIcons.svg('x', { size: 12 })} ${this.esc((res && res.error) || 'Request failed')}</span>`; return; }
     const okColor = res.status < 300 ? '#86efac' : res.status < 400 ? '#fbbf24' : '#fca5a5';
     const kb = res.size < 1024 ? res.size + ' B' : (res.size / 1024).toFixed(1) + ' KB';
     statusEl.innerHTML = `<span style="color:${okColor};font-weight:700">${res.status} ${this.esc(res.statusText)}</span> · ${res.timeMs} ms · ${kb}${res.capped ? ' (truncated)' : ''}`;
@@ -119,6 +128,9 @@ const ResponsivePreview = {
     { name: 'Laptop', w: 1280, h: 800 },
     { name: 'Desktop', w: 1440, h: 900 },
   ],
+  // open() escapes the URL with this; it was only on JsonApiViewer, so opening
+  // failed with "this.esc is not a function" (found 2026-09-29).
+  esc(s) { return window.escapeHtml(s); },
 
   open(url) {
     const t = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
@@ -146,7 +158,26 @@ const ResponsivePreview = {
       </div>
       <div style="flex:1;overflow:auto;display:flex;gap:26px;padding:24px;align-items:flex-start">${frames}</div>`;
     document.body.appendChild(m);
-    m.querySelector('#rp-close').addEventListener('click', () => m.remove());
+    // Escape closes it the way Close does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for a Vex dialog on top is left to that dialog. Focus moves in, or with
+    // the page focused the key never reached Vex at all (a click into one of
+    // the previews still sends Escape to that page).
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.querySelector('#rp-close').addEventListener('click', close);
+    m.querySelector('#rp-close').focus({ preventScroll: true });
+    // With focus in one of the previews the key goes to that page; one it left
+    // alone comes back from preload-webview.js, and closes this the same way
+    // (found 2026-09-29).
+    m.querySelectorAll('webview[data-rp]').forEach(w => w.addEventListener('ipc-message', (e) => {
+      if (e.channel === 'vex-escape' && m.isConnected && !document.querySelector('.vex-dialog-overlay')) close();
+    }));
     m.querySelector('#rp-reload').addEventListener('click', () => m.querySelectorAll('webview[data-rp]').forEach(w => { try { w.reload(); } catch {} }));
   },
 };

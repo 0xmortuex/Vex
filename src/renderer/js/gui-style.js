@@ -5,7 +5,8 @@
 // css/gui-glass.css under body[data-gui-style="glass"]; this module just toggles
 // the attribute, forces the horizontal tab strip in Glass, and builds the
 // shortcuts bar. Persisted in localStorage 'vex.guiStyle'. The browser looks
-// (Chrome, Firefox, Safari, XP, 98) live in css/gui-browser.css.
+// (Chrome, Firefox, Safari, XP, 98) and the styles (Fluent, Glossy, Neobrutal,
+// Terminal) live in css/gui-browser.css.
 (function () {
   const KEY = 'vex.guiStyle';
   let _prevTabLayout = null;
@@ -35,6 +36,15 @@
     safari:         { layout: 'top', family: 'browser', controls: 'toolbar', sidebar: { side: 'left', launcher: 'toolbar' } },
     xp:             { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'toolbar' } },
     win98:          { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
+    // Styles rather than browsers - the popular BetterDiscord UI themes worn by
+    // the whole window (asked for 2026-09-29): Fluent (Windows 11), Glossy
+    // (Aero-era gloss), Neobrutal and Terminal (a TUI, after system24). They
+    // share the browser family's base, so both colour modes work the same.
+    fluent:         { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'right', launcher: 'toolbar' } },
+    'fluent-dark':  { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'right', launcher: 'toolbar' } },
+    glossy:         { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'toolbar' } },
+    neobrutal:      { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
+    terminal:       { layout: 'top', family: 'browser', controls: 'tabs', sidebar: { side: 'left', launcher: 'rail' } },
   };
   const isTopLayout = () => (STYLES[document.body.dataset.guiStyle] || {}).layout === 'top';
   const isBrowserLook = () => (STYLES[document.body.dataset.guiStyle] || {}).family === 'browser';
@@ -85,6 +95,9 @@
     try { return new URL(s.url).hostname.replace(/^www\./, ''); } catch { return s.url; }
   }
   function faviconUrl(url) {
+    // Not for a site a Tor, proxy or container rule sends elsewhere, nor while
+    // the main session is routed: this window is direct (TabManager.mayAskSiteForIcon).
+    if (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(url)) return '';
     try { return 'https://' + encodeURIComponent(new URL(url).hostname) + '/favicon.ico'; } catch { return ''; }
   }
   function normalizeUrl(u) {
@@ -223,7 +236,9 @@
 
   // In Glass the tabs are on top, so the window controls (min/max/close) belong
   // on the tab-bar row (top-right) like Chrome — not buried on the toolbar row.
-  function moveWindowControls(toGlass) {
+  // Safari ('toolbar') keeps them at the end of the right cluster, which it
+  // sizes to match the left one so the address bar stays centred.
+  function moveWindowControls(toGlass, inRightCluster) {
     try {
       const wc = document.getElementById('window-controls');
       if (!wc) return;
@@ -231,7 +246,9 @@
         const trailing = document.querySelector('#top-tab-bar .tab-bar-trailing');
         if (trailing && wc.parentElement !== trailing) trailing.appendChild(wc);
       } else {
-        const home = document.getElementById('top-bar-right');
+        // Otherwise its home is the top bar itself, after #top-bar-right
+        // (index.html), so a narrow window cannot push it off screen.
+        const home = document.getElementById(inRightCluster ? 'top-bar-right' : 'top-bar');
         if (home && wc.parentElement !== home) home.appendChild(wc);
       }
     } catch {}
@@ -257,7 +274,7 @@
         document.body.removeAttribute('data-sb-launcher');
       }
       try { window.HorizontalTabs?.render?.(); } catch {}
-      moveWindowControls(def.controls === 'tabs');
+      moveWindowControls(def.controls === 'tabs', def.controls === 'toolbar');
     } else {
       document.body.removeAttribute('data-gui-style');
       document.body.removeAttribute('data-gui-family');

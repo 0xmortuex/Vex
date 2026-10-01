@@ -24,9 +24,17 @@ const PersonasManager = (() => {
     try { localStorage.removeItem(key); } catch {}
   }
 
-  function init() {
+  function _loadCustom() {
     const loaded = _load(STORAGE_KEY, []);
     customPersonas = Array.isArray(loaded) ? loaded.filter(p => p && typeof p === 'object' && p.id) : [];
+  }
+
+  // Sync merges the list in storage; the copy held here would otherwise be
+  // saved back over it on the next change (found 2026-09-30).
+  if (typeof window !== 'undefined') window.addEventListener('vex-sync-data-applied', _loadCustom);
+
+  function init() {
+    _loadCustom();
     activePersonaIdGlobal = _load(ACTIVE_GLOBAL_KEY, 'builtin_default') || 'builtin_default';
     // Sweep per-tab keys for tabs that no longer exist (see pruneTabs).
     try {

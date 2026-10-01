@@ -56,7 +56,7 @@ bar that does everything.
 
 | Layer | Choice |
 |---|---|
-| Shell | **Electron 42** (Chromium 148), castLabs Widevine fork: `electron@github:castlabs/electron-releases#v42.5.2+wvcus` (DRM: Netflix/Spotify) |
+| Shell | **Electron 42** (Chromium 148), castLabs Widevine fork: `electron@github:castlabs/electron-releases#v42.11.0+wvcus` (DRM: Netflix/Spotify) |
 | Renderer | **Vanilla JavaScript**, no framework. Classic scripts + per-feature CSS files. `npm run build:vendor` (`scripts/bundle-browser-libs.js`) vendors third-party runtimes into `src/renderer/vendor/runtime/` so the host CSP can forbid remote script |
 | Page content | Electron `<webview>` guests; one shared `persist:main` session for tabs, isolated partitions per panel/container |
 | Ad/tracker block | `@ghostery/adblocker-electron` (EasyList + EasyPrivacy) ORed with a 52-entry legacy domain list |

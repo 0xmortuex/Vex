@@ -1,55 +1,111 @@
-/* === Update Notification === */
-.update-notif {
-  position: fixed; bottom: 20px; right: 20px; width: 360px;
-  /* Opaque: floats over the page's <webview> (backdrop-filter can't frost it). */
-  background: var(--vex-bg-elevated, #1b1e2e);
-  backdrop-filter: var(--vex-blur-heavy);
-  -webkit-backdrop-filter: var(--vex-blur-heavy);
-  border: 1px solid var(--vex-border-medium);
-  border-left: 4px solid var(--vex-accent);
-  border-radius: var(--vex-radius-lg);
-  padding: 14px; display: flex; gap: 10px; z-index: 10000;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-  transform: translateX(calc(100% + 40px));
-  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+/* === Update cover (js/update-notifier.js) ===
+   Over the whole window, opaque: it lies over the page's <webview>, which a
+   translucent layer cannot frost. Colours are the theme's (and, in a browser
+   look, the look's) tokens, the same ones Vex's dialogs use. Below the
+   dialog layer (vex-dialog.css, 2147483600), above everything else. */
+.update-cover {
+  position: fixed; inset: 0; z-index: 2147483550;
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px 16px; box-sizing: border-box;
+  background: var(--bg, var(--vex-bg-base, #16161d));
+  color: var(--text, var(--vex-text-primary, #e9e9ee));
+  /* A browser look's own font first: in the Firefox look --vex-font-base is
+     a serif the rest of its chrome does not use. */
+  font-family: var(--b-font, var(--vex-font-base, 'Outfit', sans-serif));
+  animation: update-cover-in 0.18s ease-out;
 }
-.update-notif.show { transform: translateX(0); }
-.update-notif-icon { font-size: 24px; flex-shrink: 0; color: var(--vex-accent); }
-.update-notif-body { flex: 1; min-width: 0; }
-.update-notif-title { color: var(--vex-text-primary); font-weight: 600; font-size: 13px; margin-bottom: 2px; }
-.update-notif-sub { color: var(--vex-text-muted); font-size: 11px; }
-.update-notif-actions { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
-.update-btn-dl {
-  background: var(--vex-accent); color: var(--vex-bg-deep); border: 1px solid var(--vex-accent);
-  padding: 6px 14px;
-  border-radius: var(--vex-radius-sm); font-size: 12px; font-weight: 500;
-  cursor: pointer; white-space: nowrap;
-  font-family: 'Outfit', sans-serif;
-  transition: all 0.15s ease;
+/* accessibility-ui.css caps every [role=dialog] at 95vw x 90vh; this one is
+   the whole window. */
+.update-cover[role=dialog] { max-width: none; max-height: none; overflow: hidden; }
+.update-cover-panel {
+  width: 640px; max-width: 100%; max-height: 100%;
+  display: flex; flex-direction: column; gap: 18px; min-height: 0;
+  background: var(--surface, var(--vex-bg-elevated, #1b1b24));
+  border: 1px solid var(--border, var(--vex-border-medium));
+  border-radius: var(--vex-radius-lg, 12px);
+  padding: 28px; box-sizing: border-box;
+  box-shadow: 0 24px 60px var(--vex-shadow-color, rgba(0, 0, 0, 0.35));
 }
-.update-btn-dl:hover { background: transparent; color: var(--vex-accent); }
-.update-btn-later {
-  background: transparent; color: var(--vex-text-muted);
-  border: 1px solid var(--vex-border-subtle);
-  padding: 4px 10px; border-radius: var(--vex-radius-sm);
-  font-size: 11px; cursor: pointer;
-  font-family: 'Outfit', sans-serif;
-  transition: all 0.15s ease;
+.update-cover-head { display: flex; align-items: center; gap: 16px; }
+.update-cover-icon {
+  flex: none; width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary, var(--vex-accent));
+  background: color-mix(in srgb, var(--primary, var(--vex-accent)) 14%, transparent);
 }
-.update-btn-later:hover { color: var(--vex-text-primary); border-color: var(--vex-border-medium); }
-.update-progress-wrap { min-width: 100px; }
-.update-progress-bar {
-  width: 100%; height: 5px;
-  background: var(--vex-glass-tab-inactive);
-  border-radius: 3px;
-  overflow: hidden; margin-bottom: 3px;
+.update-cover-heading { min-width: 0; }
+.update-cover-title {
+  margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em;
+  font-family: var(--vex-font-heading, inherit); color: var(--text, var(--vex-text-primary));
 }
-.update-progress-fill {
-  height: 100%; background: var(--vex-accent); width: 0%;
-  transition: width 0.3s;
-  box-shadow: 0 0 8px var(--vex-accent-glow);
+.update-cover-sub { margin: 4px 0 0; font-size: 13.5px; color: var(--text-muted, var(--vex-text-muted)); }
+.update-cover-notes {
+  display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto;
+  border: 1px solid var(--border, var(--vex-border-subtle)); border-radius: var(--vex-radius-md, 8px);
+  background: var(--bg, var(--vex-bg-base));
 }
-.update-progress-text { font-size: 10px; color: var(--vex-text-muted); font-family: 'JetBrains Mono', monospace; }
+.update-cover-notes-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border, var(--vex-border-subtle));
+}
+.update-cover-notes-title { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+.update-cover-link {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px;
+  font: inherit; font-size: 12px; cursor: pointer; border-radius: var(--vex-radius-sm, 6px);
+  background: transparent; border: 1px solid transparent; color: var(--primary, var(--vex-accent));
+}
+.update-cover-link:hover { background: var(--vex-hover-fill, rgba(127, 127, 127, 0.12)); }
+.update-cover-notes-body {
+  overflow-y: auto; padding: 4px 16px 12px; min-height: 80px; max-height: 44vh;
+  font-size: 13.5px; line-height: 1.6; color: var(--text, var(--vex-text-primary));
+}
+.update-cover-notes-body h3.update-cover-version { margin: 14px 0 2px; font-size: 13px; color: var(--primary, var(--vex-accent)); }
+.update-cover-notes-body h4 { margin: 12px 0 4px; font-size: 13px; font-weight: 700; }
+.update-cover-notes-body p { margin: 6px 0; color: var(--text-muted, var(--vex-text-muted)); }
+.update-cover-notes-body ul { margin: 4px 0; padding-left: 20px; }
+.update-cover-notes-body li { margin: 3px 0; }
+.update-cover-notes-body code {
+  font-family: var(--vex-font-mono, 'JetBrains Mono', monospace); font-size: 12px;
+  padding: 1px 4px; border-radius: 4px; background: var(--vex-hover-fill, rgba(127, 127, 127, 0.14));
+}
+.update-cover-muted { color: var(--text-muted, var(--vex-text-muted)); }
+.update-cover-status { display: flex; flex-direction: column; gap: 8px; min-height: 20px; }
+.update-cover-status-text { margin: 0; font-size: 13px; color: var(--text-muted, var(--vex-text-muted)); }
+.update-cover-status-text:empty { display: none; }
+.update-cover-status.is-error .update-cover-status-text { color: var(--vex-danger, #d3455b); font-weight: 500; }
+.update-cover-bar {
+  height: 8px; border-radius: 4px; overflow: hidden;
+  background: color-mix(in srgb, var(--text, var(--vex-text-primary)) 12%, transparent);
+}
+.update-cover-bar[hidden] { display: none; }
+.update-cover-fill { height: 100%; width: 0; background: var(--primary, var(--vex-accent)); transition: width 0.2s linear; }
+.update-cover-bar.is-busy .update-cover-fill { width: 100% !important; animation: update-cover-pulse 1.1s ease-in-out infinite alternate; }
+.update-cover-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.update-cover-actions:empty { display: none; }
+.update-cover-btn {
+  padding: 9px 18px; font: inherit; font-size: 13.5px; cursor: pointer;
+  border-radius: var(--vex-radius-md, 8px);
+  background: var(--bg, var(--vex-bg-base)); color: var(--text, var(--vex-text-primary));
+  border: 1px solid var(--border, var(--vex-border-medium));
+}
+.update-cover-btn:hover { border-color: var(--primary, var(--vex-accent)); }
+.update-cover-btn.primary {
+  background: var(--primary, var(--vex-accent)); border-color: var(--primary, var(--vex-accent));
+  color: #fff; font-weight: 600;
+}
+.update-cover-btn.primary:hover { filter: brightness(1.08); }
+.update-cover-btn.quiet { margin-left: auto; background: transparent; border-color: transparent; color: var(--text-muted, var(--vex-text-muted)); }
+.update-cover-btn.quiet:hover { color: var(--text, var(--vex-text-primary)); border-color: var(--border, var(--vex-border-subtle)); }
+@keyframes update-cover-in { from { opacity: 0; } }
+@keyframes update-cover-pulse { from { opacity: 0.45; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .update-cover { animation: none; }
+  .update-cover-bar.is-busy .update-cover-fill { animation: none; }
+}
+@media (max-width: 520px) {
+  .update-cover-panel { padding: 20px; }
+  .update-cover-btn.quiet { margin-left: 0; }
+}
 
 /* === Welcome Screen === */
 .welcome-overlay {

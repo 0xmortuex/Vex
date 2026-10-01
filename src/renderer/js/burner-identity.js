@@ -18,7 +18,7 @@ const BurnerIdentity = {
     const chip = "padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12.5px;font-family:'Outfit',sans-serif";
     const prim = "padding:9px 16px;background:var(--primary,var(--accent,#d4a574));color:#111;border:1px solid transparent;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif";
     m.innerHTML = `<div style="width:440px;max-width:94vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,0.5);color:var(--text)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:15px;font-weight:700;flex:1">Burner identity</span><button id="bi-close" style="${chip}">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:15px;font-weight:700;flex:1">Burner identity</span><button id="bi-close" style="${chip}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:14px">Opens a disposable-email site in a fresh <b>off-the-record</b> container (cookies vanish when you close it) — so you can sign up for something without it tying back to you.</div>
       <div style="font-size:12px;margin-bottom:6px">Disposable email service:</div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
@@ -43,7 +43,9 @@ const BurnerIdentity = {
         if (useTor) {
           msg('Connecting to Tor…');
           const r = await window.vex.routingSet(part, 'tor');
-          if (!r || !r.ok) { msg('Tor unavailable — starting without it.'); }
+          // Asked for Tor and did not get it: stop. Opening it anyway showed
+          // the site your real address (found 2026-09-29).
+          if (!r || !r.ok) { msg('Tor could not start' + (r && r.error ? ' (' + r.error + ')' : '') + ' — nothing was opened. Try again, or untick Tor.'); return; }
         }
         TabManager.createTab(svc.url, true, null, { partition: part });
         window.showToast?.('Burner session opened' + (useTor ? ' over Tor' : '') + ' — grab a disposable address');

@@ -40,8 +40,11 @@ const AIHealth = {
     const model = state.model;
     const live = Array.isArray(state.loaded) ? state.loaded.find(m => m.name === model || m.name === model + ':latest') : null;
     const gpu = state.gpu;
+    // Only when most of it is on the processor: partly on the card is slower,
+    // not "minutes", and is not worth a warning on every answer.
     if (live && live.onGpu === false) {
-      return `${model} is running on the processor, not the graphics card${gpu ? ` (${gpu.name} is ${gpu.usedPercent}% full)` : ''} — expect answers to take minutes. Close what is using the card, or pick a smaller model.`;
+      const pct = live.gpuPercent || 0;
+      return `${model} is running ${pct ? 'mostly ' : ''}on the processor, not the graphics card${gpu ? ` (${gpu.name} is ${gpu.usedPercent}% full)` : ''}${pct ? `; only ${pct}% of the model is on the card` : ''} — expect answers to take minutes. Close what is using the card, or pick a smaller model.`;
     }
     if (!live && gpu && gpu.freeMB != null && gpu.freeMB < 2048) {
       return `Only ${(gpu.freeMB / 1024).toFixed(1)} GB of ${gpu.name} is free, so ${model} may not fit and would run on the processor instead — expect answers to take minutes.`;
@@ -110,7 +113,8 @@ const AIHealth = {
       const has = Array.isArray(state.installed) && state.installed.some(n => n === state.model || n === state.model + ':latest');
       lines.push(`Model "${state.model}": ${has ? 'installed' : 'NOT installed'}${Array.isArray(state.installed) ? ` (${state.installed.length} installed)` : ''}`);
       const live = Array.isArray(state.loaded) ? state.loaded.find(m => m.name === state.model || m.name === state.model + ':latest') : null;
-      lines.push(live ? `Loaded: yes, ${live.onGpu ? 'on the graphics card' : 'on the PROCESSOR — this is the slow case'}` : 'Loaded: no (the first request loads it, which takes a while)');
+      const share = (live && live.gpuPercent != null && live.gpuPercent < 100) ? ` (${live.gpuPercent}% on the card, the rest on the processor)` : '';
+      lines.push(live ? `Loaded: yes, ${live.onGpu ? 'on the graphics card' + share : (live.gpuPercent ? 'mostly ' : '') + 'on the PROCESSOR' + share + ' — this is the slow case'}` : 'Loaded: no (the first request loads it, which takes a while)');
     }
     if (state.gpu) lines.push(`${state.gpu.name}: ${(state.gpu.usedMB / 1024).toFixed(1)} of ${(state.gpu.totalMB / 1024).toFixed(1)} GB used, ${state.gpu.utilization}% busy`);
 

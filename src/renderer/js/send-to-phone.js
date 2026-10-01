@@ -16,7 +16,7 @@ const SendToPhone = {
     m.innerHTML = `<div style="width:360px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);padding:20px;text-align:center">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1;text-align:left">Send to phone</span>
-        <button id="sp-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button>
+        <button id="sp-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" aria-label="Close" title="Close">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Close'}</button>
       </div>
       <div id="sp-qr" style="width:280px;height:280px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:10px;color:#333;font-size:12px">Generating…</div>
       <div style="font-size:12px;color:var(--text-muted);word-break:break-all;margin-bottom:12px">${esc(url)}</div>
@@ -26,10 +26,20 @@ const SendToPhone = {
       <div style="font-size:11px;color:var(--text-muted);margin-top:12px">Scan with your phone's camera to open it there.</div>
     </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#sp-close').addEventListener('click', () => m.remove());
+    // Escape closes it, heard on the document (found 2026-09-29: it did
+    // nothing). A dialog on top keeps its own Escape.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#sp-close').addEventListener('click', close);
     m.querySelector('#sp-copy').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(url); window.showToast?.('Link copied'); } catch {}
+      // A failed copy used to vanish in an empty catch — the button just did
+      // nothing (found 2026-09-29).
+      try { await navigator.clipboard.writeText(url); window.showToast?.('Link copied'); } catch (err) { window.showToast?.('Could not copy the link: ' + ((err && err.message) || err), 'error'); }
     });
 
     const qrBox = m.querySelector('#sp-qr');
@@ -37,7 +47,7 @@ const SendToPhone = {
       const dataUrl = await window.vex.qrGenerate(url);
       if (dataUrl) qrBox.innerHTML = `<img src="${esc(dataUrl)}" alt="QR code" style="width:264px;height:264px;image-rendering:pixelated">`;
       else qrBox.textContent = 'Could not generate a QR code.';
-    } catch { qrBox.textContent = 'Could not generate a QR code.'; }
+    } catch (err) { console.error('[SendToPhone] QR code failed:', err); qrBox.textContent = 'Could not generate a QR code.'; }
   },
 };
 

@@ -254,6 +254,15 @@ describe('the two windows allowed to speak without being the interface', () => {
     expect(aux('popup-chrome:action', null, 'https://example.com/')).toBe(false);
   });
 
+  // An extension's page asks which tab its toolbar popup was opened over
+  // (2026-09-28); main answers only the popup's own extension.
+  it('lets an extension page ask which tab its popup is over, and nothing else', () => {
+    const ext = 'chrome-extension://abcdefghijklmnop/background/index.html';
+    expect(aux('extensions:popup-tab', null, ext)).toBe(true);
+    expect(aux('extensions:popup-tab', null, 'https://example.com/')).toBe(false);
+    expect(aux('extensions:list', null, ext)).toBe(false);
+  });
+
   it('refuses anything that is not the main frame', () => {
     const { security } = build();
     const sender = { mainFrame: { url: 'x' }, getLastWebPreferences: () => ({}) };

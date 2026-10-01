@@ -27,9 +27,23 @@ const TOR_URL = `https://archive.torproject.org/tor-package-archive/torbrowser/$
 
 let _proc = null;
 let _port = 0;
+// Cancel during the download did nothing: stop() only killed a process that
+// did not exist yet, and start() went on to download, then spawn Tor
+// (found 2026-09-29). stop() now aborts the download in flight and bumps the
+// token; a start() whose token changed gives up before it spawns anything.
+let _request = null;
+let _startToken = 0;
+let _starting = null;
 
 function getPort() { return _port; }
 function isRunning() { return !!_proc; }
+
+// Told whenever Tor starts or stops, including a Tor that exits on its own,
+// so the "Tor is running" indicator never shows a Tor that is gone
+// (found 2026-09-30).
+const _stateListeners = new Set();
+function onStateChange(fn) { _stateListeners.add(fn); return () => _stateListeners.delete(fn); }
+function _stateChanged() { for (const fn of _stateListeners) fn(isRunning()); }
 
 function _freePort() {
   return new Promise((resolve) => {
@@ -47,6 +61,9 @@ function _downloadWithProgress(url, onProgress, depth = 0) {
     if (depth > 6) return reject(new Error('too many redirects'));
     const lib = url.startsWith('http:') ? http : https;
     const req = lib.get(url, { headers: { 'User-Agent': 'Vex' } }, (res) => {
+      // A response cut short is not a download (Cancel rejects first, with
+      // 'cancelled', through req's error).
+      res.on('close', () => { if (!res.complete) reject(new Error('Tor download was interrupted')); });
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         const next = new URL(res.headers.location, url).toString();
@@ -65,6 +82,7 @@ function _downloadWithProgress(url, onProgress, depth = 0) {
       res.on('end', () => resolve(Buffer.concat(chunks)));
       res.on('error', reject);
     });
+    _request = req;
     req.on('error', reject);
     req.setTimeout(120000, () => { req.destroy(new Error('download timed out')); });
   });
@@ -80,7 +98,11 @@ async function ensureBinary(userDataDir, onProgress) {
   if (fs.existsSync(exe)) {
     try { verifyDigest(await fs.promises.readFile(exe), TOR_EXE_SHA256); return { exe, geoip, geoip6 }; } catch {}
   }
-  fs.mkdirSync(dir, { recursive: true });
+  await fs.promises.mkdir(dir, { recursive: true });
+  // Said before the first byte, so a download is shown as one even when the
+  // server gives no size. After an await: start() adds its caller's listener
+  // once this has returned.
+  if (onProgress) onProgress(0);
   const buf = await _downloadWithProgress(TOR_URL, (got, total) => {
     if (onProgress && total) onProgress(got / total);
   });
@@ -96,8 +118,13 @@ async function ensureBinary(userDataDir, onProgress) {
 }
 
 function stop() {
+  _startToken++;
+  _starting = null;
+  if (_request) { _request.destroy(new Error('cancelled')); _request = null; }
+  const was = !!_proc;
   if (_proc) { try { _proc.kill(); } catch {} try { _proc.kill('SIGKILL'); } catch {} _proc = null; }
   _port = 0;
+  if (was) _stateChanged();
 }
 
 // Download (if needed) + launch tor.exe as a SOCKS client and wait until it's
@@ -105,15 +132,36 @@ function stop() {
 //   phase 'download'  value = 0..1 download fraction
 //   phase 'bootstrap' value = 0..100 tor bootstrap percent, detail = tag
 // Resolves the SOCKS port. Rejects on failure/timeout.
-async function start(userDataDir, onProgress) {
-  if (_proc && _port) return _port; // already running
-  stop();
-  const emit = (phase, value, detail) => { if (onProgress) { try { onProgress(phase, value, detail); } catch {} } };
+// Everyone waiting on the start in flight hears its progress: a second caller
+// (a burner over Tor while a Tor tab is starting) joins it rather than
+// cancelling it.
+const _listeners = new Set();
+function start(userDataDir, onProgress) {
+  if (_proc && _port) return Promise.resolve(_port); // already running
+  if (!_starting) {
+    _listeners.clear();
+    const run = _starting = _start(userDataDir).finally(() => { if (_starting === run) _starting = null; });
+  }
+  if (onProgress) _listeners.add(onProgress);
+  return _starting;
+}
 
-  const { exe, geoip, geoip6 } = await ensureBinary(userDataDir, (frac) => emit('download', frac));
-  emit('download', 1);
+async function _start(userDataDir) {
+  stop();
+  const token = _startToken;
+  const cancelled = () => { if (token !== _startToken) throw new Error('cancelled'); };
+  const emit = (phase, value, detail) => { if (token !== _startToken) return; for (const fn of _listeners) { try { fn(phase, value, detail); } catch {} } };
+
+  // "Downloading Tor 100%" showed on every start, Tor already on disk
+  // included (found 2026-09-30): the download is said only when there is one.
+  let downloaded = false;
+  const { exe, geoip, geoip6 } = await ensureBinary(userDataDir, (frac) => { downloaded = true; emit('download', frac); });
+  cancelled();
+  if (downloaded) emit('download', 1);
+  emit('bootstrap', 0, 'starting');
 
   const port = await _freePort();
+  cancelled();
   if (!port) throw new Error('no free local port for Tor');
   const dataDir = path.join(userDataDir, 'tor', 'tordata');
   try { fs.mkdirSync(dataDir, { recursive: true }); } catch {}
@@ -127,6 +175,9 @@ async function start(userDataDir, onProgress) {
     '--Log', 'notice stdout',
     '--ClientOnly', '1',
     '--AvoidDiskWrites', '1',
+    // Tor exits when Vex does, a crash included: only will-quit stopped it,
+    // so tor.exe outlived a Vex that died (found 2026-09-30).
+    '__OwningControllerProcess', String(process.pid),
   ];
   if (fs.existsSync(geoip)) args.push('--GeoIPFile', geoip);
   if (fs.existsSync(geoip6)) args.push('--GeoIPv6File', geoip6);
@@ -136,9 +187,15 @@ async function start(userDataDir, onProgress) {
       _proc = spawn(exe, args, { windowsHide: true });
     } catch (e) { return reject(new Error('spawn tor: ' + (e && e.message))); }
     _port = port;
+    // Said as soon as tor.exe runs, not when it has connected: bootstrapping
+    // can take minutes, and the "Tor is running" indicator (and its Stop)
+    // stayed hidden all that time (found 2026-09-30).
+    _stateChanged();
     let settled = false;
     const finishOk = () => { if (settled) return; settled = true; resolve(port); };
-    const finishErr = (msg) => { if (settled) return; settled = true; stop(); reject(new Error(msg)); };
+    // A cancelled start's Tor exits later; stopping then would cancel the
+    // start that came after it.
+    const finishErr = (msg) => { if (settled) return; settled = true; if (token === _startToken) stop(); reject(new Error(token === _startToken ? msg : 'cancelled')); };
 
     const onLine = (line) => {
       try { if (logFd) fs.writeSync(logFd, line + '\n'); } catch {}
@@ -154,10 +211,13 @@ async function start(userDataDir, onProgress) {
     if (_proc.stdout) _proc.stdout.on('data', feed);
     if (_proc.stderr) _proc.stderr.on('data', feed);
     _proc.on('error', (e) => finishErr('tor error: ' + (e && e.message)));
-    _proc.on('exit', (code) => { _proc = null; _port = 0; finishErr('tor exited (code ' + code + ') before bootstrap — see tor.log'); });
+    // A Tor stopped by Cancel exits after the next one may have started;
+    // only its own exit clears the running state.
+    const proc = _proc;
+    _proc.on('exit', (code) => { if (_proc === proc) { _proc = null; _port = 0; _stateChanged(); } finishErr('tor exited (code ' + code + ') before bootstrap — see tor.log'); });
     // Bootstrapping can be slow on some networks; give it up to 2 minutes.
     setTimeout(() => finishErr('Tor took too long to connect (timed out) — check your network'), 120000);
   });
 }
 
-module.exports = { start, stop, ensureBinary, getPort, isRunning, TOR_URL, TOR_VERSION };
+module.exports = { start, stop, ensureBinary, getPort, isRunning, onStateChange, TOR_URL, TOR_VERSION };

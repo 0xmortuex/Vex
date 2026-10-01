@@ -13,10 +13,13 @@ const CatchMeUp = {
     const items = [];
     try {
       if (typeof VexFeeds !== 'undefined' && VexFeeds.feeds && VexFeeds.feeds.length) {
-        const feed = await VexFeeds.fetchAll();
+        // fetchAll gives { items, errors }. Treated as the list, it threw here
+        // and the catch below hid it: no feed item ever reached the briefing
+        // (found 2026-09-29).
+        const feed = (await VexFeeds.fetchAll()).items;
         feed.slice(0, this.MAX_FEED).forEach(it => items.push({ title: it.title, url: it.link, src: it.src || 'Feed', kind: 'feed' }));
       }
-    } catch {}
+    } catch (err) { console.error('[CatchMeUp] could not read the feeds:', err); }
     try {
       if (typeof ReadLater !== 'undefined' && Array.isArray(ReadLater.items)) {
         ReadLater.items.filter(i => !i.read).slice(0, this.MAX_LATER)
@@ -34,12 +37,15 @@ const CatchMeUp = {
     m.innerHTML = `<div style="width:560px;max-width:94vw;max-height:82vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
       <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--border)">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Catch Me Up</span>
-        <button id="cmu-close" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button>
+        <button id="cmu-close" aria-label="Close" title="Close" style="display:inline-flex;padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer">${VexIcons.svg('x', { size: 13 })}</button>
       </div>
       <div id="cmu-body" style="overflow-y:auto;padding:16px 18px;font-size:13px;color:var(--text);line-height:1.55">Gathering your feeds…</div></div>`;
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) this._close(); });
     m.querySelector('#cmu-close').addEventListener('click', () => this._close());
+    // Escape closes it, like every other Vex dialog (found 2026-09-29).
+    this._onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); this._close(); } };
+    document.addEventListener('keydown', this._onKey, true);
 
     const body = m.querySelector('#cmu-body');
     const esc = (s) => window.escapeHtml(s);
@@ -71,15 +77,21 @@ const CatchMeUp = {
     const prompt = `Give me a short "catch me up" briefing on my reading queue below. Group related items into 3-6 skimmable bullet points highlighting the key themes and anything notable. Be concise and skip filler. Do not invent details beyond the titles.\n\nItems:\n${lines}`;
     try {
       const res = await AIRouter.callAI('chat', { message: prompt });
-      const out = String((res && (res.result || res.text || res.message)) || '').trim();
+      const raw = String((res && (res.result || res.text || res.message)) || '').trim();
+      // A local model answers the chat prompt as {"reply": "…"}; that JSON was
+      // shown as it came (found 2026-09-29). The panel's parser unwraps it.
+      const out = String(AIPanel._parseResponse(raw).reply || raw).trim();
       const sumEl = m.querySelector('#cmu-summary');
       if (sumEl) {
         sumEl.style.color = 'var(--text)';
         sumEl.innerHTML = out ? this._mini(out, esc) : '<span style="color:var(--text-muted)">No summary returned.</span>';
       }
     } catch (err) {
+      // Why it failed, not only that it did: "Ollama is not running" is
+      // something the user can fix (found 2026-09-29).
+      console.error('[CatchMeUp] summary failed:', err);
       const sumEl = m.querySelector('#cmu-summary');
-      if (sumEl) { sumEl.style.color = 'var(--text-muted)'; sumEl.textContent = 'Could not generate a summary — your queue is listed below.'; }
+      if (sumEl) { sumEl.style.color = 'var(--danger)'; sumEl.textContent = 'Could not write a summary: ' + ((err && err.message) || 'the AI request failed') + ' Your queue is listed below.'; }
     }
   },
 
@@ -106,7 +118,10 @@ const CatchMeUp = {
     }));
   },
 
-  _close() { document.getElementById('vex-catchup')?.remove(); },
+  _close() {
+    document.getElementById('vex-catchup')?.remove();
+    if (this._onKey) { document.removeEventListener('keydown', this._onKey, true); this._onKey = null; }
+  },
 };
 
 if (typeof window !== 'undefined') window.CatchMeUp = CatchMeUp;

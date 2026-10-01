@@ -8,6 +8,11 @@ compatibility_date = "2024-01-01"
 #   wrangler kv namespace create VEX_SYNC_KV
 #   wrangler kv namespace create VEX_AUTH_KV
 # Production email delivery requires RESEND_API_KEY; see SELF_HOSTING.md.
+# Every deployment also requires EMAIL_HASH_SECRET (32+ random characters):
+# accounts are keyed by an HMAC of the address with it. Without it the
+# worker refuses every request. Set it once and never change it (a new value
+# loses every account keyed with the old one):
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" | npx wrangler secret put EMAIL_HASH_SECRET
 kv_namespaces = [
   { binding = "VEX_SYNC_KV", id = "40c0bad652014244a39befef24c28b32" },
   { binding = "VEX_AUTH_KV", id = "2ad5d370a6ad477ab1e95285f5fc671d" }

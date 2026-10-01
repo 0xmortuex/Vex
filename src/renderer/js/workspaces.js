@@ -67,6 +67,9 @@ const WorkspaceManager = {
   },
 
   async switchTo(id) {
+    // A private window's tabs are never saved, so switching closed every one
+    // of them for good (found 2026-09-29).
+    if (window.VexTabPolicy?.isPrivateWindow) { window.showToast?.('A private window has no workspaces — its tabs would be lost', 'warn'); return; }
     if (id === this.activeId || this._switching || !this.workspaces.some(w => w.id === id)) return;
     this._switching = true;
 
@@ -116,7 +119,10 @@ const WorkspaceManager = {
       for (const t of tabsToRestore) {
         const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
         tab.keepAwakeUntil = t.keepAwakeUntil || 0;
-        tab.favicon = TabManager._persistableFavicon(t.favicon);
+        // The workspace keeps each tab's note (VexTabPolicy.serialize);
+        // switching back dropped it (found 2026-09-29).
+        if (t.note) tab.note = t.note;
+        tab.favicon = TabManager._persistableFavicon(t.favicon, tab.partition);
         // createLazyTab always starts a tab unstacked; re-apply the saved
         // membership so a workspace's stacks survive the round-trip.
         if (t.stackId && TabManager.stacks.some(s => s.id === t.stackId)) {
@@ -224,15 +230,24 @@ const WorkspaceManager = {
       <div class="ws-item${w.id === this.activeId ? ' active' : ''}" data-id="${w.id}">
         <span class="ws-dot" style="background:${w.color}"></span>
         <span class="ws-item-name">${this._esc(w.name)}</span>
-        ${w.id === this.activeId ? '<span class="ws-item-check">&#10003;</span>' : ''}
+        ${w.id === this.activeId ? '<span class="ws-item-check" style="display:inline-flex">' + VexIcons.svg('check', { size: 14 }) + '</span>' : ''}
+        <button class="ws-item-edit" data-edit="${w.id}" title="Rename or delete" aria-label="Edit ${this._esc(w.name)}" style="background:none;border:0;padding:2px;color:inherit;cursor:pointer;display:inline-flex;opacity:.7">${typeof VexIcons !== 'undefined' ? VexIcons.svg('edit', { size: 13 }) : ''}</button>
       </div>
     `).join('') + `
       <div class="ws-sep"></div>
       <div class="ws-add" id="ws-add-btn">+ Add Workspace</div>
     `;
 
+    // Rename/delete lived only in showModal(id), and nothing ever passed an
+    // id, so a workspace could be neither renamed nor deleted (found
+    // 2026-09-29). The pencil (or a right-click) opens it for that workspace.
+    const edit = (id) => { this.hideDropdown(); this.showModal(id); };
     dropdown.querySelectorAll('.ws-item').forEach(el => {
-      el.addEventListener('click', () => this.switchTo(el.dataset.id));
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.ws-item-edit')) { edit(el.dataset.id); return; }
+        this.switchTo(el.dataset.id);
+      });
+      el.addEventListener('contextmenu', (e) => { e.preventDefault(); edit(el.dataset.id); });
     });
 
     document.getElementById('ws-add-btn')?.addEventListener('click', () => {
@@ -244,6 +259,8 @@ const WorkspaceManager = {
   showDropdown() {
     document.getElementById('workspace-dropdown')?.classList.add('visible');
     const onBlur = () => close();
+    // Escape closes it like every other menu; it did nothing (found 2026-09-29).
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
     const close = (e) => {
       // No event = window blur (focus moved into the page's <webview>, whose
       // clicks never reach the host document) → always close.
@@ -251,11 +268,13 @@ const WorkspaceManager = {
         this.hideDropdown();
         document.removeEventListener('click', close);
         window.removeEventListener('blur', onBlur);
+        document.removeEventListener('keydown', onKey, true);
       }
     };
     setTimeout(() => {
       document.addEventListener('click', close);
       window.addEventListener('blur', onBlur);
+      document.addEventListener('keydown', onKey, true);
     }, 0);
   },
 
@@ -264,6 +283,7 @@ const WorkspaceManager = {
   },
 
   toggleDropdown() {
+    if (window.VexTabPolicy?.isPrivateWindow) { window.showToast?.('A private window has no workspaces — its tabs would be lost', 'warn'); return; }
     const dd = document.getElementById('workspace-dropdown');
     if (dd?.classList.contains('visible')) this.hideDropdown();
     else this.showDropdown();
@@ -304,7 +324,8 @@ const WorkspaceManager = {
     modal.querySelector('#ws-modal-cancel').addEventListener('click', () => this.hideModal());
     modal.querySelector('#ws-modal-save').addEventListener('click', () => {
       const name = modal.querySelector('#ws-modal-name').value.trim();
-      if (!name) return;
+      // A blank name did nothing and said nothing (found 2026-09-29).
+      if (!name) { window.showToast?.('Give the workspace a name', 'warn'); modal.querySelector('#ws-modal-name').focus(); return; }
       if (editing) {
         editing.name = name;
         editing.color = selectedColor;
@@ -318,9 +339,13 @@ const WorkspaceManager = {
     });
 
     if (editing) {
-      modal.querySelector('#ws-modal-delete')?.addEventListener('click', () => {
-        this.deleteWorkspace(editing.id);
+      // A workspace holds its own tabs; deleting one went without a word
+      // (found 2026-09-29).
+      modal.querySelector('#ws-modal-delete')?.addEventListener('click', async () => {
+        if (this.workspaces.length <= 1) { window.showToast?.('The last workspace cannot be deleted'); return; }
+        if (!await vexConfirm({ title: 'Delete workspace', message: `Delete "${editing.name}" and the tabs saved in it?`, okLabel: 'Delete', danger: true })) return;
         this.hideModal();
+        await this.deleteWorkspace(editing.id);
       });
     }
 
@@ -331,15 +356,24 @@ const WorkspaceManager = {
       modal.addEventListener('click', (e) => { if (e.target === modal) this.hideModal(); });
     }
     modal.querySelector('#ws-modal-name').addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.hideModal();
       if (e.key === 'Enter') modal.querySelector('#ws-modal-save').click();
     });
+    // Escape closes the dialog wherever focus is; it only worked from the name
+    // field (found 2026-09-29). One listener per open dialog.
+    if (this._modalKey) document.removeEventListener('keydown', this._modalKey, true);
+    this._modalKey = (e) => {
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation();
+      this.hideModal();
+    };
+    document.addEventListener('keydown', this._modalKey, true);
 
     modal.classList.add('visible');
     modal.querySelector('#ws-modal-name').focus();
   },
 
   hideModal() {
+    if (this._modalKey) { document.removeEventListener('keydown', this._modalKey, true); this._modalKey = null; }
     document.getElementById('workspace-modal')?.classList.remove('visible');
   },
 

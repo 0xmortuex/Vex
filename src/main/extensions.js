@@ -83,6 +83,15 @@ function pickPages(manifest) {
   return { popup: popup || null, options: options || null };
 }
 
+// Chrome keeps an action popup between 25x25 and 800x600 and otherwise sizes
+// it to its content. Vex used a 160x100 floor and only ever grew the window,
+// so Stylus's 246x117 popup sat in an empty 328x464 box (found 2026-09-29).
+const POPUP_MIN = 25, POPUP_MAX_W = 800, POPUP_MAX_H = 600;
+function clampPopupSize(w, h) {
+  if (!Number.isFinite(w) || !Number.isFinite(h)) throw new TypeError('clampPopupSize: width and height must be numbers');
+  return [Math.min(POPUP_MAX_W, Math.max(POPUP_MIN, Math.ceil(w))), Math.min(POPUP_MAX_H, Math.max(POPUP_MIN, Math.ceil(h)))];
+}
+
 // PowerShell's Compress-Archive writes "dir\file" entry names. Chromium (and
 // Vex's own zip validator) require "/" separators, so such an archive fails
 // with an opaque "Unsafe archive path" — this turns it into an actionable
@@ -180,9 +189,24 @@ function writeScopes(extensionsDir, scopes) {
   fs.writeFileSync(scopePath(extensionsDir), JSON.stringify(scopes, null, 2));
 }
 
+// An update sets the installed copy aside in extensions-replaced/<folder>-<ms>
+// until the new one has loaded. Once it has, every set-aside copy of that
+// folder goes — one left by an update that was cut short too — and so does
+// the folder itself when nothing else is left in it: an empty
+// extensions-replaced stayed behind after every update (found 2026-09-29).
+function tidyReplaced(backupDir, folder) {
+  if (!fs.existsSync(backupDir)) return;
+  const mine = new RegExp('^' + String(folder).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-\\d+$');
+  for (const n of fs.readdirSync(backupDir).filter(x => mine.test(x))) {
+    fs.rmSync(path.join(backupDir, n), { recursive: true, force: true });
+  }
+  if (!fs.readdirSync(backupDir).length) fs.rmdirSync(backupDir);
+}
+
 module.exports = {
+  tidyReplaced,
   DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS,
-  readMessages, localize, slugFromName, pickIcon, pickPages,
+  readMessages, localize, slugFromName, pickIcon, pickPages, clampPopupSize,
   archiveProblem, disabledPath, readDisabled, writeDisabled,
   contentHosts, partitionsFor, readScopes, writeScopes
 };

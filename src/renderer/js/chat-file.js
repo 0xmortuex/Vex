@@ -16,7 +16,20 @@ const ChatFile = {
   MAX_CHARS: 60000,                 // what goes with a question
   KINDS: /\.(pdf|txt|md|markdown|log|csv|tsv|json|xml|html?|ya?ml|ini|cfg|srt|vtt|rtf)$/i,
 
-  attached: null,                   // { name, text, chars, truncated }
+  // One file per tab: { tab id: { name, text, chars, truncated, tabId } }.
+  // There used to be one for the whole window, so dropping a file in tab B
+  // silently took tab A's away (found 2026-09-29).
+  _files: {},
+  _last: null,                      // the tab whose file was dropped last
+
+  // The file dropped last (callers that do not name a tab). Setting null
+  // takes every file off.
+  get attached() { return (this._last != null && this._files[this._last]) || null; },
+  set attached(doc) {
+    if (!doc) { this._files = {}; this._last = null; return; }
+    this._last = String(doc.tabId);
+    this._files[this._last] = doc;
+  },
 
   // Is this a file this can read at all? A .exe dropped by accident should say
   // so, not be decoded into mojibake and sent to a model.
@@ -60,30 +73,51 @@ const ChatFile = {
 
   // --- the chip above the box ----------------------------------------------
 
-  _chip(doc) {
+  _chip(doc, focus = true) {
     const input = document.getElementById('ai-input');
     document.getElementById('ai-file-attach')?.remove();
     const chip = document.createElement('div');
     chip.id = 'ai-file-attach';
+    chip.dataset.tab = String(doc.tabId);
     chip.style.cssText = 'display:flex;align-items:center;gap:8px;margin:0 10px 6px;padding:5px 7px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:11.5px;color:var(--text)';
     chip.innerHTML = `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       <button type="button" aria-label="Take the file off" title="Take the file off"
               style="display:inline-flex;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px">${window.VexIcons ? VexIcons.svg('x', { size: 12 }) : 'x'}</button>`;
     chip.querySelector('span').textContent = doc.name + ' · ' + this.size(doc) + (doc.truncated ? ' (first part)' : '') + ' — ask about it';
-    chip.querySelector('button').addEventListener('click', () => this.clear());
+    chip.querySelector('button').addEventListener('click', () => this.clear(doc.tabId));
     const anchor = input && (input.closest('.ai-input-row, .ai-input-wrapper, .ai-input-wrap, form') || input.parentElement);
     if (anchor) anchor.insertAdjacentElement('beforebegin', chip);
-    input?.focus();
+    if (focus) input?.focus();
     return chip;
   },
 
-  clear() {
-    this.attached = null;
-    document.getElementById('ai-file-attach')?.remove();
+  // `tabId`: only when the file belongs to that tab (New chat in one tab must
+  // not take off a file dropped in another). No tabId: whatever is attached.
+  clear(tabId) {
+    if (tabId == null) { this.attached = null; document.getElementById('ai-file-attach')?.remove(); return; }
+    const key = String(tabId);
+    if (!this._files[key]) return;
+    delete this._files[key];
+    if (this._last === key) this._last = null;
+    const chip = document.getElementById('ai-file-attach');
+    if (chip && chip.dataset.tab === key) chip.remove();
+  },
+
+  // The chip shows the file of the tab on screen, and nothing in a tab
+  // without one.
+  showFor(tabId) {
+    const doc = tabId != null ? this._files[String(tabId)] : null;
+    if (doc) { this._chip(doc, false); return; }
+    const chip = document.getElementById('ai-file-attach');
+    if (chip) chip.hidden = true;
   },
 
   async attach(file) {
     const doc = await this.read(file);
+    // The file belongs to the chat it was dropped in. It used to be one for
+    // the whole window, sent with every question in every tab and every new
+    // chat after it (found 2026-09-29).
+    doc.tabId = (typeof TabManager !== 'undefined') ? TabManager.activeTabId : null;
     this.attached = doc;
     if (typeof AIPanel !== 'undefined') AIPanel.open();
     this._chip(doc);
@@ -93,9 +127,10 @@ const ChatFile = {
 
   // Called by the panel as a question is sent: the file goes with the first
   // question after it was dropped, and stays attached for follow-ups.
-  historyMessage() {
-    if (!this.attached) return null;
-    return { role: 'system', content: this.prompt(this.attached) };
+  historyMessage(tabId) {
+    const doc = tabId === undefined ? this.attached : this._files[String(tabId)];
+    if (!doc) return null;
+    return { role: 'system', content: this.prompt(doc) };
   },
 
   init() {

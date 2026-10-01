@@ -33,6 +33,11 @@ const QueuePodcast = {
     wv.setAttribute('partition', 'persist:main');
     wv.setAttribute('webpreferences', 'contextIsolation=yes');
     wv.style.cssText = 'position:fixed;left:-10000px;top:0;width:1000px;height:760px;opacity:0.01;pointer-events:none;z-index:-1';
+    // loadURL throws until the webview has been attached and fired dom-ready,
+    // so the first article of every playlist was never read (found
+    // 2026-09-29). Until then the address goes in through src.
+    this._readerReady = false;
+    wv.addEventListener('dom-ready', () => { if (this._reader === wv) this._readerReady = true; }, { once: true });
     document.body.appendChild(wv);
     this._reader = wv;
     return wv;
@@ -56,7 +61,7 @@ const QueuePodcast = {
       const onLoad = () => finish();
       try { wv.addEventListener('did-finish-load', onLoad); } catch {}
       to = setTimeout(finish, 14000);   // some pages never fire finish-load
-      try { (typeof wv.loadURL === 'function') ? wv.loadURL(url).catch(() => finish()) : (wv.src = url); } catch { finish(); }
+      try { (this._readerReady && typeof wv.loadURL === 'function') ? wv.loadURL(url).catch(() => finish()) : (wv.src = url); } catch { finish(); }
     });
   },
 

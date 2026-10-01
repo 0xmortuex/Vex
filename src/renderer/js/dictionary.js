@@ -26,8 +26,23 @@ const Dictionary = {
     return on;
   },
 
+  // A word capitalised only because it starts a sentence ("Running") got the
+  // proper noun's meaning ("A surname."), since Wiktionary files the two apart.
+  // So the lower-case word is asked for first, and the word as written only
+  // when that has no entry (found 2026-09-29).
   async lookup(word) {
-    const key = String(word || '').toLowerCase();
+    const w = String(word || '');
+    if (/^\p{Lu}[\p{Ll}'-]+$/u.test(w)) {
+      const lower = await this._fetch(w.toLowerCase());
+      if (lower && lower.ok) return lower;
+      return this._fetch(w);
+    }
+    return this._fetch(w);
+  },
+
+  // Cached per spelling: "Smith" and "smith" are different entries.
+  async _fetch(word) {
+    const key = String(word || '');
     if (this._cache.has(key)) return this._cache.get(key);
     const res = await window.vex.dictLookup(word);
     // The same word is looked up again and again while reading; a miss is

@@ -118,6 +118,10 @@ const SiteRoutes = {
   // awake. Called when the tab is made and again when it navigates, because
   // a link followed inside an existing tab is the other way to arrive.
   applyTo(tab) {
+    if (typeof window !== 'undefined' && window.VexTabPolicy?.isPrivateWindow) {
+      this._notePrivate(tab && tab.url);
+      return null;
+    }
     const rule = tab && tab.url ? this.match(tab.url) : null;
     if (!rule) return null;
     const did = [];
@@ -137,6 +141,33 @@ const SiteRoutes = {
       try { TabManager.renderTabUpdate(tab); } catch { /* the row catches up on the next render */ }
     }
     return did.length ? did : null;
+  },
+
+  // A private window keeps its tabs in its own session, so a Tor or proxy
+  // rule does not move them — safe, but nothing said so: a site with a Tor
+  // rule opened there went privately and plainly (found 2026-09-30). Its
+  // storage starts empty, so it asks main for the hosts the main window's
+  // rules name, and says so once per window.
+  _routedHosts: null,
+  _privateNoted: false,
+  _notePrivate(url) {
+    if (this._privateNoted || !url || !/^https?:/i.test(url)) return;
+    if (!window.vex || typeof window.vex.siteRoutesRoutedHosts !== 'function') return;
+    if (!this._routedHosts) {
+      this._routedHosts = Promise.resolve(window.vex.siteRoutesRoutedHosts()).catch((err) => {
+        this._routedHosts = null;   // asked again on the next page
+        console.error('[SiteRoutes] could not read the site rules for this private window:', err && err.message);
+        return [];
+      });
+    }
+    this._routedHosts.then((routed) => {
+      if (this._privateNoted) return;
+      const host = this.hostOf(url);
+      const rule = host && routed.find(r => host === r.host || host.endsWith('.' + r.host));
+      if (!rule) return;
+      this._privateNoted = true;
+      window.showToast?.('Site rules don’t apply in private windows — this page opens privately, not ' + (rule.mode === 'tor' ? 'through Tor' : 'through your proxy'));
+    });
   },
 
   // Put the route on the session. Armed once per session per run; the choice
@@ -162,15 +193,49 @@ const SiteRoutes = {
       .catch(err => { this._armed.delete(part); console.warn('[SiteRoutes] ' + rule.host + ':', err.message); return null; });
   },
 
+  // The route of a rule that was removed or replaced, let go of once no rule
+  // uses its partition. Only the saved route was ever rewritten, so Tor never
+  // stopped and started again on every launch (found 2026-09-30). Main keeps
+  // the session's proxy, so a tab still open in it stays on Tor until closed.
+  _release(rules) {
+    const inUse = new Set(this.rules().map(r => this.partitionFor(r)));
+    const parts = new Set();
+    for (const rule of rules) {
+      if (!rule || rule.mode === 'container') continue;
+      const part = this.partitionFor(rule);
+      if (part && !inUse.has(part)) parts.add(part);
+    }
+    for (const part of parts) {
+      this._armed.delete(part);
+      if (!window.vex || typeof window.vex.routingForget !== 'function') continue;
+      Promise.resolve(window.vex.routingForget(part))
+        .then(r => { if (!r || !r.ok) console.error('[SiteRoutes] the route of ' + part + ' could not be forgotten:', (r && r.error) || 'unknown'); })
+        .catch(err => console.error('[SiteRoutes] the route of ' + part + ' could not be forgotten:', err.message));
+    }
+  },
+
   // Every distinct route, armed at startup, so the first tab through a rule
-  // does not wait for Tor to start.
+  // does not wait for Tor to start. First, main forgets any saved site route
+  // no rule uses (one left by a rule removed before _release existed).
   armAll() {
     const seen = new Set();
     for (const rule of this.rules()) {
       if (rule.mode === 'container') continue;
       const part = this.partitionFor(rule);
-      if (!part || seen.has(part)) continue;
-      seen.add(part);
+      if (part) seen.add(part);
+    }
+    // A private window may not change routes (ipc-policy.js); the main one does it.
+    if (window.vex && typeof window.vex.routingPrune === 'function' && !window.VexTabPolicy?.isPrivateWindow) {
+      Promise.resolve(window.vex.routingPrune([...seen]))
+        .then(r => { if (!r || !r.ok) console.error('[SiteRoutes] old routes could not be forgotten:', (r && r.error) || 'unknown'); })
+        .catch(err => console.error('[SiteRoutes] old routes could not be forgotten:', err.message));
+    }
+    const armed = new Set();
+    for (const rule of this.rules()) {
+      if (rule.mode === 'container') continue;
+      const part = this.partitionFor(rule);
+      if (!part || armed.has(part)) continue;
+      armed.add(part);
       this.arm(rule);
     }
   },
@@ -191,10 +256,12 @@ const SiteRoutes = {
       muted: !!opts.muted,
       awake: !!opts.awake,
     };
+    const replaced = this.rules().filter(r => r.host === h);
     const list = this.rules().filter(r => r.host !== h);
     list.push(rule);
     this._save(list);
     this.arm(rule, true);
+    this._release(replaced);
     return rule;
   },
 
@@ -221,8 +288,10 @@ const SiteRoutes = {
 
   remove(host) {
     const h = this.normalizeHost(host) || String(host || '').toLowerCase();
+    const removed = this.rules().filter(r => r.host === h);
     const list = this.rules().filter(r => r.host !== h);
     this._save(list);
+    this._release(removed);
     return list;
   },
 
@@ -260,7 +329,7 @@ const SiteRoutes = {
     m.className = 'vexsr-ov';
     m.innerHTML = '<div class="vexsr-card">'
       + '<div class="vexsr-head"><span class="vexsr-title">Sites that always open a certain way</span>'
-      + '<button class="vexsr-x" id="sr-close" aria-label="Close">✕</button></div>'
+      + '<button class="vexsr-x" id="sr-close" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 13 }) + '</button></div>'
       + '<div class="vexsr-sub">Name a site and Vex opens it that way every time, without you remembering to — in a container of its own, or through Tor or a proxy. A rule for <code>example.com</code> also covers <code>mail.example.com</code>.</div>'
       + '<div id="sr-list" class="vexsr-list"></div>'
       + '<div class="vexsr-row">'
@@ -276,7 +345,7 @@ const SiteRoutes = {
       + '<label class="vexsr-check"><input type="checkbox" id="sr-awake"> Never let it sleep</label>'
       + '</div>'
       + '<div id="sr-msg" class="vexsr-msg"></div>'
-      + '<div class="vexsr-note">Each of these is a separate cookie jar, so a site opened by a rule is signed out of — for a container and for Tor that is the whole point, for a proxy it is worth knowing. A tab you opened in a container yourself is left alone: that was a deliberate choice. A tab a rule moved says so in the strip.</div>'
+      + '<div class="vexsr-note">Each of these is a separate cookie jar, so a site opened by a rule is signed out of — for a container and for Tor that is the whole point, for a proxy it is worth knowing. A tab you opened in a container yourself is left alone: that was a deliberate choice. A tab a rule moved says so in the strip. Rules don’t apply in private windows: a site opens privately there — not in a container, and not through Tor or a proxy. Calls in Discord, Meet and similar may not connect through a proxy: WebRTC is limited to the proxy so it can’t show your real address.</div>'
       + '</div>';
     document.body.appendChild(m);
 

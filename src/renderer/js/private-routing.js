@@ -73,7 +73,7 @@ const PrivateRouting = {
             <h2>Private routing</h2>
             <p>Send everything Vex does through Tor or through a proxy of your own. This routes the browser — Vex is not a VPN service and does not run one, and anything outside Vex goes the way it always did.</p>
           </div>
-          <button class="vexroute-close" aria-label="Close">&times;</button>
+          <button class="vexroute-close" aria-label="Close" title="Close">${VexIcons.svg('x', { size: 18 })}</button>
         </div>
         <div class="vexroute-body">
           <button class="vexroute-opt${st.mode === 'direct' ? ' on' : ''}" data-mode="direct">
@@ -91,6 +91,7 @@ const PrivateRouting = {
               <input id="vexroute-proxy" type="text" spellcheck="false" placeholder="socks5://127.0.0.1:1080" value="${this._esc(st.mode === 'proxy' ? (st.custom || '') : '')}">
               <button data-mode="proxy" class="vexroute-go">Use it</button>
             </div>
+            <span class="vexroute-note">Calls in Discord, Meet and similar may not connect: WebRTC is limited to the proxy so it can't show your real address.</span>
           </div>
         </div>
         <div class="vexroute-check">

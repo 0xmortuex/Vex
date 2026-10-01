@@ -136,14 +136,14 @@ const DocExtract = {
             ? await this._viaHiddenWebview(viewUrl, partition, { reader: this._sheetReader(viewUrl), timeoutMs: 30000 })
             : await this._viaHiddenWebview(viewUrl, partition);
           if (!current()) return;
-          if (text) { this._showResult(text, `Google ${g.label} (real text)`); return; }
+          if (text) { await this._showResult(text, `Google ${g.label} (real text)`); return; }
         } catch (_) { /* fall through */ }
       }
       // 2) Secondary: in-page export fetch.
       try {
         const text = await this._tryGoogleText(wv, g);
         if (!current()) return;
-        if (text) { this._showResult(text, `Google ${g.label} export`); return; }
+        if (text) { await this._showResult(text, `Google ${g.label} export`); return; }
       } catch (_) { /* fall through */ }
       window.showToast?.('This doc is fully locked — reading the pixels with OCR instead…');
     }
@@ -348,7 +348,7 @@ const DocExtract = {
     const text = ((data && data.text) || '').trim();
     if (!current()) return;
     if (!text) { window.showToast?.('No readable text on the visible page'); return; }
-    this._showResult(text, 'OCR (visible page)');
+    await this._showResult(text, 'OCR (visible page)');
   },
 
   // Text out of any picture — a screenshot you just took. → the text ('' when
@@ -361,7 +361,7 @@ const DocExtract = {
     });
     const text = ((data && data.text) || '').trim();
     if (!text) { window.showToast?.('No readable text in that picture'); return ''; }
-    this._showResult(text, source);
+    await this._showResult(text, source);
     return text;
   },
 
@@ -376,8 +376,11 @@ const DocExtract = {
     return this._ocrLib;
   },
 
-  _showResult(text, source) {
-    try { navigator.clipboard.writeText(text); } catch {}
+  // The copy is awaited: it used to be fired and forgotten while the card
+  // said "copied to clipboard" regardless (found 2026-09-29).
+  async _showResult(text, source) {
+    let copyError = null;
+    try { await navigator.clipboard.writeText(text); } catch (err) { copyError = err; }
     document.getElementById('vex-docextract')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-docextract';
@@ -385,10 +388,10 @@ const DocExtract = {
     m.innerHTML = `<div style="width:720px;max-width:94vw;height:78vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
         <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)">
           <strong style="font-size:15px;color:var(--text)">Extracted text</strong>
-          <span style="font-size:11.5px;color:var(--text-muted)">${source} · ${text.length.toLocaleString()} chars · copied to clipboard</span>
+          <span style="font-size:11.5px;color:var(--text-muted)">${source} · ${text.length.toLocaleString()} chars · ${copyError ? 'not copied — use Copy' : 'copied to clipboard'}</span>
           <span style="flex:1"></span>
-          <button id="de-copy" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Copy again</button>
-          <button id="de-close" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">✕</button>
+          <button id="de-copy" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">${copyError ? 'Copy' : 'Copy again'}</button>
+          <button id="de-close" aria-label="Close" title="Close" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Close'}</button>
         </div>
         <textarea id="de-text" readonly spellcheck="false" style="flex:1;min-height:0;resize:none;border:none;outline:none;padding:16px;background:var(--bg);color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.55"></textarea>
       </div>`;
@@ -398,8 +401,13 @@ const DocExtract = {
     const close = () => m.remove();
     m.querySelector('#de-close').addEventListener('click', close);
     m.addEventListener('mousedown', (e) => { if (e.target === m) close(); });
-    m.querySelector('#de-copy').addEventListener('click', () => { ta.select(); try { navigator.clipboard.writeText(text); } catch {} window.showToast?.('Copied'); });
-    window.showToast?.(`Copied ${text.length.toLocaleString()} chars (${source})`);
+    m.querySelector('#de-copy').addEventListener('click', async () => {
+      ta.select();
+      try { await navigator.clipboard.writeText(text); window.showToast?.('Copied'); }
+      catch (err) { window.showToast?.('Could not copy the text: ' + ((err && err.message) || 'clipboard refused'), 'error'); }
+    });
+    if (copyError) window.showToast?.('Could not copy the text (' + (copyError.message || 'clipboard refused') + ') — it is shown so you can copy it', 'error');
+    else window.showToast?.(`Copied ${text.length.toLocaleString()} chars (${source})`);
   },
 };
 

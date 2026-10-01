@@ -292,10 +292,17 @@ const WhySlow = {
     m.className = 'vexsr-ov';
     m.innerHTML = '<div class="vexsr-card"><div class="vexsr-head">'
       + '<span class="vexsr-title">Why is Vex slow right now?</span>'
-      + '<button class="vexsr-x" id="ws-close" aria-label="Close">✕</button></div>'
+      + '<button class="vexsr-x" id="ws-close" aria-label="Close">' + (window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Close') + '</button></div>'
       + '<div id="ws-body" class="vexsr-sub" style="margin-top:10px">Looking…</div></div>';
     document.body.appendChild(m);
-    const close = () => m.remove();
+    // Escape closes it, heard on the document (found 2026-09-29: it did
+    // nothing). A dialog on top keeps its own Escape.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
     m.addEventListener('click', e => { if (e.target === m) close(); });
     m.querySelector('#ws-close').addEventListener('click', close);
 

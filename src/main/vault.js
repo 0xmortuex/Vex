@@ -1,6 +1,6 @@
 const path = require('path');
 const { atomicWrite } = require('./file-store');
-function createVaultService({ app, safeStorage, ipcMain }) {
+function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false }) {
 let vaultCache = null;
 let writes = Promise.resolve();
 // === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
@@ -9,6 +9,9 @@ let writes = Promise.resolve();
 // the vault refuses to save rather than writing plaintext.
 const VAULT_FILE = () => path.join(app.getPath('userData'), 'vault.dat');
 function vaultLoad() {
+  // Lock Vex covers the vault too: a private window opened from the lock
+  // screen could list and read every password (found 2026-09-29).
+  if (isLocked()) throw new Error('Vex is locked — unlock it to use saved passwords');
   if (vaultCache) return structuredClone(vaultCache);
   try {
     const fsx = require('fs');

@@ -118,3 +118,29 @@ describe('ToolboxLib jwt/case/pass/markdown', () => {
     expect(h).toContain('&lt;script&gt;');
   });
 });
+
+// The Base64 tool's own decoder (Toolbox._base64). Padded input was refused:
+// "aGk=" had its padding added again ("aGk==") and failed (2026-09-29), and
+// "Ignore stray characters" stripped IMAP's own 63rd character, the comma.
+describe('the Base64 tool decodes what people paste', () => {
+  const { Toolbox } = require('../../src/renderer/js/toolbox.js');
+  function spec() {
+    let captured = null;
+    const saved = globalThis.window;
+    globalThis.window = { ...(saved || {}), ToolboxWorkbench: { open: (s) => { captured = s; } } };
+    try { Toolbox._base64.call(Toolbox); } finally { globalThis.window = saved; }
+    return captured;
+  }
+  const decode = (input, opt = {}) => spec().run({ input, opt: { mode: 'decode', variant: 'auto', lenient: true, charset: 'utf-8', output: 'text', ...opt } });
+
+  it('padded and unpadded alike', () => {
+    for (const [b64, text] of [['aGk=', 'hi'], ['aGk', 'hi'], ['YQ==', 'a'], ['YQ', 'a'], ['aMOpbGxvIOKCrA==', 'héllo €']]) {
+      expect(decode(b64).output, b64).toBe(text);
+    }
+  });
+
+  it("keeps IMAP's comma instead of stripping it as a stray character", () => {
+    const out = decode('+,8', { variant: 'imap', charset: 'hex' }).output;
+    expect(String(out).replace(/\s+/g, '').toLowerCase()).toBe('fbff');
+  });
+});

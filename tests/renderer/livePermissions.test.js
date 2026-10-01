@@ -92,8 +92,9 @@ describe('the permission prompt', () => {
   it('a visit-only answer is never written to disk', () => {
     const main = fs.readFileSync(path.join(__dirname, '../../src/main/permissions.js'), 'utf8');
     expect(main).toContain("if (remember === 'session')");
-    expect(main).toContain('sessionDecisions.set');
-    // The saved-decision lookup consults the session first.
-    expect(main).toMatch(/savedDecision\(decisionsFor\(webContents\), origin, parts, sessionDecisions\)/);
+    expect(main).toContain('sessionDecisionsFor(cb._contents).set');
+    // The saved-decision lookup consults the session first — that window's
+    // own partition, so a private window's visit stays in it.
+    expect(main).toMatch(/savedDecision\(decisionsFor\(webContents\), origin, parts, sessionDecisionsFor\(webContents\)\)/);
   });
 });

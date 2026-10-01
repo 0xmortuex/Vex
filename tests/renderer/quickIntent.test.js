@@ -32,6 +32,35 @@ beforeEach(() => {
 describe('saying it the way people say it', () => {
   const plain = (q) => VexQuickCommands.plainly(q);
 
+  // The first version of this matched sentence TEMPLATES, and templates break
+  // on the next sentence: it read "make a timer for 10 minutes" and not "make
+  // ME a timer for 10 minutes" — the same request with one word in it, which
+  // is exactly what was typed next.
+  it('finds the request however the sentence is arranged around it', () => {
+    expect(plain('make me an timer for 10 minutes')).toBe('timer 10 minutes');
+    expect(plain('make me a timer for 10 min')).toBe('timer 10 min');
+    expect(plain('set me a timer for 5 minutes')).toBe('timer 5 minutes');
+    expect(plain('give me a timer for 1 hour 30 minutes')).toBe('timer 1 hour 30 minutes');
+    expect(plain('start a 20 minute timer')).toBe('timer 20 minute');
+    expect(plain('set a 5 min countdown')).toBe('timer 5 min');
+  });
+
+  // A remark is not an instruction, and a question is not an order however
+  // many verbs it has in it.
+  it('leaves a question, a remark and an unrelated sentence alone', () => {
+    expect(plain('how do I make a timer')).toBe('how do I make a timer');
+    expect(plain('what is a timer')).toBe('what is a timer');
+    expect(plain('the timer is wrong')).toBe('the timer is wrong');
+    expect(plain('make a note of this')).toBe('make a note of this');
+    expect(plain('start a video call')).toBe('start a video call');
+  });
+
+  // A length it was not given is not one to invent.
+  it('hands a timer with no length to the model, which can ask', () => {
+    expect(plain('make a timer')).toBe('make a timer');
+    expect(VexQuickCommands.intent('make a timer')).toBe(null);
+  });
+
   it('strips the politeness and the filler', () => {
     expect(plain('make an timer for 10 minutes')).toBe('timer 10 minutes');
     expect(plain('Can you please set a timer for 25 min?')).toBe('timer 25 min');
@@ -78,5 +107,20 @@ describe('what Vex can do without a model', () => {
     const hit = VexQuickCommands.intent('set a timer for 10 minutes');
     await hit.action();
     expect(VexClock.addTimer).toHaveBeenCalled();
+  });
+});
+
+// A guide is an explanation, not an action. Treating "how do I split the
+// screen" as something Vex had just done meant the question never reached the
+// guide card — so the "Do it" button on that card, and "you do it" after it,
+// had nothing to act on.
+describe('the line between doing and explaining', () => {
+  it('a "how do I" question is not something Vex has done', () => {
+    expect(VexQuickCommands.intent('how do I make a timer')).toBe(null);
+    expect(VexQuickCommands.intent('how do I split the screen')).toBe(null);
+  });
+
+  it('but the same subject as an order still is', () => {
+    expect(VexQuickCommands.intent('set a timer for 10 minutes').id).toBe('quick-timer');
   });
 });

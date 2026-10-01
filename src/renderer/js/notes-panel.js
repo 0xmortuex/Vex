@@ -122,8 +122,8 @@ const NotesPanel = {
     const flat = String(content || '')
       .replace(/```[\s\S]*?```/g, ' ')
       .replace(/^\s{0,3}#{1,6}\s+/gm, '')
-      .replace(/^\s*[-*+]\s+\[[ xX]\]\s+/gm, '')
-      .replace(/^\s*[-*+]\s+/gm, '')
+      .replace(/^\s*[-*+•]\s+\[[ xX]\]\s+/gm, '')
+      .replace(/^\s*[-*+•]\s+/gm, '')
       .replace(/^\s*>\s?/gm, '')
       .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/[*_`~]/g, '')
@@ -138,13 +138,33 @@ const NotesPanel = {
     return { words, chars: text.length, minutes: Math.max(1, Math.round(words / 200)) };
   },
 
+  // The lines inside a ``` code block, found the way VexMarkdown finds them.
+  // The preview draws no checkbox there, so counting a "- [ ]" line in a
+  // code block ticked the wrong task (found 2026-09-29).
+  _fencedLines(content) {
+    const src = String(content || ''), out = new Set();
+    const re = /```([\w+-]*)[ \t]*\n?([\s\S]*?)```/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const first = src.slice(0, m.index).split('\n').length - 1;
+      const last = first + m[0].split('\n').length - 1;
+      for (let i = first; i <= last; i++) out.add(i);
+    }
+    return out;
+  },
+
   // Flip the nth "- [ ]" / "- [x]" line. The nth checkbox in the rendered
   // preview is the nth task line in the source, so the index lines up.
   toggleTask(content, index) {
     const lines = String(content || '').split('\n');
+    const fenced = this._fencedLines(content);
     let seen = -1;
     for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(/^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](.*)$/);
+      if (fenced.has(i)) continue;
+      // The bullets VexMarkdown draws as a list: "•" was drawn as a checkbox
+      // but not counted here, so ticks after it landed on the wrong task
+      // (found 2026-09-29).
+      const m = lines[i].match(/^(\s*(?:[-*+•]|\d+[.)])\s+)\[([ xX])\](.*)$/);
       if (!m) continue;
       seen++;
       if (seen !== index) continue;

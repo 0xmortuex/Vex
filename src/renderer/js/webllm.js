@@ -103,12 +103,37 @@ const WebLLM = (() => {
       temperature: typeof opts.temperature === 'number' ? opts.temperature : 0.6,
       max_tokens: opts.maxTokens || 800,
     };
-    let timer;
-    const timeout = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('On-device generation timed out')), opts.timeoutMs || 120000); });
+    // Stop in the AI panel: it used to reach only the cloud and Ollama paths,
+    // so the GPU went on writing an answer nobody would see (found
+    // 2026-09-29). The engine is told to stop, and the caller is not kept
+    // waiting for the partial answer it hands back.
+    const signal = opts.signal;
+    if (signal && signal.aborted) throw new Error('Stopped');
+    const engine = _engine;
+    let timer, onAbort;
+    // A timeout stops the engine too: it used to reject and leave the GPU
+    // writing on, so the next question queued behind it (found 2026-09-29).
+    const timeout = new Promise((_, rej) => {
+      timer = setTimeout(() => {
+        rej(new Error('On-device generation timed out'));
+        if (typeof engine.interruptGenerate === 'function') engine.interruptGenerate();
+      }, opts.timeoutMs || 120000);
+    });
+    const stopped = new Promise((_, rej) => {
+      if (!signal) return;
+      onAbort = () => {
+        rej(new Error('Stopped'));
+        if (typeof engine.interruptGenerate === 'function') engine.interruptGenerate();
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
     try {
-      const res = await Promise.race([_engine.chat.completions.create(req), timeout]);
+      const res = await Promise.race([engine.chat.completions.create(req), timeout, stopped]);
       return res?.choices?.[0]?.message?.content || '';
-    } finally { clearTimeout(timer); }
+    } finally {
+      clearTimeout(timer);
+      if (onAbort) signal.removeEventListener('abort', onAbort);
+    }
   }
 
   function init() { /* prefs are read lazily; nothing to download here */ }

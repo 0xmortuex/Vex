@@ -4,13 +4,16 @@
   display: none;
   align-items: center;
   gap: 0;
-  padding: 6px 8px 0 8px;
+  /* The tabs should fill the strip. A 6px inset over 32px tabs in a 40px
+     bar left a dead band across the top of the window, which read as the
+     strip not being filled. */
+  padding: 0 8px 0 8px;
   background: var(--vex-glass-medium);
   backdrop-filter: var(--vex-blur-light);
   -webkit-backdrop-filter: var(--vex-blur-light);
   border-bottom: 1px solid var(--vex-border-subtle);
   -webkit-app-region: drag;
-  min-height: 40px;
+  min-height: 34px;
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -59,7 +62,7 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  height: 32px;
+  height: 34px;
   min-width: 44px;            /* hard minimum = favicon only */
   max-width: none;            /* no upper cap — tabs always fill the bar */
   /* basis:0 + grow:1 makes every tab share free space equally, so with
@@ -92,7 +95,9 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   color: var(--vex-text-primary);
   font-weight: 500;
   z-index: 1;
-  margin-bottom: -1px;
+  /* No margin-bottom:-1px to overlap the strip's border: the strip clips
+     its overflow, so the overlap never showed and the shift only left 1px of
+     strip above the active tab. */
   /* Same flex as others — don't override so active tab can't shrink away */
 }
 .top-tab.active .tab-title { font-weight: 600; }
@@ -168,7 +173,9 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 .top-tab.pinned .tab-close { display: none; }
 
 /* Audio / mute — inline SVG on currentColor, so it follows the theme. */
+.top-tab .audio-indicator:hover { color: var(--vex-accent, var(--primary)); }
 .top-tab .audio-indicator {
+  cursor: pointer;
   width: 12px; height: 12px;
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -210,31 +217,49 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 .top-group-label {
   display: inline-flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 20px;
   margin: 0 4px 0 6px;
   /* Theme-aware fill derived from --group-color (the stored identity hex).
      Light themes mute it toward the surface; dark themes keep it vivid.
      See --group-pill-* tokens in theme-tokens.css. */
   background: var(--group-pill-bg, var(--group-color, var(--primary)));
   color: var(--group-pill-fg, #fff);
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 700;
-  height: 22px;
-  align-self: center;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  flex-shrink: 0;
+  /* As tall as a tab, not a 22px pill floating in the strip: the pill left
+     7px of empty strip above and below every group (measured on the user's
+     screen 2026-09-27, after the tabs themselves had been made to fill it).
+     Shaped like the look's tabs, so a group reads as part of the row. */
+  border-radius: var(--b-tab-radius, 8px);
+  /* A step above the tab titles, with room either side (asked for "a bit
+     bigger", 2026-09-27): 10px suited the old 22px pill and read as lost in
+     a chip as tall as a tab. */
+  font-size: 13px;
+  font-weight: 600;
+  align-self: stretch;
+  /* As wide as its name, like Chrome's group chips; the tabs stretch over
+     the rest, so the bar is still covered. Sharing the width equally made
+     four collapsed groups take more than half the strip (2026-09-27). The
+     name is written as typed: bold serif capitals spaced unevenly. */
+  flex: 0 0 auto;
+  min-width: 120px;
+  max-width: 240px;
+  box-sizing: border-box;
+  justify-content: center;
   cursor: pointer;
   transition: transform 0.12s, opacity 0.12s;
-  max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: 'Outfit', sans-serif;
   -webkit-app-region: no-drag;
 }
-.top-group-label:hover { transform: translateY(-1px); opacity: 0.92; }
+.top-group-label:hover { opacity: 0.92; }   /* no lift: a lifted chip reopens a gap under it */
+
+/* The tab strip is set in Segoe UI, as in Firefox and Chrome, whatever font
+   the rest of Vex wears (user's choice, 2026-09-27). The id outranks the
+   font picker's !important rule in fonts.css. */
+#top-tabs-list :is(.top-tab, .top-tab *, .top-group-label) {
+  font-family: "Segoe UI", system-ui, sans-serif !important;
+}
 
 /* Drag-to-reorder — dim the tab being dragged, show an insertion line on the
    edge of the tab it would land next to (inset so overflow:hidden can't clip it) */
@@ -253,7 +278,11 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   font-weight: 300;
   line-height: 1;
   cursor: pointer;
-  margin: 0 4px 4px 4px;
+  /* Centred, no bottom margin: the old 4px under a 32px button made the
+     strip 36px round 34px tabs, a gap above every tab in Classic, Edge and
+     (28+4 over 28) Safari. The strip is as tall as a tab. */
+  margin: 0 4px;
+  align-self: center;
   -webkit-app-region: no-drag;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;

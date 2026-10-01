@@ -97,6 +97,15 @@ const VexPeek = {
       this._showError(`${e.errorDescription || 'Load failed'} (${e.errorCode})`);
     });
     wv.addEventListener('crashed', () => this._showError('The preview process stopped responding'));
+    // Escape pressed inside the previewed page, which the page left alone
+    // (preload-webview.js). With focus in the page it never reached the key
+    // handler below, and the peek stayed open (found 2026-09-29). Ctrl+Enter
+    // in the page the same way opens it as a tab.
+    wv.addEventListener('ipc-message', (e) => {
+      if (this._els.wv !== wv || !this.isOpen()) return;
+      if (e.channel === 'vex-escape') this.close();
+      else if (e.channel === 'vex-peek-promote') this.promote();
+    });
     E.body.appendChild(wv);
     E.wv = wv;
 
@@ -108,6 +117,9 @@ const VexPeek = {
       else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.promote(); }
     };
     window.addEventListener('keydown', this._onKey, true);
+    // A peek opens from Shift+click in a page, so focus stayed in that page
+    // and Esc went to it, never reaching the handler above (found 2026-09-29).
+    E.root.querySelector('.peek-close').focus({ preventScroll: true });
   },
 
   // Replace the frame's contents with a readable failure state. Keeps the bar

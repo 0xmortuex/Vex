@@ -44,12 +44,38 @@ const ReadingMode = {
     return out.join('');
   },
 
+  // The page a Vex reader page was made from, read from the address of the
+  // reader page itself, or '' if it is not one. The reader carries it in
+  // <meta name="vex-reading-source">: after Exit and then Back the reader page
+  // comes back with nothing remembered for the tab, so its Exit did nothing
+  // and reading mode made a reader of the reader (found 2026-09-29). Only
+  // http(s) comes out, so a crafted data: page cannot send the tab to file:.
+  sourceOf(url) {
+    const s = String(url || '');
+    if (!/^data:text\/html/i.test(s)) return '';
+    let html;
+    try { html = decodeURIComponent(s.slice(s.indexOf(',') + 1)); } catch { return ''; }
+    const m = /<meta name="vex-reading-source" content="([^"]*)">/.exec(html);
+    if (!m) return '';
+    const src = m[1].replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }[e]));
+    return /^https?:\/\//i.test(src) ? src : '';
+  },
+
   async activate() {
     const wv = WebviewManager.getActiveWebview();
     if (!wv) { window.showToast?.('No active tab'); return; }
 
     const tabId = TabManager.activeTabId;
     const currentUrl = wv.getURL();
+
+    // Already reading this tab: the second press exits. Running it again used
+    // to overwrite the remembered page with the reader's own data: URL, so the
+    // original page was lost (found 2026-09-29). A reader page reached by
+    // Back has nothing remembered, so its own source line is used.
+    if ((this._originalUrls.has(tabId) && /^data:text\/html/i.test(currentUrl)) || this.sourceOf(currentUrl)) {
+      this.exitReadingMode(tabId);
+      return;
+    }
 
     let article;
     try {
@@ -60,11 +86,17 @@ const ReadingMode = {
         (() => {
           const main = document.querySelector('article') || document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
           const blocks = [];
+          // A block's text already includes what is nested in it (inline code
+          // in a paragraph, a paragraph in a list item), so nested picks are
+          // skipped; they were repeated before (found 2026-09-29).
+          const picked = new Set();
+          const insidePicked = (el) => { for (let a = el.parentElement; a && a !== main; a = a.parentElement) if (picked.has(a)) return true; return false; };
           for (const el of main.querySelectorAll('h1,h2,h3,h4,p,li,blockquote,pre,code,img')) {
             if (blocks.length >= 2000) break;
             if (el.tagName === 'IMG') { if (el.currentSrc || el.src) blocks.push({ tag: 'IMG', src: el.currentSrc || el.src }); continue; }
+            if (insidePicked(el)) continue;
             const text = (el.innerText || el.textContent || '').trim();
-            if (text) blocks.push({ tag: el.tagName, text: text.slice(0, 20000) });
+            if (text) { blocks.push({ tag: el.tagName, text: text.slice(0, 20000) }); picked.add(el); }
           }
           const text = main.innerText || '';
           return {
@@ -92,7 +124,7 @@ const ReadingMode = {
     const readTime = Math.max(1, Math.ceil((article.wordCount || 0) / 250));
     const title = this._esc(article.title || 'Reading mode');
 
-    const readingHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>
+    const readingHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="vex-reading-source" content="${this._esc(currentUrl)}"><title>${title}</title><style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #fafaf7; color: #1a1a1a; font-family: Georgia, 'Times New Roman', serif;
           font-size: 19px; line-height: 1.8; padding: 48px 24px; max-width: 700px; margin: 0 auto; }
@@ -127,11 +159,14 @@ const ReadingMode = {
     this._prune();
     const id = tabId || (typeof TabManager !== 'undefined' ? TabManager.activeTabId : null);
     if (!id) return false;
-    const url = this._originalUrls.get(id);
-    if (!url) return false;
     const wv = (typeof WebviewManager !== 'undefined' && WebviewManager.webviews)
       ? WebviewManager.webviews.get(id)
       : null;
+    // Nothing remembered (the reader page came back through Back): the
+    // reader page names its own source.
+    let url = this._originalUrls.get(id);
+    if (!url && wv) { try { url = this.sourceOf(wv.getURL()); } catch { url = ''; } }
+    if (!url) return false;
     if (!wv) return false;          // tab is gone or asleep — keep the URL for when it is back
     this._originalUrls.delete(id);
     wv.loadURL(url);

@@ -97,7 +97,10 @@ const AccessibilityPack = {
     try { text = await wv.executeJavaScript(`(()=>{const el=document.querySelector('article,main,[role=main]')||document.body;return (el.innerText||'').replace(/\\s+/g,' ').trim().substring(0,40000);})()`); } catch {}
     const words = (text || '').split(/\s+/).filter(Boolean);
     if (words.length < 10) { window.showToast?.('Not enough text to speed-read'); return; }
-    document.getElementById('vex-rsvp')?.remove();
+    // A reader already open is closed properly: removing it left its word
+    // timer running (found 2026-09-29).
+    const old = document.getElementById('vex-rsvp');
+    if (old) { if (typeof old._close === 'function') old._close(); else old.remove(); }
     const m = document.createElement('div');
     m.id = 'vex-rsvp';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.82);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px';
@@ -128,9 +131,21 @@ const AccessibilityPack = {
       if (playing) tick(); else clearTimeout(timer);
     });
     m.querySelector('#rsvp-wpm').addEventListener('input', (e) => { wpm = parseInt(e.target.value, 10); m.querySelector('#rsvp-wpmval').textContent = wpm; });
-    const close = () => { playing = false; clearTimeout(timer); m.remove(); };
+    // Escape closes it the way the X does, timer and all; it did nothing (found
+    // 2026-09-29). Capture phase, so nothing underneath takes the same key; an
+    // Escape meant for a Vex dialog on top is left to that dialog. Focus moves
+    // in, or with the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { playing = false; clearTimeout(timer); document.removeEventListener('keydown', onKey, true); m.remove(); };
+    m._close = close;
+    document.addEventListener('keydown', onKey, true);
     m.querySelector('#rsvp-close').addEventListener('click', close);
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#rsvp-close').focus({ preventScroll: true });
   },
 
   // --- Translate the current selection (or a word) → tooltip ---

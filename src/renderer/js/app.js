@@ -1,5 +1,14 @@
 // === Vex App — Main Entry Point ===
 
+// Whether one of Vex's own text boxes (address bar, a note, the AI box) has
+// the keys. A page that has them shows here as its <webview>, not a text box.
+function vexOwnTextFocused(doc) {
+  const el = doc.activeElement;
+  if (!el || el.tagName === 'WEBVIEW') return false;
+  if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+  return el.tagName === 'INPUT' && /^(text|search|url|email|password|tel|number)$/i.test(el.type || 'text');
+}
+
 (async function () {
   // What each part of starting the interface cost, for Memory › Health.
   const startup = window.VexStartup = { began: performance.now(), parts: {} };
@@ -118,26 +127,15 @@
     val = (val || '').trim();
     if (!val) return;
 
-    let url;
-    if (/^https?:\/\//i.test(val)) {
-      url = val;
-    } else if (/^[a-z0-9]([a-z0-9-]*\.)+[a-z]{2,}/i.test(val)) {
-      url = 'https://' + val;
-    } else {
-      // Keyword engines ("yt cats") and DDG bangs ("!w einstein") take
-      // precedence over the default engine.
+    // An address, or words for the chosen engine (js/typed-address.js).
+    // Keyword engines ("yt cats") and DDG bangs ("!w einstein") take
+    // precedence over the default engine.
+    let url = VexTypedAddress.addressFor(val);
+    if (!url) {
       const shortcut = (typeof SearchShortcuts !== 'undefined') ? SearchShortcuts.resolve(val) : null;
-      if (shortcut) {
-        url = shortcut;
-      } else {
-        const engines = {
-          google: 'https://www.google.com/search?q=',
-          duckduckgo: 'https://duckduckgo.com/?q=',
-          brave: 'https://search.brave.com/search?q='
-        };
-        const engine = engines[settings.searchEngine] || engines.google;
-        url = engine + encodeURIComponent(val);
-      }
+      // The saved choice, read each time: an engine picked in the setup wizard
+      // or on the New Tab page was ignored until a restart (found 2026-09-29).
+      url = shortcut || VexTypedAddress.searchUrl(val);
     }
 
     // If sidebar panel is open, close it first
@@ -246,14 +244,15 @@
   // the guest <webview> to these channels; the same functions are bound to the
   // host-focus ShortcutsRegistry below so both focus states behave identically.
   const focusAddressBar = () => { const u = document.getElementById('url-input'); if (u) { u.focus(); u.select(); } };
-  const cycleTab = (dir) => {
-    const tabs = TabManager.tabs || [];
-    if (!tabs.length) return;
-    let i = tabs.findIndex(t => t.id === TabManager.activeTabId);
-    if (i < 0) i = 0;
-    TabManager.switchTab(tabs[(i + dir + tabs.length) % tabs.length].id);
+  const cycleTab = (dir) => TabManager.cycleTab(dir);
+  // Counted the way the tabs stand on screen, and Ctrl+9 is the last tab, as
+  // in every browser: it took the ninth tab of the internal list (found
+  // 2026-09-29).
+  const jumpToTab = (n) => {
+    const order = TabManager.displayOrder();
+    const t = n === 9 ? order[order.length - 1] : order[n - 1];
+    if (t) TabManager.switchTab(t.id);
   };
-  const jumpToTab = (n) => { const t = (TabManager.tabs || [])[n - 1]; if (t) TabManager.switchTab(t.id); };
   const bookmarkCurrent = () => { const t = TabManager.getActiveTab && TabManager.getActiveTab(); if (t && t.url && window.Bookmarks) Bookmarks.toggle(t.url, t.title); };
   window.vex.onFocusAddressBar?.(focusAddressBar);
   // Ctrl+Alt+D pressed inside a page (main passes it up; the page has focus).
@@ -365,7 +364,27 @@
   // main starts every launch with the blocker ON, so the stored choice has to be
   // pushed at boot — otherwise "Block ads and trackers" reads OFF while main is
   // still blocking, and turning it off never survived a restart.
-  window.vex.setAdBlockerState(adBlockerToggle.checked);
+  // Not from a private window: its settings start at the defaults, and main
+  // keeps one switch, so opening one turned the blocker back on for every
+  // window while the normal window still said OFF (found 2026-09-29).
+  if (window.VexTabPolicy?.isPrivateWindow) {
+    // One switch serves every window, so it is changed from the normal one.
+    adBlockerToggle.disabled = true;
+    adBlockerToggle.title = 'Change this in a normal window — it applies to every window';
+    window.vex.getAdBlockerState()
+      .then(on => { adBlockerToggle.checked = on === true; })
+      .catch(err => console.error('[AdBlocker] could not read the state:', err));
+  } else window.vex.setAdBlockerState(adBlockerToggle.checked);
+
+  // An engine chosen anywhere else (setup wizard, New Tab page) reaches the
+  // Settings list too (Onboarding._setStart announces it).
+  window.addEventListener('vex-search-engine-changed', (e) => {
+    const id = e.detail && e.detail.id;
+    if (!id || !VexTypedAddress.SEARCH_ENGINES[id] || settings.searchEngine === id) return;
+    settings.searchEngine = id;
+    searchEngineSelect.value = id;
+    VexStorage.saveSettings(settings);
+  });
 
   searchEngineSelect.addEventListener('change', () => {
     settings.searchEngine = searchEngineSelect.value;
@@ -410,9 +429,11 @@
     const applyAutoSave = (on) => {
       clearInterval(window._autoSaveInterval);
       window._autoSaveInterval = on
-        ? setInterval(() => {
+        // Not in a private window: its tabs are never saved, and the save
+        // refuses there (found 2026-09-29).
+        ? (window.VexTabPolicy?.isPrivateWindow ? null : setInterval(() => {
           SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString());
-        }, 10 * 60 * 1000)
+        }, 10 * 60 * 1000))
         : null;
     };
     autosaveToggle.checked = settings.autoSaveSessions || false;
@@ -490,7 +511,7 @@
         else { try { localStorage.setItem('vex.weatherLoc', JSON.stringify(loc)); } catch {} }
         if (typeof Onboarding !== 'undefined') Onboarding._reloadStartPages();
         if (results) results.innerHTML = '';
-        if (statusEl) statusEl.textContent = '✓ Saved ' + loc.city;
+        if (statusEl) statusEl.textContent = 'Saved ' + loc.city;
         showCurrent();
       };
       const search = async () => {
@@ -832,9 +853,15 @@
   const setRestartNeeded = (needed) => { if (restartRow) restartRow.style.display = needed ? '' : 'none'; };
   window.vexRestartNeeded = () => setRestartNeeded(true);
   restartBtn?.addEventListener('click', async () => {
-    restartBtn.disabled = true; restartBtn.textContent = '⟳ Restarting…';
-    try { await window.vex.restartApp(); }
-    catch { restartBtn.disabled = false; restartBtn.textContent = '⟳ Restart Vex to apply'; }
+    restartBtn.disabled = true; restartBtn.textContent = 'Restarting…';
+    try {
+      const r = await window.vex.restartApp();
+      if (r && r.ok === false) throw new Error(r.error || 'Vex could not restart');
+    } catch (err) {
+      // A failed restart was silent (found 2026-09-29).
+      restartBtn.disabled = false; restartBtn.textContent = 'Restart Vex to apply';
+      window.showToast?.('Could not restart: ' + ((err && err.message) || err), 'error');
+    }
   });
 
   const memSaverBoot = memorySaverOn();
@@ -873,10 +900,17 @@
   window.vex.onToggleHistory?.(() => SidebarManager.togglePanel('history'));
   window.vex.onToggleHistoryAi?.(() => HistoryPanel.openInAIMode?.());
   window.vex.onToggleMemory?.(() => SidebarManager.togglePanel('memory'));
+  // Ctrl+Shift+Z is also redo. Main takes it on the way into Vex's window
+  // without knowing what has the focus, so redo in the address bar, a note or
+  // the AI box put the page to sleep instead (found 2026-09-30). A text box
+  // of Vex's own gets its redo; a page's key arrives with the <webview> as
+  // the focused element here, and still sleeps the tab.
   window.vex.onSleepCurrentTab?.(() => {
-    const tab = TabManager.getActiveTab();
-    if (tab) { TabManager.sleepTab(tab.id); window.showToast?.('Tab sleeping'); }
+    if (vexOwnTextFocused(document)) { document.execCommand('redo'); return; }
+    TabManager.sleepActiveTab();
   });
+  window.vex.onPrintPage?.(() => WebviewManager.printPage());
+  window.vex.onViewSource?.(() => WebviewManager.viewSource());
   // Final flush of the open tab set before quit. System 1 already persists on
   // every tab change, so this is just insurance that the latest state is on disk.
   window.vex.onSaveSessionBeforeQuit?.(() => TabManager.persistTabs?.());
@@ -1098,9 +1132,45 @@
     // joins that tab's group automatically.
     const opener = TabManager.getActiveTab();
     const inheritGroup = (opener && opener.groupId) || null;
-    try { TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition }); }
-    catch (err) { console.error('[Tabs] createTab failed:', err.message); }
+    let created;
+    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition }); }
+    catch (err) {
+      console.error('[Tabs] createTab failed:', err.message);
+      if (data.requestId) window.vex.tabCreatedForExtension({ id: data.requestId, ok: false, error: err.message });
+      return;
+    }
+    if (data.requestId) answerExtensionTab(data.requestId, created);
   });
+  // An extension's tabs.create waits to hear which tab it got (main.js,
+  // _openTabForExtension; it answered undefined before, found 2026-09-29):
+  // the page's webContents id, the id Electron's tabs.get/update use. A page
+  // has one only once its webview is attached, a background tab's too.
+  // createTab hands back the tab it made, or the id of the open tab it went
+  // to instead.
+  function answerExtensionTab(requestId, created) {
+    const say = (payload) => window.vex.tabCreatedForExtension({ id: requestId, ...payload });
+    const tab = typeof created === 'string' ? TabManager.tabs.find(t => t.id === created) : created;
+    const wv = tab && WebviewManager.webviews.get(tab.id);
+    if (!wv) { say({ ok: false, error: 'The new tab has no page' }); return; }
+    const pageId = () => {
+      try { const id = wv.getWebContentsId(); return Number.isSafeInteger(id) && id > 0 ? id : null; }
+      catch { return null; } // not attached yet: the events below answer
+    };
+    const answer = () => {
+      const id = pageId();
+      if (id == null) return false;
+      say({ ok: true, tabId: id, url: tab.url, active: TabManager.activeTabId === tab.id });
+      return true;
+    };
+    if (answer()) return;
+    const onReady = () => {
+      if (!answer()) return;
+      wv.removeEventListener('did-attach', onReady);
+      wv.removeEventListener('dom-ready', onReady);
+    };
+    wv.addEventListener('did-attach', onReady);
+    wv.addEventListener('dom-ready', onReady);
+  }
 
   // === Phase 15: Personas ===
   if (typeof PersonasManager !== 'undefined') PersonasManager.init();
@@ -1173,7 +1243,7 @@
       window.showToast?.(`Theme: ${next}`, 'info', 1500);
     });
     ShortcutsRegistry.register('mute-tab',       () => TabManager?.toggleMuteTab?.());
-    ShortcutsRegistry.register('sleep-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.sleepTab(t.id); });
+    ShortcutsRegistry.register('sleep-tab',      () => TabManager.sleepActiveTab());
     ShortcutsRegistry.register('reopen-tab',     () => TabManager?.reopenLastClosed?.());
     ShortcutsRegistry.register('new-tab',        () => TabManager?.createTab?.(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true));
     ShortcutsRegistry.register('close-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.closeTab(t.id); });
@@ -1187,6 +1257,8 @@
     ShortcutsRegistry.register('next-tab',       () => cycleTab(1));
     ShortcutsRegistry.register('prev-tab',       () => cycleTab(-1));
     ShortcutsRegistry.register('bookmark',       bookmarkCurrent);
+    ShortcutsRegistry.register('print-page',     () => WebviewManager.printPage());
+    ShortcutsRegistry.register('view-source',    () => WebviewManager.viewSource());
     ShortcutsRegistry.register('find-in-page',   () => { if (handFindToActivePage()) return; const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
   }
 
@@ -1304,19 +1376,13 @@
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
     const status = document.getElementById('update-check-status');
     if (status) status.textContent = 'Checking\u2026';
-    let r = null;
-    try { r = await window.vex.checkForUpdates?.(); } catch (e) { r = { ok: false, error: e.message }; }
+    // An update opens the same full-screen cover the startup check shows.
+    const r = await UpdateNotifier.checkManually();
     localStorage.setItem('vex.lastUpdateCheck', Date.now().toString());
-    if (!status) return;
-    if (r?.ok && r.hasUpdate) {
-      status.textContent = '';
-      const a = document.createElement('a');
-      a.href = '#'; a.style.color = 'var(--primary)'; a.style.cursor = 'pointer';
-      a.textContent = `Update available: v${r.latest} \u2014 download`;
-      a.addEventListener('click', (e) => { e.preventDefault(); TabManager.createTab(r.url, true); SidebarManager.hideActivePanel?.(); });
-      status.appendChild(a);
-      window.showToast?.(`\ud83c\udf89 Vex v${r.latest} is available`);
-    } else if (r?.ok) {
+    if (!status || !r) { if (status) status.textContent = ''; return; }
+    if (r.ok && r.hasUpdate) {
+      status.textContent = `Vex ${r.latest} is available`;
+    } else if (r.ok) {
       status.textContent = `Up to date (v${r.current}) \u2014 checked just now`;
     } else {
       status.textContent = r?.error ? `Couldn't check: ${r.error}` : 'Update check failed';
@@ -1377,11 +1443,15 @@
     }
   });
 
-  // Middle-click to close tabs
-  document.getElementById('tabs-list')?.addEventListener('mousedown', (e) => {
+  // Middle-click to close tabs. On the whole tab sidebar, not only
+  // #tabs-list: a tab in a group lives in #tab-groups-container beside it,
+  // and middle-clicking one did nothing (found 2026-09-29). One listener, so
+  // one close per click.
+  document.getElementById('tabs-sidebar')?.addEventListener('mousedown', (e) => {
     if (e.button === 1) {
       const item = e.target.closest('.tab-item');
-      if (item) { e.preventDefault(); TabManager.closeTab(item.dataset.tabId); }
+      // A stack header has no tab id of its own; closing undefined did nothing useful.
+      if (item && item.dataset.tabId) { e.preventDefault(); TabManager.closeTab(item.dataset.tabId); }
     }
   });
 

@@ -156,9 +156,13 @@ function safeJoin(parentDir, untrustedRelative) {
 //   1. Strips every field except {mode, latitude, longitude} — so even if a
 //      future code path adds ISP / ASN / IP / accuracy / timezone to the raw
 //      pref, those never leak across the bridge.
-//   2. Rounds lat/lng to 1 decimal place (~11 km, city-level precision) so
-//      a renderer-XSS can't read the user's building-precision location.
-const COARSE_DECIMAL_PLACES = 1;
+//   2. Rounds lat/lng to 4 decimal places (~11 m). It was 1 (~11 km) so a
+//      renderer-XSS could not read a building-precision location, but this
+//      is only ever handed over AFTER the user allowed that site, and at
+//      city precision "near me" on the site they allowed was wrong: a cinema
+//      site listed malls 5 km from where the user lives (2026-09-27). Chrome
+//      and Firefox give a site the user allowed the precise position too.
+const COARSE_DECIMAL_PLACES = 4;
 
 function roundCoord(n) {
   if (typeof n !== 'number' || !Number.isFinite(n)) return null;
@@ -170,7 +174,7 @@ function roundCoord(n) {
 // shape. Returns one of (and ONLY one of):
 //   { mode: 'denied' }                              — denied / off / malformed,
 //                                                     and manual with no coords
-//   { mode: 'manual', latitude: N, longitude: N }   — coarse coords (1 dp)
+//   { mode: 'manual', latitude: N, longitude: N }   — coords to 4 dp (~11 m)
 //   { mode: 'ip' }                                  — caller does IP fallback
 // No other fields are ever returned. Extra fields on `rawPref` (ISP, ASN,
 // timezone, accuracy, timestamp, etc.) are dropped on the floor.

@@ -79,9 +79,9 @@ const SiteIdentity = {
     m.id = 'vex-siteident';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
     const verdictBox = v.pass
-      ? `<div style="padding:11px 13px;border-radius:9px;background:rgba(48,164,108,0.12);border:1px solid rgba(48,164,108,0.4);color:#30a46c;font-weight:700;font-size:12.5px">✓ Looks like real Chrome — this site should accept Vex.</div>`
+      ? `<div style="padding:11px 13px;border-radius:9px;background:rgba(48,164,108,0.12);border:1px solid rgba(48,164,108,0.4);color:#30a46c;font-weight:700;font-size:12.5px">${VexIcons.svg('check', { size: 13 })} Looks like real Chrome — this site should accept Vex.</div>`
       : `<div style="padding:11px 13px;border-radius:9px;background:rgba(229,72,77,0.12);border:1px solid rgba(229,72,77,0.4);font-size:12px">
-          <div style="color:#e5484d;font-weight:700;margin-bottom:5px">✕ This browser may be flagged as unsupported</div>
+          <div style="color:#e5484d;font-weight:700;margin-bottom:5px">${VexIcons.svg('x', { size: 13 })} This browser may be flagged as unsupported</div>
           ${v.fails.map(f => `<div style="color:var(--text);margin:2px 0">• ${esc(f)}</div>`).join('')}
         </div>`;
     const warnBox = v.warns.length
@@ -91,7 +91,7 @@ const SiteIdentity = {
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 8px">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Browser identity · <span style="color:var(--primary,var(--accent))">${esc(host)}</span></span>
         <button id="si-copy" style="${this._chip()}">Copy</button>
-        <button id="si-close" style="${this._chip()}">✕</button>
+        <button id="si-close" style="${this._chip()}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
       </div>
       <div style="overflow-y:auto;padding:6px 20px 20px;color:var(--text)">
         ${verdictBox}${warnBox}

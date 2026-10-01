@@ -28,6 +28,9 @@ const VexIcons = {
     // --- arrows, state, feedback ---------------------------------------
     'arrow-left':   '<path d="M20 12H4.5"/><path d="m10.5 6-6 6 6 6"/>',
     'arrow-right':  '<path d="M4 12h15.5"/><path d="m13.5 6 6 6-6 6"/>',
+    'chevron-right': '<path d="m9 6 6 6-6 6"/>',
+    'chevron-up':   '<path d="m6 15 6-6 6 6"/>',
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
     'check':        '<path d="m4.5 12.5 4.8 4.8L19.5 7"/>',
     'x':            '<path d="M6 6l12 12M18 6 6 18"/>',
     'plus':         '<path d="M12 5v14M5 12h14"/>',

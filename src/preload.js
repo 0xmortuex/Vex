@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Per-container routing (Tor / custom proxy / direct) for a session partition.
   routingSet: (partition, mode, custom) => ipcRenderer.invoke('routing:set', partition, mode, custom),
   routingGet: (partition) => ipcRenderer.invoke('routing:get', partition),
+  // A site route no rule uses any more, and the partitions the rules do use.
+  routingForget: (partition) => ipcRenderer.invoke('routing:forget', partition),
+  routingPrune: (used) => ipcRenderer.invoke('routing:prune', used),
   // All of Vex through one route, and a real check of whether it is working.
   routingSetAll: (mode, custom) => ipcRenderer.invoke('routing:set-all', mode, custom),
   routingGetAll: () => ipcRenderer.invoke('routing:get-all'),
@@ -48,6 +51,7 @@ contextBridge.exposeInMainWorld('vex', {
   saveData: (key, data) => ipcRenderer.invoke('storage-save', key, data),
   loadData: (key) => ipcRenderer.invoke('storage-load', key),
   clearBrowsingData: () => ipcRenderer.invoke('browsing:clear-data'),
+  clearHistory: () => ipcRenderer.invoke('browsing:clear-history'),
   addHistory: (entry) => ipcRenderer.invoke('storage:history-add', entry),
   flushStorage: () => ipcRenderer.invoke('storage:flush'),
   cloudRequest: body => ipcRenderer.invoke('cloud:request', body),
@@ -90,6 +94,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Which key combinations the renderer's registry answers to, so a key
   // pressed while a page has the focus can be passed up to it.
   setGuestShortcutKeys: (combos) => ipcRenderer.send('shortcuts:guest-keys', combos),
+  // The shortcut editor is recording: main lets Ctrl+T, F11 and its other own
+  // keys through to the page instead of acting on them (clears after 15 s).
+  setShortcutCapturing: (on) => ipcRenderer.invoke('shortcuts:capturing', on),
   onNextTab: (callback) => subscribe('next-tab', callback),
   onPrevTab: (callback) => subscribe('prev-tab', callback),
   onJumpToTab: (callback) => subscribe('jump-to-tab', callback),
@@ -112,6 +119,8 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Downloads (with progress tracking)
   onTabCreateFromExternal: (cb) => subscribe('tab:create-from-external', cb),
+  // Which tab an extension's tabs.create made (requestId from the request above).
+  tabCreatedForExtension: (payload) => ipcRenderer.send('tab:created-for-extension', payload),
 
   // Peek overlay (shift+click a link → floating preview)
   onPeekOpen: (cb) => subscribe('peek:open', cb),
@@ -185,6 +194,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Per-site switches: JavaScript, cookies, third-party content.
   siteRulesGet: () => ipcRenderer.invoke('siterules:get'),
   siteRulesSet: (rules) => ipcRenderer.invoke('siterules:set', rules),
+  // The switches as they are now, sent to every window whenever they change.
+  onSiteRulesChanged: (callback) => subscribe('siterules:changed', callback),
   // How long a few well-known services take to answer, and yours for comparison.
   netLatency: () => ipcRenderer.invoke('net:latency'),
   // What a word means, asked of a dictionary from the main process.
@@ -199,6 +210,8 @@ contextBridge.exposeInMainWorld('vex', {
   pageSave: (wcId, format, title) => ipcRenderer.invoke('page:save', wcId, format, title),
   // The whole page as one PNG, not just what is on screen.
   captureFullPage: (wcId) => ipcRenderer.invoke('page:capture-full', wcId),
+  // One script in every frame of a tab (a player inside an iframe included).
+  evalAllFrames: (wcId, code, userGesture) => ipcRenderer.invoke('page:eval-all-frames', wcId, code, !!userGesture),
   // Which of these links answer, from an empty session (no cookies sent).
   checkLinks: (urls) => ipcRenderer.invoke('links:check', urls),
   crawlFetch: (url, accept) => ipcRenderer.invoke('crawl:fetch', url, accept),
@@ -207,7 +220,8 @@ contextBridge.exposeInMainWorld('vex', {
     accounts: () => ipcRenderer.invoke('mail:accounts'),
     add: (account) => ipcRenderer.invoke('mail:add', account),
     remove: (id) => ipcRenderer.invoke('mail:remove', id),
-    inbox: (id, limit) => ipcRenderer.invoke('mail:inbox', id, limit),
+    // before: a UID — the page of messages older than it (Load more).
+    inbox: (id, limit, before) => ipcRenderer.invoke('mail:inbox', id, limit, before),
     message: (id, uid) => ipcRenderer.invoke('mail:message', id, uid),
   },
   // Screen recording: start a file, append chunks as they arrive, then save.
@@ -274,9 +288,19 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Permission prompts (geolocation, mic, camera, notifications, ...)
   onPermissionRequest:  (cb) => subscribe('permission:request', cb),
+  onPermissionExpired:  (cb) => subscribe('permission:expired', cb),
   permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),
   permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
   permissionsList:      () => ipcRenderer.invoke('permissions:list'),
+  // The decisions one tab's page is held to (its container's own, or a
+  // private window's), by the page's webContents id.
+  permissionsListForPage: (id) => ipcRenderer.invoke('permissions:list-for-page', id),
+  // A tab closed: its pages' saved back lists are dropped at once.
+  tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),
+  // A tab's icon fetched through the tab's own session, as a data: URL.
+  tabFavicon:           (pageId, url) => ipcRenderer.invoke('tabs:favicon', pageId, url),
+  // Which sites the main window's Tor and proxy rules name (for a private window).
+  siteRoutesRoutedHosts: () => ipcRenderer.invoke('siteroutes:routed-hosts'),
   permissionsRevoke:    (key) => ipcRenderer.invoke('permissions:revoke', key),
   permissionsClearAll:  () => ipcRenderer.invoke('permissions:clear-all'),
 
@@ -290,6 +314,8 @@ contextBridge.exposeInMainWorld('vex', {
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
   downloadsRetry:        (url) => ipcRenderer.invoke('downloads:retry', url),
+  downloadsAskWhere:     (url) => ipcRenderer.invoke('downloads:ask-where', url),
+  copyImageFrom:         (url, partition) => ipcRenderer.invoke('image:copy', url, partition),
 
   // Notes & Sessions shortcuts
   onToggleNotes: (callback) => subscribe('toggle-notes', callback),
@@ -301,6 +327,10 @@ contextBridge.exposeInMainWorld('vex', {
   onToggleHistoryAi: (callback) => subscribe('toggle-history-ai', callback),
   onToggleMemory: (callback) => subscribe('toggle-memory', callback),
   onSleepCurrentTab: (callback) => subscribe('sleep-current-tab', callback),
+  onPrintPage: (callback) => subscribe('print-page', callback),
+  setLockState: (locked) => ipcRenderer.send('vex-lock:state', !!locked),
+  cancelTor: () => ipcRenderer.invoke('tor:cancel'),
+  onViewSource: (callback) => subscribe('view-source', callback),
   onSaveSessionBeforeQuit: (callback) => subscribe('save-session-before-quit', callback),
 
   // Phase 5
@@ -321,6 +351,16 @@ contextBridge.exposeInMainWorld('vex', {
   // Progress while Vex downloads + bootstraps its own Tor (no Tor Browser needed).
   // cb({ phase:'download'|'bootstrap', value, detail }). Returns an unsubscribe fn.
   onTorProgress: (cb) => { const h = (_e, p) => { try { cb(p); } catch {} }; ipcRenderer.on('tor:progress', h); return () => { try { ipcRenderer.removeListener('tor:progress', h); } catch {} }; },
+  // Vex's own Tor: whether it runs (and which pages use it), stopping it, and
+  // hearing when it starts or stops — for the "Tor is running" indicator.
+  torStatus: () => ipcRenderer.invoke('tor:status'),
+  stopTor: () => ipcRenderer.invoke('tor:stop'),
+  onTorState: (cb) => { const h = (_e, s) => cb(s); ipcRenderer.on('tor:state', h); return () => ipcRenderer.removeListener('tor:state', h); },
+  // A Tor route's page starting Tor again after it stopped, and a Tor page
+  // that cannot load because Tor is not running.
+  onTorReviving: (callback) => subscribe('tor:reviving', callback),
+  onTorRevived: (callback) => subscribe('tor:revived', callback),
+  onTorPageDown: (callback) => subscribe('tor:page-down', callback),
   onToggleMuteTab: (callback) => subscribe('toggle-mute-tab', callback),
 
   // Tabs sidebar toggle
@@ -336,8 +376,15 @@ contextBridge.exposeInMainWorld('vex', {
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   widevineStatus: () => ipcRenderer.invoke('widevine:status'),
   widevineRetry: () => ipcRenderer.invoke('widevine:retry'),
-  downloadUpdate: () => ipcRenderer.invoke('download-update'),
-  installUpdate: () => ipcRenderer.invoke('install-update'),
+  // The update cover (js/update-notifier.js, src/main/updates.js).
+  updates: {
+    upcomingNotes: (version) => ipcRenderer.invoke('updates:upcoming-notes', version),
+    download: (version) => ipcRenderer.invoke('updates:download', version),
+    cancel: () => ipcRenderer.invoke('updates:cancel'),
+    install: (version) => ipcRenderer.invoke('updates:install', version),
+    onProgress: (cb) => subscribe('updates:progress', cb),
+    onInstallFailed: (cb) => subscribe('updates:install-failed', cb),
+  },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   getReleaseList: () => ipcRenderer.invoke('updates:list'),
@@ -361,7 +408,8 @@ contextBridge.exposeInMainWorld('vex', {
     ack: (id) => ipcRenderer.invoke('reminders:ack', id),
     // Reminders that arrived through Vex Sync from another machine.
     import: (items) => ipcRenderer.invoke('reminders:import', items),
-    hold: (untilMs) => ipcRenderer.invoke('reminders:hold', untilMs),
+    // who: 'focus' or 'meeting' — each keeps its own hold (main/reminders.js).
+    hold: (untilMs, who) => ipcRenderer.invoke('reminders:hold', untilMs, who),
     onFired: (cb) => subscribe('reminders:fired', cb),
     onClicked: (cb) => subscribe('reminders:clicked', cb),
     // A Snooze button on the Windows toast was pressed (handled in main).
@@ -380,11 +428,6 @@ contextBridge.exposeInMainWorld('vex', {
   setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   composeMail: (subject, body) => ipcRenderer.invoke('mail:compose', { subject, body }),
-  onUpdateAvailable: (cb) => subscribe('update-available', cb),
-  onUpdateNotAvailable: (cb) => subscribe('update-not-available', cb),
-  onUpdateDownloadProgress: (cb) => subscribe('update-download-progress', cb),
-  onUpdateDownloaded: (cb) => subscribe('update-downloaded', cb),
-  onUpdateError: (cb) => subscribe('update-error', cb),
 
   // Default browser. Attaches the renderer's handler and immediately flushes any
   // URLs that arrived (and were buffered) before this point — see the early
@@ -425,6 +468,7 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsList:           () => ipcRenderer.invoke('extensions:list'),
   extensionsInstallFolder:  () => ipcRenderer.invoke('extensions:install-folder'),
   extensionsInstallZip:     () => ipcRenderer.invoke('extensions:install-zip'),
+  extensionsInstallCatalog: (id) => ipcRenderer.invoke('extensions:install-catalog', id),
   extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
   extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
   extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),

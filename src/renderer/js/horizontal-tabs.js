@@ -46,6 +46,9 @@ const HorizontalTabs = (() => {
       label.textContent = group.name;
       label.title = `${group.name} \u00b7 ${groupTabs.length} tab${groupTabs.length === 1 ? '' : 's'} \u00b7 right-click for options`;
       label.addEventListener('click', () => {
+        // The tab in front would vanish with the group and nothing would be
+        // marked active (found 2026-09-29); move off it first, as Chrome does.
+        if (!group.collapsed) TabManager._leaveGroupBeforeCollapse(group.id);
         group.collapsed = !group.collapsed;
         if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups);
         // rebuildAllTabs repaints the vertical sidebar (which shows/hides the
@@ -88,7 +91,9 @@ const HorizontalTabs = (() => {
       chip.title = `${stack.name} · ${members.length} tab${members.length === 1 ? '' : 's'} · click to ${expanded ? 'collapse' : 'expand'}, right-click for options`;
 
       let favicon = topTab.favicon;
-      if (!favicon) {
+      // Never for a tab whose sites Vex's direct window must not ask (a Tor,
+      // proxy or container tab: its icon comes through its own session).
+      if (!favicon && TabManager.mayAskSiteForIcon(topTab.url, { partition: topTab.partition })) {
         // First-party /favicon.ico — no Google s2/favicons leak (matches the
         // tabs.js sidebar path; the delegated tab-favicon error handler swaps a
         // 404 for the neutral placeholder).
@@ -150,12 +155,12 @@ const HorizontalTabs = (() => {
     el.draggable = true;
 
     let favicon = tab.favicon;
-    if (!favicon) {
+    if (!favicon && TabManager.mayAskSiteForIcon(tab.url, { partition: tab.partition })) {
       // First-party /favicon.ico — no Google s2/favicons leak.
       try { favicon = new URL(tab.url || '').origin + '/favicon.ico'; } catch {}
     }
-    const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing audio" aria-label="Playing audio"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
-                : tab.muted              ? '<span class="audio-indicator muted" title="Muted" aria-label="Muted"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.8 6.2l3.4 3.6M14.2 6.2l-3.4 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
+    const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing audio — click to mute" aria-label="Mute tab" role="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
+                : tab.muted              ? '<span class="audio-indicator muted" title="Muted — click to unmute" aria-label="Unmute tab" role="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.8 6.2l3.4 3.6M14.2 6.2l-3.4 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
                 : '';
     const sleep = tab.sleeping
       ? '<span class="sleep-indicator" title="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>'
@@ -187,6 +192,16 @@ const HorizontalTabs = (() => {
       // If click originated on or inside the close button (e.g. on the SVG),
       // skip the tab switch entirely.
       if (e.target.closest('.tab-close')) return;
+      // The speaker mutes and unmutes, as it does in the vertical tabs (and in
+      // Chrome and Firefox); here it only switched to the tab (2026-09-28).
+      // With Shift, choose which speakers the tab plays through.
+      const speaker = e.target.closest('.audio-indicator');
+      if (speaker) {
+        e.stopPropagation();
+        if (e.shiftKey && typeof AudioOutput !== 'undefined') TabManager.chooseAudioOutput(tab, speaker);
+        else TabManager.toggleMuteTab(tab.id);
+        return;
+      }
       TabManager.switchTab(tab.id);
     });
     el.addEventListener('auxclick', (e) => {
@@ -346,11 +361,26 @@ const HorizontalTabs = (() => {
     if (container.scrollLeft > maxScroll) container.scrollLeft = maxScroll;
   }
 
+  // With more tabs than fit, the strip scrolls sideways; nothing moved it to
+  // the active tab, so with 45 tabs the one you were on could sit off-screen
+  // with scrollLeft still 0 (found 2026-09-29). Only the strip scrolls —
+  // scrollIntoView would move the window's ancestors as well.
+  function revealActiveTab() {
+    const container = document.getElementById('top-tabs-list');
+    if (!container || container.scrollWidth <= container.clientWidth) return;
+    const el = container.querySelector('.top-tab.active');
+    if (!el) return;
+    const box = container.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.left < box.left) container.scrollLeft += r.left - box.left;
+    else if (r.right > box.right) container.scrollLeft += r.right - box.right;
+  }
+
   // Wrap render so size classes are re-applied on every refresh.
   const _origRender = render;
   render = function () {
     _origRender();
-    requestAnimationFrame(applyTabSizeClasses);
+    requestAnimationFrame(() => { applyTabSizeClasses(); revealActiveTab(); });
   };
 
   function init() {

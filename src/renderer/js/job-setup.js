@@ -13,12 +13,23 @@ const JobSetup = {
     m.id = 'vex-jobsetup';
     m.style.cssText = 'position:fixed;inset:0;z-index:100061;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
     m.innerHTML = `<div style="width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
-      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px"><span style="font-size:16px;font-weight:800;color:var(--text);flex:1">A Vex built for your work</span><button id="jsx-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px"><span style="font-size:16px;font-weight:800;color:var(--text);flex:1">A Vex built for your work</span><button id="jsx-close" aria-label="Close" title="Close" style="display:inline-flex;padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div id="jsx-body" style="padding:6px 20px 20px;overflow:auto;flex:1"></div>
     </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#jsx-close').addEventListener('click', () => m.remove());
+    // Escape closes it the way the X does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for a Vex dialog on top is left to that dialog. The listener goes with
+    // the window, however it closed.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#jsx-close').addEventListener('click', close);
     this._sel = null; this._tools = null; this._toolQuery = '';
     this._renderPick(m);
   },
@@ -76,7 +87,7 @@ const JobSetup = {
       el.className = 'jsx-tool';
       el.dataset.id = t.id;
       el.style.cssText = `text-align:left;padding:9px 11px;border-radius:9px;cursor:pointer;font-family:'Outfit',sans-serif;border:1px solid ${on ? 'var(--primary,var(--accent))' : 'var(--border)'};background:${on ? 'color-mix(in srgb, var(--primary,var(--accent)) 12%, var(--bg))' : 'var(--bg)'}`;
-      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span>${on ? '✓' : '+'}</span><span style="font-size:12.5px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:5px">${Toolbox.iconMarkup(t, 14)} ${this._esc(t.name)}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${this._esc(t.desc)}${rec ? ' · recommended' : ''}</div>`;
+      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex">${VexIcons.svg(on ? 'check' : 'plus', { size: 13 })}</span><span style="font-size:12.5px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:5px">${Toolbox.iconMarkup(t, 14)} ${this._esc(t.name)}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${this._esc(t.desc)}${rec ? ' · recommended' : ''}</div>`;
       el.addEventListener('click', () => {
         if (this._tools.has(t.id)) this._tools.delete(t.id); else this._tools.add(t.id);
         this._renderConfig(m); // simplest: re-render to reflect state (keeps _tools)

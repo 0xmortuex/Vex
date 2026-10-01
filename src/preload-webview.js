@@ -41,6 +41,438 @@ function runInMainWorld(src) {
   return false;
 }
 
+// === BEGIN vex-extension-stand-ins ===
+// Keep this block identical in src/preload-webview.js (extension pages) and
+// src/preload-extension-sw.js (extension service workers); a test compares them.
+//
+// Electron gives an extension no chrome.permissions, no browserAction/action,
+// no contextMenus, no commands and no chrome.extension.isAllowed*Access, and
+// an extension that reads one of them while starting up throws there:
+//   * Dark Reader's background read chrome.permissions.onRemoved and never
+//     answered a page again (2026-09-27), and set its badge through
+//     browserAction; its popup waited for ever on commands.getAll and
+//     isAllowedFileSchemeAccess ("Loading, please wait", 2026-09-28);
+//   * uBlock Origin stopped at contextMenus.onClicked (2026-09-28);
+//   * Stylus's service worker at permissions.contains and Violentmonkey's at
+//     extension.isAllowedIncognitoAccess, so both were dead while Vex showed
+//     them "On" (2026-09-29).
+// Each gets an honest stand-in: permissions reports what the manifest granted
+// and Vex provides and grants nothing new; the toolbar and menu calls succeed
+// and change nothing (Vex has no per-extension button, badge or menu items);
+// no keys are bound to extension shortcuts; file access is allowed (Vex loads
+// extensions with allowFileAccess) and there is no incognito here.
+//
+// It runs in the extension's own world: directly in a page without isolation
+// (a background page), through contextBridge.executeInMainWorld where the
+// page is isolated (a toolbar popup, an options page) and in a service worker.
+// Earlier, a popup's own chrome never got any of it (2026-09-29).
+//
+// askPopupTab, where given, asks main which tab the extension's toolbar popup
+// was opened over. Electron calls whichever page has the focus the active tab,
+// and the popup takes the focus, so asked for the active tab the extension got
+// its own popup back: Dark Reader said "This page is protected by browser" and
+// its site switch pointed at the popup (2026-09-28).
+//
+// openTab, where given, asks main to open a Vex tab: a web page or one of the
+// extension's own pages (tabs.create, runtime.openOptionsPage). It answers
+// with the tab made: { id, url, active }, id being the page's webContents id.
+//
+// closeTab, where given, asks main to close Vex tabs by those ids ({ ids }).
+//
+// askActiveTabs, where given, asks main which page is the tab in front in each
+// Vex window ({ ids }) and in the Vex window used last ({ current }).
+function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) {
+  c = c || (typeof chrome !== 'undefined' ? chrome : null);
+  // Only an extension has a runtime id; a website is left alone.
+  if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
+  var manifest = c.runtime.getManifest() || {};
+  function done(value) {
+    return function () {
+      var cb = arguments[arguments.length - 1];
+      if (typeof cb === 'function') { setTimeout(function () { cb(value); }, 0); return undefined; }
+      return Promise.resolve(value);
+    };
+  }
+  function noEvent() { return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } }; }
+
+  if (!c.permissions) {
+    var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
+    var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
+    // Permissions that never come with a chrome.<name> namespace of their own.
+    var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
+    var apis = granted.filter(function (p) {
+      return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
+    });
+    var has = function (q) {
+      q = q || {};
+      return (q.permissions || []).every(function (p) { return apis.indexOf(p) !== -1; })
+        && (q.origins || []).every(function (o) { return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1; });
+    };
+    c.permissions = {
+      contains: function (q, cb) { return done(has(q))(cb); },
+      getAll: function (cb) { return done({ permissions: apis.slice(), origins: origins.slice() })(cb); },
+      // Already granted: true. Anything more cannot be granted here: false.
+      request: function (q, cb) { return done(has(q))(cb); },
+      remove: function (q, cb) { return done(false)(cb); },
+      onAdded: noEvent(),
+      onRemoved: noEvent(),
+    };
+  }
+
+  function actionStub() {
+    return {
+      setIcon: done(undefined), setBadgeText: done(undefined), setBadgeBackgroundColor: done(undefined),
+      setBadgeTextColor: done(undefined), setTitle: done(undefined), setPopup: done(undefined),
+      getBadgeText: done(''), getTitle: done(manifest.name || ''), getPopup: done(''),
+      enable: done(undefined), disable: done(undefined),
+      onClicked: noEvent(),
+    };
+  }
+  if (manifest.browser_action && !c.browserAction) c.browserAction = actionStub();
+  if (manifest.action && !c.action) c.action = actionStub();
+
+  var perms = manifest.permissions || [];
+  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && !c.contextMenus) {
+    var menuId = 0;
+    c.contextMenus = {
+      create: function (props, cb) { if (typeof cb === 'function') setTimeout(cb, 0); return (props && props.id) || ++menuId; },
+      update: done(undefined), remove: done(undefined), removeAll: done(undefined),
+      onClicked: noEvent(),
+    };
+  }
+
+  if (!c.commands) {
+    var commands = manifest.commands || {};
+    c.commands = {
+      getAll: done(Object.keys(commands).map(function (name) {
+        return { name: name, description: (commands[name] && commands[name].description) || '', shortcut: '' };
+      })),
+      onCommand: noEvent(),
+    };
+  }
+
+  if (!c.extension) c.extension = {};
+  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') c.extension.isAllowedFileSchemeAccess = done(true);
+  if (typeof c.extension.isAllowedIncognitoAccess !== 'function') c.extension.isAllowedIncognitoAccess = done(false);
+  if (typeof c.extension.inIncognitoContext === 'undefined') c.extension.inIncognitoContext = false;
+
+  // Stylus's worker read webNavigation.onCommitted and Violentmonkey's
+  // cookies.getAll while starting, and both died there (2026-09-29). Electron
+  // has neither. Here navigation events never fire, only a tab's top frame is
+  // known, no cookies are readable, and changing one fails and says why.
+  // Stylus's popup maps over getAllFrames' answer, and null threw "reading
+  // 'length'" (found 2026-09-29): the top frame is the tab itself. A tab that
+  // does not exist has no frames, which Chrome answers with null.
+  function topFrame(details) {
+    if (!c.tabs || typeof c.tabs.get !== 'function' || !details || !Number.isInteger(details.tabId)) return Promise.resolve(null);
+    return Promise.resolve(c.tabs.get(details.tabId)).then(function (tab) {
+      return tab ? { frameId: 0, parentFrameId: -1, processId: -1, url: tab.url || '', errorOccurred: false } : null;
+    }, function () { return null; });
+  }
+  function answerWith(p, cb) {
+    if (typeof cb !== 'function') return p;
+    p.then(function (v) { cb(v); }, function (err) { setTimeout(function () { throw err; }, 0); });
+    return undefined;
+  }
+  if (perms.indexOf('webNavigation') !== -1 && !c.webNavigation) {
+    c.webNavigation = {
+      getFrame: function (details, cb) { return answerWith(details && details.frameId === 0 ? topFrame(details) : Promise.resolve(null), cb); },
+      getAllFrames: function (details, cb) { return answerWith(topFrame(details).then(function (f) { return f ? [f] : null; }), cb); },
+      onBeforeNavigate: noEvent(), onCommitted: noEvent(), onDOMContentLoaded: noEvent(), onCompleted: noEvent(),
+      onErrorOccurred: noEvent(), onCreatedNavigationTarget: noEvent(), onReferenceFragmentUpdated: noEvent(),
+      onTabReplaced: noEvent(), onHistoryStateUpdated: noEvent(),
+    };
+  }
+  if (perms.indexOf('cookies') !== -1 && !c.cookies) {
+    var noCookies = function () { return Promise.reject(new Error('chrome.cookies is not available in Vex')); };
+    c.cookies = {
+      get: done(null), getAll: done([]), getAllCookieStores: done([]),
+      set: noCookies, remove: noCookies,
+      onChanged: noEvent(),
+    };
+  }
+
+  // A toolbar popup is not a tab: Chrome answers undefined (Stylus's popup
+  // called it and drew nothing, 2026-09-29).
+  if (c.tabs && typeof c.tabs.getCurrent !== 'function') c.tabs.getCurrent = done(undefined);
+
+  // Electron calls a tab active when its page has the focus. It cannot know
+  // which Vex tab is in front, so with Vex's own bar focused no tab was
+  // active, or every one was, and {active: true} named the wrong tabs (found
+  // 2026-09-30). Main says which pages are in front; tabs.query and tabs.get
+  // answer with that, and {active: true} with currentWindow or
+  // lastFocusedWindow is the one tab in front of the Vex window used last.
+  // Electron puts every tab in one window, so currentWindow alone narrows
+  // nothing.
+  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow'];
+  if (typeof askActiveTabs === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
+    var nativeQuery = c.tabs.query.bind(c.tabs);
+    var nativeGet = c.tabs.get.bind(c.tabs);
+    var inFront = function (tab, front) {
+      if (!tab) return tab;
+      var on = front.ids.indexOf(tab.id) !== -1;
+      return Object.assign({}, tab, { active: on, highlighted: on, selected: on });
+    };
+    c.tabs.query = function (q, cb) {
+      q = q || {};
+      var rest = {};
+      Object.keys(q).forEach(function (k) { if (FRONT_KEYS.indexOf(k) === -1) rest[k] = q[k]; });
+      var oneWindow = q.currentWindow === true || q.lastFocusedWindow === true;
+      var p = Promise.all([nativeQuery(rest), askActiveTabs()]).then(function (r) {
+        var front = r[1];
+        return (r[0] || []).map(function (t) { return inFront(t, front); }).filter(function (t) {
+          if (typeof q.active === 'boolean' && t.active !== q.active) return false;
+          if (typeof q.highlighted === 'boolean' && t.highlighted !== q.highlighted) return false;
+          if ((q.active === true || q.highlighted === true) && oneWindow && t.id !== front.current) return false;
+          return true;
+        });
+      });
+      return answerWith(p, cb);
+    };
+    // A tab that is not there fails in Electron's own words (with the
+    // callback, through chrome.runtime.lastError), as before.
+    c.tabs.get = function (id, cb) {
+      if (typeof cb !== 'function') return Promise.all([nativeGet(id), askActiveTabs()]).then(function (r) { return inFront(r[0], r[1]); });
+      return nativeGet(id, function (tab) {
+        if (!tab) return cb(tab);
+        answerWith(askActiveTabs().then(function (front) { return inFront(tab, front); }), cb);
+      });
+    };
+  }
+
+  // While this extension's popup is open, a question for the active tab is
+  // about the tab under it, from whichever of its contexts asks: Stylus's
+  // popup asks its service worker, which heard [] and the popup drew nothing
+  // (found 2026-09-29). A question that also filters (url, title, …) is left
+  // to Electron.
+  var WINDOW_ONLY = ['active', 'currentWindow', 'lastFocusedWindow', 'windowId', 'windowType'];
+  if (typeof askPopupTab === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
+    var query = c.tabs.query.bind(c.tabs);
+    var get = c.tabs.get.bind(c.tabs);
+    c.tabs.query = function (q, cb) {
+      var p = query(q || {}).then(function (tabs) {
+        tabs = tabs || [];
+        if (!q || q.active !== true || Object.keys(q).some(function (k) { return WINDOW_ONLY.indexOf(k) === -1; })) return tabs;
+        return askPopupTab().then(function (over) {
+          if (!over) return tabs;
+          var rest = tabs.filter(function (t) { return t.id !== over.popup && t.id !== over.tab; });
+          if (over.tab == null) return rest;
+          return get(over.tab).then(function (tab) { return tab ? [Object.assign({}, tab, { active: true })].concat(rest) : rest; });
+        });
+      });
+      return answerWith(p, cb);
+    };
+  }
+
+  // Electron has no tabs.create, and its runtime.openOptionsPage fails: a
+  // popup's "Manage", "Options" and "Report a bug" did nothing (found
+  // 2026-09-29). Both open a Vex tab through main, which opens only web pages
+  // and this extension's own pages. A relative address is the extension's.
+  // tabs.create answered undefined, so an extension had no id to update or
+  // close the tab by (found 2026-09-29): it answers with the tab, as Electron's
+  // tabs.get describes it (window, index) where it knows the page yet.
+  if (typeof openTab === 'function' && typeof c.runtime.getURL === 'function') {
+    var base = c.runtime.getURL('');
+    var openUrl = function (url, active) {
+      if (!url) return Promise.reject(new Error('Vex opens a tab for an extension only with an address'));
+      return Promise.resolve(openTab({ url: new URL(String(url), base).href, active: active !== false }));
+    };
+    var asTab = function (made) {
+      var tab = { id: made.id, index: 0, windowId: 0, url: made.url, pendingUrl: made.url, active: made.active };
+      if (!c.tabs || typeof c.tabs.get !== 'function') return tab;
+      return Promise.resolve(c.tabs.get(made.id)).then(function (known) {
+        if (!known) return tab;
+        return Object.assign({}, known, { url: known.url || made.url, pendingUrl: made.url, active: made.active, highlighted: made.active });
+      });
+    };
+    if (c.tabs && typeof c.tabs.create !== 'function') {
+      c.tabs.create = function (props, cb) { return answerWith(openUrl(props && props.url, props && props.active).then(asTab), cb); };
+    }
+    var optionsPage = manifest.options_page || (manifest.options_ui && manifest.options_ui.page) || null;
+    c.runtime.openOptionsPage = function (cb) {
+      return answerWith(optionsPage ? openUrl(optionsPage, true).then(function () { return undefined; }) : Promise.reject(new Error('This extension has no options page')), cb);
+    };
+  }
+
+  // Electron has no tabs.remove either, so an extension that closed a tab it
+  // had opened threw there (found 2026-09-30). Main closes only a Vex tab in
+  // this extension's session; an id that is none fails as in Chrome, "No tab
+  // with id: N." (without the wrapping Electron puts round an IPC failure).
+  if (typeof closeTab === 'function' && c.tabs && typeof c.tabs.remove !== 'function') {
+    c.tabs.remove = function (ids, cb) {
+      var p = Promise.resolve(closeTab({ ids: [].concat(ids) })).then(function () { return undefined; }, function (err) {
+        throw new Error(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ''));
+      });
+      return answerWith(p, cb);
+    };
+  }
+  return true;
+}
+// === END vex-extension-stand-ins ===
+
+// === BEGIN vex-storage-sync-shim ===
+// Keep this block identical in src/preload-webview.js (extension pages) and
+// src/preload-extension-sw.js (extension service workers); a test compares them.
+//
+// Electron has chrome.storage.sync, but every call fails with '"sync" is not
+// available in this instance of Chrome'. Dark Reader read its settings as null
+// and crashed; Return YouTube Dislike could not record a vote; Stylus and
+// uBlock use it too. There is no account to sync with here, so "sync" is kept
+// on this machine, in one reserved entry of the extension's own
+// storage.local — the one place its background, service worker, popup and
+// options page all share. The entry is hidden from the extension's own local
+// reads, and its changes arrive as 'sync' changes everywhere.
+function vexStorageSyncShim(c) {
+  c = c || (typeof chrome !== 'undefined' ? chrome : null);
+  // Only an extension has a runtime id; a website's service worker is left alone.
+  if (!c || !c.runtime || !c.runtime.id || !c.storage || !c.storage.local || !c.storage.onChanged || c.storage.__vexSync) return false;
+  var KEY = '__vexStorageSync';
+  var local = c.storage.local;
+  var origGet = local.get.bind(local);
+  var origSet = local.set.bind(local);
+  var origClear = typeof local.clear === 'function' ? local.clear.bind(local) : null;
+  function answer(p, cb) {
+    if (typeof cb === 'function') { p.then(function (v) { cb(v); }); return undefined; }
+    return p;
+  }
+  function load() { return new Promise(function (res) { origGet(KEY, function (o) { res((o && o[KEY]) || {}); }); }); }
+  function store(all) { return new Promise(function (res) { var o = {}; o[KEY] = all; origSet(o, function () { res(); }); }); }
+  // One change at a time, so two quick sets cannot overwrite each other.
+  var chain = Promise.resolve();
+  function edit(fn) {
+    var p = chain.then(load).then(function (all) { return store(fn(Object.assign({}, all))); });
+    chain = p.catch(function () {});
+    return p;
+  }
+  function pick(all, keys) {
+    if (keys == null) return Object.assign({}, all);
+    if (typeof keys === 'string') keys = [keys];
+    var out = {};
+    if (Array.isArray(keys)) { keys.forEach(function (k) { if (k in all) out[k] = all[k]; }); return out; }
+    Object.keys(keys).forEach(function (k) { out[k] = k in all ? all[k] : keys[k]; });
+    return out;
+  }
+  function diff(ch) {
+    var o = ch.oldValue || {}, n = ch.newValue || {}, out = {};
+    Object.keys(o).concat(Object.keys(n)).forEach(function (k) {
+      if (k in out || JSON.stringify(o[k]) === JSON.stringify(n[k])) return;
+      out[k] = {};
+      if (k in o) out[k].oldValue = o[k];
+      if (k in n) out[k].newValue = n[k];
+    });
+    return out;
+  }
+  // The reserved entry is not the extension's: keep it out of its local reads
+  // and survive its local.clear().
+  local.get = function (keys, cb) {
+    if (typeof keys === 'function') { cb = keys; keys = null; }
+    var everything = keys == null;
+    return answer(new Promise(function (res) {
+      origGet(keys, function (o) { o = Object.assign({}, o || {}); if (everything) delete o[KEY]; res(o); });
+    }), cb);
+  };
+  if (origClear) {
+    local.clear = function (cb) {
+      return answer(load().then(function (keep) {
+        return new Promise(function (res) { origClear(function () { res(); }); }).then(function () { return store(keep); });
+      }), cb);
+    };
+  }
+  var syncListeners = [];
+  var ev = c.storage.onChanged;
+  var nativeAdd = ev.addListener.bind(ev);
+  var nativeRemove = ev.removeListener.bind(ev);
+  var wrapped = [];
+  nativeAdd(function (ch, area) {
+    if (area !== 'local' || !ch[KEY]) return;
+    var s = diff(ch[KEY]);
+    if (Object.keys(s).length) syncListeners.slice().forEach(function (fn) { fn(s); });
+  });
+  ev.addListener = function (fn) {
+    var w = function (ch, area) {
+      if (area !== 'local' || !ch[KEY]) { fn(ch, area); return; }
+      var rest = {};
+      Object.keys(ch).forEach(function (k) { if (k !== KEY) rest[k] = ch[k]; });
+      if (Object.keys(rest).length) fn(rest, 'local');
+      var s = diff(ch[KEY]);
+      if (Object.keys(s).length) fn(s, 'sync');
+    };
+    wrapped.push([fn, w]);
+    nativeAdd(w);
+  };
+  ev.removeListener = function (fn) {
+    for (var i = 0; i < wrapped.length; i++) if (wrapped[i][0] === fn) { nativeRemove(wrapped[i][1]); wrapped.splice(i, 1); return; }
+    nativeRemove(fn);
+  };
+  ev.hasListener = function (fn) { return wrapped.some(function (p) { return p[0] === fn; }); };
+  var sync = {
+    QUOTA_BYTES: 102400, QUOTA_BYTES_PER_ITEM: 8192, MAX_ITEMS: 512,
+    MAX_WRITE_OPERATIONS_PER_HOUR: 1800, MAX_WRITE_OPERATIONS_PER_MINUTE: 120,
+    get: function (keys, cb) {
+      if (typeof keys === 'function') { cb = keys; keys = null; }
+      return answer(chain.then(load).then(function (all) { return pick(all, keys); }), cb);
+    },
+    set: function (items, cb) { return answer(edit(function (all) { Object.keys(items || {}).forEach(function (k) { all[k] = items[k]; }); return all; }), cb); },
+    remove: function (keys, cb) { return answer(edit(function (all) { [].concat(keys).forEach(function (k) { delete all[k]; }); return all; }), cb); },
+    clear: function (cb) { return answer(edit(function () { return {}; }), cb); },
+    getBytesInUse: function (keys, cb) {
+      if (typeof keys === 'function') { cb = keys; keys = null; }
+      return answer(chain.then(load).then(function (all) { return JSON.stringify(pick(all, keys)).length; }), cb);
+    },
+    onChanged: {
+      addListener: function (fn) { syncListeners.push(fn); },
+      removeListener: function (fn) { var i = syncListeners.indexOf(fn); if (i >= 0) syncListeners.splice(i, 1); },
+      hasListener: function (fn) { return syncListeners.indexOf(fn) >= 0; },
+    },
+  };
+  Object.defineProperty(c.storage, 'sync', { value: sync, configurable: true, enumerable: true });
+  Object.defineProperty(c.storage, '__vexSync', { value: true });
+  return true;
+}
+// === END vex-storage-sync-shim ===
+// Where the stand-ins run. A background page shares its world with this
+// preload; a toolbar popup or an options page is isolated from it, and there
+// they must be put into the page's own world.
+var __vexExtIsolated = false;
+if (location.protocol === 'chrome-extension:') {
+  var __vexAskPopupTab = function () { return require('electron').ipcRenderer.invoke('extensions:popup-tab'); };
+  var __vexOpenTab = function (request) { return require('electron').ipcRenderer.invoke('extensions:open-tab', request); };
+  var __vexCloseTab = function (request) { return require('electron').ipcRenderer.invoke('extensions:close-tab', request); };
+  var __vexAskActiveTabs = function () { return require('electron').ipcRenderer.invoke('extensions:active-tabs'); };
+  __vexExtIsolated = typeof process !== 'undefined' && process.contextIsolated === true;
+  if (__vexExtIsolated) {
+    try {
+      __vexCB.executeInMainWorld({ func: vexExtensionStandIns, args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs] });
+      __vexCB.executeInMainWorld({ func: vexStorageSyncShim, args: [null] });
+    } catch (err) {
+      console.error('[Vex] extension stand-ins could not reach this page:', err && err.message);
+    }
+  } else {
+    vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs);
+  }
+}
+if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorageSyncShim(window.chrome)) {
+  // v2.33.2 to v2.33.5 kept "sync" in the page's own localStorage, which an
+  // extension's service worker cannot read. Move anything saved there, once.
+  (function () {
+    var ls;
+    try { ls = window.localStorage; } catch (e) { return; }
+    var P = 'vex.storage.sync:', old = {}, keys = [];
+    for (var i = 0; i < ls.length; i++) {
+      var k = ls.key(i);
+      if (k && k.indexOf(P) === 0) { keys.push(k); old[k.slice(P.length)] = JSON.parse(ls.getItem(k)); }
+    }
+    if (!keys.length) return;
+    window.chrome.storage.sync.get(null).then(function (have) {
+      var add = {};
+      Object.keys(old).forEach(function (k) { if (!(k in have)) add[k] = old[k]; });
+      return window.chrome.storage.sync.set(add);
+    }).then(function () {
+      keys.forEach(function (k) { ls.removeItem(k); });
+    }, function (err) { console.warn('[Vex] moving saved extension settings failed:', err && err.message); });
+  })();
+}
+
 (function () {
   'use strict';
   var ipcRenderer;
@@ -314,8 +746,9 @@ function runInMainWorld(src) {
     if (!rawPref || typeof rawPref !== 'object') return { mode: 'denied' };
     if (rawPref.mode === 'off') return { mode: 'denied' };
     if (rawPref.mode === 'manual') {
-      const lat = (typeof rawPref.latitude  === 'number' && Number.isFinite(rawPref.latitude))  ? Math.round(rawPref.latitude  * 10) / 10 : null;
-      const lng = (typeof rawPref.longitude === 'number' && Number.isFinite(rawPref.longitude)) ? Math.round(rawPref.longitude * 10) / 10 : null;
+      // 4 dp (~11 m), as in main-helpers.js COARSE_DECIMAL_PLACES.
+      const lat = (typeof rawPref.latitude  === 'number' && Number.isFinite(rawPref.latitude))  ? Math.round(rawPref.latitude  * 1e4) / 1e4 : null;
+      const lng = (typeof rawPref.longitude === 'number' && Number.isFinite(rawPref.longitude)) ? Math.round(rawPref.longitude * 1e4) / 1e4 : null;
       // Manual mode with no usable coordinates denies rather than falling back
       // to an IP lookup — see the note on coarsenLocation in main-helpers.js.
       if (lat == null || lng == null) return { mode: 'denied' };
@@ -328,9 +761,19 @@ function runInMainWorld(src) {
   const bridge = {
     resolveLocation: async (origin) => {
       let decision;
+      // No argument: main takes the site from the asking frame, never from
+      // the page. Sending { origin } failed the channel's schema (an optional
+      // string), the refusal landed in this catch, and every site that asked
+      // for a location was told "denied" without a prompt ever being shown
+      // (paribucineverse.com, 2026-09-27). `origin` stays in the signature
+      // for the page-side caller.
+      void origin;
       try {
-        decision = await ipcRenderer.invoke('geolocation:check-permission', { origin });
-      } catch { return { mode: 'denied' }; }
+        decision = await ipcRenderer.invoke('geolocation:check-permission');
+      } catch (err) {
+        console.warn('[Vex] location permission check failed:', err && err.message);
+        return { mode: 'denied' };
+      }
       if (decision !== 'allow') return { mode: 'denied' };
       let raw;
       try { raw = await ipcRenderer.invoke('geolocation:get'); } catch { return { mode: 'denied' }; }
@@ -422,9 +865,9 @@ function runInMainWorld(src) {
       try { loc = await bridge.resolveLocation(window.location.origin); } catch (_) {}
       if (!loc || loc.mode === 'denied') { _deny(error, 1, 'Geolocation permission denied'); return; }
       if (loc.mode === 'manual' && loc.latitude != null && loc.longitude != null) {
-        // Coords are already rounded to 1 dp upstream — accuracy reflects
-        // that (~11 km city-level rather than the old 20 m manual-pin claim).
-        try { success(_pos(loc.latitude, loc.longitude, 11000)); } catch (_) {}
+        // Rounded to 4 dp (~11 m) upstream. The accuracy said 11 km when it
+        // was 1 dp, and sites ignore a "near me" that vague.
+        try { success(_pos(loc.latitude, loc.longitude, 25)); } catch (_) {}
         return;
       }
       // mode === 'ip' — caller does IP fallback. M-5 is tracked separately.
@@ -859,8 +1302,12 @@ function _isVexStartPage(href) {
   function tryCapture() {
     try {
       if (location.protocol !== "https:") return; // never capture over plain HTTP
-      const pw = document.querySelector("input[type=password]");
-      if (!pw || !pw.value) return;
+      // On a change-password form the first field is the OLD password, so the
+      // new one was never offered for saving (found 2026-09-29). Take the one
+      // marked new-password, else the last one filled in.
+      const filled = Array.prototype.filter.call(document.querySelectorAll("input[type=password]"), (p) => !!p.value);
+      const pw = filled.find((p) => /new-password/i.test(p.getAttribute("autocomplete") || "")) || filled[filled.length - 1];
+      if (!pw) return;
       let user = lastUser;
       if (!user) {
         // Scope to the password's own form so a search box elsewhere on the page
@@ -954,10 +1401,14 @@ function _isVexStartPage(href) {
     const m = TOKEN.exec(before);
     if (!m) return null;
     const token = m[0];
-    // Longest abbreviation wins, so ";sig" and ";sig2" can both exist.
+    // Longest abbreviation wins, so ";sig" and ";sig2" can both exist. One
+    // that starts with a letter or digit must be the whole word: "ty" turned
+    // "party" into "parthank you" (found 2026-09-29). One that starts with
+    // punctuation (";sig") may follow a word directly.
     let best = null;
     for (const s of snippets) {
-      if (token.endsWith(s.abbr) && (!best || s.abbr.length > best.abbr.length)) best = s;
+      const fits = /^[A-Za-z0-9]/.test(s.abbr) ? token === s.abbr : token.endsWith(s.abbr);
+      if (fits && (!best || s.abbr.length > best.abbr.length)) best = s;
     }
     return best ? { snippet: best, start: m.index + (token.length - best.abbr.length) } : null;
   }
@@ -1088,12 +1539,16 @@ function _isVexStartPage(href) {
     if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "R" : "L";
     return dy > 0 ? "D" : "U";
   }
+  // Only the user's own mouse: a page could dispatch made-up mouse events and
+  // close or open tabs with a fake gesture, even from a background tab
+  // (found 2026-09-29). Every listener here ignores events it did not get
+  // from the user.
   document.addEventListener("mousedown", (e) => {
-    if (e.button !== 2) return;
+    if (!e.isTrusted || e.button !== 2) return;
     tracking = true; sx = e.screenX; sy = e.screenY; moves = [];
   }, true);
   document.addEventListener("mousemove", (e) => {
-    if (!tracking) return;
+    if (!tracking || !e.isTrusted) return;
     const dx = e.screenX - sx, dy = e.screenY - sy;
     if (Math.abs(dx) < TH && Math.abs(dy) < TH) return;
     const d = dirOf(dx, dy);
@@ -1101,16 +1556,68 @@ function _isVexStartPage(href) {
     sx = e.screenX; sy = e.screenY;
   }, true);
   document.addEventListener("mouseup", (e) => {
-    if (e.button !== 2) return;
+    if (!e.isTrusted || e.button !== 2) return;
     tracking = false;
   }, true);
   document.addEventListener("contextmenu", (e) => {
+    if (!e.isTrusted) { moves = []; return; }
     if (moves.length) {
       e.preventDefault();
       e.stopImmediatePropagation();
       try { ipcRenderer.sendToHost("vex-gesture", moves.join("")); } catch {}
       moves = [];
     }
+  }, true);
+})();
+
+// === The picture under a right-click =======================================
+// Chromium only calls a right-click an image when the <img> itself is the
+// topmost thing hit. Galleries rarely leave it that way: Gemini's image viewer
+// lays a link over the picture, others make the <img> pointer-events:none or
+// paint it as a CSS background. The menu then had link rows and no Save or
+// Copy Image at all (reported 2026-09-27). This finds the picture actually
+// under the pointer and tells the host, which builds the menu with it.
+(function () {
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  const MAX = 4 * 1024 * 1024;                 // a data: image can be big; past this it is not worth sending
+  const urlOf = (el) => {
+    if (!el || el.nodeType !== 1) return "";
+    if (el.tagName === "IMG") return el.currentSrc || el.src || "";
+    if (el.tagName === "PICTURE") { const i = el.querySelector("img"); return i ? (i.currentSrc || i.src || "") : ""; }
+    try {
+      const bg = getComputedStyle(el).backgroundImage;
+      if (bg && bg !== "none") {
+        const at = bg.indexOf("url(");
+        if (at >= 0) {
+          let u = bg.slice(at + 4, bg.indexOf(")", at)).trim();
+          if (u[0] === '"' || u[0] === "'") u = u.slice(1, -1);
+          return u;
+        }
+      }
+    } catch {}
+    return "";
+  };
+  const over = (el, x, y) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 8 && r.height > 8 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  };
+  const pictureAt = (x, y) => {
+    const hit = document.elementsFromPoint(x, y) || [];
+    for (const el of hit.slice(0, 15)) { const u = urlOf(el); if (u) return u; }
+    // A pointer-events:none picture is invisible to hit-testing, so look
+    // inside what WAS hit, one ancestor wider at a time: the nearest picture
+    // under the pointer, not a thumbnail somewhere behind a viewer.
+    for (let el = hit[0]; el && el !== document.documentElement; el = el.parentElement) {
+      for (const img of el.querySelectorAll("img")) if (over(img, x, y)) return urlOf(img);
+    }
+    return "";
+  };
+  document.addEventListener("contextmenu", (e) => {
+    let src = "";
+    try { src = pictureAt(e.clientX, e.clientY); } catch {}
+    if (src.length > MAX) src = "";
+    try { ipcRenderer.sendToHost("vex-ctx-image", { src }); } catch {}
   }, true);
 })();
 
@@ -1516,11 +2023,163 @@ if (typeof module !== 'undefined' && module.exports) {
       if (!el || !/^(input|textarea|select)$/i.test(el.tagName)) return;
       const type = String(el.type || "").toLowerCase();
       if (type === "file") return;                       // a file picker is not replayable
+      // A tick box or a radio button is replayed from its click, recorded
+      // above; as a change it was also saved as typing "on" (found 2026-09-29).
+      if (type === "checkbox" || type === "radio") return;
       if (isSecret(el)) {
         ipcRenderer.sendToHost("vex-teach-step", { kind: "secret", selector: cssPath(el) });
+        return;
+      }
+      // A dropdown choice was saved as typing its text, and the replay then
+      // refused to type into a select (found 2026-09-29).
+      if (el.tagName === "SELECT") {
+        ipcRenderer.sendToHost("vex-teach-step", { kind: "select", selector: cssPath(el), value: String(el.value == null ? "" : el.value).slice(0, 500) });
         return;
       }
       ipcRenderer.sendToHost("vex-teach-step", { kind: "type", selector: cssPath(el), value: String(el.value == null ? "" : el.value).slice(0, 500) });
     } catch { /* as above */ }
   }, true);
+})();
+
+// === Vex's keys a page may use first ===
+// Ctrl+B is bold in an editor, Ctrl+Shift+Z is redo, Ctrl+Shift+M mutes you
+// in Discord. Main used to take these before the page heard them. Now the
+// page has them first, as in Chrome, and only a key the page left alone is
+// reported to main, which decides what it does (src/main/guest-shortcuts.js
+// PAGE_FIRST; a test keeps these two lists the same).
+(function () {
+  'use strict';
+  var ipc;
+  try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
+  if (!ipc || typeof ipc.send !== 'function') return;
+  var PAGE_FIRST_PLAIN = 'bhmdpu';
+  var PAGE_FIRST_SHIFTED = 'oszamlh';
+  // Chromium's own editing commands never call preventDefault, so a page
+  // with no key handler of its own looked as if it had left these alone:
+  // Ctrl+B in a plain contenteditable made the text bold AND hid the tab
+  // sidebar, Ctrl+U underlined AND opened view-source, and Ctrl+Shift+Z
+  // (redo) in a textarea put the tab to sleep, taking the typed text with it
+  // (found 2026-09-29). A key the focused field acts on itself stays its own.
+  // Keys editing does not use (Ctrl+H, Ctrl+D, ...) still reach Vex.
+  var TEXT_INPUT_TYPES = /^(text|search|url|tel|email|password|number)$/;
+  function nativeEditKey(el, k, shift) {
+    if (!el || el.nodeType !== 1) return false;
+    var rich = !!el.isContentEditable || document.designMode === 'on';
+    var field = !el.readOnly && !el.disabled && (el.tagName === 'TEXTAREA' ||
+      (el.tagName === 'INPUT' && TEXT_INPUT_TYPES.test(String(el.type || 'text').toLowerCase())));
+    if (shift) return (rich || field) && k === 'z';       // redo
+    return rich && (k === 'b' || k === 'u');              // bold, underline
+  }
+  window.addEventListener('keydown', function (e) {
+    // A key the page made up with dispatchEvent is not the user pressing it:
+    // a page could close tabs and open panels that way, even from a
+    // background tab (found 2026-09-29).
+    if (!e.isTrusted) return;
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
+    var k = String(e.key || '').toLowerCase();
+    if (k.length !== 1 || (e.shiftKey ? PAGE_FIRST_SHIFTED : PAGE_FIRST_PLAIN).indexOf(k) === -1) return;
+    // The element really focused, inside a shadow root too.
+    var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    if (nativeEditKey(path[0] || e.target, k, !!e.shiftKey)) return;
+    // Every listener of the page has run by the time this fires.
+    setTimeout(function () {
+      if (!e.defaultPrevented) ipc.send('guest:page-shortcut', { key: k, shift: !!e.shiftKey });
+    }, 0);
+  }, false);
+})();
+
+// === Escape the page left alone, told to the host ===
+// Peek and Responsive Preview close on Escape, but once you clicked into the
+// previewed page the key went to that page and the overlay stayed open (found
+// 2026-09-29). An Escape the page did not use is reported to the host; only
+// the webviews those overlays own act on it (peek.js, devtools-pack.js), a
+// tab ignores it. A page that takes Escape itself (its own menu, a <dialog>,
+// leaving full screen) keeps it.
+(function () {
+  'use strict';
+  var ipc;
+  try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
+  if (!ipc || typeof ipc.sendToHost !== 'function') return;
+  // Something of the page's own open when the key went down. Looked at before
+  // any of the page's listeners run (this capture listener is registered
+  // before the page's scripts): a site that closes its own popup on Escape
+  // without calling preventDefault had already removed it by the time the
+  // listener below ran, and Peek closed along with it (found 2026-09-29).
+  var shown = function (el) {
+    if (!el || !el.getClientRects().length) return false;
+    var cs = window.getComputedStyle(el);
+    return cs.visibility !== 'hidden' && cs.display !== 'none';
+  };
+  // A plain role="dialog" counted too, so a cookie banner that stays on
+  // screen (many are marked so, non-modal) kept Escape from ever closing Peek
+  // (found 2026-09-30). A modal one still counts; a non-modal one only when
+  // the focus is in it, the last click was in it, or it came up within a
+  // second of the last click or key: a popup the person just opened, not one
+  // that was there all along. "Any time after the last input" also caught a
+  // consent banner a late script put up seconds later, which then kept Peek
+  // open until the next click (found 2026-09-30).
+  var OPENED_WITHIN_MS = 1000;
+  var beforeInput = null, openedByInput = null, inputAt = 0, lastTarget = null, settle = null;
+  var dialogsShown = function () {
+    var out = [], els = document.querySelectorAll('[role="dialog"], dialog[open]');
+    for (var i = 0; i < els.length; i++) if (shown(els[i])) out.push(els[i]);
+    return out;
+  };
+  var noteInput = function (e) {
+    if (!e.isTrusted || e.key === 'Escape') return;
+    var before = beforeInput = dialogsShown();
+    openedByInput = null;
+    inputAt = Date.now();
+    lastTarget = e.target;
+    // What that input opened, as it stood a second later.
+    clearTimeout(settle);
+    settle = setTimeout(function () {
+      openedByInput = dialogsShown().filter(function (d) { return before.indexOf(d) < 0; });
+    }, OPENED_WITHIN_MS);
+  };
+  var openedByUser = function (d) {
+    if (!beforeInput || beforeInput.indexOf(d) >= 0) return false;
+    return openedByInput ? openedByInput.indexOf(d) >= 0 : Date.now() - inputAt <= OPENED_WITHIN_MS;
+  };
+  window.addEventListener('pointerdown', noteInput, true);
+  window.addEventListener('keydown', noteInput, true);
+  var pageHadOpen = function () {
+    if (document.fullscreenElement || document.querySelector('dialog:modal')) return true;
+    var els = document.querySelectorAll('[aria-modal="true"], [role="alertdialog"]');
+    for (var i = 0; i < els.length; i++) if (shown(els[i])) return true;
+    var open = dialogsShown(), focused = document.activeElement;
+    for (var j = 0; j < open.length; j++) {
+      var d = open[j];
+      if (focused && focused !== document.body && d.contains(focused)) return true;
+      if (lastTarget && lastTarget.nodeType === 1 && d.contains(lastTarget)) return true;
+      if (openedByUser(d)) return true;
+    }
+    return false;
+  };
+  // Marked on this world's own view of the event, which the page cannot see.
+  window.addEventListener('keydown', function (e) {
+    if (!e.isTrusted || e.key !== 'Escape') return;
+    e.__vexPageHadOpen = pageHadOpen();
+  }, true);
+  window.addEventListener('keydown', function (e) {
+    if (!e.isTrusted || e.repeat || e.metaKey || e.altKey || e.shiftKey) return;
+    // Ctrl+Enter opens a Peek as a tab; from inside the peeked page it went to
+    // the page and did nothing (found 2026-09-29). Only Peek acts on it.
+    if (e.key === 'Enter' && e.ctrlKey) {
+      setTimeout(function () {
+        if (!e.defaultPrevented) { try { ipc.sendToHost('vex-peek-promote'); } catch (err) { /* host gone */ } }
+      }, 0);
+      return;
+    }
+    if (e.key !== 'Escape' || e.ctrlKey) return;
+    // Escape closes an open <dialog> and leaves full screen without the page
+    // calling preventDefault, so those count as the page's own; so does any
+    // dialog of the page's that was showing when the key went down.
+    if (e.__vexPageHadOpen) return;
+    if (document.fullscreenElement || document.querySelector('dialog:modal')) return;
+    // Every listener of the page has run by the time this fires.
+    setTimeout(function () {
+      if (!e.defaultPrevented) { try { ipc.sendToHost('vex-escape'); } catch (err) { /* host gone */ } }
+    }, 0);
+  }, false);
 })();

@@ -12,13 +12,26 @@ const LoginsHub = {
     m.innerHTML = `<div style="width:600px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
         <span style="font-size:15px;font-weight:700;color:var(--text);flex:1;display:inline-flex;align-items:center;gap:7px">${VexIcons.svg('lock', { size: 16 })}Logins &amp; Codes</span>
-        <button id="lh-refresh" style="${this._chip()}">↻</button>
-        <button id="lh-close" style="${this._chip()}">✕</button>
+        <button id="lh-refresh" style="${this._chip()}" title="Refresh" aria-label="Refresh">${VexIcons.svg('refresh', { size: 13 })}</button>
+        <button id="lh-close" style="${this._chip()}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
       </div>
       <div id="lh-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)">Loading…</div></div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#lh-close').addEventListener('click', () => m.remove());
+    // Escape closes it the way the X does; it did nothing (found 2026-09-29).
+    // Capture phase, so nothing underneath takes the same key; an Escape meant
+    // for a Vex dialog, or for Password Health opened from here on top, is left
+    // to them (this listener runs first, being older). Focus moves in, or with
+    // the page focused the key never reached Vex at all.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay, #vex-pwhealth')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#lh-close').addEventListener('click', close);
+    m.querySelector('#lh-close').focus({ preventScroll: true });
     m.querySelector('#lh-refresh').addEventListener('click', () => this._paint(m));
     this._paint(m);
   },

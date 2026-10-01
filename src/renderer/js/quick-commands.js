@@ -11,7 +11,10 @@ const VexQuickCommands = {
   DAY_WORDS: { sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, wednesday: 3, wed: 3, thursday: 4, thu: 4, friday: 5, fri: 5, saturday: 6, sat: 6 },
 
   results(raw) {
-    const q = String(raw || '').trim();
+    // The sentence is put into shorthand first, as intent() does: typed into
+    // Ctrl+K, "make me a timer for 10 minutes" reached the parsers whole and
+    // only an unrelated guide card came back (found 2026-09-29).
+    const q = this.plainly(raw) || String(raw || '').trim();
     if (!q) return [];
     const out = [];
     for (const fn of [this._remind, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory, this._setting, this._guide]) {
@@ -23,22 +26,68 @@ const VexQuickCommands = {
   // === The same sentences, said the way people say them ====================
   //
   // The parsers above expect command-bar shorthand: "timer 25 min". Nobody
-  // says that to an assistant. They say "make a timer for 10 minutes", and
-  // asked that, Vex replied with three paragraphs explaining how the user
-  // could do it themselves — including steps for a button that does not
-  // exist. It had the clock, the parser and the Windows wake-up all along.
+  // says that to an assistant. They say "make me a timer for 10 minutes" —
+  // and asked that, Vex replied with three paragraphs on how the user could
+  // do it themselves, including steps for a button that does not exist. It
+  // had the clock, the duration parser and the Windows wake-up all along.
   //
-  // So: strip the politeness and the filler, and what is left is the
-  // shorthand the parsers already understand. This runs before any model is
-  // consulted, which means it is instant, works offline, and cannot invent a
-  // user interface, because it never asks anything that could.
+  // The first attempt at this matched sentence TEMPLATES, and templates break
+  // on the next sentence: it understood "make a timer for 10 minutes" and not
+  // "make ME a timer for 10 minutes", which is the same request with one word
+  // in it. So this does not match shapes. It looks for the three things that
+  // have to be there — a thing Vex owns, something asking for it, and (for a
+  // countdown) a length — anywhere in the sentence, and rebuilds the
+  // shorthand from them.
   //
-  // Anything it does not recognise returns null and the request goes on to
-  // the model exactly as before.
+  // It runs before any model is consulted: instant, works with no model
+  // loaded, and incapable of inventing a user interface. Anything it does not
+  // recognise returns the sentence untouched and the request goes on to the
+  // model exactly as before.
   POLITE: /^(hey|hi|hello|ok|okay|please|pls|vex|can you|could you|would you|will you|i want you to|i need you to|i'd like you to|go ahead and|just|for me|now)\b[\s,]*/i,
 
-  // "make an timer" is not a typo worth refusing over.
-  START_WORDS: /^(?:make|set|start|create|put on|add|begin|run|give me|do)\s+(?:an?|the|my)?\s*/i,
+  // The things Vex owns. `remind` is handled by its own parser, which already
+  // understands whole sentences.
+  THINGS: /\b(timers?|countdowns?|stopwatch(?:es)?|alarms?|reminders?)\b/i,
+
+  // Something that asks for one. Without one of these, "the timer is wrong" is
+  // a remark, not an instruction.
+  ASKS: /\b(make|set|start|create|add|put|begin|run|give|do|want|need|launch|open|new)\b/i,
+
+  // A question is not an order, whatever verbs it contains: "how do I make a
+  // timer" wants the guide, not a timer.
+  QUESTION: /^(how|what|what's|whats|why|where|when|which|who|is|are|does|do i|can i|could i|should i|tell me (?:about|how)|explain)\b/i,
+
+  // "10 minutes", "1h 30", "90s", "25 min", "10:00".
+  LENGTH: /\b\d{1,3}:\d{2}(?::\d{2})?\b|\b\d+(?:\.\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b/gi,
+
+  // The length, as the duration parser wants it. Several parts are kept in
+  // order, so "1 hour 30 minutes" survives as one length.
+  lengthIn(text) {
+    const t = String(text || '');
+    const found = t.match(this.LENGTH);
+    if (!found || !found.length) return '';
+    let out = found.join(' ').replace(/\s+/g, ' ').trim();
+    // "1h 30": the duration parser reads a trailing bare number as the next
+    // unit down from the last one named, and it has no unit of its own to
+    // match on, so it has to be picked up here or half the length is lost.
+    const last = found[found.length - 1];
+    const after = t.slice(t.lastIndexOf(last) + last.length);
+    const bare = after.match(/^\s+(\d+)\s*$/);
+    if (bare) out += ' ' + bare[1];
+    return out;
+  },
+
+  // "open settings", "show history", "go to downloads": the opening word only
+  // says "take me there", and left on it made Ctrl+K rank "Search" above the
+  // Settings command (found 2026-09-29). Only a short name comes off it, so a
+  // real sentence ("open the file I downloaded yesterday", "show me how")
+  // stays as it was.
+  withoutOpener(text) {
+    const t = String(text || '').trim();
+    const m = t.match(/^(?:open|show|go to|goto)\s+(?:the\s+|my\s+)?(.+)$/i);
+    if (!m || /^(me|up|how|what|where|why)\b/i.test(m[1]) || m[1].split(/\s+/).length > 3) return t;
+    return m[1];
+  },
 
   plainly(raw) {
     let t = String(raw || '').trim();
@@ -46,28 +95,38 @@ const VexQuickCommands = {
     let before;
     do { before = t; t = t.replace(this.POLITE, ''); } while (t !== before);
     t = t.replace(/[?!.]+$/, '').trim();
-    // "make a timer for 10 minutes" → "timer 10 minutes". The start word only
-    // comes off when a thing Vex owns follows it, so "make a note of this" and
-    // "start a video" are left alone.
-    const m = t.match(new RegExp(this.START_WORDS.source + '(timer|countdown|alarm|stopwatch|reminder)\\b(.*)$', 'i'));
-    if (m) {
-      const thing = m[1].toLowerCase();
-      let rest = (m[2] || '').replace(/^\s*(?:for|of|at|to|on|lasting|that lasts)\s+/i, '').trim();
-      if (thing === 'reminder') return rest ? 'remind me ' + rest : t;
-      return (thing === 'countdown' ? 'timer' : thing) + (rest ? ' ' + rest : '');
+    if (!t) return '';
+
+    // Already shorthand, or a sentence the other parsers read whole.
+    if (/^(timer|countdown|alarm|stopwatch|remind me|watch|tell me|let me know|notify me|alert me|ping me|what time)/i.test(t)) {
+      return /^countdown\b/i.test(t) ? t.replace(/^countdown/i, 'timer') : t;
     }
-    // The other way round: "start a 20 minute timer", "set a 5 min countdown".
-    // The duration comes first and the noun last, which is at least as common
-    // as saying it the other way.
-    const back = t.match(new RegExp(this.START_WORDS.source + '(.{1,24}?)\\s+(timer|countdown|stopwatch|alarm)$', 'i'));
-    if (back) {
-      const thing = back[2].toLowerCase();
-      if (thing === 'stopwatch') return 'stopwatch';
-      return (thing === 'countdown' ? 'timer' : thing) + ' ' + back[1].trim();
+    if (this.QUESTION.test(t)) return t;
+
+    const thing = t.match(this.THINGS);
+    if (!thing || !this.ASKS.test(t)) return this.withoutOpener(t);
+    const noun = thing[1].toLowerCase().replace(/(es|s)$/, '');
+
+    if (noun === 'stopwatch') return 'stopwatch';
+    if (noun === 'reminder') {
+      // Its own parser reads "remind me …" sentences; hand it everything
+      // after the noun, which is where the what and the when live.
+      const rest = t.slice(thing.index + thing[1].length).replace(/^\s*(?:for|to|about|at|in|that)\s+/i, '').trim();
+      return rest ? 'remind me ' + rest : t;
     }
-    // "remind me in 10 minutes to X" and friends already parse; only the
-    // leading filler was in the way.
-    return t;
+    if (noun === 'timer' || noun === 'countdown') {
+      const length = this.lengthIn(t);
+      // No length is not something to guess at: it goes on to the model,
+      // which can ask.
+      return length ? 'timer ' + length : t;
+    }
+    // An alarm is a time of day, which its own parser reads: give it
+    // everything except the asking and the noun.
+    const rest = (t.slice(0, thing.index) + ' ' + t.slice(thing.index + thing[1].length))
+      .replace(this.ASKS, ' ')
+      .replace(/\b(an?|the|my|me|for|at|to|on|please)\b/gi, ' ')
+      .replace(/\s+/g, ' ').trim();
+    return rest ? 'alarm ' + rest : t;
   },
 
   // The one thing Vex can do for this sentence with no model at all, or null.
@@ -79,7 +138,12 @@ const VexQuickCommands = {
     let found = [];
     try { found = this.results(plain) || []; }
     catch (err) { console.warn('[QuickCommands] could not read that:', err.message); return null; }
-    const hit = found.find(r => r && r.isPrimary && typeof r.action === 'function' && r.id !== 'quick-unreadable');
+    // Only things Vex DOES. 'quick-guide' answers "how do I…?" with directions,
+    // which is an explanation, not an action — and treating it as one meant a
+    // question never reached the guide card, so the "Do it" button on that
+    // card, and "you do it" after it, had nothing to act on.
+    const SAYS = new Set(['quick-unreadable', 'quick-guide']);
+    const hit = found.find(r => r && r.isPrimary && typeof r.action === 'function' && !SAYS.has(r.id));
     return hit || null;
   },
 
@@ -135,7 +199,12 @@ const VexQuickCommands = {
       action: async () => {
         if (plan.same) return;
         try { const r = await VexSettingsControl.apply(req); window.showToast?.(r.message); }
-        catch (err) { window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); throw err; }
+        catch (err) {
+          // Saying no to the question is not a failure (settings-control.js
+          // marks it declined).
+          if (err && err.declined) { window.showToast?.('Left as it was', 'info'); return; }
+          window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); throw err;
+        }
       },
     };
   },
@@ -220,11 +289,16 @@ const VexQuickCommands = {
     if (!m || typeof VexClock === 'undefined') return null;
     // The duration is the leading part; anything after it is the label.
     const words = m[1].trim().split(/\s+/);
-    let ms = null, label = '';
+    let ms = null, label = '', tooLong = null;
     for (let k = Math.min(4, words.length); k >= 1; k--) {
-      try { ms = VexClock.parseDuration(words.slice(0, k).join(' ')); label = words.slice(k).join(' '); break; } catch { /* shorter */ }
+      try { ms = VexClock.parseDuration(words.slice(0, k).join(' ')); label = words.slice(k).join(' '); break; }
+      catch (err) {
+        // A length that was read but is out of range ("99999 hours") says
+        // so, rather than "Say how long" (found 2026-09-29).
+        if (!tooLong && /at most|at least/.test((err && err.message) || '')) tooLong = err;
+      }
     }
-    if (ms == null) throw new Error('Say how long — "timer 25 min", "timer 1h 30", "timer 90s"');
+    if (ms == null) throw tooLong || new Error('Say how long — "timer 25 min", "timer 1h 30", "timer 90s"');
     return {
       id: 'quick-timer', icon: 'timer', isPrimary: true,
       label: 'Timer: ' + VexClock.fmtLeft(ms) + (label ? ' — ' + label : ''),

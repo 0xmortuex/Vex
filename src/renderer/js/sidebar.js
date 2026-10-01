@@ -246,7 +246,7 @@ const SidebarManager = {
       btn.className = 'sidebar-icon';
       btn.dataset.panel = p.id;
       btn.title = p.name + ' (pinned site — right-click for options)';
-      btn.innerHTML = '<img src="https://' + encodeURIComponent(host) + '/favicon.ico" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">';
+      btn.innerHTML = '<img src="' + (typeof TabManager === 'undefined' || TabManager.mayAskSiteForIcon(p.url) ? 'https://' + encodeURIComponent(host) + '/favicon.ico' : '') + '" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">';
       btn.addEventListener('click', (e) => {
         if (e.shiftKey && this._besideOnShift(p.id)) return;
         this.togglePanel(p.id);
@@ -560,6 +560,10 @@ const SidebarManager = {
       SettingsUI.enhance();
     }
 
+    // Killed while it was hidden: load it again now rather than showing a
+    // blank panel and making the user press Refresh.
+    this.recoverPanel(panelName);
+
     // Create webview for panel if needed
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {
       this._createPanelWebview(panelName, panelEl);
@@ -592,6 +596,8 @@ const SidebarManager = {
     // Microphone / camera in use (preload-webview.js getUserMedia wrapper):
     // a badge on the icon, never slept meanwhile, and a call signal for Discord.
     wv.addEventListener('ipc-message', (e) => {
+      // The picture under a right-click, for the menu (js/webview.js contextImage).
+      if (e.channel === 'vex-ctx-image') { if (typeof WebviewManager !== 'undefined') WebviewManager.noteContextImage(wv, e.args && e.args[0]); return; }
       if (e.channel !== 'vex-media-capture') return;
       const d = (e.args && e.args[0]) || {};
       this.setPanelCapturing(panelName, d.kind, d.active);
@@ -625,6 +631,43 @@ const SidebarManager = {
       if (typeof TotpAutofill !== 'undefined') { try { TotpAutofill.autofill(wv, wv.getURL()); } catch {} }
       if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }
     });
+    // ---- brought back when Windows kills it --------------------------------
+    // A game wants the memory, Windows takes it from the biggest processes,
+    // and the Discord panel is the biggest thing Vex has. The renderer is
+    // killed, the panel goes blank, and it stayed blank until it was opened
+    // again by hand — which is what "discord and claude keeps closing while i
+    // play another game" was. Nothing in Vex slept them: the crash log has
+    //   page crashed: https://discord.com/channels/@me — killed (exit -1073741510)
+    // next to the audio service dying, and 0xC000013A there is the OS taking
+    // the process, not one of Vex's sleepers. Tabs have healed themselves
+    // from this for a long time (js/webview.js, render-process-gone); panels
+    // never did.
+    //
+    // While the game is still running a hidden panel is NOT reloaded on the
+    // spot: a gigabyte of Discord loaded back into a machine that has just
+    // run out of memory is killed again, and four of those in a row spend the
+    // retries and leave the panel dead anyway. It comes back when the game
+    // ends, or the moment you open it.
+    let crashes = 0, crashedAt = 0, comeBack = null;
+    const holdUrl = () => {
+      try { const u = wv.getURL(); if (u && !/^about:blank/i.test(u)) wv.dataset.liveUrl = u; } catch {}
+    };
+    wv.addEventListener('did-navigate', holdUrl);
+    wv.addEventListener('did-navigate-in-page', holdUrl);
+    wv.addEventListener('render-process-gone', () => {
+      clearTimeout(comeBack);
+      if (Date.now() - crashedAt > 120000) crashes = 0;
+      crashedAt = Date.now();
+      wv.dataset.crashed = '1';
+      if (++crashes > 4) {
+        window.showToast?.(this.panelLabel(panelName) + ' keeps being closed — there is not enough memory for it right now. Open it again to retry.', 'warn', 8000);
+        return;
+      }
+      const inFront = panelName === this.activePanel || panelName === this.sidePanel;
+      if (!inFront && typeof GameMode !== 'undefined' && GameMode.gaming) return;   // when the game ends
+      comeBack = setTimeout(() => this.recoverPanel(panelName), (inFront ? 400 : 3000) * 2 ** (crashes - 1));
+    });
+
     // Discord: if the page fails to connect (it's blocked), offer the bypass.
     if (panelName === 'discord') {
       wv.addEventListener('did-fail-load', (e) => {
@@ -834,6 +877,34 @@ const SidebarManager = {
 
   sleptPanels: {},
 
+  // Load a panel's page again after its renderer was killed. Does nothing to
+  // a panel that is fine, so it is safe to call on any of them.
+  recoverPanel(name) {
+    const wv = this.panelWebviews[name];
+    if (!wv || !wv.dataset || !wv.dataset.crashed) return false;
+    // Slept or closed meanwhile: sleepPanel takes the element out of the DOM
+    // and off panelWebviews, and a panel put to sleep is meant to stay asleep.
+    if (!wv.isConnected) return false;
+    const url = wv.dataset.liveUrl || (this.panelConfigs[name] && this.panelConfigs[name].url);
+    if (!url) return false;
+    delete wv.dataset.crashed;
+    try { Promise.resolve(wv.loadURL(url)).catch(() => {}); }
+    catch { try { wv.src = url; } catch { return false; } }
+    document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: this.panelLabel(name) + ' was closed by Windows and has been loaded again' } }));
+    return true;
+  },
+
+  // Every panel that was killed while it was out of sight — after a game, or
+  // when one is opened again.
+  recoverCrashedPanels() {
+    const back = [];
+    for (const name of Object.keys(this.panelWebviews)) {
+      try { if (this.recoverPanel(name)) back.push(this.panelLabel(name)); }
+      catch (err) { window.VexProblems?.note('Panels', 'Could not bring ' + name + ' back', err); }
+    }
+    return back;
+  },
+
   sleepPanel(name) {
     const wv = this.panelWebviews[name];
     if (!wv) throw new Error(this.panelLabel(name) + ' is not loaded');
@@ -909,19 +980,60 @@ const SidebarManager = {
     return null;
   },
 
+  // Discord is the one panel whose sleep is not a free win: asleep it cannot
+  // notify you, so closing it to save memory is a decision about your
+  // messages. It is asked about rather than done (js/discord-memory.js), and
+  // this loop is the OTHER way it used to be slept without a word — which is
+  // how someone could be asked, say no, and watch it close anyway.
+  _asksBeforeSleeping(name) {
+    if (name !== 'discord') return false;
+    try { return typeof DiscordMemory !== 'undefined' && DiscordMemory.consent() !== 'auto'; }
+    catch { return false; }
+  },
+
   startPanelAutoSleep() {
     if (this._panelSleepTimer) clearInterval(this._panelSleepTimer);
     this._panelSleepTimer = setInterval(() => {
-      for (const name of this.panelsDueToSleep()) {
-        try { this.sleepPanel(name); }
-        catch (err) { console.error('[Sidebar] could not sleep panel ' + name + ':', err.message); }
-      }
+      const due = this.panelsDueToSleep().filter(n => !this._asksBeforeSleeping(n));  // Discord asks for itself
+      if (!due.length) return;
+      const sleep = () => {
+        for (const name of due) {
+          try { this.sleepPanel(name); }
+          catch (err) { console.error('[Sidebar] could not sleep panel ' + name + ':', err.message); }
+        }
+      };
+      // Asked about together rather than one at a time: three questions in a
+      // row about three panels is not asking, it is an obstacle course.
+      if (typeof SleepConsent === 'undefined') return;   // cannot ask, so do not act
+      const names = due.map(n => this.panelLabel(n));
+      const said = names.length === 1 ? names[0] + ' has'
+        : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have';
+      SleepConsent.ask({
+        id: 'panels',
+        title: said + ' been idle for a while. Let ' + (names.length === 1 ? 'it' : 'them') + ' sleep?',
+        detail: 'Asleep ' + (names.length === 1 ? 'it uses' : 'they use') + ' no memory and come'
+          + (names.length === 1 ? 's' : '') + ' back where you left off — but cannot notify you until then.',
+        run: sleep,
+      });
     }, 60000);
   },
 
   // Settings › Performance: the two panel switches.
   _wirePanelSleepSettings() {
     if (window.DiscordMemory) window.DiscordMemory.renderSetting();
+    const consent = document.getElementById('setting-sleep-consent');
+    if (consent && typeof SleepConsent !== 'undefined' && !consent.dataset.wired) {
+      consent.dataset.wired = '1';
+      consent.value = SleepConsent.mode();
+      consent.addEventListener('change', () => {
+        try {
+          SleepConsent.set(consent.value);
+          window.showToast?.(consent.value === 'ask' ? 'Vex will ask before anything sleeps by itself'
+            : consent.value === 'auto' ? 'Vex will sleep idle tabs and panels by itself'
+              : 'Nothing will sleep unless you ask it to');
+        } catch (err) { window.showToast?.(err.message, 'error'); consent.value = SleepConsent.mode(); }
+      });
+    }
     const auto = document.getElementById('setting-panel-autosleep');
     const keep = document.getElementById('setting-panel-keep-discord');
     if (auto) {
@@ -1689,13 +1801,13 @@ const SidebarManager = {
       row.innerHTML =
         '<span style="width:22px;height:22px;display:grid;place-items:center;opacity:' + (hidden ? '0.4' : '1') + '">' + btn.innerHTML + '</span>' +
         '<span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (hidden ? 'opacity:0.5;text-decoration:line-through' : '') + '">' + this._esc(name) + '</span>' +
-        '<button data-act="up"     title="Move up"     style="' + btnCss + '">▲</button>' +
-        '<button data-act="down"   title="Move down"   style="' + btnCss + '">▼</button>' +
-        '<button data-act="rename" title="Rename"      style="' + btnCss + '">✎</button>' +
-        '<button data-act="icon"   title="Change icon" style="' + btnCss + '">★</button>' +
+        '<button data-act="up"     title="Move up"     aria-label="Move up"   style="' + btnCss + '">' + VexIcons.svg('chevron-up', { size: 12 }) + '</button>' +
+        '<button data-act="down"   title="Move down"   aria-label="Move down" style="' + btnCss + '">' + VexIcons.svg('chevron-down', { size: 12 }) + '</button>' +
+        '<button data-act="rename" title="Rename"      style="' + btnCss + '">' + VexIcons.svg('edit', { size: 13 }) + '</button>' +
+        '<button data-act="icon"   title="Change icon" style="' + btnCss + '">' + VexIcons.svg('star', { size: 13 }) + '</button>' +
         (isUrl ? '<button data-act="link" title="Change link" style="' + btnCss + '">' + VexIcons.svg('link', { size: 13 }) + '</button>' : '') +
-        '<button data-act="toggle" title="' + (hidden ? 'Show' : 'Hide') + '" style="' + btnCss + '">' + (hidden ? '+' : '−') + '</button>' +
-        (panel.startsWith('site_') ? '' : '<button data-act="reset" title="Reset to default" style="' + btnCss + '">↺</button>');
+        '<button data-act="toggle" title="' + (hidden ? 'Show' : 'Hide') + '" aria-label="' + (hidden ? 'Show' : 'Hide') + '" style="' + btnCss + '">' + VexIcons.svg(hidden ? 'plus' : 'minus', { size: 12 }) + '</button>' +
+        (panel.startsWith('site_') ? '' : '<button data-act="reset" title="Reset to default" aria-label="Reset to default" style="' + btnCss + '">' + VexIcons.svg('undo', { size: 12 }) + '</button>');
       row.querySelectorAll('button[data-act]').forEach(b => {
         b.addEventListener('click', (ev) => {
           const act = b.dataset.act;
@@ -1907,7 +2019,7 @@ const SidebarManager = {
     nav.dataset.panel = panelName;
     nav.innerHTML = '<button class="pnav-btn pnav-back" title="Back">‹</button>'
       + '<button class="pnav-btn pnav-fwd" title="Forward">›</button>'
-      + '<button class="pnav-btn pnav-reload" title="Reload">⟳</button>';
+      + '<button class="pnav-btn pnav-reload" title="Reload" aria-label="Reload">' + VexIcons.svg('refresh', { size: 13 }) + '</button>';
     const back = nav.querySelector('.pnav-back');
     const fwd = nav.querySelector('.pnav-fwd');
     const reload = nav.querySelector('.pnav-reload');
@@ -1976,6 +2088,8 @@ const SidebarManager = {
             try {
               const r = await window.vex?.installVencord?.();
               if (r && r.ok) {
+                // In safe mode it is put in place, not loaded (found 2026-09-29).
+                if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return; }
                 window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
                 const wv = this.panelWebviews['discord'];
                 if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
@@ -1994,6 +2108,8 @@ const SidebarManager = {
             try {
               const r = await window.vex?.installVencordLocal?.();
               if (r && r.ok) {
+                // In safe mode it is put in place, not loaded (found 2026-09-29).
+                if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return; }
                 // Fully RECREATE the Discord panel webview (don't just reload it):
                 // a reloaded webContents can keep running the previously-loaded
                 // Vencord build, so an updated plugin wouldn't show up. A brand-new

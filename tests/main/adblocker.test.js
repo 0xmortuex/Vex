@@ -94,3 +94,21 @@ describe('shouldBlock', () => {
     });
   });
 });
+
+// ChatGPT signed in showed "Content failed to load" (2026-09-27); the one new
+// block that day was ||bzr.openai.com^. It stays blocked everywhere else.
+describe('site repairs', () => {
+  const { repairAllows } = require('../../src/adblocker.js');
+  it('lets bzr.openai.com through on ChatGPT', () => {
+    expect(repairAllows('https://bzr.openai.com/v1/', 'https://chatgpt.com/c/123')).toBe(true);
+    expect(repairAllows('https://bzr.openai.com/v1/', 'https://chat.openai.com/')).toBe(true);
+  });
+  it('keeps blocking it on every other site', () => {
+    expect(repairAllows('https://bzr.openai.com/v1/', 'https://example.com/')).toBe(false);
+    expect(repairAllows('https://bzr.openai.com/v1/', 'https://notchatgpt.com/')).toBe(false);
+    expect(repairAllows('https://bzr.openai.com/v1/', '')).toBe(false);
+  });
+  it('is only about that host', () => {
+    expect(repairAllows('https://browser-intake-datadoghq.com/api/v2/rum', 'https://chatgpt.com/')).toBe(false);
+  });
+});

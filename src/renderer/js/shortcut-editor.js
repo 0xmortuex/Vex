@@ -47,8 +47,8 @@ const ShortcutEditor = (() => {
                     ? `<span class="shortcut-key locked" title="Fixed shortcut \u2014 works, but can\u2019t be reassigned">${formatKeyCombo(s.current)}</span>`
                     : `<button class="shortcut-key ${s.isCustom ? 'custom' : ''}" data-id="${_esc(s.id)}">${formatKeyCombo(s.current)}</button>`}
                   ${s.removable
-                    ? `<button class="btn-reset-sm" data-remove="${_esc(s.id)}" title="Take this shortcut away">×</button>`
-                    : (!locked && s.isCustom) ? `<button class="btn-reset-sm" data-id="${_esc(s.id)}" title="Reset to default">↻</button>` : '<span></span>'}
+                    ? `<button class="btn-reset-sm" data-remove="${_esc(s.id)}" title="Take this shortcut away" aria-label="Take this shortcut away">${VexIcons.svg('x', { size: 12 })}</button>`
+                    : (!locked && s.isCustom) ? `<button class="btn-reset-sm" data-id="${_esc(s.id)}" title="Reset to default" aria-label="Reset to default">${VexIcons.svg('undo', { size: 12 })}</button>` : '<span></span>'}
                 </div>
               `; }).join('')}
             </div>
@@ -173,6 +173,11 @@ const ShortcutEditor = (() => {
       } else if (res && res.unknown) {
         _toast('That is no longer in Vex, so it cannot be given a key', 'warn');
         stop();
+      } else if (res && res.invalid) {
+        _toast(res.invalid === 'reserved'
+          ? `${combo} belongs to Windows or to the page (copy, paste, undo, developer tools), so it can't be a Vex shortcut`
+          : `${combo} on its own would stop you typing it in pages — use Ctrl or Alt with it, or a function key`, 'warn');
+        stop();
       } else if (res && res.system) {
         _toast('That shortcut is fixed at the system level and can’t be reassigned', 'warn');
         stop();
@@ -202,9 +207,19 @@ const ShortcutEditor = (() => {
       window.removeEventListener('blur', onWindowBlur);
       btn.classList.remove('capturing');
       btn.innerHTML = originalHTML;
+      clearInterval(keepCapturing);
+      window.vex?.setShortcutCapturing?.(false);
     }
 
     cancelActiveCapture = stop;
+    // Ctrl+T, Ctrl+W, Ctrl+K, Ctrl+F, Ctrl+R and zoom are taken by the main
+    // process before the page sees them, so pressing one here opened a tab
+    // instead of being recorded (found 2026-09-29). Main lets keys through
+    // while a capture runs, and the registry's own rules decide on them.
+    window.vex?.setShortcutCapturing?.(true);
+    // Main lets go by itself after 15 s; a capture left waiting longer got
+    // Ctrl+T back as a new tab (found 2026-09-29). Renewed while it lasts.
+    const keepCapturing = setInterval(() => window.vex?.setShortcutCapturing?.(true), 10000);
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('blur', onWindowBlur);

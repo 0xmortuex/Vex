@@ -22,7 +22,7 @@ const ImageZoom = {
       <div class="vex-imgzoom-bar">
         <span class="vex-imgzoom-pct">—</span>
         <button class="vex-imgzoom-reset" title="Fit (double-click image)">Fit</button>
-        <button class="vex-imgzoom-close" title="Close (Esc)">✕</button>
+        <button class="vex-imgzoom-close" title="Close (Esc)" aria-label="Close">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Close'}</button>
       </div>
       <img class="vex-imgzoom-img" draggable="false" alt="">`;
     document.body.appendChild(el);

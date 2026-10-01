@@ -92,8 +92,18 @@ const ToolboxLib = {
   },
 
   // --- Cron (5-field) description + next runs ---
+  // @daily, @hourly and the rest were refused (found 2026-09-29); they are
+  // shorthands for five-field lines. Anything else comes back as typed.
+  CRON_MACROS: {
+    '@yearly': '0 0 1 1 *', '@annually': '0 0 1 1 *', '@monthly': '0 0 1 * *',
+    '@weekly': '0 0 * * 0', '@daily': '0 0 * * *', '@midnight': '0 0 * * *', '@hourly': '0 * * * *',
+  },
+  cronExpand(expr) {
+    const t = String(expr || '').trim();
+    return this.CRON_MACROS[t.toLowerCase()] || t;
+  },
   cronDescribe(expr) {
-    const p = String(expr || '').trim().split(/\s+/);
+    const p = this.cronExpand(expr).split(/\s+/);
     if (p.length !== 5) return null;
     const [min, hr, dom, mon, dow] = p;
     const part = (f, unit, names) => {
@@ -106,14 +116,18 @@ const ToolboxLib = {
     const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const bits = [];
     if (min === '*' && hr === '*') bits.push('every minute');
-    else bits.push('at ' + (hr === '*' ? part(min, 'minute') : (min.padStart ? `${hr.padStart(2, '0')}:${min.padStart(2, '0')}` : `${hr}:${min}`)));
+    else if (hr === '*') bits.push('at ' + part(min, 'minute'));
+    // Only two plain numbers make a clock time: "0 */2 * * *" read
+    // "at */2:00" (found 2026-09-29).
+    else if (/^\d+$/.test(min) && /^\d+$/.test(hr)) bits.push(`at ${hr.padStart(2, '0')}:${min.padStart(2, '0')}`);
+    else bits.push('at ' + part(min, 'minute') + ', ' + part(hr, 'hour'));
     if (dom !== '*') bits.push('on day ' + dom + ' of the month');
     if (mon !== '*') bits.push('in month ' + mon);
     if (dow !== '*') bits.push('on ' + part(dow, 'weekday', DOW));
     return bits.join(', ');
   },
   cronNext(expr, count = 5, from) {
-    const p = String(expr || '').trim().split(/\s+/);
+    const p = this.cronExpand(expr).split(/\s+/);
     if (p.length !== 5) return [];
     const match = (f, val, min, max) => {
       if (f === '*') return true;
@@ -125,13 +139,25 @@ const ToolboxLib = {
       }
       return false;
     };
+    // Day of week 7 is Sunday too (found 2026-09-29).
+    const matchDow = (day) => match(p[4], day, 0, 7) || (day === 0 && match(p[4], 7, 0, 7));
+    // With both day fields restricted, cron fires when EITHER matches — the
+    // tool's own reference says so; this matched only when both did.
+    const bothDays = p[2] !== '*' && p[4] !== '*';
+    const dayOk = (d) => {
+      const okDom = match(p[2], d.getDate(), 1, 31), okDow = matchDow(d.getDay());
+      return match(p[3], d.getMonth() + 1, 1, 12) && (bothDays ? (okDom || okDow) : (okDom && okDow));
+    };
     const out = [];
     const d = new Date(from ? from.getTime() : Date.now());
     d.setSeconds(0, 0); d.setMinutes(d.getMinutes() + 1);
-    for (let i = 0; i < 527040 && out.length < count; i++) { // ~1 year of minutes
-      if (match(p[0], d.getMinutes(), 0, 59) && match(p[1], d.getHours(), 0, 23) &&
-          match(p[2], d.getDate(), 1, 31) && match(p[3], d.getMonth() + 1, 1, 12) &&
-          match(p[4], d.getDay(), 0, 6)) out.push(new Date(d.getTime()));
+    // Up to 8 years ahead, so "0 0 29 2 *" finds the next leap day; days and
+    // hours that cannot match are skipped whole, so the walk stays quick.
+    const end = new Date(d.getTime()); end.setFullYear(end.getFullYear() + 8);
+    while (d < end && out.length < count) {
+      if (!dayOk(d)) { d.setHours(24, 0, 0, 0); continue; }
+      if (!match(p[1], d.getHours(), 0, 23)) { d.setMinutes(60, 0, 0); continue; }
+      if (match(p[0], d.getMinutes(), 0, 59)) out.push(new Date(d.getTime()));
       d.setMinutes(d.getMinutes() + 1);
     }
     return out;
@@ -426,7 +452,7 @@ const Toolbox = {
       <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px">
         <span style="font-size:15px;font-weight:700;color:var(--text);display:inline-flex;align-items:center;gap:7px">${this._svg('toolbox', 17)}Toolbox</span>
         <span id="tb-count" style="font-size:11.5px;color:var(--text-muted);flex:1"></span>
-        <button id="tb-close" aria-label="Close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">✕</button>
+        <button id="tb-close" aria-label="Close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;line-height:0" title="Close">${VexIcons.svg('x', { size: 13 })}</button>
       </div>
       <div style="padding:0 18px 8px"><input id="tb-search" placeholder="Search tools — try “loan”, “json”, “bmi”, “convert”…" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-family:inherit"></div>
       <div id="tb-fams" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 10px"></div>
@@ -695,9 +721,11 @@ const Toolbox = {
       });
     }
     // keywords is an array in most specs and a plain string in a few, so
-    // accept either rather than throwing on the ones that differ.
+    // accept either rather than throwing on the ones that differ. Split on
+    // commas and white space: /[,s]+/ split on the letter s, so "ssl sha"
+    // came out as "l", "ha" (found 2026-09-29).
     const kw = Array.isArray(spec.keywords) ? spec.keywords
-      : (typeof spec.keywords === 'string' && spec.keywords ? spec.keywords.split(/[,s]+/).filter(Boolean) : []);
+      : (typeof spec.keywords === 'string' && spec.keywords ? spec.keywords.split(/[,\s]+/).filter(Boolean) : []);
     if (kw.length) details.push({ title: 'Also known as', text: kw.join(', ') });
 
     return {
@@ -750,7 +778,7 @@ const Toolbox = {
     m.id = 'vex-tbtool';
     m.style.cssText = 'position:fixed;inset:0;z-index:100054;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
     m.innerHTML = `<div style="width:560px;max-width:94vw;max-height:86vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 10px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">${title}</span><button id="tbt-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">✕</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 10px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">${title}</span><button id="tbt-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div style="padding:4px 18px 18px;overflow:auto" id="tbt-body">${bodyHtml}</div></div>`;
     document.body.appendChild(m);
     const close = () => m.remove();
@@ -1126,7 +1154,11 @@ const Toolbox = {
 
         // ---- decode ----
         let s = input;
-        if (opt.lenient) s = s.replace(/[\s"'`,]+/g, '');
+        // A comma is a stray character, except in an alphabet that uses it
+        // (IMAP's 63rd character), where stripping it changed the bytes.
+        const commaIsData = (alpha && (alpha.c62 === ',' || alpha.c63 === ','))
+          || (opt.variant === 'auto' && /,/.test(input) && !/\//.test(input));
+        if (opt.lenient) s = s.replace(commaIsData ? /[\s"'`]+/g : /[\s"'`,]+/g, '');
         if (!s) throw new Error('Nothing to decode once the stray characters were removed.');
 
         let used = alpha;
@@ -1147,7 +1179,10 @@ const Toolbox = {
         }
 
         // Unpadded is extremely common (JWTs, URLs). Put the padding back.
-        const padded = norm + '='.repeat((4 - (norm.replace(/=+$/, '').length % 4)) % 4);
+        // Padding already there counts (it used to be added on top: "aGk="
+        // became "aGk==" and was refused).
+        const bare = norm.replace(/=+$/, '');
+        const padded = bare + '='.repeat((4 - (bare.length % 4)) % 4);
         let bytes;
         try { bytes = b64ToBytes(padded); }
         catch { throw new Error('That is not valid Base64 — the length is wrong even after padding.'); }
@@ -1338,7 +1373,9 @@ const Toolbox = {
   // ---- Cron ---------------------------------------------------------------
   _cron() {
     const NAMES = ['minute', 'hour', 'day of month', 'month', 'day of week'];
-    const RANGES = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 6]];
+    // Day of week allows 7, which is Sunday like 0: "0 0 * * 7" was refused
+    // (found 2026-09-29).
+    const RANGES = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
     const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
     const DOW = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
 
@@ -1382,7 +1419,7 @@ const Toolbox = {
       details: [
         { title: 'The five fields', rows: [
           ['minute', '0–59'], ['hour', '0–23'], ['day of month', '1–31'],
-          ['month', '1–12 or jan–dec'], ['day of week', '0–6, 0 = Sunday, or sun–sat'],
+          ['month', '1–12 or jan–dec'], ['day of week', '0–7, 0 and 7 = Sunday, or sun–sat'],
         ] },
         { title: 'Syntax', rows: [
           ['*', 'Every value.'],
@@ -1390,6 +1427,7 @@ const Toolbox = {
           ['1-5', 'A range.'],
           ['*/15', 'Every 15th — 0, 15, 30, 45.'],
           ['1,15', 'A list.'],
+          ['@daily', 'Also @hourly, @weekly, @monthly, @yearly.'],
         ] },
         { title: 'The trap', text: 'When BOTH day-of-month and day-of-week are restricted, cron fires when EITHER matches — not both. "0 0 1 * 1" is the 1st of the month and every Monday.' },
         { title: 'Try one', examples: true, rows: [
@@ -1399,14 +1437,16 @@ const Toolbox = {
         ] },
       ],
       run({ input, opt }) {
-        const fields = input.trim().split(/\s+/);
+        const typed = input.trim();
+        if (/^@reboot$/i.test(typed)) throw new Error('@reboot runs once when the machine starts, so it has no times to list.');
+        const fields = ToolboxLib.cronExpand(typed).split(/\s+/);
         if (fields.length !== 5) {
           throw new Error(`A cron expression has 5 fields (${NAMES.join(', ')}). This has ${fields.length}.`);
         }
         const sets = fields.map(expand);
         const list = (vals, i) => {
           const [lo, hi] = RANGES[i];
-          if (vals.length === hi - lo + 1) return 'every ' + NAMES[i];
+          if (vals.length === (i === 4 ? 7 : hi - lo + 1)) return 'every ' + NAMES[i];
           if (vals.length > 8) return `${vals.length} values`;
           return vals.join(', ');
         };
@@ -1422,17 +1462,21 @@ const Toolbox = {
           const d = new Date();
           d.setSeconds(0, 0);
           d.setMinutes(d.getMinutes() + 1);
-          for (let guard = 0; guard < 366 * 24 * 60 && hits.length < n; guard++) {
-            const okMin = sets[0].includes(d.getMinutes());
-            const okHour = sets[1].includes(d.getHours());
+          // Up to 8 years ahead: "0 0 29 2 *" said "none within a year" when the
+          // next leap day was further off (found 2026-09-29). Days and hours
+          // that cannot match are skipped whole, so the walk stays quick.
+          const end = new Date(d); end.setFullYear(end.getFullYear() + 8);
+          while (d < end && hits.length < n) {
             const okMonth = sets[3].includes(d.getMonth() + 1);
             const okDom = sets[2].includes(d.getDate());
             const okDow = sets[4].includes(d.getDay());
             const okDay = (domRestricted && dowRestricted) ? (okDom || okDow) : (okDom && okDow);
-            if (okMin && okHour && okMonth && okDay) hits.push(new Date(d));
+            if (!okMonth || !okDay) { d.setHours(24, 0, 0, 0); continue; }
+            if (!sets[1].includes(d.getHours())) { d.setMinutes(60, 0, 0); continue; }
+            if (sets[0].includes(d.getMinutes())) hits.push(new Date(d));
             d.setMinutes(d.getMinutes() + 1);
           }
-          lines.push('', hits.length ? 'next runs' : 'next runs: none within a year');
+          lines.push('', hits.length ? 'next runs' : 'next runs: none within 8 years');
           for (const h of hits) lines.push('  ' + h.toLocaleString());
         }
         return { output: lines.join('\n'), note: fields.join(' ') };

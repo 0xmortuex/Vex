@@ -17,19 +17,21 @@ import { describe, it, expect } from 'vitest';
 import { coarsenLocation, roundCoord, COARSE_DECIMAL_PLACES } from '../../src/main-helpers.js';
 
 describe('roundCoord', () => {
-  it('rounds to 1 decimal place (city-level, ~11 km)', () => {
-    expect(COARSE_DECIMAL_PLACES).toBe(1);
-    expect(roundCoord(40.689247)).toBe(40.7);
-    expect(roundCoord(-74.044502)).toBe(-74.0);
-    expect(roundCoord(51.50741234)).toBe(51.5);
+  // 4 dp (~11 m), not 1 (~11 km): the coordinates only reach a site the user
+  // allowed, and at 1 dp its "near me" was 5 km out (2026-09-27).
+  it('rounds to 4 decimal places (~11 m)', () => {
+    expect(COARSE_DECIMAL_PLACES).toBe(4);
+    expect(roundCoord(40.689247)).toBe(40.6892);
+    expect(roundCoord(-74.044502)).toBe(-74.0445);
+    expect(roundCoord(51.50741234)).toBe(51.5074);
   });
 
   it('handles negative values correctly', () => {
     // (-0.05, 0) inputs land on signed-zero 0 / -0 — JSON.stringify
     // collapses that to '0' anyway, so we don't pin which one we get.
-    expect(Math.abs(roundCoord(-0.04))).toBe(0);
-    expect(roundCoord(-0.06)).toBe(-0.1);
-    expect(roundCoord(-37.334606)).toBe(-37.3);
+    expect(Math.abs(roundCoord(-0.00004))).toBe(0);
+    expect(roundCoord(-0.00006)).toBe(-0.0001);
+    expect(roundCoord(-37.334606)).toBe(-37.3346);
   });
 
   it('returns null for non-finite or non-number input', () => {
@@ -45,7 +47,7 @@ describe('roundCoord', () => {
 describe('coarsenLocation — happy paths', () => {
   it('manual mode with finite coords → rounded {mode, latitude, longitude}', () => {
     const out = coarsenLocation({ mode: 'manual', latitude: 40.689247, longitude: -74.044502 });
-    expect(out).toEqual({ mode: 'manual', latitude: 40.7, longitude: -74.0 });
+    expect(out).toEqual({ mode: 'manual', latitude: 40.6892, longitude: -74.0445 });
   });
 
   it('ip mode → {mode: "ip"}', () => {
@@ -96,12 +98,10 @@ describe('coarsenLocation — privacy contract', () => {
     expect(Object.keys(coarsenLocation({ mode: 'manual', latitude: NaN, ip: '1.2.3.4' }))).toEqual(['mode']);
   });
 
-  it('coordinates are rounded to 1 dp (no building-level precision leak)', () => {
-    // Apple Park HQ — at full precision uniquely identifies the building.
+  it('coordinates are rounded to 4 dp: street-level, never beyond', () => {
     const apple = coarsenLocation({ mode: 'manual', latitude: 37.334606, longitude: -122.009102 });
-    expect(apple.latitude).toBe(37.3);
-    expect(apple.longitude).toBe(-122.0);
-    // 1dp = ~11 km grid; far below the ~100 m needed for street identification.
+    expect(apple.latitude).toBe(37.3346);
+    expect(apple.longitude).toBe(-122.0091);
   });
 });
 

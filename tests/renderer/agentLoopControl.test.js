@@ -83,11 +83,14 @@ describe('max iterations', () => {
     AgentLoop._maxIter = 15;
   });
 
+  // Running out of steps is said plainly — and is no longer the end of it:
+  // the run writes the answer from what it gathered rather than throwing the
+  // work away (tests/renderer/agentGivesUp.test.js).
   it('is reported when the agent really runs out of steps', async () => {
     AgentLoop._maxIter = 2;
     scriptRouter([{ tool: 'scroll', parameters: { direction: 'down' }, intent: 'action' }]);
     await AgentLoop.start('scroll forever', 'auto');
-    expect(panelText()).toMatch(/Max iterations reached/);
+    expect(panelText()).toMatch(/Out of steps/);
     AgentLoop._maxIter = 15;
   });
 });

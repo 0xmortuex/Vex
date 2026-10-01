@@ -228,3 +228,26 @@ describe('deactivate', () => {
     expect(TabManager.switchTab).toHaveBeenCalledWith('a');
   });
 });
+
+// Escape left the tab picker (a layer over the whole window) up, and it
+// swallowed the next click anywhere; ending the split did not close it either
+// (found by a use-it-daily sweep, 2026-09-28).
+describe('the tab picker goes away', () => {
+  it('on Escape, and the split it was for is called off', () => {
+    installGlobals(['a', 'b']);
+    SplitScreen.init();
+    SplitScreen.activate(2);
+    const picker = document.getElementById('split-picker');
+    expect(picker.classList.contains('visible')).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(picker.classList.contains('visible')).toBe(false);
+    expect(SplitScreen.active).toBe(false);
+  });
+  it('when the split is turned off while it is open', () => {
+    installGlobals(['a', 'b']);
+    SplitScreen.init();
+    SplitScreen.activate(2);
+    SplitScreen.deactivate();
+    expect(document.getElementById('split-picker').classList.contains('visible')).toBe(false);
+  });
+});

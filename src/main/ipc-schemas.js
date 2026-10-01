@@ -10,7 +10,12 @@ const oneOf = values => value => values.includes(value);
 const shape = fields => value => object(value) && Object.entries(fields).every(([key, check]) => check(value[key]));
 const schemas = new Map();
 function define(names, checks) { for (const name of names.split(' ')) schemas.set(name, checks); }
-define('app:started window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear recall:stats privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen identity:create tor:create check-for-updates widevine:status widevine:retry download-update install-update get-app-version updates:list app:restart app:focus fx:rates theme:get-custom-image set-as-default-browser is-default-browser sidebar-config:get app:processes app:diagnostics ollama:ensure app:safe-mode system:gpu system:dev-ports hotkeys:get extensions:release-idle extensions:list extensions:install-folder extensions:install-zip extensions:open-folder discord:install-vencord sync-load-key sync-load-meta routing:get-all sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
+define('app:started window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data browsing:clear-history get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear recall:stats privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen identity:create tor:create check-for-updates widevine:status widevine:retry get-app-version updates:list app:restart app:focus fx:rates theme:get-custom-image set-as-default-browser is-default-browser sidebar-config:get app:processes app:diagnostics ollama:ensure app:safe-mode system:gpu system:dev-ports hotkeys:get extensions:release-idle extensions:list extensions:install-folder extensions:install-zip extensions:open-folder discord:install-vencord sync-load-key sync-load-meta routing:get-all sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
+define('extensions:install-catalog', [string(60)]);
+// The update cover (js/update-notifier.js): a version such as 2.35.0.
+const version = value => typeof value === 'string' && /^\d{1,5}\.\d{1,5}\.\d{1,5}[0-9A-Za-z.+-]{0,40}$/.test(value);
+define('updates:upcoming-notes updates:download updates:install', [version]);
+define('updates:cancel', []);
 define('file:inspect', [string(4096), optional(string(4096))]);
 define('archive:list', [string(4096)]);
 define('downloads:set-rules', [value => Array.isArray(value) && value.length <= 50 && value.every(object)]);
@@ -27,12 +32,30 @@ define('rec:chunk', [string(80), value => value instanceof Uint8Array && value.b
 define('rec:finish', [string(80), optional(string(200))]);
 define('rec:cancel', [string(80)]);
 define('capture:submit', [shape({ kind: string(20), text: string(4000) })]);
-define('capture:close capture:done capture:open', []);
+define('capture:close capture:open', []);
+// The interface's answer to one captured line (js/quick-capture.js). It was
+// declared with no arguments, so every answer was refused and the box sat on
+// "Saving…" until "Vex did not answer" (found 2026-09-29).
+define('capture:done', [shape({ id: string(40), ok: boolean, said: optional(string(4000)), error: optional(string(4000)) })]);
 define('extensions:set-enabled', [string(160), boolean]);
 define('extensions:set-scope', [string(160), string(20)]);
 define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])]);
 define('downloads:retry', [web]);
-define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate) })]);
+define('downloads:ask-where', [string(4 * 1024 * 1024 + 64)]);
+define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
+define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
+define('extensions:popup-tab', []);
+// An extension's tabs.query/get: which page is the tab in front (main.js, _activeTabsFor).
+define('extensions:active-tabs', []);
+define('extensions:open-tab', [shape({ url: string(8192), active: optional(boolean) })]);
+// An extension's tabs.remove: the tabs' page ids (main.js, _closeTabsForExtension).
+define('extensions:close-tab', [shape({ ids: value => Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every(Number.isSafeInteger) })]);
+// The interface's answer to an extension's tabs.create: the tab it made.
+define('tab:created-for-extension', [shape({ id: string(40), ok: boolean, tabId: optional(integer), url: optional(string(8192)), active: optional(boolean), error: optional(string(4000)) })]);
+define('vex-lock:state', [boolean]);
+define('tor:cancel', []);
+define('tor:status tor:stop', []);
+define('guest:page-shortcut', [shape({ key: string(1), shift: boolean })]);
 define('rss:fetch open-external', [web]);
 define('mail:compose', [shape({ subject: string(300), body: string(8000) })]);
 // The second argument describes the video to float, and comes from the page,
@@ -83,7 +106,7 @@ define('reminders:import', [value => Array.isArray(value) && value.length <= 500
 define('reminders:list', []);
 define('reminders:delete', [value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)]);
 define('reminders:visited', [string(253)]);
-define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(value) && value >= 0]);
+define('reminders:hold', [value => typeof value === 'number' && Number.isFinite(value) && value >= 0, optional(oneOf(['focus', 'meeting']))]);
 // Save a small text file where the user chooses — a calendar entry, an export.
 define('file:save-text', [shape({ name: string(200), text: string(1024 * 1024), kind: optional(string(40)) })]);
 define('calendar:fetch', [string(4096)]);
@@ -92,10 +115,11 @@ define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
 define('page:save', [integer, string(10), optional(string(500))]);
 define('page:capture-full', [integer]);
+define('page:eval-all-frames', [integer, string(256 * 1024), optional(boolean)]);
 define('mail:accounts', []);
 define('mail:add', [shape({ email: string(320), password: string(512), host: optional(string(255)), port: optional(integer), secure: optional(boolean) })]);
 define('mail:remove', [string(64)]);
-define('mail:inbox', [string(64), optional(integer)]);
+define('mail:inbox', [string(64), optional(integer), optional(integer)]);
 define('mail:message', [string(64), integer]);
 // The tag is optional: with none, the notes are for the running version —
 // which is how "What's new" asks after an update. Requiring it rejected that
@@ -113,12 +137,17 @@ define('vex:set-bg-throttling', [integer, boolean]);
 define('app:tab-memory', [value => Array.isArray(value) && value.length <= 10000 && value.every(integer)]);
 // Every key the renderer's shortcut registry answers to, as written combos.
 define('shortcuts:guest-keys', [value => Array.isArray(value) && value.length <= 300 && value.every(v => string(64)(v))]);
+// The shortcut editor is (not) recording a key: main's own keys stand aside.
+define('shortcuts:capturing', [boolean]);
 define('app:open-as-app', [web, optional(string(4096))]);
 define('tor:verify routing:get', [optional(string(160))]);
 define('routing:set', [optional(string(160)), oneOf(['direct','tor','proxy']), optional(string(2048))]);
 // All of Vex at once, and the check that says whether it is really working.
 define('routing:set-all', [oneOf(['direct', 'tor', 'proxy']), optional(string(2048))]);
 define('routing:check', [optional(string(160))]);
+// A site route no rule uses, and the partitions the site rules use (js/site-routes.js).
+define('routing:forget', [string(160)]);
+define('routing:prune', [value => Array.isArray(value) && value.length <= 500 && value.every(string(160))]);
 define('discord:set-bypass-mode', [oneOf(['off','light','strong']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
 define('discord:install-vencord-local', [optional(string())]);
 define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value))]);
@@ -146,6 +175,16 @@ define('clips:list', [optional(string(4096))]);
 define('doc:text', [value => value instanceof Uint8Array && value.byteLength <= 32 * 1024 * 1024, string(300)]);
 define('siterules:get', []);
 define('siterules:set', [object]);
+// The saved decisions one tab's page is held to, by the page's id (main.js).
+define('permissions:list-for-page', [integer]);
+// The pages of a tab just closed, whose saved back lists go (session-security.js).
+define('tabs:closed', [value => Array.isArray(value) && value.length <= 10 && value.every(integer)]);
+// A tab's icon fetched through the tab's own session, by its page's id
+// (src/main/favicon-fetch.js).
+define('tabs:favicon', [integer, web]);
+// A private window asking which sites the main window's Tor and proxy rules
+// name, to say they do not apply there (js/site-routes.js).
+define('siteroutes:routed-hosts', []);
 define('cookies:remove', [shape(cookieRef)]);
 define('cookies:set', [shape({ ...cookieRef, value: string(16384), httpOnly: optional(boolean), expires: timestamp })]);
 define('translate:text', [shape({ text: string(100000), tl: value => typeof value === 'string' && /^[a-z-]{2,16}$/i.test(value) })]);

@@ -32,6 +32,10 @@ const Expenses = {
   },
   setCurrency(code) {
     if (!this.CURRENCIES.includes(code)) throw new Error('Not a currency Vex knows: ' + code);
+    // Amounts are stored without a currency, so switching relabelled every
+    // past amount — $12 became €12 — without converting it (found
+    // 2026-09-29). Only an empty log may change currency.
+    if (code !== this.currency() && this.list().length) throw new Error('Your expenses are kept in ' + this.currency() + ' and Vex cannot convert them — export and remove them first to switch to ' + code);
     localStorage.setItem(this.CURRENCY_KEY, code);
   },
 
@@ -137,7 +141,11 @@ const Expenses = {
       <button data-csv type="button" style="${btn}">Export CSV</button>`);
     let month = this.dayKey(new Date()).slice(0, 7);
 
-    head.querySelector('[data-currency]').addEventListener('change', (e) => { this.setCurrency(e.target.value); draw(); });
+    head.querySelector('[data-currency]').addEventListener('change', (e) => {
+      try { this.setCurrency(e.target.value); }
+      catch (err) { e.target.value = this.currency(); window.showToast?.(err.message, 'error'); return; }
+      draw();
+    });
     head.querySelector('[data-csv]').addEventListener('click', () => {
       const items = this.list();
       if (!items.length) { window.showToast?.('Nothing to export yet', 'error'); return; }

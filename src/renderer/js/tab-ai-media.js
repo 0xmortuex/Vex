@@ -2,8 +2,8 @@
 
 // ---- AI Tab Commands — natural language over your open tabs (Opera-style) ----
 // "close all youtube tabs", "group my shopping tabs", "keep only this one".
-// Uses the chat action with a personaSystemPrompt override so the worker
-// returns OUR strict JSON; the plan is confirmed before anything closes.
+// Uses the chat action with a persona system prompt so the model returns OUR
+// strict JSON; the plan is confirmed before anything closes.
 const TabAI = {
   PROMPT: `You are a browser tab manager. The user gives an instruction and a list of open tabs (id, title, url, active).
 Return ONLY JSON, no fences: {"close":["tab-ids"],"groups":[{"name":"Group name","color":"indigo|cyan|green|amber|red|violet|rose|teal","ids":["tab-ids"]}],"explanation":"one short sentence"}.
@@ -25,11 +25,23 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       </div></div>`;
     document.body.appendChild(m);
     const q = m.querySelector('#tai-q'); q.focus();
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#tai-cancel').addEventListener('click', () => m.remove());
-    const go = () => this._plan(m);
+    // Escape closes it, like every other Vex dialog — it did nothing here
+    // (found 2026-09-29). Not while a vexConfirm/vexPrompt sits on top.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); e.stopPropagation(); close(); }
+    };
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#tai-cancel').addEventListener('click', () => close());
+    // One button: Plan, then Apply once a plan is ready. Apply used to run
+    // both handlers, planning again as it applied (found 2026-09-29).
+    const go = () => (m._applyPlan ? m._applyPlan() : this._plan(m));
     m.querySelector('#tai-go').addEventListener('click', go);
     q.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    // A new instruction needs a new plan.
+    q.addEventListener('input', () => { if (m._applyPlan) { m._applyPlan = null; m.querySelector('#tai-go').textContent = 'Plan'; } });
   },
 
   async _plan(m) {
@@ -42,21 +54,34 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       const tabs = TabManager.tabs.map(t => ({ id: t.id, title: String(t.title || '').slice(0, 90), url: t.url, active: t.id === TabManager.activeTabId }));
       const data = await AIRouter.callAI('chat', {
         message: 'Instruction: ' + want + '\n\nOpen tabs:\n' + JSON.stringify(tabs),
-        personaSystemPrompt: this.PROMPT,
+        // As `persona`, the shape the router reads on every backend: a bare
+        // personaSystemPrompt reached the cloud worker only, so a local model
+        // got the chat prompt and every command came back "Nothing to do."
+        // (found 2026-09-29).
+        persona: { systemPrompt: this.PROMPT },
       });
       let plan = null;
       try { plan = JSON.parse(String(data.result).replace(/^```(json)?/i, '').replace(/```$/,'').trim()); } catch { const mm = String(data.result).match(/\{[\s\S]*\}/); if (mm) { try { plan = JSON.parse(mm[0]); } catch {} } }
       if (!plan) throw new Error('Could not understand the AI response');
       const ids = new Set(TabManager.tabs.map(t => t.id));
+      // The tab you are on is never closed from here. It used to be dropped
+      // silently while the model's explanation ("Closed the YouTube tab")
+      // was shown, so it claimed a close that never happened (found
+      // 2026-09-29). Now it says so instead.
+      const keptActive = (plan.close || []).includes(TabManager.activeTabId);
       const toClose = (plan.close || []).filter(id => ids.has(id) && id !== TabManager.activeTabId);
       const groups = (plan.groups || []).map(g => ({ ...g, ids: (g.ids || []).filter(id => ids.has(id)) })).filter(g => g.ids.length >= 2);
       const bits = [];
       if (toClose.length) bits.push('close ' + toClose.length + ' tab' + (toClose.length === 1 ? '' : 's'));
       groups.forEach(g => bits.push('group ' + g.ids.length + ' as "' + g.name + '"'));
-      if (!bits.length) { out.textContent = (plan.explanation || 'Nothing to do.'); btn.disabled = false; btn.textContent = 'Plan'; return; }
-      out.innerHTML = '<strong style="color:var(--text)">Plan:</strong> ' + bits.join(' · ') + (plan.explanation ? '<br>' + plan.explanation : '');
+      const activeNote = keptActive ? 'That is the tab you are on — switch away from it first, or close it with Ctrl+W.' : '';
+      // Nothing will happen: never the model's explanation, which may say
+      // otherwise.
+      if (!bits.length) { out.textContent = activeNote || 'Nothing to do — no open tab matched that.'; btn.disabled = false; btn.textContent = 'Plan'; return; }
+      const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      out.innerHTML = '<strong style="color:var(--text)">Plan:</strong> ' + esc(bits.join(' · ')) + (keptActive ? '<br>' + esc('The tab you are on stays open.') : plan.explanation ? '<br>' + esc(plan.explanation) : '');
       btn.disabled = false; btn.textContent = 'Apply';
-      btn.onclick = () => {
+      m._applyPlan = () => {
         const HEX = { indigo: '#6366f1', cyan: '#06b6d4', green: '#22c55e', amber: '#f59e0b', red: '#ef4444', violet: '#8b5cf6', rose: '#f43f5e', teal: '#14b8a6' };
         groups.forEach(g => {
           try {
@@ -150,8 +175,18 @@ const ResourceMonitor = {
       </div>
       <div id="rm-body" style="font-size:12px;color:var(--text)">Loading…</div></div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#rm-close').addEventListener('click', () => m.remove());
+    // Escape closes it too; it did nothing (found 2026-09-29).
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelector('#rm-close').setAttribute('aria-label', 'Close');
+    m.querySelector('#rm-close').addEventListener('click', close);
+    m.querySelector('#rm-close').focus({ preventScroll: true });
     const paint = async () => {
       const body = m.querySelector('#rm-body');
       try {

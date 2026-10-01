@@ -58,7 +58,7 @@ function createBootGuard({ dir, fs, argv = [], version = '0.0.0', settingsFile, 
     write({ phase: 'starting', fails, version, at: now(), from });
     if (upgraded || !prev.version) snapshotSettings(prev.version || 'first-run');
     if (crashed) note(`[SafeMode] the previous launch did not finish starting (${fails} in a row)`);
-    if (safeMode) note('[SafeMode] starting in safe mode: no extensions, no panels, no session restore' + (asked ? ' (asked for with --safe-mode)' : ''));
+    if (safeMode) note('[SafeMode] starting in safe mode: no extensions' + (asked ? ' (asked for with --safe-mode)' : ''));
     return { safeMode, fails, crashed, asked, upgradedFrom: upgraded ? prev.version : null, brokenSinceUpdateFrom: fails >= FAILS_BEFORE_SAFE && from ? from : null };
   }
 

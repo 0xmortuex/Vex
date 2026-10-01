@@ -50,6 +50,8 @@ describe('PrivacyPack', () => {
     // Toggling farble off forwards the patch.
     farble.checked = false;
     farble.dispatchEvent(new window.Event('change'));
+    // Updated from main's answer, so after the round trip.
+    await new Promise(r => setTimeout(r, 0));
     expect(PrivacyPack.cfg.farble).toBe(false);
   });
 });

@@ -3,6 +3,12 @@
 const ExtensionsSettings = (() => {
   function _toast(m, k) { if (typeof window.showToast === 'function') window.showToast(m, k); }
   function _esc(s) { return window.escapeHtml(s); }
+  // An update of a switched-off extension replaces its files and leaves it off.
+  // In safe mode it is placed but not loaded (found 2026-09-29).
+  function _installedText(r) {
+    if (r.afterRestart) return `Installed ${r.name} v${r.version} — it loads when Vex restarts normally`;
+    return `Installed: ${r.name} v${r.version}` + (r.disabled ? ' — still switched off' : '');
+  }
 
   // Icons live inside the install folder, so the manager loads them straight off
   // disk. encodeURI (not encodeURIComponent) keeps the drive letter and the path
@@ -68,6 +74,9 @@ const ExtensionsSettings = (() => {
       .ext-suggest-works{font-size:11.5px;margin-top:5px;line-height:1.45;color:var(--text,#e9e9ee);}
       .ext-suggest-caveat{font-size:11.5px;margin-top:3px;line-height:1.45;color:var(--text-muted,#9a9aa5);}
       .ext-suggest-limited{color:#f59e0b;}
+      .ext-source-link{font-size:11.5px;font-weight:400;color:var(--text-muted,#9a9aa5);text-decoration:none;}
+      .ext-source-link:hover{color:var(--primary,#6366f1);text-decoration:underline;}
+      .ext-open-btn:disabled{opacity:.6;cursor:default;}
       .ext-unsupported{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text-muted,#9a9aa5);line-height:1.6;}
       .ext-where{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--text-muted,#9a9aa5);}
       .ext-note{margin-top:5px;font-size:11px;line-height:1.45;color:#f59e0b;}
@@ -117,6 +126,11 @@ const ExtensionsSettings = (() => {
     // this the user would silently get every extension back on after a restart.
     const stateError = extensions.length ? extensions[0].stateError : null;
 
+    // Every Install / toggle re-renders; the catalogue folded shut after each
+    // one, so installing three from it meant reopening it three times. It
+    // keeps whatever state the user left it in (found 2026-09-29).
+    const catalogWasOpen = !!container.querySelector('details[data-ext-catalog]')?.open;
+
     container.innerHTML = `
       <div class="extensions-panel">
         <p class="setting-info muted" style="margin-bottom:12px">Vex supports Chrome extensions loaded from a folder, <code>.zip</code>, or <code>.crx</code>. Extensions load into regular and container tabs, and into a sidebar panel (Discord, Spotify…) only when they name that site &mdash; or when set to run everywhere below. Private, Off-the-Record and Tor tabs never load extensions &mdash; Electron can't put them in a temporary session.</p>
@@ -155,19 +169,22 @@ const ExtensionsSettings = (() => {
         </div>
 
         <div class="extensions-help">
-          <details${extensions.length === 0 ? ' open' : ''}>
+          <details data-ext-catalog${extensions.length === 0 || catalogWasOpen ? ' open' : ''}>
             <summary>Extensions worth installing</summary>
             <div class="help-content">
-              <p class="setting-info muted" style="margin:0 0 8px">Each of these was checked against what Electron actually supports. Vex can't download from the Chrome Web Store, so "Get it" opens the publisher's own release page &mdash; download the <code>.zip</code> or <code>.crx</code>, then use <strong>Install from .zip / .crx</strong> above.</p>
-              ${VexExtensionCatalog.ENTRIES.map(x => `
+              <p class="setting-info muted" style="margin:0 0 8px">Each of these was checked against what Electron actually supports. <strong>Install</strong> fetches the latest release from the publisher's own GitHub and installs it; press it again later to update.</p>
+              ${VexExtensionCatalog.ENTRIES.map(x => {
+                const have = extensions.find(e => String(e.name || '').toLowerCase() === x.name.toLowerCase());
+                return `
                 <div class="ext-suggest">
-                  <div class="ext-suggest-name">${_esc(x.name)}
-                    <button class="ext-open-btn" data-open="${_esc(x.source)}" style="margin-left:auto">Get it</button>
+                  <div class="ext-suggest-name">${_esc(x.name)}${have ? ` <span class="ext-version">v${_esc(have.version)} installed</span>` : ''}
+                    <a href="#" class="ext-source-link" data-open="${_esc(x.source)}" style="margin-left:auto">Source</a>
+                    <button class="ext-open-btn" data-install-catalog="${_esc(x.id)}">${have ? 'Update' : 'Install'}</button>
                   </div>
                   <div class="ext-suggest-what">${_esc(x.what)}</div>
                   <div class="ext-suggest-works${x.limited ? ' ext-suggest-limited' : ''}"><strong>In Vex:</strong> ${_esc(x.works)}</div>
                   ${x.caveat ? `<div class="ext-suggest-caveat">${_esc(x.caveat)}</div>` : ''}
-                </div>`).join('')}
+                </div>`; }).join('')}
             </div>
           </details>
         </div>
@@ -205,7 +222,7 @@ const ExtensionsSettings = (() => {
                   ${e.hasPopup && e.loaded ? `<button class="ext-open-btn" data-popup="${_esc(e.folder)}">Popup</button>` : ''}
                   ${e.optionsUrl ? `<button class="ext-open-btn" data-options="${_esc(e.optionsUrl)}">Options</button>` : ''}
                   <label class="ext-toggle"><input type="checkbox" data-toggle="${_esc(e.folder)}" ${e.enabled ? 'checked' : ''}> On</label>
-                  <button class="btn-danger-sm" data-folder="${_esc(e.folder)}">Uninstall</button>
+                  <button class="btn-danger-sm" data-folder="${_esc(e.folder)}" data-name="${_esc(e.name || e.folder)}">Uninstall</button>
                 </div>
               </div>
             `; }).join('')}
@@ -224,16 +241,35 @@ const ExtensionsSettings = (() => {
         if (typeof TabManager !== 'undefined') TabManager.createTab(a.dataset.open, true);
       });
     });
+    // One click: the latest release from the publisher's GitHub, installed by
+    // main (main/extension-sources.js decides where it comes from).
+    container.querySelectorAll('[data-install-catalog]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!window.vex || typeof window.vex.extensionsInstallCatalog !== 'function') { _toast('Installing is not available in this window', 'error'); return; }
+        const label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Installing…';
+        try {
+          const r = await window.vex.extensionsInstallCatalog(btn.dataset.installCatalog);
+          if (r && r.ok) { _toast(_installedText(r), 'success'); render(container); return; }
+          _toast('Install failed: ' + ((r && r.error) || 'unknown'), 'error');
+        } catch (err) {
+          _toast('Install failed: ' + ((err && err.message) || 'unknown'), 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = label;
+      });
+    });
     document.getElementById('btn-install-zip')?.addEventListener('click', async () => {
       const r = await window.vex.extensionsInstallZip();
       if (r.cancelled) return;
-      if (r.ok) { _toast(`Installed: ${r.name} v${r.version}`, 'success'); render(container); }
+      if (r.ok) { _toast(_installedText(r), 'success'); render(container); }
       else _toast('Install failed: ' + (r.error || 'unknown'), 'error');
     });
     document.getElementById('btn-install-folder')?.addEventListener('click', async () => {
       const r = await window.vex.extensionsInstallFolder();
       if (r.cancelled) return;
-      if (r.ok) { _toast(`Installed: ${r.name} v${r.version}`, 'success'); render(container); }
+      if (r.ok) { _toast(_installedText(r), 'success'); render(container); }
       else _toast('Install failed: ' + (r.error || 'unknown'), 'error');
     });
     document.getElementById('btn-open-ext-folder')?.addEventListener('click', () => {
@@ -247,6 +283,9 @@ const ExtensionsSettings = (() => {
         if (!r.ok) {
           box.checked = !wanted;                       // don't pretend it worked
           _toast((wanted ? 'Enable' : 'Disable') + ' failed: ' + (r.error || 'unknown'), 'error');
+        } else if (r.afterRestart) {
+          // Safe mode loads no extensions, so switching one on only saves it.
+          _toast('Saved — it loads when Vex restarts normally', 'info');
         } else {
           _toast(wanted ? 'Extension enabled' : 'Extension disabled', 'success');
         }
@@ -266,10 +305,17 @@ const ExtensionsSettings = (() => {
     container.querySelectorAll('[data-popup]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const rect = btn.getBoundingClientRect();
+        // The tab you are on, as the toolbar menu sends it (extensions-menu.js
+        // _runExtension) — without it the popup took itself for the page and
+        // said "This page is protected by browser" (found 2026-09-29).
+        const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
+        let tab = null;
+        if (wv && typeof wv.getWebContentsId === 'function') { try { tab = wv.getWebContentsId(); } catch { /* not attached yet */ } }
         const r = await window.vex.extensionsOpenPopup({
           folder: btn.dataset.popup,
           x: Math.max(0, Math.round(window.screenX + rect.left)),
-          y: Math.max(0, Math.round(window.screenY + rect.bottom))
+          y: Math.max(0, Math.round(window.screenY + rect.bottom)),
+          tab: Number.isInteger(tab) && tab > 0 ? tab : null
         });
         if (!r.ok) _toast('Could not open popup: ' + (r.error || 'unknown'), 'error');
       });
@@ -282,7 +328,9 @@ const ExtensionsSettings = (() => {
     container.querySelectorAll('[data-folder]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const folder = btn.dataset.folder;
-        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${folder}"? Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
+        // The extension's name, not its install folder ("devforum-plus-1790659315165")
+        // (found 2026-09-29).
+        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${btn.dataset.name || folder}"? Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
         const r = await window.vex.extensionsUninstall(folder);
         if (r.ok) { _toast('Uninstalled — restart Vex to fully remove', 'success'); render(container); }
         else _toast('Uninstall failed: ' + (r.error || 'unknown'), 'error');

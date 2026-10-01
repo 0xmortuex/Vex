@@ -64,6 +64,7 @@ const AIRouter = (() => {
     routingPrefs = { ...DEFAULT_ROUTING, ..._load('vex.aiRouting', {}) };
     preferLocal = _load('vex.preferLocalAI', false) === true;
     forceCloud = _load('vex.forceCloudAI', false) === true;
+    modelChosen = _load('vex.localAIModel', null) !== null;
     localModel = _load('vex.localAIModel', 'llama3.2:3b');
     smallModel = _load('vex.localSmallModel', '');
     await refreshOllamaStatus();
@@ -79,7 +80,33 @@ const AIRouter = (() => {
     try { ollamaAvailable = (await Ollama.ping()) === true; }
     catch { ollamaAvailable = false; }
     _dbg('[AIRouter] Ollama ping result:', ollamaAvailable);
+    if (ollamaAvailable) pickDefaultModel().catch(err => console.warn('[AIRouter] could not pick a model:', err.message));
     return ollamaAvailable;
+  }
+
+  // With no model ever chosen, the agent got llama3.2:3b, installed or not,
+  // and too small to trust with actions: in a test it liked ten posts when
+  // asked to like one (2026-09-27). It now gets the best installed model that
+  // can call tools: the largest up to 14B, so a giant one is not forced onto
+  // an ordinary graphics card. Not saved; choosing one in Settings wins.
+  let modelChosen = false;
+  let defaultPicked = false;
+  function bestInstalledModel(models) {
+    const billions = (s) => { const m = /([\d.]+)\s*([MB])/i.exec(String(s || '')); return m ? parseFloat(m[1]) * (m[2].toUpperCase() === 'M' ? 0.001 : 1) : 0; };
+    const fit = models.filter(m => (m.capabilities || []).includes('tools') && (m.capabilities || []).includes('completion') && billions(m.parameterSize) <= 14);
+    fit.sort((a, b) => billions(b.parameterSize) - billions(a.parameterSize));
+    return fit.length ? fit[0].name : null;
+  }
+  async function pickDefaultModel() {
+    if (modelChosen || defaultPicked) return;
+    defaultPicked = true;
+    const described = [];
+    for (const m of await Ollama.listModels()) {
+      try { described.push({ name: m.name, ...(await Ollama.show(m.name)) }); }
+      catch (err) { console.warn('[AIRouter] could not read ' + m.name + ':', err.message); }
+    }
+    const best = bestInstalledModel(described);
+    if (best && !modelChosen) { localModel = best; _dbg('[AIRouter] no model chosen; using', best); }
   }
 
   function isOllamaAvailable() { return ollamaAvailable === true; }
@@ -154,7 +181,10 @@ const AIRouter = (() => {
         // The agent prefers the cloud model. With no AI Worker configured it
         // used to be simply unavailable — "Cloud AI is not configured" — even
         // with a capable local model running. Now the local model drives it.
-        decision = (feature === 'agent' && !cloudWorkerUrl() && await ollamaUp()) ? 'local' : 'cloud';
+        // Every other cloud-preferring feature too: multi-tab, translate and
+        // history search failed on the cloud first and logged a problem before
+        // falling back (found 2026-09-29).
+        decision = (!cloudWorkerUrl() && await ollamaUp()) ? 'local' : 'cloud';
       } else if (pref === 'local') {
         // Local-only feature (e.g. history indexing runs on-device for privacy).
         // If Ollama isn't installed/running, skip quietly instead of failing on
@@ -270,6 +300,7 @@ const AIRouter = (() => {
       userMessage += `Page title: ${pc.title || ''}\nURL: ${pc.url || ''}\n\nContent:\n${(pc.text || '').substring(0, 2000)}\n\n`;
     }
     if (request.selectedText) userMessage += `Selected text: "${request.selectedText}"\n\n`;
+    userMessage += localExtras(request);
     if (request.message) userMessage += request.message;
     if (!userMessage) userMessage = 'Hello';
 
@@ -285,7 +316,8 @@ const AIRouter = (() => {
     }
     msgs.push({ role: 'user', content: userMessage });
 
-    const text = await WebLLM.chat(msgs, { temperature, maxTokens: 800 });
+    // Stop in the AI panel cancels the on-device answer too.
+    const text = await WebLLM.chat(msgs, { temperature, maxTokens: 800, signal: request.signal });
     return { result: text, backend: 'ondevice', model: WebLLM.loadedModel() };
   }
 
@@ -383,6 +415,23 @@ const AIRouter = (() => {
     return (smallModel && ROUTINE_FEATURES.includes(feature)) ? smallModel : localModel;
   }
 
+  // What the cloud worker reads off the request and a local prompt used to
+  // leave out: Translate's target language (a local model translated into
+  // whatever it liked) and the tabs of a multi-tab question (it answered about
+  // no tabs at all) (found 2026-09-29). Tab text is capped: a local model's
+  // context is a fraction of the cloud's.
+  const LOCAL_TABS_BUDGET = 8000;
+  function localExtras(request) {
+    let out = '';
+    if (request.targetLanguage) out += `Target language: ${request.targetLanguage}\n\n`;
+    if (Array.isArray(request.tabContexts) && request.tabContexts.length) {
+      const per = Math.floor(LOCAL_TABS_BUDGET / request.tabContexts.length);
+      const tabs = request.tabContexts.map(c => ({ ...c, text: String((c && c.text) || '').slice(0, per) }));
+      out += 'Open tabs:\n' + MultiTabContext.formatForAI(tabs) + '\n\n';
+    }
+    return out;
+  }
+
   async function callLocal(feature, request) {
     if (feature === 'agent') return callLocalAgent(request);
     // A question about an image (right-click → "Ask Vex about this image").
@@ -392,10 +441,23 @@ const AIRouter = (() => {
     // Phase 15: persona overrides the default system prompt + temperature.
     // Structured features (summarize/translate/etc.) keep their built-in
     // JSON-schema prompts — persona only overrides chat.
-    const isStructured = ['summarize', 'translate', 'explain', 'historyIndex', 'historySearch'].includes(feature);
-    const systemPrompt = (!isStructured && request.persona?.systemPrompt)
-      ? request.persona.systemPrompt
-      : (LOCAL_SYSTEM_PROMPTS[feature] || LOCAL_SYSTEM_PROMPTS.chat);
+    // Group Tabs has a JSON shape of its own, and a multi-tab question has
+    // the tabs to answer about: a persona replaced both prompts (found
+    // 2026-09-29). Group Tabs keeps its own; a multi-tab question keeps its
+    // own and takes the persona as its voice, as the cloud worker does.
+    const isStructured = ['summarize', 'translate', 'explain', 'historyIndex', 'historySearch', 'groupTabs'].includes(feature);
+    const basePrompt = LOCAL_SYSTEM_PROMPTS[feature] || LOCAL_SYSTEM_PROMPTS.chat;
+    let systemPrompt = basePrompt;
+    if (feature === 'multiTab' && request.persona?.systemPrompt) {
+      systemPrompt = basePrompt + '\n\nAnswer in the voice of this persona. It sets the tone only, never the task or the reply format above:\n' + request.persona.systemPrompt;
+    } else if (!isStructured && request.persona?.systemPrompt) {
+      systemPrompt = request.persona.systemPrompt;
+      // format:'json' is still forced below, and a persona prompt that never
+      // asks for {"reply": …} made the model answer "{}" (found 2026-09-29):
+      // the reply format goes on the end unless the persona asks for JSON of
+      // its own (the tab command's {"close": …}, say).
+      if (basePrompt === LOCAL_SYSTEM_PROMPTS.chat && !/\bjson\b/i.test(systemPrompt)) systemPrompt += '\n\n' + LOCAL_REPLY_FORMAT;
+    }
     const temperature = request.persona?.temperature ?? 0.5;
 
     let userMessage = '';
@@ -406,6 +468,7 @@ const AIRouter = (() => {
     if (request.selectedText) {
       userMessage += `Selected text: "${request.selectedText}"\n\n`;
     }
+    userMessage += localExtras(request);
     if (request.message) userMessage += `User: ${request.message}`;
     if (!userMessage) userMessage = JSON.stringify(request);
 
@@ -415,8 +478,11 @@ const AIRouter = (() => {
 
     await warnIfSlow(request);
 
-    // Multi-turn chat: pass history when available
-    if (feature === 'chat' && Array.isArray(request.conversationHistory) && request.conversationHistory.length) {
+    // Multi-turn chat: pass history when available. A multi-tab question too:
+    // it went through generate with no earlier turns, so a follow-up ("and
+    // which one is taller?") lost the answer it followed (found 2026-09-29).
+    // The tabs stay in the last user message, as before.
+    if ((feature === 'chat' || feature === 'multiTab') && Array.isArray(request.conversationHistory) && request.conversationHistory.length) {
       const msgs = [{ role: 'system', content: systemPrompt }];
       // Same rule as the on-device path: never let the trim drop the AI-memory
       // system message that sits at the front of the history.
@@ -426,7 +492,7 @@ const AIRouter = (() => {
       for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
       msgs.push({ role: 'user', content: userMessage });
       const model = modelFor(feature);
-      const text = await Ollama.chat(model, msgs, { temperature, maxTokens: 2000, format: 'json', onToken: request.onToken, ...thinkOpts(request) });
+      const text = await Ollama.chat(model, msgs, { temperature, maxTokens: 2000, format: 'json', signal: request.signal, onToken: request.onToken, ...thinkOpts(request) });
       return { result: text, backend: 'local', model };
     }
 
@@ -436,6 +502,8 @@ const AIRouter = (() => {
       temperature,
       maxTokens: 2000,
       format: expectsJson ? 'json' : null,
+      // Stop in the AI panel cancels the answer being written.
+      signal: request.signal,
       // Only the local backend streams; the cloud worker answers in one piece.
       onToken: request.onToken,
       ...thinkOpts(request),
@@ -472,7 +540,12 @@ const AIRouter = (() => {
 
     const url = cloudWorkerUrl();
     if (!url) {
-      throw new Error('Cloud AI is not configured. Add your AI Worker URL in Settings → AI (see SELF_HOSTING.md), or switch to local Ollama.');
+      // "…or switch to local Ollama" told someone already on local, with
+      // Ollama down, to do what they had done (found 2026-09-29). Say what is
+      // missing: with Ollama up, callAI falls back to it after this.
+      if (isOllamaAvailable()) throw new Error('Cloud AI is not configured: no AI Worker URL is set (Settings → AI, see SELF_HOSTING.md).');
+      const where = (typeof Ollama !== 'undefined' && Ollama.getBaseUrl) ? Ollama.getBaseUrl() : 'http://127.0.0.1:11434';
+      throw new Error(`No AI to answer: Ollama at ${where} is not running, and no cloud AI Worker is configured. Start Ollama, or add an AI Worker URL in Settings → AI (see SELF_HOSTING.md).`);
     }
     // The normal path (VexConfig.fetchAI → main's cloud:request) is already
     // bounded at 25s in main. The bare-fetch fallback had no bound at all, so a
@@ -522,6 +595,10 @@ const AIRouter = (() => {
   }
 
   // ---------- Local prompts (smaller models need tighter guidance) ----------
+  // The answer shape the chat prompt asks for, added to a persona's own prompt
+  // (see callLocal).
+  const LOCAL_REPLY_FORMAT = 'Respond with JSON: {"reply": "your response", "citations": [], "suggestedFollowUps": []}. Return ONLY JSON.';
+
   const LOCAL_SYSTEM_PROMPTS = {
     chat: `You are Vex AI, a helpful browser assistant. Answer the user's question concisely based on any provided page content. Match the user's language.
 An instruction is an order: carry it out and say what happened in one line, or say in one sentence that you cannot. Never explain what you are about to do, never describe how the user could do it themselves, and never add advice they did not ask for.
@@ -595,6 +672,7 @@ You were given an order, so carry it out. "thought" is one short sentence about 
   }
   function setModel(name) {
     localModel = name;
+    modelChosen = true;
     _save('vex.localAIModel', name);
   }
   function getSmallModel() { return smallModel; }
@@ -629,7 +707,7 @@ You were given an order, so carry it out. "thought" is one short sentence about 
     callAI, resolveBackend,
     getRoutingPrefs, setRoutingPrefs,
     getOllamaStatus, setPreferLocal, setForceCloud,
-    setModel, getModel, setSmallModel, getSmallModel, routineFeatures, modelFor, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
+    setModel, getModel, bestInstalledModel, setSmallModel, getSmallModel, routineFeatures, modelFor, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
     // Settings › AI "Test as agent": the local agent, on a named model.
     localAgent: (request, model) => callLocalAgent(request, model),
     // One named backend, with no routing and no falling back to another —

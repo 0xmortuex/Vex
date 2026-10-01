@@ -16,11 +16,13 @@ function declarations(selectorPart) {
 }
 
 describe('the highlighted suggestion in the browser looks', () => {
-  it('still maps the accent-dim fill and accent text to the one accent (the trap)', () => {
-    expect(css).toMatch(/--vex-accent-dim:\s*var\(--b-accent-ring\)/);
+  // The trap itself is gone: the dim accent was the focus ring, which is the
+  // solid accent in the Firefox and Chrome looks, so accent text on it
+  // vanished everywhere (Notes, Schedules; found 2026-09-29). It is a tint now.
+  it('the accent-dim fill is a tint of the accent, never the solid ring', () => {
+    expect(css).not.toMatch(/--vex-accent-dim:\s*var\(--b-accent-ring\)/);
+    expect(css).toMatch(/--vex-accent-dim:\s*color-mix\(in srgb, var\(--b-accent\) 16%, transparent\)/);
     expect(css).toMatch(/--vex-text-accent:\s*var\(--b-accent\)/);
-    // …and Chrome's ring really is its accent, solid.
-    expect(css).toMatch(/--b-accent:\s*#1a73e8;\s*--b-accent-ring:\s*#1a73e8/);
   });
 
   it('tints the hovered and the selected row with the toolbar hover fill, not the accent', () => {

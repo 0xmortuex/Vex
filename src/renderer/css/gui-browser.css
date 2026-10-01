@@ -1,7 +1,9 @@
 /* === "Browser" GUI styles — Vex dressed as a mainstream browser ============
    A family of whole-window looks that deliberately resemble nothing of Vex:
    Chrome, Firefox and Safari in light and dark, and two retro takes (Internet
-   Explorer on Windows XP, Netscape-era Windows 98). Picked like Glass, via
+   Explorer on Windows XP, Netscape-era Windows 98) - and four styles after
+   popular BetterDiscord themes (Fluent, Glossy, Neobrutal, Terminal; section
+   5b) that dress it rather than imitate a browser. Picked like Glass, via
    js/gui-style.js, which sets body[data-gui-style] to the variant,
    body[data-gui-family="browser"] for everything they share, and
    body[data-gui-colors] to "look" or "theme".
@@ -65,7 +67,11 @@ body[data-gui-family="browser"]:not([data-gui-colors="theme"]) {
   --vex-text-primary: var(--b-text); --vex-text-secondary: var(--b-text-dim); --vex-text-muted: var(--b-text-dim); --vex-text-accent: var(--b-accent);
   --vex-border-subtle: var(--b-border); --vex-border-medium: var(--b-border); --vex-border-strong: var(--b-border);
   --vex-border-accent: var(--b-accent); --vex-border-accent-strong: var(--b-accent);
-  --vex-accent: var(--b-accent); --vex-accent-dim: var(--b-accent-ring); --vex-accent-glow: transparent;
+  /* The dim accent is a tint, not the focus ring: in the Firefox and Chrome
+     looks the ring is the solid accent, and every "accent text on dim accent"
+     (the active Notes tab, Schedules' Active tab, a task toggle) vanished
+     (found 2026-09-29). */
+  --vex-accent: var(--b-accent); --vex-accent-dim: color-mix(in srgb, var(--b-accent) 16%, transparent); --vex-accent-glow: transparent;
   --vex-blur-light: none; --vex-blur-medium: none; --vex-blur-strong: none;
   --vex-hover-fill: var(--b-btn-hover); --vex-shadow-color: rgba(0, 0, 0, 0.18);
   --bg: var(--b-page); --surface: var(--b-menu); --text: var(--b-text); --text-muted: var(--b-text-dim);
@@ -97,16 +103,23 @@ body[data-gui-family="browser"] .top-tab-bar {
    as in every mainstream browser; the leftover strip moves into the trailing
    area, which must stay a window-drag region or the window could no longer be
    dragged by its tab strip. Window controls are pushed to the far right. */
-body[data-gui-family="browser"] .top-tabs-list { flex: var(--b-tablist-flex, 0 1 auto); gap: var(--b-tab-gap); align-items: var(--b-tab-align, flex-end); }
-body[data-gui-family="browser"] .tab-bar-trailing { flex: 1 1 auto; align-self: stretch; -webkit-app-region: drag; color: var(--b-strip-fg, var(--b-icon)); }
+/* The tabs and groups cover the whole strip, in every look (asked for
+   2026-09-27): they used to stop at 240px each and leave the rest of the bar
+   empty. What remains draggable is the 40px before the window controls. */
+body[data-gui-family="browser"] .top-tabs-list { flex: var(--b-tablist-flex, 1 1 auto); gap: var(--b-tab-gap); align-items: var(--b-tab-align, flex-end); }
+body[data-gui-family="browser"] .tab-bar-trailing { flex: 0 0 auto; align-self: stretch; -webkit-app-region: drag; color: var(--b-strip-fg, var(--b-icon)); }
 body[data-gui-family="browser"] .tab-bar-trailing > * { -webkit-app-region: no-drag; }
-body[data-gui-family="browser"] .tab-bar-trailing #window-controls { margin-left: auto; }
+body[data-gui-family="browser"] .tab-bar-trailing #window-controls { margin-left: 40px; }
 body[data-gui-family="browser"] .top-tab {
-  flex: var(--b-tab-flex, 0 1 240px); max-width: var(--b-tab-max, 240px); height: var(--b-tab-h);
+  flex: var(--b-tab-flex, 1 1 0); max-width: var(--b-tab-max, none); height: var(--b-tab-h);
   background: var(--b-tab); border: var(--b-tab-border-w, 0) solid var(--b-tab-border, transparent); border-bottom: none;
   border-radius: var(--b-tab-radius); box-shadow: var(--b-tab-rest-shadow, none);
   color: var(--b-tab-text); font: var(--b-tab-font); padding: 0 10px; margin: 0;
 }
+/* A pinned tab is its icon, as in horizontal-tabs.css; the rule above
+   out-ranks .top-tab.pinned there and drew pinned tabs full width in every
+   browser look (found 2026-09-29). */
+body[data-gui-family="browser"] .top-tab.pinned { flex: 0 0 36px; min-width: 36px; max-width: 36px; padding: 0; justify-content: center; }
 body[data-gui-family="browser"] .top-tab:hover { background: var(--b-tab-hover); color: var(--b-text); border-color: var(--b-tab-border, transparent); }
 body[data-gui-family="browser"] .top-tab.active {
   background: var(--b-tab-active); color: var(--b-text); border-color: var(--b-tab-active-border, transparent); margin-bottom: 0;
@@ -222,7 +235,7 @@ body[data-gui-family="browser"] #window-controls .win-btn-close:hover { backgrou
 body[data-gui-style="chrome"] {
   --b-font: "Segoe UI", system-ui, sans-serif;
   --b-tab-radius: 8px 8px 0 0; --b-tab-h: 34px; --b-tab-gap: 0px; --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
-  --b-tabbar-h: 42px; --b-tabbar-pad: 8px 0 0 8px; --b-toolbar-h: 40px;
+  --b-tabbar-h: 34px; --b-tabbar-pad: 0 0 0 8px; --b-toolbar-h: 40px;
   --b-btn-size: 32px; --b-btn-radius: 50%; --b-url-radius: 999px; --b-url-h: 32px; --b-ring-w: 2px;
   --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
   --b-menu-glyph: '\22EE';
@@ -240,7 +253,7 @@ body[data-gui-style="chrome"] {
 body[data-gui-style="chrome-dark"] {
   --b-font: "Segoe UI", system-ui, sans-serif;
   --b-tab-radius: 8px 8px 0 0; --b-tab-h: 34px; --b-tab-gap: 0px; --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
-  --b-tabbar-h: 42px; --b-tabbar-pad: 8px 0 0 8px; --b-toolbar-h: 40px;
+  --b-tabbar-h: 34px; --b-tabbar-pad: 0 0 0 8px; --b-toolbar-h: 40px;
   --b-btn-size: 32px; --b-btn-radius: 50%; --b-url-radius: 999px; --b-url-h: 32px; --b-ring-w: 2px;
   --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
   --b-menu-glyph: '\22EE';
@@ -260,7 +273,7 @@ body[data-gui-style="firefox"] {
   --b-font: "Segoe UI", system-ui, sans-serif;
   --b-tab-radius: 6px; --b-tab-h: 34px; --b-tab-gap: 4px; --b-tab-align: center;
   --b-tab-shadow: 0 0 4px rgba(0,0,0,0.25); --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
-  --b-tabbar-h: 44px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
+  --b-tabbar-h: 34px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
   --b-btn-size: 32px; --b-btn-radius: 4px; --b-url-radius: 4px; --b-url-h: 32px; --b-ring-w: 1px;
   --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
   --b-newtab-radius: 4px; --b-close-radius: 4px; --b-menu-glyph: '\2630';
@@ -279,7 +292,7 @@ body[data-gui-style="firefox-dark"] {
   --b-font: "Segoe UI", system-ui, sans-serif;
   --b-tab-radius: 6px; --b-tab-h: 34px; --b-tab-gap: 4px; --b-tab-align: center;
   --b-tab-shadow: 0 0 4px rgba(0,0,0,0.5); --b-tab-font: 12px "Segoe UI", system-ui, sans-serif;
-  --b-tabbar-h: 44px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
+  --b-tabbar-h: 34px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
   --b-btn-size: 32px; --b-btn-radius: 4px; --b-url-radius: 4px; --b-url-h: 32px; --b-ring-w: 1px;
   --b-url-font: 14px "Segoe UI", system-ui, sans-serif; --b-bookmarks-h: 30px; --b-bookmark-font: 12px "Segoe UI", system-ui, sans-serif;
   --b-newtab-radius: 4px; --b-close-radius: 4px; --b-menu-glyph: '\2630';
@@ -317,7 +330,9 @@ body[data-gui-style="safari"] {
 body[data-gui-style="safari"] #top-bar     { order: 1; }
 body[data-gui-style="safari"] #top-tab-bar { order: 2; border-bottom: 1px solid var(--b-toolbar-border); }
 body[data-gui-style="safari"] :is(#top-bar-left, #top-bar-right) { flex: 1 1 0; }
-body[data-gui-style="safari"] #top-bar-right { justify-content: flex-end; }
+/* The window controls sit in this cluster here (gui-style.js), so it must not
+   give way the way app.css lets it elsewhere; it fits at 800px. */
+body[data-gui-style="safari"] #top-bar-right { justify-content: flex-end; min-width: auto; }
 body[data-gui-style="safari"] #url-bar-wrapper { flex: 0 1 620px; }
 body[data-gui-style="safari"] .top-tab { justify-content: center; }
 body[data-gui-style="safari"] .top-tab.active { box-shadow: inset 0 -1px 0 var(--b-toolbar-border); }
@@ -391,12 +406,287 @@ body[data-gui-style="win98"] #url-bar:focus-within {
 }
 body[data-gui-style="win98"] #window-controls .win-btn svg { width: 9px; height: 9px; }
 
+/* ---- 5b. Styles: the popular BetterDiscord UI themes as whole-window looks -
+   Not browsers but ways of drawing one (asked for 2026-09-29): Fluent after
+   Gibbu's "Fluent" / "Discord 11" (Windows 11), Glossy after SkeuoCord and
+   the Vista/7 themes, Neobrutal after Saltssaumure's, Terminal after
+   refact0r's system24. Same rules as the browsers above: shapes and type
+   here, every colour a --b-* variable, so theme mode (section 6) recolours
+   them. They also set Vex's own corner radii, so menus and dialogs take the
+   style's corners in both colour modes. */
+
+/* These styles ARE their type - a Terminal in Times New Roman is not one - so
+   the window's own rows (tabs, toolbar, bookmarks, the sidebar's header) wear
+   the style's face over the font picker's (fonts.css, which otherwise wins on
+   every div and span) and over the tab strip's fixed Segoe UI
+   (horizontal-tabs.css); so do the tab and page menus. Panels and pages
+   keep the font you picked. */
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"], [data-gui-style="glossy"],
+  [data-gui-style="neobrutal"], [data-gui-style="terminal"]) :is(#top-tab-bar, #top-bar, #gui-shortcuts-bar, #look-sb-head) :is(*, #top-tabs-list .top-tab *),
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"], [data-gui-style="glossy"],
+  [data-gui-style="neobrutal"], [data-gui-style="terminal"]) :is(.tab-context-menu, .tab-context-menu *) {
+  font-family: var(--b-font) !important;
+}
+
+/* Fluent — Windows 11. A Mica-tinted frame, the selected tab and the toolbar
+   one "layer" surface with a hairline stroke, 4px controls on 8px overlays,
+   Segoe UI Variable, text fields with an underline that turns into a 2px
+   accent line on focus, and the short accent pill under the selected tab. */
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) {
+  --b-font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --b-tab-radius: 8px 8px 0 0; --b-tab-h: 34px; --b-tab-gap: 2px; --b-tab-border-w: 1px;
+  --b-tab-font: 12px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; --b-tab-active-weight: 600;
+  --b-tabbar-h: 40px; --b-tabbar-pad: 6px 0 0 8px; --b-toolbar-h: 44px;
+  --b-btn-size: 32px; --b-btn-radius: 4px; --b-url-radius: 4px; --b-url-h: 32px; --b-ring-w: 0px;
+  --b-url-font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --b-bookmarks-h: 32px; --b-bookmark-font: 12px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --b-newtab-radius: 4px; --b-close-radius: 4px; --b-menu-glyph: '\2026';
+  --b-url-shadow: inset 0 -1px 0 var(--b-url-underline);
+  --vex-radius-sm: 4px; --vex-radius-md: 8px; --vex-radius-lg: 8px; --radius-sm: 4px; --radius: 8px; --radius-lg: 8px;
+}
+body[data-gui-style="fluent"] {
+  --b-frame: linear-gradient(115deg, #e6ecf5 0%, #eef0f5 45%, #f2edf1 100%); --b-frame-solid: #eceff4;
+  --b-strip-fg: #1a1a1a; --b-strip-hover: rgba(0,0,0,0.0373);
+  --b-tab: transparent; --b-tab-hover: rgba(255,255,255,0.5); --b-tab-active: #f9f9f9;
+  --b-tab-text: #1a1a1a; --b-tab-border: transparent; --b-tab-active-border: rgba(0,0,0,0.0578);
+  --b-toolbar: #f9f9f9; --b-toolbar-border: #e5e5e5; --b-btn-hover: rgba(0,0,0,0.0373);
+  --b-icon: #1a1a1a; --b-icon-disabled: #a2a2a2;
+  --b-url-bg: #ffffff; --b-url-bg-focus: #ffffff; --b-url-border: #e5e5e5; --b-url-focus-border: #e5e5e5; --b-url-underline: #868686;
+  --b-accent: #005fb8; --b-accent-ring: transparent;
+  --b-text: #1a1a1a; --b-text-dim: #5d5d5d; --b-border: #e5e5e5; --b-menu: #f9f9f9; --b-page: #ffffff;
+}
+body[data-gui-style="fluent-dark"] {
+  --b-frame: linear-gradient(115deg, #1c212b 0%, #202020 50%, #252027 100%); --b-frame-solid: #202020;
+  --b-strip-fg: #ffffff; --b-strip-hover: rgba(255,255,255,0.0605);
+  --b-tab: transparent; --b-tab-hover: rgba(255,255,255,0.0419); --b-tab-active: #2c2c2c;
+  --b-tab-text: #ffffff; --b-tab-border: transparent; --b-tab-active-border: rgba(255,255,255,0.0698);
+  --b-toolbar: #2c2c2c; --b-toolbar-border: #1c1c1c; --b-btn-hover: rgba(255,255,255,0.0605);
+  --b-icon: #ffffff; --b-icon-disabled: #787878;
+  --b-url-bg: #333333; --b-url-bg-focus: #1f1f1f; --b-url-border: #3b3b3b; --b-url-focus-border: #3b3b3b; --b-url-underline: #8b8b8b;
+  --b-accent: #60cdff; --b-accent-ring: transparent;
+  --b-text: #ffffff; --b-text-dim: #c5c5c5; --b-border: #3b3b3b; --b-menu: #2c2c2c; --b-page: #1f1f1f;
+}
+/* The selected tab's accent pill, as in Windows 11's navigation and Fluent's
+   tab bar: short, centred, rounded. It borrows the separator's slot. */
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) .top-tab.active:not(.pinned)::after {
+  top: auto; bottom: 3px; left: 50%; right: auto; width: 16px; height: 3px;
+  transform: translateX(-50%); border-radius: 2px; background: var(--b-accent);
+}
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) #url-bar:focus-within {
+  box-shadow: inset 0 -2px 0 var(--b-accent);
+}
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) .tab-context-menu {
+  border-radius: 8px; box-shadow: 0 8px 16px rgba(0,0,0,0.14);
+}
+
+/* Glossy — Aero-era skeuomorphism (SkeuoCord, Alternative Vista, Shine): a
+   sky-glass title band, every tab and button a two-tone glossy gradient with a
+   hard highlight line at the middle, bevelled edges, sunken text fields, and
+   Windows 7's joined caption buttons with a red glass close. The gloss is a
+   white overlay (--b-gloss) laid over each surface's own colour, so the same
+   rules shine over the look's blue and over any colour theme. */
+body[data-gui-style="glossy"] {
+  --b-font: "Segoe UI", Tahoma, sans-serif;
+  --b-tab-radius: 6px 6px 0 0; --b-tab-h: 28px; --b-tab-gap: 2px; --b-tab-border-w: 1px;
+  --b-tab-font: 12px "Segoe UI", Tahoma, sans-serif; --b-tab-active-weight: 600;
+  --b-tabbar-h: 36px; --b-tabbar-pad: 8px 0 0 8px; --b-toolbar-h: 40px;
+  --b-btn-size: 30px; --b-btn-radius: 3px; --b-url-radius: 3px; --b-url-h: 26px; --b-ring-w: 0px;
+  --b-url-font: 13px "Segoe UI", Tahoma, sans-serif; --b-bookmarks-h: 28px; --b-bookmark-font: 12px "Segoe UI", Tahoma, sans-serif;
+  --b-newtab-radius: 3px; --b-close-radius: 3px; --b-menu-glyph: '\2630';
+  --b-url-shadow: inset 0 1px 2px rgba(0,0,0,0.14);
+  --b-caption-w: 28px; --b-caption-h: 21px; --b-caption-align: auto; --b-caption-radius: 0; --b-caption-border-w: 1px;
+  --b-caption-gap: 0px; --b-caption-pad: 0 8px 0 0; --b-controls-align: flex-start;
+  --b-gloss: linear-gradient(rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.3) 49%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.18) 100%);
+  --b-sheen: linear-gradient(rgba(255,255,255,0.75), rgba(255,255,255,0) 60%);
+  --vex-radius-sm: 3px; --vex-radius-md: 4px; --vex-radius-lg: 6px; --radius-sm: 3px; --radius: 4px; --radius-lg: 6px;
+
+  --b-frame: linear-gradient(#a9cbf1 0%, #86b3e6 48%, #6f9fdb 52%, #8ab6e8 100%); --b-frame-solid: #86b3e6;
+  --b-strip-fg: #0f2f55; --b-strip-hover: rgba(255,255,255,0.4);
+  --b-tab: rgba(255,255,255,0.3); --b-tab-hover: rgba(255,255,255,0.55); --b-tab-active: #eef4fb;
+  --b-tab-text: #0f2f55; --b-tab-border: rgba(15,47,85,0.42); --b-tab-active-border: rgba(15,47,85,0.5);
+  --b-toolbar: #e9f0f8; --b-toolbar-border: #9fb6d2; --b-btn-hover: #cfe6fb; --b-btn-hover-border: #5f95c9;
+  --b-icon: #1d3b61; --b-icon-disabled: #9aabbf;
+  --b-url-bg: #ffffff; --b-url-bg-focus: #ffffff; --b-url-border: #a5acb5; --b-url-focus-border: #3d7bad;
+  --b-accent: #2a6fb0; --b-accent-ring: transparent;
+  --b-text: #1b1b1b; --b-text-dim: #4a5a70; --b-border: #a8bcd6; --b-menu: #f6f9fc; --b-page: #ffffff;
+  --b-caption-bg: #4a78b5; --b-caption-hover: #3f8fe6;
+  --b-caption-border: rgba(15,47,85,0.55); --b-caption-fg: #ffffff;
+  --b-close-bg: #c8432a; --b-close-hover: #e8553a;
+}
+body[data-gui-style="glossy"] .top-tab-bar { background: var(--b-gloss), var(--b-frame); }
+body[data-gui-style="glossy"] .top-tab { background: var(--b-gloss), var(--b-tab); box-shadow: inset 0 1px 0 rgba(255,255,255,0.7); }
+body[data-gui-style="glossy"] .top-tab:hover { background: var(--b-gloss), var(--b-tab-hover); }
+body[data-gui-style="glossy"] .top-tab.active { background: var(--b-sheen), var(--b-tab-active); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9); }
+body[data-gui-style="glossy"] #top-bar { background: var(--b-sheen), var(--b-toolbar); box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+body[data-gui-style="glossy"] #gui-shortcuts-bar { background: linear-gradient(rgba(255,255,255,0.35), rgba(255,255,255,0)), var(--b-toolbar); }
+body[data-gui-style="glossy"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar):hover,
+body[data-gui-style="glossy"] #gui-shortcuts-bar .gsc:hover,
+body[data-gui-style="glossy"] .new-tab-btn:hover {
+  background: var(--b-gloss), var(--b-btn-hover); border: 1px solid var(--b-btn-hover-border);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.55);
+}
+body[data-gui-style="glossy"] .top-group-label { background-image: var(--b-gloss); box-shadow: inset 0 1px 0 rgba(255,255,255,0.5); }
+/* Windows 7's caption buttons: one glass strip hanging from the top edge,
+   rounded at the bottom corners, the close button wider and red. */
+body[data-gui-style="glossy"] #window-controls .win-btn { background: var(--b-gloss), var(--b-caption-bg); border-top: none; }
+body[data-gui-style="glossy"] #window-controls .win-btn + .win-btn { border-left: none; }
+body[data-gui-style="glossy"] #window-controls .win-btn:first-child { border-bottom-left-radius: 5px; }
+body[data-gui-style="glossy"] #window-controls .win-btn:hover { background: var(--b-gloss), var(--b-caption-hover); }
+body[data-gui-style="glossy"] #window-controls .win-btn-close { width: 46px; border-bottom-right-radius: 5px; background: var(--b-gloss), var(--b-close-bg); }
+body[data-gui-style="glossy"] #window-controls .win-btn-close:hover { background: var(--b-gloss), var(--b-close-hover); }
+body[data-gui-style="glossy"] #window-controls .win-btn svg { filter: drop-shadow(0 0 1px rgba(0,0,0,0.9)) drop-shadow(0 0 1px rgba(0,0,0,0.6)); }
+body[data-gui-style="glossy"] .tab-context-item:hover {
+  background: var(--b-gloss), color-mix(in srgb, var(--b-accent) 16%, var(--b-menu));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b-accent) 45%, transparent);
+}
+
+/* Neobrutal — Saltssaumure's Neobrutal: flat grey and white slabs outlined in
+   thick ink, hard offset shadows with no blur, the accent as a flat fill on
+   the thing you are on, and heavy grotesque type. Things lift toward you on
+   hover and press flat when clicked. */
+body[data-gui-style="neobrutal"] {
+  --b-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --b-nb-w: 3px; --b-nb-shadow: 3px 3px 0 var(--b-nb-ink);
+  --b-tab-radius: 5px; --b-tab-h: 30px; --b-tab-gap: 8px; --b-tab-align: center; --b-tab-border-w: 3px;
+  --b-tab-font: 700 12px "Helvetica Neue", Helvetica, Arial, sans-serif; --b-tab-active-weight: 800;
+  --b-tab-rest-shadow: var(--b-nb-shadow); --b-tab-shadow: var(--b-nb-shadow);
+  --b-tabbar-h: 46px; --b-tabbar-pad: 0 0 0 8px; --b-toolbar-h: 50px;
+  --b-btn-size: 34px; --b-btn-radius: 5px; --b-url-radius: 5px; --b-url-h: 34px; --b-ring-w: 0px;
+  --b-url-font: 700 14px "Helvetica Neue", Helvetica, Arial, sans-serif; --b-url-shadow: var(--b-nb-shadow);
+  --b-bookmarks-h: 38px; --b-bookmark-font: 700 12px "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --b-newtab-radius: 5px; --b-close-radius: 3px; --b-menu-glyph: '\2630';
+  --vex-radius-sm: 3px; --vex-radius-md: 5px; --vex-radius-lg: 5px; --radius-sm: 3px; --radius: 5px; --radius-lg: 5px;
+
+  --b-nb-ink: #111112; --b-nb-on-accent: #111112;
+  --b-frame: #ddddde; --b-frame-solid: #ddddde; --b-strip-fg: #111112; --b-strip-hover: #ffffff;
+  --b-tab: #f4f4f5; --b-tab-hover: #ffffff; --b-tab-active: #9d64df;
+  --b-tab-text: #300066; --b-tab-border: var(--b-nb-ink); --b-tab-active-border: var(--b-nb-ink);
+  --b-toolbar: #ddddde; --b-toolbar-border: var(--b-nb-ink); --b-btn-hover: #ffffff; --b-btn-hover-border: var(--b-nb-ink);
+  --b-icon: #111112; --b-icon-disabled: #8d8d93;
+  --b-url-bg: #ffffff; --b-url-bg-focus: #ffffff; --b-url-border: var(--b-nb-ink); --b-url-focus-border: var(--b-nb-ink);
+  --b-accent: #9d64df; --b-accent-ring: transparent;
+  --b-text: #300066; --b-text-dim: #5a4a74; --b-border: var(--b-nb-ink); --b-menu: #ffffff; --b-page: #ddddde;
+  --b-close-hover: #ff6b6b; --b-close-hover-fg: #111112;
+}
+body[data-gui-style="neobrutal"] .top-tabs-list { align-self: stretch; padding: 0 8px 0 2px; }
+body[data-gui-style="neobrutal"] .top-tab { border-bottom: var(--b-nb-w) solid var(--b-tab-border); transition: transform 0.12s ease-out, box-shadow 0.12s ease-out; }
+body[data-gui-style="neobrutal"] .top-tab.active { color: var(--b-nb-on-accent); border-bottom-color: var(--b-tab-active-border); }
+body[data-gui-style="neobrutal"] .top-tab.active .tab-close { color: var(--b-nb-on-accent); }
+body[data-gui-style="neobrutal"] .top-tab:hover:not(.active) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--b-nb-ink); }
+body[data-gui-style="neobrutal"] .top-tab:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--b-nb-ink); }
+body[data-gui-style="neobrutal"] .top-tab.in-group::before { top: 3px; height: 4px; border-radius: 0; }
+body[data-gui-style="neobrutal"] .top-group-label {
+  align-self: center; height: var(--b-tab-h); border: var(--b-nb-w) solid var(--b-nb-ink); box-shadow: var(--b-nb-shadow); font-weight: 800;
+}
+body[data-gui-style="neobrutal"] .new-tab-btn { border: var(--b-nb-w) solid var(--b-nb-ink); background: var(--b-tab); box-shadow: var(--b-nb-shadow); }
+body[data-gui-style="neobrutal"] #top-bar { border-bottom-width: var(--b-nb-w); border-top: var(--b-nb-w) solid var(--b-nb-ink); }
+body[data-gui-style="neobrutal"] #gui-shortcuts-bar { gap: 6px; border-bottom-width: var(--b-nb-w); }
+body[data-gui-style="neobrutal"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar) { border-width: 2px; }
+body[data-gui-style="neobrutal"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar):hover,
+body[data-gui-style="neobrutal"] #gui-shortcuts-bar .gsc:hover {
+  background: var(--b-btn-hover); border: 2px solid var(--b-btn-hover-border); box-shadow: 2px 2px 0 var(--b-nb-ink);
+}
+body[data-gui-style="neobrutal"] #gui-shortcuts-bar .gsc { border: 2px solid transparent; }
+body[data-gui-style="neobrutal"] #url-bar { border-width: var(--b-nb-w); }
+body[data-gui-style="neobrutal"] #url-bar:focus-within { box-shadow: 4px 4px 0 var(--b-accent); }
+body[data-gui-style="neobrutal"] #window-controls .win-btn:hover { box-shadow: inset 0 0 0 2px var(--b-nb-ink); }
+body[data-gui-style="neobrutal"] .tab-context-menu {
+  border: var(--b-nb-w) solid var(--b-nb-ink); border-radius: 5px; box-shadow: 6px 6px 0 var(--b-nb-ink); animation: none;
+}
+body[data-gui-style="neobrutal"] .tab-context-item { font-weight: 700; }
+body[data-gui-style="neobrutal"] .tab-context-item:hover { background: var(--b-accent); color: var(--b-nb-on-accent); }
+
+/* Terminal — a TUI, after system24: monospace everywhere, one dark
+   background, every region a square box drawn with a 2px line and a small
+   label cut into its top edge, the box you are in lit in the accent, and
+   text-mode tabs: [ 1: title ]. No corners anywhere. */
+body[data-gui-style="terminal"] {
+  --b-font: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --b-t-line: 2px;
+  --b-tab-radius: 0; --b-tab-h: 26px; --b-tab-gap: 0px; --b-tab-align: center;
+  --b-tab-font: 12px "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --b-tabbar-h: 30px; --b-tabbar-pad: 0 0 0 6px; --b-toolbar-h: 40px;
+  --b-btn-size: 30px; --b-btn-radius: 0; --b-url-radius: 0; --b-url-h: 28px; --b-ring-w: 0px;
+  --b-url-font: 13px "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --b-bookmarks-h: 28px; --b-bookmark-font: 12px "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --b-newtab-radius: 0; --b-close-radius: 0; --b-menu-glyph: '\2261';
+  --b-caption-w: 40px;
+  --vex-radius-sm: 0px; --vex-radius-md: 0px; --vex-radius-lg: 0px; --radius-sm: 0px; --radius: 0px; --radius-lg: 0px;
+
+  /* system24's defaults: oklch 19% ground, 75% text, 60% muted, a 20% grey
+     line and its purple accent. */
+  --b-frame: #1a1a1a; --b-frame-solid: #1a1a1a; --b-strip-fg: #8a8a8a; --b-strip-hover: #2c2c2c;
+  --b-tab: transparent; --b-tab-hover: #232323; --b-tab-active: #2c2c2c;
+  --b-tab-text: #8a8a8a; --b-t-bright: #f0f0f0;
+  --b-toolbar: #1a1a1a; --b-toolbar-border: #3a3a3a; --b-btn-hover: #2c2c2c;
+  --b-icon: #9a9a9a; --b-icon-disabled: #525252;
+  --b-url-bg: #1a1a1a; --b-url-bg-focus: #1a1a1a; --b-url-border: #3a3a3a; --b-url-focus-border: #b58ad5;
+  --b-accent: #b58ad5; --b-accent-ring: transparent;
+  --b-text: #cfcfcf; --b-text-dim: #8a8a8a; --b-border: #3a3a3a; --b-menu: #1a1a1a; --b-page: #1a1a1a;
+  --b-close-hover: #e0707f; --b-close-hover-fg: #1a1a1a;
+}
+body[data-gui-style="terminal"] { font-weight: 400; }
+/* Text-mode tabs. The counter numbers them as a terminal multiplexer does;
+   the brackets take the two pseudo-elements, and the leading one wears the
+   tab's group or container colour in place of the stripe it replaces. */
+body[data-gui-style="terminal"] #top-tabs-list { counter-reset: vex-tab; }
+body[data-gui-style="terminal"] .top-tab:not(.top-stack) { counter-increment: vex-tab; }
+body[data-gui-style="terminal"] .top-tab { gap: 4px; justify-content: flex-start; padding: 0 5px; }
+body[data-gui-style="terminal"] .top-tab::before,
+body[data-gui-style="terminal"] .top-tab::after {
+  content: '['; position: static; inset: auto; width: auto; height: auto; transform: none; border-radius: 0;
+  background: none; flex: none; color: var(--vex-session-mark, var(--group-color, var(--b-tab-text)));
+}
+body[data-gui-style="terminal"] .top-tab::after { content: ']'; color: var(--b-tab-text); }
+body[data-gui-style="terminal"] .top-tab .tab-title::before { content: counter(vex-tab) ': '; color: var(--b-text-dim); }
+body[data-gui-style="terminal"] .top-tab.active { color: var(--b-t-bright); }
+body[data-gui-style="terminal"] .top-tab.active::after,
+body[data-gui-style="terminal"] .top-tab.active:not(.in-group):not(.container-tab):not(.routed-tor):not(.routed-proxy)::before { color: var(--b-accent); }
+body[data-gui-style="terminal"] .top-tab.active .tab-title::before { color: var(--b-accent); }
+body[data-gui-style="terminal"] .top-tab.pinned { flex-basis: 44px; min-width: 44px; max-width: 44px; gap: 3px; }
+body[data-gui-style="terminal"] .top-tab .tab-close svg { width: 8px; height: 8px; }
+body[data-gui-style="terminal"] .top-group-label {
+  background: transparent; color: var(--group-color, var(--b-accent)); border: var(--b-t-line) solid var(--group-color, var(--b-accent));
+  align-self: center; height: var(--b-tab-h); min-width: 0; padding: 0 10px; font-weight: 400; font-size: 12px;
+}
+/* Boxes: the toolbar, the page and the rail, each with its label on the line. */
+body[data-gui-style="terminal"] #top-bar {
+  margin: 8px 6px 0; border: var(--b-t-line) solid var(--b-toolbar-border); overflow: visible;
+}
+body[data-gui-style="terminal"] #top-bar:focus-within { border-color: var(--b-accent); }
+body[data-gui-style="terminal"] #top-bar::after {
+  content: 'nav'; position: absolute; top: -9px; left: 10px; padding: 0 4px; z-index: 2;
+  background: var(--b-frame-solid); color: var(--b-text-dim); font: 11px/16px var(--b-font); pointer-events: none;
+}
+body[data-gui-style="terminal"] #top-bar:focus-within::after { color: var(--b-accent); }
+body[data-gui-style="terminal"] #url-bar { border: none; background: transparent; box-shadow: none; }
+body[data-gui-style="terminal"] #url-bar:focus-within { box-shadow: none; background: transparent; }
+body[data-gui-style="terminal"] #url-bar::before { content: '>'; flex: none; margin-right: 6px; color: var(--b-accent); font: 13px var(--b-font); }
+body[data-gui-style="terminal"] #gui-shortcuts-bar { margin: 0 6px; border-bottom: none; }
+body[data-gui-style="terminal"] #gui-shortcuts-bar .gsc .ic { border-radius: 0; }
+body[data-gui-style="terminal"] #main-layout { box-sizing: border-box; padding: 4px 6px 6px; gap: 6px; }
+body[data-gui-style="terminal"] #content-area { border: var(--b-t-line) solid var(--b-toolbar-border); }
+body[data-gui-style="terminal"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar):hover { color: var(--b-accent); }
+body[data-gui-style="terminal"] .tab-context-menu { border: var(--b-t-line) solid var(--b-toolbar-border); box-shadow: none; animation: none; }
+body[data-gui-style="terminal"] .tab-context-item:hover { background: var(--b-btn-hover); color: var(--b-accent); }
+
 /* ---- 6. Theme mode: every colour derived from the active colour theme ---
    The shapes and type above stay; only the palette changes. Surfaces map onto
    the theme's own layers (deep -> frame, elevated -> toolbar and active tab,
    base -> field and page) and its text and accent. Hover washes are mixes of
    the theme's text colour, so they read correctly on light and dark themes
    alike. Declared after section 5 at higher specificity, so they win. */
+/* Oxford's group chips are a tint with near-black text, made for its cream
+   chrome. A dark look in its own colours puts that chip on its dark toolbar:
+   dark red on dark red (found 2026-09-29). There the chip is a tint of the
+   toolbar with text toward the look's own light text. Declared on the chips,
+   which is where the tokens resolve per group (theme-tokens.css). */
+html[data-theme="oxford"] body[data-gui-family="browser"]:not([data-gui-colors="theme"]):is([data-gui-style="firefox-dark"], [data-gui-style="chrome-dark"], [data-gui-style="fluent-dark"], [data-gui-style="terminal"]) :is(.top-group-label, .top-tab.in-group, .tab-group) {
+  --group-pill-bg: color-mix(in srgb, var(--group-color, #6366f1) 30%, var(--b-toolbar));
+  --group-pill-fg: color-mix(in srgb, var(--group-color, #6366f1) 40%, var(--b-text));
+  --group-pill-strip: color-mix(in srgb, var(--group-color, #6366f1) 60%, var(--b-toolbar));
+}
+
 body[data-gui-family="browser"][data-gui-colors="theme"] {
   --b-frame: var(--vex-bg-deep, var(--vex-bg-base)); --b-frame-solid: var(--vex-bg-deep, var(--vex-bg-base));
   --b-strip-fg: var(--vex-text-secondary); --b-strip-hover: color-mix(in srgb, var(--vex-text-primary) 12%, transparent);
@@ -465,6 +755,54 @@ body[data-gui-style="win98"][data-gui-colors="theme"] {
   --b-bevel-lo2: color-mix(in srgb, var(--b-98-face) 60%, #000000);
   --b-caption-bg: var(--b-98-face); --b-caption-hover: var(--b-98-face); --b-caption-fg: var(--vex-text-primary);
   --b-close-bg: var(--b-98-face); --b-close-hover: var(--b-98-face); --b-close-hover-fg: var(--vex-text-primary);
+}
+/* Fluent: Mica is the desktop showing faintly through the frame; here the
+   theme's accent does, a few percent over its deepest surface. The field's
+   underline is the text colour at half strength, as Windows draws it. */
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"])[data-gui-colors="theme"] {
+  --b-frame: linear-gradient(115deg, color-mix(in srgb, var(--vex-accent) 10%, var(--vex-bg-deep, var(--vex-bg-base))),
+    var(--vex-bg-deep, var(--vex-bg-base)) 55%, color-mix(in srgb, var(--vex-accent) 5%, var(--vex-bg-deep, var(--vex-bg-base))));
+  --b-tab-active-border: var(--vex-border-subtle);
+  --b-url-border: var(--vex-border-subtle); --b-url-focus-border: var(--vex-border-subtle);
+  --b-url-underline: color-mix(in srgb, var(--vex-text-primary) 50%, transparent);
+}
+/* Glossy: the glass band is the theme's accent mixed into its deepest
+   surface; the gloss overlay does the rest. Close stays red glass. */
+body[data-gui-style="glossy"][data-gui-colors="theme"] {
+  --b-frame: color-mix(in srgb, var(--vex-accent) 45%, var(--vex-bg-deep, var(--vex-bg-base)));
+  --b-frame-solid: color-mix(in srgb, var(--vex-accent) 45%, var(--vex-bg-deep, var(--vex-bg-base)));
+  --b-strip-fg: var(--vex-text-primary); --b-strip-hover: color-mix(in srgb, var(--vex-bg-elevated) 50%, transparent);
+  --b-tab: color-mix(in srgb, var(--vex-bg-elevated) 35%, transparent);
+  --b-tab-hover: color-mix(in srgb, var(--vex-bg-elevated) 65%, transparent);
+  --b-tab-text: var(--vex-text-primary);
+  --b-tab-border: var(--vex-border-strong); --b-tab-active-border: var(--vex-border-strong);
+  --b-btn-hover: color-mix(in srgb, var(--vex-accent) 24%, var(--vex-bg-elevated));
+  --b-btn-hover-border: color-mix(in srgb, var(--vex-accent) 60%, transparent);
+  --b-url-border: var(--vex-border-strong);
+  --b-caption-bg: color-mix(in srgb, var(--vex-bg-elevated) 25%, transparent);
+  --b-caption-hover: var(--vex-accent); --b-caption-border: var(--vex-border-strong); --b-caption-fg: #ffffff;
+}
+/* Neobrutal: the ink is the theme's text colour, the slabs its surfaces, and
+   the selected tab its accent, with the base colour written on it. */
+body[data-gui-style="neobrutal"][data-gui-colors="theme"] {
+  --b-nb-ink: var(--vex-text-primary); --b-nb-on-accent: var(--vex-bg-base);
+  --b-strip-fg: var(--vex-text-primary); --b-strip-hover: var(--vex-bg-base);
+  --b-tab: var(--vex-bg-elevated); --b-tab-hover: var(--vex-bg-base); --b-tab-active: var(--vex-accent);
+  --b-tab-text: var(--vex-text-primary); --b-tab-border: var(--b-nb-ink); --b-tab-active-border: var(--b-nb-ink);
+  --b-toolbar-border: var(--b-nb-ink); --b-btn-hover: var(--vex-bg-base); --b-btn-hover-border: var(--b-nb-ink);
+  --b-icon: var(--vex-text-primary);
+  --b-url-border: var(--b-nb-ink); --b-url-focus-border: var(--b-nb-ink);
+  --b-border: var(--b-nb-ink);
+}
+/* Terminal: one ground for everything, as in a terminal - the theme's
+   deepest surface - with its strong border for the box lines. */
+body[data-gui-style="terminal"][data-gui-colors="theme"] {
+  --b-toolbar: var(--vex-bg-deep, var(--vex-bg-base)); --b-toolbar-border: var(--vex-border-strong);
+  --b-tab: transparent; --b-tab-active: color-mix(in srgb, var(--vex-text-primary) 12%, transparent);
+  --b-tab-text: var(--vex-text-secondary); --b-t-bright: var(--vex-text-primary);
+  --b-url-bg: transparent; --b-url-bg-focus: transparent; --b-url-border: var(--vex-border-strong);
+  --b-menu: var(--vex-bg-deep, var(--vex-bg-base));
+  --b-close-hover-fg: #ffffff;
 }
 
 /* ---- 7. Sidebars: each look gets its own browser's (js/look-sidebar.js) --
@@ -648,3 +986,22 @@ body[data-gui-style="win98"] :is(#look-sb-max, #look-sb-close)::after { content:
 body[data-gui-style="win98"] #look-sb-nav .pnav-btn { width: 20px; height: 16px; color: var(--b-strip-fg); }
 body[data-gui-style="win98"] #look-sb-nav .pnav-btn:hover:not(:disabled) { background: var(--b-strip-hover); color: var(--b-strip-fg); }
 body[data-gui-style="win98"][data-sidebar-panel] #panels-container { background: var(--b-toolbar); }
+
+/* Fluent: Edge's side pane - on the right, from a toolbar button, the pane
+   one layer surface with the header in semibold. */
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) #look-sb-head { font-weight: 600; }
+
+/* Neobrutal: the rail and the panel are outlined slabs; the chosen tool is a
+   flat accent block. */
+body[data-gui-style="neobrutal"] #icon-sidebar { border-right-width: var(--b-nb-w); }
+body[data-gui-style="neobrutal"] #icon-sidebar .sidebar-icon.active {
+  background: var(--b-accent); color: var(--b-nb-on-accent); border: 2px solid var(--b-nb-ink); box-shadow: 2px 2px 0 var(--b-nb-ink);
+}
+body[data-gui-style="neobrutal"][data-sidebar-panel] #panels-container { border-right-width: var(--b-nb-w); }
+body[data-gui-style="neobrutal"] #look-sb-head { border-bottom-width: var(--b-nb-w); font-weight: 800; }
+
+/* Terminal: the panel is one more box, its header the label on its line. */
+body[data-gui-style="terminal"] #icon-sidebar { border: var(--b-t-line) solid var(--b-toolbar-border); }
+body[data-gui-style="terminal"] #icon-sidebar .sidebar-icon.active { background: var(--b-btn-hover); color: var(--b-accent); }
+body[data-gui-style="terminal"][data-sidebar-panel] #panels-container { border: var(--b-t-line) solid var(--b-toolbar-border); }
+body[data-gui-style="terminal"] #look-sb-head { font: 400 12px var(--b-font); color: var(--b-text-dim); }

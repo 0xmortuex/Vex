@@ -1,5 +1,535 @@
 # Changelog
 
+## v2.35.0 (2026-10-01) — Vex updates itself
+
+### New
+- **Updates from inside Vex.** When you open Vex and a newer version is out, a cover shows it with what is new since yours, and three choices: **Update now**, **Later** (asks again next time) and **Skip this version**. Update now downloads it with a progress bar, checks it against the checksum its release publishes (a damaged or changed file is refused and deleted), closes Vex with your tabs saved, installs quietly and opens Vex again. Settings › Check for Updates opens the same cover.
+- This version is the first that can do it: from here on, updates install themselves. If you are on an older version, install this one the usual way once.
+
+### Changed
+- The small update card in the corner is gone, and so is the old built-in updater that could close Vex on some PCs; the Stable/Latest channel choice still applies to the cover.
+
+## v2.34.5 (2026-10-01) — Tor's small print, checked on the build server
+
+Includes everything in v2.34.4, which was not published: two of its tests raced the disk on the build server, where Tor's download starts a moment later. The app is the same.
+
+## v2.34.4 (2026-10-01) — Tor's small print
+
+Includes everything in v2.34.3.
+
+### Fixes
+- **Stop Tor closes only your Tor tabs.** Tabs in a container, site rule or burner that go through Tor stay open; they stop loading until you use them again, and then Tor starts by itself. The Stop dialog says which is which.
+- Starting Tor again no longer shows "Downloading Tor 100%" when nothing is downloaded: it goes straight to "Starting Tor".
+- A site that does not answer inside a Tor tab now says so ("the site did not answer through Tor"), instead of blaming Tor; "Tor is not running" is said only when it is not.
+- Settings › Sync no longer names a device that is up to date as the one shortcut-tile sync is waiting for, after an older device synced.
+
+## v2.34.3 (2026-10-01) — No more ways around Tor, and your New Tab tiles on every device
+
+### Privacy
+- **Tab icons showed a Tor or proxy tab's site your real address.** Vex's own window fetched the icon, and it goes out directly. Icons of Tor, proxy, container, burner and private tabs are now fetched through the tab's own connection, and the lists (history, bookmarks, Read Later and the rest) never ask such a site for one.
+- **Switching a container, burner or site to Tor while Vex runs let pages load directly until Tor was up.** They now wait for Tor.
+- A "Tor tab" opened from a private window was not on Tor at all, while Vex said it was. Tor tabs now open from normal windows only, and say so.
+- Read Later's reading time, Page Watch and the AI's "read this address" no longer fetch a site you route through Tor, a proxy or a container from your real connection.
+- Site permissions (location, camera, notifications…) are kept per container, and Settings shows which container each belongs to.
+
+### Tor
+- Stop closes Tor tabs in every window.
+- A Tor container, burner or site rule starts Tor again by itself when you use it after Tor stopped; a Tor page that cannot load says why instead of staying blank.
+- Tor that fails to start at launch is retried when you open a page that needs it.
+
+### Sync
+- **Your New Tab page tiles and the shortcuts bar now sync between devices**, one by one. They start once every device on the account runs this version or newer (Settings › Sync names a device it is waiting on), so an older one can never wipe them.
+
+### Also
+- Calls under a proxy: the routing settings now say that Discord and Meet calls may not connect, because WebRTC is kept to the proxy to hide your address.
+- The Discord connection fix keeps working when a container is set back to a direct connection.
+- Peek: a cookie banner that appears late no longer stops Escape from closing it.
+- A tab with JavaScript off keeps its Back list however long it waited in the background.
+- Extensions are told which tab is really in front.
+- Typing an address the instant a new tab opens no longer loses it.
+
+## v2.34.2 (2026-09-30) — Tor stops when you are done with it, and the rest of the list
+
+### Privacy
+- **Tabs in a container or opened by a site rule got camera, microphone and notifications without asking**, and showed your local network address to WebRTC. They now ask like every other tab (Tor site rules refuse), and get the same ad blocker, downloads and browser identity as your normal tabs.
+- A site or container routed through a proxy no longer shows your real address through WebRTC.
+- Removing or changing a "Through Tor" site rule really lets it go: before, Tor kept running and started again at every launch. A tab from a removed rule that is still open stays on Tor until you close it, and never loads outside it.
+- A container's proxy or Tor route is no longer reset to a direct connection at startup by the Discord connection fix.
+- **A Tor tab could be given your location**: Vex's own location feature asked you, and when allowed, gave the page your saved position. Tor tabs and Tor site rules now never get it.
+
+### Tor
+- **Tor stops by itself** half a minute after the last page using it closes.
+- **A "Tor is running" sign with a Stop button** sits in the top bar while Tor runs, from the moment it starts.
+- Tor now ends with Vex even when Vex crashes; before, it kept running in the background.
+
+### Sync
+- Personas, tools, scheduled tasks, reminders and forced-dark sites now merge one by one between devices, instead of one device's whole list replacing the other's; tools and personas also show a synced change at once.
+- On the sync server: removing a device or wiping ends its sign-ins; email addresses are keyed with a secret; a sign-in that is abandoned no longer adds a device. Existing accounts move over by themselves the next time they sign in.
+
+### Tabs and keys
+- Ctrl+Shift+Z in Vex's own boxes (address bar, AI, notes) redoes instead of putting the page to sleep.
+- Ctrl+Tab goes through tabs in the order you see them and skips collapsed groups.
+- A tab that moves from a site with JavaScript off to a normal site keeps its Back list.
+- In Peek, a cookie banner no longer stops Escape from closing it.
+
+### Also
+- Settings › About says "Widevine ready (version …)" instead of raw code.
+- Mail: a wrong port is reported in 8 seconds, not 20; Load more goes on past 100 messages to the whole inbox.
+- The AI no longer receives your question twice; the cloud AI remembers as many turns for several tabs as for one.
+- Extensions can close a tab they opened (chrome.tabs.remove).
+- Pages with JavaScript off no longer fill the console with warnings.
+
+## v2.34.1 (2026-09-30) — Tor, sync, mail and the keyboard, tested for real
+
+The parts never tested before were driven for real this time: Tor started and checked at check.torproject.org, sync and mail against real servers run locally, updates against a local update server, and every shortcut and gesture sent as real keyboard and mouse input.
+
+### Security
+- **Electron 42.11** (castLabs, still Chromium 148), for four Electron security advisories: sandbox flags not passed to windows a sandboxed page opens, cross-origin reads through file and HTTP handlers, Node in a webview's web workers, and a poisonable preload code cache.
+
+### Privacy
+- **A link opened in a new tab from a Tor tab left Tor** and loaded over your real connection (target=_blank, middle-click, window.open). It now stays in the tab's own session; private, burner and container tabs too, and "Search for selection" and "Search Image with Lens" from such a tab.
+- **A burner identity or container routed through Tor leaked your real address through WebRTC.** It is now locked like a Tor tab; so is a window a Tor page opens.
+- Cancel while Tor is downloading really cancels; before, Tor started anyway a few seconds later.
+- Turning JavaScript off for a site now also works when you go to that site inside a tab already open.
+
+### Sync
+- **Joining sync on a device that already had bookmarks or notes deleted them.** They are now kept and uploaded; for anything the account already has, the account's copy wins. Notes merge one by one, like bookmarks.
+- Sync Now no longer fails with "Push returned 409" when another device synced first.
+- Failed sign-ins no longer leave extra devices in the device list.
+- A wrong recovery code says so, instead of "OperationError".
+- The "sync conflicts retained" message no longer comes back on every sync; of two edits to the same thing, the newer wins.
+- A sync server address ending in "/" works; a device the server signed out is told so.
+- Send to My Devices explains a failure in words; one unreadable item no longer loses the rest.
+
+### Mail
+- Inbox triage no longer sends a mail from your own server to Gmail, uses the account you have open, and opens the right Gmail account when you have several.
+- A local bridge (ProtonMail Bridge) with its own certificate can be added; certificate and TLS problems are explained in words; the setup form has a Security choice (TLS / STARTTLS).
+- A long inbox says it shows the newest 50 and can load more.
+- A phone number in an email is no longer taken for a verification code.
+
+### Keyboard and mouse
+- **Redo (Ctrl+Shift+Z) in a text box put the tab to sleep and lost what you typed.** Keys a text box or editor uses itself (redo, and bold and underline in editors) now stay with the page. Sleeping a tab that has text you typed asks first.
+- Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+R and Alt+Left/Right work while a page has focus; Ctrl+1–9 work from the address bar, and Ctrl+9 goes to the last tab.
+- Middle-click closes a grouped tab in the vertical list.
+- The update prompt is no longer covered by download notices ("Skip this one" clicked the download's Show).
+
+### Also
+- Peek: Escape that closes the site's own popup no longer closes Peek; Ctrl+Enter inside the page opens it as a tab.
+- A private window gets per-site switches the moment they change.
+- Questions about several tabs remember the conversation with the local AI too.
+- chrome.tabs.create gives the extension the tab it opened.
+- Restoring a backup says "Reminders restored", not "synced"; synced reminders keep their time across a clock change; extension updates leave no empty folder behind.
+- Update errors are short and plain; the New Tor Tab hint no longer says Tor must be running; the Update channel row in Settings › About is laid out properly.
+
+## v2.34.0 (2026-09-30) — 28 new themes and 5 new looks, after the popular Discord themes
+
+### New
+- **28 colour themes** after the most popular themes for Discord (from BetterDiscord's list), with their colours taken from each theme's own stylesheet: ClearVision, Dark Matter, Dusk Plus, Dark Plus, Terminal Green, AMOLED, Record Green, Dark Neon, Deep Midnight, SoftX, Neutron, Nocturnal, Tokyo Night, Material, Android Beige, Kaleidoscope, Code Dark, Synthesis, Virtual Red, Paper Red, Noctis Viola, Wildberry, GX Red, Gruvbox, RosyNight, Azurite, Neptune and EzLight. Every one reads well (text contrast checked), covers the New Tab page, and works in every look; the picker says which theme inspired each.
+- **Five new looks** in Settings › GUI Style and in setup: **Fluent** and **Fluent dark** (Windows 11: a tinted frame, rounded tabs, the accent pill under the tab you are on), **Glossy** (Aero-era glass and highlights), **Neobrutal** (thick outlines, hard shadows) and **Terminal** (monospace, box borders, tabs written as `[ 1: title ]`). Each takes the colours of your theme too.
+
+### Fixes
+- **Vex's own fonts were not loading** (Outfit, JetBrains Mono, Space Grotesk, Fraunces, Spectral): the font picker's rewrite of the font stylesheet had dropped them, so every choice of those fell back to whatever Windows had.
+- Firefox Light and Firefox Dark never reached the New Tab page, and only the first eight themes reached it through vex://start.
+- Updating Vencord no longer loses its settings; installing or updating an extension in safe mode waits for a normal restart.
+- Extension popups are sized exactly, small ones included (Stylus's is 246×117, as in Chrome).
+- A private window picks up a per-site switch changed later in the normal window, within a few seconds.
+- Permission prompts wait their turn instead of the second removing the first; one that runs out after two minutes goes away and says so.
+- Escape inside a Peek or Responsive Preview page closes it, when the page does not use Escape itself.
+- Clear History also clears the backup copy of your tab list.
+- Master Volume, the page volume and Night mode reach a player in a frame that loads later; Night mode no longer re-routes players it already handles.
+- With a persona on, Group Tabs and questions about several tabs keep their own instructions; history search and agent tasks go into the chat of the tab you are on, and a history search's answer is kept with the chat.
+- The shortcut editor can record keys Vex itself answers (Ctrl+T, Ctrl+W, Ctrl+K), however long you wait.
+- Group arrows in the vertical tab list point the right way and are drawn as outlines; group chips are readable in the dark looks with Oxford.
+
+## v2.33.15 (2026-09-29) — The download check works from any shell
+
+Includes everything in v2.33.14, which was not published.
+
+### Fixes
+- **"Is this download signed?" could only say "unknown" when Vex had been started from a PowerShell 7 window.** Windows PowerShell, which reads the signature, inherited PowerShell 7's module list from Vex and could not load the part that reads signatures. The check now starts it with its own. Found by the build server, which runs that way.
+
+## v2.33.14 (2026-09-29) — Two sweeps of every feature: about two hundred fixes
+
+Seven testers used every part of Vex the way a person does: tabs and looks, the panels, the address and command bars and the Toolbox, page tools and media, privacy and your data, the AI, and extensions and the service panels. Each fix below was checked, and most were also seen working in a running Vex.
+
+### Security and privacy
+- **A downloaded file's name could run commands** when you opened it and Vex checked its signature: the name went into a PowerShell command, and a website chooses the name. It is now passed as data only.
+- **Lock Vex could be walked around.** A private window (Ctrl+Alt+N) opened unlocked and could read saved passwords, Tab reached the buttons behind the lock screen, Ctrl+H opened History behind it, and a restart unlocked Vex. While locked, nothing behind the lock screen can be reached, no shortcut works, the password vault and new private windows refuse, and Vex starts locked again after a restart.
+- **Opening a private window deleted every per-site rule**, and **turned the ad blocker back on** for every window. Neither happens now.
+- "Allow this visit" in a private window also allowed the site in your normal window. Each window's visit is its own now.
+- Clear History left every visit in the command bar's history and in Recall's full-text search. Both are cleared too.
+- Backups left out your notes, reading list, AI conversations, highlights and main settings, though the screen said they were included. They are in the backup now.
+- The Restore confirmation opened behind the backup screen, so a restore could not be finished. Vex's dialogs are now always on top.
+- A burner identity asked for Tor opened without Tor when Tor failed. It stops and says why. Its Tor route was also saved and started Tor at every launch.
+- A proxy of "hello" was accepted by container routing and reported as working. The address is checked now.
+- Changing a password on a site never offered to save the new one. It does now.
+
+### Keys and the address bar
+- **Vex took Ctrl+B, Ctrl+H, Ctrl+M and Ctrl+Shift+Z away from pages**: bold in an editor hid the tab sidebar, and redo put the tab to sleep. As in Chrome, the page now hears these keys first, and Vex acts only when the page does not use them. Ctrl+Shift+M in Discord mutes you again.
+- A shortcut could be set to a plain letter, which then could not be typed in any page. A shortcut needs Ctrl, Alt or a function key, and the keys for copy, paste, undo and the developer tools are refused.
+- **The search engine you chose was ignored**: Bing, Startpage and Ecosia all searched Google. The address bar, the command bar and "Search for …" on selected text now use your engine, and Settings lists all six.
+- localhost, 192.168.1.1, [::1]:3000, my-server:3000, about:blank and file:// addresses were searched instead of opened, and "node.js tutorial" opened a broken address. Both are right now.
+- "Go to" in the command bar lower-cased the address, which broke links like YouTube's.
+- **Print and View Page Source** are in the page's right-click menu and the command bar, with Ctrl+P and Ctrl+U. Vex had neither before.
+- Typing a command's exact name in Ctrl+K sometimes ran something else. The command you name comes first.
+- Plain sentences like "make me a timer for 10 minutes" work in Ctrl+K again.
+- "Duplicate Tab" (command bar, page menu, mouse gesture) switched to the original instead of copying it. The reopen gesture did nothing. "Sleep Tab" and Ctrl+Shift+Z never slept anything; they now move you to the next tab and put that one to sleep.
+
+### Tabs and looks
+- Pinned tabs were drawn full width in the Firefox, Chrome and other browser looks. They are icon-sized.
+- With many tabs, the tab you were on could sit off-screen in the top strip. It is scrolled into view.
+- **Text was invisible in the Firefox and Chrome looks** wherever accent text sat on the pale accent: the active Notes section, Schedules' "Active" tab, task toggles and more.
+- Tabs shown in split screen were put to sleep as if hidden.
+- "Close Tabs to the Right" worked on an internal order, not what you see.
+- Tabs were archived after a week even with auto-archive turned off in the Library.
+- Snoozed tabs are listed in the Library, where you can wake one early. One reopened by hand no longer comes back twice.
+- Workspaces can be renamed and deleted (the pencil in the workspace list, or right-click), and deleting asks first.
+- Restoring a session loads only the tab you are on, like workspaces.
+- Toasts no longer cover menu items and swallow the click.
+- Escape closes the group colour picker, the keep-awake chooser, Tab Health, the workspace list, the layout editor, the screenshot preview and editor, the Developer dashboard, Send to Phone, "Why is Vex slow" and the Setup Gallery.
+
+### Panels
+- **Text typed just before closing Vex was lost** from Notes and sticky notes.
+- Quick capture always ended in "Vex did not answer", though the note was saved.
+- Clock timers of a minute or more rang up to a minute early, and a one-minute timer showed an error. "In 1 minute" was refused as a reminder time. Site reminders showed "1 Jan at 02:00".
+- The world clock brought back cities you removed and undid the time slider.
+- Stopping a Focus session cancelled Meeting mode's hold on reminders.
+- Automations ran again every time you switched back to a tab, reported success for a command that did not exist, and never matched a time typed as "8:30".
+- Subscribed calendars dropped long-running daily events and moved monthly ones on the 31st to the wrong days.
+- "Play Read-Later as Podcast" never read anything. Ticking a task in a note could tick a line inside a code block. Relative links in feeds were broken. Meeting mode now opens its note. A sticky note saved off-screen comes back on screen.
+
+### Page tools and media
+- **Opening Master Volume locked every video at full volume**, overriding the site's own slider. Night mode and Master Volume can now be on together.
+- Reading mode's "Exit Reading Mode" button did nothing; running it twice lost the original page; code in paragraphs was repeated.
+- The Mark Up text tool's box could not be typed into. Tall full-page screenshots were too small to annotate.
+- Responsive Preview failed with an error. Citations split an organisation's name into initials. The media grabber showed the wrong file size. A saved PDF was named "dummy.pdf.pdf".
+- Right-clicking a video or a sound now offers Play/Pause, Loop, controls, Picture-in-Picture and its address.
+- The calculator: "5000 lbs to ton" works, the copied result matches the shown one, and kelvin has no degree sign. Base64 decodes padded input.
+
+### AI
+- **Stop while an approval card was open** left the task running for ever, and a later Approve still carried out the stopped action.
+- A chat answer could not be stopped, and typing "stop" was answered as a question. There is a Stop button while it answers.
+- With the local model, Translate ignored the language you chose, questions about several tabs ignored the tabs, Tab Command always said "Nothing to do", and Two Models answered without the page and made things up.
+- Summaries, translations and explanations vanished from the chat when the panel was redrawn. Retry asked the question twice. An answer starting with code lost its formatting. "/agent" and "/chat" were overridden by a help card.
+- An attached file stayed attached across New chat and every other tab. Remembered facts were dropped from long chats with a file.
+- Catch Me Up and the morning brief showed raw JSON. Teach mode recorded dropdowns as typing. The "running on the processor" warning showed when most of the model was on the graphics card.
+
+### Extensions and services
+- **Stylus's background stopped at start while Vex showed it On**, and popups and options pages got none of Vex's stand-ins for the parts of Chrome that Electron lacks. They all do now; Stylus starts and its popup works.
+- Violentmonkey is marked as not working: it needs two parts of Chrome that Electron does not have, so no script can run.
+- A popup opened from Settings › Extensions took itself for the page. Some popups opened clipped.
+- Every extension page, the PiP player and file:// pages raised errors from the ad blocker and from history.
+- Safe mode listed no extensions, so the one that broke the start could not be removed. It lists them, marked "not loaded".
+- The GitHub panel showed the previous user after a change of name, and "Loading…" for ever for an unknown user or offline.
+- The overlay window can be moved and closed with the mouse.
+
+### Second pass: every area again, and every fix above checked again
+The seven areas were tested a second time on top of the fixes, in the source and in the installed app, and each fix above was proved again. About ninety more were found and fixed:
+
+- **A web page could press Vex's keys and draw its mouse gestures** with made-up events, closing tabs and opening panels, even from a background tab. Only your own keyboard and mouse count now, and a gesture acts only on the tab in front.
+- **Ctrl+Alt shortcuts did the Ctrl one too** when Vex's own window had the focus: Ctrl+Alt+W (Watch page) closed the tab, Ctrl+Alt+T opened one, Ctrl+Alt+M muted.
+- **The page's right-click submenus could not be reached** (Page, This site, "More for this video/link/image/text"), so Print, View Page Source and the video rows were out of reach. The video rows now also work for videos in frames and shadow roots, and a refused Play says why.
+- **The window buttons were off-screen** below about 1130 px wide in the default look, a half-screen window included.
+- **Updating an extension erased its settings**: every update installed into a new folder, which gave it a new identity. Updates now replace the old copy in place. Stylus's popup works, popups are sized exactly, links and buttons in them open tabs, and a popup over a container tab knows the page.
+- **Lock Vex**: windows open before locking are hidden until you unlock, 2FA codes refuse while locked, keys from a private window act on that window only, and the wrong-PIN wait survives a restart. The lock PIN's hash is left out of backups.
+- **Private windows**: per-site switches (JavaScript, cookies, content from other sites) now apply there; the ad-blocker switch can't be changed from one; Switch Workspace no longer destroys its tabs; Snooze and Save Session say they can't work there instead of pretending.
+- **Autofill kept refilling** fields you had cleared, so another account could not be typed in. Clear History also erases the recently-closed list and the history's backup copies.
+- **The search engine you pick anywhere** (Settings, setup, the New Tab page) is used everywhere at once, and the New Tab page follows the same address rules as the address bar. Addresses in any script (münchen.de), Windows paths and C:\ files open; "readme.md" and "node.js" are searched. A failed address says why instead of a blank page.
+- **Restoring a backup lost the workspaces** at the restart it asks for, and Restart itself now saves everything first.
+- **Schedules "every 30 minutes" ran hourly**; calendar events in another time zone were an hour off for half the year; daily reminders drifted an hour after a clock change; checkboxes with + or • bullets ticked the wrong task.
+- **The AI**: questions with an ordinary "for" in them ("ideas for dinner") got a help card instead of an answer; Stop left a spinning bubble; stopping the agent then starting again broke the new run; Retry put its answer at the bottom; chats lost their times after a restart and the newest were deleted first; new answers had no Retry until redrawn; a custom persona answered "{}"; Restyle saved a refusal as CSS.
+- **Master Volume and the per-site volume** now work together and reach players in frames; Night mode can be turned off on any page.
+- **Escape closes every window and sheet in Vex**, also when it was opened from inside a page; icons drawn as text characters (✕ ✓ ✎ ⟳ ▲ ▼) are Vex's icons everywhere.
+
+Checked by the whole test suite (Node 22, as on the build server), the lint, type and source checks, both start-up checks, and live runs of Vex for each area in the source and in a freshly built installed app, including all 25 sidebar panels in the default and Firefox looks with no errors.
+
+## v2.33.13 (2026-09-29) — Extension popups open, and know which page you are on
+
+### Fixes
+- **Dark Reader's popup stayed on "Loading, please wait".** To fill it, Dark Reader asks its background for its settings, and the background also looks up the extension's keyboard shortcuts and whether it may read local files. Electron has neither of those, so the lookup failed and the popup never got an answer. Vex now answers both honestly: no keys are set for extension shortcuts in Vex, and local files are allowed, as Vex loads extensions that way.
+- **An extension's popup took itself for the page you were on.** Electron treats whichever page has the keyboard focus as the current tab, and a popup takes the focus when it opens. Dark Reader said "This page is protected by browser", and its switch for the site would have acted on the popup. Vex now tells the extension which tab the popup was opened over. It tells only that extension, and only while its popup is open.
+- **Popups opened too small, with scroll bars.** Vex sized a popup once, while it was still loading. It now resizes to fit whenever the popup's content changes, up to Chrome's 800×600 limit.
+
+This is also the way to fix a Google Doc that Dark Reader turns black: open Dark Reader from the extensions menu on the Doc, and click the site's name to turn it off there.
+
+Checked in a live Vex with Dark Reader: the popup opens complete with no scroll bars and names the page under it. Its site switch took Wikipedia from dark back to its normal light look.
+
+## v2.33.12 (2026-09-28) — The window stays on the screen
+
+### Fixes
+- **After fullscreen, the window hung off the screen.** Leaving fullscreen (F11, or a video's fullscreen button) left the window the size of the whole screen, no longer maximized: it ran past the right edge and under the taskbar, and a nudge moved it further out. Vex's window is transparent and frameless (for the glass look), and for such windows Electron does not reliably put them back. Vex now remembers where the window was and whether it was maximized, and returns it there when fullscreen ends, always within the screen.
+- **The maximize button did not restore down.** On the same kind of window, maximizing fills the screen but neither Electron nor Windows then reports it as maximized, so every press maximized again. The button now restores the window to the size and place it had before.
+
+Checked by measuring the real window through Windows: maximize fills the screen above the taskbar, a second press goes back to 1400×900 where it was, and fullscreen on and off returns it exactly as before, maximized or not.
+
+## v2.33.11 (2026-09-28) — "Check on VirusTotal" explains a file it has never seen
+
+### Fixes
+- **"Check on VirusTotal" could land on "Item not found" and look broken.** Vex looks a download up on VirusTotal by its fingerprint, and VirusTotal only has a report for a file somebody has already sent it. A new or rare file, such as a program released an hour ago, has none. The fingerprint was right (checked against the file); VirusTotal had simply never seen it. Vex now says what that page means, and opens the file's folder so you can drag it onto virustotal.com to scan it. Vex cannot tell beforehand which files VirusTotal knows, because asking it that needs an API key.
+
+## v2.33.10 (2026-09-28) — Six everyday snags, found by using Vex like a person
+
+Vex was driven the way a person uses it, with real clicks, typing and key presses, through five everyday routines: browsing; handling tabs with the mouse; the side panels; changing settings and restarting; and links, video, a download, the command bar and the AI. 37 of 39 steps worked first time or after the fixes below. The other two are shortcuts the test cannot press (see the end).
+
+### Fixes
+- **The first click after a download did nothing.** When a download finished, its little list opened under the toolbar together with an invisible layer over the whole window, so that clicking the page would close it. The next click anywhere, on the AI button, a tab or the command bar, only closed the list. The layer stays for clicks on the page, but a click on one of Vex's own buttons now also goes through to that button.
+- **Cancelling Split Screen with Escape left an invisible wall.** The "choose a tab" picker stayed on screen as a layer over the whole window, and swallowed the next click. Escape now cancels it, and turning split screen off closes it too.
+- **The tab menu ran off the bottom of the window.** It has about twenty items, and in a short window "Close Others" and "Close Tabs to the Right" could not be reached. It now scrolls, as do the other menus built the same way, including the page's right-click menu.
+- **The speaker on a tab did not mute it** in the top tab strip (the Firefox and Chrome looks); it only switched to the tab. It mutes and unmutes, as in the vertical tabs and in every other browser. With Shift, it chooses which speakers the tab plays through.
+- **"Split" in the command bar listed six toolbox tools, "Morse Code" among them, above Split Screen**, which was eighth. Vex's commands and the toolbox's tools are now ranked together, best match first, and a loose match comes after "Search".
+- **A finished download's card covered the AI panel's message box**, both being in the bottom-right corner. The card now moves beside the panel while it is open.
+
+### Checked and working
+Typing an address; suggestions as you type; clicking links; Back, Forward and Reload; find in page with its count; bookmarking with Ctrl+D; closing a tab and bringing it back; opening a link in a background tab with Ctrl+click; Ctrl+Tab and Ctrl+1 from the toolbar and from inside a page. Pinning, muting, duplicating, grouping, collapsing a group, sleeping, middle-click to close and dragging a tab to a new place. History and bookmark search, writing a note, a timer that rings, and the Downloads, Memory and Settings panels. Settings, open tabs, a pinned tab and a group all survive closing Vex with its X and opening it again, and a new search engine is used straight away. A right-clicked link opens in a new tab, a video plays, a download lands in Downloads, and the AI answers.
+
+### Could not be tested
+Ctrl+=, Ctrl+- and Ctrl+K are caught before they reach the window, where the test cannot send keys. They are worth one press each by hand.
+
+## v2.33.9 (2026-09-28) — The New Tab page keeps its own colours
+
+### Fixes
+- **With Dark Reader installed, the New Tab page turned flat grey.** Once Dark Reader started working in Vex (v2.33.2), it recoloured Vex's own New Tab page over Vex's theme, the way it does websites: the page is a local file, and extensions may read local files. Vex's own pages now carry the tag Dark Reader honours to leave a page alone, as Chrome keeps extensions off its own pages. Websites are still darkened as before.
+
+## v2.33.8 (2026-09-28) — PDFs open in the tab
+
+### Fixes
+- **A PDF opened as a blank page.** Chromium's PDF viewer is a plugin and only runs where plugins are on, and Vex built its tabs without them. Tabs now have them, so a PDF shows in the tab with the viewer's own toolbar (zoom, print, download). Nothing else is enabled by it: the PDF viewer is the only plugin Electron has.
+
+### Checked
+A sweep of the installed app (the packaged build, not the source) in a fresh profile, with no AI: it starts and survives a restart; web pages, find in page (the bar's count too), reader mode, side-by-side translation, split view, bookmarks, history, notes, a timer that rings, game mode on and off, private and Tor tabs, putting a tab to sleep and waking it, reopening a closed tab, the command bar, the right-click menu, the memory panel and running tasks, every Settings section, all 37 themes and 9 looks, and the Discord, Spotify and WhatsApp panels all worked, with no errors in the window. Twenty-one open tabs used 3.2 GB; putting the background ones to sleep brought that to 661 MB.
+
+## v2.33.7 (2026-09-28) — v2.33.6, with its checks passing on Windows
+
+### Fixes
+- **v2.33.6's own check failed on the Windows build machine.** A test compares the two copies of the extension "sync" stand-in, and a Windows checkout gave one file CRLF line endings and not the other. It now compares them without regard to line endings. Nothing in the app changed.
+
+## v2.33.6 (2026-09-28) — Return YouTube Dislike records votes, and the agent gets your best model
+
+### Fixes
+- **Return YouTube Dislike could not record a vote,** and other extensions whose background is a service worker could not save their settings. Their "sync" storage failed there, and Vex's stand-in only reached extension pages. Service workers now get it too, from a preload of their own, and pages and workers keep it in one place in the extension's own storage, so what one saves the other reads. Checked live: Return YouTube Dislike registers and saves all its settings with no errors, and Dark Reader still themes pages. Settings saved by the earlier stand-in (v2.33.2 to v2.33.5) are moved over once.
+- **Without a model chosen, the agent ran on llama3.2:3b,** whether you had it or not, and a model that small was not safe to act with: in a test it liked ten posts when asked to like one. It now uses the best model you have installed that can call tools, up to 14B (qwen3.5 on this machine). Choosing a model in Settings › AI always wins.
+
+## v2.33.5 (2026-09-28) — Extensions that add right-click items start up
+
+### Fixes
+- **An extension that adds right-click menu items stopped while starting.** Electron gives extensions no context-menu API, and uBlock Origin read it as it started and threw partway. Extensions that ask for it now get calls that succeed and add nothing; Vex has no extension items in its right-click menu. Checked across all eleven installed extensions: each loads, Dark Reader themes Wikipedia, Hacker News and BBC News properly (and leaves GitHub, already dark, alone), and the command bar calculator answers "12*7", "2^10" and "20 cm to in" in the real window.
+
+### Known
+- **Return YouTube Dislike cannot register your votes.** Its background runs as a service worker, where Electron's "sync" storage still fails, and Vex's stand-in only reaches extension pages. Seeing dislike counts is unaffected.
+- **uBlock Origin still stops at another missing API** (`webNavigation`). It could not block requests in Vex anyway; Vex's own ad and tracker blocker does that (Settings › Privacy).
+
+## v2.33.4 (2026-09-28) — The agent, round two: tabs, settings, and honest answers
+
+A second round of eight tasks on qwen3.5: comparing two open shops (passed), reading a chart that is only a picture (passed, by looking at it), finding one order in a table over three pages (passed), starting a Vex timer (passed), writing the three cheapest products into a note (the model ordered them wrongly), closing every tab but one, a vague "book a meeting room", and turning on streamer mode. The last three found bugs in Vex:
+
+### Fixes
+- **"Turn on streamer mode" could never work.** It is the agent's own example of a setting it can change, but streamer mode is a dropdown (While sharing your screen / Always on / Off), and "turn on" only ever looked at on/off switches, so it could not be reached and a switch with a word in common came closest. Turning a dropdown on or off now picks its On or Off, and one with neither says what its choices are. This also applies to "turn on …" typed in the command bar.
+- **Asked for a setting, the agent was shown features.** Looking up "streamer mode" listed eight unrelated features, and the agent switched on Meeting Mode and reported that streamer mode was on. When the words name a setting, the lookup now says so and how to change it.
+- **Closing and switching tabs always said it worked.** A run closed the one tab it was told to keep, then "switched" to it twice and never found out. Both now name the tab they closed or switched to, and refuse a tab that is not open.
+- **The agent is told never to make up what you did not say** (a time, a date, an amount, which one), and to ask instead. It does not always listen yet: given only "book a meeting room", it still picked a room and a time.
+
+## v2.33.3 (2026-09-27) — The AI agent, tested on hard tasks and fixed where it tripped
+
+Eight hard tasks were given to the agent on qwen3.5 (the model you use): comparing six products across their pages, a form with a hidden date rule, adding up a table, a feed that needs "Load more", tab groups and notes, a payment, a page with hidden instructions for AI agents, and a web research task. It passed four: the form (recovering from the date error by itself), the payment (handed it to you, typed no card), the hidden instructions (ignored them), and the research (found it, saved the note). The failures that were Vex's fault are fixed:
+
+### Fixes
+- **Browsing a list item by item was mistaken for a loop.** Going back to a list to open the next product repeats the same click every time, and each time it works. The loop guard stopped such a run at the third product, and the agent then wrote that no laptop qualified, having just added the right one to the cart. A repeated action is now allowed when something new was reached since the last time; list, same item, list, same item is still stopped.
+- **"Click Like" clicked the first Like on the page.** Asked to like one person's post, the agent pressed the first of fifteen Like buttons, which was someone else's. When several things on the page say the same, it now clicks none of them and is told which is which ("next to: nadia_k …"), with a selector for each.
+- **The agent did sums in its head, and got them wrong.** It picked the right four rows and added them up to 105.80 instead of 99.00. It now has a calculator (the command bar's own: arithmetic, units, currency) and is told to use it for every total, difference, average or percentage.
+- **The command bar calculator never worked in the app.** "12*7" and every other sum came back with nothing: the calculator worked them out with `Function()`, which Vex's own security policy forbids in its window, and only the tests (which have no such policy) ever saw an answer. It now works sums out with a small parser of its own; the agent's calculator uses the same one.
+- **The agent did what its reasoning had just ruled out.** It wrote "Titan X has a 4.3 rating, so I should not add it to the cart" and pressed Add to cart in the same step, copying the button from its last one, until nine laptops were in the cart. When its reasoning says not to click, add, buy, like or submit, that action is now refused and it is told to do what it said.
+- **The selectors given for "which Like?" were gone a step later.** Vex numbers a page's elements afresh before every step, which overwrote them; they now use an attribute of their own.
+- **Every release check left a real Windows reminder task behind.** The restart smoke test started Vex with a fresh profile, whose weekly-review reminder registered a Windows Task Scheduler entry pointing at a deleted temporary folder. It now runs with scheduling off, like the other smoke test.
+
+## v2.33.2 (2026-09-27) — Compact group chips, and Dark Reader works
+
+### Changes
+- **Collapsed groups are compact chips, like Chrome's.** A group in the tab strip is as wide as its name (at least 120px, room either side) instead of sharing the width equally with the tabs, where four closed groups took more than half the strip. The tabs stretch over the rest, so the bar is still covered. Names are written as you typed them instead of in bold capitals.
+- **The tab strip is set in Segoe UI**, as in Firefox and Chrome, whatever font the rest of Vex wears.
+
+### Fixes
+- **Dark Reader broke every site.** Electron leaves out three Chrome extension APIs: `chrome.permissions`, `chrome.browserAction`, and a working `chrome.storage.sync`. Dark Reader tripped over each while starting and never themed a page, so every site stayed under its crude fallback: a dark background painted on every element, icons turned into grey bars, images blanked (Google's results looked broken). Extension pages now get honest stand-ins: permissions report what the extension was granted and grant nothing new, the toolbar icon and badge calls succeed and change nothing (Vex has no per-extension button), and "sync" storage is kept on this machine. Dark Reader now themes pages properly. Stylus, uBlock Origin and Return YouTube Dislike used sync storage too. v2.32.98 said Dark Reader "really darkened a page"; what was checked then was that fallback, not the real theme.
+
+## v2.33.1 (2026-09-27) — The extensions menu scrolls
+
+### Fixes
+- **The extensions menu ran off the bottom of the window.** With a dozen extensions listed above Vex's own tools, the rest of the menu was out of reach and could not be scrolled. It now stops at the bottom of the window and scrolls.
+
+## v2.33.0 (2026-09-27) — Group names as big as tab titles
+
+### Fixes
+- **Group names in the tab strip were small for their chip.** Since the chips grew to a tab's full size, their 10px capitals looked lost in them. They are now 12px, the tab titles' own size.
+
+## v2.32.99 (2026-09-27) — Four more extensions made for Vex, installable in one click
+
+### New
+- **Four more extensions made for Vex** are in Settings › Extensions › *Extensions worth installing*, each with an **Install** button:
+  - **GitHub Pulse**: a bar at the top of every GitHub repository with its latest workflow runs, deployment and release, and (with an optional read-only token) when its Cloudflare Worker was last deployed.
+  - **DevForum+**: on the Roblox Developer Forum, API names in code link to their docs, Alt+D searches the docs, and code without a Copy button gets one.
+  - **ChatKeep**: export a ChatGPT, Claude or Gemini conversation as Markdown, and keep one prompt library for all three. It sends nothing anywhere.
+  - **Cineverse+**: Paribu Cineverse with IMDb ratings on every film (with a free OMDb key), and on the booking page the soonest showings at your 6 nearest cinemas, using your location from Settings › Location.
+  They install once their releases are published on GitHub; until then the button says there is no release yet.
+
+## v2.32.98 (2026-09-27) — Install extensions in one click, RoSuite included
+
+### New
+- **Extensions install in one click.** Settings › Extensions › *Extensions worth installing* used to say: open the publisher's page, download the .zip, come back, press Install from .zip, find the file. Each entry now has an **Install** button that fetches the latest release from the publisher's own GitHub and installs it through the same checked path as a zip picked by hand. When one is already installed the button says **Update** and shows the version you have. The old copy is replaced only after the new one has loaded, so an update that fails leaves you with what you had. Vex decides where each comes from (the renderer can only name one of the listed extensions), and only takes GitHub release downloads. Checked live: Dark Reader, Stylus, Violentmonkey, Return YouTube Dislike and uBlock Origin each installed in 1–2 seconds, installing again kept one copy, and Dark Reader really darkened a page.
+- **RoSuite is in the catalogue**, the first extension made for Vex: a Roblox server browser (busiest first, filters, join a server), live game stats, profile value and activity, and a trade calculator. It installs once its 1.1.0 release is published on GitHub; until then the button says there is no release yet.
+
+## v2.32.97 (2026-09-27) — Watch the AI work, and read what it did at a glance
+
+### New
+- **You can watch the AI work.** On the page, a Vex cursor glides to each thing before it is clicked, typed into or chosen, and taps it. A ring marks what it is about to act on, a caption beside the cursor says what it is doing in its own words ("Adding the poster to the cart"), and typing appears a few letters at a time instead of all at once. The cursor ignores the mouse and cannot be styled by the page. It costs about half a second per action; **Settings › AI › Show the AI working** turns it off. Scheduled runs, which happen while nobody is watching, never show it.
+- **A task is one tidy card in the chat, not a bubble per step.** Every step used to be its own message: the reasoning with the raw tool call under it, then the result, the token cost, and every warning, each in a bubble of its own, about forty for a twelve-step task. Now the card shows the status, how long it has been going, the goal, and one live "Now:" line. The steps are folded away until you open them, one plain line each ("Clicked "Search" — now shows "Moon Knight Poster" …"), with chips to filter them: Clicks & typing, Pages & tabs, Reading, Web search, Vex, Problems, You. Click a step for the reasoning behind it, the exact action and the full result. The time and tokens sit in the footer. A question to you, a plan to approve, a hand-over and the answer stay messages of their own. Saved runs come back as the same card.
+
+### Fixes
+- **The AI could not tell what its actions did, so it did not know when it was done.** After a click it only heard 'Clicked "Add to cart"', never that the page now said "Added to cart: 1 item", and it kept going until it ran out of steps (40 steps, 92 seconds, 168,000 tokens on a three-step shop task). Every click, typing, key press and choice now reports what it changed: what is new on the page, the page it went to, or that nothing visibly changed. The same task now takes 7–15 steps and 20–60 seconds.
+- **It repeated actions that did nothing.** An identical click, typing or key press is refused when it last changed nothing and nothing else has happened to the page since; the AI is shown the last change that did happen and told to finish if that was the goal. An action that worked can still be repeated ("Next page", "Next page").
+- **Typing into a button came back as "Script failed to execute".** It now says that is a button, not a text field, and how to find the field.
+- **An answer wrapped in braces** (`{ "The task ...": "..." }`) was printed as it came; its words are shown instead.
+- The AI's instructions now say to use the open site's own search box when the task is about that site, and to finish as soon as a result shows the goal is done.
+
+### Known limit
+- On a small local model (tested with qwen3.5) the AI still makes judgement mistakes: it opened the second search result instead of the first in some runs, and sometimes searches the web when the site in front of it would do. The cursor makes those mistakes visible as they happen; a larger model makes fewer of them.
+
+## v2.32.96 (2026-09-27) — Your location answer is kept the way you gave it
+
+### Fixes
+- **"Allow this visit" for your location asked again every time.** A site's location request read only the answers saved for good, not the ones kept for this visit, so a site allowed for this visit got the prompt again each time it wanted the location. It now reads answers the same way camera, microphone and the rest do: allowed for this visit stays allowed until Vex closes. Checked on the cinema site: a second request got the location with no second prompt.
+- **"Allow for a day" for your location never ran out.** The end time was ignored for location, so a day's answer lasted for good. It now ends after the day, and the site asks again.
+- The list of site permissions no longer shows a day's answer that has already run out as allowed.
+
+## v2.32.95 (2026-09-27) — The tabs and groups cover the whole top bar
+
+### Changes
+- **The tabs and group chips stretch across the whole top bar.** In the Chrome, Firefox and Edge looks each tab stopped at 240px and each group at 140px, and the rest of the bar stayed empty: with one tab and four collapsed groups, more than half the strip was blank. Tabs and groups now share the full width equally in every look, as the Safari look already did, and shrink as more are opened (titles hide on very narrow tabs as before). Measured with one tab and four groups: five equal items of about 224px in the Firefox look, reaching the + button.
+- The window can still be dragged: a 40px strip before the minimise / maximise / close buttons stays free for it. Without any, the window could not be moved or snapped by its top bar.
+
+## v2.32.94 (2026-09-27) — "Near me" is measured from where you said you are
+
+### Fixes
+- **A site you allowed got your location rounded to about 11 km.** Since the September security audit, the location Vex hands a site was cut to one decimal place (about 11 km) and labelled as accurate only to 11 km. On a cinema site's "near me" list that put the point 5 km from the saved Home location, so the nearest cinemas and their distances were wrong, and many sites ignore a location that vague anyway. The location only ever reaches a site after you press Allow for it, and Chrome and Firefox give such a site the precise position, so Vex now gives your saved location to about 11 m, labelled accurate to 25 m. Everything else from the audit stays: the prompt, and only latitude and longitude ever reaching the page. Checked on that site: the near-me list now comes sorted by distance from the saved location.
+- Vex does not know where you are unless you tell it: sites get the location saved in **Settings › Location**. On a desktop PC, Windows' own location comes from the internet connection and is usually 10–50 km off, so the saved point (your phone's map will give you the coordinates) is what makes "near me" right.
+
+## v2.32.93 (2026-09-27) — Sites can ask for your location again
+
+### Fixes
+- **Every site that asked for your location was refused, and Vex never showed its "allow location?" prompt.** A cinema site (paribucineverse.com) said "Konuma izin vermeniz gerekiyor" (you need to allow location), and pressing its "İzin Ver" (Allow) button did nothing. Vex answers location requests itself, because Chromium's own location service does not work on Windows. But the page-side half asked the other half in a shape that its security check refuses (it sent an object where the check takes nothing or text). The refusal was caught quietly, and a caught error was treated as "denied". That had been the case for every site since the September security audit. The question now reaches Vex, the prompt appears, and the site gets the location you set in Settings › Location. Checked on that site: Vex asks, the site gets the coordinates, and its cinema list loads.
+- **Sites that check before they ask were told location was blocked.** Electron reports anything nobody has decided on as "denied", so a site that checks first shows its own "allow it in your settings" message instead of asking. A site you haven't decided on now reads as "prompt", one you allowed as "granted", and one you blocked still reads as "denied". This is the same correction notifications got in v2.32.85, now covering location too.
+
+## v2.32.92 (2026-09-27) — ChatGPT is not blocked from its own service
+
+### Fixes
+- **ChatGPT signed in showed "Content failed to load"**, in a tab and in the panel alike. Signed out it loads normally; signed in, its app also calls `bzr.openai.com`, which the tracker list Vex uses blocks outright (`||bzr.openai.com^`). That block first appears in the reporting profile's blocked-tracker log on the day ChatGPT broke, and it is the only one of ChatGPT's own requests the list blocks. Vex now lets that one host through **on ChatGPT's own pages only**; from every other site it is blocked exactly as before. Checked live: from chatgpt.com the request goes out, from example.com it is still blocked.
+
+## v2.32.91 (2026-09-27) — No space above anything in the tab strip
+
+### Fixes
+- **There was still space at the top of the tab strip.** The earlier fixes made the *tabs* fill the strip, and measured only the tabs. Measured from a screenshot of the reporting screen, the tabs were flush (1px), but the **group chips** (GAMING PLATFORM, CLAUDE AI TOOLS…) were fixed 22px pills in a 36px strip: 7px of empty strip above and below every group. A strip that is mostly collapsed groups is mostly that gap.
+  - Group chips are now as tall as a tab and shaped like the look's tabs, so a group reads as part of the row. Hovering one no longer lifts it off the bottom.
+  - The **+** button had a 4px margin under it, which made the strip taller than the tabs in the Classic, Edge and Safari looks (32+4 over 34, 28+4 over 28) and left a gap above every tab there. It is centred with no margin now.
+  - The active tab was shifted down 1px to overlap the strip's border line, but the strip clips anything outside it, so the overlap never showed and only left a line of strip above the tab. It sits flush now.
+  - The Firefox look's strip is 34px, the height of its tabs (was 36).
+  - Measured in every look with groups present: 0px above the tabs and the group chips in Classic, Chrome, Chrome dark, Firefox, Firefox dark, Edge and Safari. Below them is 0px, or in Classic, Edge and Safari the strip's 1px dividing line against the toolbar.
+
+## v2.32.90 (2026-09-27) — A right-click menu you can read at a glance
+
+### Changes
+- **The right-click menu on a page is grouped.** It had grown to twenty-odd rows in one column. Now:
+  - **Back / Forward / Reload** are one row of buttons at the top, like Edge and Chrome's newer menus (spelling suggestions still come first when you right-click a misspelled word).
+  - **What you clicked** comes next, with only the rows you reach for: a picture gets Save Image, Save Image As… and Copy Image; a link gets Open Link in New Tab and Copy Link; selected text gets Copy and Search. Everything else for it is under **More for this image / link / text**. A picture inside a link shows the picture first.
+  - **Page** (copy its address, copy as Markdown, open in a new tab or as an app, duplicate, send to phone, auto-refresh) and **This site** (dark mode, zap an element, reset the site's settings) are submenus.
+  - Submenus open on hover, or at once on a click, one at a time, and flip to the left near the right edge of the screen.
+  - A plain right-click on a page in a tab is now four rows (the buttons, Page, This site, Inspect Element) instead of fourteen.
+
+### Fixes
+- **A hovered row in any Vex menu was a blue bar with no words on it in the browser looks** (Chrome, Firefox, Edge and the rest). Those looks set the "dim" accent to the full accent, so the row's accent-coloured text sat on the same colour. Rows now get a light tint and keep their normal text colour, the way the command bar already did it. This applies to every menu that uses these rows, including the tab menus. Measured: 14.4:1 contrast in the Firefox look, 9.7:1 in Firefox dark.
+- Choosing a row no longer leaves the menu's invisible click-catcher behind to swallow your next click.
+
+## v2.32.89 (2026-09-27) — "Never" now reaches profiles that had already answered
+
+### Fixes
+- **Discord was still being put to sleep after a long while, days after being told to stop.** v2.32.84 changed the *default* for putting things to sleep on their own to "never", but a saved choice beats a default. The "let it sleep?" notices in the versions before that had an **Always** button, and one click on it saved "do it automatically". The profile this was reported from had exactly that (`vex.sleepConsent = "auto"`), so Discord kept being slept after fifteen minutes hidden and not in a call. On the first start of this version, a saved "auto" or "ask", and Discord's own saved "auto", go back to **never**, once, with a one-line notice saying so. It never runs again, so turning it back on in Settings › Performance is kept. Checked against a copy of that profile: the setting reads never, and a Discord hidden for three hours is left alone.
+
+## v2.32.88 (2026-09-27) — Right-click a picture and you can save it
+
+### Fixes
+- **Right-clicking a picture in Gemini's image viewer gave no way to save or copy it.** The menu had Back, Reload, the link rows… and nothing about the picture. Vex has always had Save and Copy Image, but only added them when Chromium reported that the thing under the pointer was an image — and Chromium only says that when the `<img>` itself is on top. Gemini lays a link over its pictures; other galleries make the picture click-through or paint it as a background. In all three Chromium reports "none", so the picture rows were dropped. The page now finds the picture actually under the pointer and the menu uses it. Checked on a test page in both a tab and a panel: a plain picture, one under a link (Gemini's layout), one that is click-through, and a background picture all get the full set.
+- **"Save Image As…" never asked where.** It was an ordinary download straight into Downloads, so there was no way to pick a name, a folder or a different place. There are now two: **Save Image** (straight to Downloads, as before) and **Save Image As…**, which opens the Windows Save dialog. The Downloads panel shows where you actually put it.
+- **Copy Image** works on those hidden pictures too. It used to ask Chromium for "the image at this point", which is the same question that had no answer; a picture the page found is now fetched in the page's own session (signed-in pictures stay signed in) and put on the clipboard. A WebP or AVIF picture that the clipboard cannot hold says so and points at Save Image.
+- **Search Image with Lens, Zoom Image and Ask Vex About This Image never showed.** They lived in a second menu that the main one removed the instant it opened. They are in the picture section now.
+- **In a panel, "Duplicate Tab" duplicated whatever tab was open behind it**, and Auto-refresh had no tab to refresh. A panel no longer shows either. "Copy as Markdown link" and "Open as App" now use the page you right-clicked for the title, not the active tab.
+
+## v2.32.87 (2026-09-26) — A panel Windows closes comes back by itself
+
+### Fixes
+- **Discord and Claude kept closing while a game was running, and had to be opened again by hand.** This was not one of Vex's sleepers — all of those have been off since v2.32.84. The crash log says what it was:
+  `page crashed: https://discord.com/channels/@me — killed (exit -1073741510)`, next to the audio service dying in the same second. That exit code is the operating system taking the process: with 16 GB shared with a game, Windows reclaims memory from the biggest processes it can find, and the Discord panel — one to two gigabytes after a day — is the biggest thing Vex has. Tabs have healed themselves from this for a long time; **panels never did**, so the panel went blank and stayed blank.
+  - A panel whose renderer is killed is now loaded again, where you were in it and not at its front page.
+  - If you are looking at it, it comes back in under a second. If it is out of sight it comes back quietly.
+  - While the game is still running, a hidden panel is deliberately **not** reloaded on the spot — a gigabyte of Discord loaded back into a machine that has just run out of memory is killed again, and four of those in a row would spend the retries and leave it dead anyway. It comes back when the game ends, or the moment you open it, and the after-the-game notice says so.
+  - After four kills in two minutes it stops and says there is not enough memory for it right now, rather than fighting the operating system in a loop.
+
+## v2.32.86 (2026-09-26) — Nothing sleeps unasked, and the tab strip is the height of a tab
+
+### Fixes
+- **Pages were still being slept without being asked about.** v2.32.84 put one setting in front of every unattended sleeper and set it to *never*, but the four guards were written the wrong way round: each one read "if the setting cannot be read, go ahead and sleep". So any moment the setting was not yet loaded — the seconds after a window opens, a sub-window that does not load it at all — the memory sweep, the idle-tab discard, the panel timer and the game-mode sweep all fell back to sleeping, which is how "High memory — slept 3 idle tabs" still appeared with the setting on *never*. A guard that falls back to acting is no guard at all: the one case it exists for is exactly when it would close the pages anyway. All four now fail closed — if the answer cannot be read, nothing sleeps.
+- **The tab strip still left space above the tabs.** The first pass narrowed the inset but not the strip, so the bar stayed taller than the tabs it holds. The strip is now the height of a tab: in the Chrome looks the bar and the tab are both 34px and the fill is exact, and in Firefox the remaining gap is 1px. The window controls and the new-tab button have not moved.
+
+## v2.32.85 (2026-09-26) — Sites can ask about notifications again, and the tab strip fits its tabs
+
+### Fixes
+- **"Notifications are blocked. Allow them in your browser or system settings, then try again."** — a site's own words, and there was no setting anywhere that would have helped, because nothing was blocked. Electron's permission check is a plain yes/no with no way to say *nobody has asked yet*, so every site that had not already been granted notifications read as **denied**: `Notification.permission` returned `'denied'` and `navigator.permissions` agreed. Most sites check that before asking — finding it denied they never ask at all, so Vex's own prompt was never reached and the advice in that message could not be followed.
+  - A site that has not been decided about is now told it may ask, and Vex's prompt appears as it was always meant to. A site that was really blocked still reads as blocked, and one already allowed is untouched.
+- **The tab strip left a band of empty space above the tabs.** The inset was bigger than the tabs needed in every look — 9px above them in the default and Edge looks, 8px in Chrome, 5px above and below in Firefox — so the strip read as not filled. It now hugs them: 4–5px in the Chrome-style looks and 3px either side in Firefox, with the window controls still where they were.
+
+## v2.32.84 (2026-09-26) — A page that paints nothing, and nothing that sleeps by itself
+
+### Fixes
+- **An API response showed a blank page.** Open a JSON endpoint that answers with an error — `{"error":"unauthorized"}` — and Vex showed nothing at all, where the same URL in Chrome read fine. The body was there the whole time and perfectly selectable: it was white text on a white page. Chromium's own viewer paints no background and colours its text for the scheme the browser reports; Vex copied that transparent background onto the page's surface, so the text landed on Vex's own light one. It hit every page that paints nothing of its own — a JSON response, a plain `.txt`, a directory listing.
+  - Such a page is now given a base that matches the scheme it is being styled for. Only such a page: a background on `<html>` stops a page's own body background reaching the canvas, so a site that styles only its body would have had our colour showing through its margins. And even then it is set at a specificity the page can always beat.
+- **Nothing sleeps by itself any more.** Asking was not enough, because there were more of these than had been found: the memory ceiling sweep, which sleeps idle tabs whenever Vex is over its limit, and **idle discard, which sleeps every background tab three minutes after the Vex window goes behind another app**. That last one is why switching to another program and back had reloaded what you were reading — reported twice, once as "the claude tab resets", once as "apps like discord and claude keep closing".
+  - **Settings → Performance → Before Vex puts anything to sleep on its own now defaults to *never do it*.** All six unattended sleepers are off: idle tabs, idle panels, Discord's memory watch, gaming mode, the memory ceiling, and the one that fired while Vex sat in the background. *ask me first* and *just do it* are still there for anyone who wants them.
+  - Vex still **says** when something has grown — a notice is information, not an action — and every button you press yourself still frees memory at once.
+
+## v2.32.83 (2026-09-24) — The agent answers with what it found, and "cancel it" cancels
+
+### Fixes
+- **Running out of steps no longer throws the work away.** A research run searched, read six good sources, kept searching, hit its step limit after eight minutes and 448,000 tokens, and printed *"Couldn't complete"* — having had the material since the sixth step. An exhausted run now writes the best answer it can from what it already read, as prose, with its sources. The same applies when it gets stuck in one place. Only if that fails too does it fall back to the old "here is what I tried" summary.
+- **Rewording a search is still the same search.** Loop detection compared tool arguments exactly, so "list of specific scientific historical errors in bible examples", "… examples list" and "… examples contradictions" all counted as different questions and the run went round twenty times. Two searches that share four fifths of their words are now one search. There is also a budget: after six searches Vex tells the agent to stop looking and answer from what it has. Reading is never rationed — that is the part that gathers anything.
+- **Three refusals in a row ends the run.** Being nudged to try something else only helps if it works; when it does not, every further turn is another minute of watching the same search. After the third, Vex stops and writes the answer.
+- **"Cancel it, now research something else" now cancels.** That whole sentence used to become the task — the run carried on, and "cancel it" was handed to the model as part of what to research. A cancel stops the run, and anything after it runs as its own request. Said with nothing running, Vex says so rather than looking ignored. "Stop the timer" and "cancel my subscription" are left alone: they are things to do, not this.
+
+## v2.32.82 (2026-09-23) — Nothing sleeps behind your back
+
+### Fixes
+- **Alt-tabbing into a game reset every tab you had open.** Gaming mode sleeps every background tab *and* every hidden panel the moment a game starts, and it is on unless you turn it off — so switching to a game and back meant coming home to reloaded pages, including the one you were reading. It no longer touches them unless you have said it may. A game is the one moment a question cannot be answered, so it does not ask mid-game: it leaves everything alone and offers once, afterwards, when there is somebody there to answer.
+- **One setting now governs every unattended sleeper**, because there were four and no single place to say no: the idle tab timer, the idle panel timer, Discord's memory watch, and gaming mode. Settings → Performance → **Before Vex puts anything to sleep on its own**: *ask me first* (the default), *just do it*, or *never do it*.
+  - Asked together, not one at a time — "Claude AI and Spotify have been idle for a while. Let them sleep?" rather than three questions in a row.
+  - Ignoring the notice is a no: it expires after half a minute and nothing is slept.
+  - **"Not now" is four hours of quiet.** Being asked the same question every minute is not being asked.
+  - A button you press yourself — Sleep it now, Free memory now, the keep-awake card — still acts immediately. The button is the answer; asking again would be theatre.
+  - Discord's own setting from v2.32.80 still overrides this for Discord; with nothing chosen there, it follows this one, so turning it off in one place turns it off everywhere.
+
+## v2.32.81 (2026-09-23) — "make me a timer" is the same request as "make a timer"
+
+### Fixes
+- **Recognising an order no longer depends on the exact words it was said in.** v2.32.78 taught Vex to carry out "make a timer for 10 minutes" without asking a model. It did not understand "make **me** a timer for 10 minutes" — the same request with one word added — and answered that one with a card about a feature instead. That is what matching sentence templates buys you: it works until the next sentence.
+  - It does not match shapes any more. It looks for the three things that have to be present — a thing Vex owns, something asking for it, and (for a countdown) a length — anywhere in the sentence, and rebuilds the request from them. "Make me a timer for 10 min", "give me a timer for 1 hour 30 minutes", "set a 5 min countdown", "start a 20 minute timer" and "hey vex start a stopwatch" all simply happen now.
+  - A question is still a question: "how do I make a timer" gets the guide, not a timer. A remark is still a remark: "the timer is wrong" is left alone. And a timer with no length given is handed to the model rather than guessed at.
+- **"You do it" now means something.** Shown a card explaining a feature, the obvious reply is to ask Vex to do it instead — and said to a model, that sentence has no subject at all. One answered it with instructions for embedding a timer in a Google Doc. Vex now remembers what the card was about: "do it", "you do it", "just do it" and the rest run the original request, or the feature the card named. A longer sentence like "do it in the background" is a new instruction, not this one.
+- **A guide is an explanation, not an action.** Asked "how do I split the screen", Vex reported directions as though it had just done something, which also meant the question never reached the guide card — so the "Do it" button on that card had nothing behind it.
+
+## v2.32.80 (2026-09-23) — Vex asks before it closes Discord, and a no means no
+
+### Fixes
+- **Discord is no longer slept or refreshed to save memory without your say-so.** Vex did both on a timer, silently. That is a decision about somebody's messages made without them: asleep, Discord cannot notify you until you open it again, and refreshing it reloads whatever was on screen. A browser that closes your chat to save memory it was never asked to save has the priority backwards.
+  - It asks now, in a notice that waits: **Let it sleep** / **Refresh it**, **Not now**, or **Always**. Ignoring it is a no — the notice expires after half a minute and Discord is left exactly as it was.
+  - **"Not now" means four hours of quiet**, not sixty seconds. Being asked the same question every minute is not being asked, it is being nagged.
+  - Only one question at a time, however often the watch runs.
+  - Settings → Performance: **ask me first** (the default), **just do it**, or **never do it**.
+- **And the second way it happened, which is probably the one you saw.** The general panel auto-sleep closed any idle panel, Discord included — so someone could be asked about Discord's memory, say no, and watch the other timer close it a minute later anyway. That loop now leaves Discord to the part of Vex that asks. This was reachable as soon as Discord was set to "only during a call", which the memory notice itself offers.
+
 ## v2.32.79 (2026-09-22) — A quieter console, and one crash fixed
 
 ### Fixes

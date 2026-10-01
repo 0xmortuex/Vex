@@ -80,7 +80,10 @@
     const out = [];
     let i = 0;
 
-    const isUl = (l) => /^\s*[-*•]\s+/.test(l);
+    // The same bullets the notes' checkboxes are counted by (NotesPanel.toggleTask,
+    // OpenTasks.LINE): "+" was not a list here, so a tick after a "+ [ ]" line
+    // landed on the wrong task (found 2026-09-29).
+    const isUl = (l) => /^\s*[-*+•]\s+/.test(l);
     const isOl = (l) => /^\s*\d+[.)]\s+/.test(l);
     const isQuote = (l) => /^\s*&gt;\s?/.test(l);
     const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
@@ -111,7 +114,7 @@
       if (isUl(line) || isOl(line)) {
         const ordered = isOl(line);
         const test = ordered ? isOl : isUl;
-        const strip = ordered ? /^\s*\d+[.)]\s+/ : /^\s*[-*•]\s+/;
+        const strip = ordered ? /^\s*\d+[.)]\s+/ : /^\s*[-*+•]\s+/;
         const items = [];
         while (i < lines.length && test(lines[i])) {
           items.push(`<li>${renderInline(lines[i].replace(strip, ''))}</li>`);

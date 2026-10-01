@@ -294,8 +294,12 @@ const Ollama = (() => {
       name: m.name || m.model,
       sizeMB: Math.round((m.size || 0) / (1024 * 1024)),
       vramMB: Math.round((m.size_vram || 0) / (1024 * 1024)),
-      // size_vram well under size means most of it is on the processor.
-      onGpu: (m.size_vram || 0) >= (m.size || 0) * 0.9,
+      // The share on the graphics card, as Ollama's own "84% GPU". onGpu used
+      // to need 90%, so a model 84% on the card — answering in 5-20 s — was
+      // reported as "running on the processor, expect minutes" (found
+      // 2026-09-29). Now it means what it says: most of it is on the card.
+      gpuPercent: m.size ? Math.round(Math.min(1, (m.size_vram || 0) / m.size) * 100) : 0,
+      onGpu: (m.size_vram || 0) >= (m.size || 0) * 0.5,
       expiresAt: m.expires_at || null,
       contextLength: m.context_length || null,
     }));

@@ -24,6 +24,9 @@ const SessionManager = {
   // `onlyTabs` saves a subset — a tab group saved as a session, from the
   // group's own right-click menu.
   saveCurrentSession(name, onlyTabs) {
+    // No tab of a private window is ever collected, so this said "Session
+    // saved" over a session with no tabs in it (found 2026-09-29).
+    if (window.VexTabPolicy.isPrivateWindow) throw new Error('A private window is never saved — its tabs are forgotten when it closes');
     const tabs = window.VexTabPolicy.snapshot(onlyTabs || TabManager.tabs);
     // Only when saving a chosen set (a tab group): "save this group" that
     // silently saves nothing is worse than an error. Saving the window as it
@@ -71,14 +74,19 @@ const SessionManager = {
       }
     }
 
-    // Open all tabs from session
+    // Recreate the session's tabs LAZILY, as a workspace switch does: only the
+    // tab switched to below gets a page. Creating them with createTab loaded
+    // every page of the session at once (found 2026-09-29).
     const restored = [];
     let selected = null;
     for (const [index, t] of (Array.isArray(session.tabs) ? session.tabs : []).entries()) {
       if (!window.VexTabPolicy.canRestore(t)) continue;
-      const tab = TabManager.createTab(t.url, false, t.groupId, { partition: t.partition });
-      tab.pinned = !!t.pinned;
+      const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
       tab.keepAwakeUntil = t.keepAwakeUntil || 0;
+      // The session keeps each tab's note (VexTabPolicy.serialize); restoring
+      // dropped it (found 2026-09-29).
+      if (t.note) tab.note = t.note;
+      tab.favicon = TabManager._persistableFavicon(t.favicon, tab.partition);
       TabManager.renderTabUpdate(tab);
       restored.push(tab);
       if (index === session.activeTabIndex) selected = tab;
@@ -89,6 +97,18 @@ const SessionManager = {
       TabManager.switchTab((selected || restored[0]).id);
     } else if (!TabManager.tabs.length) {
       TabManager.createTab(START_URL, true);
+    }
+
+    // A kept-awake tab has to be live, the way TabManager.init brings them
+    // back at start-up: restored lazily, it stayed unloaded until clicked
+    // (found 2026-09-29).
+    for (const tab of restored) {
+      if (tab.id === TabManager.activeTabId || !tab._lazy || !TabManager._isKeptAwake(tab)) continue;
+      try { TabManager._materializeTab(tab); }
+      catch (err) {
+        console.error('[Sessions] could not load a kept-awake tab:', err);
+        window.showToast?.('Could not load kept-awake tab ' + (tab.title || tab.url) + ': ' + err.message, 'error');
+      }
     }
 
     this.hideOverlay();
@@ -133,7 +153,8 @@ const SessionManager = {
     document.getElementById('session-save-btn').addEventListener('click', () => {
       const input = document.getElementById('session-name-input');
       const name = input.value.trim() || 'Session ' + new Date().toLocaleString();
-      this.saveCurrentSession(name);
+      try { this.saveCurrentSession(name); }
+      catch (err) { window.showToast?.(err.message, 'error'); return; }
       input.value = '';
     });
 
