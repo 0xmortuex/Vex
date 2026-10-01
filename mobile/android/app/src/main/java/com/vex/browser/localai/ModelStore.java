@@ -131,6 +131,15 @@ public class ModelStore {
         }
     }
 
+    /** The total at the end of a Content-Range header ("bytes 0-9/10"), or -1. */
+    static long totalFrom(String contentRange) {
+        if (contentRange == null) return -1;
+        int slash = contentRange.lastIndexOf('/');
+        if (slash < 0) return -1;
+        try { return Long.parseLong(contentRange.substring(slash + 1).trim()); }
+        catch (NumberFormatException error) { return -1; }
+    }
+
     /**
      * Fetch a model, resuming if there is a part file. Blocking: the plugin runs
      * it on its own thread and reports back through {@link Progress}.
@@ -156,6 +165,22 @@ public class ModelStore {
             if (already > 0) connection.setRequestProperty("Range", "bytes=" + already + "-");
 
             int status = connection.getResponseCode();
+            // 416: there is nothing past what is on disk. That is a download
+            // that finished and was killed before the rename — not an error to
+            // show for ever. Only when the server's own total agrees, though:
+            // "bytes */<total>" is the one thing that says the part is whole.
+            if (status == 416 && already > 0) {
+                long whole = totalFrom(connection.getHeaderField("Content-Range"));
+                if (whole == already && part.renameTo(target)) {
+                    progress.onProgress(already, already);
+                    progress.onDone(target);
+                    return;
+                }
+                // Longer than the file, or no total to check: start again.
+                if (!part.delete()) { progress.onError("The partial download could not be cleared"); return; }
+                progress.onError("The partial download did not match the server's file — try again to start it afresh");
+                return;
+            }
             // 206 means the server honoured the range; 200 means it ignored it
             // and is sending the whole file, so what is on disk is useless.
             boolean resuming = status == 206;
