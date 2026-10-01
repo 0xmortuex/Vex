@@ -158,3 +158,10 @@ describe('fetching a list the chrome is refused', () => {
     expect(merged.hide['example.com']).toEqual(['.ad']);
   });
 });
+
+describe('lines that look cosmetic but are not CSS', () => {
+  it('leaves out scriptlets and HTML filters', () => {
+    const parsed = VexBlock.parse('example.com##+js(set-constant, x, 1)\nexample.com##^script:has-text(ad)\nexample.com##.real-ad\n');
+    expect(parsed.hide['example.com']).toEqual(['.real-ad']);
+  });
+});

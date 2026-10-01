@@ -56,6 +56,9 @@ const VexBlock = (() => {
       if (!line || line.startsWith('!') || line.startsWith('[')) continue;
       // Cosmetic: example.com##.ad-slot  /  ##.ad-slot (generic)
       const cosmetic = line.match(/^([^#]*)##([^#].*)$/);
+      // uBlock's scriptlets (##+js(...)) and HTML filters (##^...) are not
+      // CSS selectors; kept, they only took places in the selector budget.
+      if (cosmetic && /^(\+js\(|\^)/.test(cosmetic[2])) continue;
       if (cosmetic) {
         const hosts = cosmetic[1] ? cosmetic[1].split(',') : ['*'];
         for (const host of hosts) {
