@@ -42,6 +42,8 @@ const VexSync = (() => {
 
   let pushTimer = null;
   let recordDocument = null;
+  // Set while the server holds a blob this phone has not been able to read.
+  let pullBlocked = false;
 
   function url() { return String(VexStore.get('vex.syncWorkerUrl', '') || '').trim(); }
 
@@ -208,6 +210,7 @@ const VexSync = (() => {
     state.revision = 0;
     state.remoteTabs = [];
     recordDocument = null;
+    pullBlocked = false;
     await VexBridge.vaultSet('vex.syncToken', '');
     await saveMeta();
   }
@@ -303,19 +306,35 @@ const VexSync = (() => {
       state.syncing = true;
       try {
         const answer = await request('/sync/pull', { method: 'GET' });
-        state.revision = Number(answer.revision) || 0;
         if (!answer.encryptedBlob) {
+          state.revision = Number(answer.revision) || 0;
+          pullBlocked = false;
           state.lastPullAt = new Date().toISOString();
           await saveMeta();
           return { ok: true, empty: true };
         }
-        const incoming = await SyncCrypto.decrypt(answer.encryptedBlob, state.key);
+        // The revision is taken only once the blob has been read. Taken
+        // before, a blob this key cannot open — signed in here before the
+        // recovery code was typed, so the phone made a key of its own — left
+        // the phone holding the server's current revision, and the next
+        // scheduled push was accepted: the other devices' data replaced by
+        // this phone's, under a key they do not have. Left behind, the push
+        // is refused as a conflict instead.
+        // Until it is, nothing is pushed either — the desktop's pullBlocked.
+        pullBlocked = true;
+        let incoming;
+        try { incoming = await SyncCrypto.decrypt(answer.encryptedBlob, state.key); }
+        catch {
+          throw new Error('This phone’s key does not open what is synced — enter the recovery code from your other device');
+        }
         const records = window.VexSyncRecords;
         // capture() first, so anything changed on this device since the last
         // push is part of the merge rather than being overwritten by it.
         recordDocument = records.capture(recordDocument || records.empty(), records.flatten(collect()), deviceId());
         recordDocument = records.merge(recordDocument, incoming);
         await applyIncoming(records.unflatten(records.values(recordDocument)));
+        state.revision = Number(answer.revision) || 0;
+        pullBlocked = false;
         state.lastPullAt = new Date().toISOString();
         state.lastError = null;
         await saveMeta();
@@ -330,6 +349,7 @@ const VexSync = (() => {
 
     async push() {
       if (!state.enabled || !state.key) return { ok: false, reason: 'not-signed-in' };
+      if (pullBlocked) return { ok: false, reason: state.lastError || 'What is synced could not be read here' };
       state.syncing = true;
       try {
         const records = window.VexSyncRecords;
@@ -378,6 +398,12 @@ const VexSync = (() => {
       const pulled = await this.pull();
       if (!pulled.ok) return pulled;
       return this.push();
+    },
+
+    /** Whether the account already holds a synced blob — a key exists somewhere else. */
+    async serverHasData() {
+      const answer = await request('/sync/pull', { method: 'GET' });
+      return !!answer.encryptedBlob;
     },
 
     async devices() {

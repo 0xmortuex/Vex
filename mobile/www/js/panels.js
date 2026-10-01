@@ -1076,11 +1076,21 @@ const VexPanels = (() => {
           try {
             await VexSync.verifyCode(emailInput.value.trim(), codeInput.value.trim());
             if (!(await VexSync.hasKey())) {
-              const code = await VexSync.createKey();
-              await VexUI.showRecoveryCode(code);
+              // An account that already has data has a key, on the device that
+              // made it. A fresh one here could never read that data, so ask
+              // for the recovery code instead of making one.
+              if (await VexSync.serverHasData()) {
+                const typed = await VexUI.prompt('Recovery code',
+                  'This account is already syncing — type the code your other device showed you');
+                if (!typed) { await VexSync.signOut(); VexUI.toast('Not signed in — the recovery code is needed'); this.sync(); return; }
+                await VexSync.useRecoveryCode(typed);
+              } else {
+                const code = await VexSync.createKey();
+                await VexUI.showRecoveryCode(code);
+              }
             }
-            await VexSync.syncNow();
-            VexUI.toast('Signed in');
+            const result = await VexSync.syncNow();
+            VexUI.toast(result.ok ? 'Signed in' : 'Signed in — but ' + result.reason, result.ok ? 2500 : 5000);
             this.sync();
           } catch (error) { VexUI.toast(error.message, 4000); }
         }));
@@ -1100,12 +1110,14 @@ const VexPanels = (() => {
       body.appendChild(heading('This account'));
       body.appendChild(valueRow('Sync now', state.lastPullAt ? 'Last received ' + when(Date.parse(state.lastPullAt)) : null, '', async () => {
         VexUI.toast('Syncing…');
-        const result = await VexSync.syncNow();
+        const result = await VexSync.syncNow().catch(error => ({ ok: false, reason: error.message }));
         VexUI.toast(result.ok ? 'Up to date' : result.reason, 4000);
         this.sync();
       }));
       body.appendChild(valueRow('Show the recovery code', 'What another device needs', '', async () => {
-        await VexUI.showRecoveryCode(await VexSync.recoveryCode());
+        const code = await VexSync.recoveryCode().catch(() => '');
+        if (code) await VexUI.showRecoveryCode(code);
+        else VexUI.toast('There is no key on this phone yet');
       }));
       body.appendChild(toggleRow('Sync history',
         'The last ' + VexSync.HISTORY_SLICE + ' pages, so the other device can find what you had open. '
@@ -1123,8 +1135,8 @@ const VexPanels = (() => {
           })), async deviceId => {
             VexSheets.close();
             if (await VexUI.confirm('Sign that device out?')) {
-              await VexSync.forgetDevice(deviceId);
-              VexUI.toast('Removed');
+              try { await VexSync.forgetDevice(deviceId); VexUI.toast('Removed'); }
+              catch (error) { VexUI.toast(error.message); }
             }
           });
         } catch (error) { VexUI.toast(error.message); }
