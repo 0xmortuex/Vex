@@ -1263,6 +1263,33 @@ results.libraryOpens = await page.evaluate(() => {
   return VexLibrary.flat().every(entry => typeof entry.run === 'function' && entry.name && entry.description);
 });
 
+// Tapping one has to do what it says. "Rules for one site" opens a sheet, and
+// the row used to close it again in the same tap; "Site permissions" opens a
+// panel, and Back from it should come back to the library, not the page.
+results.libraryRuns = await page.evaluate(async () => {
+  const tap = async name => {
+    const row = [...document.querySelectorAll('#panel-body .sheet-row')]
+      .find(node => node.textContent.startsWith(name));
+    row.click();
+    await new Promise(resolve => setTimeout(resolve, 300));
+  };
+  VexPanels.library();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await tap('Rules for one site');
+  const sheetStayed = VexSheets.isOpen();
+  VexSheets.close();
+
+  VexPanels.library();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await tap('Site permissions');
+  const opened = document.getElementById('panel-title').textContent;
+  VexPanels.back();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  const backTo = document.getElementById('panel-title').textContent;
+  VexPanels.close();
+  return [sheetStayed, opened, backTo].join(' | ');
+});
+
 console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
@@ -1311,6 +1338,7 @@ const expected = {
   undoPrivate: true,
   privateRelocks: 'true,true,true,2',
   bookmarkUndo: 'true,true,true',
+  libraryRuns: 'true | Site permissions | Everything Vex can do',
   findRowOffered: 'true,true,knot',
   readerLookDefault: '-,-,-,-',
   readerLook: 'serif,paper',

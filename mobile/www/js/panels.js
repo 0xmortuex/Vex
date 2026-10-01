@@ -594,7 +594,17 @@ const VexPanels = (() => {
         body.appendChild(VexSheets.row({
           label: entry.name,
           note: entry.description,
-          run: () => { close(); entry.run(); }
+          // Run it first and look at what it did. An entry that opened another
+          // panel is on top now, and Back should come here rather than to the
+          // page; one that opened a sheet keeps it — returning anything but
+          // true closed the sheet it had just opened, which is why "Rules for
+          // one site" never appeared. Anything else acts on the page, which
+          // this panel is covering, so the panel goes.
+          run: () => {
+            entry.run();
+            if (stack[stack.length - 1] === 'library' && !VexSheets.isOpen()) close();
+            return true;
+          }
         }));
       }
     },
