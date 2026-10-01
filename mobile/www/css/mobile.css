@@ -162,6 +162,15 @@ input, select, textarea { font: inherit; }
 body.private .tabstrip { background-color: var(--vex-accent); }
 body.private .tabstrip-tab, body.private .tabstrip-new { color: #fff; }
 
+/* The arrow that puts a suggestion in the box rather than going there. */
+.omni-fill {
+  flex: 0 0 auto; width: 38px; height: 38px; margin-right: -6px;
+  display: grid; place-items: center; border-radius: 10px;
+  color: var(--vex-text-muted);
+}
+.omni-fill svg { width: 17px; height: 17px; }
+.omni-fill:active { background: var(--vex-accent-dim); color: var(--vex-accent); }
+
 /* ── Bottom toolbar ──────────────────────────────────────────────────────── */
 .toolbar {
   flex: 0 0 auto;

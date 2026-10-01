@@ -186,10 +186,31 @@ await shot('01-start');
 await tap('#tb-url');
 results.omniOpen = await page.isVisible('#omnibox');
 await page.fill('#omni-input', 'mdn');
-await page.waitForTimeout(220);
+await page.waitForTimeout(400);                 // local rows, then the engine's
 results.suggestions = await page.$$eval('#omni-results .omni-row', rows => rows.length);
 results.suggestionHighlight = await page.$$eval('#omni-results mark', marks => marks.length);
+// The engine's own suggestions, under the local ones, each with the arrow that
+// puts it in the box instead of going there.
+results.engineSuggestions = await page.$$eval('#omni-results .omni-row',
+  rows => rows.filter(row => (row.textContent || '').includes('DuckDuckGo')).length);
+results.suggestFillArrows = await page.$$eval('#omni-results .omni-fill', fills => fills.length);
 await shot('02-omnibox');
+results.suggestFills = await page.evaluate(async () => {
+  const fill = document.querySelectorAll('#omni-results .omni-fill')[1];
+  if (!fill) return '';
+  fill.click();
+  await new Promise(resolve => setTimeout(resolve, 150));
+  return document.getElementById('omni-input').value;
+});
+// A private tab is private from the search engine too.
+results.suggestNotWhenPrivate = await page.evaluate(async () => {
+  const before = VexTabStore.active;
+  VexTabStore.active = () => ({ id: 'p', url: 'https://x.example/', incognito: true });
+  VexSearch.forgetSuggestions();
+  const answers = await VexSearch.remoteSuggest('something');
+  VexTabStore.active = before;
+  return answers.length;
+});
 await page.fill('#omni-input', 'example.com');
 await page.press('#omni-input', 'Enter');
 await page.waitForTimeout(450);
@@ -744,7 +765,9 @@ await browser.close();
 const expected = {
   welcomeShown: true, welcomeSteps: 4, welcomeDismissed: true, welcomeRemembered: true,
   startTiles: 4, startRail: 4,
-  omniOpen: true, suggestions: 2, suggestionHighlight: 1,
+  omniOpen: true, suggestions: 5, suggestionHighlight: 4,
+  engineSuggestions: 3, suggestFillArrows: 4, suggestFills: 'mdn meaning',
+  suggestNotWhenPrivate: 0,
   urlPill: 'example.com', startHidden: true,
   menuQuick: 4,
   siteSheetOpened: true, scriptsOff: true,

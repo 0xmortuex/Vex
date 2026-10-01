@@ -25,6 +25,7 @@ Everything else below is either matched or bettered.
 | Swipe the address bar to change tabs | ✅ | Plus swipe up for the switcher, down to reload |
 | Back/forward edge gestures | ✅ | Detected natively — page touches never reach the chrome |
 | Find on page | ✅ | |
+| Search suggestions as you type | ✅ | From the engine you chose, fetched natively because no suggestion endpoint allows a cross-origin request. Never in a private tab; Settings → Search to turn them off |
 | Desktop site | ✅ | Global default and per site |
 | Open links in new tab | ✅ | Settings → Tabs |
 | Block pop-ups | ✅ | A window you tapped for still opens |

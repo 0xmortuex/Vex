@@ -132,7 +132,7 @@ whole codebase:
 | `block/BlockEngine.java` | request matching inside `shouldInterceptRequest` |
 | `block/VexBlockPlugin.java` | the JS control surface for it |
 | `vault/VexVaultPlugin.java` | AES/GCM secrets under an Android Keystore key |
-| `system/VexSystemPlugin.java` | Biometrics, shortcuts, dictation, PiP, permissions, default browser |
+| `system/VexSystemPlugin.java` | Biometrics, shortcuts, dictation, PiP, permissions, default browser, the suggestion fetch |
 | `remind/VexRemindPlugin.java` | Alarms for reminders |
 | `remind/ReminderReceiver.java` | The notification when one comes due |
 | `widget/SearchWidget.java` | The home-screen search bar: search, voice, QR |

@@ -869,6 +869,13 @@ const VexPanels = (() => {
             id, label: engine.name, selected: id === VexSearch.engineId()
           })),
           async id => { await VexStore.set('vex.searchEngine', id); VexSheets.close(); this.settings(); })));
+      body.appendChild(toggleRow('Search suggestions',
+        'What the engine thinks you are typing, as you type it. It sees the letters before you press '
+        + 'go — never in a private tab, and never on something that is already an address.',
+        VexSearch.suggestionsOn(), async value => {
+          await VexStore.set('vex.searchSuggestions', value);
+          VexSearch.forgetSuggestions();
+        }));
       body.appendChild(valueRow('Homepage', 'What a new tab opens',
         VexStore.get('vex.homepage', '') || 'Start page', async () => {
           const value = await VexUI.prompt('Homepage', 'A URL, or leave it empty for the start page',

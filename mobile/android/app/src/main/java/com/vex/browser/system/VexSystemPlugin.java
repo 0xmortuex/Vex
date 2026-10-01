@@ -22,6 +22,8 @@ import androidx.core.content.pm.ShortcutInfoCompat;
 import androidx.core.content.pm.ShortcutManagerCompat;
 import androidx.core.graphics.drawable.IconCompat;
 
+import java.net.HttpURLConnection;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -222,6 +224,64 @@ public class VexSystemPlugin extends Plugin {
             case "notifications": return android.Manifest.permission.POST_NOTIFICATIONS;
             default: return android.Manifest.permission.INTERNET;
         }
+    }
+
+    // ── Fetching on the chrome's behalf ──────────────────────────────────────
+
+    /**
+     * A plain GET, for the search engine's suggestion endpoint.
+     *
+     * The chrome cannot make this request itself: none of the suggestion
+     * endpoints send an Access-Control-Allow-Origin header, so a fetch from the
+     * chrome's own origin is refused before it leaves. Native has no such rule.
+     *
+     * Deliberately narrow — https only, four seconds, 64 KB, no cookies and no
+     * redirect off https — because "fetch any URL for me" is a capability, not a
+     * convenience.
+     */
+    @PluginMethod
+    public void fetchText(PluginCall call) {
+        final String url = call.getString("url", "");
+        if (!url.startsWith("https://")) { call.reject("Only https"); return; }
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new java.net.URL(url).openConnection();
+                connection.setConnectTimeout(4000);
+                connection.setReadTimeout(4000);
+                connection.setInstanceFollowRedirects(false);
+                connection.setUseCaches(false);
+                connection.setRequestProperty("Accept", "application/json, text/plain, */*");
+                // No Cookie header is set, and no CookieHandler is installed for
+                // this connection, so the request carries no identity.
+                int status = connection.getResponseCode();
+                StringBuilder body = new StringBuilder();
+                if (status >= 200 && status < 300) {
+                    java.io.InputStream in = connection.getInputStream();
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    int total = 0;
+                    while ((read = in.read(buffer)) != -1 && total < 65536) {
+                        body.append(new String(buffer, 0, read, java.nio.charset.StandardCharsets.UTF_8));
+                        total += read;
+                    }
+                    in.close();
+                }
+                JSObject result = new JSObject();
+                result.put("ok", status >= 200 && status < 300);
+                result.put("status", status);
+                result.put("body", body.toString());
+                call.resolve(result);
+            } catch (Exception error) {
+                JSObject result = new JSObject();
+                result.put("ok", false);
+                result.put("status", 0);
+                result.put("body", "");
+                call.resolve(result);          // a failed suggestion is not an error
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }).start();
     }
 
     // ── Being the browser ────────────────────────────────────────────────────

@@ -371,10 +371,37 @@ const VexUI = (() => {
     }
   }
 
+  // Which keystroke a set of suggestions belongs to. Typing is faster than a
+  // phone's network, so an answer that arrives after you have typed two more
+  // letters is about a question you are no longer asking.
+  let suggestFor = '';
+
   async function renderSuggestions(text) {
     const list = clear($('omni-results'));
     const rows = VexSearch.suggest(text);
     for (const row of rows) list.appendChild(suggestionRow(row, text));
+
+    const typed = String(text || '').trim();
+    suggestFor = typed;
+    if (typed) {
+      VexSearch.remoteSuggest(typed).then(answers => {
+        if (suggestFor !== typed) return;                    // you have typed on
+        if (!answers.length) return;
+        const already = new Set(rows.map(row => (row.title || '').toLowerCase()));
+        already.add(typed.toLowerCase());
+        const fresh = answers.filter(answer => !already.has(answer.toLowerCase())).slice(0, 6);
+        if (!fresh.length) return;
+        // Below the local rows: what you have been to beats what a stranger
+        // thinks you meant.
+        const results = $('omni-results');
+        if (!results) return;
+        for (const answer of fresh) {
+          results.appendChild(suggestionRow({
+            kind: 'suggest', title: answer, url: VexSearch.searchUrl(answer)
+          }, text));
+        }
+      });
+    }
 
     // Recall: pages whose text contains what you typed, under the ordinary
     // suggestions, because it is a slower and less certain kind of answer.
@@ -400,7 +427,7 @@ const VexUI = (() => {
     item.setAttribute('role', 'option');
     const kind = el('span', 'kind');
     if (row.icon) kind.appendChild(el('img', { src: row.icon, alt: '' }));
-    else kind.appendChild(icon(row.kind === 'search' ? 'search'
+    else kind.appendChild(icon(row.kind === 'search' || row.kind === 'suggest' ? 'search'
       : row.kind === 'bookmark' ? 'star' : row.kind === 'recall' ? 'book' : 'history'));
     item.appendChild(kind);
     const lines = el('div', 'lines');
@@ -408,8 +435,32 @@ const VexUI = (() => {
     if (row.kind === 'search') title.textContent = 'Search for “' + row.title + '”';
     else title.appendChild(highlight(row.title, text));
     lines.appendChild(title);
-    lines.appendChild(el('span', 'u', row.snippet || row.url));
+    // A suggestion's second line would be the search URL, which tells nobody
+    // anything; the engine's name is the useful thing to say.
+    if (row.kind === 'suggest') {
+      const engine = VexSearch.ENGINES[VexSearch.engineId()];
+      lines.appendChild(el('span', 'u', engine ? engine.name : 'Search'));
+    } else {
+      lines.appendChild(el('span', 'u', row.snippet || row.url));
+    }
     item.appendChild(lines);
+
+    // Put it in the box instead of going there. Every other browser has this
+    // arrow and it is the difference between a suggestion you can refine and
+    // one you can only accept.
+    if (row.kind === 'suggest' || row.kind === 'search') {
+      const fill = el('button', { class: 'omni-fill', 'aria-label': 'Put “' + row.title + '” in the address bar' });
+      fill.appendChild(icon('arrow-up-left'));
+      fill.onclick = event => {
+        event.stopPropagation();
+        const input = $('omni-input');
+        input.value = row.title;
+        input.focus();
+        renderSuggestions(row.title);
+      };
+      item.appendChild(fill);
+    }
+
     item.onclick = () => { closeOmnibox(); openUrl(row.url); };
     return item;
   }
