@@ -143,13 +143,19 @@ input, select, textarea { font: inherit; }
 .pdf-pages {
   flex: 1 1 auto; min-height: 0; overflow: auto;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
+  /* Zoomed wider than the screen, a page must scroll both ways, not lose
+     its left edge to centring. */
+  align-items: safe center;
   padding: 8px; overscroll-behavior: contain;
 }
+/* A slot per page, sized before it is drawn, so the scrollbar is the whole
+   document from the start. */
 .pdf-page {
+  flex: none; position: relative;
   background: #fff; border-radius: 2px;
   box-shadow: 0 1px 6px var(--vex-shadow);
-  max-width: 100%;
 }
+.pdf-canvas { display: block; width: 100%; height: 100%; border-radius: 2px; }
 .pdf-waiting { padding: 40px 0; color: var(--vex-text-muted); font-size: var(--text-sm); }
 
 /* ── The tab bar ─────────────────────────────────────────────────────────────

@@ -24,8 +24,7 @@ const VexPdf = (() => {
     pages: 0,
     page: 1,
     scale: 1,
-    document: null,
-    rendering: false
+    document: null
   };
 
   let library = null;
@@ -35,8 +34,9 @@ const VexPdf = (() => {
     // A WebView too old for pdf.js's modules fails here rather than halfway
     // through a page, which is the difference between "download it instead" and
     // a blank screen.
+    await import('../vendor/pdf/vex-polyfills.mjs');
     library = await import('../vendor/pdf/pdf.min.mjs');
-    library.GlobalWorkerOptions.workerSrc = '../vendor/pdf/pdf.worker.min.mjs';
+    library.GlobalWorkerOptions.workerSrc = '../vendor/pdf/vex-worker.mjs';
     return library;
   }
 
@@ -45,55 +45,125 @@ const VexPdf = (() => {
     return convert ? convert(path) : path;
   }
 
-  async function renderPage(number) {
-    if (!state.document) return;
-    const page = await state.document.getPage(number);
-    // Render at the device's real pixels, then show at CSS pixels: a canvas
-    // rendered at 1x and scaled up is what makes a phone PDF look like a fax.
-    const ratio = Math.min(window.devicePixelRatio || 1, 3);
-    const width = $('pdf-pages').clientWidth - 16;
-    const base = page.getViewport({ scale: 1 });
-    const scale = (width / base.width) * state.scale;
-    const viewport = page.getViewport({ scale: scale * ratio });
+  // ── Drawing, a screenful at a time ──────────────────────────────────────
+  // Every page drawn up front was a canvas at the phone's real pixels each:
+  // around 8 MB a page on a Galaxy, so a 200-page textbook asked for more
+  // than a gigabyte and took the WebView down with it. Now each page is a slot
+  // of the right size, a page is drawn when it comes near the screen, and one
+  // that has scrolled far away gives its canvas back.
 
-    const canvas = el('canvas', 'pdf-page');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    canvas.style.width = Math.round(viewport.width / ratio) + 'px';
-    canvas.style.height = Math.round(viewport.height / ratio) + 'px';
-    $('pdf-pages').appendChild(canvas);
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    return canvas;
+  // What the slots were sized for. Zoom bumps it; a page drawn at an older one
+  // is drawn again when it is next on screen.
+  let generation = 0;
+  let observer = null;
+  let queue = Promise.resolve();
+  const drawn = new Map();          // page number → generation it was drawn at
+  let firstSize = null;             // CSS size of page 1, for slots not yet measured
+
+  function cssWidth() { return Math.max(100, $('pdf-pages').clientWidth - 16); }
+
+  async function viewportOf(number, ratio) {
+    const page = await state.document.getPage(number);
+    const base = page.getViewport({ scale: 1 });
+    const scale = (cssWidth() / base.width) * state.scale;
+    return { page, viewport: page.getViewport({ scale: scale * ratio }), css: { width: base.width * scale, height: base.height * scale } };
   }
 
-  // Which scale the pages on screen were drawn at. Zooming a long document
-  // used to do nothing at all: renderAll() refused to start while a render was
-  // in flight, and a fifty-page PDF is in flight for a while. Zoom bumps this
-  // instead, and the loop that is already running starts over at the new scale.
-  let wanted = 0;
+  function sizeSlot(slot, css) {
+    slot.style.width = Math.round(css.width) + 'px';
+    slot.style.height = Math.round(css.height) + 'px';
+  }
+
+  function release(slot) {
+    const canvas = slot.querySelector('canvas');
+    // A zero-sized canvas is the one way to make a WebView let go of its
+    // backing store now rather than at the next collection.
+    if (canvas) { canvas.width = 0; canvas.height = 0; canvas.remove(); }
+    drawn.delete(Number(slot.dataset.page));
+  }
+
+  function draw(slot) {
+    const number = Number(slot.dataset.page);
+    const mine = generation;
+    queue = queue.then(async () => {
+      if (!state.open || mine !== generation || drawn.get(number) === mine || !slot.isConnected) return;
+      if (!slot.__vexNear) return;                 // scrolled past before its turn
+      const ratio = Math.min(window.devicePixelRatio || 1, 3);
+      const { page, viewport, css } = await viewportOf(number, ratio);
+      if (!state.open || mine !== generation) return;
+      sizeSlot(slot, css);
+      const canvas = el('canvas', 'pdf-canvas');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      if (!state.open || mine !== generation || !slot.__vexNear) { canvas.width = 0; canvas.height = 0; return; }
+      const old = slot.querySelector('canvas');
+      if (old) { old.width = 0; old.height = 0; old.remove(); }
+      slot.appendChild(canvas);
+      drawn.set(number, mine);
+    }).catch(error => {
+      VexReport.note('PDF render failed: ' + (error.message || error), state.url);
+    });
+    return queue;
+  }
+
+  function watch() {
+    if (observer) observer.disconnect();
+    if (typeof IntersectionObserver === 'undefined') {
+      // No observer: draw them all, the old way, rather than nothing.
+      for (const slot of $('pdf-pages').children) { slot.__vexNear = true; draw(slot); }
+      return;
+    }
+    observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        const slot = entry.target;
+        slot.__vexNear = entry.isIntersecting;
+        if (entry.isIntersecting) draw(slot);
+        else if (drawn.has(Number(slot.dataset.page))) release(slot);
+      }
+    }, { root: $('pdf-pages'), rootMargin: '150% 0px' });
+    for (const slot of $('pdf-pages').children) observer.observe(slot);
+  }
+
+  /** Lay out a slot per page, sized like page 1 until each is measured. */
+  async function layout() {
+    generation++;
+    drawn.clear();
+    const box = clear($('pdf-pages'));
+    const { css } = await viewportOf(1, 1);
+    firstSize = css;
+    for (let number = 1; number <= state.pages; number++) {
+      const slot = el('div', 'pdf-page');
+      slot.dataset.page = String(number);
+      sizeSlot(slot, firstSize);
+      box.appendChild(slot);
+    }
+    watch();
+  }
 
   async function renderAll() {
-    wanted++;
-    if (state.rendering) return;          // the running loop will pick it up
-    state.rendering = true;
     try {
-      let drawing = -1;
-      while (drawing !== wanted && state.open) {
-        drawing = wanted;
-        clear($('pdf-pages'));
-        // Everything, in order, one at a time: a phone has no memory to spare
-        // for a hundred canvases at once, and a reader scrolls.
-        for (let number = 1; number <= state.pages; number++) {
-          if (drawing !== wanted || !state.open) break;   // zoomed, or closed
-          await renderPage(number);
-        }
-      }
+      await layout();
     } catch (error) {
       VexReport.note('PDF render failed: ' + (error.message || error), state.url);
       VexUI.toast('That PDF could not be drawn', 4000);
-    } finally {
-      state.rendering = false;
     }
+  }
+
+  /** Zoom: every slot scales with it, and what is on screen is drawn again. */
+  async function rescale(from, to) {
+    generation++;
+    const factor = to / from;
+    for (const slot of $('pdf-pages').children) {
+      sizeSlot(slot, { width: parseFloat(slot.style.width) * factor, height: parseFloat(slot.style.height) * factor });
+    }
+    // The old drawings stay, stretched, until the sharp ones replace them:
+    // better than a page going white under your thumb.
+    for (const slot of $('pdf-pages').children) {
+      const canvas = slot.querySelector('canvas');
+      if (canvas) drawn.delete(Number(slot.dataset.page));
+    }
+    watch();
   }
 
   function setCount() {
@@ -153,6 +223,10 @@ const VexPdf = (() => {
     close() {
       if (!state.open) return;
       state.open = false;
+      generation++;
+      if (observer) { observer.disconnect(); observer = null; }
+      for (const slot of [...$('pdf-pages').children]) release(slot);
+      if (state.document && state.document.destroy) state.document.destroy().catch(() => {});
       state.document = null;
       state.pages = 0;
       clear($('pdf-pages'));
@@ -163,8 +237,9 @@ const VexPdf = (() => {
     zoom(by) {
       const next = Math.max(0.5, Math.min(4, state.scale + by));
       if (next === state.scale) return;        // already at the end of the range
+      const from = state.scale;
       state.scale = next;
-      renderAll();
+      rescale(from, next);
     },
 
     download() {

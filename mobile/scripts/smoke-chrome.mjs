@@ -355,6 +355,58 @@ results.pdfBackCloses = await page.evaluate(async () => {
 });
 await shot('17-pdf');
 
+// A long PDF: a slot per page from the start, but canvases only near the
+// screen — drawing all sixty at a phone's pixel density is what used to take
+// the WebView down — and the far ones are given back as you scroll.
+function manyPagePdf(count) {
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>'];
+  const kids = [];
+  for (let index = 0; index < count; index++) kids.push((3 + index * 2) + ' 0 R');
+  objects.push('<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + count + ' >>');
+  for (let index = 0; index < count; index++) {
+    const content = 'BT /F1 24 Tf 72 700 Td (Page ' + (index + 1) + ') Tj ET';
+    objects.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ' + (4 + index * 2)
+      + ' 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>');
+    objects.push('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
+  }
+  let body = '%PDF-1.4\n';
+  const offsets = [];
+  objects.forEach((object, index) => {
+    offsets.push(body.length);
+    body += (index + 1) + ' 0 obj\n' + object + '\nendobj\n';
+  });
+  const xref = body.length;
+  body += 'xref\n0 ' + (objects.length + 1) + '\n0000000000 65535 f \n'
+    + offsets.map(offset => String(offset).padStart(10, '0') + ' 00000 n \n').join('')
+    + 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  return Buffer.from(body, 'latin1').toString('base64');
+}
+results.pdfLong = await page.evaluate(async base64 => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const realFetch = VexBridge.fetchFile;
+  VexBridge.fetchFile = async () => ({ path: 'data:application/pdf;base64,' + base64 });
+  await VexPdf.open('https://example.com/textbook.pdf', 'textbook.pdf');
+  await wait(1500);
+  const box = document.getElementById('pdf-pages');
+  const slots = box.querySelectorAll('.pdf-page').length;
+  const nearTop = box.querySelectorAll('canvas').length;
+  const firstDrawn = !!box.querySelector('.pdf-page[data-page="1"] canvas');
+  box.scrollTop = box.scrollHeight;
+  await wait(1500);
+  const lastDrawn = !!box.querySelector('.pdf-page[data-page="60"] canvas');
+  const firstGiven = !box.querySelector('.pdf-page[data-page="1"] canvas');
+  const atBottom = box.querySelectorAll('canvas').length;
+  const before = box.querySelector('.pdf-page[data-page="60"]').offsetWidth;
+  VexPdf.zoom(0.5);
+  await wait(1500);
+  const after = box.querySelector('.pdf-page[data-page="60"]').offsetWidth;
+  const sharp = box.querySelector('.pdf-page[data-page="60"] canvas');
+  VexPdf.close();
+  VexBridge.fetchFile = realFetch;
+  return [slots, nearTop > 0 && nearTop < 15, firstDrawn, lastDrawn, firstGiven, atBottom < 15,
+    Math.round(after / before * 10) / 10, !!sharp].join(' ');
+}, manyPagePdf(60));
+
 // ── Backup ──────────────────────────────────────────────────────────────────
 // The panel says what it carries before it carries it, and the file itself is
 // unreadable without the passphrase — which is the whole of the promise.
@@ -1751,6 +1803,7 @@ const expected = {
   switchToTab: 'true true',
   readerIcon: 'true false true true',
   readingOffline: 'true true',
+  pdfLong: '60 true true true true true 1.5 true',
   tabHistory: 'Three,One,All history -3 true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
