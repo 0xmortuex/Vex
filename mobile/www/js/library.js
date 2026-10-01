@@ -11,7 +11,8 @@ const VexLibrary = (() => {
   const SHELVES = [
     ['Browsing', [
       ['tabs', 'Tab switcher', 'Every open tab as a card, with search and groups. Swipe up on the address bar to get here.', () => VexUI.openTabGrid()],
-      ['groups', 'Tab groups', 'Name a set of tabs. Long-press a card in the switcher.', () => VexUI.openTabGrid()],
+      ['sleep', 'Sleeping tabs', 'A tab you have left stops running after a while — its timers, its animations — and wakes the instant you tap it.', () => VexPanels.tabsSettings()],
+      ['groups', 'Tab groups', 'Name a set of tabs, give it a colour, close the lot at once. Long-press a card in the switcher.', () => VexUI.openTabGrid()],
       ['private', 'Private tabs', 'No history, no cookies kept. Can be locked behind your fingerprint.', () => VexUI.newTab({ incognito: true })],
       ['sessions', 'Sessions', 'Save the tabs you have open, by name. They open on the desktop too.', () => VexPanels.sessions()],
       ['find', 'Find in page', 'Search the page you are on.', () => VexUI.openFind()],
@@ -24,9 +25,10 @@ const VexLibrary = (() => {
       ['reading-list', 'Reading list', 'Pages kept for later, marked off as you read them.', () => VexPanels.readingList()],
       ['pdf', 'PDFs', 'Read in Vex rather than downloaded — Android’s WebView cannot draw one, so Vex does.', () => VexUI.toast('Open any PDF link')],
       ['saved', 'Saved pages', 'The whole page kept on the phone, for reading offline — it opens with no connection at all.', () => VexPanels.savedPages()],
-      ['notes', 'Notes', 'A line about a page, or a passage kept from one. Select text and choose "Keep as a note".', () => VexPanels.notes()],
+      ['notes', 'Notes', 'A line about a page, or a passage kept from one. Select text and choose "Keep as a note", and export the lot as Markdown.', () => VexPanels.notes()],
       ['contrast', 'Contrast and night shade', 'For pages that are grey on grey, or too bright to read in bed.', () => VexPanels.appearance()],
-      ['zoom', 'Text size and pinch zoom', 'Per site, and forced on sites that forbid it.', () => VexPanels.appearance()]
+      ['zoom', 'Text size and pinch zoom', 'Per site, and forced on sites that forbid it.', () => VexPanels.appearance()],
+      ['ui-size', 'Interface size', 'Vex’s own buttons and labels, bigger. Android’s font-size setting only reaches the page.', () => VexPanels.appearance()]
     ]],
     ['Finding things again', [
       ['history', 'History', 'Everything you opened, searchable, by day.', () => VexPanels.history()],
@@ -60,7 +62,7 @@ const VexLibrary = (() => {
       ['details', 'Your details', 'What it types into a sign-up form when you ask.', () => VexPanels.details()],
       ['sync', 'Sync with the desktop', 'Bookmarks, reading list, sessions and rules, encrypted with a key only your devices have.', () => VexPanels.sync()],
       ['reminders', 'Reminders', 'Bring a page back this evening, tomorrow, at the weekend.', () => VexPanels.reminders()],
-      ['downloads', 'Downloads', 'With live progress from the system queue.', () => VexPanels.downloads()]
+      ['downloads', 'Downloads', 'With live progress from the system queue, a Stop button while one is running, and a way into the phone’s own Downloads folder.', () => VexPanels.downloads()]
     ]],
     ['The phone', [
       ['qr-scan', 'Scan a QR code', 'From the address bar. A 2FA code goes into the vault instead of opening.', () => VexUI.openScanner()],

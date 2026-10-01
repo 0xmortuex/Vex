@@ -392,20 +392,32 @@ const VexPanels = (() => {
     },
 
     // ── Notes ──────────────────────────────────────────────────────────────
+    /** Add one, or take them all with you. */
+    notesMenu(query = '') {
+      VexSheets.choose('Notes', [
+        { id: 'add', label: 'Write a note' },
+        { id: 'export', label: 'Export them all', note: 'As Markdown — a list of lines with their links' }
+      ], async choice => {
+        VexSheets.close();
+        if (choice === 'add') {
+          const tab = VexTabStore.active();
+          const text = await VexUI.prompt('A note', tab && tab.url !== 'about:blank'
+            ? 'About ' + VexSearch.prettyHost(tab.url) : 'Anything you want to keep');
+          if (!text) return;
+          await VexNotes.add({ url: tab ? tab.url : '', title: tab ? tab.title : '', text });
+          this.notes(query);
+        } else if (choice === 'export') {
+          const text = await VexNotes.exportMarkdown();
+          VexUI.downloadText('vex-notes.md', text, 'text/markdown');
+        }
+      });
+      return true;
+    },
+
     async notes(query = '') {
       const body = openShell('notes', 'Notes', {
         search: { value: query, placeholder: 'Search your notes', onInput: value => this.notes(value) },
-        action: {
-          label: 'Add',
-          run: async () => {
-            const tab = VexTabStore.active();
-            const text = await VexUI.prompt('A note', tab && tab.url !== 'about:blank'
-              ? 'About ' + VexSearch.prettyHost(tab.url) : 'Anything you want to keep');
-            if (!text) return;
-            await VexNotes.add({ url: tab ? tab.url : '', title: tab ? tab.title : '', text });
-            this.notes(query);
-          }
-        }
+        action: { label: 'Add', run: () => this.notesMenu(query) }
       });
       const mine = drawn;
       const notes = await VexNotes.search(query);
@@ -568,9 +580,27 @@ const VexPanels = (() => {
     },
 
     // ── Downloads ──────────────────────────────────────────────────────────
+    /** The two things that header button can mean. */
+    downloadsMenu() {
+      VexSheets.choose('Downloads', [
+        { id: 'folder', label: 'Open the Downloads folder', note: 'The phone’s own list of files' },
+        { id: 'clear', label: 'Clear this list', note: 'The list only — the files stay where they are' }
+      ], async choice => {
+        VexSheets.close();
+        if (choice === 'folder') {
+          try { await VexBridge.openDownloadsFolder(); }
+          catch (error) { VexUI.toast(error.message || 'Could not open it'); }
+        } else if (choice === 'clear') {
+          await VexDB.clear('downloads');
+          this.downloads();
+        }
+      });
+      return true;
+    },
+
     async downloads() {
       const body = openShell('downloads', 'Downloads', {
-        action: { label: 'Clear list', run: async () => { await VexDB.clear('downloads'); this.downloads(); } }
+        action: { label: 'Files', run: () => this.downloadsMenu() }
       });
       const mine = drawn;
       const rows = await VexDB.scan('downloads', { limit: 200 });
@@ -1032,12 +1062,24 @@ const VexPanels = (() => {
             VexSheets.close();
             this.settings();
           })));
-      body.appendChild(toggleRow('Dark pages', 'Ask sites for their dark theme',
-        VexStore.get('vex.darkPages', false), async value => {
+      const darkModes = [
+        [false, 'Never', 'Sites look the way they were written'],
+        ['theme', 'When Vex is dark', 'Which on Auto means when the phone is'],
+        [true, 'Always', null]
+      ];
+      const darkNow = VexStore.get('vex.darkPages', false);
+      body.appendChild(valueRow('Dark pages', 'Ask sites for their dark theme',
+        (darkModes.find(mode => mode[0] === darkNow) || darkModes[0])[1],
+        () => VexSheets.choose('Dark pages', darkModes.map(([id, label, note]) => ({
+          id: String(id), label, note, selected: id === darkNow
+        })), async picked => {
+          const value = picked === 'true' ? true : picked === 'false' ? false : picked;
           await VexStore.set('vex.darkPages', value);
+          VexSheets.close();
           const tab = VexTabStore.active();
           if (tab) await VexSiteRules.applyTo(tab);
-        }));
+          this.settings();
+        })));
       body.appendChild(toggleRow('Desktop sites by default', null,
         VexStore.get('vex.desktopDefault', false), value => VexStore.set('vex.desktopDefault', value)));
       body.appendChild(toggleRow('Data saver', 'Skip images on every site',
@@ -1439,6 +1481,17 @@ const VexPanels = (() => {
           })));
 
       body.appendChild(heading('Type'));
+      const scale = Number(VexStore.get('vex.uiScale', 1));
+      body.appendChild(valueRow('Interface size', 'Vex’s own buttons and labels, not the page',
+        (VexTheme.UI_SCALES.find(pair => pair[0] === scale) || VexTheme.UI_SCALES[0])[1],
+        () => VexSheets.choose('Interface size', VexTheme.UI_SCALES.map(([value, label]) => ({
+          id: String(value), label, selected: value === scale
+        })), async picked => {
+          await VexTheme.setUiScale(Number(picked));
+          VexSheets.close();
+          this.appearance();
+        })));
+
       const font = VexStore.get('vex.font', 'system');
       body.appendChild(valueRow('Interface font', null, (VexTheme.FONTS[font] || {}).label || 'System',
         () => VexSheets.choose('Interface font',

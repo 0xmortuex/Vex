@@ -104,7 +104,11 @@ const VexSiteRules = (() => {
       if (!tab || !tab.url) return null;
       const host = hostOf(tab.url);
       const rules = this.for(host);
-      const globalDark = VexStore.get('vex.darkPages', false);
+      // 'theme' means "whenever the browser itself is dark", which on auto is
+      // whenever the phone is — so going dark at sunset takes a site's white
+      // page with it, without a clock in here.
+      const darkMode = VexStore.get('vex.darkPages', false);
+      const globalDark = darkMode === 'theme' ? VexTheme.isDark() : darkMode === true;
       const globalDesktop = VexStore.get('vex.desktopDefault', false);
 
       const dark = rules.dark === null ? globalDark : rules.dark;

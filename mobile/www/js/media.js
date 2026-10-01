@@ -7,16 +7,33 @@
 // something you did not ask for.
 
 const VexMedia = (() => {
+  /**
+   * Which video on the page the bar is about. One definition, used by both the
+   * probe and the controls — they used to disagree, so on a news page full of
+   * clips the bar could show one video's state and pause another.
+   *
+   * Playing beats paused; between two in the same state, the bigger one wins.
+   * The width comparison is deliberately inside the same-state branch: a wide
+   * paused clip further down the page used to outrank the one actually playing,
+   * which made the bar report "nothing is playing" while something was.
+   */
+  const PICK = `(function(){
+    var best = null;
+    var videos = document.querySelectorAll('video');
+    for (var i = 0; i < videos.length; i++) {
+      var video = videos[i];
+      if (video.readyState < 2) continue;
+      if (!best) { best = video; continue; }
+      if (!video.paused && best.paused) { best = video; continue; }
+      if (video.paused === best.paused && video.clientWidth > best.clientWidth) best = video;
+    }
+    return best;
+  })()`;
+
   // Runs in the page. Returns what is playing, so the chrome knows whether to
   // offer the pop-up window at all.
   const PROBE = `(function(){
-  var best = null;
-  var videos = document.querySelectorAll('video');
-  for (var i = 0; i < videos.length; i++) {
-    var video = videos[i];
-    if (video.readyState < 2) continue;
-    if (!best || (!video.paused && best.paused) || video.clientWidth > best.clientWidth) best = video;
-  }
+  var best = ${PICK};
   if (!best) return JSON.stringify({ playing: false });
   return JSON.stringify({
     playing: !best.paused,
@@ -29,9 +46,7 @@ const VexMedia = (() => {
 })()`;
 
   const control = action => `(function(){
-  var videos = document.querySelectorAll('video');
-  var target = null;
-  for (var i = 0; i < videos.length; i++) if (!videos[i].paused || !target) target = videos[i];
+  var target = ${PICK};
   if (!target) return 'none';
   ${action}
   return 'ok';

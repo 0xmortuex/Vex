@@ -43,8 +43,12 @@ const VexPermissions = (() => {
     describe(host) {
       const entry = all()[host];
       if (!entry) return 'Nothing asked for yet';
-      const allowed = Object.entries(entry).filter(([, state]) => state === 'allow').map(([kind]) => KINDS[kind].label.toLowerCase());
-      const blocked = Object.entries(entry).filter(([, state]) => state === 'block').map(([kind]) => KINDS[kind].label.toLowerCase());
+      // A kind this version does not know about — a renamed one, or one from a
+      // newer build whose preferences synced down — must not take the site sheet
+      // with it, so the stored key stands in for the label.
+      const name = kind => ((KINDS[kind] || { label: kind }).label || kind).toLowerCase();
+      const allowed = Object.entries(entry).filter(([, state]) => state === 'allow').map(([kind]) => name(kind));
+      const blocked = Object.entries(entry).filter(([, state]) => state === 'block').map(([kind]) => name(kind));
       const parts = [];
       if (allowed.length) parts.push(allowed.join(', ') + ' allowed');
       if (blocked.length) parts.push(blocked.join(', ') + ' blocked');

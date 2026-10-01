@@ -28,7 +28,6 @@
     VexStore.prime('vex.blockEnabled', true),
     VexStore.prime('vex.blockAllowed', []),
     VexStore.prime('vex.blockLists', VexBlock.DEFAULT_LISTS),
-    VexStore.prime('vex.blockRules', null),
     VexStore.prime('vex.blockRulesAt', 0),
     VexStore.prime('vex.blockedTotal', 0),
     VexStore.prime('vex.textZoom', 100),
@@ -46,6 +45,7 @@
     VexStore.prime('vex.corner', 'soft'),
     VexStore.prime('vex.shadow', 'soft'),
     VexStore.prime('vex.font', 'system'),
+    VexStore.prime('vex.uiScale', 1),
     VexStore.prime('vex.tintToolbar', true),
     VexStore.prime('vex.toolbarPosition', 'bottom'),
     VexStore.prime('vex.autoHideToolbar', true),
@@ -107,6 +107,11 @@
     VexStore.prime('vex.clearItems', null),
     VexStore.prime('vex.clearOnExit', false),
   ]);
+
+  // Version 5 moved the filter lists into IndexedDB. The preference they used to
+  // live in is several megabytes and nothing reads it any more, so it goes —
+  // unconditionally, because removing a key that is not there costs nothing.
+  VexStore.remove('vex.blockRules');
 
   const native = await VexBridge.init();
   document.documentElement.dataset.native = native ? '1' : '0';

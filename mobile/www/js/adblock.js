@@ -80,8 +80,14 @@ const VexBlock = (() => {
 
     // Hand native whatever rules we have right now (cached or seed), then
     // refresh from the network in the background if the cache is stale.
+    //
+    // The cache is in IndexedDB, not in a preference. EasyList and EasyPrivacy
+    // parsed come to several megabytes, and a preference is a settings file that
+    // is read and parsed in full at every launch — which is what this used to do
+    // before the first page could be drawn.
     async apply() {
-      const cached = VexStore.get('vex.blockRules', null);
+      const row = await VexDB.get('blobs', 'blockRules').catch(() => null);
+      const cached = row && row.rules;
       const rules = cached && cached.block && cached.block.length ? cached : parse(SEED.join('\n'));
       await VexBridge.loadRules(rules);
       await VexBridge.setBlocking(this.enabled());
@@ -112,7 +118,9 @@ const VexBlock = (() => {
       }
       if (!got) return null;
       merged.block.push(...SEED);
-      await VexStore.set('vex.blockRules', merged);
+      await VexDB.put('blobs', { name: 'blockRules', at: Date.now(), rules: merged });
+      // Small enough to stay a preference, and the privacy panel draws it
+      // without waiting for a database read.
       await VexStore.set('vex.blockRulesAt', Date.now());
       await VexBridge.loadRules(merged);
       return merged;

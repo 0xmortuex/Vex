@@ -33,7 +33,7 @@ const VexBackup = (() => {
     'vex.activeTabUrl',
     'vex.closedTabs',
     'vex.sync',              // the sync key is bound to its own recovery code
-    'vex.blockRules'         // a megabyte of list, re-fetched in a minute
+    'vex.blockRules'         // gone in version 5; still named so an old one is never copied
   ]);
 
   function bytes(text) { return new TextEncoder().encode(text); }

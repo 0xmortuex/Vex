@@ -139,6 +139,9 @@ const VexSync = (() => {
         skin: VexStore.get('vex.skin', 'none'),
         font: VexStore.get('vex.font', 'system'),
         searchEngine: VexStore.get('vex.searchEngine', 'duckduckgo'),
+        // The definition travels with the choice. Without it the other device
+        // would store "custom" and have nothing to search with.
+        customEngine: VexStore.get('vex.customEngine', null),
         siteRules: VexStore.get('vex.siteRules', {}),
         blockEnabled: VexStore.get('vex.blockEnabled', true),
         shield: VexStore.get('vex.shield', 'standard'),
@@ -168,6 +171,7 @@ const VexSync = (() => {
       // theme you set here should not be undone by the other phone.
       for (const [key, value] of Object.entries({
         'vex.searchEngine': mobile.searchEngine,
+        'vex.customEngine': mobile.customEngine,
         'vex.siteRules': mobile.siteRules,
         'vex.blockEnabled': mobile.blockEnabled,
         'vex.shield': mobile.shield

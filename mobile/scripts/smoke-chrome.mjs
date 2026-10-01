@@ -598,6 +598,20 @@ results.linkSheetRows = await page.$$eval('#sheet-list .sheet-row', rows => rows
 await shot('12-longpress');
 await page.evaluate(() => VexSheets.close());
 
+// ── How big the interface is ────────────────────────────────────────────────
+// Android's font-size setting reaches a WebView's page text, not a web app's
+// layout, so this is Vex's own answer: one multiplier on the type scale, the
+// toolbar height and the tap target.
+results.uiScale = await page.evaluate(async () => {
+  const read = () => getComputedStyle(document.documentElement).getPropertyValue('--ui-scale').trim();
+  const toolbar = () => Math.round(document.getElementById('toolbar').getBoundingClientRect().height);
+  const before = { scale: read(), height: toolbar() };
+  await VexTheme.setUiScale(1.4);
+  const after = { scale: read(), height: toolbar() };
+  await VexTheme.setUiScale(1);
+  return { before, after, back: read() };
+});
+
 // ── Reading aloud ───────────────────────────────────────────────────────────
 // Headless Chromium has a speechSynthesis that accepts utterances and never
 // speaks, so the engine itself cannot be driven here. What can: that the article
@@ -1155,6 +1169,14 @@ if (String(results.clearDefaults) !== 'true,true,true,false,false,false') {
   failures.push('clearDefaults: the tick boxes do not start where they should (' + results.clearDefaults + ')');
 }
 if (results.clearRows < 9) failures.push('clearRows: the clear panel lost rows (' + results.clearRows + ')');
+if (results.uiScale.before.scale !== '1' || results.uiScale.after.scale !== '1.4'
+  || results.uiScale.back !== '1') {
+  failures.push('uiScale: the multiplier did not move (' + JSON.stringify(results.uiScale) + ')');
+}
+if (!(results.uiScale.after.height > results.uiScale.before.height)) {
+  failures.push('uiScale: the toolbar did not grow with it ('
+    + results.uiScale.before.height + ' → ' + results.uiScale.after.height + ')');
+}
 if (!results.undoClose.offered) failures.push('undoClose: closing a tab did not offer Undo');
 if (!results.undoClose.back || results.undoClose.url !== 'https://undo.example/') {
   failures.push('undoClose: Undo did not bring the tab back (' + JSON.stringify(results.undoClose) + ')');

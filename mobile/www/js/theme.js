@@ -56,6 +56,15 @@ const VexTheme = (() => {
     }
   };
 
+  // The four the interface can be. Bigger than 1.4 and the toolbar's buttons
+  // start to collide on a narrow phone, which is worse than small text.
+  const UI_SCALES = [
+    [1, 'Normal'],
+    [1.1, 'Bigger'],
+    [1.25, 'Big'],
+    [1.4, 'Biggest']
+  ];
+
   const FONTS = {
     system: { label: 'System', stack: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
     spectral: { label: 'Spectral', stack: '"Spectral", Georgia, serif' },
@@ -104,6 +113,15 @@ const VexTheme = (() => {
     current,
     isDark() { return !!current().dark; },
 
+    UI_SCALES,
+
+    async setUiScale(value) {
+      await VexStore.set('vex.uiScale', Number(value) || 1);
+      this.apply();
+      // The content rect moved: the toolbar is taller or shorter than it was.
+      if (window.VexUI) VexUI.scheduleBounds();
+    },
+
     // Everything that decides how the chrome looks, applied in one pass so a
     // change never leaves half the UI on the old theme.
     apply() {
@@ -113,6 +131,12 @@ const VexTheme = (() => {
 
       const font = FONTS[VexStore.get('vex.font', 'system')] || FONTS.system;
       root.style.setProperty('--font-ui', font.stack);
+
+      // How big the interface is. Android's own font-size setting reaches a
+      // WebView's page text, not a web app's layout, so without this a phone set
+      // to the largest text still drew Vex's own chrome at everyone else's size.
+      const scale = Number(VexStore.get('vex.uiScale', 1));
+      root.style.setProperty('--ui-scale', String(scale >= 0.9 && scale <= 1.4 ? scale : 1));
 
       const skin = VexStore.get('vex.skin', 'none');
       const strength = Number(VexStore.get('vex.skinStrength', 0.05)) || 0.05;
@@ -149,7 +173,16 @@ const VexTheme = (() => {
     // Follow the system while the preference is 'auto'.
     watchSystem() {
       systemDark = window.matchMedia('(prefers-color-scheme: dark)');
-      const onChange = () => { if (VexStore.get('vex.theme', 'auto') === 'auto') this.apply(); };
+      const onChange = () => {
+        if (VexStore.get('vex.theme', 'auto') !== 'auto') return;
+        this.apply();
+        // "Dark pages: when Vex is dark" is decided from this, so the page in
+        // front has to be told rather than waiting for its next navigation.
+        if (VexStore.get('vex.darkPages', false) === 'theme' && window.VexTabStore) {
+          const tab = VexTabStore.active();
+          if (tab) VexSiteRules.applyTo(tab);
+        }
+      };
       if (systemDark.addEventListener) systemDark.addEventListener('change', onChange);
       else if (systemDark.addListener) systemDark.addListener(onChange);
     },

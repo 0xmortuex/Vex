@@ -45,17 +45,24 @@
   --radius: 14px;
   --elevation: 0 6px 20px;
 
-  --tb-height: 56px;
-  --tap: 44px;
+  /* How big the interface itself is. Android's own font-size setting reaches a
+     WebView's page text, not a web app's layout, so a phone set to the largest
+     text still drew Vex's chrome at the same size as everyone else's. One
+     multiplier, set from Settings, applied to the type scale and to the two
+     measurements that have to grow with it: the toolbar and the tap target. */
+  --ui-scale: 1;
+
+  --tb-height: calc(56px * var(--ui-scale));
+  --tap: calc(44px * var(--ui-scale));
   --gap: 12px;
 
   /* Type scale — one ratio, so headings and labels relate to each other. */
-  --text-xs: 11px;
-  --text-sm: 13px;
-  --text-md: 15px;
-  --text-lg: 17px;
-  --text-xl: 22px;
-  --text-2xl: 30px;
+  --text-xs: calc(11px * var(--ui-scale));
+  --text-sm: calc(13px * var(--ui-scale));
+  --text-md: calc(15px * var(--ui-scale));
+  --text-lg: calc(17px * var(--ui-scale));
+  --text-xl: calc(22px * var(--ui-scale));
+  --text-2xl: calc(30px * var(--ui-scale));
 
   --ease: cubic-bezier(.2, .8, .2, 1);
 }

@@ -40,6 +40,33 @@ const VexNotes = (() => {
 
     clear() { return VexDB.clear('notes'); },
 
+    /**
+     * Everything you have kept, as Markdown. Markdown because a note is text
+     * with a link attached and that is exactly what a Markdown list is: it opens
+     * in anything, it is still readable if nothing opens it, and a quote kept
+     * from a page comes back as a block quote.
+     */
+    async exportMarkdown() {
+      const rows = await this.all(5000);
+      const lines = ['# Notes from Vex', '',
+        rows.length + (rows.length === 1 ? ' note' : ' notes') + ', exported '
+          + new Date().toISOString().slice(0, 10), ''];
+      let lastDay = '';
+      for (const note of rows) {
+        const day = new Date(note.at || 0).toISOString().slice(0, 10);
+        if (day !== lastDay) { lastDay = day; lines.push('', '## ' + day, ''); }
+        const where = note.url ? '[' + (note.title || note.host || note.url) + '](' + note.url + ')' : '';
+        if (note.kind === 'quote') {
+          for (const line of String(note.text).split('\n')) lines.push('> ' + line);
+          if (where) lines.push('', '— ' + where);
+        } else {
+          lines.push('- ' + String(note.text).replace(/\n+/g, ' ') + (where ? ' · ' + where : ''));
+        }
+        lines.push('');
+      }
+      return lines.join('\n');
+    },
+
     async search(query, limit = 200) {
       const needle = String(query || '').trim().toLowerCase();
       if (!needle) return this.all(limit);

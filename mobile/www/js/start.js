@@ -32,7 +32,7 @@ const VexStart = (() => {
       { id: 'new-tab', label: 'Open in a new tab' },
       { id: 'private', label: 'Open in a private tab' },
       { id: 'copy', label: 'Copy link' },
-      { id: 'forget', label: 'Forget this site', note: 'Drops it from history' }
+      { id: 'forget', label: 'Forget this site', note: 'Its visits, its page text, its cookies and its storage' }
     ], async choice => {
       VexSheets.close();
       if (choice === 'pin') await VexCollections.quick.add({ url: site.url, title: site.host, icon: site.icon });
@@ -41,8 +41,9 @@ const VexStart = (() => {
       else if (choice === 'private') VexUI.openUrl(site.url, { newTab: true, incognito: true });
       else if (choice === 'copy') VexUI.copy(site.url);
       else if (choice === 'forget') {
-        await VexHistory.removeSite(site.host || VexSearch.prettyHost(site.url));
-        VexUI.toast('Forgotten');
+        // The same offer the history and recall lists make, so "forget this
+        // site" means one thing wherever it is asked for.
+        await VexUI.forgetSite(site.host || VexSearch.prettyHost(site.url), render);
       }
       VexSync.schedulePush();
       render();

@@ -136,12 +136,15 @@ describe('tab groups', () => {
     expect(groups.all().filter(group => group.tabIds.includes('t1'))).toHaveLength(1);
   });
 
-  it('leaves an emptied group behind, so you can move a tab back into it', async () => {
+  it('removeTab does not delete the group, but the next prune does', async () => {
+    // These two together are what actually happens: the switcher prunes every
+    // time it draws, so a group whose last tab you took out is gone by the time
+    // you look. The comment in collections.js used to claim otherwise.
     const work = await groups.create('Work', ['t1']);
     await groups.removeTab('t1');
     expect(groups.all().map(group => group.id)).toEqual([work.id]);
-    await groups.addTab(work.id, 't1');
-    expect(groups.of('t1').id).toBe(work.id);
+    await groups.prune(['t1']);
+    expect(groups.all()).toEqual([]);
   });
 
   it('prunes groups whose tabs are all closed', async () => {
@@ -149,5 +152,28 @@ describe('tab groups', () => {
     await groups.create('Gone', ['t9']);
     await groups.prune(['t1', 't2']);
     expect(groups.all().map(group => group.name)).toEqual(['Work']);
+  });
+
+  it('can be renamed, recoloured and removed — the three nothing used to reach', async () => {
+    const work = await groups.create('Work', ['t1']);
+    expect(groups.COLORS()).toContain(work.color);
+
+    await groups.rename(work.id, 'Monday');
+    expect(groups.all()[0].name).toBe('Monday');
+
+    const other = groups.COLORS().find(colour => colour !== work.color);
+    await groups.recolour(work.id, other);
+    expect(groups.all()[0].color).toBe(other);
+    // Renaming did not disturb which tabs are in it.
+    expect(groups.all()[0].tabIds).toEqual(['t1']);
+
+    await groups.remove(work.id);
+    expect(groups.all()).toEqual([]);
+  });
+
+  it('hands out a copy of the palette, not the palette', () => {
+    const palette = groups.COLORS();
+    palette.length = 0;
+    expect(groups.COLORS().length).toBeGreaterThan(3);
   });
 });

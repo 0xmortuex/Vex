@@ -16,10 +16,20 @@ window.VexBridge = {
   setSiteAllowed: vi.fn(async () => {}),
   loadRules: vi.fn(async () => ({}))
 };
+// The lists are kept in IndexedDB, not in a preference: parsed EasyList is
+// several megabytes, and a preference is read and parsed in full at every launch.
+const blobs = new Map();
+window.VexDB = {
+  get: vi.fn(async (store_, name) => blobs.get(name) || null),
+  put: vi.fn(async (store_, row) => { blobs.set(row.name, row); return row.name; })
+};
 const { VexBlock } = require('../../mobile/www/js/adblock.js');
 
 beforeEach(() => {
   for (const key of Object.keys(store)) delete store[key];
+  blobs.clear();
+  window.VexDB.get.mockClear();
+  window.VexDB.put.mockClear();
   window.VexBridge.setBlocking.mockClear();
   window.VexBridge.setSiteAllowed.mockClear();
   window.VexBridge.loadRules.mockClear();
@@ -93,10 +103,35 @@ describe('handing rules to native', () => {
   });
 
   it('prefers the cached lists once they exist', async () => {
-    store['vex.blockRules'] = { block: ['||cached.example^'], allow: [], hide: {} };
+    blobs.set('blockRules', {
+      name: 'blockRules', at: Date.now(),
+      rules: { block: ['||cached.example^'], allow: [], hide: {} }
+    });
     store['vex.blockRulesAt'] = Date.now();
     const rules = await VexBlock.apply();
     expect(rules.block).toEqual(['||cached.example^']);
+  });
+
+  it('keeps the lists out of preferences, where they would be parsed at every launch', async () => {
+    const lists = [{ id: 'one', name: 'One', url: 'https://lists.example/one.txt', on: true }];
+    store['vex.blockLists'] = lists;
+    const fetched = vi.fn(async () => ({ ok: true, text: async () => '||fetched.example^' }));
+    global.fetch = fetched;
+    const merged = await VexBlock.refresh();
+
+    expect(merged.block).toContain('||fetched.example^');
+    expect(window.VexDB.put).toHaveBeenCalledWith('blobs',
+      expect.objectContaining({ name: 'blockRules' }));
+    expect(store['vex.blockRules']).toBeUndefined();
+    // The timestamp stays a preference: it is small, and the privacy panel draws
+    // it without waiting for a database read.
+    expect(store['vex.blockRulesAt']).toBeGreaterThan(0);
+  });
+
+  it('survives a database that is not there', async () => {
+    window.VexDB.get.mockRejectedValueOnce(new Error('no indexeddb'));
+    const rules = await VexBlock.apply();
+    expect(rules.block).toContain('||doubleclick.net^');
   });
 
   it('re-applies every site exception on boot', async () => {

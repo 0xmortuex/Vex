@@ -16,6 +16,7 @@
 //   pagehtml { id, html }                         — the document, read on open
 //   downloads{ url, filename, at, size, localUri }
 //   notes    { id, url, host, title, text, kind, at }
+//   blobs    { name, at, … }                        — one big cached thing each
 //
 // `words` is a multiEntry index, which is what makes Recall a lookup rather
 // than a scan: the terms of a query hit the index, and only the rows that came
@@ -28,7 +29,7 @@
 
 const VexDB = (() => {
   const NAME = 'vex';
-  const VERSION = 4;
+  const VERSION = 5;
   let database = null;
   let broken = false;
 
@@ -72,6 +73,13 @@ const VexDB = (() => {
         if (!db.objectStoreNames.contains('errors')) {
           const errors = db.createObjectStore('errors', { keyPath: 'id', autoIncrement: true });
           errors.createIndex('at', 'at');
+        }
+        // Version 5: somewhere to keep one large thing under a name. The filter
+        // lists live here now. They were in a preference, which is a settings
+        // file: every launch primed several megabytes of parsed EasyList into
+        // memory before the first page could be drawn.
+        if (!db.objectStoreNames.contains('blobs')) {
+          db.createObjectStore('blobs', { keyPath: 'name' });
         }
         // Version 4: a saved page's document moves out of its row, and the
         // rows already written are moved with it — once, here, rather than

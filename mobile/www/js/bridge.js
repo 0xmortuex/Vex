@@ -328,6 +328,7 @@ const VexBridge = (() => {
     openDownload(localUri) { return tabs('openDownload', { localUri }); },
     // DownloadManager has no pause: removing it is what cancelling is.
     cancelDownload(id) { return tabs('cancelDownload', { id: String(id) }); },
+    openDownloadsFolder() { return tabs('openDownloadsFolder', {}); },
     setWindowBackground(color, dark) {
       if (!plugins.VexTabs) return Promise.resolve({});
       return tabs('setWindowBackground', { color, dark: dark !== false });

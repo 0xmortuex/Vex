@@ -645,6 +645,25 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         });
     }
 
+    /**
+     * Open the phone's own Downloads list. Where a file went is a question
+     * Android already has a screen for, and "it is in your Downloads folder" is
+     * not an answer when you cannot find the folder.
+     */
+    @PluginMethod
+    public void openDownloadsFolder(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getActivity().startActivity(intent);
+                call.resolve();
+            } catch (Exception error) {
+                call.reject("This phone has no downloads screen");
+            }
+        });
+    }
+
     /** Forget one site: its cookies, its storage, its cache entries. */
     @PluginMethod
     public void clearSiteData(PluginCall call) {

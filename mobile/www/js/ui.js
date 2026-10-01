@@ -627,6 +627,7 @@ const VexUI = (() => {
     VexSheets.choose(tab.title || VexSearch.prettyHost(tab.url) || 'Tab', [
       { id: 'group', label: group ? 'Move to another group' : 'Put in a group' },
       group ? { id: 'ungroup', label: 'Take out of ' + group.name } : null,
+      group ? { id: 'group-edit', label: group.name, note: 'Rename it, recolour it, or close the lot' } : null,
       { id: 'bookmark', label: 'Bookmark this tab' },
       { id: 'reading', label: 'Add to reading list' },
       { id: 'close-others', label: 'Close other tabs' },
@@ -654,6 +655,7 @@ const VexUI = (() => {
         });
         return true;
       }
+      if (choice === 'group-edit') { groupActions(group); return true; }
       VexSheets.close();
       if (choice === 'ungroup') {
         await VexCollections.groups.removeTab(tab.id);
@@ -675,6 +677,49 @@ const VexUI = (() => {
       else if (choice === 'qr') showQr(tab.url, tab.title);
       else if (choice === 'share') VexBridge.share(tab.url, tab.title);
     });
+  }
+
+  /**
+   * What you can do to a whole group. Reached from the long-press that put the
+   * tab in it, which is where someone looks — and until this existed, a group
+   * could be made and never renamed, recoloured or closed, because nothing in
+   * the chrome reached those three.
+   */
+  function groupActions(group) {
+    if (!group) return true;
+    const inside = group.tabIds.filter(id => VexTabStore.get(id)).length;
+    VexSheets.choose(group.name, [
+      { id: 'rename', label: 'Rename it' },
+      { id: 'colour', label: 'Change its colour' },
+      { id: 'close', label: 'Close all ' + inside + (inside === 1 ? ' tab in it' : ' tabs in it'), danger: true }
+    ], async choice => {
+      if (choice === 'colour') {
+        VexSheets.choose(group.name, VexCollections.groups.COLORS().map(colour => ({
+          id: colour, label: colour.toUpperCase(), selected: colour === group.color
+        })), async colour => {
+          await VexCollections.groups.recolour(group.id, colour);
+          VexSheets.close();
+          renderTabGrid();
+        });
+        return true;
+      }
+      VexSheets.close();
+      if (choice === 'rename') {
+        const name = await prompt('Rename the group', 'A name for it', group.name);
+        if (name) { await VexCollections.groups.rename(group.id, name); renderTabGrid(); }
+      } else if (choice === 'close') {
+        if (!(await confirm('Close ' + inside + (inside === 1 ? ' tab' : ' tabs') + ' in ' + group.name + '?'))) return;
+        for (const id of group.tabIds.slice()) {
+          const tab = VexTabStore.get(id);
+          if (tab) await VexTabStore.close(id);
+        }
+        await VexCollections.groups.remove(group.id);
+        renderTabGrid();
+        renderToolbar();
+        toast('Closed ' + group.name);
+      }
+    });
+    return true;
   }
 
   // ── Find ─────────────────────────────────────────────────────────────────

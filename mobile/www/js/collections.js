@@ -239,16 +239,19 @@ const VexCollections = (() => {
       }));
     },
 
-    // Taking a tab out leaves the group behind, even empty: you named it, and
-    // a group that vanishes when you move its last tab away is a group you
-    // cannot move a tab back into. prune() is what clears the leftovers.
+    // Taking a tab out does not delete the group here — but prune() runs every
+    // time the switcher draws, so a group whose last tab you removed is gone by
+    // the time you look at it. That is what Chrome does too, and it is the
+    // reason the picker offers "New group…" rather than a list of empty ones.
     async removeTab(tabId) {
       await VexStore.set('vex.tabGroups', this.all()
         .map(group => Object.assign({}, group, { tabIds: group.tabIds.filter(other => other !== tabId) })));
     },
 
-    // Drop groups whose tabs are all gone — called when the switcher draws, so
-    // closing the last tab of a group tidies up without anyone deciding to.
+    // Drop groups with no open tabs left — called when the switcher draws, so
+    // closing a group's last tab tidies up without anyone deciding to. It cannot
+    // tell "you closed them" from "you moved the last one out"; both mean the
+    // group is empty, and an empty group is not a group.
     async prune(openTabIds) {
       const open = new Set(openTabIds || []);
       const next = this.all()
@@ -266,6 +269,13 @@ const VexCollections = (() => {
       await VexStore.set('vex.tabGroups', this.all().map(group =>
         group.id === groupId ? Object.assign({}, group, { name }) : group));
     },
+
+    async recolour(groupId, color) {
+      await VexStore.set('vex.tabGroups', this.all().map(group =>
+        group.id === groupId ? Object.assign({}, group, { color }) : group));
+    },
+
+    COLORS: () => COLORS.slice(),
 
     of(tabId) { return this.all().find(group => group.tabIds.includes(tabId)) || null; }
   };
