@@ -37,6 +37,7 @@ const VexSpeak = (() => {
   };
 
   const listeners = new Set();
+  let askedNotifications = false;
   function changed() { for (const fn of listeners) { try { fn(state); } catch { /* a gone panel */ } } }
 
   function rate() {
@@ -140,6 +141,12 @@ const VexSpeak = (() => {
       if (!Array.isArray(lines) || !lines.length) { VexUI.toast('Nothing to read'); return false; }
       if (state.available === null) await this.check();
       if (!state.available) { VexUI.toast('This phone has no speech engine', 4000); return false; }
+      // Pause and Stop live in the notification, which Android 13+ shows only
+      // with this permission. Asked once; reading goes ahead either way.
+      if (!askedNotifications && VexBridge.requestPermission) {
+        askedNotifications = true;
+        try { await VexBridge.requestPermission('notifications'); } catch { /* reads without it */ }
+      }
       state.parts = lines;
       state.title = title;
       state.url = url;
