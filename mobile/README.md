@@ -21,8 +21,12 @@ that could come across from the desktop. [SAMSUNG-PARITY.md](SAMSUNG-PARITY.md)
 is the feature-by-feature comparison; the short version:
 
 **Browsing** — tabs with a snapshot switcher, tab search, and tab groups you
-can name, recolour and close as a set; tabs that go to sleep when you leave
-them alone; private tabs (own WebView profile on WebView 116+, optionally
+can name, recolour and close as a set; a card (or a row in any list) swiped
+aside to close it, with Undo; tabs that go to sleep when you leave
+them alone; an address bar that offers the tab you already have open, and
+takes the desktop's keywords ("yt", "w", "gh") and DuckDuckGo !bangs; links
+that open in their apps when you tap them; Samsung's scroll buttons and a
+status bar you can hide; private tabs (own WebView profile on WebView 116+, optionally
 behind a fingerprint, kept out of screenshots and the app-switcher thumbnail);
 session restore down to the scroll position; pull to refresh; a toolbar that
 sits at the top or the bottom, hides as you scroll, and carries the buttons you
@@ -39,7 +43,8 @@ read aloud in the phone's own voice, a paragraph at a time; a page translated
 on the phone itself, offline, with nothing sent anywhere; text size, forced
 pinch-zoom, contrast and a night shade for pages that fight you; saved pages
 that open with no connection at all, with their scripts taken out; a reading
-list; and an interface size of its own, because Android's font-size setting
+list; Copy Unlock for sites that stop you selecting their text; passages you
+keep, highlighted on the page whenever you come back; and an interface size of its own, because Android's font-size setting
 only reaches the page.
 
 **Finding things again** — history in IndexedDB with search, bookmarks in
