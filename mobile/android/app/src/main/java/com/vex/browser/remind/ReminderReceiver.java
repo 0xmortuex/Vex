@@ -28,10 +28,12 @@ public class ReminderReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        String url = intent.getStringExtra(EXTRA_URL);
-        String title = intent.getStringExtra(EXTRA_TITLE);
-        String note = intent.getStringExtra(EXTRA_NOTE);
+        Reminders.forget(context, Reminders.idOf(intent));
+        notify(context, intent.getStringExtra(EXTRA_URL), intent.getStringExtra(EXTRA_TITLE),
+                intent.getStringExtra(EXTRA_NOTE));
+    }
 
+    static void notify(Context context, String url, String title, String note) {
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
 
@@ -41,20 +43,21 @@ public class ReminderReceiver extends BroadcastReceiver {
             manager.createNotificationChannel(channel);
         }
 
-        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(url == null ? "about:blank" : url));
+        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(url == null || url.isEmpty() ? "about:blank" : url));
         open.setPackage(context.getPackageName());
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
         PendingIntent pending = PendingIntent.getActivity(context, (int) System.currentTimeMillis(), open, flags);
 
-        Notification.Builder builder = new Notification.Builder(context, CHANNEL);
-        Notification notification = builder
-                .setSmallIcon(R.mipmap.ic_launcher)
+        Notification notification = new Notification.Builder(context, CHANNEL)
+                .setSmallIcon(R.drawable.ic_notify)
                 .setContentTitle(note == null || note.isEmpty() ? "A page you saved for later" : note)
                 .setContentText(title == null || title.isEmpty() ? url : title)
                 .setAutoCancel(true)
                 .setContentIntent(pending)
                 .build();
-        manager.notify((int) (System.currentTimeMillis() % Integer.MAX_VALUE), notification);
+        try {
+            manager.notify((int) (System.currentTimeMillis() % Integer.MAX_VALUE), notification);
+        } catch (SecurityException ignored) { /* notifications are off */ }
     }
 }

@@ -100,6 +100,19 @@
             android:name="com.vex.browser.remind.ReminderReceiver"
             android:exported="false" />
 
+        <!-- Puts those alarms back after a reboot or an update: Android drops
+             them on a restart, and the phone may not open Vex before they are
+             due. Exported because the system sends these; it acts only on
+             them, and only re-arms what Vex itself stored. -->
+        <receiver
+            android:name="com.vex.browser.remind.ReminderBoot"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -118,10 +131,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- Reminders survive a reboot-less idle; the exact variant is asked for
-         and quietly done without when the system says no. -->
+    <!-- Reminders: exact alarms are asked for and quietly done without when
+         the system says no; boot-completed puts them back after a restart. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Sites asking for camera/microphone (video calls) and location. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

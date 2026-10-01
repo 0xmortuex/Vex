@@ -60,8 +60,8 @@ const VexRemind = (() => {
       await VexStore.set('vex.reminders', all().filter(entry => entry.id !== id));
     },
 
-    // Alarms do not survive a reboot; re-arming what is still in the future on
-    // every start is cheaper than a boot receiver and does the same job.
+    // Native keeps its own copy and re-arms it as the phone boots; this is
+    // for a list that changed without it (restored from a backup, say).
     async rearm() {
       const live = this.pending();
       for (const entry of live) await VexBridge.scheduleReminder(entry);

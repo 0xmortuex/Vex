@@ -1,11 +1,5 @@
 package com.vex.browser.remind;
 
-import android.app.AlarmManager;
-import android.app.PendingIntent;
-import android.content.Context;
-import android.content.Intent;
-import android.os.Build;
-
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -20,18 +14,6 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "VexRemind")
 public class VexRemindPlugin extends Plugin {
 
-    private PendingIntent pendingFor(String id, String url, String title, String note, boolean mutable) {
-        Intent intent = new Intent(getContext(), ReminderReceiver.class);
-        intent.setAction("vex.reminder." + id);
-        intent.putExtra(ReminderReceiver.EXTRA_URL, url);
-        intent.putExtra(ReminderReceiver.EXTRA_TITLE, title);
-        intent.putExtra(ReminderReceiver.EXTRA_NOTE, note);
-        // FLAG_MUTABLE is API 31; below that, mutable is what you get by saying
-        // nothing. So: say nothing when mutable, and be explicit when not.
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT | (mutable ? 0 : PendingIntent.FLAG_IMMUTABLE);
-        return PendingIntent.getBroadcast(getContext(), id.hashCode(), intent, flags);
-    }
-
     @PluginMethod
     public void schedule(PluginCall call) {
         String id = call.getString("id", "");
@@ -43,37 +25,25 @@ public class VexRemindPlugin extends Plugin {
             call.reject("A reminder needs an id and a time");
             return;
         }
-        AlarmManager alarms = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
-        if (alarms == null) {
-            call.reject("This device has no alarm service");
-            return;
-        }
-        PendingIntent pending = pendingFor(id, call.getString("url", ""), call.getString("title", ""),
-                call.getString("note", ""), false);
+        Reminders.Entry entry = new Reminders.Entry(id, at, call.getString("url", ""),
+                call.getString("title", ""), call.getString("note", ""));
         try {
-            // An exact alarm needs permission on Android 12+; an inexact one
-            // always works and is within a few minutes, which is what a
-            // "remind me this evening" actually means.
-            boolean exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms();
-            if (exact) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending);
-            else alarms.set(AlarmManager.RTC_WAKEUP, at, pending);
+            boolean exact = Reminders.arm(getContext(), entry);
+            Reminders.remember(getContext(), entry);
             JSObject result = new JSObject();
             result.put("exact", exact);
             call.resolve(result);
-        } catch (SecurityException error) {
-            alarms.set(AlarmManager.RTC_WAKEUP, at, pending);
-            JSObject result = new JSObject();
-            result.put("exact", false);
-            call.resolve(result);
+        } catch (RuntimeException error) {
+            call.reject(error.getMessage());
         }
     }
 
     @PluginMethod
     public void cancel(PluginCall call) {
         String id = call.getString("id", "");
-        AlarmManager alarms = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
-        if (alarms != null && !id.isEmpty()) {
-            alarms.cancel(pendingFor(id, "", "", "", false));
+        if (!id.isEmpty()) {
+            Reminders.disarm(getContext(), id);
+            Reminders.forget(getContext(), id);
         }
         call.resolve();
     }

@@ -160,8 +160,8 @@
   setTimeout(async () => {
     await VexHistory.prune({ historyDays: VexStore.get('vex.historyDays', 365) });
     await closeStaleTabs();
-    // Alarms do not survive a reboot; re-arming the ones still ahead is
-    // cheaper than a boot receiver and does the same job.
+    // Native re-arms them after a reboot too; this catches a list restored
+    // from a backup or changed while the alarms were not set.
     await VexRemind.rearm();
     await sleepIdleTabs();
     // Once a minute after that: the threshold is in minutes, so checking more
