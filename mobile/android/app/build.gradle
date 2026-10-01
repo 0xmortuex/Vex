@@ -27,6 +27,20 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        debug {
+            // Compress the native libraries in the APK. Modern packaging stores
+            // them uncompressed so the loader can map them straight out of the
+            // APK — faster, and the right default for something installed from a
+            // store. But three of these are enormous (litertlm 22 MB, translate
+            // 16 MB), and a debug APK is a file that gets handed to somebody.
+            // Compressed it is half the size and costs one extraction at install.
+            // Release keeps the fast path.
+            packaging {
+                jniLibs {
+                    useLegacyPackaging = true
+                }
+            }
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
