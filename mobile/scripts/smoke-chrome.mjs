@@ -1208,11 +1208,20 @@ results.presentationScript = await page.evaluate(async () => {
   const script = VexSiteRules.presentationScript();
   return script.includes('user-scalable=yes') && script.includes('contrast(1.3)') && script.includes('sepia(0.35)');
 });
+// Run for real, on this document: the shade goes on through the CSSOM (a
+// page's CSP cannot refuse that, as it refuses a <style> element), and
+// turning it off takes it off again rather than leaving it until a reload.
 results.presentationEmptyWhenOff = await page.evaluate(async () => {
+  // eslint-disable-next-line no-eval
+  (0, eval)(VexSiteRules.presentationScript());
+  const on = document.documentElement.style.getPropertyValue('filter');
   await VexStore.set('vex.forceZoom', false);
   await VexStore.set('vex.pageContrast', 1);
   await VexStore.set('vex.nightShade', 0);
-  return VexSiteRules.presentationScript() === '';
+  // eslint-disable-next-line no-eval
+  (0, eval)(VexSiteRules.presentationScript());
+  const off = document.documentElement.style.getPropertyValue('filter');
+  return on.includes('sepia(0.35)') && off === '' && !document.documentElement.hasAttribute('data-vex-filter');
 });
 
 // ── Details autofill ────────────────────────────────────────────────────────

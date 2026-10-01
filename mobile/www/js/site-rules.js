@@ -20,7 +20,9 @@ const VexSiteRules = (() => {
     const forceZoom = VexStore.get('vex.forceZoom', true) !== false;
     const contrast = Number(VexStore.get('vex.pageContrast', 1)) || 1;
     const shade = Number(VexStore.get('vex.nightShade', 0)) || 0;
-    if (!forceZoom && contrast === 1 && !shade) return '';
+    // Always returned, even with nothing to apply: turning the shade off has to
+    // take it off the page in front, and returning nothing left it on until
+    // the page was reloaded.
     return `(function(){
   if (${forceZoom}) {
     var meta = document.querySelector('meta[name=viewport]');
@@ -31,15 +33,22 @@ const VexSiteRules = (() => {
   var filters = [];
   if (${contrast} !== 1) filters.push('contrast(${contrast})');
   if (${shade} > 0) filters.push('sepia(${shade}) saturate(1.1) brightness(' + (1 - ${shade} * 0.15) + ')');
-  var id = 'vex-presentation';
-  var style = document.getElementById(id);
-  if (!filters.length) { if (style) style.remove(); return; }
-  if (!style) {
-    style = document.createElement('style');
-    style.id = id;
-    (document.head || document.documentElement).appendChild(style);
+  var root = document.documentElement;
+  if (!root) return;
+  // Set through the CSSOM rather than a <style> element: a page whose
+  // Content-Security-Policy forbids inline styles refuses the element, and
+  // the shade did nothing there. An earlier build's element is taken away.
+  var legacy = document.getElementById('vex-presentation');
+  if (legacy) legacy.remove();
+  if (!filters.length) {
+    if (root.getAttribute('data-vex-filter') !== null) {
+      root.style.removeProperty('filter');
+      root.removeAttribute('data-vex-filter');
+    }
+    return;
   }
-  style.textContent = 'html{filter:' + filters.join(' ') + ' !important}';
+  root.style.setProperty('filter', filters.join(' '), 'important');
+  root.setAttribute('data-vex-filter', '');
 })()`;
   }
 
@@ -66,10 +75,21 @@ const VexSiteRules = (() => {
   }
   clearOn();
   var ticks=0; var iv=setInterval(function(){ clearOn(); if(++ticks>20){ try{clearInterval(iv);}catch(_){} } }, 500);
+  var css='*,*::before,*::after{-webkit-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;}html,body{-webkit-user-select:auto!important;user-select:auto!important;}';
+  // A constructed sheet where there is one: a strict Content-Security-Policy
+  // refuses a <style> element, and those are the sites most likely to lock
+  // their text up. The element is the fallback.
+  try {
+    if (document.adoptedStyleSheets !== undefined && window.CSSStyleSheet) {
+      var sheet = new CSSStyleSheet(); sheet.replaceSync(css);
+      document.adoptedStyleSheets = document.adoptedStyleSheets.concat([sheet]);
+      return;
+    }
+  } catch(_) {}
   var id='vex-copy-unlock-style';
   if(!document.getElementById(id)){
     var st=document.createElement('style'); st.id=id;
-    st.textContent='*,*::before,*::after{-webkit-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;}html,body{-webkit-user-select:auto!important;user-select:auto!important;}';
+    st.textContent=css;
     (document.head||document.documentElement).appendChild(st);
   }
 }catch(e){}})()`;
