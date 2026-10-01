@@ -58,6 +58,9 @@ public final class StreamDownloader {
     }
 
     private static final Map<String, Boolean> cancelled = new ConcurrentHashMap<>();
+    // The cookie jar of the tab the stream came from, per worker thread: a
+    // private tab's own, or none, never the normal profile's on its behalf.
+    private static final Map<Thread, CookieManager> JARS = new ConcurrentHashMap<>();
     private static final Pattern ATTRIBUTE = Pattern.compile("([A-Z0-9-]+)=(\"[^\"]*\"|[^,]*)");
     private static int sequence = 0;
 
@@ -73,8 +76,10 @@ public final class StreamDownloader {
     }
 
     public static void start(final Context context, final String jobId, final String playlistUrl,
-                             final String userAgent, final String filename, final Listener listener) {
+                             final String userAgent, final String filename, final CookieManager jar,
+                             final Listener listener) {
         Thread worker = new Thread(() -> {
+            if (jar != null) JARS.put(Thread.currentThread(), jar);
             try {
                 run(context.getApplicationContext(), jobId, playlistUrl, userAgent, filename, listener);
             } catch (Exception error) {
@@ -82,6 +87,7 @@ public final class StreamDownloader {
                 listener.failed(jobId, message == null || message.isEmpty() ? "The video could not be saved" : message);
             } finally {
                 cancelled.remove(jobId);
+                JARS.remove(Thread.currentThread());
             }
         }, "vex-stream-" + jobId);
         worker.setPriority(Thread.NORM_PRIORITY - 1);
@@ -329,12 +335,13 @@ public final class StreamDownloader {
     }
 
     private static HttpURLConnection connect(String url, String userAgent, long offset, long length) throws IOException {
+        CookieManager jar = JARS.get(Thread.currentThread());
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(20000);
         connection.setReadTimeout(30000);
         connection.setInstanceFollowRedirects(true);
         if (userAgent != null && !userAgent.isEmpty()) connection.setRequestProperty("User-Agent", userAgent);
-        String cookie = CookieManager.getInstance().getCookie(url);
+        String cookie = jar == null ? null : jar.getCookie(url);
         if (cookie != null) connection.setRequestProperty("Cookie", cookie);
         if (length >= 0) connection.setRequestProperty("Range", "bytes=" + offset + "-" + (offset + length - 1));
         int status = connection.getResponseCode();

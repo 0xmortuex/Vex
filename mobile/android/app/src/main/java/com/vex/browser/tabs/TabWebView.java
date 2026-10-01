@@ -266,9 +266,41 @@ public class TabWebView extends WebView {
             Class.forName("androidx.webkit.WebViewCompat")
                     .getMethod("setProfile", WebView.class, String.class)
                     .invoke(null, this, PRIVATE_PROFILE);
+            privateProfile = true;
         } catch (Throwable ignored) {
             // No multi-profile support on this device's WebView.
         }
+    }
+
+    private boolean privateProfile = false;
+
+    /**
+     * The cookie jar this tab's pages actually use. A private tab on its own
+     * profile has its own; downloads, saved files and video streams fetched
+     * on its behalf used the default jar instead — the normal profile's —
+     * and so went out carrying your signed-in identity from private browsing.
+     */
+    public CookieManager cookies() {
+        if (privateProfile) {
+            try {
+                Class<?> storeClass = Class.forName("androidx.webkit.ProfileStore");
+                Object store = storeClass.getMethod("getInstance").invoke(null);
+                Object profile = storeClass.getMethod("getProfile", String.class).invoke(store, PRIVATE_PROFILE);
+                if (profile != null) {
+                    return (CookieManager) profile.getClass().getMethod("getCookieManager").invoke(profile);
+                }
+            } catch (Throwable ignored) {
+                // Fall through: no cookies at all is the safe answer for a private tab.
+            }
+            return null;
+        }
+        return CookieManager.getInstance();
+    }
+
+    /** The Cookie header for an address, from this tab's own jar; null for none. */
+    public String cookieFor(String url) {
+        CookieManager jar = cookies();
+        return jar == null ? null : jar.getCookie(url);
     }
 
     /** Drop the private profile's cookies and cache when the last one closes. */
@@ -732,7 +764,7 @@ public class TabWebView extends WebView {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setMimeType(mimeType);
             request.addRequestHeader("User-Agent", userAgent);
-            String cookie = CookieManager.getInstance().getCookie(url);
+            String cookie = cookieFor(url);
             if (cookie != null) request.addRequestHeader("Cookie", cookie);
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
@@ -769,7 +801,7 @@ public class TabWebView extends WebView {
         try {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.addRequestHeader("User-Agent", getSettings().getUserAgentString());
-            String cookie = CookieManager.getInstance().getCookie(url);
+            String cookie = cookieFor(url);
             if (cookie != null) request.addRequestHeader("Cookie", cookie);
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);

@@ -399,10 +399,11 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         getActivity().runOnUiThread(() -> {
             TabWebView tab = tabs.get(id);
             String agent = tab != null ? tab.userAgent() : null;
+            CookieManager jar = tab != null ? tab.cookies() : null;
             final String jobId = StreamDownloader.nextId();
             final android.content.Context context = getContext();
             com.vex.browser.work.LongWork.begin(context, jobId, "Saving " + StreamDownloader.cleanName(filename));
-            StreamDownloader.start(context, jobId, url, agent, filename, new StreamDownloader.Listener() {
+            StreamDownloader.start(context, jobId, url, agent, filename, jar, new StreamDownloader.Listener() {
                 private long lastReport = 0;
 
                 @Override
