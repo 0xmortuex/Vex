@@ -100,6 +100,18 @@ const VexTheme = (() => {
 
   const LOOKS = {
     vex: { label: 'Vex', note: 'Vex’s own: your theme, your skin, your type' },
+    samsung: {
+      label: 'Samsung Internet', note: 'The one your Galaxy came with, One UI and all',
+      // On a Galaxy the system font is Samsung's own unless you changed it.
+      font: '"SamsungOneUI", "SamsungOne", "Samsung Sans", system-ui, Roboto, sans-serif',
+      radius: '26px', menu: 'menu-lines',
+      layout: 'split', layoutNote: 'Address bar at the top; Back, Forward, Home, Bookmarks, Tabs and ≡ along the bottom',
+      buttons: { left: ['back', 'forward', 'home'], right: ['bookmarks', 'tabs', 'menu'] },
+      light: T('#fcfcfc', '#ffffff', '#f2f2f2', '#e6e6e6', '#d0d0d0', '#387aff', 'rgba(56, 122, 255, 0.14)',
+        '#252525', '#4d4d4d', '#8a8a8a', '#3eb24f', '#ff5245'),
+      dark: T('#121212', '#232323', '#000000', '#2e2e2e', '#3d3d3d', '#3e91ff', 'rgba(62, 145, 255, 0.22)',
+        '#fafafa', '#c6c6c6', '#8f8f8f', '#5fd068', '#ff6b5e')
+    },
     chrome: {
       label: 'Chrome', note: 'Google’s browser on Android',
       font: '"Google Sans", "Google Sans Text", Roboto, system-ui, sans-serif',
@@ -132,18 +144,6 @@ const VexTheme = (() => {
         '#000000', '#3c3c43', '#8e8e93', '#34c759', '#ff3b30'),
       dark: T('#1c1c1e', '#2c2c2e', '#000000', '#38383a', '#48484a', '#0a84ff', 'rgba(10, 132, 255, 0.22)',
         '#ffffff', '#c7c7cc', '#8e8e93', '#30d158', '#ff453a')
-    },
-    samsung: {
-      label: 'Samsung Internet', note: 'The one your Galaxy came with, One UI and all',
-      // On a Galaxy the system font is Samsung's own unless you changed it.
-      font: '"SamsungOneUI", "SamsungOne", "Samsung Sans", system-ui, Roboto, sans-serif',
-      radius: '26px', menu: 'menu-lines',
-      layout: 'split', layoutNote: 'Address bar at the top; Back, Forward, Home, Bookmarks, Tabs and ≡ along the bottom',
-      buttons: { left: ['back', 'forward', 'home'], right: ['bookmarks', 'tabs', 'menu'] },
-      light: T('#fcfcfc', '#ffffff', '#f2f2f2', '#e6e6e6', '#d0d0d0', '#387aff', 'rgba(56, 122, 255, 0.14)',
-        '#252525', '#4d4d4d', '#8a8a8a', '#3eb24f', '#ff5245'),
-      dark: T('#121212', '#232323', '#000000', '#2e2e2e', '#3d3d3d', '#3e91ff', 'rgba(62, 145, 255, 0.22)',
-        '#fafafa', '#c6c6c6', '#8f8f8f', '#5fd068', '#ff6b5e')
     }
   };
   const LOOK_TOKENS = Object.keys(LOOKS.chrome.light);

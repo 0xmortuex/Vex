@@ -165,6 +165,19 @@ await page.waitForTimeout(900);
 
 // ── The first run, which is what a person actually meets first ──────────────
 results.welcomeShown = await page.isVisible('#panel') && (await page.textContent('#panel-title')) === 'Welcome to Vex';
+// Choosing Samsung Internet on the first run brings its layout with it, and
+// choosing Vex again gives the plain bottom bar back.
+results.welcomeLook = await page.evaluate(async () => {
+  const chip = name => [...document.querySelectorAll('#panel-body .welcome-looks .chip')].find(node => node.textContent === name);
+  chip('Samsung Internet').click();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  const samsung = [document.documentElement.dataset.look, document.body.dataset.toolbar,
+    document.getElementById('tb-home') ? document.getElementById('tb-home').closest('nav').id : '-'].join(',');
+  chip('Vex').click();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  return samsung + ' ' + [document.documentElement.dataset.look, document.body.dataset.toolbar].join(',');
+});
+await shot('00-welcome-looks');
 results.welcomeSteps = 0;
 for (let step = 0; step < 6; step++) {
   const next = await page.$('#panel-body .welcome-nav .pill-btn:not(.ghost)');
@@ -1849,6 +1862,7 @@ console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
 const expected = {
+  welcomeLook: 'samsung,split,navbar vex,bottom',
   welcomeShown: true, welcomeSteps: 4, welcomeDismissed: true, welcomeRemembered: true,
   startTiles: 4, startRail: 4,
   omniOpen: true, suggestions: 5, suggestionHighlight: 4,

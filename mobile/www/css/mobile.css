@@ -977,3 +977,4 @@ body[data-toolbar="stacked"].toolbar-hidden .toolbar { transform: translateY(200
 .look-mock .b { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; }
 .look-name { font-size: var(--text-sm); font-weight: 600; }
 .look-note { font-size: var(--text-xs); color: var(--vex-text-muted); line-height: 1.35; }
+.welcome-looks { flex-wrap: wrap; padding: 0 0 12px; }

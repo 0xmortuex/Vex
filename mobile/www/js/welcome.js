@@ -39,12 +39,40 @@ const VexWelcome = (() => {
     // ── Look ───────────────────────────────────────────────────────────────
     body => {
       const step = card('How should it look?',
-        'Eight themes, the same ones the desktop has. Auto follows your phone: '
-        + 'Oxford in the light, Midnight in the dark.');
+        'Vex’s own, or the browser you are used to — Samsung Internet, Chrome, Firefox or Safari, '
+        + 'with its toolbar where you expect it. Then a theme: Auto follows your phone. All '
+        + VexTheme.themes().length + ' of the desktop’s themes are in Settings → Appearance.');
+      const looks = el('div', 'panel-chips welcome-looks');
+      const lookNow = VexTheme.look();
+      for (const [id, look] of Object.entries(VexTheme.LOOKS)) {
+        looks.appendChild(el('button', {
+          class: 'chip' + (id === lookNow ? ' on' : ''),
+          onclick: async () => {
+            await VexTheme.setLook(id);
+            // The first run: nothing is a habit yet, so the layout comes with
+            // the look rather than being asked about.
+            if (look.layout) {
+              await VexStore.set('vex.toolbarPosition', look.layout);
+              await VexStore.set('vex.toolbarButtons', look.buttons);
+            } else {
+              await VexStore.set('vex.toolbarPosition', 'bottom');
+              await VexStore.set('vex.toolbarButtons', null);
+            }
+            VexUI.applyToolbarPosition();
+            VexUI.renderToolbar();
+            VexWelcome.show(0);
+          }
+        }, look.label));
+      }
+      step.appendChild(looks);
       const grid = el('div', 'theme-grid');
       const chosen = VexStore.get('vex.theme', 'auto');
+      // The first eight here; the rest are a scroll too far for a first run.
+      const shown = VexTheme.themes().slice(0, 8);
+      const picked = VexTheme.themes().find(theme => theme.id === chosen);
+      if (picked && !shown.includes(picked)) shown.push(picked);
       for (const theme of [{ id: 'auto', bg: VexTheme.current().bg, accent: VexTheme.current().accent }]
-        .concat(VexTheme.themes())) {
+        .concat(shown)) {
         const option = el('button', 'theme-card' + (chosen === theme.id ? ' on' : ''));
         const swatch = el('div', 'theme-swatch');
         swatch.style.background = theme.bg;
@@ -52,7 +80,7 @@ const VexWelcome = (() => {
         dot.style.background = theme.accent;
         swatch.appendChild(dot);
         option.appendChild(swatch);
-        option.appendChild(el('div', 'theme-name', theme.id));
+        option.appendChild(el('div', 'theme-name', theme.id === 'auto' ? 'Auto' : String(theme.label || theme.id).split(' — ')[0]));
         option.onclick = async () => { await VexTheme.set(theme.id); VexWelcome.show(0); };
         grid.appendChild(option);
       }
