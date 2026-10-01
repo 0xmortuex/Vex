@@ -125,3 +125,31 @@ describe('the address pill', () => {
     expect(VexSearch.prettyHost('not a url')).toBe('');
   });
 });
+
+describe('keywords and bangs, the desktop’s own', () => {
+  // The shared copy, loaded the way index.html loads it.
+  const { SearchShortcuts } = require('../../mobile/www/js/shared/search-shortcuts.js');
+  window.SearchShortcuts = SearchShortcuts;
+
+  it('sends a keyword search to its site', () => {
+    store['vex.searchEngine'] = 'google';
+    expect(VexSearch.toUrl('yt sea shanties')).toBe('https://www.youtube.com/results?search_query=sea%20shanties');
+    expect(VexSearch.toUrl('w Halyard')).toBe('https://en.wikipedia.org/w/index.php?search=Halyard');
+  });
+
+  it('hands a !bang to DuckDuckGo whatever the engine', () => {
+    store['vex.searchEngine'] = 'google';
+    expect(VexSearch.toUrl('knots !w')).toBe('https://duckduckgo.com/?q=knots%20!w');
+  });
+
+  it('leaves an ordinary search, and a host, alone', () => {
+    expect(VexSearch.toUrl('how to tie a knot')).toContain('duckduckgo.com/?q=how%20to%20tie%20a%20knot');
+    expect(VexSearch.toUrl('yt.example.com')).toBe('https://yt.example.com');
+  });
+
+  it('says where the search row is going', () => {
+    const [row] = VexSearch.suggest('gh vex');
+    expect(row.url).toBe('https://github.com/search?q=vex&type=repositories');
+    expect(row.snippet).toBe('On github.com');
+  });
+});

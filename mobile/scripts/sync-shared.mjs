@@ -18,15 +18,22 @@ const root = path.join(here, '..');
 const from = path.join(root, '..', 'src', 'renderer', 'js');
 const to = path.join(root, 'www', 'js', 'shared');
 
-const FILES = ['sync-crypto.js', 'sync-records.js'];
+// File, and why the two have to agree on it.
+const FILES = {
+  'sync-crypto.js': 'or they cannot read each other’s synced data.',
+  'sync-records.js': 'or they cannot read each other’s synced data.',
+  // Not sync, but the same rule: "yt cats" and "!w einstein" should mean one
+  // thing in the desktop's address bar and the phone's.
+  'search-shortcuts.js': 'so a keyword or a !bang means one thing on both.'
+};
 
 const header = name => '// Copied verbatim from src/renderer/js/' + name + ' by scripts/sync-shared.mjs.\n'
   + '// Do not edit here — the phone and the desktop have to agree on this file\n'
-  + '// exactly, or they cannot read each other’s synced data.\n';
+  + '// exactly, ' + FILES[name] + '\n';
 
 fs.mkdirSync(to, { recursive: true });
 let stale = [];
-for (const name of FILES) {
+for (const name of Object.keys(FILES)) {
   const source = fs.readFileSync(path.join(from, name), 'utf8');
   const wanted = header(name) + source;
   const target = path.join(to, name);
@@ -43,5 +50,5 @@ if (process.argv.includes('--check')) {
   }
   console.log('ok — shared sync files match the desktop');
 } else {
-  console.log('wrote ' + FILES.length + ' shared files into www/js/shared');
+  console.log('wrote ' + Object.keys(FILES).length + ' shared files into www/js/shared');
 }

@@ -135,7 +135,17 @@ const VexSearch = (() => {
       if (/^(?:https?|file|data|about|vex):/i.test(text)) return text;
       if (text.startsWith('//')) return 'https:' + text;
       if (LOOKS_LIKE_HOST.test(text) || LOOKS_LIKE_LOCAL.test(text)) return 'https://' + text;
-      return this.searchUrl(text);
+      return this.shortcut(text) || this.searchUrl(text);
+    },
+
+    /**
+     * "yt cats", "gh vex", "!w einstein": a keyword or a DuckDuckGo !bang, the
+     * desktop's own resolver (shared/search-shortcuts.js, copied verbatim).
+     * The address it goes to, or '' when what was typed is an ordinary search.
+     */
+    shortcut(text) {
+      const resolver = typeof window !== 'undefined' && window.SearchShortcuts;
+      return (resolver && resolver.resolve(text)) || '';
     },
 
     isSearch(input) {
@@ -196,7 +206,17 @@ const VexSearch = (() => {
     suggest(input, limit = 8) {
       const text = String(input || '').trim().toLowerCase();
       const rows = [];
-      if (text) rows.push({ kind: 'search', title: text, url: this.searchUrl(text) });
+      if (text) {
+        // A keyword or a !bang says where it is going, since that is no
+        // longer the engine underneath.
+        const shortcut = this.shortcut(String(input || '').trim());
+        rows.push(shortcut
+          ? {
+            kind: 'search', title: text, url: shortcut,
+            snippet: /(^|\s)!/.test(text) ? 'A !bang, through DuckDuckGo' : 'On ' + this.prettyHost(shortcut)
+          }
+          : { kind: 'search', title: text, url: this.searchUrl(text) });
+      }
       if (!window.VexStore) return rows;
 
       const seen = new Set();
