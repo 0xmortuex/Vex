@@ -9,4 +9,13 @@
     <string name="widget_voice">Search by voice</string>
     <string name="widget_scan">Scan a QR code</string>
     <string name="widget_description">Search, speak or scan, straight from the home screen.</string>
+
+    <!-- Long-pressing the icon. The short label is what fits under it, the long
+         one is what the launcher shows when there is room. -->
+    <string name="shortcut_new_tab_short">New tab</string>
+    <string name="shortcut_new_tab">Open a new tab</string>
+    <string name="shortcut_new_private_short">Private tab</string>
+    <string name="shortcut_new_private">Open a new private tab</string>
+    <string name="shortcut_voice_short">Voice</string>
+    <string name="shortcut_scan_short">Scan</string>
 </resources>

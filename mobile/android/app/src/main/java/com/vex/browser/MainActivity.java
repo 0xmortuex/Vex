@@ -167,9 +167,27 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
+     * The launcher shortcuts in res/xml/shortcuts.xml. Each carries one of these
+     * actions and names this activity, so they arrive here and nowhere else.
+     * They are mapped onto the same four targets the home-screen widget uses,
+     * because they mean the same four things.
+     */
+    private static String shortcutTarget(String action) {
+        if (action == null) return null;
+        switch (action) {
+            case "com.vex.browser.action.NEW_TAB": return "new-tab";
+            case "com.vex.browser.action.NEW_PRIVATE_TAB": return "new-private-tab";
+            case "com.vex.browser.action.VOICE": return "voice";
+            case "com.vex.browser.action.SCAN": return "scan";
+            default: return null;
+        }
+    }
+
+    /**
      * http/https VIEW intents are delivered by @capacitor/app as appUrlOpen.
-     * Shared text and WEB_SEARCH are not, so they are forwarded to the chrome
-     * as a window event the boot script listens for.
+     * Shared text, WEB_SEARCH, the widget and the launcher shortcuts are not, so
+     * they are forwarded to the chrome as a window event the boot script listens
+     * for.
      */
     private void handleIntent(Intent intent) {
         if (intent == null || getBridge() == null) return;
@@ -184,6 +202,7 @@ public class MainActivity extends BridgeActivity {
 
         JSObject payload = null;
         String widget = intent.getStringExtra(SearchWidget.EXTRA_ACTION);
+        if (widget == null || widget.isEmpty()) widget = shortcutTarget(action);
         if (widget != null && !widget.isEmpty()) {
             payload = new JSObject();
             payload.put("widget", widget);

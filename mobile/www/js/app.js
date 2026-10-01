@@ -159,10 +159,13 @@
     else if (detail.text) VexUI.openUrl(detail.text, { newTab: true });
   });
 
-  // A tap on the home-screen widget. Three targets, and each one lands where
-  // the same button in the chrome would.
-  function runWidgetTap(target) {
+  // A tap on the home-screen widget, or a launcher shortcut from long-pressing
+  // the icon. Each target lands exactly where the same button in the chrome
+  // would, which is the whole promise of a shortcut.
+  async function runWidgetTap(target) {
     if (target === 'scan') { VexUI.openScanner(); return; }
+    if (target === 'new-tab') { await VexUI.newTab(); return; }
+    if (target === 'new-private-tab') { await VexUI.newTab({ incognito: true }); return; }
     VexUI.openOmnibox('');
     if (target === 'voice') VexUI.dictateIntoOmnibox();
   }

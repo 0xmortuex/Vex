@@ -58,6 +58,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+
+            <!-- Long-pressing the icon: a new tab, a private one, the
+                 microphone and the camera. Each shortcut names this activity
+                 explicitly, so none of its actions needs a filter here. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- LiteRT-LM's GPU backend loads these at runtime; without the

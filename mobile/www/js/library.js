@@ -70,7 +70,9 @@ const VexLibrary = (() => {
       ['voice', 'Say it instead', 'Dictate into the address bar.', () => VexUI.openOmnibox('')],
       ['pip', 'Floating video', 'The video keeps playing in a small window while you do something else.', () => VexUI.toast('Play a video, then use the controls above the toolbar')],
       ['home-screen', 'Add to the home screen', 'A site, pinned to the launcher with its own icon.', () => VexUI.toast('Open a site, then Menu → Add to home screen')],
-      ['default', 'Make Vex the default browser', 'So links from other apps open here.', () => VexBridge.openDefaultBrowserSettings()]
+      ['default', 'Make Vex the default browser', 'So links from other apps open here.', () => VexBridge.openDefaultBrowserSettings()],
+      ['widget', 'The home-screen search bar', 'Search, speak or scan without opening Vex first. Add it the way you add any widget.', () => VexUI.toast('Long-press your home screen → Widgets → Vex')],
+      ['shortcuts', 'Long-press the icon', 'A new tab, a private tab, the microphone and the camera, straight from the launcher.', () => VexUI.toast('Long-press Vex on your home screen')]
     ]]
   ];
 

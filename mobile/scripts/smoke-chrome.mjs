@@ -570,6 +570,43 @@ results.contentAfterSpeakBar = await contentHeight();
 results.speakInMenu = await page.evaluate(() =>
   VexSheets.DEFAULT_ORDER.includes('read-aloud') && !!VexSheets.ACTIONS['read-aloud']);
 
+// ── Launcher shortcuts and the widget ───────────────────────────────────────
+// The four targets the launcher and the widget both send. Each has to land
+// somewhere in the chrome rather than being dropped on the floor.
+results.shortcutTargets = await page.evaluate(async () => {
+  const out = {};
+  const before = VexTabStore.all().length;
+  window.dispatchEvent(new CustomEvent('vexOpenText', { detail: { widget: 'new-tab' } }));
+  await new Promise(resolve => setTimeout(resolve, 400));
+  out.newTab = VexTabStore.all().length - before;
+  const privateBefore = VexTabStore.private().length;
+  window.dispatchEvent(new CustomEvent('vexOpenText', { detail: { widget: 'new-private-tab' } }));
+  await new Promise(resolve => setTimeout(resolve, 400));
+  out.private = VexTabStore.private().length - privateBefore;
+  VexUI.closeOmnibox();
+  // The scanner is raised before the camera is asked for, and this machine has
+  // no camera, so look while the asking is still in flight.
+  window.dispatchEvent(new CustomEvent('vexOpenText', { detail: { widget: 'scan' } }));
+  out.scan = !document.getElementById('scan').hidden;
+  await new Promise(resolve => setTimeout(resolve, 300));
+  VexUI.closeScanner();
+  return out;
+});
+// Shared text from another app still opens as a page.
+results.sharedTextOpens = await page.evaluate(async () => {
+  const before = VexTabStore.all().length;
+  window.dispatchEvent(new CustomEvent('vexOpenText', { detail: { text: 'example.org' } }));
+  await new Promise(resolve => setTimeout(resolve, 400));
+  return VexTabStore.all().length > before;
+});
+await page.evaluate(async () => {
+  // Back to one normal tab on example.com, which the rest of the walkthrough
+  // assumes it is standing on.
+  for (const tab of VexTabStore.all().slice(1)) await VexTabStore.close(tab.id);
+  VexUI.closeOmnibox(); VexSheets.close(); VexPanels.close();
+});
+await page.waitForTimeout(300);
+
 // ── Clearing browsing data ──────────────────────────────────────────────────
 // What matters is that it clears what was ticked and nothing else, so the test
 // is: tick one thing, clear, and see that the others were left alone.
@@ -973,6 +1010,7 @@ const expected = {
   speakSkipped: 2,
   speakRate: 1.25,
   speakRateShown: '1.25×',
+  sharedTextOpens: true,
   clearPanelTitle: 'Clear browsing data',
   clearBackGoesUp: 'Storage',
   widgetOpensOmnibox: true, widgetDictates: true,
@@ -1000,6 +1038,13 @@ if (String(results.clearDefaults) !== 'true,true,true,false,false,false') {
   failures.push('clearDefaults: the tick boxes do not start where they should (' + results.clearDefaults + ')');
 }
 if (results.clearRows < 9) failures.push('clearRows: the clear panel lost rows (' + results.clearRows + ')');
+if (results.shortcutTargets.newTab !== 1) {
+  failures.push('shortcutTargets: "new tab" opened ' + results.shortcutTargets.newTab + ' tabs');
+}
+if (results.shortcutTargets.private !== 1) {
+  failures.push('shortcutTargets: "new private tab" left ' + results.shortcutTargets.private + ' private tabs');
+}
+if (results.shortcutTargets.scan !== true) failures.push('shortcutTargets: "scan" did not open the scanner');
 if (String(results.clearCleared.done) !== 'history') {
   failures.push('clearCleared: asking for history cleared ' + results.clearCleared.done);
 }
