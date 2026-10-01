@@ -276,7 +276,20 @@ const SyncEngine = (() => {
   // ===== SHORTCUT TILES =====
 
   const sourceOf = key => JSON.parse(key)[0];
-  const tileRecords = doc => ({ schema: 2, records: Object.fromEntries(Object.entries(doc.records).filter(([key]) => TILE_SOURCES.includes(sourceOf(key)))) });
+  // The sources this device reads and writes: its synced preferences, its
+  // file-store keys, its own marker, and the tiles while every device
+  // understands them. Every other record (another device's marker, a list a
+  // newer Vex or the phone added, a record kind this version does not know)
+  // is carried exactly as it was pulled. Vex 2.35.1 and older marked all of
+  // those deleted on every push, so whatever another client added vanished
+  // from every device (SYNC_PROTOCOL.md §6 rule 1).
+  const RECORD_KINDS = ['type', 'value', 'item'];
+  const ownsSource = (source, gate) => source === DEVICE_SOURCE + state.deviceId
+    || preferenceKeys().some(key => source === 'preference:' + key)
+    || STORE_KEYS.some(key => source === 'storage:' + key)
+    || (gate.open && TILE_SOURCES.includes(source));
+  const ownsRecord = (key, gate) => { const [source, kind] = JSON.parse(key); return RECORD_KINDS.includes(kind) && ownsSource(source, gate); };
+  const tileRecords = doc =>({ schema: 2, records: Object.fromEntries(Object.entries(doc.records).filter(([key]) => TILE_SOURCES.includes(sourceOf(key)))) });
 
   // Tiles carry no id, so the id comes from the address: the same tile made on
   // two devices is one tile, and a second tile with the same address (Duplicate)
@@ -398,11 +411,14 @@ const SyncEngine = (() => {
       }
     }
     recordDocument = records.capture(before, records.flatten(data), state.deviceId);
-    // Records this device leaves exactly as it found them: the other devices'
-    // markers, and the tiles while they wait for every device to understand them.
+    // Records this device leaves exactly as it found them: everything it does
+    // not own (ownsRecord), including the tiles while they wait for every
+    // device to understand them. capture() marked them deleted, as it does
+    // every record missing from its values; they go back unchanged, in place.
     for (const key of Object.keys(recordDocument.records)) {
-      const source = sourceOf(key);
-      if ((source.startsWith(DEVICE_SOURCE) && source !== DEVICE_SOURCE + state.deviceId) || (!gate.open && TILE_SOURCES.includes(source))) recordDocument.records[key] = before.records[key];
+      if (ownsRecord(key, gate)) continue;
+      if (!Object.hasOwn(before.records, key)) throw new Error('Sync tried to write a record it does not own: ' + key);
+      recordDocument.records[key] = before.records[key];
     }
     await VexStorage.save('sync-records', recordDocument);
     if (gate.join) await VexStorage.save('sync-tiles-joined', state.deviceId);
@@ -441,19 +457,31 @@ const SyncEngine = (() => {
       records.valid(data);
       merged = { schema: 2, records: { ...data.records } };
       const typeOf = (doc, key) => doc.records[JSON.stringify([JSON.parse(key)[0], 'type'])];
+      // A bookmark this device has under another id than the account's copy
+      // of the same address would come back as a second bookmark on every
+      // device. The account's copy is kept; the address is the identity, as
+      // for the star button (bookmarks.js has(): the same URL string).
+      const bookmarkItem = key => { const [source, kind] = JSON.parse(key); return source === 'preference:vex.bookmarks' && kind === 'item'; };
+      const accountBookmarks = new Set(Object.entries(data.records)
+        .filter(([key, record]) => !record.deleted && bookmarkItem(key) && typeof record.value?.item?.url === 'string')
+        .map(([, record]) => record.value.item.url));
       for (const [key, record] of Object.entries(local.records)) {
         if (Object.hasOwn(merged.records, key) || record.deleted) continue;
         // The cloud keeps this source in another shape (notes pushed as one
         // value by an older Vex): its copy wins whole rather than mixing both.
         const cloudType = typeOf(data, key);
         if (cloudType && !cloudType.deleted && cloudType.value !== typeOf(local, key)?.value) continue;
+        if (bookmarkItem(key) && accountBookmarks.has(record.value?.item?.url)) continue;
         merged.records[key] = record;
       }
       // This device's tiles were just added on top of the account's (see
       // collectSyncData), so its tile records are the newer ones.
       if (gate.open) Object.assign(merged.records, records.merge(tileRecords(local), tileRecords(data)).records);
     } else merged = records.merge(local, data);
-    const sources = records.unflatten(records.values(merged));
+    // Only what this device applies is read and checked. A source it does not
+    // own stays in the document as it came, and must not stop this device
+    // syncing because it fails a check that applies to what this device writes.
+    const sources = records.unflatten(Object.fromEntries(Object.entries(records.values(merged)).filter(([key]) => ownsRecord(key, gate))));
     window.VexDataContracts?.sources(sources);
     for (const key of LIST_PREFERENCES) {
       const name = 'preference:' + key;
@@ -587,6 +615,13 @@ const SyncEngine = (() => {
       if (!Number.isSafeInteger(receivedRevision) || receivedRevision < 0) throw new Error('Invalid sync revision');
       const blob = result.encryptedBlob;
       if (!blob) {
+        // The account is empty (new, or its data was lost while the sessions
+        // survived). The next push starts from an empty document and this
+        // device's own data; the stored copy of the old document would bring
+        // back records, other clients' included, that nobody holds any more
+        // (SYNC_PROTOCOL.md §6 rule 3).
+        recordDocument = window.VexSyncRecords.empty();
+        await VexStorage.save('sync-records', recordDocument);
         revision = receivedRevision;
         pullBlocked = false;
         state.lastPullAt = new Date().toISOString();

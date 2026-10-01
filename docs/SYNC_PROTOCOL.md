@@ -1,8 +1,8 @@
-# Vex Sync Protocol (v2.35.0)
+# Vex Sync Protocol (v2.35.2)
 
 This is the wire and data contract between Vex clients and a self-hosted Vex Sync worker. A third-party or mobile client can follow it and sync with desktop Vex without losing or corrupting another device's data.
 
-Everything here comes from the code at Vex v2.35.0, and was checked by running it:
+Everything here comes from the code at Vex v2.35.2, and was checked by running it. The first version of this document shipped with v2.35.1; v2.35.2 changed the desktop to follow §5.3, §5.4 and §6 where it did not yet (each change says "from v2.35.2"):
 
 | Area | Source of truth |
 |---|---|
@@ -10,9 +10,9 @@ Everything here comes from the code at Vex v2.35.0, and was checked by running i
 | Client engine | `src/renderer/js/sync-engine.js` |
 | Record document (CRDT-ish) | `src/renderer/js/sync-records.js` |
 | Encryption | `src/renderer/js/sync-crypto.js` |
-| Validation the desktop applies to what it pulls | `src/renderer/js/data-contracts.js` |
+| Validation the desktop applies to the sources it reads from a pull | `src/renderer/js/data-contracts.js` |
 | Worker URL setting | `src/renderer/js/vex-config.js` |
-| Behaviour pinned by tests | `tests/renderer/syncRecords.test.js`, `sweep-fin5-sync.test.js`, `sweep-r2-sync-lists.test.js`, `sweep-r4-sync-tiles.test.js`, `tests/workers/syncAuth.test.js`, `durableSecurity.test.js` |
+| Behaviour pinned by tests | `tests/renderer/syncRecords.test.js`, `sweep-fin5-sync.test.js`, `sweep-r2-sync-lists.test.js`, `sweep-r4-sync-tiles.test.js`, `sync-protocol-compat.test.js`, `tests/workers/syncAuth.test.js`, `durableSecurity.test.js` |
 
 The test vector (§3.6) came from running the real `sync-crypto.js` and `sync-records.js` under Node's WebCrypto, and Node's own `crypto` module was used to check it. The HTTP examples (§1, §2, §9) are real responses from the real worker code, run through a local Node stand-in for its Durable Object.
 
@@ -361,7 +361,7 @@ Every other preference is a **scalar**: its value is the raw localStorage string
 - A `type` of anything else, plus a `value` record, gives the source that value.
 - **Mixed shapes:** an older Vex may still send a list source whole (type `scalar`, value is a JSON *string*) while newer devices write item rows. When both are present, **the whole value wins** and the item rows are ignored. During a restore-mode join (§5.4), the cloud's whole value also wins over local item rows.
 - Item rows whose `type` record is deleted or missing still become a list.
-- A source whose records are all deleted is **absent**. When a source is absent after a merge, the desktop **removes that localStorage key**, which deletes that data on the desktop.
+- A source whose records are all deleted is **absent**. When a source the desktop owns (§6 rule 1) is absent after a merge, the desktop **removes that localStorage key**, which deletes that data on the desktop.
 - The value of an item record must be an object with a safe-integer `index ≥ 0`, or the desktop throws "Invalid sync array item".
 
 `index` is just the position in the list at capture time. Inserting at the front (the desktop's bookmark add uses `unshift`) changes `index` on every later item, and each of those counts as an edit of that item's record. See §5.5.
@@ -377,7 +377,7 @@ Every current client writes a scalar source `sync:device:<its deviceId>` with va
 2. For every listed device other than itself, it checks the cloud document for a non-deleted marker with `value.level >= 1`.
 3. If any listed device lacks one, the **gate is shut**. The desktop then leaves `preference:vex.shortcuts` and `preference:vex.startTiles` records exactly as it found them, and keeps its tiles local. A failed device-list call (or 403) also shuts the gate.
 
-The reason: Vex ≤ 2.34.2 tombstoned every record it did not know on each push, which wiped other devices' tiles. When an older device joins, the gate shuts again; when it leaves, the gate reopens and each device merges its tiles back in ("join").
+The reason: Vex ≤ 2.34.2 tombstoned every record it did not know on each push, which wiped other devices' tiles. (Vex 2.34.3 to 2.35.1 still tombstoned every source they did not know other than tiles and markers; see §6 rule 1. A level-1 marker does not tell those versions apart from v2.35.2.) When an older device joins, the gate shuts again; when it leaves, the gate reopens and each device merges its tiles back in ("join").
 
 Consequences for a new client:
 - A client that registers (pull or push) but never writes its marker **shuts tile sync for every device on the account**.
@@ -436,19 +436,19 @@ State a client persists: `recordDocument` (the last merged document), `revision`
 
 **Pull:**
 1. `GET /sync/pull`. A 401 means signed out (§2.6).
-2. If the response has no `encryptedBlob`: set `revision = response.revision || 0` and stop.
+2. If the response has no `encryptedBlob`, the account is empty (new, or its blob was lost while sessions survived). Replace `recordDocument` with an empty document and persist it, **then** set `revision = response.revision || 0`, and stop. The next push is then built from the empty document plus this device's own data (rule 3). The stored copy of the earlier document MUST NOT be pushed: it would bring back records nobody holds any more, other clients' included. (Desktop from v2.35.2; earlier desktops pushed their stored copy.)
 3. Decrypt. On a tag failure, stop: report "wrong key", do not change anything, and **block pushes** until a pull succeeds.
 4. Validate the document (§4.1), converting it first if it is legacy.
 5. `local = capture(recordDocument, flatten(currentLocalSources), deviceId)`. This records local edits made since the last round.
 6. `merged = merge(local, cloud)`.
-7. `sources = unflatten(values(merged))`. Validate them with data-contracts (§8.4). A failure throws: nothing is applied, and pushes stay blocked.
-8. Apply the sources to app state. A source that is now **absent** has its local copy removed.
+7. `sources = unflatten(values(merged))`, taking only the records of sources this device owns (rule 1). Validate them with data-contracts (§8.4). A failure throws: nothing is applied, and pushes stay blocked. Records of sources it does not own are neither read nor validated; they stay in `merged` as they came.
+8. Apply the sources to app state. A source it owns that is now **absent** has its local copy removed.
 9. Persist `recordDocument = merged`, **then** `revision = response.revision`. Order matters: a revision must never be acknowledged without the merged document it belongs to.
 10. If this device's own marker is missing or deleted in the cloud document, push right away.
 
 **Push:**
 1. If pushes are blocked by a failed pull, refuse.
-2. `doc = capture(recordDocument, flatten(currentLocalSources ∪ ownMarker), deviceId)`, with the rule-1 preservation from §6 applied.
+2. `doc = capture(recordDocument, flatten(currentLocalSources ∪ ownMarker), deviceId)`, with the rule-1 preservation from §6 applied: every record this device does not own is then put back exactly as it is in `recordDocument`, in the same place.
 3. Encrypt and `POST /sync/push {encryptedBlob, updatedAt: nowISO, baseRevision: revision}`.
 4. 200: set `revision = response.revision` and persist `recordDocument = doc`.
 5. 409: run **Pull**, which merges, then push **once more**. The desktop gives up after the second 409 ("Another device synced at the same moment — try again"). A mobile client SHOULD allow a few retries, because desktops push often (§5.6).
@@ -460,6 +460,8 @@ A push never merges with the server. Its correctness depends on `baseRevision`: 
 On the join pull (`restore: true`), the desktop does **not** call `merge`. Instead:
 - Start from the cloud records: `merged.records = {...cloud.records}`. The **cloud wins every record it has**, tombstones included.
 - Add each local record whose key is not in the cloud and which is **not deleted**. Skip a local record when the cloud has a non-deleted `type` record for that source whose value differs from the local `type` value. In that case the cloud's shape wins whole (for example an older Vex holding notes as one string).
+- **Bookmarks with an address the account already has** (from v2.35.2): skip a local `preference:vex.bookmarks` item whose `item.url` is the exact same string as the `url` of a **non-deleted** bookmark item in the cloud, when their ids differ. The account's copy is kept, and the local one disappears from this device when the merged list is applied. The comparison is plain string equality, with no normalisation, as the desktop's star button uses (`bookmarks.js` `has()`). A tombstoned cloud bookmark does not count, so a local bookmark of an address the account deleted is kept. Local bookmarks whose address the account does not have are added as before.
+- No other list is deduplicated. Notes, history visits, sessions, tools, scheduled tasks, personas and reminders have no natural key that would make two of them the same thing (two history visits of one URL are two visits, two notes may share a title). Force-dark hosts and tiles already use the natural key as their id (§4.3, §4.6), so a duplicate is the same record.
 - Tiles get their own handling if the gate is open (`collectSyncData` with `gate.join`): the account's tiles are united with the local ones by tile id, and then merged.
 - No conflict toast is shown. Afterwards the client pushes, so its local-only records reach the account.
 
@@ -484,9 +486,13 @@ A device with no local data can just adopt the cloud document.
 
 1. A client **MUST NOT tombstone, drop or rewrite any record whose source it does not own.** Build the push document like this: take the last merged document, run `capture` only over the sources you own plus your marker, and copy **every other record verbatim** from that document. That includes tombstones, `conflicts`, `clock` and field order. In practice: build `values` as `values(before)` minus your owned sources, plus `flatten(ownedSources)`, run `capture`, and then put back every non-owned record from `before` untouched.
 
+   **What the desktop owns** (from v2.35.2, `sync-engine.js` `ownsRecord`): the record kinds `type`, `value` and `item` of `preference:<key>` for each preference in §8.1, `storage:<key>` for each storage key in §8.1, its own `sync:device:<id>`, and the two tile lists while the tile gate is open (§4.6). Every other record (another device's marker, a source a newer Vex or another client added, a record kind it does not know, tiles while the gate is shut) is copied verbatim from the document it pulled, tombstones included, and is not read, applied or validated. Deletions of what it owns still work: an item or key that is gone locally becomes a tombstone.
+
+   **Older desktops:** Vex 2.34.3 to 2.35.1 pass through only other devices' markers and the tiles; every other source they do not know is tombstoned on their next push, and then removed everywhere. Their markers say level 1 just like v2.35.2's, so a client cannot tell them apart. A client SHOULD therefore write only sources listed in §8.1, never a source of its own invention.
+
    Doing otherwise is exactly the bug in which Vex ≤ 2.34.2 wiped other devices' shortcut tiles. Verified with the real code: a naive `capture(cloud, flatten({bookmarks}), phone)` tombstones notes, settings, tiles, every scalar preference and the desktop's marker. After that each desktop **deletes those from its own storage** on its next pull.
 2. A client MUST own only the sources it fully understands and holds **completely**. Owning a source means pushing its full current list, because any item left out becomes a tombstone. Do not own `preference:vex.history` unless the full history is held locally.
-3. A client MUST always push a document derived from the latest document it pulled. Never push one built from scratch, from a stale cache or from an empty document. The one exception is a brand-new account (`hasEncryptedData: false`), pushed with `baseRevision: 0`.
+3. A client MUST always push a document derived from the latest document it pulled. Never push one built from scratch, from a stale cache or from an empty document, except when the account is empty. That is either a brand-new account (`hasEncryptedData: false`, pushed with `baseRevision: 0`), or a pull that returned `{"blob": null}` (pushed with that pull's revision, i.e. 0). In both cases the push MUST be built from an **empty** document plus the client's own data and marker, never from a document the client stored before (§5.3 pull step 2).
 4. A client MUST send `baseRevision` as an integer on every push. It MUST store the revision only after the matching merged document is safely persisted.
 
 **Device markers**
@@ -503,7 +509,7 @@ A device with no local data can just adopt the cloud document.
    - Use an order-preserving JSON model: JS objects, Dart `jsonDecode` (LinkedHashMap), kotlinx.serialization `JsonObject`, Swift with an ordered JSON type or raw JSON passthrough. Do **not** use Swift `JSONSerialization`/`[String: Any]` or `org.json.JSONObject`.
    - Integers such as `at` and `index` MUST stay integers (no `1.767e12`, no `.0`).
 10. Record keys MUST be byte-identical to JS `JSON.stringify([...])` (§4.3). Reuse existing keys. When re-flattening a list you own, check that every unchanged item maps back to the key it already had.
-11. Every record a client writes MUST include `clock` (object), `deleted` (boolean), `value` (`null` when deleted), `at` (integer ms) and `conflicts` (array). The full document MUST pass §4.1. **Every source value MUST pass the desktop's data-contracts (§8.4)**: one invalid value makes every desktop's pull fail, and with it every desktop's push, until the value is repaired.
+11. Every record a client writes MUST include `clock` (object), `deleted` (boolean), `value` (`null` when deleted), `at` (integer ms) and `conflicts` (array). The full document MUST pass §4.1. **Every source value a client writes MUST pass the desktop's data-contracts (§8.4)**: one invalid value in a source the desktops read (for example a bookmark with a `javascript:` URL) makes every desktop's pull fail, and with it every desktop's push, until the value is repaired. A client validates what **it** writes. It MUST NOT refuse to pull or push because a record of a source it does not own fails its checks: it carries that record verbatim (rule 1), as the desktop does from v2.35.2 (§5.3 pull step 7). Desktops up to v2.35.1 validated every source in the merged document, owned or not, so a value no desktop owns must still pass §8.4 while any of them is on the account.
 12. On an authentication-tag failure, a client MUST NOT push, apply or "reset" anything. A wrong key followed by a push would overwrite the account with data nobody else can read.
 13. A client MUST ignore unknown fields inside items it edits and **carry them through unchanged**. Bookmarks, for example, may have `ownSession: true`. It MUST ignore unknown sources and record kinds by copying them verbatim (rule 1). It MUST refuse documents with an unknown `schema`.
 
@@ -569,7 +575,7 @@ A small per-account mailbox, separate from the record document.
 `preference:vex.sessions`, `vex.workspaces`, `vex.tools` (`{id,name,url,desc,svg}`), `vex.schedules` (agent tasks, `v:2`), `vex.personas`, `vex.activePersona`, `vex.aiMemory`, `vex.agentMode`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.aiIndexingEnabled`, `vex.customCommands`, `vex.zooms`, `vex.forceDarkSites`, `vex.autosleep*`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex-theme`, `storage:groups`, `storage:stacks`, `storage:history` (`{url,title,time}` rows from the file store, ≤ 500), `storage:settings`, `storage:shortcuts`, `storage:theme`, and every other device's `sync:device:*`.
 
 ### 8.4 Validation every merged source must pass (`data-contracts.js` `sources()`)
-The desktop runs these checks on the **whole merged result**. A failure aborts the pull.
+The desktop runs these checks on the **sources it owns** in the merged result (§6 rule 1; tile lists only while the gate is open). A failure aborts the pull. Sources it does not own are not checked (from v2.35.2; up to v2.35.1 the desktop checked the whole merged result, and any failure aborted the pull).
 
 - **Every value, recursively:** nesting depth ≤ 40; no non-finite numbers; strings ≤ 12 MiB; objects/arrays ≤ 30 000 keys; no property named `__proto__`, `constructor` or `prototype`.
 - **List preferences** (`LIST_PREFERENCES`): after `JSON.parse` if the value is a string, the value MUST be an array, else "Invalid synced list".
@@ -678,7 +684,7 @@ Go back to 9.3: pull revision 43, replay the queued operation onto the new docum
 ### 9.6 Afterwards
 - Now that the device is registered, `GET /sync/devices` works and lists `{"deviceId":"d1827e…","deviceName":"Pixel 9",…}` alongside the desktops.
 - Desktops pick up the bookmark on their next pull (within 5 minutes, or straight away with "Sync Now").
-- Deleting a bookmark on the phone is the same as adding one: push the bookmarks list without that item, and its record becomes a tombstone.
+- Deleting a bookmark: record the deletion **explicitly**. Queue `delete <item id>` when the user deletes it, and when replaying the queue onto the latest pulled document, leave that one item out of the list you capture: its record becomes a tombstone (`deleted: true`, `value: null`, your clock entry + 1), and the desktops remove it. Only items the user deleted become tombstones. Never infer a deletion from an item being missing from the phone's local copy: an item that is in the account but not on the phone (added by another device since the last pull, or lost from local storage) is **restored** to the phone's list, not deleted. Rebuilding the list from the pulled document and then applying only the queued operations gives exactly this.
 - Handoff: `GET /sync/drop` on app foreground, and `POST /sync/drop` to send the current page (§7).
 - Sign out: `DELETE /sync/devices/d1827e52646814b25bc00ba176f7999f`, then forget the token, key, document and revision.
 
