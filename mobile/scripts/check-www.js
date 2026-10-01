@@ -37,6 +37,33 @@ for (const file of walk(www)) {
   }
 }
 
+// Every setting the chrome reads has to be primed at boot.
+//
+// VexStore.get() answers from a cache that only prime() and set() fill, so a key
+// nobody primed reads as its fallback for ever — the phone's stored value is
+// never looked at. That is a setting which silently resets on every launch, and
+// twice it was a setting whose default is "on" for something that leaves the
+// device. Nothing about it is visible in a diff, so it is checked here.
+{
+  const boot = fs.readFileSync(path.join(www, 'js', 'app.js'), 'utf8');
+  const primed = new Set([...boot.matchAll(/VexStore\.prime\('([\w.]+)'/g)].map(match => match[1]));
+  const read = new Map();
+  for (const file of walk(path.join(www, 'js'))) {
+    if (!file.endsWith('.js')) continue;
+    const source = fs.readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/VexStore\.get\('([\w.]+)'/g)) {
+      if (!read.has(match[1])) read.set(match[1], path.basename(file));
+    }
+  }
+  for (const [key, where] of read) {
+    checked++;
+    if (!primed.has(key)) {
+      failures.push(where + ' reads ' + key + ' but app.js never primes it — it will read its '
+        + 'fallback on every launch, whatever the phone has stored');
+    }
+  }
+}
+
 // The Android side: every plugin method the bridge calls has to exist, in the
 // plugin it calls it on. A chrome that ships a call into a method nobody wrote
 // fails at runtime, on a device, with "no such method" — which is exactly the

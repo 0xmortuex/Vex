@@ -10,6 +10,10 @@ window.VexStore = {
   get: (key, fallback) => (key in store ? store[key] : fallback),
   set: (key, value) => { store[key] = value; }
 };
+// The omnibox reads visited pages from VexHistory's in-memory slice, not from
+// the vex.history preference: that preference is emptied once history moves
+// into IndexedDB. The stub stands in for the slice.
+window.VexHistory = { recent: () => store['vex.history'] || [] };
 const { VexSearch } = require('../../mobile/www/js/search.js');
 
 beforeEach(() => {

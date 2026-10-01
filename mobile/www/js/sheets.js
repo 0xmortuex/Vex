@@ -26,14 +26,22 @@ const VexSheets = (() => {
     clear($('sheet-list'));
   }
 
+  // The page is a native view drawn ABOVE every pixel of this WebView, so a
+  // sheet that does not hide it is drawn underneath it: a menu you cannot see
+  // and a scrim you cannot tap. Every other full-screen overlay in the chrome
+  // refcounts the same cover; this one was missing it.
   function show() {
-    if (!open) { shell().hidden = false; open = true; }
+    if (open) return;
+    shell().hidden = false;
+    open = true;
+    VexUI.cover(true);
   }
 
   function close() {
     if (!open) return;
     shell().hidden = true;
     open = false;
+    VexUI.cover(false);
   }
 
   // A row: icon, label, optional note, and either a switch or a value.

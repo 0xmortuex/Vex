@@ -314,9 +314,11 @@ const VexViews = (() => {
       };
       chatLayout();
       if (mode === 'agent') renderAgent(); else renderChat();
-      $('panel').hidden = false;
-      VexUI.cover(true);
-      VexPanels.markOpen('ai');
+      // Through the shell, which is the only thing that knows whether the panel
+      // is already open: opening the assistant from inside another panel — the
+      // library's "ask Vex what you don't know" does exactly that — covered the
+      // page twice and uncovered it once, leaving every later page invisible.
+      VexPanels.openAIShell();
 
       if (!(await VexAI.configured())) {
         if (mode === 'agent') {
@@ -386,6 +388,9 @@ const VexViews = (() => {
               result = choice === 'proofread'
                 ? await VexLocalAI.nanoProofread(selection)
                 : await VexLocalAI.nanoRewrite(selection, choice);
+            } else if (tab && tab.incognito) {
+              VexUI.toast('A private selection is not sent to your worker', 4000);
+              return;
             } else if (await VexAI.configured()) {
               const how = choice === 'proofread' ? 'Correct the spelling and grammar'
                 : choice === 'shorten' ? 'Say this more briefly'

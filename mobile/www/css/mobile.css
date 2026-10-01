@@ -439,9 +439,15 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 .switch.on::after { transform: translateX(19px); }
 
 /* ── Find bar ────────────────────────────────────────────────────────────── */
+/* Both bars sit IN the column rather than over it.
+   A fixed-position bar would be drawn under the page: the native page view
+   covers the content rect and paints above every pixel of this WebView. As flex
+   items they shrink #content instead, and the page moves up to make room —
+   which is also what you want, since the point of the find bar is to see the
+   page while you use it. */
 .findbar {
-  position: fixed; left: 0; right: 0; bottom: calc(var(--tb-height) + env(safe-area-inset-bottom));
-  z-index: 30; display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 4px; padding: 6px 8px;
   background-color: var(--vex-bg-base); background-image: var(--skin-texture);
   border-top: 1px solid var(--vex-border-subtle);
 }
@@ -625,7 +631,7 @@ body[data-toolbar="top"] .toolbar {
   height: var(--tb-height);
 }
 body[data-toolbar="top"] #progress { order: -2; }
-body[data-toolbar="top"] .findbar { bottom: auto; top: calc(var(--tb-height) + env(safe-area-inset-top)); }
+
 body[data-toolbar="top"] .toasts { bottom: calc(20px + env(safe-area-inset-bottom)); }
 body[data-toolbar="top"] .start { inset: calc(env(safe-area-inset-top) + var(--tb-height)) 0 0 0; }
 
@@ -669,8 +675,7 @@ body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%);
 
 /* ── Video controls ──────────────────────────────────────────────────────── */
 .mediabar {
-  position: fixed; left: 8px; right: 8px; z-index: 29;
-  bottom: calc(var(--tb-height) + env(safe-area-inset-bottom) + 8px);
+  flex: 0 0 auto; margin: 0 8px 6px;
   display: flex; align-items: center; gap: 2px; padding: 4px 6px;
   background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle);
   border-radius: 26px; box-shadow: var(--elevation) var(--vex-shadow);

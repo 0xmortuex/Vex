@@ -77,6 +77,26 @@
 <!-- The content rect: never painted. The native tab WebView is placed over it. -->
 <main id="content" class="content" aria-label="Page"></main>
 
+<!-- Video controls, shown while something is playing. -->
+<div id="mediabar" class="mediabar" hidden>
+  <button class="tb-btn" id="media-playpause" aria-label="Play or pause"><svg><use href="#i-video"/></svg></button>
+  <button class="tb-btn" id="media-back10" aria-label="Back ten seconds"><svg><use href="#i-back"/></svg></button>
+  <button class="tb-btn" id="media-fwd10" aria-label="Forward ten seconds"><svg><use href="#i-forward"/></svg></button>
+  <span class="mediabar-label" id="media-label">Video</span>
+  <button class="tb-btn" id="media-pop" aria-label="Pop out"><svg><use href="#i-external"/></svg></button>
+  <button class="tb-btn" id="media-close" aria-label="Hide controls"><svg><use href="#i-close"/></svg></button>
+</div>
+
+<!-- Find in page. -->
+<div id="findbar" class="findbar" hidden>
+  <input id="find-input" class="find-input" type="text" placeholder="Find in page" enterkeyhint="search"
+         autocapitalize="off" autocorrect="off" spellcheck="false">
+  <span class="find-count" id="find-count"></span>
+  <button class="tb-btn" id="find-prev" aria-label="Previous match"><svg><use href="#i-up"/></svg></button>
+  <button class="tb-btn" id="find-next" aria-label="Next match"><svg><use href="#i-down"/></svg></button>
+  <button class="tb-btn" id="find-close" aria-label="Close find"><svg><use href="#i-close"/></svg></button>
+</div>
+
 <!-- Start page: drawn by the chrome, shown when no page is loaded. -->
 <section id="start" class="start" hidden>
   <header class="start-head">
@@ -173,15 +193,6 @@
   </div>
 </div>
 
-<!-- Find in page. -->
-<div id="findbar" class="findbar" hidden>
-  <input id="find-input" class="find-input" type="text" placeholder="Find in page" enterkeyhint="search"
-         autocapitalize="off" autocorrect="off" spellcheck="false">
-  <span class="find-count" id="find-count"></span>
-  <button class="tb-btn" id="find-prev" aria-label="Previous match"><svg><use href="#i-up"/></svg></button>
-  <button class="tb-btn" id="find-next" aria-label="Next match"><svg><use href="#i-down"/></svg></button>
-  <button class="tb-btn" id="find-close" aria-label="Close find"><svg><use href="#i-close"/></svg></button>
-</div>
 
 <!-- Reader. -->
 <div id="reader" class="reader" hidden>
@@ -243,15 +254,6 @@
   </div>
 </div>
 
-<!-- Video controls, shown while something is playing. -->
-<div id="mediabar" class="mediabar" hidden>
-  <button class="tb-btn" id="media-playpause" aria-label="Play or pause"><svg><use href="#i-video"/></svg></button>
-  <button class="tb-btn" id="media-back10" aria-label="Back ten seconds"><svg><use href="#i-back"/></svg></button>
-  <button class="tb-btn" id="media-fwd10" aria-label="Forward ten seconds"><svg><use href="#i-forward"/></svg></button>
-  <span class="mediabar-label" id="media-label">Video</span>
-  <button class="tb-btn" id="media-pop" aria-label="Pop out"><svg><use href="#i-external"/></svg></button>
-  <button class="tb-btn" id="media-close" aria-label="Hide controls"><svg><use href="#i-close"/></svg></button>
-</div>
 
 <!-- One dialog for the three questions the chrome asks: a name, a yes/no, or
      a code to write down. Android has no window.prompt in a WebView worth

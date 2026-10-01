@@ -162,7 +162,13 @@ const VexSearch = (() => {
         seen.add(bookmark.url);
         rows.push({ kind: 'bookmark', title: bookmark.title || bookmark.url, url: bookmark.url, icon: bookmark.icon || '' });
       }
-      for (const entry of VexStore.get('vex.history', [])) {
+      // History comes from VexHistory's in-memory slice, which exists precisely
+      // so the omnibox can draw without awaiting a database. It used to read the
+      // vex.history preference — which VexHistory empties the first time it
+      // migrates history into IndexedDB, and never writes again — so after the
+      // first launch the address bar suggested nothing you had ever visited.
+      const visited = (typeof VexHistory !== 'undefined' && VexHistory.recent) ? VexHistory.recent(400) : [];
+      for (const entry of visited) {
         if (rows.length >= limit) break;
         if (!match(entry)) continue;
         seen.add(entry.url);

@@ -285,7 +285,19 @@ const VexUI = (() => {
   }
 
   // ── Dialogs ──────────────────────────────────────────────────────────────
-  function dialog({ title, message, input, code, okLabel = 'OK', cancelLabel = 'Cancel', hideCancel }) {
+  // There is one dialog element and several things that can want it at once —
+  // two tabs asking for a permission, the agent's confirmation arriving while a
+  // prompt is up. Without a queue the second overwrites the first's buttons and
+  // the first promise is never settled, which strands whatever was awaiting it.
+  let dialogQueue = Promise.resolve();
+
+  function dialog(options) {
+    const next = dialogQueue.then(() => showDialog(options), () => showDialog(options));
+    dialogQueue = next.then(() => {}, () => {});
+    return next;
+  }
+
+  function showDialog({ title, message, input, code, okLabel = 'OK', cancelLabel = 'Cancel', hideCancel }) {
     return new Promise(resolve => {
       $('dialog-title').textContent = title || 'Vex';
       const messageEl = $('dialog-message');
@@ -302,9 +314,14 @@ const VexUI = (() => {
       cancel.hidden = !!hideCancel;
       cancel.textContent = cancelLabel;
       $('dialog').hidden = false;
+      // Like every other overlay: the native page view is drawn above this
+      // WebView, so a dialog that does not hide the page is a dialog nobody can
+      // see — and this is the one that asks whether a site may use the camera.
+      cover(true);
 
       const finish = value => {
         $('dialog').hidden = true;
+        cover(false);
         $('dialog-ok').onclick = null;
         cancel.onclick = null;
         $('dialog-scrim').onclick = null;
@@ -664,13 +681,27 @@ const VexUI = (() => {
   }
 
   // ── The video bar ────────────────────────────────────────────────────────
+  // Hidden by hand, and left hidden until the page's media changes. Without
+  // this the poller four seconds later decides a video is playing and brings the
+  // bar straight back, which makes its close button look broken.
+  let mediaDismissedFor = '';
+
+  function setMediaBar(hidden) {
+    const bar = $('mediabar');
+    if (bar.hidden === hidden) return;
+    bar.hidden = hidden;
+    scheduleBounds();        // it is a flex item: the page moves to make room
+  }
+
   async function refreshMediaBar() {
-    if (!VexStore.get('vex.mediaBar', true)) { $('mediabar').hidden = true; return; }
+    if (!VexStore.get('vex.mediaBar', true)) { setMediaBar(true); return; }
     const tab = VexTabStore.active();
-    if (!tab || !tab.url || tab.url === 'about:blank' || !$('omnibox').hidden) { $('mediabar').hidden = true; return; }
+    if (!tab || !tab.url || tab.url === 'about:blank' || !$('omnibox').hidden) { setMediaBar(true); return; }
+    // Dismissed for this page: it comes back when you go somewhere else.
+    if (mediaDismissedFor && mediaDismissedFor === tab.url) { setMediaBar(true); return; }
     const state = await VexMedia.state(tab.id);
     const show = !!state.playing;
-    $('mediabar').hidden = !show;
+    setMediaBar(!show);
     if (show) {
       $('media-label').textContent = state.duration
         ? Math.floor(state.current / 60) + ':' + String(state.current % 60).padStart(2, '0')
@@ -973,7 +1004,11 @@ const VexUI = (() => {
         try { await VexMedia.popOut(tab.id); }
         catch (error) { toast(error.message); }
       };
-      $('media-close').onclick = () => { $('mediabar').hidden = true; };
+      $('media-close').onclick = () => {
+        const tab = VexTabStore.active();
+        mediaDismissedFor = tab ? tab.url : '';
+        setMediaBar(true);
+      };
 
       // Find
       $('find-input').addEventListener('input', event => {

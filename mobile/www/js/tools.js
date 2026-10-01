@@ -161,13 +161,22 @@ const VexTools = (() => {
     // is configured it offers the web one, and says that is what it is doing.
     async translate(tab, language) {
       const name = (this.LANGUAGES.find(pair => pair[0] === language) || [, language])[1];
-      if (await VexAI.configured()) {
+      // Whether this page may be read at all depends on where the answer comes
+      // from. ai.js settles that for a question typed into the assistant; this
+      // path reads the page itself, so it has to ask the same question — and
+      // mark what it read, so the worker's payload can refuse it.
+      const staysHere = VexAI.staysHere('translate');
+      if (tab.incognito && !staysHere) {
+        throw new Error('A private tab is not sent to your worker. Turn on on-device AI to translate it here.');
+      }
+      if (staysHere || await VexAI.configured()) {
         const text = await VexReader.pageText(tab.id, 5000);
         if (!text) throw new Error('There was no text to translate');
         const reply = await VexAI.ask('Translate this page into ' + name + '.', {
-          action: 'translate', targetLanguage: name, context: { url: tab.url, title: tab.title, text }
+          action: 'translate', targetLanguage: name,
+          context: { url: tab.url, title: tab.title, text, private: !!tab.incognito }
         });
-        return { via: 'worker', text: reply };
+        return { via: staysHere ? 'device' : 'worker', text: reply };
       }
       return { via: 'web', url: 'https://translate.google.com/translate?sl=auto&tl='
         + encodeURIComponent(language) + '&u=' + encodeURIComponent(tab.url) };

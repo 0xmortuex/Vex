@@ -62,7 +62,14 @@ const server = http.createServer((request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = 'http://127.0.0.1:' + server.address().port;
 
-const executablePath = process.env.CHROMIUM_PATH || undefined;
+// Playwright wants the exact Chromium build it shipped with. Where a container
+// has pre-installed a different one (and so Playwright's own download is turned
+// off), CHROMIUM_PATH — or that browser, if it is where containers put it —
+// keeps the walkthrough runnable instead of asking for a download that cannot
+// happen.
+const prebuilt = '/opt/pw-browsers/chromium';
+const executablePath = process.env.CHROMIUM_PATH
+  || (fs.existsSync(prebuilt) && fs.statSync(prebuilt).isFile() ? prebuilt : undefined);
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const context = await browser.newContext({ ...devices['Pixel 7'] });
 

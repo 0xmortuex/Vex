@@ -38,6 +38,22 @@ const VexPanels = (() => {
     return $('panel-body');
   }
 
+  /**
+   * Open the panel for the assistant, which draws its own body.
+   *
+   * The assistant is not a panel like the others — it builds #panel-body itself
+   * — but it has to enter through the same door, because this is the only place
+   * that knows whether #panel is already open and therefore whether the page
+   * needs covering again.
+   */
+  function openAIShell() {
+    if ($('panel').hidden) {
+      $('panel').hidden = false;
+      VexUI.cover(true);
+    }
+    if (stack[stack.length - 1] !== 'ai') stack.push('ai');
+  }
+
   function close() {
     stack = [];
     stopTotp();
@@ -148,6 +164,7 @@ const VexPanels = (() => {
     // must be touched exactly once per open, and this is the only place that
     // knows whether it is already open.
     shell: openShell,
+    openAIShell,
     close,
     back,
     isOpen() { return !$('panel').hidden; },

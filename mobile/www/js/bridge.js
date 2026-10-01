@@ -19,7 +19,7 @@
 const VexBridge = (() => {
   const listeners = new Map();              // event -> Set<fn>
   const devSecrets = Object.create(null);   // fallback only; never persisted
-  const plugins = { VexTabs: null, VexBlock: null, VexSecrets: null, VexSystem: null, VexRemind: null, VexLocalAI: null };
+  const plugins = { VexTabs: null, VexBlock: null, VexSecrets: null, VexSystem: null, VexRemind: null, VexLocalAI: null, VexSpeak: null };
   let native = false;
 
   function emit(event, payload) {
@@ -341,6 +341,27 @@ const VexBridge = (() => {
 
     // A file the chrome was shown and decided to keep after all.
     saveFile(tabId, url, filename) { return tabs('save', { id: tabId, url, filename }); },
+
+    // ── Reading aloud ──────────────────────────────────────────────────────
+    async speakAvailable() {
+      const result = await call('VexSpeak', 'available', {});
+      return { available: !!(result && result.available), voices: (result && result.voices) || [] };
+    },
+    speak(parts, { rate = 1, voice = '' } = {}) {
+      return call('VexSpeak', 'speak', { parts, rate, voice });
+    },
+    speakStop() { return call('VexSpeak', 'stop', {}); },
+    onSpeak(event, fn) {
+      const plugin = plugins.VexSpeak;
+      if (!plugin) {
+        const key = 'speak:' + event;
+        if (!listeners.has(key)) listeners.set(key, new Set());
+        listeners.get(key).add(fn);
+        return () => { const set = listeners.get(key); if (set) set.delete(fn); };
+      }
+      const handle = plugin.addListener(event, fn);
+      return () => { try { if (handle && handle.remove) handle.remove(); } catch { /* gone */ } };
+    },
 
     // What this phone is, for the diagnostics page and a bug report.
     async deviceReport() {

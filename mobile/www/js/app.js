@@ -78,7 +78,22 @@
     VexStore.prime('vex.reminders', []),
     VexStore.prime('vex.noteCount', 0),
     VexStore.prime('vex.aiMemory', []),
-    VexStore.prime('vex.onboarded', false)
+    VexStore.prime('vex.onboarded', false),
+    // Everything below was read with VexStore.get and never primed, which means
+    // it was never read from the phone at all: get() only sees the cache, and
+    // only prime() and set() fill it. The effect was a setting that reset on
+    // every launch — including two that turn themselves back ON, which is the
+    // wrong direction for a promise about what leaves the device.
+    VexStore.prime('vex.searchSuggestions', true),
+    VexStore.prime('vex.syncHistory', true),
+    VexStore.prime('vex.localAI', 'off'),
+    VexStore.prime('vex.localModel', ''),
+    VexStore.prime('vex.localBackend', 'gpu'),
+    VexStore.prime('vex.nanoAI', 'off'),
+    VexStore.prime('vex.tabBar', 'auto'),
+    VexStore.prime('vex.backupHistory', false),
+    VexStore.prime('vex.speakRate', 1),
+    VexStore.prime('vex.speakVoice', ''),
   ]);
 
   const native = await VexBridge.init();
@@ -310,6 +325,10 @@
       // On-device can answer an explanation or a translation with no worker at
       // all, so the worker is only required when nothing local will take it.
       const action = data.action === 'translate' ? 'translate' : 'explain';
+      if (tab.incognito && !VexAI.staysHere(action)) {
+        VexUI.toast('A private selection is not sent to your worker — turn on on-device AI', 4500);
+        return;
+      }
       if (!VexAI.staysHere(action) && !(await VexAI.configured())) {
         VexUI.toast('Set up the assistant, or turn on on-device AI', 3500);
         return;
@@ -320,6 +339,9 @@
         : 'What does this mean?';
       VexViews.askAI(question, {
         action,
+        // The selection belongs to the page it came from: if that page is
+        // private, it goes to the model on this phone or nowhere.
+        privateSelection: !!tab.incognito,
         selectedText: text.slice(0, 4000),
         targetLanguage: VexStore.get('vex.translateTo', 'en')
       });

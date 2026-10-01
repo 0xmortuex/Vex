@@ -180,7 +180,8 @@ const VexAI = (() => {
           // unless the answer is staying on the phone; this is the line that
           // holds even if upstream is wrong.
           pageContext: context && !context.private ? context.text : '',
-          selectedText: options.selectedText || '',
+          // A selection from a private tab is page text like any other.
+          selectedText: options.privateSelection ? '' : (options.selectedText || ''),
           targetLanguage: options.targetLanguage || '',
           conversationHistory: history,
           // Facts you have told the assistant to remember, the way the desktop
