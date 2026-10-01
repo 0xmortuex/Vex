@@ -1171,7 +1171,17 @@ const VexUI = (() => {
         // On the phone first: it rewrites the page where it stands, it works
         // with no connection once the pair is downloaded, and nothing leaves.
         if (onDevice && VexBridge.isNative) {
-          const result = await VexTranslate.page(tab, language);
+          let result = await VexTranslate.page(tab, language);
+          // Not on Wi-Fi and the pair is not here: ask, once, rather than
+          // sending the page to a server the person chose not to use.
+          if (!result.ok && result.needsWifi
+            && await dialog({
+              title: 'Translate', okLabel: 'Download now', cancelLabel: 'Not now',
+              message: result.why + ' Download it now over mobile data? It is about 30 MB.'
+            })) {
+            toast('Downloading the language pair…', 3000);
+            result = await VexTranslate.page(tab, language, { mobileData: true });
+          }
           if (result.ok) {
             toast('Translated ' + result.nodes + ' pieces of text, on the phone', 4000,
               { label: 'Original', run: () => VexTranslate.original(tab) });

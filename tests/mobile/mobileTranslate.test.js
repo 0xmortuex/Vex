@@ -158,15 +158,23 @@ describe('the ways it declines', () => {
   });
 
   it('a model that is not here, on a mobile connection', async () => {
-    window.VexBridge.translateEnsureModel.mockRejectedValue(new Error('no wifi'));
+    // Native says no at once on a metered connection, rather than waiting for
+    // Wi-Fi with the worker thread held.
+    window.VexBridge.translateEnsureModel.mockRejectedValue(new Error('Needs Wi-Fi: that language pair is not on the phone yet'));
     const result = await VexTranslate.page(tab(), 'en');
+    expect(result.needsWifi).toBe(true);
     expect(result.why).toContain('Wi-Fi');
-    expect(result.why).toContain('Settings');
+
+    // Asked to use mobile data this once, it asks native without the rule.
+    await VexTranslate.page(tab(), 'en', { mobileData: true });
+    expect(window.VexBridge.translateEnsureModel).toHaveBeenLastCalledWith('de', 'en', false);
 
     // With the Wi-Fi rule off, the reason is the library's own.
+    window.VexBridge.translateEnsureModel.mockRejectedValue(new Error('no wifi'));
     store['vex.translateWifiOnly'] = false;
     const second = await VexTranslate.page(tab(), 'en');
     expect(second.why).toBe('no wifi');
+    expect(second.needsWifi).toBe(false);
     expect(window.VexBridge.translateEnsureModel).toHaveBeenLastCalledWith('de', 'en', false);
   });
 

@@ -9,6 +9,8 @@ public class RemoteModelManager {
 
     public <T extends RemoteModel> Task<Set<T>> getDownloadedModels(Class<T> type) { return null; }
 
+    public Task<Boolean> isModelDownloaded(RemoteModel model) { return null; }
+
     public Task<Void> deleteDownloadedModel(RemoteModel model) { return null; }
 
     public Task<Void> download(RemoteModel model, DownloadConditions conditions) { return null; }

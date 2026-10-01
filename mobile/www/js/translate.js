@@ -123,7 +123,7 @@ const VexTranslate = (() => {
      * a language nobody can identify, the pair is not supported, the model is not
      * here and there is no Wi-Fi.
      */
-    async page(tab, to) {
+    async page(tab, to, { mobileData = false } = {}) {
       if (!tab || !tab.url || tab.url === 'about:blank') return { ok: false, why: 'Open a page first' };
       if (state.busy) return { ok: false, why: 'Still translating the last one' };
       state.busy = true;
@@ -143,14 +143,16 @@ const VexTranslate = (() => {
 
         // The model pair, which may be a download. Said out loud, because it is
         // tens of megabytes and the person should know why the wait happened.
+        const wifiOnly = this.wifiOnly() && !mobileData;
         try {
-          await VexBridge.translateEnsureModel(from, to, this.wifiOnly());
+          await VexBridge.translateEnsureModel(from, to, wifiOnly);
         } catch (error) {
+          const needsWifi = wifiOnly && /wi-?fi/i.test(String((error && error.message) || ''));
           return {
             ok: false,
-            why: this.wifiOnly()
-              ? 'That language pair is not on the phone yet, and Vex only downloads models on Wi-Fi. '
-                + 'Change that in Settings → Translation.'
+            needsWifi,
+            why: needsWifi
+              ? 'That language pair is not on the phone yet, and Vex only downloads models on Wi-Fi.'
               : (error.message || 'The translation model could not be downloaded')
           };
         }

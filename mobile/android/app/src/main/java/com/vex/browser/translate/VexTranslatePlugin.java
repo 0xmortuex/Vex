@@ -1,5 +1,8 @@
 package com.vex.browser.translate;
 
+import android.content.Context;
+import android.net.ConnectivityManager;
+
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -25,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Translating a page on the device.
@@ -68,6 +72,18 @@ public class VexTranslatePlugin extends Plugin {
                 .build());
         translators.put(key, made);
         return made;
+    }
+
+    /** English is built in; anything else is a model that may not be here. */
+    private static boolean here(String language) throws Exception {
+        if ("en".equals(language)) return true;
+        return Boolean.TRUE.equals(Tasks.await(RemoteModelManager.getInstance()
+                .isModelDownloaded(new TranslateRemoteModel.Builder(language).build())));
+    }
+
+    private boolean metered() {
+        ConnectivityManager connectivity = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        return connectivity == null || connectivity.isActiveNetworkMetered();
     }
 
     /**
@@ -135,9 +151,20 @@ public class VexTranslatePlugin extends Plugin {
         if (from == null || to == null) { call.reject("That pair of languages is not supported"); return; }
         worker.execute(() -> {
             try {
+                // Asked for Wi-Fi on a metered connection, ML Kit does not say
+                // no: it waits for Wi-Fi, for as long as that takes, and this one
+                // worker thread waits with it — every translation after it
+                // queued behind a download that is not happening. So when the
+                // pair is not here and the connection is metered, say so now.
+                if (wifiOnly && !(here(from) && here(to)) && metered()) {
+                    call.reject("Needs Wi-Fi: that language pair is not on the phone yet", "NEEDS_WIFI");
+                    return;
+                }
                 DownloadConditions.Builder conditions = new DownloadConditions.Builder();
                 if (wifiOnly) conditions.requireWifi();
-                Tasks.await(translatorFor(from, to).downloadModelIfNeeded(conditions.build()));
+                // Bounded for the same reason: a connection that drops halfway
+                // must not hold the worker for ever.
+                Tasks.await(translatorFor(from, to).downloadModelIfNeeded(conditions.build()), 10, TimeUnit.MINUTES);
                 JSObject result = new JSObject();
                 result.put("ready", true);
                 result.put("from", from);
