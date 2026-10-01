@@ -72,6 +72,7 @@ const VexPanels = (() => {
     assistant: () => VexPanels.assistantSettings(),
     localai: () => VexPanels.localAI(),
     diagnostics: () => VexPanels.diagnostics(),
+    backup: () => VexPanels.backup(),
     privacy: () => VexPanels.privacy(),
     ai: () => VexViews.openAI()
   };
@@ -957,6 +958,9 @@ const VexPanels = (() => {
       body.appendChild(valueRow('Make Vex the default browser',
         (await VexBridge.isDefaultBrowser()) ? 'Vex is the default' : 'Opens Android settings', null,
         () => VexBridge.openDefaultBrowserSettings()));
+      body.appendChild(valueRow('Backup',
+        'Everything in one encrypted file, for moving to another phone', '',
+        () => this.backup()));
       body.appendChild(valueRow('Diagnostics',
         'What this phone is, what its WebView can do, and the last problems', '',
         () => this.diagnostics()));
@@ -1506,6 +1510,88 @@ const VexPanels = (() => {
         'A model that runs inside Vex, and Gemini Nano where the phone has it',
         localMode === 'off' ? 'Off' : localMode === 'only' ? 'On-device only' : 'Preferred',
         () => this.localAI()));
+    },
+
+    /**
+     * One file with everything in it, for moving to another phone.
+     *
+     * The passphrase is asked for twice — once to make the file, once to open it
+     * — and never stored: there is nowhere to store it that would not defeat the
+     * point. What the backup cannot carry is said before it is made rather than
+     * discovered afterwards.
+     */
+    async backup() {
+      const body = openShell('backup', 'Backup');
+      const withHistory = VexStore.get('vex.backupHistory', false) === true;
+      const counts = await VexBackup.summary({ history: withHistory });
+
+      body.appendChild(el('div', 'field-note',
+        'One file, encrypted with a passphrase you choose, holding every setting, your bookmarks and '
+        + 'folders, the reading list, sessions, quick access, tab groups, site rules, permissions and '
+        + 'notes. It cannot carry your saved logins — those are sealed by a key inside this phone’s '
+        + 'Keystore and cannot leave it, which is the point of the vault — and it does not carry saved '
+        + 'pages, because a backup you cannot email is not much of a backup.'));
+
+      body.appendChild(VexSheets.row({
+        icon: 'info', label: 'What is in it',
+        note: counts.settings + ' settings · ' + counts.bookmarks + ' bookmarks · '
+          + counts.reading + ' to read · ' + counts.sessions + ' sessions · '
+          + counts.rules + ' site rules · ' + counts.notes + ' notes'
+          + (withHistory ? ' · ' + counts.history + ' visits' : '')
+      }));
+
+      body.appendChild(toggleRow('Include history',
+        'The last ' + VexBackup.HISTORY_CAP.toLocaleString() + ' pages you visited. It makes the file '
+        + 'much bigger, and it is the most personal thing in it.',
+        withHistory, async value => {
+          await VexStore.set('vex.backupHistory', value);
+          this.backup();
+        }));
+
+      body.appendChild(valueRow('Make a backup', 'Saved to your Downloads folder', '', async () => {
+        const passphrase = await VexUI.prompt('A passphrase for this file',
+          'Eight characters or more. There is no way to recover the file without it — not by Vex, not '
+          + 'by anyone.');
+        if (!passphrase) return;
+        VexUI.toast('Writing…');
+        try {
+          const text = await VexBackup.write(passphrase, { history: withHistory });
+          const stamp = new Date().toISOString().slice(0, 10);
+          VexUI.downloadText('vex-backup-' + stamp + '.vexbak', text, 'application/json');
+        } catch (error) {
+          VexUI.toast(error.message, 4500);
+        }
+      }));
+
+      body.appendChild(heading('Putting one back'));
+      body.appendChild(el('div', 'field-note',
+        'A restore replaces what is here — settings, bookmarks, the lot — rather than merging, because '
+        + 'a merge leaves you with neither phone’s arrangement. Notes and history are added to what you '
+        + 'already have.'));
+      body.appendChild(valueRow('Restore from a file', null, '', () => {
+        VexUI.pickTextFile(async text => {
+          let envelope;
+          try { envelope = JSON.parse(text); }
+          catch { VexUI.toast('That file is not a Vex backup'); return; }
+          const passphrase = await VexUI.prompt('The passphrase for this file', '');
+          if (!passphrase) return;
+          VexUI.toast('Opening…');
+          let data;
+          try { data = await VexBackup.decrypt(envelope, passphrase); }
+          catch (error) { VexUI.toast(error.message, 5000); return; }
+
+          const inside = Object.keys(data.settings || {}).length;
+          const ok = await VexUI.confirm(
+            'This backup was made ' + VexDom.when(envelope.at) + ' and holds ' + inside + ' settings, '
+            + ((data.settings || {})['vex.bookmarks'] || []).length + ' bookmarks and '
+            + (data.notes || []).length + ' notes. Replace what is on this phone?', 'Restore');
+          if (!ok) return;
+          const applied = await VexBackup.restore(data);
+          await VexUI.offer('Restored ' + applied.settings + ' settings, ' + applied.notes + ' notes and '
+            + applied.history + ' visits. Vex has to restart to pick all of it up.', 'Restart now', 'Done');
+          location.reload();
+        }, '.vexbak,application/json,.json');
+      }));
     },
 
     /**

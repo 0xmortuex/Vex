@@ -273,6 +273,26 @@ await page.evaluate(async () => {
   VexPanels.close();
 });
 
+// ── Backup ──────────────────────────────────────────────────────────────────
+// The panel says what it carries before it carries it, and the file itself is
+// unreadable without the passphrase — which is the whole of the promise.
+await page.evaluate(() => VexPanels.backup());
+await page.waitForTimeout(350);
+const backupText = (await page.textContent('#panel-body')) || '';
+results.backupSaysWhatItCannot = backupText.includes('Keystore');
+results.backupCounts = backupText.includes('bookmarks');
+results.backupSealed = await page.evaluate(async () => {
+  const text = await VexBackup.write('a good passphrase');
+  return !text.includes('example') && JSON.parse(text).format === 'vex.backup';
+});
+results.backupOpens = await page.evaluate(async () => {
+  const envelope = JSON.parse(await VexBackup.write('a good passphrase'));
+  const data = await VexBackup.decrypt(envelope, 'a good passphrase');
+  return Object.keys(data.settings).length > 5;
+});
+await shot('16-backup');
+await page.evaluate(() => VexPanels.close());
+
 // ── Diagnostics ─────────────────────────────────────────────────────────────
 // What a bug report needs: the phone, what its WebView can do, and the last
 // problems. The recorder is checked by giving it one.
@@ -827,6 +847,7 @@ const expected = {
   localAiHandlesNow: true, localAiStreamed: true,
   chatOnDeviceTag: true, chatOnDeviceAnswer: true,
   polishSheet: 5, polishOffersGrammar: true,
+  backupSaysWhatItCannot: true, backupCounts: true, backupSealed: true, backupOpens: true,
   diagnosticsWebView: true, diagnosticsFeatures: true, diagnosticsShowsProblem: true,
   diagnosticsText: true, diagnosticsRedacts: true
 };

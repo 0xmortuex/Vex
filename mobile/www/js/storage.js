@@ -52,6 +52,11 @@ const VexStore = (() => {
       try { await prefs.remove({ key }); } catch {}
     },
 
+    // Everything the cache holds. Every key the chrome reads is primed at boot,
+    // so this is the whole of what Vex keeps in preferences — which is what a
+    // backup has to copy and a restore has to put back.
+    keys() { return [...cache.keys()]; },
+
     // Append to a capped, newest-first list (history, downloads, closed tabs).
     async push(key, entry, cap = 500) {
       const list = this.get(key, []);

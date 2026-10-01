@@ -831,8 +831,8 @@ const VexUI = (() => {
     toast('Saved to Downloads');
   }
 
-  function pickTextFile(onText) {
-    const input = el('input', { type: 'file', accept: '.html,.htm,text/html', style: 'display:none' });
+  function pickTextFile(onText, accept = '.html,.htm,text/html') {
+    const input = el('input', { type: 'file', accept, style: 'display:none' });
     input.onchange = () => {
       const file = input.files && input.files[0];
       if (!file) return;

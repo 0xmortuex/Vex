@@ -68,6 +68,7 @@ Everything else below is either matched or bettered.
 | Reading list | ✅ | Samsung has none; this is the desktop Vex feature |
 | Full-text search of pages you read | ✅ | Recall — nothing in Samsung Internet matches it |
 | Sessions | ✅ | Named sets of tabs, and they open on the desktop |
+| Backup and restore | ✅ better | Samsung backs up through a Samsung Account; Vex writes one encrypted file you hold, and says plainly what it cannot carry |
 
 ## Privacy and security
 
