@@ -529,6 +529,47 @@ results.linkSheetRows = await page.$$eval('#sheet-list .sheet-row', rows => rows
 await shot('12-longpress');
 await page.evaluate(() => VexSheets.close());
 
+// ── Reading aloud ───────────────────────────────────────────────────────────
+// Headless Chromium has a speechSynthesis that accepts utterances and never
+// speaks, so the engine itself cannot be driven here. What can: that the article
+// turns into lines, that the bar appears and says where it is, that the buttons
+// are wired to the right thing, and that the bar shrinks the content rect
+// instead of floating over a page that is drawn above it.
+const contentHeight = () => page.evaluate(() => Math.round(
+  document.getElementById('content').getBoundingClientRect().height));
+results.contentBeforeSpeakBar = await contentHeight();
+results.speakLines = await page.evaluate(async () => {
+  const article = await VexReader.extract(VexTabStore.active().id);
+  return VexSpeak.linesFor(article).length;
+});
+await page.evaluate(() => {
+  // Stand where a successful read would leave it, without an engine.
+  Object.assign(VexSpeak.state, {
+    loaded: true, speaking: true, index: 1, base: 0,
+    parts: ['A headline', 'One.', 'Two.', 'Three.'],
+    title: 'A headline', url: VexTabStore.active().url
+  });
+  VexUI.renderSpeakBar();
+});
+await page.waitForTimeout(250);
+results.speakBarShown = await page.isVisible('#speakbar');
+results.speakBarLabel = await page.textContent('#speak-label');
+results.speakBarIcon = await page.getAttribute('#speakbar use', 'href');
+results.contentWithSpeakBar = await contentHeight();
+await shot('12b-readaloud');
+
+await tap('#speak-next');
+results.speakSkipped = await page.evaluate(() => VexSpeak.state.index);
+await tap('#speak-rate');
+results.speakRate = await page.evaluate(() => VexStore.get('vex.speakRate', 1));
+results.speakRateShown = await page.textContent('#speak-rate');
+await tap('#speak-close');
+results.speakBarGone = await page.evaluate(() => document.getElementById('speakbar').hidden);
+results.contentAfterSpeakBar = await contentHeight();
+// The menu offers it, and the voice picker opens from the same menu.
+results.speakInMenu = await page.evaluate(() =>
+  VexSheets.DEFAULT_ORDER.includes('read-aloud') && !!VexSheets.ACTIONS['read-aloud']);
+
 // ── Find, and the page layer's cover refcount ───────────────────────────────
 await page.evaluate(() => VexUI.openFind());
 await page.waitForTimeout(200);
@@ -895,6 +936,14 @@ const expected = {
   noteKept: true, notesPanelRows: 1,
   reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
   libraryOpens: true,
+  speakBarShown: true,
+  speakBarGone: true,
+  speakInMenu: true,
+  speakBarIcon: '#i-pause',
+  speakBarLabel: '2 / 4',
+  speakSkipped: 2,
+  speakRate: 1.25,
+  speakRateShown: '1.25×',
   widgetOpensOmnibox: true, widgetDictates: true,
   tabBarOnPhone: true, tabBarOnTablet: true, tabBarChips: 1, tabBarActive: 1,
   tabBarGoesAway: true,
@@ -916,6 +965,17 @@ for (const [key, want] of Object.entries(expected)) {
 if (!String(results.chatAnswer).includes('shipwreck')) failures.push('chatAnswer: the worker reply did not reach the log');
 if (results.siteRows < 8) failures.push('siteRows: the site sheet is missing rules');
 if (results.menuRows < 20) failures.push('menuRows: the menu lost entries (' + results.menuRows + ')');
+if (!(results.speakLines > 2)) failures.push('speakLines: the article did not turn into lines to read ('
+  + results.speakLines + ')');
+// The bar is a flex item precisely so the page moves up to make room for it.
+if (!(results.contentWithSpeakBar < results.contentBeforeSpeakBar)) {
+  failures.push('contentWithSpeakBar: the speak bar did not shrink the content rect ('
+    + results.contentBeforeSpeakBar + ' → ' + results.contentWithSpeakBar + ')');
+}
+if (results.contentAfterSpeakBar !== results.contentBeforeSpeakBar) {
+  failures.push('contentAfterSpeakBar: closing the speak bar did not give the page its height back ('
+    + results.contentBeforeSpeakBar + ' → ' + results.contentAfterSpeakBar + ')');
+}
 if (results.linkSheetRows < 6) failures.push('linkSheetRows: the long-press menu lost entries');
 if (results.privacyRows < 6) failures.push('privacyRows: the privacy panel is missing rows');
 if (results.readerParas < 2) failures.push('readerParas: the reader rendered no body');

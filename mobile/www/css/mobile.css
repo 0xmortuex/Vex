@@ -681,9 +681,22 @@ body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%);
   border-radius: 26px; box-shadow: var(--elevation) var(--vex-shadow);
   animation: toast-in .2s var(--ease) both;
 }
-body[data-toolbar="top"] .mediabar { bottom: calc(14px + env(safe-area-inset-bottom)); }
 .mediabar-label { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--vex-text-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; }
+
+/* ── Reading aloud ───────────────────────────────────────────────────────── */
+/* Same shape as the video controls, and in the column for the same reason. */
+.speakbar {
+  flex: 0 0 auto; margin: 0 8px 6px;
+  display: flex; align-items: center; gap: 2px; padding: 4px 6px;
+  background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle);
+  border-radius: 26px; box-shadow: var(--elevation) var(--vex-shadow);
+  animation: toast-in .2s var(--ease) both;
+}
+.speakbar-label { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--vex-text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; }
+.speakbar-rate { width: auto; min-width: 38px; padding: 0 8px;
+  font: 600 var(--text-xs)/1 var(--font-ui); color: var(--vex-accent); }
 
 /* ── Rows with a trailing pair of buttons (quick access, reorder) ─────────── */
 .row-actions { display: flex; gap: 2px; flex: 0 0 auto; }

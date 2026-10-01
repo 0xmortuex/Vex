@@ -744,6 +744,56 @@ const VexUI = (() => {
     }
   }
 
+  // ── Reading aloud ────────────────────────────────────────────────────────
+  // The bar is drawn from VexSpeak's state and nothing else, so it cannot
+  // disagree with what the engine is doing.
+  function renderSpeakBar() {
+    const bar = $('speakbar');
+    const speak = VexSpeak.state;
+    if (bar.hidden !== !speak.loaded) {
+      bar.hidden = !speak.loaded;
+      scheduleBounds();        // it is a flex item: the page moves to make room
+    }
+    if (!speak.loaded) return;
+    $('speak-toggle').querySelector('use')
+      .setAttribute('href', speak.speaking ? '#i-pause' : '#i-play');
+    $('speak-toggle').setAttribute('aria-label', speak.speaking ? 'Pause' : 'Carry on');
+    const total = speak.parts.length;
+    $('speak-label').textContent = speak.speaking
+      ? (speak.index + 1) + ' / ' + total
+      : (speak.index > 0 ? 'Paused · ' + (speak.index + 1) + ' / ' + total : 'Read it again');
+    const rate = VexSpeak.rate();
+    $('speak-rate').textContent = (rate === 1 ? '1' : String(rate)) + '×';
+  }
+
+  async function readAloud() {
+    // Already reading this page: the menu entry is a pause, not a restart.
+    if (VexSpeak.state.loaded && VexSpeak.state.url === (VexTabStore.active() || {}).url) {
+      await VexSpeak.toggle();
+      return;
+    }
+    if (VexSpeak.state.loaded) await VexSpeak.stop();
+    await VexSpeak.readPage();
+  }
+
+  // Voice and speed, in a sheet rather than a settings page: both are things
+  // you change while listening, not things you set up once.
+  function speakSettings() {
+    const voices = VexSpeak.state.voices;
+    VexSheets.choose('Reading voice', [{ id: '', label: 'The phone’s default', selected: !VexSpeak.voice() }]
+      .concat(voices.map(entry => ({
+        id: entry.name,
+        label: entry.label || entry.name,
+        note: entry.language || '',
+        selected: entry.name === VexSpeak.voice()
+      }))), async name => {
+      await VexSpeak.setVoice(name);
+      VexSheets.close();
+      renderSpeakBar();
+    });
+    return true;
+  }
+
   // ── Actions the sheets and panels call ───────────────────────────────────
   async function openUrl(input, options = {}) {
     const url = VexSearch.toUrl(input);
@@ -915,6 +965,7 @@ const VexUI = (() => {
     BUTTONS, DEFAULT_BUTTONS, buttonConfig, goHome,
     toast, cover, pushBounds, scheduleBounds, applyToolbarPosition, onPageScroll, setFullscreen,
     renderToolbar, renderProgress, renderTabGrid, renderTabStrip, renderSuggestions, refreshMediaBar,
+    renderSpeakBar, readAloud, speakSettings,
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind,
     openUrl, newTab, copy, toggleBookmark, reopenClosed, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage,
@@ -1074,6 +1125,15 @@ const VexUI = (() => {
       if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleBounds);
 
       VexTabStore.onChange(() => { renderToolbar(); renderProgress(); });
+
+      // Reading aloud: the bar's buttons, and a redraw whenever the engine
+      // moves on a line.
+      $('speak-toggle').onclick = () => VexSpeak.toggle();
+      $('speak-prev').onclick = () => VexSpeak.skip(-1);
+      $('speak-next').onclick = () => VexSpeak.skip(1);
+      $('speak-rate').onclick = () => VexSpeak.cycleRate();
+      $('speak-close').onclick = () => VexSpeak.stop();
+      VexSpeak.onChange(renderSpeakBar);
 
       clearInterval(mediaTimer);
       mediaTimer = setInterval(refreshMediaBar, 4000);

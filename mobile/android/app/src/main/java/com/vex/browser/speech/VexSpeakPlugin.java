@@ -49,8 +49,9 @@ public class VexSpeakPlugin extends Plugin {
             if (ready) {
                 engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                     @Override public void onStart(String utteranceId) {
+                        at = indexOf(utteranceId);
                         JSObject data = new JSObject();
-                        data.put("index", indexOf(utteranceId));
+                        data.put("index", at);
                         notifyListeners("speaking", data);
                     }
 

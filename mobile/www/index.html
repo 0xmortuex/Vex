@@ -56,6 +56,9 @@
   <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></symbol>
   <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
   <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9.5h3L12 5v14l-5-4.5H4z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a7.5 7.5 0 010 11"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></symbol>
   <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3z"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 19z"/></symbol>
   <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1.5 1.5 0 011.5 1.5v9A1.5 1.5 0 0120 20H4a1.5 1.5 0 01-1.5-1.5v-9A1.5 1.5 0 014 8z"/><circle cx="12" cy="13.5" r="3.5"/></symbol>
@@ -85,6 +88,16 @@
   <span class="mediabar-label" id="media-label">Video</span>
   <button class="tb-btn" id="media-pop" aria-label="Pop out"><svg><use href="#i-external"/></svg></button>
   <button class="tb-btn" id="media-close" aria-label="Hide controls"><svg><use href="#i-close"/></svg></button>
+</div>
+
+<!-- Reading the page aloud. In the column, like the other two bars. -->
+<div id="speakbar" class="speakbar" hidden>
+  <button class="tb-btn" id="speak-toggle" aria-label="Pause or carry on"><svg><use href="#i-pause"/></svg></button>
+  <button class="tb-btn" id="speak-prev" aria-label="Previous paragraph"><svg><use href="#i-back"/></svg></button>
+  <button class="tb-btn" id="speak-next" aria-label="Next paragraph"><svg><use href="#i-forward"/></svg></button>
+  <span class="speakbar-label" id="speak-label">Reading</span>
+  <button class="tb-btn speakbar-rate" id="speak-rate" aria-label="Reading speed">1×</button>
+  <button class="tb-btn" id="speak-close" aria-label="Stop reading"><svg><use href="#i-close"/></svg></button>
 </div>
 
 <!-- Find in page. -->
@@ -308,6 +321,7 @@
 <script src="js/tools.js"></script>
 <script src="js/errors.js"></script>
 <script src="js/media.js"></script>
+<script src="js/speak.js"></script>
 <script src="js/gestures.js"></script>
 <script src="js/sheets.js"></script>
 <script src="js/views.js"></script>

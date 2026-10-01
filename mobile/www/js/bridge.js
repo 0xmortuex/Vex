@@ -172,6 +172,43 @@ const VexBridge = (() => {
     };
   })();
 
+  // Reading aloud, without a phone. The browser's own speechSynthesis stands in
+  // for Android's TextToSpeech: the same events in the same order, so the bar
+  // and the skipping can be driven in a desktop browser. Where there is no
+  // speechSynthesis either — a headless run — it reports itself unavailable,
+  // which is a state the chrome has to handle anyway.
+  const speakFallback = (() => {
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+    let queue = [];
+
+    function emitSpeak(event, payload) { emit('speak:' + event, payload); }
+
+    return {
+      available: () => ({
+        available: !!synth,
+        voices: synth ? (synth.getVoices() || []).map(voice => ({
+          name: voice.name, language: voice.lang || '', label: voice.name
+        })) : []
+      }),
+      speak: ({ parts, rate }) => {
+        if (!synth) throw new Error('This browser cannot speak');
+        synth.cancel();
+        queue = (parts || []).filter(Boolean);
+        queue.forEach((text, index) => {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = Number(rate) || 1;
+          utterance.onstart = () => emitSpeak('speaking', { index });
+          utterance.onend = () => { if (index === queue.length - 1) emitSpeak('finished', {}); };
+          utterance.onerror = () => emitSpeak('speakError', { index });
+          synth.speak(utterance);
+        });
+        return { parts: queue.length };
+      },
+      stop: () => { if (synth) synth.cancel(); return {}; },
+      speaking: () => ({ speaking: !!(synth && synth.speaking), index: -1 })
+    };
+  })();
+
   // A valid one-page PDF reading "Vex reads PDFs", for development and for the
   // walkthrough. Built rather than downloaded, so it depends on nothing.
   const DEVELOPMENT_PDF = 'JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCAyNDAgMTIwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDQ0Pj5zdHJlYW0KQlQgL0YxIDI0IFRmIDI0IDUyIFRkIChWZXggcmVhZHMgUERGcykgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8L1R5cGUvRm9udC9TdWJ0eXBlL1R5cGUxL0Jhc2VGb250L0hlbHZldGljYT4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1NCAwMDAwMCBuIAowMDAwMDAwMTA1IDAwMDAwIG4gCjAwMDAwMDAyMTcgMDAwMDAgbiAKMDAwMDAwMDMwOCAwMDAwMCBuIAp0cmFpbGVyCjw8L1NpemUgNi9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjM3MQolJUVPRgo=';
@@ -180,7 +217,8 @@ const VexBridge = (() => {
     const plugin = plugins[pluginName];
     if (!plugin) {
       const stub = pluginName === 'VexTabs' ? fallback[method]
-        : pluginName === 'VexLocalAI' ? localFallback[method] : null;
+        : pluginName === 'VexLocalAI' ? localFallback[method]
+        : pluginName === 'VexSpeak' ? speakFallback[method] : null;
       if (!stub) return Promise.resolve({});
       // The stand-in throws the way the plugin rejects, so callers see one shape.
       try { return Promise.resolve(stub(args || {})); } catch (error) { return Promise.reject(error); }

@@ -130,6 +130,7 @@
   // settings panel is not necessarily open when it finishes.
   VexLocalAI.bind();
   VexPdf.bind();
+  VexSpeak.bind();
 
   // Things that can wait until the first page is on screen.
   setTimeout(async () => {
@@ -184,6 +185,9 @@
     if (state && state.isActive === false) {
       await rememberScroll();
       VexVault.lock();                 // leaving the app re-locks the logins
+      // The plugin stops the speech engine rather than talking from an app you
+      // have left; the bar has to say so, and offer to carry on.
+      VexSpeak.noteStopped();
       VexSync.schedulePush(500);
     }
   });
@@ -194,6 +198,10 @@
       VexTabStore.update(data.id, {
         loading: true, progress: 6, pendingUrl: data.url || '', blocked: 0, themeColor: ''
       });
+      // Reading aloud belongs to one article. Navigating away ends it rather
+      // than leaving a voice reading a page that is no longer there.
+      if (VexSpeak.state.loaded && VexSpeak.state.url && data.url
+        && data.url !== VexSpeak.state.url) VexSpeak.stop();
     });
 
     VexBridge.on('loadProgress', data => {

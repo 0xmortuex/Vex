@@ -101,6 +101,21 @@ const VexSheets = (() => {
       run: () => VexViews.openAI()
     },
     reader: { icon: 'book', label: 'Reader', needsPage: true, run: () => VexViews.openReader() },
+    'read-aloud': {
+      icon: 'speaker', label: 'Read aloud', needsPage: true,
+      note: () => (VexSpeak.state.loaded
+        ? (VexSpeak.state.speaking ? 'Pause' : 'Carry on')
+        : 'The article, in the phone’s voice'),
+      run: () => VexUI.readAloud()
+    },
+    'read-voice': {
+      icon: 'speaker', label: 'Reading voice and speed',
+      note: () => {
+        const rate = VexSpeak.rate();
+        return (rate === 1 ? 'Normal speed' : rate + '× speed');
+      },
+      run: () => VexUI.speakSettings()
+    },
     translate: { icon: 'translate', label: 'Translate page', needsPage: true, run: () => VexUI.translatePage() },
     find: { icon: 'find', label: 'Find in page', needsPage: true, run: () => VexUI.openFind() },
     site: {
@@ -207,12 +222,12 @@ const VexSheets = (() => {
   };
 
   const DEFAULT_ORDER = [
-    'new-tab', 'new-private', 'assistant', 'agent', 'reader', 'translate', 'find', 'site',
+    'new-tab', 'new-private', 'assistant', 'agent', 'reader', 'read-aloud', 'translate', 'find', 'site',
     'add-reading', 'reading-list', 'bookmarks', 'history', 'recall', 'downloads',
     'save-page', 'saved-pages', 'notes', 'remind-me', 'reminders', 'sessions',
     'fill', 'fill-details', 'save-login', 'passwords',
     'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'share',
-    'reopen', 'library', 'settings'
+    'reopen', 'read-voice', 'library', 'settings'
   ];
 
   function menuOrder() {
