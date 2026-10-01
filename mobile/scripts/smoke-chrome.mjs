@@ -598,6 +598,44 @@ results.linkSheetRows = await page.$$eval('#sheet-list .sheet-row', rows => rows
 await shot('12-longpress');
 await page.evaluate(() => VexSheets.close());
 
+// ── The number on the tabs button ───────────────────────────────────────────
+// It has to be the number of cards the switcher will show, which is the side you
+// are on: a normal tab counting the private ones tells whoever is holding the
+// phone how many of those there are.
+results.tabCount = await page.evaluate(async () => {
+  const read = () => (document.getElementById('tb-tabcount') || {}).textContent;
+  const normals = VexTabStore.normal().length;
+  const secret = await VexTabStore.create('https://counted.example/', { incognito: true });
+  await VexTabStore.activate(VexTabStore.normal()[0].id);
+  VexUI.renderToolbar();
+  const onNormal = read();
+  await VexTabStore.activate(secret.id);
+  VexUI.renderToolbar();
+  const onPrivate = read();
+  const privates = VexTabStore.private().length;
+  await VexTabStore.close(secret.id);
+  await VexTabStore.activate(VexTabStore.normal()[0].id);
+  VexUI.renderToolbar();
+  return { onNormal, onPrivate, normals: String(normals), privates: String(privates) };
+});
+
+// ── Leaving Vex locks private browsing again ─────────────────────────────────
+// The few minutes' grace is so that switching tabs is not a fingerprint every
+// time, not so that handing somebody the phone opens private browsing.
+results.privateRelocks = await page.evaluate(async () => {
+  await VexStore.set('vex.lockPrivate', true);
+  let asked = 0;
+  VexBridge.authenticate = async () => { asked++; return { ok: true }; };
+
+  const first = await VexUI.unlockPrivate();
+  const grace = await VexUI.unlockPrivate();        // still unlocked: no prompt
+  VexUI.relockPrivate();
+  const after = await VexUI.unlockPrivate();        // asked again
+
+  await VexStore.set('vex.lockPrivate', false);
+  return [first, grace, after, asked].join(',');
+});
+
 // ── The video bar's own sheet ───────────────────────────────────────────────
 // Speed, brightness and sound all existed in js/media.js with nothing in the
 // chrome reaching any of them. This drives the sheet and checks the page was
@@ -1247,6 +1285,7 @@ const expected = {
   speakRateShown: '1.25×',
   sharedTextOpens: true,
   undoPrivate: true,
+  privateRelocks: 'true,true,true,2',
   findRowOffered: 'true,true,knot',
   readerLookDefault: '-,-,-,-',
   readerLook: 'serif,paper',
@@ -1281,6 +1320,12 @@ if (String(results.clearDefaults) !== 'true,true,true,false,false,false') {
   failures.push('clearDefaults: the tick boxes do not start where they should (' + results.clearDefaults + ')');
 }
 if (results.clearRows < 9) failures.push('clearRows: the clear panel lost rows (' + results.clearRows + ')');
+if (results.tabCount.onNormal !== results.tabCount.normals
+  || results.tabCount.onPrivate !== results.tabCount.privates
+  || results.tabCount.onNormal === results.tabCount.onPrivate) {
+  failures.push('tabCount: showed ' + results.tabCount.onNormal + ' with ' + results.tabCount.normals
+    + ' normal tabs, and ' + results.tabCount.onPrivate + ' with ' + results.tabCount.privates + ' private');
+}
 if (results.videoSheet.rows !== 4) {
   failures.push('videoSheet: expected four rows, got ' + results.videoSheet.rows);
 }

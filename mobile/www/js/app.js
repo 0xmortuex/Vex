@@ -209,6 +209,7 @@
     if (state && state.isActive === false) {
       await rememberScroll();
       VexVault.lock();                 // leaving the app re-locks the logins
+      VexUI.relockPrivate();           // and asks for the fingerprint again
       // The plugin stops the speech engine rather than talking from an app you
       // have left; the bar has to say so, and offer to carry on.
       VexSpeak.noteStopped();

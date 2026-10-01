@@ -179,7 +179,10 @@ const VexUI = (() => {
         if (!spec || !button) continue;
         if (spec.enabled) button.disabled = !spec.enabled(tab);
         if (spec.counter) {
-          const count = String(VexTabStore.all().length || 0);
+          // The side you are on, not both: the number on the toolbar has to be
+          // the number of cards the switcher will show you, and a normal tab
+          // should not be counting how many private ones are open.
+          const count = String(VexTabStore.count(!!(tab && tab.incognito)) || 0);
           const label = $('tb-tabcount');
           if (label && label.textContent !== count) label.textContent = count;
         }
@@ -984,6 +987,25 @@ const VexUI = (() => {
     return true;
   }
 
+  /**
+   * Leaving Vex asks for the fingerprint again.
+   *
+   * The three minutes above are so that switching tabs is not a fingerprint
+   * every time — not so that handing the phone to somebody opens private
+   * browsing. The vault relocks when Vex goes to the background; this is the
+   * same rule for the same reason.
+   */
+  function relockPrivate() {
+    privateUnlockedAt = 0;
+    // And the private side of the switcher is not where somebody else comes back
+    // to, either.
+    if (tabGridScope === 'private') {
+      tabGridScope = 'normal';
+      if (!$('tabgrid').hidden) renderTabGrid();
+      applyPrivacyScreen();
+    }
+  }
+
   async function copy(text) {
     if (!text) return;
     try { await navigator.clipboard.writeText(text); toast('Copied'); }
@@ -1176,7 +1198,7 @@ const VexUI = (() => {
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind, findOnPage,
     openUrl, newTab, copy, toggleBookmark, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage,
-    offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, forgetSite,
+    offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, relockPrivate, forgetSite,
 
     prompt(title, message, value = '') { return dialog({ title, message, input: value }); },
     confirm(message, title = 'Vex') { return dialog({ title, message, okLabel: 'Yes', cancelLabel: 'No' }).then(Boolean); },
