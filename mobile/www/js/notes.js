@@ -9,7 +9,108 @@
 // device, and the sync blob is small.
 
 const VexNotes = (() => {
+  // The same page, whatever its #fragment says.
+  const pageOf = url => String(url || '').split('#')[0];
+
+  /**
+   * Runs in the page: mark each passage where it appears, the way the desktop's
+   * highlights come back on a revisit. A passage is found in the page's text
+   * with whitespace collapsed on both sides — a selection rarely keeps the
+   * page's line breaks — and marked one text node at a time, because a
+   * passage that crosses a link or a bold word crosses elements, and wrapping
+   * the whole range in one element would break the page around it.
+   */
+  const MARK = passages => `(function(passages){
+  if (!document.body) return 0;
+  var old = document.querySelectorAll('mark.vex-kept');
+  for (var o = 0; o < old.length; o++) {
+    var parent = old[o].parentNode;
+    while (old[o].firstChild) parent.insertBefore(old[o].firstChild, old[o]);
+    parent.removeChild(old[o]);
+    parent.normalize();
+  }
+  var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: function (node) {
+      var tag = node.parentNode && node.parentNode.nodeName;
+      return tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEXTAREA'
+        ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  var flat = '', map = [], space = true, node;
+  while ((node = walker.nextNode())) {
+    var text = node.nodeValue;
+    for (var i = 0; i < text.length; i++) {
+      var blank = /\\s/.test(text[i]);
+      if (blank && space) continue;
+      // Lower-cased a character at a time, keeping the one-to-one map: a
+      // character whose lower case is two (a dotted capital I) stays as it is.
+      var lower = text[i].toLowerCase();
+      flat += blank ? ' ' : (lower.length === 1 ? lower : text[i]);
+      map.push([node, i]);
+      space = blank;
+    }
+  }
+  var marked = 0;
+  for (var p = 0; p < passages.length; p++) {
+    var wanted = String(passages[p]).replace(/\\s+/g, ' ').trim().toLowerCase();
+    if (wanted.length < 3) continue;
+    var at = flat.indexOf(wanted);
+    if (at < 0) continue;
+    var end = at + wanted.length - 1;
+    // Each text node the passage touches, with the slice of it that is inside.
+    var pieces = [];
+    for (var k = at; k <= end; k++) {
+      var spot = map[k];
+      var last = pieces[pieces.length - 1];
+      if (last && last.node === spot[0]) last.to = spot[1] + 1;
+      else pieces.push({ node: spot[0], from: spot[1], to: spot[1] + 1 });
+    }
+    for (var q = pieces.length - 1; q >= 0; q--) {
+      var piece = pieces[q];
+      var range = document.createRange();
+      range.setStart(piece.node, piece.from);
+      range.setEnd(piece.node, piece.to);
+      var mark = document.createElement('mark');
+      mark.className = 'vex-kept';
+      mark.style.cssText = 'background:rgba(255,214,10,.42);color:inherit;border-radius:2px;padding:0';
+      try { range.surroundContents(mark); } catch (e) {}
+    }
+    marked++;
+  }
+  return marked;
+})(${JSON.stringify(passages)})`;
+
   return {
+    MARK,
+    pageOf,
+
+    /** Passages kept from this page, newest first. */
+    async passagesFor(url) {
+      const host = url ? VexSearch.prettyHost(url) : '';
+      if (!host) return [];
+      const page = pageOf(url);
+      const rows = await VexDB.byIndex('notes', 'host', host, 200);
+      return rows
+        .filter(row => row.kind === 'quote' && pageOf(row.url) === page)
+        .sort((a, b) => (b.at || 0) - (a.at || 0))
+        .slice(0, 30)
+        .map(row => row.text);
+    },
+
+    /**
+     * Mark what was kept from this page on the page. Quiet: a page that will
+     * not run script, or whose text has changed since, is simply left as it is.
+     */
+    async markPage(tab) {
+      if (!tab || !tab.url || tab.incognito || !/^https?:/.test(tab.url)) return 0;
+      const passages = await this.passagesFor(tab.url);
+      if (!passages.length) return 0;
+      try {
+        const { result } = await VexBridge.evaluate(tab.id, MARK(passages));
+        return Number(String(result || '0').replace(/"/g, '')) || 0;
+      } catch { return 0; }
+    },
+
     async add({ url, title, text, kind = 'note' }) {
       const clean = String(text || '').trim();
       if (!clean) return null;

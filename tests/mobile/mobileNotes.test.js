@@ -120,3 +120,37 @@ describe('finding one again', () => {
     expect(await VexNotes.count('a.example')).toBe(2);
   });
 });
+
+describe('kept passages, marked on the page', () => {
+  it('finds a passage across elements and line breaks, and marks only it', () => {
+    const { VexNotes } = require('../../mobile/www/js/notes.js');
+    document.body.innerHTML = '<p>The ship came in at dawn,\n   and <b>nobody</b> on the quay\nsaw it.</p><p>Later it left.</p>';
+    // eslint-disable-next-line no-eval
+    const marked = (0, eval)(VexNotes.MARK(['and nobody on the quay saw', 'not on this page']));
+    expect(marked).toBe(1);
+    const text = [...document.querySelectorAll('mark.vex-kept')].map(node => node.textContent).join('');
+    expect(text.replace(/\s+/g, ' ')).toBe('and nobody on the quay saw');
+    expect(document.body.textContent).toContain('Later it left.');
+  });
+
+  it('marks again without nesting the old marks', () => {
+    const { VexNotes } = require('../../mobile/www/js/notes.js');
+    document.body.innerHTML = '<p>Halyards and sheets and stays.</p>';
+    // eslint-disable-next-line no-eval
+    (0, eval)(VexNotes.MARK(['sheets']));
+    // eslint-disable-next-line no-eval
+    (0, eval)(VexNotes.MARK(['sheets']));
+    expect(document.querySelectorAll('mark.vex-kept')).toHaveLength(1);
+    expect(document.querySelector('mark mark')).toBeNull();
+  });
+
+  it('only takes passages kept from the same page', async () => {
+    const { VexNotes } = require('../../mobile/www/js/notes.js');
+    window.VexDB.byIndex = async () => [
+      { kind: 'quote', url: 'https://sea.example/a#part', text: 'one', at: 2 },
+      { kind: 'quote', url: 'https://sea.example/b', text: 'two', at: 3 },
+      { kind: 'note', url: 'https://sea.example/a', text: 'a note', at: 4 }
+    ];
+    expect(await VexNotes.passagesFor('https://sea.example/a')).toEqual(['one']);
+  });
+});

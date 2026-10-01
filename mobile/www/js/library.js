@@ -30,7 +30,7 @@ const VexLibrary = (() => {
       ['reading-list', 'Reading list', 'Pages kept for later, marked off as you read them.', () => VexPanels.readingList()],
       ['pdf', 'PDFs', 'Read in Vex rather than downloaded — Android’s WebView cannot draw one, so Vex does.', () => VexUI.toast('Open any PDF link')],
       ['saved', 'Saved pages', 'The whole page kept on the phone, for reading offline — it opens with no connection at all, and its scripts are taken out when it is saved.', () => VexPanels.savedPages()],
-      ['notes', 'Notes', 'A line about a page, or a passage kept from one. Select text and choose "Keep as a note", and export the lot as Markdown.', () => VexPanels.notes()],
+      ['notes', 'Notes', 'A line about a page, or a passage kept from one. Select text and choose "Keep as a note" — it is highlighted on the page whenever you come back — and export the lot as Markdown.', () => VexPanels.notes()],
       ['contrast', 'Contrast and night shade', 'For pages that are grey on grey, or too bright to read in bed.', () => VexPanels.appearance()],
       ['zoom', 'Text size and pinch zoom', 'Per site, and forced on sites that forbid it.', () => VexPanels.appearance()],
       ['ui-size', 'Interface size', 'Vex’s own buttons and labels, bigger. Android’s font-size setting only reaches the page.', () => VexPanels.appearance()]

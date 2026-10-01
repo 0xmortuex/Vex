@@ -266,6 +266,12 @@
         setTimeout(() => VexUI.offerAutofill(tab).catch(() => {}), 700);
       }
       indexForRecall(tab);
+      // Passages kept from this page come back marked, as the desktop's
+      // highlights do — once the page has had a moment to settle.
+      setTimeout(() => {
+        const current = VexTabStore.get(tab.id);
+        if (current && current.url === tab.url) VexNotes.markPage(current).catch(() => {});
+      }, 900);
     });
 
     VexBridge.on('title', data => VexTabStore.update(data.id, { title: data.title || '' }));
@@ -381,6 +387,7 @@
       if (data.action === 'note') {
         await VexNotes.add({ url: tab.url, title: tab.title, text, kind: 'quote' });
         await VexStore.set('vex.noteCount', Number(VexStore.get('vex.noteCount', 0)) + 1);
+        VexNotes.markPage(tab).catch(() => {});
         VexUI.toast('Kept', 3000, { label: 'Notes', run: () => VexPanels.notes() });
         return;
       }
