@@ -225,6 +225,16 @@ const VexSheets = (() => {
       }
     },
     copy: { icon: 'copy', label: 'Copy link', needsPage: true, run: tab => VexUI.copy(tab.url) },
+    'unlock-copy': {
+      icon: 'text', label: 'Let me copy text here',
+      note: 'This page only — the site sheet keeps it on for the site',
+      needsPage: true,
+      run: async tab => {
+        VexUI.toast(await VexSiteRules.unlockCopy(tab)
+          ? 'Selecting and copying unlocked on this page'
+          : 'This page would not take it — JavaScript may be off here');
+      }
+    },
     share: { icon: 'share', label: 'Share', needsPage: true, run: tab => VexBridge.share(tab.url, tab.title) },
     reopen: { icon: 'history', label: 'Reopen closed tab', run: () => VexUI.reopenClosed() },
     settings: { icon: 'settings', label: 'Settings', run: () => VexPanels.settings() }
@@ -235,7 +245,7 @@ const VexSheets = (() => {
     'add-reading', 'reading-list', 'bookmarks', 'history', 'recall', 'downloads',
     'save-page', 'save-video', 'saved-pages', 'notes', 'remind-me', 'reminders', 'sessions',
     'fill', 'fill-details', 'save-login', 'passwords',
-    'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'share',
+    'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'unlock-copy', 'share',
     'reopen', 'read-voice', 'library', 'settings'
   ];
 
@@ -331,6 +341,11 @@ const VexSheets = (() => {
         { icon: 'desktop', label: 'Desktop site', toggle: rules.desktop === true, tristate: true }, 'desktop'));
       list.appendChild(toggleRow(
         { icon: 'palette', label: 'Force dark', toggle: rules.dark === true, tristate: true }, 'dark'));
+      list.appendChild(toggleRow({
+        icon: 'copy', label: 'Let me select and copy',
+        note: 'For a site that stops you selecting its text. Off again takes a reload to undo',
+        toggle: rules.copy === true
+      }, 'copy'));
       list.appendChild(toggleRow({
         icon: 'video', label: 'Let it play on its own',
         note: 'Vex asks for a tap before any video starts. Some sites are the reason you went.',

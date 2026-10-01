@@ -18,7 +18,8 @@ window.VexBridge = {
   setDarkMode: vi.fn(async () => {}),
   setDesktopMode: vi.fn(async () => {}),
   setZoom: vi.fn(async () => {}),
-  setAutoplayAllowed: vi.fn(async () => {})
+  setAutoplayAllowed: vi.fn(async () => {}),
+  evaluate: vi.fn(async () => ({ result: null }))
 };
 window.VexBlock = { setSiteAllowed: vi.fn(async () => {}) };
 
@@ -33,7 +34,7 @@ beforeEach(() => {
 describe('storing a rule', () => {
   it('starts from the defaults', () => {
     expect(VexSiteRules.for('example.com')).toEqual({
-      scripts: true, images: true, dark: null, desktop: null, autoplay: null, blocking: true, zoom: 1
+      scripts: true, images: true, dark: null, desktop: null, autoplay: null, blocking: true, copy: false, zoom: 1
     });
     expect(VexSiteRules.customised('example.com')).toEqual([]);
   });
@@ -138,5 +139,30 @@ describe('describing a site', () => {
     expect(VexSiteRules.describe('example.com')).toBe('JavaScript off · blocking off');
     await VexSiteRules.set('example.com', 'autoplay', true);
     expect(VexSiteRules.describe('example.com')).toContain('autoplay allowed');
+  });
+});
+
+describe('copy unlock', () => {
+  it('is off by default and runs on every page of a site that has it', async () => {
+    const { VexSiteRules } = require('../../mobile/www/js/site-rules.js');
+    expect(VexSiteRules.for('quotes.example').copy).toBe(false);
+    await VexSiteRules.set('quotes.example', 'copy', true);
+    expect(VexSiteRules.describe('quotes.example')).toContain('copying unlocked');
+    window.VexBridge.evaluate.mockClear();
+    await VexSiteRules.applyTo({ id: 't9', url: 'https://quotes.example/page' });
+    const scripts = window.VexBridge.evaluate.mock.calls.map(call => call[1]);
+    expect(scripts).toContain(VexSiteRules.COPY_UNLOCK);
+  });
+
+  it('gives selection back on a page that took it away', () => {
+    const { VexSiteRules } = require('../../mobile/www/js/site-rules.js');
+    document.body.innerHTML = '<p id="locked" style="user-select:none">Words</p>';
+    let blocked = false;
+    document.body.addEventListener('copy', () => { blocked = true; });
+    // eslint-disable-next-line no-eval
+    (0, eval)(VexSiteRules.COPY_UNLOCK);
+    document.getElementById('locked').dispatchEvent(new Event('copy', { bubbles: true }));
+    expect(blocked).toBe(false);
+    expect(document.getElementById('vex-copy-unlock-style')).not.toBeNull();
   });
 });

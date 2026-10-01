@@ -43,6 +43,37 @@ const VexSiteRules = (() => {
 })()`;
   }
 
+  /**
+   * Copy Unlock — the desktop's (src/renderer/js/page-extras.js), for the
+   * sites that stop you selecting or copying their text: user-select:none,
+   * a selectstart handler, a copy handler that empties the clipboard.
+   * Capture listeners stop the page's own blockers from hearing those events
+   * without cancelling them, so the phone's own selection and copy still
+   * work; the inline handlers are cleared for a while after load, because
+   * sites put them back.
+   */
+  const COPY_UNLOCK = `(function(){try{
+  if (window.__vexCopyUnlock) return; window.__vexCopyUnlock = true;
+  var STOP = ['contextmenu','copy','cut','selectstart','dragstart','beforecopy'];
+  STOP.forEach(function(type){
+    try { document.addEventListener(type, function(e){ e.stopPropagation(); }, true); } catch(_){}
+  });
+  var PROPS = ['oncontextmenu','oncopy','oncut','onselectstart','ondragstart','onbeforecopy'];
+  function clearOn(){
+    var nodes = [document, document.documentElement, document.body];
+    for (var n=0;n<nodes.length;n++){ if(!nodes[n]) continue;
+      for (var p=0;p<PROPS.length;p++){ try{ nodes[n][PROPS[p]] = null; }catch(_){} } }
+  }
+  clearOn();
+  var ticks=0; var iv=setInterval(function(){ clearOn(); if(++ticks>20){ try{clearInterval(iv);}catch(_){} } }, 500);
+  var id='vex-copy-unlock-style';
+  if(!document.getElementById(id)){
+    var st=document.createElement('style'); st.id=id;
+    st.textContent='*,*::before,*::after{-webkit-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;}html,body{-webkit-user-select:auto!important;user-select:auto!important;}';
+    (document.head||document.documentElement).appendChild(st);
+  }
+}catch(e){}})()`;
+
   const DEFAULTS = {
     scripts: true,
     images: true,
@@ -50,6 +81,7 @@ const VexSiteRules = (() => {
     desktop: null,
     autoplay: null,    // null = follow the global setting, which is "ask for a tap"
     blocking: true,
+    copy: false,       // true: Copy Unlock on every page of the site
     zoom: 1
   };
 
@@ -66,6 +98,14 @@ const VexSiteRules = (() => {
     DEFAULTS,
     hostOf,
     presentationScript,
+    COPY_UNLOCK,
+
+    /** Unlock the page in front once, whatever the site's rule. */
+    async unlockCopy(tab) {
+      if (!tab || !tab.url) return false;
+      try { await VexBridge.evaluate(tab.id, COPY_UNLOCK); return true; }
+      catch { return false; }
+    },
 
     // What applies to this host, defaults filled in.
     for(host) {
@@ -131,6 +171,7 @@ const VexSiteRules = (() => {
         try { await VexBridge.evaluate(tab.id, presentation); }
         catch { /* a page with scripts off cannot be adjusted */ }
       }
+      if (rules.copy === true) await this.unlockCopy(tab);
       return rules;
     },
 
@@ -145,6 +186,7 @@ const VexSiteRules = (() => {
       if (rules.autoplay === true) parts.push('autoplay allowed');
       if (rules.autoplay === false) parts.push('no autoplay');
       if (!rules.blocking) parts.push('blocking off');
+      if (rules.copy === true) parts.push('copying unlocked');
       if (rules.zoom !== 1) parts.push(Math.round(rules.zoom * 100) + '% text');
       return parts.length ? parts.join(' · ') : 'Default settings';
     }

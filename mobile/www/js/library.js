@@ -17,6 +17,7 @@ const VexLibrary = (() => {
       ['sessions', 'Sessions', 'Save the tabs you have open, by name. They open on the desktop too.', () => VexPanels.sessions()],
       ['find', 'Find in page', 'Search the page you are on.', () => VexUI.openFind()],
       ['shortcuts', 'Keywords and !bangs', 'Type "yt sea shanties", "w halyard" or "gh vex" in the address bar to search that site, or a DuckDuckGo !bang anywhere in what you type. The same list as the desktop.', () => VexUI.openOmnibox('yt ')],
+      ['copy-unlock', 'Let me copy text', 'For a site that stops you selecting its text or empties what you copy — this page from the menu, or the whole site from its sheet. The desktop’s Copy Unlock.', () => VexUI.toast('Menu → Let me copy text here')],
       ['switch-tab', 'Switch to an open tab', 'Type part of a tab’s name in the address bar and it is offered first, instead of opening the page again.', () => VexUI.openOmnibox('')],
       ['swipe-close', 'Swipe to close', 'Throw a tab card, or a row in any list, sideways to close or remove it — Undo follows.', () => VexUI.openTabGrid()],
       ['video-download', 'Download the video', 'A video file, or the stream a site plays — saved whole, with progress in the notification shade. Menu → Download the video.', () => VexPanels.downloads()],
