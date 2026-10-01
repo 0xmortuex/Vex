@@ -304,6 +304,9 @@ public class VexSystemPlugin extends Plugin {
     public void fetchFile(PluginCall call) {
         final String url = call.getString("url", "");
         final String name = call.getString("name", "file");
+        // A private tab's file goes without the cookies: they are the normal
+        // profile's, and sending them tied private browsing to who you are.
+        final boolean withCookies = !Boolean.FALSE.equals(call.getBoolean("cookies", true));
         final long limit = 80L * 1024 * 1024;
         if (!url.startsWith("https://") && !url.startsWith("http://")) {
             call.reject("Only http and https");
@@ -320,7 +323,7 @@ public class VexSystemPlugin extends Plugin {
                 connection.setConnectTimeout(15000);
                 connection.setReadTimeout(30000);
                 connection.setInstanceFollowRedirects(true);
-                String cookies = android.webkit.CookieManager.getInstance().getCookie(url);
+                String cookies = withCookies ? android.webkit.CookieManager.getInstance().getCookie(url) : null;
                 if (cookies != null && !cookies.isEmpty()) connection.setRequestProperty("Cookie", cookies);
                 connection.setRequestProperty("Accept", "*/*");
 

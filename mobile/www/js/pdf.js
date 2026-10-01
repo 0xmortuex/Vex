@@ -106,7 +106,7 @@ const VexPdf = (() => {
     isOpen() { return state.open; },
 
     /** Show a PDF the page tried to download. */
-    async open(url, name) {
+    async open(url, name, { incognito = false } = {}) {
       state.url = url;
       state.name = name || 'document.pdf';
       state.page = 1;
@@ -121,7 +121,9 @@ const VexPdf = (() => {
 
       let path;
       try {
-        const file = await VexBridge.fetchFile(url, state.name);
+        // A private tab's PDF is fetched without the cookies, which are the
+        // normal profile's.
+        const file = await VexBridge.fetchFile(url, state.name, { cookies: !incognito });
         path = file && file.path;
         if (!path) throw new Error('nothing came back');
       } catch (error) {

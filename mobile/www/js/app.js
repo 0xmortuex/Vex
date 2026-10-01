@@ -367,7 +367,8 @@
     // cannot draw one. Vex can, so this is a reader rather than a file.
     VexBridge.on('pdf', async data => {
       if (!data || !data.url) return;
-      await VexPdf.open(data.url, data.filename || 'document.pdf');
+      const from = VexTabStore.get(data.id) || VexTabStore.active();
+      await VexPdf.open(data.url, data.filename || 'document.pdf', { incognito: !!(from && from.incognito) });
     });
 
     VexBridge.on('blocked', async data => {

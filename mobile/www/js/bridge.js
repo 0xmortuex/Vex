@@ -464,7 +464,7 @@ const VexBridge = (() => {
 
     // Fetch a file into the cache for the chrome to render — a PDF — carrying
     // the page's cookies, because a PDF behind a login is the common case.
-    async fetchFile(url, name) {
+    async fetchFile(url, name, { cookies = true } = {}) {
       if (!plugins.VexSystem) {
         // Development: there is no native fetch and no network in the
         // walkthrough, so hand back a real one-page PDF. It is 551 bytes, it is
@@ -472,7 +472,7 @@ const VexBridge = (() => {
         // all — without a phone or a server.
         return { path: 'data:application/pdf;base64,' + DEVELOPMENT_PDF, bytes: 551, type: 'application/pdf' };
       }
-      return system('fetchFile', { url, name });
+      return system('fetchFile', { url, name, cookies: !!cookies });
     },
 
     // ── Sleeping tabs ──────────────────────────────────────────────────────
