@@ -576,7 +576,12 @@ public class VexSystemPlugin extends Plugin {
         final String title = call.getString("title", "Share");
         getActivity().runOnUiThread(() -> {
             try {
-                java.io.File file = new java.io.File(path);
+                java.io.File file = new java.io.File(path).getCanonicalFile();
+                // Only what Vex wrote to its cache to be shared — a capture, a
+                // fetched file. Anything else in the app's own storage (the
+                // secret store among it) is not for handing to another app.
+                String cache = getContext().getCacheDir().getCanonicalPath() + java.io.File.separator;
+                if (!file.getPath().startsWith(cache)) { call.reject("That file cannot be shared"); return; }
                 Uri uri = androidx.core.content.FileProvider.getUriForFile(
                         getContext(), getContext().getPackageName() + ".fileprovider", file);
                 Intent intent = new Intent(Intent.ACTION_SEND);
