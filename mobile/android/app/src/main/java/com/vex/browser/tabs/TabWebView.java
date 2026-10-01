@@ -682,8 +682,13 @@ public class TabWebView extends WebView {
         // bytes back to saveBytes(), so the flag has to travel with the event.
         boolean local = !"http".equals(scheme) && !"https".equals(scheme);
         data.put("local", local);
-        host.emit("download", data);
-        if (local) return;
+        if (local) {
+            host.emit("download", data);
+            return;
+        }
+        // Queued before the event goes out, so the event can carry the queue's
+        // id: the downloads list matches a row to its progress by that id, and
+        // by address alone two downloads of the same file were one row twice.
         try {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setMimeType(mimeType);
@@ -693,7 +698,8 @@ public class TabWebView extends WebView {
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
             DownloadManager manager = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
-            if (manager != null) manager.enqueue(request);
+            if (manager != null) data.put("downloadId", String.valueOf(manager.enqueue(request)));
+            host.emit("download", data);
         } catch (Exception ex) {
             JSObject error = new JSObject();
             error.put("id", id);

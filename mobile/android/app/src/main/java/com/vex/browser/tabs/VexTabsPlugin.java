@@ -658,19 +658,53 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         });
     }
 
-    /** Hand a finished download to whatever app opens that kind of file. */
+    /**
+     * Hand a finished download to whatever app opens that kind of file.
+     *
+     * The queue's own content Uri when there is a queue id: DownloadManager's
+     * COLUMN_LOCAL_URI is a file:// path, and handing another app a file://
+     * Uri throws FileUriExposedException on every Android since 7 — so a tap on
+     * a finished download said "No app can open that file" for every file.
+     * A file:// path that did not come from the queue goes through Vex's own
+     * FileProvider instead; a content:// Uri (MediaStore) is passed as it is.
+     */
     @PluginMethod
     public void openDownload(PluginCall call) {
         final String localUri = call.getString("localUri", "");
+        final String rawId = call.getString("downloadId", "");
         getActivity().runOnUiThread(() -> {
             try {
+                Uri uri = null;
+                String type = null;
+                if (!rawId.isEmpty()) {
+                    long id = Long.parseLong(rawId.trim());
+                    android.app.DownloadManager manager =
+                            (android.app.DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+                    if (manager != null) {
+                        uri = manager.getUriForDownloadedFile(id);
+                        type = manager.getMimeTypeForDownloadedFile(id);
+                    }
+                }
+                if (uri == null && !localUri.isEmpty()) {
+                    Uri given = Uri.parse(localUri);
+                    if ("file".equals(given.getScheme()) && given.getPath() != null) {
+                        uri = androidx.core.content.FileProvider.getUriForFile(getContext(),
+                                getContext().getPackageName() + ".fileprovider", new java.io.File(given.getPath()));
+                    } else {
+                        uri = given;
+                    }
+                }
+                if (uri == null) { call.reject("That file is not there any more"); return; }
+                if (type == null) type = getContext().getContentResolver().getType(uri);
                 Intent intent = new Intent(Intent.ACTION_VIEW);
-                intent.setData(Uri.parse(localUri));
+                if (type != null) intent.setDataAndType(uri, type); else intent.setData(uri);
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
                 getActivity().startActivity(intent);
                 call.resolve();
+            } catch (android.content.ActivityNotFoundException error) {
+                call.reject("No app on this phone opens that kind of file");
             } catch (Exception error) {
-                call.reject("No app can open that file");
+                call.reject("That file could not be opened");
             }
         });
     }

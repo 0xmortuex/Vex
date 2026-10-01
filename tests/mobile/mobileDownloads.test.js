@@ -34,7 +34,7 @@ beforeEach(() => {
 describe('a data: URL', () => {
   it('is decoded by the chrome, without troubling the page', async () => {
     const result = await VexDownloads.saveLocal(job({ url: 'data:text/csv;base64,YSxiLGM=' }));
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, localUri: 'content://downloads/1' });
     expect(window.VexBridge.saveData).toHaveBeenCalledWith('t1', 'export.csv', 'text/csv', 'YSxiLGM=');
     expect(window.VexBridge.evaluate).not.toHaveBeenCalled();
   });
@@ -63,7 +63,7 @@ describe('a blob: URL', () => {
   it('is read by the page and saved', async () => {
     page = { state: 'done', base64: 'YSxiLGM=', size: 6 };
     const result = await VexDownloads.saveLocal(job({ url: 'blob:https://example.com/abc' }));
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, localUri: 'content://downloads/1' });
     expect(window.VexBridge.saveData).toHaveBeenCalledWith('t1', 'export.csv', 'text/csv', 'YSxiLGM=');
   });
 
@@ -75,7 +75,7 @@ describe('a blob: URL', () => {
     }, 130);
     const result = await VexDownloads.saveLocal(job({ url: 'blob:https://example.com/abc' }));
     clearInterval(spin);
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, localUri: 'content://downloads/1' });
   });
 
   it('says so when the page says it is too big', async () => {

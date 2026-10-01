@@ -302,13 +302,23 @@
     });
 
     VexBridge.on('download', async data => {
-      await VexDB.add('downloads', {
-        url: data.url, filename: data.filename || '', size: Number(data.size) || 0, at: Date.now()
-      });
+      const row = {
+        url: data.url, filename: data.filename || '', size: Number(data.size) || 0, at: Date.now(),
+        // The system queue's id, so the list follows this download and not
+        // another one of the same address.
+        downloadId: data.downloadId ? String(data.downloadId) : ''
+      };
+      const key = await VexDB.add('downloads', row);
       // A file the page made itself: blob: or data:, which Android's download
       // manager cannot fetch, so the bytes come out of the page.
       if (data.local) {
         const saved = await VexDownloads.saveLocal(data);
+        // The list keeps where it went, so a tap opens the file — and keeps
+        // nothing at all for one that never arrived.
+        if (key != null) {
+          if (saved.ok) await VexDB.put('downloads', Object.assign({ id: key }, row, { localUri: saved.localUri || '' }));
+          else await VexDB.delete('downloads', key);
+        }
         VexUI.toast(saved.ok
           ? 'Saved ' + (data.filename || 'the file') + ' to Downloads'
           : saved.why, saved.ok ? 3000 : 4500, saved.ok

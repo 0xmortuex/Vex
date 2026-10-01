@@ -9,7 +9,9 @@
 const VexPanels = (() => {
   const { $, el, icon, clear, favicon, when, bytes } = VexDom;
   let stack = [];
-  let totpTimer = null;
+  // A panel that keeps itself current — the 2FA codes, a download's progress —
+  // ticks on this, and every other panel opening stops it.
+  let ticker = null;
   // Which drawing a body belongs to. Several panels fill themselves from
   // IndexedDB, and the search field re-opens the panel on every keystroke, so
   // an answer can arrive after its body has been cleared and refilled by a
@@ -19,7 +21,7 @@ const VexPanels = (() => {
 
   function openShell(name, title, { search, action } = {}) {
     drawn++;
-    stopTotp();
+    stopTicker();
     $('panel-title').textContent = title;
     const searchWrap = $('panel-search');
     searchWrap.hidden = !search;
@@ -37,7 +39,12 @@ const VexPanels = (() => {
       actionButton.onclick = action.run;
     }
     clear($('panel-body'));
-    if (stack[stack.length - 1] !== name) stack.push(name);
+    // Coming back to the panel underneath — Save on "Add a login" returning
+    // to Passwords — is going back to it, not forward again: left as a push,
+    // Back from there walked into the form you had just saved. Only the one
+    // underneath: a panel reached by another road keeps the road behind it.
+    if (stack[stack.length - 2] === name) stack.pop();
+    else if (stack[stack.length - 1] !== name) stack.push(name);
     if ($('panel').hidden) {
       $('panel').hidden = false;
       VexUI.cover(true);
@@ -63,7 +70,10 @@ const VexPanels = (() => {
 
   function close() {
     stack = [];
-    stopTotp();
+    stopTicker();
+    // A draw still waiting on IndexedDB, or a tick still waiting on the
+    // download queue, belongs to a panel that is no longer there.
+    drawn++;
     if ($('panel').hidden) return;
     $('panel').hidden = true;
     $('panel-search').hidden = true;
@@ -163,9 +173,47 @@ const VexPanels = (() => {
     return VexSheets.row({ label, note, value, run: async () => { await run(); return true; } });
   }
 
-  function stopTotp() {
-    clearInterval(totpTimer);
-    totpTimer = null;
+  function stopTicker() {
+    clearInterval(ticker);
+    ticker = null;
+  }
+
+  // ── The system download queue ───────────────────────────────────────────
+  async function downloadQueue() {
+    try {
+      const status = await VexBridge.downloadStatus();
+      return (status && status.downloads) || [];
+    } catch { return []; }
+  }
+
+  // A row's place in the queue: by the queue's own id when the row has one,
+  // otherwise the newest entry for the same address.
+  function queued(live, entry) {
+    if (entry.downloadId) return live.find(item => String(item.id) === String(entry.downloadId)) || null;
+    if (!/^https?:/i.test(entry.url || '')) return null;
+    return live.filter(item => item.url === entry.url)
+      .sort((a, b) => Number(b.id) - Number(a.id))[0] || null;
+  }
+
+  // DownloadManager's statuses: 1 pending, 2 running, 4 paused (waiting for a
+  // network, usually), 8 done, 16 failed. Gone from the queue counts as done —
+  // the file outlives the queue's memory of it.
+  function downloadState(match) {
+    if (!match || match.status === 8) return 'done';
+    if (match.status === 16) return 'failed';
+    return 'running';
+  }
+
+  function percent(match) {
+    return match && match.total > 0 ? Math.min(100, Math.round((match.downloaded / match.total) * 100)) : 0;
+  }
+
+  function downloadNote(state, entry, match) {
+    if (state === 'failed') return 'failed — tap to try the page again';
+    if (state === 'done') return bytes(entry.size || (match && match.total));
+    if (match && match.status === 4) return 'waiting for a connection';
+    if (match && match.total > 0) return bytes(match.downloaded) + ' of ' + bytes(match.total);
+    return 'downloading…';
   }
 
   function dayName(at) {
@@ -698,55 +746,87 @@ const VexPanels = (() => {
       });
       const mine = drawn;
       const rows = await VexDB.scan('downloads', { limit: 200 });
-      let live = [];
-      try {
-        const status = await VexBridge.downloadStatus();
-        live = (status && status.downloads) || [];
-      } catch { live = []; }
+      const live = await downloadQueue();
       if (mine !== drawn) return;
 
-      if (!rows.length && !live.length) {
+      if (!rows.length) {
         body.appendChild(empty('Files you download land in the phone’s Downloads folder, and are listed here.'));
         return;
       }
 
+      // The ones still arriving, and the parts of their rows that move.
+      const following = [];
       for (const entry of rows) {
-        const match = live.find(item => item.url === entry.url);
-        const done = !match || match.status === 8;         // STATUS_SUCCESSFUL
-        const failed = match && match.status === 16;       // STATUS_FAILED
-        const running = match && !done && !failed;
+        const match = queued(live, entry);
+        const state = downloadState(match);
+        const sub = () => [
+          VexSearch.prettyHost(entry.url),
+          downloadNote(state, entry, match),
+          when(entry.at)
+        ].filter(Boolean).join(' · ');
         const node = listRow({ url: entry.url, title: entry.filename || entry.url, icon: '' }, {
-          sub: () => [
-            VexSearch.prettyHost(entry.url),
-            failed ? 'failed' : done ? bytes(entry.size || (match && match.total)) : 'downloading…',
-            when(entry.at)
-          ].filter(Boolean).join(' · '),
+          sub,
           // Still running: the one useful button is Stop, and it is a separate
           // button from Remove because they are different regrets.
-          actions: running ? [{
+          actions: state === 'running' ? [{
             icon: 'close', label: 'Stop this download',
             run: async () => {
-              await VexBridge.cancelDownload(match.id);
+              try { await VexBridge.cancelDownload(match.id); }
+              catch (error) { VexUI.toast(error.message || 'Could not stop it'); return; }
               VexUI.toast('Stopped — the part that arrived is gone with it');
               this.downloads();
             }
           }] : null,
           onOpen: async () => {
-            if (match && match.localUri) { await VexBridge.openDownload(match.localUri); return; }
-            close();
-            VexUI.openUrl(entry.url);
+            if (state === 'running') { VexUI.toast('Still downloading'); return; }
+            if (state === 'failed') {
+              close();
+              VexUI.openUrl(entry.url);
+              return;
+            }
+            const downloadId = (match && match.id) || entry.downloadId || '';
+            const localUri = (match && match.localUri) || entry.localUri || '';
+            if (downloadId || localUri) {
+              try { await VexBridge.openDownload({ downloadId, localUri }); return; }
+              catch (error) { VexUI.toast(error.message || 'That file could not be opened'); return; }
+            }
+            // A local file we never learnt the place of, or one the queue has
+            // since forgotten: the address is all there is.
+            if (/^https?:/i.test(entry.url)) { close(); VexUI.openUrl(entry.url); }
+            else VexUI.toast('It is in the Downloads folder');
           },
           onRemove: async () => { await VexDB.delete('downloads', entry.id); this.downloads(); }
         });
-        if (running && match.total > 0) {
+        if (state === 'running') {
           const bar = el('div', 'progress-row');
           const fill = el('i');
-          fill.style.width = Math.round((match.downloaded / match.total) * 100) + '%';
+          fill.style.width = percent(match) + '%';
           bar.appendChild(fill);
           node.querySelector('.lines').appendChild(bar);
+          following.push({ entry, fill, line: node.querySelector('.u') });
         }
         body.appendChild(node);
       }
+
+      // "With live progress" has to mean the bar moves while you watch. The
+      // queue is read once a second for as long as something is arriving; when
+      // one finishes or fails the list is drawn again, because its buttons and
+      // what a tap does change with it.
+      if (!following.length) return;
+      stopTicker();
+      ticker = setInterval(async () => {
+        const now = await downloadQueue();
+        if (mine !== drawn) return;
+        for (const item of following) {
+          const match = queued(now, item.entry);
+          const state = downloadState(match);
+          if (state !== 'running') { this.downloads(); return; }
+          item.fill.style.width = percent(match) + '%';
+          item.line.textContent = [
+            VexSearch.prettyHost(item.entry.url), downloadNote(state, item.entry, match), when(item.entry.at)
+          ].filter(Boolean).join(' · ');
+        }
+      }, 1000);
     },
 
     // ── Passwords and 2FA ──────────────────────────────────────────────────
@@ -783,7 +863,7 @@ const VexPanels = (() => {
       // on handing them out. Everything below re-reads the entry out of the
       // vault by id rather than trusting the copy it captured.
       const current = id => VexVault.all().find(row => row.id === id) || null;
-      const relock = () => { stopTotp(); this.passwords(); };
+      const relock = () => { stopTicker(); this.passwords(); };
 
       const codeNodes = [];
       for (const entry of entries) {
@@ -861,8 +941,8 @@ const VexPanels = (() => {
         }
       };
       tick();
-      stopTotp();
-      totpTimer = setInterval(tick, 1000);
+      stopTicker();
+      ticker = setInterval(tick, 1000);
     },
 
     async addLogin(prefill = {}) {

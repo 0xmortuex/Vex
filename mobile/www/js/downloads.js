@@ -80,8 +80,8 @@ const VexDownloads = (() => {
         if (!base64) return { ok: false, why: 'That file could not be read' };
         if (base64.length * 0.75 > CAP) return { ok: false, why: 'That file is too big for Vex to save' };
         try {
-          await VexBridge.saveData(id, name, mimeType || '', base64);
-          return { ok: true };
+          const saved = await VexBridge.saveData(id, name, mimeType || '', base64);
+          return { ok: true, localUri: (saved && saved.localUri) || '' };
         } catch (error) { return { ok: false, why: error.message || 'It could not be saved' }; }
       }
 
@@ -100,8 +100,8 @@ const VexDownloads = (() => {
         if (held.state === 'too-big') return { ok: false, why: 'That file is too big for Vex to save' };
         if (held.state !== 'done' || !held.base64) return { ok: false, why: 'That file could not be read' };
         try {
-          await VexBridge.saveData(id, name, mimeType || '', held.base64);
-          return { ok: true };
+          const saved = await VexBridge.saveData(id, name, mimeType || '', held.base64);
+          return { ok: true, localUri: (saved && saved.localUri) || '' };
         } catch (error) { return { ok: false, why: error.message || 'It could not be saved' }; }
       }
       return { ok: false, why: 'That file took too long to read' };

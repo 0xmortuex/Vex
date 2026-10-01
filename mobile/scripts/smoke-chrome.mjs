@@ -1290,6 +1290,50 @@ results.libraryRuns = await page.evaluate(async () => {
   return [sheetStayed, opened, backTo].join(' | ');
 });
 
+// ── Downloads follow the queue ──────────────────────────────────────────────
+// The bar has to move while you watch, and a finished one has to stop being a
+// progress bar. The queue is faked: 30 of 100 bytes, then all of it.
+results.downloadsLive = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const real = VexBridge.downloadStatus;
+  let queue = [{ id: 41, url: 'https://files.example/a.zip', status: 2, downloaded: 30, total: 100, localUri: '' }];
+  VexBridge.downloadStatus = async () => ({ downloads: queue });
+  await VexDB.clear('downloads');
+  await VexDB.add('downloads', { url: 'https://files.example/a.zip', filename: 'a.zip', size: 0, at: Date.now(), downloadId: '41' });
+  VexPanels.downloads();
+  await wait(300);
+  const before = document.querySelector('#panel-body .progress-row i').style.width;
+  queue = [{ ...queue[0], downloaded: 70 }];
+  await wait(1200);
+  const during = document.querySelector('#panel-body .progress-row i').style.width;
+  queue = [{ ...queue[0], status: 8, downloaded: 100 }];
+  await wait(1200);
+  const after = document.querySelectorAll('#panel-body .progress-row').length;
+  VexPanels.close();
+  VexBridge.downloadStatus = real;
+  await VexDB.clear('downloads');
+  return [before, during, after].join(' ');
+});
+
+// Save on "Add a login" goes back to Passwords; Back from there has to step
+// up past it, not into the form that was just saved.
+results.addLoginBack = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  VexPanels.settings();
+  await wait(200);
+  await VexPanels.passwords();
+  await VexPanels.addLogin();
+  document.getElementById('login-host').value = 'back.example';
+  [...document.querySelectorAll('#panel-body .pill-btn')].find(node => node.textContent === 'Save').click();
+  await wait(300);
+  const saved = document.getElementById('panel-title').textContent;
+  VexPanels.back();
+  await wait(300);
+  const backTo = document.getElementById('panel-title').textContent;
+  VexPanels.close();
+  return saved + ' | ' + backTo;
+});
+
 console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
@@ -1326,6 +1370,8 @@ const expected = {
   noteKept: true, notesPanelRows: 1,
   reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
   libraryOpens: true,
+  downloadsLive: '30% 70% 0',
+  addLoginBack: 'Passwords and 2FA | Settings',
   speakBarShown: true,
   speakBarGone: true,
   speakInMenu: true,

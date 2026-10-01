@@ -345,7 +345,11 @@ const VexBridge = (() => {
     },
     capturePage(id, full) { return tabs('capturePage', { id, full: !!full }); },
     downloadStatus() { return tabs('downloadStatus', {}); },
-    openDownload(localUri) { return tabs('openDownload', { localUri }); },
+    // The queue's id when there is one — native asks the queue for a Uri
+    // another app may read — or a saved file's own Uri.
+    openDownload({ downloadId = '', localUri = '' } = {}) {
+      return tabs('openDownload', { downloadId: String(downloadId || ''), localUri: localUri || '' });
+    },
     // DownloadManager has no pause: removing it is what cancelling is.
     cancelDownload(id) { return tabs('cancelDownload', { id: String(id) }); },
     openDownloadsFolder() { return tabs('openDownloadsFolder', {}); },
