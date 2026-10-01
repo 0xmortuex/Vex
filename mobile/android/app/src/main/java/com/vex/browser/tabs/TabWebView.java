@@ -169,6 +169,11 @@ public class TabWebView extends WebView {
         // Mixed content stays off: an https page pulling http subresources is
         // exactly what the desktop build's HTTPS-only mode refuses too.
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        // A web page has no business with the phone's files or with other
+        // apps' content:// providers. File access is already off by default
+        // at this target SDK; content access is not, so both are said here.
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
         settings.setSaveFormData(!incognito);
         if (incognito) settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setSafeBrowsingEnabled(true);
