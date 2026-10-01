@@ -15,6 +15,7 @@ on:
       - 'src/renderer/css/theme-tokens.css'
       - 'src/renderer/js/sync-crypto.js'
       - 'src/renderer/js/sync-records.js'
+      - 'src/renderer/js/search-shortcuts.js'
       - '.github/workflows/mobile.yml'
   pull_request:
     paths:
@@ -22,6 +23,14 @@ on:
       - 'tests/mobile/**'
       - '.github/workflows/mobile.yml'
   workflow_dispatch:
+
+# One build per branch at a time, and a newer push cancels the one before it.
+# Without this, two pushes a minute apart built side by side and whichever
+# finished LAST uploaded the APK to the draft release — which was sometimes
+# the older commit, so the APK there was not the newest code.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   # write, because the debug APK is also attached to a draft release: the Actions
