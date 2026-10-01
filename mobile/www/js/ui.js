@@ -246,7 +246,7 @@ const VexUI = (() => {
       close.appendChild(icon('close'));
       close.onclick = async event => {
         event.stopPropagation();
-        await VexTabStore.close(tab.id);
+        await closeTabWithUndo(tab);
       };
       chip.appendChild(close);
       chip.onclick = () => { if (tab.id !== VexTabStore.activeId()) VexTabStore.activate(tab.id); };
@@ -531,6 +531,26 @@ const VexUI = (() => {
     if ($('tabgrid').hidden) return;
     $('tabgrid').hidden = true;
     cover(false);
+    applyPrivacyScreen();
+  }
+
+  // A private tab in front means no screenshot and nothing in the recents
+  // thumbnail — the thumbnail being the one that shows itself to whoever picks
+  // up the phone without unlocking anything. The switcher's private side counts
+  // too: that grid is a wall of private pages.
+  let screenBlocked = false;
+
+  function applyPrivacyScreen() {
+    if (VexStore.get('vex.hidePrivate', true) === false) {
+      if (screenBlocked) { screenBlocked = false; VexBridge.setScreenshotsBlocked(false); }
+      return;
+    }
+    const active = VexTabStore.active();
+    const want = !!(active && active.incognito)
+      || (!$('tabgrid').hidden && tabGridScope === 'private');
+    if (want === screenBlocked) return;
+    screenBlocked = want;
+    VexBridge.setScreenshotsBlocked(want);
   }
 
   function renderTabGrid() {
@@ -569,9 +589,7 @@ const VexUI = (() => {
       close.appendChild(icon('close'));
       close.onclick = async event => {
         event.stopPropagation();
-        await VexTabStore.close(tab.id);
-        renderTabGrid();
-        renderToolbar();
+        await closeTabWithUndo(tab);
       };
       bar.appendChild(close);
       card.appendChild(bar);
@@ -853,6 +871,22 @@ const VexUI = (() => {
     VexSync.schedulePush();
   }
 
+  /**
+   * Close one tab and offer it back. Shutting a tab is one tap and the regret is
+   * immediate, so the offer belongs in the toast rather than three taps away in
+   * a menu. Nothing is offered for a private tab: those are never written to the
+   * closed list, which is the point of them.
+   */
+  async function closeTabWithUndo(tab) {
+    if (!tab) return;
+    const name = tab.title || VexSearch.prettyHost(tab.url) || 'that tab';
+    const worth = !tab.incognito && tab.url && tab.url !== 'about:blank';
+    await VexTabStore.close(tab.id);
+    renderTabGrid();
+    renderToolbar();
+    if (worth) toast('Closed ' + name, 4500, { label: 'Undo', run: () => reopenClosed() });
+  }
+
   async function reopenClosed() {
     const closed = VexStore.get('vex.closedTabs', []);
     if (!closed.length) { toast('Nothing to reopen'); return; }
@@ -915,6 +949,23 @@ const VexUI = (() => {
           VexViews.openAI();
         } catch (error) { toast(error.message, 3500); }
       }, onDevice ? 'On the phone, with nothing sent anywhere' : 'Through your own assistant');
+  }
+
+  /**
+   * Everything about one site, gone: its visits, the text of its pages in the
+   * Recall index, its cookies and its storage. Four stores and a WebView call,
+   * which is why it is one offer rather than four.
+   *
+   * `after` is what to redraw — the panel this was asked from.
+   */
+  async function forgetSite(host, after) {
+    if (!host) return;
+    if (!(await confirm('Forget everything Vex knows about ' + host + '? '
+      + 'Its visits, its page text, its cookies and its storage.'))) return;
+    const gone = await VexHistory.forgetSite(host);
+    await VexBridge.clearSiteData(host, 'https://' + host);
+    toast('Forgot ' + host + ' · ' + gone.visits + ' visits, ' + gone.pages + ' pages of text', 4000);
+    if (typeof after === 'function') after();
   }
 
   // ── Logins ───────────────────────────────────────────────────────────────
@@ -987,12 +1038,13 @@ const VexUI = (() => {
 
     BUTTONS, DEFAULT_BUTTONS, buttonConfig, goHome,
     toast, cover, pushBounds, scheduleBounds, applyToolbarPosition, onPageScroll, setFullscreen,
+    applyPrivacyScreen,
     renderToolbar, renderProgress, renderTabGrid, renderTabStrip, renderSuggestions, refreshMediaBar,
     renderSpeakBar, readAloud, speakSettings,
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind,
-    openUrl, newTab, copy, toggleBookmark, reopenClosed, setStartVisible, startVisible,
+    openUrl, newTab, copy, toggleBookmark, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage,
-    offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate,
+    offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, forgetSite,
 
     prompt(title, message, value = '') { return dialog({ title, message, input: value }); },
     confirm(message, title = 'Vex') { return dialog({ title, message, okLabel: 'Yes', cancelLabel: 'No' }).then(Boolean); },
@@ -1055,11 +1107,12 @@ const VexUI = (() => {
       });
 
       // Tab switcher
-      $('tg-normal').onclick = () => { tabGridScope = 'normal'; renderTabGrid(); };
+      $('tg-normal').onclick = () => { tabGridScope = 'normal'; renderTabGrid(); applyPrivacyScreen(); };
       $('tg-private').onclick = async () => {
         if (!(await unlockPrivate())) return;
         tabGridScope = 'private';
         renderTabGrid();
+        applyPrivacyScreen();
       };
       $('tg-search').addEventListener('input', event => { tabQuery = event.target.value; renderTabGrid(); });
       $('tg-new').onclick = async () => {
@@ -1150,7 +1203,7 @@ const VexUI = (() => {
       window.addEventListener('orientationchange', () => { scheduleBounds(); renderTabStrip(); });
       if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleBounds);
 
-      VexTabStore.onChange(() => { renderToolbar(); renderProgress(); });
+      VexTabStore.onChange(() => { renderToolbar(); renderProgress(); applyPrivacyScreen(); });
 
       // Reading aloud: the bar's buttons, and a redraw whenever the engine
       // moves on a line.

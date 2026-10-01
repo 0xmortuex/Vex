@@ -115,7 +115,8 @@ const VexPanels = (() => {
   }
 
   // ── Shared row shapes ────────────────────────────────────────────────────
-  function listRow(entry, { onOpen, onRemove, sub, actions } = {}) {
+  function listRow(entry, options = {}) {
+    const { onOpen, onRemove, sub, actions } = options;
     const node = el('div', 'list-row');
     node.appendChild(favicon(entry));
     const lines = el('div', 'lines');
@@ -140,7 +141,9 @@ const VexPanels = (() => {
       remove.onclick = event => { event.stopPropagation(); onRemove(entry); };
       node.appendChild(remove);
     }
-    if (entry.url) VexGestures.longPress(node, () => VexSheets.link({ link: entry.url }));
+    if (entry.url) {
+      VexGestures.longPress(node, () => VexSheets.link({ link: entry.url, forget: options.forget }));
+    }
     return node;
   }
 
@@ -207,7 +210,10 @@ const VexPanels = (() => {
         body.appendChild(listRow(entry, {
           sub: item => (item.host || VexSearch.prettyHost(item.url)) + ' · ' + when(item.at),
           onOpen: item => { close(); VexUI.openUrl(item.url); },
-          onRemove: async item => { await VexHistory.remove(item); this.history(query); }
+          onRemove: async item => { await VexHistory.remove(item); this.history(query); },
+          // Long-pressing a row in a list of where you have been is where
+          // "I would rather this site were not here" belongs.
+          forget: () => this.history(query)
         }));
       }
     },
@@ -239,7 +245,8 @@ const VexPanels = (() => {
         const snippet = el('span', 'recall-snippet', VexHistory.snippet(hit, query));
         body.appendChild(listRow(Object.assign({}, hit, { extra: snippet }), {
           sub: item => VexSearch.prettyHost(item.url) + ' · ' + when(item.at),
-          onOpen: item => { close(); VexUI.openUrl(item.url); }
+          onOpen: item => { close(); VexUI.openUrl(item.url); },
+          forget: () => this.recall(query)
         }));
       }
     },
@@ -750,6 +757,39 @@ const VexPanels = (() => {
         });
         fields[key] = input;
         field.appendChild(input);
+        // Make one up, rather than reusing the one you always use. The length is
+        // the one you last chose, and what it made is shown — a password you
+        // cannot see is a password you cannot check against the site's rules.
+        if (key === 'password') {
+          const row = el('div', { class: 'field-actions' });
+          const make = el('button', 'pill-btn small');
+          make.textContent = 'Make one up';
+          make.onclick = () => {
+            const length = Number(VexStore.get('vex.passwordLength', 20)) || 20;
+            input.value = VexVault.makePassword({ length });
+            input.type = 'text';
+            VexUI.toast(length + ' characters — copy it before you save');
+          };
+          row.appendChild(make);
+          const longer = el('button', 'pill-btn small');
+          longer.textContent = 'Length';
+          longer.onclick = () => VexSheets.choose('How long',
+            [12, 16, 20, 24, 32, 48].map(size => ({
+              id: size, label: size + ' characters',
+              selected: size === Number(VexStore.get('vex.passwordLength', 20))
+            })), async size => {
+              await VexStore.set('vex.passwordLength', Number(size));
+              VexSheets.close();
+              input.value = VexVault.makePassword({ length: Number(size) });
+              input.type = 'text';
+            });
+          row.appendChild(longer);
+          const copy = el('button', 'pill-btn small');
+          copy.textContent = 'Copy';
+          copy.onclick = () => { if (input.value) VexUI.copy(input.value); };
+          row.appendChild(copy);
+          field.appendChild(row);
+        }
         body.appendChild(field);
       }
       body.appendChild(el('div', 'field-note',
@@ -1036,6 +1076,12 @@ const VexPanels = (() => {
         String((VexVault.knownHosts() || []).length || ''), () => this.passwords()));
       body.appendChild(valueRow('Your details', 'For sign-up and checkout forms',
         VexVault.hasProfile() ? 'Saved' : 'Not set', () => this.details()));
+      body.appendChild(toggleRow('Keep private tabs out of screenshots',
+        'And out of the app switcher’s thumbnail, which is the one somebody else sees',
+        VexStore.get('vex.hidePrivate', true) !== false, async value => {
+          await VexStore.set('vex.hidePrivate', value);
+          VexUI.applyPrivacyScreen();
+        }));
       body.appendChild(toggleRow('Lock private tabs', 'A fingerprint before they open',
         VexStore.get('vex.lockPrivate', false), async value => {
           if (value && !(await VexBridge.biometricsAvailable())) {

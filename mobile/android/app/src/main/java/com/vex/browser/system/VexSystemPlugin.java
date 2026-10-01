@@ -505,6 +505,24 @@ public class VexSystemPlugin extends Plugin {
         });
     }
 
+    /**
+     * Keep a private tab out of screenshots and out of the recents thumbnail.
+     *
+     * FLAG_SECURE does both, and the second is the one that matters: the
+     * app-switcher thumbnail is what whoever picks up the phone sees without
+     * unlocking anything. Samsung calls this "block screenshots in Secret mode";
+     * here it follows which tab is in front rather than being a setting to find.
+     */
+    @PluginMethod
+    public void setScreenshotsBlocked(PluginCall call) {
+        final boolean on = Boolean.TRUE.equals(call.getBoolean("value", false));
+        getActivity().runOnUiThread(() -> {
+            if (on) getActivity().getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+            else getActivity().getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+            call.resolve();
+        });
+    }
+
     /** Hand a file (a screenshot, a saved page) to another app. */
     @PluginMethod
     public void shareFile(PluginCall call) {

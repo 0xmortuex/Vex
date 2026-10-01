@@ -111,6 +111,17 @@ const VexHistory = (() => {
       return VexDB.deleteWhere('history', row => row.host === host);
     },
 
+    /**
+     * Everything Vex remembers about one site: its visits and the text of its
+     * pages. Cookies and storage are the WebView's, so the caller does those —
+     * this is only the part that lives in IndexedDB.
+     */
+    async forgetSite(host) {
+      const visits = await this.removeSite(host);
+      const pages = await VexDB.deleteWhere('recall', row => hostOf(row.url) === host);
+      return { visits: visits || 0, pages: pages || 0 };
+    },
+
     async clear() {
       await this.clearVisits();
       await this.clearPageText();

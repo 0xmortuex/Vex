@@ -482,6 +482,8 @@ const VexBridge = (() => {
     },
     setFullscreen(value) { return system('setFullscreen', { value: !!value }); },
     setKeepAwake(value) { return system('setKeepAwake', { value: !!value }); },
+    // FLAG_SECURE: no screenshot, and nothing in the recents thumbnail.
+    setScreenshotsBlocked(value) { return system('setScreenshotsBlocked', { value: !!value }); },
     shareFile(path, mimeType, title) { return system('shareFile', { path, mimeType, title }); },
 
     // ── The AI that stays on the phone ─────────────────────────────────────

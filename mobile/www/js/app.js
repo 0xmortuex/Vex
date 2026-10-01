@@ -63,6 +63,8 @@
     VexStore.prime('vex.backgroundAudio', false),
     VexStore.prime('vex.keepAwake', false),
     VexStore.prime('vex.lockPrivate', false),
+    VexStore.prime('vex.hidePrivate', true),
+    VexStore.prime('vex.passwordLength', 20),
     VexStore.prime('vex.linksInNewTab', false),
     VexStore.prime('vex.restoreTabs', true),
     VexStore.prime('vex.closeTabsAfter', 0),

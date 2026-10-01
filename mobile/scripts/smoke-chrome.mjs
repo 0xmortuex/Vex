@@ -538,9 +538,46 @@ await page.waitForTimeout(220);
 results.tabSearchCards = await page.$$eval('.tabcard', cards => cards.length);
 await page.fill('#tg-search', '');
 await page.waitForTimeout(150);
+// A private tab in front blocks screenshots and the recents thumbnail; so does
+// the switcher's private side. The chrome asks native for it exactly once per
+// change, which is what this watches.
+let screenshotCalls = [];
+await page.exposeFunction('vexNoteScreenshotFlag', value => { screenshotCalls.push(value); });
+await page.evaluate(() => {
+  const real = VexBridge.setScreenshotsBlocked.bind(VexBridge);
+  VexBridge.setScreenshotsBlocked = value => { window.vexNoteScreenshotFlag(value); return real(value); };
+});
 await tap('#tg-private', 250);
 results.privateEmptyCopy = ((await page.textContent('.tabgrid-empty')) || '').slice(0, 20);
+results.screenshotsBlockedOnPrivateSide = screenshotCalls.slice();
 await tap('#tg-normal', 200);
+results.screenshotsAllowedAgain = screenshotCalls.slice();
+
+// Closing a tab offers it back in the toast, and Undo brings it back. A private
+// tab is never offered, because it is never written to the closed list.
+results.undoClose = await page.evaluate(async () => {
+  const opened = await VexTabStore.create('https://undo.example/', { background: true });
+  const before = VexTabStore.all().length;
+  await VexUI.closeTabWithUndo(VexTabStore.get(opened.id));
+  const toast = document.querySelector('#toasts .toast');
+  const offered = !!(toast && /Undo/.test(toast.textContent));
+  const button = toast && toast.querySelector('button');
+  if (button) button.click();
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return { offered, back: VexTabStore.all().length === before,
+    url: (VexTabStore.all().find(tab => tab.url === 'https://undo.example/') || {}).url || '' };
+});
+results.undoPrivate = await page.evaluate(async () => {
+  const opened = await VexTabStore.create('https://secret.example/', { background: true, incognito: true });
+  await VexUI.closeTabWithUndo(VexTabStore.get(opened.id));
+  const toast = document.querySelector('#toasts .toast');
+  return !(toast && /Undo/.test(toast.textContent));
+});
+await page.evaluate(async () => {
+  for (const tab of VexTabStore.all().filter(tab => tab.url === 'https://undo.example/')) {
+    await VexTabStore.close(tab.id);
+  }
+});
 await tap('#tg-done');
 
 // ── Private browsing keeps out of history ───────────────────────────────────
@@ -1067,6 +1104,7 @@ const expected = {
   speakRate: 1.25,
   speakRateShown: '1.25×',
   sharedTextOpens: true,
+  undoPrivate: true,
   readerLookDefault: '-,-,-,-',
   readerLook: 'serif,paper',
   readerLookRows: 4,
@@ -1100,6 +1138,20 @@ if (String(results.clearDefaults) !== 'true,true,true,false,false,false') {
   failures.push('clearDefaults: the tick boxes do not start where they should (' + results.clearDefaults + ')');
 }
 if (results.clearRows < 9) failures.push('clearRows: the clear panel lost rows (' + results.clearRows + ')');
+if (!results.undoClose.offered) failures.push('undoClose: closing a tab did not offer Undo');
+if (!results.undoClose.back || results.undoClose.url !== 'https://undo.example/') {
+  failures.push('undoClose: Undo did not bring the tab back (' + JSON.stringify(results.undoClose) + ')');
+}
+// Exactly one call each way, and in that order: a flag asked for twice is a
+// flag somebody will forget to clear.
+if (String(results.screenshotsBlockedOnPrivateSide) !== 'true') {
+  failures.push('screenshotsBlockedOnPrivateSide: expected one true, got ['
+    + results.screenshotsBlockedOnPrivateSide + ']');
+}
+if (String(results.screenshotsAllowedAgain) !== 'true,false') {
+  failures.push('screenshotsAllowedAgain: expected it to be cleared once, got ['
+    + results.screenshotsAllowedAgain + ']');
+}
 if (String(results.translateLanguages).indexOf('en*') !== 0) {
   failures.push('translateLanguages: English should be there already (' + results.translateLanguages + ')');
 }

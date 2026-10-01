@@ -83,6 +83,50 @@ const VexVault = (() => {
   }
 
   // otpauth://totp/Label?secret=ABC&issuer=X — what a QR code carries.
+  // ── Making one up ────────────────────────────────────────────────────────
+  // A saved password that you chose is usually one you have used before. This
+  // makes one you have not: crypto.getRandomValues, rejection sampling so the
+  // alphabet is not biased by a modulo, and at least one character from each
+  // class that was asked for so a site's own rules do not reject it.
+  const CLASSES = {
+    lower: 'abcdefghijkmnopqrstuvwxyz',       // no l
+    upper: 'ABCDEFGHJKLMNPQRSTUVWXYZ',        // no I, no O
+    digits: '23456789',                       // no 0, no 1
+    symbols: '!#$%&*+-=?@^_~'
+  };
+
+  function pick(alphabet) {
+    // Rejection sampling: 256 % alphabet.length is almost never zero, so taking
+    // a byte modulo the length would favour the first few characters.
+    const limit = 256 - (256 % alphabet.length);
+    const byte = new Uint8Array(1);
+    for (;;) {
+      crypto.getRandomValues(byte);
+      if (byte[0] < limit) return alphabet[byte[0] % alphabet.length];
+    }
+  }
+
+  function makePassword({ length = 20, symbols = true, digits = true, upper = true } = {}) {
+    const wanted = ['lower'];
+    if (upper) wanted.push('upper');
+    if (digits) wanted.push('digits');
+    if (symbols) wanted.push('symbols');
+    const alphabet = wanted.map(name => CLASSES[name]).join('');
+    const size = Math.max(8, Math.min(64, Math.round(length)));
+
+    // One from each class first, then the rest from everything, then shuffled —
+    // otherwise the classes are always in the same order at the front.
+    const out = wanted.map(name => pick(CLASSES[name]));
+    while (out.length < size) out.push(pick(alphabet));
+    for (let index = out.length - 1; index > 0; index--) {
+      const swap = new Uint8Array(1);
+      crypto.getRandomValues(swap);
+      const other = swap[0] % (index + 1);
+      [out[index], out[other]] = [out[other], out[index]];
+    }
+    return out.join('');
+  }
+
   function parseOtpAuth(uri) {
     try {
       const parsed = new URL(uri);
@@ -173,6 +217,7 @@ const VexVault = (() => {
 
   return {
     totp, secondsLeft, parseOtpAuth, base32Decode,
+    makePassword,
 
     locked,
 

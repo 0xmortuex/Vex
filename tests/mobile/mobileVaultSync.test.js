@@ -86,6 +86,59 @@ describe('two-factor codes', () => {
   });
 });
 
+describe('making a password up', () => {
+  it('is the length asked for, inside sane bounds', () => {
+    expect(VexVault.makePassword().length).toBe(20);
+    expect(VexVault.makePassword({ length: 32 }).length).toBe(32);
+    // Nothing shorter than 8 and nothing longer than 64, whatever is asked.
+    expect(VexVault.makePassword({ length: 2 }).length).toBe(8);
+    expect(VexVault.makePassword({ length: 500 }).length).toBe(64);
+  });
+
+  it('carries one of each class that was asked for, so a site cannot refuse it', () => {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const made = VexVault.makePassword({ length: 12 });
+      expect(made).toMatch(/[a-z]/);
+      expect(made).toMatch(/[A-Z]/);
+      expect(made).toMatch(/[0-9]/);
+      expect(made).toMatch(/[!#$%&*+\-=?@^_~]/);
+    }
+  });
+
+  it('leaves out a class that was not asked for', () => {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const made = VexVault.makePassword({ length: 16, symbols: false, digits: false, upper: false });
+      expect(made).toMatch(/^[a-z]+$/);
+    }
+  });
+
+  it('never uses the characters nobody can read apart', () => {
+    const made = VexVault.makePassword({ length: 64 });
+    expect(made).not.toMatch(/[lIO01]/);
+  });
+
+  it('does not repeat itself', () => {
+    const seen = new Set();
+    for (let attempt = 0; attempt < 50; attempt++) seen.add(VexVault.makePassword());
+    expect(seen.size).toBe(50);
+  });
+
+  it('does not favour the front of the alphabet', () => {
+    // A modulo without rejection sampling leans on the first few characters.
+    // Over ten thousand draws the first and last thirds should be close.
+    const counts = new Map();
+    for (let attempt = 0; attempt < 250; attempt++) {
+      for (const character of VexVault.makePassword({ length: 40 })) {
+        counts.set(character, (counts.get(character) || 0) + 1);
+      }
+    }
+    const tallies = [...counts.values()].sort((a, b) => a - b);
+    const low = tallies[0];
+    const high = tallies[tallies.length - 1];
+    expect(high / low).toBeLessThan(3);
+  });
+});
+
 describe('the vault', () => {
   it('stays locked until a fingerprint says otherwise', async () => {
     expect(VexVault.locked()).toBe(true);

@@ -390,6 +390,13 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 }
 .pill-btn:active { filter: brightness(1.1); }
 .pill-btn.ghost { background: none; border: 1px solid var(--vex-border-subtle); color: var(--vex-text-secondary); }
+/* Three buttons under a field — make one up, its length, copy it — so they do
+   not each claim a row of their own. */
+.pill-btn.small {
+  min-height: 36px; border-radius: 18px; font-size: var(--text-xs); padding: 0 12px;
+  background: none; border: 1px solid var(--vex-border-subtle); color: var(--vex-text-secondary);
+}
+.field-actions { display: flex; gap: 8px; margin-top: 8px; }
 .tabgrid-empty { grid-column: 1 / -1; padding: 48px 16px; text-align: center; color: var(--vex-text-muted); font-size: var(--text-sm); line-height: 1.5; }
 
 /* ── Sheets ──────────────────────────────────────────────────────────────── */

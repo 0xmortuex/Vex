@@ -110,6 +110,23 @@ describe('the visit log', () => {
     expect(VexHistory.recent().map(row => row.host)).toEqual(['b.example']);
   });
 
+  it('forgets a site everywhere it is remembered, and nothing else', async () => {
+    // Recall's rows are the text of the pages; forgetting a site has to take
+    // those too, or the thing you wanted gone is still searchable by what it said.
+    await VexHistory.add({ url: 'https://a.example/1', title: 'One' });
+    await VexHistory.add({ url: 'https://b.example/', title: 'Other' });
+    await VexHistory.index({ url: 'https://a.example/1', title: 'One', text: 'a secret paragraph nobody else should read' });
+    await VexHistory.index({ url: 'https://b.example/', title: 'Other', text: 'something else entirely, kept on purpose' });
+    expect(rows.recall.length).toBe(2);
+
+    const gone = await VexHistory.forgetSite('a.example');
+    expect(gone).toEqual({ visits: 1, pages: 1 });
+    expect(rows.history.map(row => row.host)).toEqual(['b.example']);
+    expect(rows.recall.map(row => row.url)).toEqual(['https://b.example/']);
+    // And the page it did not ask about is still findable by its words.
+    expect((await VexHistory.recall('entirely')).length).toBe(1);
+  });
+
   it('searches the database, not just the slice in memory', async () => {
     await VexHistory.add({ url: 'https://example.com/annual-report', title: 'Annual report' });
     await VexHistory.add({ url: 'https://other.example/', title: 'Something else' });

@@ -399,7 +399,7 @@ const VexSheets = (() => {
     },
 
     // ── Long-press on a link or an image ───────────────────────────────────
-    link({ link, image }) {
+    link({ link, image, forget }) {
       const target = link || image;
       if (!target) return;
       reset(link ? 'Link' : 'Image', target);
@@ -422,6 +422,16 @@ const VexSheets = (() => {
         list.appendChild(row({ icon: 'image', label: 'Open image', run: () => VexUI.openUrl(image, { newTab: true }) }));
         list.appendChild(row({ icon: 'download', label: 'Save image', run: () => tab && VexBridge.download(tab.id, image) }));
         list.appendChild(row({ icon: 'copy', label: 'Copy image address', run: () => VexUI.copy(image) }));
+      }
+      // Offered where a list of places you have been is on screen, because that
+      // is where "I would rather this site were not here" happens.
+      if (forget) {
+        const host = VexSearch.prettyHost(target);
+        list.appendChild(row({
+          icon: 'trash', label: 'Forget everything from ' + host, danger: true,
+          note: 'Its visits, its text in Recall, its cookies and its storage',
+          run: () => VexUI.forgetSite(host, forget)
+        }));
       }
       show();
       return true;
