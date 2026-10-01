@@ -20,6 +20,7 @@ const VexLibrary = (() => {
       ['copy-unlock', 'Let me copy text', 'For a site that stops you selecting its text or empties what you copy — this page from the menu, or the whole site from its sheet. The desktop’s Copy Unlock.', () => VexUI.toast('Menu → Let me copy text here')],
       ['switch-tab', 'Switch to an open tab', 'Type part of a tab’s name in the address bar and it is offered first, instead of opening the page again.', () => VexUI.openOmnibox('')],
       ['pdf-find', 'Find in a PDF', 'The magnifier in the PDF reader searches every page, marks each match and jumps between them. Pinch to zoom, too.', () => VexUI.toast('Open a PDF, then tap the magnifier')],
+      ['looks', 'Look like another browser', 'Dress Vex as Samsung Internet, Chrome, Firefox or Safari — their shapes, type, colours and toolbar layout.', () => VexPanels.appearance()],
       ['tab-history', 'Long-press Back', 'Every page this tab has been to, nearest first — jump five pages back in one tap. Long-press Forward for the other way.', () => VexUI.tabHistory(-1)],
       ['swipe-close', 'Swipe to close', 'Throw a tab card, or a row in any list, sideways to close or remove it — Undo follows.', () => VexUI.openTabGrid()],
       ['video-download', 'Download the video', 'A video file, or the stream a site plays — saved whole, with progress in the notification shade. Menu → Download the video.', () => VexPanels.downloads()],

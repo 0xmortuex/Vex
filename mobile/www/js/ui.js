@@ -41,9 +41,31 @@ const VexUI = (() => {
     VexBridge.setVisible(coverDepth === 0);
   }
 
+  // Where the address bar and the buttons go:
+  //   bottom   one bar at the bottom (Vex's own, Firefox's, Chrome's option)
+  //   top      one bar at the top
+  //   split    address at the top, buttons along the bottom (Samsung Internet)
+  //   stacked  address above the buttons, both at the bottom (Safari)
+  const LAYOUTS = ['bottom', 'top', 'split', 'stacked'];
+
   function applyToolbarPosition() {
-    const position = VexStore.get('vex.toolbarPosition', 'bottom');
-    document.body.dataset.toolbar = position === 'top' ? 'top' : 'bottom';
+    const stored = VexStore.get('vex.toolbarPosition', 'bottom');
+    const position = LAYOUTS.includes(stored) ? stored : 'bottom';
+    document.body.dataset.toolbar = position;
+    // The button slots keep their ids wherever they are, so everything that
+    // draws or finds a button is unaffected by which bar it is on.
+    const separate = position === 'split' || position === 'stacked';
+    const navbar = $('navbar');
+    const left = $('tb-left'), right = $('tb-right'), pill = $('tb-url');
+    if (navbar && left && right && pill) {
+      if (separate) {
+        if (left.parentElement !== navbar) navbar.append(left, right);
+      } else if (left.parentElement !== pill.parentElement) {
+        pill.before(left);
+        pill.after(right);
+      }
+      navbar.hidden = !separate;
+    }
     showToolbar();
     scheduleBounds();
   }
@@ -179,7 +201,9 @@ const VexUI = (() => {
 
   function renderToolbarButtons() {
     const config = buttonConfig();
-    const signature = config.left.join(',') + '|' + config.right.join(',');
+    // The look is part of it: Samsung's menu is ≡, Chrome's ⋮, Safari's ….
+    const menuIcon = VexTheme.menuIcon ? VexTheme.menuIcon() : 'menu';
+    const signature = config.left.join(',') + '|' + config.right.join(',') + '|' + menuIcon;
     const tab = VexTabStore.active();
 
     if (signature !== builtButtons) {
@@ -200,7 +224,7 @@ const VexUI = (() => {
             button.appendChild(el('span', { id: 'tb-tabcount' }, '0'));
             VexGestures.longPress(button, () => newTab());
           } else {
-            button.appendChild(icon(spec.icon));
+            button.appendChild(icon(id === 'menu' ? menuIcon : spec.icon));
           }
           button.onclick = () => spec.run(VexTabStore.active());
           if (id === 'back') VexGestures.longPress(button, () => tabHistory(-1));
@@ -1360,7 +1384,7 @@ const VexUI = (() => {
   return {
     version: '0.3.0',
 
-    BUTTONS, DEFAULT_BUTTONS, buttonConfig, goHome,
+    BUTTONS, DEFAULT_BUTTONS, LAYOUTS, buttonConfig, goHome,
     toast, cover, pushBounds, scheduleBounds, applyToolbarPosition, onPageScroll, setFullscreen,
     applyPrivacyScreen,
     renderToolbar, renderProgress, renderTabGrid, renderTabStrip, renderSuggestions, refreshMediaBar,

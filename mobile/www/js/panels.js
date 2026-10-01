@@ -1679,9 +1679,93 @@ const VexPanels = (() => {
     },
 
     // ── Appearance ─────────────────────────────────────────────────────────
+    /**
+     * Put a look on. Its colours and shapes go on at once; how that browser
+     * arranges its bars is offered, not imposed, and what you had is kept so
+     * going back to Vex can put it back.
+     */
+    async chooseLook(id) {
+      const look = VexTheme.LOOKS[id];
+      if (!look) return;
+      const was = VexTheme.look();
+      await VexTheme.setLook(id);
+      const layoutNow = VexStore.get('vex.toolbarPosition', 'bottom');
+      const buttonsNow = VexUI.buttonConfig();
+      if (look.layout) {
+        const same = layoutNow === look.layout
+          && JSON.stringify(buttonsNow) === JSON.stringify(look.buttons);
+        if (!same && await VexUI.offer(look.layoutNote + '. Arrange the toolbar like ' + look.label + ' too?',
+          'Arrange it', look.label)) {
+          // Keep what you had the first time a look moved it, not the last
+          // look's arrangement, so "back to Vex" means back to yours.
+          if (was === 'vex' || !VexStore.get('vex.lookSavedLayout', null)) {
+            await VexStore.set('vex.lookSavedLayout', { position: layoutNow, buttons: buttonsNow });
+          }
+          await VexStore.set('vex.toolbarPosition', look.layout);
+          await VexStore.set('vex.toolbarButtons', look.buttons);
+          VexUI.applyToolbarPosition();
+          VexUI.renderToolbar();
+        }
+      } else {
+        const saved = VexStore.get('vex.lookSavedLayout', null);
+        if (saved && saved.position && (saved.position !== layoutNow
+          || JSON.stringify(saved.buttons) !== JSON.stringify(buttonsNow))
+          && await VexUI.offer('Put the toolbar back the way you had it?', 'Put it back', 'Vex')) {
+          await VexStore.set('vex.toolbarPosition', saved.position);
+          await VexStore.set('vex.toolbarButtons', saved.buttons);
+          VexUI.applyToolbarPosition();
+          VexUI.renderToolbar();
+        }
+        await VexStore.set('vex.lookSavedLayout', null);
+      }
+      this.appearance();
+    },
+
     appearance() {
       const body = openShell('appearance', 'Appearance');
       const preference = VexStore.get('vex.theme', 'auto');
+
+      // ── Look: Vex, or dressed as another browser ───────────────────────
+      body.appendChild(heading('Look'));
+      const looks = el('div', 'look-grid');
+      const lookNow = VexTheme.look();
+      const dark = VexTheme.isDark();
+      for (const [id, look] of Object.entries(VexTheme.LOOKS)) {
+        const card = el('button', { class: 'look-card' + (id === lookNow ? ' on' : ''), 'data-look-id': id });
+        // A drawing of its bar, in its own colours (or the theme's, for Vex).
+        const palette = look.light ? (dark ? look.dark : look.light) : null;
+        const mock = el('div', 'look-mock');
+        mock.style.background = palette ? palette['--vex-bg-base'] : VexTheme.current().bg;
+        mock.style.border = '1px solid ' + (palette ? palette['--vex-border-subtle'] : 'var(--vex-border-subtle)');
+        const field = el('span', 'f');
+        field.style.background = palette ? (id === 'safari' ? palette['--vex-bg-elevated'] : palette['--vex-bg-deep']) : 'var(--vex-bg-elevated)';
+        field.style.borderRadius = id === 'chrome' ? '9px' : id === 'firefox' ? '4px' : id === 'safari' ? '6px' : id === 'samsung' ? '9px' : '9px';
+        const button = () => {
+          const dot = el('span', 'b');
+          dot.style.background = palette ? (id === 'safari' ? palette['--vex-accent'] : palette['--vex-text-secondary']) : VexTheme.current().accent;
+          return dot;
+        };
+        if (id === 'samsung' || id === 'safari') mock.append(button(), field, button());
+        else mock.append(field, button(), button());
+        card.appendChild(mock);
+        card.appendChild(el('span', 'look-name', look.label));
+        card.appendChild(el('span', 'look-note', look.note));
+        card.onclick = () => this.chooseLook(id);
+        looks.appendChild(card);
+      }
+      body.appendChild(looks);
+      if (lookNow !== 'vex') {
+        body.appendChild(valueRow('Colours', 'Its own, light or dark with your theme — or your theme’s',
+          VexTheme.lookColors() === 'theme' ? 'Your theme’s' : VexTheme.LOOKS[lookNow].label + '’s',
+          () => VexSheets.choose('Colours', [
+            { id: 'look', label: VexTheme.LOOKS[lookNow].label + '’s own', note: 'Light or dark, following your theme (Auto: the phone)', selected: VexTheme.lookColors() === 'look' },
+            { id: 'theme', label: 'Your theme’s', note: 'The look’s shapes in your theme’s colours', selected: VexTheme.lookColors() === 'theme' }
+          ], async which => {
+            await VexTheme.setLookColors(which);
+            VexSheets.close();
+            this.appearance();
+          })));
+      }
 
       body.appendChild(heading('Theme'));
       const grid = el('div', 'theme-grid');
@@ -1695,21 +1779,27 @@ const VexPanels = (() => {
         dot.style.background = theme.accent;
         swatch.appendChild(dot);
         card.appendChild(swatch);
-        card.appendChild(el('div', 'theme-name', theme.id === 'auto' ? 'Auto' : theme.id));
+        card.appendChild(el('div', 'theme-name', theme.id === 'auto' ? 'Auto' : String(theme.label || theme.id).split(' — ')[0]));
         card.onclick = async () => { await VexTheme.set(theme.id); this.appearance(); };
         grid.appendChild(card);
       }
       body.appendChild(grid);
       body.appendChild(el('div', 'field-note',
         'Auto follows the system: Oxford in the light, Midnight in the dark. The rest are the same themes '
-        + 'the desktop app ships, generated from the same token file.'));
+        + 'the desktop app ships, generated from the same token files.'
+        + (lookNow !== 'vex' && VexTheme.lookColors() === 'look'
+          ? ' With a browser look on, the theme decides light or dark; the look brings its own colours.' : '')));
 
       body.appendChild(heading('The toolbar'));
-      body.appendChild(valueRow('Position', 'Where the address bar lives',
-        VexStore.get('vex.toolbarPosition', 'bottom') === 'top' ? 'Top' : 'Bottom',
-        () => VexSheets.choose('Toolbar position', [
-          { id: 'bottom', label: 'Bottom', note: 'Within reach of your thumb', selected: VexStore.get('vex.toolbarPosition', 'bottom') !== 'top' },
-          { id: 'top', label: 'Top', note: 'Where desktop browsers put it', selected: VexStore.get('vex.toolbarPosition', 'bottom') === 'top' }
+      const position = VexStore.get('vex.toolbarPosition', 'bottom');
+      const LAYOUT_NAMES = { bottom: 'Bottom', top: 'Top', split: 'Split', stacked: 'Stacked' };
+      body.appendChild(valueRow('Layout', 'Where the address bar and the buttons live',
+        LAYOUT_NAMES[position] || 'Bottom',
+        () => VexSheets.choose('Toolbar layout', [
+          { id: 'bottom', label: 'Bottom', note: 'One bar, within reach of your thumb', selected: !['top', 'split', 'stacked'].includes(position) },
+          { id: 'top', label: 'Top', note: 'One bar, where desktop browsers put it', selected: position === 'top' },
+          { id: 'split', label: 'Split', note: 'Address at the top, buttons along the bottom — Samsung Internet', selected: position === 'split' },
+          { id: 'stacked', label: 'Stacked', note: 'Address above the buttons, both at the bottom — Safari', selected: position === 'stacked' }
         ], async position => {
           await VexStore.set('vex.toolbarPosition', position);
           VexUI.applyToolbarPosition();

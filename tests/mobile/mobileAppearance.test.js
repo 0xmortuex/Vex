@@ -41,9 +41,15 @@ beforeEach(() => {
 });
 
 describe('themes', () => {
-  it('ships the same eight the desktop does', () => {
+  it('ships every theme the desktop does, in its order, but the picture one', () => {
     const ids = VexTheme.themes().map(theme => theme.id);
-    expect(ids).toEqual(['oxford', 'graphite', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin']);
+    expect(ids.slice(0, 8)).toEqual(['oxford', 'graphite', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin']);
+    expect(ids).toContain('sakura');
+    expect(ids).toContain('firefox-light');
+    expect(ids).not.toContain('custom');
+    expect(ids).not.toContain('default');
+    expect(ids.length).toBeGreaterThan(30);
+    expect(VexTheme.themes().find(theme => theme.id === 'firefox-light').dark).toBe(false);
   });
 
   it('auto is Oxford by day and Midnight by night', () => {
@@ -149,5 +155,63 @@ describe('the shield', () => {
     expect(window.VexBridge.setDocumentStartScript).toHaveBeenCalled();
     expect(result.early).toBe(false);
     expect(store['vex.shieldEarly']).toBe(false);
+  });
+});
+
+describe('browser looks', () => {
+  const root = document.documentElement;
+
+  it('puts Samsung Internet’s own colours on, light by day and dark by night', async () => {
+    await VexTheme.setLook('samsung');
+    expect(root.dataset.look).toBe('samsung');
+    expect(root.style.getPropertyValue('--vex-accent')).toBe(VexTheme.LOOKS.samsung.light['--vex-accent']);
+    expect(root.style.getPropertyValue('--font-ui')).toContain('SamsungOne');
+    systemPrefersDark = true;
+    VexTheme.apply();
+    expect(root.style.getPropertyValue('--vex-bg-base')).toBe(VexTheme.LOOKS.samsung.dark['--vex-bg-base']);
+    // The status bar wears the look's bar colour, not the theme's.
+    expect(window.VexBridge.setStatusBarStyle).toHaveBeenLastCalledWith(true, VexTheme.LOOKS.samsung.dark['--vex-bg-base']);
+  });
+
+  it('keeps the theme’s colours when asked, and the look’s shapes and type', async () => {
+    await VexTheme.setLook('chrome');
+    await VexTheme.setLookColors('theme');
+    expect(root.style.getPropertyValue('--vex-accent')).toBe('');
+    expect(root.style.getPropertyValue('--font-ui')).toContain('Google Sans');
+    expect(root.style.getPropertyValue('--radius')).toBe('16px');
+  });
+
+  it('gives everything back on Vex', async () => {
+    await VexTheme.setLook('safari');
+    await VexTheme.setLook('vex');
+    expect(root.dataset.look).toBe('vex');
+    expect(root.style.getPropertyValue('--vex-accent')).toBe('');
+    expect(root.style.getPropertyValue('--font-head')).toBe('');
+  });
+
+  it('wears each browser’s menu icon', async () => {
+    const icons = {};
+    for (const id of ['vex', 'chrome', 'firefox', 'safari', 'samsung']) {
+      await VexTheme.setLook(id);
+      icons[id] = VexTheme.menuIcon();
+    }
+    expect(icons).toEqual({ vex: 'menu', chrome: 'menu', firefox: 'menu', safari: 'more', samsung: 'menu-lines' });
+  });
+
+  it('falls back to Vex for a look it does not know', async () => {
+    store['vex.look'] = 'netscape';
+    expect(VexTheme.look()).toBe('vex');
+  });
+
+  it('has a full palette, light and dark, for every look', () => {
+    for (const [id, look] of Object.entries(VexTheme.LOOKS)) {
+      if (id === 'vex') continue;
+      for (const palette of [look.light, look.dark]) {
+        expect(Object.keys(palette).length).toBe(12);
+        for (const value of Object.values(palette)) expect(value).toMatch(/^(#[0-9a-f]{6}|rgba\()/i);
+      }
+      expect(['bottom', 'top', 'split', 'stacked']).toContain(look.layout);
+      expect(look.buttons.right).toContain('menu');
+    }
   });
 });

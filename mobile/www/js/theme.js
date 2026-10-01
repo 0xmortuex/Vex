@@ -6,10 +6,13 @@
 // from the desktop token file by scripts/sync-themes.mjs), a useful subset of
 // the skins, and the same type choices.
 //
-// Three separate settings, because they are separate decisions:
-//   vex.theme     — 'auto' or a theme id from themes-data.js
-//   vex.skin      — texture id + strength + corner + shadow
-//   vex.font      — the interface typeface
+// Separate settings, because they are separate decisions:
+//   vex.theme       — 'auto' or a theme id from themes-data.js
+//   vex.skin        — texture id + strength + corner + shadow
+//   vex.font        — the interface typeface
+//   vex.look        — 'vex', or a browser to dress as: chrome, firefox,
+//                     safari, samsung (shapes, type, and its own colours…)
+//   vex.lookColors  — …unless this is 'theme', which keeps the theme's
 //
 // "Auto" is not one theme: it is Oxford by day and Midnight by night, which is
 // what the desktop does when it follows the system.
@@ -76,6 +79,80 @@ const VexTheme = (() => {
   const CORNERS = { soft: '14px', round: '22px', sharp: '4px', square: '0px' };
   const SHADOWS = { soft: '0 6px 20px', flat: '0 0 0', deep: '0 14px 40px', lifted: '0 10px 28px' };
 
+  // ── Looks ────────────────────────────────────────────────────────────────
+  // The desktop can dress Vex as Chrome, Firefox or Safari (css/gui-browser.css
+  // there); a phone gets the same, as those browsers look on a phone, plus the
+  // one a Galaxy comes with. A look is shapes and type — the pill, the buttons,
+  // the sheets, the headings — and, unless you would rather keep your theme's,
+  // its own colours in light and dark. Which of the two follows the theme: on
+  // Auto that means the phone's own light or dark.
+  //
+  // `layout` and `buttons` are how that browser arranges its bars. Choosing a
+  // look offers them rather than imposing them: where your buttons are is a
+  // habit, and a colour change should not move them under your thumb.
+  const T = (base, elevated, deep, subtle, strong, accent, dim, text, secondary, muted, success, danger) => ({
+    '--vex-bg-base': base, '--vex-bg-elevated': elevated, '--vex-bg-deep': deep,
+    '--vex-border-subtle': subtle, '--vex-border-strong': strong,
+    '--vex-accent': accent, '--vex-accent-dim': dim,
+    '--vex-text-primary': text, '--vex-text-secondary': secondary, '--vex-text-muted': muted,
+    '--vex-success': success, '--vex-danger': danger
+  });
+
+  const LOOKS = {
+    vex: { label: 'Vex', note: 'Vex’s own: your theme, your skin, your type' },
+    chrome: {
+      label: 'Chrome', note: 'Google’s browser on Android',
+      font: '"Google Sans", "Google Sans Text", Roboto, system-ui, sans-serif',
+      radius: '16px', menu: 'menu',
+      layout: 'top', layoutNote: 'Address bar at the top, with Home, Tabs and ⋮',
+      buttons: { left: ['home'], right: ['tabs', 'menu'] },
+      light: T('#ffffff', '#ffffff', '#f1f3f4', '#dadce0', '#bdc1c6', '#1a73e8', 'rgba(26, 115, 232, 0.14)',
+        '#1f1f1f', '#444746', '#5f6368', '#188038', '#d93025'),
+      dark: T('#202124', '#303134', '#171717', '#3c4043', '#5f6368', '#8ab4f8', 'rgba(138, 180, 248, 0.18)',
+        '#e8eaed', '#bdc1c6', '#9aa0a6', '#81c995', '#f28b82')
+    },
+    firefox: {
+      label: 'Firefox', note: 'Mozilla’s, the way it looks on a phone',
+      font: 'Inter, "Fira Sans", Roboto, system-ui, sans-serif',
+      radius: '12px', menu: 'menu',
+      layout: 'bottom', layoutNote: 'Address bar at the bottom, with Tabs and ⋮',
+      buttons: { left: [], right: ['tabs', 'menu'] },
+      light: T('#f9f9fb', '#ffffff', '#f0f0f4', '#e0e0e6', '#cfcfd8', '#0061e0', 'rgba(0, 97, 224, 0.14)',
+        '#15141a', '#5b5b66', '#5b5b66', '#017a40', '#d7264c'),
+      dark: T('#2b2a33', '#42414d', '#1c1b22', '#52525e', '#5b5b66', '#00ddff', 'rgba(0, 221, 255, 0.18)',
+        '#fbfbfe', '#cfcfd8', '#bfbfc9', '#54ffbd', '#ff848b')
+    },
+    safari: {
+      label: 'Safari', note: 'Apple’s, as it is on an iPhone',
+      font: '-apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif',
+      radius: '14px', menu: 'more',
+      layout: 'stacked', layoutNote: 'The address above a row of buttons, both at the bottom',
+      buttons: { left: ['back', 'forward', 'share'], right: ['bookmarks', 'tabs', 'menu'] },
+      light: T('#f9f9f9', '#ffffff', '#efeff4', '#d8d8dc', '#c6c6c8', '#007aff', 'rgba(0, 122, 255, 0.14)',
+        '#000000', '#3c3c43', '#8e8e93', '#34c759', '#ff3b30'),
+      dark: T('#1c1c1e', '#2c2c2e', '#000000', '#38383a', '#48484a', '#0a84ff', 'rgba(10, 132, 255, 0.22)',
+        '#ffffff', '#c7c7cc', '#8e8e93', '#30d158', '#ff453a')
+    },
+    samsung: {
+      label: 'Samsung Internet', note: 'The one your Galaxy came with, One UI and all',
+      // On a Galaxy the system font is Samsung's own unless you changed it.
+      font: '"SamsungOneUI", "SamsungOne", "Samsung Sans", system-ui, Roboto, sans-serif',
+      radius: '26px', menu: 'menu-lines',
+      layout: 'split', layoutNote: 'Address bar at the top; Back, Forward, Home, Bookmarks, Tabs and ≡ along the bottom',
+      buttons: { left: ['back', 'forward', 'home'], right: ['bookmarks', 'tabs', 'menu'] },
+      light: T('#fcfcfc', '#ffffff', '#f2f2f2', '#e6e6e6', '#d0d0d0', '#387aff', 'rgba(56, 122, 255, 0.14)',
+        '#252525', '#4d4d4d', '#8a8a8a', '#3eb24f', '#ff5245'),
+      dark: T('#121212', '#232323', '#000000', '#2e2e2e', '#3d3d3d', '#3e91ff', 'rgba(62, 145, 255, 0.22)',
+        '#fafafa', '#c6c6c6', '#8f8f8f', '#5fd068', '#ff6b5e')
+    }
+  };
+  const LOOK_TOKENS = Object.keys(LOOKS.chrome.light);
+
+  function lookId() {
+    const stored = VexStore.get('vex.look', 'vex');
+    return LOOKS[stored] ? stored : 'vex';
+  }
+
   let systemDark = null;
 
   function themes() {
@@ -108,10 +185,29 @@ const VexTheme = (() => {
   return {
     SKINS, FONTS, CORNERS, SHADOWS,
 
+    LOOKS,
     themes,
     resolvedId,
     current,
     isDark() { return !!current().dark; },
+
+    look() { return lookId(); },
+    /** The look's own colours, or the theme's (vex.lookColors: 'look' | 'theme'). */
+    lookColors() { return VexStore.get('vex.lookColors', 'look') === 'theme' ? 'theme' : 'look'; },
+    /** Which icon the menu button wears in this look: ⋮, ≡ or … */
+    menuIcon() { return LOOKS[lookId()].menu || 'menu'; },
+
+    async setLook(id) {
+      await VexStore.set('vex.look', LOOKS[id] ? id : 'vex');
+      const theme = this.apply();
+      if (window.VexUI) VexUI.renderToolbar();
+      return theme;
+    },
+
+    async setLookColors(which) {
+      await VexStore.set('vex.lookColors', which === 'theme' ? 'theme' : 'look');
+      return this.apply();
+    },
 
     UI_SCALES,
 
@@ -129,8 +225,26 @@ const VexTheme = (() => {
       const root = document.documentElement;
       root.dataset.theme = theme.id;
 
+      const look = LOOKS[lookId()];
+      const dressed = lookId() !== 'vex';
+      const ownColours = dressed && this.lookColors() === 'look';
+      root.dataset.look = lookId();
+      root.dataset.lookDark = theme.dark ? '1' : '0';
+      // The look's palette goes on as inline properties, which outrank the
+      // theme's [data-theme] rules, and comes off again to give them back.
+      const palette = ownColours ? (theme.dark ? look.dark : look.light) : null;
+      for (const token of LOOK_TOKENS) {
+        if (palette) root.style.setProperty(token, palette[token]);
+        else root.style.removeProperty(token);
+      }
+      if (palette) root.style.setProperty('--vex-shadow', theme.dark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(0, 0, 0, 0.16)');
+      else root.style.removeProperty('--vex-shadow');
+
+      // A look owns its type, as on the desktop: Chrome in a serif is not Chrome.
       const font = FONTS[VexStore.get('vex.font', 'system')] || FONTS.system;
-      root.style.setProperty('--font-ui', font.stack);
+      root.style.setProperty('--font-ui', dressed ? look.font : font.stack);
+      if (dressed) root.style.setProperty('--font-head', look.font);
+      else root.style.removeProperty('--font-head');
 
       // How big the interface is. Android's own font-size setting reaches a
       // WebView's page text, not a web app's layout, so without this a phone set
@@ -140,16 +254,18 @@ const VexTheme = (() => {
 
       const skin = VexStore.get('vex.skin', 'none');
       const strength = Number(VexStore.get('vex.skinStrength', 0.05)) || 0.05;
-      root.style.setProperty('--skin-texture', texture(skin, strength));
-      root.style.setProperty('--radius', CORNERS[VexStore.get('vex.corner', 'soft')] || CORNERS.soft);
+      // A browser look is flat, the way those browsers are: no texture.
+      root.style.setProperty('--skin-texture', dressed ? 'none' : texture(skin, strength));
+      root.style.setProperty('--radius', dressed ? look.radius : (CORNERS[VexStore.get('vex.corner', 'soft')] || CORNERS.soft));
       root.style.setProperty('--elevation', SHADOWS[VexStore.get('vex.shadow', 'soft')] || SHADOWS.soft);
 
       // The status bar and the window background belong to Android, and both
       // have to move with the theme or the top of the screen stays last
       // theme's colour.
+      const bg = palette ? palette['--vex-bg-base'] : theme.bg;
       if (window.VexBridge) {
-        VexBridge.setStatusBarStyle(theme.dark, theme.bg);
-        VexBridge.setWindowBackground(theme.bg, theme.dark);
+        VexBridge.setStatusBarStyle(theme.dark, bg);
+        VexBridge.setWindowBackground(bg, theme.dark);
       }
       return theme;
     },

@@ -17,6 +17,8 @@
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-menu-lines" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></symbol>
   <symbol id="i-reload" viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-2.3-5.6M20 4v5h-5"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
@@ -164,6 +166,12 @@
   </button>
   <div class="tb-slot" id="tb-right"></div>
 </nav>
+
+<!-- The buttons, on a bar of their own, in the two layouts that split them
+     from the address bar: Samsung Internet's (address at the top, buttons at
+     the bottom) and Safari's (address above the buttons, both at the bottom).
+     The two slots above move in here; ui.js applyToolbarPosition(). -->
+<nav id="navbar" class="navbar" aria-label="Browser buttons" hidden></nav>
 
 <!-- Omnibox. -->
 <div id="omnibox" class="omnibox" hidden>

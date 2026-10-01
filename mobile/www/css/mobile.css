@@ -41,6 +41,9 @@
   /* Set by JS (VexTheme.apply) — declared here so the first paint has them. */
   --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-read: "Spectral", Georgia, serif;
+  /* Headings: the reading face in Vex's own look, the look's own type in a
+     browser look (Chrome does not title its menus in a serif). */
+  --font-head: var(--font-read);
   --skin-texture: none;
   --radius: 14px;
   --elevation: 0 6px 20px;
@@ -53,6 +56,11 @@
   --ui-scale: 1;
 
   --tb-height: calc(56px * var(--ui-scale));
+  /* How much chrome sits above and below the page, by layout (see the
+     toolbar-layout rules near the end): what the start page and the toasts
+     have to keep clear of. */
+  --chrome-top: 0px;
+  --chrome-bottom: var(--tb-height);
   --tap: calc(44px * var(--ui-scale));
   --gap: 12px;
 
@@ -290,13 +298,14 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 
 /* ── Start page ──────────────────────────────────────────────────────────── */
 .start {
-  position: absolute; inset: env(safe-area-inset-top) 0 calc(var(--tb-height) + env(safe-area-inset-bottom)) 0;
+  position: absolute;
+  inset: calc(env(safe-area-inset-top) + var(--chrome-top)) 0 calc(var(--chrome-bottom) + env(safe-area-inset-bottom)) 0;
   z-index: 5; overflow-y: auto; -webkit-overflow-scrolling: touch;
   background-color: var(--vex-bg-base); background-image: var(--skin-texture);
   padding: 8px 16px 28px;
 }
 .start-head { padding: 34px 0 20px; text-align: center; }
-.start-mark { font-family: var(--font-read); font-size: var(--text-2xl); letter-spacing: .01em; }
+.start-mark { font-family: var(--font-head); font-size: var(--text-2xl); letter-spacing: .01em; }
 .start-sub { margin: 6px 0 0; color: var(--vex-text-muted); font-size: var(--text-sm); }
 .start-search {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -315,7 +324,7 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 .tile-mark {
   width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; overflow: hidden;
   background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle);
-  font-family: var(--font-read); font-size: var(--text-lg); color: var(--vex-accent);
+  font-family: var(--font-head); font-size: var(--text-lg); color: var(--vex-accent);
   transition: transform .12s var(--ease);
 }
 .tile:active .tile-mark { transform: scale(.92); }
@@ -448,7 +457,7 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 .sheet-grip { width: 38px; height: 4px; border-radius: 2px; background: var(--vex-border-strong); margin: 10px auto 4px; }
-.sheet-title { margin: 2px 18px 8px; font: 500 var(--text-lg)/1.3 var(--font-read); }
+.sheet-title { margin: 2px 18px 8px; font: 500 var(--text-lg)/1.3 var(--font-head); }
 .sheet-sub { margin: -4px 18px 10px; font-size: var(--text-xs); color: var(--vex-text-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet-quick { display: flex; justify-content: space-between; gap: 8px; padding: 6px 14px 12px; border-bottom: 1px solid var(--vex-border-subtle); }
@@ -508,7 +517,7 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 }
 @keyframes panel-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .panel-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--vex-border-subtle); }
-.panel-head h1 { flex: 1 1 auto; margin: 0; font: 500 var(--text-lg)/1.25 var(--font-read); }
+.panel-head h1 { flex: 1 1 auto; margin: 0; font: 500 var(--text-lg)/1.25 var(--font-head); }
 .panel-head .tb-btn.text { width: auto; padding: 0 12px; font-size: var(--text-sm); color: var(--vex-accent); }
 .panel-search { padding: 8px 12px; border-bottom: 1px solid var(--vex-border-subtle); }
 .panel-search input {
@@ -661,7 +670,7 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 
 /* ── Toasts ──────────────────────────────────────────────────────────────── */
 .toasts {
-  position: fixed; left: 0; right: 0; bottom: calc(var(--tb-height) + env(safe-area-inset-bottom) + 14px);
+  position: fixed; left: 0; right: 0; bottom: calc(var(--chrome-bottom) + env(safe-area-inset-bottom) + 14px);
   z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;
 }
 .toast {
@@ -690,23 +699,48 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
    Samsung lets you move the address bar to the top, and people who have had it
    there for years want it there. The layout is a flex column, so this is an
    order swap plus which edge the border and the safe-area padding sit on. */
-body[data-toolbar="top"] { flex-direction: column; }
-body[data-toolbar="top"] .toolbar {
+body:is([data-toolbar="top"], [data-toolbar="split"]) .toolbar {
   order: -1;
   border-top: 0;
   border-bottom: 1px solid var(--vex-border-subtle);
   padding-bottom: 0;
   height: var(--tb-height);
 }
-body[data-toolbar="top"] #progress { order: -2; }
+body:is([data-toolbar="top"], [data-toolbar="split"]) #progress { order: -2; }
 
+body[data-toolbar="top"] { --chrome-top: var(--tb-height); --chrome-bottom: 0px; }
 body[data-toolbar="top"] .toasts { bottom: calc(20px + env(safe-area-inset-bottom)); }
-body[data-toolbar="top"] .start { inset: calc(env(safe-area-inset-top) + var(--tb-height)) 0 0 0; }
+
+/* ── The buttons on a bar of their own ──────────────────────────────────────
+   Samsung Internet: the address bar at the top, back / forward / home /
+   bookmarks / tabs / menu spread along the bottom. Safari: the address pill
+   above the same row, both at the bottom. Either way the slots are taken out
+   of the toolbar (ui.js) and their buttons share this bar evenly. */
+.navbar {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-around;
+  height: calc(var(--tb-height) + env(safe-area-inset-bottom));
+  padding: 0 4px env(safe-area-inset-bottom);
+  background-color: var(--page-tint, var(--vex-bg-base));
+  background-image: var(--skin-texture);
+  border-top: 1px solid var(--vex-border-subtle);
+  transition: background-color .25s var(--ease), transform .22s var(--ease);
+}
+.navbar .tb-slot { display: contents; }
+body[data-toolbar="split"] { --chrome-top: var(--tb-height); --chrome-bottom: var(--tb-height); }
+body[data-toolbar="split"] .toolbar { padding: 0 10px; }
+body[data-toolbar="stacked"] { --chrome-bottom: calc(var(--tb-height) * 2); }
+body[data-toolbar="stacked"] .toolbar { height: var(--tb-height); padding: 0 10px; }
+body[data-toolbar="stacked"] .navbar { border-top: 0; }
+body.private .navbar { background-color: var(--vex-accent); }
+body.private .navbar .tb-btn, body.private .navbar .tb-tabs { color: #fff; }
 
 /* The toolbar gets out of the way as you read. */
 .toolbar { transition: background-color .25s var(--ease), transform .22s var(--ease); }
 body.toolbar-hidden .toolbar { transform: translateY(100%); }
-body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%); }
+body:is([data-toolbar="top"], [data-toolbar="split"]).toolbar-hidden .toolbar { transform: translateY(-100%); }
+body.toolbar-hidden .navbar { transform: translateY(100%); }
+body[data-toolbar="stacked"].toolbar-hidden .toolbar { transform: translateY(200%); }
 
 /* ── QR scanner ──────────────────────────────────────────────────────────── */
 .scan { position: fixed; inset: 0; z-index: 55; background: #000; display: flex;
@@ -735,7 +769,7 @@ body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%);
   border-radius: calc(var(--radius) + 6px); box-shadow: var(--elevation) var(--vex-shadow);
   text-align: center; animation: sheet-up .2s var(--ease) both;
 }
-.qrshare-card h2 { margin: 0 0 14px; font: 500 var(--text-lg)/1.3 var(--font-read); }
+.qrshare-card h2 { margin: 0 0 14px; font: 500 var(--text-lg)/1.3 var(--font-head); }
 .qrshare-canvas { display: grid; place-items: center; }
 .qrshare-canvas canvas { width: 100%; max-width: 250px; height: auto; border-radius: 10px; }
 .qrshare-url { margin: 12px 0 16px; font-size: var(--text-xs); color: var(--vex-text-muted);
@@ -815,7 +849,7 @@ body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%);
   border-radius: calc(var(--radius) + 6px); box-shadow: var(--elevation) var(--vex-shadow);
   animation: sheet-up .18s var(--ease) both;
 }
-.dialog-card h2 { margin: 0 0 10px; font: 500 var(--text-lg)/1.3 var(--font-read); }
+.dialog-card h2 { margin: 0 0 10px; font: 500 var(--text-lg)/1.3 var(--font-head); }
 .dialog-message { margin: 0 0 14px; font-size: var(--text-sm); color: var(--vex-text-secondary); line-height: 1.5; }
 .dialog-input {
   width: 100%; height: 44px; padding: 0 14px; margin-bottom: 16px; user-select: text;
@@ -842,7 +876,7 @@ body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%);
 
 /* ── The first run ───────────────────────────────────────────────────────── */
 .welcome-step { padding: 20px 16px 8px; }
-.welcome-step h2 { margin: 0 0 8px; font: 500 var(--text-xl)/1.25 var(--font-read); }
+.welcome-step h2 { margin: 0 0 8px; font: 500 var(--text-xl)/1.25 var(--font-head); }
 .welcome-sub { margin: 0 0 18px; font-size: var(--text-sm); line-height: 1.55; color: var(--vex-text-muted); }
 .welcome-step .theme-grid { padding: 0; }
 .welcome-buttons { display: flex; gap: 10px; }
@@ -851,3 +885,95 @@ body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%);
 .welcome-dots { display: flex; justify-content: center; gap: 7px; padding: 8px 0 24px; }
 .welcome-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--vex-border-strong); }
 .welcome-dots i.on { background: var(--vex-accent); }
+
+/* ── Browser looks ──────────────────────────────────────────────────────────
+   Vex dressed as the browser you know, the way the desktop's browser looks
+   do it (src/renderer/css/gui-browser.css): shapes and type here, colours
+   from js/theme.js (the look's own, light or dark, unless you keep your
+   theme's). One variable per look carries the field shape, so the address
+   pill, the omnibox and every search box in the chrome agree. */
+:root[data-look="chrome"] { --look-field: 999px; --look-field-h: 46px; }
+:root[data-look="firefox"] { --look-field: 8px; --look-field-h: 42px; }
+:root[data-look="safari"] { --look-field: 12px; --look-field-h: 44px; }
+:root[data-look="samsung"] { --look-field: 22px; --look-field-h: 42px; }
+
+:root:not([data-look="vex"]) .urlpill {
+  height: var(--look-field-h); border-radius: var(--look-field);
+  background: var(--vex-bg-deep); border-color: transparent;
+}
+:root:not([data-look="vex"]) :is(.omnibox-input, .find-input, .panel-search input, .tabgrid-search input) {
+  border-radius: var(--look-field);
+}
+:root:not([data-look="vex"]) .toolbar,
+:root:not([data-look="vex"]) .navbar { background-image: none; }
+:root:not([data-look="vex"]) .tb-tabs {
+  width: 24px; height: 24px; margin: 0 6px; border-width: 2px; font: 700 11px/1 var(--font-ui);
+}
+
+/* Chrome: a round omnibox, round buttons, a square tab counter, Material's
+   big-cornered sheets, and nothing between the toolbar and the page. */
+:root[data-look="chrome"] .tb-btn { border-radius: 50%; }
+:root[data-look="chrome"] .tb-tabs { border-radius: 4px; }
+:root[data-look="chrome"] .toolbar { border-color: transparent; }
+:root[data-look="chrome"] .sheet-body { border-radius: 28px 28px 0 0; }
+:root[data-look="chrome"] .chip { border-radius: 8px; }
+:root[data-look="chrome"] .panel-head h1 { font-weight: 400; font-size: var(--text-xl); }
+/* Incognito: Chrome's charcoal, whatever the theme. */
+:root[data-look="chrome"] body.private :is(.toolbar, .navbar, .tabstrip) { background-color: #3c4043; }
+:root[data-look="chrome"] body.private .urlpill { background: #202124; border-color: transparent; }
+
+/* Firefox: squarer — an 8px field, 8px buttons, a 4px tab counter. */
+:root[data-look="firefox"] .tb-btn { border-radius: 8px; }
+:root[data-look="firefox"] .tb-tabs { border-radius: 4px; }
+:root[data-look="firefox"] .sheet-body { border-radius: 16px 16px 0 0; }
+:root[data-look="firefox"] .chip { border-radius: 8px; }
+:root[data-look="firefox"] .panel-head h1 { font-weight: 600; }
+/* Private browsing: Firefox's deep purple. */
+:root[data-look="firefox"] body.private :is(.toolbar, .navbar, .tabstrip) { background-color: #25003e; }
+:root[data-look="firefox"] body.private .urlpill { background: #3a1f5c; border-color: transparent; }
+
+/* Safari: a floating white address field with the site in the middle, blue
+   buttons, and iOS's plainer sheets and centred titles. */
+:root[data-look="safari"] .urlpill {
+  background: var(--vex-bg-elevated); box-shadow: 0 1px 8px var(--vex-shadow); justify-content: center;
+}
+:root[data-look="safari"] .urlpill-text { flex: 0 1 auto; font-weight: 500; }
+:root[data-look="safari"] .tb-btn,
+:root[data-look="safari"] .tb-tabs { color: var(--vex-accent); }
+:root[data-look="safari"] .tb-tabs { border-radius: 6px; }
+:root[data-look="safari"] :is(.toolbar, .navbar) { border-color: transparent; }
+:root[data-look="safari"][data-look-dark="0"] :is(.toolbar, .navbar) { background-color: rgba(249, 249, 249, 0.96); }
+:root[data-look="safari"] .sheet-body { border-radius: 14px 14px 0 0; }
+:root[data-look="safari"] .panel-head h1 { font-weight: 600; font-size: var(--text-md); text-align: center; }
+:root[data-look="safari"] .chip { border-radius: 999px; }
+/* Private: Safari's dark bars. */
+:root[data-look="safari"] body.private :is(.toolbar, .navbar, .tabstrip) { background-color: #1c1c1e; }
+:root[data-look="safari"] body.private .urlpill { background: #2c2c2e; box-shadow: none; }
+:root[data-look="safari"] body.private :is(.tb-btn, .tb-tabs) { color: #0a84ff; }
+
+/* Samsung Internet: One UI — a soft rounded field, dark round icons, a
+   rounded tab counter, big bold titles and very round cards and sheets. */
+:root[data-look="samsung"] .tb-btn { border-radius: 50%; color: var(--vex-text-primary); }
+:root[data-look="samsung"] .tb-tabs { border-radius: 7px; color: var(--vex-text-primary); }
+:root[data-look="samsung"] :is(.toolbar, .navbar) { border-color: transparent; }
+:root[data-look="samsung"] .sheet-body { border-radius: 26px 26px 0 0; }
+:root[data-look="samsung"] .sheet-title { font-weight: 700; }
+:root[data-look="samsung"] .panel-head h1 { font-weight: 700; font-size: var(--text-xl); }
+:root[data-look="samsung"] .chip { border-radius: 999px; }
+/* Secret mode: Samsung's near-black with the field a shade up. */
+:root[data-look="samsung"] body.private :is(.toolbar, .navbar, .tabstrip) { background-color: #1f1f1f; }
+:root[data-look="samsung"] body.private .urlpill { background: #333333; border-color: transparent; }
+:root[data-look="samsung"] body.private :is(.tb-btn, .tb-tabs) { color: #fff; }
+
+/* The picker: a small drawing of each look's bar. */
+.look-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 8px 16px 6px; }
+.look-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px; text-align: left;
+  background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle); border-radius: var(--radius);
+}
+.look-card.on { border-color: var(--vex-accent); box-shadow: 0 0 0 1.5px var(--vex-accent); }
+.look-mock { height: 34px; border-radius: 8px; display: flex; align-items: center; gap: 5px; padding: 0 6px; }
+.look-mock .f { flex: 1 1 auto; height: 18px; }
+.look-mock .b { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; }
+.look-name { font-size: var(--text-sm); font-weight: 600; }
+.look-note { font-size: var(--text-xs); color: var(--vex-text-muted); line-height: 1.35; }

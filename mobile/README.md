@@ -73,8 +73,12 @@ the address bar; add a site to the home screen; a home-screen search widget
 that opens the address bar, dictation or the scanner in one tap; and a tab bar
 when the window is wide enough to hold one.
 
-**Vex's own** — eight themes, seven skins and five typefaces generated from
-the desktop's token file; the assistant against a Cloudflare Worker you deploy
+**Vex's own** — every one of the desktop's colour themes (36, generated from
+its token files and its own theme list), seven skins and five typefaces; four
+browser looks — Chrome, Firefox, Safari and Samsung Internet — each with its
+own shapes, type and light and dark colours, and its own toolbar layout on
+offer (Samsung's address-on-top, buttons-along-the-bottom; Safari's address
+above the buttons); the assistant against a Cloudflare Worker you deploy
 yourself, in two modes (ask about the page, or let it do things with a tool
 loop that shows every step); an on-device model for when there is no network
 and nothing should leave the phone; notes, exportable as Markdown, and
@@ -136,7 +140,7 @@ whole codebase:
 | `www/js/library.js` | Every feature, on a shelf, searchable |
 | `www/js/dom.js` | element helpers; nothing here has an innerHTML path for outside text |
 | `www/js/storage.js` | async key/value over Preferences, same key names as the desktop |
-| `www/js/theme.js` | themes, skins, fonts, the page's own theme colour |
+| `www/js/theme.js` | themes, browser looks, skins, fonts, the page's own theme colour |
 | `www/js/tabs.js` | the tab model (`VexTabStore`) — no views, only what the chrome draws |
 | `www/js/adblock.js` | filter lists: fetching, parsing, refresh |
 | `www/js/shield.js` | the fingerprint script that runs before page scripts |
@@ -234,7 +238,8 @@ set `ANDROID_JAR` or `ANDROID_HOME` to use your own, or pass `--offline` to
 skip rather than fail.
 
 `npm run themes` regenerates `www/css/themes.css` and `www/js/themes-data.js`
-from `src/renderer/css/theme-tokens.css`. `npm run shared` re-copies the two
+from `src/renderer/css/theme-tokens.css`, `theme-extra.css` and the theme list
+in `src/renderer/js/theme-manager.js`. `npm run shared` re-copies the two
 files the phone and the desktop must agree on byte for byte — the sync crypto
 and the record merge. `npm run check` fails if either is stale, so a desktop
 change cannot quietly leave the phone behind, and a device cannot end up

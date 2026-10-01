@@ -444,6 +444,56 @@ results.pdfLong = await page.evaluate(async base64 => {
 await shot('17b-pdf-find');
 await page.evaluate(() => VexPdf.close());
 
+// ── Browser looks ───────────────────────────────────────────────────────────
+// Each look puts its colours, shapes and menu icon on, and its layout moves
+// the buttons where that browser keeps them: Samsung's along the bottom with
+// the address at the top, Safari's under the address, both at the bottom.
+const lookNotes = [];
+for (const id of ['chrome', 'firefox', 'safari', 'samsung']) {
+  for (const dark of [false, true]) {
+    lookNotes.push(await page.evaluate(async ({ id, dark }) => {
+      await VexStore.set('vex.theme', dark ? 'midnight' : 'oxford');
+      await VexTheme.setLook(id);
+      const look = VexTheme.LOOKS[id];
+      await VexStore.set('vex.toolbarPosition', look.layout);
+      await VexStore.set('vex.toolbarButtons', look.buttons);
+      VexUI.applyToolbarPosition();
+      VexUI.renderToolbar();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const root = getComputedStyle(document.documentElement);
+      const palette = dark ? look.dark : look.light;
+      const accentOk = root.getPropertyValue('--vex-accent').trim() === palette['--vex-accent'];
+      const back = document.getElementById('tb-back');
+      const where = back ? back.closest('nav').id : (look.buttons.left.includes('back') ? 'missing' : 'n/a');
+      const menuIcon = (document.querySelector('#tb-menu use') || { getAttribute: () => '' }).getAttribute('href');
+      const toolbarTop = document.getElementById('toolbar').getBoundingClientRect().top < 100;
+      return [id, dark ? 'dark' : 'light', accentOk, where, menuIcon, toolbarTop].join(':');
+    }, { id, dark }));
+    await shot('40-look-' + id + (dark ? '-dark' : ''));
+  }
+}
+results.looks = lookNotes.join(' ');
+results.lookPicker = await page.evaluate(async () => {
+  VexPanels.appearance();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  const cards = [...document.querySelectorAll('.look-card')];
+  return cards.length + ' ' + (document.querySelector('.look-card.on .look-name') || {}).textContent;
+});
+await shot('41-look-picker');
+await page.evaluate(() => VexPanels.close());
+// Back to Vex, with the colours and the layout given back.
+results.lookOff = await page.evaluate(async () => {
+  await VexTheme.setLook('vex');
+  await VexStore.set('vex.theme', 'auto');
+  await VexStore.set('vex.toolbarPosition', 'bottom');
+  await VexStore.set('vex.toolbarButtons', null);
+  VexUI.applyToolbarPosition();
+  VexUI.renderToolbar();
+  const root = document.documentElement;
+  return [root.dataset.look, root.style.getPropertyValue('--vex-accent') === '',
+    document.getElementById('navbar').hidden, document.getElementById('tb-left').parentElement.id].join(' ');
+});
+
 // ── Backup ──────────────────────────────────────────────────────────────────
 // The panel says what it carries before it carries it, and the file itself is
 // unreadable without the passphrase — which is the whole of the promise.
@@ -1809,7 +1859,7 @@ const expected = {
   siteSheetOpened: true, scriptsOff: true,
   readerOpen: true, readerTitle: 'The Wreck of the Deutschland', readerSize: 21,
   chatBubbles: 2, chatFollowUps: 1,
-  themeCards: 9, themeStored: 'midnight', themeApplied: 'midnight', skinTexture: true,
+  themeCards: 37, themeStored: 'midnight', themeApplied: 'midnight', skinTexture: true,
   shieldScript: true, shieldOffEmpty: true,
   tabCards: 3, tabSearchCards: 1,
   privateBodyClass: true, historyUnchanged: true,
@@ -1840,6 +1890,12 @@ const expected = {
   switchToTab: 'true true',
   readerIcon: 'true false true true',
   readingOffline: 'true true',
+  looks: 'chrome:light:true:n/a:#i-menu:true chrome:dark:true:n/a:#i-menu:true '
+    + 'firefox:light:true:n/a:#i-menu:false firefox:dark:true:n/a:#i-menu:false '
+    + 'safari:light:true:navbar:#i-more:false safari:dark:true:navbar:#i-more:false '
+    + 'samsung:light:true:navbar:#i-menu-lines:true samsung:dark:true:navbar:#i-menu-lines:true',
+  lookOff: 'vex true true toolbar',
+  lookPicker: '5 Samsung Internet',
   pdfLong: '60 true true true true true 1.5 true scale(2) 2 true 11,4,true,40,2 / 11,true',
   tabHistory: 'Three,One,All history -3 true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',

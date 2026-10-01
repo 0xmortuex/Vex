@@ -19,7 +19,8 @@ Everything else below is either matched or bettered.
 | Close tabs after N days | ✅ | Settings → Tabs |
 | Sleep unused tabs | ✅ | onPause on a tab you have left for fifteen minutes: its timers and animations stop and the page stays loaded. Never while background audio is on, because pausing a tab silences it |
 | Recently closed | ✅ | Menu → Reopen closed tab, undo on "close all", and Undo in the toast the moment a tab is closed |
-| Address bar top or bottom | ✅ | Settings → Appearance → Toolbar position |
+| Address bar top or bottom | ✅ better | Settings → Appearance → Layout: bottom, top, Samsung's split (address at the top, buttons along the bottom) or Safari's stacked |
+| Look like Samsung Internet | ✅ | Settings → Appearance → Look: Samsung Internet's One UI shapes, type and colours, light and dark, and its layout and buttons on offer. Chrome, Firefox and Safari looks too |
 | Toolbar auto-hides on scroll | ✅ | Reported from the page WebView; the chrome cannot see page scrolling on its own |
 | Customisable toolbar buttons | ✅ | Up to three either side of the address pill |
 | Pull to refresh | ✅ | SwipeRefreshLayout around each tab |
