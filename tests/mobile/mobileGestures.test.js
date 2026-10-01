@@ -115,4 +115,15 @@ describe('pressing and holding', () => {
     node.dispatchEvent(new Event('touchcancel', { bubbles: true }));
     expect(touch(node, 'touchend', 50, 50).defaultPrevented).toBe(false);
   });
+
+  it('fires once, not twice, when a second finger lands during the hold', async () => {
+    const held = vi.fn();
+    VexGestures.longPress(node, held, 20);
+    touch(node, 'touchstart', 50, 50);
+    const second = new Event('touchstart', { bubbles: true, cancelable: true });
+    second.touches = [{ clientX: 50, clientY: 50 }, { clientX: 90, clientY: 90 }];
+    node.dispatchEvent(second);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(held).not.toHaveBeenCalled();
+  });
 });

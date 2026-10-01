@@ -52,6 +52,11 @@ const VexGestures = (() => {
     let timer = null, startX = 0, startY = 0, fired = false;
     const cancel = () => { clearTimeout(timer); timer = null; };
     element.addEventListener('touchstart', event => {
+      // A second finger is a pinch or a fumble, not a longer press — and its
+      // touchstart must not leave the first finger's timer running beside a
+      // new one, or the handler runs twice.
+      cancel();
+      if (event.touches.length !== 1) return;
       const touch = event.touches[0];
       startX = touch.clientX; startY = touch.clientY;
       fired = false;
