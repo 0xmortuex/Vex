@@ -134,25 +134,60 @@ const VexCollections = (() => {
     },
 
     // Imports the same file, from any browser, folders included.
+    //
+    // The Netscape bookmark file is HTML, so what is in it is escaped: an
+    // address with a query string arrives as "?a=1&amp;b=2" (Vex's own export
+    // writes it that way too), and a title as "Tom &amp; Jerry". Both are
+    // decoded. Folders nest — <H3> names the <DL> that follows, </DL> leaves
+    // it — so a bookmark after a subfolder closes goes back to its parent
+    // rather than staying in the last folder named.
     async importHtml(html) {
+      const decode = text => String(text || '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&#x([0-9a-f]+);/gi, (all, hex) => safeChar(parseInt(hex, 16), all))
+        .replace(/&#(\d+);/g, (all, dec) => safeChar(parseInt(dec, 10), all))
+        .replace(/&(amp|lt|gt|quot|apos|nbsp|#39);/gi, (all, name) =>
+          ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'" })[name.toLowerCase()]);
       const found = [];
-      let folder = '';
-      const pattern = /<H3[^>]*>([^<]*)<\/H3>|<A[^>]+HREF="([^"]+)"[^>]*>([^<]*)<\/A>/gi;
+      const stack = [];
+      let pending = null;
+      const pattern = /<H3[^>]*>([\s\S]*?)<\/H3>|<A\s[^>]*?HREF="([^"]*)"([^>]*)>([\s\S]*?)<\/A>|<DL[\s>]|<\/DL>/gi;
       let match;
       while ((match = pattern.exec(String(html || '')))) {
-        if (match[1] != null) { folder = match[1].trim(); continue; }
-        const url = match[2];
+        const token = match[0];
+        if (match[1] != null) { pending = decode(match[1]).trim(); continue; }
+        if (/^<DL/i.test(token)) {
+          stack.push(pending != null ? pending : (stack[stack.length - 1] || ''));
+          pending = null;
+          continue;
+        }
+        if (/^<\/DL/i.test(token)) { stack.pop(); continue; }
+        const url = decode(match[2]).trim();
         if (!/^https?:/i.test(url)) continue;
-        found.push({ url, title: (match[3] || url).trim(), folder });
+        const added = /ADD_DATE="(\d+)"/i.exec(match[3] || '');
+        found.push({
+          url,
+          title: decode(match[4]).trim() || url,
+          folder: stack[stack.length - 1] || '',
+          at: added ? Number(added[1]) * 1000 : Date.now()
+        });
       }
       const existing = new Set(this.all().map(entry => entry.url));
+      const seen = new Set();
       const fresh = found
-        .filter(entry => !existing.has(entry.url))
-        .map(entry => ({ id: id('bm_'), url: entry.url, title: entry.title, folder: entry.folder, at: Date.now(), icon: '' }));
+        .filter(entry => !existing.has(entry.url) && !seen.has(entry.url) && seen.add(entry.url))
+        .map(entry => ({ id: id('bm_'), url: entry.url, title: entry.title, folder: entry.folder, at: entry.at, icon: '' }));
       if (fresh.length) await VexStore.set('vex.bookmarks', [...fresh, ...this.all()].slice(0, 5000));
       return fresh.length;
     }
   };
+
+  // A character from a numeric reference, or the reference itself when it
+  // names nothing a title should hold.
+  function safeChar(code, fallback) {
+    try { return code > 0 && code < 0x110000 ? String.fromCodePoint(code) : fallback; }
+    catch { return fallback; }
+  }
 
   const reading = {
     all() { return list('vex.readingList'); },

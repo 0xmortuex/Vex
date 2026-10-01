@@ -247,3 +247,39 @@ describe('tab groups', () => {
     expect(groups.COLORS().length).toBeGreaterThan(3);
   });
 });
+
+describe('the bookmarks file, as browsers write it', () => {
+  const { VexCollections } = require('../../mobile/www/js/collections.js');
+  const bookmarks = VexCollections.bookmarks;
+
+  it('decodes what HTML escaped, so a query string survives the trip', async () => {
+    await bookmarks.add({ url: 'https://shop.example/?a=1&b=2', title: 'Tom & Jerry <3' });
+    const html = bookmarks.exportHtml();
+    await window.VexStore.set('vex.bookmarks', []);
+    expect(await bookmarks.importHtml(html)).toBe(1);
+    expect(bookmarks.all()[0]).toMatchObject({ url: 'https://shop.example/?a=1&b=2', title: 'Tom & Jerry <3' });
+  });
+
+  it('puts a bookmark after a subfolder back in its parent', async () => {
+    await window.VexStore.set('vex.bookmarks', []);
+    const html = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p>
+  <DT><H3>Work</H3>
+  <DL><p>
+    <DT><H3>Clients</H3>
+    <DL><p>
+      <DT><A HREF="https://client.example/" ADD_DATE="1700000000">Client</A>
+    </DL><p>
+    <DT><A HREF="https://work.example/">Work thing</A>
+  </DL><p>
+  <DT><A HREF="https://loose.example/">Loose</A>
+  <DT><A HREF="javascript:alert(1)">Bookmarklet</A>
+</DL><p>`;
+    expect(await bookmarks.importHtml(html)).toBe(3);
+    const folderOf = url => bookmarks.all().find(entry => entry.url === url).folder;
+    expect(folderOf('https://client.example/')).toBe('Clients');
+    expect(folderOf('https://work.example/')).toBe('Work');
+    expect(folderOf('https://loose.example/')).toBe('');
+    expect(bookmarks.all().find(entry => entry.url === 'https://client.example/').at).toBe(1700000000000);
+  });
+});
