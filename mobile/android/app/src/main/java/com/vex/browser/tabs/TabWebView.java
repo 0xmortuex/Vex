@@ -334,6 +334,15 @@ public class TabWebView extends WebView {
         getSettings().setBlockNetworkImage(!enabled);
     }
 
+    /**
+     * Vex requires a gesture before media plays, everywhere, which is why a news
+     * site cannot start a video at you. Some sites are the reason you went there
+     * — a music player, the next episode — so it can be allowed per site.
+     */
+    public void setAutoplayAllowed(boolean allowed) {
+        getSettings().setMediaPlaybackRequiresUserGesture(!allowed);
+    }
+
     public void setZoom(float factor) {
         // WebView has no setZoomFactor; text zoom is the honest equivalent and
         // does not break layouts the way a forced viewport scale does.

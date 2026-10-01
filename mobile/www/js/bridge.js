@@ -277,6 +277,9 @@ const VexBridge = (() => {
     setDarkMode(id, enabled) { return tabs('setDarkMode', { id, enabled: !!enabled }); },
     setScriptsEnabled(id, enabled) { return tabs('setScriptsEnabled', { id, enabled: enabled !== false }); },
     setImagesEnabled(id, enabled) { return tabs('setImagesEnabled', { id, enabled: enabled !== false }); },
+    // Off everywhere by default: a page that starts a video at you is the thing
+    // this prevents. On per site, for the sites that are the reason you went.
+    setAutoplayAllowed(id, allowed) { return tabs('setAutoplayAllowed', { id, allowed: allowed === true }); },
     setZoom(id, factor) { return tabs('setZoom', { id, factor: Number(factor) || 1 }); },
     setUserAgent(id, userAgent) { return tabs('setUserAgent', { id, userAgent: userAgent || '' }); },
     setTextZoom(percent) { return tabs('setTextZoom', { percent }); },
@@ -294,6 +297,8 @@ const VexBridge = (() => {
     capturePage(id, full) { return tabs('capturePage', { id, full: !!full }); },
     downloadStatus() { return tabs('downloadStatus', {}); },
     openDownload(localUri) { return tabs('openDownload', { localUri }); },
+    // DownloadManager has no pause: removing it is what cancelling is.
+    cancelDownload(id) { return tabs('cancelDownload', { id: String(id) }); },
     setWindowBackground(color, dark) {
       if (!plugins.VexTabs) return Promise.resolve({});
       return tabs('setWindowBackground', { color, dark: dark !== false });

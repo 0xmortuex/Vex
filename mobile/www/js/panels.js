@@ -101,6 +101,7 @@ const VexPanels = (() => {
     // nothing to pop and closed the whole panel instead of stepping up one.
     storage: () => VexPanels.storage(),
     clearData: () => VexPanels.clearData(),
+    customEngine: () => VexPanels.customEngine(),
     addLogin: () => VexPanels.addLogin(),
     ai: () => VexViews.openAI()
   };
@@ -581,12 +582,23 @@ const VexPanels = (() => {
         const match = live.find(item => item.url === entry.url);
         const done = !match || match.status === 8;         // STATUS_SUCCESSFUL
         const failed = match && match.status === 16;       // STATUS_FAILED
+        const running = match && !done && !failed;
         const node = listRow({ url: entry.url, title: entry.filename || entry.url, icon: '' }, {
           sub: () => [
             VexSearch.prettyHost(entry.url),
             failed ? 'failed' : done ? bytes(entry.size || (match && match.total)) : 'downloading…',
             when(entry.at)
           ].filter(Boolean).join(' · '),
+          // Still running: the one useful button is Stop, and it is a separate
+          // button from Remove because they are different regrets.
+          actions: running ? [{
+            icon: 'close', label: 'Stop this download',
+            run: async () => {
+              await VexBridge.cancelDownload(match.id);
+              VexUI.toast('Stopped — the part that arrived is gone with it');
+              this.downloads();
+            }
+          }] : null,
           onOpen: async () => {
             if (match && match.localUri) { await VexBridge.openDownload(match.localUri); return; }
             close();
@@ -594,7 +606,7 @@ const VexPanels = (() => {
           },
           onRemove: async () => { await VexDB.delete('downloads', entry.id); this.downloads(); }
         });
-        if (match && !done && !failed && match.total > 0) {
+        if (running && match.total > 0) {
           const bar = el('div', 'progress-row');
           const fill = el('i');
           fill.style.width = Math.round((match.downloaded / match.total) * 100) + '%';
@@ -933,12 +945,22 @@ const VexPanels = (() => {
 
       body.appendChild(heading('Search'));
       body.appendChild(valueRow('Search engine', null,
-        (VexSearch.ENGINES[VexSearch.engineId()] || {}).name || '—',
+        (VexSearch.engines()[VexSearch.engineId()] || {}).name || '—',
         () => VexSheets.choose('Search engine',
-          Object.entries(VexSearch.ENGINES).map(([id, engine]) => ({
-            id, label: engine.name, selected: id === VexSearch.engineId()
-          })),
-          async id => { await VexStore.set('vex.searchEngine', id); VexSheets.close(); this.settings(); })));
+          Object.entries(VexSearch.engines()).map(([id, engine]) => ({
+            id, label: engine.name, note: id === 'custom' ? engine.url : '',
+            selected: id === VexSearch.engineId()
+          })).concat([{
+            id: '__custom',
+            label: VexSearch.custom() ? 'Change your own search…' : 'A search of your own…',
+            note: 'SearXNG on a box in the hall, Kagi, anything with a %s in the URL'
+          }]),
+          async id => {
+            if (id === '__custom') { VexSheets.close(); this.customEngine(); return; }
+            await VexStore.set('vex.searchEngine', id);
+            VexSheets.close();
+            this.settings();
+          })));
       body.appendChild(toggleRow('Search suggestions',
         'What the engine thinks you are typing, as you type it. It sees the letters before you press '
         + 'go — never in a private tab, and never on something that is already an address.',
@@ -988,6 +1010,14 @@ const VexPanels = (() => {
         }));
 
       body.appendChild(heading('Media'));
+      body.appendChild(toggleRow('Let videos play on their own',
+        'Off means a page has to wait for a tap before any video starts. One site at a time can be '
+        + 'allowed from its own sheet — the music player, the next episode.',
+        VexStore.get('vex.autoplay', false), async value => {
+          await VexStore.set('vex.autoplay', value);
+          const tab = VexTabStore.active();
+          if (tab) await VexSiteRules.applyTo(tab);
+        }));
       body.appendChild(toggleRow('Keep playing in the background', 'Sound continues when you leave Vex',
         VexMedia.backgroundAudio(), value => VexMedia.setBackgroundAudio(value)));
       body.appendChild(toggleRow('Video controls', 'A small bar while something is playing',
@@ -1036,6 +1066,68 @@ const VexPanels = (() => {
         label: 'Vex for Android',
         note: VexUI.version + ' · ' + (VexBridge.isNative ? 'system WebView' : 'development fallback')
       }));
+    },
+
+    // ── A search engine of your own ────────────────────────────────────────
+    customEngine() {
+      const body = openShell('customEngine', 'Your own search');
+      const mine = VexSearch.custom() || { name: '', url: '', suggest: '' };
+
+      body.appendChild(el('div', 'field-note',
+        'Put %s where what you type should go. For SearXNG on your own machine that is something like '
+        + 'https://searx.home/search?q=%s — and if it offers an OpenSearch suggestions endpoint, give '
+        + 'that too. Suggestions go out through Android rather than from the chrome, which refuses '
+        + 'anything but https, because the letters you are typing are not going over plain http.'));
+
+      const fields = {};
+      for (const [key, label, placeholder] of [
+        ['name', 'Name', 'What to call it'],
+        ['url', 'Search URL', 'https://example.com/search?q=%s'],
+        ['suggest', 'Suggestions URL (optional)', 'https://example.com/suggest?q=%s']
+      ]) {
+        const field = el('div', 'field stack');
+        field.appendChild(el('label', { for: 'engine-' + key }, label));
+        const input = el('input', {
+          id: 'engine-' + key, type: 'text', value: mine[key] || '', placeholder,
+          autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false'
+        });
+        fields[key] = input;
+        field.appendChild(input);
+        body.appendChild(field);
+      }
+
+      const save = el('button', { class: 'pill-btn', style: 'margin: 10px 16px; width: calc(100% - 32px)' },
+        'Use this search');
+      save.onclick = async () => {
+        const next = {
+          name: fields.name.value.trim(),
+          url: fields.url.value.trim(),
+          suggest: fields.suggest.value.trim()
+        };
+        const wrong = VexSearch.checkCustom(next);
+        if (wrong) { VexUI.toast(wrong, 3600); return; }
+        await VexStore.set('vex.customEngine', next);
+        await VexStore.set('vex.searchEngine', 'custom');
+        VexSearch.forgetSuggestions();
+        VexUI.toast('The omnibox searches ' + next.name + ' now');
+        this.settings();
+      };
+      body.appendChild(save);
+
+      if (VexSearch.custom()) {
+        body.appendChild(VexSheets.row({
+          label: 'Forget it', note: 'The omnibox goes back to DuckDuckGo', danger: true,
+          run: async () => {
+            await VexStore.set('vex.customEngine', null);
+            if (VexStore.get('vex.searchEngine', '') === 'custom') {
+              await VexStore.set('vex.searchEngine', 'duckduckgo');
+            }
+            VexSearch.forgetSuggestions();
+            this.settings();
+            return true;
+          }
+        }));
+      }
     },
 
     // ── Storage ────────────────────────────────────────────────────────────

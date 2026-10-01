@@ -70,13 +70,61 @@ const VexSearch = (() => {
   const LOOKS_LIKE_HOST = /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#].*)?$/i;
   const LOOKS_LIKE_LOCAL = /^(?:localhost|\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?(?:[/?#].*)?$/i;
 
+  // A search of your own: SearXNG on a box in the hall, Kagi, a university
+  // catalogue, anything with a %s in it. Stored as one preference rather than a
+  // list, because nobody has two.
+  function custom() {
+    const stored = window.VexStore ? VexStore.get('vex.customEngine', null) : null;
+    if (!stored || typeof stored !== 'object') return null;
+    const url = String(stored.url || '');
+    if (!url.includes('%s')) return null;
+    return {
+      name: String(stored.name || '').slice(0, 40) || 'Your search',
+      url,
+      suggest: String(stored.suggest || '') || ''
+    };
+  }
+
   return {
     ENGINES,
+    custom,
 
-    engineId() { return window.VexStore ? VexStore.get('vex.searchEngine', 'duckduckgo') : 'duckduckgo'; },
+    /** The six built in, plus yours when you have one. */
+    engines() {
+      const mine = custom();
+      return mine ? Object.assign({}, ENGINES, { custom: mine }) : Object.assign({}, ENGINES);
+    },
+
+    /**
+     * What a custom engine has to be before it is accepted. Returned rather than
+     * thrown: the settings panel says it in a toast, and "it has to have a %s"
+     * is a sentence, not an exception.
+     */
+    checkCustom({ name, url, suggest }) {
+      const address = String(url || '').trim();
+      if (!address) return 'A search URL is needed';
+      if (!/^https?:\/\//i.test(address)) return 'The URL has to start with http:// or https://';
+      if (!address.includes('%s')) return 'Put %s where the words you type should go';
+      const hint = String(suggest || '').trim();
+      // Suggestions go out through native, which refuses anything but https —
+      // the letters you are typing are not going over plain http.
+      if (hint && !/^https:\/\//i.test(hint)) return 'The suggestions URL has to be https://';
+      if (hint && !hint.includes('%s')) return 'The suggestions URL needs a %s too';
+      if (!String(name || '').trim()) return 'Give it a name';
+      return '';
+    },
+
+    engineId() {
+      const stored = window.VexStore ? VexStore.get('vex.searchEngine', 'duckduckgo') : 'duckduckgo';
+      // A custom engine that was chosen and then deleted must not leave the
+      // omnibox pointing at nothing.
+      if (stored === 'custom' && !custom()) return 'duckduckgo';
+      return stored;
+    },
 
     searchUrl(query, engineId) {
-      const engine = ENGINES[engineId || this.engineId()] || ENGINES.duckduckgo;
+      const all = this.engines();
+      const engine = all[engineId || this.engineId()] || all.duckduckgo;
       return engine.url.replace('%s', encodeURIComponent(query));
     },
 
@@ -117,7 +165,8 @@ const VexSearch = (() => {
       // Anything that looks like it is being typed into the wrong box.
       if (/\s(?:password|passwd|pwd)\s*[:=]/i.test(query)) return [];
 
-      const engine = ENGINES[engineId || this.engineId()] || ENGINES.duckduckgo;
+      const all = this.engines();
+      const engine = all[engineId || this.engineId()] || all.duckduckgo;
       if (!engine.suggest) return [];
       const key = (engineId || this.engineId()) + '\u0000' + query.toLowerCase();
       if (remembered.has(key)) return remembered.get(key);

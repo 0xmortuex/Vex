@@ -94,6 +94,8 @@
     VexStore.prime('vex.backupHistory', false),
     VexStore.prime('vex.speakRate', 1),
     VexStore.prime('vex.speakVoice', ''),
+    VexStore.prime('vex.autoplay', false),
+    VexStore.prime('vex.customEngine', null),
     VexStore.prime('vex.clearItems', null),
     VexStore.prime('vex.clearOnExit', false),
   ]);

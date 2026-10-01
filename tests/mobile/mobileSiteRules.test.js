@@ -17,7 +17,8 @@ window.VexBridge = {
   setImagesEnabled: vi.fn(async () => {}),
   setDarkMode: vi.fn(async () => {}),
   setDesktopMode: vi.fn(async () => {}),
-  setZoom: vi.fn(async () => {})
+  setZoom: vi.fn(async () => {}),
+  setAutoplayAllowed: vi.fn(async () => {})
 };
 window.VexBlock = { setSiteAllowed: vi.fn(async () => {}) };
 
@@ -32,7 +33,7 @@ beforeEach(() => {
 describe('storing a rule', () => {
   it('starts from the defaults', () => {
     expect(VexSiteRules.for('example.com')).toEqual({
-      scripts: true, images: true, dark: null, desktop: null, blocking: true, zoom: 1
+      scripts: true, images: true, dark: null, desktop: null, autoplay: null, blocking: true, zoom: 1
     });
     expect(VexSiteRules.customised('example.com')).toEqual([]);
   });
@@ -92,6 +93,28 @@ describe('applying rules to a tab', () => {
     expect(window.VexBridge.setImagesEnabled).toHaveBeenCalledWith('t1', false);
   });
 
+  it('asks for a tap before a video plays, until a site is allowed', async () => {
+    await VexSiteRules.applyTo(tab());
+    expect(window.VexBridge.setAutoplayAllowed).toHaveBeenCalledWith('t1', false);
+
+    // The global setting, then one site overriding it in each direction.
+    store['vex.autoplay'] = true;
+    window.VexBridge.setAutoplayAllowed.mockClear();
+    await VexSiteRules.applyTo(tab());
+    expect(window.VexBridge.setAutoplayAllowed).toHaveBeenCalledWith('t1', true);
+
+    await VexSiteRules.set('example.com', 'autoplay', false);
+    window.VexBridge.setAutoplayAllowed.mockClear();
+    await VexSiteRules.applyTo(tab());
+    expect(window.VexBridge.setAutoplayAllowed).toHaveBeenCalledWith('t1', false);
+
+    delete store['vex.autoplay'];
+    await VexSiteRules.set('example.com', 'autoplay', true);
+    window.VexBridge.setAutoplayAllowed.mockClear();
+    await VexSiteRules.applyTo(tab());
+    expect(window.VexBridge.setAutoplayAllowed).toHaveBeenCalledWith('t1', true);
+  });
+
   it('tells the blocker when a site is exempted', async () => {
     await VexSiteRules.set('example.com', 'blocking', false);
     await VexSiteRules.applyTo(tab());
@@ -113,5 +136,7 @@ describe('describing a site', () => {
     await VexSiteRules.set('example.com', 'scripts', false);
     await VexSiteRules.set('example.com', 'blocking', false);
     expect(VexSiteRules.describe('example.com')).toBe('JavaScript off · blocking off');
+    await VexSiteRules.set('example.com', 'autoplay', true);
+    expect(VexSiteRules.describe('example.com')).toContain('autoplay allowed');
   });
 });

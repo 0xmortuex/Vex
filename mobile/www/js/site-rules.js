@@ -48,6 +48,7 @@ const VexSiteRules = (() => {
     images: true,
     dark: null,        // null = follow the global setting
     desktop: null,
+    autoplay: null,    // null = follow the global setting, which is "ask for a tap"
     blocking: true,
     zoom: 1
   };
@@ -108,9 +109,11 @@ const VexSiteRules = (() => {
 
       const dark = rules.dark === null ? globalDark : rules.dark;
       const desktop = rules.desktop === null ? globalDesktop : rules.desktop;
+      const autoplay = rules.autoplay === null ? VexStore.get('vex.autoplay', false) === true : rules.autoplay;
 
       await VexBridge.setScriptsEnabled(tab.id, rules.scripts);
       await VexBridge.setImagesEnabled(tab.id, rules.images && !VexStore.get('vex.dataSaver', false));
+      await VexBridge.setAutoplayAllowed(tab.id, autoplay);
       await VexBridge.setDarkMode(tab.id, dark);
       if (desktop !== tab.desktopMode) {
         await VexBridge.setDesktopMode(tab.id, desktop);
@@ -135,6 +138,8 @@ const VexSiteRules = (() => {
       if (!rules.images) parts.push('no images');
       if (rules.dark === true) parts.push('forced dark');
       if (rules.desktop === true) parts.push('desktop layout');
+      if (rules.autoplay === true) parts.push('autoplay allowed');
+      if (rules.autoplay === false) parts.push('no autoplay');
       if (!rules.blocking) parts.push('blocking off');
       if (rules.zoom !== 1) parts.push(Math.round(rules.zoom * 100) + '% text');
       return parts.length ? parts.join(' · ') : 'Default settings';

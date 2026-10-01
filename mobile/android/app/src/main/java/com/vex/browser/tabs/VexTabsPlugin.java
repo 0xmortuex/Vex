@@ -351,6 +351,12 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     }
 
     @PluginMethod
+    public void setAutoplayAllowed(PluginCall call) {
+        final boolean allowed = Boolean.TRUE.equals(call.getBoolean("allowed", false));
+        withTab(call, tab -> tab.setAutoplayAllowed(allowed));
+    }
+
+    @PluginMethod
     public void setZoom(PluginCall call) {
         final float factor = call.getFloat("factor", 1f);
         withTab(call, tab -> tab.setZoom(factor));
@@ -537,6 +543,32 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
             call.resolve(result);
         } catch (Exception error) {
             call.reject("Could not read the download queue: " + error.getMessage());
+        }
+    }
+
+    /**
+     * Stop one that is still running. DownloadManager has no pause — remove is
+     * the only lever, and it takes the part-file with it, which is what
+     * "cancel" means to the person who tapped it.
+     */
+    @PluginMethod
+    public void cancelDownload(PluginCall call) {
+        // Passed as a string: a DownloadManager id is a long, and PluginCall has
+        // no getLong — going through a double would be a precision bug waiting
+        // for a phone that has downloaded a lot of files.
+        final String raw = call.getString("id", "");
+        long id;
+        try { id = Long.parseLong(raw.trim()); }
+        catch (NumberFormatException error) { call.reject("Which download?"); return; }
+        try {
+            android.app.DownloadManager manager =
+                    (android.app.DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+            int removed = manager == null ? 0 : manager.remove(id);
+            JSObject result = new JSObject();
+            result.put("removed", removed > 0);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Could not stop that download: " + error.getMessage());
         }
     }
 

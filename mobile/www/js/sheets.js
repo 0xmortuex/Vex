@@ -322,6 +322,11 @@ const VexSheets = (() => {
         { icon: 'desktop', label: 'Desktop site', toggle: rules.desktop === true, tristate: true }, 'desktop'));
       list.appendChild(toggleRow(
         { icon: 'palette', label: 'Force dark', toggle: rules.dark === true, tristate: true }, 'dark'));
+      list.appendChild(toggleRow({
+        icon: 'video', label: 'Let it play on its own',
+        note: 'Vex asks for a tap before any video starts. Some sites are the reason you went.',
+        toggle: rules.autoplay === true, tristate: true
+      }, 'autoplay'));
 
       list.appendChild(row({
         icon: 'text', label: 'Text size', value: Math.round(rules.zoom * 100) + '%',

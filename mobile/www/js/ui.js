@@ -399,7 +399,7 @@ const VexUI = (() => {
         }, (VexSearch.isSearch(clip) ? 'Search “' : 'Go to ') + clip.slice(0, 28) + (VexSearch.isSearch(clip) ? '”' : '')));
       }
     } catch { /* no clipboard permission: the chip is a convenience */ }
-    for (const [id, engine] of Object.entries(VexSearch.ENGINES)) {
+    for (const [id, engine] of Object.entries(VexSearch.engines())) {
       if (id === VexSearch.engineId()) continue;
       chips.appendChild(el('button', {
         class: 'chip',
@@ -483,7 +483,7 @@ const VexUI = (() => {
     // A suggestion's second line would be the search URL, which tells nobody
     // anything; the engine's name is the useful thing to say.
     if (row.kind === 'suggest') {
-      const engine = VexSearch.ENGINES[VexSearch.engineId()];
+      const engine = VexSearch.engines()[VexSearch.engineId()];
       lines.appendChild(el('span', 'u', engine ? engine.name : 'Search'));
     } else {
       lines.appendChild(el('span', 'u', row.snippet || row.url));

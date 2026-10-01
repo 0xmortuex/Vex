@@ -81,6 +81,43 @@ describe('suggestions', () => {
   });
 });
 
+describe('a search of your own', () => {
+  beforeEach(() => { delete store['vex.customEngine']; store['vex.searchEngine'] = 'duckduckgo'; });
+
+  it('insists on the three things that make one work', () => {
+    expect(VexSearch.checkCustom({ name: 'Mine', url: 'https://s.example/?q=%s' })).toBe('');
+    expect(VexSearch.checkCustom({ name: 'Mine', url: '' })).toContain('search URL');
+    expect(VexSearch.checkCustom({ name: 'Mine', url: 's.example/?q=%s' })).toContain('http://');
+    expect(VexSearch.checkCustom({ name: 'Mine', url: 'https://s.example/?q=' })).toContain('%s');
+    expect(VexSearch.checkCustom({ name: '', url: 'https://s.example/?q=%s' })).toContain('name');
+    // The letters you are typing do not go over plain http.
+    expect(VexSearch.checkCustom({ name: 'Mine', url: 'https://s.example/?q=%s', suggest: 'http://s/?q=%s' }))
+      .toContain('https://');
+    expect(VexSearch.checkCustom({ name: 'Mine', url: 'https://s.example/?q=%s', suggest: 'https://s/?q=' }))
+      .toContain('%s');
+  });
+
+  it('joins the list, and the omnibox searches it', () => {
+    store['vex.customEngine'] = { name: 'Home', url: 'https://searx.home/search?q=%s' };
+    store['vex.searchEngine'] = 'custom';
+    expect(Object.keys(VexSearch.engines())).toContain('custom');
+    expect(VexSearch.toUrl('how to tie a knot'))
+      .toBe('https://searx.home/search?q=how%20to%20tie%20a%20knot');
+  });
+
+  it('is ignored when it is nonsense, however it got into the preference', () => {
+    store['vex.customEngine'] = { name: 'Broken', url: 'https://searx.home/search' };   // no %s
+    expect(VexSearch.custom()).toBe(null);
+    expect(Object.keys(VexSearch.engines())).not.toContain('custom');
+  });
+
+  it('does not leave the omnibox pointing at nothing when it is deleted', () => {
+    store['vex.searchEngine'] = 'custom';          // chosen, then forgotten
+    expect(VexSearch.engineId()).toBe('duckduckgo');
+    expect(VexSearch.toUrl('hey')).toBe('https://duckduckgo.com/?q=hey');
+  });
+});
+
 describe('the address pill', () => {
   it('shows the host without the www', () => {
     expect(VexSearch.prettyHost('https://www.example.com/a/b?c=1')).toBe('example.com');
