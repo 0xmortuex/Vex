@@ -26,8 +26,9 @@ public class VexRemindPlugin extends Plugin {
         intent.putExtra(ReminderReceiver.EXTRA_URL, url);
         intent.putExtra(ReminderReceiver.EXTRA_TITLE, title);
         intent.putExtra(ReminderReceiver.EXTRA_NOTE, note);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT
-                | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !mutable ? PendingIntent.FLAG_IMMUTABLE : 0);
+        // FLAG_MUTABLE is API 31; below that, mutable is what you get by saying
+        // nothing. So: say nothing when mutable, and be explicit when not.
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT | (mutable ? 0 : PendingIntent.FLAG_IMMUTABLE);
         return PendingIntent.getBroadcast(getContext(), id.hashCode(), intent, flags);
     }
 

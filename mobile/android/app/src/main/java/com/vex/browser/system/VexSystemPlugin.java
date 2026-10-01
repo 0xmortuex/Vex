@@ -172,10 +172,6 @@ public class VexSystemPlugin extends Plugin {
         final int width = call.getInt("width", 16);
         final int height = call.getInt("height", 9);
         getActivity().runOnUiThread(() -> {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                call.reject("This Android version has no picture-in-picture");
-                return;
-            }
             try {
                 PictureInPictureParams params = new PictureInPictureParams.Builder()
                         .setAspectRatio(new Rational(Math.max(1, width), Math.max(1, height)))
