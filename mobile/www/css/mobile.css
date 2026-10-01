@@ -724,8 +724,9 @@ body[data-toolbar="top"].toolbar-hidden .toolbar { transform: translateY(-100%);
   border-radius: 26px; box-shadow: var(--elevation) var(--vex-shadow);
   animation: toast-in .2s var(--ease) both;
 }
+/* Also the way in to speed, brightness and sound, which is why it is a button. */
 .mediabar-label { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--vex-text-muted);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; }
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; text-align: left; }
 
 /* ── Reading aloud ───────────────────────────────────────────────────────── */
 /* Same shape as the video controls, and in the column for the same reason. */

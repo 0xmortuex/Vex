@@ -598,6 +598,73 @@ results.linkSheetRows = await page.$$eval('#sheet-list .sheet-row', rows => rows
 await shot('12-longpress');
 await page.evaluate(() => VexSheets.close());
 
+// ── The video bar's own sheet ───────────────────────────────────────────────
+// Speed, brightness and sound all existed in js/media.js with nothing in the
+// chrome reaching any of them. This drives the sheet and checks the page was
+// actually told.
+results.videoSheet = await page.evaluate(async () => {
+  const told = [];
+  for (const name of ['speed', 'brightness', 'mute']) {
+    const real = VexMedia[name].bind(VexMedia);
+    VexMedia[name] = async (id, value) => { told.push(name + '=' + value); return real(id, value); };
+  }
+  VexMedia.state = async () => ({ playing: true, width: 640, height: 360, duration: 90, current: 3, muted: false });
+
+  document.getElementById('media-label').click();
+  await new Promise(resolve => setTimeout(resolve, 250));
+  const rows = [...document.querySelectorAll('#sheet-list .sheet-row')].map(row => row.textContent);
+
+  // Speed → 1.5×
+  const speedRow = [...document.querySelectorAll('#sheet-list .sheet-row')]
+    .find(row => /^Speed/.test(row.textContent));
+  speedRow.click();
+  await new Promise(resolve => setTimeout(resolve, 250));
+  [...document.querySelectorAll('#sheet-list .sheet-row')]
+    .find(row => row.textContent.trim().startsWith('1.5')).click();
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  // And mute, from the top of the sheet again.
+  document.getElementById('media-label').click();
+  await new Promise(resolve => setTimeout(resolve, 250));
+  [...document.querySelectorAll('#sheet-list .sheet-row')]
+    .find(row => /Mute it/.test(row.textContent)).click();
+  await new Promise(resolve => setTimeout(resolve, 300));
+  VexSheets.close();
+  return { rows: rows.length, told: told.join(' ') };
+});
+
+// ── When a page will not load ───────────────────────────────────────────────
+// Vex draws its own error page, and its buttons are vex:// links because a page
+// cannot call the chrome. Both halves are driven here: the page it builds, and
+// what the chrome does when one of those links is followed.
+results.errorPage = await page.evaluate(async () => {
+  const tab = VexTabStore.active();
+  const built = VexErrors.html({
+    url: 'https://missing.example/thing', code: -2, description: 'net::ERR_NAME_NOT_RESOLVED',
+    hasSaved: true, offline: false
+  });
+  const drawn = await VexErrors.show(Object.assign({}, tab, { pendingUrl: 'https://missing.example/thing' }),
+    { code: -2, description: 'net::ERR_NAME_NOT_RESOLVED' });
+  return {
+    title: (built.match(/<h1>([^<]*)<\/h1>/) || [])[1] || '',
+    offersSaved: built.includes('vex://saved'),
+    offersSearch: built.includes('vex://search'),
+    noScript: !built.includes('<script'),
+    drawn
+  };
+});
+// A description Chromium phrased with a < in it must not come out as &lt;.
+results.errorEscapes = await page.evaluate(() =>
+  VexErrors.html({ url: 'https://x.example/', code: -99, description: 'it said <b>no</b>' }));
+// The vex:// buttons: "search for it instead" leaves the tab on a search.
+results.errorCommand = await page.evaluate(async () => {
+  const tab = VexTabStore.active();
+  await VexErrors.handle(Object.assign(tab, { errorUrl: 'https://missing.example/thing' }),
+    'search', '?missing.example');
+  await new Promise(resolve => setTimeout(resolve, 300));
+  return VexTabStore.active().pendingUrl || VexTabStore.active().url;
+});
+
 // ── A page asking for the camera ────────────────────────────────────────────
 // The decision is the chrome's: native waits for an answer, and anything the
 // chrome does not name is denied. Before this existed the WebView handed a page
@@ -1214,6 +1281,24 @@ if (String(results.clearDefaults) !== 'true,true,true,false,false,false') {
   failures.push('clearDefaults: the tick boxes do not start where they should (' + results.clearDefaults + ')');
 }
 if (results.clearRows < 9) failures.push('clearRows: the clear panel lost rows (' + results.clearRows + ')');
+if (results.videoSheet.rows !== 4) {
+  failures.push('videoSheet: expected four rows, got ' + results.videoSheet.rows);
+}
+if (results.videoSheet.told !== 'speed=1.5 mute=true') {
+  failures.push('videoSheet: the page was told "' + results.videoSheet.told + '"');
+}
+if (results.errorPage.title !== 'This site could not be found') {
+  failures.push('errorPage: the wrong words for -2 (' + results.errorPage.title + ')');
+}
+for (const key of ['offersSaved', 'offersSearch', 'noScript', 'drawn']) {
+  if (results.errorPage[key] !== true) failures.push('errorPage: ' + key + ' was ' + results.errorPage[key]);
+}
+if (!results.errorEscapes.includes('it said &lt;b&gt;no&lt;/b&gt;')) {
+  failures.push('errorEscapes: the description was not escaped exactly once');
+}
+if (!/duckduckgo|missing\.example/.test(results.errorCommand)) {
+  failures.push('errorCommand: "search for it instead" went to ' + results.errorCommand);
+}
 if (results.permissionDecides.answered !== 'p1: p2:microphone p3:location') {
   failures.push('permissionDecides: the answers were ' + results.permissionDecides.answered);
 }

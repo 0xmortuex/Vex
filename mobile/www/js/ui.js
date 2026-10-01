@@ -891,6 +891,59 @@ const VexUI = (() => {
     return true;
   }
 
+  /**
+   * Speed, brightness and sound for whatever is playing.
+   *
+   * All three existed in js/media.js and nothing in the chrome reached any of
+   * them — the bar had play, ten seconds either way, pop out and dismiss. The
+   * brightness is the one worth having: a site's own player caps how bright a
+   * dark scene can get, and a CSS filter on the element does not care.
+   */
+  async function videoActions() {
+    const tab = VexTabStore.active();
+    if (!tab) return true;
+    const state = await VexMedia.state(tab.id);
+    VexSheets.choose('Video', [
+      { id: 'speed', label: 'Speed', note: videoSpeed + '×' },
+      { id: 'brightness', label: 'Brightness', note: Math.round(videoBrightness * 100) + '%' },
+      { id: 'mute', label: state.muted ? 'Turn the sound on' : 'Mute it' },
+      { id: 'pop', label: 'Pop it out', note: 'A small window over whatever you do next' }
+    ], async choice => {
+      if (choice === 'speed') {
+        VexSheets.choose('Speed', [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate => ({
+          id: String(rate), label: rate + '×', selected: rate === videoSpeed
+        })), async picked => {
+          videoSpeed = Number(picked);
+          await VexMedia.speed(tab.id, videoSpeed);
+          VexSheets.close();
+          refreshMediaBar();
+        });
+        return true;
+      }
+      if (choice === 'brightness') {
+        VexSheets.choose('Brightness', [0.75, 1, 1.25, 1.5, 2, 2.5].map(amount => ({
+          id: String(amount), label: Math.round(amount * 100) + '%', selected: amount === videoBrightness
+        })), async picked => {
+          videoBrightness = Number(picked);
+          await VexMedia.brightness(tab.id, videoBrightness);
+          VexSheets.close();
+        });
+        return true;
+      }
+      VexSheets.close();
+      if (choice === 'mute') await VexMedia.mute(tab.id, !state.muted);
+      else if (choice === 'pop') {
+        try { await VexMedia.popOut(tab.id); } catch (error) { toast(error.message); }
+      }
+    });
+    return true;
+  }
+
+  // Remembered for the session rather than stored: a speed you chose for one
+  // video is not a setting you want applied to every video for ever.
+  let videoSpeed = 1;
+  let videoBrightness = 1;
+
   // ── Actions the sheets and panels call ───────────────────────────────────
   async function openUrl(input, options = {}) {
     const url = VexSearch.toUrl(input);
@@ -1244,6 +1297,7 @@ const VexUI = (() => {
         try { await VexMedia.popOut(tab.id); }
         catch (error) { toast(error.message); }
       };
+      $('media-label').onclick = () => videoActions();
       $('media-close').onclick = () => {
         const tab = VexTabStore.active();
         mediaDismissedFor = tab ? tab.url : '';
