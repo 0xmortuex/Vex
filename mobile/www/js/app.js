@@ -213,14 +213,15 @@
     if (plugin) plugin.minimizeApp();
   });
   VexBridge.onAppEvent('appStateChange', async state => {
-    if (state && state.isActive === true) { await VexUI.guardPrivateOnReturn(); return; }
+    if (state && state.isActive === true) {
+      VexSpeak.resync();               // it may have read on, or been paused, meanwhile
+      await VexUI.guardPrivateOnReturn();
+      return;
+    }
     if (state && state.isActive === false) {
       await rememberScroll();
       VexVault.lock();                 // leaving the app re-locks the logins
       VexUI.relockPrivate();           // and asks for the fingerprint again
-      // The plugin stops the speech engine rather than talking from an app you
-      // have left; the bar has to say so, and offer to carry on.
-      VexSpeak.noteStopped();
       VexSync.schedulePush(500);
       // "Clear when I leave Vex", if that is switched on. After the sync push
       // is scheduled, because what syncs is bookmarks and sessions rather than

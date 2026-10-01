@@ -26,7 +26,7 @@ const VexLibrary = (() => {
     ['Reading', [
       ['translate-device', 'Translate a page on the phone', 'ML Kit\u2019s models run here. Once a language is downloaded a page translates with no connection at all, and nothing is sent anywhere — which is more than Chrome or Samsung Internet does.', () => VexPanels.translation()],
       ['reader', 'Reader', 'The article, without the rest of the page, in the browser’s own type.', () => VexViews.openReader()],
-      ['read-aloud', 'Read aloud', 'The article, in the phone’s own voice, a paragraph at a time — skip, slow down, carry on. It stops when you leave Vex.', () => VexUI.readAloud()],
+      ['read-aloud', 'Read aloud', 'The article, in the phone’s own voice, a paragraph at a time — skip, slow down, carry on. It keeps reading with the screen off; pause or stop it from the notification or your headphones.', () => VexUI.readAloud()],
       ['reading-list', 'Reading list', 'Pages kept for later, marked off as you read them.', () => VexPanels.readingList()],
       ['pdf', 'PDFs', 'Read in Vex rather than downloaded — Android’s WebView cannot draw one, so Vex does.', () => VexUI.toast('Open any PDF link')],
       ['saved', 'Saved pages', 'The whole page kept on the phone, for reading offline — it opens with no connection at all, and its scripts are taken out when it is saved.', () => VexPanels.savedPages()],

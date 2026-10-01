@@ -56,7 +56,7 @@ Everything else below is either matched or bettered.
 | Background audio | ✅ | Settings → Media |
 | Video brightness | ✅ | A filter on the element, past what the site allows |
 | Video controls overlay | ✅ | Play, ±10 s, pop out, and the label opens speed, brightness and sound |
-| Read a page aloud | ✅ | Android's TextToSpeech on the article the reader extracts — paragraph at a time, skip, pause, speed, a voice you choose. It stops when you leave Vex rather than pretending to be a music player |
+| Read a page aloud | ✅ | Android's TextToSpeech on the article the reader extracts — paragraph at a time, skip, pause, speed, a voice you choose. Carries on with the screen off, with Pause and Stop in the notification and on the lock screen, the headset button, and a pause for calls or unplugged headphones |
 | Reader typography | ✅ better | Typeface, measure, line spacing and paper (including true black for an OLED in the dark), and how far through you are |
 | Keep the screen on | ✅ | Settings → Media |
 | Download videos | ✅ | Menu → Download the video, or the video bar's sheet. A plain file goes to the download queue; an HLS stream is saved whole as one file (.ts, or .mp4 for fragmented MP4), AES-128 included, found through the page's own requests when the player hides it behind a blob: URL. Not DRM, not live streams, and not DASH or a rendition whose sound is a separate stream — each is said rather than attempted. A long save shows its progress in the notification shade and keeps going with Vex in the background |

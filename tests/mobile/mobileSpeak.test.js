@@ -18,6 +18,8 @@ window.VexBridge = {
   speakAvailable: vi.fn(async () => ({ available: true, voices: [{ name: 'en-gb-x', language: 'en-GB' }] })),
   speak: vi.fn(async (parts, options) => { spoken.push({ parts, options }); return { parts: parts.length }; }),
   speakStop: vi.fn(async () => {}),
+  speakPause: vi.fn(async () => {}),
+  speakState: vi.fn(async () => ({ speaking: true, index: 1 })),
   onSpeak: (event, fn) => { handlers[event] = fn; return () => { delete handlers[event]; }; }
 };
 window.VexUI = { toast: vi.fn() };
@@ -40,7 +42,7 @@ beforeEach(async () => {
   active = { id: 't1', url: 'https://example.com/a', title: 'An article' };
   await VexSpeak.stop();
   spoken = [];
-  for (const fn of [window.VexBridge.speak, window.VexBridge.speakStop, window.VexUI.toast]) fn.mockClear();
+  for (const fn of [window.VexBridge.speak, window.VexBridge.speakStop, window.VexBridge.speakPause, window.VexUI.toast]) fn.mockClear();
 });
 
 describe('what gets read', () => {
@@ -92,10 +94,12 @@ describe('the controls', () => {
     expect(VexSpeak.state.index).toBe(2);
   });
 
-  it('pauses by stopping, and carries on from the same line', async () => {
+  it('pauses, and carries on from the same line', async () => {
     handlers.speaking({ index: 1 });
     await VexSpeak.toggle();
-    expect(window.VexBridge.speakStop).toHaveBeenCalled();
+    // A pause, not a stop: a stop would take the notification away.
+    expect(window.VexBridge.speakPause).toHaveBeenCalled();
+    expect(window.VexBridge.speakStop).not.toHaveBeenCalled();
     expect(VexSpeak.state.speaking).toBe(false);
     expect(VexSpeak.state.index).toBe(1);
 
@@ -151,10 +155,31 @@ describe('the controls', () => {
     expect(VexSpeak.state.index).toBe(0);
   });
 
-  it('agrees with the engine when Vex is put in the background', () => {
-    VexSpeak.noteStopped();
+  it('follows a pause and a carry-on from the notification or the headset', () => {
+    handlers.paused();
     expect(VexSpeak.state.speaking).toBe(false);
     expect(VexSpeak.state.loaded).toBe(true);
+    handlers.resumed();
+    expect(VexSpeak.state.speaking).toBe(true);
+  });
+
+  it('puts the bar away when the notification stops it', () => {
+    handlers.stopped();
+    expect(VexSpeak.state.loaded).toBe(false);
+    expect(VexSpeak.state.parts).toEqual([]);
+  });
+
+  it('catches up on coming back, counting from what it last sent', async () => {
+    handlers.speaking({ index: 1 });
+    await VexSpeak.toggle();
+    await VexSpeak.toggle();             // sent from line 1
+    await VexSpeak.resync();             // native has read on to its line 1
+    expect(VexSpeak.state.index).toBe(2);
+    expect(VexSpeak.state.speaking).toBe(true);
+  });
+
+  it('gives the notification the title to show', () => {
+    expect(window.VexBridge.speak.mock.calls.at(-1)[1].title).toBe('An article');
   });
 
   it('puts the bar away on stop, and forgets the article', async () => {

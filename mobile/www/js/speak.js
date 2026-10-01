@@ -14,10 +14,10 @@
 // the line number, and carrying on re-queues the rest from there. Skipping and
 // changing speed are the same move, which is why they all go through one place.
 //
-// It deliberately stops when you leave Vex. Carrying on from a backgrounded app
-// needs a foreground service and a notification, at which point a browser is
-// pretending to be a music player — and the only way to silence one of those is
-// to find it in the notification shade.
+// It carries on with the screen off or from another app, like Chrome's "Listen
+// to this page": native holds a media notification with Pause and Stop, answers
+// the headset button, and pauses for a call or for headphones coming out. Those
+// arrive here as events, so the bar always says what the phone is doing.
 
 const VexSpeak = (() => {
   // What the speed button steps through. 2× is where a TTS voice stops being
@@ -75,7 +75,9 @@ const VexSpeak = (() => {
     state.speaking = true;
     changed();
     try {
-      await VexBridge.speak(state.parts.slice(state.index), { rate: rate(), voice: voice() });
+      await VexBridge.speak(state.parts.slice(state.index), {
+        rate: rate(), voice: voice(), title: state.title || 'Reading aloud'
+      });
       return true;
     } catch (error) {
       state.speaking = false;
@@ -151,7 +153,7 @@ const VexSpeak = (() => {
       if (state.speaking) {
         state.speaking = false;
         changed();
-        await VexBridge.speakStop().catch(() => {});
+        await VexBridge.speakPause().catch(() => {});
         return false;
       }
       return speakFrom(state.index);
@@ -171,13 +173,18 @@ const VexSpeak = (() => {
     },
 
     /**
-     * The engine stopped without being asked: Vex went to the background, and
-     * the plugin stops rather than talking from an app you have left. This is
-     * the chrome agreeing with it, so the bar offers to carry on.
+     * Coming back to Vex: catch up with what the reading did while the chrome
+     * was not looking — it may have read on, or been paused from the lock
+     * screen, and the events for that can arrive late or not at all.
      */
-    noteStopped() {
-      if (!state.speaking) return;
-      state.speaking = false;
+    async resync() {
+      if (!state.loaded) return;
+      const now = await VexBridge.speakState().catch(() => null);
+      if (!now) return;
+      if (Number.isFinite(now.index) && now.index >= 0) {
+        state.index = Math.min(state.base + now.index, Math.max(0, state.parts.length - 1));
+      }
+      state.speaking = now.speaking;
       changed();
     },
 
@@ -227,6 +234,26 @@ const VexSpeak = (() => {
         state.speaking = false;
         state.index = 0;
         state.base = 0;
+        changed();
+      });
+      // Paused, carried on or stopped from the notification, the lock screen,
+      // the headset — or by a phone call or headphones coming out.
+      VexBridge.onSpeak('paused', () => {
+        if (!state.loaded) return;
+        state.speaking = false;
+        changed();
+      });
+      VexBridge.onSpeak('resumed', () => {
+        if (!state.loaded) return;
+        state.speaking = true;
+        changed();
+      });
+      VexBridge.onSpeak('stopped', () => {
+        state.loaded = false;
+        state.speaking = false;
+        state.index = 0;
+        state.base = 0;
+        state.parts = [];
         changed();
       });
       VexBridge.onSpeak('speakError', () => {

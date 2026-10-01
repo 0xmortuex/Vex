@@ -356,8 +356,6 @@ Nothing below can be settled without a phone, and all of it is cheap to check:
 - A file a page builds itself (blob: or data:) is read out of the page and
   written by Vex, which caps it at 12 MB: the bytes travel as a string through
   the bridge. Android's own download manager cannot fetch either kind at all.
-- Reading aloud stops when you leave Vex. Carrying on needs a foreground service
-  and a notification, which is a browser pretending to be a music player.
 - The fingerprint shield needs WebView 83+ to run before page scripts. Older
   WebViews run it at page start, which a fast tracker can beat; the privacy
   screen says so when that is the case.

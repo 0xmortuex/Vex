@@ -214,6 +214,8 @@ const VexBridge = (() => {
         return { parts: queue.length };
       },
       stop: () => { if (synth) synth.cancel(); return {}; },
+      // Carrying on re-sends the rest, so a pause here is a cancel too.
+      pause: () => { if (synth) synth.cancel(); return {}; },
       speaking: () => ({ speaking: !!(synth && synth.speaking), index: -1 })
     };
   })();
@@ -520,10 +522,16 @@ const VexBridge = (() => {
       const result = await call('VexSpeak', 'available', {});
       return { available: !!(result && result.available), voices: (result && result.voices) || [] };
     },
-    speak(parts, { rate = 1, voice = '' } = {}) {
-      return call('VexSpeak', 'speak', { parts, rate, voice });
+    // The title is what the notification and the lock screen show.
+    speak(parts, { rate = 1, voice = '', title = '' } = {}) {
+      return call('VexSpeak', 'speak', { parts, rate, voice, title });
     },
+    speakPause() { return call('VexSpeak', 'pause', {}); },
     speakStop() { return call('VexSpeak', 'stop', {}); },
+    async speakState() {
+      const result = await call('VexSpeak', 'speaking', {});
+      return { speaking: !!(result && result.speaking), index: Number(result && result.index) };
+    },
     onSpeak(event, fn) {
       const plugin = plugins.VexSpeak;
       if (!plugin) {
