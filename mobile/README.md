@@ -152,6 +152,7 @@ whole codebase:
 | `tabs/VexTabsPlugin.java` | creates, positions, shows and destroys page WebViews |
 | `tabs/TabWebView.java` | one tab: settings, clients, downloads, find, snapshot, print |
 | `tabs/StreamDownloader.java` | saving an HLS stream as one file: variant choice, AES-128, fMP4, written as it arrives |
+| `work/LongWork.java` | the foreground service and progress notification that keep a video save or a model download alive in the background |
 | `tabs/EdgeSwipeLayout.java` | back/forward edge gestures over the page |
 | `block/BlockEngine.java` | request matching inside `shouldInterceptRequest` |
 | `block/VexBlockPlugin.java` | the JS control surface for it |

@@ -100,6 +100,10 @@ const VexDownloads = (() => {
      * IndexedDB is finished off when the file is whole.
      */
     async stream(tab, url, filename) {
+      // A long save shows its progress in the notification shade, which on
+      // Android 13 and later needs asking for. Asked here, where the reason is
+      // plain; the save goes ahead whatever the answer.
+      try { await VexBridge.requestPermission('notifications'); } catch { /* the save does not need it */ }
       let answer;
       try { answer = await VexBridge.downloadStream(tab.id, url, filename); }
       catch (error) {

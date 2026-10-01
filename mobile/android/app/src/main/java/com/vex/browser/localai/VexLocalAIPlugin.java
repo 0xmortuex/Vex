@@ -123,9 +123,15 @@ public class VexLocalAIPlugin extends Plugin {
         started.put("resumingFrom", store().bytesOnDisk(name));
         call.resolve(started);
 
+        final android.content.Context context = getContext();
+        final String jobId = "model-" + name;
+        com.vex.browser.work.LongWork.begin(context, jobId, "Downloading " + name);
         Executors.newSingleThreadExecutor().execute(() -> store().download(name, url, headers,
                 new ModelStore.Progress() {
                     @Override public void onProgress(long received, long total) {
+                        com.vex.browser.work.LongWork.progress(context, jobId,
+                                total > 0 ? (int) (100L * received / total) : -1,
+                                (received >> 20) + (total > 0 ? " of " + (total >> 20) : "") + " MB");
                         JSObject data = new JSObject();
                         data.put("name", name);
                         data.put("received", received);
@@ -133,12 +139,14 @@ public class VexLocalAIPlugin extends Plugin {
                         notifyListeners("modelProgress", data);
                     }
                     @Override public void onDone(File file) {
+                        com.vex.browser.work.LongWork.end(context, jobId, "The on-device model is ready");
                         JSObject data = new JSObject();
                         data.put("name", name);
                         data.put("bytes", file.length());
                         notifyListeners("modelReady", data);
                     }
                     @Override public void onError(String message) {
+                        com.vex.browser.work.LongWork.end(context, jobId, null);
                         JSObject data = new JSObject();
                         data.put("name", name);
                         data.put("message", message);

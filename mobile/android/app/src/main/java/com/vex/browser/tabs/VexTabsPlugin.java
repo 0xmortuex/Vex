@@ -394,11 +394,15 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
             TabWebView tab = tabs.get(id);
             String agent = tab != null ? tab.userAgent() : null;
             final String jobId = StreamDownloader.nextId();
-            StreamDownloader.start(getContext(), jobId, url, agent, filename, new StreamDownloader.Listener() {
+            final android.content.Context context = getContext();
+            com.vex.browser.work.LongWork.begin(context, jobId, "Saving " + StreamDownloader.cleanName(filename));
+            StreamDownloader.start(context, jobId, url, agent, filename, new StreamDownloader.Listener() {
                 private long lastReport = 0;
 
                 @Override
                 public void progress(String job, int done, int total, long bytes) {
+                    com.vex.browser.work.LongWork.progress(context, job, total > 0 ? (int) (100L * done / total) : -1,
+                            done + " of " + total + " pieces · " + (bytes >> 20) + " MB");
                     long now = System.currentTimeMillis();
                     if (done < total && now - lastReport < 500) return;
                     lastReport = now;
@@ -412,6 +416,7 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
 
                 @Override
                 public void finished(String job, String localUri, long bytes, String mimeType) {
+                    com.vex.browser.work.LongWork.end(context, job, "Saved " + StreamDownloader.cleanName(filename));
                     JSObject data = new JSObject();
                     data.put("jobId", job);
                     data.put("localUri", localUri);
@@ -422,6 +427,7 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
 
                 @Override
                 public void failed(String job, String message) {
+                    com.vex.browser.work.LongWork.end(context, job, null);
                     JSObject data = new JSObject();
                     data.put("jobId", job);
                     data.put("message", message);

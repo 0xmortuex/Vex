@@ -264,6 +264,9 @@ const VexLocalAI = (() => {
     /** Resume-capable download of a direct URL. Progress arrives as events. */
     async download(name, url, token = '') {
       const headers = token ? { Authorization: 'Bearer ' + token } : {};
+      // Gigabytes take a while; the notification is how you watch it from
+      // outside Vex, and Android 13+ wants that asked for.
+      try { await VexBridge.requestPermission('notifications'); } catch { /* the download does not need it */ }
       state.downloading = { name, received: 0, total: -1 };
       changed();
       return VexBridge.localAI('download', { name, url, headers });
