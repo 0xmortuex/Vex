@@ -86,6 +86,16 @@ const VexReader = (() => {
   });
 })()`;
 
+  const READABLE = `(function(){
+  var paragraphs = document.querySelectorAll('article p, main p, p');
+  var long = 0, total = 0;
+  for (var i = 0; i < paragraphs.length && i < 400; i++) {
+    var length = (paragraphs[i].textContent || '').trim().length;
+    if (length > 80) { long++; total += length; }
+  }
+  return long >= 4 && total >= 1200;
+})()`;
+
   // evaluate() hands back a JSON string, sometimes double-encoded by the
   // WebView. Unwrap either shape, and never trust what comes out.
   function parse(raw) {
@@ -101,6 +111,20 @@ const VexReader = (() => {
   return {
     EXTRACT,
     parse,
+
+    /**
+     * Is there an article here? Cheap, so it can run after every load: a
+     * handful of real paragraphs, and enough words in them to be worth a
+     * reader — the test Samsung's own icon seems to make.
+     */
+    async readable(tabId) {
+      try {
+        const { result } = await VexBridge.evaluate(tabId, READABLE);
+        return String(result).replace(/"/g, '') === 'true';
+      } catch { return false; }
+    },
+
+    READABLE,
 
     async extract(tabId) {
       const { result } = await VexBridge.evaluate(tabId, EXTRACT);

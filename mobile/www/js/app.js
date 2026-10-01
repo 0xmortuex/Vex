@@ -234,7 +234,7 @@
   function wireNative() {
     VexBridge.on('loadStart', data => {
       VexTabStore.update(data.id, {
-        loading: true, progress: 6, pendingUrl: data.url || '', blocked: 0, themeColor: ''
+        loading: true, progress: 6, pendingUrl: data.url || '', blocked: 0, themeColor: '', readable: false
       });
       // Reading aloud belongs to one article. Navigating away ends it rather
       // than leaving a voice reading a page that is no longer there — but only
@@ -272,6 +272,13 @@
         setTimeout(() => VexUI.offerAutofill(tab).catch(() => {}), 700);
       }
       indexForRecall(tab);
+      // Whether to show the reader icon: asked once the page has settled.
+      setTimeout(async () => {
+        const current = VexTabStore.get(tab.id);
+        if (!current || current.url !== tab.url) return;
+        const readable = await VexReader.readable(tab.id);
+        if (readable !== !!current.readable) VexTabStore.update(tab.id, { readable });
+      }, 700);
       // Passages kept from this page come back marked, as the desktop's
       // highlights do — once the page has had a moment to settle.
       setTimeout(() => {

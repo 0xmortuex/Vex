@@ -1573,6 +1573,35 @@ results.switchToTab = await page.evaluate(async () => {
   return String(VexTabStore.activeId() === first.id) + ' ' + String(document.getElementById('omnibox').hidden);
 });
 
+// The reader icon: the probe tells an article from a page that is not one,
+// and the address pill shows the icon for a tab that has one.
+results.readerIcon = await page.evaluate(async () => {
+  // The probe runs in a document of its own, so the chrome's is not touched.
+  const probe = html => new Promise(resolve => {
+    const frame = document.createElement('iframe');
+    frame.style.display = 'none';
+    frame.onload = () => {
+      const answer = frame.contentWindow.eval(VexReader.READABLE);
+      frame.remove();
+      resolve(answer);
+    };
+    frame.srcdoc = '<!doctype html><body>' + html + '</body>';
+    document.body.appendChild(frame);
+  });
+  const paragraph = '<p>' + 'The harbour master kept a log of every vessel that came in, and some that did not. '.repeat(3) + '</p>';
+  const article = await probe('<article>' + paragraph.repeat(6) + '</article>');
+  const menu = await probe('<p>Home</p><p>About</p><p>Contact us today for a quote on anything at all.</p>');
+  for (const tab of VexTabStore.all()) await VexTabStore.close(tab.id);
+  const tab = await VexTabStore.create('https://read.example/story');
+  VexTabStore.update(tab.id, { url: 'https://read.example/story', loading: false, readable: true });
+  VexUI.renderToolbar();
+  const shown = !document.getElementById('tb-reader').hidden;
+  VexTabStore.update(tab.id, { readable: false });
+  VexUI.renderToolbar();
+  const hidden = document.getElementById('tb-reader').hidden;
+  return [article, menu, shown, hidden].join(' ');
+});
+
 // ── Saving a video ──────────────────────────────────────────────────────────
 // A plain file goes to the download queue; a player built on a blob: URL is
 // found through the playlist its page requested, saved as a stream job whose
@@ -1662,6 +1691,7 @@ const expected = {
   swipeCloses: '2 2 1 true',
   rowSwipeRemoves: '1 true',
   switchToTab: 'true true',
+  readerIcon: 'true false true true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,

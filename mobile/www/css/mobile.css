@@ -260,6 +260,13 @@ body.private .tabstrip-tab, body.private .tabstrip-new { color: #fff; }
   background: var(--vex-accent-dim); color: var(--vex-accent);
 }
 .urlpill-shield svg { width: 11px; height: 11px; stroke-width: 2.2; }
+/* Shown when the page has an article to read, as Samsung shows its own. */
+.urlpill-reader {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 22px; border-radius: 9px; color: var(--vex-accent);
+}
+.urlpill-reader[hidden] { display: none; }
+.urlpill-reader svg { width: 15px; height: 15px; }
 
 body.private .toolbar { background-color: var(--vex-accent); }
 body.private .tb-btn, body.private .tb-tabs { color: #fff; }

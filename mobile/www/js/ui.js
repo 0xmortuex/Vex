@@ -294,6 +294,9 @@ const VexUI = (() => {
 
     document.body.classList.toggle('private', !!(tab && tab.incognito));
 
+    // The reader icon, when the page has an article in it.
+    $('tb-reader').hidden = !(live && tab && tab.readable && !tab.loading);
+
     const blocked = tab ? tab.blocked : 0;
     $('tb-shield').hidden = !blocked;
     $('tb-shield-count').textContent = String(blocked);
@@ -1335,6 +1338,10 @@ const VexUI = (() => {
         if (!tab || !tab.url || tab.url === 'about:blank') return;
         event.stopPropagation();
         VexSheets.site(VexSearch.prettyHost(tab.url));
+      });
+      $('tb-reader').addEventListener('click', event => {
+        event.stopPropagation();
+        VexViews.openReader();
       });
       $('tb-shield').addEventListener('click', event => {
         const tab = VexTabStore.active();
