@@ -91,6 +91,7 @@ const VexViews = (() => {
   const agentSteps = [];
 
   function renderAgent() {
+    if (!$('vex-chat-log')) return;          // the panel was closed mid-run
     const log = clear($('vex-chat-log'));
     if (!agentSteps.length) {
       const empty = el('div', 'list-empty');
@@ -141,6 +142,9 @@ const VexViews = (() => {
   let streaming = '';
 
   function renderChat() {
+    // Closed (or switched to another panel) while an answer was still coming:
+    // there is nothing to draw into, and every token would throw.
+    if (!$('vex-chat-log')) return;
     const log = clear($('vex-chat-log'));
     if (!VexAI.state.messages.length && !streaming) {
       const empty = el('div', 'list-empty');
@@ -168,6 +172,7 @@ const VexViews = (() => {
 
     const last = VexAI.state.messages[VexAI.state.messages.length - 1];
     const suggest = clear($('vex-chat-suggest'));
+    if (!suggest) return;
     const followUps = last && last.role === 'assistant' ? (last.followUps || []) : [];
     for (const followUp of followUps) {
       suggest.appendChild(el('button', { class: 'chip', onclick: () => ask(followUp) }, followUp));
