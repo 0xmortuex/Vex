@@ -401,10 +401,21 @@ results.pdfLong = await page.evaluate(async base64 => {
   await wait(1500);
   const after = box.querySelector('.pdf-page[data-page="60"]').offsetWidth;
   const sharp = box.querySelector('.pdf-page[data-page="60"] canvas');
+  // Pinch out to twice the spread: twice the scale, once the fingers lift.
+  const touch = (x, identifier) => new Touch({ identifier, target: box, clientX: x, clientY: 300 });
+  const fire = (type, touches) => box.dispatchEvent(new TouchEvent(type, {
+    touches, targetTouches: touches, changedTouches: touches, bubbles: true, cancelable: true
+  }));
+  const pinchFrom = VexPdf.state.scale;
+  fire('touchstart', [touch(150, 1), touch(250, 2)]);
+  fire('touchmove', [touch(100, 1), touch(300, 2)]);
+  const stretched = box.style.transform;
+  fire('touchend', []);
+  const pinched = Math.round(VexPdf.state.scale / pinchFrom * 10) / 10;
   VexPdf.close();
   VexBridge.fetchFile = realFetch;
   return [slots, nearTop > 0 && nearTop < 15, firstDrawn, lastDrawn, firstGiven, atBottom < 15,
-    Math.round(after / before * 10) / 10, !!sharp].join(' ');
+    Math.round(after / before * 10) / 10, !!sharp, stretched, pinched, box.style.transform === ''].join(' ');
 }, manyPagePdf(60));
 
 // ── Backup ──────────────────────────────────────────────────────────────────
@@ -1803,7 +1814,7 @@ const expected = {
   switchToTab: 'true true',
   readerIcon: 'true false true true',
   readingOffline: 'true true',
-  pdfLong: '60 true true true true true 1.5 true',
+  pdfLong: '60 true true true true true 1.5 true scale(2) 2 true',
   tabHistory: 'Three,One,All history -3 true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',

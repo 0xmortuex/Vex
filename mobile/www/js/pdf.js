@@ -151,9 +151,14 @@ const VexPdf = (() => {
   }
 
   /** Zoom: every slot scales with it, and what is on screen is drawn again. */
-  async function rescale(from, to) {
+  async function rescale(from, to, anchor) {
     generation++;
     const factor = to / from;
+    // Keep the point under your fingers (or the middle of the screen, for the
+    // buttons) where it was, rather than flinging you to another page.
+    const box = $('pdf-pages');
+    const at = anchor || { x: box.clientWidth / 2, y: box.clientHeight / 2 };
+    const content = { x: box.scrollLeft + at.x, y: box.scrollTop + at.y };
     for (const slot of $('pdf-pages').children) {
       sizeSlot(slot, { width: parseFloat(slot.style.width) * factor, height: parseFloat(slot.style.height) * factor });
     }
@@ -163,7 +168,56 @@ const VexPdf = (() => {
       const canvas = slot.querySelector('canvas');
       if (canvas) drawn.delete(Number(slot.dataset.page));
     }
+    box.scrollLeft = Math.max(0, content.x * factor - at.x);
+    box.scrollTop = Math.max(0, content.y * factor - at.y);
     watch();
+  }
+
+  const MIN_SCALE = 0.5;
+  const MAX_SCALE = 4;
+
+  function zoomTo(next, anchor) {
+    const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
+    if (Math.abs(clamped - state.scale) < 0.01) return;
+    const from = state.scale;
+    state.scale = clamped;
+    rescale(from, clamped, anchor);
+  }
+
+  // Pinch: the pages are stretched with a transform while the fingers move,
+  // which is free, and drawn again at the new scale when they lift.
+  function bindPinch(box) {
+    let start = null;
+    const spread = touches => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+    box.addEventListener('touchstart', event => {
+      if (event.touches.length !== 2) return;
+      const rect = box.getBoundingClientRect();
+      start = {
+        distance: spread(event.touches) || 1,
+        ratio: 1,
+        anchor: {
+          x: (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left,
+          y: (event.touches[0].clientY + event.touches[1].clientY) / 2 - rect.top
+        }
+      };
+      box.style.transformOrigin = start.anchor.x + 'px ' + start.anchor.y + 'px';
+    }, { passive: true });
+    box.addEventListener('touchmove', event => {
+      if (!start || event.touches.length !== 2) return;
+      event.preventDefault();
+      const wanted = state.scale * spread(event.touches) / start.distance;
+      start.ratio = Math.max(MIN_SCALE, Math.min(MAX_SCALE, wanted)) / state.scale;
+      box.style.transform = 'scale(' + start.ratio + ')';
+    }, { passive: false });
+    const end = event => {
+      if (!start || event.touches.length >= 2) return;
+      const { ratio, anchor } = start;
+      start = null;
+      box.style.transform = '';
+      zoomTo(state.scale * ratio, anchor);
+    };
+    box.addEventListener('touchend', end);
+    box.addEventListener('touchcancel', end);
   }
 
   function setCount() {
@@ -234,13 +288,7 @@ const VexPdf = (() => {
       VexUI.cover(false);
     },
 
-    zoom(by) {
-      const next = Math.max(0.5, Math.min(4, state.scale + by));
-      if (next === state.scale) return;        // already at the end of the range
-      const from = state.scale;
-      state.scale = next;
-      rescale(from, next);
-    },
+    zoom(by) { zoomTo(state.scale + by); },
 
     download() {
       const tab = VexTabStore.active();
@@ -258,6 +306,7 @@ const VexPdf = (() => {
       $('pdf-out').onclick = () => this.zoom(-0.25);
       $('pdf-download').onclick = () => this.download();
       $('pdf-share').onclick = () => this.share();
+      bindPinch($('pdf-pages'));
       // Which page you are on, from where you have scrolled to.
       $('pdf-pages').addEventListener('scroll', () => {
         const pages = [...$('pdf-pages').children];
