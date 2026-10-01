@@ -116,14 +116,25 @@ const VexTools = (() => {
       // page as it looked, and that is a document, not a program.
       const { result } = await VexBridge.evaluate(tab.id, `(function(){
   var copy = document.documentElement.cloneNode(true);
-  var scripts = copy.querySelectorAll('script');
-  for (var i = 0; i < scripts.length; i++) scripts[i].parentNode.removeChild(scripts[i]);
+  // Everything that runs or loads a live document, not only <script>: a frame
+  // or an embed is a page of its own, a <base> moves every link, and a meta
+  // refresh navigates by itself.
+  var gone = copy.querySelectorAll('script, iframe, frame, frameset, object, embed, applet, base, '
+    + 'meta[http-equiv], portal, link[rel=import], link[rel=preload], link[rel=modulepreload]');
+  for (var i = 0; i < gone.length; i++) if (gone[i].parentNode) gone[i].parentNode.removeChild(gone[i]);
+  var URLISH = /^(href|src|action|formaction|xlink:href|data|poster|background|srcset|ping)$/i;
   var all = copy.querySelectorAll('*');
   for (var j = 0; j < all.length; j++) {
     var names = [];
     for (var k = 0; k < all[j].attributes.length; k++) {
       var name = all[j].attributes[k].name;
-      if (name.slice(0, 2).toLowerCase() === 'on') names.push(name);
+      var value = all[j].attributes[k].value || '';
+      // on* handlers, srcdoc (a document in an attribute), and any address
+      // that is really a script: javascript:, vbscript:, or an HTML data: URL.
+      if (name.slice(0, 2).toLowerCase() === 'on' || name.toLowerCase() === 'srcdoc'
+        || (URLISH.test(name) && /^(javascript|vbscript|data:text\\/html)/i.test(value.replace(/[\\u0000-\\u0020]/g, '')))) {
+        names.push(name);
+      }
     }
     for (var n = 0; n < names.length; n++) all[j].removeAttribute(names[n]);
   }

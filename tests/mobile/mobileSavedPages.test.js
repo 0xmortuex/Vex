@@ -70,6 +70,25 @@ describe('what gets saved', () => {
     expect(html).toContain('Tap');
   });
 
+  it('takes out every other way a saved page could run as its site', async () => {
+    pageOf('<a href="javascript:steal()">one</a><a href=" JaVaScRiPt:steal()">two</a>'
+      + '<a href="https://ok.example/">fine</a>'
+      + '<iframe src="https://x.example/"></iframe><iframe srcdoc="<script>steal()</script>"></iframe>'
+      + '<object data="x.swf"></object><embed src="x.swf">'
+      + '<form action="javascript:steal()"><button formaction="javascript:steal()">go</button></form>'
+      + '<img src="data:text/html,<script>steal()</script>">'
+      + '<svg><a xlink:href="javascript:steal()"><text>svg</text></a></svg>');
+    document.head.innerHTML += '<base href="https://evil.example/"><meta http-equiv="refresh" content="0;url=https://evil.example/">';
+    await VexTools.savePage(tab);
+    const html = rows.pagehtml[0].html;
+    expect(html).not.toMatch(/javascript:/i);
+    expect(html).not.toMatch(/<iframe|<object|<embed|<base|http-equiv|srcdoc|data:text\/html/i);
+    // Ordinary links and the words survive.
+    expect(html).toContain('href="https://ok.example/"');
+    expect(html).toContain('one');
+    expect(html).toContain('svg');
+  });
+
   it('keeps the document shape, so it renders as it looked', async () => {
     pageOf('<h1>Heading</h1><img src="/pic.png"><p>Body</p>');
     await VexTools.savePage(tab);
