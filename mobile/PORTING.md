@@ -72,7 +72,8 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Private tabs | ✅ | Own WebView profile on WebView 116+; older devices share the cookie jar and only get "nothing written to history" |
 | Session restore | ✅ | Tabs, the front tab, and scroll position |
 | Find in page | ✅ | `WebView.findAllAsync` |
-| Reader | ✅ | Extraction runs in the page; rendered as text nodes in the chrome's own type |
+| Reader | ✅ | Extraction runs in the page; rendered as text nodes in the chrome's own type, with the typeface, measure, spacing and paper you choose |
+| Read a page aloud | ✅ | Android's TextToSpeech on the article the reader already has, a paragraph per utterance. Stops when you leave Vex rather than running a foreground service |
 | Print / save as PDF | ✅ | The system print dialog, which is also Android's Save-as-PDF |
 | Downloads | ✅ basic | DownloadManager; the desktop's rename/foldering rules are not ported |
 | Long-press link and image menus | ✅ | `HitTestResult` → a bottom sheet |
@@ -115,7 +116,7 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Desktop | Status | Note |
 |---|---|---|
 | Cloud AI assistant | ✅ | Same request shape as the desktop, so one worker serves both. Page text comes from the reader's extraction; private tabs never send any |
-| Translate | ✅ | Through your own worker, with the web translator as the fallback it names |
+| Translate | ✅ better | ML Kit's models on the device: the page is rewritten in place, offline once a language is downloaded, with nothing sent anywhere. Your own worker is the fallback for a language pair ML Kit does not have, and the web translator behind that |
 | Summarize / translate / explain | ✅ | The worker's own actions |
 | Local AI (Ollama, WebGPU) | ✅ by another route | Not these two — LiteRT-LM with a .litertlm model, plus Gemini Nano for summaries. See blocker 4 |
 | Agent acting on tabs | ✅ | The desktop's own agent protocol and tool loop: navigate, click, type, read, list and close tabs. Every step is shown, `risky` steps ask first, ten steps and it stops |
