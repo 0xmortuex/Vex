@@ -5,8 +5,10 @@ real pages rendered by Android's system WebView, and a native layer doing the
 work Electron's main process does on the desktop.
 
 It is not a release, but it builds: CI assembles a debug APK on every push and
-leaves it as an artifact (4.4 MB, Gradle 8.14.3, AGP 8.13, compileSdk 36), with
-`lintDebug` clean. It has never been installed on a phone — that is the next
+leaves it as an artifact and on a draft release (29 MB, arm64 only, Gradle
+8.14.3, AGP 8.13, compileSdk 36, minSdk 26), with `lintDebug` clean and failing
+the build when it is not. Most of that 29 MB is LiteRT-LM's inference engine;
+the chrome is about four. It has never been installed on a phone — that is the next
 thing that has to happen, and **The first run on a real device** below is the
 list to walk.
 [PORTING.md](PORTING.md) says, feature by feature, what the desktop browser can

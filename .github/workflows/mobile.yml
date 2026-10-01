@@ -116,9 +116,9 @@ jobs:
       # The two on-device AI libraries live on Google's Maven, which the machine
       # this is written on cannot reach, so they are declared as latest.release
       # until a build says what that is. This prints it, to be pinned.
-      # Which versions latest.release actually resolved to. They go into the
-      # release notes as well as the log, because an APK without the versions it
-      # was built against is an APK nobody can reason about later.
+      # The versions are pinned now, so this is no longer a question — but an APK
+      # without the versions it was built against is one nobody can reason about
+      # later, so the notes keep saying.
       - name: On-device AI versions
         working-directory: mobile/android
         run: |

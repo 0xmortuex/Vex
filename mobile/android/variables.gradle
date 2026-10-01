@@ -25,10 +25,11 @@ ext {
     androidxEspressoCoreVersion = '3.7.0'
     cordovaAndroidVersion = '14.0.1'
     // On-device AI. Both live on Google's Maven, which is unreachable from the
-    // machine this is written on, so these start as dynamic versions: the first
-    // CI build prints what they resolved to (see the "On-device AI versions"
-    // step) and they get pinned to it. A guessed version is how
-    // androidx.biometric:1.4.0 — which does not exist — reached a build.
-    litertLmVersion = 'latest.release'
-    mlkitGenAiVersion = 'latest.release'
+    // machine this is written on, so these went in as latest.release for exactly
+    // as long as it took a build to say what that resolved to — these are those
+    // numbers, from run 25. A guessed version is how androidx.biometric:1.4.0,
+    // which does not exist, once reached a build; a dynamic version is how two
+    // machines build different apps from the same commit.
+    litertLmVersion = '0.17.1'
+    mlkitGenAiVersion = '1.0.0-beta1'
 }
