@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.35.1 (2026-10-02) — A backup before every update, and smaller updates
+
+### Updates
+- **Your data is backed up before every update.** When you press Update now, Vex saves the same backup Settings › Backup makes before it closes to install. It keeps the last three, and Settings › Backup lists them as "Before updating to X" with a Restore button (it asks first, and can be undone). If the backup cannot be made, nothing installs until you choose Install anyway or Cancel.
+- **Smaller updates.** Vex keeps the installer of the version you run, and the next update downloads only the parts that changed (from 2.34.5 to 2.35.0 that would have been about 62 MB instead of 235 MB). The finished file is still checked against the release's checksum; if anything about the smaller download does not check out, Vex downloads the whole installer instead. The kept installer takes about 250 MB in Vex's updates folder, and the first update after installing by hand downloads in full.
+
+### For developers
+- docs/SYNC_PROTOCOL.md describes the sync protocol exactly (endpoints, encryption with test vectors, the record format, merging, and the rules another client must follow so it never loses another device's data), for the coming mobile Vex.
+
 ## v2.35.0 (2026-10-01) — Vex updates itself
 
 ### New

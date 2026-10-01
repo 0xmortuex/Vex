@@ -191,11 +191,18 @@ const VexBackup = {
     return 'vex-backup-' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '.json';
   },
 
+  // The whole backup: what collect() reads plus the settings files. Also what
+  // the update cover keeps before an update installs (js/update-notifier.js).
+  async snapshot(include = []) {
+    const data = this.collect(include);
+    data.stores = await this.collectStores();
+    return data;
+  },
+
   // Written through the browser's own download, so it lands in Downloads with
   // the rest and needs no new privilege.
   async save(include = []) {
-    const data = this.collect(include);
-    data.stores = await this.collectStores();
+    const data = await this.snapshot(include);
     const text = JSON.stringify(data, null, 2);
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const a = document.createElement('a');
@@ -240,6 +247,9 @@ const VexBackup = {
       + '<input type="file" id="bk-file" accept="application/json,.json" class="vexsr-input">'
       + '<button id="bk-restore" class="vexsr-x">Restore</button>'
       + '</div>'
+      // Made by Vex itself right before each update installed (update-notifier.js).
+      + '<div id="bk-updates" hidden><div class="vexsr-sub" style="margin-top:12px">Saved before updates — Vex backs up by itself before it installs one, and keeps the last three.</div>'
+      + '<div id="bk-update-list" class="vexsr-list"></div></div>'
       + '<div id="bk-msg" class="vexsr-msg"></div>'
       + '<div class="vexsr-note">Saved logins and authenticator codes are never in the file. They are kept encrypted by Vex itself and cannot be read from here — a backup that contained them would be a password file sitting in your Downloads folder. '
       + 'Restoring replaces what is in Vex now; it can be undone until you close Vex, and Vex has to be restarted for all of it to take.</div>'
@@ -276,35 +286,96 @@ const VexBackup = {
       let data;
       try { data = await this.read(file); }
       catch (err) { msg(err.message, true); return; }
-      const seen = this.describe(data);
-      if (!seen) { msg('That is not a Vex backup file', true); return; }
-      const when = seen.when ? seen.when.toLocaleString() : 'an unknown date';
-      const ok = (typeof vexConfirm === 'function') ? await vexConfirm({
-        title: 'Restore this backup?',
-        message: 'It holds ' + seen.count + ' things, saved on ' + when + (seen.app ? ' by Vex ' + seen.app : '') + '.'
-          + (seen.chats ? '\n\nIt includes AI conversations.' : '')
-          + '\n\nThis replaces what is in Vex now. You can undo it until you close Vex.',
-        okLabel: 'Restore', cancelLabel: 'Cancel', danger: true,
-      }) : true;
-      if (!ok) return;
-      try {
-        const r = this.apply(data);
-        this._undoStores = null;
-        r.written += await this.applyStores(data);
-        this._reloadLive();
-        msg('Restored ' + r.written + ' things' + (r.failed ? ' — ' + r.failed + ' were skipped' : '') + '. Restart Vex for all of it to take.');
-        const undo = document.createElement('button');
-        undo.className = 'vexsr-x';
-        undo.style.marginTop = '8px';
-        undo.textContent = 'Undo the restore';
-        undo.addEventListener('click', async () => {
-          try { this.undo(); await this.undoStores(); this._reloadLive(); msg('Put back the way it was. Restart Vex.'); undo.remove(); }
-          catch (err) { msg(err.message, true); }
-        });
-        m.querySelector('#bk-msg').after(undo);
-      } catch (err) { msg(err.message, true); }
+      await this._restore(data, m, msg);
     });
+    this._listUpdateBackups(m, msg);
     return m;
+  },
+
+  // The backups Vex made before its updates (src/main/update-backups.js), each
+  // with Restore. Only the main window has them: a private window's Settings
+  // does not list them.
+  async _listUpdateBackups(m, msg) {
+    const api = window.vex && window.vex.updates;
+    if (window.VexTabPolicy?.isPrivateWindow || !api || typeof api.listBackups !== 'function') return;
+    const box = m.querySelector('#bk-updates');
+    const list = m.querySelector('#bk-update-list');
+    let r;
+    try { r = await api.listBackups(); }
+    catch (err) { r = { ok: false, error: err.message }; }
+    if (!m.isConnected) return;
+    list.textContent = '';
+    if (!r || !r.ok) {
+      box.hidden = false;
+      const e = document.createElement('div');
+      e.className = 'vexsr-empty';
+      e.textContent = 'The backups made before updates could not be listed: ' + ((r && r.error) || 'unknown error');
+      list.appendChild(e);
+      return;
+    }
+    if (!r.items.length) return;
+    box.hidden = false;
+    for (const item of r.items) {
+      const row = document.createElement('div');
+      row.className = 'vexsr-rule';
+      row.dataset.backup = item.name;
+      const label = document.createElement('span');
+      label.className = 'vexsr-host';
+      label.textContent = 'Before updating to ' + item.version;
+      const when = document.createElement('span');
+      when.className = 'vexsr-mode';
+      when.textContent = new Date(item.at).toLocaleString() + ' · ' + Math.max(1, Math.round(item.bytes / 1024)) + ' KB';
+      const btn = document.createElement('button');
+      btn.className = 'vexsr-x';
+      btn.textContent = 'Restore';
+      btn.setAttribute('aria-label', 'Restore the backup made before updating to ' + item.version);
+      btn.addEventListener('click', async () => {
+        let got;
+        try { got = await api.readBackup(item.name); }
+        catch (err) { got = { ok: false, error: err.message }; }
+        if (!got || !got.ok) { msg('That backup could not be read: ' + ((got && got.error) || 'unknown error'), true); return; }
+        let data;
+        try { data = JSON.parse(got.text); }
+        catch { msg('That backup is not readable as a Vex backup', true); return; }
+        await this._restore(data, m, msg);
+      });
+      row.append(label, when, btn);
+      list.appendChild(row);
+    }
+  },
+
+  // Restore a backup's contents after asking, with Undo — from a chosen file
+  // or from one of the backups made before an update.
+  async _restore(data, m, msg) {
+    const seen = this.describe(data);
+    if (!seen) { msg('That is not a Vex backup file', true); return; }
+    const when = seen.when ? seen.when.toLocaleString() : 'an unknown date';
+    const ok = (typeof vexConfirm === 'function') ? await vexConfirm({
+      title: 'Restore this backup?',
+      message: 'It holds ' + seen.count + ' things, saved on ' + when + (seen.app ? ' by Vex ' + seen.app : '') + '.'
+        + (seen.chats ? '\n\nIt includes AI conversations.' : '')
+        + '\n\nThis replaces what is in Vex now. You can undo it until you close Vex.',
+      okLabel: 'Restore', cancelLabel: 'Cancel', danger: true,
+    }) : true;
+    if (!ok) return;
+    try {
+      const r = this.apply(data);
+      this._undoStores = null;
+      r.written += await this.applyStores(data);
+      this._reloadLive();
+      msg('Restored ' + r.written + ' things' + (r.failed ? ' — ' + r.failed + ' were skipped' : '') + '. Restart Vex for all of it to take.');
+      m.querySelector('#bk-undo')?.remove();
+      const undo = document.createElement('button');
+      undo.id = 'bk-undo';
+      undo.className = 'vexsr-x';
+      undo.style.marginTop = '8px';
+      undo.textContent = 'Undo the restore';
+      undo.addEventListener('click', async () => {
+        try { this.undo(); await this.undoStores(); this._reloadLive(); msg('Put back the way it was. Restart Vex.'); undo.remove(); }
+        catch (err) { msg(err.message, true); }
+      });
+      m.querySelector('#bk-msg').after(undo);
+    } catch (err) { msg(err.message, true); }
   },
 };
 

@@ -6112,6 +6112,28 @@ ipcMain.handle('updates:install', async (event, version) => {
   win.close();
   return { ok: true };
 });
+// The backup made right before an update installs (src/main/update-backups.js):
+// the same file Settings › Backup saves, kept in userData/backups (newest 3),
+// and listed there with a Restore button (js/backup.js).
+const _updateBackups = require('./main/update-backups').createUpdateBackups({ fs, dir: path.join(app.getPath('userData'), 'backups') });
+ipcMain.handle('updates:backup-save', (event, version, text) => {
+  _updatesFromMainWindow(event);
+  try {
+    const saved = _updateBackups.save(version, text);
+    console.log('[Updates] backup before the update saved:', saved.file, saved.bytes, 'bytes', saved.removed.length ? '(removed ' + saved.removed.join(', ') + ')' : '');
+    return { ok: true, name: saved.name, bytes: saved.bytes };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('updates:backups', (event) => {
+  _updatesFromMainWindow(event);
+  try { return { ok: true, items: _updateBackups.list() }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('updates:backup-read', (event, name) => {
+  _updatesFromMainWindow(event);
+  try { return { ok: true, text: _updateBackups.read(name) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('get-app-version', () => app.getVersion());
 // Open an http(s) URL in the system's default browser (used by the "What's New"
 // modal so GitHub renders properly instead of in an in-app window).

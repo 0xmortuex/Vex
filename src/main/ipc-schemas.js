@@ -16,6 +16,11 @@ define('extensions:install-catalog', [string(60)]);
 const version = value => typeof value === 'string' && /^\d{1,5}\.\d{1,5}\.\d{1,5}[0-9A-Za-z.+-]{0,40}$/.test(value);
 define('updates:upcoming-notes updates:download updates:install', [version]);
 define('updates:cancel', []);
+// The backup made before an update (src/main/update-backups.js): the version
+// it is named after and the backup file's text; then listed and read back by name.
+define('updates:backup-save', [version, string(10 * 1024 * 1024)]);
+define('updates:backups', []);
+define('updates:backup-read', [string(120)]);
 define('file:inspect', [string(4096), optional(string(4096))]);
 define('archive:list', [string(4096)]);
 define('downloads:set-rules', [value => Array.isArray(value) && value.length <= 50 && value.every(object)]);

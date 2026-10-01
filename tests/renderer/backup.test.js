@@ -131,3 +131,67 @@ describe('the screen', () => {
     expect(document.querySelector('#bk-msg').textContent).toMatch(/Choose a backup file/);
   });
 });
+
+// The backups Vex makes by itself before an update (update-notifier.js,
+// src/main/update-backups.js) are listed here, each with Restore — the same
+// restore, with the same question and the same Undo.
+describe('saved before updates', () => {
+  const flush = () => new Promise(r => setTimeout(r, 0));
+  const saved = { v: 1, at: '2026-10-01T12:05:09.000Z', app: '2.35.0', items: { 'vex.theme': 'before-update-theme', 'vex.notes': '[{"t":"old note"}]' }, stores: {} };
+  beforeEach(() => {
+    delete window.VexTabPolicy;
+    window.vex = { updates: {
+      listBackups: vi.fn(async () => ({ ok: true, items: [
+        { name: 'before-2.35.1-2026-10-01-140509.json', version: '2.35.1', at: new Date(2026, 9, 1, 14, 5, 9).getTime(), bytes: 4096 },
+        { name: 'before-2.35.0-2026-09-30-090000.json', version: '2.35.0', at: new Date(2026, 8, 30, 9).getTime(), bytes: 2048 },
+      ] })),
+      readBackup: vi.fn(async () => ({ ok: true, text: JSON.stringify(saved) })),
+    } };
+    globalThis.vexConfirm = vi.fn(async () => true);
+  });
+
+  it('lists them, newest first, as "Before updating to X"', async () => {
+    VexBackup.open();
+    await flush();
+    const rows = [...document.querySelectorAll('#bk-update-list [data-backup]')];
+    expect(document.getElementById('bk-updates').hidden).toBe(false);
+    expect(rows.map(r => r.querySelector('.vexsr-host').textContent)).toEqual(['Before updating to 2.35.1', 'Before updating to 2.35.0']);
+    expect(rows[0].querySelector('.vexsr-mode').textContent).toMatch(/· 4 KB$/);
+    expect(rows[0].querySelector('button').getAttribute('aria-label')).toBe('Restore the backup made before updating to 2.35.1');
+  });
+
+  it('Restore asks first, puts it back, and can be undone', async () => {
+    VexBackup.open();
+    await flush();
+    document.querySelector('[data-backup="before-2.35.1-2026-10-01-140509.json"] button').click();
+    await flush(); await flush();
+    expect(window.vex.updates.readBackup).toHaveBeenCalledWith('before-2.35.1-2026-10-01-140509.json');
+    expect(vexConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Restore this backup?', danger: true }));
+    expect(vexConfirm.mock.calls[0][0].message).toMatch(/It holds 2 things, saved on .* by Vex 2\.35\.0\./);
+    expect(localStorage.getItem('vex.theme')).toBe('before-update-theme');
+    expect(document.querySelector('#bk-msg').textContent).toMatch(/Restored 2 things/);
+    document.getElementById('bk-undo').click();
+    await flush();
+    expect(localStorage.getItem('vex.theme')).toBe('oxford');
+  });
+
+  it('nothing to list: the section stays hidden; a list that fails says so', async () => {
+    window.vex.updates.listBackups = vi.fn(async () => ({ ok: true, items: [] }));
+    VexBackup.open();
+    await flush();
+    expect(document.getElementById('bk-updates').hidden).toBe(true);
+    window.vex.updates.listBackups = vi.fn(async () => ({ ok: false, error: 'EACCES' }));
+    VexBackup.open();
+    await flush();
+    expect(document.getElementById('bk-updates').hidden).toBe(false);
+    expect(document.getElementById('bk-update-list').textContent).toMatch(/could not be listed: EACCES/);
+  });
+
+  it('a private window does not ask for them', async () => {
+    window.VexTabPolicy = { isPrivateWindow: true };
+    VexBackup.open();
+    await flush();
+    expect(window.vex.updates.listBackups).not.toHaveBeenCalled();
+    expect(document.getElementById('bk-updates').hidden).toBe(true);
+  });
+});
