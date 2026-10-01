@@ -119,6 +119,27 @@ const VexAI = (() => {
      * page is read, because the answer decides whether a private tab may be read
      * at all.
      */
+    /**
+     * Why nothing can take a question, in words that say what to do. Gemini
+     * Nano is the usual surprise: switched on, it summarises, proofreads and
+     * rewrites — the three jobs Android exposes — but it does not chat, so
+     * with no downloaded model and no worker a question has nowhere to go.
+     */
+    whyNoChat() {
+      const local = typeof VexLocalAI !== 'undefined' ? VexLocalAI : null;
+      const nano = !!(local && local.nanoMode() && local.state.nano === 'available');
+      const hasModel = !!(local && Object.keys(local.state.models || {}).length);
+      const parts = [];
+      if (nano) parts.push('Gemini Nano on this phone can summarise, proofread and rewrite, but it can’t chat.');
+      if (local && local.mode() !== 'off' && hasModel) {
+        parts.push('A model is downloaded but not in use — choose it in Settings → Assistant → On-device AI.');
+      }
+      parts.push('To ask questions, download a model in Settings → Assistant → On-device AI (Gemma 3 1B is the '
+        + 'smallest, about 0.6 GB) — or add your AI worker in Settings → Assistant.');
+      if (nano) parts.push('“Summarise this page” works now, on the phone.');
+      return parts.join(' ');
+    },
+
     staysHere(action) {
       if (typeof VexLocalAI === 'undefined') return false;
       return VexLocalAI.nanoHandles(action) || VexLocalAI.handles(action);
@@ -179,6 +200,10 @@ const VexAI = (() => {
           return local;
         }
 
+        // Nothing here took it and there is no worker to send it to: say so
+        // in words that help, rather than "add your worker URL".
+        if (!(await this.configured())) throw new Error(this.whyNoChat());
+
         const result = await call(Object.assign({
           action: options.action || 'chat',
           message: question,
@@ -208,7 +233,11 @@ const VexAI = (() => {
         });
         return answer;
       } catch (err) {
-        if (!silent) state.messages.push({ role: 'error', text: err.message, at: Date.now() });
+        // The same failure twice in a row is one bubble, not a wall of them.
+        const last = state.messages[state.messages.length - 1];
+        if (!silent && !(last && last.role === 'error' && last.text === err.message)) {
+          state.messages.push({ role: 'error', text: err.message, at: Date.now() });
+        }
         throw err;
       } finally {
         state.busy = false;

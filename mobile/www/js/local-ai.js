@@ -119,23 +119,30 @@ const VexLocalAI = (() => {
     return message + about;
   }
 
+  // Asking is not a change. The On-device AI page redraws when this module
+  // says something changed, and drawing it asks for the status — so saying
+  // "changed" after every ask made the page redraw itself twice a second for
+  // as long as it was open (seen on a Galaxy S25: the page jumping and the
+  // Gemini Nano section blinking out). Only a real difference is announced.
   async function refresh() {
     // Asking is not an operation that can fail usefully: no answer is "nothing".
     const status = await VexBridge.localAI('status', {}).catch(() => ({}));
+    const before = JSON.stringify([state.supported, state.loaded, state.busy, state.model, state.backend, state.models]);
     state.supported = !!(status && status.supported);
     state.loaded = !!(status && status.loaded);
     state.busy = !!(status && status.busy);
     state.model = (status && status.model) || '';
     state.backend = (status && status.backend) || '';
     state.models = (status && status.models) || {};
-    changed();
+    if (JSON.stringify([state.supported, state.loaded, state.busy, state.model, state.backend, state.models]) !== before) changed();
     return state;
   }
 
   async function refreshNano() {
     const result = await VexBridge.localAI('nanoStatus', {}).catch(() => ({}));
+    const before = state.nano;
     state.nano = (result && result.status) || 'unavailable';
-    changed();
+    if (state.nano !== before) changed();
     return state.nano;
   }
 

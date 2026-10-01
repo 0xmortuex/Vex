@@ -248,6 +248,9 @@ const VexViews = (() => {
     }
     streaming = '';
     renderChat();
+    // Nothing could take the question: offer what can be done instead.
+    const last = VexAI.state.messages[VexAI.state.messages.length - 1];
+    if (last && last.role === 'error' && last.text === VexAI.whyNoChat()) VexViews.offerWhatWorks();
   }
 
   function chatLayout() {
@@ -422,21 +425,36 @@ const VexViews = (() => {
       const local = mode !== 'agent' && VexAI.staysHere('chat');
       if (!local && !(await VexAI.configured())) {
         if (mode === 'agent') {
-          agentSteps.push({ kind: 'error', text: 'No assistant configured yet. Settings → Assistant takes a '
-            + 'worker URL and an access token.' });
+          const why = '“Do it” needs your AI worker — Settings → Assistant takes its URL and access token. '
+            + 'It is never handed to an on-device model, which cannot run its tool loop reliably.';
+          const last = agentSteps[agentSteps.length - 1];
+          if (!(last && last.kind === 'error' && last.text === why)) agentSteps.push({ kind: 'error', text: why });
           renderAgent();
           return;
         }
-        VexAI.state.messages.push({
-          role: 'error',
-          text: 'No assistant configured yet. Settings → Assistant takes a worker URL and an access '
-            + 'token — the same Cloudflare Worker the desktop app uses (see SELF_HOSTING.md).',
-          at: Date.now()
-        });
+        // Said once, however often the panel is opened: it used to add the
+        // same bubble on every open, until the chat was nothing else.
+        const why = VexAI.whyNoChat();
+        const last = VexAI.state.messages[VexAI.state.messages.length - 1];
+        if (!(last && last.role === 'error' && last.text === why)) {
+          VexAI.state.messages.push({ role: 'error', text: why, at: Date.now() });
+        }
         renderChat();
+        this.offerWhatWorks();
         return;
       }
       if (prefill) ask(prefill);
+    },
+
+    /** Buttons for what can be done right now: Nano's summary, and the settings. */
+    offerWhatWorks() {
+      const suggest = $('vex-chat-suggest');
+      if (!suggest) return;
+      clear(suggest);
+      const nano = typeof VexLocalAI !== 'undefined' && VexLocalAI.nanoMode() && VexLocalAI.state.nano === 'available';
+      if (nano) suggest.appendChild(el('button', { class: 'chip', onclick: () => this.summarisePage() }, 'Summarise this page'));
+      suggest.appendChild(el('button', { class: 'chip', onclick: () => VexPanels.localAI() }, 'Get a model'));
+      suggest.appendChild(el('button', { class: 'chip', onclick: () => VexPanels.assistantSettings() }, 'Add a worker'));
     },
 
     askAI: ask,

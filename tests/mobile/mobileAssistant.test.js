@@ -119,7 +119,40 @@ describe('asking a question', () => {
 describe('when it goes wrong', () => {
   it('says what to do when nothing is configured', async () => {
     await VexAI.setWorkerUrl('');
-    await expect(VexAI.ask('hi')).rejects.toThrow(/Worker URL/);
+    await expect(VexAI.ask('hi')).rejects.toThrow(/add your AI worker/);
+  });
+
+  it('with only Gemini Nano, says Nano cannot chat and what can be done instead', async () => {
+    await VexAI.setWorkerUrl('');
+    const had = window.VexLocalAI;
+    window.VexLocalAI = {
+      state: { nano: 'available', models: {} },
+      nanoMode: () => true, mode: () => 'only', insists: () => true,
+      nanoHandles: action => action === 'summarize', handles: () => false
+    };
+    try {
+      const why = VexAI.whyNoChat();
+      expect(why).toMatch(/can’t chat/);
+      expect(why).toMatch(/Gemma 3 1B/);
+      expect(why).toMatch(/Summarise this page/);
+      VexAI.clear();
+      await expect(VexAI.ask('hi')).rejects.toThrow(/can’t chat/);
+      await expect(VexAI.ask('hello?')).rejects.toThrow(/can’t chat/);
+      // Two questions, two question bubbles — but the explanation once at the end
+      // of each, never stacked back to back.
+      const roles = VexAI.state.messages.map(message => message.role);
+      expect(roles).toEqual(['user', 'error', 'user', 'error']);
+    } finally {
+      window.VexLocalAI = had;
+    }
+  });
+
+  it('the same failure twice in a row is one bubble', async () => {
+    await VexAI.setWorkerUrl('');
+    VexAI.clear();
+    await expect(VexAI.ask('', { action: 'summarize', context: null })).rejects.toThrow();
+    await expect(VexAI.ask('', { action: 'summarize', context: null })).rejects.toThrow();
+    expect(VexAI.state.messages.filter(message => message.role === 'error').length).toBe(1);
   });
 
   it('passes the worker’s own error through', async () => {

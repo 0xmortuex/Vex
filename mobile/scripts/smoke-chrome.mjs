@@ -507,6 +507,38 @@ results.lookOff = await page.evaluate(async () => {
     document.getElementById('navbar').hidden, document.getElementById('tb-left').parentElement.id].join(' ');
 });
 
+// The On-device AI page holds still: drawing it asks for the model's status,
+// and an answer that changed nothing used to count as a change — so the page
+// redrew itself twice a second, jumping, with the Gemini Nano section
+// blinking out each time (seen on a Galaxy S25). And the assistant, with
+// nothing that can chat, explains that once however often it is opened.
+results.aiPanelsSteady = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexPanels.localAI();
+  await wait(600);
+  let redraws = 0;
+  // Any node the panel loses while nothing happens is a redraw (clear()
+  // takes them off one at a time).
+  const observer = new MutationObserver(records => { for (const record of records) redraws += record.removedNodes.length; });
+  observer.observe(document.getElementById('panel-body'), { childList: true });
+  await wait(2200);
+  observer.disconnect();
+  VexPanels.close();
+  const realConfigured = VexAI.configured;
+  VexAI.configured = async () => false;
+  VexAI.clear();
+  await VexViews.openAI();
+  VexPanels.close();
+  await VexViews.openAI();
+  await wait(100);
+  const bubbles = document.querySelectorAll('#vex-chat-log .bubble.error').length;
+  const offers = [...document.querySelectorAll('#vex-chat-suggest .chip')].map(chip => chip.textContent).join('|');
+  VexPanels.close();
+  VexAI.configured = realConfigured;
+  VexAI.clear();
+  return [redraws, bubbles, /Get a model/.test(offers) && /Add a worker/.test(offers)].join(' ');
+});
+
 // ── Vex Sync's screens ──────────────────────────────────────────────────────
 // Signed out, the panel asks for the worker, an email and a code; the
 // desktop's notes can be read, edited (the edit keeps every other field and
@@ -1949,6 +1981,7 @@ const expected = {
   readerIcon: 'true false true true',
   readingOffline: 'true true',
   syncScreens: 'true From the PC true true true true',
+  aiPanelsSteady: '0 1 true',
   looks: 'chrome:light:true:n/a:#i-menu:true chrome:dark:true:n/a:#i-menu:true '
     + 'firefox:light:true:n/a:#i-menu:false firefox:dark:true:n/a:#i-menu:false '
     + 'safari:light:true:navbar:#i-more:false safari:dark:true:navbar:#i-more:false '
