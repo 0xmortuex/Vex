@@ -38,20 +38,36 @@ const VexGestures = (() => {
     }, { passive: true });
   }
 
+  /**
+   * A long press, and only a long press.
+   *
+   * The browser synthesises a click on touchend whatever happened in between, so
+   * every element that had both an onclick and a long-press ran both: holding a
+   * tab card opened its menu AND switched to the tab, holding a history row
+   * opened the link sheet AND navigated to it. Preventing the default on the
+   * touchend that ended a long press is what stops that click — which is why the
+   * listener cannot be passive, and why `fired` has to outlive the timer.
+   */
   function longPress(element, handler, delay = 480) {
-    let timer = null, startX = 0, startY = 0;
+    let timer = null, startX = 0, startY = 0, fired = false;
     const cancel = () => { clearTimeout(timer); timer = null; };
     element.addEventListener('touchstart', event => {
       const touch = event.touches[0];
       startX = touch.clientX; startY = touch.clientY;
-      timer = setTimeout(() => { timer = null; handler(); }, delay);
+      fired = false;
+      timer = setTimeout(() => { timer = null; fired = true; handler(); }, delay);
     }, { passive: true });
     element.addEventListener('touchmove', event => {
       const touch = event.touches[0];
       if (Math.abs(touch.clientX - startX) > 12 || Math.abs(touch.clientY - startY) > 12) cancel();
     }, { passive: true });
-    element.addEventListener('touchend', cancel, { passive: true });
-    element.addEventListener('touchcancel', cancel, { passive: true });
+    element.addEventListener('touchend', event => {
+      cancel();
+      if (!fired) return;              // an ordinary tap: let the click through
+      fired = false;
+      if (event.cancelable) event.preventDefault();
+    }, { passive: false });
+    element.addEventListener('touchcancel', () => { cancel(); fired = false; }, { passive: true });
   }
 
   return { swipe, longPress };

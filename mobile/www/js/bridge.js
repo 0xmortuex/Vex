@@ -264,6 +264,21 @@ const VexBridge = (() => {
   const api = {
     get isNative() { return native; },
 
+    /**
+     * Stand in for native, for development and for the walkthrough.
+     *
+     * Every event the chrome reacts to — a page finishing, a download starting, a
+     * page asking for the camera — arrives through emit(), and without a way in
+     * there is no way to drive any of it from a desktop browser. Refused on a
+     * device, where the events are real and a second source of them would be a
+     * way to lie to the chrome.
+     */
+    emitNative(event, payload) {
+      if (native) return false;
+      emit(event, payload || {});
+      return true;
+    },
+
     async init() {
       const capacitor = window.Capacitor;
       native = !!(capacitor && capacitor.isNativePlatform && capacitor.isNativePlatform()
@@ -323,12 +338,21 @@ const VexBridge = (() => {
     evaluate(id, code) { return tabs('evaluate', { id, code }); },
     clearData(options = {}) { return tabs('clearData', options); },
     clearSiteData(host, origin) { return tabs('clearSiteData', { host: host || '', origin: origin || '' }); },
+    // What the chrome decided about a page's request for the camera, the
+    // microphone or your location. Anything not named is denied.
+    answerPermission(requestId, granted) {
+      return tabs('answerPermission', { requestId, granted: granted || [] });
+    },
     capturePage(id, full) { return tabs('capturePage', { id, full: !!full }); },
     downloadStatus() { return tabs('downloadStatus', {}); },
     openDownload(localUri) { return tabs('openDownload', { localUri }); },
     // DownloadManager has no pause: removing it is what cancelling is.
     cancelDownload(id) { return tabs('cancelDownload', { id: String(id) }); },
     openDownloadsFolder() { return tabs('openDownloadsFolder', {}); },
+    // Bytes the chrome read out of a page, written into Downloads.
+    saveData(tabId, filename, mimeType, base64) {
+      return tabs('saveData', { id: tabId, filename, mimeType, base64 });
+    },
     setWindowBackground(color, dark) {
       if (!plugins.VexTabs) return Promise.resolve({});
       return tabs('setWindowBackground', { color, dark: dark !== false });

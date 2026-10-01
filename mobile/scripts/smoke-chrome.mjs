@@ -598,6 +598,51 @@ results.linkSheetRows = await page.$$eval('#sheet-list .sheet-row', rows => rows
 await shot('12-longpress');
 await page.evaluate(() => VexSheets.close());
 
+// ── A page asking for the camera ────────────────────────────────────────────
+// The decision is the chrome's: native waits for an answer, and anything the
+// chrome does not name is denied. Before this existed the WebView handed a page
+// whatever Android had granted Vex, and the site-permissions screen was a list
+// nothing ever wrote to.
+results.permissionDecides = await page.evaluate(async () => {
+  const answered = [];
+  const real = VexBridge.answerPermission.bind(VexBridge);
+  VexBridge.answerPermission = async (requestId, granted) => {
+    answered.push(requestId + ':' + granted.join('+'));
+    return real(requestId, granted);
+  };
+  VexBridge.requestPermission = async () => true;       // Android says yes
+
+  // Remembered as blocked: denied without a word.
+  await VexPermissions.set('deny.example', 'camera', 'block');
+  VexBridge.emitNative('permissionRequest', {
+    id: VexTabStore.activeId(), origin: 'https://deny.example', kinds: 'camera', requestId: 'p1'
+  });
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  // Remembered as allowed: granted without a word.
+  await VexPermissions.set('yes.example', 'microphone', 'allow');
+  VexBridge.emitNative('permissionRequest', {
+    id: VexTabStore.activeId(), origin: 'https://yes.example', kinds: 'microphone', requestId: 'p2'
+  });
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  // Never asked before: a dialog, and what you choose is remembered.
+  VexBridge.emitNative('permissionRequest', {
+    id: VexTabStore.activeId(), origin: 'https://new.example', kinds: 'location', requestId: 'p3'
+  });
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const asked = document.getElementById('dialog').hidden === false
+    && document.getElementById('dialog-message').textContent;
+  document.getElementById('dialog-ok').click();
+  await new Promise(resolve => setTimeout(resolve, 400));
+
+  VexBridge.answerPermission = real;
+  const remembered = VexPermissions.get('new.example', 'location');
+  // Leave the permissions list as it was found: a later check counts its rows.
+  for (const host of ['deny.example', 'yes.example', 'new.example']) await VexPermissions.clearSite(host);
+  return { answered: answered.join(' '), asked, remembered };
+});
+
 // ── How big the interface is ────────────────────────────────────────────────
 // Android's font-size setting reaches a WebView's page text, not a web app's
 // layout, so this is Vex's own answer: one multiplier on the type scale, the
@@ -1169,6 +1214,16 @@ if (String(results.clearDefaults) !== 'true,true,true,false,false,false') {
   failures.push('clearDefaults: the tick boxes do not start where they should (' + results.clearDefaults + ')');
 }
 if (results.clearRows < 9) failures.push('clearRows: the clear panel lost rows (' + results.clearRows + ')');
+if (results.permissionDecides.answered !== 'p1: p2:microphone p3:location') {
+  failures.push('permissionDecides: the answers were ' + results.permissionDecides.answered);
+}
+if (!/new\.example wants to use your location/.test(results.permissionDecides.asked || '')) {
+  failures.push('permissionDecides: it did not ask (' + results.permissionDecides.asked + ')');
+}
+if (results.permissionDecides.remembered !== 'allow') {
+  failures.push('permissionDecides: the answer was not remembered ('
+    + results.permissionDecides.remembered + ')');
+}
 if (results.uiScale.before.scale !== '1' || results.uiScale.after.scale !== '1.4'
   || results.uiScale.back !== '1') {
   failures.push('uiScale: the multiplier did not move (' + JSON.stringify(results.uiScale) + ')');

@@ -105,8 +105,30 @@ const VexTools = (() => {
     // Samsung's "Save page" and the desktop's single-file save.
     async savePage(tab) {
       if (!tab || !tab.url || tab.url === 'about:blank') throw new Error('Open a page first');
-      const { result } = await VexBridge.evaluate(tab.id,
-        "(function(){return '<!DOCTYPE html>' + document.documentElement.outerHTML})()");
+      // The scripts come out, and so do the inline on* handlers.
+      //
+      // Three reasons, in the order they matter. A saved page is read back with
+      // loadDataWithBaseURL, which hands the document the ORIGIN of the site it
+      // came from — so a script in it would run as that site, against the
+      // cookies you have now, possibly months later. Second, a page's scripts
+      // offline mostly fail and replace what you saved with their own error
+      // states. Third, it is smaller. What is wanted from "save this page" is the
+      // page as it looked, and that is a document, not a program.
+      const { result } = await VexBridge.evaluate(tab.id, `(function(){
+  var copy = document.documentElement.cloneNode(true);
+  var scripts = copy.querySelectorAll('script');
+  for (var i = 0; i < scripts.length; i++) scripts[i].parentNode.removeChild(scripts[i]);
+  var all = copy.querySelectorAll('*');
+  for (var j = 0; j < all.length; j++) {
+    var names = [];
+    for (var k = 0; k < all[j].attributes.length; k++) {
+      var name = all[j].attributes[k].name;
+      if (name.slice(0, 2).toLowerCase() === 'on') names.push(name);
+    }
+    for (var n = 0; n < names.length; n++) all[j].removeAttribute(names[n]);
+  }
+  return '<!DOCTYPE html>' + copy.outerHTML;
+})()`);
       let html = typeof result === 'string' ? result : '';
       // evaluate() hands back a JSON string; unwrap it once.
       if (html.startsWith('"')) { try { html = JSON.parse(html); } catch { /* already raw */ } }

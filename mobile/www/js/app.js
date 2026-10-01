@@ -300,6 +300,17 @@
       await VexDB.add('downloads', {
         url: data.url, filename: data.filename || '', size: Number(data.size) || 0, at: Date.now()
       });
+      // A file the page made itself: blob: or data:, which Android's download
+      // manager cannot fetch, so the bytes come out of the page.
+      if (data.local) {
+        const saved = await VexDownloads.saveLocal(data);
+        VexUI.toast(saved.ok
+          ? 'Saved ' + (data.filename || 'the file') + ' to Downloads'
+          : saved.why, saved.ok ? 3000 : 4500, saved.ok
+          ? { label: 'Downloads', run: () => VexPanels.downloads() }
+          : undefined);
+        return;
+      }
       // A .litertlm is an on-device model and nothing else. Vex is the browser
       // you downloaded it in, so offer the one thing you would do with it next.
       if (/\.litertlm$/i.test(data.filename || '')) {
@@ -395,24 +406,51 @@
 
     // A page asked for the camera, the microphone or a location. What it gets
     // is your answer for that site, remembered, and then Android's own.
-    VexBridge.on('permission', async data => {
-      const tab = VexTabStore.get(data.id) || VexTabStore.active();
-      if (!tab) return;
-      const host = VexSearch.prettyHost(tab.url);
-      const kinds = String(data.missing || '').split(',').filter(Boolean);
-      for (const kind of kinds) {
-        const stored = VexPermissions.get(host, kind);
-        if (stored === 'block') continue;
-        const allow = stored === 'allow'
-          || await VexUI.confirm(host + ' wants your ' + kind + '. Allow it?', 'Permission');
-        await VexPermissions.set(host, kind, allow ? 'allow' : 'block');
-        if (allow) {
-          const granted = await VexBridge.requestPermission(kind);
-          VexUI.toast(granted
-            ? 'Allowed — reload the page to use it'
-            : 'Android did not grant the ' + kind + ' to Vex', 3500);
+    /**
+     * A page has asked for the camera, the microphone or your location, and the
+     * WebView is waiting on an answer.
+     *
+     * This is the decision, not a notification about one. Until it existed the
+     * native side handed a page whatever Android had already granted Vex — so
+     * any site could turn the camera on without a word, and the site-permissions
+     * screen was a list nothing ever wrote to.
+     *
+     * The answer has to come back whatever happens, or the page's promise never
+     * settles, which is why the whole body is wrapped and the reply is in the
+     * finally.
+     */
+    VexBridge.on('permissionRequest', async data => {
+      const kinds = String(data.kinds || '').split(',').filter(Boolean);
+      const granted = [];
+      try {
+        // The origin the WebView reports is the one that asked; the tab's URL is
+        // only a fallback, because a frame can ask on a page's behalf.
+        const tab = VexTabStore.get(data.id) || VexTabStore.active();
+        const host = VexSearch.prettyHost(data.origin || '')
+          || (tab ? VexSearch.prettyHost(tab.url) : '');
+        if (!host) return;
+        for (const kind of kinds) {
+          const label = (VexPermissions.KINDS[kind] || { label: kind }).label.toLowerCase();
+          const stored = VexPermissions.get(host, kind);
+          if (stored === 'block') continue;
+          const allow = stored === 'allow'
+            || await VexUI.confirm(host + ' wants to use your ' + label + '.', 'Allow it?');
+          if (stored !== 'allow') await VexPermissions.set(host, kind, allow ? 'allow' : 'block');
+          if (!allow) continue;
+          // Said yes here; Android still has to agree.
+          if (await VexBridge.requestPermission(kind)) granted.push(kind);
+          else VexUI.toast('Android has not given Vex the ' + label, 3500);
         }
+      } finally {
+        await VexBridge.answerPermission(data.requestId, granted);
       }
+    });
+
+    // Native says it could not give a page something the person had allowed,
+    // because Android has not granted it to Vex.
+    VexBridge.on('permission', data => {
+      const kinds = String(data.missing || '').split(',').filter(Boolean);
+      if (kinds.length) VexUI.toast('Android has not given Vex the ' + kinds.join(' or '), 3500);
     });
 
     VexBridge.on('fullscreen', data => {

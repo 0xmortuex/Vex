@@ -69,6 +69,21 @@ public class TabWebView extends WebView {
         void showFullscreen(View view, WebChromeClient.CustomViewCallback callback);
 
         void hideFullscreen();
+
+        /**
+         * A page has asked for the camera, the microphone or your location.
+         *
+         * The answer is the chrome's, not this file's: js/permissions.js keeps a
+         * decision per site, and until this existed it was never consulted — the
+         * WebView handed a page whatever Android had already granted Vex, which
+         * made the site-permissions screen a list nobody wrote to.
+         */
+        void askPermission(String tabId, String origin, java.util.List<String> kinds, PermissionDecision decision);
+    }
+
+    /** What the chrome calls back with: the kinds it decided to allow. */
+    public interface PermissionDecision {
+        void answer(java.util.List<String> granted);
     }
 
     private static final String DESKTOP_UA =
@@ -174,10 +189,13 @@ public class TabWebView extends WebView {
                     link = hit.getExtra();
                     break;
                 case HitTestResult.SRC_IMAGE_ANCHOR_TYPE:
-                    image = hit.getExtra();
-                    // The anchor's href is not in the hit result; ask the page.
-                    requestLinkForImage();
-                    break;
+                    // An image that is also a link: the hit result has the image,
+                    // and the href has to be asked for. Both go in ONE event —
+                    // emitting the image now and the link a moment later gave the
+                    // chrome two sheets, and the second replaced the first and
+                    // took the image's own actions with it.
+                    requestLinkForImage(hit.getExtra());
+                    return true;
                 case HitTestResult.IMAGE_TYPE:
                     image = hit.getExtra();
                     break;
@@ -495,6 +513,19 @@ public class TabWebView extends WebView {
     private static final int SELECTION_MENU_BASE = 0x7e10;
 
     /** Render a saved page: its own HTML, under its own address. */
+    /**
+     * Put HTML on screen under a base URL. Two callers: Vex's own error page,
+     * and a saved page being read back.
+     *
+     * loadDataWithBaseURL gives the document the ORIGIN of its base URL, which
+     * is what makes a saved page's relative images and stylesheets resolve — and
+     * would also let a script in it run as that site against today's cookies.
+     * That is dealt with where it belongs: js/tools.js takes the scripts out
+     * when the page is saved, so there is nothing left to run. Turning
+     * JavaScript off here instead would also turn off the chrome's own
+     * evaluateJavascript, which is how the reader, the selection menu and the
+     * translator reach a page at all.
+     */
     public void loadHtml(String html, String baseUrl) {
         loadDataWithBaseURL(baseUrl == null || baseUrl.isEmpty() ? null : baseUrl,
                 html, "text/html", "utf-8", baseUrl);
@@ -542,19 +573,35 @@ public class TabWebView extends WebView {
         main.postDelayed(retry[0], 180);
     }
 
-    private void requestLinkForImage() {
-        // Best-effort: the chrome's sheet is happier with the enclosing link.
+    /**
+     * The link around an image, best-effort, and then one event carrying both.
+     *
+     * With scripts off for the site there is nobody to ask, and the callback
+     * would never arrive — so the sheet is sent straight away with the image
+     * alone rather than not at all.
+     */
+    private void requestLinkForImage(String image) {
+        final String picture = image == null ? "" : image;
+        if (!getSettings().getJavaScriptEnabled()) {
+            emitLongPress("", picture);
+            return;
+        }
         evaluateJavascript(
                 "(function(){var a=document.activeElement;return a&&a.closest?"
                         + "(a.closest('a')||{}).href||'':'';})()",
                 value -> {
-                    if (value == null || value.length() < 3) return;
-                    JSObject data = new JSObject();
-                    data.put("id", id);
-                    data.put("link", value.replaceAll("^\"|\"$", ""));
-                    data.put("image", "");
-                    host.emit("longPress", data);
+                    String link = value == null ? "" : value.replaceAll("^\"|\"$", "");
+                    if ("null".equals(link) || link.length() < 3) link = "";
+                    emitLongPress(link, picture);
                 });
+    }
+
+    private void emitLongPress(String link, String image) {
+        JSObject data = new JSObject();
+        data.put("id", id);
+        data.put("link", link);
+        data.put("image", image);
+        host.emit("longPress", data);
     }
 
     private static String encodeIcon(Bitmap icon) {
@@ -603,6 +650,7 @@ public class TabWebView extends WebView {
 
     private void startDownload(String url, String userAgent, String contentDisposition, String mimeType, long size) {
         String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
+        String scheme = Uri.parse(url).getScheme();
 
         // A PDF is the one thing a WebView hands straight to the downloader
         // rather than showing, because Android's WebView cannot render one. Vex
@@ -627,7 +675,15 @@ public class TabWebView extends WebView {
         data.put("filename", filename);
         data.put("mimeType", mimeType);
         data.put("size", size);
+        // A file the page made itself — a generated CSV, an exported drawing —
+        // arrives as blob: or data:, and DownloadManager takes neither: it refuses
+        // anything it cannot fetch over the network, so those downloads simply
+        // failed. The chrome reads them out of the page instead and hands the
+        // bytes back to saveBytes(), so the flag has to travel with the event.
+        boolean local = !"http".equals(scheme) && !"https".equals(scheme);
+        data.put("local", local);
         host.emit("download", data);
+        if (local) return;
         try {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setMimeType(mimeType);
@@ -662,6 +718,41 @@ public class TabWebView extends WebView {
             error.put("description", "Download failed: " + ex.getMessage());
             host.emit("error", error);
         }
+    }
+
+    /**
+     * Write bytes into the phone's Downloads folder and return the Uri.
+     *
+     * Two paths, because minSdk is 26: MediaStore from Android 10, where an app
+     * cannot write the public folder directly, and the folder itself before that,
+     * which is what the WRITE_EXTERNAL_STORAGE permission in the manifest is
+     * capped at API 28 for.
+     */
+    public String saveBytes(String filename, String mimeType, byte[] bytes) throws Exception {
+        String name = filename == null || filename.trim().isEmpty() ? "download" : filename.trim();
+        // A name is not a path: a page does not get to choose where this lands.
+        name = name.replace('/', '_').replace('\\', '_');
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            android.content.ContentValues values = new android.content.ContentValues();
+            values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+            if (mimeType != null && !mimeType.isEmpty()) {
+                values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType);
+            }
+            values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+            Uri target = getContext().getContentResolver()
+                    .insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (target == null) throw new java.io.IOException("Downloads is not writable");
+            java.io.OutputStream out = getContext().getContentResolver().openOutputStream(target);
+            if (out == null) throw new java.io.IOException("Downloads is not writable");
+            try { out.write(bytes); } finally { out.close(); }
+            return target.toString();
+        }
+        java.io.File folder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        if (folder != null && !folder.exists()) folder.mkdirs();
+        java.io.File file = new java.io.File(folder, name);
+        java.io.FileOutputStream out = new java.io.FileOutputStream(file);
+        try { out.write(bytes); } finally { out.close(); }
+        return Uri.fromFile(file).toString();
     }
 
     // ── Clients ──────────────────────────────────────────────────────────────
@@ -704,6 +795,21 @@ public class TabWebView extends WebView {
                 Intent intent = scheme.equals("intent")
                         ? Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
                         : new Intent(Intent.ACTION_VIEW, uri);
+                // An intent: URL is written by the page, so everything in it that
+                // could aim it somewhere a web page should not reach is removed.
+                // A component or a selector picked by the page is how an intent:
+                // link becomes a way to start something on your behalf; BROWSABLE
+                // is the category an app declares to say "a web page may open me",
+                // and requiring it is what keeps the rest out. The uri-permission
+                // flags are dropped because granting a page's chosen Uri to
+                // another app is not something a link gets to ask for.
+                intent.setComponent(null);
+                intent.setSelector(null);
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                intent.removeFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 getContext().startActivity(intent);
             } catch (ActivityNotFoundException | java.net.URISyntaxException ex) {
@@ -818,6 +924,16 @@ public class TabWebView extends WebView {
             });
             ((WebView.WebViewTransport) resultMsg.obj).setWebView(relay);
             resultMsg.sendToTarget();
+            // window.open('') with nothing following it leaves this WebView with
+            // no navigation to take and nobody to destroy it — a whole WebView
+            // and the context it holds, per pop-up. Ten seconds is longer than a
+            // transport takes to be used.
+            main.postDelayed(() -> {
+                if (holder[0] != null) {
+                    holder[0].destroy();
+                    holder[0] = null;
+                }
+            }, 10000);
             return true;
         }
 
@@ -833,41 +949,60 @@ public class TabWebView extends WebView {
 
         @Override
         public void onPermissionRequest(PermissionRequest request) {
-            // Grant only what the app itself already holds; anything else is a
-            // deny plus an event, so the chrome can explain why.
-            String[] wanted = request.getResources();
-            java.util.List<String> granted = new java.util.ArrayList<>();
-            java.util.List<String> missing = new java.util.ArrayList<>();
-            for (String resource : wanted) {
-                if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
-                    if (hasPermission(android.Manifest.permission.CAMERA)) granted.add(resource);
-                    else missing.add("camera");
-                } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
-                    if (hasPermission(android.Manifest.permission.RECORD_AUDIO)) granted.add(resource);
-                    else missing.add("microphone");
+            // Two layers have to agree, and this is the first of them: the chrome
+            // decides whether THIS SITE may have it. Android's own grant is
+            // checked again below, because a yes from the person is not a yes
+            // from the system.
+            java.util.List<String> kinds = new java.util.ArrayList<>();
+            for (String resource : request.getResources()) {
+                if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) kinds.add("camera");
+                else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) kinds.add("microphone");
+            }
+            if (kinds.isEmpty()) { request.deny(); return; }
+            String origin = request.getOrigin() == null ? "" : request.getOrigin().toString();
+            host.askPermission(id, origin, kinds, allowed -> {
+                java.util.List<String> resources = new java.util.ArrayList<>();
+                java.util.List<String> missing = new java.util.ArrayList<>();
+                if (allowed.contains("camera")) {
+                    if (hasPermission(android.Manifest.permission.CAMERA)) {
+                        resources.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE);
+                    } else missing.add("camera");
                 }
-            }
-            if (!missing.isEmpty()) {
-                JSObject data = new JSObject();
-                data.put("id", id);
-                data.put("missing", android.text.TextUtils.join(",", missing));
-                host.emit("permission", data);
-            }
-            if (granted.isEmpty()) request.deny();
-            else request.grant(granted.toArray(new String[0]));
+                if (allowed.contains("microphone")) {
+                    if (hasPermission(android.Manifest.permission.RECORD_AUDIO)) {
+                        resources.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE);
+                    } else missing.add("microphone");
+                }
+                if (!missing.isEmpty()) {
+                    JSObject data = new JSObject();
+                    data.put("id", id);
+                    data.put("missing", android.text.TextUtils.join(",", missing));
+                    host.emit("permission", data);
+                }
+                // The callbacks belong to the WebView's own thread.
+                main.post(() -> {
+                    if (resources.isEmpty()) request.deny();
+                    else request.grant(resources.toArray(new String[0]));
+                });
+            });
         }
 
         @Override
         public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-            boolean allowed = hasPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
-                    || hasPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION);
-            callback.invoke(origin, allowed, false);
-            if (!allowed) {
-                JSObject data = new JSObject();
-                data.put("id", id);
-                data.put("missing", "location");
-                host.emit("permission", data);
-            }
+            host.askPermission(id, origin, java.util.Collections.singletonList("location"), allowed -> {
+                boolean ours = hasPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                        || hasPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION);
+                boolean yes = allowed.contains("location") && ours;
+                if (allowed.contains("location") && !ours) {
+                    JSObject data = new JSObject();
+                    data.put("id", id);
+                    data.put("missing", "location");
+                    host.emit("permission", data);
+                }
+                // false, false: not remembered here either. The remembering is
+                // the chrome's, in one place, where you can see and change it.
+                main.post(() -> callback.invoke(origin, yes, false));
+            });
         }
 
         @Override

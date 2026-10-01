@@ -45,7 +45,10 @@ const VexErrors = (() => {
     // access to the chrome's stylesheet, and no network to fetch one.
     html({ url, code, description, hasSaved, offline }) {
       const key = offline ? 'offline' : String(code);
-      const [title, detail] = REASONS[key] || ['That page did not load', escape(description || '')];
+      // Not escaped here: everything below goes through escape() on the way into
+      // the page, and doing it twice turned a "<" in a WebView's own message into
+      // a visible &lt;.
+      const [title, detail] = REASONS[key] || ['That page did not load', description || ''];
       const colour = tokens();
       const host = (() => { try { return new URL(url).hostname; } catch { return url || ''; } })();
 

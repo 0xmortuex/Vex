@@ -24,7 +24,7 @@ const VexLibrary = (() => {
       ['read-aloud', 'Read aloud', 'The article, in the phone’s own voice, a paragraph at a time — skip, slow down, carry on. It stops when you leave Vex.', () => VexUI.readAloud()],
       ['reading-list', 'Reading list', 'Pages kept for later, marked off as you read them.', () => VexPanels.readingList()],
       ['pdf', 'PDFs', 'Read in Vex rather than downloaded — Android’s WebView cannot draw one, so Vex does.', () => VexUI.toast('Open any PDF link')],
-      ['saved', 'Saved pages', 'The whole page kept on the phone, for reading offline — it opens with no connection at all.', () => VexPanels.savedPages()],
+      ['saved', 'Saved pages', 'The whole page kept on the phone, for reading offline — it opens with no connection at all, and its scripts are taken out when it is saved.', () => VexPanels.savedPages()],
       ['notes', 'Notes', 'A line about a page, or a passage kept from one. Select text and choose "Keep as a note", and export the lot as Markdown.', () => VexPanels.notes()],
       ['contrast', 'Contrast and night shade', 'For pages that are grey on grey, or too bright to read in bed.', () => VexPanels.appearance()],
       ['zoom', 'Text size and pinch zoom', 'Per site, and forced on sites that forbid it.', () => VexPanels.appearance()],
@@ -54,7 +54,7 @@ const VexLibrary = (() => {
         const tab = VexTabStore.active();
         if (tab && tab.url) VexSheets.site(VexSearch.prettyHost(tab.url)); else VexPanels.privacy();
       }],
-      ['permissions', 'Site permissions', 'Which sites may use the camera, the microphone, your location.', () => VexPanels.permissions()],
+      ['permissions', 'Site permissions', 'Which sites may use the camera, the microphone, your location — asked once per site, and the page waits for your answer.', () => VexPanels.permissions()],
       ['clear', 'Clear browsing data', 'A list with tick boxes — cookies, cache, history, the Recall index, saved pages — and the same list every time you leave Vex, if you want it.', () => VexPanels.clearData()]
     ]],
     ['Your things', [
@@ -62,7 +62,7 @@ const VexLibrary = (() => {
       ['details', 'Your details', 'What it types into a sign-up form when you ask.', () => VexPanels.details()],
       ['sync', 'Sync with the desktop', 'Bookmarks, reading list, sessions and rules, encrypted with a key only your devices have.', () => VexPanels.sync()],
       ['reminders', 'Reminders', 'Bring a page back this evening, tomorrow, at the weekend.', () => VexPanels.reminders()],
-      ['downloads', 'Downloads', 'With live progress from the system queue, a Stop button while one is running, and a way into the phone’s own Downloads folder.', () => VexPanels.downloads()]
+      ['downloads', 'Downloads', 'With live progress from the system queue, a Stop button while one is running, and a way into the phone’s own Downloads folder. A file the page made itself is saved too, which Android’s download manager cannot do.', () => VexPanels.downloads()]
     ]],
     ['The phone', [
       ['qr-scan', 'Scan a QR code', 'From the address bar. A 2FA code goes into the vault instead of opening.', () => VexUI.openScanner()],

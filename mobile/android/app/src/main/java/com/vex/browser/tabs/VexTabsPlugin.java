@@ -56,6 +56,9 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
      * waking a tab the person has not looked at for an hour undoes the point.
      */
     private final java.util.Set<String> asleep = new java.util.HashSet<>();
+    /** Requests a page has made that the chrome has not answered yet. */
+    private final Map<String, TabWebView.PermissionDecision> pendingPermissions = new java.util.HashMap<>();
+    private int permissionSequence;
     private int sequence;
     private boolean visible = true;
     private int textZoom = 100;
@@ -628,6 +631,33 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         }
     }
 
+    /**
+     * Write bytes the chrome read out of a page into Downloads. Used for the
+     * blob: and data: downloads DownloadManager cannot fetch.
+     */
+    @PluginMethod
+    public void saveData(PluginCall call) {
+        final String id = call.getString("id", "");
+        final String filename = call.getString("filename", "download");
+        final String mimeType = call.getString("mimeType", "");
+        final String base64 = call.getString("base64", "");
+        if (base64.isEmpty()) { call.reject("Nothing to save"); return; }
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            if (tab == null) { call.reject("No tab " + id); return; }
+            try {
+                byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+                String where = tab.saveBytes(filename, mimeType, bytes);
+                JSObject result = new JSObject();
+                result.put("localUri", where);
+                result.put("bytes", bytes.length);
+                call.resolve(result);
+            } catch (Exception error) {
+                call.reject("Could not save that: " + error.getMessage());
+            }
+        });
+    }
+
     /** Hand a finished download to whatever app opens that kind of file. */
     @PluginMethod
     public void openDownload(PluginCall call) {
@@ -765,6 +795,51 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
             if (!asleep.contains(entry.getKey())) entry.getValue().onResume();
         }
         super.handleOnResume();
+    }
+
+    /**
+     * Hand a page's request for the camera, the microphone or your location to
+     * the chrome, which keeps the per-site answer. Nothing is left hanging: if no
+     * answer comes back within thirty seconds the request is denied, so the
+     * page's promise settles instead of waiting for ever.
+     */
+    @Override
+    public void askPermission(String tabId, String origin, java.util.List<String> kinds,
+                              TabWebView.PermissionDecision decision) {
+        final String requestId = "perm" + (++permissionSequence);
+        pendingPermissions.put(requestId, decision);
+        JSObject data = new JSObject();
+        data.put("id", tabId);
+        data.put("origin", origin == null ? "" : origin);
+        data.put("kinds", android.text.TextUtils.join(",", kinds));
+        data.put("requestId", requestId);
+        notifyListeners("permissionRequest", data);
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            TabWebView.PermissionDecision late = pendingPermissions.remove(requestId);
+            if (late != null) late.answer(java.util.Collections.emptyList());
+        }, 30000);
+    }
+
+    /** What the chrome decided. Anything not named here is denied. */
+    @PluginMethod
+    public void answerPermission(PluginCall call) {
+        final String requestId = call.getString("requestId", "");
+        final JSArray granted = call.getArray("granted");
+        getActivity().runOnUiThread(() -> {
+            TabWebView.PermissionDecision decision = pendingPermissions.remove(requestId);
+            if (decision != null) {
+                java.util.List<String> kinds = new java.util.ArrayList<>();
+                try {
+                    for (int index = 0; granted != null && index < granted.length(); index++) {
+                        kinds.add(String.valueOf(granted.get(index)));
+                    }
+                } catch (Exception ignored) {
+                    // A malformed answer is no answer, which is a deny.
+                }
+                decision.answer(kinds);
+            }
+            call.resolve();
+        });
     }
 
     @Override
