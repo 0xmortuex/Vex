@@ -89,7 +89,7 @@ Everything else below is either matched or bettered.
 | Per-site permissions | ✅ | Camera, microphone, location, notifications. The page waits: the WebView hands the request to the chrome, which asks once per site and remembers |
 | Clear browsing data | ✅ better | Eight things with tick boxes and a count beside each, one site at a time, or the same list every time you leave Vex. Samsung's list is shorter and its on-exit option is not per-item |
 | Forget one site everywhere | ✅ | Its visits, its text in the Recall index, its cookies and its storage, from one long press in History |
-| Secret mode + biometrics | ✅ | And it asks again when you leave Vex, rather than keeping the grace period across an app switch |
+| Secret mode + biometrics | ✅ | And it asks again when you leave Vex, rather than keeping the grace period across an app switch — coming back with a private tab in front asks before showing it, and every way into one (a link's long-press included) passes the lock. A private tab's start page shows nothing from your history, and its permission answers are not kept |
 | Block screenshots in secret mode | ✅ | FLAG_SECURE while a private tab is in front, which also keeps it out of the app-switcher thumbnail |
 | Fingerprint protection | ✅ | Samsung has none; Vex runs a shim before the page's first script |
 | HTTPS-only | ✅ | Samsung has none |
