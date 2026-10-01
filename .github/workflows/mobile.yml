@@ -122,9 +122,12 @@ jobs:
       - name: On-device AI versions
         working-directory: mobile/android
         run: |
+          # A dynamic version prints as "…:latest.release -> 0.17.0", so matching
+          # a digit straight after the coordinate found only the pinned
+          # transitive ones. Keep the whole line, arrow and all.
           versions=$(./gradlew --no-daemon --quiet :app:dependencies --configuration debugRuntimeClasspath \
-            | grep -Eo "(com\.google\.ai\.edge\.litertlm:litertlm-android|com\.google\.mlkit:genai-[a-z]+):[0-9][^ ]*" \
-            | sed 's/[^0-9a-zA-Z.:_-]//g' | sort -u | tr '\n' ' ')
+            | grep -E "litertlm-android|genai-" \
+            | sed -E 's/^[^a-z]*//; s/ \(\*\)$//' | sort -u | tr '\n' ';' | sed 's/;/; /g')
           echo "$versions"
           echo "AI_VERSIONS=$versions" >> "$GITHUB_ENV"
 
