@@ -262,6 +262,8 @@ const VexUI = (() => {
     }
   }
 
+  let lastPill = null;
+
   function renderToolbar() {
     renderToolbarButtons();
     renderTabStrip();
@@ -269,9 +271,19 @@ const VexUI = (() => {
     const url = tab ? (tab.loading && tab.pendingUrl ? tab.pendingUrl : tab.url) : '';
     const live = !!(url && url !== 'about:blank');
     const text = $('tb-url-text');
-    const iconSlot = clear($('tb-icon'));
+    // Redrawn only when what it shows changes: this runs on every progress
+    // tick of a load, and a fresh <img> each time re-decodes the favicon a
+    // dozen times a second.
+    const pillSignature = live
+      ? [VexSearch.prettyHost(url) || url, tab.incognito ? 'p' : '', tab.icon || '', url.startsWith('https://') ? 's' : ''].join('|')
+      : '';
+    const pillChanged = pillSignature !== lastPill;
+    lastPill = pillSignature;
+    const iconSlot = pillChanged ? clear($('tb-icon')) : $('tb-icon');
 
-    if (!live) {
+    if (!pillChanged) {
+      // Nothing in the pill has changed.
+    } else if (!live) {
       text.className = 'urlpill-text muted';
       text.textContent = 'Search or type a URL';
       iconSlot.className = 'urlpill-icon';
