@@ -48,7 +48,10 @@ you read, indexed on the device, searchable by what it said.
 
 **Media** — a floating video window (Android picture-in-picture), background
 audio, ±10 s controls, speed, sound, and video brightness past what the site
-allows. Nothing plays until you tap, everywhere, unless you let a site.
+allows. Nothing plays until you tap, everywhere, unless you let a site. And
+**download the video**: a plain file goes to the download queue, and an HLS
+stream — most video sites that are not YouTube — is saved whole, segment by
+segment, even when the site's player hides it behind a blob: URL.
 
 **Privacy** — ad and tracker blocking with cosmetic filtering and a dashboard
 of what it cost the sites you visit; a fingerprint shield that runs before the
@@ -116,11 +119,11 @@ whole codebase:
 | `www/js/vault.js` | Logins, TOTP, form filling, personal details |
 | `www/js/sync.js` | The encrypted sync client (with `www/js/shared/`, copied from the desktop) |
 | `www/js/tools.js` | QR both ways, dictation, saved pages, capture, translate |
-| `www/js/media.js` | Picture-in-picture, background audio, video controls |
+| `www/js/media.js` | Picture-in-picture, background audio, video controls, finding a video's source |
 | `www/js/speak.js` | Reading a page aloud, over Android's TextToSpeech |
 | `www/js/translate.js` | Translating a page in place, on the device, with ML Kit |
 | `www/js/clear.js` | What "clear browsing data" clears, and clearing on exit |
-| `www/js/downloads.js` | The files a page makes itself — blob: and data: |
+| `www/js/downloads.js` | The files a page makes itself — blob: and data: — and stream jobs |
 | `www/js/permissions.js` | What each site may ask for |
 | `www/js/agent.js` | The tool loop: what the assistant may do, and the rules it does it under |
 | `www/js/notes.js` | Notes and kept passages |
@@ -148,6 +151,7 @@ whole codebase:
 | `MainActivity.java` | plugin registration, the file chooser, browser intents |
 | `tabs/VexTabsPlugin.java` | creates, positions, shows and destroys page WebViews |
 | `tabs/TabWebView.java` | one tab: settings, clients, downloads, find, snapshot, print |
+| `tabs/StreamDownloader.java` | saving an HLS stream as one file: variant choice, AES-128, fMP4, written as it arrives |
 | `tabs/EdgeSwipeLayout.java` | back/forward edge gestures over the page |
 | `block/BlockEngine.java` | request matching inside `shouldInterceptRequest` |
 | `block/VexBlockPlugin.java` | the JS control surface for it |

@@ -52,6 +52,34 @@ const VexMedia = (() => {
   return 'ok';
 })()`;
 
+  // Runs in the page. Where the video in front comes from: the element's own
+  // address and every <source> under it, plus the page title to name the file.
+  // Any video will do here — one that has not started has a source too — but
+  // the one the bar is about comes first.
+  const SOURCES = `(function(){
+  var target = ${PICK} || document.querySelector('video');
+  if (!target) return JSON.stringify({ found: false, title: document.title || '' });
+  var sources = [];
+  var nodes = target.querySelectorAll('source');
+  for (var i = 0; i < nodes.length; i++) if (nodes[i].src) sources.push(nodes[i].src);
+  return JSON.stringify({
+    found: true,
+    src: target.currentSrc || target.src || '',
+    sources: sources,
+    title: document.title || ''
+  });
+})()`;
+
+  const PLAYLIST = /\.m3u8(?:[?#]|$)/i;
+  const MANIFEST = /\.mpd(?:[?#]|$)/i;
+  const FILE_TYPE = /\.(mp4|m4v|webm|mov|mkv|3gp|ogv)(?:[?#]|$)/i;
+
+  /** A file name from the page title: no path characters, not too long. */
+  function nameFor(title) {
+    const clean = String(title || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim();
+    return (clean.slice(0, 80).trim() || 'video');
+  }
+
   function parse(result) {
     if (result == null) return null;
     let value = result;
@@ -89,6 +117,54 @@ const VexMedia = (() => {
       await VexBridge.enterPictureInPicture(video.width || 16, video.height || 9);
       return true;
     },
+
+    /**
+     * Where the video on this page can be saved from.
+     *
+     * { kind: 'file', url } — the element plays an ordinary file, which the
+     *   download queue can fetch like any other.
+     * { kind: 'stream', url } — an HLS playlist, from the element or, for a
+     *   player that hands its <video> a blob: URL, from the page's requests.
+     * { kind: 'none', why } — nothing Vex can put back together, said plainly.
+     */
+    async findSource(tab) {
+      let info = null;
+      try { info = parse((await VexBridge.evaluate(tab.id, SOURCES)).result); } catch { info = null; }
+      const title = (info && info.title) || tab.title || '';
+      const candidates = info && info.found ? [info.src].concat(info.sources || []).filter(Boolean) : [];
+      const web = candidates.filter(url => /^https?:/i.test(url));
+      const playlist = web.find(url => PLAYLIST.test(url));
+      const direct = web.find(url => !PLAYLIST.test(url) && !MANIFEST.test(url));
+      if (direct) return { kind: 'file', url: direct, title };
+      if (playlist) return { kind: 'stream', url: playlist, title };
+      let seen = '';
+      try { seen = await VexBridge.mediaStream(tab.id); } catch { seen = ''; }
+      if (seen) return { kind: 'stream', url: seen, title };
+      if (!info || !info.found) return { kind: 'none', title, why: 'There is no video on this page' };
+      if (web.some(url => MANIFEST.test(url))) {
+        return { kind: 'none', title, why: 'This site streams in DASH, with the picture and the sound apart — Vex cannot join them yet' };
+      }
+      return {
+        kind: 'none', title,
+        why: 'This video is assembled by the site’s own player from pieces nobody else is given — YouTube and Netflix work this way — so there is no file to save'
+      };
+    },
+
+    /** "Download this video", from the video bar's sheet. */
+    async download(tab) {
+      if (!tab || !tab.url || tab.url === 'about:blank') { VexUI.toast('Open a page first'); return null; }
+      const found = await this.findSource(tab);
+      const name = nameFor(found.title);
+      if (found.kind === 'file') {
+        const match = found.url.match(FILE_TYPE);
+        return VexDownloads.queue(tab, found.url, name + '.' + (match ? match[1].toLowerCase() : 'mp4'));
+      }
+      if (found.kind === 'stream') return VexDownloads.stream(tab, found.url, name);
+      VexUI.toast(found.why, 6000);
+      return null;
+    },
+
+    nameFor,
 
     async setBackgroundAudio(enabled) {
       await VexStore.set('vex.backgroundAudio', !!enabled);

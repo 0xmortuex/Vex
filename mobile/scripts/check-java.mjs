@@ -163,4 +163,33 @@ if (result.status !== 0) {
 if (lines.length) console.log(lines.join('\n'));
 const appFiles = sources.filter(file => file.startsWith(appJava)).length;
 console.log('ok — ' + appFiles + ' Android sources compile against the framework (' + from + ')');
+
+// The parts of the native code that are plain Java — parsing, mostly — are
+// run as well as compiled: tools/java-checks holds a main() per subject, in the
+// package it checks, on the classpath beside the app's own classes.
+const checks = path.join(here, '..', 'tools', 'java-checks');
+const checkSources = walk(checks).filter(file => file.endsWith('.java'));
+if (checkSources.length) {
+  const checkOut = path.join(work, 'checks');
+  fs.mkdirSync(checkOut, { recursive: true });
+  const classpath = [out, jar].join(path.delimiter);
+  const built = spawnSync('javac', ['-nowarn', '-proc:none', '-classpath', classpath, '-d', checkOut, ...checkSources],
+    { encoding: 'utf8' });
+  if (built.status !== 0) {
+    console.error(((built.stdout || '') + (built.stderr || '')).split('\n').filter(line => line.trim() && !noise.test(line)).join('\n'));
+    console.error('\nFAIL — the Java checks do not compile');
+    process.exit(1);
+  }
+  for (const file of checkSources) {
+    const name = path.relative(checks, file).replace(/\.java$/, '').split(path.sep).join('.');
+    const ran = spawnSync('java', ['-cp', [checkOut, classpath].join(path.delimiter), name], { encoding: 'utf8' });
+    const said = ((ran.stdout || '') + (ran.stderr || '')).split('\n').filter(line => line.trim() && !noise.test(line));
+    if (ran.status !== 0) {
+      console.error(said.join('\n'));
+      console.error('\nFAIL — ' + name);
+      process.exit(1);
+    }
+    console.log('ok — ' + name + ': ' + said.filter(line => line.startsWith('ok')).length + ' checks');
+  }
+}
 fs.rmSync(work, { recursive: true, force: true });

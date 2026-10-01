@@ -94,7 +94,13 @@ const VexBridge = (() => {
         return {};
       },
       evaluate() { return { result: null }; },
-      snapshot() { return { dataUrl: '' }; }
+      snapshot() { return { dataUrl: '' }; },
+      // Downloads have nowhere to go here; the ids are enough for the chrome to
+      // draw them, and the walkthrough drives the stream's events by hand.
+      save() { return { downloadId: String(9000 + (++seq)) }; },
+      mediaStream() { return { stream: '' }; },
+      downloadStream() { return { jobId: 'stream-dev-' + (++seq) }; },
+      cancelStream() { return {}; }
     };
   })();
 
@@ -247,7 +253,7 @@ const VexBridge = (() => {
   const STRICT = new Set([
     'VexLocalAI', 'VexTranslate', 'VexSpeak',
     'VexTabs.openDownload', 'VexTabs.cancelDownload', 'VexTabs.openDownloadsFolder',
-    'VexTabs.saveData', 'VexTabs.writeDownload'
+    'VexTabs.saveData', 'VexTabs.writeDownload', 'VexTabs.save', 'VexTabs.downloadStream'
   ]);
 
   function call(pluginName, method, args) {
@@ -301,7 +307,8 @@ const VexBridge = (() => {
       for (const name of Object.keys(plugins)) plugins[name] = capacitor.Plugins[name] || null;
       for (const event of ['loadStart', 'loadProgress', 'loadEnd', 'title', 'urlChange', 'icon',
         'newTab', 'download', 'error', 'blocked', 'findResult', 'permission', 'edgeSwipe',
-        'longPress', 'fullscreen', 'scroll', 'selection', 'command']) {
+        'longPress', 'fullscreen', 'scroll', 'selection', 'command',
+        'streamProgress', 'streamDone', 'streamFailed']) {
         plugins.VexTabs.addListener(event, data => emit(event, data));
       }
       if (plugins.VexBlock) plugins.VexBlock.addListener('blocked', data => emit('blocked', data));
@@ -471,7 +478,19 @@ const VexBridge = (() => {
     },
 
     // A file the chrome was shown and decided to keep after all.
+    // Resolves with the queue's id, so the downloads list can follow it.
     saveFile(tabId, url, filename) { return tabs('save', { id: tabId, url, filename }); },
+
+    // ── Saving a video ─────────────────────────────────────────────────────
+    // The HLS playlist the page last asked for, seen in its requests — the only
+    // way to find the source of a player that hands its <video> a blob: URL.
+    async mediaStream(tabId) {
+      const result = await tabs('mediaStream', { id: tabId });
+      return (result && result.stream) || '';
+    },
+    // Starts a job; streamProgress, streamDone and streamFailed follow.
+    downloadStream(tabId, url, filename) { return tabs('downloadStream', { id: tabId, url, filename }); },
+    cancelStream(jobId) { return tabs('cancelStream', { jobId }); },
 
     // ── Translating on the device ──────────────────────────────────────────
     translateLanguages() { return call('VexTranslate', 'languages', {}); },

@@ -913,7 +913,8 @@ const VexUI = (() => {
       { id: 'speed', label: 'Speed', note: videoSpeed + '×' },
       { id: 'brightness', label: 'Brightness', note: Math.round(videoBrightness * 100) + '%' },
       { id: 'mute', label: state.muted ? 'Turn the sound on' : 'Mute it' },
-      { id: 'pop', label: 'Pop it out', note: 'A small window over whatever you do next' }
+      { id: 'pop', label: 'Pop it out', note: 'A small window over whatever you do next' },
+      { id: 'download', label: 'Download it', note: 'The file, or the stream it is playing from' }
     ], async choice => {
       if (choice === 'speed') {
         VexSheets.choose('Speed', [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate => ({
@@ -940,7 +941,7 @@ const VexUI = (() => {
       if (choice === 'mute') await VexMedia.mute(tab.id, !state.muted);
       else if (choice === 'pop') {
         try { await VexMedia.popOut(tab.id); } catch (error) { toast(error.message); }
-      }
+      } else if (choice === 'download') await VexMedia.download(tab);
     });
     return true;
   }

@@ -144,6 +144,11 @@ const VexSheets = (() => {
     history: { icon: 'history', label: 'History', run: () => VexPanels.history() },
     recall: { icon: 'search', label: 'Search what you read', run: () => VexPanels.recall() },
     downloads: { icon: 'download', label: 'Downloads', run: () => VexPanels.downloads() },
+    'save-video': {
+      icon: 'video', label: 'Download the video', needsPage: true,
+      note: 'A video file, or the stream the page is playing',
+      run: tab => VexMedia.download(tab)
+    },
     'saved-pages': { icon: 'save', label: 'Saved pages', run: () => VexPanels.savedPages() },
     'save-page': {
       icon: 'save', label: 'Save page for offline', needsPage: true,
@@ -228,7 +233,7 @@ const VexSheets = (() => {
   const DEFAULT_ORDER = [
     'new-tab', 'new-private', 'assistant', 'agent', 'reader', 'read-aloud', 'translate', 'find', 'site',
     'add-reading', 'reading-list', 'bookmarks', 'history', 'recall', 'downloads',
-    'save-page', 'saved-pages', 'notes', 'remind-me', 'reminders', 'sessions',
+    'save-page', 'save-video', 'saved-pages', 'notes', 'remind-me', 'reminders', 'sessions',
     'fill', 'fill-details', 'save-login', 'passwords',
     'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'share',
     'reopen', 'read-voice', 'library', 'settings'

@@ -238,6 +238,38 @@ const VexPanels = (() => {
     return 'downloading…';
   }
 
+  /**
+   * Where one row of the downloads list stands: { state, percent, note, stop,
+   * match, why }. A row is either a file in Android's queue or a video stream
+   * Vex is putting together itself, and the list draws both the same way.
+   */
+  function progressOf(entry, live) {
+    if (entry.streamJob) {
+      if (entry.streamDone) return { state: 'done', note: bytes(entry.size) };
+      if (entry.streamFailed) return { state: 'failed', why: entry.streamFailed, note: 'failed — ' + entry.streamFailed };
+      const job = VexDownloads.streamState(entry.streamJob);
+      // Native forgets a job when Vex is killed; the half-written file went
+      // with it.
+      if (!job) return { state: 'failed', why: 'It stopped when Vex was closed', note: 'stopped when Vex closed' };
+      if (job.state === 'done') return { state: 'done', note: bytes(job.bytes) };
+      if (job.state !== 'running') return { state: 'failed', why: job.why || 'It did not finish', note: 'failed — ' + (job.why || 'it did not finish') };
+      return {
+        state: 'running',
+        percent: job.total > 0 ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0,
+        note: job.total > 0 ? job.done + ' of ' + job.total + ' pieces · ' + bytes(job.bytes) : 'reading the playlist…',
+        stop: () => VexDownloads.cancelStream(entry.streamJob)
+      };
+    }
+    const match = queued(live, entry);
+    const state = downloadState(match);
+    return {
+      state, match,
+      percent: percent(match),
+      note: downloadNote(state, entry, match),
+      stop: match ? () => VexBridge.cancelDownload(match.id) : null
+    };
+  }
+
   function dayName(at) {
     const day = new Date(at || 0).toDateString();
     const today = new Date().toDateString();
@@ -776,38 +808,36 @@ const VexPanels = (() => {
         return;
       }
 
+      const line = (entry, now) => [VexSearch.prettyHost(entry.pageUrl || entry.url), now.note, when(entry.at)]
+        .filter(Boolean).join(' · ');
+
       // The ones still arriving, and the parts of their rows that move.
       const following = [];
       for (const entry of rows) {
-        const match = queued(live, entry);
-        const state = downloadState(match);
-        const sub = () => [
-          VexSearch.prettyHost(entry.url),
-          downloadNote(state, entry, match),
-          when(entry.at)
-        ].filter(Boolean).join(' · ');
-        const node = listRow({ url: entry.url, title: entry.filename || entry.url, icon: '' }, {
-          sub,
+        const now = progressOf(entry, live);
+        const node = listRow({ url: entry.pageUrl || entry.url, title: entry.filename || entry.url, icon: '' }, {
+          sub: () => line(entry, now),
           // Still running: the one useful button is Stop, and it is a separate
           // button from Remove because they are different regrets.
-          actions: state === 'running' ? [{
+          actions: now.state === 'running' && now.stop ? [{
             icon: 'close', label: 'Stop this download',
             run: async () => {
-              try { await VexBridge.cancelDownload(match.id); }
+              try { await now.stop(); }
               catch (error) { VexUI.toast(error.message || 'Could not stop it'); return; }
               VexUI.toast('Stopped — the part that arrived is gone with it');
               this.downloads();
             }
           }] : null,
           onOpen: async () => {
-            if (state === 'running') { VexUI.toast('Still downloading'); return; }
-            if (state === 'failed') {
+            if (now.state === 'running') { VexUI.toast('Still downloading'); return; }
+            if (now.state === 'failed') {
+              if (now.why) VexUI.toast(now.why, 4000);
               close();
-              VexUI.openUrl(entry.url);
+              VexUI.openUrl(entry.pageUrl || entry.url);
               return;
             }
-            const downloadId = (match && match.id) || entry.downloadId || '';
-            const localUri = (match && match.localUri) || entry.localUri || '';
+            const downloadId = (now.match && now.match.id) || entry.downloadId || '';
+            const localUri = (now.match && now.match.localUri) || entry.localUri || '';
             if (downloadId || localUri) {
               try { await VexBridge.openDownload({ downloadId, localUri }); return; }
               catch (error) { VexUI.toast(error.message || 'That file could not be opened'); return; }
@@ -819,10 +849,10 @@ const VexPanels = (() => {
           },
           onRemove: async () => { await VexDB.delete('downloads', entry.id); this.downloads(); }
         });
-        if (state === 'running') {
+        if (now.state === 'running') {
           const bar = el('div', 'progress-row');
           const fill = el('i');
-          fill.style.width = percent(match) + '%';
+          fill.style.width = now.percent + '%';
           bar.appendChild(fill);
           node.querySelector('.lines').appendChild(bar);
           following.push({ entry, fill, line: node.querySelector('.u') });
@@ -837,16 +867,15 @@ const VexPanels = (() => {
       if (!following.length) return;
       stopTicker();
       ticker = setInterval(async () => {
-        const now = await downloadQueue();
+        const queue = await downloadQueue();
         if (mine !== drawn) return;
         for (const item of following) {
-          const match = queued(now, item.entry);
-          const state = downloadState(match);
-          if (state !== 'running') { this.downloads(); return; }
-          item.fill.style.width = percent(match) + '%';
-          item.line.textContent = [
-            VexSearch.prettyHost(item.entry.url), downloadNote(state, item.entry, match), when(item.entry.at)
-          ].filter(Boolean).join(' · ');
+          // A stream that has just finished has its row rewritten in IndexedDB;
+          // read the job, not the row this drawing started from.
+          const now = progressOf(Object.assign({}, item.entry, { streamDone: false, streamFailed: '' }), queue);
+          if (now.state !== 'running') { this.downloads(); return; }
+          item.fill.style.width = now.percent + '%';
+          item.line.textContent = line(item.entry, now);
         }
       }, 1000);
     },

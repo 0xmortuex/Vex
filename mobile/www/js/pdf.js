@@ -167,9 +167,8 @@ const VexPdf = (() => {
 
     download() {
       const tab = VexTabStore.active();
-      if (!tab) return;
-      VexBridge.saveFile(tab.id, state.url, state.name);
-      VexUI.toast('Saving to Downloads');
+      if (!tab) return null;
+      return VexDownloads.queue(tab, state.url, state.name);
     },
 
     share() {

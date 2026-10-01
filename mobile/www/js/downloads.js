@@ -18,6 +18,10 @@ const VexDownloads = (() => {
   // no to plainly rather than to fail slowly at.
   const CAP = 12 * 1024 * 1024;
 
+  // Stream jobs this run of Vex started: jobId -> { state, done, total, bytes,
+  // rowId, why }. Native forgets a job when Vex is killed, so this does too.
+  const streams = new Map();
+
   // Runs in the page. Starts the read and leaves the answer on the window,
   // because evaluateJavascript hands back what the expression returned and a
   // promise is not an answer.
@@ -68,6 +72,104 @@ const VexDownloads = (() => {
 
   return {
     CAP,
+
+    /**
+     * Hand a URL to Android's download queue on the chrome's behalf — a PDF it
+     * was showing, a video file — and list it with the rest. Returns the row,
+     * or null with the reason already said.
+     */
+    async queue(tab, url, filename) {
+      try {
+        const answer = await VexBridge.saveFile(tab.id, url, filename);
+        const row = {
+          url, filename, size: 0, at: Date.now(),
+          downloadId: answer && answer.downloadId ? String(answer.downloadId) : ''
+        };
+        row.id = await VexDB.add('downloads', row);
+        VexUI.toast('Downloading ' + filename, 3500, { label: 'Downloads', run: () => VexPanels.downloads() });
+        return row;
+      } catch (error) {
+        VexUI.toast((error && error.message) || 'That could not be downloaded', 4000);
+        return null;
+      }
+    },
+
+    /**
+     * Save an HLS stream as one file. The job runs natively; its progress is
+     * kept here, in memory, for the downloads list to draw, and the row in
+     * IndexedDB is finished off when the file is whole.
+     */
+    async stream(tab, url, filename) {
+      let answer;
+      try { answer = await VexBridge.downloadStream(tab.id, url, filename); }
+      catch (error) {
+        VexUI.toast((error && error.message) || 'That video could not be saved', 4000);
+        return null;
+      }
+      const jobId = answer && answer.jobId;
+      if (!jobId) { VexUI.toast('That video could not be saved'); return null; }
+      const row = { url, filename, size: 0, at: Date.now(), streamJob: jobId, pageUrl: tab.url || '' };
+      // Registered before the row is written: a playlist that fails at once
+      // can answer before IndexedDB does, and its event must find the job.
+      const job = { state: 'running', done: 0, total: 0, bytes: 0, rowId: null };
+      streams.set(jobId, job);
+      job.ready = VexDB.add('downloads', row).then(id => { job.rowId = id; row.id = id; return id; });
+      await job.ready;
+      VexUI.toast('Saving the video — it is a few hundred pieces, so it takes a while', 4500,
+        { label: 'Downloads', run: () => VexPanels.downloads() });
+      return row;
+    },
+
+    /** What a stream job is doing now; null once Vex has restarted. */
+    streamState(jobId) { return streams.get(jobId) || null; },
+
+    // Stopped by hand is a regret, not a failure: the row goes with it.
+    async cancelStream(jobId) {
+      const job = streams.get(jobId);
+      if (job) job.state = 'cancelled';
+      await VexBridge.cancelStream(jobId);
+      if (job && job.ready) await VexDB.delete('downloads', await job.ready);
+    },
+
+    /** Wired once at boot. */
+    bind() {
+      VexBridge.on('streamProgress', data => {
+        const job = data && streams.get(data.jobId);
+        if (!job || job.state !== 'running') return;
+        job.done = Number(data.done) || 0;
+        job.total = Number(data.total) || 0;
+        job.bytes = Number(data.bytes) || 0;
+      });
+      VexBridge.on('streamDone', async data => {
+        const job = data && streams.get(data.jobId);
+        if (!job) return;
+        job.state = 'done';
+        job.bytes = Number(data.bytes) || job.bytes;
+        await job.ready;
+        const row = await VexDB.get('downloads', job.rowId);
+        if (row) {
+          await VexDB.put('downloads', Object.assign(row, {
+            localUri: data.localUri || '', size: job.bytes, streamDone: true
+          }));
+        }
+        VexUI.toast('Saved ' + ((row && row.filename) || 'the video') + ' to Downloads', 4500, data.localUri ? {
+          label: 'Open',
+          run: () => VexBridge.openDownload({ localUri: data.localUri }).catch(error => VexUI.toast(error.message))
+        } : undefined);
+      });
+      VexBridge.on('streamFailed', async data => {
+        const job = data && streams.get(data.jobId);
+        if (!job) return;
+        const cancelled = job.state === 'cancelled' || data.message === 'cancelled';
+        job.state = cancelled ? 'cancelled' : 'failed';
+        job.why = data.message || '';
+        await job.ready;
+        const row = await VexDB.get('downloads', job.rowId);
+        if (cancelled) { if (row) await VexDB.delete('downloads', job.rowId); return; }
+        if (row) await VexDB.put('downloads', Object.assign(row, { streamFailed: job.why || 'failed' }));
+        VexUI.toast(job.why || 'The video could not be saved', 5000);
+      });
+    },
 
     /**
      * Save a blob: or data: download. Returns { ok } or { ok: false, why } — a

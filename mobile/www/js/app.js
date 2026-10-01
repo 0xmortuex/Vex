@@ -148,6 +148,7 @@
   VexLocalAI.bind();
   VexPdf.bind();
   VexSpeak.bind();
+  VexDownloads.bind();
 
   // Things that can wait until the first page is on screen.
   setTimeout(async () => {

@@ -97,6 +97,12 @@ public class TabWebView extends WebView {
     private final AtomicInteger blockedPending = new AtomicInteger();
 
     private String pageHost = "";
+    // The last HLS playlist this page asked for. A player built on Media Source
+    // Extensions hands its <video> a blob: URL, so the element says nothing
+    // about where the picture comes from — but the playlist went past here on
+    // its way in, which is how "download this video" finds it. Written on the
+    // WebView's network thread, read on the bridge's.
+    private volatile String lastStream = "";
     private int scrollPending;
     private long lastScrollReport;
     private String pendingStartScript = "";
@@ -708,21 +714,40 @@ public class TabWebView extends WebView {
         }
     }
 
-    /** Save a file the chrome chose to download after all — a PDF, usually. */
-    public void saveToDownloads(String url, String filename) {
+    private void noteStream(Uri url) {
+        if (url == null) return;
+        String scheme = url.getScheme();
+        if (!"https".equals(scheme) && !"http".equals(scheme)) return;
+        String path = url.getPath();
+        if (path != null && path.toLowerCase(java.util.Locale.ROOT).endsWith(".m3u8")) lastStream = url.toString();
+    }
+
+    /** The playlist the page is playing from, if it played one. */
+    public String streamUrl() { return lastStream; }
+
+    public String userAgent() { return getSettings().getUserAgentString(); }
+
+    /**
+     * Save a file the chrome chose to download after all — a PDF, a video.
+     * Returns the queue's id, so the downloads list can follow it; -1 when it
+     * could not be queued.
+     */
+    public long saveToDownloads(String url, String filename) {
         try {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            request.addRequestHeader("User-Agent", getSettings().getUserAgentString());
             String cookie = CookieManager.getInstance().getCookie(url);
             if (cookie != null) request.addRequestHeader("Cookie", cookie);
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
             DownloadManager manager = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
-            if (manager != null) manager.enqueue(request);
+            return manager != null ? manager.enqueue(request) : -1;
         } catch (Exception ex) {
             JSObject error = new JSObject();
             error.put("id", id);
             error.put("description", "Download failed: " + ex.getMessage());
             host.emit("error", error);
+            return -1;
         }
     }
 
@@ -772,6 +797,7 @@ public class TabWebView extends WebView {
 
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            noteStream(request.getUrl());
             WebResourceResponse blocked =
                     BlockEngine.get().intercept(pageHost, request.getUrl(), request.isForMainFrame());
             if (blocked != null) reportBlocked();
@@ -834,6 +860,7 @@ public class TabWebView extends WebView {
 
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            lastStream = "";
             pageHost = Uri.parse(url).getHost();
             if (pageHost == null) pageHost = "";
             JSObject data = new JSObject();

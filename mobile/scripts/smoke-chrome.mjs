@@ -1393,6 +1393,52 @@ results.backOutOfHistory = await page.evaluate(async () => {
   return [leaves, stillTwo, backTo, handed, sentGone].join(' ');
 });
 
+// ── Saving a video ──────────────────────────────────────────────────────────
+// A plain file goes to the download queue; a player built on a blob: URL is
+// found through the playlist its page requested, saved as a stream job whose
+// progress and finish the downloads list follows.
+results.videoDownload = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const realEvaluate = VexBridge.evaluate;
+  const realStream = VexBridge.mediaStream;
+  await VexDB.clear('downloads');
+  for (const tab of VexTabStore.all()) await VexTabStore.close(tab.id);
+  const tab = await VexTabStore.create('https://clips.example/watch');
+  VexTabStore.update(tab.id, { url: 'https://clips.example/watch', title: 'Clip' });
+
+  let page = { found: true, src: 'https://cdn.example/clip.webm?sig=1', sources: [], title: 'A clip: the / one' };
+  VexBridge.evaluate = async () => ({ result: JSON.stringify(page) });
+  const file = await VexMedia.download(VexTabStore.get(tab.id));
+
+  page = { found: true, src: 'blob:https://clips.example/1234', sources: [], title: 'Streamed' };
+  VexBridge.mediaStream = async () => 'https://cdn.example/master.m3u8';
+  const stream = await VexMedia.download(VexTabStore.get(tab.id));
+  VexBridge.emitNative('streamProgress', { jobId: stream.streamJob, done: 30, total: 120, bytes: 3 << 20 });
+  VexPanels.downloads();
+  await wait(300);
+  const during = [...document.querySelectorAll('#panel-body .list-row .u')].map(node => node.textContent)
+    .find(text => text.includes('pieces')) || '';
+  VexBridge.emitNative('streamDone', { jobId: stream.streamJob, localUri: 'content://media/1', bytes: 12 << 20 });
+  await wait(1300);
+  const rows = await VexDB.scan('downloads', { limit: 10 });
+  const done = rows.find(row => row.streamJob === stream.streamJob);
+
+  page = { found: true, src: 'blob:https://tube.example/9', sources: [], title: 'Locked' };
+  VexBridge.mediaStream = async () => '';
+  const none = await VexMedia.download(VexTabStore.get(tab.id));
+
+  VexPanels.close();
+  VexBridge.evaluate = realEvaluate;
+  VexBridge.mediaStream = realStream;
+  await VexDB.clear('downloads');
+  return [
+    file && file.filename, !!(file && file.downloadId),
+    stream && stream.filename, during.includes('30 of 120 pieces'),
+    !!(done && done.streamDone && done.localUri === 'content://media/1'),
+    none === null
+  ].join(' | ');
+});
+
 console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
@@ -1430,6 +1476,7 @@ const expected = {
   reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
   libraryOpens: true,
   downloadsLive: '30% 70% 0',
+  videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,
   addLoginBack: 'Passwords and 2FA | Settings',
@@ -1486,8 +1533,8 @@ if (results.tabCount.onNormal !== results.tabCount.normals
   failures.push('tabCount: showed ' + results.tabCount.onNormal + ' with ' + results.tabCount.normals
     + ' normal tabs, and ' + results.tabCount.onPrivate + ' with ' + results.tabCount.privates + ' private');
 }
-if (results.videoSheet.rows !== 4) {
-  failures.push('videoSheet: expected four rows, got ' + results.videoSheet.rows);
+if (results.videoSheet.rows !== 5) {
+  failures.push('videoSheet: expected five rows, got ' + results.videoSheet.rows);
 }
 if (results.videoSheet.told !== 'speed=1.5 mute=true') {
   failures.push('videoSheet: the page was told "' + results.videoSheet.told + '"');

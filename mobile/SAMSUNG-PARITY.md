@@ -56,7 +56,7 @@ Everything else below is either matched or bettered.
 | Read a page aloud | ✅ | Android's TextToSpeech on the article the reader extracts — paragraph at a time, skip, pause, speed, a voice you choose. It stops when you leave Vex rather than pretending to be a music player |
 | Reader typography | ✅ better | Typeface, measure, line spacing and paper (including true black for an OLED in the dark), and how far through you are |
 | Keep the screen on | ✅ | Settings → Media |
-| Download videos | ❌ | Long-press download works for direct files, not streams |
+| Download videos | ✅ | Menu → Download the video, or the video bar's sheet. A plain file goes to the download queue; an HLS stream is saved whole as one file (.ts, or .mp4 for fragmented MP4), AES-128 included, found through the page's own requests when the player hides it behind a blob: URL. Not DRM, not live streams, and not DASH or a rendition whose sound is a separate stream — each is said rather than attempted. Keep Vex open while a long one saves |
 
 ## Saving and finding
 

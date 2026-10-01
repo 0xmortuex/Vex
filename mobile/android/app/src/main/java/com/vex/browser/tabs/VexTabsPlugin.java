@@ -352,10 +352,92 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     /** The chrome decided to save a file it had been shown instead. */
     @PluginMethod
     public void save(PluginCall call) {
+        final String id = call.getString("id");
         final String url = call.getString("url", "");
         final String filename = call.getString("filename", "file");
         if (url.isEmpty()) { call.reject("Nothing to save"); return; }
-        withTab(call, tab -> tab.saveToDownloads(url, filename));
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            if (tab == null) { call.reject("No tab " + id); return; }
+            long queued = tab.saveToDownloads(url, filename);
+            if (queued < 0) { call.reject("Android would not queue that download"); return; }
+            JSObject result = new JSObject();
+            result.put("downloadId", String.valueOf(queued));
+            call.resolve(result);
+        });
+    }
+
+    /** Where the page's video is coming from, as far as its requests say. */
+    @PluginMethod
+    public void mediaStream(PluginCall call) {
+        final String id = call.getString("id");
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            JSObject result = new JSObject();
+            result.put("stream", tab == null ? "" : tab.streamUrl());
+            call.resolve(result);
+        });
+    }
+
+    /**
+     * Save an HLS stream as one file. Resolves at once with the job's id;
+     * progress, the finished file and any failure arrive as events, because a
+     * film is minutes of segments and the bridge call cannot wait that long.
+     */
+    @PluginMethod
+    public void downloadStream(PluginCall call) {
+        final String id = call.getString("id");
+        final String url = call.getString("url", "");
+        final String filename = call.getString("filename", "video");
+        if (!url.startsWith("https://") && !url.startsWith("http://")) { call.reject("That is not a stream Vex can fetch"); return; }
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            String agent = tab != null ? tab.userAgent() : null;
+            final String jobId = StreamDownloader.nextId();
+            StreamDownloader.start(getContext(), jobId, url, agent, filename, new StreamDownloader.Listener() {
+                private long lastReport = 0;
+
+                @Override
+                public void progress(String job, int done, int total, long bytes) {
+                    long now = System.currentTimeMillis();
+                    if (done < total && now - lastReport < 500) return;
+                    lastReport = now;
+                    JSObject data = new JSObject();
+                    data.put("jobId", job);
+                    data.put("done", done);
+                    data.put("total", total);
+                    data.put("bytes", bytes);
+                    notifyListeners("streamProgress", data);
+                }
+
+                @Override
+                public void finished(String job, String localUri, long bytes, String mimeType) {
+                    JSObject data = new JSObject();
+                    data.put("jobId", job);
+                    data.put("localUri", localUri);
+                    data.put("bytes", bytes);
+                    data.put("mimeType", mimeType);
+                    notifyListeners("streamDone", data);
+                }
+
+                @Override
+                public void failed(String job, String message) {
+                    JSObject data = new JSObject();
+                    data.put("jobId", job);
+                    data.put("message", message);
+                    notifyListeners("streamFailed", data);
+                }
+            });
+            JSObject result = new JSObject();
+            result.put("jobId", jobId);
+            call.resolve(result);
+        });
+    }
+
+    @PluginMethod
+    public void cancelStream(PluginCall call) {
+        StreamDownloader.cancel(call.getString("jobId", ""));
+        call.resolve();
     }
 
     @PluginMethod
