@@ -131,7 +131,6 @@ const VexClear = (() => {
         done.push('saved');
       }
       if (items.downloads) { await VexDB.clear('downloads'); done.push('downloads'); }
-      if (items.closed) { await VexStore.set('vex.closedTabs', []); done.push('closed'); }
       if (items.tabs) {
         await VexTabStore.closeAll(false);
         await VexTabStore.closeAll(true);
@@ -140,6 +139,10 @@ const VexClear = (() => {
         if (!VexTabStore.all().length) await VexTabStore.create('about:blank');
         done.push('tabs');
       }
+      // After the tabs, not before: closing a tab remembers it for "Reopen
+      // closed tab", so emptying the list first refilled it with every tab
+      // that was being cleared away.
+      if (items.closed) { await VexStore.set('vex.closedTabs', []); done.push('closed'); }
       return done;
     },
 

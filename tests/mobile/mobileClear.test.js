@@ -150,3 +150,17 @@ describe('what there is to clear', () => {
     expect(counts).toEqual({ visits: 1200, pages: 300, saved: 7, downloads: 4, closed: 2, tabs: 2 });
   });
 });
+
+describe('closed tabs and open tabs together', () => {
+  it('leaves nothing in "reopen closed tab" from the tabs it closed', async () => {
+    // Closing a tab remembers it, as the real tab store does.
+    window.VexTabStore.closeAll = vi.fn(async () => {
+      const list = window.VexStore.get('vex.closedTabs', []);
+      window.VexStore.set('vex.closedTabs', list.concat(tabs.map(tab => ({ url: tab.url }))));
+      tabs = [];
+    });
+    await window.VexStore.set('vex.closedTabs', [{ url: 'https://earlier.example/' }]);
+    await VexClear.run({ tabs: true, closed: true });
+    expect(window.VexStore.get('vex.closedTabs', [])).toEqual([]);
+  });
+});
