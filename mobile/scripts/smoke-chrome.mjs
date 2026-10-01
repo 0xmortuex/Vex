@@ -30,6 +30,16 @@ const results = {};
 // A crash halfway through says nothing about how far the walkthrough got. This
 // writes what was collected before the throw — synchronously, because stderr
 // to a CI pipe does not always flush before exit.
+// A step waiting on something nobody will do — a dialog nobody answers —
+// hangs the run rather than failing it, and in CI that is half an hour of
+// nothing. Five minutes is several times a whole walkthrough; past that, say
+// how far it got and fail.
+setTimeout(() => {
+  fs.writeSync(2, 'HUNG — the walkthrough stopped moving. Reached:\n');
+  for (const [key, value] of Object.entries(results)) fs.writeSync(2, '  ' + key + ' = ' + JSON.stringify(value) + '\n');
+  process.exit(1);
+}, 5 * 60 * 1000).unref();
+
 process.on('uncaughtException', error => {
   fs.writeSync(2, 'CRASH ' + ((error && error.stack) || error) + '\n\nreached:\n');
   for (const [key, value] of Object.entries(results)) {
@@ -1251,8 +1261,18 @@ results.agentClosesTabs = await page.evaluate(async () => {
         : { thought: 'close the youtube tabs', tool: 'close_tabs', parameters: { match: 'youtube' }, intent: 'action' } })
     };
   };
+  // Closing tabs is asked about by the chrome itself, whatever the model
+  // said — so the walkthrough answers the dialog, and keeps what it asked.
+  let asked = '';
+  const answer = setInterval(() => {
+    if (document.getElementById('dialog').hidden) return;
+    asked = document.getElementById('dialog-message').textContent;
+    document.getElementById('dialog-ok').click();
+  }, 40);
   const outcome = await VexAgent.pursue('close every youtube tab');
+  clearInterval(answer);
   return {
+    asked: /^Close 2 tabs/.test(asked),
     summary: outcome.summary,
     closed: before - VexTabStore.all().length,
     sentTools: Array.isArray(worker.availableTools) && worker.availableTools.some(tool => tool.name === 'close_tabs'),
@@ -1791,6 +1811,7 @@ if (!results.agentClosesTabs || results.agentClosesTabs.closed !== 2) {
   failures.push('agentClosesTabs: ' + JSON.stringify(results.agentClosesTabs));
 }
 if (results.agentClosesTabs && results.agentClosesTabs.action !== 'agent') failures.push('the agent did not use the agent action');
+if (results.agentClosesTabs && !results.agentClosesTabs.asked) failures.push('the chrome did not ask before the agent closed tabs');
 if (results.agentClosesTabs && !results.agentClosesTabs.sentTools) failures.push('the agent did not send its tool list');
 if (results.libraryRows < 25) failures.push('libraryRows: ' + results.libraryRows);
 if (results.localAiRows < 4) failures.push('localAiRows: the on-device panel is missing rows ('

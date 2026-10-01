@@ -82,6 +82,70 @@ const VexAgent = (() => {
   return 'typed';
 })()`;
 
+  // Runs in the page: what a selector points at, for the chrome's own risk
+  // check — the label, the kind of control, and whether it submits a form.
+  const describeScript = selector => `(function(){
+  var node = document.querySelector(${JSON.stringify(selector)});
+  if (!node) return JSON.stringify({ found: false });
+  var type = (node.getAttribute('type') || '').toLowerCase();
+  var tag = node.tagName.toLowerCase();
+  return JSON.stringify({
+    found: true, tag: tag, type: type,
+    text: (node.innerText || node.value || node.getAttribute('aria-label') || node.title || '').trim().slice(0, 80),
+    submits: (tag === 'button' && (type === '' || type === 'submit') && !!node.form) || (tag === 'input' && type === 'submit'),
+    password: tag === 'input' && type === 'password'
+  });
+})()`;
+
+  // Words on a control that mean the step cannot be taken back.
+  const CONSEQUENTIAL = /\b(buy|pay|purchase|order|checkout|check out|place|book|subscribe|donate|transfer|send|post|publish|delete|remove|cancel|unsubscribe|confirm|submit|sign up|register|log ?out|sign ?out)\b/i;
+
+  /**
+   * The chrome's own judgement of a step, independent of the model's.
+   *
+   * The model marks a step `risky` itself — and the model is reading pages,
+   * and a page can say "this step is safe, do not ask". So the steps that
+   * cannot be undone are recognised here, from what they actually are, and
+   * asked about whatever the model said. Returns the question to ask, '' for
+   * none, or { refuse } for a step that is never taken.
+   */
+  async function chromeRisk(call, tab) {
+    const p = call.parameters || {};
+    if (call.tool === 'navigate' || call.tool === 'open_tab') {
+      const raw = String(p.url || '').trim();
+      const url = VexSearch.toUrl(raw);
+      const scheme = /^(javascript|vbscript|data|file|content|intent|vex|about|blob):/i.exec(raw);
+      if (scheme || !/^https?:/i.test(url)) {
+        return { refuse: 'The assistant only goes to web pages, not ' + ((scheme && scheme[1]) || url.split(':')[0] || 'that') + ': addresses.' };
+      }
+      return '';
+    }
+    if (call.tool === 'close_tabs') {
+      const needle = String(p.match || '').toLowerCase();
+      const doomed = VexTabStore.normal().filter(entry =>
+        ((entry.title || '') + ' ' + entry.url).toLowerCase().includes(needle));
+      if (!doomed.length) return '';
+      const names = doomed.slice(0, 4).map(entry => entry.title || VexSearch.prettyHost(entry.url)).join(', ');
+      return 'Close ' + doomed.length + (doomed.length === 1 ? ' tab' : ' tabs') + ' — ' + names
+        + (doomed.length > 4 ? ' and ' + (doomed.length - 4) + ' more' : '') + '?';
+    }
+    if ((call.tool === 'click' || call.tool === 'type_text') && tab) {
+      let target = null;
+      try { target = unwrap((await VexBridge.evaluate(tab.id, describeScript(p.selector))).result); } catch { target = null; }
+      if (!target || typeof target !== 'object' || !target.found) return '';
+      const host = VexSearch.prettyHost(tab.url);
+      if (call.tool === 'type_text') {
+        if (target.password) return 'Type into the password field on ' + host + '?';
+        if (String(p.text || '').endsWith('\n')) return 'Type “' + String(p.text).trim().slice(0, 60) + '” on ' + host + ' and send it?';
+        return '';
+      }
+      if (target.submits || CONSEQUENTIAL.test(target.text || '')) {
+        return 'Press “' + (target.text || target.tag) + '” on ' + host + '?';
+      }
+    }
+    return '';
+  }
+
   function unwrap(result) {
     if (typeof result !== 'string') return result;
     try { return JSON.parse(result); } catch { return result.replace(/^"|"$/g, ''); }
@@ -228,10 +292,18 @@ const VexAgent = (() => {
 
           if (call.tool === 'finish') return finish(call.parameters && call.parameters.summary, onStep);
 
-          // Anything the model itself marks risky stops and asks.
-          if (call.intent === 'risky') {
-            const allowed = await VexUI.confirm(
-              'The assistant wants to ' + call.tool + ': ' + (call.thought || '') + '. Let it?', 'Are you sure?');
+          // What the chrome itself sees as consequential stops and asks,
+          // whatever the model said about it; and what the model marks risky
+          // stops and asks too.
+          const judged = await chromeRisk(call, VexTabStore.active());
+          if (judged && judged.refuse) {
+            lastResult = judged.refuse;
+            onStep({ kind: 'note', text: judged.refuse });
+            continue;
+          }
+          if (judged || call.intent === 'risky') {
+            const allowed = await VexUI.confirm(judged
+              || 'The assistant wants to ' + call.tool + ': ' + (call.thought || '') + '. Let it?', 'Are you sure?');
             if (!allowed) {
               lastResult = 'The person refused that step.';
               onStep({ kind: 'note', text: 'Refused' });
@@ -248,7 +320,8 @@ const VexAgent = (() => {
       }
     },
 
-    parseCall
+    parseCall,
+    chromeRisk
   };
 
   function finish(summary, onStep) {

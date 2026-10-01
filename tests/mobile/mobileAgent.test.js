@@ -114,7 +114,8 @@ describe('the loop', () => {
     );
     await VexAgent.pursue('buy the thing');
     expect(window.VexUI.confirm).toHaveBeenCalled();
-    expect(window.VexBridge.evaluate).not.toHaveBeenCalled();       // the click never happened
+    // The chrome looked at the button (to judge it), but never pressed it.
+    expect(window.VexBridge.evaluate.mock.calls.some(call => String(call[1]).includes('node.click()'))).toBe(false);
   });
 
   it('breaks out of a model repeating itself', async () => {
@@ -175,5 +176,52 @@ describe('the tools themselves', () => {
       .mockResolvedValueOnce({ tool: 'finish', parameters: { summary: 'ok' }, intent: 'safe' });
     await VexAgent.pursue('close things');
     expect(tabs).toHaveLength(3);
+  });
+});
+
+describe('what the chrome asks about, whatever the model says', () => {
+  const page = description => {
+    window.VexBridge.evaluate = vi.fn(async () => ({ result: JSON.stringify(Object.assign({ found: true }, description)) }));
+  };
+
+  it('asks before closing tabs, naming them', async () => {
+    const question = await VexAgent.chromeRisk({ tool: 'close_tabs', parameters: { match: 'youtube' } }, tabs[0]);
+    expect(question).toBe('Close 2 tabs — A video, YouTube is discussed here?');
+  });
+
+  it('asks before a button that buys, deletes or submits', async () => {
+    page({ tag: 'button', text: 'Place order', submits: false });
+    expect(await VexAgent.chromeRisk({ tool: 'click', parameters: { selector: '#a' } }, tabs[0])).toContain('Place order');
+    page({ tag: 'button', text: 'Next', submits: true });
+    expect(await VexAgent.chromeRisk({ tool: 'click', parameters: { selector: '#b' } }, tabs[0])).toContain('Next');
+    page({ tag: 'a', text: 'Read more', submits: false });
+    expect(await VexAgent.chromeRisk({ tool: 'click', parameters: { selector: '#c' } }, tabs[0])).toBe('');
+  });
+
+  it('asks before typing a password or typing that sends', async () => {
+    page({ tag: 'input', type: 'password', password: true });
+    expect(await VexAgent.chromeRisk({ tool: 'type_text', parameters: { selector: '#p', text: 'x' } }, tabs[0])).toContain('password');
+    page({ tag: 'textarea' });
+    expect(await VexAgent.chromeRisk({ tool: 'type_text', parameters: { selector: '#t', text: 'hello\n' } }, tabs[0])).toContain('send it');
+  });
+
+  it('never goes anywhere but a web page', async () => {
+    for (const url of ['javascript:alert(1)', 'file:///sdcard/secret.txt', 'data:text/html,hi', 'intent://x#Intent;end']) {
+      const judged = await VexAgent.chromeRisk({ tool: 'navigate', parameters: { url } }, tabs[0]);
+      expect(judged && judged.refuse).toBeTruthy();
+    }
+    expect(await VexAgent.chromeRisk({ tool: 'open_tab', parameters: { url: 'https://example.org/' } }, tabs[0])).toBe('');
+  });
+
+  it('asks even when the model called the step safe', async () => {
+    page({ tag: 'button', text: 'Delete account', submits: false });
+    window.VexUI.confirm.mockResolvedValueOnce(false);
+    window.VexUI.confirm.mockClear();
+    window.VexAI.ask = vi.fn()
+      .mockResolvedValueOnce(JSON.stringify({ tool: 'click', parameters: { selector: '#d' }, intent: 'safe' }))
+      .mockResolvedValueOnce(JSON.stringify({ tool: 'finish', parameters: { summary: 'ok' } }));
+    await VexAgent.pursue('tidy up', () => {});
+    expect(window.VexUI.confirm).toHaveBeenCalled();
+    expect(window.VexBridge.evaluate.mock.calls.some(call => String(call[1]).includes('node.click()'))).toBe(false);
   });
 });
