@@ -33,6 +33,21 @@ const VexBlock = (() => {
     '||quantserve.com^', '||sentry-cdn.com^', '||bugsnag.com^', '||fullstory.com^'
   ];
 
+  /**
+   * A list's text. The chrome asks first; a list server that sends no CORS
+   * header refuses the chrome's own origin, so native fetches it instead —
+   * otherwise that list silently never arrived and only the seed blocked.
+   */
+  async function download(url) {
+    try {
+      const response = await fetch(url, { cache: 'no-cache' });
+      if (response.ok) return await response.text();
+    } catch { /* refused cross-origin, most likely: native next */ }
+    const answer = await VexBridge.fetchText(url, { purpose: 'list' });
+    if (!answer || !answer.ok || !answer.body) throw new Error('could not fetch ' + url);
+    return answer.body;
+  }
+
   function parse(text) {
     const block = [], allow = [], hide = {};
     for (const raw of String(text || '').split('\n')) {
@@ -105,9 +120,7 @@ const VexBlock = (() => {
       for (const list of lists) {
         if (!list.on) continue;
         try {
-          const response = await fetch(list.url, { cache: 'no-cache' });
-          if (!response.ok) continue;
-          const parsed = parse(await response.text());
+          const parsed = parse(await download(list.url));
           merged.block.push(...parsed.block);
           merged.allow.push(...parsed.allow);
           for (const [host, selectors] of Object.entries(parsed.hide)) {

@@ -142,3 +142,19 @@ describe('handing rules to native', () => {
     expect(window.VexBridge.setSiteAllowed).toHaveBeenCalledWith('shop.example', true);
   });
 });
+
+describe('fetching a list the chrome is refused', () => {
+  it('goes through native when the server sends no CORS header', async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+    window.VexBridge.fetchText = vi.fn(async (url, options) => ({
+      ok: true, status: 200, body: '! list\n||tracker.example^\nexample.com##.ad\n'
+    }));
+    await VexStore.set('vex.blockLists', [{ id: 'one', name: 'One', url: 'https://lists.example/one.txt', on: true }]);
+    const merged = await VexBlock.refresh();
+    globalThis.fetch = realFetch;
+    expect(window.VexBridge.fetchText).toHaveBeenCalledWith('https://lists.example/one.txt', { purpose: 'list' });
+    expect(merged.block).toContain('||tracker.example^');
+    expect(merged.hide['example.com']).toEqual(['.ad']);
+  });
+});

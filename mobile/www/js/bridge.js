@@ -545,8 +545,9 @@ const VexBridge = (() => {
 
     // A plain GET through native, for the search engine's suggestions: the
     // endpoints send no CORS header, so the chrome cannot ask them itself.
-    async fetchText(url) {
+    async fetchText(url, { purpose = '' } = {}) {
       if (!plugins.VexSystem) {
+        if (purpose === 'list') return { ok: false, status: 0, body: '' };
         // Development: no native, and the engines would refuse a cross-origin
         // request anyway. Answer with the shape they answer with, so the
         // omnibox can be driven here.
@@ -557,7 +558,7 @@ const VexBridge = (() => {
           body: JSON.stringify([query, [query + ' meaning', query + ' in english', query + ' lyrics']])
         };
       }
-      const result = await system('fetchText', { url });
+      const result = await system('fetchText', { url, purpose });
       return { ok: !!(result && result.ok), status: (result && result.status) || 0, body: (result && result.body) || '' };
     },
     setFullscreen(value) { return system('setFullscreen', { value: !!value }); },

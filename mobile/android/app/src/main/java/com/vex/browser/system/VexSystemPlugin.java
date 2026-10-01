@@ -243,34 +243,39 @@ public class VexSystemPlugin extends Plugin {
     public void fetchText(PluginCall call) {
         final String url = call.getString("url", "");
         if (!url.startsWith("https://")) { call.reject("Only https"); return; }
+        // A filter list is a megabyte or two and slower to come; it asks for
+        // more room and more time. Still capped: 8 MB and 30 seconds.
+        final boolean list = "list".equals(call.getString("purpose", ""));
+        final int cap = list ? 8 << 20 : 65536;
+        final int timeout = list ? 30000 : 4000;
         new Thread(() -> {
             HttpURLConnection connection = null;
             try {
                 connection = (HttpURLConnection) new java.net.URL(url).openConnection();
-                connection.setConnectTimeout(4000);
-                connection.setReadTimeout(4000);
+                connection.setConnectTimeout(timeout);
+                connection.setReadTimeout(timeout);
                 connection.setInstanceFollowRedirects(false);
                 connection.setUseCaches(false);
                 connection.setRequestProperty("Accept", "application/json, text/plain, */*");
                 // No Cookie header is set, and no CookieHandler is installed for
                 // this connection, so the request carries no identity.
                 int status = connection.getResponseCode();
-                StringBuilder body = new StringBuilder();
+                // Bytes first, text once at the end: decoding each 8 KB read on
+                // its own split any character that crossed a read in two.
+                java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
                 if (status >= 200 && status < 300) {
                     java.io.InputStream in = connection.getInputStream();
                     byte[] buffer = new byte[8192];
                     int read;
-                    int total = 0;
-                    while ((read = in.read(buffer)) != -1 && total < 65536) {
-                        body.append(new String(buffer, 0, read, java.nio.charset.StandardCharsets.UTF_8));
-                        total += read;
+                    while ((read = in.read(buffer)) != -1 && bytes.size() < cap) {
+                        bytes.write(buffer, 0, Math.min(read, cap - bytes.size()));
                     }
                     in.close();
                 }
                 JSObject result = new JSObject();
                 result.put("ok", status >= 200 && status < 300);
                 result.put("status", status);
-                result.put("body", body.toString());
+                result.put("body", new String(bytes.toByteArray(), java.nio.charset.StandardCharsets.UTF_8));
                 call.resolve(result);
             } catch (Exception error) {
                 JSObject result = new JSObject();
