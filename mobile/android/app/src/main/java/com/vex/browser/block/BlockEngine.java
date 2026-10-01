@@ -139,6 +139,12 @@ public final class BlockEngine {
         }
     }
 
+    static final Set<String> NOT_REQUESTS = new HashSet<>(java.util.Arrays.asList(
+            "popup", "popunder", "csp", "redirect", "redirect-rule", "rewrite", "removeparam", "queryprune",
+            "document", "doc", "elemhide", "ehide", "generichide", "ghide", "specifichide", "shide",
+            "genericblock", "header", "permissions", "replace", "urltransform", "uritransform", "urlskip",
+            "cname", "badfilter"));
+
     // Tokens so common that filing a rule under them would make a bucket
     // every address opens.
     private static final Set<String> COMMON = new HashSet<>(java.util.Arrays.asList(
@@ -314,6 +320,13 @@ public final class BlockEngine {
             String opts = pattern.substring(options + 1);
             pattern = pattern.substring(0, options);
             for (String opt : opts.split(",")) {
+                // Options that make the rule about something other than "this
+                // request may not load": a pop-up window, a header, a rewrite,
+                // a page-level switch. Matched as a plain rule, "||site^$popup"
+                // blocked everything from that site on every page; such rules
+                // are not this engine's to apply, so they are left out.
+                String name = opt.contains("=") ? opt.substring(0, opt.indexOf('=')) : opt;
+                if (NOT_REQUESTS.contains(name)) return null;
                 if (opt.equals("third-party") || opt.equals("3p")) thirdParty = true;
                 else if (opt.equals("~third-party") || opt.equals("1p") || opt.equals("first-party")) firstParty = true;
                 else if (opt.startsWith("domain=")) {

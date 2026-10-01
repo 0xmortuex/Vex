@@ -36,7 +36,10 @@ public class BlockCheck {
                 "/sponsor.js$domain=news.example|~blog.news.example",
                 "/first-only-tracker.$~third-party",
                 "||evil.example/*.js$3p",
-                "ads"                                   // too generic: dropped
+                "ads",                                  // too generic: dropped
+                "||popups.example^$popup",              // about windows, not requests
+                "||csp.example^$csp=script-src 'self'", // a header, not a block
+                "||doc.example^$document"
         ), Arrays.asList(
                 "||doubleclick.net/allowed/",
                 "/banner/ok/*"
@@ -65,6 +68,9 @@ public class BlockCheck {
         expect(engine.blocks("b.example", "https://evil.example/lib/x.js", false), "|| with a wildcard path");
         expect(!engine.blocks("b.example", "https://uploads.example/files/ads.png", false), "a two-letter-generic rule is dropped");
         expect(!engine.blocks("b.example", "https://ad.doubleclick.net/x.js", true), "the page itself is never blocked");
+        expect(!engine.blocks("b.example", "https://popups.example/app.js", false), "a $popup rule does not block requests");
+        expect(!engine.blocks("b.example", "https://csp.example/app.js", false), "a $csp rule does not block requests");
+        expect(!engine.blocks("b.example", "https://doc.example/app.js", false), "a $document rule does not block requests");
 
         // Speed: thousands of rules, and still a lookup rather than a scan.
         List<String> many = new ArrayList<>();
