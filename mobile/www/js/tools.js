@@ -114,12 +114,15 @@ const VexTools = (() => {
       const record = {
         url: tab.url,
         title: tab.title || VexSearch.prettyHost(tab.url),
-        html: html.slice(0, 4 * 1024 * 1024),
         at: Date.now(),
         size: html.length,
         icon: tab.icon || ''
       };
-      await VexDB.add('pages', record);
+      // The row and the document are stored apart, under the same id: the list
+      // of saved pages reads the rows, and only opening one reads a document.
+      const id = await VexDB.add('pages', record);
+      record.id = id;
+      await VexDB.put('pagehtml', { id, html: html.slice(0, 4 * 1024 * 1024) });
       return record;
     },
 
@@ -128,11 +131,21 @@ const VexTools = (() => {
     async openSaved(page) {
       const tab = VexTabStore.active();
       if (!tab) return;
-      await VexBridge.loadHtml(tab.id, page.html, page.url);
+      // page.html is what a row written before the split still carries.
+      let html = page.html || '';
+      if (!html) {
+        const stored = await VexDB.get('pagehtml', page.id);
+        html = (stored && stored.html) || '';
+      }
+      if (!html) { VexUI.toast('That saved page is empty'); return; }
+      await VexBridge.loadHtml(tab.id, html, page.url);
       VexTabStore.update(tab.id, { url: page.url, title: page.title, loading: false, progress: 100 });
     },
 
-    deleteSaved(id) { return VexDB.delete('pages', id); },
+    async deleteSaved(id) {
+      await VexDB.delete('pages', id);
+      await VexDB.delete('pagehtml', id);
+    },
 
     // ── A picture of the page ──────────────────────────────────────────────
     async capture(tab, { full = false, share = true } = {}) {

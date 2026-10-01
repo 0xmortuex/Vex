@@ -82,7 +82,7 @@ const VexErrors = (() => {
       if (!tab || !tab.pendingUrl && !tab.url) return false;
       const url = tab.pendingUrl || tab.url;
       if (!/^https?:/.test(url)) return false;
-      const saved = await VexDB.scan('pages', { limit: 1, match: row => row.url === url });
+      const saved = await VexDB.byIndex('pages', 'url', url);
       const page = this.html({
         url,
         code,
@@ -102,7 +102,9 @@ const VexErrors = (() => {
       if (command === 'retry') {
         await VexTabStore.navigate(tab.id, url);
       } else if (command === 'saved') {
-        const saved = await VexDB.scan('pages', { limit: 1, match: row => row.url === url });
+        // Save the same page twice and the newest copy is the one you want.
+        const saved = (await VexDB.byIndex('pages', 'url', url, 20))
+          .sort((a, b) => (b.at || 0) - (a.at || 0));
         if (saved.length) await VexTools.openSaved(saved[0]);
         else VexUI.toast('There is no saved copy of that page');
       } else if (command === 'search') {

@@ -81,7 +81,9 @@ const VexBackup = (() => {
       if (history) {
         const rows = await VexDB.scan('history', { index: 'at', direction: 'prev', limit: HISTORY_CAP })
           .catch(() => []);
-        data.history = (rows || []).map(row => ({ url: row.url, title: row.title, at: row.at }));
+        data.history = (rows || []).map(row => ({
+          url: row.url, title: row.title, at: row.at, icon: row.icon || ''
+        }));
       }
       const notes = await VexDB.scan('notes', { index: 'at', direction: 'prev', limit: 2000 }).catch(() => []);
       data.notes = notes || [];
@@ -174,7 +176,11 @@ const VexBackup = (() => {
         if (!entry || !entry.url) continue;
         await VexDB.add('history', {
           url: entry.url, title: entry.title || '', at: entry.at || Date.now(),
-          host: (() => { try { return new URL(entry.url).hostname; } catch { return ''; } })()
+          icon: entry.icon || '',
+          // The same host the rest of Vex writes. new URL().hostname keeps the
+          // www., which left restored rows under a host nobody else looks for —
+          // "forget this site" and the per-site grouping would both miss them.
+          host: VexSearch.prettyHost(entry.url)
         }).catch(() => {});
         history++;
       }

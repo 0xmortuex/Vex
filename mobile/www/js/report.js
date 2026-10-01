@@ -30,11 +30,17 @@ const VexReport = (() => {
       message: tidy(message),
       where: tidy(where)
     };
+    // A page in a reload loop throws the same thing over and over. Keep it in
+    // memory, where it is cheap, but do not write a row for each one: the store
+    // is pruned, and a hundred copies of one failure would push out the rest.
+    const previous = recent[0];
+    const repeat = previous && previous.kind === entry.kind && previous.message === entry.message
+      && entry.at - previous.at < 5000;
     recent.unshift(entry);
     if (recent.length > KEEP) recent.length = KEEP;
     // Written behind the in-memory copy so a panel opened immediately after a
     // failure shows it even if the write is still in flight.
-    Promise.resolve(VexDB.add('errors', entry)).catch(() => {});
+    if (!repeat) Promise.resolve(VexDB.add('errors', entry)).catch(() => {});
     return entry;
   }
 

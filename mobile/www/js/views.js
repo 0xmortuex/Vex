@@ -166,6 +166,9 @@ const VexViews = (() => {
   }
 
   async function ask(text, options) {
+    // Asked while the last answer is still coming: say so and keep what was
+    // typed, rather than emptying the box over a question that never ran.
+    if (VexAI.state.busy) { VexUI.toast('Still thinking about the last one'); return; }
     const input = $('vex-chat-input');
     if (input) input.value = '';
     // A question about a selection shows the selection, not just the prompt.

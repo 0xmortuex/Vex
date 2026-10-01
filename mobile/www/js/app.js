@@ -378,7 +378,7 @@
 
     VexBridge.on('fullscreen', data => {
       // A page playing video full screen should not have a toolbar over it.
-      document.body.classList.toggle('toolbar-hidden', !!(data && data.fullscreen));
+      VexUI.setFullscreen(!!(data && data.fullscreen));
     });
 
     VexBridge.on('error', async data => {

@@ -66,16 +66,27 @@ const VexPdf = (() => {
     return canvas;
   }
 
+  // Which scale the pages on screen were drawn at. Zooming a long document
+  // used to do nothing at all: renderAll() refused to start while a render was
+  // in flight, and a fifty-page PDF is in flight for a while. Zoom bumps this
+  // instead, and the loop that is already running starts over at the new scale.
+  let wanted = 0;
+
   async function renderAll() {
-    if (state.rendering) return;
+    wanted++;
+    if (state.rendering) return;          // the running loop will pick it up
     state.rendering = true;
-    clear($('pdf-pages'));
     try {
-      // Everything, in order, one at a time: a phone has no memory to spare for
-      // a hundred canvases at once, and a reader scrolls.
-      for (let number = 1; number <= state.pages; number++) {
-        await renderPage(number);
-        if (!state.open) break;           // closed while rendering
+      let drawing = -1;
+      while (drawing !== wanted && state.open) {
+        drawing = wanted;
+        clear($('pdf-pages'));
+        // Everything, in order, one at a time: a phone has no memory to spare
+        // for a hundred canvases at once, and a reader scrolls.
+        for (let number = 1; number <= state.pages; number++) {
+          if (drawing !== wanted || !state.open) break;   // zoomed, or closed
+          await renderPage(number);
+        }
       }
     } catch (error) {
       VexReport.note('PDF render failed: ' + (error.message || error), state.url);
@@ -148,7 +159,9 @@ const VexPdf = (() => {
     },
 
     zoom(by) {
-      state.scale = Math.max(0.5, Math.min(4, state.scale + by));
+      const next = Math.max(0.5, Math.min(4, state.scale + by));
+      if (next === state.scale) return;        // already at the end of the range
+      state.scale = next;
       renderAll();
     },
 

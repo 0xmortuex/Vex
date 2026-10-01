@@ -138,7 +138,14 @@ const VexAI = (() => {
 
     // One question. Returns the assistant's text; the panel renders it.
     async ask(text, options = {}) {
-      if (state.busy) throw new Error('Still thinking about the last one.');
+      // Thrown before the try below, so unlike every other failure here it
+      // would leave no trace in the log — and the panel has already taken the
+      // question out of the box by the time it lands.
+      if (state.busy) {
+        const message = 'Still thinking about the last one.';
+        if (options.action !== 'agent') state.messages.push({ role: 'error', text: message, at: Date.now() });
+        throw new Error(message);
+      }
       const question = String(text || '').trim();
       if (!question && !options.action) return '';
       state.busy = true;

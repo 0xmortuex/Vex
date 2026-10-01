@@ -20,6 +20,7 @@ let tabs = [];
 let activeId = 't1';
 window.VexTabStore = {
   all: () => tabs,
+  normal: () => tabs.filter(tab => !tab.incognito),
   active: () => tabs.find(tab => tab.id === activeId) || null,
   activeId: () => activeId,
   get: id => tabs.find(tab => tab.id === id) || null,
@@ -43,6 +44,27 @@ beforeEach(() => {
   activeId = 't1';
   for (const fn of [window.VexTabStore.create, window.VexTabStore.close, window.VexTabStore.navigate,
     window.VexBridge.evaluate, window.VexAI.ask]) fn.mockClear();
+});
+
+describe('private tabs', () => {
+  it('refuses to start in one, because every step sends the page to the worker', async () => {
+    tabs.push({ id: 't9', url: 'https://secret.example/', title: 'Secret', incognito: true });
+    activeId = 't9';
+    await expect(VexAgent.pursue('do something')).rejects.toThrow('private tab');
+    expect(window.VexAI.ask).not.toHaveBeenCalled();
+  });
+
+  it('neither lists nor closes one', async () => {
+    tabs.push({ id: 't9', url: 'https://youtube.com/secret', title: 'Private video', incognito: true });
+    window.VexAI.ask.mockResolvedValueOnce({ tool: 'list_tabs', parameters: {} })
+      .mockResolvedValueOnce({ tool: 'close_tabs', parameters: { match: 'youtube' } })
+      .mockResolvedValueOnce({ tool: 'finish', parameters: { summary: 'done' } });
+    const seen = [];
+    await VexAgent.pursue('tidy up', step => { if (step.kind === 'result') seen.push(step.text); });
+    expect(seen[0]).not.toContain('secret');
+    // The two public YouTube tabs go; the private one is not the agent's to close.
+    expect(tabs.map(tab => tab.id)).toEqual(['t1', 't9']);
+  });
 });
 
 describe('reading the model’s answer', () => {

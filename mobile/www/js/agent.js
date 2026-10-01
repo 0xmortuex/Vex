@@ -129,8 +129,10 @@ const VexAgent = (() => {
         await VexBridge.evaluate(tab.id, 'window.scrollBy(0,' + by + ');"scrolled"');
         return 'scrolled ' + (p.direction || 'down');
       }
+      // Private tabs are not the agent's to see or to touch: what is in them
+      // would be on its way to the worker the moment it listed them.
       case 'list_tabs':
-        return VexTabStore.all().map((entry, index) => ({
+        return VexTabStore.normal().map((entry, index) => ({
           index, url: entry.url, title: entry.title, active: entry.id === VexTabStore.activeId()
         }));
       case 'open_tab':
@@ -139,7 +141,7 @@ const VexAgent = (() => {
       case 'close_tabs': {
         const needle = String(p.match || '').toLowerCase();
         if (!needle) return 'close_tabs needs something to match on';
-        const doomed = VexTabStore.all().filter(entry =>
+        const doomed = VexTabStore.normal().filter(entry =>
           ((entry.title || '') + ' ' + entry.url).toLowerCase().includes(needle));
         for (const entry of doomed) await VexTabStore.close(entry.id);
         VexUI.renderToolbar();
@@ -175,6 +177,11 @@ const VexAgent = (() => {
     async pursue(goal, onStep = () => {}) {
       if (state.running) throw new Error('The agent is already working on something');
       if (!(await VexAI.configured())) throw new Error('Set up the assistant first (Settings → Assistant)');
+      // The agent sends the page it is working on to the worker at every step.
+      // That is the one thing a private tab promises will not happen, so it
+      // does not run in one at all.
+      const started = VexTabStore.active();
+      if (started && started.incognito) throw new Error('The agent does not work in a private tab');
       state.running = true;
       state.stop = false;
       state.goal = goal;
@@ -187,6 +194,9 @@ const VexAgent = (() => {
           if (state.stop) return { stopped: true, summary: 'Stopped' };
 
           const tab = VexTabStore.active();
+          // You can switch tabs while it works. If the one in front is private
+          // now, the next step would send it; stop instead.
+          if (tab && tab.incognito) return finish('Stopped: that is a private tab.', onStep);
           const pageContext = tab && tab.url && tab.url !== 'about:blank'
             ? tab.title + ' — ' + tab.url
             : 'no page open';

@@ -12,17 +12,23 @@
 // Stores:
 //   history  { url, title, at, icon, host }        — one row per visit
 //   recall   { url, title, at, text, words[] }     — the page's readable text
-//   pages    { id, url, title, html, at, size }    — saved for offline
+//   pages    { id, url, title, at, size }         — saved for offline, no html
+//   pagehtml { id, html }                         — the document, read on open
 //   downloads{ url, filename, at, size, localUri }
 //   notes    { id, url, host, title, text, kind, at }
 //
 // `words` is a multiEntry index, which is what makes Recall a lookup rather
 // than a scan: the terms of a query hit the index, and only the rows that came
 // back are read.
+//
+// A saved page's HTML lives in its own store for the same reason. It used to
+// sit in the `pages` row, and drawing the list of saved pages walked that
+// store — which meant deserializing up to four megabytes of document per row
+// to show a title and a date.
 
 const VexDB = (() => {
   const NAME = 'vex';
-  const VERSION = 3;
+  const VERSION = 4;
   let database = null;
   let broken = false;
 
@@ -66,6 +72,27 @@ const VexDB = (() => {
         if (!db.objectStoreNames.contains('errors')) {
           const errors = db.createObjectStore('errors', { keyPath: 'id', autoIncrement: true });
           errors.createIndex('at', 'at');
+        }
+        // Version 4: a saved page's document moves out of its row, and the
+        // rows already written are moved with it — once, here, rather than
+        // leaving two shapes in the store forever.
+        if (!db.objectStoreNames.contains('pagehtml')) {
+          db.createObjectStore('pagehtml', { keyPath: 'id' });
+          const transaction = event.target.transaction;
+          const pages = transaction.objectStore('pages');
+          const html = transaction.objectStore('pagehtml');
+          const cursor = pages.openCursor();
+          cursor.onsuccess = cursorEvent => {
+            const at = cursorEvent.target.result;
+            if (!at) return;
+            const row = at.value;
+            if (row && row.html) {
+              html.put({ id: row.id, html: row.html });
+              delete row.html;
+              at.update(row);
+            }
+            at.continue();
+          };
         }
       };
       request.onsuccess = () => { database = request.result; resolve(database); };
@@ -141,6 +168,24 @@ const VexDB = (() => {
     count(store) { return run(store, 'readonly', object => object.count()); },
     scan,
 
+    // One row by an indexed value, without walking the store. scan() with a
+    // match predicate reads and deserializes every row until it finds one,
+    // which is the wrong shape of question for "is this URL in here".
+    byIndex(store, index, value, limit = 1) {
+      return open().then(db => {
+        if (!db) return [];
+        return new Promise(resolve => {
+          let transaction;
+          try { transaction = db.transaction(store, 'readonly'); }
+          catch { resolve([]); return; }
+          const request = transaction.objectStore(store).index(index)
+            .getAll(IDBKeyRange.only(value), limit);
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => resolve([]);
+        });
+      });
+    },
+
     // Every row whose url matches, so a "remove this site from history" is one
     // call rather than a read-modify-write of a 3,000-entry array.
     async deleteWhere(store, predicate) {
@@ -197,18 +242,24 @@ const VexDB = (() => {
       });
     },
 
-    // Keep the stores from growing without end: history by age, recall by
-    // count (its rows carry whole pages of text).
-    async prune({ historyDays = 365, recallRows = 4000 } = {}) {
+    // Keep the stores from growing without end: history by age, recall and the
+    // error log by count — recall's rows carry whole pages of text, and a page
+    // stuck in a reload loop can write errors faster than anyone reads them.
+    async prune({ historyDays = 365, recallRows = 4000, errorRows = 200 } = {}) {
       const cutoff = Date.now() - historyDays * 86400000;
       const removed = await this.deleteWhere('history', row => (row.at || 0) < cutoff);
-      const total = await this.count('recall');
-      if (total && total > recallRows) {
-        const excess = total - recallRows;
-        const oldest = await scan('recall', { index: 'at', direction: 'next', limit: excess });
-        for (const row of oldest) await this.delete('recall', row.url);
-      }
+      await this.trim('recall', recallRows, 'url');
+      await this.trim('errors', errorRows, 'id');
       return removed;
+    },
+
+    // Drop the oldest rows until no more than `keep` are left.
+    async trim(store, keep, keyField) {
+      const total = await this.count(store);
+      if (!total || total <= keep) return 0;
+      const oldest = await scan(store, { index: 'at', direction: 'next', limit: total - keep });
+      for (const row of oldest) await this.delete(store, row[keyField]);
+      return oldest.length;
     }
   };
 })();

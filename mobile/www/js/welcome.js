@@ -103,17 +103,20 @@ const VexWelcome = (() => {
       list.appendChild(VexSheets.row({
         icon: 'sync', label: 'Sync with your desktop',
         note: 'Bookmarks, reading list and sessions, encrypted with a key only your devices hold',
-        run: () => { VexWelcome.finish(); VexPanels.sync(); return true; }
+        // finish() writes a preference before it closes the panel, so the
+        // panel it opens next has to wait for it: calling both in one breath
+        // opened sync and then closed it half a tick later.
+        run: async () => { await VexWelcome.finish(); VexPanels.sync(); return true; }
       }));
       list.appendChild(VexSheets.row({
         icon: 'sparkle', label: 'Set up the assistant',
         note: 'Your own Cloudflare Worker — ask about a page, or let it do things',
-        run: () => { VexWelcome.finish(); VexPanels.assistantSettings(); return true; }
+        run: async () => { await VexWelcome.finish(); VexPanels.assistantSettings(); return true; }
       }));
       list.appendChild(VexSheets.row({
         icon: 'grid', label: 'See everything Vex can do',
         note: VexLibrary.count() + ' features, on shelves, searchable',
-        run: () => { VexWelcome.finish(); VexPanels.library(); return true; }
+        run: async () => { await VexWelcome.finish(); VexPanels.library(); return true; }
       }));
       step.appendChild(list);
       body.appendChild(step);

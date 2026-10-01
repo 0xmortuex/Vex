@@ -49,9 +49,32 @@ const VexUI = (() => {
   }
 
   function showToolbar() {
+    if (fullscreen) return;              // a video full screen keeps the chrome away
     if (!toolbarHidden) return;
     toolbarHidden = false;
     document.body.classList.remove('toolbar-hidden');
+    scheduleBounds();
+  }
+
+  // A page that went full screen — a video, usually — gets the whole display.
+  // This used to be a class toggled from app.js, behind showToolbar's back, so
+  // toolbarHidden ended up lying about the toolbar and auto-hide stopped
+  // working for the rest of the session. It also comes back to where it was
+  // rather than always coming back up.
+  let fullscreen = false;
+  let toolbarBeforeFullscreen = false;
+
+  function setFullscreen(on) {
+    on = !!on;
+    if (on === fullscreen) return;
+    if (on) {
+      toolbarBeforeFullscreen = toolbarHidden;
+      toolbarHidden = true;
+    } else {
+      toolbarHidden = toolbarBeforeFullscreen;
+    }
+    fullscreen = on;
+    document.body.classList.toggle('toolbar-hidden', toolbarHidden);
     scheduleBounds();
   }
 
@@ -890,7 +913,7 @@ const VexUI = (() => {
     version: '0.3.0',
 
     BUTTONS, DEFAULT_BUTTONS, buttonConfig, goHome,
-    toast, cover, pushBounds, scheduleBounds, applyToolbarPosition, onPageScroll,
+    toast, cover, pushBounds, scheduleBounds, applyToolbarPosition, onPageScroll, setFullscreen,
     renderToolbar, renderProgress, renderTabGrid, renderTabStrip, renderSuggestions, refreshMediaBar,
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind,
     openUrl, newTab, copy, toggleBookmark, reopenClosed, setStartVisible, startVisible,

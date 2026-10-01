@@ -22,6 +22,11 @@ window.VexDB = {
   add: async (name, row) => { (db[name] = db[name] || []).push(row); return row; }
 };
 
+// Restored history rows carry the same host the rest of Vex writes, which is
+// VexSearch's — scheme and a leading www. stripped.
+const { VexSearch } = require('../../mobile/www/js/search.js');
+window.VexSearch = VexSearch;
+
 const { VexBackup } = require('../../mobile/www/js/backup.js');
 
 beforeEach(() => {
@@ -111,6 +116,9 @@ describe('putting it back', () => {
     const applied = await VexBackup.restore(data);
     expect(applied.notes).toBe(1);
     expect(applied.history).toBe(1);
+    // The host has to match what a visit writes, or "forget this site" and the
+    // per-site grouping both miss everything that came out of a backup.
+    expect(db.history.at(-1).host).toBe('h.example');
     expect(db.notes.length).toBe(2);
   });
 
