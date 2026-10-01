@@ -250,5 +250,201 @@ window.VEX_THEMES = [
     "dark": true,
     "accent": "#00ddff",
     "bg": "#1c1b22"
+  },
+  {
+    "id": "clearvision",
+    "label": "ClearVision",
+    "dark": true,
+    "accent": "#2780e6",
+    "bg": "#15181e"
+  },
+  {
+    "id": "darkmatter",
+    "label": "Dark Matter",
+    "dark": true,
+    "accent": "#25ace8",
+    "bg": "#161921"
+  },
+  {
+    "id": "duskplus",
+    "label": "Dusk Plus",
+    "dark": true,
+    "accent": "#d147a3",
+    "bg": "#1c1219"
+  },
+  {
+    "id": "darkplus",
+    "label": "Dark Plus",
+    "dark": true,
+    "accent": "#bb86fc",
+    "bg": "#212121"
+  },
+  {
+    "id": "terminal",
+    "label": "Terminal Green",
+    "dark": true,
+    "accent": "#4aef98",
+    "bg": "#000900"
+  },
+  {
+    "id": "amoled",
+    "label": "AMOLED",
+    "dark": true,
+    "accent": "#5865f2",
+    "bg": "#000000"
+  },
+  {
+    "id": "recordgreen",
+    "label": "Record Green",
+    "dark": true,
+    "accent": "#1db954",
+    "bg": "#121212"
+  },
+  {
+    "id": "darkneon",
+    "label": "Dark Neon",
+    "dark": true,
+    "accent": "#04d9ff",
+    "bg": "#000000"
+  },
+  {
+    "id": "deepmidnight",
+    "label": "Deep Midnight",
+    "dark": true,
+    "accent": "#46aec5",
+    "bg": "#16181d"
+  },
+  {
+    "id": "softx",
+    "label": "SoftX",
+    "dark": true,
+    "accent": "#00e6a8",
+    "bg": "#1a1a1a"
+  },
+  {
+    "id": "neutron",
+    "label": "Neutron",
+    "dark": true,
+    "accent": "#7a5ae6",
+    "bg": "#0f0c1a"
+  },
+  {
+    "id": "nocturnal",
+    "label": "Nocturnal",
+    "dark": true,
+    "accent": "#2f86dc",
+    "bg": "#12171d"
+  },
+  {
+    "id": "tokyonight",
+    "label": "Tokyo Night",
+    "dark": true,
+    "accent": "#7aa2f7",
+    "bg": "#1a1b26"
+  },
+  {
+    "id": "material",
+    "label": "Material",
+    "dark": true,
+    "accent": "#6682e5",
+    "bg": "#161922"
+  },
+  {
+    "id": "androidbeige",
+    "label": "Android Beige",
+    "dark": false,
+    "accent": "#57544a",
+    "bg": "#dad4bb"
+  },
+  {
+    "id": "kaleidoscope",
+    "label": "Kaleidoscope",
+    "dark": true,
+    "accent": "#d129ff",
+    "bg": "#010b1e"
+  },
+  {
+    "id": "codedark",
+    "label": "Code Dark",
+    "dark": true,
+    "accent": "#4a86c5",
+    "bg": "#1a1a1a"
+  },
+  {
+    "id": "synthesis",
+    "label": "Synthesis",
+    "dark": true,
+    "accent": "#ffa500",
+    "bg": "#140624"
+  },
+  {
+    "id": "virtualred",
+    "label": "Virtual Red",
+    "dark": true,
+    "accent": "#ff0000",
+    "bg": "#000000"
+  },
+  {
+    "id": "paperred",
+    "label": "Paper Red",
+    "dark": false,
+    "accent": "#d40000",
+    "bg": "#ffffff"
+  },
+  {
+    "id": "noctisviola",
+    "label": "Noctis Viola",
+    "dark": true,
+    "accent": "#bf8ef1",
+    "bg": "#30243d"
+  },
+  {
+    "id": "wildberry",
+    "label": "Wildberry",
+    "dark": true,
+    "accent": "#f40174",
+    "bg": "#170027"
+  },
+  {
+    "id": "gxred",
+    "label": "GX Red",
+    "dark": true,
+    "accent": "#de4364",
+    "bg": "#121019"
+  },
+  {
+    "id": "gruvbox",
+    "label": "Gruvbox",
+    "dark": true,
+    "accent": "#83a598",
+    "bg": "#282828"
+  },
+  {
+    "id": "rosynight",
+    "label": "RosyNight",
+    "dark": true,
+    "accent": "#fc8686",
+    "bg": "#181818"
+  },
+  {
+    "id": "azurite",
+    "label": "Azurite",
+    "dark": true,
+    "accent": "#24cc89",
+    "bg": "#040429"
+  },
+  {
+    "id": "neptune",
+    "label": "Neptune",
+    "dark": true,
+    "accent": "#228bd1",
+    "bg": "#1a2035"
+  },
+  {
+    "id": "ezlight",
+    "label": "EzLight",
+    "dark": false,
+    "accent": "#735f1c",
+    "bg": "#d0cec9"
   }
 ];

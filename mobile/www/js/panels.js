@@ -102,6 +102,9 @@ const VexPanels = (() => {
     VexUI.cover(false);
   }
 
+  // Which of the desktop's notes the editor last had open, for Back.
+  let lastSyncedNote = null;
+
   const REOPEN = {
     history: () => VexPanels.history(),
     recall: () => VexPanels.recall(),
@@ -112,6 +115,8 @@ const VexPanels = (() => {
     downloads: () => VexPanels.downloads(),
     passwords: () => VexPanels.passwords(),
     sync: () => VexPanels.sync(),
+    syncedNotes: () => VexPanels.syncedNotes(),
+    syncedNote: () => VexPanels.syncedNote(lastSyncedNote),
     permissions: () => VexPanels.permissions(),
     notes: () => VexPanels.notes(),
     reminders: () => VexPanels.reminders(),
@@ -1136,28 +1141,31 @@ const VexPanels = (() => {
 
     // ── Sync ───────────────────────────────────────────────────────────────
     async sync() {
-      const body = openShell('sync', 'Sync');
+      const body = openShell('sync', 'Vex Sync');
       const state = VexSync.state;
 
       const status = el('div', 'status-line');
       status.appendChild(el('span', 'status-dot' + (state.enabled ? ' on' : state.lastError ? ' error' : '')));
       status.appendChild(document.createTextNode(state.enabled
-        ? 'Signed in as ' + state.email + (state.lastPushAt ? ' · last sent ' + when(Date.parse(state.lastPushAt)) : '')
+        ? 'Signed in as ' + state.email + (state.lastPullAt ? ' · synced ' + when(Date.parse(state.lastPullAt)) : '')
         : state.lastError || 'Not signed in'));
       body.appendChild(status);
+      if (state.enabled && state.lastError) body.appendChild(el('div', 'field-note', state.lastError));
 
       body.appendChild(el('div', 'field-note',
-        'Sync runs against a Cloudflare Worker you deploy yourself (SELF_HOSTING.md). Bookmarks, the '
-        + 'reading list, sessions and your site rules travel, encrypted on the device with a key the '
-        + 'worker never sees. History stays on the phone — it is too big for the 5 MB blob.'));
+        'The same account as Vex on your computer, through the Sync Worker you deployed (SELF_HOSTING.md). '
+        + 'Your bookmarks and your computer’s notes go both ways, and pages can be sent between devices. '
+        + 'Everything is encrypted on the device with your recovery code; the worker never sees it. '
+        + 'The rest of what your computer syncs — its tabs, settings, history — is left exactly as it is.'));
 
       const urlField = el('div', 'field stack');
-      urlField.appendChild(el('label', { for: 'sync-url' }, 'Sync worker URL'));
+      urlField.appendChild(el('label', { for: 'sync-url' }, 'Sync Worker URL'));
       const urlInput = el('input', {
         id: 'sync-url', type: 'url', value: VexSync.workerUrl(),
-        placeholder: 'https://your-sync.workers.dev',
+        placeholder: 'https://vex-sync.you.workers.dev',
         autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false'
       });
+      if (state.enabled) urlInput.disabled = true;     // changing it signed in would split the account
       urlInput.onchange = async () => {
         try { await VexSync.setWorkerUrl(urlInput.value); VexUI.toast('Saved'); }
         catch (error) { VexUI.toast(error.message); }
@@ -1170,88 +1178,81 @@ const VexPanels = (() => {
         const emailField = el('div', 'field stack');
         emailField.appendChild(el('label', { for: 'sync-email' }, 'Email'));
         const emailInput = el('input', {
-          id: 'sync-email', type: 'text', inputmode: 'email', value: state.email || '',
+          id: 'sync-email', type: 'text', inputmode: 'email', value: VexStore.get('vex.syncEmail', '') || '',
           autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false'
         });
         emailField.appendChild(emailInput);
         body.appendChild(emailField);
 
-        body.appendChild(valueRow('Send me a code', 'A six-digit code, by email', '', async () => {
+        body.appendChild(valueRow('Send me a code', 'Six digits, by email', '', async () => {
           try {
+            await VexStore.set('vex.syncEmail', emailInput.value.trim());
             const answer = await VexSync.requestCode(emailInput.value.trim());
-            VexUI.toast(answer.devCode ? 'Worker has no email set up — code: ' + answer.devCode : 'Code sent', 5000);
-          } catch (error) { VexUI.toast(error.message, 4000); }
+            VexUI.toast(answer.devCode ? 'This worker has no email set up — the code is ' + answer.devCode : 'Code sent — check your email', 6000);
+          } catch (error) { VexUI.toast(error.message, 4500); }
         }));
 
         const codeField = el('div', 'field stack');
         codeField.appendChild(el('label', { for: 'sync-code' }, 'The code'));
-        const codeInput = el('input', { id: 'sync-code', type: 'text', inputmode: 'numeric', placeholder: '000000' });
+        const codeInput = el('input', { id: 'sync-code', type: 'text', inputmode: 'numeric', placeholder: '000000', autocomplete: 'one-time-code' });
         codeField.appendChild(codeInput);
         body.appendChild(codeField);
 
-        body.appendChild(valueRow('Sign in', null, '', async () => {
+        body.appendChild(valueRow('Sign in', 'Joins your account, or starts one if it has nothing yet', '', async () => {
           try {
-            await VexSync.verifyCode(emailInput.value.trim(), codeInput.value.trim());
-            if (!(await VexSync.hasKey())) {
-              // An account that already has data has a key, on the device that
-              // made it. A fresh one here could never read that data, so ask
-              // for the recovery code instead of making one.
-              if (await VexSync.serverHasData()) {
-                const typed = await VexUI.prompt('Recovery code',
-                  'This account is already syncing — type the code your other device showed you');
-                if (!typed) { await VexSync.signOut(); VexUI.toast('Not signed in — the recovery code is needed'); this.sync(); return; }
-                await VexSync.useRecoveryCode(typed);
-              } else {
-                const code = await VexSync.createKey();
-                await VexUI.showRecoveryCode(code);
-              }
+            VexUI.toast('Signing in…', 1500);
+            const answer = await VexSync.signIn(emailInput.value.trim(), codeInput.value.trim());
+            if (answer.needsRecoveryCode) {
+              const typed = await VexUI.prompt('Recovery code',
+                'This account already syncs. Type the recovery code your computer showed you — '
+                + 'Settings › Sync › Show recovery code on the desktop.');
+              if (!typed) { await VexSync.abandon(); VexUI.toast('Not signed in — the recovery code is needed'); this.sync(); return; }
+              const joined = await VexSync.join(typed);
+              VexUI.toast(joined.pushError ? 'Signed in — but ' + joined.pushError : 'Signed in', joined.pushError ? 5000 : 2500);
+            } else if (answer.created) {
+              await VexUI.showRecoveryCode(answer.recoveryCode);
+              VexUI.toast('Signed in — a new account');
+            } else {
+              VexUI.toast('Signed in');
             }
-            const result = await VexSync.syncNow();
-            VexUI.toast(result.ok ? 'Signed in' : 'Signed in — but ' + result.reason, result.ok ? 2500 : 5000);
+            VexStart.render();
             this.sync();
-          } catch (error) { VexUI.toast(error.message, 4000); }
+          } catch (error) {
+            VexUI.toast(error.message, 5000);
+            this.sync();
+          }
         }));
-
-        body.appendChild(heading('Already syncing elsewhere?'));
-        body.appendChild(valueRow('Enter a recovery code', 'The code the first device showed you', '', async () => {
-          const code = await VexUI.prompt('Recovery code', '8 groups of 4 characters');
-          if (!code) return;
-          try {
-            await VexSync.useRecoveryCode(code);
-            VexUI.toast('Key accepted — sign in with your email next');
-          } catch (error) { VexUI.toast(error.message); }
-        }));
+        body.appendChild(el('div', 'field-note',
+          'Already syncing on your computer? Sign in with the same email; you will be asked for its recovery code. '
+          + 'A wrong code changes nothing, and leaves nothing behind in your device list.'));
         return;
       }
 
       body.appendChild(heading('This account'));
-      body.appendChild(valueRow('Sync now', state.lastPullAt ? 'Last received ' + when(Date.parse(state.lastPullAt)) : null, '', async () => {
-        VexUI.toast('Syncing…');
-        const result = await VexSync.syncNow().catch(error => ({ ok: false, reason: error.message }));
-        VexUI.toast(result.ok ? 'Up to date' : result.reason, 4000);
+      body.appendChild(valueRow('Sync now', state.lastPushAt ? 'Last sent ' + when(Date.parse(state.lastPushAt)) : null, '', async () => {
+        VexUI.toast('Syncing…', 1200);
+        const result = await VexSync.syncNow();
+        VexUI.toast(result.ok ? 'Up to date' : result.reason || 'It did not sync', 4500);
         this.sync();
       }));
-      body.appendChild(valueRow('Show the recovery code', 'What another device needs', '', async () => {
+      body.appendChild(valueRow('Notes from your computer',
+        VexSyncedNotes.list().length + ' — read, edit and add', '', () => this.syncedNotes()));
+      body.appendChild(valueRow('Show the recovery code', 'What another device needs to join', '', async () => {
         const code = await VexSync.recoveryCode().catch(() => '');
         if (code) await VexUI.showRecoveryCode(code);
-        else VexUI.toast('There is no key on this phone yet');
+        else VexUI.toast('There is no key on this phone');
       }));
-      body.appendChild(toggleRow('Sync history',
-        'The last ' + VexSync.HISTORY_SLICE + ' pages, so the other device can find what you had open. '
-        + 'It is the most personal thing that travels, and it is merged with what is already there '
-        + 'rather than replacing it.',
-        VexStore.get('vex.syncHistory', true) !== false,
-        async value => { await VexStore.set('vex.syncHistory', value); }));
-      body.appendChild(valueRow('Devices', 'Which machines are signed in', '', async () => {
+      body.appendChild(valueRow('Devices', 'Which devices are on this account', '', async () => {
         try {
           const devices = await VexSync.devices();
           VexSheets.choose('Devices', devices.map(device => ({
             id: device.deviceId,
-            label: device.name || device.deviceId,
-            note: device.lastSeen ? 'last seen ' + when(Date.parse(device.lastSeen)) : null
+            label: (device.deviceName || device.deviceId) + (device.deviceId === state.deviceId ? ' (this phone)' : ''),
+            note: device.lastSeenAt ? 'last seen ' + when(Date.parse(device.lastSeenAt)) : null
           })), async deviceId => {
             VexSheets.close();
-            if (await VexUI.confirm('Sign that device out?')) {
+            if (deviceId === state.deviceId) { VexUI.toast('Sign out below to take this phone off'); return; }
+            if (await VexUI.confirm('Take that device off this account? It will be signed out.')) {
               try { await VexSync.forgetDevice(deviceId); VexUI.toast('Removed'); }
               catch (error) { VexUI.toast(error.message); }
             }
@@ -1261,7 +1262,7 @@ const VexPanels = (() => {
 
       const remote = VexSync.remoteTabs();
       if (remote.length) {
-        body.appendChild(heading('Open on your PC'));
+        body.appendChild(heading('Open on your computer'));
         for (const tab of remote.slice(0, 20)) {
           body.appendChild(listRow(tab, {
             sub: item => VexSearch.prettyHost(item.url),
@@ -1272,16 +1273,104 @@ const VexPanels = (() => {
 
       body.appendChild(heading('Leaving'));
       body.appendChild(VexSheets.row({
-        label: 'Sign out on this phone', danger: true,
-        run: async () => { await VexSync.signOut(); this.sync(); return true; }
+        label: 'Sign out on this phone', note: 'Takes this phone off the account; your bookmarks stay here', danger: true,
+        run: async () => {
+          if (!(await VexUI.confirm('Sign this phone out of Vex Sync?'))) return true;
+          await VexSync.signOut();
+          this.sync();
+          return true;
+        }
       }));
       body.appendChild(VexSheets.row({
-        label: 'Delete everything on the server', danger: true,
+        label: 'Delete everything on the server', note: 'Every device is signed out; their own copies stay', danger: true,
         run: async () => {
-          if (!(await VexUI.confirm('Delete the synced data for every device?'))) return true;
+          if (!(await VexUI.confirm('Delete the synced data for every device, and sign them all out?'))) return true;
           try { await VexSync.deleteEverything(); VexUI.toast('Deleted'); }
           catch (error) { VexUI.toast(error.message); }
           this.sync();
+          return true;
+        }
+      }));
+    },
+
+    // ── The desktop's notes ────────────────────────────────────────────────
+    syncedNotes(query = '') {
+      const body = openShell('syncedNotes', 'Notes from your computer', {
+        search: { value: query, placeholder: 'Search these notes', onInput: value => this.syncedNotes(value) },
+        action: { label: 'New', run: async () => { const note = await VexSyncedNotes.create(); this.syncedNote(note.id); } }
+      });
+      const notes = VexSyncedNotes.sorted(query);
+      if (!notes.length) {
+        body.appendChild(empty(query ? 'Nothing matches “' + query + '”.'
+          : VexSync.state.enabled
+            ? 'Notes you write in Vex on your computer appear here, and what you write here appears there.'
+            : 'Sign in to Vex Sync to see the notes from Vex on your computer.'));
+        return;
+      }
+      for (const note of notes) {
+        const row = el('div', 'list-row');
+        const lines = el('div', 'lines');
+        lines.appendChild(el('span', 't', (note.pinned ? '📌 ' : '') + VexSyncedNotes.label(note)));
+        const preview = String(note.content || '').replace(/\s+/g, ' ').trim().slice(0, 90);
+        lines.appendChild(el('span', 'u', [preview || null, note.updatedAt ? when(Date.parse(note.updatedAt)) : null].filter(Boolean).join(' · ')));
+        row.appendChild(lines);
+        row.onclick = () => this.syncedNote(note.id);
+        const remove = el('button', { class: 'x', 'aria-label': 'Delete' });
+        remove.appendChild(icon('trash'));
+        remove.onclick = async event => {
+          event.stopPropagation();
+          const gone = await VexSyncedNotes.remove(note.id);
+          this.syncedNotes(query);
+          VexUI.toast('Deleted on every device', 4500, {
+            label: 'Undo', run: async () => { await VexSyncedNotes.restore(gone); this.syncedNotes(query); }
+          });
+        };
+        row.appendChild(remove);
+        body.appendChild(row);
+      }
+    },
+
+    syncedNote(id) {
+      const note = VexSyncedNotes.get(id);
+      if (!note) { this.syncedNotes(); return; }
+      lastSyncedNote = id;
+      const body = openShell('syncedNote', VexSyncedNotes.label(note), {
+        action: {
+          label: note.pinned ? 'Unpin' : 'Pin',
+          run: async () => { await VexSyncedNotes.update(id, { pinned: !note.pinned }); this.syncedNote(id); }
+        }
+      });
+      const title = el('input', { class: 'note-title', type: 'text', value: note.title || '', placeholder: 'Title' });
+      const content = el('textarea', { class: 'note-body', placeholder: 'Write… Markdown works, and “- [ ] thing” is a checklist' });
+      content.value = note.content || '';
+      let timer = null;
+      const saveSoon = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => VexSyncedNotes.update(id, { title: title.value, content: content.value }), 600);
+      };
+      title.oninput = saveSoon;
+      content.oninput = saveSoon;
+      // Saved on the way out too, whatever the timer was doing.
+      const flush = () => { clearTimeout(timer); return VexSyncedNotes.update(id, { title: title.value, content: content.value }); };
+      title.onblur = flush;
+      content.onblur = flush;
+      body.appendChild(title);
+      body.appendChild(content);
+      if (note.sourceUrl) {
+        body.appendChild(listRow({ url: note.sourceUrl, title: note.sourceTitle || note.sourceUrl }, {
+          sub: item => 'Clipped from ' + VexSearch.prettyHost(item.url),
+          onOpen: item => { close(); VexUI.openUrl(item.url, { newTab: true }); }
+        }));
+      }
+      body.appendChild(VexSheets.row({
+        label: 'Delete this note', note: 'From every device', danger: true,
+        run: async () => {
+          await flush();
+          const gone = await VexSyncedNotes.remove(id);
+          this.syncedNotes();
+          VexUI.toast('Deleted on every device', 4500, {
+            label: 'Undo', run: async () => { await VexSyncedNotes.restore(gone); this.syncedNotes(); }
+          });
           return true;
         }
       }));

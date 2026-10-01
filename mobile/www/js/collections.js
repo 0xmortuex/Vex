@@ -51,7 +51,12 @@ const VexCollections = (() => {
     },
 
     async remove(url) {
+      const gone = this.all().filter(entry => entry.url === url);
       await VexStore.set('vex.bookmarks', this.all().filter(entry => entry.url !== url));
+      // Sync deletes only what was deleted on purpose (js/sync.js).
+      if (gone.length && typeof VexSync !== 'undefined') {
+        await VexSync.noteDeleted('preference:vex.bookmarks', gone.map(entry => entry.id));
+      }
     },
 
     /**
@@ -61,6 +66,7 @@ const VexCollections = (() => {
     async restore(entry) {
       if (!entry || !entry.url || this.has(entry.url)) return null;
       await VexStore.set('vex.bookmarks', [entry, ...this.all()].slice(0, 5000));
+      if (typeof VexSync !== 'undefined') await VexSync.noteRestored('preference:vex.bookmarks', [entry.id]);
       return entry;
     },
 

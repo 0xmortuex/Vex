@@ -242,15 +242,34 @@ const VexSheets = (() => {
     },
     share: { icon: 'share', label: 'Share', needsPage: true, run: tab => VexBridge.share(tab.url, tab.title) },
     reopen: { icon: 'history', label: 'Reopen closed tab', run: () => VexUI.reopenClosed() },
-    settings: { icon: 'settings', label: 'Settings', run: () => VexPanels.settings() }
+    settings: { icon: 'settings', label: 'Settings', run: () => VexPanels.settings() },
+    // Vex Sync's handoff: the page opens on your other devices.
+    'send-devices': {
+      icon: 'external', label: 'Send to my devices', needsPage: true,
+      run: tab => sendToDevices(tab.url, tab.title, tab)
+    },
+    'synced-notes': { icon: 'list', label: 'Notes from your computer', run: () => VexPanels.syncedNotes() }
   };
+
+  async function sendToDevices(link, title, tab) {
+    if (!VexSync.state.enabled) {
+      if (await VexUI.offer('Sending a page needs Vex Sync, signed in with the same account as your computer.', 'Set it up')) VexPanels.sync();
+      return;
+    }
+    // A private tab's page is yours to send, but say so: it leaves the tab.
+    if (tab && tab.incognito && !(await VexUI.confirm('Send a page from a private tab to your other devices?'))) return;
+    try {
+      await VexSync.sendToDevices(link, title || '');
+      VexUI.toast('Sent — it opens on your other devices next time they sync');
+    } catch (error) { VexUI.toast(error.message, 4500); }
+  }
 
   const DEFAULT_ORDER = [
     'new-tab', 'new-private', 'assistant', 'agent', 'reader', 'read-aloud', 'translate', 'find', 'site',
     'add-reading', 'reading-list', 'bookmarks', 'history', 'recall', 'downloads',
-    'save-page', 'save-video', 'saved-pages', 'notes', 'remind-me', 'reminders', 'sessions',
+    'save-page', 'save-video', 'saved-pages', 'notes', 'synced-notes', 'remind-me', 'reminders', 'sessions',
     'fill', 'fill-details', 'save-login', 'passwords',
-    'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'unlock-copy', 'share',
+    'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'unlock-copy', 'share', 'send-devices',
     'reopen', 'read-voice', 'library', 'settings'
   ];
 
@@ -443,6 +462,9 @@ const VexSheets = (() => {
         } }));
         list.appendChild(row({ icon: 'copy', label: 'Copy link', run: () => VexUI.copy(link) }));
         list.appendChild(row({ icon: 'share', label: 'Share link', run: () => VexBridge.share(link, link) }));
+        if (/^https?:/i.test(link)) {
+          list.appendChild(row({ icon: 'external', label: 'Send to my devices', run: () => sendToDevices(link, '', null) }));
+        }
         list.appendChild(row({ icon: 'qr', label: 'Show as QR code', run: () => VexUI.showQr(link, 'Link') }));
         list.appendChild(row({ icon: 'download', label: 'Download link', run: () => tab && VexBridge.download(tab.id, link) }));
       }

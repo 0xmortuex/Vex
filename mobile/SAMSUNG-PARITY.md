@@ -131,14 +131,14 @@ The desktop features that came across, which Samsung Internet has no answer to:
   Samsung Internet has no equivalent.
 - **Recall** — the readable text of the pages you read, indexed on the device,
   searchable by what they said.
-- **Encrypted sync with the desktop** — bookmarks, reading list, sessions,
-  site rules and settings, end-to-end encrypted with a key that never leaves
-  your devices, merged with the same version-vector records the desktop uses —
-  and the recent slice of your history, in the desktop's own entry shape, merged
-  rather than overwritten so two devices browsing at once do not fight.
-  Your PC's open tabs appear on the start page.
-- **Eight themes, seven skins, five typefaces** — generated from the desktop's
-  own token file, so a theme is the same colour on both.
+- **Vex Sync with the desktop** — the same self-hosted worker and end-to-end
+  encrypted account: bookmarks and the desktop's notes both ways, Send to My
+  Devices both ways, the computer's open tabs on the start page. The phone
+  writes only those and its device marker; everything else in the account is
+  passed back untouched.
+- **Every desktop theme, seven skins, five typefaces, four browser looks** —
+  generated from the desktop's own token files, so a theme is the same colour
+  on both.
 - **Per-site rules** — JavaScript, images, dark, desktop layout, text size and
   blocking, per host.
 - **A menu you can rearrange**, and toolbar buttons you choose.

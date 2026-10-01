@@ -83,10 +83,10 @@ yourself, in two modes (ask about the page, or let it do things with a tool
 loop that shows every step); an on-device model for when there is no network
 and nothing should leave the phone; notes, exportable as Markdown, and
 reminders; the feature library with
-"ask Vex what you don't know"; and encrypted sync with the desktop —
-bookmarks, reading list, sessions and site rules, merged with the same
-version-vector records the PC uses, with your desktop's open tabs on the start
-page.
+"ask Vex what you don't know"; and Vex Sync with the desktop, through the same
+self-hosted worker and the same end-to-end encrypted account — bookmarks and
+the desktop's notes both ways, Send to My Devices both ways, and your
+computer's open tabs on the start page.
 
 ## How it fits together
 
@@ -240,8 +240,8 @@ skip rather than fail.
 `npm run themes` regenerates `www/css/themes.css` and `www/js/themes-data.js`
 from `src/renderer/css/theme-tokens.css`, `theme-extra.css` and the theme list
 in `src/renderer/js/theme-manager.js`. `npm run shared` re-copies the two
-files the phone and the desktop must agree on byte for byte — the sync crypto
-and the record merge. `npm run check` fails if either is stale, so a desktop
+files the phone and the desktop must agree on byte for byte — the sync crypto,
+the record merge and the data contracts. `npm run check` fails if either is stale, so a desktop
 change cannot quietly leave the phone behind, and a device cannot end up
 unable to read the other's synced data.
 
@@ -349,9 +349,17 @@ Nothing below can be settled without a phone, and all of it is cheap to check:
 - History and Recall are in IndexedDB and scale to tens of thousands of rows;
   bookmarks, sessions and settings stay in SharedPreferences because they are
   small and they are what syncs.
-- Sync carries bookmarks, the reading list, sessions, quick access, site rules
-  and the most recent 400 visits (Settings → Sync → Sync history, on by
-  default). Older history does not travel: the encrypted blob is capped at 5 MB.
+- Vex Sync writes only what the phone owns in the account: bookmarks, the
+  desktop's notes (item by item) and its own device marker. Every other record —
+  the desktop's tabs, settings, theme, history, tiles, other devices' markers,
+  sources from a newer Vex — goes back byte for byte as it came; a push replaces
+  the whole document, so anything left out would be a deletion on every desktop.
+  Deletions are sent only for what you deleted (an item merely missing on the
+  phone is put back), and everything written is checked against the desktop's
+  own data contracts first. The reading list, sessions and quick access stay on
+  the phone. `tests/mobile/mobileSyncAccount.test.js` runs the real worker, the
+  real desktop engine and the phone together to prove it;
+  `scripts/sync-stand-in.mjs` runs the worker locally for trying it by hand.
 - The blocker implements a subset of EasyList syntax; see PORTING.md. The merged
   lists are cached in IndexedDB, not in a preference — parsed EasyList is several
   megabytes and a preference is read in full at every launch.

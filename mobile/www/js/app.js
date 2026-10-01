@@ -15,6 +15,9 @@
   await Promise.all([
     VexStore.prime('vex.history', []),
     VexStore.prime('vex.bookmarks', []),
+    VexStore.prime('vex.syncNotes', []),
+    VexStore.prime('vex.syncEmail', ''),
+    VexStore.prime('vex.syncDeletions', {}),
     VexStore.prime('vex.bookmarkFolders', []),
     VexStore.prime('vex.readingList', []),
     VexStore.prime('vex.sessions', []),
@@ -180,6 +183,7 @@
     if (await VexSync.restore()) {
       const result = await VexSync.syncNow();
       if (result.ok) { VexStart.render(); VexUI.renderToolbar(); }
+      await receiveFromDevices();
     }
   }, 2500);
 
@@ -219,6 +223,13 @@
     if (plugin) plugin.minimizeApp();
   });
   VexBridge.onAppEvent('appStateChange', async state => {
+    if (state && state.isActive === true && VexSync.state.enabled) {
+      // Back in Vex: what changed on the computer meanwhile, and anything it
+      // sent here. At most once a minute, however often you switch apps.
+      const last = Date.parse(VexSync.state.lastPullAt || '') || 0;
+      if (Date.now() - last > 60000) VexSync.syncNow().then(() => VexStart.render());
+      receiveFromDevices();
+    }
     if (state && state.isActive === true) {
       VexSpeak.resync();               // it may have read on, or been paused, meanwhile
       await VexUI.guardPrivateOnReturn();
@@ -622,7 +633,19 @@
 
   // "Close tabs you have not opened in a month" — Samsung's setting, and the
   // phone's answer to the desktop's tab sleep.
-  async function closeStaleTabs() {
+  // Pages another device sent here (Vex Sync's "Send to my devices"): each
+// opens in a tab behind this one, and a toast says where they came from.
+async function receiveFromDevices() {
+  const items = await VexSync.receiveFromDevices().catch(() => []);
+  if (!items.length) return;
+  for (const item of items) await VexTabStore.create(item.url, { background: true, fromApp: false });
+  const from = items[0].from || 'another device';
+  VexUI.toast(items.length === 1
+    ? 'From ' + from + ': ' + (items[0].title || VexSearch.prettyHost(items[0].url))
+    : items.length + ' pages from ' + from, 5000, { label: 'Tabs', run: () => VexUI.openTabGrid() });
+}
+
+async function closeStaleTabs() {
     const days = Number(VexStore.get('vex.closeTabsAfter', 0));
     if (!days) return;
     const cutoff = Date.now() - days * 86400000;

@@ -22,6 +22,9 @@ const to = path.join(root, 'www', 'js', 'shared');
 const FILES = {
   'sync-crypto.js': 'or they cannot read each other’s synced data.',
   'sync-records.js': 'or they cannot read each other’s synced data.',
+  // What the desktop refuses on arrival. A value it would reject stops sync on
+  // every desktop, so the phone checks what it writes with the same rules.
+  'data-contracts.js': 'or the phone could write a value every desktop refuses.',
   // Not sync, but the same rule: "yt cats" and "!w einstein" should mean one
   // thing in the desktop's address bar and the phone's.
   'search-shortcuts.js': 'so a keyword or a !bang means one thing on both.'

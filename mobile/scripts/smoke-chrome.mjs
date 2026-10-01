@@ -507,6 +507,50 @@ results.lookOff = await page.evaluate(async () => {
     document.getElementById('navbar').hidden, document.getElementById('tb-left').parentElement.id].join(' ');
 });
 
+// ── Vex Sync's screens ──────────────────────────────────────────────────────
+// Signed out, the panel asks for the worker, an email and a code; the
+// desktop's notes can be read, edited (the edit keeps every other field and
+// lands in the store) and deleted with an undo; and sending a page without
+// an account offers to set one up instead of failing.
+results.syncScreens = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexPanels.sync();
+  await wait(100);
+  const signIn = !!document.getElementById('sync-email') && !!document.getElementById('sync-code')
+    && [...document.querySelectorAll('#panel-body .row-label, #panel-body .label')].some(node => /Sign in/.test(node.textContent));
+  await VexStore.set('vex.syncNotes', [{
+    id: 'note_1759312800000_abcde', title: 'From the PC', content: 'line one', pinned: false, tags: ['x'],
+    sourceUrl: '', sourceTitle: '', createdAt: '2026-10-01T10:00:00.000Z', updatedAt: '2026-10-01T10:00:00.000Z', futureField: 7
+  }]);
+  VexPanels.syncedNotes();
+  await wait(100);
+  const listed = document.querySelector('#panel-body .list-row .t').textContent;
+  document.querySelector('#panel-body .list-row').click();
+  await wait(100);
+  const area = document.querySelector('#panel-body .note-body');
+  area.value = 'line one\nline two';
+  area.dispatchEvent(new Event('input'));
+  area.dispatchEvent(new Event('blur'));
+  await wait(700);
+  const saved = VexStore.get('vex.syncNotes', [])[0];
+  const kept = saved.content === 'line one\nline two' && saved.futureField === 7 && saved.tags[0] === 'x'
+    && saved.updatedAt !== '2026-10-01T10:00:00.000Z' && Object.keys(saved).join() === 'id,title,content,pinned,tags,sourceUrl,sourceTitle,createdAt,updatedAt,futureField';
+  const gone = await VexSyncedNotes.remove(saved.id);
+  const deletedNoted = (VexStore.get('vex.syncDeletions', {})['preference:vex.notes'] || []).includes(saved.id);
+  await VexSyncedNotes.restore(gone);
+  const undone = VexStore.get('vex.syncNotes', []).length === 1
+    && !(VexStore.get('vex.syncDeletions', {})['preference:vex.notes'] || []).includes(saved.id);
+  VexPanels.close();
+  await VexStore.set('vex.syncNotes', []);
+  // Send, signed out.
+  const realOffer = VexUI.offer;
+  let offered = '';
+  VexUI.offer = async message => { offered = message; return false; };
+  await VexSheets.ACTIONS['send-devices'].run(VexTabStore.active());
+  VexUI.offer = realOffer;
+  return [signIn, listed, kept, deletedNoted, undone, /Vex Sync/.test(offered)].join(' ');
+});
+
 // ── Backup ──────────────────────────────────────────────────────────────────
 // The panel says what it carries before it carries it, and the file itself is
 // unreadable without the passphrase — which is the whole of the promise.
@@ -1873,7 +1917,7 @@ const expected = {
   siteSheetOpened: true, scriptsOff: true,
   readerOpen: true, readerTitle: 'The Wreck of the Deutschland', readerSize: 21,
   chatBubbles: 2, chatFollowUps: 1,
-  themeCards: 37, themeStored: 'midnight', themeApplied: 'midnight', skinTexture: true,
+  themeCards: 65, themeStored: 'midnight', themeApplied: 'midnight', skinTexture: true,
   shieldScript: true, shieldOffEmpty: true,
   tabCards: 3, tabSearchCards: 1,
   privateBodyClass: true, historyUnchanged: true,
@@ -1904,6 +1948,7 @@ const expected = {
   switchToTab: 'true true',
   readerIcon: 'true false true true',
   readingOffline: 'true true',
+  syncScreens: 'true From the PC true true true true',
   looks: 'chrome:light:true:n/a:#i-menu:true chrome:dark:true:n/a:#i-menu:true '
     + 'firefox:light:true:n/a:#i-menu:false firefox:dark:true:n/a:#i-menu:false '
     + 'safari:light:true:navbar:#i-more:false safari:dark:true:navbar:#i-more:false '
