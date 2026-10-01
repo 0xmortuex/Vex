@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.35.2 (2026-10-02) — Sync plays fair with your other devices
+
+### Fixes
+- **Sync no longer deletes what it does not understand.** Data another device puts in your account that this version of Vex does not use (for example something the coming mobile Vex adds) is now passed along untouched instead of being marked deleted on every sync, and it can no longer stop this device syncing.
+- **An emptied account is rebuilt cleanly.** If your account's data on the sync server is lost while your devices stay signed in, the next sync uploads only what this device has, instead of an old copy that brought back things already deleted.
+- **No duplicate bookmarks when you join sync.** Signing in with your recovery code no longer keeps a second copy of a bookmark your account already has at the same address.
+
+### For developers
+- docs/SYNC_PROTOCOL.md is updated to v2.35.2: what the desktop owns and passes through (§6 rule 1), empty accounts (§5.3, rule 3), deduplicating bookmarks when joining (§5.4), validation of what a client writes (rule 11), and explicit deletions on the phone (§9.6).
+
 ## v2.35.1 (2026-10-02) — A backup before every update, and smaller updates
 
 ### Updates
