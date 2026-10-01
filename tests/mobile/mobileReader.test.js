@@ -99,3 +99,17 @@ describe('finding the article', () => {
     expect(found.blocks.some(block => /var a/.test(block.text || ''))).toBe(false);
   });
 });
+
+describe('pictures in the article', () => {
+  it('takes a lazy image from where it is waiting, and leaves a declared icon out', () => {
+    const words = '<p>' + 'The tide came in slowly, and the gulls, as ever, complained about it. '.repeat(4) + '</p>';
+    document.body.innerHTML = '<article>' + words + words
+      + '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" data-src="https://cdn.example/harbour.jpg" alt="Harbour">'
+      + '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" data-src="https://cdn.example/icon.png" width="16">'
+      + words + '</article>';
+    // eslint-disable-next-line no-eval
+    const found = VexReader.parse((0, eval)(VexReader.EXTRACT));
+    const images = found.blocks.filter(block => block.type === 'img').map(block => block.src);
+    expect(images).toEqual(['https://cdn.example/harbour.jpg']);
+  });
+});

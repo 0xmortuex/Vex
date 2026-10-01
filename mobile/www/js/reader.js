@@ -55,7 +55,16 @@ const VexReader = (() => {
     var node = nodes[j];
     if (node.tagName === 'IMG') {
       var source = node.currentSrc || node.src || '';
-      if (source && node.naturalWidth > 200) blocks.push({ type: 'img', src: source, alt: node.alt || '' });
+      if (source && node.naturalWidth > 200) { blocks.push({ type: 'img', src: source, alt: node.alt || '' }); continue; }
+      // A lazy image below the fold still holds a placeholder; the real one
+      // waits in a data- attribute until it is scrolled to, which the reader
+      // never does. Taken when it is a web address and not declared tiny.
+      var lazy = node.getAttribute('data-src') || node.getAttribute('data-lazy-src')
+        || node.getAttribute('data-original') || '';
+      var declared = parseInt(node.getAttribute('width') || '0', 10);
+      if ((/^https?:/.test(lazy) || lazy.indexOf('//') === 0) && (!declared || declared > 200)) {
+        blocks.push({ type: 'img', src: lazy.indexOf('//') === 0 ? location.protocol + lazy : lazy, alt: node.alt || '' });
+      }
       continue;
     }
     if (node.closest('nav, footer, aside')) continue;
