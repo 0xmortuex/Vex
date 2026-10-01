@@ -4,8 +4,6 @@ import android.content.Context;
 
 import androidx.core.content.ContextCompat;
 
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.genai.common.DownloadCallback;
 import com.google.mlkit.genai.common.FeatureStatus;
@@ -29,6 +27,8 @@ import com.google.mlkit.genai.summarization.Summarizer;
 import com.google.mlkit.genai.summarization.SummarizerOptions;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 /**
  * Gemini Nano, through ML Kit's GenAI features.
@@ -66,6 +66,39 @@ public class NanoRunner {
         this.context = context;
     }
 
+    /**
+     * What Guava's Futures.addCallback would do.
+     *
+     * ML Kit returns ListenableFutures but only depends on the listenablefuture
+     * shim — the interface and nothing else — so Futures and FutureCallback are
+     * not on the classpath, and pulling in three megabytes of Guava for two
+     * helpers would be silly. A ListenableFuture is a Future with a listener, and
+     * that is all this needs.
+     */
+    private interface Done<T> {
+        void ok(T value);
+        void failed(Throwable error);
+    }
+
+    private <T> void whenDone(final ListenableFuture<T> future, final Done<T> done) {
+        final Executor executor = ContextCompat.getMainExecutor(context);
+        future.addListener(() -> {
+            T value;
+            try {
+                value = future.get();
+            } catch (ExecutionException error) {
+                // The interesting exception is the one the library threw, not the
+                // wrapper the Future puts around it.
+                done.failed(error.getCause() == null ? error : error.getCause());
+                return;
+            } catch (Throwable error) {
+                done.failed(error);
+                return;
+            }
+            done.ok(value);
+        }, executor);
+    }
+
     private Summarizer summarizer(int bullets) {
         int outputType = bullets <= 1 ? SummarizerOptions.OutputType.ONE_BULLET
                 : bullets == 2 ? SummarizerOptions.OutputType.TWO_BULLETS
@@ -96,16 +129,16 @@ public class NanoRunner {
     public void status(final Status callback) {
         try {
             final Summarizer client = summarizer(3);
-            Futures.addCallback(client.checkFeatureStatus(), new FutureCallback<Integer>() {
-                @Override public void onSuccess(Integer status) {
+            whenDone(client.checkFeatureStatus(), new Done<Integer>() {
+                @Override public void ok(Integer status) {
                     close(client);
                     callback.onStatus(name(status == null ? FeatureStatus.UNAVAILABLE : status));
                 }
-                @Override public void onFailure(Throwable error) {
+                @Override public void failed(Throwable error) {
                     close(client);
                     callback.onStatus("unavailable");
                 }
-            }, ContextCompat.getMainExecutor(context));
+            });
         } catch (Throwable error) {
             // On a device with no AICore at all, getClient itself can throw.
             callback.onStatus("unavailable");
@@ -119,7 +152,7 @@ public class NanoRunner {
     public void download(final Download callback) {
         try {
             final Summarizer client = summarizer(3);
-            Futures.addCallback(client.downloadFeature(new DownloadCallback() {
+            whenDone(client.downloadFeature(new DownloadCallback() {
                 private long total;
                 @Override public void onDownloadStarted(long bytesToDownload) { total = bytesToDownload; }
                 @Override public void onDownloadProgress(long totalBytesDownloaded) {
@@ -127,13 +160,13 @@ public class NanoRunner {
                 }
                 @Override public void onDownloadCompleted() { callback.onDone(); }
                 @Override public void onDownloadFailed(GenAiException error) { callback.onError(reason(error)); }
-            }), new FutureCallback<Void>() {
-                @Override public void onSuccess(Void result) { close(client); }
-                @Override public void onFailure(Throwable error) {
+            }), new Done<Void>() {
+                @Override public void ok(Void result) { close(client); }
+                @Override public void failed(Throwable error) {
                     close(client);
                     callback.onError(reason(error));
                 }
-            }, ContextCompat.getMainExecutor(context));
+            });
         } catch (Throwable error) {
             callback.onError(reason(error));
         }
@@ -142,17 +175,17 @@ public class NanoRunner {
     public void summarize(final String text, final int bullets, final Text callback) {
         try {
             final Summarizer client = summarizer(bullets);
-            Futures.addCallback(client.runInference(SummarizationRequest.builder(text).build()),
-                    new FutureCallback<SummarizationResult>() {
-                        @Override public void onSuccess(SummarizationResult result) {
+            whenDone(client.runInference(SummarizationRequest.builder(text).build()),
+                    new Done<SummarizationResult>() {
+                        @Override public void ok(SummarizationResult result) {
                             close(client);
                             callback.onText(result == null ? "" : result.getSummary());
                         }
-                        @Override public void onFailure(Throwable error) {
+                        @Override public void failed(Throwable error) {
                             close(client);
                             callback.onError(reason(error));
                         }
-                    }, ContextCompat.getMainExecutor(context));
+                    });
         } catch (Throwable error) {
             callback.onError(reason(error));
         }
@@ -164,18 +197,18 @@ public class NanoRunner {
                     .setInputType(ProofreaderOptions.InputType.KEYBOARD)
                     .setLanguage(ProofreaderOptions.Language.ENGLISH)
                     .build());
-            Futures.addCallback(client.runInference(ProofreadingRequest.builder(text).build()),
-                    new FutureCallback<ProofreadingResult>() {
-                        @Override public void onSuccess(ProofreadingResult result) {
+            whenDone(client.runInference(ProofreadingRequest.builder(text).build()),
+                    new Done<ProofreadingResult>() {
+                        @Override public void ok(ProofreadingResult result) {
                             close(client);
                             List<ProofreadingSuggestion> results = result == null ? null : result.getResults();
                             callback.onText(results == null || results.isEmpty() ? "" : results.get(0).getText());
                         }
-                        @Override public void onFailure(Throwable error) {
+                        @Override public void failed(Throwable error) {
                             close(client);
                             callback.onError(reason(error));
                         }
-                    }, ContextCompat.getMainExecutor(context));
+                    });
         } catch (Throwable error) {
             callback.onError(reason(error));
         }
@@ -187,18 +220,18 @@ public class NanoRunner {
                     .setOutputType(outputFor(style))
                     .setLanguage(RewriterOptions.Language.ENGLISH)
                     .build());
-            Futures.addCallback(client.runInference(RewritingRequest.builder(text).build()),
-                    new FutureCallback<RewritingResult>() {
-                        @Override public void onSuccess(RewritingResult result) {
+            whenDone(client.runInference(RewritingRequest.builder(text).build()),
+                    new Done<RewritingResult>() {
+                        @Override public void ok(RewritingResult result) {
                             close(client);
                             List<RewritingSuggestion> results = result == null ? null : result.getResults();
                             callback.onText(results == null || results.isEmpty() ? "" : results.get(0).getText());
                         }
-                        @Override public void onFailure(Throwable error) {
+                        @Override public void failed(Throwable error) {
                             close(client);
                             callback.onError(reason(error));
                         }
-                    }, ContextCompat.getMainExecutor(context));
+                    });
         } catch (Throwable error) {
             callback.onError(reason(error));
         }

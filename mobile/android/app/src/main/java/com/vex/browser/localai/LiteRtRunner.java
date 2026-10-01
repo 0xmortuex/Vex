@@ -74,7 +74,9 @@ public class LiteRtRunner {
         worker.execute(() -> {
             try {
                 unloadNow();
-                Engine.setNativeMinLogSeverity(LogSeverity.WARNING);
+                // A Kotlin companion object with no @JvmStatic, so Java goes
+                // through Companion rather than calling it on the class.
+                Engine.Companion.setNativeMinLogSeverity(LogSeverity.WARNING);
                 Backend backend;
                 if ("gpu".equalsIgnoreCase(backendName)) backend = new Backend.GPU();
                 else if ("npu".equalsIgnoreCase(backendName)) {
