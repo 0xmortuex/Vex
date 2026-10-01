@@ -17,7 +17,8 @@ Everything else below is either matched or bettered.
 | Secret mode | ✅ | Private tabs; own WebView profile on WebView 116+ |
 | Secret mode lock (biometrics) | ✅ | Settings → Privacy → Lock private tabs |
 | Close tabs after N days | ✅ | Settings → Tabs |
-| Recently closed | ✅ | Menu → Reopen closed tab, and undo on "close all" |
+| Sleep unused tabs | ✅ | onPause on a tab you have left for fifteen minutes: its timers and animations stop and the page stays loaded. Never while background audio is on, because pausing a tab silences it |
+| Recently closed | ✅ | Menu → Reopen closed tab, undo on "close all", and Undo in the toast the moment a tab is closed |
 | Address bar top or bottom | ✅ | Settings → Appearance → Toolbar position |
 | Toolbar auto-hides on scroll | ✅ | Reported from the page WebView; the chrome cannot see page scrolling on its own |
 | Customisable toolbar buttons | ✅ | Up to three either side of the address pill |
@@ -26,6 +27,8 @@ Everything else below is either matched or bettered.
 | Back/forward edge gestures | ✅ | Detected natively — page touches never reach the chrome |
 | Find on page | ✅ | |
 | Search suggestions as you type | ✅ | From the engine you chose, fetched natively because no suggestion endpoint allows a cross-origin request. Never in a private tab; Settings → Search to turn them off |
+| Choose a search engine | ✅ better | Six built in, plus one of your own — SearXNG on a box in the hall, Kagi, anything with a `%s` — with its own suggestions endpoint |
+| Find on page from the address bar | ✅ | Typing offers "find it on this page"; Samsung needs the menu |
 | Desktop site | ✅ | Global default and per site |
 | Open links in new tab | ✅ | Settings → Tabs |
 | Block pop-ups | ✅ | A window you tapped for still opens |
@@ -41,13 +44,17 @@ Everything else below is either matched or bettered.
 | Reader font size | ✅ | Six steps |
 | Text size / page zoom | ✅ | Global, and per site |
 | Force pinch-zoom everywhere | ✅ | Settings → Appearance → Always allow pinch zoom |
-| Dark mode for web pages | ✅ | Global and per site (algorithmic darkening) |
+| Dark mode for web pages | ✅ | Never, always, or whenever Vex itself is dark — which on Auto means whenever the phone is. Per site too (algorithmic darkening) |
+| Stop a site autoplaying video | ✅ better | Vex asks for a tap before any video plays, everywhere; a site can be allowed on its own |
 | High contrast mode | ✅ | Settings → Appearance → Contrast |
+| Interface size | ✅ better | Android's font-size setting reaches a WebView's page text, not a web app's layout, so Vex scales its own chrome: four sizes, on the type scale, the toolbar and the tap target |
 | Night/eye comfort | ✅ | Night shade, four strengths |
 | Video pop-up player | ✅ | Android picture-in-picture, sized to the video |
 | Background audio | ✅ | Settings → Media |
 | Video brightness | ✅ | A filter on the element, past what the site allows |
-| Video controls overlay | ✅ | Play, ±10 s, pop out |
+| Video controls overlay | ✅ | Play, ±10 s, pop out, and the label opens speed, brightness and sound |
+| Read a page aloud | ✅ | Android's TextToSpeech on the article the reader extracts — paragraph at a time, skip, pause, speed, a voice you choose. It stops when you leave Vex rather than pretending to be a music player |
+| Reader typography | ✅ better | Typeface, measure, line spacing and paper (including true black for an OLED in the dark), and how far through you are |
 | Keep the screen on | ✅ | Settings → Media |
 | Download videos | ❌ | Long-press download works for direct files, not streams |
 
@@ -58,12 +65,13 @@ Everything else below is either matched or bettered.
 | Bookmarks with folders | ✅ | Plus import/export as the standard bookmarks HTML file |
 | Bookmark bar | ❌ | No room on a phone; the start page carries them |
 | History with search | ✅ | In IndexedDB, grouped by day |
-| Saved pages (offline) | ✅ | The whole document, opened with no connection |
-| Downloads manager | ✅ | With live progress from the system queue |
+| Saved pages (offline) | ✅ | The whole document, opened with no connection. Its scripts are taken out when it is saved, so it renders as it looked rather than filling with its own offline errors |
+| Downloads manager | ✅ | Live progress from the system queue, Stop while one is running, and a way into the phone's own Downloads folder. A file the page made itself (blob: or data:) is saved too, which Android's download manager cannot do |
 | Quick access tiles | ✅ | Most-visited until you pin one, then yours to arrange |
 | Custom homepage | ✅ | Settings → Search |
 | Add page to home screen | ✅ | Pinned launcher shortcut with the site's own icon |
 | Home-screen search widget | ✅ | Resizable; the pill opens the address bar, and the microphone and the square go straight to voice and the QR scanner |
+| Shortcuts on the launcher icon | ✅ | Long-press Vex: new tab, private tab, voice, scan |
 | Share, QR share | ✅ | Samsung shares by QR too; Vex draws it locally |
 | Scan a QR code | ✅ | Camera + jsQR; an otpauth:// code goes to the vault |
 | Reading list | ✅ | Samsung has none; this is the desktop Vex feature |
@@ -78,15 +86,17 @@ Everything else below is either matched or bettered.
 | Ad blocker (via extensions) | ✅ built in | Native matching in shouldInterceptRequest, EasyList subset, cosmetic filtering |
 | Smart anti-tracking | ✅ | Third-party cookies off by default, tracker lists |
 | Privacy dashboard | ✅ | Total blocked, and the sites that cost you the most |
-| Per-site permissions | ✅ | Camera, microphone, location, notifications |
-| Clear browsing data | ✅ | Everything, or one site |
-| Secret mode + biometrics | ✅ | |
+| Per-site permissions | ✅ | Camera, microphone, location, notifications. The page waits: the WebView hands the request to the chrome, which asks once per site and remembers |
+| Clear browsing data | ✅ better | Eight things with tick boxes and a count beside each, one site at a time, or the same list every time you leave Vex. Samsung's list is shorter and its on-exit option is not per-item |
+| Forget one site everywhere | ✅ | Its visits, its text in the Recall index, its cookies and its storage, from one long press in History |
+| Secret mode + biometrics | ✅ | And it asks again when you leave Vex, rather than keeping the grace period across an app switch |
+| Block screenshots in secret mode | ✅ | FLAG_SECURE while a private tab is in front, which also keeps it out of the app-switcher thumbnail |
 | Fingerprint protection | ✅ | Samsung has none; Vex runs a shim before the page's first script |
 | HTTPS-only | ✅ | Samsung has none |
 | Do Not Track / GPC | ✅ | |
 | Safe Browsing | ✅ | Android's own, switched on |
 | Warn on bad certificates | ✅ better | Vex refuses rather than offering a way past |
-| Samsung Pass (passwords) | ✅ own | Vault under an Android Keystore key, with TOTP codes |
+| Samsung Pass (passwords) | ✅ own | Vault under an Android Keystore key, with TOTP codes, and a generator that makes one worth using |
 | Autofill addresses | ✅ | "Your details" — deliberately no card numbers |
 | Autofill cards | ❌ | Not a thing a browser should type for you |
 
@@ -95,13 +105,17 @@ Everything else below is either matched or bettered.
 | Samsung Internet | Vex | Notes |
 |---|---|---|
 | Text selection: copy, share, web search | ✅ | Android's own, plus Vex's: ask the assistant, translate, polish (Gemini Nano, on the phone), keep as a note |
-| — | ✅ Notes | A line about a page, or a passage kept from one |
+| — | ✅ Notes | A line about a page, or a passage kept from one. Exported as Markdown |
 | — | ✅ Reminders | "Bring this back this evening" — an Android alarm, so it fires whether or not Vex is running |
 
 ## Beyond Samsung Internet
 
 The desktop features that came across, which Samsung Internet has no answer to:
 
+- **Translation that never leaves the phone** — ML Kit's models, downloaded
+  once per language and then offline for good. The page is rewritten where it
+  stands and "show the original" puts it back. Chrome and Samsung Internet both
+  send the page to a server to do this.
 - **The assistant** — ask about the page, summarise, translate, through a
   Cloudflare Worker you deploy yourself. Private tabs never send page text.
 - **An assistant that needs no network at all** — a Gemma-class model running
@@ -127,6 +141,17 @@ The desktop features that came across, which Samsung Internet has no answer to:
   ask before anything it marks risky.
 - **The library** — all of it on named shelves, searchable, with "ask Vex what
   you don't know" for when you know the job but not the feature.
+
+## Smaller things Samsung has no answer to
+
+- **Undo in the toast** the moment a tab is closed, rather than three taps away.
+- **Tab groups you can rename, recolour and close as a set.**
+- **A password generator** in the vault: rejection-sampled randomness, one
+  character from each class a site might insist on, and none of `l I O 0 1`.
+- **"Forget everything from this site"** from a long press in History — visits,
+  page text, cookies and storage in one move.
+- **A diagnostics page** that says what this phone's WebView can and cannot do,
+  and the last hundred things that went wrong, copyable into a bug report.
 
 ## What is not here yet
 

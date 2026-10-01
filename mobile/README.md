@@ -20,34 +20,46 @@ The target was everything Samsung Internet does, as a floor, plus everything
 that could come across from the desktop. [SAMSUNG-PARITY.md](SAMSUNG-PARITY.md)
 is the feature-by-feature comparison; the short version:
 
-**Browsing** — tabs with a snapshot switcher, tab search and tab groups;
-private tabs (own WebView profile on WebView 116+, optionally behind a
-fingerprint); session restore down to the scroll position; pull to refresh; a
-toolbar that sits at the top or the bottom, hides as you scroll, and carries
-the buttons you choose; find in page; edge-swipe back and forward; long-press
-menus on links and images; downloads with live progress; print and
-save-as-PDF; pop-up blocking; Android back that walks the UI the way the
-system expects.
+**Browsing** — tabs with a snapshot switcher, tab search, and tab groups you
+can name, recolour and close as a set; tabs that go to sleep when you leave
+them alone; private tabs (own WebView profile on WebView 116+, optionally
+behind a fingerprint, kept out of screenshots and the app-switcher thumbnail);
+session restore down to the scroll position; pull to refresh; a toolbar that
+sits at the top or the bottom, hides as you scroll, and carries the buttons you
+choose; find in page, including straight from the address bar; edge-swipe back
+and forward; long-press menus on links and images; a search engine of your own
+if the six built in are not it; downloads with live progress, a Stop button,
+and the files a page makes itself; print and save-as-PDF; pop-up blocking;
+Android back that walks the UI the way the system expects; four shortcuts on
+the launcher icon.
 
-**Reading** — a reader that pulls the article out and sets it in Spectral;
-text size, forced pinch-zoom, contrast and a night shade for pages that fight
-you; saved pages that open with no connection at all; a reading list.
+**Reading** — a reader that pulls the article out and sets it in the typeface,
+measure, line spacing and paper you want, with a progress hairline; the article
+read aloud in the phone's own voice, a paragraph at a time; a page translated
+on the phone itself, offline, with nothing sent anywhere; text size, forced
+pinch-zoom, contrast and a night shade for pages that fight you; saved pages
+that open with no connection at all, with their scripts taken out; a reading
+list; and an interface size of its own, because Android's font-size setting
+only reaches the page.
 
 **Finding things again** — history in IndexedDB with search, bookmarks in
 folders with import and export, and Recall: the readable text of every page
 you read, indexed on the device, searchable by what it said.
 
 **Media** — a floating video window (Android picture-in-picture), background
-audio, ±10 s controls, video brightness past what the site allows.
+audio, ±10 s controls, speed, sound, and video brightness past what the site
+allows. Nothing plays until you tap, everywhere, unless you let a site.
 
 **Privacy** — ad and tracker blocking with cosmetic filtering and a dashboard
 of what it cost the sites you visit; a fingerprint shield that runs before the
-page's first script; per-site rules and per-site permissions; third-party
-cookies off; HTTPS upgrades; DNT and GPC; certificate errors that refuse
-rather than offering a way past.
+page's first script; per-site rules, and per-site permissions the page actually
+waits on; third-party cookies off; HTTPS upgrades; DNT and GPC; certificate
+errors that refuse rather than offering a way past; clearing that is a list
+with tick boxes, and can run every time you leave; and "forget everything from
+this site" in one move.
 
 **Your things** — a password vault under an Android Keystore key with TOTP
-codes and form filling; personal details for sign-up forms; QR codes both
+codes, form filling and a generator worth using; personal details for sign-up forms; QR codes both
 ways (scan one, or hand this page to the machine next to you); dictation into
 the address bar; add a site to the home screen; a home-screen search widget
 that opens the address bar, dictation or the scanner in one tap; and a tab bar
@@ -56,7 +68,9 @@ when the window is wide enough to hold one.
 **Vex's own** — eight themes, seven skins and five typefaces generated from
 the desktop's token file; the assistant against a Cloudflare Worker you deploy
 yourself, in two modes (ask about the page, or let it do things with a tool
-loop that shows every step); notes and reminders; the feature library with
+loop that shows every step); an on-device model for when there is no network
+and nothing should leave the phone; notes, exportable as Markdown, and
+reminders; the feature library with
 "ask Vex what you don't know"; and encrypted sync with the desktop —
 bookmarks, reading list, sessions and site rules, merged with the same
 version-vector records the PC uses, with your desktop's open tabs on the start
@@ -96,13 +110,17 @@ whole codebase:
 | File | Holds |
 |---|---|
 | `www/js/bridge.js` | `window.VexBridge` — the mobile answer to the desktop's `window.vex` |
-| `www/js/db.js` | IndexedDB: history, the Recall index, saved pages, downloads |
+| `www/js/db.js` | IndexedDB: history, the Recall index, saved pages, downloads, the filter lists |
 | `www/js/history.js` | The visit log and Recall, over that database |
 | `www/js/collections.js` | Bookmarks, reading list, sessions, start tiles, tab groups |
 | `www/js/vault.js` | Logins, TOTP, form filling, personal details |
 | `www/js/sync.js` | The encrypted sync client (with `www/js/shared/`, copied from the desktop) |
 | `www/js/tools.js` | QR both ways, dictation, saved pages, capture, translate |
 | `www/js/media.js` | Picture-in-picture, background audio, video controls |
+| `www/js/speak.js` | Reading a page aloud, over Android's TextToSpeech |
+| `www/js/translate.js` | Translating a page in place, on the device, with ML Kit |
+| `www/js/clear.js` | What "clear browsing data" clears, and clearing on exit |
+| `www/js/downloads.js` | The files a page makes itself — blob: and data: |
 | `www/js/permissions.js` | What each site may ask for |
 | `www/js/agent.js` | The tool loop: what the assistant may do, and the rules it does it under |
 | `www/js/notes.js` | Notes and kept passages |
@@ -133,11 +151,14 @@ whole codebase:
 | `tabs/EdgeSwipeLayout.java` | back/forward edge gestures over the page |
 | `block/BlockEngine.java` | request matching inside `shouldInterceptRequest` |
 | `block/VexBlockPlugin.java` | the JS control surface for it |
-| `vault/VexVaultPlugin.java` | AES/GCM secrets under an Android Keystore key |
+| `vault/VexSecretsPlugin.java` | AES/GCM secrets under an Android Keystore key |
 | `system/VexSystemPlugin.java` | Biometrics, shortcuts, dictation, PiP, permissions, default browser, the suggestion fetch |
 | `remind/VexRemindPlugin.java` | Alarms for reminders |
 | `remind/ReminderReceiver.java` | The notification when one comes due |
 | `widget/SearchWidget.java` | The home-screen search bar: search, voice, QR |
+| `localai/VexLocalAIPlugin.java` | A .litertlm model and Gemini Nano, with the download and the import |
+| `speech/VexSpeakPlugin.java` | TextToSpeech, a paragraph per utterance |
+| `translate/VexTranslatePlugin.java` | ML Kit translation and language identification, on one worker thread |
 
 ## Build
 
@@ -316,8 +337,21 @@ Nothing below can be settled without a phone, and all of it is cheap to check:
 - Sync carries bookmarks, the reading list, sessions, quick access, site rules
   and the most recent 400 visits (Settings → Sync → Sync history, on by
   default). Older history does not travel: the encrypted blob is capped at 5 MB.
-- The blocker implements a subset of EasyList syntax; see PORTING.md.
+- The blocker implements a subset of EasyList syntax; see PORTING.md. The merged
+  lists are cached in IndexedDB, not in a preference — parsed EasyList is several
+  megabytes and a preference is read in full at every launch.
+- On-device translation downloads a pair of language models the first time you
+  ask for one, on Wi-Fi unless you say otherwise. A language ML Kit does not
+  have falls back to the worker.
+- A file a page builds itself (blob: or data:) is read out of the page and
+  written by Vex, which caps it at 12 MB: the bytes travel as a string through
+  the bridge. Android's own download manager cannot fetch either kind at all.
+- Reading aloud stops when you leave Vex. Carrying on needs a foreground service
+  and a notification, which is a browser pretending to be a music player.
 - The fingerprint shield needs WebView 83+ to run before page scripts. Older
   WebViews run it at page start, which a fast tracker can beat; the privacy
   screen says so when that is the case.
 - Launcher icons are placeholder vectors.
+- The debug APK compresses its native libraries so it can be handed to somebody
+  (25 MB rather than 48). A release build would keep them uncompressed, which is
+  faster to load and the right default for a store.
