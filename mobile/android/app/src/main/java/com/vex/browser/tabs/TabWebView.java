@@ -594,6 +594,24 @@ public class TabWebView extends WebView {
 
     private void startDownload(String url, String userAgent, String contentDisposition, String mimeType, long size) {
         String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
+
+        // A PDF is the one thing a WebView hands straight to the downloader
+        // rather than showing, because Android's WebView cannot render one. Vex
+        // can, so a PDF is an event for the chrome instead of a file in
+        // Downloads — which is what every other browser does and what a person
+        // tapping a link to a timetable expects.
+        boolean isPdf = (mimeType != null && mimeType.toLowerCase().contains("pdf"))
+                || filename.toLowerCase().endsWith(".pdf");
+        if (isPdf) {
+            JSObject pdf = new JSObject();
+            pdf.put("id", id);
+            pdf.put("url", url);
+            pdf.put("filename", filename);
+            pdf.put("size", size);
+            host.emit("pdf", pdf);
+            return;
+        }
+
         JSObject data = new JSObject();
         data.put("id", id);
         data.put("url", url);
@@ -605,6 +623,24 @@ public class TabWebView extends WebView {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setMimeType(mimeType);
             request.addRequestHeader("User-Agent", userAgent);
+            String cookie = CookieManager.getInstance().getCookie(url);
+            if (cookie != null) request.addRequestHeader("Cookie", cookie);
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+            DownloadManager manager = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+            if (manager != null) manager.enqueue(request);
+        } catch (Exception ex) {
+            JSObject error = new JSObject();
+            error.put("id", id);
+            error.put("description", "Download failed: " + ex.getMessage());
+            host.emit("error", error);
+        }
+    }
+
+    /** Save a file the chrome chose to download after all — a PDF, usually. */
+    public void saveToDownloads(String url, String filename) {
+        try {
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             String cookie = CookieManager.getInstance().getCookie(url);
             if (cookie != null) request.addRequestHeader("Cookie", cookie);
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);

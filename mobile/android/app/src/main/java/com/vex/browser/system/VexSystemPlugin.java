@@ -284,6 +284,78 @@ public class VexSystemPlugin extends Plugin {
         }).start();
     }
 
+    /**
+     * Fetch a file into the cache so the chrome can render it — a PDF, today.
+     *
+     * With the page's own cookies: a PDF behind a login is the common case (a
+     * bank statement, a ticket, a paper), and a fetch without them downloads an
+     * HTML sign-in page with a .pdf name, which is worse than failing.
+     *
+     * Capped: a browser should not fill the phone with a file nobody asked to
+     * keep, and this one lands in the cache directory where Android can reclaim
+     * it.
+     */
+    @PluginMethod
+    public void fetchFile(PluginCall call) {
+        final String url = call.getString("url", "");
+        final String name = call.getString("name", "file");
+        final long limit = 80L * 1024 * 1024;
+        if (!url.startsWith("https://") && !url.startsWith("http://")) {
+            call.reject("Only http and https");
+            return;
+        }
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                File folder = new File(getContext().getCacheDir(), "view");
+                if (!folder.exists() && !folder.mkdirs()) { call.reject("No cache directory"); return; }
+                File target = new File(folder, name.replaceAll("[^A-Za-z0-9._-]", "_"));
+
+                connection = (HttpURLConnection) new java.net.URL(url).openConnection();
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(30000);
+                connection.setInstanceFollowRedirects(true);
+                String cookies = android.webkit.CookieManager.getInstance().getCookie(url);
+                if (cookies != null && !cookies.isEmpty()) connection.setRequestProperty("Cookie", cookies);
+                connection.setRequestProperty("Accept", "*/*");
+
+                int status = connection.getResponseCode();
+                if (status < 200 || status >= 300) { call.reject("The server answered " + status); return; }
+                String type = connection.getContentType();
+
+                java.io.InputStream in = connection.getInputStream();
+                java.io.FileOutputStream out = new java.io.FileOutputStream(target);
+                byte[] buffer = new byte[1 << 16];
+                long total = 0;
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    total += read;
+                    if (total > limit) {
+                        out.close();
+                        in.close();
+                        if (!target.delete()) target.deleteOnExit();
+                        call.reject("That file is larger than 80 MB — download it instead");
+                        return;
+                    }
+                    out.write(buffer, 0, read);
+                }
+                out.flush();
+                out.close();
+                in.close();
+
+                JSObject result = new JSObject();
+                result.put("path", target.getAbsolutePath());
+                result.put("bytes", total);
+                result.put("type", type == null ? "" : type);
+                call.resolve(result);
+            } catch (Exception error) {
+                call.reject(error.getMessage() == null ? error.toString() : error.getMessage());
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }).start();
+    }
+
     // ── What this phone actually is ──────────────────────────────────────────
 
     /**

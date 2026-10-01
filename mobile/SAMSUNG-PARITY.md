@@ -36,6 +36,7 @@ Everything else below is either matched or bettered.
 
 | Samsung Internet | Vex | Notes |
 |---|---|---|
+| Built-in PDF viewer | ✅ | Android's WebView cannot render one; Vex draws them with pdf.js, with zoom, page count, share and download |
 | Reader view | ✅ | Extraction in the page, rendered by the chrome in Spectral |
 | Reader font size | ✅ | Six steps |
 | Text size / page zoom | ✅ | Global, and per site |

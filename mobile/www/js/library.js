@@ -20,6 +20,7 @@ const VexLibrary = (() => {
     ['Reading', [
       ['reader', 'Reader', 'The article, without the rest of the page, in the browser’s own type.', () => VexViews.openReader()],
       ['reading-list', 'Reading list', 'Pages kept for later, marked off as you read them.', () => VexPanels.readingList()],
+      ['pdf', 'PDFs', 'Read in Vex rather than downloaded — Android’s WebView cannot draw one, so Vex does.', () => VexUI.toast('Open any PDF link')],
       ['saved', 'Saved pages', 'The whole page kept on the phone, for reading offline — it opens with no connection at all.', () => VexPanels.savedPages()],
       ['notes', 'Notes', 'A line about a page, or a passage kept from one. Select text and choose "Keep as a note".', () => VexPanels.notes()],
       ['contrast', 'Contrast and night shade', 'For pages that are grey on grey, or too bright to read in bed.', () => VexPanels.appearance()],

@@ -114,6 +114,7 @@
   // The on-device model's download reports progress through the plugin, and the
   // settings panel is not necessarily open when it finishes.
   VexLocalAI.bind();
+  VexPdf.bind();
 
   // Things that can wait until the first page is on screen.
   setTimeout(async () => {
@@ -258,6 +259,13 @@
         label: 'Downloads',
         run: () => VexPanels.downloads()
       });
+    });
+
+    // Android's WebView hands every PDF to the download manager because it
+    // cannot draw one. Vex can, so this is a reader rather than a file.
+    VexBridge.on('pdf', async data => {
+      if (!data || !data.url) return;
+      await VexPdf.open(data.url, data.filename || 'document.pdf');
     });
 
     VexBridge.on('blocked', async data => {

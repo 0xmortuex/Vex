@@ -14,11 +14,12 @@
 
 import { chromium, devices } from 'playwright';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const indexPath = path.join(here, '..', 'www', 'index.html');
+const wwwDir = path.join(here, '..', 'www');
 const shotIndex = process.argv.indexOf('--shots');
 const shotDir = shotIndex > 0 ? process.argv[shotIndex + 1] : null;
 if (shotDir) fs.mkdirSync(shotDir, { recursive: true });
@@ -36,6 +37,31 @@ process.on('uncaughtException', error => {
   }
   process.exit(1);
 });
+// The chrome is SERVED, not opened as a file.
+//
+// On a device Capacitor serves it from https://localhost, and the difference
+// matters: a page on a file:// origin cannot import an ES module at all, which
+// is how the PDF reader (pdf.js, loaded on demand) came to work on a phone and
+// not here. A static server of twenty lines is the smallest way to be faithful.
+const TYPES = {
+  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
+  '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2', '.png': 'image/png', '.txt': 'text/plain'
+};
+const server = http.createServer((request, response) => {
+  const asked = decodeURIComponent((request.url || '/').split('?')[0]);
+  const file = path.join(wwwDir, asked === '/' ? 'index.html' : asked);
+  // Nothing outside www/, however the path is spelled.
+  if (!file.startsWith(wwwDir)) { response.writeHead(403).end(); return; }
+  fs.readFile(file, (error, body) => {
+    if (error) { response.writeHead(404).end(); return; }
+    response.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
+    response.end(body);
+  });
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const origin = 'http://127.0.0.1:' + server.address().port;
+
 const executablePath = process.env.CHROMIUM_PATH || undefined;
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const context = await browser.newContext({ ...devices['Pixel 7'] });
@@ -46,7 +72,9 @@ const context = await browser.newContext({ ...devices['Pixel 7'] });
 // and fail on its framing policy, which says nothing about Vex.
 await context.route('**', route => {
   const url = route.request().url();
-  if (url.startsWith('file:') || url.startsWith('data:') || url.startsWith('blob:')) return route.continue();
+  if (url.startsWith(origin) || url.startsWith('file:') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return route.continue();
+  }
   return route.abort();
 });
 const page = await context.newPage();
@@ -115,7 +143,7 @@ const sheetRow = async label => {
   return false;
 };
 
-await page.goto('file://' + indexPath);
+await page.goto(origin + '/index.html');
 await page.waitForTimeout(900);
 
 // ── The first run, which is what a person actually meets first ──────────────
@@ -272,6 +300,27 @@ await page.evaluate(async () => {
   VexAI.clear();
   VexPanels.close();
 });
+
+// ── A PDF ───────────────────────────────────────────────────────────────────
+// The reader opens on the event the native side sends instead of a download,
+// and Back closes it before anything underneath. pdf.js itself is not exercised
+// here — there is no PDF to fetch in a hermetic run — so what is checked is the
+// part Vex wrote: that the viewer opens, covers, says what it is reading, and
+// gets out of the way.
+await page.evaluate(() => window.__vexEmit('pdf', {
+  id: VexTabStore.activeId(), url: 'https://example.com/timetable.pdf', filename: 'timetable.pdf'
+}));
+await page.waitForTimeout(1400);                  // fetch, import pdf.js, render
+results.pdfOpens = await page.isVisible('#pdfview');
+results.pdfNames = ((await page.textContent('#pdf-name')) || '').includes('timetable.pdf');
+// pdf.js really runs: a canvas with the page drawn on it, and a page count.
+results.pdfRendered = await page.$$eval('#pdf-pages canvas', pages => pages.length);
+results.pdfCounts = ((await page.textContent('#pdf-count')) || '').trim();
+results.pdfBackCloses = await page.evaluate(async () => {
+  const handled = await VexUI.handleBack();
+  return handled && !!document.getElementById('pdfview').hidden;
+});
+await shot('17-pdf');
 
 // ── Backup ──────────────────────────────────────────────────────────────────
 // The panel says what it carries before it carries it, and the file itself is
@@ -847,6 +896,7 @@ const expected = {
   localAiHandlesNow: true, localAiStreamed: true,
   chatOnDeviceTag: true, chatOnDeviceAnswer: true,
   polishSheet: 5, polishOffersGrammar: true,
+  pdfOpens: true, pdfNames: true, pdfBackCloses: true, pdfRendered: 1, pdfCounts: '1 / 1',
   backupSaysWhatItCannot: true, backupCounts: true, backupSealed: true, backupOpens: true,
   diagnosticsWebView: true, diagnosticsFeatures: true, diagnosticsShowsProblem: true,
   diagnosticsText: true, diagnosticsRedacts: true
@@ -881,6 +931,8 @@ if (results.libraryShelves < 5) failures.push('libraryShelves: ' + results.libra
 if (!(results.librarySearch || []).includes('saved')) failures.push('librarySearch: ' + JSON.stringify(results.librarySearch));
 if (!String(results.privateEmptyCopy).startsWith('No private tabs')) failures.push('privateEmptyCopy: ' + results.privateEmptyCopy);
 failures.push(...errors);
+
+server.close();
 
 if (failures.length) {
   for (const failure of failures) console.error('FAIL ' + failure);

@@ -290,6 +290,15 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         });
     }
 
+    /** The chrome decided to save a file it had been shown instead. */
+    @PluginMethod
+    public void save(PluginCall call) {
+        final String url = call.getString("url", "");
+        final String filename = call.getString("filename", "file");
+        if (url.isEmpty()) { call.reject("Nothing to save"); return; }
+        withTab(call, tab -> tab.saveToDownloads(url, filename));
+    }
+
     @PluginMethod
     public void find(PluginCall call) {
         final String text = call.getString("text", "");

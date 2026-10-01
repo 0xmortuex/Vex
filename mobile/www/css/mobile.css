@@ -112,6 +112,39 @@ input, select, textarea { font: inherit; }
 }
 .progress.done i { opacity: 0; }
 
+/* ── The PDF reader ──────────────────────────────────────────────────────────
+   Full screen, over everything, because a document is the thing you are doing
+   when it is open — and the page behind it is a download that never happened. */
+.pdfview {
+  position: fixed; inset: 0; z-index: 42;
+  display: flex; flex-direction: column;
+  background: var(--vex-bg-deep);
+  padding-top: env(safe-area-inset-top);
+}
+.pdf-head {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 2px;
+  height: var(--tb-height); padding: 0 4px;
+  background-color: var(--vex-bg-base);
+  border-bottom: 1px solid var(--vex-border-subtle);
+}
+.pdf-title { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; padding: 0 6px; }
+.pdf-name {
+  font-size: var(--text-sm); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pdf-count { font-size: var(--text-xs); color: var(--vex-text-muted); }
+.pdf-pages {
+  flex: 1 1 auto; min-height: 0; overflow: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 8px; overscroll-behavior: contain;
+}
+.pdf-page {
+  background: #fff; border-radius: 2px;
+  box-shadow: 0 1px 6px var(--vex-shadow);
+  max-width: 100%;
+}
+.pdf-waiting { padding: 40px 0; color: var(--vex-text-muted); font-size: var(--text-sm); }
+
 /* ── The tab bar ─────────────────────────────────────────────────────────────
    One row, one chip per tab, the active one lifted. It is a flex item like the
    toolbar, so the content rect shrinks by exactly its height and the native page

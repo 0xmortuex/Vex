@@ -172,6 +172,10 @@ const VexBridge = (() => {
     };
   })();
 
+  // A valid one-page PDF reading "Vex reads PDFs", for development and for the
+  // walkthrough. Built rather than downloaded, so it depends on nothing.
+  const DEVELOPMENT_PDF = 'JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCAyNDAgMTIwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDQ0Pj5zdHJlYW0KQlQgL0YxIDI0IFRmIDI0IDUyIFRkIChWZXggcmVhZHMgUERGcykgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8L1R5cGUvRm9udC9TdWJ0eXBlL1R5cGUxL0Jhc2VGb250L0hlbHZldGljYT4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1NCAwMDAwMCBuIAowMDAwMDAwMTA1IDAwMDAwIG4gCjAwMDAwMDAyMTcgMDAwMDAgbiAKMDAwMDAwMDMwOCAwMDAwMCBuIAp0cmFpbGVyCjw8L1NpemUgNi9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjM3MQolJUVPRgo=';
+
   function call(pluginName, method, args) {
     const plugin = plugins[pluginName];
     if (!plugin) {
@@ -321,6 +325,22 @@ const VexBridge = (() => {
       return !!(result && result.value);
     },
     openDefaultBrowserSettings() { return system('openDefaultBrowserSettings', {}); },
+
+    // Fetch a file into the cache for the chrome to render — a PDF — carrying
+    // the page's cookies, because a PDF behind a login is the common case.
+    async fetchFile(url, name) {
+      if (!plugins.VexSystem) {
+        // Development: there is no native fetch and no network in the
+        // walkthrough, so hand back a real one-page PDF. It is 551 bytes, it is
+        // valid, and it means the reader can be driven end to end — pdf.js and
+        // all — without a phone or a server.
+        return { path: 'data:application/pdf;base64,' + DEVELOPMENT_PDF, bytes: 551, type: 'application/pdf' };
+      }
+      return system('fetchFile', { url, name });
+    },
+
+    // A file the chrome was shown and decided to keep after all.
+    saveFile(tabId, url, filename) { return tabs('save', { id: tabId, url, filename }); },
 
     // What this phone is, for the diagnostics page and a bug report.
     async deviceReport() {
