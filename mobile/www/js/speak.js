@@ -126,10 +126,21 @@ const VexSpeak = (() => {
       try { article = await VexReader.extract(tab.id); } catch { article = null; }
       const lines = this.linesFor(article);
       if (!lines.length) { VexUI.toast('There is no article on this page to read'); return false; }
+      return this.readLines(lines, { title: (article && article.title) || tab.title || '', url: tab.url });
+    },
 
+    /**
+     * Read lines somebody else already has. The reader has the article in hand
+     * the moment it opens one, and extracting it a second time to read it aloud
+     * would be a second trip into the page for text that is already here.
+     */
+    async readLines(lines, { title = '', url = '' } = {}) {
+      if (!Array.isArray(lines) || !lines.length) { VexUI.toast('Nothing to read'); return false; }
+      if (state.available === null) await this.check();
+      if (!state.available) { VexUI.toast('This phone has no speech engine', 4000); return false; }
       state.parts = lines;
-      state.title = (article && article.title) || tab.title || '';
-      state.url = tab.url;
+      state.title = title;
+      state.url = url;
       state.loaded = true;
       return speakFrom(0);
     },

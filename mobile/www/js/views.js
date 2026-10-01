@@ -22,6 +22,43 @@ const VexViews = (() => {
     document.documentElement.style.setProperty('--reader-size', size + 'px');
   }
 
+  // Typeface, measure, leading and tint. Four data attributes on #reader, which
+  // the stylesheet turns into four custom properties — so changing one is one
+  // attribute write rather than a re-render of the article.
+  // This table is the only place these four exist: app.js primes them from it at
+  // boot, applyReaderLook() reads them, and the sheet below is built from it. A
+  // fifth row needs nothing else, which is why check-www cannot see a get() here
+  // and does not need to.
+  const READER_LOOK = [
+    ['vex.readerFont', 'font', 'theme', 'Typeface', [
+      ['theme', 'The theme’s reading face'], ['serif', 'Serif'], ['sans', 'Sans'], ['mono', 'Monospace']
+    ]],
+    ['vex.readerWidth', 'width', 'normal', 'Measure', [
+      ['narrow', 'Narrow'], ['normal', 'Normal'], ['wide', 'Wide']
+    ]],
+    ['vex.readerLeading', 'leading', 'normal', 'Line spacing', [
+      ['tight', 'Tight'], ['normal', 'Normal'], ['loose', 'Loose']
+    ]],
+    ['vex.readerTint', 'tint', 'theme', 'Paper', [
+      ['theme', 'Follow the theme'], ['paper', 'Paper'], ['ink', 'Black, for a dark room']
+    ]]
+  ];
+
+  function lookValue(key, fallback) {
+    return String(VexStore.get(key, fallback) || fallback);
+  }
+
+  function applyReaderLook() {
+    const reader = $('reader');
+    for (const [key, attribute, fallback] of READER_LOOK) {
+      const value = lookValue(key, fallback);
+      // 'theme' and 'normal' are the absence of an override, so they are written
+      // as no attribute at all and the stylesheet needs no rule for them.
+      if (value === fallback) delete reader.dataset[attribute];
+      else reader.dataset[attribute] = value;
+    }
+  }
+
   function renderArticle(article) {
     const body = clear($('reader-body'));
     body.appendChild(el('h1', null, article.title || 'Untitled'));
@@ -270,6 +307,9 @@ const VexViews = (() => {
   }
 
   return {
+    // app.js primes these at boot; the table is the only place they are named.
+    READER_LOOK,
+
     // ── Reader ─────────────────────────────────────────────────────────────
     async openReader() {
       const tab = VexTabStore.active();
@@ -280,17 +320,65 @@ const VexViews = (() => {
       if (!article || !article.ok) { VexUI.toast('No article found on this page'); return; }
 
       applyReaderSize(readerSize());
+      applyReaderLook();
       renderArticle(article);
       $('reader-meta').textContent = VexSearch.prettyHost(tab.url);
       $('reader').hidden = false;
+      $('reader-progress').style.width = '0';
       VexUI.cover(true);
       this._article = article;
+      this._articleUrl = tab.url;
     },
 
     closeReader() {
       if ($('reader').hidden) return;
       $('reader').hidden = true;
       VexUI.cover(false);
+    },
+
+    /**
+     * Typeface, measure, line spacing and paper. Four rows showing what each is
+     * set to; tapping one replaces the sheet with that group's choices, and
+     * choosing comes back here — because nobody changes exactly one of these.
+     */
+    readerLook() {
+      applyReaderLook();        // the sheet and the article must agree
+      const rows = READER_LOOK.map(([key, , fallback, label, options]) => {
+        const current = lookValue(key, fallback);
+        return { id: key, label, note: (options.find(pair => pair[0] === current) || [, current])[1] };
+      });
+      VexSheets.choose('How it reads', rows, key => {
+        const spec = READER_LOOK.find(entry => entry[0] === key);
+        if (!spec) return true;
+        const current = lookValue(key, spec[2]);
+        VexSheets.choose(spec[3], spec[4].map(([id, name]) => ({ id, label: name, selected: id === current })),
+          async value => {
+            await VexStore.set(key, value);
+            applyReaderLook();
+            this.readerLook();
+            return true;
+          });
+        return true;          // the picker replaced this sheet; do not close it
+      });
+      return true;
+    },
+
+    /** Read the article that is already open, without extracting it again. */
+    async speakArticle() {
+      if (VexSpeak.state.loaded) { await VexSpeak.toggle(); return; }
+      const article = this._article;
+      if (!article) { VexUI.toast('Nothing to read'); return; }
+      await VexSpeak.readLines(VexSpeak.linesFor(article), {
+        title: article.title || '', url: this._articleUrl || ''
+      });
+    },
+
+    /** How far down the article you are, as a hairline under the tools. */
+    onReaderScroll() {
+      const body = $('reader-body');
+      const room = body.scrollHeight - body.clientHeight;
+      const through = room > 0 ? Math.min(1, body.scrollTop / room) : 0;
+      $('reader-progress').style.width = Math.round(through * 100) + '%';
     },
 
     readerOpen() { return !$('reader').hidden; },

@@ -212,10 +212,14 @@
   <div class="reader-tools">
     <button class="tb-btn" id="reader-close" aria-label="Close reader"><svg><use href="#i-close"/></svg></button>
     <span class="grow" id="reader-meta"></span>
+    <button class="tb-btn" id="reader-type" aria-label="Typeface and width"><svg><use href="#i-text"/></svg></button>
     <button class="tb-btn" id="reader-smaller" aria-label="Smaller text"><svg><use href="#i-down"/></svg></button>
     <button class="tb-btn" id="reader-bigger" aria-label="Bigger text"><svg><use href="#i-up"/></svg></button>
+    <button class="tb-btn" id="reader-speak" aria-label="Read it aloud"><svg><use href="#i-speaker"/></svg></button>
     <button class="tb-btn" id="reader-ai" aria-label="Ask the assistant"><svg><use href="#i-sparkle"/></svg></button>
   </div>
+  <!-- How far through it you are: a hairline, because a reader is not a dashboard. -->
+  <div class="reader-progress"><i id="reader-progress"></i></div>
   <article class="reader-body" id="reader-body"></article>
 </div>
 

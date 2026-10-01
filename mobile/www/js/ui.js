@@ -1134,6 +1134,9 @@ const VexUI = (() => {
       $('reader-bigger').onclick = () => VexViews.stepReaderSize(1);
       $('reader-smaller').onclick = () => VexViews.stepReaderSize(-1);
       $('reader-ai').onclick = () => { VexViews.closeReader(); VexViews.summarisePage(); };
+      $('reader-type').onclick = () => VexViews.readerLook();
+      $('reader-speak').onclick = () => VexViews.speakArticle();
+      $('reader-body').addEventListener('scroll', () => VexViews.onReaderScroll(), { passive: true });
 
       // Panels
       $('panel-back').onclick = () => VexPanels.back();

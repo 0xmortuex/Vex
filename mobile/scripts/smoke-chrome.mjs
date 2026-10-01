@@ -444,6 +444,38 @@ results.readerParas = await page.$$eval('#reader-body p', paras => paras.length)
 await shot('05-reader');
 await tap('#reader-bigger');
 results.readerSize = await page.evaluate(() => VexStore.get('vex.readerSize', 19));
+// Typeface, measure, line spacing and paper: four attributes on #reader, each
+// absent while it is the default, so the stylesheet needs no rule for "normal".
+results.readerLookDefault = await page.evaluate(() =>
+  ['font', 'width', 'leading', 'tint'].map(name => document.getElementById('reader').dataset[name] || '-').join(','));
+results.readerLook = await page.evaluate(async () => {
+  await VexStore.set('vex.readerFont', 'serif');
+  await VexStore.set('vex.readerTint', 'paper');
+  VexViews.readerLook();                       // applies as it draws the sheet
+  const reader = document.getElementById('reader');
+  return (reader.dataset.font || '-') + ',' + (reader.dataset.tint || '-');
+});
+results.readerLookRows = await page.$$eval('#sheet-list .sheet-row', rows => rows.length);
+await page.evaluate(() => VexSheets.close());
+// How far through it you are. The walkthrough's article is shorter than the
+// screen, so the arithmetic is given something to measure.
+results.readerProgress = await page.evaluate(() => {
+  const body = document.getElementById('reader-body');
+  const spacer = document.createElement('div');
+  spacer.style.height = '3000px';
+  body.appendChild(spacer);
+  body.scrollTop = body.scrollHeight;
+  VexViews.onReaderScroll();
+  const width = document.getElementById('reader-progress').style.width;
+  spacer.remove();
+  body.scrollTop = 0;
+  return width;
+});
+await page.evaluate(async () => {
+  await VexStore.set('vex.readerFont', 'theme');
+  await VexStore.set('vex.readerTint', 'theme');
+  VexSheets.close();
+});
 await tap('#reader-close');
 
 // ── Assistant ───────────────────────────────────────────────────────────────
@@ -1035,6 +1067,10 @@ const expected = {
   speakRate: 1.25,
   speakRateShown: '1.25×',
   sharedTextOpens: true,
+  readerLookDefault: '-,-,-,-',
+  readerLook: 'serif,paper',
+  readerLookRows: 4,
+  readerProgress: '100%',
   translationPanel: 'Translation',
   translateDeclines: 'There is no text on this page to translate',
   clearPanelTitle: 'Clear browsing data',

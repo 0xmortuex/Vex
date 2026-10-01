@@ -517,10 +517,33 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 }
 .reader-body {
   flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: 8px 22px calc(40px + env(safe-area-inset-bottom));
-  font-family: var(--font-read); font-size: var(--reader-size, 18px); line-height: 1.62;
+  padding: 8px var(--reader-gutter, 22px) calc(40px + env(safe-area-inset-bottom));
+  font-family: var(--reader-family, var(--font-read)); font-size: var(--reader-size, 18px);
+  line-height: var(--reader-leading, 1.62);
   color: var(--vex-text-primary); user-select: text;
 }
+
+/* Typeface, measure and tint. Three choices, each of which someone will insist
+   on: the one the theme chose, a serif for a long article, and a sans for a
+   phone held at arm's length. The tints are for a lit room and a dark one — the
+   second is true black, because an OLED panel does not light those pixels. */
+.reader[data-font="serif"] { --reader-family: Georgia, "Iowan Old Style", "Times New Roman", serif; }
+.reader[data-font="sans"] { --reader-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.reader[data-font="mono"] { --reader-family: ui-monospace, "JetBrains Mono", "Roboto Mono", monospace; }
+.reader[data-width="narrow"] { --reader-gutter: 34px; }
+.reader[data-width="wide"] { --reader-gutter: 10px; }
+.reader[data-leading="tight"] { --reader-leading: 1.42; }
+.reader[data-leading="loose"] { --reader-leading: 1.85; }
+.reader[data-tint="paper"] { background-color: #F6EFE1; background-image: none; }
+.reader[data-tint="paper"] .reader-body { color: #2A241B; }
+.reader[data-tint="paper"] .reader-meta { color: #6B6152; }
+.reader[data-tint="ink"] { background-color: #000; background-image: none; }
+.reader[data-tint="ink"] .reader-body { color: #C9C7C3; }
+.reader[data-tint="ink"] .reader-meta { color: #7D7B77; }
+
+.reader-progress { flex: 0 0 auto; height: 2px; background: var(--vex-border-subtle); }
+.reader-progress i { display: block; height: 100%; width: 0; background: var(--vex-accent);
+  transition: width .1s linear; }
 .reader-body h1 { font-size: 1.55em; line-height: 1.22; margin: 14px 0 6px; font-weight: 600; }
 .reader-body h2 { font-size: 1.22em; margin: 1.4em 0 .4em; font-weight: 600; }
 .reader-body h3, .reader-body h4 { font-size: 1.06em; margin: 1.2em 0 .3em; font-weight: 600; }

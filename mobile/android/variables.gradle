@@ -33,8 +33,8 @@ ext {
     litertLmVersion = '0.17.1'
     mlkitGenAiVersion = '1.0.0-beta1'
     // On-device translation and language identification. Same story as above:
-    // these go in as latest.release for exactly one build, and the version
-    // report in the workflow says what that resolved to; then they are pinned.
-    mlkitTranslateVersion = 'latest.release'
-    mlkitLanguageIdVersion = 'latest.release'
+    // in as latest.release for exactly one build, and these are what run 35's
+    // version report said that resolved to.
+    mlkitTranslateVersion = '17.0.3'
+    mlkitLanguageIdVersion = '17.0.6'
 }

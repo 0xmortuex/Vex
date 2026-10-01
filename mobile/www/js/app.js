@@ -51,6 +51,9 @@
     VexStore.prime('vex.autoHideToolbar', true),
     VexStore.prime('vex.pullToRefresh', true),
     VexStore.prime('vex.readerSize', 19),
+    // Typeface, measure, line spacing and paper: named once, in views.js, and
+    // primed from that table so adding a fifth needs nothing here.
+    ...VexViews.READER_LOOK.map(([key, , fallback]) => VexStore.prime(key, fallback)),
     VexStore.prime('vex.aiWorkerUrl', ''),
     VexStore.prime('vex.syncWorkerUrl', ''),
     VexStore.prime('vex.sync', null),
