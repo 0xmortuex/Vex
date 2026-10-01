@@ -29,7 +29,9 @@ const VexVault = (() => {
   }
 
   async function read() {
-    const raw = await VexBridge.vaultGet(KEY);
+    // Strict: a store that could not be read is not an empty vault. Taken as
+    // one, the next save would write a vault of one login over all of them.
+    const raw = await VexBridge.vaultGet(KEY, { strict: true });
     if (!raw) return [];
     try { return JSON.parse(raw); } catch { return []; }
   }
@@ -246,7 +248,12 @@ const VexVault = (() => {
       if (!locked()) return true;
       const check = await VexBridge.authenticate('Vex', reason);
       if (!check.ok) return false;
-      entries = await read();
+      try { entries = await read(); }
+      catch (error) {
+        entries = null;
+        VexUI.toast('Your logins could not be opened just now — nothing was changed. Try again in a moment.', 5000);
+        return false;
+      }
       unlockedAt = Date.now();
       return true;
     },

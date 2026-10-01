@@ -110,13 +110,22 @@ public class VexSecretsPlugin extends Plugin {
             byte[] plain = cipher.doFinal(blob, IV_LENGTH, blob.length - IV_LENGTH);
             result.put("value", new String(plain, StandardCharsets.UTF_8));
             call.resolve(result);
-        } catch (Exception ex) {
-            // A key the user cleared, or a device that reset the Keystore: the
-            // secret is gone rather than wrong, and the chrome asks again.
-            prefs().edit().remove(name).apply();
+        } catch (javax.crypto.AEADBadTagException | android.security.keystore.KeyPermanentlyInvalidatedException ex) {
+            // The key it was sealed with is gone — the Keystore was reset, or
+            // the screen lock removed — so the secret cannot be read by
+            // anyone. Said as "lost", and the ciphertext is moved aside rather
+            // than deleted: nothing is thrown away on this side's say-so.
+            prefs().edit().putString(name + ".lost", stored).remove(name).apply();
             result.put("value", "");
             result.put("lost", true);
             call.resolve(result);
+        } catch (Exception ex) {
+            // Anything else may pass — Samsung's Keystore can be busy just
+            // after an update or a reboot. This used to delete the secret
+            // too, and an empty answer for the password vault then became an
+            // empty vault the next save wrote over the real one. Refuse
+            // instead, and keep everything.
+            call.reject("The secure store could not be read just now: " + ex.getMessage());
         }
     }
 

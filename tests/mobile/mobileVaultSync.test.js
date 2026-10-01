@@ -310,3 +310,25 @@ describe('filling only where a login belongs', () => {
     expect(document.querySelector('input[type=password]').value).toBe('');
   });
 });
+
+describe('a secure store that cannot be read this moment', () => {
+  it('is not taken for an empty vault, so nothing is written over it', async () => {
+    secrets['vex.logins'] = JSON.stringify([{ id: 'lg_1', host: 'a.example', username: 'me', password: 'kept' }]);
+    const realGet = window.VexBridge.vaultGet;
+    const written = [];
+    const realSet = window.VexBridge.vaultSet;
+    window.VexBridge.vaultSet = async (key, value) => { written.push(key); return realSet(key, value); };
+    window.VexBridge.vaultGet = async (key, options) => {
+      if (options && options.strict) throw new Error('Keystore busy');
+      return '';
+    };
+    window.VexUI = Object.assign(window.VexUI || {}, { toast: vi.fn() });
+    VexVault.lock();
+    expect(await VexVault.unlock()).toBe(false);
+    await expect(VexVault.save({ host: 'b.example', username: 'x', password: 'y' })).rejects.toThrow();
+    expect(written).toEqual([]);
+    window.VexBridge.vaultGet = realGet;
+    window.VexBridge.vaultSet = realSet;
+    expect(JSON.parse(secrets['vex.logins'])[0].password).toBe('kept');
+  });
+});

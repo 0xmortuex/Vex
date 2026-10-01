@@ -404,9 +404,15 @@ const VexBridge = (() => {
       if (plugins.VexSecrets) { await plugins.VexSecrets.set({ key, value: value || '' }); return; }
       devSecrets[key] = value || '';
     },
-    async vaultGet(key) {
+    // `strict` makes a failed read an error rather than an empty answer — for
+    // the callers that would write over the secret if they took '' for
+    // "nothing stored": the password vault, and the sync key.
+    async vaultGet(key, { strict = false } = {}) {
       if (plugins.VexSecrets) {
-        const result = await plugins.VexSecrets.get({ key }).catch(() => ({ value: '' }));
+        const result = await plugins.VexSecrets.get({ key }).catch(error => {
+          if (strict) throw new Error((error && error.message) || 'The secure store could not be read just now');
+          return { value: '' };
+        });
         return (result && result.value) || '';
       }
       return devSecrets[key] || '';

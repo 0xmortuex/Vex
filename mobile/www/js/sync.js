@@ -291,7 +291,9 @@ const VexSync = (() => {
       return true;
     },
 
-    async hasKey() { return !!(await VexBridge.vaultGet('vex.syncKey')); },
+    // Strict: "no key" makes a new one, and a key that merely could not be
+    // read this moment must not be replaced by one.
+    async hasKey() { return !!(await VexBridge.vaultGet('vex.syncKey', { strict: true })); },
 
     async recoveryCode() {
       const hex = await VexBridge.vaultGet('vex.syncKey');
