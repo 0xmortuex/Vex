@@ -355,11 +355,16 @@ const VexUI = (() => {
         $('dialog-ok').onclick = null;
         cancel.onclick = null;
         $('dialog-scrim').onclick = null;
+        inputEl.onkeydown = null;
         resolve(value);
       };
       $('dialog-ok').onclick = () => finish(input !== undefined ? inputEl.value : true);
       cancel.onclick = () => finish(null);
       $('dialog-scrim').onclick = () => finish(null);
+      // The keyboard's Enter is the OK button, the way it is everywhere else.
+      inputEl.onkeydown = event => {
+        if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); $('dialog-ok').click(); }
+      };
       if (input !== undefined) setTimeout(() => { inputEl.focus(); inputEl.select(); }, 60);
     });
   }

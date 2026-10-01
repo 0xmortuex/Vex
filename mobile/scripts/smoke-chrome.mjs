@@ -1455,6 +1455,16 @@ results.privateStartPage = await page.evaluate(async () => {
   return [recentNormal, recentPrivate, pinned ? tilesPrivate === pinned : tilesPrivate === 0].join(' ');
 });
 
+// Enter in a prompt is OK.
+results.promptEnter = await page.evaluate(async () => {
+  const answer = VexUI.prompt('Name it', '', '');
+  await new Promise(resolve => setTimeout(resolve, 120));
+  const input = document.getElementById('dialog-input');
+  input.value = 'Typed';
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  return await answer;
+});
+
 // ── Saving a video ──────────────────────────────────────────────────────────
 // A plain file goes to the download queue; a player built on a blob: URL is
 // found through the playlist its page requested, saved as a stream job whose
@@ -1540,6 +1550,7 @@ const expected = {
   downloadsLive: '30% 70% 0',
   privateLockEverywhere: 'true true false true',
   privateStartPage: 'true false true',
+  promptEnter: 'Typed',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,
