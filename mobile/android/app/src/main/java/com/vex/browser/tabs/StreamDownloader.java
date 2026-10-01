@@ -374,7 +374,7 @@ public final class StreamDownloader {
 
     private static String fetchText(String url, String userAgent) throws IOException {
         return new String(fetchBytes(url, userAgent, 0, -1), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("﻿", "").trim();
+                .replace("\uFEFF", "").trim();
     }
 
     // ── Where it goes ────────────────────────────────────────────────────────

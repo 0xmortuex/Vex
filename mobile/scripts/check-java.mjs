@@ -125,6 +125,19 @@ function writeR(dir) {
     + '}\n');
 }
 
+// Android lint fails the build on a byte-order mark anywhere in a source, and
+// lint only runs in CI — so the same rule is here, where it costs a second.
+for (const file of walk(appJava).filter(name => name.endsWith('.java'))) {
+  const text = fs.readFileSync(file, 'utf8');
+  const at = text.indexOf('\uFEFF');
+  if (at >= 0) {
+    const line = text.slice(0, at).split('\n').length;
+    console.error('FAIL — ' + path.relative(process.cwd(), file) + ':' + line
+      + ' has a byte-order mark in it; write it as the escape \\uFEFF');
+    process.exit(1);
+  }
+}
+
 const { jar, from } = resolveFrameworkJar();
 if (!jar) {
   console.log('skipped — no Android framework jar (' + from + '). '
