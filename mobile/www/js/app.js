@@ -182,7 +182,7 @@
   window.addEventListener('vexOpenText', event => {
     const detail = (event && event.detail) || event || {};
     if (detail.widget) runWidgetTap(detail.widget);
-    else if (detail.text) VexUI.openUrl(detail.text, { newTab: true });
+    else if (detail.text) VexUI.openUrl(VexSearch.sharedTarget(detail.text), { newTab: true, fromApp: true });
   });
 
   // A tap on the home-screen widget, or a launcher shortcut from long-pressing
@@ -201,7 +201,7 @@
   (async () => {
     const pending = await VexBridge.pendingIntent();
     if (pending.widget) runWidgetTap(pending.widget);
-    else if (pending.text) VexUI.openUrl(pending.text, { newTab: true, fromApp: true });
+    else if (pending.text) VexUI.openUrl(VexSearch.sharedTarget(pending.text), { newTab: true, fromApp: true });
   })();
 
   VexBridge.onAppEvent('appUrlOpen', data => {

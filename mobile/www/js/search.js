@@ -148,6 +148,20 @@ const VexSearch = (() => {
       return (resolver && resolver.resolve(text)) || '';
     },
 
+    /**
+     * What to open for text another app shared. Apps share a title and a link
+     * together — "Watch this: https://youtu.be/…" — and the link is what was
+     * meant; searching for the whole sentence was not. With no link in it,
+     * the text is what you get, searched or opened as typed.
+     */
+    sharedTarget(text) {
+      const value = String(text || '').trim();
+      const link = value.match(/https?:\/\/[^\s<>"']+/i);
+      if (!link) return value;
+      // Trailing punctuation belongs to the sentence, not the address.
+      return link[0].replace(/[).,;:!?\]]+$/, '');
+    },
+
     isSearch(input) {
       const text = String(input || '').trim();
       return !!text && !/^(?:https?|file|data|about|vex):/i.test(text)

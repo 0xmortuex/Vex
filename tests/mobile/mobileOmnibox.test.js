@@ -153,3 +153,12 @@ describe('keywords and bangs, the desktop’s own', () => {
     expect(row.snippet).toBe('On github.com');
   });
 });
+
+describe('text shared from another app', () => {
+  it('opens the link in it, not a search for the sentence', () => {
+    expect(VexSearch.sharedTarget('Watch this: https://youtu.be/abc123')).toBe('https://youtu.be/abc123');
+    expect(VexSearch.sharedTarget('Read (https://example.com/a?b=1).')).toBe('https://example.com/a?b=1');
+    expect(VexSearch.sharedTarget('just some words')).toBe('just some words');
+    expect(VexSearch.sharedTarget('example.com')).toBe('example.com');
+  });
+});
