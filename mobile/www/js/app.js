@@ -50,6 +50,8 @@
     VexStore.prime('vex.toolbarPosition', 'bottom'),
     VexStore.prime('vex.autoHideToolbar', true),
     VexStore.prime('vex.pullToRefresh', true),
+    VexStore.prime('vex.scrollButtons', false),
+    VexStore.prime('vex.hideStatusBar', false),
     VexStore.prime('vex.readerSize', 19),
     // Typeface, measure, line spacing and paper: named once, in views.js, and
     // primed from that table so adding a fifth needs nothing here.
@@ -129,6 +131,8 @@
   await VexShield.install();
   await VexBridge.setTextZoom(VexStore.get('vex.textZoom', 100));
   await VexBridge.setPullToRefresh(VexStore.get('vex.pullToRefresh', true) !== false);
+  await VexBridge.setScrollButtons(VexStore.get('vex.scrollButtons', false) === true);
+  if (VexStore.get('vex.hideStatusBar', false) === true) await VexBridge.setStatusBarHidden(true);
   await VexBridge.setBackgroundAudio(VexStore.get('vex.backgroundAudio', false) === true);
   await VexBridge.setKeepAwake(VexStore.get('vex.keepAwake', false) === true);
   await VexBridge.setPrivacy({

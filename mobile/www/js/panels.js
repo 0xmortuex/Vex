@@ -1376,6 +1376,12 @@ const VexPanels = (() => {
           await VexStore.set('vex.pullToRefresh', value);
           await VexBridge.setPullToRefresh(value);
         }));
+      body.appendChild(toggleRow('Scroll buttons',
+        'Two arrows at the edge of the page while you scroll — a tap is a screenful, a long press goes to the top or the bottom',
+        VexStore.get('vex.scrollButtons', false) === true, async value => {
+          await VexStore.set('vex.scrollButtons', value);
+          await VexBridge.setScrollButtons(value);
+        }));
 
       body.appendChild(heading('Media'));
       body.appendChild(toggleRow('Let videos play on their own',
@@ -1679,6 +1685,12 @@ const VexPanels = (() => {
           VexSheets.close();
           this.appearance();
         })));
+      body.appendChild(toggleRow('Show the status bar', 'Off gives the page the strip with the clock in it; swipe down from the top to see it',
+        VexStore.get('vex.hideStatusBar', false) !== true, async value => {
+          await VexStore.set('vex.hideStatusBar', !value);
+          await VexBridge.setStatusBarHidden(!value);
+          VexUI.scheduleBounds();
+        }));
       body.appendChild(toggleRow('Hide it while you scroll', 'It comes back when you scroll up',
         VexStore.get('vex.autoHideToolbar', true), async value => {
           await VexStore.set('vex.autoHideToolbar', value);

@@ -490,8 +490,45 @@ public class VexSystemPlugin extends Plugin {
                     | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
             decor.setSystemUiVisibility(on ? flags | immersive : flags & ~immersive);
+            // Coming out of a full-screen video clears the status-bar flag with
+            // the rest; a status bar you had hidden stays hidden.
+            if (!on) applyStatusBar();
             call.resolve();
         });
+    }
+
+    /**
+     * Samsung's "Show status bar" switch, off: the clock and notification icons
+     * go, the page gets the strip, and a swipe from the top shows them for a
+     * moment the way any full-screen app does.
+     */
+    private boolean statusBarHidden = false;
+
+    @PluginMethod
+    public void setStatusBarHidden(PluginCall call) {
+        final boolean hidden = Boolean.TRUE.equals(call.getBoolean("value", false));
+        getActivity().runOnUiThread(() -> {
+            statusBarHidden = hidden;
+            applyStatusBar();
+            call.resolve();
+        });
+    }
+
+    private void applyStatusBar() {
+        android.view.Window window = getActivity().getWindow();
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            android.view.WindowInsetsController controller = window.getInsetsController();
+            if (controller == null) return;
+            controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            if (statusBarHidden) controller.hide(android.view.WindowInsets.Type.statusBars());
+            else controller.show(android.view.WindowInsets.Type.statusBars());
+        } else {
+            android.view.View decor = window.getDecorView();
+            int flags = decor.getSystemUiVisibility();
+            decor.setSystemUiVisibility(statusBarHidden
+                    ? flags | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                    : flags & ~android.view.View.SYSTEM_UI_FLAG_FULLSCREEN);
+        }
     }
 
     /** Keep the screen on while reading or watching. */

@@ -63,6 +63,9 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     private boolean visible = true;
     private int textZoom = 100;
     private boolean pullToRefresh = true;
+    // Samsung's scroll buttons: off unless asked for, as there.
+    private ScrollButtons scrollButtons;
+    private boolean scrollButtonsOn = false;
     private boolean backgroundAudio = true;
     private String documentStartScript = "";
     private int[] bounds = new int[]{0, 0, 0, 0};    // left, top, width, height in px
@@ -79,6 +82,8 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
                 notifyListeners("edgeSwipe", data);
             });
             root.addView(container, new ViewGroup.LayoutParams(0, 0));
+            scrollButtons = new ScrollButtons(getContext(), () -> activeId == null ? null : tabs.get(activeId));
+            container.addView(scrollButtons, ScrollButtons.placement(getContext()));
             fullscreenHost = new FrameLayout(getContext());
             fullscreenHost.setVisibility(View.GONE);
             fullscreenHost.setBackgroundColor(0xFF000000);
@@ -181,6 +186,7 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
                 entry.getValue().setVisibility(entry.getKey().equals(id) ? View.VISIBLE : View.GONE);
             }
             activeId = tabs.containsKey(id) ? id : activeId;
+            if (scrollButtons != null) scrollButtons.dismiss();
             // The tab you just asked for is awake by definition.
             TabWebView wanted = tabs.get(id);
             if (wanted != null && asleep.remove(id)) wanted.onResume();
@@ -591,6 +597,17 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         });
     }
 
+    /** Samsung's scroll buttons, on or off. */
+    @PluginMethod
+    public void setScrollButtons(PluginCall call) {
+        final boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        getActivity().runOnUiThread(() -> {
+            scrollButtonsOn = enabled;
+            if (!enabled && scrollButtons != null) scrollButtons.dismiss();
+            call.resolve();
+        });
+    }
+
     @PluginMethod
     public void setPullToRefresh(PluginCall call) {
         final boolean enabled = !Boolean.FALSE.equals(call.getBoolean("enabled", true));
@@ -917,6 +934,12 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
 
     @Override
     public void emit(String event, JSObject data) {
+        // Scrolling the page in front brings the scroll buttons up. emit() is
+        // called from the WebView's own callbacks, on the main thread.
+        if ("scroll".equals(event) && scrollButtonsOn && scrollButtons != null
+                && activeId != null && activeId.equals(data.getString("id"))) {
+            scrollButtons.scrolled();
+        }
         if ("loadEnd".equals(event) || "error".equals(event)) {
             SwipeRefreshLayout frame = frames.get(data.getString("id"));
             if (frame != null && frame.isRefreshing()) frame.setRefreshing(false);

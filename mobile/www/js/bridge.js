@@ -355,6 +355,7 @@ const VexBridge = (() => {
     setDocumentStartScript(script) { return tabs('setDocumentStartScript', { script: script || '' }); },
     setPrivacy(options = {}) { return tabs('setPrivacy', options); },
     setPullToRefresh(enabled) { return tabs('setPullToRefresh', { enabled: !!enabled }); },
+    setScrollButtons(enabled) { return tabs('setScrollButtons', { enabled: !!enabled }); },
     setBackgroundAudio(enabled) { return tabs('setBackgroundAudio', { enabled: !!enabled }); },
     evaluate(id, code) { return tabs('evaluate', { id, code }); },
     clearData(options = {}) { return tabs('clearData', options); },
@@ -560,6 +561,7 @@ const VexBridge = (() => {
     },
     setFullscreen(value) { return system('setFullscreen', { value: !!value }); },
     setKeepAwake(value) { return system('setKeepAwake', { value: !!value }); },
+    setStatusBarHidden(value) { return system('setStatusBarHidden', { value: !!value }); },
     // FLAG_SECURE: no screenshot, and nothing in the recents thumbnail.
     setScreenshotsBlocked(value) { return system('setScreenshotsBlocked', { value: !!value }); },
     shareFile(path, mimeType, title) { return system('shareFile', { path, mimeType, title }); },
