@@ -121,6 +121,9 @@ const VexTabStore = (() => {
         if (next) await this.activate(next.id); else emit();
       } else emit();
       this.persist();
+      if (tab.incognito && !this.private().length && typeof VexDownloads !== 'undefined') {
+        VexDownloads.forgetPrivate().catch(() => {});
+      }
     },
 
     async closeAll(incognito) {

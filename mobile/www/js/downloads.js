@@ -83,7 +83,8 @@ const VexDownloads = (() => {
         const answer = await VexBridge.saveFile(tab.id, url, filename);
         const row = {
           url, filename, size: 0, at: Date.now(),
-          downloadId: answer && answer.downloadId ? String(answer.downloadId) : ''
+          downloadId: answer && answer.downloadId ? String(answer.downloadId) : '',
+          incognito: !!tab.incognito
         };
         row.id = await VexDB.add('downloads', row);
         VexUI.toast('Downloading ' + filename, 3500, { label: 'Downloads', run: () => VexPanels.downloads() });
@@ -112,7 +113,10 @@ const VexDownloads = (() => {
       }
       const jobId = answer && answer.jobId;
       if (!jobId) { VexUI.toast('That video could not be saved'); return null; }
-      const row = { url, filename, size: 0, at: Date.now(), streamJob: jobId, pageUrl: tab.url || '' };
+      const row = {
+        url, filename, size: 0, at: Date.now(), streamJob: jobId, pageUrl: tab.incognito ? '' : (tab.url || ''),
+        incognito: !!tab.incognito
+      };
       // Registered before the row is written: a playlist that fails at once
       // can answer before IndexedDB does, and its event must find the job.
       const job = { state: 'running', done: 0, total: 0, bytes: 0, rowId: null };
@@ -125,6 +129,22 @@ const VexDownloads = (() => {
     },
 
     /** What a stream job is doing now; null once Vex has restarted. */
+    /**
+     * The private tabs are all closed: their downloads leave the list, as in
+     * Chrome. The files stay in Downloads — you saved them on purpose — but the
+     * list of what you fetched in private is not something to keep.
+     */
+    async forgetPrivate() {
+      const rows = await VexDB.scan('downloads', { limit: 2000 }).catch(() => []);
+      let gone = 0;
+      for (const row of rows) {
+        if (!row || !row.incognito || row.id == null) continue;
+        await VexDB.delete('downloads', row.id).catch(() => {});
+        gone++;
+      }
+      return gone;
+    },
+
     streamState(jobId) { return streams.get(jobId) || null; },
 
     // Stopped by hand is a regret, not a failure: the row goes with it.

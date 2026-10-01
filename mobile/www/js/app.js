@@ -159,6 +159,9 @@
   // Things that can wait until the first page is on screen.
   setTimeout(async () => {
     await VexHistory.prune({ historyDays: VexStore.get('vex.historyDays', 365) });
+    // Private tabs do not survive a restart, so neither do their downloads'
+    // entries — this catches the ones from a session Android ended.
+    await VexDownloads.forgetPrivate();
     await closeStaleTabs();
     // Native re-arms them after a reboot too; this catches a list restored
     // from a backup or changed while the alarms were not set.
@@ -329,7 +332,10 @@
         url: data.url, filename: data.filename || '', size: Number(data.size) || 0, at: Date.now(),
         // The system queue's id, so the list follows this download and not
         // another one of the same address.
-        downloadId: data.downloadId ? String(data.downloadId) : ''
+        downloadId: data.downloadId ? String(data.downloadId) : '',
+        // From a private tab: the file is yours to keep, the entry goes with
+        // the private tabs (VexDownloads.forgetPrivate).
+        incognito: !!(VexTabStore.get(data.id) || {}).incognito
       };
       const key = await VexDB.add('downloads', row);
       // A file the page made itself: blob: or data:, which Android's download

@@ -103,3 +103,20 @@ describe('a blob: URL', () => {
     expect(window.VexBridge.saveData).toHaveBeenCalledWith('t1', 'download', '', 'YQ==');
   });
 });
+
+describe('downloads from private tabs', () => {
+  it('leave the list with the private tabs, and nothing else does', async () => {
+    const rows = [
+      { id: 1, url: 'https://a.example/x.zip', incognito: true },
+      { id: 2, url: 'https://b.example/y.zip', incognito: false },
+      { id: 3, url: 'https://c.example/z.zip' }
+    ];
+    const deleted = [];
+    window.VexDB = {
+      scan: vi.fn(async () => rows),
+      delete: vi.fn(async (store, id) => { deleted.push(store + ':' + id); })
+    };
+    expect(await VexDownloads.forgetPrivate()).toBe(1);
+    expect(deleted).toEqual(['downloads:1']);
+  });
+});

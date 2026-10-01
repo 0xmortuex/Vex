@@ -323,7 +323,10 @@ public class MainActivity extends BridgeActivity {
         String action = intent.getAction();
         String text = null;
 
-        if (Intent.ACTION_SEND.equals(action) && "text/plain".equals(intent.getType())) {
+        // Some apps send "text/plain; charset=utf-8": the filter still matches
+        // it, so this must too, or the share arrives and silently does nothing.
+        String type = intent.getType();
+        if (Intent.ACTION_SEND.equals(action) && type != null && type.toLowerCase(java.util.Locale.ROOT).startsWith("text/plain")) {
             text = intent.getStringExtra(Intent.EXTRA_TEXT);
         } else if (Intent.ACTION_WEB_SEARCH.equals(action)) {
             text = intent.getStringExtra("query");
