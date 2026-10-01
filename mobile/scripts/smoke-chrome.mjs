@@ -196,6 +196,21 @@ await page.waitForTimeout(450);
 results.urlPill = (await page.textContent('#tb-url-text')).trim();
 results.startHidden = !(await page.isVisible('#start'));
 
+// ── On-device AI ────────────────────────────────────────────────────────────
+// There is no plugin in a desktop browser, so this is the shape of the panel on
+// a phone that cannot run a model: it says so, it still offers Nano, and the
+// routing refuses to claim a model it does not have.
+await page.evaluate(() => VexPanels.localAI());
+await page.waitForTimeout(350);
+results.localAiRows = await page.$$eval('#panel-body .sheet-row', rows => rows.length);
+results.localAiHonest = ((await page.textContent('#panel-body')) || '').includes('64-bit');
+results.localAiRoutesNothing = await page.evaluate(() => VexLocalAI.handles('chat'));
+results.localAiNeverAgent = await page.evaluate(() => VexLocalAI.CHAT_ACTIONS.includes('agent'));
+results.localAiPrompt = await page.evaluate(() =>
+  VexLocalAI.promptFor('summarize', '', { text: 'A long article about ships.' }).includes('bullet'));
+await shot('12-local-ai');
+await page.evaluate(() => VexPanels.close());
+
 // ── The tab bar, which only a wide window gets ──────────────────────────────
 // A phone does not show one. Widen the window to a tablet and it should appear,
 // with a chip per tab; narrow it again and it should go away, because a fold or
@@ -706,7 +721,9 @@ const expected = {
   libraryOpens: true,
   widgetOpensOmnibox: true, widgetDictates: true,
   tabBarOnPhone: true, tabBarOnTablet: true, tabBarChips: 1, tabBarActive: 1,
-  tabBarGoesAway: true
+  tabBarGoesAway: true,
+  localAiHonest: true, localAiRoutesNothing: false, localAiNeverAgent: false,
+  localAiPrompt: true
 };
 
 const failures = [];
@@ -731,6 +748,8 @@ if (!results.agentClosesTabs || results.agentClosesTabs.closed !== 2) {
 if (results.agentClosesTabs && results.agentClosesTabs.action !== 'agent') failures.push('the agent did not use the agent action');
 if (results.agentClosesTabs && !results.agentClosesTabs.sentTools) failures.push('the agent did not send its tool list');
 if (results.libraryRows < 25) failures.push('libraryRows: ' + results.libraryRows);
+if (results.localAiRows < 4) failures.push('localAiRows: the on-device panel is missing rows ('
+  + results.localAiRows + ')');
 if (results.libraryShelves < 5) failures.push('libraryShelves: ' + results.libraryShelves);
 if (!(results.librarySearch || []).includes('saved')) failures.push('librarySearch: ' + JSON.stringify(results.librarySearch));
 if (!String(results.privateEmptyCopy).startsWith('No private tabs')) failures.push('privateEmptyCopy: ' + results.privateEmptyCopy);

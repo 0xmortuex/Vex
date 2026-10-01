@@ -36,7 +36,9 @@ const VexLibrary = (() => {
       ['agent', 'Let it do things', '"Close all the YouTube tabs." It works in steps, and shows you each one.', () => VexViews.openAI('agent')],
       ['summarise', 'Summarise', 'The page, shorter.', () => VexViews.summarisePage()],
       ['translate', 'Translate', 'The page in another language, through your worker.', () => VexUI.translatePage()],
-      ['memory', 'What it remembers', 'Facts you have told it to keep.', () => VexPanels.assistantSettings()]
+      ['memory', 'What it remembers', 'Facts you have told it to keep.', () => VexPanels.assistantSettings()],
+      ['on-device', 'On-device AI', 'A model that runs inside Vex with no network at all, and Gemini Nano where the phone has it.', () => VexPanels.localAI()],
+      ['nano', 'Summarise with Gemini Nano', 'Instant, on the phone, nothing stored by Vex — the weights belong to Android.', () => VexPanels.localAI()]
     ]],
     ['Privacy', [
       ['blocking', 'Ad and tracker blocking', 'Network and cosmetic, with a list of what it cost each site.', () => VexPanels.privacy()],

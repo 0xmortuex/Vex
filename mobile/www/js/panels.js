@@ -70,6 +70,7 @@ const VexPanels = (() => {
     menuEditor: () => VexPanels.menuEditor(),
     quickAccess: () => VexPanels.quickAccess(),
     assistant: () => VexPanels.assistantSettings(),
+    localai: () => VexPanels.localAI(),
     privacy: () => VexPanels.privacy(),
     ai: () => VexViews.openAI()
   };
@@ -1487,6 +1488,176 @@ const VexPanels = (() => {
       body.appendChild(el('div', 'field-note',
         'Private tabs never send page text to the worker, and a question is always sent with the page you '
         + 'were on when you asked it — not the one you have since moved to.'));
+
+      body.appendChild(heading('On this phone'));
+      const localMode = VexLocalAI.mode();
+      body.appendChild(valueRow('On-device AI',
+        'A model that runs inside Vex, and Gemini Nano where the phone has it',
+        localMode === 'off' ? 'Off' : localMode === 'only' ? 'On-device only' : 'Preferred',
+        () => this.localAI()));
+    },
+
+    /**
+     * The on-device page. Two backends with nothing in common except that
+     * neither sends your reading anywhere: a model you put on the phone, and
+     * Gemini Nano, whose weights belong to the system.
+     */
+    async localAI() {
+      const body = openShell('localai', 'On-device AI');
+      await VexLocalAI.refresh();
+      const state = VexLocalAI.state;
+      const installed = VexLocalAI.installed();
+      const chosen = VexLocalAI.chosenModel();
+
+      if (!state.supported) {
+        body.appendChild(el('div', 'field-note',
+          'This phone cannot run a model inside Vex: the engine ships for 64-bit ARM only. '
+          + 'Gemini Nano below may still work.'));
+      }
+
+      body.appendChild(heading('A model of your own'));
+      body.appendChild(el('div', 'field-note',
+        'LiteRT-LM runs a .litertlm model in Vex’s own process — no network, no account, and it keeps '
+        + 'working with the aeroplane mode on. The models worth running are Gemma’s, which are behind a '
+        + 'licence you accept in a browser; Vex is a browser, so: open the model’s page, accept, download '
+        + 'the .litertlm, then tap Import. Vex offers to import any .litertlm it downloads.'));
+
+      const mode = VexLocalAI.mode();
+      body.appendChild(valueRow('Use it',
+        mode === 'only'
+          ? 'Nothing is sent to the worker, and a failure here is a failure'
+          : mode === 'prefer'
+            ? 'Asks the model first, falls back to your worker'
+            : 'Off — every question goes to your worker',
+        mode === 'off' ? 'Off' : mode === 'only' ? 'On-device only' : 'Prefer on-device',
+        () => VexSheets.choose('On-device AI', [
+          { id: 'off', label: 'Off', note: 'The worker answers everything', selected: mode === 'off' },
+          { id: 'prefer', label: 'Prefer on-device', note: 'Chat, summaries, translation and explanations stay here', selected: mode === 'prefer' },
+          { id: 'only', label: 'On-device only', note: 'Nothing leaves the phone, even when the model cannot cope', selected: mode === 'only' }
+        ], async choice => {
+          await VexLocalAI.setMode(choice);
+          VexSheets.close();
+          this.localAI();
+        })));
+
+      if (state.downloading) {
+        const { received, total } = state.downloading;
+        const mb = bytes => (bytes / 1048576).toFixed(0) + ' MB';
+        body.appendChild(VexSheets.row({
+          icon: 'download', label: 'Downloading ' + state.downloading.name,
+          note: total > 0
+            ? mb(received) + ' of ' + mb(total) + ' · ' + Math.floor(100 * received / total) + '%'
+            : mb(received) + ' so far',
+          value: 'Stop',
+          run: async () => { await VexLocalAI.cancelDownload(); this.localAI(); return true; }
+        }));
+      }
+
+      for (const entry of VexLocalAI.MODELS) {
+        const here = installed.includes(entry.name);
+        const size = here ? ((Number(state.models[entry.name]) || 0) / 1048576).toFixed(0) + ' MB on disk' : entry.size;
+        body.appendChild(VexSheets.row({
+          icon: here ? 'check' : 'download',
+          label: entry.label + (chosen === entry.name ? ' · in use' : ''),
+          note: entry.note + ' · ' + size,
+          run: async () => {
+            VexSheets.choose(entry.label, [
+              here ? { id: 'use', label: 'Use this model', note: chosen === entry.name ? 'Already chosen' : '' } : null,
+              { id: 'page', label: here ? 'Open its page' : 'Open its page to download it',
+                note: 'Accept the licence, download the .litertlm, then come back and import' },
+              { id: 'import', label: 'Import a .litertlm file', note: 'From your downloads' },
+              { id: 'url', label: 'Download from a URL', note: 'A direct link; resumes if it drops' },
+              here ? { id: 'delete', label: 'Delete it from this phone', danger: true } : null
+            ].filter(Boolean), async choice => {
+              VexSheets.close();
+              if (choice === 'use') { await VexLocalAI.setModel(entry.name); this.localAI(); }
+              if (choice === 'page') { VexPanels.close(); VexUI.openUrl(entry.page, { newTab: true }); }
+              if (choice === 'import') {
+                if (await VexLocalAI.importFile(entry.name)) VexUI.toast('Copying it in…');
+              }
+              if (choice === 'url') {
+                const url = await VexUI.prompt('Download ' + entry.label, 'A direct link to the .litertlm file');
+                if (!url) return;
+                const token = await VexUI.prompt('Access token', 'Only if the link needs one — leave empty otherwise');
+                await VexLocalAI.download(entry.name, url, token || '');
+                this.localAI();
+              }
+              if (choice === 'delete') {
+                if (await VexUI.confirm('Delete ' + entry.label + '?')) { await VexLocalAI.remove(entry.name); this.localAI(); }
+              }
+            });
+            return true;
+          }
+        }));
+      }
+
+      const backend = VexLocalAI.chosenBackend();
+      const backendSpec = VexLocalAI.BACKENDS.find(entry => entry.id === backend);
+      body.appendChild(valueRow('Run it on', backendSpec ? backendSpec.note : '',
+        backendSpec ? backendSpec.label : backend,
+        () => VexSheets.choose('Run the model on', VexLocalAI.BACKENDS.map(entry => ({
+          id: entry.id, label: entry.label, note: entry.note, selected: entry.id === backend
+        })), async choice => {
+          await VexLocalAI.setBackend(choice);
+          VexSheets.close();
+          this.localAI();
+        })));
+
+      if (state.loaded) {
+        body.appendChild(VexSheets.row({
+          icon: 'close', label: 'Unload it from memory',
+          note: state.model + ' on the ' + state.backend.toUpperCase() + ' · frees a gigabyte or two of RAM',
+          run: async () => { await VexLocalAI.unload(); this.localAI(); return true; }
+        }));
+      } else if (chosen && installed.includes(chosen)) {
+        body.appendChild(valueRow('Load it now',
+          'Takes a few seconds; the first load after a download takes longest', '', async () => {
+            VexUI.toast('Loading ' + chosen + '…');
+            const ok = await VexLocalAI.load();
+            VexUI.toast(ok ? 'Ready' : (VexLocalAI.state.lastError || 'It would not load'), 4000);
+            this.localAI();
+          }));
+      }
+
+      if (state.lastError) body.appendChild(el('div', 'field-note', state.lastError));
+
+      body.appendChild(heading('Gemini Nano'));
+      const nano = await VexLocalAI.refreshNano();
+      body.appendChild(el('div', 'field-note',
+        nano === 'available'
+          ? 'This phone has Nano, and it is ready. Nothing to download, nothing stored by Vex: the weights '
+            + 'belong to Android. It does three things — summarise, proofread, rewrite — and it is quick.'
+          : nano === 'downloadable'
+            ? 'This phone has Nano, but Android has not fetched the weights yet. It is a one-off, and shared '
+              + 'with every other app that uses them.'
+            : nano === 'downloading'
+              ? 'Android is fetching Nano’s weights now.'
+              : 'This phone has no Gemini Nano. It needs AICore — a Galaxy S25 or a Pixel 9 and up have it.'));
+
+      if (nano === 'downloadable') {
+        body.appendChild(valueRow('Get Nano ready', null, '', async () => {
+          VexUI.toast('Asking Android for Nano…');
+          try { await VexLocalAI.nanoDownload(); VexUI.toast('Nano is ready'); }
+          catch (error) { VexUI.toast(error.message, 4000); }
+          this.localAI();
+        }));
+      }
+
+      if (nano === 'available') {
+        body.appendChild(toggleRow('Summarise with Nano',
+          'Page summaries answered on the phone, instantly, instead of by your worker',
+          VexLocalAI.nanoMode(), async value => { await VexLocalAI.setNano(value); }));
+        body.appendChild(valueRow('Try it', 'Summarise the page you are on', '', async () => {
+          const tab = VexTabStore.active();
+          if (!tab || !tab.url || tab.url === 'about:blank') { VexUI.toast('Open a page first'); return; }
+          VexUI.toast('Asking Nano…');
+          try {
+            const text = await VexReader.pageText(tab.id, 4000);
+            const summary = await VexLocalAI.nanoSummarize(text, 3);
+            await VexUI.confirm(summary || 'Nano had nothing to say about this page');
+          } catch (error) { VexUI.toast(error.message, 4000); }
+        }));
+      }
     }
   };
 })();

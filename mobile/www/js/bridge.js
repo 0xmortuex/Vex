@@ -19,7 +19,7 @@
 const VexBridge = (() => {
   const listeners = new Map();              // event -> Set<fn>
   const devSecrets = Object.create(null);   // fallback only; never persisted
-  const plugins = { VexTabs: null, VexBlock: null, VexSecrets: null, VexSystem: null, VexRemind: null };
+  const plugins = { VexTabs: null, VexBlock: null, VexSecrets: null, VexSystem: null, VexRemind: null, VexLocalAI: null };
   let native = false;
 
   function emit(event, payload) {
@@ -244,6 +244,23 @@ const VexBridge = (() => {
     setFullscreen(value) { return system('setFullscreen', { value: !!value }); },
     setKeepAwake(value) { return system('setKeepAwake', { value: !!value }); },
     shareFile(path, mimeType, title) { return system('shareFile', { path, mimeType, title }); },
+
+    // ── The AI that stays on the phone ─────────────────────────────────────
+    // One door for both backends: the model Vex runs itself, and Gemini Nano.
+    // Generation reports its tokens as events, so the plugin's listeners are
+    // exposed here too.
+    localAI(method, args) { return call('VexLocalAI', method, args || {}); },
+
+    onLocalAI(event, fn) {
+      const plugin = plugins.VexLocalAI;
+      if (!plugin) {
+        // In a desktop browser there is no on-device model; nothing will fire,
+        // and a caller that unsubscribes should still get a function back.
+        return () => {};
+      }
+      const handle = plugin.addListener(event, fn);
+      return () => { try { if (handle && handle.remove) handle.remove(); } catch { /* already gone */ } };
+    },
 
     // ── Reminders ──────────────────────────────────────────────────────────
     // The time goes over as a string: a millisecond timestamp does not fit in

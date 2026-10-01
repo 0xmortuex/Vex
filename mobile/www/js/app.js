@@ -107,6 +107,10 @@
   // Four questions, once, all of them skippable.
   await VexWelcome.maybeShow();
 
+  // The on-device model's download reports progress through the plugin, and the
+  // settings panel is not necessarily open when it finishes.
+  VexLocalAI.bind();
+
   // Things that can wait until the first page is on screen.
   setTimeout(async () => {
     await VexHistory.prune({ historyDays: VexStore.get('vex.historyDays', 365) });
@@ -114,6 +118,10 @@
     // Alarms do not survive a reboot; re-arming the ones still ahead is
     // cheaper than a boot receiver and does the same job.
     await VexRemind.rearm();
+    // Only when it is switched on: asking the plugin wakes nothing, but asking
+    // AICore for Nano's status on every cold start would be rude.
+    if (VexLocalAI.mode() !== 'off') await VexLocalAI.refresh();
+    if (VexLocalAI.nanoMode()) await VexLocalAI.refreshNano();
     if (await VexSync.restore()) {
       const result = await VexSync.syncNow();
       if (result.ok) { VexStart.render(); VexUI.renderToolbar(); }
@@ -233,6 +241,15 @@
       await VexDB.add('downloads', {
         url: data.url, filename: data.filename || '', size: Number(data.size) || 0, at: Date.now()
       });
+      // A .litertlm is an on-device model and nothing else. Vex is the browser
+      // you downloaded it in, so offer the one thing you would do with it next.
+      if (/\.litertlm$/i.test(data.filename || '')) {
+        VexUI.toast('That is an on-device model', 6000, {
+          label: 'Use it',
+          run: () => VexPanels.localAI()
+        });
+        return;
+      }
       VexUI.toast('Downloading ' + (data.filename || 'file'), 3500, {
         label: 'Downloads',
         run: () => VexPanels.downloads()

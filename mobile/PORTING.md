@@ -35,11 +35,28 @@ directory on a modern device. Tor would have to return as an embedded library
 (Arti, or Orbot's `tor-android` AAR with a VpnService) and ByeDPI as a
 cross-compiled JNI library. Both are projects in their own right.
 
-**4. On-device AI is out; cloud AI is in.**
-`@mlc-ai/web-llm` needs WebGPU, which Android WebView does not expose.
-`ollama-launcher.js` starts a local server — see blocker 3. The Claude-worker
-path (`workers/`) is plain HTTPS and is shipped here unchanged, so the
-assistant is the cloud one.
+**4. On-device AI arrives by a different road.** *(was a blocker; is not any more)*
+`@mlc-ai/web-llm` needs WebGPU, which Android WebView does not expose, and
+`ollama-launcher.js` starts a local server — see blocker 3. So neither desktop
+path ports. What does work is native, and there are two of them:
+
+- **LiteRT-LM** (`com.google.ai.edge.litertlm:litertlm-android`) runs a
+  `.litertlm` model inside Vex's own process, on the CPU, the GPU through ML
+  Drift, or a Qualcomm NPU. Its API is Kotlin but every entry point Vex needs is
+  `@JvmOverloads` and it offers a `MessageCallback` beside the Flow, so the app
+  stays Java with no Kotlin toolchain. This is the open-ended one: chat,
+  summaries, translation, explanations, offline.
+- **Gemini Nano** through ML Kit's GenAI features (`genai-summarization`,
+  `genai-proofreading`, `genai-rewriting`). The weights belong to AICore, so
+  there is nothing for Vex to download or keep — but it does three fixed jobs,
+  and only on a phone that has AICore. Open-ended prompting exists
+  (`genai-prompt`) and is Kotlin-suspend only, so it is not reachable from a
+  Java-only app; LiteRT-LM covers that case instead. These libraries declare
+  minSdk 26, which is why this app's minSdk is 26 and not Capacitor's 24.
+
+The Claude-worker path (`workers/`) is unchanged and is still the fallback: the
+routing is Nano, then the local model, then the worker, and "on-device only"
+turns the fallback off rather than pretending.
 
 ---
 
@@ -100,7 +117,7 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Cloud AI assistant | ✅ | Same request shape as the desktop, so one worker serves both. Page text comes from the reader's extraction; private tabs never send any |
 | Translate | ✅ | Through your own worker, with the web translator as the fallback it names |
 | Summarize / translate / explain | ✅ | The worker's own actions |
-| Local AI (Ollama, WebGPU) | ❌ | Blocker 4 |
+| Local AI (Ollama, WebGPU) | ✅ by another route | Not these two — LiteRT-LM with a .litertlm model, plus Gemini Nano for summaries. See blocker 4 |
 | Agent acting on tabs | ✅ | The desktop's own agent protocol and tool loop: navigate, click, type, read, list and close tabs. Every step is shown, `risky` steps ask first, ten steps and it stops |
 | Recall full-text index | ✅ | IndexedDB with a multiEntry word index — a lookup, not a scan |
 | Notes | ✅ | A line about a page, or a passage kept from a selection |

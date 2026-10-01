@@ -1,7 +1,12 @@
 ext {
     // Kept in step with @capacitor/android 8.x — Capacitor's own library builds
     // against these, and a lower compileSdk here fails the manifest merge.
-    minSdkVersion = 24
+    // 26, not Capacitor's 24: ML Kit's GenAI libraries declare minSdk 26
+    // themselves, because AICore does not exist below Android 8.0. The
+    // alternative is tools:overrideLibrary, which installs on Android 7 and then
+    // fails at runtime on a code path that cannot work there anyway. Android 8.0
+    // is from 2017; Gemini Nano is worth more than that tail.
+    minSdkVersion = 26
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'

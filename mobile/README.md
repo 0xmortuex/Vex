@@ -288,7 +288,13 @@ Nothing below can be settled without a phone, and all of it is cheap to check:
 ## Known limits
 
 - Never installed on a phone. It assembles and lints clean, which is not the
-  same thing: nothing below the Java has run on a device yet.
+  same thing: nothing below the Java has run on a device yet. In particular the
+  on-device AI has never answered a question here — no runner can load a model.
+- Android 8.0 and up (minSdk 26). ML Kit's GenAI libraries require it, and
+  Gemini Nano cannot exist below it; Android 7 is nine years old.
+- An on-device model is yours to fetch: Gemma is behind a licence you accept in
+  a browser, so Vex opens the page and imports the .litertlm you download. It
+  will not download gigabytes of weights on its own.
 - Private tabs only get a separate cookie jar on WebView 116+ (multi-profile).
 - History and Recall are in IndexedDB and scale to tens of thousands of rows;
   bookmarks, sessions and settings stay in SharedPreferences because they are

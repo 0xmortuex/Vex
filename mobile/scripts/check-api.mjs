@@ -62,8 +62,11 @@ for (const [key, value] of Object.entries(sandbox)) {
   if (/^Vex[A-Z]/.test(key) && value && typeof value === 'object') modules.set(key, value);
 }
 
-// Also check the shared files and the vendored libraries the chrome calls into.
-const OPTIONAL = new Set(['VexBridge']);      // its fallback answers anything
+// Nothing is exempt. VexBridge used to be — "its fallback answers anything" —
+// and that exemption is exactly how a call to VexBridge.pickFile(), a method
+// nobody ever wrote, got written and passed every check. The bridge returns a
+// plain object like every other module here, so it can be read like one.
+const OPTIONAL = new Set();
 
 // `plugins.VexTabs.x()` is a native plugin, not a chrome module — the two
 // namespaces overlap on purpose, so skip anything reached through `plugins.`.

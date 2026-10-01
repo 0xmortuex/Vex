@@ -54,11 +54,21 @@ for (const source of javaFiles) {
 }
 
 // call('VexBlock', 'setEnabled', …) and the tabs()/system() shorthands.
+//
+// VexLocalAI is passed its method name by the caller rather than naming it in
+// bridge.js, so the names to check are wherever localAI('…') is written — which
+// is the whole chrome, not one file.
+const chrome = walk(path.join(www, 'js'))
+  .filter(file => file.endsWith('.js'))
+  .map(file => fs.readFileSync(file, 'utf8'))
+  .join('\n');
+
 const calls = [
   ...[...bridge.matchAll(/call\('(\w+)',\s*'(\w+)'/g)].map(match => [match[1], match[2]]),
   ...[...bridge.matchAll(/\btabs\('(\w+)'/g)].map(match => ['VexTabs', match[1]]),
   ...[...bridge.matchAll(/\bsystem\('(\w+)'/g)].map(match => ['VexSystem', match[1]]),
-  ...[...bridge.matchAll(/plugins\.(\w+)\.(\w+)\(\{/g)].map(match => [match[1], match[2]])
+  ...[...bridge.matchAll(/plugins\.(\w+)\.(\w+)\(\{/g)].map(match => [match[1], match[2]]),
+  ...[...chrome.matchAll(/localAI\('(\w+)'/g)].map(match => ['VexLocalAI', match[1]])
 ];
 
 for (const [plugin, method] of calls) {

@@ -1,10 +1,13 @@
 package com.vex.browser.localai;
 
+import android.content.Intent;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.vex.browser.MainActivity;
 
 import java.io.File;
 import java.util.HashMap;
@@ -122,6 +125,60 @@ public class VexLocalAIPlugin extends Plugin {
 
         Executors.newSingleThreadExecutor().execute(() -> store().download(name, url, headers,
                 new ModelStore.Progress() {
+                    @Override public void onProgress(long received, long total) {
+                        JSObject data = new JSObject();
+                        data.put("name", name);
+                        data.put("received", received);
+                        data.put("total", total);
+                        notifyListeners("modelProgress", data);
+                    }
+                    @Override public void onDone(File file) {
+                        JSObject data = new JSObject();
+                        data.put("name", name);
+                        data.put("bytes", file.length());
+                        notifyListeners("modelReady", data);
+                    }
+                    @Override public void onError(String message) {
+                        JSObject data = new JSObject();
+                        data.put("name", name);
+                        data.put("message", message);
+                        notifyListeners("modelFailed", data);
+                    }
+                }));
+    }
+
+    /**
+     * Pick a .litertlm the phone already has and copy it in.
+     *
+     * The picker is native and so is the copy: a model is between half a
+     * gigabyte and three, and nothing that size can travel through the bridge.
+     * It reuses MainActivity's file chooser, the one a page's file input uses.
+     */
+    @PluginMethod
+    public void pickModel(PluginCall call) {
+        final String name = call.getString("name", "");
+        if (name.isEmpty()) { call.reject("Which model is this?"); return; }
+        if (!(getActivity() instanceof MainActivity)) { call.reject("No activity to ask"); return; }
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        ((MainActivity) getActivity()).openFileChooser(intent, uris -> {
+            if (uris == null || uris.length == 0 || uris[0] == null) {
+                JSObject empty = new JSObject();
+                empty.put("picked", false);
+                call.resolve(empty);
+                return;
+            }
+            JSObject picked = new JSObject();
+            picked.put("picked", true);
+            call.resolve(picked);
+            importInto(uris[0], name);
+        });
+    }
+
+    private void importInto(final android.net.Uri uri, final String name) {
+        Executors.newSingleThreadExecutor().execute(() -> store().importFrom(
+                uri, name, new ModelStore.Progress() {
                     @Override public void onProgress(long received, long total) {
                         JSObject data = new JSObject();
                         data.put("name", name);

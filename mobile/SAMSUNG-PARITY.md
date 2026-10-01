@@ -101,6 +101,11 @@ The desktop features that came across, which Samsung Internet has no answer to:
 
 - **The assistant** — ask about the page, summarise, translate, through a
   Cloudflare Worker you deploy yourself. Private tabs never send page text.
+- **An assistant that needs no network at all** — a Gemma-class model running
+  inside Vex through LiteRT-LM, and Gemini Nano for summaries where the phone
+  has it. "On-device only" means exactly that: nothing is sent anywhere, and a
+  model that cannot cope says so rather than quietly falling back to a server.
+  Samsung Internet has no equivalent.
 - **Recall** — the readable text of the pages you read, indexed on the device,
   searchable by what they said.
 - **Encrypted sync with the desktop** — bookmarks, reading list, sessions,
@@ -123,5 +128,7 @@ The desktop features that came across, which Samsung Internet has no answer to:
 - Extensions of any kind (Android WebView has no extension system).
 - Widevine-protected streaming (Netflix, Disney+ — see PORTING.md, blocker 1).
 - Tor and the DPI bypass (they are bundled executables on Windows).
-- On-device AI (WebView exposes no WebGPU).
+- Open-ended prompting on Gemini Nano, which Google exposes to Kotlin only.
+  (On-device AI itself is here: a .litertlm model run by LiteRT-LM, and Nano for
+  summaries — Settings → Assistant → On-device AI.)
 - Downloading a stream (HLS, DASH). A direct file link downloads.

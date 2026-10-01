@@ -89,6 +89,49 @@ public class ModelStore {
     }
 
     /**
+     * Take a .litertlm the phone already has — the one Vex downloaded itself —
+     * and copy it into the models directory. A content:// Uri is the usual case:
+     * the file lives in Downloads and this app cannot keep a handle on it.
+     */
+    public void importFrom(android.net.Uri uri, String name, Progress progress) {
+        cancelled = false;
+        File target = fileFor(name);
+        File part = new File(target.getAbsolutePath() + ".part");
+        InputStream in = null;
+        FileOutputStream out = null;
+        try {
+            in = context.getContentResolver().openInputStream(uri);
+            if (in == null) { progress.onError("That file could not be opened"); return; }
+            out = new FileOutputStream(part, false);
+            byte[] buffer = new byte[1 << 16];
+            long copied = 0;
+            long lastReport = 0;
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                if (cancelled) { progress.onError("cancelled"); return; }
+                out.write(buffer, 0, read);
+                copied += read;
+                if (copied - lastReport > (1 << 22)) {
+                    lastReport = copied;
+                    progress.onProgress(copied, -1);
+                }
+            }
+            out.flush();
+            out.getFD().sync();
+            out.close();
+            out = null;
+            if (!part.renameTo(target)) { progress.onError("The file could not be moved into place"); return; }
+            progress.onProgress(copied, copied);
+            progress.onDone(target);
+        } catch (Exception error) {
+            progress.onError(error.getMessage() == null ? error.toString() : error.getMessage());
+        } finally {
+            if (out != null) try { out.close(); } catch (IOException ignored) { }
+            if (in != null) try { in.close(); } catch (IOException ignored) { }
+        }
+    }
+
+    /**
      * Fetch a model, resuming if there is a part file. Blocking: the plugin runs
      * it on its own thread and reports back through {@link Progress}.
      */

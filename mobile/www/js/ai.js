@@ -1,12 +1,19 @@
 // === Vex Mobile — the assistant ===
 //
 // The desktop app's AI has three backends: a local Ollama server, an on-device
-// WebGPU model, and a Cloudflare Worker you deploy yourself. A phone has
-// neither of the first two — no child processes, no WebGPU in a WebView — so
-// the mobile assistant is the worker path, and only that. Nothing here points
-// at anyone else's backend: the URL is yours (Settings → Assistant) and so is
-// the token, which lives in the Android Keystore through VexVault rather than
-// in a preference file.
+// WebGPU model, and a Cloudflare Worker you deploy yourself. A phone has no
+// child processes and no WebGPU in a WebView, so Ollama and WebLLM do not come
+// across — but on-device does, twice over, through VexLocalAI: a .litertlm model
+// LiteRT-LM runs in this process, and Gemini Nano for the jobs the system
+// exposes. Nothing here points at anyone else's backend: the worker URL is yours
+// (Settings → Assistant) and so is the token, which lives in the Android
+// Keystore through VexVault rather than in a preference file.
+//
+// Which backend answers, in order: Nano if you turned it on and the job is one
+// of its three; the on-device model if you have one and said to prefer it; the
+// worker otherwise. A local failure falls through to the worker unless you chose
+// "on-device only", because a model that cannot load should not take the
+// assistant down with it.
 //
 // The request shape is the desktop's, unchanged, so one worker serves both:
 //   POST { action, message, pageContext, selectedText, targetLanguage,
@@ -131,6 +138,17 @@ const VexAI = (() => {
       try {
         const context = options.context === null ? null : (options.context || await this.captureContext());
         state.context = context;
+
+        // On-device first, when it is wanted and able. The agent never comes
+        // here: it needs valid JSON out of a tool loop, which a 1B model on a
+        // phone does not reliably produce.
+        const action = options.action || 'chat';
+        const local = !silent ? await this.locally(action, question, context, options) : null;
+        if (local !== null) {
+          state.messages.push({ role: 'assistant', text: local, at: Date.now(), followUps: [], onDevice: true });
+          return local;
+        }
+
         const result = await call(Object.assign({
           action: options.action || 'chat',
           message: question,
@@ -159,6 +177,39 @@ const VexAI = (() => {
         throw err;
       } finally {
         state.busy = false;
+      }
+    },
+
+    /**
+     * Try the two on-device backends. Returns the answer, or null to mean "the
+     * worker should take this one".
+     *
+     * A thrown error here is deliberate when you asked for on-device only: in
+     * that mode there is nothing to fall back to, and silently sending the page
+     * to a server would be the wrong kind of helpful.
+     */
+    async locally(action, question, context, options = {}) {
+      if (typeof VexLocalAI === 'undefined') return null;
+
+      if (VexLocalAI.nanoHandles(action)) {
+        const text = (context && context.text) || options.selectedText || '';
+        if (text) {
+          try { return await VexLocalAI.nanoSummarize(text, 3); }
+          catch (error) {
+            if (VexLocalAI.insists()) throw error;
+            // Nano refusing is common — the text is too short, the language is
+            // not one it knows — and the next backend may well cope.
+          }
+        }
+      }
+
+      if (!VexLocalAI.handles(action)) return null;
+      const prompt = VexLocalAI.promptFor(action, question, context, options);
+      try {
+        return await VexLocalAI.generate(prompt, { onToken: options.onToken });
+      } catch (error) {
+        if (VexLocalAI.insists()) throw error;
+        return null;
       }
     },
 
