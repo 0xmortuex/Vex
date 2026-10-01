@@ -79,3 +79,23 @@ describe('reading time', () => {
     expect(VexReader.estimateMinutes(null)).toBe(1);
   });
 });
+
+describe('finding the article', () => {
+  // jsdom has no layout, so no innerText; the extraction only needs it for the
+  // blocks it keeps, where textContent is the same thing on a page like this.
+  Object.defineProperty(window.HTMLElement.prototype, 'innerText', {
+    configurable: true, get() { return this.textContent; }
+  });
+
+  it('is not won by a block of inline script, however many commas code has', () => {
+    const sentence = 'The harbour was quiet that morning, and the boats sat low in the water, waiting. ';
+    const code = 'var a = [' + Array.from({ length: 400 }, (unused, at) => at).join(',') + '];';
+    document.body.innerHTML = '<div id="ads"><script>' + code + '</script><p>Sponsored</p></div>'
+      + '<div id="story">' + Array.from({ length: 6 }, () => '<p>' + sentence.repeat(3) + '</p>').join('') + '</div>';
+    // eslint-disable-next-line no-eval
+    const found = VexReader.parse((0, eval)(VexReader.EXTRACT));
+    expect(found.ok).toBe(true);
+    expect(found.blocks.filter(block => block.type === 'p')).toHaveLength(6);
+    expect(found.blocks.some(block => /var a/.test(block.text || ''))).toBe(false);
+  });
+});

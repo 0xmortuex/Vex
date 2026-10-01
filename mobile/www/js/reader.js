@@ -12,10 +12,25 @@
 
 const VexReader = (() => {
   const EXTRACT = `(function(){
+  // Scored on textContent, not innerText: innerText lays the page out to
+  // answer, and asking it of every div on a heavy page — which Recall does
+  // after every page load — cost seconds of a phone's CPU. The blocks kept at
+  // the end still use innerText, where what is visible matters.
+  // Inline scripts and styles are in textContent too, and code is mostly
+  // commas — so their share is taken back out before anything is counted.
+  function commas(text) { return text.split(',').length - 1; }
   function score(node) {
-    var text = node.innerText || '';
+    var text = node.textContent || '';
     if (text.length < 140) return -1;
-    var value = text.length / 100 + (text.split(',').length - 1);
+    var length = text.length, commaCount = commas(text);
+    var junk = node.querySelectorAll('script, style, noscript, template');
+    for (var k = 0; k < junk.length; k++) {
+      var code = junk[k].textContent || '';
+      length -= code.length;
+      commaCount -= commas(code);
+    }
+    if (length < 140) return -1;
+    var value = length / 100 + commaCount;
     var marker = ((node.className || '') + ' ' + (node.id || '')).toLowerCase();
     if (/comment|sidebar|footer|header|nav|menu|promo|advert|share|related|subscribe/.test(marker)) value -= 25;
     if (/article|content|post|story|entry|body|main/.test(marker)) value += 25;
@@ -23,8 +38,8 @@ const VexReader = (() => {
     if (node.tagName === 'MAIN') value += 20;
     var links = node.querySelectorAll('a');
     var linkText = 0;
-    for (var i = 0; i < links.length; i++) linkText += (links[i].innerText || '').length;
-    if (text.length && linkText / text.length > 0.4) value -= 30;
+    for (var i = 0; i < links.length; i++) linkText += (links[i].textContent || '').length;
+    if (length && linkText / length > 0.4) value -= 30;
     return value;
   }
   var best = null, bestScore = 0;
@@ -57,7 +72,7 @@ const VexReader = (() => {
     title: (document.querySelector('h1') || {}).innerText || document.title || '',
     byline: byline,
     published: published ? (published.getAttribute('datetime') || published.content || '') : '',
-    words: (best.innerText || '').split(/\\s+/).length,
+    words: (best.textContent || '').split(/\\s+/).length,
     blocks: blocks
   });
 })()`;
