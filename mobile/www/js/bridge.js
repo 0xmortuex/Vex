@@ -95,11 +95,91 @@ const VexBridge = (() => {
     };
   })();
 
+  // A stand-in for the on-device model, for development without a phone.
+  //
+  // It is not a model: it streams a canned answer a word at a time. But it is the
+  // whole shape of one — supported, nothing installed, import, load, stream,
+  // stop — so the settings panel, the routing and the streaming bubble can all
+  // be driven in a desktop browser and in the walkthrough. On a device the
+  // plugin is there and none of this runs.
+  const localFallback = (() => {
+    const state = { models: {}, loaded: false, busy: false, model: '', backend: '' };
+    let cancelled = false;
+
+    const ANSWER = 'This is the development stand-in for the on-device model. '
+      + 'It streams a few words so the chrome can be driven without a phone.';
+
+    function emitLocal(event, payload) { emit('localai:' + event, payload); }
+
+    return {
+      status: () => ({
+        supported: true, loaded: state.loaded, busy: state.busy,
+        model: state.model, backend: state.backend,
+        models: state.models, directory: '(development)'
+      }),
+      nanoStatus: () => ({ status: 'unavailable' }),
+      nanoDownload: () => ({ ok: false }),
+      // Pretending to pick a file: it "arrives" a moment later, as a real import
+      // would, so the progress and ready events are exercised too.
+      pickModel: ({ name }) => {
+        setTimeout(() => {
+          emitLocal('modelProgress', { name, received: 300 << 20, total: 600 << 20 });
+          state.models[name] = 600 << 20;
+          emitLocal('modelReady', { name, bytes: state.models[name] });
+        }, 60);
+        return { picked: true };
+      },
+      download: ({ name }) => {
+        setTimeout(() => {
+          state.models[name] = 600 << 20;
+          emitLocal('modelReady', { name, bytes: state.models[name] });
+        }, 60);
+        return { started: true, resumingFrom: 0 };
+      },
+      cancelDownload: () => ({}),
+      deleteModel: ({ name }) => { delete state.models[name]; return { deleted: true }; },
+      load: ({ name, backend }) => {
+        if (state.models[name] === undefined) throw new Error('That model is not on this device');
+        state.loaded = true;
+        state.model = name;
+        state.backend = backend || 'cpu';
+        return { loaded: true, model: name, backend: state.backend };
+      },
+      unload: () => { state.loaded = false; state.model = ''; state.backend = ''; return {}; },
+      stop: () => { cancelled = true; return {}; },
+      generate: ({ id }) => {
+        if (!state.loaded) throw new Error('No model is loaded');
+        cancelled = false;
+        state.busy = true;
+        const words = ANSWER.split(' ');
+        return new Promise(resolve => {
+          let at = 0;
+          const tick = () => {
+            if (cancelled || at >= words.length) {
+              state.busy = false;
+              const text = words.slice(0, at).join(' ');
+              emitLocal('generated', { id, text });
+              resolve({ id, text });
+              return;
+            }
+            const chunk = (at ? ' ' : '') + words[at++];
+            emitLocal('token', { id, text: chunk });
+            setTimeout(tick, 15);
+          };
+          setTimeout(tick, 15);
+        });
+      }
+    };
+  })();
+
   function call(pluginName, method, args) {
     const plugin = plugins[pluginName];
     if (!plugin) {
-      const stub = pluginName === 'VexTabs' ? fallback[method] : null;
-      return Promise.resolve(stub ? stub(args || {}) : {});
+      const stub = pluginName === 'VexTabs' ? fallback[method]
+        : pluginName === 'VexLocalAI' ? localFallback[method] : null;
+      if (!stub) return Promise.resolve({});
+      // The stand-in throws the way the plugin rejects, so callers see one shape.
+      try { return Promise.resolve(stub(args || {})); } catch (error) { return Promise.reject(error); }
     }
     return plugin[method](args || {}).catch(error => {
       console.error('[' + pluginName + '.' + method + ']', error);
@@ -254,9 +334,13 @@ const VexBridge = (() => {
     onLocalAI(event, fn) {
       const plugin = plugins.VexLocalAI;
       if (!plugin) {
-        // In a desktop browser there is no on-device model; nothing will fire,
-        // and a caller that unsubscribes should still get a function back.
-        return () => {};
+        // No plugin: the development stand-in emits through the same listener
+        // table every other event goes through, namespaced so it cannot collide
+        // with a tab event of the same name.
+        const key = 'localai:' + event;
+        if (!listeners.has(key)) listeners.set(key, new Set());
+        listeners.get(key).add(fn);
+        return () => { const set = listeners.get(key); if (set) set.delete(fn); };
       }
       const handle = plugin.addListener(event, fn);
       return () => { try { if (handle && handle.remove) handle.remove(); } catch { /* already gone */ } };

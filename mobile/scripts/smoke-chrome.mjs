@@ -203,13 +203,54 @@ results.startHidden = !(await page.isVisible('#start'));
 await page.evaluate(() => VexPanels.localAI());
 await page.waitForTimeout(350);
 results.localAiRows = await page.$$eval('#panel-body .sheet-row', rows => rows.length);
-results.localAiHonest = ((await page.textContent('#panel-body')) || '').includes('64-bit');
+// The panel has to say how a model gets here, because that is the part a person
+// cannot guess: the models worth running are licence-gated.
+results.localAiHonest = ((await page.textContent('#panel-body')) || '').includes('licence');
 results.localAiRoutesNothing = await page.evaluate(() => VexLocalAI.handles('chat'));
 results.localAiNeverAgent = await page.evaluate(() => VexLocalAI.CHAT_ACTIONS.includes('agent'));
 results.localAiPrompt = await page.evaluate(() =>
   VexLocalAI.promptFor('summarize', '', { text: 'A long article about ships.' }).includes('bullet'));
 await shot('12-local-ai');
+
+// The development stand-in is a model's whole shape without being one, so the
+// path a person actually takes — import, choose, load, ask, watch it stream —
+// can be walked here rather than only on a phone.
+results.localAiImported = await page.evaluate(async () => {
+  await VexLocalAI.importFile('Gemma3-1B-IT.litertlm');
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await VexLocalAI.refresh();
+  return VexLocalAI.installed().includes('Gemma3-1B-IT.litertlm');
+});
+results.localAiLoads = await page.evaluate(async () => {
+  await VexLocalAI.setModel('Gemma3-1B-IT.litertlm');
+  await VexLocalAI.setMode('prefer');
+  return VexLocalAI.load();
+});
+results.localAiHandlesNow = await page.evaluate(() => VexLocalAI.handles('chat'));
+results.localAiStreamed = await page.evaluate(async () => {
+  let pieces = 0;
+  const answer = await VexLocalAI.generate('Say something.', { onToken: () => { pieces++; } });
+  return pieces > 3 && answer.length > 20;
+});
 await page.evaluate(() => VexPanels.close());
+
+// Through the assistant, with the view rendering it: the answer must come from
+// the phone and say so, and nothing may reach the network.
+await page.evaluate(() => VexViews.openAI());
+await page.waitForTimeout(250);
+await page.fill('#vex-chat-input', 'What is this page about?');
+await page.press('#vex-chat-input', 'Enter');
+await page.waitForTimeout(900);
+results.chatOnDeviceTag = await page.$$eval('#vex-chat-log .bubble-tag',
+  tags => tags.some(tag => tag.textContent.includes('this phone')));
+results.chatOnDeviceAnswer = ((await page.textContent('#vex-chat-log')) || '').includes('stand-in');
+await shot('13-on-device-chat');
+await page.evaluate(async () => {
+  await VexLocalAI.setMode('off');
+  await VexLocalAI.unload();
+  VexAI.clear();
+  VexPanels.close();
+});
 
 // ── The tab bar, which only a wide window gets ──────────────────────────────
 // A phone does not show one. Widen the window to a tablet and it should appear,
@@ -723,7 +764,9 @@ const expected = {
   tabBarOnPhone: true, tabBarOnTablet: true, tabBarChips: 1, tabBarActive: 1,
   tabBarGoesAway: true,
   localAiHonest: true, localAiRoutesNothing: false, localAiNeverAgent: false,
-  localAiPrompt: true
+  localAiPrompt: true, localAiImported: true, localAiLoads: true,
+  localAiHandlesNow: true, localAiStreamed: true,
+  chatOnDeviceTag: true, chatOnDeviceAnswer: true
 };
 
 const failures = [];

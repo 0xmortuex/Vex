@@ -509,6 +509,18 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 .bubble.assistant { background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle); border-bottom-left-radius: 5px; }
 .bubble.error { background: color-mix(in srgb, var(--vex-danger) 14%, transparent); border: 1px solid var(--vex-danger); color: var(--vex-danger); }
 .bubble.thinking { color: var(--vex-text-muted); font-style: italic; }
+/* Where an answer came from, when it could have come from two places. */
+.bubble-tag {
+  display: block; margin-top: 6px;
+  font-size: var(--text-xs); font-weight: 600; letter-spacing: .02em;
+  color: var(--vex-text-muted);
+}
+.bubble[data-streaming="1"]::after {
+  content: '▌';
+  animation: vex-caret 1s steps(2) infinite;
+  color: var(--vex-accent);
+}
+@keyframes vex-caret { 50% { opacity: 0; } }
 .chat-context {
   margin: 0 14px 8px; padding: 8px 12px; border-radius: 10px; font-size: var(--text-xs);
   background: var(--vex-bg-deep); color: var(--vex-text-muted);

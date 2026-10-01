@@ -98,19 +98,36 @@ const VexViews = (() => {
     }
   }
 
+  // What the on-device model has said so far, while it is still saying it. A
+  // phone takes tens of seconds over a long answer, and an empty screen for
+  // twenty of them reads as a hang rather than as thinking.
+  let streaming = '';
+
   function renderChat() {
     const log = clear($('vex-chat-log'));
-    if (!VexAI.state.messages.length) {
+    if (!VexAI.state.messages.length && !streaming) {
       const empty = el('div', 'list-empty');
-      empty.appendChild(document.createTextNode(
-        'Ask about the page you are on, or anything else. The question, and the page text with it, '
-        + 'go to the worker you configured — nothing else sees them.'));
+      const onDevice = typeof VexLocalAI !== 'undefined' && VexLocalAI.mode() !== 'off';
+      empty.appendChild(document.createTextNode(onDevice
+        ? 'Ask about the page you are on, or anything else. With on-device AI on, the question and the '
+          + 'page text stay on this phone — nothing is sent anywhere.'
+        : 'Ask about the page you are on, or anything else. The question, and the page text with it, '
+          + 'go to the worker you configured — nothing else sees them.'));
       log.appendChild(empty);
     }
     for (const message of VexAI.state.messages) {
-      log.appendChild(el('div', 'bubble ' + message.role, message.text));
+      const bubble = el('div', 'bubble ' + message.role, message.text);
+      // Say where an answer came from, once it is one of two places.
+      if (message.role === 'assistant' && message.onDevice) bubble.appendChild(el('span', 'bubble-tag', 'on this phone'));
+      log.appendChild(bubble);
     }
-    if (VexAI.state.busy) log.appendChild(el('div', 'bubble assistant thinking', 'Thinking…'));
+    if (streaming) {
+      const bubble = el('div', 'bubble assistant', streaming);
+      bubble.appendChild(el('span', 'bubble-tag', 'on this phone'));
+      log.appendChild(bubble);
+    } else if (VexAI.state.busy) {
+      log.appendChild(el('div', 'bubble assistant thinking', 'Thinking…'));
+    }
 
     const last = VexAI.state.messages[VexAI.state.messages.length - 1];
     const suggest = clear($('vex-chat-suggest'));
@@ -133,11 +150,31 @@ const VexViews = (() => {
       });
     }
     renderChat();
+    streaming = '';
     try {
-      await VexAI.ask(text, Object.assign({ skipUserMessage: !!(options && options.selectedText) }, options));
+      await VexAI.ask(text, Object.assign({
+        skipUserMessage: !!(options && options.selectedText),
+        // Only the on-device path calls this; the worker answers in one piece.
+        // Repainting the whole log per token would fight the scroll, so the
+        // partial answer gets its own bubble and the rest is left alone.
+        onToken: chunk => {
+          streaming += chunk;
+          const log = $('vex-chat-log');
+          const partial = log && log.querySelector('.bubble.assistant:last-child');
+          if (partial && partial.dataset.streaming === '1') {
+            partial.firstChild.textContent = streaming;
+          } else {
+            renderChat();
+            const fresh = log && log.querySelector('.bubble.assistant:last-child');
+            if (fresh) fresh.dataset.streaming = '1';
+          }
+          if (log) log.scrollTop = log.scrollHeight;
+        }
+      }, options));
     } catch {
       // The failure is already the last message in the log.
     }
+    streaming = '';
     renderChat();
   }
 
@@ -161,6 +198,12 @@ const VexViews = (() => {
     }
     if (mode === 'agent' && VexAgent.running()) {
       modes.appendChild(el('button', { class: 'chip', onclick: () => VexAgent.stop() }, 'Stop'));
+    }
+    // The on-device model can be told to stop mid-answer; the worker cannot.
+    if (mode === 'ask' && VexAI.state.busy && typeof VexLocalAI !== 'undefined' && VexLocalAI.state.busy) {
+      modes.appendChild(el('button', {
+        class: 'chip', onclick: async () => { await VexLocalAI.stop(); VexUI.toast('Stopped'); }
+      }, 'Stop'));
     }
     wrap.appendChild(modes);
     wrap.appendChild(el('div', { class: 'chat-log', id: 'vex-chat-log' }));
