@@ -66,7 +66,20 @@ const VexStart = (() => {
     for (const entry of entries) rail.appendChild(render(entry));
   }
 
+  // Whether the page now on screen was drawn for a private tab.
+  let drawnPrivate = null;
+
+  function isPrivate() {
+    const tab = VexTabStore.active();
+    return !!(tab && tab.incognito);
+  }
+
   function render() {
+    // A private tab's start page shows nothing drawn from your history: no
+    // "most visited", no "where you left off". Your pinned tiles, bookmarks
+    // and reading list are things you chose, so they stay.
+    const hideHistory = isPrivate();
+    drawnPrivate = hideHistory;
     const blocked = Number(VexStore.get('vex.blockedTotal', 0));
     $('start-sub').textContent = blocked > 40
       ? blocked.toLocaleString() + ' trackers blocked so far'
@@ -76,20 +89,20 @@ const VexStart = (() => {
     const pinned = VexCollections.quick.all();
     const sites = pinned.length
       ? pinned.map(entry => ({ url: entry.url, host: entry.title || VexSearch.prettyHost(entry.url), icon: entry.icon }))
-      : VexHistory.topSites(8);
+      : hideHistory ? [] : VexHistory.topSites(8);
     const wrap = $('start-top-wrap');
     const tiles = clear($('start-tiles'));
     wrap.hidden = false;
-    wrap.firstElementChild.textContent = pinned.length ? 'Your sites' : sites.length ? 'Most visited' : 'Nothing here yet';
+    wrap.firstElementChild.textContent = pinned.length ? 'Your sites' : sites.length ? 'Most visited'
+      : hideHistory ? 'Private' : 'Nothing here yet';
     const hint = document.getElementById('start-hint');
     if (!sites.length) {
       tiles.hidden = true;
-      if (!hint) {
-        const note = el('p', { class: 'field-note', id: 'start-hint' });
-        note.textContent = 'The sites you visit most will collect here, and the pages you were reading will '
+      const note = hint || wrap.appendChild(el('p', { class: 'field-note', id: 'start-hint' }));
+      note.textContent = hideHistory
+        ? 'Nothing you do in a private tab is remembered, and nothing you did outside one is shown here.'
+        : 'The sites you visit most will collect here, and the pages you were reading will '
           + 'be one tap away. Nothing about them leaves the phone.';
-        wrap.appendChild(note);
-      }
     } else {
       tiles.hidden = false;
       if (hint) hint.remove();
@@ -103,7 +116,7 @@ const VexStart = (() => {
 
     const seen = new Set();
     const recent = [];
-    for (const entry of VexHistory.recent(120)) {
+    for (const entry of hideHistory ? [] : VexHistory.recent(120)) {
       const host = entry.host || VexSearch.prettyHost(entry.url);
       if (!host || seen.has(host)) continue;
       seen.add(host);
@@ -114,12 +127,15 @@ const VexStart = (() => {
 
     section('start-marks-wrap', 'start-marks', VexCollections.bookmarks.all().slice(0, 10), entry => card(entry));
 
-    const remote = VexSync.remoteTabs().slice(0, 8);
+    const remote = hideHistory ? [] : VexSync.remoteTabs().slice(0, 8);
     section('start-remote-wrap', 'start-remote', remote, entry => card(entry, { badge: 'Open on your PC' }));
   }
 
   return {
     render,
+
+    /** Drawn for the other side — a private tab now, a normal one then. */
+    stale() { return drawnPrivate !== null && drawnPrivate !== isPrivate(); },
 
     bind() {
       $('start-search').onclick = () => VexUI.openOmnibox('');

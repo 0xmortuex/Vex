@@ -98,7 +98,11 @@ const VexUI = (() => {
 
   function setStartVisible(on) {
     const start = $('start');
-    if (on === !start.hidden) return;
+    if (on === !start.hidden) {
+      // Still showing, but drawn for the other side of the private line.
+      if (on && VexStart.stale()) VexStart.render();
+      return;
+    }
     if (on) VexStart.render();
     start.hidden = !on;
     cover(on);

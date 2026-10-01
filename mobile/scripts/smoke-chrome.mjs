@@ -1434,6 +1434,27 @@ results.backOutOfHistory = await page.evaluate(async () => {
   return [leaves, stillTwo, backTo, handed, sentGone].join(' ');
 });
 
+// A private tab's start page shows nothing drawn from your history.
+results.privateStartPage = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  await VexHistory.add({ url: 'https://visited.example/', title: 'Visited' });
+  await VexHistory.add({ url: 'https://another.example/', title: 'Another' });
+  const pinned = VexCollections.quick.all().length;
+  const normal = await VexTabStore.create('about:blank');
+  VexUI.renderToolbar();
+  await wait(100);
+  const recentNormal = !document.getElementById('start-recent-wrap').hidden;
+  await VexTabStore.create('about:blank', { incognito: true });
+  VexUI.renderToolbar();
+  await wait(100);
+  const recentPrivate = !document.getElementById('start-recent-wrap').hidden;
+  const tilesPrivate = document.querySelectorAll('#start-tiles .tile').length;
+  for (const tab of VexTabStore.private()) await VexTabStore.close(tab.id);
+  await VexTabStore.activate(normal.id);
+  VexUI.renderToolbar();
+  return [recentNormal, recentPrivate, pinned ? tilesPrivate === pinned : tilesPrivate === 0].join(' ');
+});
+
 // ── Saving a video ──────────────────────────────────────────────────────────
 // A plain file goes to the download queue; a player built on a blob: URL is
 // found through the playlist its page requested, saved as a stream job whose
@@ -1518,6 +1539,7 @@ const expected = {
   libraryOpens: true,
   downloadsLive: '30% 70% 0',
   privateLockEverywhere: 'true true false true',
+  privateStartPage: 'true false true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,
