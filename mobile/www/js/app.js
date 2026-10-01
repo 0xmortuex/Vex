@@ -452,7 +452,11 @@
           if (stored === 'block') continue;
           const allow = stored === 'allow'
             || await VexUI.confirm(host + ' wants to use your ' + label + '.', 'Allow it?');
-          if (stored !== 'allow') await VexPermissions.set(host, kind, allow ? 'allow' : 'block');
+          // A private tab gets an answer for now and leaves nothing behind:
+          // the permissions list is a record of the sites you have visited.
+          if (stored !== 'allow' && !(tab && tab.incognito)) {
+            await VexPermissions.set(host, kind, allow ? 'allow' : 'block');
+          }
           if (!allow) continue;
           // Said yes here; Android still has to agree.
           if (await VexBridge.requestPermission(kind)) granted.push(kind);
@@ -531,6 +535,9 @@
 
   async function rememberScroll() {
     for (const tab of VexTabStore.normal()) {
+      // A tab not yet opened is showing a blank page, whose scroll is 0; the
+      // place it was restored with is still the right one.
+      if (tab.lazy) continue;
       try {
         const position = await VexBridge.scrollPosition(tab.id);
         if (position && typeof position.y === 'number') tab.scrollY = position.y;
