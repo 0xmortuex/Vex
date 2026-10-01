@@ -241,7 +241,7 @@ const UpdateNotifier = {
     return b;
   },
 
-  // choose | downloading | verifying | installing | error
+  // choose | downloading | verifying | backing-up | backup-failed | installing | error
   _setPhase(phase, message) {
     const el = this._el;
     if (!el) return;
@@ -252,8 +252,9 @@ const UpdateNotifier = {
     const text = el.querySelector('.update-cover-status-text');
     const status = el.querySelector('.update-cover-status');
     actions.textContent = '';
-    status.classList.toggle('is-error', phase === 'error');
-    status.setAttribute('role', phase === 'error' ? 'alert' : 'status');
+    const bad = phase === 'error' || phase === 'backup-failed';
+    status.classList.toggle('is-error', bad);
+    status.setAttribute('role', bad ? 'alert' : 'status');
     bar.hidden = !(phase === 'downloading' || phase === 'verifying');
     bar.classList.toggle('is-busy', phase === 'verifying');
     text.textContent = message || '';
@@ -264,6 +265,12 @@ const UpdateNotifier = {
         this._button('Skip this version', 'skip', 'quiet'));
     } else if (phase === 'downloading') {
       actions.append(this._button('Cancel', 'cancel'));
+    } else if (phase === 'backup-failed') {
+      // Cancel has the focus: installing without a backup is a choice made
+      // on purpose, not by pressing Enter.
+      actions.append(this._button('Install anyway', 'install-anyway'), this._button('Cancel', 'backup-cancel', 'primary'));
+      actions.querySelector('[data-act="backup-cancel"]').focus();
+      return;
     }
     const first = actions.querySelector('button');
     if (first) first.focus();
@@ -286,6 +293,8 @@ const UpdateNotifier = {
       return;
     }
     if (act === 'update') await this._update(info);
+    if (act === 'install-anyway') await this._install(info, false);
+    if (act === 'backup-cancel') this._setPhase('choose', 'The update was not installed.');
   },
 
   async _update(info) {
@@ -299,7 +308,32 @@ const UpdateNotifier = {
       this._fail(r?.error || 'The update could not be downloaded.');
       return;
     }
-    this._setPhase('installing', 'Closing Vex to install the update. Your tabs are saved, and Vex opens again by itself when it is done.');
+    if (!(await this._backup(info))) return;
+    await this._install(info, true);
+  },
+
+  // Before Vex closes to install: the same backup Settings › Backup saves
+  // (js/backup.js), kept in userData/backups by Vex itself (newest three) and
+  // listed in Settings › Backup with a Restore button. If it cannot be made,
+  // nothing installs until the person chooses.
+  async _backup(info) {
+    this._setPhase('backing-up', 'Backing up your data…');
+    let error = null;
+    try {
+      if (!window.VexBackup || typeof window.VexBackup.snapshot !== 'function') throw new Error('the backup feature is not loaded');
+      const data = await window.VexBackup.snapshot([]);
+      const r = await window.vex.updates.saveBackup(info.latest, JSON.stringify(data, null, 2));
+      if (!r?.ok) throw new Error(r?.error || 'unknown error');
+    } catch (err) { error = (err && err.message) || String(err); }
+    if (this._info !== info) return false;
+    if (error == null) return true;
+    this._setPhase('backup-failed', `Vex could not back up your data (${error.replace(/\.$/, '')}), so it has not installed the update. Install anyway, or cancel and try again later.`);
+    return false;
+  },
+
+  async _install(info, backedUp) {
+    this._setPhase('installing', 'Closing Vex to install the update. Your tabs are saved, and Vex opens again by itself when it is done.'
+      + (backedUp ? ' Your data was backed up first: Settings › Backup lists it.' : ''));
     // The notes were just read here: the What's New window would open them
     // again on the new version (update-log.js compares vex.lastSeenVersion).
     let seenBefore = null;
@@ -327,8 +361,13 @@ const UpdateNotifier = {
     bar.setAttribute('aria-valuenow', String(pct));
     bar.querySelector('.update-cover-fill').style.width = pct + '%';
     if (p && p.verifying) { this._setPhase('verifying', 'Checking the download against the release\'s checksum…'); return; }
+    // A smaller download that did not check out goes on as the whole
+    // installer: back to downloading, with Cancel.
+    if (this._phase === 'verifying') this._setPhase('downloading', '');
     const text = this._el.querySelector('.update-cover-status-text');
-    text.textContent = `Downloading Vex ${this._info.latest}… ${pct}%` + (p && p.total ? ` (${this._mb(p.received)} of ${this._mb(p.total)})` : '');
+    // A smaller download: only the changed part comes over the network.
+    if (p && p.reused) text.textContent = `Downloading ${this._mb(p.total)} of ${this._mb(p.full)} (the rest is reused)… ${pct}%`;
+    else text.textContent = `Downloading Vex ${this._info.latest}… ${pct}%` + (p && p.total ? ` (${this._mb(p.received)} of ${this._mb(p.total)})` : '');
   },
 
   _mb(n) {
@@ -354,6 +393,7 @@ const UpdateNotifier = {
       e.preventDefault();
       if (this._phase === 'choose' || this._phase === 'error') this._act('later');
       else if (this._phase === 'downloading') this._act('cancel');
+      else if (this._phase === 'backup-failed') this._act('backup-cancel');
     } else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
       e.preventDefault();
       if (this._phase === 'choose' || this._phase === 'error') this._act('update');

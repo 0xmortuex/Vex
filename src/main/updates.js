@@ -16,6 +16,15 @@
 // A partial download is written as "<name>.part" and renamed only after it
 // has been verified; only a verified file is ever handed to spawn.
 //
+// Smaller updates (src/main/differential.js): the installer that installed
+// the running version is kept in userData/updates as Vex-Setup-<version>.exe.
+// When it is there, the download first fetches the blockmaps of both versions,
+// copies every block the new installer shares with it, and downloads only the
+// rest with HTTP Range requests. The assembled file must pass the same sha512
+// and size check; if anything about that path fails (no blockmap, a server
+// that ignores Range, a mismatch) it is logged and the whole installer is
+// downloaded instead, once.
+//
 // TEST-ONLY: VEX_UPDATE_FEED=http://127.0.0.1:<port>/ replaces the GitHub
 // release with a local folder (latest.yml, the installer, CHANGELOG.md). It is
 // honoured only when set, and only for a loopback http address. Under it the
@@ -23,6 +32,7 @@
 // step can be tested without running a real installer.
 const crypto = require('crypto');
 const nodePath = require('path');
+const { parseBlockMap, planDownload } = require('./differential');
 
 const REPO = 'https://github.com/0xmortuex/Vex';
 // electron-builder's NSIS installer (app-builder-lib/templates/nsis):
@@ -99,6 +109,7 @@ function resolveFeed(env = process.env) {
       test: false,
       latestYml: REPO + '/releases/latest/download/latest.yml',
       installer: (version, name) => `${REPO}/releases/download/v${version}/${encodeURIComponent(name)}`,
+      blockmap: (version, name) => `${REPO}/releases/download/v${version}/${encodeURIComponent(name)}.blockmap`,
       changelog: version => `https://raw.githubusercontent.com/0xmortuex/Vex/v${version}/CHANGELOG.md`,
       page: version => `${REPO}/releases/tag/v${version}`,
     };
@@ -110,6 +121,8 @@ function resolveFeed(env = process.env) {
     test: true,
     latestYml: raw + 'latest.yml',
     installer: (_version, name) => raw + encodeURIComponent(name),
+    // Blockmaps of two versions sit side by side: v<version>/<name>.blockmap.
+    blockmap: (version, name) => raw + 'v' + encodeURIComponent(version) + '/' + encodeURIComponent(name) + '.blockmap',
     changelog: () => raw + 'CHANGELOG.md',
     page: version => `${REPO}/releases/tag/v${version}`,
   };
@@ -156,18 +169,28 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
 
   const feed = () => resolveFeed(env);
 
-  async function readText(url, { maxBytes, timeoutMs }) {
+  async function readBytes(url, { maxBytes, timeoutMs, signal }) {
+    if (signal && signal.aborted) throw signal.reason;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(new Error('Request timed out')), timeoutMs);
+    const stop = () => controller.abort(signal.reason);
+    if (signal) signal.addEventListener('abort', stop, { once: true });
     try {
       const res = await fetch(url, { signal: controller.signal, redirect: 'follow', cache: 'no-store', headers: { 'User-Agent': 'Vex/' + currentVersion } });
-      if (!res.ok) return { status: res.status, text: null };
+      if (!res.ok) return { status: res.status, buf: null };
       const length = Number(res.headers.get('content-length'));
       if (length > maxBytes) throw new UpdateError('feed', 'The update server sent far more than expected.');
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.byteLength > maxBytes) throw new UpdateError('feed', 'The update server sent far more than expected.');
-      return { status: res.status, text: buf.toString('utf8') };
-    } finally { clearTimeout(timer); }
+      return { status: res.status, buf };
+    } finally {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', stop);
+    }
+  }
+  async function readText(url, options) {
+    const { status, buf } = await readBytes(url, options);
+    return { status, text: buf ? buf.toString('utf8') : null };
   }
 
   async function check() {
@@ -227,13 +250,18 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
 
   // Old installers and interrupted downloads. A file that cannot go (an
   // installer that is still running holds its .exe open) is said, not hidden.
+  // The installer of the running version stays: it is what the next update's
+  // smaller download copies from (about the size of one installer on disk).
+  // So does a verified download waiting to be installed (the cover may be
+  // asking what to do about a backup that failed).
   function cleanup({ keep } = {}) {
     let names;
     try { names = fs.readdirSync(dir); } catch (err) { if (err.code === 'ENOENT') return []; throw err; }
+    const base = new Set([`Vex-Setup-${currentVersion}.exe`, `Vex-Setup-${currentVersion}.cmd`]);
     const removed = [];
     for (const name of names) {
       const file = nodePath.join(dir, name);
-      if (keep && file === keep) continue;
+      if ((keep && file === keep) || base.has(name) || (verified && file === verified.file)) continue;
       try { fs.rmSync(file, { force: true, recursive: true }); removed.push(name); }
       catch (err) { log.warn('[Updates] could not delete', name + ':', err.message); }
     }
@@ -251,6 +279,176 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     });
   }
 
+  // The installer that installed the running version, if it was kept (see
+  // cleanup): what a smaller download copies unchanged blocks from.
+  function baseInstaller(name) {
+    const file = paths(currentVersion, name).final;
+    try {
+      const st = fs.statSync(file);
+      return st.isFile() && st.size > 0 ? { file, size: st.size } : null;
+    } catch (err) {
+      if (err.code !== 'ENOENT') log.warn('[Updates] the kept installer could not be read, so the whole update is downloaded:', err.message);
+      return null;
+    }
+  }
+
+  const request = (url, signal, headers = {}) =>
+    fetch(url, { signal, redirect: 'follow', cache: 'no-store', headers: { 'User-Agent': 'Vex/' + currentVersion, ...headers } });
+
+  // GitHub answers with a redirect to its file storage; net.fetch follows
+  // it. Wherever it ends, it must still be HTTPS (the checksum is what
+  // proves the bytes, but a plain-HTTP hop has no business in it).
+  function checkRedirect(f, res) {
+    if (!f.test && res.url && !/^https:\/\//i.test(res.url)) throw new UpdateError('network', 'The download was redirected to an insecure address, so Vex stopped it.');
+  }
+
+  // A version's blockmap, or null when that release has none (said in the log).
+  async function blockmapOf(f, version, name, signal) {
+    const url = f.blockmap(version, name);
+    const { status, buf } = await readBytes(url, { maxBytes: 16 * 1024 * 1024, timeoutMs: 30000, signal });
+    if (!buf) { log.warn(`[Updates] no blockmap for ${version} (HTTP ${status}), so the whole installer is downloaded`); return null; }
+    return parseBlockMap(buf);
+  }
+
+  // The smaller download. Returns true with a verified file at `part`, false
+  // when this update cannot be made smaller (said in the log); any other
+  // failure throws, and download() falls back to the whole installer.
+  async function differential({ f, version, file, url, base, part, job, onProgress }) {
+    const [newMap, oldMap] = await Promise.all([
+      blockmapOf(f, version, file.url, job.signal),
+      blockmapOf(f, currentVersion, file.url, job.signal),
+    ]);
+    if (!newMap || !oldMap) return false;
+    if (newMap.offset + newMap.total !== file.size) throw new Error('the new blockmap does not describe an installer of the size the release gives');
+    if (oldMap.offset + oldMap.total !== base.size) throw new Error(`the kept ${nodePath.basename(base.file)} is not the installer its release's blockmap describes`);
+    const plan = planDownload(oldMap, newMap);
+    const ranges = plan.steps.filter(s => s.kind === 'download').length;
+    if (plan.downloadBytes > file.size * 0.9 || ranges > 2000) {
+      log.log(`[Updates] ${mb(plan.downloadBytes)} of ${mb(file.size)} changed in ${ranges} places, so the whole installer is downloaded`);
+      return false;
+    }
+    log.log(`[Updates] smaller download: ${mb(plan.downloadBytes)} of ${mb(file.size)} in ${ranges} range request(s); ${mb(plan.copyBytes)} reused from ${nodePath.basename(base.file)}`);
+    const total = plan.downloadBytes;
+    let received = 0, lastSent = 0;
+    const progress = (force) => {
+      if (!force && now() - lastSent < PROGRESS_EVERY_MS) return;
+      lastSent = now();
+      onProgress({ received, total, percent: total ? Math.floor(received / total * 100) : 100, full: file.size, reused: plan.copyBytes });
+    };
+    progress(true);
+    const out = await fs.promises.open(part, 'w');
+    const old = await fs.promises.open(base.file, 'r');
+    try {
+      // Reused blocks first: local, quick, and a broken base shows at once.
+      const piece = Buffer.allocUnsafe(1024 * 1024);
+      for (const step of plan.steps) {
+        if (step.kind !== 'copy') continue;
+        for (let at = 0; at < step.end - step.start;) {
+          if (job.signal.aborted) throw job.signal.reason;
+          const want = Math.min(piece.length, step.end - step.start - at);
+          const { bytesRead } = await old.read(piece, 0, want, step.from + at);
+          if (bytesRead !== want) throw new Error(`the kept installer ended early at byte ${step.from + at + bytesRead}`);
+          await out.write(piece, 0, want, step.start + at);
+          at += want;
+        }
+        job.stall();
+      }
+      for (const step of plan.steps) {
+        if (step.kind !== 'download') continue;
+        const length = step.end - step.start;
+        let res;
+        try { res = await request(url, job.signal, { Range: `bytes=${step.start}-${step.end - 1}` }); }
+        catch (err) { throw job.signal.aborted ? job.signal.reason : plainNetworkError(err); }
+        if (!res.ok) throw new Error(`the update server answered a range request with HTTP ${res.status}`);
+        checkRedirect(f, res);
+        if (res.status !== 206) {
+          if (res.body) await res.body.cancel().catch(err => log.warn('[Updates] the ignored range response did not close:', err.message));
+          throw new Error(`the update server ignored the Range request (HTTP ${res.status} instead of 206)`);
+        }
+        const m = String(res.headers.get('content-range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/);
+        if (!m || Number(m[1]) !== step.start || Number(m[2]) !== step.end - 1 || (m[3] !== '*' && Number(m[3]) !== file.size)) {
+          if (res.body) await res.body.cancel().catch(err => log.warn('[Updates] the wrong range response did not close:', err.message));
+          throw new Error(`the update server sent a different range (${res.headers.get('content-range') || 'none'}) than asked for (bytes ${step.start}-${step.end - 1})`);
+        }
+        if (!res.body) throw new Error('the update server sent an empty range');
+        const reader = res.body.getReader();
+        let got = 0;
+        try {
+          for (;;) {
+            let chunk;
+            try { chunk = await Promise.race([reader.read(), job.aborted]); }
+            catch (err) { throw err instanceof UpdateError ? err : (job.signal.aborted ? job.signal.reason : plainNetworkError(err)); }
+            if (chunk.done) break;
+            job.stall();
+            if (got + chunk.value.byteLength > length) throw new Error('the update server sent more than the range asked for');
+            await out.write(chunk.value, 0, chunk.value.byteLength, step.start + got);
+            got += chunk.value.byteLength;
+            received += chunk.value.byteLength;
+            progress(false);
+          }
+        } catch (err) {
+          reader.cancel().catch(cancelErr => log.warn('[Updates] a range stream did not close:', cancelErr.message));
+          throw err;
+        }
+        if (got !== length) throw new Error(`a range came back short (${got} of ${length} bytes)`);
+      }
+    } finally {
+      await old.close();
+      await out.close();
+    }
+    progress(true);
+    onProgress({ received, total, percent: 100, full: file.size, reused: plan.copyBytes, verifying: true });
+    const got = await hashFile(part);
+    if (got.size !== file.size || got.sha512 !== file.sha512) throw new Error('the assembled installer did not match the checksum its release gives');
+    log.log(`[Updates] smaller download verified: ${mb(received)} downloaded, ${mb(plan.copyBytes)} reused`);
+    return true;
+  }
+
+  // The whole installer, streamed and hashed on the way.
+  async function fullDownload({ f, version, file, url, part, job, onProgress }) {
+    let res;
+    try { res = await request(url, job.signal); }
+    catch (err) { throw job.signal.aborted ? job.signal.reason : plainNetworkError(err); }
+    if (!res.ok) {
+      throw new UpdateError('http', res.status === 404
+        ? `The installer for Vex ${version} is not on its release page (404). Try again later, or get it from the Vex releases page.`
+        : `The update server answered with an error (HTTP ${res.status}). Try again later.`);
+    }
+    checkRedirect(f, res);
+    const declared = Number(res.headers.get('content-length'));
+    if (declared && declared !== file.size) {
+      throw new UpdateError('size', `The download is not the size the release says (${sizes(declared, file.size).join(' instead of ')}), so Vex did not download it. Try again later.`);
+    }
+    if (!res.body) throw new UpdateError('network', 'The update server sent nothing.');
+    const out = fs.createWriteStream(part, { flags: 'w' });
+    job.out = out;
+    const outError = new Promise((_, reject) => out.on('error', err => reject(new UpdateError('disk', 'Vex could not save the download: ' + err.message))));
+    outError.catch(() => {});
+    const hash = crypto.createHash('sha512');
+    const reader = res.body.getReader();
+    job.reader = reader;
+    let received = 0, lastSent = 0;
+    onProgress({ received: 0, total: file.size, percent: 0 });
+    for (;;) {
+      let chunk;
+      try { chunk = await Promise.race([reader.read(), job.aborted, outError]); }
+      catch (err) { throw err instanceof UpdateError ? err : (job.signal.aborted ? job.signal.reason : plainNetworkError(err)); }
+      if (chunk.done) break;
+      job.stall();
+      received += chunk.value.byteLength;
+      if (received > file.size) throw new UpdateError('size', `The download is bigger than the release says (${mb(file.size)}), so Vex stopped it and deleted it. Try again later.`);
+      hash.update(chunk.value);
+      if (!out.write(chunk.value)) await Promise.race([new Promise(r => out.once('drain', r)), job.aborted, outError]);
+      if (now() - lastSent >= PROGRESS_EVERY_MS) { lastSent = now(); onProgress({ received, total: file.size, percent: Math.floor(received / file.size * 100) }); }
+    }
+    job.reader = null;
+    await Promise.race([new Promise((resolve, reject) => out.end(err => (err ? reject(err) : resolve()))), outError]);
+    job.out = null;
+    onProgress({ received, total: file.size, percent: 100, verifying: true });
+    if (received !== file.size) throw new UpdateError('size', `The download is smaller than the release says (${sizes(received, file.size).join(' of ')}), so Vex deleted it and did not install it. Try again.`);
+    if (hash.digest('base64') !== file.sha512) throw new UpdateError('checksum', 'The download did not match the checksum its release gives, so Vex deleted it and did not install it. It may have been damaged on the way. Try again.');
+  }
+
   async function download(version, onProgress = () => {}) {
     if (active) throw new UpdateError('busy', 'The update is already downloading.');
     if (!release || release.version !== version) throw new UpdateError('stale', 'Check for updates again: this is not the version Vex last found.');
@@ -263,64 +461,44 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     const controller = new AbortController();
     active = { version, controller };
     verified = null;
-    let out = null, reader = null;
     let stallTimer = null;
-    const stall = () => { clearTimeout(stallTimer); stallTimer = setTimeout(() => controller.abort(new UpdateError('stalled', 'The download stopped: nothing arrived for a minute. Try again.')), STALL_MS); };
+    const job = {
+      signal: controller.signal,
+      aborted: new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true })),
+      stall() { clearTimeout(stallTimer); stallTimer = setTimeout(() => controller.abort(new UpdateError('stalled', 'The download stopped: nothing arrived for a minute. Try again.')), STALL_MS); },
+      reader: null, out: null,
+    };
+    job.aborted.catch(() => {});
+    const removePart = () => {
+      try { fs.rmSync(part, { force: true }); }
+      catch (rmErr) { log.warn('[Updates] could not delete', part + ':', rmErr.message); }
+    };
     try {
       fs.mkdirSync(dir, { recursive: true });
       cleanup();
-      stall();
-      let res;
-      try { res = await fetch(url, { signal: controller.signal, redirect: 'follow', cache: 'no-store', headers: { 'User-Agent': 'Vex/' + currentVersion } }); }
-      catch (err) { throw controller.signal.aborted ? controller.signal.reason : plainNetworkError(err); }
-      if (!res.ok) {
-        throw new UpdateError('http', res.status === 404
-          ? `The installer for Vex ${version} is not on its release page (404). Try again later, or get it from the Vex releases page.`
-          : `The update server answered with an error (HTTP ${res.status}). Try again later.`);
+      job.stall();
+      const base = baseInstaller(file.url);
+      let done = false;
+      if (base) {
+        try { done = await differential({ f, version, file, url, base, part, job, onProgress }); }
+        catch (err) {
+          if (controller.signal.aborted) throw controller.signal.reason;
+          log.warn('[Updates] the smaller download did not work, so the whole installer is downloaded:', err.message);
+          removePart();
+        }
+      } else {
+        log.log(`[Updates] no installer of ${currentVersion} kept, so the whole installer is downloaded`);
       }
-      // GitHub answers with a redirect to its file storage; net.fetch follows
-      // it. Wherever it ends, it must still be HTTPS (the checksum is what
-      // proves the bytes, but a plain-HTTP hop has no business in it).
-      if (!f.test && res.url && !/^https:\/\//i.test(res.url)) throw new UpdateError('network', 'The download was redirected to an insecure address, so Vex stopped it.');
-      const declared = Number(res.headers.get('content-length'));
-      if (declared && declared !== file.size) {
-        throw new UpdateError('size', `The download is not the size the release says (${sizes(declared, file.size).join(' instead of ')}), so Vex did not download it. Try again later.`);
-      }
-      if (!res.body) throw new UpdateError('network', 'The update server sent nothing.');
-      out = fs.createWriteStream(part, { flags: 'w' });
-      const outError = new Promise((_, reject) => out.on('error', err => reject(new UpdateError('disk', 'Vex could not save the download: ' + err.message))));
-      outError.catch(() => {});
-      const hash = crypto.createHash('sha512');
-      reader = res.body.getReader();
-      const aborted = new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true }));
-      aborted.catch(() => {});
-      let received = 0, lastSent = 0;
-      onProgress({ received: 0, total: file.size, percent: 0 });
-      for (;;) {
-        let part_;
-        try { part_ = await Promise.race([reader.read(), aborted, outError]); }
-        catch (err) { throw err instanceof UpdateError ? err : (controller.signal.aborted ? controller.signal.reason : plainNetworkError(err)); }
-        if (part_.done) break;
-        stall();
-        received += part_.value.byteLength;
-        if (received > file.size) throw new UpdateError('size', `The download is bigger than the release says (${mb(file.size)}), so Vex stopped it and deleted it. Try again later.`);
-        hash.update(part_.value);
-        if (!out.write(part_.value)) await Promise.race([new Promise(r => out.once('drain', r)), aborted, outError]);
-        if (now() - lastSent >= PROGRESS_EVERY_MS) { lastSent = now(); onProgress({ received, total: file.size, percent: Math.floor(received / file.size * 100) }); }
-      }
+      if (!done) await fullDownload({ f, version, file, url, part, job, onProgress });
       clearTimeout(stallTimer);
-      await Promise.race([new Promise((resolve, reject) => out.end(err => (err ? reject(err) : resolve()))), outError]);
-      out = null;
-      onProgress({ received, total: file.size, percent: 100, verifying: true });
-      if (received !== file.size) throw new UpdateError('size', `The download is smaller than the release says (${sizes(received, file.size).join(' of ')}), so Vex deleted it and did not install it. Try again.`);
-      if (hash.digest('base64') !== file.sha512) throw new UpdateError('checksum', 'The download did not match the checksum its release gives, so Vex deleted it and did not install it. It may have been damaged on the way. Try again.');
       fs.renameSync(part, final);
       verified = { version, file: final, sha512: file.sha512, size: file.size };
       state.result = 'downloaded'; state.version = version; state.error = null;
       return { ok: true, version, size: file.size };
     } catch (err) {
       clearTimeout(stallTimer);
-      if (reader) reader.cancel().catch(cancelErr => log.warn('[Updates] the download stream did not close:', cancelErr.message));
+      if (job.reader) job.reader.cancel().catch(cancelErr => log.warn('[Updates] the download stream did not close:', cancelErr.message));
+      const out = job.out;
       if (out && !out.closed) { const closed = new Promise(r => out.once('close', r)); out.destroy(); await closed; }
       for (const leftover of [part, final]) {
         try { fs.rmSync(leftover, { force: true }); }

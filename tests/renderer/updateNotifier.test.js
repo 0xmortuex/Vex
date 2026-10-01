@@ -39,10 +39,12 @@ beforeEach(() => {
       download: vi.fn(async () => ({ ok: true })),
       cancel: vi.fn(async () => ({ ok: true })),
       install: vi.fn(async () => ({ ok: true })),
+      saveBackup: vi.fn(async () => ({ ok: true, name: 'before-2.35.0-2026-10-01-140509.json', bytes: 10 })),
       onProgress: (cb) => { handlers.progress = cb; },
       onInstallFailed: (cb) => { handlers.installFailed = cb; },
     },
   };
+  window.VexBackup = { snapshot: vi.fn(async () => ({ v: 1, at: '2026-10-01T10:00:00.000Z', items: { 'vex.notes': '[]' }, stores: {} })) };
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -156,6 +158,91 @@ describe('Update now', () => {
     handlers.installFailed({ error: 'Vex could not save your tabs, so it did not close to install the update.' });
     expect(cover().dataset.phase).toBe('error');
     expect(cover().querySelector('.update-cover-status-text').textContent).toMatch(/could not save your tabs/);
+  });
+});
+
+describe('the backup before the update', () => {
+  it('is made after the download and before Vex closes, with the same backup Settings › Backup saves', async () => {
+    let saved;
+    window.vex.updates.saveBackup = vi.fn(() => new Promise(r => { saved = r; }));
+    UpdateNotifier.showCover(info);
+    button('update').click();
+    await flush(); await flush();
+    expect(cover().dataset.phase).toBe('backing-up');
+    expect(cover().querySelector('.update-cover-status-text').textContent).toBe('Backing up your data…');
+    expect(window.VexBackup.snapshot).toHaveBeenCalledWith([]);
+    const [version, text] = window.vex.updates.saveBackup.mock.calls[0];
+    expect(version).toBe('2.35.0');
+    expect(JSON.parse(text)).toMatchObject({ v: 1, items: { 'vex.notes': '[]' } });
+    expect(window.vex.updates.install).not.toHaveBeenCalled();
+    saved({ ok: true, name: 'before-2.35.0-2026-10-01-140509.json' });
+    await flush(); await flush();
+    expect(window.vex.updates.install).toHaveBeenCalledWith('2.35.0');
+    expect(cover().querySelector('.update-cover-status-text').textContent).toMatch(/Your data was backed up first: Settings › Backup lists it\./);
+  });
+
+  it('a backup that fails stops the install and asks: Install anyway, or Cancel (focused)', async () => {
+    window.vex.updates.saveBackup = vi.fn(async () => ({ ok: false, error: 'Vex could not save the backup: ENOSPC.' }));
+    UpdateNotifier.showCover(info);
+    button('update').click();
+    await flush(); await flush(); await flush();
+    expect(cover().dataset.phase).toBe('backup-failed');
+    expect(cover().querySelector('.update-cover-status').getAttribute('role')).toBe('alert');
+    expect(cover().querySelector('.update-cover-status-text').textContent)
+      .toBe('Vex could not back up your data (Vex could not save the backup: ENOSPC), so it has not installed the update. Install anyway, or cancel and try again later.');
+    expect([...cover().querySelectorAll('.update-cover-actions button')].map(b => b.textContent)).toEqual(['Install anyway', 'Cancel']);
+    expect(document.activeElement).toBe(button('backup-cancel'));
+    expect(window.vex.updates.install).not.toHaveBeenCalled();
+    button('backup-cancel').click();
+    await flush();
+    expect(cover().dataset.phase).toBe('choose');
+    expect(cover().querySelector('.update-cover-status-text').textContent).toBe('The update was not installed.');
+    expect(window.vex.updates.install).not.toHaveBeenCalled();
+  });
+
+  it('Install anyway installs without the backup; Escape is Cancel', async () => {
+    window.VexBackup = undefined;
+    UpdateNotifier.showCover(info);
+    button('update').click();
+    await flush(); await flush();
+    expect(cover().dataset.phase).toBe('backup-failed');
+    expect(cover().querySelector('.update-cover-status-text').textContent).toMatch(/\(the backup feature is not loaded\)/);
+    key('Escape');
+    expect(cover().dataset.phase).toBe('choose');
+    button('update').click();
+    await flush(); await flush();
+    button('install-anyway').click();
+    await flush();
+    expect(window.vex.updates.install).toHaveBeenCalledWith('2.35.0');
+    expect(cover().dataset.phase).toBe('installing');
+    expect(cover().querySelector('.update-cover-status-text').textContent).not.toMatch(/backed up/);
+  });
+});
+
+describe('a smaller download', () => {
+  it('says how much comes over the network and that the rest is reused', async () => {
+    window.vex.updates.download = vi.fn(() => new Promise(() => {}));
+    UpdateNotifier.init();
+    UpdateNotifier.showCover(info);
+    button('update').click();
+    await flush();
+    handlers.progress({ received: 6 * 1024 * 1024, total: 12 * 1024 * 1024, percent: 50, full: 236 * 1024 * 1024, reused: 224 * 1024 * 1024 });
+    expect(cover().querySelector('.update-cover-status-text').textContent).toBe('Downloading 12 MB of 236 MB (the rest is reused)… 50%');
+    expect(cover().querySelector('.update-cover-bar').getAttribute('aria-valuenow')).toBe('50');
+  });
+
+  it('one that does not check out goes on as the whole installer, with Cancel back', async () => {
+    window.vex.updates.download = vi.fn(() => new Promise(() => {}));
+    UpdateNotifier.init();
+    UpdateNotifier.showCover(info);
+    button('update').click();
+    await flush();
+    handlers.progress({ received: 1, total: 1, percent: 100, full: 2, reused: 1, verifying: true });
+    expect(cover().dataset.phase).toBe('verifying');
+    handlers.progress({ received: 10 * 1024 * 1024, total: 250 * 1024 * 1024, percent: 4 });
+    expect(cover().dataset.phase).toBe('downloading');
+    expect(button('cancel')).not.toBe(null);
+    expect(cover().querySelector('.update-cover-status-text').textContent).toBe('Downloading Vex 2.35.0… 4% (10 MB of 250 MB)');
   });
 });
 

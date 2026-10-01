@@ -158,6 +158,11 @@ describe('the New Tab grid syncs as a list of its own', () => {
     const key = await accountKey();
     await oldDevice(server, key, 'devOld');
     expect((await engine.pullNow()).ok).toBe(true);
+    // The older device's push took this device's marker away; the pull puts
+    // it back with a push of its own right after. Wait for that, or the push
+    // below can land while it runs (seen as a flake under load).
+    const own = Object.values(server.sessions)[0];
+    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:' + own]).toEqual({ level: 1 }));
     expect(names(grid())).toEqual(['a', 'b']);
     setGrid([...grid(), tile('c')]);
     const before = Object.entries((await accountDoc(server, key)).records).filter(([k]) => k.includes('vex.startTiles'));
