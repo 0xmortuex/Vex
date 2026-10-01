@@ -241,6 +241,15 @@ const VexBridge = (() => {
   // walkthrough. Built rather than downloaded, so it depends on nothing.
   const DEVELOPMENT_PDF = 'JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCAyNDAgMTIwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDQ0Pj5zdHJlYW0KQlQgL0YxIDI0IFRmIDI0IDUyIFRkIChWZXggcmVhZHMgUERGcykgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8L1R5cGUvRm9udC9TdWJ0eXBlL1R5cGUxL0Jhc2VGb250L0hlbHZldGljYT4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1NCAwMDAwMCBuIAowMDAwMDAwMTA1IDAwMDAwIG4gCjAwMDAwMDAyMTcgMDAwMDAgbiAKMDAwMDAwMDMwOCAwMDAwMCBuIAp0cmFpbGVyCjw8L1NpemUgNi9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjM3MQolJUVPRgo=';
 
+  // Plugins, or single methods, whose failures are the caller's to handle. The
+  // rest are forgiving — a tab call that fails resolves to {} — because the
+  // chrome calls them on every page event and has nothing useful to say.
+  const STRICT = new Set([
+    'VexLocalAI', 'VexTranslate', 'VexSpeak',
+    'VexTabs.openDownload', 'VexTabs.cancelDownload', 'VexTabs.openDownloadsFolder',
+    'VexTabs.saveData', 'VexTabs.writeDownload'
+  ]);
+
   function call(pluginName, method, args) {
     const plugin = plugins[pluginName];
     if (!plugin) {
@@ -254,6 +263,11 @@ const VexBridge = (() => {
     }
     return plugin[method](args || {}).catch(error => {
       console.error('[' + pluginName + '.' + method + ']', error);
+      // The stand-in throws, every caller of these was written against it, and
+      // on a phone the failure used to arrive as {} instead: a model that would
+      // not load on the GPU never fell back to the CPU, and a translation whose
+      // language pair was missing reported success having changed nothing.
+      if (STRICT.has(pluginName) || STRICT.has(pluginName + '.' + method)) throw error;
       return {};
     });
   }
@@ -353,6 +367,12 @@ const VexBridge = (() => {
     // DownloadManager has no pause: removing it is what cancelling is.
     cancelDownload(id) { return tabs('cancelDownload', { id: String(id) }); },
     openDownloadsFolder() { return tabs('openDownloadsFolder', {}); },
+    // A file the chrome made itself — a backup, an export — written into
+    // Downloads. The chrome's own WebView has no download handler, so an <a
+    // download> there went nowhere.
+    writeToDownloads(filename, mimeType, base64) {
+      return tabs('writeDownload', { filename, mimeType, base64 });
+    },
     // Bytes the chrome read out of a page, written into Downloads.
     saveData(tabId, filename, mimeType, base64) {
       return tabs('saveData', { id: tabId, filename, mimeType, base64 });

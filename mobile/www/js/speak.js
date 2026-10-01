@@ -92,7 +92,7 @@ const VexSpeak = (() => {
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
     async check() {
-      const result = await VexBridge.speakAvailable();
+      const result = await VexBridge.speakAvailable().catch(() => ({}));
       state.available = !!(result && result.available);
       state.voices = (result && result.voices) || [];
       changed();
@@ -151,7 +151,7 @@ const VexSpeak = (() => {
       if (state.speaking) {
         state.speaking = false;
         changed();
-        await VexBridge.speakStop();
+        await VexBridge.speakStop().catch(() => {});
         return false;
       }
       return speakFrom(state.index);
@@ -189,7 +189,7 @@ const VexSpeak = (() => {
       state.base = 0;
       state.parts = [];
       changed();
-      await VexBridge.speakStop();
+      await VexBridge.speakStop().catch(() => {});
     },
 
     /** Step through the speeds; reading carries on from the same line. */

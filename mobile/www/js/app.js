@@ -194,11 +194,11 @@
   (async () => {
     const pending = await VexBridge.pendingIntent();
     if (pending.widget) runWidgetTap(pending.widget);
-    else if (pending.text) VexUI.openUrl(pending.text, { newTab: true });
+    else if (pending.text) VexUI.openUrl(pending.text, { newTab: true, fromApp: true });
   })();
 
   VexBridge.onAppEvent('appUrlOpen', data => {
-    if (data && data.url) VexUI.openUrl(data.url, { newTab: true });
+    if (data && data.url) VexUI.openUrl(data.url, { newTab: true, fromApp: true });
   });
   VexBridge.onAppEvent('backButton', async () => {
     if (await VexUI.handleBack()) return;
@@ -297,7 +297,8 @@
       const current = VexTabStore.active();
       VexTabStore.create(data.url, {
         incognito: !!(current && current.incognito),
-        background: !!data.background
+        background: !!data.background,
+        opener: data.id || (current && current.id)
       });
     });
 

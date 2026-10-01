@@ -735,6 +735,11 @@ public class TabWebView extends WebView {
      * capped at API 28 for.
      */
     public String saveBytes(String filename, String mimeType, byte[] bytes) throws Exception {
+        return saveBytes(getContext(), filename, mimeType, bytes);
+    }
+
+    /** The same, for a file with no tab behind it: a backup, an export. */
+    public static String saveBytes(Context context, String filename, String mimeType, byte[] bytes) throws Exception {
         String name = filename == null || filename.trim().isEmpty() ? "download" : filename.trim();
         // A name is not a path: a page does not get to choose where this lands.
         name = name.replace('/', '_').replace('\\', '_');
@@ -745,10 +750,10 @@ public class TabWebView extends WebView {
                 values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType);
             }
             values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
-            Uri target = getContext().getContentResolver()
+            Uri target = context.getContentResolver()
                     .insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
             if (target == null) throw new java.io.IOException("Downloads is not writable");
-            java.io.OutputStream out = getContext().getContentResolver().openOutputStream(target);
+            java.io.OutputStream out = context.getContentResolver().openOutputStream(target);
             if (out == null) throw new java.io.IOException("Downloads is not writable");
             try { out.write(bytes); } finally { out.close(); }
             return target.toString();

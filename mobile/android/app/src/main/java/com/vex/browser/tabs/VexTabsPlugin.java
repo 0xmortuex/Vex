@@ -659,6 +659,30 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     }
 
     /**
+     * Write a file the chrome made — a backup, a bookmarks export, the notes —
+     * into Downloads. The chrome's own WebView has no download handler, so an
+     * <a download> there went nowhere while a toast said it had been saved.
+     * Capacitor runs plugin methods off the main thread, which is where a
+     * write of a few megabytes belongs.
+     */
+    @PluginMethod
+    public void writeDownload(PluginCall call) {
+        final String filename = call.getString("filename", "download");
+        final String mimeType = call.getString("mimeType", "");
+        final String base64 = call.getString("base64", "");
+        try {
+            byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            String where = TabWebView.saveBytes(getContext(), filename, mimeType, bytes);
+            JSObject result = new JSObject();
+            result.put("localUri", where);
+            result.put("bytes", bytes.length);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Could not save that: " + error.getMessage());
+        }
+    }
+
+    /**
      * Hand a finished download to whatever app opens that kind of file.
      *
      * The queue's own content Uri when there is a queue id: DownloadManager's

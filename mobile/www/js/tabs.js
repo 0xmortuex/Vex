@@ -72,6 +72,11 @@ const VexTabStore = (() => {
       const { id } = await VexBridge.createTab(lazy ? 'about:blank' : target, { incognito: !!opts.incognito });
       if (!id) return null;
       const tab = record(id, target, opts.incognito);
+      // Where it came from decides what Back does once its own history runs
+      // out: a tab a page opened goes back to that page, a link another app
+      // sent goes back to that app, and anything else is left alone.
+      if (opts.opener && tabs.get(opts.opener)) tab.openerId = opts.opener;
+      if (opts.fromApp) tab.fromApp = true;
       if (lazy) {
         tab.lazy = true;
         tab.pendingUrl = '';

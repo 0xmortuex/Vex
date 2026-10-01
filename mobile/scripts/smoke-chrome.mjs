@@ -1367,6 +1367,32 @@ results.historyPrune = await page.evaluate(async () => {
   return kept + ' ' + removed + ' ' + left.join(',');
 });
 
+// Back with no history left: a tab you kept stays, a tab a page opened goes
+// back to that page, and a link another app sent is closed on the way out.
+results.backOutOfHistory = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  for (const tab of VexTabStore.all()) await VexTabStore.close(tab.id);
+  const kept = await VexTabStore.create('https://kept.example/');
+  const other = await VexTabStore.create('https://other.example/');
+  await wait(100);
+  VexTabStore.update(other.id, { canGoBack: false });
+  const leaves = await VexUI.handleBack();                 // false: minimise, close nothing
+  const stillTwo = VexTabStore.all().length;
+
+  const child = await VexTabStore.create('https://child.example/', { opener: kept.id });
+  await wait(100);
+  VexTabStore.update(child.id, { canGoBack: false });
+  await VexUI.handleBack();
+  const backTo = VexTabStore.activeId() === kept.id && !VexTabStore.get(child.id);
+
+  const sent = await VexTabStore.create('https://sent.example/', { fromApp: true });
+  await wait(100);
+  VexTabStore.update(sent.id, { canGoBack: false });
+  const handed = await VexUI.handleBack();
+  const sentGone = !VexTabStore.get(sent.id);
+  return [leaves, stillTwo, backTo, handed, sentGone].join(' ');
+});
+
 console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
@@ -1404,6 +1430,7 @@ const expected = {
   reminderScheduled: true, reminderRemoved: true, reminderDropsPast: true,
   libraryOpens: true,
   downloadsLive: '30% 70% 0',
+  backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,
   addLoginBack: 'Passwords and 2FA | Settings',
   speakBarShown: true,

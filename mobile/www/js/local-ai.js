@@ -120,7 +120,8 @@ const VexLocalAI = (() => {
   }
 
   async function refresh() {
-    const status = await VexBridge.localAI('status', {});
+    // Asking is not an operation that can fail usefully: no answer is "nothing".
+    const status = await VexBridge.localAI('status', {}).catch(() => ({}));
     state.supported = !!(status && status.supported);
     state.loaded = !!(status && status.loaded);
     state.busy = !!(status && status.busy);
@@ -132,7 +133,7 @@ const VexLocalAI = (() => {
   }
 
   async function refreshNano() {
-    const result = await VexBridge.localAI('nanoStatus', {});
+    const result = await VexBridge.localAI('nanoStatus', {}).catch(() => ({}));
     state.nano = (result && result.status) || 'unavailable';
     changed();
     return state.nano;
@@ -226,7 +227,7 @@ const VexLocalAI = (() => {
     async load() { return ensureLoaded(); },
 
     async unload() {
-      await VexBridge.localAI('unload', {});
+      await VexBridge.localAI('unload', {}).catch(() => {});
       state.loaded = false;
       state.model = '';
       state.backend = '';
@@ -256,7 +257,7 @@ const VexLocalAI = (() => {
       }
     },
 
-    stop() { return VexBridge.localAI('stop', {}); },
+    stop() { return VexBridge.localAI('stop', {}).catch(() => ({})); },
 
     // ── Getting a model onto the phone ─────────────────────────────────────
 
@@ -271,7 +272,7 @@ const VexLocalAI = (() => {
     cancelDownload() {
       state.downloading = null;
       changed();
-      return VexBridge.localAI('cancelDownload', {});
+      return VexBridge.localAI('cancelDownload', {}).catch(() => ({}));
     },
 
     /**

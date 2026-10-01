@@ -628,16 +628,18 @@ const VexUI = (() => {
 
   function tabActions(tab) {
     const group = VexCollections.groups.of(tab.id);
+    const live = !!(tab.url && tab.url !== 'about:blank');
     VexSheets.choose(tab.title || VexSearch.prettyHost(tab.url) || 'Tab', [
       { id: 'group', label: group ? 'Move to another group' : 'Put in a group' },
       group ? { id: 'ungroup', label: 'Take out of ' + group.name } : null,
       group ? { id: 'group-edit', label: group.name, note: 'Rename it, recolour it, or close the lot' } : null,
-      { id: 'bookmark', label: 'Bookmark this tab' },
-      { id: 'reading', label: 'Add to reading list' },
+      // A blank tab has no address to bookmark, copy, draw or share.
+      live ? { id: 'bookmark', label: 'Bookmark this tab' } : null,
+      live ? { id: 'reading', label: 'Add to reading list' } : null,
       { id: 'close-others', label: 'Close other tabs' },
-      { id: 'copy', label: 'Copy link' },
-      { id: 'qr', label: 'Show as QR code' },
-      { id: 'share', label: 'Share' }
+      live ? { id: 'copy', label: 'Copy link' } : null,
+      live ? { id: 'qr', label: 'Show as QR code' } : null,
+      live ? { id: 'share', label: 'Share' } : null
     ].filter(Boolean), async choice => {
       if (choice === 'group') {
         // This row replaces the sheet's contents with the group picker rather
@@ -774,7 +776,7 @@ const VexUI = (() => {
     const canvas = VexTools.drawQr(url, 250);
     if (!canvas) { toast('Could not draw that'); return; }
     clear($('qrshare-canvas')).appendChild(canvas);
-    $('qrshare-title').textContent = title ? 'Scan to open' : 'Scan to open';
+    $('qrshare-title').textContent = 'Scan to open';
     $('qrshare-url').textContent = url;
     $('qrshare').hidden = false;
     cover(true);
@@ -955,7 +957,10 @@ const VexUI = (() => {
     const tab = VexTabStore.active();
     const newTab = options.newTab || (!tab) || (VexStore.get('vex.linksInNewTab', false) && options.fromLink);
     if (newTab) {
-      await VexTabStore.create(url, { incognito: options.incognito, background: options.background });
+      await VexTabStore.create(url, {
+        incognito: options.incognito, background: options.background,
+        fromApp: !!options.fromApp, opener: options.opener || (options.fromLink && tab ? tab.id : undefined)
+      });
       if (options.background) toast('Opened in a new tab');
     } else {
       await VexTabStore.navigate(tab.id, url);
@@ -1166,13 +1171,48 @@ const VexUI = (() => {
   }
 
   // ── Files, in and out ────────────────────────────────────────────────────
-  function downloadText(filename, text, mimeType = 'text/plain') {
+  /**
+   * Save text the chrome made — a backup, an export — as a file in Downloads.
+   *
+   * On a phone the bytes go to native: an <a download> in the chrome's own
+   * WebView has no download handler behind it, so Backup, the bookmarks export
+   * and the notes export all said "Saved to Downloads" and saved nothing. The
+   * link is the development fallback, where a desktop browser does handle it.
+   */
+  async function downloadText(filename, text, mimeType = 'text/plain') {
+    if (VexBridge.isNative) {
+      try {
+        const saved = await VexBridge.writeToDownloads(filename, mimeType, utf8Base64(text));
+        const localUri = (saved && saved.localUri) || '';
+        toast('Saved ' + filename + ' to Downloads', 4500, localUri ? {
+          label: 'Open',
+          run: () => VexBridge.openDownload({ localUri }).catch(error => toast(error.message || 'Nothing opens that'))
+        } : undefined);
+        return true;
+      } catch (error) {
+        toast((error && error.message) || 'It could not be saved', 4500);
+        return false;
+      }
+    }
     const blob = new Blob([text], { type: mimeType });
     const link = el('a', { href: URL.createObjectURL(blob), download: filename });
     document.body.appendChild(link);
     link.click();
     setTimeout(() => { URL.revokeObjectURL(link.href); link.remove(); }, 2000);
     toast('Saved to Downloads');
+    return true;
+  }
+
+  // btoa takes Latin-1 only, and a backup is full of everything else — and
+  // String.fromCharCode(...bytes) on a few megabytes overflows the stack — so
+  // the bytes are encoded in slices.
+  function utf8Base64(text) {
+    const bytes = new TextEncoder().encode(String(text));
+    let binary = '';
+    for (let at = 0; at < bytes.length; at += 0x8000) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(at, at + 0x8000));
+    }
+    return btoa(binary);
   }
 
   function pickTextFile(onText, accept = '.html,.htm,text/html') {
@@ -1390,7 +1430,20 @@ const VexUI = (() => {
       if (!$('findbar').hidden) { closeFind(); return true; }
       const tab = VexTabStore.active();
       if (tab && tab.canGoBack) { await VexBridge.back(tab.id); return true; }
-      if (tab && VexTabStore.all().length > 1) { await VexTabStore.close(tab.id); return true; }
+      // Out of history. Any tab used to be closed here, and since a restored
+      // tab starts with no history at all, Back closed the tabs you had kept
+      // open. Now only a tab that came from somewhere goes back there.
+      if (tab && tab.openerId && VexTabStore.get(tab.openerId)) {
+        const opener = tab.openerId;
+        await VexTabStore.close(tab.id);
+        await VexTabStore.activate(opener);
+        return true;
+      }
+      if (tab && tab.fromApp && VexTabStore.all().length > 1) {
+        // Back to the app that sent the link, without the tab it left behind.
+        await VexTabStore.close(tab.id);
+        return false;
+      }
       return false;      // let Android put the app in the background
     }
   };
