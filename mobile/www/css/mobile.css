@@ -383,6 +383,12 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 .tabcard-title { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tabcard-x { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; color: var(--vex-text-muted); }
 .tabcard-x svg { width: 15px; height: 15px; }
+/* A slept tab: its timers are stopped and its page is still loaded, so the card
+   is dimmed rather than greyed out — nothing about it is unavailable. */
+.tabcard.asleep .tabcard-shot { opacity: .55; }
+.tabcard-asleep { flex: 0 0 auto; font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--vex-text-muted); border: 1px solid var(--vex-border-subtle);
+  border-radius: 8px; padding: 1px 5px; }
 .tabgrid-foot { display: flex; gap: 10px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--vex-border-subtle); }
 .pill-btn {
   flex: 1 1 auto; min-height: var(--tap); border-radius: 22px;

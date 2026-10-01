@@ -156,6 +156,22 @@ describe('the session', () => {
   });
 });
 
+describe('sleeping', () => {
+  it('a tab is awake when it is made, and waking is part of activating', async () => {
+    const first = await VexTabStore.create('https://a.example/');
+    const second = await VexTabStore.create('https://b.example/');
+    expect(first.asleep).toBe(false);
+
+    // What app.js's sleep pass does to a tab it has put to sleep.
+    VexTabStore.update(first.id, { asleep: true });
+    expect(VexTabStore.get(first.id).asleep).toBe(true);
+    expect(VexTabStore.get(second.id).asleep).toBe(false);
+
+    await VexTabStore.activate(first.id);
+    expect(VexTabStore.get(first.id).asleep).toBe(false);
+  });
+});
+
 describe('navigation', () => {
   it('marks the tab as loading and asks native to load', async () => {
     const tab = await VexTabStore.create('about:blank');

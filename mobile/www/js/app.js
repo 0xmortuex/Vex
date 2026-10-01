@@ -68,6 +68,7 @@
     VexStore.prime('vex.linksInNewTab', false),
     VexStore.prime('vex.restoreTabs', true),
     VexStore.prime('vex.closeTabsAfter', 0),
+    VexStore.prime('vex.sleepTabs', 15),
     VexStore.prime('vex.confirmCloseAll', true),
     VexStore.prime('vex.menuOrder', null),
     VexStore.prime('vex.menuHidden', []),
@@ -150,6 +151,10 @@
     // Alarms do not survive a reboot; re-arming the ones still ahead is
     // cheaper than a boot receiver and does the same job.
     await VexRemind.rearm();
+    await sleepIdleTabs();
+    // Once a minute after that: the threshold is in minutes, so checking more
+    // often would only spend battery to save battery.
+    setInterval(sleepIdleTabs, 60000);
     // Only when it is switched on: asking the plugin wakes nothing, but asking
     // AICore for Nano's status on every cold start would be rude.
     if (VexLocalAI.mode() !== 'off') await VexLocalAI.refresh();
@@ -472,6 +477,33 @@
       } catch { /* a sleeping tab has no scroll to read */ }
     }
     VexTabStore.persist();
+  }
+
+  /**
+   * Put background tabs to sleep once they have been in the background a while.
+   *
+   * A WebView in a background tab goes on running: timers fire, animations
+   * animate, a script that polls keeps polling. Over a day of twelve open tabs
+   * that is a measurable part of a battery, which is why Samsung has this and why
+   * the desktop build sleeps tabs too.
+   *
+   * Two tabs are never slept: the one in front, and any of them while
+   * "keep playing in the background" is on — onPause silences media, and a tab
+   * you have not touched in twenty minutes that is playing something is exactly
+   * the case that setting exists for.
+   */
+  async function sleepIdleTabs() {
+    const minutes = Number(VexStore.get('vex.sleepTabs', 15));
+    if (!minutes) return;
+    if (VexStore.get('vex.backgroundAudio', false) === true) return;
+    const cutoff = Date.now() - minutes * 60000;
+    const activeId = VexTabStore.activeId();
+    for (const tab of VexTabStore.all()) {
+      if (tab.id === activeId || tab.asleep) continue;
+      if ((tab.lastActiveAt || tab.createdAt || 0) > cutoff) continue;
+      const result = await VexBridge.sleepTab(tab.id);
+      if (result && result.asleep) VexTabStore.update(tab.id, { asleep: true });
+    }
   }
 
   // "Close tabs you have not opened in a month" — Samsung's setting, and the

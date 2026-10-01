@@ -38,7 +38,10 @@ const VexTabStore = (() => {
       scrollY: 0,
       errorUrl: '',
       createdAt: Date.now(),
-      lastActiveAt: Date.now()
+      lastActiveAt: Date.now(),
+      // Set when its WebView has been paused for being in the background a
+      // while; cleared the moment it is activated again.
+      asleep: false
     };
   }
 
@@ -70,6 +73,8 @@ const VexTabStore = (() => {
       if (!tabs.get(id)) return;
       activeId = id;
       tabs.get(id).lastActiveAt = Date.now();
+      // Native wakes it as part of activating; this is the chrome agreeing.
+      tabs.get(id).asleep = false;
       await VexBridge.activateTab(id);
       emit();
       this.persist();

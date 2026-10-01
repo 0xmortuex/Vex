@@ -50,6 +50,12 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     // added to the container, so hiding a tab hides its refresh spinner too.
     private final Map<String, SwipeRefreshLayout> frames = new LinkedHashMap<>();
     private String activeId;
+    /**
+     * Tabs put to sleep: onPause called, so their timers and animations stop.
+     * Tracked because handleOnResume() wakes everything when Vex comes back, and
+     * waking a tab the person has not looked at for an hour undoes the point.
+     */
+    private final java.util.Set<String> asleep = new java.util.HashSet<>();
     private int sequence;
     private boolean visible = true;
     private int textZoom = 100;
@@ -150,6 +156,7 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
                 tab.loadUrl("about:blank");
                 tab.destroy();
                 if (id.equals(activeId)) activeId = null;
+                asleep.remove(id);
                 if (wasPrivate && !hasPrivateTabs()) TabWebView.deletePrivateProfile();
             }
             call.resolve();
@@ -171,8 +178,57 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
                 entry.getValue().setVisibility(entry.getKey().equals(id) ? View.VISIBLE : View.GONE);
             }
             activeId = tabs.containsKey(id) ? id : activeId;
+            // The tab you just asked for is awake by definition.
+            TabWebView wanted = tabs.get(id);
+            if (wanted != null && asleep.remove(id)) wanted.onResume();
             call.resolve();
         });
+    }
+
+    /**
+     * Put a background tab to sleep: onPause stops its timers, its animations
+     * and anything else it can stop safely. The page stays loaded, so waking it
+     * is instant and nothing is lost.
+     *
+     * The active tab is never slept, because onPause silences media and dims
+     * animation in the thing you are looking at.
+     */
+    @PluginMethod
+    public void sleepTab(PluginCall call) {
+        final String id = call.getString("id", "");
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            JSObject result = new JSObject();
+            if (tab == null || id.equals(activeId) || asleep.contains(id)) {
+                result.put("asleep", asleep.contains(id));
+                call.resolve(result);
+                return;
+            }
+            tab.onPause();
+            asleep.add(id);
+            result.put("asleep", true);
+            call.resolve(result);
+        });
+    }
+
+    @PluginMethod
+    public void wakeTab(PluginCall call) {
+        final String id = call.getString("id", "");
+        getActivity().runOnUiThread(() -> {
+            TabWebView tab = tabs.get(id);
+            if (tab != null && asleep.remove(id)) tab.onResume();
+            call.resolve();
+        });
+    }
+
+    /** Which tabs are asleep, for the switcher to say so. */
+    @PluginMethod
+    public void sleeping(PluginCall call) {
+        JSObject result = new JSObject();
+        JSArray ids = new JSArray();
+        for (String id : asleep) ids.put(id);
+        result.put("ids", ids);
+        call.resolve(result);
     }
 
     @PluginMethod
@@ -685,7 +741,10 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
 
     @Override
     protected void handleOnResume() {
-        for (TabWebView tab : tabs.values()) tab.onResume();
+        // Everything except the tabs that were asleep before Vex went away.
+        for (Map.Entry<String, TabWebView> entry : tabs.entrySet()) {
+            if (!asleep.contains(entry.getKey())) entry.getValue().onResume();
+        }
         super.handleOnResume();
     }
 

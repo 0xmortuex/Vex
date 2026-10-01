@@ -735,6 +735,22 @@ await page.waitForTimeout(200);
 results.findOpen = await page.isVisible('#findbar');
 await page.evaluate(() => VexUI.closeFind());
 
+// The omnibox offers to find what you typed on the page you are on, and tapping
+// that row opens the find bar with the words already in it.
+results.findRowOffered = await page.evaluate(async () => {
+  VexUI.openOmnibox('');
+  document.getElementById('omni-input').value = 'knot';
+  await VexUI.renderSuggestions('knot');
+  const rows = [...document.querySelectorAll('#omni-results .omni-row')];
+  const found = rows.find(row => /Find .knot. on this page/.test(row.textContent));
+  if (found) found.click();
+  await new Promise(resolve => setTimeout(resolve, 250));
+  // One string, because the expectations below compare with !==.
+  return [!!found, !document.getElementById('findbar').hidden,
+    document.getElementById('find-input').value].join(',');
+});
+await page.evaluate(() => { VexUI.closeFind(); VexUI.closeOmnibox(); });
+
 await page.evaluate(async () => {
   await VexTabStore.activate(VexTabStore.normal()[0].id);
   VexUI.closeTabGrid(); VexSheets.close(); VexPanels.close(); VexUI.closeOmnibox(); VexViews.closeReader();
@@ -1105,6 +1121,7 @@ const expected = {
   speakRateShown: '1.25×',
   sharedTextOpens: true,
   undoPrivate: true,
+  findRowOffered: 'true,true,knot',
   readerLookDefault: '-,-,-,-',
   readerLook: 'serif,paper',
   readerLookRows: 4,

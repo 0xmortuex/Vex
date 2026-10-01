@@ -1531,9 +1531,25 @@ const VexPanels = (() => {
         })));
       body.appendChild(toggleRow('Confirm before closing them all', null,
         VexStore.get('vex.confirmCloseAll', true), value => VexStore.set('vex.confirmCloseAll', value)));
+
+      body.appendChild(heading('Battery'));
+      body.appendChild(valueRow('Let background tabs sleep', 'Their timers and animations stop; the page stays loaded',
+        (() => { const minutes = Number(VexStore.get('vex.sleepTabs', 15)); return minutes ? 'after ' + minutes + ' min' : 'Never'; })(),
+        () => VexSheets.choose('Sleep a tab you have left', [
+          { id: 0, label: 'Never' }, { id: 5, label: 'After 5 minutes' },
+          { id: 15, label: 'After 15 minutes' }, { id: 30, label: 'After half an hour' },
+          { id: 120, label: 'After two hours' }
+        ].map(option => Object.assign(option, { selected: option.id === Number(VexStore.get('vex.sleepTabs', 15)) })),
+        async minutes => {
+          await VexStore.set('vex.sleepTabs', Number(minutes));
+          VexSheets.close();
+          this.tabsSettings();
+        })));
       body.appendChild(el('div', 'field-note',
-        'Android already freezes tabs you are not looking at, so Vex does not need the desktop’s '
-        + 'sleep timer. Closing old tabs is the phone version of that.'));
+        'A tab you are not looking at goes on running: its timers fire, its animations animate, a script '
+        + 'that polls keeps polling. Sleeping one stops that and keeps the page loaded, so coming back to '
+        + 'it is instant. Nothing sleeps while "keep playing in the background" is on, because pausing a '
+        + 'tab silences what it is playing.'));
     },
 
     // ── The menu, rearranged ───────────────────────────────────────────────

@@ -411,6 +411,16 @@ const VexBridge = (() => {
       return system('fetchFile', { url, name });
     },
 
+    // ── Sleeping tabs ──────────────────────────────────────────────────────
+    // onPause on a background tab's WebView: its timers and animations stop and
+    // the page stays loaded, so waking it is instant.
+    sleepTab(tabId) { return tabs('sleepTab', { id: tabId }); },
+    wakeTab(tabId) { return tabs('wakeTab', { id: tabId }); },
+    async sleepingTabs() {
+      const result = await tabs('sleeping', {});
+      return (result && result.ids) || [];
+    },
+
     // A file the chrome was shown and decided to keep after all.
     saveFile(tabId, url, filename) { return tabs('save', { id: tabId, url, filename }); },
 

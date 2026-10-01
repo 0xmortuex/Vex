@@ -425,6 +425,18 @@ const VexUI = (() => {
 
     const typed = String(text || '').trim();
     suggestFor = typed;
+
+    // "Find it on this page" — one journey instead of opening the menu and then
+    // the find bar. Only with a page to search, and only when what was typed is
+    // not already an address, since nobody searches a page for a URL.
+    const page = VexTabStore.active();
+    if (typed.length >= 2 && VexSearch.isSearch(typed)
+      && page && page.url && page.url !== 'about:blank' && !startVisible()) {
+      list.appendChild(suggestionRow({
+        kind: 'find', title: typed, url: '',
+        snippet: 'Find it on ' + (VexSearch.prettyHost(page.url) || 'this page')
+      }, text));
+    }
     if (typed) {
       VexSearch.remoteSuggest(typed).then(answers => {
         if (suggestFor !== typed) return;                    // you have typed on
@@ -473,11 +485,13 @@ const VexUI = (() => {
     const kind = el('span', 'kind');
     if (row.icon) kind.appendChild(el('img', { src: row.icon, alt: '' }));
     else kind.appendChild(icon(row.kind === 'search' || row.kind === 'suggest' ? 'search'
+      : row.kind === 'find' ? 'find'
       : row.kind === 'bookmark' ? 'star' : row.kind === 'recall' ? 'book' : 'history'));
     item.appendChild(kind);
     const lines = el('div', 'lines');
     const title = el('span', 't');
     if (row.kind === 'search') title.textContent = 'Search for “' + row.title + '”';
+    else if (row.kind === 'find') title.textContent = 'Find “' + row.title + '” on this page';
     else title.appendChild(highlight(row.title, text));
     lines.appendChild(title);
     // A suggestion's second line would be the search URL, which tells nobody
@@ -506,7 +520,11 @@ const VexUI = (() => {
       item.appendChild(fill);
     }
 
-    item.onclick = () => { closeOmnibox(); openUrl(row.url); };
+    item.onclick = () => {
+      closeOmnibox();
+      if (row.kind === 'find') { findOnPage(row.title); return; }
+      openUrl(row.url);
+    };
     return item;
   }
 
@@ -575,7 +593,8 @@ const VexUI = (() => {
 
     for (const tab of tabs) {
       const group = VexCollections.groups.of(tab.id);
-      const card = el('div', 'tabcard' + (tab.id === VexTabStore.activeId() ? ' active' : ''));
+      const card = el('div', 'tabcard' + (tab.id === VexTabStore.activeId() ? ' active' : '')
+        + (tab.asleep ? ' asleep' : ''));
       if (group) card.style.borderColor = group.color;
       const shot = el('div', 'tabcard-shot');
       if (tab.snapshot) shot.style.backgroundImage = 'url("' + tab.snapshot + '")';
@@ -585,6 +604,9 @@ const VexUI = (() => {
       bar.appendChild(favicon(tab, 'tabcard-icon'));
       bar.appendChild(el('span', 'tabcard-title', (group ? group.name + ' · ' : '')
         + (tab.title || VexSearch.prettyHost(tab.url) || 'New tab')));
+      // Asleep is worth saying: it explains why the card looks faded, and that
+      // nothing is lost — tapping it is instant.
+      if (tab.asleep) bar.appendChild(el('span', 'tabcard-asleep', 'asleep'));
       const close = el('button', { class: 'tabcard-x', 'aria-label': 'Close tab' });
       close.appendChild(icon('close'));
       close.onclick = async event => {
@@ -661,6 +683,18 @@ const VexUI = (() => {
     $('findbar').hidden = false;
     scheduleBounds();
     setTimeout(() => $('find-input').focus(), 40);
+  }
+
+  // Open the find bar with something already in it and the first match found —
+  // which is what "find this on the page" means, rather than opening an empty box.
+  function findOnPage(text) {
+    const needle = String(text || '').trim();
+    if (!needle) { openFind(); return; }
+    openFind();
+    const input = $('find-input');
+    input.value = needle;
+    const tab = VexTabStore.active();
+    if (tab) VexBridge.find(tab.id, needle);
   }
 
   function closeFind() {
@@ -1041,7 +1075,7 @@ const VexUI = (() => {
     applyPrivacyScreen,
     renderToolbar, renderProgress, renderTabGrid, renderTabStrip, renderSuggestions, refreshMediaBar,
     renderSpeakBar, readAloud, speakSettings,
-    openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind,
+    openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind, findOnPage,
     openUrl, newTab, copy, toggleBookmark, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage,
     offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, forgetSite,
