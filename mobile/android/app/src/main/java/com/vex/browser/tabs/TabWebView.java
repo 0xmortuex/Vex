@@ -937,8 +937,14 @@ public class TabWebView extends WebView {
         @Override
         public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
             // A link the user tapped: the hit-test already knows where it goes.
-            WebView.HitTestResult hit = view.getHitTestResult();
-            String href = hit == null ? null : hit.getExtra();
+            // Only for a tap — the hit-test keeps the last thing touched, so a
+            // script's window.open() with no gesture behind it used to open
+            // whatever link you had tapped before instead of what it asked for.
+            // And only for a plain link: on an image inside a link the hit-test's
+            // address is the picture's, not the link's, so the relay below is
+            // the way to learn where it really goes.
+            WebView.HitTestResult hit = isUserGesture ? view.getHitTestResult() : null;
+            String href = hit == null || hit.getType() != WebView.HitTestResult.SRC_ANCHOR_TYPE ? null : hit.getExtra();
             if (href != null && (href.startsWith("http://") || href.startsWith("https://"))) {
                 host.openInNewTab(href, !isUserGesture);
                 return false;
